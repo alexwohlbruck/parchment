@@ -13,7 +13,8 @@ import {
   mdiHistory,
   mdiMapMarkerMultipleOutline,
   mdiCloudOffOutline,
-  mdiAccountSupervisorCircleOutline
+  mdiAccountSupervisorCircleOutline,
+  mdiCogOutline
 } from '@mdi/js'
 
 const items = ref([
@@ -34,9 +35,9 @@ const items = ref([
         shortcut: '/'
       },
       {
-        label: 'Saved',
+        label: 'Places',
         icon: mdiBookmarkOutline,
-        shortcut: 's'
+        shortcut: 'p'
       }
     ]
   },
@@ -66,13 +67,23 @@ const items = ref([
     ]
   },
   {
+    label: 'Manage',
+    items: [
+      {
+        label: 'Settings',
+        icon: mdiCogOutline,
+        shortcut: 's'
+      }
+    ]
+  },
+  {
     separator: true
   }
 ])
 </script>
 
 <template>
-  <Menu :model="items" class="w-18rem">
+  <Menu :model="items" class="w-16rem">
     <template #start>
       <div class="flex flex-column px-3 py-2">
         <span class="text-primary font-bold text-lg">Parchment</span>

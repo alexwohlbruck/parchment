@@ -18,7 +18,7 @@
     "@jamescoyle/vue-icon": "^0.1.2",
     "@mdi/js": "^7.3.67",
     "@vueuse/core": "^10.6.1",
-    "mapbox-gl": "^2.15.0",
+    "mapbox-gl": "^3.0.0-rc.1",
     "pinia": "^2.1.7",
     "primeflex": "^3.3.1",
     "primevue": "^3.40.1",

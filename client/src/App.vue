@@ -20,9 +20,11 @@ import CommandPalette from './components/organisms/CommandPalette.vue'
 </script>
 
 <template>
-  <Map class="absolute z-0 w-full h-full p-0 m-0"></Map>
+  <Map class="absolute w-full h-full p-0 m-0"></Map>
 
-  <NavigationMenu class="absolute m-2" />
+  <div class="absolute p-2">
+    <NavigationMenu />
+  </div>
 
   <CommandPalette
     :visible="visible"

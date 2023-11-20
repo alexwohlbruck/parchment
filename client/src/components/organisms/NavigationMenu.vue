@@ -2,7 +2,6 @@
 import Menu from 'primevue/menu'
 import Avatar from 'primevue/avatar'
 import { ref } from 'vue'
-import SearchBar from '../molecules/SearchBar.vue'
 import KeyboardShorcut from '../atoms/KeyboardShorcut.vue'
 
 import SvgIcon from '@jamescoyle/vue-icon'
@@ -14,7 +13,8 @@ import {
   mdiMapMarkerMultipleOutline,
   mdiCloudOffOutline,
   mdiAccountSupervisorCircleOutline,
-  mdiCogOutline
+  mdiCogOutline,
+  mdiDirections
 } from '@mdi/js'
 
 const items = ref([
@@ -27,17 +27,20 @@ const items = ref([
       {
         label: 'Map',
         icon: mdiMapOutline,
-        shortcut: 'm'
+        shortcut: 'm',
+        route: '/map'
       },
       {
         label: 'Search',
         icon: mdiMagnify,
-        shortcut: '/'
+        shortcut: '/',
+        route: '/map/search'
       },
       {
-        label: 'Places',
-        icon: mdiBookmarkOutline,
-        shortcut: 'p'
+        label: 'Directions',
+        icon: mdiDirections,
+        shortcut: 'd',
+        route: '/map/directions'
       }
     ]
   },
@@ -45,24 +48,34 @@ const items = ref([
     label: 'Explore',
     items: [
       {
+        label: 'Places',
+        icon: mdiBookmarkOutline,
+        shortcut: 'p',
+        route: '/places'
+      },
+      {
         label: 'Timeline',
         icon: mdiHistory,
-        shortcut: 't'
+        shortcut: 't',
+        route: '/timeline'
       },
       {
         label: 'Offline maps',
         shortcut: 'o',
-        icon: mdiCloudOffOutline
+        icon: mdiCloudOffOutline,
+        route: '/offline'
       },
       {
         label: 'Custom maps',
         shortcut: 'c',
-        icon: mdiMapMarkerMultipleOutline
+        icon: mdiMapMarkerMultipleOutline,
+        route: '/custom'
       },
       {
         label: 'Location sharing',
         shortcut: 'l',
-        icon: mdiAccountSupervisorCircleOutline
+        icon: mdiAccountSupervisorCircleOutline,
+        route: '/sharing'
       }
     ]
   },
@@ -72,7 +85,8 @@ const items = ref([
       {
         label: 'Settings',
         icon: mdiCogOutline,
-        shortcut: 's'
+        shortcut: 's',
+        route: '/settings'
       }
     ]
   },
@@ -83,38 +97,44 @@ const items = ref([
 </script>
 
 <template>
-  <Menu :model="items" class="w-fit">
-    <template #start>
-      <div class="flex flex-column px-3 py-2">
-        <span class="text-primary font-bold text-lg">Parchment</span>
-      </div>
-    </template>
-    <template #submenuheader="{ item }">
-      <span class="text-primary font-bold">{{ item.label }}</span>
-    </template>
-    <template #item="{ item, props }">
-      <a v-ripple class="flex align-items-center" v-bind="props.action">
-        <svg-icon v-if="item.icon" type="mdi" :path="item.icon"></svg-icon>
-        <span class="mx-2 whitespace-nowrap">{{ item.label }}</span>
-        <Badge v-if="item.badge" class="ml-auto" :value="item.badge" />
-        <KeyboardShorcut v-if="item.shortcut" :shortcut="item.shortcut" />
-      </a>
-    </template>
-    <template #end>
-      <button
-        v-ripple
-        class="relative overflow-hidden w-full p-link flex align-items-center p-2 pl-3 text-color hover:surface-200 border-noround"
-      >
-        <Avatar
-          image="https://alex.wohlbruck.com/img/me.0e1a082e.jpg"
-          class="mr-2"
-          shape="circle"
-        />
-        <span class="inline-flex flex-column">
-          <span class="font-bold">Alex Wohlbruck</span>
-          <span class="text-sm">Admin</span>
-        </span>
-      </button>
-    </template>
-  </Menu>
+  <nav class="p-2">
+    <Menu :model="items" class="max-h-full w-fit overflow-y-auto shadow-1">
+      <template #start>
+        <div class="flex flex-column px-3 py-2">
+          <span class="text-primary font-bold text-lg">Parchment</span>
+        </div>
+      </template>
+
+      <template #submenuheader="{ item }">
+        <span class="text-primary font-bold">{{ item.label }}</span>
+      </template>
+
+      <template #item="{ item, props }">
+        <router-link v-if="item.route" v-slot="{ href, navigate }" :to="item.route" custom>
+          <a v-ripple :href="href" v-bind="props.action" @click="navigate">
+            <svg-icon v-if="item.icon" type="mdi" :path="item.icon"></svg-icon>
+            <span class="mx-2 whitespace-nowrap">{{ item.label }}</span>
+            <KeyboardShorcut v-if="item.shortcut" :shortcut="item.shortcut" />
+          </a>
+        </router-link>
+      </template>
+
+      <template #end>
+        <button
+          v-ripple
+          class="relative overflow-hidden w-full p-link flex align-items-center p-2 pl-3 text-color hover:surface-200 border-noround"
+        >
+          <Avatar
+            image="https://alex.wohlbruck.com/img/me.0e1a082e.jpg"
+            class="mr-2"
+            shape="circle"
+          />
+          <span class="inline-flex flex-column">
+            <span class="font-bold">Alex Wohlbruck</span>
+            <span class="text-sm">Admin</span>
+          </span>
+        </button>
+      </template>
+    </Menu>
+  </nav>
 </template>

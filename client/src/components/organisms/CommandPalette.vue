@@ -28,7 +28,12 @@ const query = ref('')
     modal
   >
     <template #container="{ closeCallback }">
-      <InputText class="w-full" v-model="query" size="large" placeholder="Search places..." />
+      <InputText
+        class="w-full shadow-1"
+        v-model="query"
+        size="large"
+        placeholder="Search places..."
+      />
       <Card>
         <template #content>
           <Button label="Cancel" @click="closeCallback" text></Button>

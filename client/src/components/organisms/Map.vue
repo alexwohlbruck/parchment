@@ -1,19 +1,37 @@
-<script setup lang="ts">
-import Mapbox from 'mapbox-gl'
-import { MglMap } from 'vue-mapbox'
+<template>
+  <div ref="mapContainer"></div>
+</template>
 
+<script setup>
+import { ref, onMounted, onUnmounted } from 'vue'
+import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
-let mapbox
+const mapContainer = ref(null)
+let map = null
 
-console.log(import.meta.env)
+onMounted(() => {
+  const { lng, lat, zoom, bearing, pitch } = {
+    lng: -80.8432808,
+    lat: 35.2205601,
+    bearing: 0,
+    pitch: 0,
+    zoom: 14
+  }
 
-const config = {
-  accessToken: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
-  mapStyle: 'mapbox://styles/mapbox/standard-beta'
-}
+  map = new mapboxgl.Map({
+    accessToken: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
+    container: mapContainer.value,
+    style: 'mapbox://styles/mapbox/standard-beta',
+    center: [lng, lat],
+    bearing,
+    pitch,
+    zoom
+  })
+})
+
+onUnmounted(() => {
+  map.remove()
+  map = null
+})
 </script>
-
-<template>
-  <MglMap :accessToken="config.accessToken" :mapStyle="config.mapStyle" />
-</template>

@@ -3,7 +3,6 @@
 import { ref, watch } from 'vue'
 import NavigationMenu from './components/organisms/NavigationMenu.vue'
 import { useMagicKeys } from '@vueuse/core'
-import Map from './components/organisms/Map.vue'
 
 const visible = ref(false)
 const keys = useMagicKeys()
@@ -20,10 +19,12 @@ import CommandPalette from './components/organisms/CommandPalette.vue'
 </script>
 
 <template>
-  <Map class="absolute w-full h-full p-0 m-0"></Map>
+  <div class="flex gap-2" style="height: 100dvh">
+    <NavigationMenu class="h-full" :class="{ 'absolute z-1': $route.path.includes('map') }" />
 
-  <div class="absolute p-2">
-    <NavigationMenu />
+    <main class="flex-1">
+      <RouterView />
+    </main>
   </div>
 
   <CommandPalette

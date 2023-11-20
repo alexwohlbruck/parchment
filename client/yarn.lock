@@ -3453,6 +3453,16 @@ pretty-format@^29.5.0:
     ansi-styles "^5.0.0"
     react-is "^18.0.0"
 
+primeflex@^3.3.1:
+  version "3.3.1"
+  resolved "https://artifactory.spectrumtoolbox.com/artifactory/api/npm/npm/primeflex/-/primeflex-3.3.1.tgz#361dddf6eb5db50d733e4cddd4b6e376a3d7bd68"
+  integrity sha512-zaOq3YvcOYytbAmKv3zYc+0VNS9Wg5d37dfxZnveKBFPr7vEIwfV5ydrpiouTft8MVW6qNjfkaQphHSnvgQbpQ==
+
+primevue@^3.40.1:
+  version "3.40.1"
+  resolved "https://artifactory.spectrumtoolbox.com/artifactory/api/npm/npm/primevue/-/primevue-3.40.1.tgz#228f34403b519e667e85c193da3337e8cfbd8ed1"
+  integrity sha512-TIFjoSUDiTmlxwQddaWckzcPIpj0F8a6ZMnm0tpAD/ieyUIHnNpbAi5de8LQf8eF0b+x5EkOkdjdngSlD+iPCw==
+
 process@^0.11.10:
   version "0.11.10"
   resolved "https://artifactory.spectrumtoolbox.com/artifactory/api/npm/npm/process/-/process-0.11.10.tgz#7332300e840161bda3e69a1d1d91a7d4bc16f182"
@@ -3812,6 +3822,7 @@ stream-combiner@~0.0.4:
     duplexer "~0.1.1"
 
 "string-width-cjs@npm:string-width@^4.2.0", string-width@^4.1.0, string-width@^4.2.0:
+  name string-width-cjs
   version "4.2.3"
   resolved "https://artifactory.spectrumtoolbox.com/artifactory/api/npm/npm/string-width/-/string-width-4.2.3.tgz#269c7117d27b05ad2e536830a8ec895ef9c6d010"
   integrity sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==
@@ -3830,6 +3841,7 @@ string-width@^5.0.1, string-width@^5.1.2:
     strip-ansi "^7.0.1"
 
 "strip-ansi-cjs@npm:strip-ansi@^6.0.1", strip-ansi@^6.0.0, strip-ansi@^6.0.1:
+  name strip-ansi-cjs
   version "6.0.1"
   resolved "https://artifactory.spectrumtoolbox.com/artifactory/api/npm/npm/strip-ansi/-/strip-ansi-6.0.1.tgz#9e26c63d30f53443e9489495b2105d37b67a85d9"
   integrity sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A==
@@ -4290,6 +4302,7 @@ why-is-node-running@^2.2.2:
     stackback "0.0.2"
 
 "wrap-ansi-cjs@npm:wrap-ansi@^7.0.0", wrap-ansi@^7.0.0:
+  name wrap-ansi-cjs
   version "7.0.0"
   resolved "https://artifactory.spectrumtoolbox.com/artifactory/api/npm/npm/wrap-ansi/-/wrap-ansi-7.0.0.tgz#67e145cff510a6a6984bdf1152911d69d2eb9e43"
   integrity sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==

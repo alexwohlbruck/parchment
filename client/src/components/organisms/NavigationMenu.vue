@@ -83,7 +83,7 @@ const items = ref([
 </script>
 
 <template>
-  <Menu :model="items" class="w-16rem">
+  <Menu :model="items" class="w-fit">
     <template #start>
       <div class="flex flex-column px-3 py-2">
         <span class="text-primary font-bold text-lg">Parchment</span>
@@ -95,7 +95,7 @@ const items = ref([
     <template #item="{ item, props }">
       <a v-ripple class="flex align-items-center" v-bind="props.action">
         <svg-icon v-if="item.icon" type="mdi" :path="item.icon"></svg-icon>
-        <span class="ml-2">{{ item.label }}</span>
+        <span class="mx-2 whitespace-nowrap">{{ item.label }}</span>
         <Badge v-if="item.badge" class="ml-auto" :value="item.badge" />
         <KeyboardShorcut v-if="item.shortcut" :shortcut="item.shortcut" />
       </a>

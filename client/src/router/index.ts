@@ -7,8 +7,21 @@ const router = createRouter({
     {
       path: '/map',
       name: 'map',
-      component: MapView
+      component: MapView,
+      children: [
+        {
+          path: 'search',
+          name: 'search',
+          component: () => import('../views/SearchView.vue')
+        },
+        {
+          path: 'place',
+          name: 'place',
+          component: () => import('../views/PlaceView.vue')
+        }
+      ]
     },
+
     {
       path: '/settings',
       name: 'settings',

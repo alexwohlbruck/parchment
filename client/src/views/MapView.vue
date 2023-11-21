@@ -3,7 +3,7 @@ import Map from '../components/organisms/Map.vue'
 </script>
 
 <template>
-  <div class="col w-full h-full p-0">
+  <div class="column w-full h-full p-0">
     <router-view class="z-2" />
     <Map class="absolute w-full h-full top-0 left-0" style="z-index: 1"></Map>
   </div>

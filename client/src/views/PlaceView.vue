@@ -9,7 +9,7 @@ const rating = 4.5
 </script>
 
 <template>
-  <Card class="w-25rem overflow-hidden">
+  <Card class="w-25rem overflow-hidden shadow-1">
     <template #header>
       <img
         alt="user header"
@@ -20,7 +20,7 @@ const rating = 4.5
     <template #title>Sabor Latin Street Grill</template>
     <template #subtitle> Latin American, Mexican </template>
     <template #content>
-      <div class="col gap-3 p-0">
+      <div class="column gap-3 p-0">
         <Rating v-model="rating" readonly :cancel="false" />
         <span><span class="text-primary font-bold">Open</span> 11:00 AM - 10:00 PM</span>
 

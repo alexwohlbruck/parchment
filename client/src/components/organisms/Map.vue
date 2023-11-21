@@ -4,6 +4,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   Map,
   NavigationControl,
@@ -18,6 +19,8 @@ import {
   LngLat
 } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
+
+const router = useRouter()
 
 const mapContainer = ref(null)
 let map = null
@@ -71,13 +74,17 @@ onMounted(() => {
 
     const feature = features[0]
 
-    const popup = new Popup({
-      closeButton: false,
-      closeOnClick: false
-    })
-      .setLngLat(feature.geometry.coordinates)
-      .setHTML(feature.properties.name)
-      .addTo(map)
+    // drop marker pin
+    const marker = new Marker().setLngLat(feature.geometry.coordinates).addTo(map)
+    router.push('/map/place')
+
+    // const popup = new Popup({
+    //   closeButton: false,
+    //   closeOnClick: false
+    // })
+    //   .setLngLat(feature.geometry.coordinates)
+    //   .setHTML(feature.properties.name)
+    //   .addTo(map)
   })
 })
 

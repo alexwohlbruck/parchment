@@ -1,4 +1,4 @@
-.col {
+.column {
   display: flex;
   flex-direction: column;
 }

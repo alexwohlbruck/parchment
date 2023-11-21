@@ -6,16 +6,72 @@ import { useMagicKeys } from '@vueuse/core'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
-
-const visible = ref(false)
 const keys = useMagicKeys()
-const CmdK = keys['/']
 
-watch(CmdK, (v) => {
-  if (v) {
-    router.push('/map/search')
+const commands = [
+  {
+    keys: 'm',
+    action: () => {
+      router.push('/map')
+    }
+  },
+  {
+    keys: ['/', 'Meta+k'],
+    action: () => {
+      router.push('/map/search')
+    }
+  },
+  {
+    keys: 'd',
+    action: () => {
+      router.push('/map/directions')
+    }
+  },
+  {
+    keys: 'p',
+    action: () => {
+      router.push('/places')
+    }
+  },
+  {
+    keys: 't',
+    action: () => {
+      router.push('/timeline')
+    }
+  },
+  {
+    keys: 'o',
+    action: () => {
+      router.push('/offline')
+    }
+  },
+  {
+    keys: 'c',
+    action: () => {
+      router.push('/custom')
+    }
+  },
+  {
+    keys: 's',
+    action: () => {
+      router.push('/settings')
+    }
   }
-})
+]
+
+for (const command of commands) {
+  for (const key of command.keys) {
+    // attach key binding to command
+    const binding = keys[key]
+    if (binding) {
+      watch(binding, (value) => {
+        if (value) {
+          command.action()
+        }
+      })
+    }
+  }
+}
 </script>
 
 <template>

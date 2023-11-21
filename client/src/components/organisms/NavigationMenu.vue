@@ -100,7 +100,7 @@ const items = ref([
   <nav>
     <Menu :model="items" class="max-h-full w-fit overflow-y-auto shadow-1">
       <template #start>
-        <div class="flex flex-column px-3 py-2">
+        <div class="col px-3 py-2">
           <span class="text-primary font-bold text-lg">Parchment</span>
         </div>
       </template>
@@ -129,7 +129,7 @@ const items = ref([
             class="mr-2"
             shape="circle"
           />
-          <span class="inline-flex flex-column">
+          <span class="inline-col">
             <span class="font-bold">Alex Wohlbruck</span>
             <span class="text-sm">Admin</span>
           </span>

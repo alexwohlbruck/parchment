@@ -97,7 +97,7 @@ const items = ref([
 </script>
 
 <template>
-  <nav class="p-2">
+  <nav>
     <Menu :model="items" class="max-h-full w-fit overflow-y-auto shadow-1">
       <template #start>
         <div class="flex flex-column px-3 py-2">
@@ -110,10 +110,10 @@ const items = ref([
       </template>
 
       <template #item="{ item, props }">
-        <router-link v-if="item.route" v-slot="{ href, navigate }" :to="item.route" custom>
-          <a v-ripple :href="href" v-bind="props.action" @click="navigate">
-            <svg-icon v-if="item.icon" type="mdi" :path="item.icon"></svg-icon>
-            <span class="mx-2 whitespace-nowrap">{{ item.label }}</span>
+        <router-link v-slot="{ href, navigate }" :to="item.route" custom>
+          <a v-ripple :href="href" v-bind="props.action" @click="navigate" class="flex gap-2">
+            <svg-icon type="mdi" :path="item.icon"></svg-icon>
+            <span class="whitespace-nowrap">{{ item.label }}</span>
             <KeyboardShorcut v-if="item.shortcut" :shortcut="item.shortcut" />
           </a>
         </router-link>

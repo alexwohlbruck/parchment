@@ -72,10 +72,10 @@ const items = ref([
         route: '/custom'
       },
       {
-        label: 'Location sharing',
+        label: 'People',
         shortcut: 'l',
         icon: mdiAccountSupervisorCircleOutline,
-        route: '/sharing'
+        route: '/people'
       }
     ]
   },

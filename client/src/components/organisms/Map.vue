@@ -41,8 +41,8 @@ onMounted(() => {
     accessToken: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
     container: mapContainer.value,
     // style: 'mapbox://styles/mapbox/standard-beta',
-    // style: 'mapbox://styles/mapbox/streets-v12',
-    style: 'mapbox://styles/mapbox/light-v11',
+    style: 'mapbox://styles/mapbox/streets-v12',
+    // style: 'mapbox://styles/mapbox/light-v11',
     center: [lng, lat],
     bearing,
     pitch,
@@ -50,6 +50,7 @@ onMounted(() => {
     attributionControl: false
   })
 
+  // Transit map
   map.on('style.load', () => {
     // Add Transitland source
     map.addSource('routes', {
@@ -74,7 +75,7 @@ onMounted(() => {
         'text-offset': [0, 1] // adjust the text offset if needed,
       },
       paint: {
-        'line-width': 2.0,
+        'line-width': 3.0,
         'line-color': [
           'match',
           ['get', 'route_type'],
@@ -153,6 +154,16 @@ onMounted(() => {
         'circle-stroke-width': 1
       }
     })
+
+    const layers = map.getStyle().layers
+    const textLayerId = layers.find(
+      (layer) => layer.type === 'symbol' && layer.layout['text-field']
+    ).id
+
+    if (textLayerId) {
+      map.moveLayer('routes', textLayerId)
+      map.moveLayer('stops', textLayerId)
+    }
   })
 
   map.addControl(new NavigationControl(), 'top-right')

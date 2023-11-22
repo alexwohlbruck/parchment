@@ -9,7 +9,7 @@ const rating = 4.5
 </script>
 
 <template>
-  <Card class="w-25rem overflow-hidden shadow-1">
+  <Card class="w-25rem overflow-y-auto shadow-1">
     <template #header>
       <img
         alt="user header"

@@ -20,6 +20,8 @@ import {
 } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
+import geojson from '../../assets/charlotte.json'
+
 const router = useRouter()
 
 const mapContainer = ref(null)
@@ -29,6 +31,8 @@ onMounted(() => {
   const { lng, lat, zoom, bearing, pitch } = {
     lng: -80.8432808,
     lat: 35.2205601,
+    // lng: -80.8554449,
+    // lat: 35.0550111,
     bearing: 0,
     pitch: 0,
     zoom: 14
@@ -40,8 +44,8 @@ onMounted(() => {
   map = new Map({
     accessToken: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
     container: mapContainer.value,
-    // style: 'mapbox://styles/mapbox/standard-beta',
-    style: 'mapbox://styles/mapbox/streets-v12',
+    style: 'mapbox://styles/mapbox/standard-beta',
+    // style: 'mapbox://styles/mapbox/streets-v12',
     // style: 'mapbox://styles/mapbox/light-v11',
     center: [lng, lat],
     bearing,
@@ -55,26 +59,164 @@ onMounted(() => {
   map.addControl(new AttributionControl(), 'bottom-right')
   map.addControl(new ScaleControl(), 'bottom-right')
 
-  // Transit map
+  map.on('zoom', () => {
+    console.log('zoom', map.getZoom())
+  })
+
   map.on('style.load', () => {
     console.log(map)
 
-    map.addSource('cycleosm', {
-      type: 'raster',
-      tiles: ['https://a.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '<a href="https://www.opencyclemap.org/">© OpenCycleMap</a>'
+    // // CyclOSM
+    // map.addSource('cycleosm', {
+    //   type: 'raster',
+    //   tiles: ['https://a.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png'],
+    //   tileSize: 256,
+    //   attribution: '<a href="https://www.opencyclemap.org/">© OpenCycleMap</a>'
+    // })
+
+    // map.addLayer({
+    //   id: 'cycleosm-layer',
+    //   type: 'raster',
+    //   source: 'cycleosm',
+    //   minzoom: 0,
+    //   maxzoom: 22
+    // })
+
+    ///////
+
+    // MapTiler vector cycle paths
+    //https://api.maptiler.com/maps/6c3893ea-7a3b-4ece-bddf-fb11520ac347/style.json?key=UBdoOia18CaufO2hbWyZ
+    // map.addSource('cycle-paths', {
+    //   type: 'vector',
+    //   tiles: [
+    //     'https://api.maptiler.com/maps/6c3893ea-7a3b-4ece-bddf-fb11520ac347/tiles/{z}/{x}/{y}.pbf?key=UBdoOia18CaufO2hbWyZ'
+    //   ],
+    //   minzoom: 0,
+    //   maxzoom: 22
+    // })
+
+    // map.addLayer({
+    //   id: 'cycle-paths',
+    //   type: 'line',
+    //   source: 'cycle-paths',
+    //   'source-layer': 'roads',
+    //   filter: ['==', 'class', 'path'],
+    //   paint: {
+    //     'line-color': cyclewayColor,
+    //     'line-width': cyclePathWidth
+    //   },
+    //   minzoom: 10
+    // })
+
+    ///////////
+
+    // Show cycle paths from mapbox streets
+
+    const cyclewayColor = '#66cb6e'
+    const cyclePathWidth = 4
+    const cycleLaneWidth = 3
+
+    // Create zoom-dependent offset for cycle lanes
+    // Smaller value for lower
+    // Interpolate cycleLaneOffsetRight, cycleLaneOffsetLeft based on zoom level
+    // Keep the cycle lanes on the sides of the road
+    // Use cycleLaneOffsetFactor to adjust the offset
+    const cycleLaneOffsetFactor = 8
+
+    // get larger with higher zoom
+    const cycleLaneOffsetRight = [
+      'interpolate',
+      ['linear'],
+      ['zoom'],
+      0,
+      0,
+      22,
+      ['/', ['zoom'], cycleLaneOffsetFactor]
+    ]
+
+    const cycleLaneDashArray = [2, 2]
+
+    // Show OSM cycle paths and cycle/foot paths
+    // map.addLayer({
+    //   id: 'cycle-paths',
+    //   type: 'line',
+    //   source: 'composite',
+    //   'source-layer': 'road',
+    //   // filter class path, type cycleway
+    //   filter: ['all', ['==', 'class', 'path'], ['==', 'type', 'cycleway']],
+    //   paint: {
+    //     'line-color': cyclewayColor,
+    //     'line-width': cyclePathWidth
+    //   },
+    //   minzoom: 10
+    // })
+
+    // Set source layer road to always show cycle lanes no matter the zoom level
+
+    // map.addLayer({
+    //   id: 'bike-lanes-right',
+    //   type: 'line',
+    //   source: 'composite',
+    //   'source-layer': 'road',
+    //   filter: ['==', 'bike_lane', 'right'],
+    //   paint: {
+    //     'line-color': cyclewayColor,
+    //     'line-width': cycleLaneWidth,
+    //     'line-offset': cycleLaneOffsetRight,
+    //     'line-dasharray': cycleLaneDashArray
+    //   }
+    // })
+    // map.addLayer({
+    //   id: 'bike-lanes-left',
+    //   type: 'line',
+    //   source: 'composite',
+    //   'source-layer': 'road',
+    //   filter: ['==', 'bike_lane', 'left'],
+    //   paint: {
+    //     'line-color': cyclewayColor,
+    //     'line-width': cycleLaneWidth,
+    //     'line-offset': cycleLaneOffsetLeft,
+    //     'line-dasharray': cycleLaneDashArray
+    //   }
+    // })
+    // map.addLayer({
+    //   id: 'bike-lanes-both',
+    //   type: 'line',
+    //   source: 'composite',
+    //   'source-layer': 'road',
+    //   filter: ['==', 'bike_lane', 'both'],
+    //   paint: {
+    //     'line-color': cyclewayColor,
+    //     'line-width': cycleLaneWidth,
+    //     'line-dasharray': cycleLaneDashArray
+    //     // TODO: Add two lines, one on each side of the road.
+    //   }
+    // })
+
+    console.log(map)
+
+    ////////
+
+    console.log(geojson)
+
+    // Add transit geojson from local file
+    map.addSource('geojson-source', {
+      type: 'geojson',
+      data: geojson
     })
 
     map.addLayer({
-      id: 'cycleosm-layer',
-      type: 'raster',
-      source: 'cycleosm',
-      minzoom: 0,
-      maxzoom: 22
+      id: 'geojson-layer',
+      type: 'line',
+      source: 'geojson-source',
+      layout: {},
+      paint: {
+        'fill-color': '#088',
+        'fill-opacity': 0.8
+      }
     })
 
-    // Add Transitland source
+    // // Add Transitland source
     // map.addSource('routes', {
     //   type: 'vector',
     //   tiles: [
@@ -87,6 +229,7 @@ onMounted(() => {
     //   id: 'routes',
     //   type: 'line',
     //   source: 'routes',
+    //   slot: 'middle',
     //   'source-layer': 'routes',
     //   layout: {
     //     'line-cap': 'round',
@@ -133,7 +276,7 @@ onMounted(() => {
     //       2, // Rail
     //       1,
     //       3, // Bus
-    //       0,
+    //       1,
     //       4, // Ferry
     //       1,
     //       5, // Cable tram

@@ -4,17 +4,6 @@ import { ref, watch } from "vue";
 
 import Sidebar from "./components/Sidebar.vue";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import {
   CommandDialog,
   CommandEmpty,
   CommandGroup,
@@ -39,8 +28,14 @@ watch(CmdK, (v) => {
 </script>
 
 <template>
-  <div class="flex">
-    <Sidebar></Sidebar>
+  <div class="flex h-dvh gap-2">
+    <div class="flex flex-col justify-center">
+      <Sidebar class="z-20" />
+    </div>
+
+    <main class="flex-1">
+      <RouterView />
+    </main>
   </div>
 
   <CommandDialog :open="open" :on-open-change="handleOpenChange">
@@ -60,21 +55,4 @@ watch(CmdK, (v) => {
       </CommandGroup>
     </CommandList>
   </CommandDialog>
-
-  <AlertDialog>
-    <AlertDialogTrigger>Open</AlertDialogTrigger>
-    <AlertDialogContent>
-      <AlertDialogHeader>
-        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-        <AlertDialogDescription>
-          This action cannot be undone. This will permanently delete your
-          account and remove your data from our servers.
-        </AlertDialogDescription>
-      </AlertDialogHeader>
-      <AlertDialogFooter>
-        <AlertDialogCancel>Cancel</AlertDialogCancel>
-        <AlertDialogAction>Continue</AlertDialogAction>
-      </AlertDialogFooter>
-    </AlertDialogContent>
-  </AlertDialog>
 </template>

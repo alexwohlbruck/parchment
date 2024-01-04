@@ -137,7 +137,10 @@ window.addEventListener("keydown", (e) => {
 <template>
   <div
     :class="
-      cn('m-2 py-2 shadow-md flex flex-col gap-2 rounded', $attrs.class ?? '')
+      cn(
+        'bg-white max-h-full overflow-y-auto m-2 py-2 shadow-md flex flex-col gap-2 rounded',
+        $attrs.class ?? ''
+      )
     "
   >
     <h2 class="px-4 text-lg font-semibold">

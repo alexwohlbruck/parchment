@@ -205,13 +205,15 @@ onMounted(() => {
       data: geojson
     })
 
+    // Add bus lines from GTFS
     map.addLayer({
       id: 'geojson-layer',
       type: 'line',
       source: 'geojson-source',
       layout: {},
       paint: {
-        'fill-color': '#088',
+        // fill color of the line
+        'fill-color': ['get', 'color'],
         'fill-opacity': 0.8
       }
     })

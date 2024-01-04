@@ -113,19 +113,19 @@ const items = ref([
 const keys = useMagicKeys();
 
 // For each item, add a keyboard shortcut listener
-items.value.forEach((item) => {
-  item.items?.forEach((subitem) => {
-    const shortcut = subitem.shortcut;
-    const route = subitem.route;
-    const key = keys[`Cmd+${shortcut}`];
+// items.value.forEach((item) => {
+//   item.items?.forEach((subitem) => {
+//     const shortcut = subitem.shortcut;
+//     const route = subitem.route;
+//     const key = keys[`Cmd+${shortcut}`];
 
-    watch(key, (v) => {
-      if (v) {
-        router.push(route);
-      }
-    });
-  });
-});
+//     watch(key, (v) => {
+//       if (v) {
+//         router.push(route);
+//       }
+//     });
+//   });
+// });
 
 window.addEventListener("keydown", (e) => {
   if (e.key === "m") {

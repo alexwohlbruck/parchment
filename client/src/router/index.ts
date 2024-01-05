@@ -1,23 +1,34 @@
 import { createRouter, createWebHistory } from "vue-router";
 import Map from "../views/Map.vue";
+
 const routes = [
   {
-    path: "/",
+    path: "/map",
     name: "Map",
     component: Map,
+    children: [
+      {
+        path: "search",
+        name: "Search",
+        component: () => import("../views/Search.vue"),
+      },
+      {
+        path: "place",
+        name: "Place",
+        component: () => import("../views/Place.vue"),
+      },
+    ],
   },
-  // {
-  //   path: "/about",
-  //   name: "About",
-  //   // route level code-splitting
-  //   // this generates a separate chunk (about.[hash].js) for this route
-  //   // which is lazy-loaded when the route is visited.
-  //   component: () =>
-  //     import(/* webpackChunkName: "about" */ "../views/About.vue"),
-  // },
+  {
+    path: "/settings",
+    name: "settings",
+    component: () => import("../views/Settings.vue"),
+  },
 ];
+
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes,
 });
+
 export default router;

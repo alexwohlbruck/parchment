@@ -66,6 +66,26 @@ onMounted(() => {
   map.on('style.load', () => {
     console.log(map)
 
+    // https://transitapp-data.com/tile/android/transit/tile-262-381.tile
+
+    // map.addSource('custom-tile-source', {
+    //   type: 'vector',
+    //   tiles: ['https://transitapp-data.com/tile/android/transit/tile-{x}-{y}.tile'],
+    //   tileSize: 256
+    // })
+
+    // // Add a layer using the custom tile source
+    // map.addLayer({
+    //   id: 'custom-tile-layer',
+    //   type: 'line',
+    //   source: 'custom-tile-source',
+    //   'source-layer': 'your-source-layer', // Replace with the actual source layer name from your vector tiles
+    //   paint: {
+    //     'fill-color': 'rgba(255, 0, 0, 0.5)', // Replace with your desired fill color
+    //     'fill-outline-color': 'rgba(255, 0, 0, 1)' // Replace with your desired outline color
+    //   }
+    // })
+
     // // CyclOSM
     // map.addSource('cycleosm', {
     //   type: 'raster',
@@ -199,104 +219,104 @@ onMounted(() => {
 
     console.log(geojson)
 
-    // Add transit geojson from local file
-    map.addSource('geojson-source', {
-      type: 'geojson',
-      data: geojson
-    })
-
-    // Add bus lines from GTFS
-    map.addLayer({
-      id: 'geojson-layer',
-      type: 'line',
-      source: 'geojson-source',
-      layout: {},
-      paint: {
-        // fill color of the line
-        'fill-color': ['get', 'color'],
-        'fill-opacity': 0.8
-      }
-    })
-
-    // // Add Transitland source
-    // map.addSource('routes', {
-    //   type: 'vector',
-    //   tiles: [
-    //     `https://transit.land/api/v2/tiles/routes/tiles/{z}/{x}/{y}.pbf?apikey=${transitlandApiKey}`
-    //   ],
-    //   maxzoom: 14
+    // // Add transit geojson from local file
+    // map.addSource('geojson-source', {
+    //   type: 'geojson',
+    //   data: geojson
     // })
 
+    // // Add bus lines from GTFS
     // map.addLayer({
-    //   id: 'routes',
+    //   id: 'geojson-layer',
     //   type: 'line',
-    //   source: 'routes',
-    //   slot: 'middle',
-    //   'source-layer': 'routes',
-    //   layout: {
-    //     'line-cap': 'round',
-    //     'line-join': 'round',
-    //     'symbol-placement': 'line',
-    //     'text-field': ['get', 'route_long_name'], // use the route_name property for the text
-    //     'text-size': 12,
-    //     'text-offset': [0, 1] // adjust the text offset if needed,
-    //   },
+    //   source: 'geojson-source',
+    //   layout: {},
     //   paint: {
-    //     'line-width': 2.0,
-    //     'line-color': [
-    //       'match',
-    //       ['get', 'route_type'],
-    //       0, // Tram, streetcar, light rail
-    //       ['coalesce', ['get', 'route_color'], 'blue'],
-    //       1, // Subway, metro
-    //       ['coalesce', ['get', 'route_color'], 'blue'],
-    //       2, // Rail
-    //       'red', // amtrak
-    //       3, // Bus
-    //       ['coalesce', ['get', 'route_color'], 'lightblue'], // busses
-    //       4, // Ferry
-    //       'blue',
-    //       5, // Cable tram
-    //       'purple',
-    //       6, // Aerial lift, suspended cable car
-    //       'pink',
-    //       7, // Funicular
-    //       'brown',
-    //       11, // Trolleybus
-    //       'black',
-    //       12, // Monorail
-    //       'red',
-    //       'grey' // default
-    //     ],
-    //     'line-opacity': [
-    //       'match',
-    //       ['get', 'route_type'],
-    //       0, // Tram, streetcar, light rail
-    //       1,
-    //       1, // Subway, metro
-    //       1,
-    //       2, // Rail
-    //       1,
-    //       3, // Bus
-    //       1,
-    //       4, // Ferry
-    //       1,
-    //       5, // Cable tram
-    //       1,
-    //       6, // Aerial lift, suspended cable car
-    //       1,
-    //       7, // Funicular
-    //       1,
-    //       11, // Trolleybus
-    //       1,
-    //       12, // Monorail
-    //       1,
-    //       0
-    //     ]
-    //     // 'line-blur': 1
-    //     // 'line-offset': 1
+    //     // fill color of the line
+    //     'fill-color': ['get', 'color'],
+    //     'fill-opacity': 0.8
     //   }
     // })
+
+    // Add Transitland source
+    map.addSource('routes', {
+      type: 'vector',
+      tiles: [
+        `https://transit.land/api/v2/tiles/routes/tiles/{z}/{x}/{y}.pbf?apikey=${transitlandApiKey}`
+      ],
+      maxzoom: 14
+    })
+
+    map.addLayer({
+      id: 'routes',
+      type: 'line',
+      source: 'routes',
+      slot: 'middle',
+      'source-layer': 'routes',
+      layout: {
+        'line-cap': 'round',
+        'line-join': 'round',
+        'symbol-placement': 'line',
+        'text-field': ['get', 'route_long_name'], // use the route_name property for the text
+        'text-size': 12,
+        'text-offset': [0, 1] // adjust the text offset if needed,
+      },
+      paint: {
+        'line-width': 2.0,
+        'line-color': [
+          'match',
+          ['get', 'route_type'],
+          0, // Tram, streetcar, light rail
+          ['coalesce', ['get', 'route_color'], 'blue'],
+          1, // Subway, metro
+          ['coalesce', ['get', 'route_color'], 'blue'],
+          2, // Rail
+          'red', // amtrak
+          3, // Bus
+          ['coalesce', ['get', 'route_color'], 'lightblue'], // busses
+          4, // Ferry
+          'blue',
+          5, // Cable tram
+          'purple',
+          6, // Aerial lift, suspended cable car
+          'pink',
+          7, // Funicular
+          'brown',
+          11, // Trolleybus
+          'black',
+          12, // Monorail
+          'red',
+          'grey' // default
+        ],
+        'line-opacity': [
+          'match',
+          ['get', 'route_type'],
+          0, // Tram, streetcar, light rail
+          1,
+          1, // Subway, metro
+          1,
+          2, // Rail
+          1,
+          3, // Bus
+          1,
+          4, // Ferry
+          1,
+          5, // Cable tram
+          1,
+          6, // Aerial lift, suspended cable car
+          1,
+          7, // Funicular
+          1,
+          11, // Trolleybus
+          1,
+          12, // Monorail
+          1,
+          0
+        ]
+        // 'line-blur': 1
+        // 'line-offset': 1
+      }
+    })
 
     // // Show stops from transitland
     // map.addSource('stops', {

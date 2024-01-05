@@ -156,6 +156,7 @@ window.addEventListener("keydown", (e) => {
             :key="subitem.label"
             variant="ghost"
             :class="mini ? 'flex px-2' : 'w-full flex justify-start gap-2 px-3'"
+            :to="subitem.route"
           >
             <Icon v-if="mini" :path="subitem.icon"></Icon>
 

@@ -15,18 +15,25 @@ import {
 import Icon from "./ui/icon/Icon.vue";
 import { mdiMapMarkerOutline } from "@mdi/js";
 
-const open = ref(false);
+defineProps({
+  open: {
+    type: Boolean,
+    default: false,
+  },
+});
 
-const keys = useMagicKeys();
-const CmdK = keys["Cmd+K"];
+// const open = ref(false);
+
+// const keys = useMagicKeys();
+// const CmdK = keys["Cmd+K"];
 
 function handleOpenChange() {
-  open.value = !open.value;
+  // TODO:
 }
 
-watch(CmdK, (v) => {
-  if (v) handleOpenChange();
-});
+// watch(CmdK, (v) => {
+//   if (v) handleOpenChange();
+// });
 
 // Some example place results for the map search results. Schema is tentative, subject to change
 const places = [

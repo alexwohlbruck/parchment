@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useMagicKeys } from "@vueuse/core";
 import { ref, watch } from "vue";
-import Palette from "./components/Palette.vue";
 
 import Sidebar from "./components/Sidebar.vue";
 </script>
@@ -16,6 +15,4 @@ import Sidebar from "./components/Sidebar.vue";
       <RouterView />
     </main>
   </div>
-
-  <Palette />
 </template>

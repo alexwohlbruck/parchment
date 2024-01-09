@@ -1,7 +1,4 @@
 <script setup lang="ts">
-import { useMagicKeys } from "@vueuse/core";
-import { ref, watch } from "vue";
-
 import Nav from "./components/Nav.vue";
 </script>
 

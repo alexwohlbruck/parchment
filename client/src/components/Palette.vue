@@ -13,9 +13,6 @@ import {
 } from "@/components/ui/command";
 import { MapPinIcon } from "lucide-vue-next";
 
-import Icon from "./ui/icon/Icon.vue";
-import { mdiMapMarkerOutline } from "@mdi/js";
-
 // const emit = defineEmits(["open-change"]);
 
 // const props = defineProps({
@@ -31,9 +28,9 @@ const showResults = ref(false);
 const keys = useMagicKeys();
 const CmdJ = keys["Cmd+J"];
 
-function test(val: any) {
-  console.log("on-open-change", val);
-}
+// function test(val: any) {
+//   console.log("on-open-change", val);
+// }
 
 function handleOpenChange() {
   // alert(props.open);

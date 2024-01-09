@@ -1,6 +1,13 @@
 {
   "cSpell.words": [
-    "primevue"
+    "alexwohlbruck",
+    "lucide",
+    "morev",
+    "primevue",
+    "vueuse"
   ],
-  "search.followSymlinks": false
+  "search.followSymlinks": false,
+  "cSpell.ignoreWords": [
+    "rchment"
+  ]
 }

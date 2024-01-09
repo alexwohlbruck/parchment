@@ -1,21 +1,12 @@
-import { fileURLToPath, URL } from 'node:url'
+import path from "path";
+import vue from "@vitejs/plugin-vue";
+import { defineConfig } from "vite";
 
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import vueJsx from '@vitejs/plugin-vue-jsx'
-
-// https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [vue(), vueJsx()],
+  plugins: [vue()],
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
-    }
+      "@": path.resolve(__dirname, "./src"),
+    },
   },
-  server: {
-    port: 3000
-  },
-  optimizeDeps: {
-    include: ['map-promisified']
-  }
-})
+});

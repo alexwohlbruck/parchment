@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/popover";
 
 import LayersSelector from "@/components/LayersSelector.vue";
-import { useMagicKeys } from "@vueuse/core";
+// import { useMagicKeys } from "@vueuse/core";
 import { useRouter } from "vue-router";
 
 import Kbd from "@/components/ui/kbd/Kbd.vue";
@@ -153,7 +153,7 @@ const items = ref([
       <Separator v-if="item.separator" />
       <div v-else>
         <div class="flex flex-col px-1">
-          <template v-for="(subitem, j) in item.items" :key="j">
+          <template v-for="subitem in item.items">
             <Button
               v-if="subitem.to"
               variant="ghost"
@@ -186,7 +186,7 @@ const items = ref([
 
             <Popover v-if="subitem.popover">
               <PopoverTrigger as-child>
-                <Button variant="ghost" class="w-full flex px-3 gap-3">
+                <Button to="" variant="ghost" class="w-full flex px-3 gap-3">
                   <component :is="subitem.icon" class="size-5" />
 
                   <transition-expand axis="x" :duration="50" easing="ease-out">

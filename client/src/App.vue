@@ -2,13 +2,13 @@
 import { useMagicKeys } from "@vueuse/core";
 import { ref, watch } from "vue";
 
-import Sidebar from "./components/Sidebar.vue";
+import Nav from "./components/Nav.vue";
 </script>
 
 <template>
   <div class="flex h-dvh gap-2">
     <div class="flex flex-col justify-center">
-      <Sidebar class="z-20" />
+      <Nav class="z-20" />
     </div>
 
     <main class="flex-1">

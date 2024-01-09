@@ -11,6 +11,7 @@
   "dependencies": {
     "@jamescoyle/vue-icon": "^0.1.2",
     "@mdi/js": "^7.4.47",
+    "@morev/vue-transitions": "^2.3.6",
     "@vueuse/core": "^10.7.1",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",

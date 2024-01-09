@@ -18,7 +18,6 @@ import {
   LngLatBounds,
   LngLat,
 } from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
 
 const router = useRouter();
 
@@ -46,10 +45,15 @@ onMounted(() => {
     attributionControl: false,
   });
 
-  map.addControl(new NavigationControl(), "top-right");
-  map.addControl(new GeolocateControl(), "top-right");
-  map.addControl(new AttributionControl(), "bottom-right");
   map.addControl(new ScaleControl(), "bottom-right");
+  map.addControl(new NavigationControl(), "bottom-right");
+  map.addControl(new GeolocateControl(), "bottom-right");
+  map.addControl(
+    new AttributionControl({
+      compact: true,
+    }),
+    "bottom-left"
+  );
 });
 
 onUnmounted(() => {

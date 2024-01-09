@@ -3,18 +3,13 @@ import Map from "../views/Map.vue";
 
 const routes = [
   {
-    path: "/map",
-    name: "Map",
+    path: "/",
+    name: "map",
     component: Map,
     children: [
       {
-        path: "search",
-        name: "Search",
-        component: () => import("../views/Search.vue"),
-      },
-      {
         path: "place",
-        name: "Place",
+        name: "place",
         component: () => import("../views/Place.vue"),
       },
     ],

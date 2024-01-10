@@ -32,7 +32,7 @@ import { ref } from "vue";
 const router = useRouter();
 const mini = ref(true);
 
-const items = [
+const items = ref([
   {
     separator: true,
   },
@@ -61,7 +61,7 @@ const items = [
         label: "Places",
         icon: BookMarkedIcon,
         shortcut: "p",
-        to: "/places",
+        to: "/place",
       },
       {
         label: "Timeline",
@@ -105,13 +105,17 @@ const items = [
         icon: Layers3Icon,
         shortcut: "l",
         popover: LayersSelector,
+        // TODO: Fix this
+        // condition: router.currentRoute.value.matched.some(
+        //   (route) => route.name === "map"
+        // ),
       },
     ],
   },
   {
     separator: true,
   },
-];
+]);
 
 // const keys = useMagicKeys();
 
@@ -167,6 +171,7 @@ function popoverOpened(open: boolean) {
       <div v-else>
         <div class="flex flex-col px-1">
           <template v-for="subitem in item.items">
+            <!-- v-if="subitem.to && (subitem.condition ?? true)" -->
             <Button
               v-if="subitem.to"
               variant="ghost"

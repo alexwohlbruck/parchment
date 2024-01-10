@@ -3,7 +3,7 @@ import Nav from "@/components/navigation/Navigation.vue";
 </script>
 
 <template>
-  <div class="flex h-dvh gap-2">
+  <div class="flex h-dvh">
     <div class="flex flex-col justify-center">
       <Nav class="z-20" />
     </div>

@@ -8,7 +8,7 @@ const routes = [
     component: Map,
     children: [
       {
-        path: "place",
+        path: "/place",
         name: "place",
         component: () => import("../views/Place.vue"),
       },
@@ -17,7 +17,25 @@ const routes = [
   {
     path: "/settings",
     name: "settings",
-    component: () => import("../views/Settings.vue"),
+    component: () => import("../views/settings/Settings.vue"),
+    redirect: "/settings/behavior",
+    children: [
+      {
+        path: "/settings/account",
+        name: "account",
+        component: () => import("../views/settings/Account.vue"),
+      },
+      {
+        path: "/settings/behavior",
+        name: "behavior",
+        component: () => import("../views/settings/Behavior.vue"),
+      },
+      {
+        path: "/settings/appearance",
+        name: "appearance",
+        component: () => import("../views/settings/Appearance.vue"),
+      },
+    ],
   },
 ];
 

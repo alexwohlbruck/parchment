@@ -19,6 +19,8 @@ import {
   LngLat,
 } from "mapbox-gl";
 
+const projection = localStorage.getItem("projection") || "globe";
+
 const router = useRouter();
 
 const mapContainer = ref(null);
@@ -38,11 +40,12 @@ onMounted(() => {
     accessToken: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
     container: mapContainer.value,
     style: "mapbox://styles/mapbox/standard-beta",
-    center: [lng, lat],
-    bearing,
-    pitch,
-    zoom,
+    // center: [lng, lat],
+    // bearing,
+    // pitch,
+    // zoom,
     attributionControl: false,
+    projection,
   });
 
   map.addControl(new ScaleControl(), "bottom-right");

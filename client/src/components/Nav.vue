@@ -4,10 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 
 import LayersSelector from "@/components/LayersSelector.vue";
 // import { useMagicKeys } from "@vueuse/core";
@@ -32,7 +32,7 @@ import { ref } from "vue";
 const router = useRouter();
 const mini = ref(true);
 
-const items = ref([
+const items = [
   {
     separator: true,
   },
@@ -111,7 +111,7 @@ const items = ref([
   {
     separator: true,
   },
-]);
+];
 
 // const keys = useMagicKeys();
 
@@ -129,12 +129,25 @@ const items = ref([
 //     });
 //   });
 // });
+const lockMini = ref(false);
+const nav = ref(null);
+
+function popoverOpened(open: boolean) {
+  lockMini.value = open;
+  if (!open) {
+    const mouseIsHoveringNav = (nav.value as any).matches(":hover");
+    if (!mouseIsHoveringNav) {
+      mini.value = true;
+    }
+  }
+}
 </script>
 
 <template>
   <div
-    @mouseover="mini = false"
-    @mouseleave="mini = true"
+    ref="nav"
+    @mouseover="mini = lockMini ? mini : false"
+    @mouseleave="mini = lockMini ? mini : true"
     :class="
       cn(
         'bg-white max-h-full overflow-y-auto m-2 py-2 shadow-md flex flex-col gap-2 rounded',
@@ -142,7 +155,7 @@ const items = ref([
       )
     "
   >
-    <h2 class="px-[.95rem] text-lg font-semibold">
+    <h2 class="px-[.95rem] text-lg font-bold">
       <span>Pa</span>
       <transition-expand axis="x" :duration="50" easing="ease-out">
         <span v-if="!mini" class="text-nowrap absolute"> rchment </span>
@@ -184,8 +197,13 @@ const items = ref([
               </router-link>
             </Button>
 
-            <Popover v-if="subitem.popover">
-              <PopoverTrigger as-child>
+            <HoverCard
+              v-if="subitem.popover"
+              :openDelay="0"
+              :closeDelay="0"
+              @update:open="popoverOpened"
+            >
+              <HoverCardTrigger as-child>
                 <Button to="" variant="ghost" class="w-full flex px-3 gap-3">
                   <component :is="subitem.icon" class="size-5" />
 
@@ -202,12 +220,12 @@ const items = ref([
                     </div>
                   </transition-expand>
                 </Button>
-              </PopoverTrigger>
+              </HoverCardTrigger>
 
-              <PopoverContent side="right" class="fit-content">
+              <HoverCardContent side="right" class="fit-content">
                 <component :is="subitem.popover" />
-              </PopoverContent>
-            </Popover>
+              </HoverCardContent>
+            </HoverCard>
           </template>
         </div>
       </div>

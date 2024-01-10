@@ -83,6 +83,7 @@ const places = [
       placeholder="Search or type command..."
       @focus="showResults = true"
       @blur="showResults = false"
+      :auto-focus="false"
     />
     <CommandList>
       <CommandEmpty>No results found.</CommandEmpty>

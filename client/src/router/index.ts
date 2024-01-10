@@ -7,11 +7,11 @@ const routes = [
     name: "map",
     component: Map,
     children: [
-      // {
-      //   path: "directions",
-      //   name: "directions",
-      //   component: () => import("../views/Directions.vue"),
-      // },
+      {
+        path: "place",
+        name: "place",
+        component: () => import("../views/Place.vue"),
+      },
     ],
   },
   {

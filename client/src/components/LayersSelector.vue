@@ -50,6 +50,7 @@ const layers = [
         :key="i"
         variant="outline"
         size="icon"
+        to=""
       >
         <component :is="basemap.icon" class="size-5" />
       </Button>
@@ -62,6 +63,7 @@ const layers = [
         :key="i"
         variant="outline"
         size="icon"
+        to=""
       >
         <component :is="layer.icon" class="size-5" />
       </Button>

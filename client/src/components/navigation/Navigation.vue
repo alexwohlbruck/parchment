@@ -9,7 +9,7 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 
-import LayersSelector from "@/components/LayersSelector.vue";
+import LayersSelector from "@/components/navigation/LayersSelector.vue";
 // import { useMagicKeys } from "@vueuse/core";
 import { useRouter } from "vue-router";
 

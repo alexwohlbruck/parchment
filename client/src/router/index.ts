@@ -35,6 +35,11 @@ const routes = [
         name: "appearance",
         component: () => import("../views/settings/Appearance.vue"),
       },
+      {
+        path: "/settings/map-data",
+        name: "map-data",
+        component: () => import("../views/settings/MapData.vue"),
+      },
     ],
   },
 ];

@@ -18,6 +18,7 @@ import {
   LngLatBounds,
   LngLat,
 } from "mapbox-gl";
+import layers from "./layers";
 
 const projection = localStorage.getItem("projection") || "globe";
 
@@ -59,20 +60,21 @@ onMounted(() => {
   );
 
   map.on("load", function () {
-    map.addSource("cycleosm", {
-      type: "raster",
-      tiles: [
-        "https://a.tile-cyclosm.openstreetmap.fr/cyclosm-lite/{z}/{x}/{y}.png",
-      ],
-      tileSize: 256,
-      attribution: '<a href="https://www.opencyclemap.org/">© OpenCycleMap</a>',
-    });
-    map.addLayer({
-      id: "cycleosm-layer",
-      type: "raster",
-      source: "cycleosm",
-      minzoom: 0,
-      maxzoom: 22,
+    Object.entries(layers).forEach(([key, layerType]) => {
+      layerType.layers.forEach((layer) => {
+        if (!layer.enabled) return;
+        const { meta, source } = layer;
+        const id = layer.name;
+        map.addSource(id, {
+          id,
+          ...source,
+        });
+        map.addLayer({
+          source: id,
+          id,
+          ...meta,
+        });
+      });
     });
   });
 });

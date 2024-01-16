@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
   <h2
     :class="
       cn(
-        'scroll-m-20 border-b pb-2 text-3xl font-semibold tracking-tight transition-colors first:mt-0',
+        'scroll-m-20 pb-2 text-3xl font-bold tracking-tight transition-colors first:mt-0',
         $attrs.class ?? ''
       )
     "

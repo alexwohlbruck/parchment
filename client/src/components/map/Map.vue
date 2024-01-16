@@ -58,54 +58,21 @@ onMounted(() => {
     "bottom-left"
   );
 
-  // Add this vector style on load https://api.maptiler.com/maps/464b9344-6b19-4dfa-b274-acd791ec2943/style.json?key=UBdoOia18CaufO2hbWyZ
   map.on("load", function () {
-    // Add MapTiler style as an overlay
-    map.addSource("outdoor", {
-      type: "vector",
-      url: `https://api.maptiler.com/tiles/outdoor/tiles.json?key=${
-        import.meta.env.VITE_MAPTILER_API_KEY
-      }`,
-    });
-
-    map.addLayer({
-      id: "Bicycle local",
-      type: "line",
-      slot: "middle",
-      minzoom: 11,
-      maxzoom: 22,
-      source: "outdoor",
-      "source-layer": "trail",
-      layout: {
-        "line-cap": "round",
-        "line-join": "miter",
-        visibility: "visible",
-        "line-miter-limit": 3,
-      },
-      paint: {
-        "line-color": "hsl(125, 49%, 40%)",
-        "line-width": 3,
-        "line-cap": "round",
-        "line-emissive-strength": 1,
-        "line-width": [
-          "interpolate",
-          ["exponential", 1],
-          ["zoom"],
-          11,
-          0.5,
-          13,
-          2,
-          18,
-          3,
-        ],
-        "line-opacity": 1,
-      },
-      filter: [
-        "all",
-        ["==", "$type", "LineString"],
-        ["==", "class", "bicycle"],
-        ["!in", "network", "icn", "ncn"],
+    map.addSource("cycleosm", {
+      type: "raster",
+      tiles: [
+        "https://a.tile-cyclosm.openstreetmap.fr/cyclosm-lite/{z}/{x}/{y}.png",
       ],
+      tileSize: 256,
+      attribution: '<a href="https://www.opencyclemap.org/">© OpenCycleMap</a>',
+    });
+    map.addLayer({
+      id: "cycleosm-layer",
+      type: "raster",
+      source: "cycleosm",
+      minzoom: 0,
+      maxzoom: 22,
     });
   });
 });

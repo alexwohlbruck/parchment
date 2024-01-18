@@ -107,3 +107,27 @@ onUnmounted(() => {
   map = null;
 });
 </script>
+
+<style>
+.mapboxgl-canvas {
+  outline: none;
+}
+
+.mapboxgl-ctrl-scale {
+  font-weight: 700;
+  font-family: var(--font);
+}
+
+.dark .mapboxgl-ctrl-scale {
+  color: hsl(var(--foreground));
+}
+
+.dark .mapboxgl-ctrl-group,
+.dark .mapboxgl-ctrl-scale {
+  background: hsl(var(--background));
+}
+
+.dark .mapboxgl-ctrl-icon {
+  filter: invert(1);
+}
+</style>

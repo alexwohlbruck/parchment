@@ -10,7 +10,7 @@ const props = defineProps<DialogTitleProps & { class?: string }>()
     v-bind="props"
     :class="
       cn(
-        'text-lg text-zinc-950 font-semibold leading-none tracking-tight dark:text-zinc-50',
+        'text-lg text-foreground font-semibold leading-none tracking-tight',
         props.class,
       )
     "

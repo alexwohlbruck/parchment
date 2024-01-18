@@ -11,6 +11,9 @@ const cyclOSM = {
   },
   meta: {
     type: "raster",
+    paint: {
+      "raster-emissive-strength": 1,
+    },
   },
 };
 
@@ -109,6 +112,7 @@ const transitLand = {
       ],
       // 'line-blur': 1
       // 'line-offset': 1
+      "line-emissive-strength": 1,
     },
   },
 };

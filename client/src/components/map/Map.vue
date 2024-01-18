@@ -2,8 +2,8 @@
   <div ref="mapContainer"></div>
 </template>
 
-<script setup>
-import { ref, onMounted, onUnmounted } from "vue";
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import {
   Map,
@@ -19,13 +19,19 @@ import {
   LngLat,
 } from "mapbox-gl";
 import layers from "./layers";
+import { useSettingsStore } from "@/stores/settings";
+import { AppTheme } from "../../types/settings";
+import { useDark } from "@vueuse/core";
 
 const projection = localStorage.getItem("projection") || "globe";
 
-const router = useRouter();
+// const router = useRouter();
+// const settingsStore = useSettingsStore();
+
+const dark = useDark();
 
 const mapContainer = ref(null);
-let map = null;
+let map: Map | null = null;
 
 onMounted(() => {
   // For testing
@@ -76,7 +82,24 @@ onMounted(() => {
         });
       });
     });
+
+    updateMapTheme(dark.value);
   });
+
+  function updateMapTheme(dark: boolean) {
+    let lightPreset;
+    switch (dark) {
+      case false:
+        lightPreset = "day";
+        break;
+      case true:
+        lightPreset = "night";
+        break;
+    }
+    map.setConfigProperty("basemap", "lightPreset", lightPreset);
+  }
+
+  watch(dark, updateMapTheme);
 });
 
 onUnmounted(() => {

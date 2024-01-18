@@ -14,7 +14,7 @@ const { class: className, ...rest } = useAttrs()
 <template>
   <p
     :id="formDescriptionId"
-    :class="cn('text-sm text-zinc-500 dark:text-zinc-400', className ?? '')"
+    :class="cn('text-sm text-muted-foreground', className ?? '')"
     v-bind="rest"
   >
     <slot />

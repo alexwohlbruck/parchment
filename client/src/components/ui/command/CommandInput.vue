@@ -28,5 +28,6 @@ export default {
         )
       "
     />
+    <slot />
   </div>
 </template>

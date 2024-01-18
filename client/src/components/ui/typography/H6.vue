@@ -3,9 +3,11 @@ import { cn } from "@/lib/utils";
 </script>
 
 <template>
-  <h5
-    :class="cn('scroll-m-20 font-semibold tracking-tight', $attrs.class ?? '')"
+  <h6
+    :class="
+      cn('scroll-m-20 text-sm tracking-tight font-medium', $attrs.class ?? '')
+    "
   >
     <slot></slot>
-  </h5>
+  </h6>
 </template>

@@ -33,7 +33,7 @@ const routes = [
       {
         path: "/settings/appearance",
         name: "appearance",
-        component: () => import("../views/settings/Appearance.vue"),
+        component: () => import("../views/settings/appearance/Appearance.vue"),
       },
       {
         path: "/settings/map-data",

@@ -4,26 +4,26 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from "vue";
-import { useRouter } from "vue-router";
+// import { useRouter } from "vue-router";
 import {
   Map,
   NavigationControl,
   GeolocateControl,
   AttributionControl,
   ScaleControl,
-  Marker,
-  Popup,
-  Layer,
-  Source,
-  LngLatBounds,
-  LngLat,
+  // Marker,
+  // Popup,
+  // Layer,
+  // Source,
+  // LngLatBounds,
+  // LngLat,
 } from "mapbox-gl";
 import layers from "./layers";
-import { useSettingsStore } from "@/stores/settings";
-import { AppTheme } from "../../types/settings";
+// import { useSettingsStore } from "@/stores/settings";
+// import { AppTheme } from "../../types/settings";
 import { useDark } from "@vueuse/core";
 
-const projection = localStorage.getItem("projection") || "globe";
+const projection: any = localStorage.getItem("projection") || "globe";
 
 // const router = useRouter();
 // const settingsStore = useSettingsStore();
@@ -31,7 +31,7 @@ const projection = localStorage.getItem("projection") || "globe";
 const dark = useDark();
 
 const mapContainer = ref(null);
-let map: Map | null = null;
+let map;
 
 onMounted(() => {
   // For testing
@@ -45,14 +45,16 @@ onMounted(() => {
 
   map = new Map({
     accessToken: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
-    container: mapContainer.value,
+    container: mapContainer.value as any,
     style: "mapbox://styles/mapbox/standard-beta",
     center: [lng, lat],
     bearing,
     pitch,
     zoom,
     attributionControl: false,
-    projection,
+    projection: {
+      name: projection,
+    },
   });
 
   map.addControl(new ScaleControl(), "bottom-right");
@@ -66,7 +68,7 @@ onMounted(() => {
   );
 
   map.on("load", function () {
-    Object.entries(layers).forEach(([key, layerType]) => {
+    Object.values(layers).forEach((layerType) => {
       layerType.layers.forEach((layer) => {
         if (!layer.enabled) return;
         const { meta, source } = layer;
@@ -79,11 +81,13 @@ onMounted(() => {
           source: id,
           id,
           ...meta,
+          slot: "middle",
         });
       });
     });
 
     updateMapTheme(dark.value);
+    map.setConfigProperty("basemap", "showPointOfInterestLabels", false);
   });
 
   function updateMapTheme(dark: boolean) {
@@ -104,7 +108,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   map.remove();
-  map = null;
 });
 </script>
 
@@ -125,6 +128,7 @@ onUnmounted(() => {
 .dark .mapboxgl-ctrl-group,
 .dark .mapboxgl-ctrl-scale {
   background: hsl(var(--background));
+  color: hsl(var(--foreground));
 }
 
 .dark .mapboxgl-ctrl-icon {

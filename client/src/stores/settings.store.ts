@@ -2,7 +2,7 @@ import { computed, ref } from "vue";
 import { useSessionStorage } from "@vueuse/core";
 import { type Theme, themes } from "@/lib/registry/themes";
 import { type Style, styles } from "@/lib/registry/styles";
-import { AppTheme } from "../types/settings";
+import { AppTheme } from "../types/settings.types";
 import { defineStore } from "pinia";
 
 interface Config {

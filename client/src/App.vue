@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import Nav from "@/components/navigation/Navigation.vue";
 import { onMounted } from "vue";
-import { useConfigStore } from "./stores/settings";
+import { useConfigStore } from "./stores/settings.store";
 
 const { theme, radius } = useConfigStore();
 

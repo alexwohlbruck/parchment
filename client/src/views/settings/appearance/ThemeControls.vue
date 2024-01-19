@@ -3,7 +3,7 @@ import { onMounted, watch } from "vue";
 import { Button } from "@/components/ui/button";
 import { CheckIcon } from "lucide-vue-next";
 
-import { RADII, useConfigStore } from "@/stores/settings";
+import { RADII, useConfigStore } from "@/stores/settings.store";
 
 import { colors } from "@/lib/registry/colors";
 import { useDark } from "@vueuse/core";

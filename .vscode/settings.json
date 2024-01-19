@@ -1,10 +1,15 @@
 {
   "cSpell.words": [
     "alexwohlbruck",
+    "basemap",
+    "Geolocate",
     "lucide",
+    "mapbox",
+    "mapboxgl",
     "morev",
     "pinia",
     "primevue",
+    "VITE",
     "vueuse"
   ],
   "search.followSymlinks": false,

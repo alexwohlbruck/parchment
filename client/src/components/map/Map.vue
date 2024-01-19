@@ -68,6 +68,12 @@ onMounted(() => {
   );
 
   map.on("load", function () {
+    addLayers();
+    setMapTheme(dark.value);
+    togglePoiLabels(false);
+  });
+
+  function addLayers() {
     Object.values(layers).forEach((layerType) => {
       layerType.layers.forEach((layer) => {
         if (!layer.enabled) return;
@@ -85,12 +91,9 @@ onMounted(() => {
         });
       });
     });
+  }
 
-    updateMapTheme(dark.value);
-    map.setConfigProperty("basemap", "showPointOfInterestLabels", false);
-  });
-
-  function updateMapTheme(dark: boolean) {
+  function setMapTheme(dark: boolean) {
     let lightPreset;
     switch (dark) {
       case false:
@@ -103,7 +106,11 @@ onMounted(() => {
     map.setConfigProperty("basemap", "lightPreset", lightPreset);
   }
 
-  watch(dark, updateMapTheme);
+  function togglePoiLabels(value: boolean) {
+    map.setConfigProperty("basemap", "showPointOfInterestLabels", value);
+  }
+
+  watch(dark, setMapTheme);
 });
 
 onUnmounted(() => {

@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import {
   Globe2Icon,
   SatelliteIcon,
@@ -6,22 +6,33 @@ import {
   TramFrontIcon,
   CarIcon,
   MountainSnowIcon,
+  Icon,
 } from "lucide-vue-next";
-import { Button } from "@/components/ui/button";
 import { Toggle } from "@/components/ui/toggle";
+import { useMapStore } from "@/stores/map.store";
+import type { BaseMap } from "@/types/map.types";
+import H5 from "@/components/ui/typography/H5.vue";
 
-const basemaps = [
+const mapStore = useMapStore();
+
+const basemaps: {
+  name: BaseMap;
+  icon: Icon;
+}[] = [
   {
-    name: "Standard",
+    name: "standard",
     icon: Globe2Icon,
   },
   {
-    name: "Satellite",
+    name: "satellite",
     icon: SatelliteIcon,
   },
 ];
 
-const layers = [
+const layers: {
+  name: string;
+  icon: Icon;
+}[] = [
   {
     name: "Cycling",
     icon: BikeIcon,
@@ -39,24 +50,28 @@ const layers = [
     icon: MountainSnowIcon,
   },
 ];
+
+function setBaseMap(name: BaseMap) {
+  mapStore.setBaseMap(name);
+}
 </script>
 
 <template>
-  <!-- TODO: Create typography classes -->
   <div class="flex flex-col gap-2">
-    <h5 class="scroll-m-20 text-sm font-semibold tracking-tight">Base map</h5>
+    <H5>Base map</H5>
     <div class="flex gap-2">
       <Toggle
         v-for="(basemap, i) in basemaps"
         :key="i"
         variant="outline"
         :aria-label="basemap.name"
+        @click="setBaseMap(basemap.name)"
       >
         <component :is="basemap.icon" class="size-5" />
       </Toggle>
     </div>
 
-    <h5 class="scroll-m-20 text-sm font-semibold tracking-tight">Layers</h5>
+    <H5>Layers</H5>
     <div class="flex gap-2">
       <Toggle
         v-for="(layer, i) in layers"

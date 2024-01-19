@@ -37,7 +37,6 @@ const { basemaps, layers, activeBasemapName } = storeToRefs(mapStore);
         :key="i"
         variant="outline"
         :aria-label="layer.name"
-        v-model="layer.active"
       >
         <component :is="layer.icon" class="size-5" />
       </Toggle>

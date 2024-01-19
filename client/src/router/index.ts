@@ -18,7 +18,7 @@ const routes = [
     path: "/settings",
     name: "settings",
     component: () => import("../views/settings/Settings.vue"),
-    redirect: "/settings/behavior",
+    redirect: "/settings/appearance",
     children: [
       {
         path: "/settings/account",

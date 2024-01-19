@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from "vue";
+import { ref, onMounted, onUnmounted, watch, computed } from "vue";
 // import { useRouter } from "vue-router";
 import {
   Map,
@@ -22,6 +22,8 @@ import layers from "./layers";
 // import { useSettingsStore } from "@/stores/settings";
 // import { AppTheme } from "../../types/settings";
 import { useDark } from "@vueuse/core";
+import { useMapStore } from "../../stores/map.store";
+import { basemaps } from "../../types/map.types";
 
 const projection: any = localStorage.getItem("projection") || "globe";
 
@@ -29,6 +31,7 @@ const projection: any = localStorage.getItem("projection") || "globe";
 // const settingsStore = useSettingsStore();
 
 const dark = useDark();
+const mapStore = useMapStore();
 
 const mapContainer = ref(null);
 let map;
@@ -111,6 +114,22 @@ onMounted(() => {
   }
 
   watch(dark, setMapTheme);
+
+  // Watch mapStore.activeBasemap
+  watch(
+    () => mapStore.activeBasemapName,
+    (name) => {
+      switch (name) {
+        case "aerial":
+          map.setStyle(basemaps.aerial.url);
+          break;
+        case "standard":
+        default:
+          map.setStyle(basemaps.standard.url);
+          break;
+      }
+    }
+  );
 });
 
 onUnmounted(() => {

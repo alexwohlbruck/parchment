@@ -2,6 +2,7 @@
   "cSpell.words": [
     "alexwohlbruck",
     "basemap",
+    "basemaps",
     "Geolocate",
     "lucide",
     "mapbox",
@@ -13,7 +14,5 @@
     "vueuse"
   ],
   "search.followSymlinks": false,
-  "cSpell.ignoreWords": [
-    "rchment"
-  ]
+  "cSpell.ignoreWords": ["rchment"]
 }

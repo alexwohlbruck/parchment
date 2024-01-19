@@ -22,7 +22,6 @@ type Color =
   | "yellow"
   | "violet";
 
-// Create an array of color values
 const allColors: Color[] = [
   "zinc",
   "rose",

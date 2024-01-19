@@ -227,7 +227,7 @@ function popoverOpened(open: boolean) {
                 </Button>
               </HoverCardTrigger>
 
-              <HoverCardContent side="right" class="fit-content">
+              <HoverCardContent side="right" class="fit-content w-fit">
                 <component :is="subitem.popover" />
               </HoverCardContent>
             </HoverCard>

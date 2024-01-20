@@ -75,7 +75,7 @@ onMounted(() => {
   function mapInit() {
     addLayers();
     setMapTheme(dark.value);
-    togglePoiLabels(false);
+    // togglePoiLabels(false);
   }
 
   function addLayers() {

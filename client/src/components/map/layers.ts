@@ -12,7 +12,9 @@ const cyclOSM = {
   meta: {
     type: "raster",
     paint: {
-      "raster-emissive-strength": 1,
+      "raster-emissive-strength": 0.9,
+      "raster-hue-rotate": 290,
+      "raster-saturation": 0.3,
     },
   },
 };

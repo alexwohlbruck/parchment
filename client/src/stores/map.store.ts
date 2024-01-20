@@ -12,28 +12,32 @@ import {
 } from "lucide-vue-next";
 
 export const useMapStore = defineStore("map", () => {
-  const basemaps = ref<
-    {
-      name: Basemap;
+  const basemaps = ref<{
+    [key in Basemap]: {
+      name: string;
       icon: Icon;
-    }[]
-  >([
-    {
-      name: "standard",
+      url: string;
+    };
+  }>({
+    standard: {
+      name: "Standard",
       icon: Globe2Icon,
+      url: "mapbox://styles/mapbox/standard-beta",
     },
-    {
-      name: "aerial",
+    aerial: {
+      name: "Aerial",
       icon: SatelliteIcon,
+      url: "mapbox://styles/mapbox/satellite-v9",
     },
-  ]);
+  });
   const activeBasemapName = ref<Basemap>("standard");
 
   const activeBasemap = computed(() => {
-    return basemaps.value.find((b) => b.name === activeBasemapName.value);
+    return basemaps.value[activeBasemapName.value];
   });
 
   function setBasemap(map: Basemap) {
+    console.log(map);
     activeBasemapName.value = map;
   }
 
@@ -60,12 +64,6 @@ export const useMapStore = defineStore("map", () => {
       icon: MountainSnowIcon,
     },
   ]);
-  // function toggleLayer(layer: string) {
-  //   layers.value = layers.value.map((l) => {
-  //     l.active = l.name === layer ? !l.active : l.active;
-  //     return l;
-  //   });
-  // }
 
   return {
     basemaps,

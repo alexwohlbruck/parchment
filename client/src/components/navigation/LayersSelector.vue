@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { Toggle } from "@/components/ui/toggle";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -14,18 +14,21 @@ const { basemaps, layers, activeBasemapName } = storeToRefs(mapStore);
   <div class="flex flex-col gap-2">
     <H5>Base map</H5>
     <div class="flex gap-2">
-      <ToggleGroup type="single">
+      <ToggleGroup
+        type="single"
+        :default-value="activeBasemapName"
+        @update:model-value="mapStore.setBasemap"
+      >
         <ToggleGroupItem
-          v-for="(basemap, i) in basemaps"
-          :key="i"
-          :value="basemap.name"
+          v-for="[basemapId, basemap] in Object.entries(basemaps)"
+          :key="basemapId"
+          :value="basemapId"
           aria-label="Toggle bold"
           variant="outline"
-          @click="mapStore.setBasemap(basemap.name)"
           class="flex gap-2"
         >
           <component :is="basemap.icon" class="size-5" />
-          <span>{{ $filters.capitalize(basemap.name) }}</span>
+          <span>{{ basemap.name }}</span>
         </ToggleGroupItem>
       </ToggleGroup>
     </div>

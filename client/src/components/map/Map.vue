@@ -69,11 +69,14 @@ onMounted(() => {
     "bottom-left"
   );
 
-  map.on("load", function () {
+  map.on("load", mapInit);
+  map.on("style.load", mapInit);
+
+  function mapInit() {
     addLayers();
     setMapTheme(dark.value);
     togglePoiLabels(false);
-  });
+  }
 
   function addLayers() {
     Object.values(layers).forEach((layerType) => {

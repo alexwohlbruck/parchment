@@ -23,7 +23,6 @@ import layers from "./layers";
 // import { AppTheme } from "../../types/settings";
 import { useDark } from "@vueuse/core";
 import { useMapStore } from "../../stores/map.store";
-import { basemaps } from "../../types/map.types";
 
 const projection: any = localStorage.getItem("projection") || "globe";
 
@@ -114,20 +113,11 @@ onMounted(() => {
   }
 
   watch(dark, setMapTheme);
-
-  // Watch mapStore.activeBasemap
   watch(
     () => mapStore.activeBasemapName,
     (name) => {
-      switch (name) {
-        case "aerial":
-          map.setStyle(basemaps.aerial.url);
-          break;
-        case "standard":
-        default:
-          map.setStyle(basemaps.standard.url);
-          break;
-      }
+      console.log(mapStore.basemaps, name);
+      map.setStyle(mapStore.basemaps[name].url);
     }
   );
 });

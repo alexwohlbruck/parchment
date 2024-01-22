@@ -83,7 +83,7 @@ onMounted(() => {
       layerType.layers.forEach((layer) => {
         if (!layer.enabled) return;
         const { meta, source } = layer;
-        const id = layer.name;
+        const id = source.id;
         map.addSource(id, {
           id,
           ...source,

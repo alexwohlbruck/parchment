@@ -2,6 +2,7 @@ const cyclOSM = {
   name: "CyclOSM",
   enabled: true,
   source: {
+    id: "cyclosm",
     type: "raster",
     tiles: [
       "https://a.tile-cyclosm.openstreetmap.fr/cyclosm-lite/{z}/{x}/{y}.png",
@@ -23,6 +24,7 @@ const waymarkedTrails = {
   name: "Waymarked Trails",
   enabled: false,
   source: {
+    id: "waymarkedTrails",
     type: "raster",
     tiles: ["https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png"],
     tileSize: 256,
@@ -119,6 +121,46 @@ const transitLand = {
   },
 };
 
+// mapbox://mapbox.mapbox-traffic-v1
+const traffic = {
+  name: "Mapbox traffic",
+  enabled: false,
+  source: {
+    id: "traffic",
+    type: "vector",
+    url: "mapbox://mapbox.mapbox-traffic-v1",
+  },
+  meta: {
+    id: "traffic",
+    type: "line",
+    source: "traffic",
+    "source-layer": "traffic",
+    layout: {
+      "line-cap": "round",
+      "line-join": "round",
+    },
+    paint: {
+      "line-width": ["interpolate", ["linear"], ["zoom"], 14, 2, 20, 7],
+      "line-offset": ["interpolate", ["linear"], ["zoom"], 14, 0, 20, 2],
+      "line-color": [
+        "match",
+        ["get", "congestion"],
+        "low",
+        "#1A9641",
+        "moderate",
+        "#EED322",
+        "heavy",
+        "#E6B71E",
+        "severe",
+        "#DA3838",
+        "#000000",
+      ],
+      "line-opacity": 0.8,
+      "line-emissive-strength": 1,
+    },
+  },
+};
+
 export default {
   cycle: {
     layers: [cyclOSM, waymarkedTrails],
@@ -127,5 +169,9 @@ export default {
   transit: {
     layers: [transitLand],
     name: "Transit",
+  },
+  traffic: {
+    layers: [traffic],
+    name: "Traffic",
   },
 };

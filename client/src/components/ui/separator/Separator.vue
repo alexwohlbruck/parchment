@@ -8,7 +8,7 @@ const props = defineProps<SeparatorProps & { class?: string }>()
 <template>
   <Separator
     :class="[
-      cn('shrink-0 bg-zinc-100 dark:bg-zinc-800', props.class),
+      cn('shrink-0 bg-secondary', props.class),
       props.orientation === 'vertical' ? 'w-px h-full' : 'h-px w-full',
     ]"
   />

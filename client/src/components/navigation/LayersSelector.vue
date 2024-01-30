@@ -1,62 +1,39 @@
-<script setup>
-import {
-  Globe2Icon,
-  SatelliteIcon,
-  BikeIcon,
-  TramFrontIcon,
-  CarIcon,
-  MountainSnowIcon,
-} from "lucide-vue-next";
-import { Button } from "@/components/ui/button";
+<script setup lang="ts">
+import { ref, watch } from "vue";
+import { storeToRefs } from "pinia";
 import { Toggle } from "@/components/ui/toggle";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useMapStore } from "@/stores/map.store";
+import H5 from "@/components/ui/typography/H5.vue";
 
-const basemaps = [
-  {
-    name: "Standard",
-    icon: Globe2Icon,
-  },
-  {
-    name: "Satellite",
-    icon: SatelliteIcon,
-  },
-];
-
-const layers = [
-  {
-    name: "Cycling",
-    icon: BikeIcon,
-  },
-  {
-    name: "Transit",
-    icon: TramFrontIcon,
-  },
-  {
-    name: "Traffic",
-    icon: CarIcon,
-  },
-  {
-    name: "Terrain",
-    icon: MountainSnowIcon,
-  },
-];
+const mapStore = useMapStore();
+const { basemaps, layers, activeBasemapName } = storeToRefs(mapStore);
 </script>
 
 <template>
-  <!-- TODO: Create typography classes -->
   <div class="flex flex-col gap-2">
-    <h5 class="scroll-m-20 text-sm font-semibold tracking-tight">Base map</h5>
+    <H5>Base map</H5>
     <div class="flex gap-2">
-      <Toggle
-        v-for="(basemap, i) in basemaps"
-        :key="i"
-        variant="outline"
-        :aria-label="basemap.name"
+      <ToggleGroup
+        type="single"
+        :default-value="activeBasemapName"
+        @update:model-value="mapStore.setBasemap"
       >
-        <component :is="basemap.icon" class="size-5" />
-      </Toggle>
+        <ToggleGroupItem
+          v-for="[basemapId, basemap] in Object.entries(basemaps)"
+          :key="basemapId"
+          :value="basemapId"
+          aria-label="Toggle bold"
+          variant="outline"
+          class="flex gap-2"
+        >
+          <component :is="basemap.icon" class="size-5" />
+          <span>{{ basemap.name }}</span>
+        </ToggleGroupItem>
+      </ToggleGroup>
     </div>
 
-    <h5 class="scroll-m-20 text-sm font-semibold tracking-tight">Layers</h5>
+    <H5>Layers</H5>
     <div class="flex gap-2">
       <Toggle
         v-for="(layer, i) in layers"

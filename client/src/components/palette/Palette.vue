@@ -12,6 +12,7 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { MapPinIcon } from "lucide-vue-next";
+import Kbd from "@/components/ui/kbd/Kbd.vue";
 
 // const emit = defineEmits(["open-change"]);
 
@@ -84,7 +85,9 @@ const places = [
       @focus="showResults = true"
       @blur="showResults = false"
       :auto-focus="false"
-    />
+    >
+      <Kbd class="ml-2">⌘ <span>K</span></Kbd>
+    </CommandInput>
     <CommandList>
       <CommandEmpty>No results found.</CommandEmpty>
       <template v-if="showResults">

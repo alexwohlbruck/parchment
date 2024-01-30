@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from "vue-router";
 
-import H3 from "@/components/ui/typography/H3.vue";
+import H2 from "@/components/ui/typography/H2.vue";
 import { Separator } from "@/components/ui/separator";
 import Button from "@/components/ui/button/Button.vue";
 
@@ -36,7 +36,6 @@ const pages = [
     label: "Map data",
     to: "/settings/map-data",
     icon: DatabaseIcon,
-    disabled: true,
   },
   {
     label: "System",
@@ -50,7 +49,7 @@ const pages = [
 <template>
   <div class="py-4 flex flex-col gap-4">
     <div>
-      <H3>Settings</H3>
+      <H2>Settings</H2>
       <P>Manage your account settings and app behavior</P>
     </div>
 

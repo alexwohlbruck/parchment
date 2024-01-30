@@ -14,7 +14,7 @@ const forwarded = useForwardPropsEmits(props, emits)
     v-bind="forwarded"
     :open="true"
     :model-value="''"
-    :class="cn('flex h-full w-full flex-col overflow-hidden rounded-md bg-white text-zinc-950 dark:bg-zinc-950 dark:text-zinc-50', $attrs.class ?? '')"
+    :class="cn('flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground', $attrs.class ?? '')"
   >
     <slot />
   </ComboboxRoot>

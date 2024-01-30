@@ -29,10 +29,10 @@ let map = null
 
 onMounted(() => {
   const { lng, lat, zoom, bearing, pitch } = {
-    lng: -80.8432808,
-    lat: 35.2205601,
-    // lng: -80.8554449,
-    // lat: 35.0550111,
+    // lng: -80.8432808,
+    // lat: 35.2205601,
+    lng: -87.63115882873535,
+    lat: 41.87841247144975,
     bearing: 0,
     pitch: 0,
     zoom: 14
@@ -59,12 +59,80 @@ onMounted(() => {
   map.addControl(new AttributionControl(), 'bottom-right')
   map.addControl(new ScaleControl(), 'bottom-right')
 
-  map.on('zoom', () => {
-    console.log('zoom', map.getZoom())
-  })
-
   map.on('style.load', () => {
     console.log(map)
+
+    // LOOM maps
+    map.addSource('transit-source', {
+      type: 'vector',
+      tiles: ['https://loom.cs.uni-freiburg.de/tiles/subway-lightrail/geo/{z}/{x}/{y}.mvt'],
+      minzoom: 0,
+      maxzoom: 17
+    })
+
+    // // Add layers using loomStyles
+    const loomStyles = {
+      lines: {
+        type: 'line',
+        'line-cap': 'round',
+        'line-join': 'round',
+        'line-width': 5,
+        'line-color': ['concat', '#', ['get', 'color']],
+        'line-opacity': 1
+      },
+      'inner-connections': {
+        type: 'line',
+        'line-cap': 'round',
+        'line-join': 'round',
+        'line-width': 5,
+        'line-color': ['concat', '#', ['get', 'color']],
+        'line-opacity': 1
+      },
+      stations: {
+        type: 'fill',
+        'line-cap': ['get', 'lineCap'],
+        weight: ['get', 'weight'],
+        'line-color': ['concat', '#', ['get', 'color']],
+        'line-opacity': ['get', 'opacity'],
+        'fill-color': ['concat', '#', ['get', 'fillColor']],
+        'fill-opacity': 1,
+        fill: true
+      }
+    }
+
+    for (const layerId in loomStyles) {
+      map.addLayer({
+        id: layerId,
+        type: loomStyles[layerId].type,
+        source: 'transit-source',
+        'source-layer': layerId,
+        layout: {},
+        paint: loomStyles[layerId]
+      })
+    }
+
+    // Custom .mbtiles vector tiles
+    // http://localhost:3650/api/tiles/nc-racks-2024-01-25-21-49-55/tiles.json
+    // map.addSource('racks', {
+    //   type: 'vector',
+    //   tiles: ['http://localhost:3650/api/tiles/nc-racks-2024-01-25-21-49-55/{z}/{x}/{y}'],
+    //   tileSize: 512
+    // })
+
+    // map.addLayer({
+    //   id: 'racks-layer',
+    //   type: 'circle',
+    //   source: 'racks',
+    //   'source-layer': 'points',
+    //   minzoom: 0,
+    //   maxzoom: 22,
+    //   paint: {
+    //     'circle-radius': 4,
+    //     'circle-color': 'red',
+    //     'circle-stroke-color': 'white',
+    //     'circle-stroke-width': 1
+    //   }
+    // })
 
     // https://transitapp-data.com/tile/android/transit/tile-262-381.tile
 
@@ -213,11 +281,7 @@ onMounted(() => {
     //   }
     // })
 
-    console.log(map)
-
     ////////
-
-    console.log(geojson)
 
     // // Add transit geojson from local file
     // map.addSource('geojson-source', {
@@ -238,85 +302,85 @@ onMounted(() => {
     //   }
     // })
 
-    // Add Transitland source
-    map.addSource('routes', {
-      type: 'vector',
-      tiles: [
-        `https://transit.land/api/v2/tiles/routes/tiles/{z}/{x}/{y}.pbf?apikey=${transitlandApiKey}`
-      ],
-      maxzoom: 14
-    })
+    // // Add Transitland source
+    // map.addSource('routes', {
+    //   type: 'vector',
+    //   tiles: [
+    //     `https://transit.land/api/v2/tiles/routes/tiles/{z}/{x}/{y}.pbf?apikey=${transitlandApiKey}`
+    //   ],
+    //   maxzoom: 14
+    // })
 
-    map.addLayer({
-      id: 'routes',
-      type: 'line',
-      source: 'routes',
-      slot: 'middle',
-      'source-layer': 'routes',
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-        'symbol-placement': 'line',
-        'text-field': ['get', 'route_long_name'], // use the route_name property for the text
-        'text-size': 12,
-        'text-offset': [0, 1] // adjust the text offset if needed,
-      },
-      paint: {
-        'line-width': 2.0,
-        'line-color': [
-          'match',
-          ['get', 'route_type'],
-          0, // Tram, streetcar, light rail
-          ['coalesce', ['get', 'route_color'], 'blue'],
-          1, // Subway, metro
-          ['coalesce', ['get', 'route_color'], 'blue'],
-          2, // Rail
-          'red', // amtrak
-          3, // Bus
-          ['coalesce', ['get', 'route_color'], 'lightblue'], // busses
-          4, // Ferry
-          'blue',
-          5, // Cable tram
-          'purple',
-          6, // Aerial lift, suspended cable car
-          'pink',
-          7, // Funicular
-          'brown',
-          11, // Trolleybus
-          'black',
-          12, // Monorail
-          'red',
-          'grey' // default
-        ],
-        'line-opacity': [
-          'match',
-          ['get', 'route_type'],
-          0, // Tram, streetcar, light rail
-          1,
-          1, // Subway, metro
-          1,
-          2, // Rail
-          1,
-          3, // Bus
-          1,
-          4, // Ferry
-          1,
-          5, // Cable tram
-          1,
-          6, // Aerial lift, suspended cable car
-          1,
-          7, // Funicular
-          1,
-          11, // Trolleybus
-          1,
-          12, // Monorail
-          1,
-          0
-        ]
-        // 'line-blur': 1
-        // 'line-offset': 1
-      }
-    })
+    // map.addLayer({
+    //   id: 'routes',
+    //   type: 'line',
+    //   source: 'routes',
+    //   slot: 'middle',
+    //   'source-layer': 'routes',
+    //   layout: {
+    //     'line-cap': 'round',
+    //     'line-join': 'round',
+    //     'symbol-placement': 'line',
+    //     'text-field': ['get', 'route_long_name'], // use the route_name property for the text
+    //     'text-size': 12,
+    //     'text-offset': [0, 1] // adjust the text offset if needed,
+    //   },
+    //   paint: {
+    //     'line-width': 2.0,
+    //     'line-color': [
+    //       'match',
+    //       ['get', 'route_type'],
+    //       0, // Tram, streetcar, light rail
+    //       ['coalesce', ['get', 'route_color'], 'blue'],
+    //       1, // Subway, metro
+    //       ['coalesce', ['get', 'route_color'], 'blue'],
+    //       2, // Rail
+    //       'red', // amtrak
+    //       3, // Bus
+    //       ['coalesce', ['get', 'route_color'], 'lightblue'], // busses
+    //       4, // Ferry
+    //       'blue',
+    //       5, // Cable tram
+    //       'purple',
+    //       6, // Aerial lift, suspended cable car
+    //       'pink',
+    //       7, // Funicular
+    //       'brown',
+    //       11, // Trolleybus
+    //       'black',
+    //       12, // Monorail
+    //       'red',
+    //       'grey' // default
+    //     ],
+    //     'line-opacity': [
+    //       'match',
+    //       ['get', 'route_type'],
+    //       0, // Tram, streetcar, light rail
+    //       1,
+    //       1, // Subway, metro
+    //       1,
+    //       2, // Rail
+    //       1,
+    //       3, // Bus
+    //       1,
+    //       4, // Ferry
+    //       1,
+    //       5, // Cable tram
+    //       1,
+    //       6, // Aerial lift, suspended cable car
+    //       1,
+    //       7, // Funicular
+    //       1,
+    //       11, // Trolleybus
+    //       1,
+    //       12, // Monorail
+    //       1,
+    //       0
+    //     ]
+    //     // 'line-blur': 1
+    //     // 'line-offset': 1
+    //   }
+    // })
 
     // // Show stops from transitland
     // map.addSource('stops', {

@@ -98,7 +98,7 @@ const items = ref([
 
 <template>
   <nav>
-    <Menu :model="items" class="max-h-full w-fit overflow-y-auto shadow-1">
+    <Menu class="max-h-full w-fit overflow-y-auto shadow-1">
       <template #start>
         <div class="column px-3 py-2">
           <span class="text-primary font-bold text-lg">Parchment</span>

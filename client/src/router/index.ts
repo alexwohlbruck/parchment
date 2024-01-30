@@ -18,7 +18,7 @@ const routes = [
     path: "/settings",
     name: "settings",
     component: () => import("../views/settings/Settings.vue"),
-    redirect: "/settings/behavior",
+    redirect: "/settings/appearance",
     children: [
       {
         path: "/settings/account",
@@ -33,7 +33,12 @@ const routes = [
       {
         path: "/settings/appearance",
         name: "appearance",
-        component: () => import("../views/settings/Appearance.vue"),
+        component: () => import("../views/settings/appearance/Appearance.vue"),
+      },
+      {
+        path: "/settings/map-data",
+        name: "map-data",
+        component: () => import("../views/settings/MapData.vue"),
       },
     ],
   },

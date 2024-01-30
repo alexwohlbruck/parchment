@@ -21,11 +21,12 @@
 
     /* Linting */
     "strict": true,
-    "noUnusedLocals": true,
+    // "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "allowJs": true,
     "types": ["node"],
+    "noImplicitAny": false,
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "decs.d.ts", "types.d.ts", "decs.ts.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]

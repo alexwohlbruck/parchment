@@ -1,13 +1,18 @@
 {
   "cSpell.words": [
     "alexwohlbruck",
+    "basemap",
+    "basemaps",
+    "Geolocate",
     "lucide",
+    "mapbox",
+    "mapboxgl",
     "morev",
+    "pinia",
     "primevue",
+    "VITE",
     "vueuse"
   ],
   "search.followSymlinks": false,
-  "cSpell.ignoreWords": [
-    "rchment"
-  ]
+  "cSpell.ignoreWords": ["rchment"]
 }

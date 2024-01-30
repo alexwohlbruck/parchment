@@ -16,7 +16,8 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "lucide-vue-next": "^0.303.0",
-    "mapbox-gl": "^3.0.1",
+    "mapbox-gl": "3.1.0-beta.1",
+    "pinia": "^2.1.7",
     "radix-vue": "^1.2.6",
     "tailwind-merge": "^2.2.0",
     "tailwindcss-animate": "^1.0.7",
@@ -26,7 +27,10 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@types/mapbox-gl": "^2.7.19",
     "@types/node": "^20.10.8",
+    "@types/vue": "^2.0.0",
+    "@types/vue-router": "^2.0.0",
     "@vitejs/plugin-vue": "^4.5.2",
     "autoprefixer": "^10.4.16",
     "postcss": "^8.4.32",

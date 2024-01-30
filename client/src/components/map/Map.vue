@@ -18,7 +18,7 @@ import {
   // LngLatBounds,
   // LngLat,
 } from "mapbox-gl";
-import layers from "./layers";
+import { layers } from "./layers";
 // import { useSettingsStore } from "@/stores/settings";
 // import { AppTheme } from "../../types/settings";
 import { useDark } from "@vueuse/core";

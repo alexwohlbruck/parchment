@@ -161,7 +161,7 @@ const traffic = {
   },
 };
 
-export default {
+export const layers = {
   cycle: {
     layers: [cyclOSM, waymarkedTrails],
     name: "Cycling",

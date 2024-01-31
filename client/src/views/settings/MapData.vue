@@ -30,7 +30,7 @@ import { layers } from "../../components/map/layers";
         <Card
           v-for="(layer, j) in layerType.layers"
           :key="j"
-          class="flex items-center gap-2 px-2 py-1"
+          class="flex items-center gap-2 px-2 py-1 dark:border-gray-700"
         >
           <RadioGroupItem :id="layerType.name" :value="layer.name" />
           <Label :for="layerType.name">{{ layer.name }}</Label>

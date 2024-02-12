@@ -1,22 +1,47 @@
 <script setup lang="ts">
-import H4 from "@/components/ui/typography/H4.vue";
-import H5 from "@/components/ui/typography/H5.vue";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import H4 from '@/components/ui/typography/H4.vue'
+import H5 from '@/components/ui/typography/H5.vue'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 
-import { SettingsIcon, PlusIcon } from "lucide-vue-next";
+import { SettingsIcon, PlusIcon } from 'lucide-vue-next'
 
-import { layers } from "../../components/map/layers";
+import { layers } from '../../components/map/layers'
+import { useMapStore } from '../../stores/map.store'
+
+const mapStore = useMapStore()
 </script>
 
 <template>
   <div class="flex flex-col gap-4 w-fit items-start">
     <div>
+      <H4>Map Library</H4>
+      <P>
+        Choose which javascript library you would like to use to display the
+        map.
+      </P>
+
+      <RadioGroup
+        :default-value="mapStore.mapLibrary"
+        @update:model-value="mapStore.setMapLibrary"
+      >
+        <div class="flex items-center space-x-2">
+          <RadioGroupItem id="mapbox" value="mapbox" />
+          <Label for="mapbox">Mapbox</Label>
+        </div>
+        <div class="flex items-center space-x-2">
+          <RadioGroupItem id="maplbire" value="maplibre" />
+          <Label for="maplbire">Maplibre</Label>
+        </div>
+      </RadioGroup>
+    </div>
+
+    <div>
       <H4>Layers</H4>
-      <P>Choose layers to display in the layer selector</P>
+      <P>Choose layers to display in the layer selector.</P>
     </div>
 
     <div

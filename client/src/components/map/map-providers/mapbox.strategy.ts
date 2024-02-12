@@ -58,11 +58,12 @@ export class MapboxStrategy extends MapStrategy {
 
   // When map style is loaded, we need to reset the theme and add layers
   softInitialize() {
-    // this.addLayers()
+    this.addLayers()
     this.setMapTheme(this.options.dark)
   }
 
   addLayers() {
+    if (!this.map.isStyleLoaded()) return
     Object.values(layers).forEach(layerType => {
       layerType.layers.forEach(layer => {
         if (!layer.enabled) return

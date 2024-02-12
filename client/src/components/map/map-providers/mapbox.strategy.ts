@@ -6,6 +6,7 @@ import {
   AttributionControl,
   ScaleControl,
 } from 'mapbox-gl'
+import 'mapbox-gl/dist/mapbox-gl.css'
 
 import { layers } from '../layers' // TODO: Refactor layers init
 
@@ -36,6 +37,7 @@ export class MapboxStrategy extends MapStrategy {
     })
 
     super(container, map, options)
+    this.initialize()
   }
 
   initialize() {
@@ -46,7 +48,7 @@ export class MapboxStrategy extends MapStrategy {
       new AttributionControl({
         compact: true,
       }),
-      'bottom-left'
+      'bottom-left',
     )
 
     this.softInitialize()
@@ -56,7 +58,7 @@ export class MapboxStrategy extends MapStrategy {
 
   // When map style is loaded, we need to reset the theme and add layers
   softInitialize() {
-    this.addLayers()
+    // this.addLayers()
     this.setMapTheme(this.options.dark)
   }
 
@@ -85,6 +87,7 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   setMapTheme(dark: boolean) {
+    if (!this.map.isStyleLoaded()) return
     let lightPreset
     switch (dark) {
       case false:

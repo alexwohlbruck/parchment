@@ -8,9 +8,10 @@ import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 // import { useSettingsStore } from "@/stores/settings";
 // import { AppTheme } from "../../types/settings";
 import { useDark } from '@vueuse/core'
-import { useMapStore } from '../../stores/map.store'
+import { MapLibrary, useMapStore } from '../../stores/map.store'
 import { MapboxStrategy } from './map-providers/mapbox.strategy'
 import { MapStrategy } from './map-providers/map.strategy'
+import { MaplibreStrategy } from './map-providers/maplibre.strategy'
 
 const dark = useDark()
 const mapStore = useMapStore()
@@ -18,22 +19,20 @@ const mapStore = useMapStore()
 const mapContainer = ref(null)
 let map: MapStrategy
 
-function getMapInstance() {
-  const mapSDK: string = 'mapbox'
+function getMapInstance(mapLibrary: MapLibrary) {
   const options = {
     dark: dark.value,
   }
-  switch (mapSDK) {
+  switch (mapLibrary) {
     case 'mapbox':
       return new MapboxStrategy(mapContainer.value, options)
-    default: {
-      throw new Error('Map SDK not selected')
-    }
+    case 'maplibre':
+      return new MaplibreStrategy(mapContainer.value, options)
   }
 }
 
 onMounted(() => {
-  map = getMapInstance()
+  map = getMapInstance(mapStore.mapLibrary)
 
   watch(dark, map.setMapTheme)
   watch(
@@ -41,7 +40,13 @@ onMounted(() => {
     name => {
       console.log(mapStore.basemaps, name)
       map.setStyle(mapStore.basemaps[name].url)
-    }
+    },
+  )
+  watch(
+    () => mapStore.mapLibrary,
+    sdk => {
+      map = getMapInstance(sdk)
+    },
   )
 })
 
@@ -51,26 +56,32 @@ onUnmounted(() => {
 </script>
 
 <style>
-.mapboxgl-canvas {
+.mapboxgl-canvas,
+.maplibregl-canvas {
   outline: none;
 }
 
-.mapboxgl-ctrl-scale {
+.mapboxgl-ctrl-scale,
+.maplibregl-ctrl-scale {
   font-weight: 700;
   font-family: var(--font);
 }
 
-.dark .mapboxgl-ctrl-scale {
+.dark .mapboxgl-ctrl-scale,
+.dark .maplibregl-ctrl-scale {
   color: hsl(var(--foreground));
 }
 
 .dark .mapboxgl-ctrl-group,
-.dark .mapboxgl-ctrl-scale {
+.dark .maplibregl-ctrl-group,
+.dark .mapboxgl-ctrl-scale,
+.dark .maplibregl-ctrl-scale {
   background: hsl(var(--background));
   color: hsl(var(--foreground));
 }
 
-.dark .mapboxgl-ctrl-icon {
+.dark .mapboxgl-ctrl-icon,
+.dark .maplibregl-ctrl-icon {
   filter: invert(1);
 }
 </style>

@@ -1,6 +1,6 @@
-import { computed, ref } from "vue";
-import { defineStore } from "pinia";
-import { Basemap } from "../types/map.types";
+import { computed, ref } from 'vue'
+import { defineStore } from 'pinia'
+import { Basemap } from '../types/map.types'
 import {
   Globe2Icon,
   SatelliteIcon,
@@ -9,68 +9,78 @@ import {
   CarIcon,
   MountainSnowIcon,
   Icon,
-} from "lucide-vue-next";
+} from 'lucide-vue-next'
 
-export const useMapStore = defineStore("map", () => {
+export type MapLibrary = 'mapbox' | 'maplibre'
+
+export const useMapStore = defineStore('map', () => {
+  const mapLibrary = ref<MapLibrary>('mapbox')
+
+  function setMapLibrary(sdk: MapLibrary) {
+    mapLibrary.value = sdk
+  }
+
   const basemaps = ref<{
     [key in Basemap]: {
-      name: string;
-      icon: Icon;
-      url: string;
-    };
+      name: string
+      icon: Icon
+      url: string
+    }
   }>({
     standard: {
-      name: "Standard",
+      name: 'Standard',
       icon: Globe2Icon,
-      url: "mapbox://styles/mapbox/standard-beta",
+      url: 'mapbox://styles/mapbox/standard-beta',
     },
     aerial: {
-      name: "Aerial",
+      name: 'Aerial',
       icon: SatelliteIcon,
-      url: "mapbox://styles/mapbox/satellite-v9",
+      url: 'mapbox://styles/mapbox/satellite-v9',
     },
-  });
-  const activeBasemapName = ref<Basemap>("standard");
+  })
+  const activeBasemapName = ref<Basemap>('standard')
 
   const activeBasemap = computed(() => {
-    return basemaps.value[activeBasemapName.value];
-  });
+    return basemaps.value[activeBasemapName.value]
+  })
 
   function setBasemap(map: Basemap) {
-    console.log(map);
-    activeBasemapName.value = map;
+    console.log(map)
+    activeBasemapName.value = map
   }
 
   const layers = ref<
     {
-      name: string;
-      icon: Icon;
+      name: string
+      icon: Icon
     }[]
   >([
     {
-      name: "Cycling",
+      name: 'Cycling',
       icon: BikeIcon,
     },
     {
-      name: "Transit",
+      name: 'Transit',
       icon: TramFrontIcon,
     },
     {
-      name: "Traffic",
+      name: 'Traffic',
       icon: CarIcon,
     },
     {
-      name: "Terrain",
+      name: 'Terrain',
       icon: MountainSnowIcon,
     },
-  ]);
+  ])
 
   return {
+    mapLibrary,
+    setMapLibrary,
     basemaps,
     setBasemap,
     activeBasemapName,
     activeBasemap,
     layers,
     // toggleLayer,
-  };
-});
+  }
+})

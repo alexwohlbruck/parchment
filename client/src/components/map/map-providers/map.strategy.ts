@@ -15,6 +15,7 @@ export class MapStrategy {
     }
   }
 
+  initialize() {}
   addDataSource() {}
   addLayer() {}
   setMapTheme(dark: boolean) {}

@@ -51,15 +51,8 @@ export class MapboxStrategy extends MapStrategy {
       'bottom-left',
     )
 
-    this.softInitialize()
-    this.map.on('load', this.softInitialize.bind(this))
-    this.map.on('style.load', this.softInitialize.bind(this))
-  }
-
-  // When map style is loaded, we need to reset the theme and add layers
-  softInitialize() {
-    this.addLayers()
-    this.setMapTheme(this.options.dark)
+    this.map.on('load', this.addLayers.bind(this))
+    this.map.on('style.load', this.setMapTheme.bind(this, this.options.dark))
   }
 
   addLayers() {
@@ -88,16 +81,8 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   setMapTheme(dark: boolean) {
-    if (!this.map.isStyleLoaded()) return
-    let lightPreset
-    switch (dark) {
-      case false:
-        lightPreset = 'day'
-        break
-      case true:
-        lightPreset = 'night'
-        break
-    }
+    // TODO: Utilize more lighting styles
+    const lightPreset = dark ? 'night' : 'day'
     this.map.setConfigProperty('basemap', 'lightPreset', lightPreset)
   }
 

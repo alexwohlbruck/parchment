@@ -1,3 +1,5 @@
+import { MapLayer } from '../../types/map.types'
+
 const cyclOSM = {
   name: 'CyclOSM',
   enabled: true,
@@ -161,9 +163,29 @@ const traffic = {
   },
 }
 
-export const layers = {
-  cycle: {
-    layers: [cyclOSM, waymarkedTrails],
+type Layer = {
+  name: string
+  enabled: boolean
+  source: {
+    id: string
+    type: string
+    tiles?: string[]
+    tileSize?: number
+    attribution?: string
+    maxzoom?: number
+    url?: string
+  }
+  meta: any
+}
+
+export const layers: {
+  [key in MapLayer]: {
+    layers: Layer[]
+    name: string
+  }
+} = {
+  cycling: {
+    layers: [cyclOSM],
     name: 'Cycling',
   },
   transit: {
@@ -173,5 +195,9 @@ export const layers = {
   traffic: {
     layers: [traffic],
     name: 'Traffic',
+  },
+  terrain: {
+    layers: [],
+    name: 'Terrain',
   },
 }

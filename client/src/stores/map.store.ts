@@ -1,8 +1,7 @@
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { Basemap, MapLayer } from '../types/map.types'
 import { MapLibrary, MapOptions } from '@/types/map.types'
-import { basemaps } from '@/components/map/map.data'
 
 export const useMapStore = defineStore('map', () => {
   const mapLibrary = ref<MapLibrary>('mapbox')
@@ -26,12 +25,22 @@ export const useMapStore = defineStore('map', () => {
     mapState.value.basemap = map
   }
 
-  function toggleLayer(layer: MapLayer) {
-    const index = mapState.value.layers.indexOf(layer)
-    if (index === -1) {
-      mapState.value.layers.push(layer)
+  function addLayer(layer: MapLayer) {
+    mapState.value.layers = [...mapState.value.layers, layer]
+  }
+
+  function removeLayer(layer: MapLayer) {
+    mapState.value.layers = mapState.value.layers.filter(l => l !== layer)
+  }
+
+  function toggleLayer(layer: MapLayer, state?: boolean) {
+    if (state === undefined) {
+      state = !mapState.value.layers.includes(layer)
+    }
+    if (state) {
+      addLayer(layer)
     } else {
-      mapState.value.layers.splice(index, 1)
+      removeLayer(layer)
     }
   }
 
@@ -41,6 +50,5 @@ export const useMapStore = defineStore('map', () => {
     mapState,
     setBasemap,
     toggleLayer,
-    // toggleLayer,
   }
 })

@@ -11,5 +11,5 @@ export type MapOptions = {
   projection: string
   theme: 'light' | 'dark'
   basemap: Basemap
-  layers: string[]
+  layers: MapLayer[]
 }

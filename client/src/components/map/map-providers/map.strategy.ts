@@ -1,4 +1,4 @@
-import { Basemap, MapOptions, MapTheme } from '@/types/map.types'
+import { Basemap, MapLayer, MapOptions, MapTheme } from '@/types/map.types'
 
 const defaultOptions: MapOptions = {
   center: [-80.8432808, 35.2205601],
@@ -23,7 +23,7 @@ export class MapStrategy {
 
   initialize() {}
   addDataSource() {}
-  addLayer() {}
+  setLayers(layers: MapLayer[]) {}
   setMapTheme(theme: MapTheme) {}
   setBasemap(basemap: Basemap) {}
   remove() {}

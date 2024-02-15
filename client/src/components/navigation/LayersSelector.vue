@@ -6,9 +6,14 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useMapStore } from '@/stores/map.store'
 import H5 from '@/components/ui/typography/H5.vue'
 import { basemaps, layers } from '../map/map.data'
+import { MapLayer } from '../../types/map.types'
 
 const mapStore = useMapStore()
 const { mapState } = storeToRefs(mapStore)
+
+function toggleLayer(layerId: MapLayer, pressed: boolean) {
+  mapStore.toggleLayer(layerId, pressed)
+}
 </script>
 
 <template>
@@ -41,7 +46,8 @@ const { mapState } = storeToRefs(mapStore)
         :key="i"
         variant="outline"
         :aria-label="layer.name"
-        @update:pressed="mapStore.toggleLayer"
+        :default-value="mapState.layers.includes(layer.id)"
+        @update:pressed="pressed => toggleLayer(layer.id, pressed)"
       >
         <component :is="layer.icon" class="size-5" />
       </Toggle>

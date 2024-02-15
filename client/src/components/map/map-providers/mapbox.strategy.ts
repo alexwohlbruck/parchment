@@ -8,7 +8,7 @@ import {
   Projection,
 } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { Basemap, MapOptions, type MapTheme } from '@/types/map.types'
+import { Basemap, MapLayer, MapOptions, type MapTheme } from '@/types/map.types'
 
 import { layers } from '../layers' // TODO: Refactor layers init
 
@@ -85,20 +85,31 @@ export class MapboxStrategy extends MapStrategy {
       'bottom-left',
     )
 
-    this.map.on('load', this.addLayers.bind(this))
+    this.map.on('load', this.setLayers.bind(this, this.options.layers))
     this.map.on('style.load', this.setMapTheme.bind(this, this.options.theme))
   }
 
-  addLayers() {
-    Object.values(layers).forEach(layerType => {
-      layerType.layers.forEach(layer => {
-        if (!layer.enabled) return
+  setLayers(layerIds: MapLayer[]) {
+    const mapLayers = this.map.getStyle().layers
+    const ids = mapLayers.map(layer => layer.id)
+    ids.forEach(id => {
+      if (!layerIds.includes(id)) {
+        this.map.removeLayer(id)
+      }
+    })
+
+    layerIds.forEach(layerId => {
+      const childLayers = layers[layerId].layers
+      childLayers.forEach(layer => {
         const { meta, source } = layer
         const id = source.id
-        this.map.addSource(id, {
-          id,
-          ...source,
-        })
+        if (!this.map.getSource(id)) {
+          this.map.addSource(id, {
+            id,
+            ...source,
+          })
+        }
+
         this.map.addLayer({
           source: id,
           id,

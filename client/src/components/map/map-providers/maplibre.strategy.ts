@@ -7,7 +7,7 @@ import {
   ScaleControl,
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { Basemap, MapTheme } from '@/types/map.types'
+import { Basemap, MapLayer, MapTheme } from '@/types/map.types'
 import { layers } from '../layers'
 
 const basemapUrls = {
@@ -64,11 +64,11 @@ export class MaplibreStrategy extends MapStrategy {
       'bottom-left',
     )
 
-    this.map.on('load', this.addLayers.bind(this))
+    this.map.on('load', this.setLayers.bind(this))
     this.map.on('style.load', this.setMapTheme.bind(this, this.options.theme))
   }
 
-  addLayers() {
+  setLayers(layers: MapLayer[]) {
     Object.values(layers).forEach(layerType => {
       layerType.layers.forEach(layer => {
         if (!layer.enabled) return

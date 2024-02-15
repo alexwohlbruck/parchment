@@ -10,7 +10,6 @@ import { MapboxStrategy } from './map-providers/mapbox.strategy'
 import { MapStrategy } from './map-providers/map.strategy'
 import { MaplibreStrategy } from './map-providers/maplibre.strategy'
 import { MapLibrary, MapOptions } from '@/types/map.types'
-import { basemaps } from './map.data'
 
 const dark = useDark()
 const mapStore = useMapStore()
@@ -37,9 +36,15 @@ onMounted(() => {
     map.setMapTheme(dark ? 'dark' : 'light')
   })
   watch(
-    () => mapStore.activeBasemapName,
-    name => {
-      map.setBasemap(name)
+    () => mapStore.mapState.basemap,
+    basemap => {
+      map.setBasemap(basemap)
+    },
+  )
+  watch(
+    () => mapStore.mapState.layers,
+    layers => {
+      map.setLayers(layers)
     },
   )
   watch(

@@ -1,4 +1,4 @@
-import { MapOptions, MapStrategy } from './map.strategy'
+import { MapStrategy } from './map.strategy'
 import {
   Map,
   NavigationControl,
@@ -7,7 +7,7 @@ import {
   ScaleControl,
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { Basemap, MapLayer, MapTheme } from '@/types/map.types'
+import { Basemap, MapLayer, MapTheme, MapOptions } from '@/types/map.types'
 import { layers } from '../layers'
 
 const basemapUrls = {
@@ -68,10 +68,18 @@ export class MaplibreStrategy extends MapStrategy {
     this.map.on('style.load', this.setMapTheme.bind(this, this.options.theme))
   }
 
-  setLayers(layers: MapLayer[]) {
-    Object.values(layers).forEach(layerType => {
-      layerType.layers.forEach(layer => {
-        if (!layer.enabled) return
+  setLayers(layerIds: MapLayer[]) {
+    const mapLayers = this.map.getStyle().layers
+    const ids = mapLayers.map(layer => layer.id)
+    ids.forEach((id: any) => {
+      if (!layerIds.includes(id)) {
+        this.map.removeLayer(id)
+      }
+    })
+
+    layerIds.forEach(layerId => {
+      const childLayers = layers[layerId].layers
+      childLayers.forEach(layer => {
         const { meta, source } = layer
         const id = source.id
 
@@ -82,14 +90,18 @@ export class MaplibreStrategy extends MapStrategy {
           }
         })
 
-        this.map.addSource(id, {
-          id,
-          ...source,
-        })
+        if (!this.map.getSource(id)) {
+          this.map.addSource(id, {
+            ...source,
+            id,
+          } as any)
+        }
+
         this.map.addLayer({
           source: id,
           id,
           ...meta,
+          slot: 'middle',
         })
       })
     })

@@ -92,7 +92,7 @@ export class MapboxStrategy extends MapStrategy {
   setLayers(layerIds: MapLayer[]) {
     const mapLayers = this.map.getStyle().layers
     const ids = mapLayers.map(layer => layer.id)
-    ids.forEach(id => {
+    ids.forEach((id: any) => {
       if (!layerIds.includes(id)) {
         this.map.removeLayer(id)
       }
@@ -105,9 +105,9 @@ export class MapboxStrategy extends MapStrategy {
         const id = source.id
         if (!this.map.getSource(id)) {
           this.map.addSource(id, {
-            id,
             ...source,
-          })
+            id,
+          } as any) // TODO: Fix type
         }
 
         this.map.addLayer({

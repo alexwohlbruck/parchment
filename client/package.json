@@ -28,7 +28,7 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@types/mapbox-gl": "^2.7.19",
+    "@types/mapbox-gl": "^2.7.21",
     "@types/node": "^20.10.8",
     "@types/vue": "^2.0.0",
     "@types/vue-router": "^2.0.0",

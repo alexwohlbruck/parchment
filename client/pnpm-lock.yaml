@@ -59,8 +59,8 @@ dependencies:
 
 devDependencies:
   '@types/mapbox-gl':
-    specifier: ^2.7.19
-    version: 2.7.19
+    specifier: ^2.7.21
+    version: 2.7.21
   '@types/node':
     specifier: ^20.10.8
     version: 20.10.8
@@ -865,11 +865,16 @@ packages:
 
   /@types/geojson@7946.0.13:
     resolution: {integrity: sha512-bmrNrgKMOhM3WsafmbGmC+6dsF2Z308vLFsQ3a/bT8X8Sv5clVYpPars/UPq+sAaJP+5OoLAYgwbkS5QEJdLUQ==}
+    dev: false
 
-  /@types/mapbox-gl@2.7.19:
-    resolution: {integrity: sha512-pkRdlhQJNbtwcKJSVC4uuOA6M3OlOObIMhNecqHB991oeaDF5XkjSIRaTE0lh5p4KClptSCxW6MBiREVRHrl2A==}
+  /@types/geojson@7946.0.14:
+    resolution: {integrity: sha512-WCfD5Ht3ZesJUsONdhvm84dmzWOiOzOAqOncN0++w0lBw1o8OuDNJF2McvvCef/yBqb/HYRahp1BYtODFQ8bRg==}
+    dev: true
+
+  /@types/mapbox-gl@2.7.21:
+    resolution: {integrity: sha512-Dx9MuF2kKgT/N22LsMUB4b3acFZh9clVqz9zv1fomoiPoBrJolwYxpWA/9LPO/2N0xWbKi4V+pkjTaFkkx/4wA==}
     dependencies:
-      '@types/geojson': 7946.0.13
+      '@types/geojson': 7946.0.14
     dev: true
 
   /@types/mapbox__point-geometry@0.1.4:

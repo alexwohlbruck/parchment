@@ -1,17 +1,8 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { Basemap } from '../types/map.types'
-import {
-  Globe2Icon,
-  SatelliteIcon,
-  BikeIcon,
-  TramFrontIcon,
-  CarIcon,
-  MountainSnowIcon,
-  Icon,
-} from 'lucide-vue-next'
-
-export type MapLibrary = 'mapbox' | 'maplibre'
+import { MapLibrary, MapOptions } from '@/types/map.types'
+import { basemaps } from '@/components/map/map.data'
 
 export const useMapStore = defineStore('map', () => {
   const mapLibrary = ref<MapLibrary>('mapbox')
@@ -20,67 +11,34 @@ export const useMapStore = defineStore('map', () => {
     mapLibrary.value = sdk
   }
 
-  const basemaps = ref<{
-    [key in Basemap]: {
-      name: string
-      icon: Icon
-      url: string
-    }
-  }>({
-    standard: {
-      name: 'Standard',
-      icon: Globe2Icon,
-      url: 'mapbox://styles/mapbox/standard-beta',
-    },
-    aerial: {
-      name: 'Aerial',
-      icon: SatelliteIcon,
-      url: 'mapbox://styles/mapbox/satellite-v9',
-    },
+  const mapState = ref<MapOptions>({
+    center: [-80.8432808, 35.2205601],
+    zoom: 14,
+    bearing: 0,
+    pitch: 0,
+    projection: 'web-mercator',
+    theme: 'light',
+    basemap: 'standard',
+    layers: [],
   })
+
   const activeBasemapName = ref<Basemap>('standard')
 
   const activeBasemap = computed(() => {
-    return basemaps.value[activeBasemapName.value]
+    return basemaps[activeBasemapName.value]
   })
 
   function setBasemap(map: Basemap) {
-    console.log(map)
     activeBasemapName.value = map
   }
-
-  const layers = ref<
-    {
-      name: string
-      icon: Icon
-    }[]
-  >([
-    {
-      name: 'Cycling',
-      icon: BikeIcon,
-    },
-    {
-      name: 'Transit',
-      icon: TramFrontIcon,
-    },
-    {
-      name: 'Traffic',
-      icon: CarIcon,
-    },
-    {
-      name: 'Terrain',
-      icon: MountainSnowIcon,
-    },
-  ])
 
   return {
     mapLibrary,
     setMapLibrary,
-    basemaps,
+    mapState,
     setBasemap,
     activeBasemapName,
     activeBasemap,
-    layers,
     // toggleLayer,
   }
 })

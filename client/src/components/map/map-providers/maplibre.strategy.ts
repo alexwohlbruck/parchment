@@ -7,16 +7,30 @@ import {
   ScaleControl,
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import { Basemap, MapTheme } from '@/types/map.types'
 
-const LIGHT_STYLE = `https://api.maptiler.com/maps/streets-v2/style.json?key=${
-  import.meta.env.VITE_MAPTILER_API_KEY
-}`
-const DARK_STYLE = `https://api.maptiler.com/maps/streets-v2-dark/style.json?key=${
-  import.meta.env.VITE_MAPTILER_API_KEY
-}`
+const basemapUrls = {
+  light: `https://api.maptiler.com/maps/streets-v2/style.json?key=${
+    import.meta.env.VITE_MAPTILER_API_KEY
+  }`,
+  dark: `https://api.maptiler.com/maps/streets-v2-dark/style.json?key=${
+    import.meta.env.VITE_MAPTILER_API_KEY
+  }`,
+  hybrid: `https://api.maptiler.com/maps/hybrid/style.json?key=${
+    import.meta.env.VITE_MAPTILER_API_KEY
+  }`,
+  satellite: `https://api.maptiler.com/maps/satellite/style.json?key=${
+    import.meta.env.VITE_MAPTILER_API_KEY
+  }`,
+}
 
 export class MaplibreStrategy extends MapStrategy {
-  constructor(container, options?: MapOptions) {
+  theme: MapTheme = 'light'
+  map: Map
+
+  constructor(container, options?: Partial<MapOptions>) {
+    super(container, options)
+
     // For testing
     const { lng, lat, zoom, bearing, pitch } = {
       lng: -80.8432808,
@@ -26,17 +40,15 @@ export class MaplibreStrategy extends MapStrategy {
       zoom: 14,
     }
 
-    const map = new Map({
+    this.map = new Map({
       container,
-      style: LIGHT_STYLE,
+      style: basemapUrls.light,
       center: [lng, lat],
       bearing,
       pitch,
       zoom,
       attributionControl: false,
     })
-
-    super(container, map, options)
     this.initialize()
   }
 
@@ -59,10 +71,26 @@ export class MaplibreStrategy extends MapStrategy {
   // When map style is loaded, we need to reset the theme and add layers
   softInitialize() {
     // this.addLayers()
-    this.setMapTheme(this.options.dark)
+    this.setMapTheme(this.options.theme)
   }
 
-  setMapTheme(dark: boolean) {
-    this.map.setStyle(dark ? DARK_STYLE : LIGHT_STYLE)
+  getBasemapFromTheme() {
+    return this.options.theme === 'dark' ? basemapUrls.dark : basemapUrls.light
+  }
+
+  setMapTheme(theme: MapTheme) {
+    this.options.theme = theme
+    this.map.setStyle(this.getBasemapFromTheme())
+  }
+
+  setBasemap(basemap: Basemap) {
+    const themeMap: {
+      [key in Basemap]: string
+    } = {
+      standard: this.getBasemapFromTheme(),
+      satellite: basemapUrls.satellite,
+      hybrid: basemapUrls.hybrid,
+    }
+    this.map.setStyle(themeMap[basemap])
   }
 }

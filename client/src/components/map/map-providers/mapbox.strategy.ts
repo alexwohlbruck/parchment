@@ -1,17 +1,49 @@
-import { MapOptions, MapStrategy } from './map.strategy'
+import { MapStrategy } from './map.strategy'
 import {
   Map,
   NavigationControl,
   GeolocateControl,
   AttributionControl,
   ScaleControl,
+  Projection,
 } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
+import { Basemap, MapOptions, type MapTheme } from '@/types/map.types'
 
 import { layers } from '../layers' // TODO: Refactor layers init
 
+const basemapUrls: {
+  [key in Basemap]: string
+} = {
+  standard: 'mapbox://styles/mapbox/standard-beta',
+  hybrid: 'mapbox://styles/mapbox/satellite-streets-v11',
+  satellite: 'mapbox://styles/mapbox/satellite-v9',
+}
+
+declare module 'mapbox-gl' {
+  interface Map {
+    setConfigProperty: (namespace: string, key: string, value: any) => void
+  }
+}
+
+// Guard decorator to ensure the basemap is loaded
+function ifBasemapLoaded(target, name, descriptor) {
+  const original = descriptor.value
+  descriptor.value = function (...args) {
+    if (this.map.style.fragments?.some((f: any) => f.id === 'basemap')) {
+      original.apply(this, args)
+    }
+  }
+  return descriptor
+}
+
 export class MapboxStrategy extends MapStrategy {
-  constructor(container, options?: MapOptions) {
+  // instance of mapbox `Map`
+  map: Map
+
+  constructor(container, options?: Partial<MapOptions>) {
+    super(container, options)
+
     // For testing
     const { lng, lat, zoom, bearing, pitch } = {
       lng: -80.8432808,
@@ -20,7 +52,8 @@ export class MapboxStrategy extends MapStrategy {
       pitch: 0,
       zoom: 14,
     }
-    const projection: any = localStorage.getItem('projection') || 'globe'
+    const projection: Projection['name'] =
+      (localStorage.getItem('projection') as Projection['name']) || 'globe'
 
     const map = new Map({
       accessToken: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
@@ -36,7 +69,8 @@ export class MapboxStrategy extends MapStrategy {
       },
     })
 
-    super(container, map, options)
+    this.map = map
+
     this.initialize()
   }
 
@@ -52,11 +86,10 @@ export class MapboxStrategy extends MapStrategy {
     )
 
     this.map.on('load', this.addLayers.bind(this))
-    this.map.on('style.load', this.setMapTheme.bind(this, this.options.dark))
+    this.map.on('style.load', this.setMapTheme.bind(this, this.options.theme))
   }
 
   addLayers() {
-    if (!this.map.isStyleLoaded()) return
     Object.values(layers).forEach(layerType => {
       layerType.layers.forEach(layer => {
         if (!layer.enabled) return
@@ -80,13 +113,18 @@ export class MapboxStrategy extends MapStrategy {
     this.map.setConfigProperty('basemap', 'showPointOfInterestLabels', value)
   }
 
-  setMapTheme(dark: boolean) {
-    // TODO: Utilize more lighting styles
-    const lightPreset = dark ? 'night' : 'day'
+  @ifBasemapLoaded
+  setMapTheme(theme: MapTheme) {
+    const themeMap: { [key in MapTheme]: string } = {
+      light: 'day',
+      dark: 'night',
+    }
+    const lightPreset = themeMap[theme]
     this.map.setConfigProperty('basemap', 'lightPreset', lightPreset)
   }
 
-  setStyle(url: string) {
+  setBasemap(basemap: Basemap) {
+    const url = basemapUrls[basemap]
     this.map.setStyle(url)
   }
 

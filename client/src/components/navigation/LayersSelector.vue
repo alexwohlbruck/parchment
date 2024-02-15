@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
-import { storeToRefs } from "pinia";
-import { Toggle } from "@/components/ui/toggle";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useMapStore } from "@/stores/map.store";
-import H5 from "@/components/ui/typography/H5.vue";
+import { ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
+import { Toggle } from '@/components/ui/toggle'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { useMapStore } from '@/stores/map.store'
+import H5 from '@/components/ui/typography/H5.vue'
+import { Basemap } from '@/types/map.types'
+import { basemaps, layers } from '../map/map.data'
 
-const mapStore = useMapStore();
-const { basemaps, layers, activeBasemapName } = storeToRefs(mapStore);
+const mapStore = useMapStore()
+const { activeBasemapName } = storeToRefs(mapStore)
 </script>
 
 <template>

@@ -5,11 +5,10 @@ import { Toggle } from '@/components/ui/toggle'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useMapStore } from '@/stores/map.store'
 import H5 from '@/components/ui/typography/H5.vue'
-import { Basemap } from '@/types/map.types'
 import { basemaps, layers } from '../map/map.data'
 
 const mapStore = useMapStore()
-const { activeBasemapName } = storeToRefs(mapStore)
+const { mapState } = storeToRefs(mapStore)
 </script>
 
 <template>
@@ -18,7 +17,7 @@ const { activeBasemapName } = storeToRefs(mapStore)
     <div class="flex gap-2">
       <ToggleGroup
         type="single"
-        :default-value="activeBasemapName"
+        :default-value="mapState.basemap"
         @update:model-value="mapStore.setBasemap"
       >
         <ToggleGroupItem
@@ -42,6 +41,7 @@ const { activeBasemapName } = storeToRefs(mapStore)
         :key="i"
         variant="outline"
         :aria-label="layer.name"
+        @update:pressed="mapStore.toggleLayer"
       >
         <component :is="layer.icon" class="size-5" />
       </Toggle>

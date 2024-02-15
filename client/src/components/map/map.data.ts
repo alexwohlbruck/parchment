@@ -1,4 +1,4 @@
-import { Basemap } from '@/types/map.types'
+import { Basemap, MapLayer } from '@/types/map.types'
 import {
   Globe2Icon,
   BlendIcon,
@@ -42,22 +42,27 @@ export const basemaps: {
 }
 
 export const layers: {
+  id: MapLayer
   name: string
   icon: Icon
 }[] = [
   {
+    id: 'cycling',
     name: 'Cycling',
     icon: BikeIcon,
   },
   {
+    id: 'transit',
     name: 'Transit',
     icon: TramFrontIcon,
   },
   {
+    id: 'traffic',
     name: 'Traffic',
     icon: CarIcon,
   },
   {
+    id: 'terrain',
     name: 'Terrain',
     icon: MountainSnowIcon,
   },

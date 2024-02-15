@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { Basemap } from '../types/map.types'
+import { Basemap, MapLayer } from '../types/map.types'
 import { MapLibrary, MapOptions } from '@/types/map.types'
 import { basemaps } from '@/components/map/map.data'
 
@@ -22,14 +22,17 @@ export const useMapStore = defineStore('map', () => {
     layers: [],
   })
 
-  const activeBasemapName = ref<Basemap>('standard')
-
-  const activeBasemap = computed(() => {
-    return basemaps[activeBasemapName.value]
-  })
-
   function setBasemap(map: Basemap) {
-    activeBasemapName.value = map
+    mapState.value.basemap = map
+  }
+
+  function toggleLayer(layer: MapLayer) {
+    const index = mapState.value.layers.indexOf(layer)
+    if (index === -1) {
+      mapState.value.layers.push(layer)
+    } else {
+      mapState.value.layers.splice(index, 1)
+    }
   }
 
   return {
@@ -37,8 +40,7 @@ export const useMapStore = defineStore('map', () => {
     setMapLibrary,
     mapState,
     setBasemap,
-    activeBasemapName,
-    activeBasemap,
+    toggleLayer,
     // toggleLayer,
   }
 })

@@ -1,4 +1,5 @@
 export type Basemap = 'standard' | 'satellite' | 'hybrid'
+export type MapLayer = 'cycling' | 'transit' | 'traffic' | 'terrain'
 export type MapLibrary = 'mapbox' | 'maplibre'
 export type MapTheme = 'light' | 'dark'
 

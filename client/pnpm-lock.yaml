@@ -12,8 +12,8 @@ dependencies:
     specifier: ^2.3.6
     version: 2.3.6(vue@3.4.3)
   '@vee-validate/zod':
-    specifier: ^4.12.4
-    version: 4.12.4(vue@3.4.3)
+    specifier: ^4.12.5
+    version: 4.12.5(vue@3.4.3)
   '@vueuse/core':
     specifier: ^10.7.1
     version: 10.7.1(vue@3.4.3)
@@ -24,11 +24,11 @@ dependencies:
     specifier: ^2.1.0
     version: 2.1.0
   lucide-vue-next:
-    specifier: ^0.303.0
-    version: 0.303.0(vue@3.4.3)
+    specifier: ^0.330.0
+    version: 0.330.0(vue@3.4.3)
   mapbox-gl:
-    specifier: 3.1.0-beta.1
-    version: 3.1.0-beta.1
+    specifier: 3.1.2
+    version: 3.1.2
   maplibre-gl:
     specifier: ^4.0.0
     version: 4.0.0
@@ -922,11 +922,11 @@ packages:
     resolution: {integrity: sha512-g9gZnnXVq7gM7v3tJCWV/qw7w+KeOlSHAhgF9RytFyifW6AF61hdT2ucrYhPq9hLs5JIryeupHV3qGk95dH9ow==}
     dev: false
 
-  /@vee-validate/zod@4.12.4(vue@3.4.3):
-    resolution: {integrity: sha512-iNFhkBfGkre2b+eBXgBpNlNVStxDrI59sJUbzBr01EjyTkFOUgc/0wPJrhY/kBp+0pnGzNi04jklJaKfNK2ibg==}
+  /@vee-validate/zod@4.12.5(vue@3.4.3):
+    resolution: {integrity: sha512-hUjvXaa4HHvlZeosucViIDOUikQmyKaXXuL6P8LR1ETOUrBV6ntTsafJGvRYtwhXosoLYuolUD6Km737okK4Gg==}
     dependencies:
-      type-fest: 4.9.0
-      vee-validate: 4.12.4(vue@3.4.3)
+      type-fest: 4.10.2
+      vee-validate: 4.12.5(vue@3.4.3)
       zod: 3.22.4
     transitivePeerDependencies:
       - vue
@@ -1806,8 +1806,8 @@ packages:
     dependencies:
       yallist: 4.0.0
 
-  /lucide-vue-next@0.303.0(vue@3.4.3):
-    resolution: {integrity: sha512-UyWxeqxrm5iIp4Tlovh90lfKoXKpwhwxOb4eFTtTBfJ59Y8R5f6vOFPiYwPf+K4InvZ4BntcIzswtGoDeSfBmg==}
+  /lucide-vue-next@0.330.0(vue@3.4.3):
+    resolution: {integrity: sha512-/rfVjXHSTLzhYhRYxkZlazBpE2Xp0p9rfCg9rgvsJQvNU0JCB6z6q8+TVG6j8WREi6daxGT6DbAFh0F65tyJzw==}
     peerDependencies:
       vue: '>=3.0.1'
     dependencies:
@@ -1820,8 +1820,8 @@ packages:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.4.15
 
-  /mapbox-gl@3.1.0-beta.1:
-    resolution: {integrity: sha512-sLGXCLiYuEQhBAahJCSPnpWzSzYeUnwz35mNog8yZV5eMCblmmSlAszPL/QYXHG0YgJGBvXk79Qd1DPJ8xjErg==}
+  /mapbox-gl@3.1.2:
+    resolution: {integrity: sha512-+KoLEqZM8GxO/ViPz9tKgGURteKne+Y0pXiVCNsowymiZFH3FiL6dt9oZE95owMg5XqD3Kygz5mfchR1ZgmWlA==}
     dependencies:
       '@mapbox/geojson-rewind': 0.5.2
       '@mapbox/jsonlint-lines-primitives': 2.0.2
@@ -2511,6 +2511,11 @@ packages:
   /ts-interface-checker@0.1.13:
     resolution: {integrity: sha512-Y/arvbn+rrz3JCKl9C4kVNfTfSm2/mEp5FSz5EsZSANGPSlQrpRI5M4PKF+mJnE52jOO90PnPSc3Ur3bTQw0gA==}
 
+  /type-fest@4.10.2:
+    resolution: {integrity: sha512-anpAG63wSpdEbLwOqH8L84urkL6PiVIov3EMmgIhhThevh9aiMQov+6Btx0wldNcvm4wV+e2/Rt1QdDwKHFbHw==}
+    engines: {node: '>=16'}
+    dev: false
+
   /type-fest@4.9.0:
     resolution: {integrity: sha512-KS/6lh/ynPGiHD/LnAobrEFq3Ad4pBzOlJ1wAnJx9N4EYoqFhMfLIBjUT2UEx4wg5ZE+cC1ob6DCSpppVo+rtg==}
     engines: {node: '>=16'}
@@ -2627,6 +2632,16 @@ packages:
     dependencies:
       '@vue/devtools-api': 6.5.1
       type-fest: 4.9.0
+      vue: 3.4.3(typescript@5.3.3)
+    dev: false
+
+  /vee-validate@4.12.5(vue@3.4.3):
+    resolution: {integrity: sha512-rvaDfLPSLwTk+mf016XWE4drB8yXzOsKXiKHTb9gNXNLTtQSZ0Ww26O0/xbIFQe+n3+u8Wv1Y8uO/aLDX4fxOg==}
+    peerDependencies:
+      vue: ^3.3.11
+    dependencies:
+      '@vue/devtools-api': 6.5.1
+      type-fest: 4.10.2
       vue: 3.4.3(typescript@5.3.3)
     dev: false
 

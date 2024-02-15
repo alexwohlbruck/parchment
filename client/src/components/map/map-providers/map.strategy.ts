@@ -1,24 +1,30 @@
-export type MapOptions = {
-  dark: boolean
+import { Basemap, MapOptions, MapTheme } from '@/types/map.types'
+
+const defaultOptions: MapOptions = {
+  center: [-80.8432808, 35.2205601],
+  zoom: 14,
+  bearing: 0,
+  pitch: 0,
+  projection: 'mercator',
+  theme: 'light',
+  basemap: 'standard',
+  layers: [],
 }
 
 export class MapStrategy {
-  container: HTMLElement
   map: any
+  container: HTMLElement
   options: MapOptions
 
-  constructor(container, map: any, options?: MapOptions) {
+  constructor(container, options?: Partial<MapOptions>) {
     this.container = container
-    this.map = map
-    this.options = options || {
-      dark: false,
-    }
+    this.options = { ...defaultOptions, ...options }
   }
 
   initialize() {}
   addDataSource() {}
   addLayer() {}
-  setMapTheme(dark: boolean) {}
-  setStyle(url: string) {} // TODO
+  setMapTheme(theme: MapTheme) {}
+  setBasemap(basemap: Basemap) {}
   remove() {}
 }

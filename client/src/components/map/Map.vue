@@ -4,14 +4,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
-// import { useRouter } from "vue-router";
-// import { useSettingsStore } from "@/stores/settings";
-// import { AppTheme } from "../../types/settings";
 import { useDark } from '@vueuse/core'
-import { MapLibrary, useMapStore } from '../../stores/map.store'
+import { useMapStore } from '../../stores/map.store'
 import { MapboxStrategy } from './map-providers/mapbox.strategy'
 import { MapStrategy } from './map-providers/map.strategy'
 import { MaplibreStrategy } from './map-providers/maplibre.strategy'
+import { MapLibrary, MapOptions } from '@/types/map.types'
+import { basemaps } from './map.data'
 
 const dark = useDark()
 const mapStore = useMapStore()
@@ -20,8 +19,8 @@ const mapContainer = ref(null)
 let map: MapStrategy
 
 function getMapInstance(mapLibrary: MapLibrary) {
-  const options = {
-    dark: dark.value,
+  const options: Partial<MapOptions> = {
+    theme: dark.value ? 'dark' : 'light',
   }
   switch (mapLibrary) {
     case 'mapbox':
@@ -34,18 +33,19 @@ function getMapInstance(mapLibrary: MapLibrary) {
 onMounted(() => {
   map = getMapInstance(mapStore.mapLibrary)
 
-  watch(dark, map.setMapTheme)
+  watch(dark, dark => {
+    map.setMapTheme(dark ? 'dark' : 'light')
+  })
   watch(
     () => mapStore.activeBasemapName,
     name => {
-      console.log(mapStore.basemaps, name)
-      map.setStyle(mapStore.basemaps[name].url)
+      map.setBasemap(name)
     },
   )
   watch(
     () => mapStore.mapLibrary,
-    sdk => {
-      map = getMapInstance(sdk)
+    mapLibrary => {
+      map = getMapInstance(mapLibrary)
     },
   )
 })

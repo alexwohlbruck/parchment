@@ -34,7 +34,7 @@ const mapStore = useMapStore()
         </div>
         <div class="flex items-center space-x-2">
           <RadioGroupItem id="maplbire" value="maplibre" />
-          <Label for="maplbire">Maplibre</Label>
+          <Label for="maplbire">MapLibre</Label>
         </div>
       </RadioGroup>
     </div>

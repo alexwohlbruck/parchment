@@ -1,1 +1,14 @@
-export type Basemap = "standard" | "aerial";
+export type Basemap = 'standard' | 'satellite' | 'hybrid'
+export type MapLibrary = 'mapbox' | 'maplibre'
+export type MapTheme = 'light' | 'dark'
+
+export type MapOptions = {
+  center: [number, number]
+  zoom: number
+  bearing: number
+  pitch: number
+  projection: string
+  theme: 'light' | 'dark'
+  basemap: Basemap
+  layers: string[]
+}

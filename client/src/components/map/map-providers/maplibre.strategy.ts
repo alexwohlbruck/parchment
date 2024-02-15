@@ -8,6 +8,7 @@ import {
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Basemap, MapTheme } from '@/types/map.types'
+import { layers } from '../layers'
 
 const basemapUrls = {
   light: `https://api.maptiler.com/maps/streets-v2/style.json?key=${
@@ -63,15 +64,39 @@ export class MaplibreStrategy extends MapStrategy {
       'bottom-left',
     )
 
-    this.softInitialize()
-    this.map.on('load', this.softInitialize.bind(this))
-    this.map.on('style.load', this.softInitialize.bind(this))
+    this.map.on('load', this.addLayers.bind(this))
+    this.map.on('style.load', this.setMapTheme.bind(this, this.options.theme))
   }
 
-  // When map style is loaded, we need to reset the theme and add layers
-  softInitialize() {
-    // this.addLayers()
-    this.setMapTheme(this.options.theme)
+  addLayers() {
+    Object.values(layers).forEach(layerType => {
+      layerType.layers.forEach(layer => {
+        if (!layer.enabled) return
+        const { meta, source } = layer
+        const id = source.id
+
+        // Emissive strength is not supported in MapLibre
+        Object.keys(meta.paint).forEach(key => {
+          if (key.includes('emissive-strength')) {
+            delete meta.paint[key]
+          }
+        })
+
+        this.map.addSource(id, {
+          id,
+          ...source,
+        })
+        this.map.addLayer({
+          source: id,
+          id,
+          ...meta,
+        })
+      })
+    })
+  }
+
+  togglePoiLabels() {
+    // TODO:
   }
 
   getBasemapFromTheme() {

@@ -1,14 +1,18 @@
 <script setup lang="ts">
-import Nav from "@/components/navigation/Navigation.vue";
-import { onMounted } from "vue";
-import { useConfigStore } from "./stores/settings.store";
+import Nav from '@/components/navigation/Navigation.vue'
+import { onMounted } from 'vue'
+import { useConfigStore } from './stores/settings.store'
+import { useCommandService } from './services/command/command.service'
 
-const { theme, radius } = useConfigStore();
+const { theme, radius } = useConfigStore()
+const commandService = useCommandService()
 
 onMounted(() => {
-  document.documentElement.style.setProperty("--radius", `${radius.value}rem`);
-  document.documentElement.classList.add(`theme-${theme.value}`);
-});
+  document.documentElement.style.setProperty('--radius', `${radius.value}rem`)
+  document.documentElement.classList.add(`theme-${theme.value}`)
+
+  commandService.bindAllHotkeysToCommands()
+})
 </script>
 
 <template>

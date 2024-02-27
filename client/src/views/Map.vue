@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import Map from "@/components/map/Map.vue";
-import Palette from "@/components/palette/Palette.vue";
+import Map from '@/components/map/Map.vue'
+import Palette from '@/components/palette/Palette.vue'
 </script>
 
 <template>

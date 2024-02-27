@@ -1,19 +1,19 @@
 <script setup lang="ts">
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
-} from "@/components/ui/hover-card";
+} from '@/components/ui/hover-card'
 
-import LayersSelector from "@/components/navigation/LayersSelector.vue";
+import LayersSelector from '@/components/navigation/LayersSelector.vue'
 // import { useMagicKeys } from "@vueuse/core";
-import { useRouter } from "vue-router";
+import { useRouter } from 'vue-router'
 
-import Kbd from "@/components/ui/kbd/Kbd.vue";
+import Kbd from '@/components/ui/kbd/Kbd.vue'
 
 import {
   MapIcon,
@@ -25,12 +25,12 @@ import {
   UsersRoundIcon,
   SettingsIcon,
   Layers3Icon,
-} from "lucide-vue-next";
+} from 'lucide-vue-next'
 
-import { ref } from "vue";
+import { ref } from 'vue'
 
-const router = useRouter();
-const mini = ref(true);
+const router = useRouter()
+const mini = ref(true)
 
 const items = ref([
   {
@@ -39,16 +39,16 @@ const items = ref([
   {
     items: [
       {
-        label: "Map",
+        label: 'Map',
         icon: MapIcon,
-        shortcut: "m",
-        to: "/",
+        // hotkey: ['m'],
+        to: '/',
       },
       {
-        label: "Directions",
+        label: 'Directions',
         icon: MilestoneIcon,
-        shortcut: "d",
-        to: "/directions",
+        // hotkey: ['d'],
+        to: '/directions',
       },
     ],
   },
@@ -58,34 +58,34 @@ const items = ref([
   {
     items: [
       {
-        label: "Places",
+        label: 'Places',
         icon: BookMarkedIcon,
-        shortcut: "p",
-        to: "/place",
+        // hotkey: ['p'],
+        to: '/place',
       },
       {
-        label: "Timeline",
+        label: 'Timeline',
         icon: HistoryIcon,
-        shortcut: "t",
-        to: "/timeline",
+        // hotkey: ['t'],
+        to: '/timeline',
       },
       {
-        label: "Offline maps",
-        shortcut: "o",
+        label: 'Offline maps',
+        // hotkey: ['o'],
         icon: CloudOffIcon,
-        to: "/offline",
+        to: '/offline',
       },
       {
-        label: "Custom maps",
-        shortcut: "c",
+        label: 'Custom maps',
+        // hotkey: ['c'],
         icon: MapPinnedIcon,
-        to: "/custom",
+        to: '/custom',
       },
       {
-        label: "People",
-        shortcut: "l",
+        label: 'People',
+        // hotkey: ['l'],
         icon: UsersRoundIcon,
-        to: "/people",
+        to: '/people',
       },
     ],
   },
@@ -95,15 +95,15 @@ const items = ref([
   {
     items: [
       {
-        label: "Settings",
+        label: 'Settings',
         icon: SettingsIcon,
-        shortcut: "s",
-        to: "/settings",
+        // hotkey: ['s'],
+        to: '/settings',
       },
       {
-        label: "Layers",
+        label: 'Layers',
         icon: Layers3Icon,
-        shortcut: "l",
+        // hotkey: ['l'],
         popover: LayersSelector,
         // TODO: Fix this
         // condition: router.currentRoute.value.matched.some(
@@ -115,33 +115,17 @@ const items = ref([
   {
     separator: true,
   },
-]);
+])
 
-// const keys = useMagicKeys();
-
-// For each item, add a keyboard shortcut listener
-// items.value.forEach((item) => {
-//   item.items?.forEach((subitem) => {
-//     const shortcut = subitem.shortcut;
-//     const route = subitem.route;
-//     const key = keys[`Cmd+${shortcut}`];
-
-//     watch(key, (v) => {
-//       if (v) {
-//         router.push(route);
-//       }
-//     });
-//   });
-// });
-const lockMini = ref(false);
-const nav = ref(null);
+const lockMini = ref(false)
+const nav = ref(null)
 
 function popoverOpened(open: boolean) {
-  lockMini.value = open;
+  lockMini.value = open
   if (!open) {
-    const mouseIsHoveringNav = (nav.value as any).matches(":hover");
+    const mouseIsHoveringNav = (nav.value as any).matches(':hover')
     if (!mouseIsHoveringNav) {
-      mini.value = true;
+      mini.value = true
     }
   }
 }
@@ -155,7 +139,7 @@ function popoverOpened(open: boolean) {
     :class="
       cn(
         'bg-background max-h-full overflow-y-auto m-2 py-2 shadow-md flex flex-col gap-2 rounded',
-        $attrs.class ?? ''
+        $attrs.class ?? '',
       )
     "
   >
@@ -193,10 +177,7 @@ function popoverOpened(open: boolean) {
                       {{ subitem.label }}
                     </div>
 
-                    <Kbd>
-                      <span>⌘</span>
-                      {{ subitem.shortcut.toUpperCase() }}
-                    </Kbd>
+                    <Kbd v-if="subitem.hotkey" :hotkey="subitem.hotkey"></Kbd>
                   </div>
                 </transition-expand>
               </router-link>
@@ -218,10 +199,7 @@ function popoverOpened(open: boolean) {
                         {{ subitem.label }}
                       </div>
 
-                      <Kbd>
-                        <span>⌘</span>
-                        {{ subitem.shortcut.toUpperCase() }}
-                      </Kbd>
+                      <Kbd v-if="subitem.hotkey" :hotkey="subitem.hotkey"></Kbd>
                     </div>
                   </transition-expand>
                 </Button>

@@ -9,7 +9,7 @@ import {
   MountainSnowIcon,
 } from 'lucide-vue-next'
 
-type Icon = typeof Globe2Icon
+export type Icon = typeof Globe2Icon
 
 /**
  * TODO:

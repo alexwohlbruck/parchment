@@ -1,63 +1,63 @@
 <script setup lang="ts">
-import { onMounted, watch } from "vue";
-import { Button } from "@/components/ui/button";
-import { CheckIcon } from "lucide-vue-next";
+import { onMounted, watch } from 'vue'
+import { Button } from '@/components/ui/button'
+import { CheckIcon } from 'lucide-vue-next'
 
-import { RADII, useConfigStore } from "@/stores/settings.store";
+import { RADII, useConfigStore } from '@/stores/settings.store'
 
-import { colors } from "@/lib/registry/colors";
-import { useDark } from "@vueuse/core";
+import { colors } from '@/lib/registry/colors'
+import { useDark } from '@vueuse/core'
 
 type Color =
-  | "zinc"
-  | "slate"
-  | "stone"
-  | "gray"
-  | "neutral"
-  | "red"
-  | "rose"
-  | "orange"
-  | "green"
-  | "blue"
-  | "yellow"
-  | "violet";
+  | 'zinc'
+  | 'slate'
+  | 'stone'
+  | 'gray'
+  | 'neutral'
+  | 'red'
+  | 'rose'
+  | 'orange'
+  | 'green'
+  | 'blue'
+  | 'yellow'
+  | 'violet'
 
 const allColors: Color[] = [
-  "zinc",
-  "rose",
-  "blue",
-  "green",
-  "orange",
-  "red",
-  "slate",
-  "stone",
-  "gray",
-  "neutral",
-  "yellow",
-  "violet",
-];
+  'zinc',
+  'rose',
+  'blue',
+  'green',
+  'orange',
+  'red',
+  'slate',
+  'stone',
+  'gray',
+  'neutral',
+  'yellow',
+  'violet',
+]
 
-const { theme, radius, setRadius, setTheme } = useConfigStore();
-const isDark = useDark();
+const { theme, radius, setRadius, setTheme } = useConfigStore()
+const isDark = useDark()
 
 // Whenever the component is mounted, update the document class list
 onMounted(() => {
-  document.documentElement.style.setProperty("--radius", `${radius.value}rem`);
-  document.documentElement.classList.add(`theme-${theme.value}`);
-});
+  document.documentElement.style.setProperty('--radius', `${radius.value}rem`)
+  document.documentElement.classList.add(`theme-${theme.value}`)
+})
 
 // Whenever the theme value changes, update the document class list
-watch(theme, (theme) => {
+watch(theme, theme => {
   document.documentElement.classList.remove(
-    ...allColors.map((color) => `theme-${color}`)
-  );
-  document.documentElement.classList.add(`theme-${theme}`);
-});
+    ...allColors.map(color => `theme-${color}`),
+  )
+  document.documentElement.classList.add(`theme-${theme}`)
+})
 
 // Whenever the radius value changes, update the document style
-watch(radius, (radius) => {
-  document.documentElement.style.setProperty("--radius", `${radius}rem`);
-});
+watch(radius, radius => {
+  document.documentElement.style.setProperty('--radius', `${radius}rem`)
+})
 </script>
 
 <template>

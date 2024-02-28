@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { Command } from '@/types/command.types'
-import { SearchIcon, SunMoonIcon } from 'lucide-vue-next'
+import { HelpCircleIcon, SearchIcon, SunMoonIcon } from 'lucide-vue-next'
 import { useDark, useToggle } from '@vueuse/core'
 
 const isDark = useDark()
@@ -23,6 +23,13 @@ export const useCommandStore = defineStore('command', () => {
       hotkey: ['t'],
       icon: SunMoonIcon,
       action: toggleDark,
+    },
+    {
+      id: 'openHotkeysMenu',
+      name: 'Keyboard shortcuts',
+      description: 'View all available keyboard shortcuts',
+      hotkey: ['s'],
+      icon: HelpCircleIcon,
     },
   ])
 

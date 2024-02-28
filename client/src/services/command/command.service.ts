@@ -5,10 +5,6 @@ import mousetrap from 'mousetrap'
 export function useCommandService() {
   const commandStore = useCommandStore()
 
-  commandStore.$subscribe((mutation, state) => {
-    console.log(mutation)
-  })
-
   function bindHotkeyToCommand(command: Command) {
     if (!command.hotkey || !command.action) return
 

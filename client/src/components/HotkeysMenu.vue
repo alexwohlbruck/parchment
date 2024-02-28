@@ -4,7 +4,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -17,7 +16,7 @@ import Kbd from '@/components/ui/kbd/Kbd.vue'
 const commandService = useCommandService()
 const commandStore = useCommandStore()
 
-const open = ref(true)
+const open = ref(false)
 const query = ref('')
 
 function openHotkeysMenu() {

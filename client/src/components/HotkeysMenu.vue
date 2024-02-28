@@ -31,8 +31,8 @@ const filteredCommands = computed(() => {
       .toLowerCase()
       .includes(query.value.toLowerCase())
     const queryMatchesDescription = command.description
-      .toLowerCase()
-      .includes(query.value.toLowerCase())
+      ? command.description.toLowerCase().includes(query.value.toLowerCase())
+      : true
     return hasHotkey && (queryMatchesName || queryMatchesDescription)
   })
 })

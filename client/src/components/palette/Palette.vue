@@ -78,7 +78,6 @@ function executeCommand(command: TCommand) {
   if (command.action) command.action()
   query.value = ''
   blurSearch()
-  showResults.value = false
 }
 
 function inputFocused(event: FocusEvent) {
@@ -102,6 +101,8 @@ function inputBlurred(event: FocusEvent) {
   <Command class="shadow-md" ref="commandPalette">
     <CommandInput
       ref="input"
+      :value="query"
+      @input="query = $event.target.value"
       placeholder="Search or type command..."
       @focus="inputFocused($event)"
       @blur="inputBlurred($event)"

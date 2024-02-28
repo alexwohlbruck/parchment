@@ -78,6 +78,7 @@ function executeCommand(command: TCommand) {
   if (command.action) command.action()
   query.value = ''
   blurSearch()
+  showResults.value = false
 }
 
 function inputFocused(event: FocusEvent) {

@@ -5,6 +5,7 @@ import { useCommandStore } from '../../stores/command.store'
 
 import {
   Command,
+  CommandDialog,
   CommandEmpty,
   CommandGroup,
   CommandInput,
@@ -101,7 +102,6 @@ function inputBlurred(event: FocusEvent) {
 <template>
   <Command class="shadow-md" ref="commandPalette">
     <CommandInput
-      v-model="query"
       ref="input"
       placeholder="Search or type command..."
       @focus="inputFocused($event)"
@@ -109,7 +109,7 @@ function inputBlurred(event: FocusEvent) {
     >
       <Kbd commandId="focusSearch" class="ml-2"></Kbd>
     </CommandInput>
-    <CommandList>
+    <CommandList v-show="showResults">
       <CommandEmpty>No results found.</CommandEmpty>
       <CommandGroup heading="Places">
         <CommandItem

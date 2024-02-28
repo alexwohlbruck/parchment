@@ -21,6 +21,8 @@ const props = defineProps<
 
 const emits = defineEmits<{
   'update:modelValue': any
+  focus: any
+  blur: any
 }>()
 
 const delegatedProps = computed(() => {
@@ -44,10 +46,12 @@ defineExpose({ inputElement })
     <Search class="mr-2 h-4 w-4 shrink-0 opacity-50" />
     <ComboboxInput
       ref="input"
+      :autofocus="false"
       v-bind="{ ...forwardedProps, ...$attrs }"
       :value="props.modelValue"
       @input="$event => $emit('update:modelValue', $event.target.value)"
-      autofocus="false"
+      @focus="$event => $emit('focus', $event)"
+      @blur="$event => $emit('blur', $event)"
       :class="
         cn(
           'flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50',

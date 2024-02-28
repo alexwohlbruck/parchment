@@ -78,15 +78,14 @@ function executeCommand(command: TCommand) {
   if (command.action) command.action()
   query.value = ''
   blurSearch()
+  showResults.value = false
 }
 
 function inputFocused(event: FocusEvent) {
-  console.log('inputFocused')
   showResults.value = true
 }
 
 function inputBlurred(event: FocusEvent) {
-  console.log('inputBlurred')
   // Check if we clicked inside the palette. If not, hide the results
   const relatedTarget = event.relatedTarget as HTMLElement | null
   const paletteContainer = commandPalette.value?.$el
@@ -109,7 +108,7 @@ function inputBlurred(event: FocusEvent) {
     >
       <Kbd commandId="focusSearch" class="ml-2"></Kbd>
     </CommandInput>
-    <CommandList v-show="showResults">
+    <CommandList v-if="showResults">
       <CommandEmpty>No results found.</CommandEmpty>
       <CommandGroup heading="Places">
         <CommandItem

@@ -4,7 +4,6 @@ import './style.css'
 import App from './App.vue'
 import router from './router'
 import VueTransitions from '@morev/vue-transitions'
-import VueShortkey from 'vue3-shortkey'
 
 import '@morev/vue-transitions/styles'
 import '@/styles/themes.css'
@@ -15,6 +14,5 @@ const pinia = createPinia()
 app.use(router)
 app.use(pinia)
 app.use(VueTransitions)
-app.use(VueShortkey)
 
 app.mount('#app')

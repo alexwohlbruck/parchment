@@ -103,7 +103,7 @@ const items = ref([
       {
         label: 'Layers',
         icon: Layers3Icon,
-        // hotkey: ['l'],
+        hotkey: ['l'],
         popover: LayersSelector,
         // TODO: Fix this
         // condition: router.currentRoute.value.matched.some(
@@ -177,7 +177,7 @@ function popoverOpened(open: boolean) {
                       {{ subitem.label }}
                     </div>
 
-                    <Kbd v-if="subitem.hotkey" :hotkey="subitem.hotkey"></Kbd>
+                    <!-- <Kbd v-if="subitem.hotkey" :hotkey="subitem.hotkey"></Kbd> -->
                   </div>
                 </transition-expand>
               </router-link>
@@ -199,7 +199,7 @@ function popoverOpened(open: boolean) {
                         {{ subitem.label }}
                       </div>
 
-                      <Kbd v-if="subitem.hotkey" :hotkey="subitem.hotkey"></Kbd>
+                      <!-- <Kbd v-if="subitem.hotkey" :hotkey="subitem.hotkey"></Kbd> -->
                     </div>
                   </transition-expand>
                 </Button>

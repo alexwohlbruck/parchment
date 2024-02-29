@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { useRouter } from "vue-router";
+import { useRouter } from 'vue-router'
 
-import H2 from "@/components/ui/typography/H2.vue";
-import { Separator } from "@/components/ui/separator";
-import Button from "@/components/ui/button/Button.vue";
+import H2 from '@/components/ui/typography/H2.vue'
+import { Separator } from '@/components/ui/separator'
+import Button from '@/components/ui/button/Button.vue'
 
 import {
   UserRoundIcon,
@@ -11,39 +11,39 @@ import {
   PaintbrushIcon,
   DatabaseIcon,
   ActivityIcon,
-} from "lucide-vue-next";
+} from 'lucide-vue-next'
 
-const router = useRouter();
+const router = useRouter()
 
 const pages = [
   {
-    label: "Account",
-    to: "/settings/account",
+    label: 'Account',
+    to: '/settings/account',
     icon: UserRoundIcon,
     disabled: true,
   },
   {
-    label: "Behavior",
-    to: "/settings/behavior",
+    label: 'Behavior',
+    to: '/settings/behavior',
     icon: CogIcon,
   },
   {
-    label: "Appearance",
-    to: "/settings/appearance",
+    label: 'Appearance',
+    to: '/settings/appearance',
     icon: PaintbrushIcon,
   },
   {
-    label: "Map data",
-    to: "/settings/map-data",
+    label: 'Map data',
+    to: '/settings/map-data',
     icon: DatabaseIcon,
   },
   {
-    label: "System",
-    to: "/settings/system",
+    label: 'System',
+    to: '/settings/system',
     icon: ActivityIcon,
     disabled: true,
   },
-];
+]
 </script>
 
 <template>

@@ -37,7 +37,11 @@ onMounted(() => {
     </div>
 
     <main class="flex-1">
-      <RouterView />
+      <router-view v-slot="{ Component }">
+        <keep-alive include="Map">
+          <component :is="Component" />
+        </keep-alive>
+      </router-view>
     </main>
   </div>
 </template>

@@ -5,7 +5,6 @@ import { useCommandStore } from '../../stores/command.store'
 
 import {
   Command,
-  CommandDialog,
   CommandEmpty,
   CommandGroup,
   CommandInput,

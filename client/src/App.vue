@@ -24,11 +24,7 @@ onMounted(() => {
       <Nav class="z-20" />
     </div>
 
-    <div
-      class="absolute top-1/2 left-1/2 transform -translate-x-1/2 p-2 z-10 w-1/2 max-w-[30rem]"
-    >
-      <HotkeysMenu />
-    </div>
+    <HotkeysMenu />
 
     <div
       class="absolute top-0 left-1/2 transform -translate-x-1/2 p-2 z-10 w-1/2 max-w-[30rem]"

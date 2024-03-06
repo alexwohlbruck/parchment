@@ -138,7 +138,7 @@ function popoverOpened(open: boolean) {
     @mouseleave="mini = lockMini ? mini : true"
     :class="
       cn(
-        'bg-background max-h-full overflow-y-auto m-2 py-2 shadow-md flex flex-col gap-2 rounded',
+        'bg-background max-h-full overflow-y-auto m-2 py-2 shadow-md flex flex-col gap-2 rounded-md',
         $attrs.class ?? '',
       )
     "

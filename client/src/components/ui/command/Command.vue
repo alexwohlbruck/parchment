@@ -7,13 +7,16 @@ const props = defineProps<ComboboxRootProps>()
 const emits = defineEmits<ComboboxRootEmits>()
 
 const forwarded = useForwardPropsEmits(props, emits)
+
+function filterFunction(val: any[], term: string): string[] {
+  return val.filter(item => item.toLowerCase().includes(term.toLowerCase()))
+}
 </script>
 
 <template>
   <ComboboxRoot
     v-bind="forwarded"
-    :open="true"
-    :model-value="''"
+    :filter-function="filterFunction"
     :class="
       cn(
         'flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground',

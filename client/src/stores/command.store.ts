@@ -1,11 +1,21 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { Command } from '@/types/command.types'
-import { HelpCircleIcon, SearchIcon, SunMoonIcon } from 'lucide-vue-next'
+import {
+  CogIcon,
+  HelpCircleIcon,
+  PaletteIcon,
+  SearchIcon,
+  SunMoonIcon,
+} from 'lucide-vue-next'
 import { useDark, useToggle } from '@vueuse/core'
+import { useConfigStore } from '@/stores/settings.store'
+import { useMapStore } from '@/stores/map.store'
 
 const isDark = useDark()
 const toggleDark = useToggle(isDark)
+
+const { setTheme } = useConfigStore()
 
 export const useCommandStore = defineStore('command', () => {
   const commands = ref<Command[]>([
@@ -23,6 +33,66 @@ export const useCommandStore = defineStore('command', () => {
       hotkey: ['t'],
       icon: SunMoonIcon,
       action: toggleDark,
+    },
+    {
+      id: 'updateThemeColor',
+      name: 'Update theme color',
+      description: 'Change the color of the app theme',
+      icon: PaletteIcon,
+      action: (color: string) => {
+        setTheme(color as any)
+      },
+      arguments: [
+        {
+          name: 'Color',
+          type: 'string',
+          getItems() {
+            // TODO: This get called for each item, should be called once
+            return [
+              {
+                value: 'zinc',
+                name: 'Zinc',
+              },
+              {
+                value: 'red',
+                name: 'Red',
+              },
+              {
+                value: 'blue',
+                name: 'Blue',
+              },
+            ]
+          },
+        },
+      ],
+    },
+    {
+      id: 'updateMapLibrary',
+      name: 'Update map library',
+      description: 'Change the library used to render the map',
+      icon: CogIcon,
+      action: (library: string) => {
+        const mapStore = useMapStore()
+        mapStore.setMapLibrary(library as any)
+      },
+      arguments: [
+        {
+          name: 'Map library',
+          type: 'string',
+          getItems() {
+            return [
+              {
+                value: 'mapbox',
+                name: 'Mapbox',
+              },
+              {
+                value: 'maplibre',
+                name: 'MapLibre',
+              },
+            ]
+          },
+        },
+      ],
     },
     {
       id: 'openHotkeysMenu',

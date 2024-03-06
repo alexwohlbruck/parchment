@@ -20,9 +20,21 @@ const commandService = useCommandService()
 const commandStore = useCommandStore()
 
 const query = ref('')
+const commandOpen = ref(true)
 const showResults = ref(false)
+
 const commandPalette = ref<InstanceType<typeof Command> | null>(null)
 const input = ref<InstanceType<typeof CommandInput> | null>(null)
+
+const activeCommand = ref<TCommand | null>(null)
+const activeArgumentIndex = ref<number | null>(null)
+const activeArgument = computed(() => {
+  if (activeCommand.value && activeArgumentIndex.value !== null) {
+    return activeCommand.value.arguments?.[activeArgumentIndex.value]
+  }
+  return null
+})
+const argumentsList = ref<string[]>([])
 
 function focusSearch() {
   input.value?.inputElement?.focus()
@@ -74,8 +86,52 @@ const filteredCommands = computed(() => {
 })
 
 function executeCommand(command: TCommand) {
-  if (command.action) command.action()
+  if (command.action) {
+    if (command.arguments) {
+      activeCommand.value = command
+      activeArgumentIndex.value = 0
+      clearInput()
+    } else {
+      command.action()
+      closePalette()
+    }
+  }
+}
+
+function submitArgument(value: string) {
+  if (!activeCommand.value) return
+
+  argumentsList.value.push(value)
+  activeArgumentIndex.value = activeArgumentIndex.value! + 1
+
+  if (activeArgumentIndex.value >= activeCommand.value.arguments!.length) {
+    // All arguments are provided, execute command
+    activeCommand.value.action?.(...argumentsList.value)
+    closeArguments()
+    closePalette()
+  }
+}
+
+function onBackspace() {
+  if (query.value === '') {
+    closeArguments()
+  }
+}
+
+function closeArguments() {
+  if (activeCommand.value) {
+    argumentsList.value = []
+    activeCommand.value = null
+    activeArgumentIndex.value = null
+  }
+}
+
+function clearInput() {
   query.value = ''
+}
+
+function closePalette() {
+  clearInput()
   blurSearch()
   showResults.value = false
 }
@@ -98,60 +154,113 @@ function inputBlurred(event: FocusEvent) {
 </script>
 
 <template>
-  <Command class="shadow-md" ref="commandPalette">
+  <Command
+    class="shadow-md"
+    ref="commandPalette"
+    v-model:searchTerm="query"
+    :open="commandOpen"
+  >
     <CommandInput
       ref="input"
-      :value="query"
-      @input="query = $event.target.value"
       placeholder="Search or type command..."
       @focus="inputFocused($event)"
       @blur="inputBlurred($event)"
+      @keydown.backspace="onBackspace()"
     >
-      <Kbd commandId="focusSearch" class="ml-2"></Kbd>
+      <template v-slot:prefix>
+        <div
+          v-if="activeCommand"
+          class="select-none whitespace-nowrap rounded-lg bg-primary px-1.5 py-1 font-sans text-xs text-white"
+        >
+          {{ activeCommand.name }}
+        </div>
+      </template>
+      <template v-slot:postfix>
+        <Kbd commandId="focusSearch"></Kbd>
+      </template>
     </CommandInput>
-    <CommandList v-if="showResults">
-      <CommandEmpty>No results found.</CommandEmpty>
-      <CommandGroup heading="Places">
-        <CommandItem
-          v-for="place in places"
-          :key="place.name"
-          :value="place.name"
-          class="flex gap-2"
-        >
-          <MapPinIcon class="size-5" />
-          <div class="flex-1 flex flex-col">
-            <span class="font-semibold">{{ place.name }}</span>
-            <span class="text-sm text-gray-500">{{ place.address }}</span>
-          </div>
-          <span class="text-sm text-gray-500">{{ place.distance }}</span>
-        </CommandItem>
-      </CommandGroup>
-      <CommandSeparator />
-      <CommandGroup heading="App navigation">
-        <CommandItem value="places"> Places </CommandItem>
-        <CommandItem value="timeline"> Timeline </CommandItem>
-        <CommandItem value="settings"> Settings </CommandItem>
-      </CommandGroup>
-      <CommandGroup heading="Commands">
-        <CommandItem
-          v-for="command in filteredCommands"
-          :key="command.id"
-          :value="command.id"
-          class="flex gap-2"
-          @select="executeCommand(command)"
-        >
-          <component :is="command.icon" class="size-5" />
-          <div class="flex-1 flex flex-col">
-            <span class="font-semibold">{{ command.name }}</span>
-            <span class="text-sm text-gray-500">{{ command.description }}</span>
-          </div>
-          <Kbd
-            v-if="command.hotkey"
-            :hotkey="command.hotkey"
-            class="ml-2"
-          ></Kbd>
-        </CommandItem>
-      </CommandGroup>
-    </CommandList>
+
+    <template v-if="showResults">
+      <!-- Top-level commands list -->
+      <CommandList v-if="!activeArgument">
+        <CommandEmpty>No results found.</CommandEmpty>
+
+        <CommandGroup heading="Places">
+          <CommandItem
+            v-for="place in places"
+            :key="place.name"
+            :value="place.name"
+            class="flex gap-2"
+          >
+            <MapPinIcon class="size-5" />
+            <div class="flex-1 flex flex-col">
+              <span class="font-semibold">{{ place.name }}</span>
+              <span class="text-sm text-gray-500">{{ place.address }}</span>
+            </div>
+            <span class="text-sm text-gray-500">{{ place.distance }}</span>
+          </CommandItem>
+        </CommandGroup>
+
+        <CommandSeparator />
+
+        <CommandGroup heading="App navigation">
+          <CommandItem value="places"> Places </CommandItem>
+          <CommandItem value="timeline"> Timeline </CommandItem>
+          <CommandItem value="settings"> Settings </CommandItem>
+        </CommandGroup>
+
+        <CommandGroup heading="Commands">
+          <CommandItem
+            v-for="command in filteredCommands"
+            :key="command.id"
+            :value="command.id"
+            class="flex gap-2"
+            @select="executeCommand(command)"
+          >
+            <component :is="command.icon" class="size-5" />
+            <div class="flex-1 flex flex-col">
+              <span class="font-semibold">{{ command.name }}</span>
+              <span class="text-sm text-gray-500" v-if="command.description">{{
+                command.description
+              }}</span>
+            </div>
+            <Kbd
+              v-if="command.hotkey"
+              :hotkey="command.hotkey"
+              class="ml-2"
+            ></Kbd>
+          </CommandItem>
+        </CommandGroup>
+      </CommandList>
+
+      <!-- Command selected, display arguments -->
+      <CommandList v-if="activeArgument">
+        <CommandGroup :heading="activeArgument.name">
+          <CommandItem
+            v-for="argumentOption in activeArgument.getItems()"
+            :key="argumentOption.value"
+            :value="argumentOption.value"
+            class="flex gap-2"
+            @select="submitArgument(argumentOption.value)"
+          >
+            <!-- <component :is="command.icon" class="size-5" /> -->
+            <div class="flex-1 flex flex-col">
+              <span class="font-semibold">{{ argumentOption.name }}</span>
+              <span
+                class="text-sm text-gray-500"
+                v-if="argumentOption.description"
+              >
+                {{ argumentOption.description }}
+              </span>
+            </div>
+            <!-- <Kbd
+              v-if="command.hotkey"
+              :hotkey="command.hotkey"
+              class="ml-2"
+            ></Kbd> -->
+          </CommandItem>
+        </CommandGroup>
+      </CommandList>
+    </template>
   </Command>
 </template>

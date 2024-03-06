@@ -9,8 +9,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 
 import { SettingsIcon, PlusIcon } from 'lucide-vue-next'
 
-import { layers } from '../../components/map/layers'
-import { useMapStore } from '../../stores/map.store'
+import { layers } from '@/components/map/layers'
+import { useMapStore } from '@/stores/map.store'
 
 const mapStore = useMapStore()
 </script>

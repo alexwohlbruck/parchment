@@ -22,10 +22,13 @@ export default {
 
 <template>
   <div
-    class="flex items-center border-b dark:border-neutral-900 px-3"
+    class="flex items-center border-b dark:border-neutral-900 px-3 gap-2"
     cmdk-input-wrapper
   >
-    <Search class="mr-2 h-4 w-4 shrink-0 opacity-50" />
+    <Search class="h-4 w-4 shrink-0 opacity-50" />
+
+    <slot name="prefix" />
+
     <ComboboxInput
       ref="input"
       v-bind="{ ...props, ...$attrs }"
@@ -37,6 +40,6 @@ export default {
         )
       "
     />
-    <slot />
+    <slot name="postfix" />
   </div>
 </template>

@@ -171,7 +171,7 @@ function inputBlurred(event: FocusEvent) {
       <template v-slot:prefix>
         <div
           v-if="activeCommand"
-          class="select-none whitespace-nowrap rounded-lg bg-primary px-1.5 py-1 font-sans text-xs text-white"
+          class="select-none whitespace-nowrap rounded-md bg-primary px-1.5 py-1 font-sans text-xs text-white"
         >
           {{ activeCommand.name }}
         </div>

@@ -83,15 +83,15 @@ export const useCommandStore = defineStore('command', () => {
             return [
               {
                 value: 'mapbox',
-                name: 'Mapbox',
+                name: 'Mapbox GL',
+                description:
+                  'A beautiful, detailed 3D map with dynamic lighting',
               },
               {
                 value: 'maplibre',
-                name: 'MapLibre',
-              },
-              {
-                value: 'openlayers',
-                name: 'OpenLayers',
+                name: 'MapLibre GL',
+                description:
+                  'A fork of Mapbox GL v1 with an open-source license',
               },
             ]
           },

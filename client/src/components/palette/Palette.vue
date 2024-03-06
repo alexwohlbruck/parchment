@@ -149,6 +149,7 @@ function inputBlurred(event: FocusEvent) {
     event.preventDefault()
   } else {
     showResults.value = false
+    closeArguments()
   }
 }
 </script>

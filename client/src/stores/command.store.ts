@@ -67,8 +67,8 @@ export const useCommandStore = defineStore('command', () => {
       ],
     },
     {
-      id: 'updateMapLibrary',
-      name: 'Update map library',
+      id: 'chooseMapLibrary',
+      name: 'Choose map library',
       description: 'Change the library used to render the map',
       icon: CogIcon,
       action: (library: string) => {
@@ -88,6 +88,10 @@ export const useCommandStore = defineStore('command', () => {
               {
                 value: 'maplibre',
                 name: 'MapLibre',
+              },
+              {
+                value: 'openlayers',
+                name: 'OpenLayers',
               },
             ]
           },

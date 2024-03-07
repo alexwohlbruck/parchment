@@ -163,7 +163,7 @@ function inputBlurred(event: FocusEvent) {
   >
     <CommandInput
       ref="input"
-      placeholder="Search or type command..."
+      :placeholder="activeCommand ? 'Search...' : 'Search or type command...'"
       @focus="inputFocused($event)"
       @blur="inputBlurred($event)"
       @keydown.backspace="onBackspace()"

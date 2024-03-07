@@ -13,7 +13,11 @@ export function useCommandService() {
     mousetrap.bind(bindingString, e => {
       if (command.action) {
         e.preventDefault()
-        command.action()
+        if (command.arguments) {
+          // TODO: Open command in palette
+        } else {
+          command.action()
+        }
       }
     })
   }

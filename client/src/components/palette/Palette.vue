@@ -204,12 +204,6 @@ function inputBlurred(event: FocusEvent) {
 
         <CommandSeparator />
 
-        <CommandGroup heading="App navigation">
-          <CommandItem value="places"> Places </CommandItem>
-          <CommandItem value="timeline"> Timeline </CommandItem>
-          <CommandItem value="settings"> Settings </CommandItem>
-        </CommandGroup>
-
         <CommandGroup heading="Commands">
           <CommandItem
             v-for="command in filteredCommands"

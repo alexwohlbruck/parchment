@@ -1,7 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { Command } from '@/types/command.types'
 import {
+  ChevronsRightIcon,
   CogIcon,
   HelpCircleIcon,
   PaletteIcon,
@@ -11,13 +13,14 @@ import {
 import { useDark, useToggle } from '@vueuse/core'
 import { useConfigStore } from '@/stores/settings.store'
 import { useMapStore } from '@/stores/map.store'
-
-const isDark = useDark()
-const toggleDark = useToggle(isDark)
-
-const { setTheme } = useConfigStore()
+import { type CommandArgumentOption } from '@/types/command.types'
 
 export const useCommandStore = defineStore('command', () => {
+  const isDark = useDark()
+  const toggleDark = useToggle(isDark)
+  const router = useRouter()
+  const { setTheme } = useConfigStore()
+
   const commands = ref<Command[]>([
     {
       id: 'focusSearch',
@@ -25,6 +28,31 @@ export const useCommandStore = defineStore('command', () => {
       description: 'Search for a location or run a command',
       hotkey: ['mod', 'k'],
       icon: SearchIcon,
+    },
+    {
+      id: 'goto',
+      name: 'Go to page',
+      description: 'Navigate to a specific page in the app',
+      hotkey: ['mod', 'g'],
+      icon: ChevronsRightIcon,
+      action: (page: string) => {
+        router.push(page)
+      },
+      arguments: [
+        {
+          name: 'Page',
+          type: 'string',
+          getItems() {
+            const routes = router.getRoutes()
+            return routes.map(route => {
+              return {
+                value: route.path,
+                name: route.name as string,
+              }
+            })
+          },
+        },
+      ],
     },
     {
       id: 'toggleTheme',

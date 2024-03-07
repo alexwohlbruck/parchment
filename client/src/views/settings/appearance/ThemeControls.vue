@@ -40,6 +40,8 @@ const allColors: Color[] = [
 const { theme, radius, setRadius, setTheme } = useConfigStore()
 const isDark = useDark()
 
+// TODO: Move these to a global scope
+
 // Whenever the component is mounted, update the document class list
 onMounted(() => {
   document.documentElement.style.setProperty('--radius', `${radius.value}rem`)

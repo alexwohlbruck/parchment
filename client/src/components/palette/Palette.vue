@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useCommandService } from '../../services/command/command.service'
 import { useCommandStore } from '../../stores/command.store'
-
+import { type Command as TCommand } from '@/types/command.types'
 import {
   Command,
   CommandEmpty,
@@ -14,10 +14,16 @@ import {
 } from '@/components/ui/command'
 import { MapPinIcon } from 'lucide-vue-next'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
-import { type Command as TCommand } from '../../types/command.types'
 
-const commandService = useCommandService()
 const commandStore = useCommandStore()
+const {
+  bindCommandToFunction,
+  activeCommand,
+  activeArgument,
+  activeArgumentIndex,
+  reset: resetCommand,
+  executeCommand,
+} = useCommandService()
 
 const query = ref('')
 const commandOpen = ref(true)
@@ -26,15 +32,18 @@ const showResults = ref(false)
 const commandPalette = ref<InstanceType<typeof Command> | null>(null)
 const input = ref<InstanceType<typeof CommandInput> | null>(null)
 
-const activeCommand = ref<TCommand | null>(null)
-const activeArgumentIndex = ref<number | null>(null)
-const activeArgument = computed(() => {
-  if (activeCommand.value && activeArgumentIndex.value !== null) {
-    return activeCommand.value.arguments?.[activeArgumentIndex.value]
-  }
-  return null
+bindCommandToFunction('focusSearch', focusSearch)
+
+const filteredCommands = computed(() => {
+  // Don't include the focusSearch command in the results, we are already looking at the search palette
+  return commandStore.commands.filter(command => command.id != 'focusSearch')
 })
-const argumentsList = ref<string[]>([])
+
+function closePalette() {
+  clearInput()
+  blurSearch()
+  showResults.value = false
+}
 
 function focusSearch() {
   input.value?.inputElement?.focus()
@@ -44,7 +53,61 @@ function blurSearch() {
   input.value?.inputElement?.blur()
 }
 
-commandService.bindCommandToFunction('focusSearch', focusSearch)
+function clearInput() {
+  query.value = ''
+}
+
+function inputFocused(event: FocusEvent) {
+  showResults.value = true
+}
+
+function inputBlurred(event: FocusEvent) {
+  // Check if we clicked inside the palette. If not, hide the results
+  const relatedTarget = event.relatedTarget as HTMLElement | null
+  const paletteContainer = commandPalette.value?.$el
+    ?.parentElement as HTMLElement | null
+  if (relatedTarget && paletteContainer?.contains(relatedTarget)) {
+    event.preventDefault()
+  } else {
+    showResults.value = false
+    resetCommand()
+  }
+}
+
+function onBackspace() {
+  if (query.value === '') {
+    resetCommand()
+  }
+}
+
+function onCommandSelected(command: TCommand) {
+  executeCommand(command)
+  if (command.arguments) {
+    clearInput()
+  } else {
+    closePalette()
+  }
+}
+
+function onArgumentSelected(value: string) {
+  if (!activeCommand.value) return
+  executeCommand(activeCommand.value, value)
+}
+
+// Close palette when all args are submitted, command executed
+watch(activeCommand, (newVal, prevVal) => {
+  if (newVal === null && prevVal) {
+    closePalette()
+  }
+})
+
+// If a command is executed that needs arguments, open the palette
+watch(activeArgument, (newVal, prevVal) => {
+  if (newVal !== null) {
+    showResults.value = true
+    focusSearch()
+  }
+})
 
 // Some example place results for the map search results. Schema is tentative, subject to change
 const places = [
@@ -79,79 +142,6 @@ const places = [
     distance: '0.6 mi',
   },
 ]
-
-const filteredCommands = computed(() => {
-  // Don't include the focusSearch command in the results, we are already looking at the search palette
-  return commandStore.commands.filter(command => command.id != 'focusSearch')
-})
-
-function executeCommand(command: TCommand) {
-  if (command.action) {
-    if (command.arguments) {
-      activeCommand.value = command
-      activeArgumentIndex.value = 0
-      clearInput()
-    } else {
-      command.action()
-      closePalette()
-    }
-  }
-}
-
-function submitArgument(value: string) {
-  if (!activeCommand.value) return
-
-  argumentsList.value.push(value)
-  activeArgumentIndex.value = activeArgumentIndex.value! + 1
-
-  if (activeArgumentIndex.value >= activeCommand.value.arguments!.length) {
-    // All arguments are provided, execute command
-    activeCommand.value.action?.(...argumentsList.value)
-    closeArguments()
-    closePalette()
-  }
-}
-
-function onBackspace() {
-  if (query.value === '') {
-    closeArguments()
-  }
-}
-
-function closeArguments() {
-  if (activeCommand.value) {
-    argumentsList.value = []
-    activeCommand.value = null
-    activeArgumentIndex.value = null
-  }
-}
-
-function clearInput() {
-  query.value = ''
-}
-
-function closePalette() {
-  clearInput()
-  blurSearch()
-  showResults.value = false
-}
-
-function inputFocused(event: FocusEvent) {
-  showResults.value = true
-}
-
-function inputBlurred(event: FocusEvent) {
-  // Check if we clicked inside the palette. If not, hide the results
-  const relatedTarget = event.relatedTarget as HTMLElement | null
-  const paletteContainer = commandPalette.value?.$el
-    ?.parentElement as HTMLElement | null
-  if (relatedTarget && paletteContainer?.contains(relatedTarget)) {
-    event.preventDefault()
-  } else {
-    showResults.value = false
-    closeArguments()
-  }
-}
 </script>
 
 <template>
@@ -210,7 +200,7 @@ function inputBlurred(event: FocusEvent) {
             :key="command.id"
             :value="command.id"
             class="flex gap-2"
-            @select="executeCommand(command)"
+            @select="onCommandSelected(command)"
           >
             <component :is="command.icon" class="size-5" />
             <div class="flex-1 flex flex-col">
@@ -236,7 +226,7 @@ function inputBlurred(event: FocusEvent) {
             :key="argumentOption.value"
             :value="argumentOption.value"
             class="flex gap-2"
-            @select="submitArgument(argumentOption.value)"
+            @select="onArgumentSelected(argumentOption.value)"
           >
             <!-- <component :is="command.icon" class="size-5" /> -->
             <div class="flex-1 flex flex-col">

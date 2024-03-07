@@ -13,7 +13,6 @@ import {
 import { useDark, useToggle } from '@vueuse/core'
 import { useConfigStore } from '@/stores/settings.store'
 import { useMapStore } from '@/stores/map.store'
-import { type CommandArgumentOption } from '@/types/command.types'
 
 export const useCommandStore = defineStore('command', () => {
   const isDark = useDark()
@@ -29,6 +28,7 @@ export const useCommandStore = defineStore('command', () => {
       action: (arg1, arg2) => {
         console.log(arg1, arg2)
       },
+      hotkey: ['h'],
       arguments: [
         {
           name: 'Arg 1',

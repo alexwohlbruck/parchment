@@ -21,6 +21,7 @@ const {
   activeCommand,
   activeArgument,
   activeArgumentIndex,
+  argumentsList,
   reset: resetCommand,
   executeCommand,
 } = useCommandService()
@@ -38,6 +39,11 @@ const filteredCommands = computed(() => {
   // Don't include the focusSearch command in the results, we are already looking at the search palette
   return commandStore.commands.filter(command => command.id != 'focusSearch')
 })
+
+function openPalette() {
+  commandOpen.value = true
+  focusSearch()
+}
 
 function closePalette() {
   clearInput()
@@ -103,9 +109,8 @@ watch(activeCommand, (newVal, prevVal) => {
 
 // If a command is executed that needs arguments, open the palette
 watch(activeArgument, (newVal, prevVal) => {
-  if (newVal !== null) {
-    showResults.value = true
-    focusSearch()
+  if (newVal) {
+    openPalette()
   }
 })
 

@@ -1,28 +1,28 @@
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import mousetrap from 'mousetrap'
 import { useCommandStore } from '@/stores/command.store'
 import { Command } from '@/types/command.types'
 import { type Command as TCommand } from '@/types/command.types'
 
+const activeCommand = ref<TCommand | null>(null)
+const activeArgumentIndex = ref<number | null>(null)
+const activeArgument = computed(() => {
+  if (activeCommand.value && activeArgumentIndex.value !== null) {
+    return activeCommand.value.arguments?.[activeArgumentIndex.value]
+  }
+  return null
+})
+const argumentsList = ref<string[]>([])
+
 export function useCommandService() {
   const commandStore = useCommandStore()
-
-  const activeCommand = ref<TCommand | null>(null)
-  const activeArgumentIndex = ref<number | null>(null)
-  const activeArgument = computed(() => {
-    if (activeCommand.value && activeArgumentIndex.value !== null) {
-      return activeCommand.value.arguments?.[activeArgumentIndex.value]
-    }
-    return null
-  })
-  const argumentsList = ref<string[]>([])
 
   function executeCommand(command: TCommand, ...args: string[]) {
     if (!command.action) return
 
     activeCommand.value = command
     argumentsList.value.push(...args)
-    activeArgumentIndex.value = activeArgumentIndex.value! + args.length
+    activeArgumentIndex.value = (activeArgumentIndex.value ?? 0) + args.length
 
     const argsFilled = command.arguments
       ? activeArgumentIndex.value >= command.arguments.length
@@ -71,6 +71,10 @@ export function useCommandService() {
     const command = commandStore.commands.find(c => c.id === id)
     return command?.hotkey
   }
+
+  watch(activeArgument, (newVal, prevVal) => {
+    console.log(newVal)
+  })
 
   return {
     executeCommand,

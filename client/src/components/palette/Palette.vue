@@ -20,6 +20,7 @@ const {
   bindCommandToFunction,
   activeCommand,
   activeArgument,
+  argumentsList,
   reset: resetCommand,
   executeCommand,
 } = useCommandService()
@@ -81,6 +82,7 @@ function inputBlurred(event: FocusEvent) {
 function onBackspace() {
   if (query.value === '') {
     resetCommand()
+    focusSearch()
   }
 }
 
@@ -94,16 +96,18 @@ function onCommandSelected(command: TCommand) {
 }
 
 function onArgumentSelected(value: string) {
-  if (!activeCommand.value) return
-  executeCommand(activeCommand.value, value)
-}
+  if (activeCommand.value) {
+    executeCommand(activeCommand.value, value)
+  }
 
-// Close palette when all args are submitted, command executed
-watch(activeCommand, (newVal, prevVal) => {
-  if (newVal === null && prevVal) {
+  // If we have no more arguments left, close the palette
+  // TODO: This logic is done already in command service, reuse it
+  const totalArgs = activeCommand.value?.arguments?.length || 0
+  const argsLeft = argumentsList.value.length
+  if (totalArgs - argsLeft === 0) {
     closePalette()
   }
-})
+}
 
 // If a command is executed that needs arguments, open the palette
 watch(activeArgument, (newVal, prevVal) => {

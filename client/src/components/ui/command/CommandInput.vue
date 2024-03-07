@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { Search } from 'lucide-vue-next'
 import { ComboboxInput, type ComboboxInputProps } from 'radix-vue'
 import { cn } from '@/lib/utils'
 import { computed, ref } from 'vue'
@@ -25,8 +24,6 @@ export default {
     class="flex items-center border-b dark:border-neutral-900 px-3 gap-2"
     cmdk-input-wrapper
   >
-    <Search class="h-4 w-4 shrink-0 opacity-50" />
-
     <slot name="prefix" />
 
     <ComboboxInput

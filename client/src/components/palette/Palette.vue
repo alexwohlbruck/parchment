@@ -12,7 +12,7 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command'
-import { MapPinIcon } from 'lucide-vue-next'
+import { SearchIcon, MapPinIcon } from 'lucide-vue-next'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 
 const commandStore = useCommandStore()
@@ -20,8 +20,6 @@ const {
   bindCommandToFunction,
   activeCommand,
   activeArgument,
-  activeArgumentIndex,
-  argumentsList,
   reset: resetCommand,
   executeCommand,
 } = useCommandService()
@@ -166,13 +164,14 @@ const places = [
       <template v-slot:prefix>
         <div
           v-if="activeCommand"
-          class="select-none whitespace-nowrap rounded-md bg-primary px-1.5 py-1 font-sans text-xs text-white"
+          class="select-none whitespace-nowrap rounded-md bg-primary px-1.5 py-1 font-sans text-xs text-primary-foreground"
         >
           {{ activeCommand.name }}
         </div>
+        <SearchIcon v-else class="h-4 w-4 shrink-0 opacity-50" />
       </template>
       <template v-slot:postfix>
-        <Kbd commandId="focusSearch"></Kbd>
+        <Kbd v-if="!activeCommand" commandId="focusSearch"></Kbd>
       </template>
     </CommandInput>
 

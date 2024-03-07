@@ -22,31 +22,6 @@ export const useCommandStore = defineStore('command', () => {
 
   const commands = ref<Command[]>([
     {
-      id: 'test',
-      name: 'Test',
-      icon: SearchIcon,
-      action: (arg1, arg2) => {
-        console.log(arg1, arg2)
-      },
-      hotkey: ['h'],
-      arguments: [
-        {
-          name: 'Arg 1',
-          type: 'string',
-          getItems() {
-            return [{ value: 'val1', name: 'Val 1' }]
-          },
-        },
-        {
-          name: 'Arg 2',
-          type: 'string',
-          getItems() {
-            return [{ value: 'val2', name: 'Val 2' }]
-          },
-        },
-      ],
-    },
-    {
       id: 'focusSearch',
       name: 'Search',
       description: 'Search for a location or run a command',
@@ -123,6 +98,7 @@ export const useCommandStore = defineStore('command', () => {
       name: 'Choose map library',
       description: 'Change the library used to render the map',
       icon: CogIcon,
+      hotkey: ['mod', 'shift', 'm'],
       action: (library: string) => {
         const mapStore = useMapStore()
         mapStore.setMapLibrary(library as any)

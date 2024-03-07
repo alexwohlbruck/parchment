@@ -1,9 +1,44 @@
+import { computed, ref } from 'vue'
+import mousetrap from 'mousetrap'
 import { useCommandStore } from '@/stores/command.store'
 import { Command } from '@/types/command.types'
-import mousetrap from 'mousetrap'
+import { type Command as TCommand } from '@/types/command.types'
 
 export function useCommandService() {
   const commandStore = useCommandStore()
+
+  const activeCommand = ref<TCommand | null>(null)
+  const activeArgumentIndex = ref<number | null>(null)
+  const activeArgument = computed(() => {
+    if (activeCommand.value && activeArgumentIndex.value !== null) {
+      return activeCommand.value.arguments?.[activeArgumentIndex.value]
+    }
+    return null
+  })
+  const argumentsList = ref<string[]>([])
+
+  function executeCommand(command: TCommand, ...args: string[]) {
+    if (!command.action) return
+
+    activeCommand.value = command
+    argumentsList.value.push(...args)
+    activeArgumentIndex.value = activeArgumentIndex.value! + args.length
+
+    const argsFilled = command.arguments
+      ? activeArgumentIndex.value >= command.arguments.length
+      : true
+
+    if (argsFilled) {
+      command.action(...argumentsList.value)
+      reset()
+    }
+  }
+
+  function reset() {
+    activeCommand.value = null
+    activeArgumentIndex.value = null
+    argumentsList.value = []
+  }
 
   function bindHotkeyToCommand(command: Command) {
     if (!command.hotkey || !command.action) return
@@ -13,11 +48,7 @@ export function useCommandService() {
     mousetrap.bind(bindingString, e => {
       if (command.action) {
         e.preventDefault()
-        if (command.arguments) {
-          // TODO: Open command in palette
-        } else {
-          command.action()
-        }
+        executeCommand(command)
       }
     })
   }
@@ -42,6 +73,13 @@ export function useCommandService() {
   }
 
   return {
+    executeCommand,
+    activeCommand,
+    activeArgumentIndex,
+    activeArgument,
+    argumentsList,
+    reset,
+
     bindHotkeyToCommand,
     bindAllHotkeysToCommands,
     bindCommandToFunction,

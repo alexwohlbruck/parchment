@@ -166,12 +166,19 @@ const places = [
       @keydown.backspace="onBackspace()"
     >
       <template v-slot:prefix>
-        <div
-          v-if="activeCommand"
-          class="select-none whitespace-nowrap rounded-md bg-primary px-1.5 py-1 font-sans text-xs text-primary-foreground"
-        >
-          {{ activeCommand.name }}
-        </div>
+        <template v-if="activeCommand">
+          <component
+            v-if="activeCommand.icon"
+            :is="activeCommand.icon"
+            class="h-4 w-4 shrink-0 opacity-50"
+          />
+          <div
+            class="select-none whitespace-nowrap rounded-md bg-primary px-1.5 py-1 font-sans text-xs text-primary-foreground"
+          >
+            {{ activeCommand.name }}
+          </div>
+        </template>
+
         <SearchIcon v-else class="h-4 w-4 shrink-0 opacity-50" />
       </template>
       <template v-slot:postfix>

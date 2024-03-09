@@ -15,6 +15,8 @@ export type Command = PaletteItem & {
   arguments?: CommandArgument[]
 }
 
+export type ArgumentType = string | number
+
 export type CommandArgument = {
   name: string
   type: 'string' | 'number'

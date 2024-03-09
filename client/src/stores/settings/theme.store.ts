@@ -1,5 +1,5 @@
-import { computed, onMounted, ref, watch } from 'vue'
-import { toRefs, useSessionStorage, useToggle } from '@vueuse/core'
+import { computed, ref, watch } from 'vue'
+import { toRefs, useStorage, useToggle } from '@vueuse/core'
 import { type Theme, themes } from '@/lib/registry/themes'
 import { type Style, styles } from '@/lib/registry/styles'
 import { defineStore } from 'pinia'
@@ -43,7 +43,7 @@ export const allColors: Color[] = [
 export const allRadii = [0, 0.25, 0.5, 0.75, 1]
 
 export const useThemeStore = defineStore('theme', () => {
-  const config = useSessionStorage<Config>('config', {
+  const config = useStorage<Config>('config', {
     accentColor: 'zinc',
     radius: 0.5,
     style: styles[0].name,

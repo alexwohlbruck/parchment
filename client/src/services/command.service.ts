@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import mousetrap from 'mousetrap'
 import { useCommandStore } from '@/stores/command.store'
-import { Command } from '@/types/command.types'
+import { ArgumentType, Command } from '@/types/command.types'
 import { type Command as TCommand } from '@/types/command.types'
 import { createSharedComposable } from '@vueuse/core'
 
@@ -13,12 +13,12 @@ const activeArgument = computed(() => {
   }
   return null
 })
-const argumentsList = ref<string[]>([])
+const argumentsList = ref<ArgumentType[]>([])
 
 function commandService() {
   const commandStore = useCommandStore()
 
-  function executeCommand(command: TCommand, ...args: string[]) {
+  function executeCommand(command: TCommand, ...args: ArgumentType[]) {
     if (!command.action) return
 
     activeCommand.value = command

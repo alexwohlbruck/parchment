@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useCommandService } from '@/services/command.service'
 import { useCommandStore } from '@/stores/command.store'
-import { type Command as TCommand } from '@/types/command.types'
+import { ArgumentType, type Command as TCommand } from '@/types/command.types'
 import {
   Command,
   CommandEmpty,
@@ -95,7 +95,7 @@ function onCommandSelected(command: TCommand) {
   }
 }
 
-function onArgumentSelected(value: string) {
+function onArgumentSelected(value: ArgumentType) {
   if (activeCommand.value) {
     executeCommand(activeCommand.value, value)
   }

@@ -1,20 +1,18 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { useConfigStore } from './stores/settings.store'
-import { useCommandService } from './services/command/command.service'
+import { useThemeStore } from '@/stores/settings/theme.store'
+import { useCommandService } from '@/services/command.service'
 
 import Nav from '@/components/navigation/Navigation.vue'
 import Palette from '@/components/palette/Palette.vue'
 import HotkeysMenu from '@/components/HotkeysMenu.vue'
 
-const { theme, radius } = useConfigStore()
+const themeStore = useThemeStore()
 const commandService = useCommandService()
 
 onMounted(() => {
-  document.documentElement.style.setProperty('--radius', `${radius.value}rem`)
-  document.documentElement.classList.add(`theme-${theme.value}`)
-
   commandService.bindAllHotkeysToCommands()
+  themeStore.initAccentColor()
 })
 </script>
 

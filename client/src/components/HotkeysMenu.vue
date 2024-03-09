@@ -8,8 +8,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { useCommandService } from '../services/command/command.service'
-import { useCommandStore } from '../stores/command.store'
+import { useCommandService } from '@/services/command.service'
+import { useCommandStore } from '@/stores/command.store'
 import Span from '@/components/ui/typography/Span.vue'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 

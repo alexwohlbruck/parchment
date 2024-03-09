@@ -17,10 +17,10 @@ export type Command = PaletteItem & {
 
 export type CommandArgument = {
   name: string
-  type: 'string' // TODO: Add more types
+  type: 'string' | 'number'
   getItems: (query?: string) => CommandArgumentOption[]
 }
 
 export type CommandArgumentOption = PaletteItem & {
-  value: string // TODO: Add more types
+  value: string | number
 }

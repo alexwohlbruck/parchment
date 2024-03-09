@@ -6,8 +6,8 @@ import { MapLibrary, MapOptions } from '@/types/map.types'
 export const useMapStore = defineStore('map', () => {
   const mapLibrary = ref<MapLibrary>('mapbox')
 
-  function setMapLibrary(sdk: MapLibrary) {
-    mapLibrary.value = sdk
+  function setMapLibrary(library: MapLibrary) {
+    mapLibrary.value = library
   }
 
   const mapState = ref<MapOptions>({

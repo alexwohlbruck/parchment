@@ -2,7 +2,7 @@
 import { cva } from 'class-variance-authority'
 import { computed } from 'vue'
 import { type Hotkey } from '@/types/command.types'
-import { useCommandService } from '../../../services/command/command.service'
+import { useCommandService } from '@/services/command.service'
 
 const commandService = useCommandService()
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useCommandService } from '../../services/command/command.service'
-import { useCommandStore } from '../../stores/command.store'
+import { useCommandService } from '@/services/command.service'
+import { useCommandStore } from '@/stores/command.store'
 import { type Command as TCommand } from '@/types/command.types'
 import {
   Command,

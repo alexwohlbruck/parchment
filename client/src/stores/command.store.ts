@@ -5,20 +5,33 @@ import { Command } from '@/types/command.types'
 import {
   ChevronsRightIcon,
   CogIcon,
+  DraftingCompassIcon,
   HelpCircleIcon,
   PaletteIcon,
   SearchIcon,
   SunMoonIcon,
 } from 'lucide-vue-next'
 import { useDark, useToggle } from '@vueuse/core'
-import { useConfigStore } from '@/stores/settings.store'
-import { useMapStore } from '@/stores/map.store'
+import {
+  allColors,
+  useThemeStore,
+  allRadii,
+} from '@/stores/settings/theme.store'
+import { useMapService } from '@/services/map.service'
 
 export const useCommandStore = defineStore('command', () => {
   const isDark = useDark()
   const toggleDark = useToggle(isDark)
   const router = useRouter()
-  const { setTheme } = useConfigStore()
+  const { setAccentColor, setRadius } = useThemeStore()
+  const mapService = useMapService()
+
+  function bindCommandToFunction(id: string, action: Function) {
+    const command = commands.value.find(c => c.id === id)
+    if (command) {
+      command.action = action
+    }
+  }
 
   const commands = ref<Command[]>([
     {
@@ -67,7 +80,7 @@ export const useCommandStore = defineStore('command', () => {
       description: 'Change the color of the app theme',
       icon: PaletteIcon,
       action: (color: string) => {
-        setTheme(color as any)
+        setAccentColor(color as any)
       },
       arguments: [
         {
@@ -75,20 +88,31 @@ export const useCommandStore = defineStore('command', () => {
           type: 'string',
           getItems() {
             // TODO: This get called for each item, should be called once
-            return [
-              {
-                value: 'zinc',
-                name: 'Zinc',
-              },
-              {
-                value: 'red',
-                name: 'Red',
-              },
-              {
-                value: 'blue',
-                name: 'Blue',
-              },
-            ]
+            return allColors.map(color => ({
+              value: color,
+              name: color.charAt(0).toUpperCase() + color.slice(1),
+            }))
+          },
+        },
+      ],
+    },
+    {
+      id: 'updateThemeRadius',
+      name: 'Update theme radius',
+      description: 'Change the corner radius of the app theme',
+      icon: DraftingCompassIcon,
+      action: (radius: number) => {
+        setRadius(radius)
+      },
+      arguments: [
+        {
+          name: 'Radius',
+          type: 'number',
+          getItems() {
+            return allRadii.map(radius => ({
+              value: radius,
+              name: `${radius} rem`,
+            }))
           },
         },
       ],
@@ -99,10 +123,7 @@ export const useCommandStore = defineStore('command', () => {
       description: 'Change the library used to render the map',
       icon: CogIcon,
       hotkey: ['mod', 'shift', 'm'],
-      action: (library: string) => {
-        const mapStore = useMapStore()
-        mapStore.setMapLibrary(library as any)
-      },
+      action: mapService.setMapLibrary,
       arguments: [
         {
           name: 'Map library',
@@ -135,15 +156,8 @@ export const useCommandStore = defineStore('command', () => {
     },
   ])
 
-  function bindCommandToFunction(id: string, action: Function) {
-    const command = commands.value.find(c => c.id === id)
-    if (command) {
-      command.action = action
-    }
-  }
-
   return {
-    commands,
     bindCommandToFunction,
+    commands,
   }
 })

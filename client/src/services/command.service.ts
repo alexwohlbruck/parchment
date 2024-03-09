@@ -3,6 +3,7 @@ import mousetrap from 'mousetrap'
 import { useCommandStore } from '@/stores/command.store'
 import { Command } from '@/types/command.types'
 import { type Command as TCommand } from '@/types/command.types'
+import { createSharedComposable } from '@vueuse/core'
 
 const activeCommand = ref<TCommand | null>(null)
 const activeArgumentIndex = ref<number | null>(null)
@@ -14,7 +15,7 @@ const activeArgument = computed(() => {
 })
 const argumentsList = ref<string[]>([])
 
-export function useCommandService() {
+function commandService() {
   const commandStore = useCommandStore()
 
   function executeCommand(command: TCommand, ...args: string[]) {
@@ -90,3 +91,5 @@ export function useCommandService() {
     getHotkey,
   }
 }
+
+export const useCommandService = createSharedComposable(commandService)

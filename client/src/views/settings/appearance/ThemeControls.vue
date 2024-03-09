@@ -1,65 +1,17 @@
 <script setup lang="ts">
-import { onMounted, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import { CheckIcon } from 'lucide-vue-next'
-
-import { RADII, useConfigStore } from '@/stores/settings.store'
-
+import {
+  allRadii,
+  useThemeStore,
+  allColors,
+} from '@/stores/settings/theme.store'
 import { colors } from '@/lib/registry/colors'
-import { useDark } from '@vueuse/core'
+import { storeToRefs } from 'pinia'
 
-type Color =
-  | 'zinc'
-  | 'slate'
-  | 'stone'
-  | 'gray'
-  | 'neutral'
-  | 'red'
-  | 'rose'
-  | 'orange'
-  | 'green'
-  | 'blue'
-  | 'yellow'
-  | 'violet'
-
-const allColors: Color[] = [
-  'zinc',
-  'rose',
-  'blue',
-  'green',
-  'orange',
-  'red',
-  'slate',
-  'stone',
-  'gray',
-  'neutral',
-  'yellow',
-  'violet',
-]
-
-const { theme, radius, setRadius, setTheme } = useConfigStore()
-const isDark = useDark()
-
-// TODO: Move these to a global scope
-
-// Whenever the component is mounted, update the document class list
-onMounted(() => {
-  document.documentElement.style.setProperty('--radius', `${radius.value}rem`)
-  document.documentElement.classList.add(`theme-${theme.value}`)
-})
-
-// Whenever the theme value changes, update the document class list
-watch(theme, theme => {
-  document.documentElement.classList.remove(
-    ...allColors.map(color => `theme-${color}`),
-  )
-  document.documentElement.classList.add(`theme-${theme}`)
-})
-
-// Whenever the radius value changes, update the document style
-watch(radius, radius => {
-  document.documentElement.style.setProperty('--radius', `${radius}rem`)
-})
+const themeStore = useThemeStore()
+const { isDark, accentColor, radius } = storeToRefs(themeStore)
+const { toggleDark, setAccentColor, setRadius } = themeStore
 </script>
 
 <template>
@@ -72,14 +24,14 @@ watch(radius, radius => {
           :key="index"
           variant="outline"
           class="h-8 justify-start px-3"
-          :class="color === theme ? 'border-foreground border-2' : ''"
-          @click="setTheme(color)"
+          :class="color === accentColor ? 'border-foreground border-2' : ''"
+          @click="setAccentColor(color)"
         >
           <span
             class="h-5 w-5 rounded-full flex items-center justify-center"
             :style="{ backgroundColor: colors[color][7].rgb }"
           >
-            <CheckIcon v-if="color === theme" class="size-3 text-white" />
+            <CheckIcon v-if="color === accentColor" class="size-3 text-white" />
           </span>
           <span class="ml-2 text-xs capitalize">
             {{ color }}
@@ -91,7 +43,7 @@ watch(radius, radius => {
       <Label for="radius" class="text-xs"> Radius </Label>
       <div class="grid grid-cols-5 gap-2 py-1.5">
         <Button
-          v-for="(r, index) in RADII"
+          v-for="(r, index) in allRadii"
           :key="index"
           variant="outline"
           class="h-8 justify-center px-3"
@@ -112,7 +64,7 @@ watch(radius, radius => {
           class="h-8"
           variant="outline"
           :class="{ 'border-2 border-foreground': !isDark }"
-          @click="isDark = false"
+          @click="toggleDark(false)"
         >
           <span class="text-xs">Light</span>
         </Button>
@@ -120,7 +72,7 @@ watch(radius, radius => {
           class="h-8"
           variant="outline"
           :class="{ 'border-2 border-foreground': isDark }"
-          @click="isDark = true"
+          @click="toggleDark(true)"
         >
           <span class="text-xs">Dark</span>
         </Button>

@@ -16,5 +16,8 @@
     "vueuse"
   ],
   "search.followSymlinks": false,
-  "cSpell.ignoreWords": ["rchment"]
+  "cSpell.ignoreWords": [
+    "rchment"
+  ],
+  "javascript.preferences.importModuleSpecifier": "non-relative"
 }

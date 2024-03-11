@@ -10,6 +10,7 @@ import {
   PaletteIcon,
   SearchIcon,
   SunMoonIcon,
+  TerminalIcon,
 } from 'lucide-vue-next'
 import { useDark, useToggle } from '@vueuse/core'
 import {
@@ -18,6 +19,39 @@ import {
   allRadii,
 } from '@/stores/settings/theme.store'
 import { useMapService } from '@/services/map.service'
+
+const places = [
+  {
+    name: 'Viva Chicken',
+    address: '1617 Elizabeth Ave, Charlotte, NC 28204',
+    type: 'restaurant',
+    distance: '0.2 mi',
+  },
+  {
+    name: "The Workman's Friend",
+    address: '1531 Central Ave, Charlotte, NC 28205',
+    type: 'bar',
+    distance: '0.3 mi',
+  },
+  {
+    name: 'The Diamond',
+    address: '1901 Commonwealth Ave, Charlotte, NC 28205',
+    type: 'bar',
+    distance: '0.4 mi',
+  },
+  {
+    name: 'Sabor Latin Street Grill',
+    address: '415 Hawthorne Ln, Charlotte, NC 28204',
+    type: 'restaurant',
+    distance: '0.5 mi',
+  },
+  {
+    name: 'The Pizza Peel Plaza Midwood',
+    address: '1600 Central Ave, Charlotte, NC 28205',
+    type: 'restaurant',
+    distance: '0.6 mi',
+  },
+]
 
 export const useCommandStore = defineStore('command', () => {
   const isDark = useDark()
@@ -35,11 +69,34 @@ export const useCommandStore = defineStore('command', () => {
 
   const commands = ref<Command[]>([
     {
-      id: 'focusSearch',
-      name: 'Search',
-      description: 'Search for a location or run a command',
+      id: 'openPalette',
+      name: 'Command palette',
+      description: 'Run a command',
       hotkey: ['mod', 'k'],
+      icon: TerminalIcon,
+    },
+    {
+      id: 'search',
+      name: 'Search places',
+      description: 'Search for places, businesses, and amenities',
+      hotkey: ['/'],
       icon: SearchIcon,
+      action: (query: string) => {
+        console.log('Search:', query)
+      },
+      arguments: [
+        {
+          name: 'Places',
+          type: 'string',
+          getItems() {
+            return places.map(place => ({
+              value: place.name,
+              name: place.name,
+              description: place.address,
+            }))
+          },
+        },
+      ],
     },
     {
       id: 'goto',
@@ -122,7 +179,7 @@ export const useCommandStore = defineStore('command', () => {
       name: 'Choose map library',
       description: 'Change the library used to render the map',
       icon: CogIcon,
-      hotkey: ['mod', 'shift', 'm'],
+      hotkey: ['l'],
       action: mapService.setMapLibrary,
       arguments: [
         {

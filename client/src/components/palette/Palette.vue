@@ -12,7 +12,7 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command'
-import { SearchIcon, MapPinIcon } from 'lucide-vue-next'
+import { SearchIcon, MapPinIcon, TerminalIcon } from 'lucide-vue-next'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 
 const commandStore = useCommandStore()
@@ -32,29 +32,29 @@ const showResults = ref(false)
 const commandPalette = ref<InstanceType<typeof Command> | null>(null)
 const input = ref<InstanceType<typeof CommandInput> | null>(null)
 
-bindCommandToFunction('focusSearch', focusSearch)
+bindCommandToFunction('openPalette', focusInput)
 
 const filteredCommands = computed(() => {
-  // Don't include the focusSearch command in the results, we are already looking at the search palette
-  return commandStore.commands.filter(command => command.id != 'focusSearch')
+  // Don't include the openPalette command in the results, we are already looking at the search palette
+  return commandStore.commands.filter(command => command.id != 'openPalette')
 })
 
 function openPalette() {
   commandOpen.value = true
-  focusSearch()
+  focusInput()
 }
 
 function closePalette() {
   clearInput()
-  blurSearch()
+  blurInput()
   showResults.value = false
 }
 
-function focusSearch() {
+function focusInput() {
   input.value?.inputElement?.focus()
 }
 
-function blurSearch() {
+function blurInput() {
   input.value?.inputElement?.blur()
 }
 
@@ -82,7 +82,7 @@ function inputBlurred(event: FocusEvent) {
 function onBackspace() {
   if (query.value === '') {
     resetCommand()
-    focusSearch()
+    openPalette()
   }
 }
 
@@ -116,39 +116,19 @@ watch(activeArgument, (newVal, prevVal) => {
   }
 })
 
-// Some example place results for the map search results. Schema is tentative, subject to change
-const places = [
-  {
-    name: 'Viva Chicken',
-    address: '1617 Elizabeth Ave, Charlotte, NC 28204',
-    type: 'restaurant',
-    distance: '0.2 mi',
-  },
-  {
-    name: "The Workman's Friend",
-    address: '1531 Central Ave, Charlotte, NC 28205',
-    type: 'bar',
-    distance: '0.3 mi',
-  },
-  {
-    name: 'The Diamond',
-    address: '1901 Commonwealth Ave, Charlotte, NC 28205',
-    type: 'bar',
-    distance: '0.4 mi',
-  },
-  {
-    name: 'Sabor Latin Street Grill',
-    address: '415 Hawthorne Ln, Charlotte, NC 28204',
-    type: 'restaurant',
-    distance: '0.5 mi',
-  },
-  {
-    name: 'The Pizza Peel Plaza Midwood',
-    address: '1600 Central Ave, Charlotte, NC 28205',
-    type: 'restaurant',
-    distance: '0.6 mi',
-  },
-]
+const placeholder = computed(() => {
+  return showResults.value
+    ? activeCommand.value
+      ? 'Search...'
+      : 'Run command...'
+    : 'Search or run command...'
+})
+
+const icon = computed(() => {
+  return showResults.value
+    ? activeCommand.value?.icon ?? TerminalIcon
+    : SearchIcon
+})
 </script>
 
 <template>
@@ -160,29 +140,25 @@ const places = [
   >
     <CommandInput
       ref="input"
-      :placeholder="activeCommand ? 'Search...' : 'Search or type command...'"
+      :placeholder="placeholder"
       @focus="inputFocused($event)"
       @blur="inputBlurred($event)"
       @keydown.backspace="onBackspace()"
     >
       <template v-slot:prefix>
+        <component :is="icon" class="h-4 w-4 shrink-0 opacity-50" />
+
         <template v-if="activeCommand">
-          <component
-            v-if="activeCommand.icon"
-            :is="activeCommand.icon"
-            class="h-4 w-4 shrink-0 opacity-50"
-          />
           <div
             class="select-none whitespace-nowrap rounded-md bg-primary px-1.5 py-1 font-sans text-xs text-primary-foreground"
           >
             {{ activeCommand.name }}
           </div>
         </template>
-
-        <SearchIcon v-else class="h-4 w-4 shrink-0 opacity-50" />
       </template>
-      <template v-slot:postfix>
-        <Kbd v-if="!activeCommand" commandId="focusSearch"></Kbd>
+      <template v-slot:postfix v-if="!showResults">
+        <Kbd commandId="openPalette"></Kbd>
+        <Kbd commandId="search"></Kbd>
       </template>
     </CommandInput>
 
@@ -190,24 +166,6 @@ const places = [
       <!-- Top-level commands list -->
       <CommandList v-if="!activeArgument">
         <CommandEmpty>No results found.</CommandEmpty>
-
-        <CommandGroup heading="Places">
-          <CommandItem
-            v-for="place in places"
-            :key="place.name"
-            :value="place.name"
-            class="flex gap-2"
-          >
-            <MapPinIcon class="size-5" />
-            <div class="flex-1 flex flex-col">
-              <span class="font-semibold">{{ place.name }}</span>
-              <span class="text-sm text-gray-500">{{ place.address }}</span>
-            </div>
-            <span class="text-sm text-gray-500">{{ place.distance }}</span>
-          </CommandItem>
-        </CommandGroup>
-
-        <CommandSeparator />
 
         <CommandGroup heading="Commands">
           <CommandItem
@@ -219,10 +177,13 @@ const places = [
           >
             <component :is="command.icon" class="size-5" />
             <div class="flex-1 flex flex-col">
-              <span class="font-semibold">{{ command.name }}</span>
-              <span class="text-sm text-gray-500" v-if="command.description">{{
-                command.description
-              }}</span>
+              <span class="font-semibold">
+                {{ command.name
+                }}<template v-if="command.arguments">...</template>
+              </span>
+              <span class="text-sm text-gray-500" v-if="command.description">
+                {{ command.description }}
+              </span>
             </div>
             <Kbd
               v-if="command.hotkey"

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import fuzzysort from 'fuzzysort'
+import { onClickOutside, useMagicKeys } from '@vueuse/core'
 import { useCommandService } from '@/services/command.service'
 import { useCommandStore } from '@/stores/command.store'
 import {
@@ -35,8 +36,10 @@ const query = ref('')
 const commandOpen = ref(true)
 const showResults = ref(false)
 
-const commandPalette = ref<InstanceType<typeof Command> | null>(null)
-const input = ref<InstanceType<typeof CommandInput> | null>(null)
+const container = ref()
+const commandPalette = ref<InstanceType<typeof Command>>()
+const input = ref<InstanceType<typeof CommandInput>>()
+const { escape } = useMagicKeys()
 
 bindCommandToFunction('openPalette', focusInput)
 
@@ -64,6 +67,14 @@ function closePalette() {
   showResults.value = false
 }
 
+function resetOrClose() {
+  if (activeArgument.value) {
+    resetCommand()
+  } else if (showResults.value) {
+    closePalette()
+  }
+}
+
 function focusInput() {
   input.value?.inputElement?.focus()
 }
@@ -82,18 +93,11 @@ function inputFocused(event: FocusEvent) {
   }
 }
 
-function inputBlurred(event: FocusEvent) {
-  // Check if we clicked inside the palette. If not, hide the results
-  const relatedTarget = event.relatedTarget as HTMLElement | null
-  const paletteContainer = commandPalette.value?.$el
-    ?.parentElement as HTMLElement | null
-  if (relatedTarget && paletteContainer?.contains(relatedTarget)) {
-    event.preventDefault()
-  } else {
-    showResults.value = false
-    resetCommand()
-  }
-}
+onClickOutside(container, event => {
+  console.log('clicked outside', event)
+  showResults.value = false
+  resetCommand()
+})
 
 function onBackspace() {
   if (query.value === '') {
@@ -132,6 +136,10 @@ watch(activeArgument, (newVal, prevVal) => {
   }
 })
 
+watch(escape, value => {
+  if (value) resetOrClose()
+})
+
 const placeholder = computed(() => {
   return showResults.value
     ? activeCommand.value
@@ -158,104 +166,108 @@ function filterFunction(val: PaletteItem[], term: string): PaletteItem[] {
 </script>
 
 <template>
-  <Command
-    class="shadow-md"
-    ref="commandPalette"
-    v-model:searchTerm="query"
-    :open="commandOpen"
-    :filter-function="filterFunction as any"
-  >
-    <CommandInput
-      ref="input"
-      :placeholder="placeholder"
-      @focus="inputFocused($event)"
-      @blur="inputBlurred($event)"
-      @keydown.backspace="onBackspace()"
+  <div ref="container">
+    <Command
+      class="shadow-md"
+      ref="commandPalette"
+      v-model:searchTerm="query"
+      :open="commandOpen"
+      :filter-function="filterFunction as any"
     >
-      <template v-slot:prefix>
-        <component :is="icon" class="h-4 w-4 shrink-0 opacity-50" />
+      <CommandInput
+        ref="input"
+        :placeholder="placeholder"
+        @focus="inputFocused($event)"
+        @keydown.backspace="onBackspace()"
+      >
+        <template v-slot:prefix>
+          <component :is="icon" class="h-4 w-4 shrink-0 opacity-50" />
 
-        <template v-if="activeCommand">
-          <div
-            class="select-none whitespace-nowrap rounded-md bg-primary px-1.5 py-1 font-sans text-xs text-primary-foreground"
-          >
-            {{ activeCommand.name }}
-          </div>
-        </template>
-      </template>
-      <template v-slot:postfix>
-        <template v-if="!showResults">
-          <div class="flex gap-1">
-            <Kbd commandId="openPalette"></Kbd>
-            <Kbd commandId="search"></Kbd>
-          </div>
-        </template>
-        <span class="w-4" v-else>
-          <XIcon class="h-4 w-4 cursor-pointer opacity-50 hover:opacity-100" />
-        </span>
-      </template>
-    </CommandInput>
-
-    <template v-if="showResults">
-      <!-- Top-level commands list -->
-      <CommandList v-if="!activeArgument">
-        <CommandEmpty>No results found.</CommandEmpty>
-
-        <CommandGroup heading="Commands">
-          <CommandItem
-            v-for="command in filteredCommands"
-            :key="command.id"
-            :value="command"
-            class="flex gap-2"
-            @select="onCommandSelected(command)"
-          >
-            <component :is="command.icon" class="size-5" />
-            <div class="flex-1 flex flex-col">
-              <span class="font-semibold">
-                {{ command.name
-                }}<template v-if="command.arguments">...</template>
-              </span>
-              <span class="text-sm text-gray-500" v-if="command.description">
-                {{ command.description }}
-              </span>
+          <template v-if="activeCommand">
+            <div
+              class="select-none whitespace-nowrap rounded-md bg-primary px-1.5 py-1 font-sans text-xs text-primary-foreground"
+            >
+              {{ activeCommand.name }}
             </div>
-            <Kbd
-              v-if="command.hotkey"
-              :hotkey="command.hotkey"
-              class="ml-2"
-            ></Kbd>
-          </CommandItem>
-        </CommandGroup>
-      </CommandList>
-
-      <!-- Command selected, display arguments -->
-      <CommandList v-if="activeArgument">
-        <CommandGroup :heading="activeArgument.name">
-          <CommandItem
-            v-for="argumentOption in activeArgument.getItems()"
-            :key="argumentOption.value"
-            :value="argumentOption"
-            class="flex gap-2"
-            @select="onArgumentSelected(argumentOption.value)"
-          >
-            <!-- <component :is="command.icon" class="size-5" /> -->
-            <div class="flex-1 flex flex-col">
-              <span class="font-semibold">{{ argumentOption.name }}</span>
-              <span
-                class="text-sm text-gray-500"
-                v-if="argumentOption.description"
-              >
-                {{ argumentOption.description }}
-              </span>
+          </template>
+        </template>
+        <template v-slot:postfix>
+          <template v-if="!showResults">
+            <div class="flex gap-1">
+              <Kbd commandId="openPalette"></Kbd>
+              <Kbd commandId="search"></Kbd>
             </div>
-            <!-- <Kbd
+          </template>
+          <span class="w-4" v-else>
+            <XIcon
+              class="h-4 w-4 cursor-pointer opacity-50 hover:opacity-100"
+              @click="resetOrClose()"
+            />
+          </span>
+        </template>
+      </CommandInput>
+
+      <template v-if="showResults">
+        <!-- Top-level commands list -->
+        <CommandList v-if="!activeArgument">
+          <CommandEmpty>No results found.</CommandEmpty>
+
+          <CommandGroup heading="Commands">
+            <CommandItem
+              v-for="command in filteredCommands"
+              :key="command.id"
+              :value="command"
+              class="flex gap-2"
+              @select="onCommandSelected(command)"
+            >
+              <component :is="command.icon" class="size-5" />
+              <div class="flex-1 flex flex-col">
+                <span class="font-semibold">
+                  {{ command.name
+                  }}<template v-if="command.arguments">...</template>
+                </span>
+                <span class="text-sm text-gray-500" v-if="command.description">
+                  {{ command.description }}
+                </span>
+              </div>
+              <Kbd
+                v-if="command.hotkey"
+                :hotkey="command.hotkey"
+                class="ml-2"
+              ></Kbd>
+            </CommandItem>
+          </CommandGroup>
+        </CommandList>
+
+        <!-- Command selected, display arguments -->
+        <CommandList v-if="activeArgument">
+          <CommandGroup :heading="activeArgument.name">
+            <CommandItem
+              v-for="argumentOption in activeArgument.getItems()"
+              :key="argumentOption.value"
+              :value="argumentOption"
+              class="flex gap-2"
+              @select="onArgumentSelected(argumentOption.value)"
+            >
+              <!-- <component :is="command.icon" class="size-5" /> -->
+              <div class="flex-1 flex flex-col">
+                <span class="font-semibold">{{ argumentOption.name }}</span>
+                <span
+                  class="text-sm text-gray-500"
+                  v-if="argumentOption.description"
+                >
+                  {{ argumentOption.description }}
+                </span>
+              </div>
+              <!-- <Kbd
               v-if="command.hotkey"
               :hotkey="command.hotkey"
               class="ml-2"
             ></Kbd> -->
-          </CommandItem>
-        </CommandGroup>
-      </CommandList>
-    </template>
-  </Command>
+            </CommandItem>
+          </CommandGroup>
+        </CommandList>
+      </template>
+    </Command>
+  </div>
 </template>

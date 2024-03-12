@@ -1,8 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import fuzzysort from 'fuzzysort'
 import { useCommandService } from '@/services/command.service'
 import { useCommandStore } from '@/stores/command.store'
-import { ArgumentType, type Command as TCommand } from '@/types/command.types'
+import {
+  ArgumentType,
+  CommandArgumentOption,
+  PaletteItem,
+  type Command as TCommand,
+} from '@/types/command.types'
 import {
   Command,
   CommandEmpty,
@@ -39,9 +45,17 @@ const filteredCommands = computed(() => {
   return commandStore.commands.filter(command => command.id != 'openPalette')
 })
 
-function openPalette() {
+function openPalette(withSearch = false) {
   commandOpen.value = true
+  showResults.value = true
   focusInput()
+
+  if (withSearch) {
+    const searchCommand = commandStore.commands.find(
+      command => command.id === 'search',
+    )
+    executeCommand(searchCommand!)
+  }
 }
 
 function closePalette() {
@@ -63,7 +77,9 @@ function clearInput() {
 }
 
 function inputFocused(event: FocusEvent) {
-  showResults.value = true
+  if (!showResults.value) {
+    openPalette(true)
+  }
 }
 
 function inputBlurred(event: FocusEvent) {
@@ -129,6 +145,15 @@ const icon = computed(() => {
     ? activeCommand.value?.icon ?? TerminalIcon
     : SearchIcon
 })
+
+function filterFunction(val: PaletteItem[], term: string): PaletteItem[] {
+  if (!term) return val
+  return fuzzysort
+    .go(term, val, {
+      keys: ['name', 'description'],
+    })
+    .map(result => result.obj)
+}
 </script>
 
 <template>
@@ -137,6 +162,7 @@ const icon = computed(() => {
     ref="commandPalette"
     v-model:searchTerm="query"
     :open="commandOpen"
+    :filter-function="filterFunction as any"
   >
     <CommandInput
       ref="input"
@@ -171,7 +197,7 @@ const icon = computed(() => {
           <CommandItem
             v-for="command in filteredCommands"
             :key="command.id"
-            :value="command.id"
+            :value="command"
             class="flex gap-2"
             @select="onCommandSelected(command)"
           >
@@ -200,7 +226,7 @@ const icon = computed(() => {
           <CommandItem
             v-for="argumentOption in activeArgument.getItems()"
             :key="argumentOption.value"
-            :value="argumentOption.value"
+            :value="argumentOption"
             class="flex gap-2"
             @select="onArgumentSelected(argumentOption.value)"
           >

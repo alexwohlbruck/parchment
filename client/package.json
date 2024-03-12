@@ -15,6 +15,7 @@
     "@vueuse/core": "^10.7.1",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
+    "fuzzysort": "^2.0.4",
     "lucide-vue-next": "^0.330.0",
     "mapbox-gl": "3.1.2",
     "maplibre-gl": "^4.0.0",

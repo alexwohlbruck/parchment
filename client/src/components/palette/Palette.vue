@@ -194,8 +194,8 @@ function filterFunction(val: PaletteItem[], term: string): PaletteItem[] {
         <template v-slot:postfix>
           <template v-if="!showResults">
             <div class="flex gap-1">
-              <Kbd commandId="openPalette"></Kbd>
               <Kbd commandId="search"></Kbd>
+              <Kbd commandId="openPalette"></Kbd>
             </div>
           </template>
           <span class="w-4" v-else>

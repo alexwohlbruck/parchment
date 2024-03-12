@@ -181,7 +181,7 @@ function filterFunction(val: PaletteItem[], term: string): PaletteItem[] {
         @keydown.backspace="onBackspace()"
       >
         <template v-slot:prefix>
-          <component :is="icon" class="h-4 w-4 shrink-0 opacity-50" />
+          <component :is="icon" class="size-4 shrink-0 opacity-50" />
 
           <template v-if="activeCommand">
             <div
@@ -200,7 +200,7 @@ function filterFunction(val: PaletteItem[], term: string): PaletteItem[] {
           </template>
           <span class="w-4" v-else>
             <XIcon
-              class="h-4 w-4 cursor-pointer opacity-50 hover:opacity-100"
+              class="size-4 cursor-pointer opacity-50 hover:opacity-100"
               @click="resetOrClose()"
             />
           </span>

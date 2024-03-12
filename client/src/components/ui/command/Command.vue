@@ -7,13 +7,6 @@ const props = defineProps<ComboboxRootProps>()
 const emits = defineEmits<ComboboxRootEmits>()
 
 const forwarded = useForwardPropsEmits(props, emits)
-
-// TODO:
-// function filterFunction(val: any[], term: string): string[] {
-//   return val.filter(item => item.toLowerCase().includes(term.toLowerCase()))
-// }
-// Add to ComboboxRoot props:
-// :filter-function="filterFunction"
 </script>
 
 <template>

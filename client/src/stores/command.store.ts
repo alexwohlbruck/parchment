@@ -81,6 +81,7 @@ export const useCommandStore = defineStore('command', () => {
       description: 'Search for places, businesses, and amenities',
       hotkey: ['/'],
       icon: SearchIcon,
+      keywords: ['find', 'locate'].join(),
       action: (query: string) => {
         console.log('Search:', query)
       },
@@ -127,6 +128,7 @@ export const useCommandStore = defineStore('command', () => {
       id: 'toggleTheme',
       name: 'Toggle theme',
       description: 'Toggle between light and dark themes',
+      keywords: ['mode', 'system'].join(),
       hotkey: ['t'],
       icon: SunMoonIcon,
       action: toggleDark,
@@ -136,6 +138,7 @@ export const useCommandStore = defineStore('command', () => {
       name: 'Update theme color',
       description: 'Change the color of the app theme',
       icon: PaletteIcon,
+      keywords: ['accent', 'palette'].join(),
       action: (color: string) => {
         setAccentColor(color as any)
       },
@@ -207,6 +210,7 @@ export const useCommandStore = defineStore('command', () => {
     {
       id: 'openHotkeysMenu',
       name: 'Keyboard shortcuts',
+      keywords: ['help'].join(),
       description: 'View all available keyboard shortcuts',
       hotkey: ['s'],
       icon: HelpCircleIcon,

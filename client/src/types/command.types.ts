@@ -5,6 +5,7 @@ export type Hotkey = string[]
 export type PaletteItem = {
   name: string
   description?: string
+  keywords?: string
 }
 
 export type Command = PaletteItem & {

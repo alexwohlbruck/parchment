@@ -148,9 +148,10 @@ const icon = computed(() => {
 
 function filterFunction(val: PaletteItem[], term: string): PaletteItem[] {
   if (!term) return val
+
   return fuzzysort
     .go(term, val, {
-      keys: ['name', 'description'],
+      keys: ['name', 'description', 'keywords'],
     })
     .map(result => result.obj)
 }

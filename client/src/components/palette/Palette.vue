@@ -143,9 +143,9 @@ watch(escape, value => {
 const placeholder = computed(() => {
   return showResults.value
     ? activeCommand.value
-      ? 'Search...'
+      ? 'Find an item...'
       : 'Run command...'
-    : 'Search or run command...'
+    : 'Search nearby...'
 })
 
 const icon = computed(() => {

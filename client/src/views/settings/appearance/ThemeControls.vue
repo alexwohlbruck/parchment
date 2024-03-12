@@ -28,7 +28,7 @@ const { toggleDark, setAccentColor, setRadius } = themeStore
           @click="setAccentColor(color)"
         >
           <span
-            class="h-5 w-5 rounded-full flex items-center justify-center"
+            class="size-5 rounded-full flex items-center justify-center"
             :style="{ backgroundColor: colors[color][7].rgb }"
           >
             <CheckIcon v-if="color === accentColor" class="size-3 text-white" />

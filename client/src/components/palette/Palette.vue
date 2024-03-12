@@ -18,7 +18,7 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command'
-import { SearchIcon, MapPinIcon, TerminalIcon } from 'lucide-vue-next'
+import { SearchIcon, MapPinIcon, TerminalIcon, XIcon } from 'lucide-vue-next'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 
 const commandStore = useCommandStore()
@@ -183,9 +183,16 @@ function filterFunction(val: PaletteItem[], term: string): PaletteItem[] {
           </div>
         </template>
       </template>
-      <template v-slot:postfix v-if="!showResults">
-        <Kbd commandId="openPalette"></Kbd>
-        <Kbd commandId="search"></Kbd>
+      <template v-slot:postfix>
+        <template v-if="!showResults">
+          <div class="flex gap-1">
+            <Kbd commandId="openPalette"></Kbd>
+            <Kbd commandId="search"></Kbd>
+          </div>
+        </template>
+        <span class="w-4" v-else>
+          <XIcon class="h-4 w-4 cursor-pointer opacity-50 hover:opacity-100" />
+        </span>
       </template>
     </CommandInput>
 

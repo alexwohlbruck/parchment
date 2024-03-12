@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { computed, ref, watch } from 'vue'
+import fuzzysort from 'fuzzysort'
 import {
   Dialog,
   DialogContent,
@@ -23,17 +24,19 @@ function openHotkeysMenu() {
   open.value = true
 }
 
-const filteredCommands = computed(() => {
+const hotkeys = computed(() => {
   return commandStore.commands.filter(command => {
-    const hasHotkey = !!command.hotkey
-    const queryMatchesName = command.name
-      .toLowerCase()
-      .includes(query.value.toLowerCase())
-    const queryMatchesDescription = command.description
-      ? command.description.toLowerCase().includes(query.value.toLowerCase())
-      : true
-    return hasHotkey && (queryMatchesName || queryMatchesDescription)
+    return !!command.hotkey
   })
+})
+
+const searchResults = computed(() => {
+  if (!query.value) return hotkeys.value
+  return fuzzysort
+    .go(query.value, hotkeys.value, {
+      keys: ['name', 'description', 'keywords'],
+    })
+    .map(result => result.obj)
 })
 
 watch(open, value => {
@@ -56,7 +59,7 @@ commandService.bindCommandToFunction('openHotkeysMenu', openHotkeysMenu)
       <div class="flex flex-col gap-4">
         <Input v-model="query" placeholder="Search..." />
 
-        <div v-for="command in filteredCommands" :key="command.id">
+        <div v-for="command in searchResults" :key="command.id">
           <template v-if="command.hotkey">
             <div class="flex justify-between items-center">
               <div class="flex flex-col">

@@ -17,7 +17,6 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-  CommandSeparator,
 } from '@/components/ui/command'
 import { SearchIcon, MapPinIcon, TerminalIcon, XIcon } from 'lucide-vue-next'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
@@ -137,7 +136,10 @@ watch(activeArgument, (newVal, prevVal) => {
 })
 
 watch(escape, value => {
-  if (value) resetOrClose()
+  if (value) {
+    resetCommand()
+    closePalette()
+  }
 })
 
 const placeholder = computed(() => {
@@ -249,21 +251,28 @@ function filterFunction(val: PaletteItem[], term: string): PaletteItem[] {
               class="flex gap-2"
               @select="onArgumentSelected(argumentOption.value)"
             >
-              <!-- <component :is="command.icon" class="size-5" /> -->
-              <div class="flex-1 flex flex-col">
-                <span class="font-semibold">{{ argumentOption.name }}</span>
-                <span
-                  class="text-sm text-gray-500"
-                  v-if="argumentOption.description"
-                >
-                  {{ argumentOption.description }}
-                </span>
-              </div>
-              <!-- <Kbd
-              v-if="command.hotkey"
-              :hotkey="command.hotkey"
-              class="ml-2"
-            ></Kbd> -->
+              <component
+                v-if="activeArgument.customItemComponent"
+                :is="activeArgument.customItemComponent"
+                v-bind:argumentOption="argumentOption"
+              />
+
+              <template v-else>
+                <component
+                  v-if="argumentOption.icon"
+                  :is="argumentOption.icon"
+                  class="size-5"
+                />
+                <div class="flex-1 flex flex-col">
+                  <span class="font-semibold">{{ argumentOption.name }}</span>
+                  <span
+                    class="text-sm text-gray-500"
+                    v-if="argumentOption.description"
+                  >
+                    {{ argumentOption.description }}
+                  </span>
+                </div>
+              </template>
             </CommandItem>
           </CommandGroup>
         </CommandList>

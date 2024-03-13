@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { markRaw, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Command } from '@/types/command.types'
 import {
@@ -7,6 +7,7 @@ import {
   CogIcon,
   DraftingCompassIcon,
   HelpCircleIcon,
+  MapPinIcon,
   PaletteIcon,
   SearchIcon,
   SunMoonIcon,
@@ -19,6 +20,8 @@ import {
   allRadii,
 } from '@/stores/settings/theme.store'
 import { useMapService } from '@/services/map.service'
+
+import ColorCommandArgumentOption from '@/components/palette/custom-items/ColorCommandArgumentOption.vue'
 
 const places = [
   {
@@ -94,6 +97,7 @@ export const useCommandStore = defineStore('command', () => {
               value: place.name,
               name: place.name,
               description: place.address,
+              icon: MapPinIcon,
             }))
           },
         },
@@ -146,6 +150,7 @@ export const useCommandStore = defineStore('command', () => {
         {
           name: 'Color',
           type: 'string',
+          customItemComponent: markRaw(ColorCommandArgumentOption),
           getItems() {
             // TODO: This get called for each item, should be called once
             return allColors.map(color => ({

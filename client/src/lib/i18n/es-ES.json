@@ -1,0 +1,13 @@
+{
+  "palette": {
+    "placeholder": {
+      "default": "Buscar cercana...",
+      "command": "Ejecutar comando...",
+      "argument": "Buscar un elemento..."
+    }
+  },
+  "settings": {
+    "title": "Ajustes",
+    "description": "Administra la configuración de tu cuenta y el comportamiento de la aplicación"
+  }
+}

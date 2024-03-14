@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import fuzzysort from 'fuzzysort'
 import { onClickOutside, useMagicKeys } from '@vueuse/core'
 import { useCommandService } from '@/services/command.service'
@@ -21,6 +22,7 @@ import {
 import { SearchIcon, MapPinIcon, TerminalIcon, XIcon } from 'lucide-vue-next'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 
+const { t } = useI18n()
 const commandStore = useCommandStore()
 const {
   bindCommandToFunction,
@@ -145,9 +147,9 @@ watch(escape, value => {
 const placeholder = computed(() => {
   return showResults.value
     ? activeCommand.value
-      ? 'Find an item...'
-      : 'Run command...'
-    : 'Search nearby...'
+      ? t('palette.placeholder.argument')
+      : t('palette.placeholder.command')
+    : t('palette.placeholder.default')
 })
 
 const icon = computed(() => {

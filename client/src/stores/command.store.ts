@@ -2,11 +2,13 @@ import { defineStore } from 'pinia'
 import { markRaw, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Command } from '@/types/command.types'
+import { Locale } from '@/lib/i18n'
 import {
   ChevronsRightIcon,
   CogIcon,
   DraftingCompassIcon,
   HelpCircleIcon,
+  LanguagesIcon,
   MapPinIcon,
   PaletteIcon,
   SearchIcon,
@@ -22,6 +24,7 @@ import {
 import { useMapService } from '@/services/map.service'
 
 import ColorCommandArgumentOption from '@/components/palette/custom-items/ColorCommandArgumentOption.vue'
+import { useI18n } from 'vue-i18n'
 
 const places = [
   {
@@ -62,6 +65,7 @@ export const useCommandStore = defineStore('command', () => {
   const router = useRouter()
   const { setAccentColor, setRadius } = useThemeStore()
   const mapService = useMapService()
+  const { locale } = useI18n()
 
   function bindCommandToFunction(id: string, action: Function) {
     const command = commands.value.find(c => c.id === id)
@@ -219,6 +223,33 @@ export const useCommandStore = defineStore('command', () => {
       description: 'View all available keyboard shortcuts',
       hotkey: ['s'],
       icon: HelpCircleIcon,
+    },
+    {
+      id: 'updateLanguage',
+      name: 'Change language',
+      description: 'Change the language of the app',
+      icon: LanguagesIcon,
+      action: (language: Locale) => {
+        locale.value = language
+      },
+      arguments: [
+        {
+          name: 'Language',
+          type: 'string',
+          getItems(): { value: Locale; name: string }[] {
+            return [
+              {
+                value: 'en-US',
+                name: 'English',
+              },
+              {
+                value: 'es-ES',
+                name: 'Español',
+              },
+            ]
+          },
+        },
+      ],
     },
   ])
 

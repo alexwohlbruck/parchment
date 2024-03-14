@@ -49,8 +49,8 @@ const pages = [
 <template>
   <div class="py-4 flex flex-col gap-4">
     <div>
-      <H2>Settings</H2>
-      <P>Manage your account settings and app behavior</P>
+      <H2>{{ $t('settings.title') }}</H2>
+      <P>{{ $t('settings.description') }}</P>
     </div>
 
     <Separator />

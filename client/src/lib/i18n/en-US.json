@@ -1,0 +1,13 @@
+{
+  "palette": {
+    "placeholder": {
+      "default": "Search nearby...",
+      "command": "Run command...",
+      "argument": "Find an item..."
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "Manage your account settings and app behavior"
+  }
+}

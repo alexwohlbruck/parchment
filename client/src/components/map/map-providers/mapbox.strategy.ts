@@ -9,8 +9,10 @@ import {
 } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { Basemap, MapLayer, MapOptions, type MapTheme } from '@/types/map.types'
+import standardStyle from '@/components/map/styles/standard.json'
 
 import { layers } from '../layers' // TODO: Refactor layers init
+import { Locale } from '@/lib/i18n'
 
 const basemapUrls: {
   [key in Basemap]: string
@@ -58,7 +60,7 @@ export class MapboxStrategy extends MapStrategy {
     const map = new Map({
       accessToken: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
       container,
-      style: 'mapbox://styles/mapbox/standard-beta',
+      style: `mapbox://styles/mapbox/standard`,
       center: [lng, lat],
       bearing,
       pitch,
@@ -86,7 +88,34 @@ export class MapboxStrategy extends MapStrategy {
     )
 
     this.map.on('load', this.setLayers.bind(this, this.options.layers))
-    this.map.on('style.load', this.setMapTheme.bind(this, this.options.theme))
+    this.map.on('style.load', () => {
+      this.setMapTheme.bind(this, this.options.theme)
+      this.setLocale('en-US')
+    })
+  }
+
+  setLocale(locale: Locale) {
+    // TODO:
+    const languageCode = locale.split('-')[0]
+    // console.log(this.map.getStyle())
+    // this.language.setLanguage(this.map.getStyle(), languageCode)
+
+    // const labelList = this.map
+    //   .getStyle()
+    //   .imports![0].data.layers.filter(layer => {
+    //     return /-label/.test(layer.id)
+    //   })
+
+    const labelList = [{ id: 'country-label' }]
+
+    console.log(this.map)
+
+    for (let labelLayer of labelList) {
+      this.map.setLayoutProperty(labelLayer.id, 'text-field', [
+        'get',
+        'name_fr',
+      ])
+    }
   }
 
   setLayers(layerIds: MapLayer[]) {
@@ -135,8 +164,8 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   setBasemap(basemap: Basemap) {
-    const url = basemapUrls[basemap]
-    this.map.setStyle(url)
+    // const url = basemapUrls[basemap]
+    // this.map.setStyle(url)
   }
 
   addDataSource() {

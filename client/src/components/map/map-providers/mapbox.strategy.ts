@@ -87,9 +87,11 @@ export class MapboxStrategy extends MapStrategy {
       'bottom-left',
     )
 
-    this.map.on('load', this.setLayers.bind(this, this.options.layers))
+    this.map.on('load', () => {
+      this.setLayers.bind(this)(this.options.layers)
+    })
     this.map.on('style.load', () => {
-      this.setMapTheme.bind(this, this.options.theme)
+      this.setMapTheme.bind(this)(this.options.theme)
       this.setLocale('en-US')
     })
   }
@@ -106,16 +108,16 @@ export class MapboxStrategy extends MapStrategy {
     //     return /-label/.test(layer.id)
     //   })
 
-    const labelList = [{ id: 'country-label' }]
+    // const labelList = [{ id: 'country-label' }]
 
-    console.log(this.map)
+    // console.log(this.map)
 
-    for (let labelLayer of labelList) {
-      this.map.setLayoutProperty(labelLayer.id, 'text-field', [
-        'get',
-        'name_fr',
-      ])
-    }
+    // for (let labelLayer of labelList) {
+    //   this.map.setLayoutProperty(labelLayer.id, 'text-field', [
+    //     'get',
+    //     'name_fr',
+    //   ])
+    // }
   }
 
   setLayers(layerIds: MapLayer[]) {

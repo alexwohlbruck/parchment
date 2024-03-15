@@ -60,7 +60,7 @@ export class MapboxStrategy extends MapStrategy {
     const map = new Map({
       accessToken: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
       container,
-      style: `mapbox://styles/mapbox/standard`,
+      style: standardStyle as any,
       center: [lng, lat],
       bearing,
       pitch,

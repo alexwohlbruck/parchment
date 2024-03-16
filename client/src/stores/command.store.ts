@@ -136,9 +136,9 @@ export const useCommandStore = defineStore('command', () => {
       id: 'toggleTheme',
       name: 'Toggle theme',
       description: 'Toggle between light and dark themes',
+      icon: SunMoonIcon,
       keywords: ['mode', 'system'].join(),
       hotkey: ['t'],
-      icon: SunMoonIcon,
       action: toggleDark,
     },
     {
@@ -219,8 +219,8 @@ export const useCommandStore = defineStore('command', () => {
     {
       id: 'openHotkeysMenu',
       name: 'Keyboard shortcuts',
-      keywords: ['help'].join(),
       description: 'View all available keyboard shortcuts',
+      keywords: ['help'].join(),
       hotkey: ['s'],
       icon: HelpCircleIcon,
     },
@@ -228,6 +228,7 @@ export const useCommandStore = defineStore('command', () => {
       id: 'updateLanguage',
       name: 'Change language',
       description: 'Change the language of the app',
+      keywords: ['locale', 'translate'].join(),
       icon: LanguagesIcon,
       action: (language: Locale) => {
         locale.value = language

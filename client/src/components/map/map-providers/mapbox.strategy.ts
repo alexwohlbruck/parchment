@@ -17,7 +17,7 @@ import { Locale } from '@/lib/i18n'
 const basemapUrls: {
   [key in Basemap]: string
 } = {
-  standard: 'mapbox://styles/mapbox/standard-beta',
+  standard: standardStyle as any,
   hybrid: 'mapbox://styles/mapbox/satellite-streets-v11',
   satellite: 'mapbox://styles/mapbox/satellite-v9',
 }
@@ -60,7 +60,7 @@ export class MapboxStrategy extends MapStrategy {
     const map = new Map({
       accessToken: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
       container,
-      style: `mapbox://styles/mapbox/standard`,
+      style: standardStyle as any,
       center: [lng, lat],
       bearing,
       pitch,
@@ -166,8 +166,8 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   setBasemap(basemap: Basemap) {
-    // const url = basemapUrls[basemap]
-    // this.map.setStyle(url)
+    const url = basemapUrls[basemap]
+    this.map.setStyle(url)
   }
 
   addDataSource() {

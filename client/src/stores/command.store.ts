@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { markRaw, ref } from 'vue'
+import { computed, markRaw, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Command } from '@/types/command.types'
 import { Locale } from '@/lib/i18n'
@@ -65,7 +65,7 @@ export const useCommandStore = defineStore('command', () => {
   const router = useRouter()
   const { setAccentColor, setRadius } = useThemeStore()
   const mapService = useMapService()
-  const { locale } = useI18n()
+  const { t, locale } = useI18n()
 
   function bindCommandToFunction(id: string, action: Function) {
     const command = commands.value.find(c => c.id === id)
@@ -74,185 +74,199 @@ export const useCommandStore = defineStore('command', () => {
     }
   }
 
-  const commands = ref<Command[]>([
-    {
-      id: 'openPalette',
-      name: 'Command palette',
-      description: 'Run a command',
-      hotkey: ['mod', 'k'],
-      icon: TerminalIcon,
-    },
-    {
-      id: 'search',
-      name: 'Search places',
-      description: 'Search for places, businesses, and amenities',
-      hotkey: ['/'],
-      icon: SearchIcon,
-      keywords: ['find', 'locate'].join(),
-      action: (query: string) => {
-        console.log('Search:', query)
+  const commands = computed<Command[]>(() => {
+    return [
+      {
+        id: 'openPalette',
+        name: t('palette.commands.openPalette.name'),
+        description: t('palette.commands.openPalette.description'),
+        hotkey: ['mod', 'k'],
+        icon: TerminalIcon,
       },
-      arguments: [
-        {
-          name: 'Places',
-          type: 'string',
-          getItems() {
-            return places.map(place => ({
-              value: place.name,
-              name: place.name,
-              description: place.address,
-              icon: MapPinIcon,
-            }))
-          },
+      {
+        id: 'search',
+        name: t('palette.commands.search.name'),
+        description: t('palette.commands.search.description'),
+        hotkey: ['/'],
+        icon: SearchIcon,
+        keywords: ['find', 'locate'].join(),
+        action: (query: string) => {
+          console.log('Search:', query)
         },
-      ],
-    },
-    {
-      id: 'goto',
-      name: 'Go to page',
-      description: 'Navigate to a specific page in the app',
-      hotkey: ['mod', 'g'],
-      icon: ChevronsRightIcon,
-      action: (page: string) => {
-        router.push(page)
+        arguments: [
+          {
+            id: 'places',
+            name: t('palette.commands.search.arguments.places.name'),
+            type: 'string',
+            getItems() {
+              return places.map(place => ({
+                value: place.name,
+                name: place.name,
+                description: place.address,
+                icon: MapPinIcon,
+              }))
+            },
+          },
+        ],
       },
-      arguments: [
-        {
-          name: 'Page',
-          type: 'string',
-          getItems() {
-            const routes = router.getRoutes()
-            return routes.map(route => {
-              return {
-                value: route.path,
-                name: route.name as string,
-              }
-            })
-          },
+      {
+        id: 'goto',
+        name: t('palette.commands.goto.name'),
+        description: t('palette.commands.goto.description'),
+        hotkey: ['mod', 'g'],
+        icon: ChevronsRightIcon,
+        action: (page: string) => {
+          router.push(page)
         },
-      ],
-    },
-    {
-      id: 'toggleTheme',
-      name: 'Toggle theme',
-      description: 'Toggle between light and dark themes',
-      icon: SunMoonIcon,
-      keywords: ['mode', 'system'].join(),
-      hotkey: ['t'],
-      action: toggleDark,
-    },
-    {
-      id: 'updateThemeColor',
-      name: 'Update theme color',
-      description: 'Change the color of the app theme',
-      icon: PaletteIcon,
-      keywords: ['accent', 'palette'].join(),
-      action: (color: string) => {
-        setAccentColor(color as any)
+        arguments: [
+          {
+            id: 'page',
+            name: t('palette.commands.goto.arguments.page.name'),
+            type: 'string',
+            getItems() {
+              const routes = router.getRoutes()
+              return routes.map(route => {
+                return {
+                  value: route.path,
+                  name: route.name as string,
+                }
+              })
+            },
+          },
+        ],
       },
-      arguments: [
-        {
-          name: 'Color',
-          type: 'string',
-          customItemComponent: markRaw(ColorCommandArgumentOption),
-          getItems() {
-            // TODO: This get called for each item, should be called once
-            return allColors.map(color => ({
-              value: color,
-              name: color.charAt(0).toUpperCase() + color.slice(1),
-            }))
-          },
-        },
-      ],
-    },
-    {
-      id: 'updateThemeRadius',
-      name: 'Update theme radius',
-      description: 'Change the corner radius of the app theme',
-      icon: DraftingCompassIcon,
-      action: (radius: number) => {
-        setRadius(radius)
+      {
+        id: 'toggleTheme',
+        name: t('palette.commands.toggleTheme.name'),
+        description: t('palette.commands.toggleTheme.description'),
+        icon: SunMoonIcon,
+        keywords: ['mode', 'system'].join(),
+        hotkey: ['t'],
+        action: toggleDark,
       },
-      arguments: [
-        {
-          name: 'Radius',
-          type: 'number',
-          getItems() {
-            return allRadii.map(radius => ({
-              value: radius,
-              name: `${radius} rem`,
-            }))
-          },
+      {
+        id: 'updateThemeColor',
+        name: t('palette.commands.updateThemeColor.name'),
+        description: t('palette.commands.updateThemeColor.description'),
+        icon: PaletteIcon,
+        keywords: ['accent', 'palette'].join(),
+        action: (color: string) => {
+          setAccentColor(color as any)
         },
-      ],
-    },
-    {
-      id: 'chooseMapLibrary',
-      name: 'Choose map library',
-      description: 'Change the library used to render the map',
-      icon: CogIcon,
-      hotkey: ['l'],
-      action: mapService.setMapLibrary,
-      arguments: [
-        {
-          name: 'Map library',
-          type: 'string',
-          getItems() {
-            return [
-              {
-                value: 'mapbox',
-                name: 'Mapbox GL',
-                description:
-                  'A beautiful, detailed 3D map with dynamic lighting',
-              },
-              {
-                value: 'maplibre',
-                name: 'MapLibre GL',
-                description:
-                  'A fork of Mapbox GL v1 with an open-source license',
-              },
-            ]
+        arguments: [
+          {
+            id: 'color',
+            name: t('palette.commands.updateThemeColor.arguments.color.name'),
+            type: 'string',
+            customItemComponent: markRaw(ColorCommandArgumentOption),
+            getItems() {
+              // TODO: This get called for each item, should be called once
+              return allColors.map(color => ({
+                value: color,
+                name: t(`settings.appearance.appTheme.color.values.${color}`),
+              }))
+            },
           },
-        },
-      ],
-    },
-    {
-      id: 'openHotkeysMenu',
-      name: 'Keyboard shortcuts',
-      description: 'View all available keyboard shortcuts',
-      keywords: ['help'].join(),
-      hotkey: ['s'],
-      icon: HelpCircleIcon,
-    },
-    {
-      id: 'updateLanguage',
-      name: 'Change language',
-      description: 'Change the language of the app',
-      keywords: ['locale', 'translate'].join(),
-      icon: LanguagesIcon,
-      action: (language: Locale) => {
-        locale.value = language
+        ],
       },
-      arguments: [
-        {
-          name: 'Language',
-          type: 'string',
-          getItems(): { value: Locale; name: string }[] {
-            return [
-              {
-                value: 'en-US',
-                name: 'English',
-              },
-              {
-                value: 'es-ES',
-                name: 'Español',
-              },
-            ]
-          },
+      {
+        id: 'updateThemeRadius',
+        name: t('palette.commands.updateThemeRadius.name'),
+        description: t('palette.commands.updateThemeRadius.description'),
+        icon: DraftingCompassIcon,
+        action: (radius: number) => {
+          setRadius(radius)
         },
-      ],
-    },
-  ])
+        arguments: [
+          {
+            id: 'radius',
+            name: t('palette.commands.updateThemeRadius.arguments.radius.name'),
+            type: 'number',
+            getItems() {
+              return allRadii.map(radius => ({
+                value: radius,
+                name: `${radius} rem`,
+              }))
+            },
+          },
+        ],
+      },
+      {
+        id: 'chooseMapLibrary',
+        name: t('palette.commands.chooseMapLibrary.name'),
+        description: t('palette.commands.chooseMapLibrary.description'),
+        icon: CogIcon,
+        hotkey: ['l'],
+        action: mapService.setMapLibrary,
+        arguments: [
+          {
+            id: 'library',
+            name: t('palette.commands.chooseMapLibrary.arguments.library.name'),
+            type: 'string',
+            getItems() {
+              return [
+                {
+                  value: 'mapbox',
+                  name: t(
+                    'palette.commands.chooseMapLibrary.arguments.library.values.mapbox.name',
+                  ),
+                  description: t(
+                    'palette.commands.chooseMapLibrary.arguments.library.values.mapbox.description',
+                  ),
+                },
+                {
+                  value: 'maplibre',
+                  name: t(
+                    'palette.commands.chooseMapLibrary.arguments.library.values.maplibre.name',
+                  ),
+                  description: t(
+                    'palette.commands.chooseMapLibrary.arguments.library.values.maplibre.description',
+                  ),
+                },
+              ]
+            },
+          },
+        ],
+      },
+      {
+        id: 'openHotkeysMenu',
+        name: t('palette.commands.openHotkeysMenu.name'),
+        description: t('palette.commands.openHotkeysMenu.description'),
+        keywords: ['help'].join(),
+        hotkey: ['s'],
+        icon: HelpCircleIcon,
+      },
+      {
+        id: 'updateLanguage',
+        name: t('palette.commands.updateLanguage.name'),
+        description: t('palette.commands.updateLanguage.description'),
+        keywords: ['locale', 'translate'].join(),
+        icon: LanguagesIcon,
+        action: (language: Locale) => {
+          locale.value = language
+        },
+        arguments: [
+          {
+            id: 'language',
+            name: t('palette.commands.updateLanguage.arguments.language.name'),
+            type: 'string',
+            getItems(): { value: Locale; name: string }[] {
+              return [
+                {
+                  value: 'en-US',
+                  name: 'English',
+                },
+                {
+                  value: 'es-ES',
+                  name: 'Español',
+                },
+              ]
+            },
+          },
+        ],
+      },
+    ]
+  })
 
   return {
     bindCommandToFunction,

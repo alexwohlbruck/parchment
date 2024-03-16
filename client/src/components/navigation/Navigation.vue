@@ -11,6 +11,7 @@ import {
 
 import LayersSelector from '@/components/navigation/LayersSelector.vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 
@@ -26,95 +27,98 @@ import {
   Layers3Icon,
 } from 'lucide-vue-next'
 
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 const router = useRouter()
+const { t } = useI18n()
 const mini = ref(true)
 
-const items = ref([
-  {
-    separator: true,
-  },
-  {
-    items: [
-      {
-        label: 'Map',
-        icon: MapIcon,
-        // hotkey: ['m'],
-        to: '/',
-      },
-      {
-        label: 'Directions',
-        icon: MilestoneIcon,
-        // hotkey: ['d'],
-        to: '/directions',
-      },
-    ],
-  },
-  {
-    separator: true,
-  },
-  {
-    items: [
-      {
-        label: 'Places',
-        icon: BookMarkedIcon,
-        // hotkey: ['p'],
-        to: '/place',
-      },
-      {
-        label: 'Timeline',
-        icon: HistoryIcon,
-        // hotkey: ['t'],
-        to: '/timeline',
-      },
-      {
-        label: 'Offline maps',
-        // hotkey: ['o'],
-        icon: CloudOffIcon,
-        to: '/offline',
-      },
-      {
-        label: 'Custom maps',
-        // hotkey: ['c'],
-        icon: MapPinnedIcon,
-        to: '/custom',
-      },
-      {
-        label: 'People',
-        // hotkey: ['l'],
-        icon: UsersRoundIcon,
-        to: '/people',
-      },
-    ],
-  },
-  {
-    separator: true,
-  },
-  {
-    items: [
-      {
-        label: 'Settings',
-        icon: SettingsIcon,
-        // hotkey: ['s'],
-        to: '/settings',
-      },
-      {
-        label: 'Layers',
-        icon: Layers3Icon,
-        hotkey: ['l'],
-        popover: LayersSelector,
-        // TODO: Fix this
-        // condition: router.currentRoute.value.matched.some(
-        //   (route) => route.name === "map"
-        // ),
-      },
-    ],
-  },
-  {
-    separator: true,
-  },
-])
+const items = computed(() => {
+  return [
+    {
+      separator: true,
+    },
+    {
+      items: [
+        {
+          label: t('map.title'),
+          icon: MapIcon,
+          // hotkey: ['m'],
+          to: '/',
+        },
+        {
+          label: t('directions.title'),
+          icon: MilestoneIcon,
+          // hotkey: ['d'],
+          to: '/directions',
+        },
+      ],
+    },
+    {
+      separator: true,
+    },
+    {
+      items: [
+        {
+          label: t('places.title'),
+          icon: BookMarkedIcon,
+          // hotkey: ['p'],
+          to: '/place',
+        },
+        {
+          label: t('timeline.title'),
+          icon: HistoryIcon,
+          // hotkey: ['t'],
+          to: '/timeline',
+        },
+        {
+          label: t('offlineMaps.title'),
+          // hotkey: ['o'],
+          icon: CloudOffIcon,
+          to: '/offline',
+        },
+        {
+          label: t('customMaps.title'),
+          // hotkey: ['c'],
+          icon: MapPinnedIcon,
+          to: '/custom',
+        },
+        {
+          label: t('people.title'),
+          // hotkey: ['l'],
+          icon: UsersRoundIcon,
+          to: '/people',
+        },
+      ],
+    },
+    {
+      separator: true,
+    },
+    {
+      items: [
+        {
+          label: t('settings.title'),
+          icon: SettingsIcon,
+          // hotkey: ['s'],
+          to: '/settings',
+        },
+        {
+          label: t('layers.title'),
+          icon: Layers3Icon,
+          hotkey: ['l'],
+          popover: LayersSelector,
+          // TODO: Fix this
+          // condition: router.currentRoute.value.matched.some(
+          //   (route) => route.name === "map"
+          // ),
+        },
+      ],
+    },
+    {
+      separator: true,
+    },
+  ]
+})
 
 const lockMini = ref(false)
 const nav = ref(null)

@@ -17,28 +17,28 @@ const router = useRouter()
 
 const pages = [
   {
-    label: 'Account',
+    id: 'account',
     to: '/settings/account',
     icon: UserRoundIcon,
     disabled: true,
   },
   {
-    label: 'Behavior',
+    id: 'behavior',
     to: '/settings/behavior',
     icon: CogIcon,
   },
   {
-    label: 'Appearance',
+    id: 'appearance',
     to: '/settings/appearance',
     icon: PaintbrushIcon,
   },
   {
-    label: 'Map data',
+    id: 'mapData',
     to: '/settings/map-data',
     icon: DatabaseIcon,
   },
   {
-    label: 'System',
+    id: 'system',
     to: '/settings/system',
     icon: ActivityIcon,
     disabled: true,
@@ -77,7 +77,7 @@ const pages = [
             <transition-expand axis="x" :duration="50" easing="ease-out">
               <div class="flex flex-1 gap-1 text-nowrap">
                 <div class="flex-1">
-                  {{ page.label }}
+                  {{ $t(`settings.${page.id}.title`) }}
                 </div>
               </div>
             </transition-expand>

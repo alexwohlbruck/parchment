@@ -3,16 +3,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useDark } from '@vueuse/core'
 import { useMapStore } from '../../stores/map.store'
 import { MapboxStrategy } from './map-providers/mapbox.strategy'
 import { MapStrategy } from './map-providers/map.strategy'
 import { MaplibreStrategy } from './map-providers/maplibre.strategy'
 import { MapLibrary, MapOptions } from '@/types/map.types'
+import { Locale } from '@/lib/i18n'
 
 const dark = useDark()
 const mapStore = useMapStore()
+const { locale } = useI18n()
 
 const mapContainer = ref(null)
 let map: MapStrategy
@@ -32,21 +35,28 @@ function getMapInstance(mapLibrary: MapLibrary) {
 onMounted(() => {
   map = getMapInstance(mapStore.mapLibrary)
 
+  watch(locale, locale => {
+    map.setLocale(locale as Locale)
+  })
+
   watch(dark, dark => {
     map.setMapTheme(dark ? 'dark' : 'light')
   })
+
   watch(
     () => mapStore.mapState.basemap,
     basemap => {
       map.setBasemap(basemap)
     },
   )
+
   watch(
     () => mapStore.mapState.layers,
     layers => {
       map.setLayers(layers)
     },
   )
+
   watch(
     () => mapStore.mapLibrary,
     mapLibrary => {

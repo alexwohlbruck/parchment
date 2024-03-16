@@ -9,6 +9,7 @@ import {
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Basemap, MapLayer, MapTheme, MapOptions } from '@/types/map.types'
 import { layers } from '../layers'
+import { Locale } from '@/lib/i18n'
 
 const basemapUrls = {
   light: `https://api.maptiler.com/maps/streets-v2/style.json?key=${
@@ -66,6 +67,11 @@ export class MaplibreStrategy extends MapStrategy {
 
     this.map.on('load', this.setLayers.bind(this))
     this.map.on('style.load', this.setMapTheme.bind(this, this.options.theme))
+  }
+
+  setLocale(locale: Locale) {
+    // TODO:
+    console.log('TODO: Set locale Maplibre')
   }
 
   setLayers(layerIds: MapLayer[]) {

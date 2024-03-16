@@ -20,6 +20,7 @@ export type Command = PaletteItem & {
 export type ArgumentType = string | number
 
 export type CommandArgument = {
+  id: string
   name: string
   type: 'string' | 'number'
   getItems: (query?: string) => CommandArgumentOption[]

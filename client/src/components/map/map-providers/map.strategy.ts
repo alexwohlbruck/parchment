@@ -1,4 +1,5 @@
 import { Basemap, MapLayer, MapOptions, MapTheme } from '@/types/map.types'
+import { Locale } from '@/lib/i18n'
 
 const defaultOptions: MapOptions = {
   center: [-80.8432808, 35.2205601],
@@ -23,6 +24,7 @@ export class MapStrategy {
 
   initialize() {}
   addDataSource() {}
+  setLocale(locale: Locale) {}
   setLayers(layers: MapLayer[]) {}
   setMapTheme(theme: MapTheme) {}
   setBasemap(basemap: Basemap) {}

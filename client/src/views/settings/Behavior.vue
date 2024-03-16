@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
-import H4 from "../../components/ui/typography/H4.vue";
+import { ref, watch } from 'vue'
+import H3 from '../../components/ui/typography/H3.vue'
 import {
   FormControl,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form";
+} from '@/components/ui/form'
 import {
   Select,
   SelectContent,
@@ -15,19 +15,19 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select'
 
-const projectionLocal = localStorage.getItem("projection") || "globe";
-const projection = ref(projectionLocal);
+const projectionLocal = localStorage.getItem('projection') || 'globe'
+const projection = ref(projectionLocal)
 
-watch(projection, (value) => {
-  localStorage.setItem("projection", value);
-});
+watch(projection, value => {
+  localStorage.setItem('projection', value)
+})
 </script>
 
 <template>
   <div class="flex flex-col gap-4 w-fit">
-    <H4>Theme</H4>
+    <H3>{{ $t('settings.behavior.title') }}</H3>
 
     <form class="flex flex-col gap-4">
       <FormField name="projection">

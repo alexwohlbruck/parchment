@@ -4,10 +4,176 @@
       "default": "Search nearby...",
       "command": "Run command...",
       "argument": "Find an item..."
+    },
+    "commands": {
+      "openPalette": {
+        "name": "Command palette",
+        "description": "Run a command"
+      },
+      "search": {
+        "name": "Search places",
+        "description": "Search for places, businesses, and amenities",
+        "arguments": {
+          "places": {
+            "name": "Places"
+          }
+        }
+      },
+      "goto": {
+        "name": "Go to page",
+        "description": "Navigate to a page in the app",
+        "arguments": {
+          "page": {
+            "name": "Page"
+          }
+        }
+      },
+      "toggleTheme": {
+        "name": "Toggle theme",
+        "description": "Switch between light and dark themes"
+      },
+      "updateThemeColor": {
+        "name": "Update theme color",
+        "description": "Change the app's primary color",
+        "arguments": {
+          "color": {
+            "name": "Color"
+          }
+        }
+      },
+      "updateThemeRadius": {
+        "name": "Update theme radius",
+        "description": "Change corner radius of app elements",
+        "arguments": {
+          "radius": {
+            "name": "Radius"
+          }
+        }
+      },
+      "chooseMapLibrary": {
+        "name": "Choose map library",
+        "description": "Change the javascript library used to render the map",
+        "arguments": {
+          "library": {
+            "name": "Map library",
+            "values": {
+              "mapbox": {
+                "name": "Mapbox GL",
+                "description": "A beautiful, detailed 3D map with dynamic lighting"
+              },
+              "maplibre": {
+                "name": "MapLibre GL",
+                "description": "A fork of Mapbox GL v1 with an open-source license"
+              }
+            }
+          }
+        }
+      },
+      "openHotkeysMenu": {
+        "name": "Keyboard shortcuts",
+        "description": "View all available keyboard shortcuts"
+      },
+      "updateLanguage": {
+        "name": "Change language",
+        "description": "Change the app's language",
+        "arguments": {
+          "language": {
+            "name": "Language"
+          }
+        }
+      }
     }
+  },
+  "map": {
+    "title": "Map"
+  },
+  "directions": {
+    "title": "Directions"
+  },
+  "places": {
+    "title": "Places"
+  },
+  "timeline": {
+    "title": "Timeline"
+  },
+  "offlineMaps": {
+    "title": "Offline maps"
+  },
+  "customMaps": {
+    "title": "Custom maps"
+  },
+  "people": {
+    "title": "People"
   },
   "settings": {
     "title": "Settings",
-    "description": "Manage your account settings and app behavior"
+    "description": "Manage your account settings and app behavior",
+    "account": {
+      "title": "Account"
+    },
+    "behavior": {
+      "title": "Behavior"
+    },
+    "appearance": {
+      "title": "Appearance",
+      "appTheme": {
+        "title": "App theme",
+        "color": {
+          "title": "Color",
+          "values": {
+            "zinc": "Zinc",
+            "rose": "Rose",
+            "blue": "Blue",
+            "green": "Green",
+            "orange": "Orange",
+            "red": "Red",
+            "slate": "Slate",
+            "stone": "Stone",
+            "gray": "Gray",
+            "neutral": "Neutral",
+            "yellow": "Yellow",
+            "violet": "Voilet"
+          }
+        },
+        "radius": {
+          "title": "Radius"
+        },
+        "theme": {
+          "title": "Theme",
+          "values": {
+            "light": "Light",
+            "dark": "Dark"
+          }
+        }
+      },
+      "mapTheme": {
+        "title": "Map theme",
+        "values": {
+          "matchTime": "Match app theme and time of day",
+          "match": "Match app theme",
+          "day": "Day",
+          "night": "Night",
+          "dawn": "Dawn",
+          "dusk": "Dusk"
+        }
+      }
+    },
+    "mapData": {
+      "title": "Map data",
+      "library": {
+        "title": "Map library",
+        "description": "Choose which javascript library you would like to use to display the map"
+      },
+      "layers": {
+        "title": "Layers",
+        "description": "Choose layers to display in the layer selector"
+      }
+    },
+    "system": {
+      "title": "System"
+    }
+  },
+  "layers": {
+    "title": "Layers"
   }
 }

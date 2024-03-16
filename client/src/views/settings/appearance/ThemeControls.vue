@@ -17,7 +17,9 @@ const { toggleDark, setAccentColor, setRadius } = themeStore
 <template>
   <div class="flex flex-col gap-3">
     <div>
-      <Label for="color" class="text-xs"> Color </Label>
+      <Label for="color" class="text-xs">
+        {{ $t('settings.appearance.appTheme.color.title') }}
+      </Label>
       <div class="grid grid-cols-3 gap-2 py-1.5">
         <Button
           v-for="(color, index) in allColors"
@@ -34,13 +36,15 @@ const { toggleDark, setAccentColor, setRadius } = themeStore
             <CheckIcon v-if="color === accentColor" class="size-3 text-white" />
           </span>
           <span class="ml-2 text-xs capitalize">
-            {{ color }}
+            {{ $t(`settings.appearance.appTheme.color.values.${color}`) }}
           </span>
         </Button>
       </div>
     </div>
     <div>
-      <Label for="radius" class="text-xs"> Radius </Label>
+      <Label for="radius" class="text-xs">
+        {{ $t('settings.appearance.appTheme.radius.title') }}
+      </Label>
       <div class="grid grid-cols-5 gap-2 py-1.5">
         <Button
           v-for="(r, index) in allRadii"
@@ -57,7 +61,9 @@ const { toggleDark, setAccentColor, setRadius } = themeStore
       </div>
     </div>
     <div>
-      <Label for="theme" class="text-xs"> Theme </Label>
+      <Label for="theme" class="text-xs">
+        {{ $t('settings.appearance.appTheme.theme.title') }}
+      </Label>
 
       <div class="flex space-x-2 py-1.5">
         <Button
@@ -66,7 +72,9 @@ const { toggleDark, setAccentColor, setRadius } = themeStore
           :class="{ 'border-2 border-foreground': !isDark }"
           @click="toggleDark(false)"
         >
-          <span class="text-xs">Light</span>
+          <span class="text-xs">
+            {{ $t('settings.appearance.appTheme.theme.values.light') }}
+          </span>
         </Button>
         <Button
           class="h-8"
@@ -74,7 +82,9 @@ const { toggleDark, setAccentColor, setRadius } = themeStore
           :class="{ 'border-2 border-foreground': isDark }"
           @click="toggleDark(true)"
         >
-          <span class="text-xs">Dark</span>
+          <span class="text-xs">
+            {{ $t('settings.appearance.appTheme.theme.values.dark') }}
+          </span>
         </Button>
       </div>
     </div>

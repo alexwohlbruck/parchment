@@ -1,13 +1,179 @@
 {
   "palette": {
     "placeholder": {
-      "default": "Buscar cercana...",
+      "default": "Buscar cerca...",
       "command": "Ejecutar comando...",
       "argument": "Buscar un elemento..."
+    },
+    "commands": {
+      "openPalette": {
+        "name": "Paleta de comandos",
+        "description": "Ejecutar un comando"
+      },
+      "search": {
+        "name": "Buscar lugares",
+        "description": "Buscar lugares, negocios y servicios",
+        "arguments": {
+          "places": {
+            "name": "Lugares"
+          }
+        }
+      },
+      "goto": {
+        "name": "Ir a página",
+        "description": "Navegar a una página en la aplicación",
+        "arguments": {
+          "page": {
+            "name": "Página"
+          }
+        }
+      },
+      "toggleTheme": {
+        "name": "Cambiar tema",
+        "description": "Cambiar entre temas claro y oscuro"
+      },
+      "updateThemeColor": {
+        "name": "Actualizar color del tema",
+        "description": "Cambiar el color principal de la aplicación",
+        "arguments": {
+          "color": {
+            "name": "Color"
+          }
+        }
+      },
+      "updateThemeRadius": {
+        "name": "Actualizar radio del tema",
+        "description": "Cambiar el radio de las esquinas de los elementos de la aplicación",
+        "arguments": {
+          "radius": {
+            "name": "Radio"
+          }
+        }
+      },
+      "chooseMapLibrary": {
+        "name": "Elegir biblioteca de mapas",
+        "description": "Cambiar la biblioteca de JavaScript utilizada para renderizar el mapa",
+        "arguments": {
+          "library": {
+            "name": "Biblioteca de mapas",
+            "values": {
+              "mapbox": {
+                "name": "Mapbox GL",
+                "description": "Un hermoso mapa detallado en 3D con iluminación dinámica"
+              },
+              "maplibre": {
+                "name": "MapLibre GL",
+                "description": "Un fork de Mapbox GL v1 con una licencia de código abierto"
+              }
+            }
+          }
+        }
+      },
+      "openHotkeysMenu": {
+        "name": "Atajos de teclado",
+        "description": "Ver todos los atajos de teclado disponibles"
+      },
+      "updateLanguage": {
+        "name": "Cambiar idioma",
+        "description": "Cambiar el idioma de la aplicación",
+        "arguments": {
+          "language": {
+            "name": "Idioma"
+          }
+        }
+      }
     }
+  },
+  "map": {
+    "title": "Mapa"
+  },
+  "directions": {
+    "title": "Direcciones"
+  },
+  "places": {
+    "title": "Lugares"
+  },
+  "timeline": {
+    "title": "Línea de tiempo"
+  },
+  "offlineMaps": {
+    "title": "Mapas sin conexión"
+  },
+  "customMaps": {
+    "title": "Mapas personalizados"
+  },
+  "people": {
+    "title": "Personas"
   },
   "settings": {
     "title": "Ajustes",
-    "description": "Administra la configuración de tu cuenta y el comportamiento de la aplicación"
+    "description": "Administra la configuración de tu cuenta y el comportamiento de la aplicación",
+    "account": {
+      "title": "Cuenta"
+    },
+    "behavior": {
+      "title": "Comportamiento"
+    },
+    "appearance": {
+      "title": "Apariencia",
+      "appTheme": {
+        "title": "Tema de la aplicación",
+        "color": {
+          "title": "Color",
+          "values": {
+            "zinc": "Zinc",
+            "rose": "Rosa",
+            "blue": "Azul",
+            "green": "Verde",
+            "orange": "Naranja",
+            "red": "Rojo",
+            "slate": "Pizarra",
+            "stone": "Piedra",
+            "gray": "Gris",
+            "neutral": "Neutro",
+            "yellow": "Amarillo",
+            "violet": "Violeta"
+          }
+        },
+        "radius": {
+          "title": "Radio"
+        },
+        "theme": {
+          "title": "Tema",
+          "values": {
+            "light": "Claro",
+            "dark": "Oscuro"
+          }
+        }
+      },
+      "mapTheme": {
+        "title": "Tema del mapa",
+        "values": {
+          "matchTime": "Coincidir con el tema de la aplicación y la hora del día",
+          "match": "Coincidir con el tema de la aplicación",
+          "day": "Día",
+          "night": "Noche",
+          "dawn": "Amanecer",
+          "dusk": "Anochecer"
+        }
+      }
+    },
+    "mapData": {
+      "title": "Datos del mapa",
+      "library": {
+        "title": "Biblioteca de mapas",
+        "description": "Elige qué biblioteca de JavaScript te gustaría usar para mostrar el mapa"
+      },
+      "layers": {
+        "title": "Capas",
+        "description": "Elige las capas que se mostrarán en el selector de capas"
+      }
+    },
+    "system": {
+      "title": "Sistema"
+    }
+  },
+  "layers": {
+    "title": "Capas"
   }
 }

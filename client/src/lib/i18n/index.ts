@@ -7,8 +7,8 @@ export type Locale = 'en-US' | 'es-ES'
 
 export const i18n = createI18n<[TranslationsSchema], Locale>({
   legacy: false,
-  // locale: 'en-US',
-  // fallbackLocale: 'en-US',
+  locale: 'es-ES',
+  fallbackLocale: 'en-US',
   messages: {
     'en-US': enUS,
     'es-ES': esES,

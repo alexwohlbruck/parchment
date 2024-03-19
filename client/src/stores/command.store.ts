@@ -89,7 +89,7 @@ export const useCommandStore = defineStore('command', () => {
         description: t('palette.commands.search.description'),
         hotkey: ['/'],
         icon: SearchIcon,
-        keywords: ['find', 'locate'].join(),
+        keywords: t('palette.commands.search.keywords'),
         action: (query: string) => {
           console.log('Search:', query)
         },
@@ -140,7 +140,7 @@ export const useCommandStore = defineStore('command', () => {
         name: t('palette.commands.toggleTheme.name'),
         description: t('palette.commands.toggleTheme.description'),
         icon: SunMoonIcon,
-        keywords: ['mode', 'system'].join(),
+        keywords: t('palette.commands.toggleTheme.keywords'),
         hotkey: ['t'],
         action: toggleDark,
       },
@@ -149,7 +149,7 @@ export const useCommandStore = defineStore('command', () => {
         name: t('palette.commands.updateThemeColor.name'),
         description: t('palette.commands.updateThemeColor.description'),
         icon: PaletteIcon,
-        keywords: ['accent', 'palette'].join(),
+        keywords: t('palette.commands.updateThemeColor.keywords'),
         action: (color: string) => {
           setAccentColor(color as any)
         },
@@ -232,7 +232,7 @@ export const useCommandStore = defineStore('command', () => {
         id: 'openHotkeysMenu',
         name: t('palette.commands.openHotkeysMenu.name'),
         description: t('palette.commands.openHotkeysMenu.description'),
-        keywords: ['help'].join(),
+        keywords: t('palette.commands.openHotkeysMenu.keywords'),
         hotkey: ['s'],
         icon: HelpCircleIcon,
       },
@@ -240,7 +240,7 @@ export const useCommandStore = defineStore('command', () => {
         id: 'updateLanguage',
         name: t('palette.commands.updateLanguage.name'),
         description: t('palette.commands.updateLanguage.description'),
-        keywords: ['locale', 'translate'].join(),
+        keywords: t('palette.commands.updateLanguage.keywords'),
         icon: LanguagesIcon,
         action: (language: Locale) => {
           locale.value = language

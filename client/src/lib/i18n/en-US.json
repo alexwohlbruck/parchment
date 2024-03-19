@@ -13,6 +13,7 @@
       "search": {
         "name": "Search places",
         "description": "Search for places, businesses, and amenities",
+        "keywords": "find locate",
         "arguments": {
           "places": {
             "name": "Places"
@@ -30,11 +31,13 @@
       },
       "toggleTheme": {
         "name": "Toggle theme",
-        "description": "Switch between light and dark themes"
+        "description": "Switch between light and dark themes",
+        "keywords": "mode system"
       },
       "updateThemeColor": {
         "name": "Update theme color",
         "description": "Change the app's primary color",
+        "keywords": "accent palette",
         "arguments": {
           "color": {
             "name": "Color"
@@ -71,11 +74,13 @@
       },
       "openHotkeysMenu": {
         "name": "Keyboard shortcuts",
-        "description": "View all available keyboard shortcuts"
+        "description": "View all available keyboard shortcuts",
+        "keywords": "help"
       },
       "updateLanguage": {
         "name": "Change language",
         "description": "Change the app's language",
+        "keywords": "locale translate",
         "arguments": {
           "language": {
             "name": "Language"

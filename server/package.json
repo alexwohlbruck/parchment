@@ -5,14 +5,20 @@
     "dev": "bun --watch src/index.ts",
     "build": "bun build src/index.ts",
     "start": "NODE_ENV=production bun src/index.ts",
-    "test": "bun test"
+    "test": "bun test",
+    "generate": "drizzle-kit generate:pg",
+    "studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@elysiajs/swagger": "^0.8.5",
-    "elysia": "latest"
+    "@neondatabase/serverless": "^0.9.0",
+    "drizzle-orm": "^0.30.3",
+    "elysia": "latest",
+    "pg": "^8.11.3"
   },
   "devDependencies": {
-    "bun-types": "latest"
+    "bun-types": "latest",
+    "drizzle-kit": "^0.20.14"
   },
   "module": "src/index.js"
 }

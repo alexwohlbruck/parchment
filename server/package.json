@@ -7,13 +7,17 @@
     "start": "NODE_ENV=production bun src/index.ts",
     "test": "bun test",
     "generate": "drizzle-kit generate:pg",
+    "migrate": "bun generate; bun src/migrate.ts",
     "studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@elysiajs/swagger": "^0.8.5",
+    "@lucia-auth/adapter-drizzle": "^1.0.7",
     "@neondatabase/serverless": "^0.9.0",
     "drizzle-orm": "^0.30.3",
     "elysia": "latest",
+    "lucia": "^3.1.1",
+    "oslo": "^1.1.3",
     "pg": "^8.11.3"
   },
   "devDependencies": {

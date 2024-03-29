@@ -10,10 +10,16 @@ import { tokens } from './schema/token'
 
 const app = new Elysia()
 
+console.log('test')
+
 type TODO = any
 
 async function fetchUser(userId: string) {
   return (await db.select().from(users).where(eq(users.id, userId)))[0]
+}
+
+async function fetchUserByEmail(email: string) {
+  return (await db.select().from(users).where(eq(users.email, email)))[0]
 }
 
 async function generateEmailVerificationCode(userId: string) {
@@ -40,17 +46,20 @@ async function validatePasskey(userId: string, privateKey: string) {
   return 1 < 2
 }
 
-async function validateToken(userId: string, token: string) {
-  const found = (
+async function validateToken(email: string, token: string) {
+  const { id: userId } = await fetchUserByEmail(email)
+  const foundToken = (
     await db
       .select()
       .from(tokens)
       .where(and(eq(tokens.user_id, userId), eq(tokens.token, token)))
   )[0]
 
-  if (!found) return false
+  if (!foundToken) return false
 
-  await db.delete(tokens).where(eq(tokens.id, found.id))
+  await db.delete(tokens).where(eq(tokens.id, foundToken.id))
+
+  return foundToken.token === token
 }
 
 app.group('/layers', (app) =>
@@ -71,37 +80,53 @@ app.group('/auth', (app) =>
         return error(400, 'Invalid email')
       }
 
-      const userId = generateId(15)
+      let user = await fetchUserByEmail(email)
 
-      const user = await db
-        .insert(users)
-        .values({
-          id: userId,
-          email,
-        })
-        .returning({ userId: users.id }) // TODO: This may need snake case
+      if (!user) {
+        const userId = generateId(15)
 
-      const verificationCode = await generateEmailVerificationCode(userId)
-      await sendEmailVerificationCode(email, verificationCode)
+        user = (
+          await db
+            .insert(users)
+            .values({
+              id: userId,
+              email,
+            })
+            .returning()
+        )[0]
+      }
 
-      return user
+      const verificationCode = await generateEmailVerificationCode(user.id)
+      await sendEmailVerificationCode(user.email, verificationCode)
     })
 
     .post('/sessions', async ({ body, set, error }) => {
       // TODO:
       let payload = body as {
-        userId: string
-        otp?: string
+        userId?: string
         passkey?: string
+        // OR
+        email?: string
+        otp?: string
       }
 
-      async function signIn(method: Function, userId: string, key: string) {
-        const user = await fetchUser(userId)
+      async function signIn(
+        method: 'passkey' | 'token',
+        identifier: string, // Email or User ID
+        key: string, // Passkey or OTP code
+      ) {
+        const user = await (method === 'passkey'
+          ? fetchUser(identifier)
+          : fetchUserByEmail(identifier))
+
         if (!user) {
           return error(404, 'User not found')
         }
 
-        const isValid = await method(userId, key)
+        const isValid = await (method === 'passkey'
+          ? validatePasskey(identifier, key)
+          : validateToken(identifier, key))
+
         if (!isValid) return error(401)
 
         return createSession(user)
@@ -123,10 +148,10 @@ app.group('/auth', (app) =>
         }
       }
 
-      if (payload.passkey) {
-        return await signIn(validatePasskey, payload.userId, payload.passkey)
-      } else if (payload.userId && payload.otp) {
-        return await signIn(validateToken, payload.userId, payload.otp)
+      if (payload.userId && payload.passkey) {
+        return await signIn('passkey', payload.userId, payload.passkey)
+      } else if (payload.email && payload.otp) {
+        return await signIn('token', payload.email, payload.otp)
       } else {
         error(400, 'Provide an email or passkey')
       }

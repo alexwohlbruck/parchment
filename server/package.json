@@ -2,7 +2,7 @@
   "name": "parchment",
   "version": "1.0.50",
   "scripts": {
-    "dev": "bun --watch src/index.ts",
+    "dev": "bun --watch --inspect src/index.ts",
     "build": "bun build src/index.ts",
     "start": "NODE_ENV=production bun src/index.ts",
     "test": "bun test",

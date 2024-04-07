@@ -1,4 +1,4 @@
-import { Elysia } from 'elysia'
+import { CookieOptions, Elysia } from 'elysia'
 import { and, eq } from 'drizzle-orm'
 import { db } from './db'
 import { NewUser, User, users } from './schema/user'
@@ -7,6 +7,7 @@ import { lucia } from './lucia'
 import { generateId } from 'lucia'
 import { generateRandomString, alphabet } from 'oslo/crypto'
 import { tokens } from './schema/token'
+import { auth } from './middleware'
 
 const app = new Elysia()
 
@@ -72,6 +73,7 @@ app.group('/auth', (app) =>
   app
     .post('verify', async ({ body, error }) => {
       // https://lucia-auth.com/guides/email-and-password/email-verification-codes
+      // TODO: How to validate and type request body
       let { email } = body as {
         email: string
       }
@@ -100,68 +102,80 @@ app.group('/auth', (app) =>
       await sendEmailVerificationCode(user.email, verificationCode)
     })
 
-    .post('/sessions', async ({ body, set, error }) => {
-      // TODO:
-      let payload = body as {
-        userId?: string
-        passkey?: string
-        // OR
-        email?: string
-        otp?: string
-      }
-
-      async function signIn(
-        method: 'passkey' | 'token',
-        identifier: string, // Email or User ID
-        key: string, // Passkey or OTP code
-      ) {
-        const user = await (method === 'passkey'
-          ? fetchUser(identifier)
-          : fetchUserByEmail(identifier))
-
-        if (!user) {
-          return error(404, 'User not found')
+    .post(
+      '/sessions',
+      async ({ body, set, error, cookie: { lucia_session } }) => {
+        // TODO:
+        let payload = body as {
+          userId?: string
+          passkey?: string
+          // OR
+          email?: string
+          otp?: string
         }
 
-        const isValid = await (method === 'passkey'
-          ? validatePasskey(identifier, key)
-          : validateToken(identifier, key))
+        async function signIn(
+          method: 'passkey' | 'token',
+          identifier: string, // Email or User ID
+          key: string, // Passkey or OTP code
+        ) {
+          const user = await (method === 'passkey'
+            ? fetchUser(identifier)
+            : fetchUserByEmail(identifier))
 
-        if (!isValid) return error(401)
+          if (!user) {
+            return error(404, 'User not found')
+          }
 
-        return createSession(user)
-      }
+          const isValid = await (method === 'passkey'
+            ? validatePasskey(identifier, key)
+            : validateToken(identifier, key))
 
-      async function createSession(user: User) {
-        const session = await lucia.createSession(user.id, {})
-        const sessionCookie = lucia.createSessionCookie(session.id)
+          if (!isValid) return error(401)
 
-        set.status = 201
-        set.headers = {
-          Location: '/',
-          'Set-Cookie': sessionCookie.serialize(),
+          return createSession(user)
         }
 
-        return {
-          token: session.id,
-          user,
-        }
-      }
+        async function createSession(user: User) {
+          const session = await lucia.createSession(user.id, {})
+          const sessionCookie = lucia.createSessionCookie(session.id)
 
-      if (payload.userId && payload.passkey) {
-        return await signIn('passkey', payload.userId, payload.passkey)
-      } else if (payload.email && payload.otp) {
-        return await signIn('token', payload.email, payload.otp)
-      } else {
-        error(400, 'Provide an email or passkey')
-      }
-    }),
+          set.status = 201
+          // set.headers = {
+          //   Location: '/',
+          //   'Set-Cookie': sessionCookie.serialize(),
+          // }
+          lucia_session.value = sessionCookie.value
+          for (let [key, value] of Object.entries(sessionCookie.attributes)) {
+            lucia_session[key as keyof CookieOptions] = value
+          }
+
+          return {
+            token: session.id,
+            user,
+          }
+        }
+
+        if (payload.userId && payload.passkey) {
+          return await signIn('passkey', payload.userId, payload.passkey)
+        } else if (payload.email && payload.otp) {
+          return await signIn('token', payload.email, payload.otp)
+        } else {
+          error(400, 'Provide an email or passkey')
+        }
+      },
+    ),
 )
 
 app.group('/users', (app) =>
   app
-    .get('me', async (_context) => {
-      const me = await db.select().from(users).where(eq(users.id, '1'))
+    .use(auth)
+    .get('me', async ({ user, set }) => {
+      if (!user) {
+        set.status = 401
+        return null
+      }
+      const me = await db.select().from(users).where(eq(users.id, user.id))
       return me[0]
     })
     .get('/', async (_context) => {

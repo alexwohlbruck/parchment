@@ -8,6 +8,9 @@ import { generateId } from 'lucia'
 import { generateRandomString, alphabet } from 'oslo/crypto'
 import { tokens } from './schema/token'
 import { auth } from './middleware'
+import * as dotenv from 'dotenv'
+
+dotenv.config()
 
 const app = new Elysia()
 

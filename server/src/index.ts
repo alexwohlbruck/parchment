@@ -1,4 +1,5 @@
-import { CookieOptions, Elysia } from 'elysia'
+import { Elysia, t } from 'elysia'
+import { swagger } from '@elysiajs/swagger'
 import { and, eq } from 'drizzle-orm'
 import { db } from './db'
 import { NewUser, User, users } from './schema/user'
@@ -13,6 +14,24 @@ import * as dotenv from 'dotenv'
 dotenv.config()
 
 const app = new Elysia()
+
+app.use(
+  swagger({
+    documentation: {
+      info: {
+        title: 'Parchment API Docs',
+        version: '0.1', // TODO
+      },
+      tags: [
+        {
+          name: 'Users',
+          description: 'Related to retrieving and modifying users',
+        },
+        { name: 'Auth', description: 'Authentication endpoints' },
+      ],
+    },
+  }),
+)
 
 console.log('test')
 
@@ -42,15 +61,16 @@ async function generateEmailVerificationCode(userId: string) {
 
 async function sendEmailVerificationCode(email: string, code: string) {
   console.log(email, code)
-  // TODO:
+  // TODO: Configure email server
+  return true
 }
 
-async function validatePasskey(userId: string, privateKey: string) {
-  // TODO:
+async function validatePasskey(email: string, privateKey: string) {
+  // TODO: Check passkey private key is valid
   return 1 < 2
 }
 
-async function validateToken(email: string, token: string) {
+async function validateOtp(email: string, token: string) {
   const { id: userId } = await fetchUserByEmail(email)
   const foundToken = (
     await db
@@ -66,106 +86,111 @@ async function validateToken(email: string, token: string) {
   return foundToken.token === token
 }
 
-app.group('/layers', (app) =>
-  app.get('/', async ({ set }) => {
-    return []
-  }),
-)
-
 app.group('/auth', (app) =>
   app
-    .post('verify', async ({ body, error }) => {
-      // https://lucia-auth.com/guides/email-and-password/email-verification-codes
-      // TODO: How to validate and type request body
-      let { email } = body as {
-        email: string
-      }
+    .post(
+      'verify',
+      async ({ body: { email }, set, error }) => {
+        let user = await fetchUserByEmail(email)
 
-      if (!email || typeof email !== 'string' || !isValidEmail(email)) {
-        return error(400, 'Invalid email')
-      }
+        if (!user) {
+          const userId = generateId(15)
 
-      let user = await fetchUserByEmail(email)
+          user = (
+            await db
+              .insert(users)
+              .values({
+                id: userId,
+                email,
+              })
+              .returning()
+          )[0]
+        }
 
-      if (!user) {
-        const userId = generateId(15)
+        const verificationCode = await generateEmailVerificationCode(user.id)
+        const emailSuccess = await sendEmailVerificationCode(
+          user.email,
+          verificationCode,
+        )
 
-        user = (
-          await db
-            .insert(users)
-            .values({
-              id: userId,
-              email,
-            })
-            .returning()
-        )[0]
-      }
-
-      const verificationCode = await generateEmailVerificationCode(user.id)
-      await sendEmailVerificationCode(user.email, verificationCode)
-    })
+        if (emailSuccess) {
+          set.status = 201
+        } else {
+          set.status = 500
+        }
+      },
+      {
+        detail: {
+          tags: ['Auth'],
+          description:
+            'Verify an email address by requesting a one-time password.',
+        },
+        body: t.Object({
+          email: t.String({
+            format: 'email',
+          }),
+        }),
+      },
+    )
 
     .post(
       '/sessions',
-      async ({ body, set, error, cookie: { lucia_session } }) => {
-        // TODO:
-        let payload = body as {
-          userId?: string
-          passkey?: string
-          // OR
-          email?: string
-          otp?: string
+      async ({ body: { method, email, token }, set, error }) => {
+        const user = await fetchUserByEmail(email)
+
+        if (!user) {
+          return error(404, 'User not found')
         }
 
-        async function signIn(
-          method: 'passkey' | 'token',
-          identifier: string, // Email or User ID
-          key: string, // Passkey or OTP code
-        ) {
-          const user = await (method === 'passkey'
-            ? fetchUser(identifier)
-            : fetchUserByEmail(identifier))
+        const isValid = await (method === 'passkey'
+          ? validatePasskey(email, token)
+          : validateOtp(email, token))
 
-          if (!user) {
-            return error(404, 'User not found')
-          }
+        if (!isValid) return error(401)
 
-          const isValid = await (method === 'passkey'
-            ? validatePasskey(identifier, key)
-            : validateToken(identifier, key))
+        const session = await lucia.createSession(user.id, {})
+        const sessionCookie = lucia.createSessionCookie(session.id)
 
-          if (!isValid) return error(401)
-
-          return createSession(user)
+        set.status = 201
+        set.headers = {
+          Location: '/',
+          'Set-Cookie': sessionCookie.serialize(),
         }
 
-        async function createSession(user: User) {
-          const session = await lucia.createSession(user.id, {})
-          const sessionCookie = lucia.createSessionCookie(session.id)
-
-          set.status = 201
-          // set.headers = {
-          //   Location: '/',
-          //   'Set-Cookie': sessionCookie.serialize(),
-          // }
-          lucia_session.value = sessionCookie.value
-          for (let [key, value] of Object.entries(sessionCookie.attributes)) {
-            lucia_session[key as keyof CookieOptions] = value
-          }
-
-          return {
-            token: session.id,
-            user,
-          }
+        return {
+          token: session.id,
+          user,
         }
+      },
+      {
+        detail: {
+          tags: ['Auth'],
+          description:
+            'Sign in a user. Exchanges a passkey or one-time password for an authentication token.',
+        },
+        body: t.Union([
+          t.Object({
+            method: t.Union([t.Literal('passkey'), t.Literal('otp')]),
+            email: t.String({
+              format: 'email',
+            }),
+            // TODO: Accept 8 digit otp or server token
+            token: t.String(),
+          }),
+        ]),
+      },
+    )
 
-        if (payload.userId && payload.passkey) {
-          return await signIn('passkey', payload.userId, payload.passkey)
-        } else if (payload.email && payload.otp) {
-          return await signIn('token', payload.email, payload.otp)
-        } else {
-          error(400, 'Provide an email or passkey')
-        }
+    .delete(
+      '/sessions',
+      async ({ cookie: { auth_session } }) => {
+        auth_session.remove()
+      },
+      {
+        detail: {
+          tags: ['Auth'],
+          description: 'Sign out a user.',
+        },
       },
     ),
 )
@@ -173,24 +198,48 @@ app.group('/auth', (app) =>
 app.group('/users', (app) =>
   app
     .use(auth)
-    .get('me', async ({ user, set }) => {
-      if (!user) {
-        set.status = 401
-        return null
-      }
-      const me = await db.select().from(users).where(eq(users.id, user.id))
-      return me[0]
-    })
-    .get('/', async (_context) => {
-      const result: User[] = await db.select().from(users)
-      return result
-    })
-    .post('/', async ({ body }) => {
-      return db
-        .insert(users)
-        .values(body as NewUser)
-        .returning()
-    }),
+    .get(
+      'me',
+      async ({ user, set }) => {
+        if (!user) {
+          set.status = 401
+          return null
+        }
+        const me = await db.select().from(users).where(eq(users.id, user.id))
+        return me[0]
+      },
+      {
+        detail: {
+          tags: ['Users'],
+        },
+      },
+    )
+    .get(
+      '/',
+      async (_context) => {
+        const result: User[] = await db.select().from(users)
+        return result
+      },
+      {
+        detail: {
+          tags: ['Users'],
+        },
+      },
+    )
+    .post(
+      '/',
+      async ({ body }) => {
+        return db
+          .insert(users)
+          .values(body as NewUser)
+          .returning()
+      },
+      {
+        detail: {
+          tags: ['Users'],
+        },
+      },
+    ),
 )
 
 app.onError(({ code }) => {

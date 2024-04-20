@@ -1,6 +1,6 @@
 {
-  "id": "efa350fb-5abe-4394-b1db-d13634890994",
-  "prevId": "0a6a80a8-def0-42e6-b472-49c979fb4109",
+  "id": "fa3b6165-2250-4c7f-b3fc-632144e6af2f",
+  "prevId": "42677a6b-c3e0-4956-959e-17cd8556d411",
   "version": "5",
   "dialect": "pg",
   "tables": {
@@ -61,6 +61,19 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "string",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ephemeral": {
+          "name": "ephemeral",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
         },
         "token": {
           "name": "token",

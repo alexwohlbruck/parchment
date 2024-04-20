@@ -5,8 +5,9 @@ import { db } from './db'
 import { NewUser, User, users } from './schema/user'
 import { lucia } from './lucia'
 import { generateId } from 'lucia'
-import { generateRandomString, alphabet } from 'oslo/crypto'
-import { tokens } from './schema/token'
+import { generateRandomString, alphabet, sha256 } from 'oslo/crypto'
+import { encodeHex } from 'oslo/encoding'
+import { Token, tokens } from './schema/token'
 import { auth } from './middleware'
 import * as dotenv from 'dotenv'
 
@@ -44,18 +45,62 @@ async function fetchUserByEmail(email: string) {
   return (await db.select().from(users).where(eq(users.email, email)))[0]
 }
 
-async function generateEmailVerificationCode(userId: string) {
-  await db.delete(tokens).where(eq(tokens.user_id, userId))
+async function createServerToken(type: Token['type'], userId: User['id']) {
+  // Only one ephemeral token of a given type can exist for each user
+  const ephemeralTokenTypes: Token['type'][] = ['otp']
+  const isEphemeralToken = ephemeralTokenTypes.includes(type)
 
-  const code = generateRandomString(8, alphabet('0-9'))
+  if (isEphemeralToken) {
+    await db
+      .delete(tokens)
+      .where(and(eq(tokens.user_id, userId), eq(tokens.type, type)))
+  }
+
+  let code
+  switch (type) {
+    case 'otp':
+      code = generateRandomString(8, alphabet('0-9'))
+      break
+    case 'passkey':
+      code = generateRandomString(24, alphabet('A-Z', 'a-z', '0-9'))
+      break
+  }
+
+  const hash = encodeHex(await sha256(new TextEncoder().encode(code)))
 
   await db.insert(tokens).values({
     id: generateId(15),
     user_id: userId,
-    token: code,
+    hash,
+    type: 'otp',
+    ephemeral: isEphemeralToken,
   })
 
   return code
+}
+
+async function validateServerToken(
+  input: string,
+  type: Token['type'],
+  userId: User['id'],
+) {
+  const matchingTokens = await db
+    .select()
+    .from(tokens)
+    .where(and(eq(tokens.type, type), eq(tokens.user_id, userId)))
+
+  const hash = encodeHex(await sha256(new TextEncoder().encode(input)))
+
+  for (let existing of matchingTokens) {
+    if (existing.hash === hash) {
+      if (existing.ephemeral) {
+        await db.delete(tokens).where(eq(tokens.id, existing.id))
+      }
+      return true
+    }
+  }
+
+  return false
 }
 
 async function sendEmailVerificationCode(email: string, code: string) {
@@ -75,14 +120,16 @@ async function validateOtp(email: string, token: string) {
     await db
       .select()
       .from(tokens)
-      .where(and(eq(tokens.user_id, userId), eq(tokens.token, token)))
+      .where(and(eq(tokens.user_id, userId), eq(tokens.type, 'otp')))
   )[0]
 
   if (!foundToken) return false
 
   await db.delete(tokens).where(eq(tokens.id, foundToken.id))
 
-  return foundToken.token === token
+  const hash = encodeHex(await sha256(new TextEncoder().encode(token)))
+
+  return foundToken.hash === hash
 }
 
 app.group('/auth', (app) =>
@@ -106,7 +153,7 @@ app.group('/auth', (app) =>
           )[0]
         }
 
-        const verificationCode = await generateEmailVerificationCode(user.id)
+        const verificationCode = await createServerToken('otp', user.id)
         const emailSuccess = await sendEmailVerificationCode(
           user.email,
           verificationCode,

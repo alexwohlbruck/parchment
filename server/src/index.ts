@@ -116,20 +116,7 @@ async function validatePasskey(email: string, privateKey: string) {
 
 async function validateOtp(email: string, token: string) {
   const { id: userId } = await fetchUserByEmail(email)
-  const foundToken = (
-    await db
-      .select()
-      .from(tokens)
-      .where(and(eq(tokens.user_id, userId), eq(tokens.type, 'otp')))
-  )[0]
-
-  if (!foundToken) return false
-
-  await db.delete(tokens).where(eq(tokens.id, foundToken.id))
-
-  const hash = encodeHex(await sha256(new TextEncoder().encode(token)))
-
-  return foundToken.hash === hash
+  return await validateServerToken(token, 'otp', userId)
 }
 
 app.group('/auth', (app) =>

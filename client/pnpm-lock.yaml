@@ -11,6 +11,9 @@ dependencies:
   '@morev/vue-transitions':
     specifier: ^2.3.6
     version: 2.3.6(vue@3.4.3)
+  '@tanstack/vue-table':
+    specifier: ^8.16.0
+    version: 8.16.0(vue@3.4.3)
   '@vee-validate/zod':
     specifier: ^4.12.5
     version: 4.12.5(vue@3.4.3)
@@ -881,6 +884,21 @@ packages:
   /@sindresorhus/merge-streams@1.0.0:
     resolution: {integrity: sha512-rUV5WyJrJLoloD4NDN1V1+LDMDWOa4OTsT4yYJwQNpTU6FWxkxHpL7eu4w+DmiH8x/EAM1otkPE1+LaspIbplw==}
     engines: {node: '>=18'}
+    dev: false
+
+  /@tanstack/table-core@8.16.0:
+    resolution: {integrity: sha512-dCG8vQGk4js5v88/k83tTedWOwjGnIyONrKpHpfmSJB8jwFHl8GSu1sBBxbtACVAPtAQgwNxl0rw1d3RqRM1Tg==}
+    engines: {node: '>=12'}
+    dev: false
+
+  /@tanstack/vue-table@8.16.0(vue@3.4.3):
+    resolution: {integrity: sha512-CsmX3sEjR1BMlNk9nBYlrnWlAOJR34pirbmpgLN0UZs7N1Z66U+nEqaqNm4FnvkEnauODuHWVbFv3QZuoJ0BXw==}
+    engines: {node: '>=12'}
+    peerDependencies:
+      vue: '>=3.2'
+    dependencies:
+      '@tanstack/table-core': 8.16.0
+      vue: 3.4.3(typescript@5.3.3)
     dev: false
 
   /@types/estree@1.0.5:

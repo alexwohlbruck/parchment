@@ -85,8 +85,8 @@ const pages = [
         </Button>
       </div>
 
-      <div class="flex-1 mr-4">
-        <router-view />
+      <div class="flex-1 flex justify-center">
+        <router-view class="w-full max-w-[48rem] items-start" />
       </div>
     </div>
   </div>

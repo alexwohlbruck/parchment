@@ -395,6 +395,7 @@ app.group('/auth', (app) =>
         .delete(
           '/',
           async ({ cookie: { auth_session }, set }) => {
+            auth_session.path = '/'
             auth_session.remove()
             set.status = 204
             set.headers = {

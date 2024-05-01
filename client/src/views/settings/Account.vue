@@ -1,9 +1,16 @@
 <script setup lang="ts">
-import H3 from '@/components/ui/typography/H3.vue'
-import H4 from '@/components/ui/typography/H4.vue'
-import Avatar from '@/components/ui/avatar/Avatar.vue'
-import AvatarImage from '@/components/ui/avatar/AvatarImage.vue'
-import Button from '@/components/ui/button/Button.vue'
+import { H4 } from '@/components/ui/typography'
+import { Avatar, AvatarImage } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
+import SigninForm from '@/components/auth/SigninForm.vue'
+import Passkeys from '@/components/auth/Passkeys.vue'
+import { ref } from 'vue'
+
+const me = ref<null | any>(null)
+
+function setUser(user: object) {
+  me.value = user
+}
 
 const sessions = [
   {
@@ -15,44 +22,37 @@ const sessions = [
     ipAddress: '172.217.22.14',
   },
 ]
-
-const passkeys = [
-  {
-    name: 'Bitwarden',
-    created: new Date('2024-04-22T02:12:42Z'),
-    lastUsed: new Date(),
-  },
-]
 </script>
 
 <template>
   <div class="flex flex-col gap-4">
-    <H3>{{ $t('settings.account.title') }}</H3>
+    <SigninForm v-if="!me" @signin="setUser($event)" />
 
-    <div class="flex items-center gap-2 w-full">
-      <Avatar size="sm">
-        <AvatarImage
-          src="https://github.com/alexwohlbruck.png"
-          alt="@alexwohlbruck"
-        />
-      </Avatar>
+    <template v-else>
+      <div class="flex items-center gap-2 w-full">
+        <Avatar size="sm">
+          <AvatarImage :src="me.picture" :alt="me.email" />
+        </Avatar>
 
-      <div class="flex flex-col text-nowrap">
-        <span class="text-sm font-semibold leading-4">Alex Wohlbruck</span>
-        <span class="text-xs text-gray-500 leading-4">Admin</span>
+        <div class="flex flex-col text-nowrap">
+          <span class="text-sm font-semibold leading-4"
+            >{{ me.firstName }} {{ me.lastName }}</span
+          >
+          <span class="text-xs text-gray-500 leading-4">Admin</span>
+        </div>
+
+        <div class="flex-1"></div>
+
+        <Button variant="outline">Sign out</Button>
       </div>
 
-      <div class="flex-1"></div>
+      <H4>Sessions</H4>
 
-      <Button variant="outline">Sign out</Button>
-    </div>
+      <p v-for="session in sessions">{{ session.deviceName }}</p>
 
-    <H4>Sessions</H4>
+      <H4>Passkeys</H4>
 
-    <p v-for="session in sessions">{{ session.deviceName }}</p>
-
-    <H4>Passkeys</H4>
-
-    <p v-for="passkey in passkeys">{{ passkey.name }}</p>
+      <Passkeys />
+    </template>
   </div>
 </template>

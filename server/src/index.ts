@@ -365,7 +365,7 @@ app.group('/auth', (app) =>
             set.headers = {
               Location: '/',
               'Set-Cookie': sessionCookie.serialize(),
-              'Access-Control-Allow-Credentials': 'true',
+              'Access-Control-Allow-Credentials': 'true', // TODO: This should be handled by CORS plugin
             }
 
             return {
@@ -394,8 +394,12 @@ app.group('/auth', (app) =>
 
         .delete(
           '/',
-          async ({ cookie: { auth_session } }) => {
+          async ({ cookie: { auth_session }, set }) => {
             auth_session.remove()
+            set.status = 204
+            set.headers = {
+              'Access-Control-Allow-Credentials': 'true', // TODO: This should be handled by CORS plugin
+            }
           },
           {
             detail: {

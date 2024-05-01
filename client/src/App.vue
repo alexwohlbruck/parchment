@@ -2,6 +2,7 @@
 import { onMounted } from 'vue'
 import { useThemeStore } from '@/stores/settings/theme.store'
 import { useCommandService } from '@/services/command.service'
+import { useAuthService } from '@/services/auth.service'
 
 import Nav from '@/components/navigation/Navigation.vue'
 import Palette from '@/components/palette/Palette.vue'
@@ -9,10 +10,12 @@ import HotkeysMenu from '@/components/HotkeysMenu.vue'
 
 const themeStore = useThemeStore()
 const commandService = useCommandService()
+const authService = useAuthService()
 
 onMounted(() => {
   commandService.bindAllHotkeysToCommands()
   themeStore.initAccentColor()
+  authService.getAuthenticatedUser()
 })
 </script>
 

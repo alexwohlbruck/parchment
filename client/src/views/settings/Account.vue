@@ -4,10 +4,11 @@ import { Avatar, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import SigninForm from '@/components/auth/SigninForm.vue'
 import Passkeys from '@/components/auth/Passkeys.vue'
-import { ref } from 'vue'
 import { useUserStore } from '@/stores/user.store'
 import { storeToRefs } from 'pinia'
+import { useAuthService } from '@/services/auth.service'
 
+const authService = useAuthService()
 const userStore = useUserStore()
 const { me } = storeToRefs(userStore)
 
@@ -42,7 +43,9 @@ const sessions = [
 
         <div class="flex-1"></div>
 
-        <Button variant="outline">Sign out</Button>
+        <Button variant="outline" @click="authService.signOut()">
+          Sign out
+        </Button>
       </div>
 
       <H4>Sessions</H4>

@@ -1,59 +1,30 @@
 <script lang="ts" setup>
 import { ref } from 'vue'
-import axios from 'axios'
+import { api } from '@/lib/api'
 
 import { H3 } from '@/components/ui/typography'
 import { Input } from '@/components/ui/input'
 import { FingerprintIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
+import { useAuthService } from '@/services/auth.service'
 
 enum SigninStep {
   email,
   otp,
 }
 
+const authService = useAuthService()
 const step = ref<SigninStep>(SigninStep.email)
 const email = ref('')
 const otp = ref('')
-const emit = defineEmits<{
-  (e: 'signin', me: object): void
-}>()
 
 async function requestOtp() {
-  try {
-    const response = await axios.post(`http://localhost:5000/auth/verify`, {
-      email: email.value,
-    })
-    if (response.status === 201) {
-      step.value = SigninStep.otp
-    } else {
-      // TODO: Possible other responses
-    }
-  } catch (error) {
-    // TODO: Error states, could not send verification email
-  }
+  await authService.verifyEmail(email.value)
+  step.value = SigninStep.otp
 }
 
 async function signIn() {
-  try {
-    const { data } = await axios.post(
-      'http://localhost:5000/auth/sessions',
-      {
-        method: 'otp',
-        email: email.value,
-        token: otp.value.toString(),
-      },
-      {
-        withCredentials: true,
-      },
-    )
-
-    // Emit user object to account page. This will be replaced by pinia store in final design
-    emit('signin', data.user)
-  } catch (error) {
-    // TODO: Error state
-    console.error(error)
-  }
+  await authService.signIn(email.value, otp.value.toString())
 }
 </script>
 

@@ -11,9 +11,14 @@
     "studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@elysiajs/cors": "^1.0.2",
     "@elysiajs/swagger": "^1.0.3",
     "@lucia-auth/adapter-drizzle": "^1.0.7",
     "@neondatabase/serverless": "^0.9.0",
+    "@simplewebauthn/browser": "^10.0.0",
+    "@simplewebauthn/server": "^10.0.0",
+    "@simplewebauthn/types": "^10.0.0",
+    "axios": "^1.6.8",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.30.3",
     "elysia": "latest",

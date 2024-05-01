@@ -1,5 +1,6 @@
 import { Elysia, t } from 'elysia'
 import { swagger } from '@elysiajs/swagger'
+import { cors } from '@elysiajs/cors'
 import { and, eq } from 'drizzle-orm'
 import { db } from './db'
 import { NewUser, User, users } from './schema/user'
@@ -7,13 +8,33 @@ import { lucia } from './lucia'
 import { generateId } from 'lucia'
 import { generateRandomString, alphabet, sha256 } from 'oslo/crypto'
 import { encodeHex } from 'oslo/encoding'
-import { Token, tokens } from './schema/token'
+import {
+  generateRegistrationOptions,
+  verifyRegistrationResponse,
+} from '@simplewebauthn/server'
+import { NewToken, Token, tokens } from './schema/token'
 import { auth } from './middleware'
 import * as dotenv from 'dotenv'
+import { RegistrationResponseJSON } from '@simplewebauthn/server/script/deps'
+import { passkeys } from './schema/passkey'
 
 dotenv.config()
 
 const app = new Elysia()
+
+// TODO: Move to passkeys service
+const rpName = 'Parchment Maps'
+const rpID = 'parchment.lat'
+const origin = `https://${rpID}`
+
+app.use(
+  cors({
+    origin: ['http://localhost:5173'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Set-Cookie'],
+    exposedHeaders: '*',
+  }),
+)
 
 app.use(
   swagger({
@@ -33,8 +54,6 @@ app.use(
   }),
 )
 
-console.log('test')
-
 type TODO = any
 
 async function fetchUser(userId: string) {
@@ -45,38 +64,59 @@ async function fetchUserByEmail(email: string) {
   return (await db.select().from(users).where(eq(users.email, email)))[0]
 }
 
-async function createServerToken(type: Token['type'], userId: User['id']) {
-  // Only one ephemeral token of a given type can exist for each user
-  const ephemeralTokenTypes: Token['type'][] = ['otp']
-  const isEphemeralToken = ephemeralTokenTypes.includes(type)
-
-  if (isEphemeralToken) {
+async function createServerToken(
+  type: Token['type'],
+  userId: User['id'],
+  value?: string,
+  hashed = true,
+  ephemeral = true,
+) {
+  if (ephemeral) {
     await db
       .delete(tokens)
-      .where(and(eq(tokens.user_id, userId), eq(tokens.type, type)))
+      .where(and(eq(tokens.userId, userId), eq(tokens.type, type)))
   }
 
   let code
-  switch (type) {
-    case 'otp':
-      code = generateRandomString(8, alphabet('0-9'))
-      break
-    case 'passkey':
-      code = generateRandomString(24, alphabet('A-Z', 'a-z', '0-9'))
-      break
+  if (value) {
+    code = value
+  } else {
+    switch (type) {
+      case 'otp':
+        code = generateRandomString(8, alphabet('0-9'))
+        break
+      case 'token':
+      case 'challenge':
+        code = generateRandomString(24, alphabet('A-Z', 'a-z', '0-9'))
+        break
+    }
   }
 
-  const hash = encodeHex(await sha256(new TextEncoder().encode(code)))
-
-  await db.insert(tokens).values({
+  const payload: NewToken = {
     id: generateId(15),
-    user_id: userId,
-    hash,
-    type: 'otp',
-    ephemeral: isEphemeralToken,
-  })
+    userId: userId,
+    type,
+    ephemeral,
+  }
+
+  if (hashed) {
+    payload.hash = encodeHex(await sha256(new TextEncoder().encode(code)))
+  } else {
+    payload.value = code
+  }
+
+  await db.insert(tokens).values(payload)
 
   return code
+}
+
+async function getServerToken(type: Token['type'], userId: User['id']) {
+  const matchingTokens = await db
+    .select()
+    .from(tokens)
+    .where(and(eq(tokens.type, type), eq(tokens.userId, userId)))
+
+  return matchingTokens[0]
 }
 
 async function validateServerToken(
@@ -87,7 +127,7 @@ async function validateServerToken(
   const matchingTokens = await db
     .select()
     .from(tokens)
-    .where(and(eq(tokens.type, type), eq(tokens.user_id, userId)))
+    .where(and(eq(tokens.type, type), eq(tokens.userId, userId)))
 
   const hash = encodeHex(await sha256(new TextEncoder().encode(input)))
 
@@ -110,7 +150,7 @@ async function sendEmailVerificationCode(email: string, code: string) {
 }
 
 async function validatePasskey(email: string, privateKey: string) {
-  // TODO: Check passkey private key is valid
+  // TODO: Verify passkey with
   return 1 < 2
 }
 
@@ -166,65 +206,204 @@ app.group('/auth', (app) =>
       },
     )
 
-    .post(
-      '/sessions',
-      async ({ body: { method, email, token }, set, error }) => {
-        const user = await fetchUserByEmail(email)
+    .group('/webauthn', (app) =>
+      app
+        .group('/register', (app) =>
+          app
+            .use(auth)
+            .post('/options', async ({ user, session, set }) => {
+              console.log({ user, session })
+              if (!user) {
+                set.status = 401
+                return user
+              }
 
-        if (!user) {
-          return error(404, 'User not found')
-        }
+              // TODO: Get existing passkeys for user
+              // const userPasskeys = getUserPasskeys()
 
-        const isValid = await (method === 'passkey'
-          ? validatePasskey(email, token)
-          : validateOtp(email, token))
+              const options = await generateRegistrationOptions({
+                rpID,
+                rpName,
+                userName: user!.id, // TODO: Use non PII user id
+                attestationType: 'none',
+                // TODO:
+                // excludeCredentials: userPasskeys.map(passkey => ({
+                //   id: passkey.id,
+                //   transports: passkey.transports
+                // })),
+                authenticatorSelection: {
+                  residentKey: 'required',
+                  userVerification: 'required',
+                },
+              })
 
-        if (!isValid) return error(401)
+              try {
+                await createServerToken(
+                  'challenge',
+                  user.id,
+                  options.challenge,
+                  false,
+                )
+                return options
+              } catch (err) {
+                set.status = 500
+              }
+            })
 
-        const session = await lucia.createSession(user.id, {})
-        const sessionCookie = lucia.createSessionCookie(session.id)
+            // Create new passkey
+            .post(
+              '/verify',
+              async ({ body, set, user }) => {
+                if (!user) return (set.status = 401)
 
-        set.status = 201
-        set.headers = {
-          Location: '/',
-          'Set-Cookie': sessionCookie.serialize(),
-        }
+                const challenge = (await getServerToken('challenge', user.id))
+                  .value
 
-        return {
-          token: session.id,
-          user,
-        }
-      },
-      {
-        detail: {
-          tags: ['Auth'],
-          description:
-            'Sign in a user. Exchanges a passkey or one-time password for an authentication token.',
-        },
-        body: t.Union([
-          t.Object({
-            method: t.Union([t.Literal('passkey'), t.Literal('otp')]),
-            email: t.String({
-              format: 'email',
-            }),
-            // TODO: Accept 8 digit otp or server token
-            token: t.String(),
-          }),
-        ]),
-      },
+                if (!challenge) return (set.status = 500) // TODO: Check this is how to break out with error in Elysia
+
+                const verification = await verifyRegistrationResponse({
+                  response: body as RegistrationResponseJSON,
+                  expectedChallenge: challenge,
+                  expectedOrigin: origin,
+                  expectedRPID: rpID,
+                  requireUserVerification: true,
+                })
+
+                if (!verification.verified) {
+                  set.status = 401
+                  return null
+                }
+
+                const { registrationInfo } = verification
+
+                if (!registrationInfo) {
+                  // TODO: Return correct error code and message
+                  set.status = 401
+                  return null
+                }
+
+                const {
+                  credentialID,
+                  credentialPublicKey,
+                  counter,
+                  credentialDeviceType,
+                  credentialBackedUp,
+                } = registrationInfo
+
+                // TODO: Verify this works
+                const publicKey = Number(
+                  `0x${Buffer.from(credentialPublicKey).toString('hex')}`,
+                )
+
+                await db.insert(passkeys).values({
+                  id: credentialID,
+                  publicKey,
+                  userId: user.id,
+                  webauthnUserId: user.id, // TODO: Use different, non-PII ID for this
+                  counter,
+                  deviceType: credentialDeviceType,
+                  backedUp: credentialBackedUp,
+                  transports: body.response.transports,
+                })
+
+                // TODO: Sign in user
+                return 'Success'
+              },
+              {
+                detail: {
+                  tags: ['Auth'],
+                  description: 'Verify webauthn passkey registration.',
+                },
+                body: t.Object({
+                  id: t.String(),
+                  rawId: t.String(),
+                  response: t.Object({
+                    clientDataJSON: t.String(),
+                    attestationObject: t.String(),
+                    authenticatorData: t.Optional(t.String()),
+                    transports: t.Optional(t.Any()),
+                    publicKeyAlgorithm: t.Optional(t.Any()),
+                    publicKey: t.Optional(t.String()),
+                  }),
+                  authenticatorAttachment: t.Any(),
+                  clientExtensionResults: t.Optional(t.Any()),
+                  type: t.String(),
+                }),
+              },
+            ),
+        )
+
+        .group('/authenticate', (app) =>
+          app
+            .use(auth)
+            .post('options', (context) => {})
+            .post('verify', (context) => {}),
+        ),
     )
 
-    .delete(
-      '/sessions',
-      async ({ cookie: { auth_session } }) => {
-        auth_session.remove()
-      },
-      {
-        detail: {
-          tags: ['Auth'],
-          description: 'Sign out a user.',
-        },
-      },
+    .group('/sessions', (app) =>
+      app
+        .post(
+          '/',
+          async ({ body: { method, email, token }, set, error }) => {
+            const user = await fetchUserByEmail(email)
+
+            if (!user) {
+              return error(404, 'User not found')
+            }
+
+            const isValid = await (method === 'passkey'
+              ? validatePasskey(email, token)
+              : validateOtp(email, token))
+
+            if (!isValid) return error(401)
+
+            const session = await lucia.createSession(user.id, {})
+            const sessionCookie = lucia.createSessionCookie(session.id)
+
+            set.status = 201
+            set.headers = {
+              Location: '/',
+              'Set-Cookie': sessionCookie.serialize(),
+              'Access-Control-Allow-Credentials': 'true',
+            }
+
+            return {
+              token: session.id,
+              user,
+            }
+          },
+          {
+            detail: {
+              tags: ['Auth'],
+              description:
+                'Sign in a user. Exchanges a passkey or one-time password for an authentication token.',
+            },
+            body: t.Union([
+              t.Object({
+                method: t.Union([t.Literal('passkey'), t.Literal('otp')]),
+                email: t.String({
+                  format: 'email',
+                }),
+                // TODO: Accept 8 digit otp or server token
+                token: t.String(),
+              }),
+            ]),
+          },
+        )
+
+        .delete(
+          '/',
+          async ({ cookie: { auth_session } }) => {
+            auth_session.remove()
+          },
+          {
+            detail: {
+              tags: ['Auth'],
+              description: 'Sign out a user.',
+            },
+          },
+        ),
     ),
 )
 
@@ -234,6 +413,7 @@ app.group('/users', (app) =>
     .get(
       'me',
       async ({ user, set }) => {
+        console.log({ user })
         if (!user) {
           set.status = 401
           return null

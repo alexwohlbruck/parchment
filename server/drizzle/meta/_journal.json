@@ -15,6 +15,13 @@
       "when": 1713648641208,
       "tag": "0001_workable_energizer",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1713987596524,
+      "tag": "0002_eminent_leech",
+      "breakpoints": true
     }
   ]
 }

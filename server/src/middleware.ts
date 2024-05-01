@@ -49,6 +49,7 @@ export const auth = (app: Elysia) =>
           ...sessionCookie.attributes,
         })
       }
+
       return {
         user,
         session,

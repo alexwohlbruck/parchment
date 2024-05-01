@@ -5,12 +5,11 @@ import { Button } from '@/components/ui/button'
 import SigninForm from '@/components/auth/SigninForm.vue'
 import Passkeys from '@/components/auth/Passkeys.vue'
 import { ref } from 'vue'
+import { useUserStore } from '@/stores/user.store'
+import { storeToRefs } from 'pinia'
 
-const me = ref<null | any>(null)
-
-function setUser(user: object) {
-  me.value = user
-}
+const userStore = useUserStore()
+const { me } = storeToRefs(userStore)
 
 const sessions = [
   {
@@ -26,11 +25,11 @@ const sessions = [
 
 <template>
   <div class="flex flex-col gap-4">
-    <SigninForm v-if="!me" @signin="setUser($event)" />
+    <SigninForm v-if="!me" />
 
     <template v-else>
       <div class="flex items-center gap-2 w-full">
-        <Avatar size="sm">
+        <Avatar v-if="me.picture" size="sm">
           <AvatarImage :src="me.picture" :alt="me.email" />
         </Avatar>
 

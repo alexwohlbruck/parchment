@@ -1,0 +1,1 @@
+ALTER TABLE "passkey" ALTER COLUMN "public_key" SET DATA TYPE text;

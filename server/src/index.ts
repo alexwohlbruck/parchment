@@ -1,3 +1,6 @@
+import * as dotenv from 'dotenv'
+dotenv.config()
+
 import { Elysia, t } from 'elysia'
 import { swagger } from '@elysiajs/swagger'
 import { cors } from '@elysiajs/cors'
@@ -14,22 +17,19 @@ import {
 } from '@simplewebauthn/server'
 import { NewToken, Token, tokens } from './schema/token'
 import { auth } from './middleware'
-import * as dotenv from 'dotenv'
 import { RegistrationResponseJSON } from '@simplewebauthn/server/script/deps'
-import { passkeys } from './schema/passkey'
-
-dotenv.config()
+import { Passkey, passkeys } from './schema/passkey'
+import { allowedOrigins, appName, origin, hostOrigin } from './config'
 
 const app = new Elysia()
 
-// TODO: Move to passkeys service
-const rpName = 'Parchment Maps'
-const rpID = 'parchment.lat'
-const origin = `https://${rpID}`
+const rpName = appName
+// Remove protocol and port number from origin
+const rpID = origin.replace(/(^\w+:|^)\/\//, '').replace(/:\d+$/, '')
 
 app.use(
   cors({
-    origin: ['http://localhost:5173'],
+    origin: allowedOrigins,
     credentials: true,
     allowedHeaders: ['Content-Type', 'Set-Cookie'],
     exposedHeaders: '*',
@@ -54,6 +54,7 @@ app.use(
   }),
 )
 
+// TODO
 type TODO = any
 
 async function fetchUser(userId: string) {
@@ -161,6 +162,18 @@ async function validateOtp(email: string, token: string) {
 
 app.group('/auth', (app) =>
   app
+    .post('me', async () => {
+      return db
+        .insert(users)
+        .values({
+          id: '1',
+          firstName: 'Alex',
+          lastName: 'Wohlbruck',
+          email: 'alexwohlbruck@gmail.com',
+          picture: 'https://github.com/alexwohlbruck.png',
+        })
+        .returning()
+    })
     .post(
       'verify',
       async ({ body: { email }, set, error }) => {
@@ -290,24 +303,27 @@ app.group('/auth', (app) =>
                   credentialBackedUp,
                 } = registrationInfo
 
-                // TODO: Verify this works
-                const publicKey = Number(
-                  `0x${Buffer.from(credentialPublicKey).toString('hex')}`,
-                )
+                const passkey: Partial<Passkey> = (
+                  await db
+                    .insert(passkeys)
+                    .values({
+                      id: credentialID,
+                      publicKey:
+                        Buffer.from(credentialPublicKey).toString('base64'),
+                      userId: user.id,
+                      webauthnUserId: user.id, // TODO: Use different, non-PII ID for this
+                      counter,
+                      deviceType: credentialDeviceType,
+                      backedUp: credentialBackedUp,
+                      transports: body.response.transports,
+                    })
+                    .returning()
+                )[0]
 
-                await db.insert(passkeys).values({
-                  id: credentialID,
-                  publicKey,
-                  userId: user.id,
-                  webauthnUserId: user.id, // TODO: Use different, non-PII ID for this
-                  counter,
-                  deviceType: credentialDeviceType,
-                  backedUp: credentialBackedUp,
-                  transports: body.response.transports,
-                })
+                // TODO: Find way to automatically hide sensitive fields
+                delete passkey.publicKey
 
-                // TODO: Sign in user
-                return 'Success'
+                return passkey
               },
               {
                 detail: {

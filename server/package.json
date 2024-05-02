@@ -28,7 +28,8 @@
   },
   "devDependencies": {
     "bun-types": "latest",
-    "drizzle-kit": "^0.20.14"
+    "drizzle-kit": "^0.20.14",
+    "postgres": "^3.4.4"
   },
   "module": "src/index.js"
 }

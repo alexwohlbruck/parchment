@@ -1,9 +1,9 @@
 import { pgTable, text, timestamp, boolean, bigint } from 'drizzle-orm/pg-core'
 import { users } from './user'
 
-export const passkeys = pgTable('token', {
+export const passkeys = pgTable('passkey', {
   id: text('id').primaryKey(),
-  publicKey: bigint('public_key', { mode: 'number' }).notNull(),
+  publicKey: text('public_key').notNull(),
   userId: text('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),

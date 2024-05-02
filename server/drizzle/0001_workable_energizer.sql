@@ -1,1 +1,0 @@
-ALTER TABLE "token" ADD COLUMN "ephemeral" boolean DEFAULT false;

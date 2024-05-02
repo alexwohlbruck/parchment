@@ -1,6 +1,7 @@
 import { api } from '@/lib/api'
 import { useUserStore } from '@/stores/user.store'
 import { createSharedComposable } from '@vueuse/core'
+import { startRegistration } from '@simplewebauthn/browser'
 
 // TODO: Return types
 
@@ -44,11 +45,35 @@ function authService() {
     return response
   }
 
+  async function registerPasskey() {
+    const { data: options } = await api.post(`auth/webauthn/register/options`)
+
+    let attestationResponse
+    try {
+      attestationResponse = await startRegistration(options)
+    } catch (error: any) {
+      console.error(error)
+      if (error.name === 'InvalidStateError') {
+        // TODO:
+      } else {
+        // TODO: Generic error
+      }
+    }
+
+    const { data: passkey } = await api.post(
+      `auth/webauthn/register/verify`,
+      attestationResponse,
+    )
+
+    return passkey
+  }
+
   return {
     getAuthenticatedUser,
     verifyEmail,
     signIn,
     signOut,
+    registerPasskey,
   }
 }
 

@@ -1,9 +1,89 @@
 {
-  "id": "42677a6b-c3e0-4956-959e-17cd8556d411",
+  "id": "ce9ce182-da93-48a4-b253-a516b67b21a5",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "5",
   "dialect": "pg",
   "tables": {
+    "passkey": {
+      "name": "passkey",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "public_key": {
+          "name": "public_key",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "webauthn_user_id": {
+          "name": "webauthn_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "counter": {
+          "name": "counter",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "device_type": {
+          "name": "device_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "backed_up": {
+          "name": "backed_up",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "transports": {
+          "name": "transports",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "passkey_user_id_user_id_fk": {
+          "name": "passkey_user_id_user_id_fk",
+          "tableFrom": "passkey",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
     "session": {
       "name": "session",
       "schema": "",
@@ -64,15 +144,28 @@
         },
         "type": {
           "name": "type",
-          "type": "string",
+          "type": "token_type",
           "primaryKey": false,
           "notNull": true
         },
-        "token": {
-          "name": "token",
+        "ephemeral": {
+          "name": "ephemeral",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "value": {
+          "name": "value",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "hash": {
+          "name": "hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "expires": {
           "name": "expires",
@@ -124,13 +217,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "email_verified": {
-          "name": "email_verified",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'false'"
-        },
         "first_name": {
           "name": "first_name",
           "type": "text",
@@ -164,7 +250,16 @@
       }
     }
   },
-  "enums": {},
+  "enums": {
+    "token_type": {
+      "name": "token_type",
+      "values": {
+        "otp": "otp",
+        "token": "token",
+        "challenge": "challenge"
+      }
+    }
+  },
   "schemas": {},
   "_meta": {
     "columns": {},

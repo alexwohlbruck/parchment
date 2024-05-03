@@ -11,6 +11,9 @@ dependencies:
   '@morev/vue-transitions':
     specifier: ^2.3.6
     version: 2.3.6(vue@3.4.3)
+  '@simplewebauthn/browser':
+    specifier: ^10.0.0
+    version: 10.0.0
   '@tanstack/vue-table':
     specifier: ^8.16.0
     version: 8.16.0(vue@3.4.3)
@@ -880,6 +883,16 @@ packages:
     requiresBuild: true
     dev: true
     optional: true
+
+  /@simplewebauthn/browser@10.0.0:
+    resolution: {integrity: sha512-hG0JMZD+LiLUbpQcAjS4d+t4gbprE/dLYop/CkE01ugU/9sKXflxV5s0DRjdz3uNMFecatRfb4ZLG3XvF8m5zg==}
+    dependencies:
+      '@simplewebauthn/types': 10.0.0
+    dev: false
+
+  /@simplewebauthn/types@10.0.0:
+    resolution: {integrity: sha512-SFXke7xkgPRowY2E+8djKbdEznTVnD5R6GO7GPTthpHrokLvNKw8C3lFZypTxLI7KkCfGPfhtqB3d7OVGGa9jQ==}
+    dev: false
 
   /@sindresorhus/merge-streams@1.0.0:
     resolution: {integrity: sha512-rUV5WyJrJLoloD4NDN1V1+LDMDWOa4OTsT4yYJwQNpTU6FWxkxHpL7eu4w+DmiH8x/EAM1otkPE1+LaspIbplw==}

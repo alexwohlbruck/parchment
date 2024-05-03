@@ -7,7 +7,6 @@ export const passkeys = pgTable('passkey', {
   userId: text('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
-  webauthnUserId: text('webauthn_user_id').notNull(),
   counter: bigint('counter', { mode: 'number' }).notNull(),
   deviceType: text('device_type').notNull(),
   backedUp: boolean('backed_up').notNull().default(false),

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { api } from '@/lib/api'
 
 import { H3 } from '@/components/ui/typography'
@@ -18,6 +18,10 @@ const step = ref<SigninStep>(SigninStep.email)
 const email = ref('')
 const otp = ref('')
 
+onMounted(() => {
+  authService.signInWithPasskey(true)
+})
+
 async function requestOtp() {
   await authService.verifyEmail(email.value)
   step.value = SigninStep.otp
@@ -33,10 +37,15 @@ async function signIn() {
 
   <div class="flex flex-col gap-2">
     <template v-if="step === SigninStep.email">
-      <Input type="email" placeholder="Email" v-model="email" />
+      <Input
+        type="email"
+        placeholder="Email"
+        v-model="email"
+        autocomplete="username webauthn"
+      />
       <Button @click="requestOtp">Send verification code</Button>
       <hr />
-      <Button>
+      <Button @click="authService.signInWithPasskey(false)">
         <FingerprintIcon class="mr-2" />
         Sign in with passkey
       </Button>

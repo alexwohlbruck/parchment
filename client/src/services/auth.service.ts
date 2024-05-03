@@ -1,7 +1,7 @@
 import { api } from '@/lib/api'
 import { useUserStore } from '@/stores/user.store'
 import { createSharedComposable } from '@vueuse/core'
-import { startRegistration } from '@simplewebauthn/browser'
+import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 
 // TODO: Return types
 
@@ -68,12 +68,38 @@ function authService() {
     return passkey
   }
 
+  async function signInWithPasskey(eager: boolean) {
+    const { data: options } = await api.post(
+      `auth/webauthn/authenticate/options`,
+    )
+
+    let attestationResponse
+    try {
+      attestationResponse = await startAuthentication(options, eager)
+    } catch (error) {
+      // TODO
+      throw error
+    }
+
+    const {
+      data: { user },
+    } = await api.post(
+      `/auth/webauthn/authenticate/verify`,
+      attestationResponse,
+    )
+
+    if (user) {
+      userStore.setAuthenticatedUser(user)
+    }
+  }
+
   return {
     getAuthenticatedUser,
     verifyEmail,
     signIn,
     signOut,
     registerPasskey,
+    signInWithPasskey,
   }
 }
 

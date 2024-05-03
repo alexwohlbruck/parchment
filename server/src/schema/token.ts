@@ -2,7 +2,7 @@ import { pgTable, text, timestamp, pgEnum, boolean } from 'drizzle-orm/pg-core'
 import { users } from './user'
 import { sql } from 'drizzle-orm'
 
-export const tokenType = pgEnum('token_type', ['otp', 'token', 'challenge'])
+export const tokenType = pgEnum('token_type', ['otp', 'token'])
 
 export const tokens = pgTable('token', {
   id: text('id').primaryKey(),

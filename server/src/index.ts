@@ -8,7 +8,6 @@ import { and, eq } from 'drizzle-orm'
 import { db } from './db'
 import { NewUser, User, users } from './schema/user'
 import { lucia } from './lucia'
-import { generateId } from 'lucia'
 import { generateRandomString, alphabet, sha256 } from 'oslo/crypto'
 import { encodeHex } from 'oslo/encoding'
 import {
@@ -103,7 +102,7 @@ async function createServerToken(
   }
 
   const payload: NewToken = {
-    id: generateId(15),
+    id: generateId(),
     userId: userId,
     type,
     ephemeral,
@@ -228,11 +227,11 @@ app.group('/auth', (app) =>
     })
     .post(
       'verify',
-      async ({ body: { email }, set, error }) => {
+      async ({ body: { email }, set }) => {
         let user = await fetchUserByEmail(email)
 
         if (!user) {
-          const userId = generateId(15)
+          const userId = generateId()
 
           user = (
             await db
@@ -341,7 +340,6 @@ app.group('/auth', (app) =>
                       publicKey:
                         Buffer.from(credentialPublicKey).toString('base64'),
                       userId: user.id,
-                      webauthnUserId: generateId(),
                       counter,
                       deviceType: credentialDeviceType,
                       backedUp: credentialBackedUp,

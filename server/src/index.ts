@@ -25,6 +25,7 @@ import {
 } from '@simplewebauthn/server/script/deps'
 import { Passkey, passkeys } from './schema/passkey'
 import { appName, clientHostname, serverHostname, clientOrigin } from './config'
+import { sessions } from './schema/session'
 
 const app = new Elysia()
 
@@ -487,6 +488,7 @@ app.group('/auth', (app) =>
         .delete(
           '/',
           async ({ cookie: { auth_session }, set }) => {
+            await db.delete(sessions).where(eq(sessions.id, auth_session.value))
             auth_session.path = '/'
             auth_session.remove()
             set.status = 204

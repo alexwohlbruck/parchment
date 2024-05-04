@@ -1,0 +1,11 @@
+import { HTTPMethod } from '@elysiajs/cors'
+import { clientHostname } from './origins.config'
+
+const allowedMethods: HTTPMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
+export default {
+  origin: [clientHostname],
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Set-Cookie'],
+  exposedHeaders: '*',
+  methods: allowedMethods,
+}

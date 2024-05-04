@@ -7,8 +7,12 @@ import { cors } from '@elysiajs/cors'
 import { eq } from 'drizzle-orm'
 import { db } from './db'
 import { generateId } from './util'
-import { clientHostname, clientOrigin } from './config'
-import { auth } from './middleware'
+import { auth } from './middleware/auth.middleware'
+import {
+  cors as corsConfig,
+  swagger as swaggerConfig,
+  origins as originsConfig,
+} from './config'
 import {
   createSession,
   destroySession,
@@ -35,33 +39,8 @@ import {
 
 const app = new Elysia()
 
-app.use(
-  cors({
-    origin: [clientHostname],
-    credentials: true,
-    allowedHeaders: ['Content-Type', 'Set-Cookie'],
-    exposedHeaders: '*',
-    methods: ['GET', 'POST', 'POST', 'PATCH', 'DELETE'],
-  }),
-)
-
-app.use(
-  swagger({
-    documentation: {
-      info: {
-        title: 'Parchment API Docs',
-        version: '0.1', // TODO
-      },
-      tags: [
-        {
-          name: 'Users',
-          description: 'Related to retrieving and modifying users',
-        },
-        { name: 'Auth', description: 'Authentication endpoints' },
-      ],
-    },
-  }),
-)
+app.use(cors(corsConfig))
+app.use(swagger(swaggerConfig))
 
 app.group('/auth', (app) =>
   app
@@ -158,7 +137,7 @@ app.group('/auth', (app) =>
                 const verification = await verifyRegistrationResponse({
                   response: body as RegistrationResponseJSON,
                   expectedChallenge: challenge.value,
-                  expectedOrigin: clientOrigin,
+                  expectedOrigin: originsConfig.clientOrigin,
                   expectedRPID: rpID,
                   requireUserVerification: true,
                 })
@@ -184,6 +163,8 @@ app.group('/auth', (app) =>
                   credentialBackedUp,
                 } = registrationInfo
 
+                console.log(verification)
+
                 const passkey: Partial<Passkey> = (
                   await db
                     .insert(passkeys)
@@ -202,6 +183,7 @@ app.group('/auth', (app) =>
 
                 // TODO: Find way to automatically hide sensitive fields
                 delete passkey.publicKey
+                challenge.remove()
 
                 return passkey
               },
@@ -257,7 +239,7 @@ app.group('/auth', (app) =>
                 const verification = await verifyAuthenticationResponse({
                   response: body as AuthenticationResponseJSON,
                   expectedChallenge: challenge.value,
-                  expectedOrigin: clientOrigin,
+                  expectedOrigin: originsConfig.clientOrigin,
                   expectedRPID: rpID,
                   authenticator: {
                     credentialID: passkey.id,
@@ -282,6 +264,7 @@ app.group('/auth', (app) =>
                   }
                 }
 
+                challenge.remove()
                 set.status = 401
               },
               {

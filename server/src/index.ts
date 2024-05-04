@@ -1,36 +1,39 @@
 import * as dotenv from 'dotenv'
 dotenv.config()
 
-import { Context, Elysia, t } from 'elysia'
+import { Elysia, t } from 'elysia'
 import { swagger } from '@elysiajs/swagger'
 import { cors } from '@elysiajs/cors'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { db } from './db'
-import { NewUser, User, users } from './schema/user'
-import { lucia } from './lucia'
-import { generateRandomString, alphabet, sha256 } from 'oslo/crypto'
-import { encodeHex } from 'oslo/encoding'
+import { generateId } from './util'
+import { clientHostname, clientOrigin } from './config'
+import { auth } from './middleware'
 import {
-  generateAuthenticationOptions,
-  generateRegistrationOptions,
+  createSession,
+  destroySession,
+  generateWebauthnOptions,
+  rpID,
+  sendEmailVerificationCode,
+} from './services/auth.service'
+import { fetchUser, fetchUserByEmail } from './services/user.service'
+import {
+  createServerToken,
+  validateServerToken,
+} from './services/token.service'
+import { NewUser, User, users } from './schema/user'
+import { Passkey, passkeys } from './schema/passkey'
+import {
   verifyAuthenticationResponse,
   verifyRegistrationResponse,
 } from '@simplewebauthn/server'
-import { NewToken, Token, tokens } from './schema/token'
-import { auth } from './middleware'
 import {
   AuthenticationResponseJSON,
   AuthenticatorTransportFuture,
   RegistrationResponseJSON,
 } from '@simplewebauthn/server/script/deps'
-import { Passkey, passkeys } from './schema/passkey'
-import { appName, clientHostname, serverHostname, clientOrigin } from './config'
-import { sessions } from './schema/session'
 
 const app = new Elysia()
-
-const rpName = appName
-const rpID = serverHostname.replace(/:\d+$/, '') // Remove port number
 
 app.use(
   cors({
@@ -59,149 +62,6 @@ app.use(
     },
   }),
 )
-
-// TODO
-type TODO = any
-
-async function fetchUser(userId: string) {
-  return (await db.select().from(users).where(eq(users.id, userId)))[0]
-}
-
-async function fetchUserByEmail(email: string) {
-  return (await db.select().from(users).where(eq(users.email, email)))[0]
-}
-
-function generateId() {
-  return generateRandomString(24, alphabet('A-Z', 'a-z', '0-9'))
-}
-
-async function createServerToken(
-  type: Token['type'],
-  userId: User['id'],
-  value?: string,
-  hashed = true,
-  ephemeral = true,
-) {
-  if (ephemeral) {
-    await db
-      .delete(tokens)
-      .where(and(eq(tokens.userId, userId), eq(tokens.type, type)))
-  }
-
-  let code
-  if (value) {
-    code = value
-  } else {
-    switch (type) {
-      case 'otp':
-        code = generateRandomString(8, alphabet('0-9'))
-        break
-      case 'token':
-        code = generateId()
-        break
-    }
-  }
-
-  const payload: NewToken = {
-    id: generateId(),
-    userId: userId,
-    type,
-    ephemeral,
-  }
-
-  if (hashed) {
-    payload.hash = encodeHex(await sha256(new TextEncoder().encode(code)))
-  } else {
-    payload.value = code
-  }
-
-  await db.insert(tokens).values(payload)
-
-  return code
-}
-
-async function validateServerToken(
-  input: string,
-  type: Token['type'],
-  userId: User['id'],
-) {
-  const matchingTokens = await db
-    .select()
-    .from(tokens)
-    .where(and(eq(tokens.type, type), eq(tokens.userId, userId)))
-
-  const hash = encodeHex(await sha256(new TextEncoder().encode(input)))
-
-  for (let existing of matchingTokens) {
-    if (existing.hash === hash) {
-      if (existing.ephemeral) {
-        await db.delete(tokens).where(eq(tokens.id, existing.id))
-      }
-      return true
-    }
-  }
-
-  return false
-}
-
-async function sendEmailVerificationCode(email: string, code: string) {
-  console.log(email, code)
-  // TODO: Configure email server
-  return true
-}
-
-async function authenticateUser(userId: string, set: Context['set']) {
-  const session = await lucia.createSession(userId, {})
-  const sessionCookie = lucia.createSessionCookie(session.id)
-
-  set.status = 201
-  set.headers = {
-    ...set.headers,
-    Location: '/',
-    'Set-Cookie': sessionCookie.serialize(),
-  }
-
-  return session
-}
-
-async function generateWebauthnOptions(
-  method: 'register' | 'authenticate',
-  userId?: string,
-  userName?: string,
-) {
-  switch (method) {
-    case 'register':
-      if (!userId || !userName)
-        throw new Error(
-          'User ID and username required for passkey registration.',
-        )
-
-      const existingPasskeys = (
-        await db.select().from(passkeys).where(eq(passkeys.userId, userId))
-      ).map((passkey) => ({
-        id: passkey.id,
-        transports: passkey.transports.split(
-          ',',
-        ) as AuthenticatorTransportFuture[],
-      }))
-
-      return await generateRegistrationOptions({
-        rpID,
-        rpName,
-        userName,
-        attestationType: 'none',
-        excludeCredentials: existingPasskeys,
-        authenticatorSelection: {
-          residentKey: 'required',
-          userVerification: 'required',
-        },
-      })
-    case 'authenticate':
-      return await generateAuthenticationOptions({
-        rpID,
-      })
-  }
-}
 
 app.group('/auth', (app) =>
   app
@@ -414,7 +274,7 @@ app.group('/auth', (app) =>
 
                 if (verification.verified) {
                   const user = await fetchUser(passkey.userId)
-                  const session = await authenticateUser(user.id, set)
+                  const session = await createSession(user.id, set)
                   set.status = 201
                   return {
                     token: session.id,
@@ -459,7 +319,7 @@ app.group('/auth', (app) =>
 
             if (!isValid) return error(401)
 
-            const session = await authenticateUser(user.id, set)
+            const session = await createSession(user.id, set)
 
             return {
               token: session.id,
@@ -487,10 +347,8 @@ app.group('/auth', (app) =>
 
         .delete(
           '/',
-          async ({ cookie: { auth_session }, set }) => {
-            await db.delete(sessions).where(eq(sessions.id, auth_session.value))
-            auth_session.path = '/'
-            auth_session.remove()
+          async ({ cookie, set }) => {
+            destroySession(cookie)
             set.status = 204
           },
           {
@@ -509,7 +367,6 @@ app.group('/users', (app) =>
     .get(
       'me',
       async ({ user, set }) => {
-        console.log({ user })
         if (!user) {
           set.status = 401
           return null

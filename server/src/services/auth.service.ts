@@ -2,7 +2,7 @@ import { Context } from 'elysia'
 import { lucia } from '../lucia'
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
-import { appName, serverHostname } from '../config'
+import { appName, origins } from '../config'
 import { User } from '../schema/user'
 import { Passkey, passkeys } from '../schema/passkey'
 import {
@@ -14,7 +14,7 @@ import { sessions } from '../schema/session'
 
 // Webauthn relaying party information
 export const rpName = appName
-export const rpID = serverHostname.replace(/:\d+$/, '') // Remove port number
+export const rpID = origins.serverHostname.replace(/:\d+$/, '') // Remove port number
 
 /**
  * Create a new session for a user, sign in

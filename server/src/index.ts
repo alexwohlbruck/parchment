@@ -24,20 +24,20 @@ import {
   RegistrationResponseJSON,
 } from '@simplewebauthn/server/script/deps'
 import { Passkey, passkeys } from './schema/passkey'
-import { allowedOrigins, appName, origin, hostOrigin } from './config'
+import { appName, clientHostname, serverHostname, clientOrigin } from './config'
 
 const app = new Elysia()
 
 const rpName = appName
-// Remove protocol and port number from origin
-const rpID = origin.replace(/(^\w+:|^)\/\//, '').replace(/:\d+$/, '')
+const rpID = serverHostname.replace(/:\d+$/, '') // Remove port number
 
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: [clientHostname],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Set-Cookie'],
     exposedHeaders: '*',
+    methods: ['GET', 'POST', 'POST', 'PATCH', 'DELETE'],
   }),
 )
 
@@ -119,15 +119,6 @@ async function createServerToken(
   return code
 }
 
-async function getServerToken(type: Token['type'], userId: User['id']) {
-  const matchingTokens = await db
-    .select()
-    .from(tokens)
-    .where(and(eq(tokens.type, type), eq(tokens.userId, userId)))
-
-  return matchingTokens[0]
-}
-
 async function validateServerToken(
   input: string,
   type: Token['type'],
@@ -164,9 +155,9 @@ async function authenticateUser(userId: string, set: Context['set']) {
 
   set.status = 201
   set.headers = {
+    ...set.headers,
     Location: '/',
     'Set-Cookie': sessionCookie.serialize(),
-    'Access-Control-Allow-Credentials': 'true', // TODO: This should be handled by CORS plugin
   }
 
   return session
@@ -306,7 +297,7 @@ app.group('/auth', (app) =>
                 const verification = await verifyRegistrationResponse({
                   response: body as RegistrationResponseJSON,
                   expectedChallenge: challenge.value,
-                  expectedOrigin: origin,
+                  expectedOrigin: clientOrigin,
                   expectedRPID: rpID,
                   requireUserVerification: true,
                 })
@@ -405,7 +396,7 @@ app.group('/auth', (app) =>
                 const verification = await verifyAuthenticationResponse({
                   response: body as AuthenticationResponseJSON,
                   expectedChallenge: challenge.value,
-                  expectedOrigin: origin,
+                  expectedOrigin: clientOrigin,
                   expectedRPID: rpID,
                   authenticator: {
                     credentialID: passkey.id,
@@ -499,9 +490,6 @@ app.group('/auth', (app) =>
             auth_session.path = '/'
             auth_session.remove()
             set.status = 204
-            set.headers = {
-              'Access-Control-Allow-Credentials': 'true', // TODO: This should be handled by CORS plugin
-            }
           },
           {
             detail: {

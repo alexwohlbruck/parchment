@@ -2,7 +2,7 @@ import { Elysia } from 'elysia'
 import { verifyRequestOrigin } from 'lucia'
 import type { User, Session } from 'lucia'
 import { lucia } from './lucia'
-import { allowedOrigins } from './config'
+import { clientOrigin } from './config'
 
 export const auth = (app: Elysia) =>
   app.derive(
@@ -21,7 +21,7 @@ export const auth = (app: Elysia) =>
         if (
           !originHeader ||
           !hostHeader ||
-          !verifyRequestOrigin(originHeader, [hostHeader, ...allowedOrigins])
+          !verifyRequestOrigin(originHeader, [hostHeader, clientOrigin])
         ) {
           return {
             user: null,

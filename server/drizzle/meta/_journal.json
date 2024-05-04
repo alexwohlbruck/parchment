@@ -15,6 +15,13 @@
       "when": 1714627674876,
       "tag": "0001_tiresome_shockwave",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1714797681538,
+      "tag": "0002_workable_justice",
+      "breakpoints": true
     }
   ]
 }

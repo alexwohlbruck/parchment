@@ -1,14 +1,19 @@
 const isProduction = process.env.NODE_ENV === 'production'
 export const appName = 'Parchment Maps'
 
-const productionHostname = 'parchment.lat'
-const developmentHostname = 'localhost:5000'
+const productionServerOrigin = 'https://api.parchment.lat'
+const developmentServerOrigin = 'http://localhost:5000'
+const productionClientOrigin = 'https://parchment.lat'
+const developmentClientOrigin = 'http://localhost:5173'
 
-const productionOrigin = 'https://parchment.lat'
-const developmentOrigin = 'http://localhost:5173'
+export const hostname = (origin: string) => origin.replace(/(^\w+:|^)\/\//, '')
 
-export const origin = isProduction ? productionOrigin : developmentOrigin
-export const hostname = isProduction ? productionHostname : developmentHostname
+export const serverOrigin = isProduction
+  ? productionServerOrigin
+  : developmentServerOrigin
+export const clientOrigin = isProduction
+  ? productionClientOrigin
+  : developmentClientOrigin
 
-export const hostOrigin = `https://${hostname}`
-export const allowedOrigins = [productionOrigin, developmentOrigin]
+export const serverHostname = hostname(serverOrigin)
+export const clientHostname = hostname(clientOrigin)

@@ -95,6 +95,7 @@ function authService() {
 
   async function getPasskeys() {
     const { data: passkeys } = await api.get(`/auth/passkeys`)
+    console.log(passkeys)
     return passkeys
   }
 

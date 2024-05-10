@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@elysiajs/cors": "^1.0.2",
+    "@elysiajs/eden": "^1.0.12",
     "@elysiajs/swagger": "^1.0.3",
     "@lucia-auth/adapter-drizzle": "^1.0.7",
     "@neondatabase/serverless": "^0.9.0",

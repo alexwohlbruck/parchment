@@ -1,0 +1,1 @@
+ALTER TABLE "passkey" ADD COLUMN "name" text NOT NULL;

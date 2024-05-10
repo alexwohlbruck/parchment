@@ -91,7 +91,7 @@ app.post(
   },
 )
 
-app.group('/webauthn', (app) =>
+app.group('/passkeys', (app) =>
   app
     .group('/register', (app) =>
       app
@@ -117,7 +117,6 @@ app.group('/webauthn', (app) =>
           }
         })
 
-        // Create new passkey
         .post(
           '/verify',
           async ({ body, set, user, cookie: { challenge } }) => {
@@ -153,13 +152,12 @@ app.group('/webauthn', (app) =>
               credentialBackedUp,
             } = registrationInfo
 
-            console.log(verification)
-
             const passkey: Partial<Passkey> = (
               await db
                 .insert(passkeys)
                 .values({
                   id: credentialID,
+                  name: 'My passkey', // TODO: Get name from user
                   publicKey:
                     Buffer.from(credentialPublicKey).toString('base64'),
                   userId: user.id,
@@ -267,7 +265,13 @@ app.group('/webauthn', (app) =>
             }),
           },
         ),
-    ),
+    )
+
+    .use(auth)
+    .get('/', async ({ user, set }) => {
+      if (!user) return (set.status = 401)
+      return db.select().from(passkeys).where(eq(passkeys.userId, user.id))
+    }),
 )
 
 app.group('/sessions', (app) =>

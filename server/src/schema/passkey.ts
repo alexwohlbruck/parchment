@@ -3,6 +3,7 @@ import { users } from './user'
 
 export const passkeys = pgTable('passkey', {
   id: text('id').primaryKey(),
+  name: text('name').notNull(),
   publicKey: text('public_key').notNull(),
   userId: text('user_id')
     .notNull()

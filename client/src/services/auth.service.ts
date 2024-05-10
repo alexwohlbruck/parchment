@@ -46,7 +46,7 @@ function authService() {
   }
 
   async function registerPasskey() {
-    const { data: options } = await api.post(`auth/webauthn/register/options`)
+    const { data: options } = await api.post(`auth/passkeys/register/options`)
 
     let attestationResponse
     try {
@@ -61,7 +61,7 @@ function authService() {
     }
 
     const { data: passkey } = await api.post(
-      `auth/webauthn/register/verify`,
+      `auth/passkeys/register/verify`,
       attestationResponse,
     )
 
@@ -70,7 +70,7 @@ function authService() {
 
   async function signInWithPasskey(eager: boolean) {
     const { data: options } = await api.post(
-      `auth/webauthn/authenticate/options`,
+      `auth/passkeys/authenticate/options`,
     )
 
     let attestationResponse
@@ -84,13 +84,18 @@ function authService() {
     const {
       data: { user },
     } = await api.post(
-      `/auth/webauthn/authenticate/verify`,
+      `/auth/passkeys/authenticate/verify`,
       attestationResponse,
     )
 
     if (user) {
       userStore.setAuthenticatedUser(user)
     }
+  }
+
+  async function getPasskeys() {
+    const { data: passkeys } = await api.get(`/auth/passkeys`)
+    return passkeys
   }
 
   return {
@@ -100,6 +105,7 @@ function authService() {
     signOut,
     registerPasskey,
     signInWithPasskey,
+    getPasskeys,
   }
 }
 

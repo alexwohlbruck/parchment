@@ -12,7 +12,7 @@ export const passkeys = pgTable('passkey', {
   deviceType: text('device_type').notNull(),
   backedUp: boolean('backed_up').notNull().default(false),
   transports: text('transports').notNull(),
-  created_at: timestamp('created_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
 export type Passkey = typeof passkeys.$inferSelect

@@ -1,5 +1,5 @@
 import Elysia, { t } from 'elysia'
-import { eq } from 'drizzle-orm'
+import { and, eq, desc } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from '../schema/user'
 import { auth } from '../middleware/auth.middleware'
@@ -345,6 +345,29 @@ app.group('/sessions', (app) =>
     )
 
     .use(auth)
+    .get(
+      'current',
+      async ({ user, set, cookie }) => {
+        if (!user) {
+          set.status = 401
+          return null
+        }
+        const sessionCookie = cookie['auth_session']
+        const me = (
+          await db.select().from(users).where(eq(users.id, user.id))
+        )[0]
+        return {
+          user: me,
+          token: sessionCookie.value,
+        }
+      },
+      {
+        detail: {
+          tags: ['Auth', 'Users'],
+        },
+      },
+    )
+
     .get('/', async ({ set, user }) => {
       if (!user) return (set.status = 401)
 
@@ -352,6 +375,15 @@ app.group('/sessions', (app) =>
         .select()
         .from(sessions)
         .where(eq(sessions.userId, user.id))
+        .orderBy(desc(sessions.createdAt))
+    })
+
+    .delete('/:sessionId', async ({ set, user, params: { sessionId } }) => {
+      if (!user) return (set.status = 401)
+      await db
+        .delete(sessions)
+        .where(and(eq(sessions.id, sessionId), eq(sessions.userId, user.id)))
+      return (set.status = 204)
     }),
 )
 

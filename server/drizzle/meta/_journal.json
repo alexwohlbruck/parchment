@@ -78,6 +78,13 @@
       "when": 1715568361348,
       "tag": "0010_wooden_darwin",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1715576513886,
+      "tag": "0011_heavy_caretaker",
+      "breakpoints": true
     }
   ]
 }

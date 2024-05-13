@@ -5,7 +5,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { cn } from '@/lib/utils'
 import LayersSelector from '@/components/navigation/LayersSelector.vue'
-import { useUserStore } from '@/stores/user.store'
+import { useAuthStore } from '@/stores/auth.store'
 
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -30,8 +30,8 @@ import {
 
 const router = useRouter()
 const { t } = useI18n()
-const userStore = useUserStore()
-const { me } = storeToRefs(userStore)
+const authStore = useAuthStore()
+const { me } = storeToRefs(authStore)
 
 const mini = ref(true)
 
@@ -241,3 +241,4 @@ function popoverOpened(open: boolean) {
     </router-link>
   </div>
 </template>
+@/stores/auth

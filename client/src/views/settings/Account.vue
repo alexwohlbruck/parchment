@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useUserStore } from '@/stores/user.store'
+import { useAuthStore } from '@/stores/auth.store'
 import { storeToRefs } from 'pinia'
 import { useAuthService } from '@/services/auth.service'
 import { Avatar, AvatarImage } from '@/components/ui/avatar'
@@ -9,8 +9,8 @@ import Passkeys from '@/components/auth/Passkeys.vue'
 import Sessions from '@/components/auth/Sessions.vue'
 
 const authService = useAuthService()
-const userStore = useUserStore()
-const { me } = storeToRefs(userStore)
+const authStore = useAuthStore()
+const { me } = storeToRefs(authStore)
 </script>
 
 <template>
@@ -43,3 +43,4 @@ const { me } = storeToRefs(userStore)
     </template>
   </div>
 </template>
+@/stores/auth

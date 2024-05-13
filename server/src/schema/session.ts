@@ -6,6 +6,7 @@ export const sessions = pgTable('session', {
   userId: text('user_id')
     .notNull()
     .references(() => users.id),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
   expiresAt: timestamp('expires_at', {
     withTimezone: true,
     mode: 'date',

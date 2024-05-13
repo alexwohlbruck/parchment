@@ -7,26 +7,15 @@ import { useAuthService } from '@/services/auth.service'
 import { H4 } from '@/components/ui/typography'
 import DataTable from '@/components/table/DataTable.vue'
 import { PlusIcon } from 'lucide-vue-next'
+import { Passkey } from '@/types/auth.types'
+import { ColumnDef } from '@tanstack/vue-table'
 
 dayjs.extend(localizedFormat)
 
 const authService = useAuthService()
-
-type Passkey = {
-  id: string
-  name: string
-  publicKey: string
-  userId: string
-  counter: number
-  deviceType: string
-  backedUp: boolean
-  transports: string
-  createdAt: string
-}
-
 const passkeys = ref<Passkey[]>([])
 
-const columns = [
+const columns: ColumnDef<Passkey>[] = [
   {
     header: 'Name',
     accessorKey: 'name',

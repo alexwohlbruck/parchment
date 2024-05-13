@@ -125,8 +125,10 @@ app.group('/passkeys', (app) =>
             if (!user) return (set.status = 401)
             if (!challenge.value) return (set.status = 400) // TODO: Check this is how to break out with error in Elysia, make better error
 
+            const payload = body as RegistrationResponseJSON & { name: string }
+
             const verification = await verifyRegistrationResponse({
-              response: body as RegistrationResponseJSON,
+              response: payload,
               expectedChallenge: challenge.value,
               expectedOrigin: origins.clientOrigin,
               expectedRPID: rpID,
@@ -159,7 +161,7 @@ app.group('/passkeys', (app) =>
                 .insert(passkeys)
                 .values({
                   id: credentialID,
-                  name: 'My passkey', // TODO: Get name from user
+                  name: payload.name,
                   publicKey:
                     Buffer.from(credentialPublicKey).toString('base64'),
                   userId: user.id,
@@ -183,6 +185,7 @@ app.group('/passkeys', (app) =>
               description: 'Verify webauthn passkey registration.',
             },
             body: t.Object({
+              name: t.String(),
               id: t.String(),
               rawId: t.String(),
               response: t.Object({
@@ -280,6 +283,14 @@ app.group('/passkeys', (app) =>
     .get('/', async ({ user, set }) => {
       if (!user) return (set.status = 401)
       return db.select().from(passkeys).where(eq(passkeys.userId, user.id))
+    })
+
+    .delete('/:passkeyId', async ({ user, set, params: { passkeyId } }) => {
+      if (!user) return (set.status = 401)
+      await db
+        .delete(passkeys)
+        .where(and(eq(passkeys.id, passkeyId), eq(passkeys.userId, user.id)))
+      set.status = 204
     }),
 )
 

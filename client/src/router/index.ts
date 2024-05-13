@@ -1,7 +1,14 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import Map from '../views/Map.vue'
+
+import Signin from '@/views/Signin.vue'
+import Map from '@/views/Map.vue'
 
 const routes = [
+  {
+    path: '/signin',
+    name: 'Sign in',
+    component: Signin,
+  },
   {
     path: '/',
     name: 'Map',

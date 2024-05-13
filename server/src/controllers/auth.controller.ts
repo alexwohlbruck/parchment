@@ -3,7 +3,6 @@ import { and, eq, desc } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from '../schema/user'
 import { auth } from '../middleware/auth.middleware'
-import { ip } from 'elysia-ip'
 import { generateId } from '../util'
 import { origins } from '../config'
 import { Passkey, passkeys } from '../schema/passkey'
@@ -215,7 +214,6 @@ app.group('/passkeys', (app) =>
             set.status = 500
           }
         })
-        .use(ip())
         .post(
           'verify',
           async (context) => {
@@ -223,7 +221,6 @@ app.group('/passkeys', (app) =>
               body,
               set,
               cookie: { challenge },
-              ip,
             } = context
             if (!challenge.value) return (set.status = 400) // TODO: Make better error
 
@@ -296,7 +293,6 @@ app.group('/passkeys', (app) =>
 
 app.group('/sessions', (app) =>
   app
-    .use(ip())
     .post(
       '/',
       async (context) => {

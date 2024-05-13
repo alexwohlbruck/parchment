@@ -21,17 +21,21 @@ const authService = useAuthService()
 const authStore = useAuthStore()
 
 const sessions = ref<Session[]>([])
-const { sessionId } = storeToRefs(authStore)
+const { sessionId: currentSessionId } = storeToRefs(authStore)
 
 const columns: ColumnDef<Session>[] = [
   {
     id: 'device',
     header: 'Device',
-    accessorFn: info => {
-      const parsed = new UAParser(info.userAgent)
+    cell: ({ row }) => {
+      const parsed = new UAParser(row.original.userAgent)
       const { vendor, model } = parsed.getDevice()
       const { name: osName, version: osVersion } = parsed.getOS()
-      return `${vendor} ${model} - ${osName} ${osVersion}`
+      return h('div', {}, [
+        h('span', {}, `${vendor} ${model}`),
+        h('br'),
+        h('span', { class: 'text-gray-500' }, `${osName} ${osVersion}`),
+      ])
     },
   },
   {
@@ -43,6 +47,11 @@ const columns: ColumnDef<Session>[] = [
     },
   },
   {
+    id: 'created',
+    header: 'Created',
+    accessorFn: info => dayjs(info.createdAt as string).format('LLL'),
+  },
+  {
     id: 'expires',
     header: 'Expires',
     accessorFn: info => dayjs(info.expiresAt as string).format('LLL'),
@@ -50,13 +59,12 @@ const columns: ColumnDef<Session>[] = [
   {
     id: 'currentSession',
     cell: ({ row }) =>
-      row.original.id === sessionId.value
+      row.original.id === currentSessionId.value
         ? h(Badge, { class: 'chip', variant: 'outline' }, 'Current')
         : '',
   },
   {
-    // Render delete button
-    id: 'actions',
+    id: 'delete',
     cell: ({ row }) =>
       h(Button, {
         variant: 'outline',
@@ -74,8 +82,13 @@ async function getSessions() {
 }
 
 async function deleteSession(sessionId: Session['id']) {
-  await authService.deleteSession(sessionId)
-  sessions.value = sessions.value.filter(session => session.id !== sessionId)
+  if (confirm('Are you sure you want to delete this session?')) {
+    await authService.deleteSession(sessionId)
+    sessions.value = sessions.value.filter(session => session.id !== sessionId)
+    if (sessionId === currentSessionId.value) {
+      authService.signOut()
+    }
+  }
 }
 
 onMounted(getSessions)

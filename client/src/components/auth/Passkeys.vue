@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { h, onMounted, ref } from 'vue'
 import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
 import { Button } from '@/components/ui/button'
 import { useAuthService } from '@/services/auth.service'
 import { H4 } from '@/components/ui/typography'
 import DataTable from '@/components/table/DataTable.vue'
-import { PlusIcon } from 'lucide-vue-next'
+import { PlusIcon, Trash2Icon } from 'lucide-vue-next'
 import { Passkey } from '@/types/auth.types'
 import { ColumnDef } from '@tanstack/vue-table'
 
@@ -25,14 +25,36 @@ const columns: ColumnDef<Passkey>[] = [
     accessorFn: info => (info.backedUp ? 'Yes' : 'No'),
   },
   {
-    header: 'Date created',
+    header: 'Created',
     accessorFn: info => dayjs(info.createdAt as string).format('LLL'),
+  },
+  {
+    id: 'delete',
+    cell: ({ row }) =>
+      h(Button, {
+        variant: 'outline',
+        size: 'icon',
+        icon: Trash2Icon,
+        class: 'text-destructive',
+        description: 'Delete session',
+        onClick: () => deletePasskey(row.original.id),
+      }),
   },
 ]
 
 async function addPasskey() {
-  const passkey = await authService.registerPasskey()
-  passkeys.value.push(passkey)
+  const name = prompt('Give your passkey a name')
+  if (name) {
+    const passkey = await authService.registerPasskey(name)
+    passkeys.value = [...passkeys.value, passkey]
+  }
+}
+
+async function deletePasskey(passkeyId) {
+  if (confirm('Are you sure you want to delete this passkey?')) {
+    await authService.deletePasskey(passkeyId)
+    passkeys.value = passkeys.value.filter(p => p.id !== passkeyId)
+  }
 }
 
 async function getPasskeys() {

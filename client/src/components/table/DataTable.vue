@@ -61,7 +61,7 @@ const table = useVueTable({
         <template v-else>
           <TableRow>
             <TableCell :colSpan="columns.length" class="h-24 text-center">
-              No results.
+              No items.
             </TableCell>
           </TableRow>
         </template>

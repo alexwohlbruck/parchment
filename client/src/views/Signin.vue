@@ -45,8 +45,10 @@ async function signIn() {
       />
       <Button @click="requestOtp">Send verification code</Button>
       <hr />
-      <Button @click="authService.signInWithPasskey(false)">
-        <FingerprintIcon class="mr-2" />
+      <Button
+        @click="authService.signInWithPasskey(false)"
+        :icon="FingerprintIcon"
+      >
         Sign in with passkey
       </Button>
     </template>

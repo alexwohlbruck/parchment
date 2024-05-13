@@ -40,7 +40,6 @@ function authService() {
       data: { user, token: sessionId },
     } = response
     authStore.setAuthenticatedUser(user, sessionId)
-
     return response
   }
 
@@ -51,7 +50,7 @@ function authService() {
     return response
   }
 
-  async function registerPasskey() {
+  async function registerPasskey(name: string) {
     const { data: options } = await api.post(`auth/passkeys/register/options`)
 
     let attestationResponse
@@ -66,10 +65,10 @@ function authService() {
       }
     }
 
-    const { data: passkey } = await api.post(
-      `auth/passkeys/register/verify`,
-      attestationResponse,
-    )
+    const { data: passkey } = await api.post(`auth/passkeys/register/verify`, {
+      ...attestationResponse,
+      name,
+    })
 
     return passkey
   }
@@ -104,6 +103,10 @@ function authService() {
     return passkeys
   }
 
+  async function deletePasskey(passkeyId: string) {
+    await api.delete(`/auth/passkeys/${passkeyId}`)
+  }
+
   async function getSessions() {
     const { data: sessions } = await api.get(`/auth/sessions`)
     return sessions
@@ -121,6 +124,7 @@ function authService() {
     registerPasskey,
     signInWithPasskey,
     getPasskeys,
+    deletePasskey,
     getSessions,
     deleteSession,
   }

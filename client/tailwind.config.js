@@ -1,14 +1,10 @@
-const animate = require("tailwindcss-animate")
+import defaultTheme from 'tailwindcss/defaultTheme'
+import tailwindcssAnimate from 'tailwindcss-animate'
 
 /** @type {import('tailwindcss').Config} */
-module.exports = {
-  darkMode: ["class"],
-  content: [
-    './pages/**/*.{ts,tsx,vue}',
-    './components/**/*.{ts,tsx,vue}',
-    './app/**/*.{ts,tsx,vue}',
-    './src/**/*.{ts,tsx,vue}',
-  ],
+export default {
+  darkMode: 'class',
+  content: ['./src/**/*.{vue,js,ts,jsx,tsx,md}', './.vitepress/**/*.{vue,js,ts,jsx,tsx}'],
   theme: {
     container: {
       center: true,
@@ -18,6 +14,9 @@ module.exports = {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['var(--font-geist-sans)', ...defaultTheme.fontFamily.sans],
+      },
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
@@ -54,6 +53,7 @@ module.exports = {
         },
       },
       borderRadius: {
+        xl: 'calc(var(--radius) + 4px)',
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
@@ -88,5 +88,5 @@ module.exports = {
       },
     },
   },
-  plugins: [animate],
+  plugins: [tailwindcssAnimate],
 }

@@ -95,8 +95,12 @@ function authService() {
 
   async function getPasskeys() {
     const { data: passkeys } = await api.get(`/auth/passkeys`)
-    console.log(passkeys)
     return passkeys
+  }
+
+  async function getSessions() {
+    const { data: sessions } = await api.get(`/auth/sessions`)
+    return sessions
   }
 
   return {
@@ -107,6 +111,7 @@ function authService() {
     registerPasskey,
     signInWithPasskey,
     getPasskeys,
+    getSessions,
   }
 }
 

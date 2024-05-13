@@ -1,0 +1,1 @@
+ALTER TABLE "session" ALTER COLUMN "ipv4" DROP NOT NULL;

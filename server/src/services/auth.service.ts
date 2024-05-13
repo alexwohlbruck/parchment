@@ -5,6 +5,7 @@ import { db } from '../db'
 import { appName, origins } from '../config'
 import { User } from '../schema/user'
 import { Passkey, passkeys } from '../schema/passkey'
+import { Session } from '../schema/session'
 import {
   generateAuthenticationOptions,
   generateRegistrationOptions,
@@ -22,7 +23,10 @@ export const rpID = origins.serverHostname.replace(/:\d+$/, '') // Remove port n
  * @param set Elysia set object
  * @returns Newly created session
  */
-export async function createSession(userId: User['id'], set: Context['set']) {
+export async function createSession(
+  userId: User['id'],
+  { set, headers }: Context,
+) {
   const session = await lucia.createSession(userId, {})
   const sessionCookie = lucia.createSessionCookie(session.id)
 
@@ -32,6 +36,15 @@ export async function createSession(userId: User['id'], set: Context['set']) {
     Location: '/',
     'Set-Cookie': sessionCookie.serialize(),
   }
+
+  console.log(headers)
+  // TODO: Set ip address
+  await db
+    .update(sessions)
+    .set({
+      userAgent: headers['user-agent'] || '',
+    })
+    .where(eq(sessions.id, session.id))
 
   return session
 }

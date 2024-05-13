@@ -4,7 +4,9 @@ import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
 import { Button } from '@/components/ui/button'
 import { useAuthService } from '@/services/auth.service'
+import { H4 } from '@/components/ui/typography'
 import DataTable from '@/components/table/DataTable.vue'
+import { PlusIcon } from 'lucide-vue-next'
 
 dayjs.extend(localizedFormat)
 
@@ -52,7 +54,13 @@ onMounted(getPasskeys)
 </script>
 
 <template>
-  <Button @click="addPasskey()" variant="outline">Add passkey</Button>
+  <div class="flex w-full align-center justify-between">
+    <H4 class="leading-loose">Passkeys</H4>
+
+    <Button @click="addPasskey()" variant="outline" :icon="PlusIcon">
+      Add passkey
+    </Button>
+  </div>
 
   <DataTable class="w-full" :columns="columns" :data="passkeys"></DataTable>
 </template>

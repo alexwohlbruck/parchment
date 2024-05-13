@@ -21,7 +21,7 @@ export default {
 
 <template>
   <div
-    class="flex items-center border-b dark:border-neutral-900 px-3 gap-2"
+    class="flex items-center border-b border-border px-3 gap-2"
     cmdk-input-wrapper
   >
     <slot name="prefix" />

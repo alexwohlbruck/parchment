@@ -10,4 +10,9 @@ export const sessions = pgTable('session', {
     withTimezone: true,
     mode: 'date',
   }).notNull(),
+  ipv4: text('ipv4'),
+  userAgent: text('user_agent'),
 })
+
+export type Session = typeof sessions.$inferSelect
+export type NewSession = typeof sessions.$inferInsert

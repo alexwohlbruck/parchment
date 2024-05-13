@@ -27,7 +27,7 @@ const table = useVueTable({
 </script>
 
 <template>
-  <div class="border rounded-md">
+  <div class="border border-border rounded-md">
     <Table>
       <TableHeader>
         <TableRow

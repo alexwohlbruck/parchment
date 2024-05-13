@@ -1,27 +1,16 @@
 <script setup lang="ts">
-import { H4 } from '@/components/ui/typography'
+import { useUserStore } from '@/stores/user.store'
+import { storeToRefs } from 'pinia'
+import { useAuthService } from '@/services/auth.service'
 import { Avatar, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import SigninForm from '@/components/auth/SigninForm.vue'
 import Passkeys from '@/components/auth/Passkeys.vue'
-import { useUserStore } from '@/stores/user.store'
-import { storeToRefs } from 'pinia'
-import { useAuthService } from '@/services/auth.service'
+import Sessions from '@/components/auth/Sessions.vue'
 
 const authService = useAuthService()
 const userStore = useUserStore()
 const { me } = storeToRefs(userStore)
-
-const sessions = [
-  {
-    deviceName: 'Pixel 8 Pro',
-    ipAddress: '172.217.22.14',
-  },
-  {
-    deviceName: 'Macbook Air',
-    ipAddress: '172.217.22.14',
-  },
-]
 </script>
 
 <template>
@@ -48,11 +37,7 @@ const sessions = [
         </Button>
       </div>
 
-      <H4>Sessions</H4>
-
-      <p v-for="session in sessions">{{ session.deviceName }}</p>
-
-      <H4>Passkeys</H4>
+      <Sessions />
 
       <Passkeys />
     </template>

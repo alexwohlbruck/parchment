@@ -3,9 +3,11 @@ import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from '../schema/user'
 import { auth } from '../middleware/auth.middleware'
+import { ip } from 'elysia-ip'
 import { generateId } from '../util'
 import { origins } from '../config'
 import { Passkey, passkeys } from '../schema/passkey'
+import { sessions } from '../schema/session'
 import {
   createSession,
   destroySession,
@@ -210,9 +212,16 @@ app.group('/passkeys', (app) =>
             set.status = 500
           }
         })
+        .use(ip())
         .post(
           'verify',
-          async ({ body, set, cookie: { challenge } }) => {
+          async (context) => {
+            const {
+              body,
+              set,
+              cookie: { challenge },
+              ip,
+            } = context
             if (!challenge.value) return (set.status = 400) // TODO: Make better error
 
             const passkey = (
@@ -238,7 +247,7 @@ app.group('/passkeys', (app) =>
 
             if (verification.verified) {
               const user = await fetchUser(passkey.userId)
-              const session = await createSession(user.id, set)
+              const session = await createSession(user.id, context)
               set.status = 201
               return {
                 token: session.id,
@@ -276,9 +285,14 @@ app.group('/passkeys', (app) =>
 
 app.group('/sessions', (app) =>
   app
+    .use(ip())
     .post(
       '/',
-      async ({ body: { email, token }, set, error }) => {
+      async (context) => {
+        const {
+          body: { email, token },
+          error,
+        } = context
         const user = await fetchUserByEmail(email)
 
         if (!user) {
@@ -290,7 +304,7 @@ app.group('/sessions', (app) =>
 
         if (!isValid) return error(401)
 
-        const session = await createSession(user.id, set)
+        const session = await createSession(user.id, context)
 
         return {
           token: session.id,
@@ -328,7 +342,17 @@ app.group('/sessions', (app) =>
           description: 'Sign out a user.',
         },
       },
-    ),
+    )
+
+    .use(auth)
+    .get('/', async ({ set, user }) => {
+      if (!user) return (set.status = 401)
+
+      return await db
+        .select()
+        .from(sessions)
+        .where(eq(sessions.userId, user.id))
+    }),
 )
 
 export default app

@@ -1,18 +1,22 @@
 import { api } from '@/lib/api'
-import { useUserStore } from '@/stores/user.store'
+import { useAuthStore } from '@/stores/auth.store'
 import { createSharedComposable } from '@vueuse/core'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
+import { Session } from '@/types/session.types'
 
 // TODO: Return types
 
 function authService() {
-  const userStore = useUserStore()
+  const authStore = useAuthStore()
 
   async function getAuthenticatedUser() {
-    const response = await api.get('users/me')
-    const user = response.data || null
-    userStore.setAuthenticatedUser(user)
-    return response
+    const {
+      data: { user, token: sessionId },
+    } = await api.get('auth/sessions/current')
+    authStore.setAuthenticatedUser(user, sessionId)
+    return {
+      user,
+    }
   }
 
   async function verifyEmail(email: string) {
@@ -32,15 +36,17 @@ function authService() {
       },
     )
 
-    const user = response.data?.user || null
-    userStore.setAuthenticatedUser(user)
+    const {
+      data: { user, token: sessionId },
+    } = response
+    authStore.setAuthenticatedUser(user, sessionId)
 
     return response
   }
 
   async function signOut() {
     const response = await api.delete('auth/sessions')
-    userStore.unsetAuthenticatedUser()
+    authStore.unsetAuthenticatedUser()
 
     return response
   }
@@ -82,14 +88,14 @@ function authService() {
     }
 
     const {
-      data: { user },
+      data: { user, token: sessionId },
     } = await api.post(
       `/auth/passkeys/authenticate/verify`,
       attestationResponse,
     )
 
     if (user) {
-      userStore.setAuthenticatedUser(user)
+      authStore.setAuthenticatedUser(user, sessionId)
     }
   }
 
@@ -103,6 +109,10 @@ function authService() {
     return sessions
   }
 
+  async function deleteSession(sessionId: Session['id']) {
+    await api.delete(`/auth/sessions/${sessionId}`)
+  }
+
   return {
     getAuthenticatedUser,
     verifyEmail,
@@ -112,6 +122,7 @@ function authService() {
     signInWithPasskey,
     getPasskeys,
     getSessions,
+    deleteSession,
   }
 }
 

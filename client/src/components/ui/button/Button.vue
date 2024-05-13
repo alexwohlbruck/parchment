@@ -12,6 +12,7 @@ interface Props extends PrimitiveProps {
   size?: ButtonVariantProps['size']
   as?: string
   icon?: typeof PlusIcon
+  description?: string
 }
 
 withDefaults(defineProps<Props>(), {
@@ -27,7 +28,13 @@ withDefaults(defineProps<Props>(), {
     :as-child="asChild"
     :class="cn(buttonVariants({ variant, size }), $attrs.class ?? '')"
   >
-    <component v-if="icon" :is="icon" class="size-4 mr-2"></component>
+    <component
+      v-if="icon"
+      :is="icon"
+      :class="{ 'mr-2': size !== 'icon', 'size-4': true }"
+    ></component>
+
+    <span v-if="description" class="sr-only">{{ description }}</span>
     <slot />
   </Primitive>
 </template>

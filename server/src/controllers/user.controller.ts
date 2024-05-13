@@ -6,23 +6,6 @@ import { eq } from 'drizzle-orm'
 
 const app = new Elysia({ prefix: '/users' })
 
-app.use(auth).get(
-  'me',
-  async ({ user, set }) => {
-    if (!user) {
-      set.status = 401
-      return null
-    }
-    const me = await db.select().from(users).where(eq(users.id, user.id))
-    return me[0]
-  },
-  {
-    detail: {
-      tags: ['Users'],
-    },
-  },
-)
-
 app.get(
   '/',
   async (_context) => {

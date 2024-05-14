@@ -93,6 +93,12 @@ export class MapboxStrategy extends MapStrategy {
     this.map.on('style.load', () => {
       this.setMapTheme.bind(this)(this.options.theme)
       this.setLocale('en-US')
+
+      // turn off all labels
+      this.map.setConfigProperty('basemap', 'showPointOfInterestLabels', false)
+      this.map.setConfigProperty('basemap', 'showRoadLabels', false)
+      this.map.setConfigProperty('basemap', 'showBuildingLabels', false)
+      this.map.setConfigProperty('basemap', 'showPlaceLabels', false)
     })
   }
 

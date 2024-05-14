@@ -13,6 +13,9 @@ const routes = [
     path: '/',
     name: 'Map',
     component: Map,
+    meta: {
+      layout: 'floating',
+    },
     children: [
       {
         path: '/place',

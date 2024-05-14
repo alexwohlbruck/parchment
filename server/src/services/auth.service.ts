@@ -42,7 +42,7 @@ export async function createSession(
   await db
     .update(sessions)
     .set({
-      userAgent: headers['user-agent'] || '',
+      userAgent: headers ? headers['user-agent'] || '' : '',
     })
     .where(eq(sessions.id, session.id))
 

@@ -23,23 +23,28 @@ function beginOtp(_email: string) {
   background-image: url('@/assets/img/map.png');
   background-size: cover;
   background-position: center;
+  filter: saturate(1.5);
 }
 </style>
 
 <template>
-  <div class="flex h-full gap-4 p-4 bg-cyan-50 dark:bg-cyan-950">
+  <div class="flex h-full gap-4 p-4 bg-cyan-50 dark:bg-black">
     <div class="flex-1 flex flex-col h-full">
       <H4>Parchment</H4>
       <div class="flex-1 flex flex-col justify-center items-center gap-2">
-        <div class="flex flex-col gap-2 w-[20rem] max-w-full">
+        <div class="flex flex-col gap-2">
           <H2>Sign in</H2>
 
           <template v-if="step === SigninStep.email">
-            <SigninForm @submit="({ email }) => beginOtp(email)" />
+            <div class="w-60 flex flex-col gap-2">
+              <SigninForm @submit="({ email }) => beginOtp(email)" />
+            </div>
           </template>
 
           <template v-if="step === SigninStep.otp">
-            <Otp :email="email" />
+            <div class="w-96 flex flex-col gap-2">
+              <Otp :email="email" />
+            </div>
           </template>
         </div>
       </div>

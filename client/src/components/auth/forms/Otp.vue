@@ -31,7 +31,7 @@ const authService = useAuthService()
 
 const formSchema = toTypedSchema(
   z.object({
-    pin: z.array(z.coerce.string()).length(8, { message: 'Invalid input' }),
+    pin: z.array(z.coerce.string()).length(8, { message: 'Invalid code' }),
   }),
 )
 
@@ -75,6 +75,7 @@ onMounted(() => {
             id="pin-input"
             ref="input"
             v-model="value!"
+            mode="eager"
             placeholder="○"
             class="flex gap-2 items-center mt-1"
             otp

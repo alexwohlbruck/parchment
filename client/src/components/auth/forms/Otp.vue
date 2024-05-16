@@ -69,7 +69,7 @@ onMounted(() => {
   <form class="space-y-6 mx-auto" @submit="onSubmit">
     <FormField v-slot="{ componentField, value }" name="pin">
       <FormItem>
-        <FormLabel>OTP</FormLabel>
+        <FormLabel>Verification code</FormLabel>
         <FormControl>
           <PinInput
             id="pin-input"
@@ -109,7 +109,6 @@ onMounted(() => {
           <span class="font-semibold">{{ email }} </span>. Copy it here to
           verify your identity.
         </FormDescription>
-        <FormMessage />
       </FormItem>
     </FormField>
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import * as z from 'zod'
-import { useForm } from 'vee-validate'
+import { useForm, useIsFormValid } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import { useAuthService } from '@/services/auth.service'
 
@@ -43,6 +43,8 @@ useForm({
     }),
   ),
 })
+
+const isFormValid = useIsFormValid()
 </script>
 
 <template>
@@ -57,18 +59,24 @@ useForm({
             type="email"
             placeholder="magellan@parchment.app"
             v-model="email"
-            mode="lazy"
             autocomplete="username webauthn"
           />
         </FormControl>
         <FormDescription />
-        <FormMessage />
       </FormItem>
     </FormField>
 
-    <Button type="submit" class="w-full">Send verification code</Button>
+    <Button type="submit" class="w-full" :disabled="!isFormValid">
+      Send verification code
+    </Button>
   </form>
-  <hr />
+
+  <div class="flex w-full items-center">
+    <hr class="flex-1" />
+    <span class="px-3 tex">Or</span>
+    <hr class="flex-1" />
+  </div>
+
   <Button @click="authService.signInWithPasskey(false)" :icon="FingerprintIcon">
     Sign in with passkey
   </Button>

@@ -2,61 +2,83 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 import Signin from '@/views/auth/Signin.vue'
 import Map from '@/views/Map.vue'
+import { useAuthStore } from '@/stores/auth.store'
 
-const routes = [
-  {
-    path: '/signin',
-    name: 'Sign in',
-    component: Signin,
-  },
-  {
-    path: '/',
-    name: 'Map',
-    component: Map,
-    meta: {
-      layout: 'floating',
-    },
-    children: [
-      {
-        path: '/place',
-        name: 'Place',
-        component: () => import('../views/Place.vue'),
-      },
-    ],
-  },
-  {
-    path: '/settings',
-    name: 'Settings',
-    component: () => import('../views/settings/Settings.vue'),
-    redirect: '/settings/appearance',
-    children: [
-      {
-        path: '/settings/account',
-        name: 'Account',
-        component: () => import('../views/settings/Account.vue'),
-      },
-      {
-        path: '/settings/behavior',
-        name: 'Behavior',
-        component: () => import('../views/settings/Behavior.vue'),
-      },
-      {
-        path: '/settings/appearance',
-        name: 'Appearance',
-        component: () => import('../views/settings/appearance/Appearance.vue'),
-      },
-      {
-        path: '/settings/map-data',
-        name: 'Map data',
-        component: () => import('../views/settings/MapData.vue'),
-      },
-    ],
-  },
-]
+export enum AppRoute {
+  SIGNIN = 'signin',
+  MAP = 'map',
+  PLACE = 'place',
+  SETTINGS = 'settings',
+  ACCOUNT = 'account',
+  BEHAVIOR = 'behavior',
+  APPEARANCE = 'appearance',
+  MAP_DATA = 'mapData',
+}
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes,
+  routes: [
+    {
+      path: '/signin',
+      name: AppRoute.SIGNIN,
+      component: Signin,
+    },
+    {
+      path: '/',
+      name: AppRoute.MAP,
+      component: Map,
+      meta: {
+        layout: 'floating',
+        auth: true,
+      },
+      children: [
+        {
+          path: '/place',
+          name: AppRoute.PLACE,
+          component: () => import('../views/Place.vue'),
+        },
+      ],
+    },
+    {
+      path: '/settings',
+      name: AppRoute.SETTINGS,
+      component: () => import('../views/settings/Settings.vue'),
+      redirect: '/settings/appearance',
+      meta: {
+        auth: true,
+      },
+      children: [
+        {
+          path: '/settings/account',
+          name: AppRoute.ACCOUNT,
+          component: () => import('../views/settings/Account.vue'),
+        },
+        {
+          path: '/settings/behavior',
+          name: AppRoute.BEHAVIOR,
+          component: () => import('../views/settings/Behavior.vue'),
+        },
+        {
+          path: '/settings/appearance',
+          name: AppRoute.APPEARANCE,
+          component: () =>
+            import('../views/settings/appearance/Appearance.vue'),
+        },
+        {
+          path: '/settings/map-data',
+          name: AppRoute.MAP_DATA,
+          component: () => import('../views/settings/MapData.vue'),
+        },
+      ],
+    },
+  ],
+})
+
+router.beforeEach((to, from) => {
+  const authStore = useAuthStore()
+  if (to.meta.auth && !authStore.me) {
+    return { name: AppRoute.SIGNIN }
+  }
 })
 
 export default router

@@ -39,7 +39,7 @@ async function requestOtp() {
 useForm({
   validationSchema: toTypedSchema(
     z.object({
-      email: z.string().email().min(1, 'required'),
+      email: z.string().email(),
     }),
   ),
 })
@@ -57,6 +57,7 @@ useForm({
             type="email"
             placeholder="magellan@parchment.app"
             v-model="email"
+            mode="lazy"
             autocomplete="username webauthn"
           />
         </FormControl>

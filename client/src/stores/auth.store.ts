@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
 import { defineStore } from 'pinia'
 import { User } from '@/types/auth.types'
 import { Session } from '@/types/session.types'
@@ -13,13 +14,13 @@ export const useAuthStore = defineStore('user', () => {
   function setAuthenticatedUser(user: User, _sessionId: Session['id']) {
     me.value = user
     sessionId.value = _sessionId
-    router.push('/')
+    router.push({ name: AppRoute.MAP })
   }
 
   function unsetAuthenticatedUser() {
     me.value = null
     sessionId.value = null
-    router.push('/signin')
+    router.push({ name: AppRoute.SIGNIN })
   }
 
   return {

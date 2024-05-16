@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import * as z from 'zod'
-import { useForm } from 'vee-validate'
+import { useForm, useIsFormValid } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import { useAuthService } from '@/services/auth.service'
 
@@ -63,6 +63,8 @@ onMounted(() => {
   const input = document.getElementById('pin-input')
   input?.focus()
 })
+
+const isFormValid = useIsFormValid()
 </script>
 
 <template>
@@ -112,6 +114,6 @@ onMounted(() => {
       </FormItem>
     </FormField>
 
-    <Button type="submit">Submit</Button>
+    <Button type="submit" :disabled="!isFormValid">Submit</Button>
   </form>
 </template>

@@ -8,6 +8,7 @@ import { useAuthService } from '@/services/auth.service'
 import Nav from '@/components/navigation/Navigation.vue'
 import Palette from '@/components/palette/Palette.vue'
 import HotkeysMenu from '@/components/HotkeysMenu.vue'
+import { Toaster } from '@/components/ui/sonner'
 
 const router = useRouter()
 const themeStore = useThemeStore()
@@ -24,6 +25,10 @@ const currentRoute = router.currentRoute
 </script>
 
 <template>
+  <!-- Popups and modals -->
+  <Toaster richColors closeButton />
+  <HotkeysMenu />
+
   <div class="flex h-dvh bg-background">
     <div
       class="flex flex-col justify-center"
@@ -31,8 +36,6 @@ const currentRoute = router.currentRoute
     >
       <Nav class="z-20" />
     </div>
-
-    <HotkeysMenu />
 
     <div
       class="absolute top-0 left-1/2 transform -translate-x-1/2 p-2 z-10 w-1/2 max-w-[30rem]"

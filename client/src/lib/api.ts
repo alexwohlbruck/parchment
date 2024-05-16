@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { toast } from 'vue-sonner'
 
 export const api = axios.create({
   withCredentials: true,
@@ -21,11 +22,7 @@ api.interceptors.response.use(
     return response
   },
   error => {
-    // TODO: Show error message on request failure
-    // showToast(store, {
-    //   text: message,
-    //   action,
-    // })
+    toast.error(error.message)
 
     return Promise.reject(error)
   },

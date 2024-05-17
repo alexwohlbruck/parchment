@@ -73,7 +73,7 @@ const isFormValid = useIsFormValid()
 
   <div class="flex w-full items-center">
     <hr class="flex-1" />
-    <span class="px-3 tex">Or</span>
+    <span class="px-3 text-sm font-semibold">Or</span>
     <hr class="flex-1" />
   </div>
 

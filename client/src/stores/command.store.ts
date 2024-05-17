@@ -9,6 +9,7 @@ import {
   DraftingCompassIcon,
   HelpCircleIcon,
   LanguagesIcon,
+  LogOutIcon,
   MapPinIcon,
   PaletteIcon,
   SearchIcon,
@@ -25,6 +26,7 @@ import { useMapService } from '@/services/map.service'
 
 import ColorCommandArgumentOption from '@/components/palette/custom-items/ColorCommandArgumentOption.vue'
 import { useI18n } from 'vue-i18n'
+import { useAuthService } from '@/services/auth.service'
 
 const places = [
   {
@@ -64,6 +66,7 @@ export const useCommandStore = defineStore('command', () => {
   const toggleDark = useToggle(isDark)
   const router = useRouter()
   const { setAccentColor, setRadius } = useThemeStore()
+  const authService = useAuthService()
   const mapService = useMapService()
   const { t, locale } = useI18n()
 
@@ -264,6 +267,14 @@ export const useCommandStore = defineStore('command', () => {
             },
           },
         ],
+      },
+      {
+        id: 'signOut',
+        name: t('palette.commands.signOut.name'),
+        description: t('palette.commands.signOut.description'),
+        keywords: t('palette.commands.signOut.keywords'),
+        icon: LogOutIcon,
+        action: authService.signOut,
       },
     ]
   })

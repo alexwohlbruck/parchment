@@ -29,6 +29,13 @@ const input = ref<InstanceType<typeof PinInput>>()
 const autoSubmit = ref(true) // Auto submit the form when the OTP is complete, only the first time
 const authService = useAuthService()
 
+onMounted(() => {
+  const input = document.getElementById('pin-input')
+  input?.focus()
+})
+
+const emit = defineEmits(['cancel'])
+
 const formSchema = toTypedSchema(
   z.object({
     pin: z.array(z.coerce.string()).length(8, { message: 'Invalid code' }),
@@ -41,6 +48,8 @@ const { handleSubmit, setFieldValue } = useForm({
     pin: [],
   },
 })
+
+const isFormValid = useIsFormValid()
 
 const onSubmit = handleSubmit(({ pin }) => {
   const otp = pin.join('')
@@ -58,13 +67,6 @@ const handleComplete = (e: string[]) => {
 async function signIn(otp: string) {
   await authService.signIn(email, otp)
 }
-
-onMounted(() => {
-  const input = document.getElementById('pin-input')
-  input?.focus()
-})
-
-const isFormValid = useIsFormValid()
 </script>
 
 <template>
@@ -114,6 +116,9 @@ const isFormValid = useIsFormValid()
       </FormItem>
     </FormField>
 
-    <Button type="submit" :disabled="!isFormValid">Submit</Button>
+    <div class="flex gap-2">
+      <Button type="submit" :disabled="!isFormValid">Submit</Button>
+      <Button variant="outline" @click="emit('cancel')">Cancel</Button>
+    </div>
   </form>
 </template>

@@ -86,6 +86,11 @@
             "name": "Language"
           }
         }
+      },
+      "signOut": {
+        "name": "Sign out",
+        "description": "Sign out of your account",
+        "keywords": "logout exit account user"
       }
     }
   },

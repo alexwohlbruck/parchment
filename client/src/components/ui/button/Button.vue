@@ -3,7 +3,7 @@ import type { VariantProps } from 'class-variance-authority'
 import { Primitive, type PrimitiveProps } from 'radix-vue'
 import { buttonVariants } from '.'
 import { cn } from '@/lib/utils'
-import { PlusIcon } from 'lucide-vue-next'
+import { PlusIcon, Loader2Icon } from 'lucide-vue-next'
 
 interface ButtonVariantProps extends VariantProps<typeof buttonVariants> {}
 
@@ -13,6 +13,7 @@ interface Props extends PrimitiveProps {
   as?: string
   icon?: typeof PlusIcon
   description?: string
+  loading?: boolean
 }
 
 withDefaults(defineProps<Props>(), {
@@ -28,8 +29,10 @@ withDefaults(defineProps<Props>(), {
     :as-child="asChild"
     :class="cn(buttonVariants({ variant, size }), $attrs.class ?? '')"
   >
+    <Loader2Icon v-if="loading" class="w-4 h-4 mr-2 animate-spin" />
+
     <component
-      v-if="icon"
+      v-if="icon && !loading"
       :is="icon"
       :class="{ 'mr-2': size !== 'icon', 'size-4': true }"
     ></component>

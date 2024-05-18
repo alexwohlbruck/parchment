@@ -356,7 +356,7 @@ app.group('/sessions', (app) =>
       'current',
       async ({ user, set, cookie }) => {
         if (!user) {
-          set.status = 401
+          set.status = 204
           return null
         }
         const sessionCookie = cookie['auth_session']

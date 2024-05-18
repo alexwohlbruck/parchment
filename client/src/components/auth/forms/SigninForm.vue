@@ -20,6 +20,7 @@ import {
 
 const authService = useAuthService()
 const email = ref('')
+const awaitingPasskey = ref(false)
 
 onMounted(() => {
   authService.signInWithPasskey(true)
@@ -34,6 +35,15 @@ const emit = defineEmits({
 async function requestOtp() {
   await authService.verifyEmail(email.value)
   emit('submit', { email: email.value })
+}
+
+async function startPasskeySignin() {
+  awaitingPasskey.value = true
+  try {
+    await authService.signInWithPasskey(false)
+  } finally {
+    awaitingPasskey.value = false
+  }
 }
 
 useForm({
@@ -77,7 +87,11 @@ const isFormValid = useIsFormValid()
     <hr class="flex-1" />
   </div>
 
-  <Button @click="authService.signInWithPasskey(false)" :icon="FingerprintIcon">
+  <Button
+    @click="startPasskeySignin"
+    :icon="FingerprintIcon"
+    :loading="awaitingPasskey"
+  >
     Sign in with passkey
   </Button>
 </template>

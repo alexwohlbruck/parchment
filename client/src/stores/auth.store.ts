@@ -11,10 +11,14 @@ export const useAuthStore = defineStore('user', () => {
   const me = ref<User | null>(null)
   const sessionId = ref<Session['id'] | null>(null)
 
-  function setAuthenticatedUser(user: User, _sessionId: Session['id']) {
+  function setAuthenticatedUser(
+    user: User,
+    _sessionId: Session['id'],
+    redirect = false,
+  ) {
     me.value = user
     sessionId.value = _sessionId
-    router.push({ name: AppRoute.MAP })
+    if (redirect) router.push({ name: AppRoute.MAP })
   }
 
   function unsetAuthenticatedUser() {

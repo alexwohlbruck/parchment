@@ -39,7 +39,7 @@ function authService() {
     const {
       data: { user, token: sessionId },
     } = response
-    authStore.setAuthenticatedUser(user, sessionId)
+    authStore.setAuthenticatedUser(user, sessionId, true)
     return response
   }
 
@@ -94,7 +94,7 @@ function authService() {
     )
 
     if (user) {
-      authStore.setAuthenticatedUser(user, sessionId)
+      authStore.setAuthenticatedUser(user, sessionId, true)
     }
   }
 

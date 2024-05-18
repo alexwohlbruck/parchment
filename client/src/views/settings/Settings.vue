@@ -47,15 +47,15 @@ const pages = [
 </script>
 
 <template>
-  <div class="flex flex-col py-4 gap-4">
-    <div class="px-4">
+  <div class="flex flex-col gap-4">
+    <div>
       <H2>{{ $t('settings.title') }}</H2>
       <P>{{ $t('settings.description') }}</P>
     </div>
 
     <Separator />
 
-    <div class="flex gap-4 mx-2">
+    <div class="flex gap-4">
       <div class="w-40">
         <Button
           v-for="(page, i) in pages"
@@ -85,7 +85,7 @@ const pages = [
         </Button>
       </div>
 
-      <div class="flex-1 flex justify-center">
+      <div class="flex-1 flex justify-center overflow-y-auto">
         <router-view class="w-full max-w-[52rem] items-start" />
       </div>
     </div>

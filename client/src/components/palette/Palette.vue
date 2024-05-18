@@ -94,8 +94,8 @@ function inputFocused(event: FocusEvent) {
   }
 }
 
+// TODO: Come up with better method
 onClickOutside(container, event => {
-  console.log('clicked outside', event)
   showResults.value = false
   resetCommand()
 })

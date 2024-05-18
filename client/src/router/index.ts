@@ -15,6 +15,14 @@ export enum AppRoute {
   MAP_DATA = 'mapData',
 }
 
+function keepDefaultView(to, from) {
+  if (from.matched.length) {
+    to.matched[0].components.default = from.matched[0].components.default
+  } else {
+    to.matched[0].components.default = Map
+  }
+}
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -41,12 +49,16 @@ const router = createRouter({
     },
     {
       path: '/settings',
-      name: AppRoute.SETTINGS,
-      component: () => import('../views/settings/Settings.vue'),
-      redirect: '/settings/appearance',
+      components: {
+        content: () => import('../views/settings/Settings.vue'),
+      },
       meta: {
         auth: true,
+        modal: true,
+        layout: 'floating',
       },
+      beforeEnter: [keepDefaultView],
+      redirect: '/settings/appearance',
       children: [
         {
           path: '/settings/account',
@@ -76,8 +88,11 @@ const router = createRouter({
 
 router.beforeEach((to, from) => {
   const authStore = useAuthStore()
+  if (to.name !== AppRoute.SIGNIN) authStore.attemptPath(to.path)
   if (to.meta.auth && !authStore.me) {
-    return { name: AppRoute.SIGNIN }
+    return {
+      name: AppRoute.SIGNIN,
+    }
   }
 })
 

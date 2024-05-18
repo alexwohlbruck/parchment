@@ -10,15 +10,21 @@ export const useAuthStore = defineStore('user', () => {
 
   const me = ref<User | null>(null)
   const sessionId = ref<Session['id'] | null>(null)
+  const attemptedPath = ref<string | null>(null)
 
-  function setAuthenticatedUser(
-    user: User,
-    _sessionId: Session['id'],
-    redirect = false,
-  ) {
+  /**
+   * Save path the user has visited on page load.
+   * If signed out, we restore this path upon sign in
+   */
+  function attemptPath(path: string) {
+    attemptedPath.value = path
+    console.log(path)
+  }
+
+  function setAuthenticatedUser(user: User, _sessionId: Session['id']) {
     me.value = user
     sessionId.value = _sessionId
-    if (redirect) router.push({ name: AppRoute.MAP })
+    router.push(attemptedPath.value || { name: AppRoute.MAP })
   }
 
   function unsetAuthenticatedUser() {
@@ -32,5 +38,6 @@ export const useAuthStore = defineStore('user', () => {
     sessionId,
     setAuthenticatedUser,
     unsetAuthenticatedUser,
+    attemptPath,
   }
 })

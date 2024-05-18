@@ -8,5 +8,6 @@ declare module 'vue-router' {
     auth?: boolean
     isAdmin?: boolean
     layout?: 'floating' | 'sidebar'
+    modal?: boolean
   }
 }

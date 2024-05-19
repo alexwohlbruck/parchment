@@ -49,11 +49,11 @@ const router = createRouter({
       path: '/settings',
       components: {
         default: Map,
-        modalContent: () => import('../views/settings/Settings.vue'),
+        dialogContent: () => import('../views/settings/Settings.vue'),
       },
       meta: {
         auth: true,
-        modal: true,
+        dialog: true,
         layout: 'floating',
       },
       beforeEnter: [keepDefaultView],

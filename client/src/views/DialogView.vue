@@ -6,14 +6,13 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 
 const router = useRouter()
 
-const modalOpen = ref(false)
+const dialogOpen = ref(false)
 
 router.beforeEach((to, from) => {
-  const newRouteIsModal = !!to.meta?.modal || false
-  modalOpen.value = newRouteIsModal
+  dialogOpen.value = !!to.meta?.dialog || false
 })
 
-watch(modalOpen, open => {
+watch(dialogOpen, open => {
   if (!open) {
     router.push({ name: AppRoute.MAP })
   }
@@ -21,9 +20,9 @@ watch(modalOpen, open => {
 </script>
 
 <template>
-  <Dialog :open="modalOpen" @update:open="open => (modalOpen = open)">
+  <Dialog :open="dialogOpen" @update:open="open => (dialogOpen = open)">
     <DialogContent class="overflow-y-auto h-[90vh] max-w-[80vw]">
-      <router-view name="modalContent"></router-view>
+      <router-view name="dialogContent"></router-view>
     </DialogContent>
   </Dialog>
 </template>

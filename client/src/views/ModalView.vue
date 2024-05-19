@@ -21,6 +21,7 @@ router.beforeEach((to, from) => {
 
 watch(modalOpen, open => {
   if (!open) {
+    console.log('route pushed')
     router.push(defaultView.value || { name: AppRoute.MAP })
   }
 })
@@ -29,7 +30,7 @@ watch(modalOpen, open => {
 <template>
   <Dialog :open="modalOpen" @update:open="open => (modalOpen = open)">
     <DialogContent class="overflow-y-auto h-[90vh] max-w-[80vw]">
-      <router-view name="content"></router-view>
+      <router-view name="modalContent"></router-view>
     </DialogContent>
   </Dialog>
 </template>

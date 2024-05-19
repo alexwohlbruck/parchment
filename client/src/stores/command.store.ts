@@ -119,7 +119,7 @@ export const useCommandStore = defineStore('command', () => {
         hotkey: ['mod', 'g'],
         icon: ChevronsRightIcon,
         action: (page: string) => {
-          router.push(page)
+          router.push({ name: page })
         },
         arguments: [
           {
@@ -130,7 +130,7 @@ export const useCommandStore = defineStore('command', () => {
               const routes = router.getRoutes()
               return routes.map(route => {
                 return {
-                  value: route.path,
+                  value: route.name as string,
                   name: route.name as string,
                 }
               })

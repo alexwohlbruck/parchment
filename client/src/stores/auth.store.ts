@@ -10,7 +10,7 @@ export const useAuthStore = defineStore('user', () => {
 
   const me = ref<User | null | undefined>()
   const sessionId = ref<Session['id'] | null>(null)
-  const attemptedPath = ref<string | null>(null)
+  const stashedPath = ref<string | null>(null)
   const authenticatedUserPromise = ref<Promise<any>>()
 
   /**
@@ -18,13 +18,13 @@ export const useAuthStore = defineStore('user', () => {
    * If signed out, we restore this path upon sign in
    */
   function stashPath(path: string) {
-    attemptedPath.value = path
+    stashedPath.value = path
   }
 
   function setAuthenticatedUser(user: User, _sessionId: Session['id']) {
     me.value = user
     sessionId.value = _sessionId
-    router.push(attemptedPath.value || { name: AppRoute.MAP })
+    router.push(stashedPath.value || { name: AppRoute.MAP })
   }
 
   function unsetAuthenticatedUser() {

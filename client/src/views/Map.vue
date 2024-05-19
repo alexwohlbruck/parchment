@@ -9,7 +9,7 @@ const route = useRoute()
   <div
     class="relative z-10 h-full flex flex-col justify-center items-start pointer-events-none"
   >
-    <router-view v-if="!route.meta.modal" />
+    <router-view v-if="!route.meta.dialog" />
   </div>
 
   <Map class="!absolute w-full h-full top-0 left-0"></Map>

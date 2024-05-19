@@ -7,7 +7,7 @@ import { useAuthService } from '@/services/auth.service'
 
 import Nav from '@/components/navigation/Navigation.vue'
 import Palette from '@/components/palette/Palette.vue'
-import ModalView from '@/views/ModalView.vue'
+import DialogView from '@/views/DialogView.vue'
 import HotkeysMenu from '@/components/HotkeysMenu.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { onBeforeRouteUpdate } from 'vue-router'
@@ -28,7 +28,7 @@ onMounted(() => {
   <!-- Popups and modals -->
   <Toaster richColors closeButton />
   <HotkeysMenu />
-  <ModalView></ModalView>
+  <DialogView></DialogView>
 
   <div class="flex h-dvh bg-background">
     <div

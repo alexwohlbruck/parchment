@@ -1,4 +1,4 @@
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import mousetrap from 'mousetrap'
 import { useCommandStore } from '@/stores/command.store'
 import { ArgumentType, Command } from '@/types/command.types'
@@ -72,10 +72,6 @@ function commandService() {
     const command = commandStore.commands.find(c => c.id === id)
     return command?.hotkey
   }
-
-  watch(activeArgument, (newVal, prevVal) => {
-    console.log(newVal)
-  })
 
   return {
     executeCommand,

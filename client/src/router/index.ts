@@ -17,10 +17,7 @@ export enum AppRoute {
 
 function keepDefaultView(to, from) {
   if (from.matched.length) {
-    console.log(from.matched)
     to.matched[0].components.default = from.matched[0].components.default
-  } else {
-    to.matched[0].components.default = Map
   }
 }
 
@@ -51,7 +48,8 @@ const router = createRouter({
     {
       path: '/settings',
       components: {
-        content: () => import('../views/settings/Settings.vue'),
+        default: Map,
+        modalContent: () => import('../views/settings/Settings.vue'),
       },
       meta: {
         auth: true,

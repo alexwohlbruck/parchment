@@ -26,7 +26,7 @@ const { toggleDark, setAccentColor, setRadius } = themeStore
           :key="index"
           variant="outline"
           class="h-8 justify-start px-3"
-          :class="color === accentColor ? 'border-foreground border-2' : ''"
+          :class="color === accentColor ? 'border-primary border-2' : ''"
           @click="setAccentColor(color)"
         >
           <span
@@ -51,7 +51,7 @@ const { toggleDark, setAccentColor, setRadius } = themeStore
           :key="index"
           variant="outline"
           class="h-8 justify-center px-3"
-          :class="r === radius ? 'border-foreground border-2' : ''"
+          :class="r === radius ? 'border-primary border-2' : ''"
           @click="setRadius(r)"
         >
           <span class="text-xs">
@@ -69,7 +69,7 @@ const { toggleDark, setAccentColor, setRadius } = themeStore
         <Button
           class="h-8"
           variant="outline"
-          :class="{ 'border-2 border-foreground': !isDark }"
+          :class="{ 'border-2 border-primary': !isDark }"
           @click="toggleDark(false)"
         >
           <span class="text-xs">
@@ -79,7 +79,7 @@ const { toggleDark, setAccentColor, setRadius } = themeStore
         <Button
           class="h-8"
           variant="outline"
-          :class="{ 'border-2 border-foreground': isDark }"
+          :class="{ 'border-2 border-primary': isDark }"
           @click="toggleDark(true)"
         >
           <span class="text-xs">

@@ -8,17 +8,17 @@ import { Session } from '@/types/session.types'
 export const useAuthStore = defineStore('user', () => {
   const router = useRouter()
 
-  const me = ref<User | null>(null)
+  const me = ref<User | null | undefined>()
   const sessionId = ref<Session['id'] | null>(null)
   const attemptedPath = ref<string | null>(null)
+  const authenticatedUserPromise = ref<Promise<any>>()
 
   /**
    * Save path the user has visited on page load.
    * If signed out, we restore this path upon sign in
    */
-  function attemptPath(path: string) {
+  function stashPath(path: string) {
     attemptedPath.value = path
-    console.log(path)
   }
 
   function setAuthenticatedUser(user: User, _sessionId: Session['id']) {
@@ -33,11 +33,21 @@ export const useAuthStore = defineStore('user', () => {
     router.push({ name: AppRoute.SIGNIN })
   }
 
+  /**
+   * Save promise object when fetching current user
+   * Used in router auth guards to wait until user response loads
+   */
+  function setAuthenticatedUserPromise(promise) {
+    authenticatedUserPromise.value = promise
+  }
+
   return {
     me,
     sessionId,
+    stashPath,
     setAuthenticatedUser,
     unsetAuthenticatedUser,
-    attemptPath,
+    authenticatedUserPromise,
+    setAuthenticatedUserPromise,
   }
 })

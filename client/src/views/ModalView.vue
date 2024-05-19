@@ -7,22 +7,15 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 const router = useRouter()
 
 const modalOpen = ref(false)
-const defaultView = ref<string | null>(null)
 
-// If opening a modal page, remember the path to restore when modal closes
 router.beforeEach((to, from) => {
-  const oldRouteIsModal = !!from.meta?.modal || false
   const newRouteIsModal = !!to.meta?.modal || false
   modalOpen.value = newRouteIsModal
-  if (!oldRouteIsModal && newRouteIsModal) {
-    defaultView.value = (from.path as string) || null
-  }
 })
 
 watch(modalOpen, open => {
   if (!open) {
-    console.log('route pushed')
-    router.push(defaultView.value || { name: AppRoute.MAP })
+    router.push({ name: AppRoute.MAP })
   }
 })
 </script>

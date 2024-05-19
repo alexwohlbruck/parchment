@@ -10,10 +10,16 @@ function authService() {
   const authStore = useAuthStore()
 
   async function getAuthenticatedUser() {
+    const authenticatedUserPromise = api.get('auth/sessions/current')
+    authStore.setAuthenticatedUserPromise(authenticatedUserPromise)
     const {
       data: { user, token: sessionId },
-    } = await api.get('auth/sessions/current')
-    authStore.setAuthenticatedUser(user, sessionId)
+    } = await authenticatedUserPromise
+    if (user) {
+      authStore.setAuthenticatedUser(user, sessionId)
+    } else {
+      authStore.unsetAuthenticatedUser()
+    }
     return {
       user,
     }

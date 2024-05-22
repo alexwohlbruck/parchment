@@ -33,7 +33,7 @@ onMounted(() => {
   <HotkeysMenu />
   <DialogView></DialogView>
 
-  <div v-for="(dialog, index) in dialogs" :key="index">
+  <div v-for="dialog in dialogs" :key="dialog.id">
     <component
       :is="dialog.component"
       v-bind="dialog.props"

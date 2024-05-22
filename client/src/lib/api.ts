@@ -1,6 +1,5 @@
 import { capitalize } from '@/filters/text.filters'
 import axios, { AxiosError } from 'axios'
-import { getReasonPhrase } from 'http-status-codes'
 import { toast } from 'vue-sonner'
 
 export const api = axios.create({
@@ -30,7 +29,7 @@ function getErrorMessage(error: AxiosError): {
 
   if (response?.status || response?.statusText) {
     return {
-      title: response?.statusText || getReasonPhrase(response.status),
+      title: response.statusText || response.status.toString(),
     }
   }
 

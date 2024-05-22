@@ -1,27 +1,34 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, h } from 'vue'
 import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
+import UAParser from 'ua-parser-js'
+import { storeToRefs } from 'pinia'
+import { ColumnDef } from '@tanstack/vue-table'
+
+import { DialogType } from '@/types/app.types'
+import { useAppService } from '@/services/app.service'
+import { useAuthService } from '@/services/auth.service'
+import { useAuthStore } from '@/stores/auth.store'
+
 import { Session } from '@/types/session.types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { useAuthService } from '@/services/auth.service'
 import { H4 } from '@/components/ui/typography'
-import DataTable from '@/components/table/DataTable.vue'
-import UAParser from 'ua-parser-js'
-import { ColumnDef } from '@tanstack/vue-table'
-import { h } from 'vue'
 import { Trash2Icon } from 'lucide-vue-next'
-import { storeToRefs } from 'pinia'
-import { useAuthStore } from '@/stores/auth.store'
+import DataTable from '@/components/table/DataTable.vue'
 
 dayjs.extend(localizedFormat)
 
 const authService = useAuthService()
 const authStore = useAuthStore()
+const appService = useAppService()
 
 const sessions = ref<Session[]>([])
 const { sessionId: currentSessionId } = storeToRefs(authStore)
+
+// TODO: Store session in a pinia store
+// TODO: Create computed getter with UAParser results
 
 const columns: ColumnDef<Session>[] = [
   {
@@ -82,7 +89,14 @@ async function getSessions() {
 }
 
 async function deleteSession(sessionId: Session['id']) {
-  if (confirm('Are you sure you want to delete this session?')) {
+  // TODO: Include name of device and browser
+  const confirmed = await appService.confirm({
+    title: 'Delete this session?',
+    description: 'You will be signed out on the respective device and browser',
+    destructive: true,
+  })
+
+  if (confirmed) {
     await authService.deleteSession(sessionId)
     sessions.value = sessions.value.filter(session => session.id !== sessionId)
     if (sessionId === currentSessionId.value) {

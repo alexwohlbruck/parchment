@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useAppStore } from '@/stores/app.store'
 import { useThemeStore } from '@/stores/settings/theme.store'
 import { useCommandService } from '@/services/command.service'
 import { useAuthService } from '@/services/auth.service'
@@ -10,12 +11,14 @@ import Palette from '@/components/palette/Palette.vue'
 import DialogView from '@/views/DialogView.vue'
 import HotkeysMenu from '@/components/HotkeysMenu.vue'
 import { Toaster } from '@/components/ui/sonner'
-import { onBeforeRouteUpdate } from 'vue-router'
 
 const route = useRoute()
 const themeStore = useThemeStore()
 const commandService = useCommandService()
 const authService = useAuthService()
+const appStore = useAppStore()
+
+const { dialogs, removeDialog } = appStore
 
 onMounted(() => {
   authService.getAuthenticatedUser()
@@ -29,6 +32,14 @@ onMounted(() => {
   <Toaster richColors closeButton />
   <HotkeysMenu />
   <DialogView></DialogView>
+
+  <div v-for="(dialog, index) in dialogs" :key="index">
+    <component
+      :is="dialog.component"
+      v-bind="dialog.props"
+      @submit="dialog.onSubmit($event)"
+    />
+  </div>
 
   <div class="flex h-dvh bg-background">
     <div

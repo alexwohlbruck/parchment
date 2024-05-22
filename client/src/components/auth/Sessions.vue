@@ -94,6 +94,7 @@ async function deleteSession(sessionId: Session['id']) {
     title: 'Delete this session?',
     description: 'You will be signed out on the respective device and browser',
     destructive: true,
+    continueText: 'Delete',
   })
 
   if (confirmed) {

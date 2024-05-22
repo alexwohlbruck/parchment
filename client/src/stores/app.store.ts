@@ -3,11 +3,11 @@ import { defineStore } from 'pinia'
 import { Component, ref } from 'vue'
 
 import ConfirmDialog from '@/components/dialogs/ConfirmDialog.vue'
-import { on } from 'events'
 
 export const useAppStore = defineStore('app', () => {
   const dialogs = ref<
     {
+      id: number
       component: Component
       props: any
       onSubmit: Function
@@ -19,14 +19,17 @@ export const useAppStore = defineStore('app', () => {
     options: DialogOptions,
   ): Promise<any> {
     return new Promise(resolve => {
+      const id = new Date().getTime()
+
       const onSubmit = (payload: any) => {
         resolve(payload)
-        setTimeout(() => removeDialog(dialogs.value.length - 1), 1000) // Wait for close animation
+        setTimeout(() => removeDialog(id), 1000) // Wait for close animation
       }
 
       switch (type) {
         case DialogType.Confirm:
           dialogs.value.push({
+            id,
             component: ConfirmDialog,
             props: options,
             onSubmit,
@@ -45,8 +48,11 @@ export const useAppStore = defineStore('app', () => {
     })
   }
 
-  function removeDialog(index: number) {
-    dialogs.value.splice(index, 1)
+  function removeDialog(id: number) {
+    const index = dialogs.value.findIndex(dialog => dialog.id === id)
+    if (index !== -1) {
+      dialogs.value.splice(index, 1)
+    }
   }
 
   return {

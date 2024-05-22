@@ -2,16 +2,20 @@
 import { h, onMounted, ref } from 'vue'
 import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
-import { Button } from '@/components/ui/button'
+import { ColumnDef } from '@tanstack/vue-table'
+import { Passkey } from '@/types/auth.types'
+
 import { useAuthService } from '@/services/auth.service'
+import { useAppService } from '@/services/app.service'
+
 import { H4 } from '@/components/ui/typography'
 import DataTable from '@/components/table/DataTable.vue'
+import { Button } from '@/components/ui/button'
 import { PlusIcon, Trash2Icon } from 'lucide-vue-next'
-import { Passkey } from '@/types/auth.types'
-import { ColumnDef } from '@tanstack/vue-table'
 
 dayjs.extend(localizedFormat)
 
+const appService = useAppService()
 const authService = useAuthService()
 const passkeys = ref<Passkey[]>([])
 
@@ -51,7 +55,15 @@ async function addPasskey() {
 }
 
 async function deletePasskey(passkeyId) {
-  if (confirm('Are you sure you want to delete this passkey?')) {
+  const confirmed = await appService.confirm({
+    title: 'Delete this passkey?',
+    description:
+      'You will no longer be able to use this passkey to sign in on any device',
+    destructive: true,
+    continueText: 'Delete',
+  })
+
+  if (confirmed) {
     await authService.deletePasskey(passkeyId)
     passkeys.value = passkeys.value.filter(p => p.id !== passkeyId)
   }

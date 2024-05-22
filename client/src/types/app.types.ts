@@ -8,15 +8,18 @@ export enum DialogType {
 export interface BaseDialogOptions {
   title: string
   description?: string
+  continueText?: string
+  cancelText?: string
 }
 
 export interface ConfirmDialogOptions extends BaseDialogOptions {
-  continueText?: string
-  cancelText?: string
   destructive?: boolean
 }
 
-export interface PromptDialogOptions extends BaseDialogOptions {}
+export interface PromptDialogOptions extends BaseDialogOptions {
+  label?: string
+  inputProps?: object
+}
 
 export interface AutoFormDialogOptions extends BaseDialogOptions {}
 

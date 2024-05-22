@@ -18,14 +18,6 @@ const { title, description, destructive, continueText, cancelText } =
 const emit = defineEmits<{
   (e: 'submit', payload: boolean): void
 }>()
-
-function confirm() {
-  emit('submit', true)
-}
-
-function cancel() {
-  emit('submit', false)
-}
 </script>
 
 <template>
@@ -40,13 +32,13 @@ function cancel() {
 
       <DialogFooter>
         <DialogClose as-child>
-          <Button @click="cancel()" variant="outline">
+          <Button @click="emit('submit', false)" variant="outline">
             {{ cancelText || 'Cancel' }}
           </Button>
         </DialogClose>
         <DialogClose as-child>
           <Button
-            @click="confirm()"
+            @click="emit('submit', true)"
             :variant="destructive ? 'destructive' : 'default'"
           >
             {{ continueText || 'Continue' }}

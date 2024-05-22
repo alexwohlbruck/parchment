@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { Component, ref } from 'vue'
 
 import ConfirmDialog from '@/components/dialogs/ConfirmDialog.vue'
+import PromptDialog from '@/components/dialogs/PromptDialog.vue'
 
 export const useAppStore = defineStore('app', () => {
   const dialogs = ref<
@@ -20,31 +21,22 @@ export const useAppStore = defineStore('app', () => {
   ): Promise<any> {
     return new Promise(resolve => {
       const id = new Date().getTime()
-
-      const onSubmit = (payload: any) => {
-        resolve(payload)
-        setTimeout(() => removeDialog(id), 1000) // Wait for close animation
+      const dialogTypesMap = {
+        [DialogType.Confirm]: ConfirmDialog,
+        [DialogType.Prompt]: PromptDialog,
+        [DialogType.AutoForm]: ConfirmDialog, // TODO
+        [DialogType.Template]: ConfirmDialog, // TODO
       }
 
-      switch (type) {
-        case DialogType.Confirm:
-          dialogs.value.push({
-            id,
-            component: ConfirmDialog,
-            props: options,
-            onSubmit,
-          })
-          break
-        case DialogType.Prompt:
-          // TODO
-          break
-        case DialogType.AutoForm:
-          // TODO
-          break
-        case DialogType.Template:
-          // TODO
-          break
-      }
+      dialogs.value.push({
+        id,
+        component: dialogTypesMap[type],
+        props: options,
+        onSubmit: (payload: any) => {
+          resolve(payload)
+          setTimeout(() => removeDialog(id), 1000) // Wait for close animation
+        },
+      })
     })
   }
 

@@ -19,6 +19,7 @@ function appService() {
 
   return {
     confirm,
+    prompt,
   }
 }
 

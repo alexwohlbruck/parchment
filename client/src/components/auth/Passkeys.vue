@@ -47,7 +47,13 @@ const columns: ColumnDef<Passkey>[] = [
 ]
 
 async function addPasskey() {
-  const name = prompt('Give your passkey a name')
+  const name = await appService.prompt({
+    title: 'Create a passkey',
+    label: 'Passkey name',
+    inputProps: {
+      placeholder: 'Eg. Keychain, Chrome, LastPass, Bitwarden',
+    },
+  })
   if (name) {
     const passkey = await authService.registerPasskey(name)
     passkeys.value = [...passkeys.value, passkey]

@@ -29,7 +29,7 @@ onMounted(() => {
 
 <template>
   <!-- Popups and modals -->
-  <Toaster richColors closeButton :duration="7000" />
+  <Toaster richColors closeButton :duration="7000" position="bottom-center" />
   <HotkeysMenu />
   <DialogView></DialogView>
   <div v-for="dialog in dialogs" :key="dialog.id">

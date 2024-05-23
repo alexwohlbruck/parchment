@@ -3,7 +3,7 @@
   "version": "1.0.50",
   "scripts": {
     "dev": "bun --watch --inspect src/index.ts",
-    "build": "bun build src/index.ts",
+    "build": "bun build ./src/index.ts --outdir ./build --target bun",
     "start": "NODE_ENV=production bun src/index.ts",
     "test": "bun test",
     "generate": "drizzle-kit generate:pg",

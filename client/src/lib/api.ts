@@ -5,7 +5,7 @@ import { toast } from 'vue-sonner'
 export const api = axios.create({
   withCredentials: true,
   baseURL:
-    process.env.NODE_ENV !== 'production'
+    process.env.NODE_ENV === 'production'
       ? 'https://parchment.onrender.com'
       : 'http://localhost:5000',
 })

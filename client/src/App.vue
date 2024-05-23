@@ -32,7 +32,6 @@ onMounted(() => {
   <Toaster richColors closeButton :duration="7000" />
   <HotkeysMenu />
   <DialogView></DialogView>
-
   <div v-for="dialog in dialogs" :key="dialog.id">
     <component
       :is="dialog.component"

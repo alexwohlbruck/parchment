@@ -1,3 +1,4 @@
+// TODO: Convert to environment vars
 const productionServerOrigin = 'https://parchment.onrender.com' //'https://api.parchment.app'
 const developmentServerOrigin = 'http://localhost:5000'
 const productionClientOrigin = 'https://parchment-maps.netlify.app' // 'https://app.parchment.app'

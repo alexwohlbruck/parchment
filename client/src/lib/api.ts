@@ -1,4 +1,6 @@
-import axios from 'axios'
+import { capitalize } from '@/filters/text.filters'
+import axios, { AxiosError } from 'axios'
+import { getReasonPhrase } from 'http-status-codes'
 import { toast } from 'vue-sonner'
 
 export const api = axios.create({
@@ -6,24 +8,44 @@ export const api = axios.create({
   baseURL: 'http://localhost:5000',
 })
 
-// Pre-request hook
-// api.interceptors.request.use(
-//   config => {
-//     return config
-//   },
-//   error => {
-//     return Promise.reject(error)
-//   },
-// )
+function getErrorMessage(error: AxiosError): {
+  title: string
+  description?: string
+} {
+  const { response } = error
+  const data = response?.data as any
 
-// Post-request hook
+  if (data?.errors) {
+    return {
+      title: `${capitalize(data.type)} error`,
+      description: `${data.message} on ${data.on}: ${data.property}`,
+    }
+  }
+
+  if (data?.message) {
+    return {
+      title: data.message,
+    }
+  }
+
+  if (response?.status || response?.statusText) {
+    return {
+      title: response?.statusText || getReasonPhrase(response.status),
+    }
+  }
+
+  return {
+    title: 'An unknown error occurred',
+  }
+}
+
 api.interceptors.response.use(
   response => {
     return response
   },
   error => {
-    toast.error(error.message)
-
+    const { title, description } = getErrorMessage(error)
+    toast.error(title, { description })
     return Promise.reject(error)
   },
 )

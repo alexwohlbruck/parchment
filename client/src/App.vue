@@ -29,7 +29,7 @@ onMounted(() => {
 
 <template>
   <!-- Popups and modals -->
-  <Toaster richColors closeButton />
+  <Toaster richColors closeButton :duration="7000" />
   <HotkeysMenu />
   <DialogView></DialogView>
 

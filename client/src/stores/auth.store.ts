@@ -9,6 +9,7 @@ export const useAuthStore = defineStore('user', () => {
   const router = useRouter()
 
   const me = ref<User | null | undefined>()
+  const sessions = ref<Session[]>([])
   const sessionId = ref<Session['id'] | null>(null)
   const stashedPath = ref<string | null>(null)
   const authenticatedUserPromise = ref<Promise<any>>()
@@ -33,6 +34,17 @@ export const useAuthStore = defineStore('user', () => {
     router.push({ name: AppRoute.SIGNIN })
   }
 
+  function setSessions(_sessions: Session[]) {
+    sessions.value = _sessions
+  }
+
+  function removeSession(sessionId: Session['id']) {
+    const index = sessions.value.findIndex(session => session.id === sessionId)
+    if (index !== -1) {
+      sessions.value.splice(index, 1)
+    }
+  }
+
   /**
    * Save promise object when fetching current user
    * Used in router auth guards to wait until user response loads
@@ -49,5 +61,8 @@ export const useAuthStore = defineStore('user', () => {
     unsetAuthenticatedUser,
     authenticatedUserPromise,
     setAuthenticatedUserPromise,
+    sessions,
+    setSessions,
+    removeSession,
   }
 })

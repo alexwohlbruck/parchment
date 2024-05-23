@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, h } from 'vue'
+import { onMounted, ref, h, computed } from 'vue'
 import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
 import UAParser from 'ua-parser-js'
@@ -11,7 +11,7 @@ import { useAppService } from '@/services/app.service'
 import { useAuthService } from '@/services/auth.service'
 import { useAuthStore } from '@/stores/auth.store'
 
-import { Session } from '@/types/session.types'
+import { Session as OriginalSession } from '@/types/session.types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { H4 } from '@/components/ui/typography'
@@ -24,8 +24,23 @@ const authService = useAuthService()
 const authStore = useAuthStore()
 const appService = useAppService()
 
-const sessions = ref<Session[]>([])
-const { sessionId: currentSessionId } = storeToRefs(authStore)
+onMounted(authService.getSessions)
+
+const { sessionId: currentSessionId, sessions: originalSessions } =
+  storeToRefs(authStore)
+
+function parseUAString(session: OriginalSession) {
+  return {
+    ...session,
+    userAgentParsed: new UAParser(session.userAgent),
+  }
+}
+
+type Session = ReturnType<typeof parseUAString>
+
+const sessions = computed(() => {
+  return originalSessions.value.map(parseUAString)
+})
 
 // TODO: Store session in a pinia store
 // TODO: Create computed getter with UAParser results
@@ -35,7 +50,7 @@ const columns: ColumnDef<Session>[] = [
     id: 'device',
     header: 'Device',
     cell: ({ row }) => {
-      const parsed = new UAParser(row.original.userAgent)
+      const parsed = row.original.userAgentParsed
       const { vendor, model } = parsed.getDevice()
       const { name: osName, version: osVersion } = parsed.getOS()
       return h('div', {}, [
@@ -49,7 +64,7 @@ const columns: ColumnDef<Session>[] = [
     id: 'browser',
     header: 'Browser',
     accessorFn: info => {
-      const { name, version } = new UAParser(info.userAgent).getBrowser()
+      const { name, version } = info.userAgentParsed.getBrowser()
       return `${name} ${version}`
     },
   },
@@ -84,10 +99,6 @@ const columns: ColumnDef<Session>[] = [
   },
 ]
 
-async function getSessions() {
-  sessions.value = await authService.getSessions()
-}
-
 async function deleteSession(sessionId: Session['id']) {
   // TODO: Include name of device and browser
   const confirmed = await appService.confirm({
@@ -99,14 +110,11 @@ async function deleteSession(sessionId: Session['id']) {
 
   if (confirmed) {
     await authService.deleteSession(sessionId)
-    sessions.value = sessions.value.filter(session => session.id !== sessionId)
     if (sessionId === currentSessionId.value) {
       authService.signOut()
     }
   }
 }
-
-onMounted(getSessions)
 </script>
 
 <template>

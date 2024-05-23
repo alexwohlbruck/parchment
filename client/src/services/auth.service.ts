@@ -113,13 +113,15 @@ function authService() {
     await api.delete(`/auth/passkeys/${passkeyId}`)
   }
 
-  async function getSessions() {
+  async function getSessions(): Promise<Session> {
     const { data: sessions } = await api.get(`/auth/sessions`)
+    authStore.setSessions(sessions)
     return sessions
   }
 
   async function deleteSession(sessionId: Session['id']) {
     await api.delete(`/auth/sessions/${sessionId}`)
+    authStore.removeSession(sessionId)
   }
 
   return {

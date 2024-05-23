@@ -24,8 +24,6 @@ const mapTheme = ref('auto')
 
 <template>
   <div class="flex flex-col gap-4 w-fit">
-    <H3>{{ $t('settings.appearance.title') }}</H3>
-
     <div>
       <H6>{{ $t('settings.appearance.appTheme.title') }}</H6>
       <ThemeControls class="mt-3" />

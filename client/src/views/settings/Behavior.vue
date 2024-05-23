@@ -27,8 +27,6 @@ watch(projection, value => {
 
 <template>
   <div class="flex flex-col gap-4 w-fit">
-    <H3>{{ $t('settings.behavior.title') }}</H3>
-
     <form class="flex flex-col gap-4">
       <FormField name="projection">
         <FormItem>

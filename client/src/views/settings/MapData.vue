@@ -18,8 +18,6 @@ const mapStore = useMapStore()
 
 <template>
   <div class="flex flex-col gap-4 w-fit items-start">
-    <H3>{{ $t('settings.mapData.title') }}</H3>
-
     <div>
       <H4>{{ $t('settings.mapData.library.title') }}</H4>
       <P>

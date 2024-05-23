@@ -100,10 +100,13 @@ const columns: ColumnDef<Session>[] = [
 ]
 
 async function deleteSession(sessionId: Session['id']) {
-  // TODO: Include name of device and browser
+  const session = sessions.value.find(session => session.id === sessionId)!
+  const browser = session.userAgentParsed.getBrowser().name
+  const device = session.userAgentParsed.getDevice().model
+
   const confirmed = await appService.confirm({
     title: 'Delete this session?',
-    description: 'You will be signed out on the respective device and browser',
+    description: `You will be signed out of ${browser} on your ${device}`,
     destructive: true,
     continueText: 'Delete',
   })

@@ -5,13 +5,13 @@ import { db } from '../db'
 import { appName, origins } from '../config'
 import { User } from '../schema/user'
 import { Passkey, passkeys } from '../schema/passkey'
-import { Session } from '../schema/session'
 import {
   generateAuthenticationOptions,
   generateRegistrationOptions,
 } from '@simplewebauthn/server'
 import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
 import { sessions } from '../schema/session'
+import { sendMail } from './mailer.service'
 
 // Webauthn relaying party information
 export const rpName = appName
@@ -69,7 +69,15 @@ export async function destroySession(cookie: Context['cookie']) {
  */
 export async function sendEmailVerificationCode(email: string, code: string) {
   console.log(email, code)
-  // TODO: Configure email server
+  await sendMail({
+    to: email,
+    from: 'onboarding',
+    subject: 'Parchment Email Verification',
+    template: 'verificationCode',
+    data: {
+      code,
+    },
+  })
   return true
 }
 

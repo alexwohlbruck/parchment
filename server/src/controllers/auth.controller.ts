@@ -216,12 +216,7 @@ app.group('/passkeys', (app) =>
         })
         .post(
           'verify',
-          async (context) => {
-            const {
-              body,
-              set,
-              cookie: { challenge },
-            } = context
+          async ({ body, cookie: { challenge }, set, headers }) => {
             if (!challenge.value) return (set.status = 400) // TODO: Make better error
 
             const passkey = (
@@ -247,7 +242,10 @@ app.group('/passkeys', (app) =>
 
             if (verification.verified) {
               const user = await fetchUser(passkey.userId)
-              const session = await createSession(user.id, context)
+              const session = await createSession(user.id, {
+                set,
+                headers,
+              })
               set.status = 201
               return {
                 token: session.id,

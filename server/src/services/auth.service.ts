@@ -25,19 +25,18 @@ export const rpID = origins.serverHostname.replace(/:\d+$/, '') // Remove port n
  */
 export async function createSession(
   userId: User['id'],
-  { set, headers }: Context,
+  { set, headers }: { set?: Context['set']; headers?: Context['headers'] },
 ) {
   const session = await lucia.createSession(userId, {})
   const sessionCookie = lucia.createSessionCookie(session.id)
 
-  set.status = 201
-  set.headers = {
-    ...set.headers,
+  set!.status = 201
+  set!.headers = {
+    ...set!.headers,
     Location: '/',
     'Set-Cookie': sessionCookie.serialize(),
   }
 
-  console.log(headers)
   // TODO: Set ip address
   await db
     .update(sessions)
@@ -45,6 +44,7 @@ export async function createSession(
       userAgent: headers ? headers['user-agent'] || '' : '',
     })
     .where(eq(sessions.id, session.id))
+    .returning()
 
   return session
 }

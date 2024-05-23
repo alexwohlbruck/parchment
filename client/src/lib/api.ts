@@ -4,7 +4,10 @@ import { toast } from 'vue-sonner'
 
 export const api = axios.create({
   withCredentials: true,
-  baseURL: 'http://localhost:5000',
+  baseURL:
+    process.env.NODE_ENV !== 'production'
+      ? 'https://parchment.onrender.com'
+      : 'http://localhost:5000',
 })
 
 function getErrorMessage(error: AxiosError): {

@@ -1,24 +1,27 @@
 import postgres from 'postgres'
-import { neon } from '@neondatabase/serverless'
+import { Pool } from '@neondatabase/serverless'
 import {
   drizzle as NeonAdapter,
-  type NeonHttpDatabase,
-} from 'drizzle-orm/neon-http'
+  type NeonDatabase,
+} from 'drizzle-orm/neon-serverless'
 import {
   drizzle as LocalAdapter,
   type PostgresJsDatabase,
 } from 'drizzle-orm/postgres-js'
 
+let connection: any
 let db:
-  | NeonHttpDatabase<Record<string, never>>
+  | NeonDatabase<Record<string, never>>
   | PostgresJsDatabase<Record<string, never>>
 
 if (process.env.NODE_ENV === 'production') {
-  const sql = neon(process.env.DATABASE_URL_NEON as string)
-  db = NeonAdapter(sql)
+  connection = new Pool({
+    connectionString: process.env.DATABASE_URL_NEON as string,
+  })
+  db = NeonAdapter(connection)
 } else {
-  const sql = postgres(process.env.DATABASE_URL_LOCAL as string)
-  db = LocalAdapter(sql)
+  connection = postgres(process.env.DATABASE_URL_LOCAL as string)
+  db = LocalAdapter(connection)
 }
 
-export { db }
+export { db, connection }

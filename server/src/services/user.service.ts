@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
-import { users } from '../schema/user'
+import { users } from '../schema/user.schema'
 
 export async function fetchUser(userId: string) {
   return (await db.select().from(users).where(eq(users.id, userId)))[0]

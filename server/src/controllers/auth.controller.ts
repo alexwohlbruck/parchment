@@ -1,12 +1,12 @@
 import Elysia, { t } from 'elysia'
 import { and, eq, desc } from 'drizzle-orm'
 import { db } from '../db'
-import { users } from '../schema/user'
+import { users } from '../schema/user.schema'
 import { auth } from '../middleware/auth.middleware'
 import { generateId } from '../util'
 import { origins } from '../config'
-import { Passkey, passkeys } from '../schema/passkey'
-import { sessions } from '../schema/session'
+import { Passkey, passkeys } from '../schema/passkey.schema'
+import { sessions } from '../schema/session.schema'
 import {
   createSession,
   destroySession,

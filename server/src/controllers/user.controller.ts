@@ -1,12 +1,12 @@
 import Elysia from 'elysia'
 import { db } from '../db'
 import { NewUser, User, users } from '../schema/user.schema'
-import { getSession } from '../middleware/auth.middleware'
-import { eq } from 'drizzle-orm'
+import { permissions } from '../middleware/auth.middleware'
 
 const app = new Elysia({ prefix: '/users' })
 
-app.get(
+// TODO: Make permission names type safe
+app.use(permissions('map.read')).get(
   '/',
   async (_context) => {
     const result: User[] = await db.select().from(users)

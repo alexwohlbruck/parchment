@@ -1,6 +1,6 @@
 import Elysia from 'elysia'
 import { db } from '../db'
-import { NewUser, User, users } from '../schema/user'
+import { NewUser, User, users } from '../schema/user.schema'
 import { auth } from '../middleware/auth.middleware'
 import { eq } from 'drizzle-orm'
 

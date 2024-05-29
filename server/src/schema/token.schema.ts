@@ -1,5 +1,5 @@
 import { pgTable, text, timestamp, pgEnum, boolean } from 'drizzle-orm/pg-core'
-import { users } from './user'
+import { users } from './user.schema'
 import { sql } from 'drizzle-orm'
 
 export const tokenType = pgEnum('token_type', ['otp', 'token'])

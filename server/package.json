@@ -7,6 +7,7 @@
     "start": "NODE_ENV=production bun src/index.ts",
     "test": "bun test",
     "generate": "drizzle-kit generate:pg",
+    "seed": "bun src/seed.ts",
     "migrate": "bun generate; bun src/migrate.ts",
     "studio": "drizzle-kit studio"
   },

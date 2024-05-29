@@ -85,6 +85,13 @@
       "when": 1715576513886,
       "tag": "0011_heavy_caretaker",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1716930761055,
+      "tag": "0012_mature_rattler",
+      "breakpoints": true
     }
   ]
 }

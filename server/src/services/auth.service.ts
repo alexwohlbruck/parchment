@@ -3,14 +3,14 @@ import { lucia } from '../lucia'
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { appName, origins } from '../config'
-import { User } from '../schema/user'
-import { Passkey, passkeys } from '../schema/passkey'
+import { User } from '../schema/user.schema'
+import { Passkey, passkeys } from '../schema/passkey.schema'
 import {
   generateAuthenticationOptions,
   generateRegistrationOptions,
 } from '@simplewebauthn/server'
 import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
-import { sessions } from '../schema/session'
+import { sessions } from '../schema/session.schema'
 import { sendMail } from './mailer.service'
 
 // Webauthn relaying party information

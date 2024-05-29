@@ -9,14 +9,14 @@ import { auth as authController, user as userController } from './controllers'
 
 const app = new Elysia()
 
-app.use(cors(corsConfig))
+app.use(cors(corsConfig) as any) // TODO: any
 app.use(swagger(swaggerConfig))
 
 app.use(authController)
 app.use(userController)
 
 app.onError(({ code }) => {
-  if (code === 'NOT_FOUND') return 'Route not found :('
+  if (code === 'NOT_FOUND') return 'Route not found :(' // TODO: i18n, proper error
 })
 
 app.listen(process.env.PORT || 5000)

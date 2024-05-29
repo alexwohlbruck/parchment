@@ -1,10 +1,10 @@
-import { Elysia } from 'elysia'
+import { Elysia, t } from 'elysia'
 import { verifyRequestOrigin } from 'lucia'
 import type { User, Session } from 'lucia'
 import { lucia } from '../lucia'
 import { origins } from '../config'
 
-export const auth = (app: Elysia) =>
+export const getSession = (app: Elysia) =>
   app.derive(
     async ({
       request,
@@ -56,3 +56,15 @@ export const auth = (app: Elysia) =>
       }
     },
   )
+
+// Use getSession to get user ID, return 401 if user is not authenticated
+export const requireAuth = (app: Elysia) =>
+  app.use(getSession).derive(async ({ set, user, session, error }) => {
+    if (!user) {
+      return error(401, 'You must be signed in') // TODO: i18n
+    }
+    return {
+      user,
+      session,
+    }
+  })

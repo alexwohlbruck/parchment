@@ -1,14 +1,17 @@
 import { Context } from 'elysia'
 import { lucia } from '../lucia'
-import { eq } from 'drizzle-orm'
-import { db } from '../db'
-import { appName, origins } from '../config'
-import { User } from '../schema/user.schema'
-import { Passkey, passkeys } from '../schema/passkey.schema'
+import { eq, and } from 'drizzle-orm'
 import {
   generateAuthenticationOptions,
   generateRegistrationOptions,
 } from '@simplewebauthn/server'
+import { db } from '../db'
+import { appName, origins } from '../config'
+import { User } from '../schema/user.schema'
+import { Passkey, passkeys } from '../schema/passkey.schema'
+import { usersToRoles } from '../schema/user-role.schema'
+import { permissions } from '../schema/permission.schema'
+import { roleToPermissions } from '../schema/role-permission.schema'
 import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
 import { sessions } from '../schema/session.schema'
 import { sendMail } from './mailer.service'
@@ -121,4 +124,19 @@ export async function generateWebauthnOptions(
         rpID,
       })
   }
+}
+
+export async function getPermissions(userId: User['id']) {
+  // TODO: Optimize this query for Redis caching
+  const result = await db
+    .select()
+    .from(usersToRoles)
+    .where(eq(usersToRoles.userId, userId))
+    .innerJoin(
+      roleToPermissions,
+      eq(usersToRoles.roleId, roleToPermissions.roleId),
+    )
+    .innerJoin(permissions, eq(roleToPermissions.permissionId, permissions.id))
+
+  return result.map(({ permission }) => permission.id)
 }

@@ -13,6 +13,7 @@ import {
   generateWebauthnOptions,
   rpID,
   sendEmailVerificationCode,
+  getPermissions,
 } from '../services/auth.service'
 import { fetchUser, fetchUserByEmail } from '../services/user.service'
 import {
@@ -356,9 +357,11 @@ app.group('/sessions', (app) => {
       }
       const sessionCookie = cookie['auth_session']
       const me = (await db.select().from(users).where(eq(users.id, user.id)))[0]
+      const permissions = await getPermissions(user.id)
       return {
         user: me,
         token: sessionCookie.value,
+        permissions,
       }
     },
     {

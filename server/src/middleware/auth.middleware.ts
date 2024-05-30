@@ -10,8 +10,7 @@ import {
   Permission,
   permissions as permissionsSchema,
 } from '../schema/permission.schema'
-import { and, eq } from 'drizzle-orm'
-import { roleToPermissions } from '../schema/role-permission.schema'
+import { getPermissions } from '../services/auth.service'
 
 export const getSession = (app: Elysia) =>
   app.derive(
@@ -87,21 +86,7 @@ export const permissions =
   (allowedPermissions: Permission['id'] | Permission['id'][]) =>
   (app: Elysia) =>
     app.use(getUser).derive(async ({ user, error }) => {
-      // TODO: Optimize this query for Redis caching
-      const result = await db
-        .select()
-        .from(usersToRoles)
-        .where(eq(usersToRoles.userId, user.id))
-        .innerJoin(
-          roleToPermissions,
-          eq(usersToRoles.roleId, roleToPermissions.roleId),
-        )
-        .innerJoin(
-          permissionsSchema,
-          eq(roleToPermissions.permissionId, permissionsSchema.id),
-        )
-
-      const userPermissions = result.map(({ permission }) => permission.id)
+      const userPermissions = await getPermissions(user.id)
 
       const hasPermission = Array.isArray(allowedPermissions)
         ? userPermissions.some((value) => allowedPermissions.includes(value))

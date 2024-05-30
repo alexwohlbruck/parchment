@@ -6,7 +6,7 @@ import { permissions } from '../middleware/auth.middleware'
 const app = new Elysia({ prefix: '/users' })
 
 // TODO: Make permission names type safe
-app.use(permissions('map.read')).get(
+app.use(permissions('map.update')).get(
   '/',
   async (_context) => {
     const result: User[] = await db.select().from(users)

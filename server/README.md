@@ -1,15 +1,25 @@
-# Elysia with Bun runtime
+# Parchment Web Server
+Web server and API for the Parchment Maps application.
 
-## Getting Started
-To get started with this template, simply paste this command into your terminal:
-```bash
-bun create elysia ./elysia-example
-```
+## Setup
+### Recommended software
+- [Bun](https://bun.sh)
+- [VS Code](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur) + [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin).
+
+### Steps
+1. Install packages
+   `bun i`
+2. Environment variables setup
+   1. Create `.env.local` file inside root directory
+   2. Add the required environment variables listed below
+   
+### Environment variables
+These are env variables that are required to run the app. These are subject to change as development progresses.
+`DATABASE_URL_NEON`: Connection string for production Neon DB
+`DATABASE_URL_LOCAL`: Connection string for local development Postgres DB
+`GMAIL_EMAIL`: Your Gmail email address
+`GMAIL_APP_PASSWORD`: Your Gmail app password, for sending emails from the server
 
 ## Development
-To start the development server run:
-```bash
-bun run dev
-```
-
-Open http://localhost:3000/ with your browser to see the result.
+1. Run development server
+  `bun dev`

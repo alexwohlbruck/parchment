@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { h, onMounted, ref } from 'vue'
 import dayjs from 'dayjs'
+import { z } from 'zod'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
 import { ColumnDef } from '@tanstack/vue-table'
 import { User } from '@/types/auth.types'
@@ -14,9 +15,11 @@ import { PlusIcon, Trash2Icon } from 'lucide-vue-next'
 import Avatar from '@/components/ui/avatar/Avatar.vue'
 import AvatarImage from '@/components/ui/avatar/AvatarImage.vue'
 import Badge from '@/components/ui/badge/Badge.vue'
+import { useAppService } from '@/services/app.service'
 
 dayjs.extend(localizedFormat)
 
+const appService = useAppService()
 const userService = useUserService()
 const users = ref<User[]>([])
 
@@ -29,10 +32,6 @@ const columns: ColumnDef<User>[] = [
           src: row.original.picture || '',
         }),
       ]),
-  },
-  {
-    header: 'ID',
-    accessorKey: 'id',
   },
   {
     header: 'Name',
@@ -72,20 +71,38 @@ const columns: ColumnDef<User>[] = [
   },
 ]
 
-async function getPasskeys() {
+async function getUsers() {
   users.value = await userService.getUsers()
 }
 
-onMounted(getPasskeys)
+async function inviteUser() {
+  const user = await appService.promptForm({
+    title: 'Test',
+    schema: z.object({
+      firstName: z.string().describe('First name'), // TODO: i18n
+      lastName: z.string(),
+      email: z.string().email(),
+      picture: z.string().url(),
+    }),
+  })
+
+  const newUser = await userService.inviteUser(user)
+
+  users.value = [...users.value, newUser]
+
+  appService.toast.success(`Invitation sent to ${user.email}`) // TODO: i18n
+}
+
+onMounted(getUsers)
 </script>
 
 <template>
   <div class="flex w-full align-center justify-between">
     <H4 class="leading-loose">Users</H4>
 
-    <!-- <Button @click="addPasskey()" variant="outline" :icon="PlusIcon">
-      Add user
-    </Button> -->
+    <Button @click="inviteUser()" variant="outline" :icon="PlusIcon">
+      Invite user
+    </Button>
   </div>
 
   <DataTable class="w-full" :columns="columns" :data="users"></DataTable>

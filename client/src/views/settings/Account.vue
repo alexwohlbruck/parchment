@@ -24,7 +24,7 @@ const { me } = storeToRefs(authStore)
           <span class="text-sm font-semibold leading-4">
             {{ me.firstName }} {{ me.lastName }}
           </span>
-          <span class="text-xs text-gray-500 leading-4">Admin</span>
+          <span class="text-xs text-gray-500 leading-4">{{ me.email }}</span>
         </div>
 
         <div class="flex-1"></div>

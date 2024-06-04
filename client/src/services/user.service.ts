@@ -17,10 +17,21 @@ function userService() {
     return permissions
   }
 
+  async function inviteUser(user: {
+    firstName: string
+    lastName: string
+    email: string
+    picture?: string
+  }) {
+    const { data: newUser } = await api.post('/users', user)
+    return newUser
+  }
+
   return {
     getUsers,
     getRoles,
     getPermissions,
+    inviteUser,
   }
 }
 

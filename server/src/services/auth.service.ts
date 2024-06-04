@@ -15,6 +15,7 @@ import { roleToPermissions } from '../schema/role-permission.schema'
 import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
 import { sessions } from '../schema/session.schema'
 import { sendMail } from './mailer.service'
+import { roles } from '../schema/role.schema'
 
 // Webauthn relaying party information
 export const rpName = appName
@@ -139,4 +140,14 @@ export async function getPermissions(userId: User['id']) {
     .innerJoin(permissions, eq(roleToPermissions.permissionId, permissions.id))
 
   return result.map(({ permission }) => permission.id)
+}
+
+export async function getRoles(userId: User['id']) {
+  const result = await db
+    .select()
+    .from(usersToRoles)
+    .where(eq(usersToRoles.userId, userId))
+    .innerJoin(roles, eq(usersToRoles.roleId, roles.id))
+
+  return result.map(({ role }) => role)
 }

@@ -44,11 +44,11 @@ const columns: ColumnDef<Role>[] = [
   },
 ]
 
-async function getPasskeys() {
+async function getRoles() {
   roles.value = await userService.getRoles()
 }
 
-onMounted(getPasskeys)
+onMounted(getRoles)
 </script>
 
 <template>

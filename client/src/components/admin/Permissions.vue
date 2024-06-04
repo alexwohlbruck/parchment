@@ -28,11 +28,11 @@ const columns: ColumnDef<Permission>[] = [
   },
 ]
 
-async function getPasskeys() {
+async function getPermissions() {
   permissions.value = await userService.getPermissions()
 }
 
-onMounted(getPasskeys)
+onMounted(getPermissions)
 </script>
 
 <template>

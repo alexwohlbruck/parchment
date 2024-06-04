@@ -1,5 +1,7 @@
+import { toast } from 'vue-sonner'
 import { useAppStore } from '@/stores/app.store'
 import {
+  AutoFormDialogOptions,
   ConfirmDialogOptions,
   DialogType,
   PromptDialogOptions,
@@ -17,9 +19,15 @@ function appService() {
     return appStore.createDialog(DialogType.Prompt, options)
   }
 
+  async function promptForm(options: AutoFormDialogOptions): Promise<object> {
+    return appStore.createDialog(DialogType.AutoForm, options)
+  }
+
   return {
     confirm,
     prompt,
+    promptForm,
+    toast,
   }
 }
 

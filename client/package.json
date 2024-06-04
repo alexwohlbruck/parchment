@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@internationalized/date": "^3.5.4",
     "@mdi/js": "^7.4.47",
     "@morev/vue-transitions": "^2.3.6",
     "@simplewebauthn/browser": "^10.0.0",

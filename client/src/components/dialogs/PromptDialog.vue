@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { defineProps, defineEmits, ref } from 'vue'
 import { useForm, useIsFormValid } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import * as z from 'zod'

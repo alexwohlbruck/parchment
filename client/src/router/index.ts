@@ -13,6 +13,7 @@ export enum AppRoute {
   BEHAVIOR = 'behavior',
   APPEARANCE = 'appearance',
   MAP_DATA = 'mapData',
+  USERS = 'users',
 }
 
 function keepDefaultView(to, from) {
@@ -79,6 +80,11 @@ const router = createRouter({
           path: '/settings/map-data',
           name: AppRoute.MAP_DATA,
           component: () => import('../views/settings/MapData.vue'),
+        },
+        {
+          path: '/settings/users',
+          name: AppRoute.USERS,
+          component: () => import('../views/settings/Users.vue'),
         },
       ],
     },

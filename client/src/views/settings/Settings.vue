@@ -11,6 +11,7 @@ import {
   PaintbrushIcon,
   DatabaseIcon,
   ActivityIcon,
+  Contact2Icon,
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -36,6 +37,12 @@ const pages = [
     id: 'mapData',
     to: '/settings/map-data',
     icon: DatabaseIcon,
+  },
+  {
+    id: 'users',
+    to: '/settings/users',
+    icon: Contact2Icon,
+    disabled: true,
   },
   {
     id: 'system',

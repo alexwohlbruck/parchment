@@ -179,6 +179,9 @@
         "description": "Choose layers to display in the layer selector"
       }
     },
+    "users": {
+      "title": "Users & Roles"
+    },
     "system": {
       "title": "System"
     }

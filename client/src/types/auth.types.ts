@@ -6,6 +6,13 @@ export type Role = {
   updatedAt: string
 }
 
+export type Permission = {
+  id: string
+  name: string
+  createdAt: string
+  updatedAt: string
+}
+
 export type User = {
   id: string
   email: string

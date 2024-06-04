@@ -7,8 +7,20 @@ function userService() {
     return users
   }
 
+  async function getRoles() {
+    const { data: roles } = await api.get('/users/roles')
+    return roles
+  }
+
+  async function getPermissions() {
+    const { data: permissions } = await api.get('/users/permissions')
+    return permissions
+  }
+
   return {
     getUsers,
+    getRoles,
+    getPermissions,
   }
 }
 

@@ -3,7 +3,7 @@ import { h, onMounted, ref } from 'vue'
 import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
 import { ColumnDef } from '@tanstack/vue-table'
-import { Role } from '@/types/auth.types'
+import { Permission, Role } from '@/types/auth.types'
 
 import { useUserService } from '@/services/user.service'
 
@@ -15,9 +15,9 @@ import { Trash2Icon } from 'lucide-vue-next'
 dayjs.extend(localizedFormat)
 
 const userService = useUserService()
-const roles = ref<Role[]>([])
+const permissions = ref<Permission[]>([])
 
-const columns: ColumnDef<Role>[] = [
+const columns: ColumnDef<Permission>[] = [
   {
     header: 'ID',
     accessorKey: 'id',
@@ -26,26 +26,10 @@ const columns: ColumnDef<Role>[] = [
     header: 'Name',
     accessorKey: 'name',
   },
-  {
-    header: 'Description',
-    accessorKey: 'description',
-  },
-  {
-    id: 'delete',
-    cell: ({ row }) =>
-      h(Button, {
-        disabled: true, // TODO: User delete
-        variant: 'outline',
-        size: 'icon',
-        icon: Trash2Icon,
-        class: 'text-destructive',
-        description: 'Delete user',
-      }),
-  },
 ]
 
 async function getPasskeys() {
-  roles.value = await userService.getRoles()
+  permissions.value = await userService.getPermissions()
 }
 
 onMounted(getPasskeys)
@@ -53,8 +37,8 @@ onMounted(getPasskeys)
 
 <template>
   <div class="flex w-full align-center justify-between">
-    <H4 class="leading-loose">Roles</H4>
+    <H4 class="leading-loose">Permissions</H4>
   </div>
 
-  <DataTable class="w-full" :columns="columns" :data="roles"></DataTable>
+  <DataTable class="w-full" :columns="columns" :data="permissions"></DataTable>
 </template>

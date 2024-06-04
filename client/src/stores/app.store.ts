@@ -4,6 +4,7 @@ import { Component, ref } from 'vue'
 
 import ConfirmDialog from '@/components/dialogs/ConfirmDialog.vue'
 import PromptDialog from '@/components/dialogs/PromptDialog.vue'
+import AutoformDialog from '@/components/dialogs/AutoformDialog.vue'
 
 export const useAppStore = defineStore('app', () => {
   const dialogs = ref<
@@ -24,7 +25,7 @@ export const useAppStore = defineStore('app', () => {
       const dialogTypesMap = {
         [DialogType.Confirm]: ConfirmDialog,
         [DialogType.Prompt]: PromptDialog,
-        [DialogType.AutoForm]: ConfirmDialog, // TODO
+        [DialogType.AutoForm]: AutoformDialog,
         [DialogType.Template]: ConfirmDialog, // TODO
       }
 

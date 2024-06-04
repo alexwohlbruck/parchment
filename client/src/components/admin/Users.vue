@@ -3,7 +3,7 @@ import { h, onMounted, ref } from 'vue'
 import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
 import { ColumnDef } from '@tanstack/vue-table'
-import { Passkey, User } from '@/types/auth.types'
+import { User } from '@/types/auth.types'
 
 import { useUserService } from '@/services/user.service'
 
@@ -29,6 +29,10 @@ const columns: ColumnDef<User>[] = [
           src: row.original.picture || '',
         }),
       ]),
+  },
+  {
+    header: 'ID',
+    accessorKey: 'id',
   },
   {
     header: 'Name',

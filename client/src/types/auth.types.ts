@@ -1,3 +1,11 @@
+export type Role = {
+  id: string
+  name: string
+  description: string
+  createdAt: string
+  updatedAt: string
+}
+
 export type User = {
   id: string
   email: string
@@ -5,6 +13,7 @@ export type User = {
   firstName?: string
   lastName?: string
   picture?: string
+  roles?: Role[]
 }
 
 export type Passkey = {

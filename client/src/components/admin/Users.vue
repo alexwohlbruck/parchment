@@ -77,7 +77,7 @@ async function getUsers() {
 
 async function inviteUser() {
   const user = await appService.promptForm({
-    title: 'Test',
+    title: 'Invite user',
     schema: z.object({
       firstName: z.string().describe('First name'), // TODO: i18n
       lastName: z.string(),

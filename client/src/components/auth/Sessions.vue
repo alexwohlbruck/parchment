@@ -32,7 +32,7 @@ const { sessionId: currentSessionId, sessions: originalSessions } =
 function parseUAString(session: OriginalSession) {
   return {
     ...session,
-    userAgentParsed: new UAParser(session.userAgent),
+    userAgentParsed: session.userAgent ? new UAParser(session.userAgent) : null,
   }
 }
 
@@ -51,6 +51,7 @@ const columns: ColumnDef<Session>[] = [
     header: 'Device',
     cell: ({ row }) => {
       const parsed = row.original.userAgentParsed
+      if (!parsed) return 'Unknown'
       const { vendor, model } = parsed.getDevice()
       const { name: osName, version: osVersion } = parsed.getOS()
       return h('div', {}, [
@@ -64,7 +65,9 @@ const columns: ColumnDef<Session>[] = [
     id: 'browser',
     header: 'Browser',
     accessorFn: info => {
-      const { name, version } = info.userAgentParsed.getBrowser()
+      const parsed = info.userAgentParsed
+      if (!parsed) return 'Unknown' // TODO: i18n
+      const { name, version } = parsed.getBrowser()
       return `${name} ${version}`
     },
   },

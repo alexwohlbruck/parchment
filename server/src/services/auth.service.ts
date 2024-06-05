@@ -19,7 +19,7 @@ import { roles } from '../schema/role.schema'
 
 // Webauthn relaying party information
 export const rpName = appName
-export const rpID = origins.serverHostname.replace(/:\d+$/, '') // Remove port number
+export const rpID = origins.clientHostname.replace(/:\d+$/, '') // Remove port number
 
 /**
  * Create a new session for a user, sign in

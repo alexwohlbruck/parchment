@@ -6,7 +6,7 @@ export const api = axios.create({
   withCredentials: true,
   baseURL:
     process.env.NODE_ENV === 'production'
-      ? 'https://parchment.onrender.com'
+      ? 'https://api.parchment.app'
       : 'http://localhost:5000',
 })
 

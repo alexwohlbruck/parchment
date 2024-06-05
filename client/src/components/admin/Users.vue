@@ -76,15 +76,17 @@ async function getUsers() {
 }
 
 async function inviteUser() {
-  const user = await appService.promptForm({
-    title: 'Invite user',
-    schema: z.object({
-      firstName: z.string().describe('First name'), // TODO: i18n
-      lastName: z.string(),
-      email: z.string().email(),
-      picture: z.string().url(),
-    }),
+  const schema = z.object({
+    firstName: z.string().describe('First name'), // TODO: i18n
+    lastName: z.string(),
+    email: z.string().email(),
+    picture: z.string().url(),
   })
+
+  const user = (await appService.promptForm({
+    title: 'Invite user',
+    schema,
+  })) as z.infer<typeof schema>
 
   const newUser = await userService.inviteUser(user)
 

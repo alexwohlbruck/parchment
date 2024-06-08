@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { createSharedComposable } from '@vueuse/core'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 import { Session } from '@/types/session.types'
+import { Permission, PermissionList } from '@/types/auth.types'
 
 // TODO: Return types
 
@@ -13,10 +14,11 @@ function authService() {
     const authenticatedUserPromise = api.get('auth/sessions/current')
     authStore.setAuthenticatedUserPromise(authenticatedUserPromise)
     const {
-      data: { user, token: sessionId },
+      data: { user, token: sessionId, permissions },
     } = await authenticatedUserPromise
     if (user) {
       authStore.setAuthenticatedUser(user, sessionId)
+      authStore.setPermissions(permissions)
     } else {
       authStore.unsetAuthenticatedUser()
     }
@@ -124,6 +126,16 @@ function authService() {
     authStore.removeSession(sessionId)
   }
 
+  function hasPermission(permissions: Permission['id'] | PermissionList) {
+    const userPermissions = authStore.permissions
+
+    const hasPermission = Array.isArray(permissions)
+      ? userPermissions.some(value => permissions.includes(value))
+      : userPermissions.includes(permissions)
+
+    return hasPermission
+  }
+
   return {
     getAuthenticatedUser,
     verifyEmail,
@@ -135,6 +147,7 @@ function authService() {
     deletePasskey,
     getSessions,
     deleteSession,
+    hasPermission,
   }
 }
 

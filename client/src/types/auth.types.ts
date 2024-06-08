@@ -13,6 +13,8 @@ export type Permission = {
   updatedAt: string
 }
 
+export type PermissionList = Permission['id'][]
+
 export type User = {
   id: string
   email: string

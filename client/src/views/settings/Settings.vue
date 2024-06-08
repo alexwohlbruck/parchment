@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { useAuthService } from '@/services/auth.service'
 
 import H2 from '@/components/ui/typography/H2.vue'
 import { Separator } from '@/components/ui/separator'
 import Button from '@/components/ui/button/Button.vue'
 
+import { Icon } from '@/types/app.types'
 import {
   UserRoundIcon,
   CogIcon,
@@ -13,10 +15,19 @@ import {
   ActivityIcon,
   Contact2Icon,
 } from 'lucide-vue-next'
+import { Permission, PermissionList } from '@/types/auth.types'
+import { computed } from 'vue'
 
 const router = useRouter()
+const authService = useAuthService()
 
-const pages = [
+const pages: {
+  id: string
+  to: string
+  icon: Icon
+  disabled?: boolean
+  permissions?: Permission['id'] | PermissionList
+}[] = [
   {
     id: 'account',
     to: '/settings/account',
@@ -43,14 +54,22 @@ const pages = [
     to: '/settings/users',
     icon: Contact2Icon,
     disabled: true,
+    permissions: 'settings.users:read', // TODO: Global permissions list
   },
   {
     id: 'system',
     to: '/settings/system',
     icon: ActivityIcon,
     disabled: true,
+    permissions: 'settings.system:read', // TODO: Global permissions list
   },
 ]
+
+const allowedPages = computed(() => {
+  return pages.filter(
+    page => !page.permissions || authService.hasPermission(page.permissions),
+  )
+})
 </script>
 
 <template>
@@ -65,7 +84,7 @@ const pages = [
     <div class="flex gap-4">
       <div class="w-40">
         <Button
-          v-for="(page, i) in pages"
+          v-for="(page, i) in allowedPages"
           :key="i"
           variant="ghost"
           class="w-full flex px-3 justify-center gap-3"

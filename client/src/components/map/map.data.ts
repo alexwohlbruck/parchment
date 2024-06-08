@@ -1,3 +1,4 @@
+import { Icon } from '@/types/app.types'
 import { Basemap, MapLayer } from '@/types/map.types'
 import {
   Globe2Icon,
@@ -8,8 +9,6 @@ import {
   CarIcon,
   MountainSnowIcon,
 } from 'lucide-vue-next'
-
-export type Icon = typeof Globe2Icon
 
 /**
  * TODO:

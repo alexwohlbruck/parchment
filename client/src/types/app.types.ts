@@ -1,4 +1,7 @@
+import { Globe2Icon } from 'lucide-vue-next'
 import { ZodObject } from 'zod'
+
+export type Icon = typeof Globe2Icon
 
 export enum DialogType {
   Confirm,

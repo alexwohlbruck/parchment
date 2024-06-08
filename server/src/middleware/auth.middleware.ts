@@ -65,7 +65,7 @@ export const getSession = (app: Elysia) =>
 export const requireAuth = (app: Elysia) =>
   app.use(getSession).derive(async ({ set, user, error }) => {
     if (!user) {
-      return error(401, 'You must be signed in') // TODO: i18n
+      return error(401, { message: 'You must be signed in' }) // TODO: i18n
     }
     return {
       user,
@@ -93,7 +93,7 @@ export const permissions =
         : userPermissions.includes(allowedPermissions)
 
       if (!hasPermission) {
-        return error(401, 'You do not have permission to do this')
+        return error(401, { message: 'You do not have permission to do this' })
       }
 
       return {

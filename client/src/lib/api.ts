@@ -19,7 +19,7 @@ function getErrorMessage(error: AxiosError): {
 
   if (data?.errors) {
     return {
-      title: `${capitalize(data.type)} error`,
+      title: `${capitalize(data.type)} error`, // TODO: i18n
       description: `${data.message} on ${data.on}: ${data.property}`,
     }
   }
@@ -37,7 +37,7 @@ function getErrorMessage(error: AxiosError): {
   }
 
   return {
-    title: 'An unknown error occurred',
+    title: 'An unknown error occurred', // TODO: i18n
   }
 }
 

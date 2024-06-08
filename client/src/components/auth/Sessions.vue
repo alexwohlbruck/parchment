@@ -51,7 +51,7 @@ const columns: ColumnDef<Session>[] = [
     header: 'Device',
     cell: ({ row }) => {
       const parsed = row.original.userAgentParsed
-      if (!parsed) return 'Unknown'
+      if (!parsed) return 'Unknown' // TODO: i18n
       const { vendor, model } = parsed.getDevice()
       const { name: osName, version: osVersion } = parsed.getOS()
       return h('div', {}, [

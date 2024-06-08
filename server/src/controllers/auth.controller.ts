@@ -51,21 +51,22 @@ app.post('me', async () => {
 
 app.post(
   'verify',
-  async ({ body: { email }, set }) => {
+  async ({ body: { email }, set, error }) => {
     let user = await fetchUserByEmail(email)
 
     if (!user) {
-      const userId = generateId()
-
-      user = (
-        await db
-          .insert(users)
-          .values({
-            id: userId,
-            email,
-          })
-          .returning()
-      )[0]
+      // For now, we will have an invite-only system. When the app is opened up to GP, we will use this code to create an account for new users
+      return error(404, { message: 'User does not exist' }) // TODO: i18n
+      // const userId = generateId()
+      // user = (
+      //   await db
+      //     .insert(users)
+      //     .values({
+      //       id: userId,
+      //       email,
+      //     })
+      //     .returning()
+      // )[0]
     }
 
     const verificationCode = await createServerToken('otp', user.id)
@@ -130,13 +131,13 @@ app.group('/passkeys', (app) => {
         })
 
         if (!verification.verified) {
-          return error(401, 'Passkey verification failed') // TODO: i18n
+          return error(401, { message: 'Passkey verification failed' }) // TODO: i18n
         }
 
         const { registrationInfo } = verification
 
         if (!registrationInfo) {
-          return error(401, 'Passkey verification failed') // TODO: i18n
+          return error(401, { message: 'Passkey verification failed' }) // TODO: i18n
         }
 
         const {
@@ -211,7 +212,7 @@ app.group('/passkeys', (app) => {
       'verify',
       async ({ body, cookie: { challenge }, set, headers, error }) => {
         if (!challenge.value) {
-          return error(401, 'Could not find challenge cookie') // TODO: i18n
+          return error(401, { message: 'Could not find challenge cookie' }) // TODO: i18n
         }
 
         const passkey = (
@@ -219,7 +220,7 @@ app.group('/passkeys', (app) => {
         )[0]
 
         if (!passkey) {
-          return error(401, 'Passkey does not exist for this user') // TODO: i18n
+          return error(401, { message: 'Passkey does not exist for this user' }) // TODO: i18n
         }
 
         const verification = await verifyAuthenticationResponse({
@@ -251,7 +252,7 @@ app.group('/passkeys', (app) => {
         }
 
         challenge.remove()
-        return error(401, 'Passkey verification failed') // TODO: i18n
+        return error(401, { message: 'Passkey verification failed' }) // TODO: i18n
       },
       {
         body: t.Object({
@@ -300,13 +301,13 @@ app.group('/sessions', (app) => {
       const user = await fetchUserByEmail(email)
 
       if (!user) {
-        return error(404, 'User not found')
+        return error(404, { message: 'User does not exist' })
       }
 
       const { id: userId } = await fetchUserByEmail(email)
       const isValid = await validateServerToken(token, 'otp', userId)
 
-      if (!isValid) return error(401, 'Invalid or expired session') // TODO: i18n
+      if (!isValid) return error(401, { message: 'Invalid or expired session' }) // TODO: i18n
 
       const session = await createSession(user.id, context)
 

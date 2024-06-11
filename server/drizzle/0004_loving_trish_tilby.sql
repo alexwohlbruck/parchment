@@ -1,1 +1,0 @@
-ALTER TABLE "session" ADD COLUMN "ipv4" text NOT NULL;

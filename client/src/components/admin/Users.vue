@@ -7,6 +7,8 @@ import { ColumnDef } from '@tanstack/vue-table'
 import { User } from '@/types/auth.types'
 
 import { useUserService } from '@/services/user.service'
+import { useAppService } from '@/services/app.service'
+import { useAuthService } from '@/services/auth.service'
 
 import { H4 } from '@/components/ui/typography'
 import DataTable from '@/components/table/DataTable.vue'
@@ -15,11 +17,11 @@ import { PlusIcon, Trash2Icon } from 'lucide-vue-next'
 import Avatar from '@/components/ui/avatar/Avatar.vue'
 import AvatarImage from '@/components/ui/avatar/AvatarImage.vue'
 import Badge from '@/components/ui/badge/Badge.vue'
-import { useAppService } from '@/services/app.service'
 
 dayjs.extend(localizedFormat)
 
 const appService = useAppService()
+const authService = useAuthService()
 const userService = useUserService()
 const users = ref<User[]>([])
 
@@ -102,7 +104,12 @@ onMounted(getUsers)
   <div class="flex w-full align-center justify-between">
     <H4 class="leading-loose">Users</H4>
 
-    <Button @click="inviteUser()" variant="outline" :icon="PlusIcon">
+    <Button
+      v-if="authService.hasPermission('users:create')"
+      @click="inviteUser()"
+      variant="outline"
+      :icon="PlusIcon"
+    >
       Invite user
     </Button>
   </div>

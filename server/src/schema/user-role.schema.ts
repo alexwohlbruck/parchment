@@ -11,7 +11,7 @@ export const usersToRoles = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     roleId: text('role_id')
       .notNull()
-      .references(() => roles.id, { onDelete: 'cascade' }),
+      .references(() => roles.id, { onDelete: 'no action' }),
   },
   (t) => ({
     pk: primaryKey({ columns: [t.userId, t.roleId] }),

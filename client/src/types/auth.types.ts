@@ -13,7 +13,14 @@ export type Permission = {
   updatedAt: string
 }
 
-export type PermissionList = Permission['id'][]
+export type PermissionId = Permission['id']
+export type AnyPermission = PermissionId[]
+export type PermissionRule =
+  | PermissionId
+  | {
+      all?: PermissionId | PermissionId[]
+      any?: PermissionId[]
+    }
 
 export type User = {
   id: string

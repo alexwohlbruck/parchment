@@ -1,1 +1,0 @@
-ALTER TABLE "passkey" DROP COLUMN IF EXISTS "webauthn_user_id";

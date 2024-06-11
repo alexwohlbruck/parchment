@@ -11,6 +11,7 @@ import { H4 } from '@/components/ui/typography'
 import DataTable from '@/components/table/DataTable.vue'
 import { Button } from '@/components/ui/button'
 import { Trash2Icon } from 'lucide-vue-next'
+import { Code } from '@/components/ui/code'
 
 dayjs.extend(localizedFormat)
 
@@ -20,7 +21,7 @@ const roles = ref<Role[]>([])
 const columns: ColumnDef<Role>[] = [
   {
     header: 'ID',
-    accessorKey: 'id',
+    cell: ({ row }) => h(Code, {}, row.original.id),
   },
   {
     header: 'Name',

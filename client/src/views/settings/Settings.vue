@@ -15,7 +15,7 @@ import {
   ActivityIcon,
   Contact2Icon,
 } from 'lucide-vue-next'
-import { Permission, PermissionList } from '@/types/auth.types'
+import { PermissionRule } from '@/types/auth.types'
 import { computed } from 'vue'
 
 const router = useRouter()
@@ -26,7 +26,7 @@ const pages: {
   to: string
   icon: Icon
   disabled?: boolean
-  permissions?: Permission['id'] | PermissionList
+  permissions?: PermissionRule
 }[] = [
   {
     id: 'account',
@@ -54,14 +54,16 @@ const pages: {
     to: '/settings/users',
     icon: Contact2Icon,
     disabled: true,
-    permissions: 'settings.users:read', // TODO: Global permissions list
+    permissions: {
+      any: ['users:read', 'roles:read', 'permissions:read'],
+    }, // TODO: Global permissions list
   },
   {
     id: 'system',
     to: '/settings/system',
     icon: ActivityIcon,
     disabled: true,
-    permissions: 'settings.system:read', // TODO: Global permissions list
+    permissions: 'system:read', // TODO: Global permissions list
   },
 ]
 

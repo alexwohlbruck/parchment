@@ -1,20 +1,20 @@
 import Elysia, { t } from 'elysia'
 import { db } from '../db'
-import { NewUser, users } from '../schema/user.schema'
+import { users } from '../schema/user.schema'
 import { usersToRoles } from '../schema/user-role.schema'
 import { roles } from '../schema/role.schema'
 import { eq, sql } from 'drizzle-orm'
-import { permissions } from '../schema/permission.schema'
+import { permissions as permissionsSchema } from '../schema/permission.schema'
 import { generateId } from '../util'
 import { getRoles } from '../services/auth.service'
-import md5 from 'md5'
 import { sendMail } from '../services/mailer.service'
+import { permissions } from '../middleware/auth.middleware'
 
 const app = new Elysia({ prefix: '/users' })
 
 // TODO: Make permission names type safe
 app
-  // .use(permissions('users:read')) // TODO:
+  .use(permissions('users:read')) // TODO:
   .get(
     '/',
     async (_context) => {
@@ -61,7 +61,7 @@ app
 app
   // .use(permissions('permissions:read')) // TODO:
   .get('/permissions', async (_context) => {
-    const result = await db.select().from(permissions)
+    const result = await db.select().from(permissionsSchema)
     return result
   })
 

@@ -5,92 +5,15 @@
     {
       "idx": 0,
       "version": "5",
-      "when": 1714627103715,
-      "tag": "0000_stormy_purifiers",
+      "when": 1718034017472,
+      "tag": "0000_peaceful_patriot",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "5",
-      "when": 1714627674876,
-      "tag": "0001_tiresome_shockwave",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "5",
-      "when": 1714797681538,
-      "tag": "0002_workable_justice",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "5",
-      "when": 1715318211091,
-      "tag": "0003_massive_johnny_blaze",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "5",
-      "when": 1715567478559,
-      "tag": "0004_loving_trish_tilby",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "5",
-      "when": 1715567535478,
-      "tag": "0005_clear_satana",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "5",
-      "when": 1715567554612,
-      "tag": "0006_dark_firedrake",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "5",
-      "when": 1715567568181,
-      "tag": "0007_curvy_forge",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "5",
-      "when": 1715567642224,
-      "tag": "0008_cool_puma",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "5",
-      "when": 1715567759379,
-      "tag": "0009_fat_shen",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "5",
-      "when": 1715568361348,
-      "tag": "0010_wooden_darwin",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "5",
-      "when": 1715576513886,
-      "tag": "0011_heavy_caretaker",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "5",
-      "when": 1716930761055,
-      "tag": "0012_mature_rattler",
+      "when": 1718125815609,
+      "tag": "0001_familiar_sumo",
       "breakpoints": true
     }
   ]

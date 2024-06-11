@@ -3,14 +3,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { createSharedComposable } from '@vueuse/core'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 import { Session } from '@/types/session.types'
-import {
-  Permission,
-  PermissionId,
-  PermissionList,
-  PermissionRule,
-  AnyPermission,
-  AllPermissions,
-} from '@/types/auth.types'
+import { PermissionId, PermissionRule } from '@/types/auth.types'
 
 // TODO: Return types
 
@@ -166,7 +159,7 @@ function authService() {
   /**
    * Check if a user has any of a given list of permission IDs
    */
-  function hasAnyPermission(permissions: PermissionList) {
+  function hasAnyPermission(permissions: PermissionId[]) {
     const userPermissions = authStore.permissions
     return permissions.some(value => userPermissions.includes(value))
   }

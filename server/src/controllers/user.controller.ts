@@ -6,7 +6,11 @@ import { roles } from '../schema/role.schema'
 import { eq, sql } from 'drizzle-orm'
 import { permissions as permissionsSchema } from '../schema/permission.schema'
 import { generateId } from '../util'
-import { getRoles } from '../services/auth.service'
+import {
+  getPermissions,
+  getRoles,
+  hasPermission,
+} from '../services/auth.service'
 import { sendMail } from '../services/mailer.service'
 import { permissions } from '../middleware/auth.middleware'
 
@@ -65,51 +69,54 @@ app
     return result
   })
 
-app
-  // .use(permissions('users:create')) // TODO:
-  .post(
-    '/',
-    async ({ body }) => {
-      const result = await db
-        .insert(users)
-        .values({
-          id: generateId(),
-          ...body,
-        })
-        .returning()
+app.use(permissions('users:create')).post(
+  '/',
+  async ({ body }) => {
+    // TODO: Require new permission to add users with elevated privileges
 
-      const newUser = result[0]
-
-      await db.insert(usersToRoles).values({
-        userId: newUser.id,
-        roleId: 'user',
+    const result = await db
+      .insert(users)
+      .values({
+        id: generateId(),
+        ...body,
       })
+      .returning()
 
-      const roles = await getRoles(newUser.id)
+    const newUser = result[0]
 
-      await sendMail({
-        to: newUser.email,
-        from: 'onboarding',
-        subject: 'You are invited to Parchment Maps',
-        template: 'invitation',
-      })
+    await db.insert(usersToRoles).values({
+      userId: newUser.id,
+      roleId: body.role || 'user',
+    })
 
-      return {
-        ...newUser,
-        roles,
-      }
-    },
-    {
-      body: t.Object({
-        firstName: t.String(),
-        lastName: t.String(),
-        email: t.String({
-          format: 'email',
-        }),
-        picture: t.Optional(t.String()),
+    const roles = await getRoles(newUser.id)
+
+    await sendMail({
+      to: newUser.email,
+      from: 'onboarding',
+      subject: 'You are invited to Parchment Maps',
+      template: 'invitation',
+    })
+
+    return {
+      ...newUser,
+      roles,
+    }
+  },
+  {
+    body: t.Object({
+      firstName: t.String(),
+      lastName: t.String(),
+      email: t.String({
+        format: 'email',
       }),
-    },
-  )
+      picture: t.Optional(t.String()),
+      role: t.Optional(
+        t.Union([t.Literal('user'), t.Literal('alpha'), t.Literal('admin')]),
+      ),
+    }),
+  },
+)
 
 // app.post(
 //   '/',

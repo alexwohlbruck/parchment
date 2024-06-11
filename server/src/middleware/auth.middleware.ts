@@ -10,7 +10,8 @@ import {
   Permission,
   permissions as permissionsSchema,
 } from '../schema/permission.schema'
-import { getPermissions } from '../services/auth.service'
+import { getPermissions, hasPermission } from '../services/auth.service'
+import { PermissionRule } from '../types/auth.types'
 
 export const getSession = (app: Elysia) =>
   app.derive(
@@ -83,16 +84,11 @@ export const getUser = (app: Elysia) =>
 
 // Require the user have certain permissions to access a route
 export const permissions =
-  (allowedPermissions: Permission['id'] | Permission['id'][]) =>
-  (app: Elysia) =>
+  (allowedPermissions: PermissionRule) => (app: Elysia) =>
     app.use(getUser).derive(async ({ user, error }) => {
       const userPermissions = await getPermissions(user.id)
 
-      const hasPermission = Array.isArray(allowedPermissions)
-        ? userPermissions.some((value) => allowedPermissions.includes(value))
-        : userPermissions.includes(allowedPermissions)
-
-      if (!hasPermission) {
+      if (!hasPermission(userPermissions, allowedPermissions)) {
         return error(401, { message: 'You do not have permission to do this' })
       }
 

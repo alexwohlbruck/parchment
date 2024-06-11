@@ -6,8 +6,6 @@ export const roles = pgTable('role', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   description: text('description').notNull(),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
 export const rolesRelations = relations(roles, ({ many }) => ({

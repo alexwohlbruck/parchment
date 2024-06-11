@@ -7,7 +7,7 @@
     "start": "NODE_ENV=production bun src/index.ts",
     "test": "bun test",
     "generate": "drizzle-kit generate:pg",
-    "seed": "bun src/seed.ts",
+    "seed": "bun src/seed/seed.ts",
     "migrate": "bun generate; bun src/migrate.ts",
     "studio": "drizzle-kit studio"
   },
@@ -16,7 +16,6 @@
     "@elysiajs/eden": "^1.0.12",
     "@elysiajs/swagger": "^1.0.3",
     "@lucia-auth/adapter-drizzle": "^1.0.7",
-    "@neondatabase/serverless": "^0.9.0",
     "@simplewebauthn/browser": "^10.0.0",
     "@simplewebauthn/server": "^10.0.0",
     "@simplewebauthn/types": "^10.0.0",

@@ -3,7 +3,14 @@ import { useAuthStore } from '@/stores/auth.store'
 import { createSharedComposable } from '@vueuse/core'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 import { Session } from '@/types/session.types'
-import { Permission, PermissionList } from '@/types/auth.types'
+import {
+  Permission,
+  PermissionId,
+  PermissionList,
+  PermissionRule,
+  AnyPermission,
+  AllPermissions,
+} from '@/types/auth.types'
 
 // TODO: Return types
 
@@ -126,14 +133,42 @@ function authService() {
     authStore.removeSession(sessionId)
   }
 
-  function hasPermission(permissions: Permission['id'] | PermissionList) {
+  /**
+   * Take a permissions rule object and determine if user has permission
+   */
+  function hasPermission(rule: PermissionRule) {
+    if (typeof rule === 'string') {
+      return hasAllPermissions(rule)
+    } else {
+      if (rule.all && hasAllPermissions(rule.all)) {
+        return true
+      }
+      if (rule.any && hasAnyPermission(rule.any)) {
+        return true
+      }
+      return false
+    }
+  }
+
+  /**
+   * Check user has all permissions required. Can pass a single permission ID or a list
+   */
+  function hasAllPermissions(permissions: PermissionId | PermissionId[]) {
     const userPermissions = authStore.permissions
 
     const hasPermission = Array.isArray(permissions)
-      ? userPermissions.some(value => permissions.includes(value))
+      ? permissions.every(permission => userPermissions.includes(permission))
       : userPermissions.includes(permissions)
 
     return hasPermission
+  }
+
+  /**
+   * Check if a user has any of a given list of permission IDs
+   */
+  function hasAnyPermission(permissions: PermissionList) {
+    const userPermissions = authStore.permissions
+    return permissions.some(value => userPermissions.includes(value))
   }
 
   return {
@@ -148,6 +183,8 @@ function authService() {
     getSessions,
     deleteSession,
     hasPermission,
+    hasAllPermissions,
+    hasAnyPermission,
   }
 }
 

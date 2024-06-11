@@ -18,7 +18,7 @@ const commandService = useCommandService()
 const authService = useAuthService()
 const appStore = useAppStore()
 
-const { dialogs, removeDialog } = appStore
+const { dialogs } = appStore
 
 onMounted(() => {
   authService.getAuthenticatedUser()

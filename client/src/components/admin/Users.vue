@@ -82,6 +82,7 @@ async function inviteUser() {
     firstName: z.string().describe('First name'), // TODO: i18n
     lastName: z.string(),
     email: z.string().email(),
+    role: z.enum(['user', 'alpha', 'admin']).default('user'),
     picture: z.string().url(),
   })
 

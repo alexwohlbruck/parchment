@@ -34,7 +34,7 @@ export const useAppStore = defineStore('app', () => {
         component: dialogTypesMap[type],
         props: options,
         onSubmit: (payload: any) => {
-          resolve(payload)
+          if (payload) resolve(payload)
           setTimeout(() => removeDialog(id), 1000) // Wait for close animation
         },
       })

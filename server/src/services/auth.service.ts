@@ -10,7 +10,8 @@ import { appName, origins } from '../config'
 import { User } from '../schema/user.schema'
 import { Passkey, passkeys } from '../schema/passkey.schema'
 import { usersToRoles } from '../schema/user-role.schema'
-import { permissions } from '../schema/permission.schema'
+import { Permission, permissions } from '../schema/permission.schema'
+import { PermissionRule } from '../types/auth.types'
 import { roleToPermissions } from '../schema/role-permission.schema'
 import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
 import { sessions } from '../schema/session.schema'
@@ -140,6 +141,49 @@ export async function getPermissions(userId: User['id']) {
     .innerJoin(permissions, eq(roleToPermissions.permissionId, permissions.id))
 
   return result.map(({ permission }) => permission.id)
+}
+
+export function hasPermission(
+  userPermissions: Permission['id'][],
+  rule: PermissionRule,
+) {
+  if (typeof rule === 'string') {
+    return hasAllPermissions(userPermissions, rule)
+  } else {
+    if (rule.all && hasAllPermissions(userPermissions, rule.all)) {
+      return true
+    }
+    if (rule.any && hasAnyPermission(userPermissions, rule.any)) {
+      return true
+    }
+    return false
+  }
+}
+
+/**
+ * Check user has all permissions required. Can pass a single permission ID or a list
+ */
+function hasAllPermissions(
+  userPermissions: Permission['id'][],
+  requiredPermissions: Permission['id'] | Permission['id'][],
+) {
+  const hasPermission = Array.isArray(requiredPermissions)
+    ? requiredPermissions.every((permission) =>
+        userPermissions.includes(permission),
+      )
+    : userPermissions.includes(requiredPermissions)
+
+  return hasPermission
+}
+
+/**
+ * Check if a user has any of a given list of permission IDs
+ */
+function hasAnyPermission(
+  userPermissions: Permission['id'][],
+  requiredPermissions: Permission['id'][],
+) {
+  return requiredPermissions.some((value) => userPermissions.includes(value))
 }
 
 export async function getRoles(userId: User['id']) {

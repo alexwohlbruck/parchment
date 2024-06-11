@@ -36,7 +36,7 @@ function onSubmit(values: Record<string, any>) {
         <AutoForm :schema="schema" @submit="onSubmit" class="space-y-3">
           <DialogFooter>
             <DialogClose as-child>
-              <Button @click="emit('submit', null)" variant="outline">
+              <Button @click.prevent="emit('submit', null)" variant="outline">
                 {{ cancelText || 'Cancel' }}
               </Button>
             </DialogClose>

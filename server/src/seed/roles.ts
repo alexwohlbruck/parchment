@@ -34,7 +34,7 @@ export const roles: Role[] = [
     id: 'admin',
     name: 'Administrator',
     description:
-      'An administrator is able to read and write all app data and configuration',
+      'An privileged user that is able to read and write all app data and configuration',
     permissions: '*',
   },
 ]

@@ -1,5 +1,5 @@
 import { Component } from 'vue'
-import { Icon } from '../components/map/map.data'
+import { Icon } from '@/types/app.types'
 
 export type Hotkey = string[]
 

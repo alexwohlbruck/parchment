@@ -2,14 +2,14 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { defineStore } from 'pinia'
-import { PermissionList, User } from '@/types/auth.types'
+import { PermissionId, User } from '@/types/auth.types'
 import { Session } from '@/types/session.types'
 
 export const useAuthStore = defineStore('user', () => {
   const router = useRouter()
 
   const me = ref<User | null | undefined>()
-  const permissions = ref<PermissionList>([])
+  const permissions = ref<PermissionId[]>([])
   const sessions = ref<Session[]>([])
   const sessionId = ref<Session['id'] | null>(null)
   const stashedPath = ref<string | null>(null)
@@ -29,7 +29,7 @@ export const useAuthStore = defineStore('user', () => {
     router.push(stashedPath.value || { name: AppRoute.MAP })
   }
 
-  function setPermissions(_permissions: PermissionList) {
+  function setPermissions(_permissions: PermissionId[]) {
     permissions.value = _permissions
   }
 

@@ -14,17 +14,23 @@ function authService() {
     const authenticatedUserPromise = api.get('auth/sessions/current')
     authStore.setAuthenticatedUserPromise(authenticatedUserPromise)
     const {
-      data: { user, token: sessionId, permissions },
+      data: { user, token: sessionId },
     } = await authenticatedUserPromise
     if (user) {
       authStore.setAuthenticatedUser(user, sessionId)
-      authStore.setPermissions(permissions)
     } else {
       authStore.unsetAuthenticatedUser()
     }
     return {
       user,
     }
+  }
+
+  async function getPermissions() {
+    const {
+      data: { permissions },
+    } = await api.get('auth/sessions/current/permissions')
+    authStore.setPermissions(permissions)
   }
 
   async function verifyEmail(email: string) {
@@ -166,6 +172,7 @@ function authService() {
 
   return {
     getAuthenticatedUser,
+    getPermissions,
     verifyEmail,
     signIn,
     signOut,

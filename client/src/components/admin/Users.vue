@@ -60,6 +60,11 @@ const columns: ColumnDef<User>[] = [
       ),
   },
   {
+    id: 'sessions',
+    header: 'Sessions',
+    accessorKey: 'sessionCount',
+  },
+  {
     id: 'delete',
     cell: ({ row }) =>
       h(Button, {

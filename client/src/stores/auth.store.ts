@@ -4,9 +4,11 @@ import { AppRoute } from '@/router'
 import { defineStore } from 'pinia'
 import { PermissionId, User } from '@/types/auth.types'
 import { Session } from '@/types/session.types'
+import { useAuthService } from '@/services/auth.service'
 
 export const useAuthStore = defineStore('user', () => {
   const router = useRouter()
+  const authService = useAuthService()
 
   const me = ref<User | null | undefined>()
   const permissions = ref<PermissionId[]>([])
@@ -26,6 +28,7 @@ export const useAuthStore = defineStore('user', () => {
   function setAuthenticatedUser(user: User, _sessionId: Session['id']) {
     me.value = user
     sessionId.value = _sessionId
+    authService.getPermissions()
     router.push(stashedPath.value || { name: AppRoute.MAP })
   }
 

@@ -63,6 +63,10 @@ const columns: ColumnDef<User>[] = [
     id: 'sessions',
     header: 'Sessions',
     accessorKey: 'sessionCount',
+    meta: {
+      headerClass: 'text-right',
+      cellClass: 'text-right',
+    },
   },
   {
     id: 'delete',

@@ -30,6 +30,7 @@ export type User = {
   lastName?: string
   picture?: string
   roles?: Role[]
+  sessionCount?: number
 }
 
 export type Passkey = {

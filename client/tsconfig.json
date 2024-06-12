@@ -30,6 +30,6 @@
     "types": ["node"],
     "noImplicitAny": false,
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "decs.d.ts", "types.d.ts", "decs.ts.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "**/*.d.ts", "decs.ts.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

@@ -3,7 +3,8 @@ import type { VariantProps } from 'class-variance-authority'
 import { Primitive, type PrimitiveProps } from 'radix-vue'
 import { buttonVariants } from '.'
 import { cn } from '@/lib/utils'
-import { PlusIcon, Loader2Icon } from 'lucide-vue-next'
+import { PlusIcon } from 'lucide-vue-next'
+import { Spinner } from '@/components/ui/spinner'
 
 interface ButtonVariantProps extends VariantProps<typeof buttonVariants> {}
 
@@ -29,7 +30,7 @@ withDefaults(defineProps<Props>(), {
     :as-child="asChild"
     :class="cn(buttonVariants({ variant, size }), $attrs.class ?? '')"
   >
-    <Loader2Icon v-if="loading" class="w-4 h-4 mr-2 animate-spin" />
+    <Spinner size="icon" v-if="loading" :class="{ 'mr-2': size !== 'icon' }" />
 
     <component
       v-if="icon && !loading"

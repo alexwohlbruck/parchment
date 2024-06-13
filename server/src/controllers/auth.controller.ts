@@ -3,7 +3,6 @@ import { and, eq, desc } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from '../schema/user.schema'
 import { getSession, requireAuth } from '../middleware/auth.middleware'
-import { generateId } from '../util'
 import { origins } from '../config'
 import { Passkey, passkeys } from '../schema/passkey.schema'
 import { sessions } from '../schema/session.schema'
@@ -356,6 +355,7 @@ app.group('/sessions', (app) => {
         set.status = 204
         return null
       }
+
       const sessionCookie = cookie['auth_session']
       const me = (await db.select().from(users).where(eq(users.id, user.id)))[0]
       return {

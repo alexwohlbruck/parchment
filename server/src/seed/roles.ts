@@ -19,7 +19,7 @@ export const roles: Role[] = [
     id: 'user',
     name: 'User',
     description: 'A user that can view and browse the map',
-    permissions: [Permission.USERS_READ],
+    permissions: [],
   },
   {
     id: 'alpha',
@@ -30,6 +30,7 @@ export const roles: Role[] = [
       Permission.USERS_READ,
       Permission.ROLES_READ,
       Permission.PERMISSIONS_READ,
+      Permission.SYSTEM_READ,
     ],
   },
   {

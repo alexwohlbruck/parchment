@@ -26,4 +26,8 @@ export const permissions: {
     id: Permission.PERMISSIONS_READ,
     name: 'Read user permissions',
   },
+  {
+    id: Permission.SYSTEM_READ,
+    name: 'Read system status data',
+  },
 ]

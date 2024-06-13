@@ -10,11 +10,12 @@ import { generateId } from '../util'
 import { getRoles } from '../services/auth.service'
 import { sendMail } from '../services/mailer.service'
 import { permissions } from '../middleware/auth.middleware'
+import { Permission } from '../types/auth.types'
 
 const app = new Elysia({ prefix: '/users' })
 
 // TODO: Make permission names type safe
-app.use(permissions('users:read')).get(
+app.use(permissions(Permission.USERS_READ)).get(
   '/',
   async (_context) => {
     const usersResult = await db
@@ -61,27 +62,7 @@ app.use(permissions('users:read')).get(
   },
 )
 
-app.use(permissions('roles:read')).get(
-  '/roles',
-  async (_context) => {
-    const result = await db.select().from(roles)
-    return result
-  },
-  {
-    detail: {
-      tags: ['Users'],
-    },
-  },
-)
-
-app
-  .use(permissions('permissions:read'))
-  .get('/permissions', async (_context) => {
-    const result = await db.select().from(permissionsSchema)
-    return result
-  })
-
-app.use(permissions('users:create')).post(
+app.use(permissions(Permission.USERS_CREATE)).post(
   '/',
   async ({ body }) => {
     // TODO: Require new permission to add users with elevated privileges
@@ -129,5 +110,25 @@ app.use(permissions('users:create')).post(
     }),
   },
 )
+
+app.use(permissions(Permission.ROLES_READ)).get(
+  '/roles',
+  async (_context) => {
+    const result = await db.select().from(roles)
+    return result
+  },
+  {
+    detail: {
+      tags: ['Users'],
+    },
+  },
+)
+
+app
+  .use(permissions(Permission.PERMISSIONS_READ))
+  .get('/permissions', async (_context) => {
+    const result = await db.select().from(permissionsSchema)
+    return result
+  })
 
 export default app

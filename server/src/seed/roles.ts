@@ -1,7 +1,5 @@
-import { permissions } from './permissions'
-
-// TODO: Get enum or boolean string type from permissions list
-type PermissionId = (typeof permissions)[number]['id']
+import { Permission } from '../types/auth.types'
+import { PermissionId, permissions } from './permissions'
 
 // TODO: Derive from db schema
 export type Role = {
@@ -21,14 +19,18 @@ export const roles: Role[] = [
     id: 'user',
     name: 'User',
     description: 'A user that can view and browse the map',
-    permissions: ['users:read'],
+    permissions: [Permission.USERS_READ],
   },
   {
     id: 'alpha',
     name: 'Alpha tester',
     description:
       'A privileged user that is able to read all data in the app, but has limited write permissions',
-    permissions: ['users:read', 'roles:read', 'permissions:read'], // TODO: Add advanced wildcards, role inheritance
+    permissions: [
+      Permission.USERS_READ,
+      Permission.ROLES_READ,
+      Permission.PERMISSIONS_READ,
+    ],
   },
   {
     id: 'admin',

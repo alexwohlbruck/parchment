@@ -1,3 +1,7 @@
+import { Permission as PermissionId } from '../../../server/src/types/auth.types'
+
+export { PermissionId }
+
 export type Role = {
   id: string
   name: string
@@ -13,7 +17,6 @@ export type Permission = {
   updatedAt: string
 }
 
-export type PermissionId = Permission['id']
 export type AnyPermission = PermissionId[]
 export type PermissionRule =
   | PermissionId

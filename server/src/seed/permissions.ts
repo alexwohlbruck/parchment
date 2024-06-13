@@ -1,8 +1,4 @@
-// TODO: Derive from db schema
-export type Permission = {
-  id: string
-  name: string
-}
+import { Permission } from '../types/auth.types'
 
 /**
  * User permission definitions
@@ -10,21 +6,24 @@ export type Permission = {
  * Update any roles in ./roles.ts that require the new permissions
  * If you update any permission IDs, change them in ./roles.ts as well
  */
-export const permissions: Permission[] = [
+export const permissions: {
+  id: Permission
+  name: string
+}[] = [
   {
-    id: 'users:read',
+    id: Permission.USERS_READ,
     name: 'View all users',
   },
   {
-    id: 'users:create',
+    id: Permission.USERS_CREATE,
     name: 'Invite new user',
   },
   {
-    id: 'roles:read',
+    id: Permission.ROLES_READ,
     name: 'Read user roles',
   },
   {
-    id: 'permissions:read',
+    id: Permission.PERMISSIONS_READ,
     name: 'Read user permissions',
   },
-] as const
+]

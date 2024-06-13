@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app.store'
 import { useThemeStore } from '@/stores/settings/theme.store'
@@ -11,6 +11,9 @@ import Palette from '@/components/palette/Palette.vue'
 import DialogView from '@/views/DialogView.vue'
 import HotkeysMenu from '@/components/HotkeysMenu.vue'
 import { Toaster } from '@/components/ui/sonner'
+import { Spinner } from '@/components/ui/spinner'
+import { Card } from '@/components/ui/card'
+import { AlertDialog, AlertDialogContent } from '@/components/ui/alert-dialog'
 
 const route = useRoute()
 const themeStore = useThemeStore()
@@ -20,14 +23,34 @@ const appStore = useAppStore()
 
 const { dialogs } = appStore
 
+// Detect if Render server is starting from cold start. This is common with the free plan,
+// so we will show a loading screen while the server spins up.
+const requestReceived = ref(false)
+const serversSpinning = ref(false)
+
 onMounted(() => {
-  authService.getAuthenticatedUser()
+  setTimeout(() => {
+    if (!requestReceived.value) {
+      serversSpinning.value = true
+    }
+  }, 1000)
+  authService.getAuthenticatedUser().then(() => {
+    requestReceived.value = true
+    serversSpinning.value = false
+  })
   commandService.bindAllHotkeysToCommands()
   themeStore.initAccentColor()
 })
 </script>
 
 <template>
+  <AlertDialog :open="serversSpinning">
+    <AlertDialogContent class="flex flex-col items-center gap-2">
+      <Spinner size="lg" color="primary" />
+      <P>Spinning servers...</P>
+    </AlertDialogContent>
+  </AlertDialog>
+
   <!-- Popups and modals -->
   <Toaster richColors closeButton :duration="7000" position="bottom-center" />
   <HotkeysMenu />

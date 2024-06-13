@@ -34,10 +34,11 @@ const table = useVueTable({
           v-for="headerGroup in table.getHeaderGroups()"
           :key="headerGroup.id"
         >
+          <!-- TODO: Remove any type -->
           <TableHead
             v-for="header in headerGroup.headers"
             :key="header.id"
-            :class="header.column.columnDef.meta?.headerClass"
+            :class="(header.column.columnDef.meta as any)?.headerClass"
           >
             <FlexRender
               v-if="!header.isPlaceholder"
@@ -54,10 +55,11 @@ const table = useVueTable({
             :key="row.id"
             :data-state="row.getIsSelected() ? 'selected' : undefined"
           >
+            <!-- TODO: Remove any type -->
             <TableCell
               v-for="cell in row.getVisibleCells()"
               :key="cell.id"
-              :class="cell.column.columnDef.meta?.cellClass"
+              :class="(cell.column.columnDef.meta as any)?.cellClass"
             >
               <FlexRender
                 :render="cell.column.columnDef.cell"

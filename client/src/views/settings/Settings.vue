@@ -68,7 +68,7 @@ const pages: {
     to: '/settings/system',
     icon: ActivityIcon,
     disabled: true,
-    // permissions: 'system:read', // TODO: Global permissions list
+    permissions: Permission.SYSTEM_READ, // TODO: Global permissions list
   },
 ]
 

@@ -1,8 +1,13 @@
-import { Permission } from '../schema/permission.schema'
+export enum Permission {
+  USERS_READ = 'users:read',
+  USERS_CREATE = 'users:create',
+  ROLES_READ = 'roles:read',
+  PERMISSIONS_READ = 'permissions:read',
+}
 
 export type PermissionRule =
-  | Permission['id']
+  | Permission
   | {
-      all?: Permission['id'] | Permission['id'][]
-      any?: Permission['id'][]
+      all?: Permission | Permission[]
+      any?: Permission[]
     }

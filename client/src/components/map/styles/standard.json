@@ -658,68 +658,6 @@
       }
     },
     {
-      "id": "road-pedestrian-polygon-fill",
-      "type": "fill",
-      "source": "composite",
-      "source-layer": "road",
-      "minzoom": 14,
-      "filter": [
-        "all",
-        [
-          "match",
-          [
-            "get",
-            "class"
-          ],
-          [
-            "path",
-            "pedestrian"
-          ],
-          true,
-          false
-        ],
-        [
-          "match",
-          [
-            "get",
-            "structure"
-          ],
-          [
-            "none",
-            "ford"
-          ],
-          true,
-          false
-        ],
-        [
-          "case",
-          [
-            "has",
-            "layer"
-          ],
-          [
-            ">=",
-            [
-              "get",
-              "layer"
-            ],
-            0
-          ],
-          true
-        ],
-        [
-          "==",
-          [
-            "geometry-type"
-          ],
-          "Polygon"
-        ]
-      ],
-      "paint": {
-        "fill-color": "hsl(0, 20%, 97%)"
-      }
-    },
-    {
       "id": "landuse",
       "type": "fill",
       "source": "composite",
@@ -976,6 +914,69 @@
           ]
         ],
         "fill-outline-color": "hsla(0, 0%, 0%,0)"
+      }
+    },
+    {
+      "id": "road-pedestrian-polygon-fill",
+      "type": "fill",
+      "source": "composite",
+      "source-layer": "road",
+      "minzoom": 14,
+      "filter": [
+        "all",
+        [
+          "match",
+          [
+            "get",
+            "class"
+          ],
+          [
+            "path",
+            "pedestrian"
+          ],
+          true,
+          false
+        ],
+        [
+          "match",
+          [
+            "get",
+            "structure"
+          ],
+          [
+            "none",
+            "ford"
+          ],
+          true,
+          false
+        ],
+        [
+          "case",
+          [
+            "has",
+            "layer"
+          ],
+          [
+            ">=",
+            [
+              "get",
+              "layer"
+            ],
+            0
+          ],
+          true
+        ],
+        [
+          "==",
+          [
+            "geometry-type"
+          ],
+          "Polygon"
+        ]
+      ],
+      "paint": {
+        "fill-color": "hsl(0, 0%, 90%)",
+        "fill-emissive-strength": 0.1
       }
     },
     {
@@ -17896,6 +17897,6 @@
   "id": "standard",
   "owner": "mapbox",
   "visibility": "public",
-  "protected": true,
+  "protected": false,
   "draft": false
 }

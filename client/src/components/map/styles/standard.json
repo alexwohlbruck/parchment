@@ -917,69 +917,6 @@
       }
     },
     {
-      "id": "road-pedestrian-polygon-fill",
-      "type": "fill",
-      "source": "composite",
-      "source-layer": "road",
-      "minzoom": 14,
-      "filter": [
-        "all",
-        [
-          "match",
-          [
-            "get",
-            "class"
-          ],
-          [
-            "path",
-            "pedestrian"
-          ],
-          true,
-          false
-        ],
-        [
-          "match",
-          [
-            "get",
-            "structure"
-          ],
-          [
-            "none",
-            "ford"
-          ],
-          true,
-          false
-        ],
-        [
-          "case",
-          [
-            "has",
-            "layer"
-          ],
-          [
-            ">=",
-            [
-              "get",
-              "layer"
-            ],
-            0
-          ],
-          true
-        ],
-        [
-          "==",
-          [
-            "geometry-type"
-          ],
-          "Polygon"
-        ]
-      ],
-      "paint": {
-        "fill-color": "hsl(0, 0%, 90%)",
-        "fill-emissive-strength": 0.1
-      }
-    },
-    {
       "id": "3d-hillshade",
       "type": "hillshade",
       "source": "mapbox-hillshade",
@@ -4349,6 +4286,161 @@
           10,
           0
         ]
+      }
+    },
+    {
+      "id": "road-pedestrian-polygon-fill",
+      "type": "fill",
+      "source": "composite",
+      "source-layer": "road",
+      "minzoom": 14,
+      "filter": [
+        "all",
+        [
+          "match",
+          [
+            "get",
+            "class"
+          ],
+          [
+            "path",
+            "pedestrian"
+          ],
+          true,
+          false
+        ],
+        [
+          "match",
+          [
+            "get",
+            "structure"
+          ],
+          [
+            "none",
+            "ford"
+          ],
+          true,
+          false
+        ],
+        [
+          "case",
+          [
+            "has",
+            "layer"
+          ],
+          [
+            ">=",
+            [
+              "get",
+              "layer"
+            ],
+            0
+          ],
+          true
+        ],
+        [
+          "==",
+          [
+            "geometry-type"
+          ],
+          "Polygon"
+        ]
+      ],
+      "paint": {
+        "fill-color": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          15,
+          "hsl(295, 10%, 97%)",
+          16,
+          "hsl(295, 10%, 93%)"
+        ],
+        "fill-emissive-strength": 0.25,
+        "fill-outline-color": "hsl(0, 10%, 80%)"
+      }
+    },
+    {
+      "id": "road-pedestrian-polygon-case",
+      "type": "line",
+      "source": "composite",
+      "source-layer": "road",
+      "minzoom": 14,
+      "filter": [
+        "all",
+        [
+          "match",
+          [
+            "get",
+            "class"
+          ],
+          [
+            "path",
+            "pedestrian"
+          ],
+          true,
+          false
+        ],
+        [
+          "match",
+          [
+            "get",
+            "structure"
+          ],
+          [
+            "none",
+            "ford"
+          ],
+          true,
+          false
+        ],
+        [
+          "case",
+          [
+            "has",
+            "layer"
+          ],
+          [
+            ">=",
+            [
+              "get",
+              "layer"
+            ],
+            0
+          ],
+          true
+        ],
+        [
+          "==",
+          [
+            "geometry-type"
+          ],
+          "Polygon"
+        ]
+      ],
+      "paint": {
+        "line-emissive-strength": 0.15,
+        "line-width": [
+          "interpolate",
+          [
+            "exponential",
+            1.5
+          ],
+          [
+            "zoom"
+          ],
+          14,
+          0.5,
+          18,
+          1,
+          22,
+          2
+        ],
+        "line-color": "hsl(0, 10%, 80%)"
       }
     },
     {

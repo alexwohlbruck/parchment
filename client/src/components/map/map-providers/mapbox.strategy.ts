@@ -6,6 +6,7 @@ import {
   AttributionControl,
   ScaleControl,
   Projection,
+  PointLike,
 } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { Basemap, MapLayer, MapOptions, type MapTheme } from '@/types/map.types'
@@ -18,6 +19,8 @@ const basemapUrls: {
   [key in Basemap]: string
 } = {
   standard: standardStyle as any,
+  // standard: 'mapbox://styles/mapbox/standard',
+  // standard: 'mapbox://styles/mapbox/streets-v12',
   hybrid: 'mapbox://styles/mapbox/satellite-streets-v11',
   satellite: 'mapbox://styles/mapbox/satellite-v9',
 }
@@ -48,11 +51,11 @@ export class MapboxStrategy extends MapStrategy {
 
     // For testing
     const { lng, lat, zoom, bearing, pitch } = {
-      lng: -80.8432808,
-      lat: 35.2205601,
+      lng: -80.82406421137776,
+      lat: 35.21608791694442,
       bearing: 0,
       pitch: 0,
-      zoom: 14,
+      zoom: 17.48911968031299,
     }
     const projection: Projection['name'] =
       (localStorage.getItem('projection') as Projection['name']) || 'globe'
@@ -60,7 +63,7 @@ export class MapboxStrategy extends MapStrategy {
     const map = new Map({
       accessToken: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
       container,
-      style: standardStyle as any,
+      style: basemapUrls.standard,
       center: [lng, lat],
       bearing,
       pitch,
@@ -87,12 +90,42 @@ export class MapboxStrategy extends MapStrategy {
       'bottom-left',
     )
 
+    this.map.on('moveend', () => {
+      console.log(`Position: ${this.map.getCenter()}`)
+      console.log(`Zoom: ${this.map.getZoom()}`)
+      console.log(`Pitch: ${this.map.getPitch()}`)
+      console.log(`Bearing: ${this.map.getBearing()}`)
+    })
+
     this.map.on('load', () => {
-      this.setLayers.bind(this)(this.options.layers)
+      // this.setLayers.bind(this)(this.options.layers)
+      // this.map.addSource('composite', {
+      //   type: 'vector',
+      //   url: 'mapbox://mapbox.mapbox-bathymetry-v2,mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2,mapbox.mapbox-models-v1',
+      // })
+      // ;(basemapUrls.standard as any).layers.forEach(layer => {
+      //   if (layer.id === 'poi-label') {
+      //     console.log(layer)
+      //     this.map.addLayer(layer)
+      //   }
+      // })
     })
     this.map.on('style.load', () => {
       this.setMapTheme.bind(this)(this.options.theme)
       this.setLocale('en-US')
+    })
+
+    this.map.on('click', e => {
+      const bbox: [PointLike, PointLike] = [
+        [e.point.x - 5, e.point.y - 5],
+        [e.point.x + 5, e.point.y + 5],
+      ]
+
+      // Find features intersecting the bounding box.
+      const selectedFeatures = this.map.queryRenderedFeatures(bbox, {
+        layers: ['poi-label'],
+      })
+      console.log(selectedFeatures.map(feature => feature.properties?.name))
     })
   }
 

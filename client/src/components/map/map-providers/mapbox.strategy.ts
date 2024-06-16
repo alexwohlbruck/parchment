@@ -11,6 +11,7 @@ import {
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { Basemap, MapLayer, MapOptions, type MapTheme } from '@/types/map.types'
 import standardStyle from '@/components/map/styles/standard.json'
+import streets12 from '@/components/map/styles/streets-12.json'
 
 import { layers } from '../layers' // TODO: Refactor layers init
 import { Locale } from '@/lib/i18n'
@@ -18,7 +19,8 @@ import { Locale } from '@/lib/i18n'
 const basemapUrls: {
   [key in Basemap]: string
 } = {
-  standard: standardStyle as any,
+  // standard: standardStyle as any,
+  standard: streets12 as any,
   // standard: 'mapbox://styles/mapbox/standard',
   // standard: 'mapbox://styles/mapbox/streets-v12',
   hybrid: 'mapbox://styles/mapbox/satellite-streets-v11',
@@ -90,12 +92,12 @@ export class MapboxStrategy extends MapStrategy {
       'bottom-left',
     )
 
-    this.map.on('moveend', () => {
-      console.log(`Position: ${this.map.getCenter()}`)
-      console.log(`Zoom: ${this.map.getZoom()}`)
-      console.log(`Pitch: ${this.map.getPitch()}`)
-      console.log(`Bearing: ${this.map.getBearing()}`)
-    })
+    // this.map.on('moveend', () => {
+    //   console.log(`Position: ${this.map.getCenter()}`)
+    //   console.log(`Zoom: ${this.map.getZoom()}`)
+    //   console.log(`Pitch: ${this.map.getPitch()}`)
+    //   console.log(`Bearing: ${this.map.getBearing()}`)
+    // })
 
     this.map.on('load', () => {
       // this.setLayers.bind(this)(this.options.layers)
@@ -120,6 +122,8 @@ export class MapboxStrategy extends MapStrategy {
         [e.point.x - 5, e.point.y - 5],
         [e.point.x + 5, e.point.y + 5],
       ]
+
+      console.log(this.map.getStyle().layers)
 
       // Find features intersecting the bounding box.
       const selectedFeatures = this.map.queryRenderedFeatures(bbox, {

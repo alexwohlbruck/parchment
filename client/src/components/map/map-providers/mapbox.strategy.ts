@@ -12,6 +12,7 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 import { Basemap, MapLayer, MapOptions, type MapTheme } from '@/types/map.types'
 import standardStyle from '@/components/map/styles/standard.json'
 import streets12 from '@/components/map/styles/streets-12.json'
+import testStyle from '@/components/map/styles/test.json'
 
 import { layers } from '../layers' // TODO: Refactor layers init
 import { Locale } from '@/lib/i18n'
@@ -19,8 +20,9 @@ import { Locale } from '@/lib/i18n'
 const basemapUrls: {
   [key in Basemap]: string
 } = {
-  // standard: standardStyle as any,
-  standard: streets12 as any,
+  standard: standardStyle as any,
+  // standard: testStyle as any,
+  // standard: streets12 as any,
   // standard: 'mapbox://styles/mapbox/standard',
   // standard: 'mapbox://styles/mapbox/streets-v12',
   hybrid: 'mapbox://styles/mapbox/satellite-streets-v11',
@@ -123,12 +125,10 @@ export class MapboxStrategy extends MapStrategy {
         [e.point.x + 5, e.point.y + 5],
       ]
 
-      console.log(this.map.getStyle().layers)
+      console.log(e, this.map)
 
       // Find features intersecting the bounding box.
-      const selectedFeatures = this.map.queryRenderedFeatures(bbox, {
-        layers: ['poi-label'],
-      })
+      const selectedFeatures = this.map.queryRenderedFeatures(e.point)
       console.log(selectedFeatures.map(feature => feature.properties?.name))
     })
   }

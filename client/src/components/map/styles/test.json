@@ -22,10 +22,7 @@
       "properties": {
         "color": [
           "match",
-          [
-            "config",
-            "lightPreset"
-          ],
+          "day",
           "dawn",
           "hsl(28, 98%, 93%)",
           "day",
@@ -38,10 +35,7 @@
         ],
         "intensity": [
           "match",
-          [
-            "config",
-            "lightPreset"
-          ],
+          "day",
           "dawn",
           0.75,
           "day",
@@ -60,10 +54,7 @@
       "properties": {
         "direction": [
           "match",
-          [
-            "config",
-            "lightPreset"
-          ],
+          "day",
           "dawn",
           [
             "literal",
@@ -106,10 +97,7 @@
         ],
         "color": [
           "match",
-          [
-            "config",
-            "lightPreset"
-          ],
+          "day",
           "dawn",
           "hsl(33, 98%, 77%)",
           "day",
@@ -131,10 +119,7 @@
           12,
           [
             "match",
-            [
-              "config",
-              "lightPreset"
-            ],
+            "day",
             "dawn",
             0.5,
             "day",
@@ -148,10 +133,7 @@
           14,
           [
             "match",
-            [
-              "config",
-              "lightPreset"
-            ],
+            "day",
             "dawn",
             0.5,
             "day",
@@ -166,10 +148,7 @@
         "cast-shadows": true,
         "shadow-intensity": [
           "match",
-          [
-            "config",
-            "lightPreset"
-          ],
+          "day",
           "night",
           0.5,
           1
@@ -409,95 +388,6 @@
   },
   "camera": {
     "camera-projection": "orthographic"
-  },
-  "schema": {
-    "showPlaceLabels": {
-      "default": true,
-      "type": "boolean",
-      "metadata": {
-        "mapbox:title": "Place labels",
-        "mapbox:description": "Shows and hides place label layers. ",
-        "mapbox:group": "Visibility"
-      }
-    },
-    "showRoadLabels": {
-      "default": true,
-      "type": "boolean",
-      "metadata": {
-        "mapbox:title": "Road labels",
-        "mapbox:description": "Shows and hides all road labels, including road shields.",
-        "mapbox:group": "Visibility"
-      }
-    },
-    "showPointOfInterestLabels": {
-      "default": true,
-      "type": "boolean",
-      "metadata": {
-        "mapbox:title": "POI labels",
-        "mapbox:description": "Shows or hides all POI icons and text.",
-        "mapbox:group": "Visibility"
-      }
-    },
-    "showTransitLabels": {
-      "default": true,
-      "type": "boolean",
-      "metadata": {
-        "mapbox:title": "Transit labels",
-        "mapbox:description": "Shows or hides all transit icons and text.",
-        "mapbox:group": "Visibility"
-      }
-    },
-    "lightPreset": {
-      "default": "day",
-      "type": "string",
-      "values": [
-        "dawn",
-        "day",
-        "dusk",
-        "night"
-      ],
-      "metadata": {
-        "mapbox:title": "Light preset",
-        "mapbox:description": "Switch between 4 time-of-day states: dusk, dawn, day and night.",
-        "mapbox:group": "Light"
-      }
-    },
-    "font": {
-      "default": "DIN Pro",
-      "type": "string",
-      "values": [
-        "Alegreya",
-        "Alegreya SC",
-        "Asap",
-        "Barlow",
-        "DIN Pro",
-        "EB Garamond",
-        "Faustina",
-        "Frank Ruhl Libre",
-        "Heebo",
-        "Inter",
-        "Lato",
-        "League Mono",
-        "Montserrat",
-        "Manrope",
-        "Noto Sans CJK JP",
-        "Open Sans",
-        "Poppins",
-        "Raleway",
-        "Roboto",
-        "Roboto Mono",
-        "Rubik",
-        "Source Code Pro",
-        "Source Sans Pro",
-        "Spectral",
-        "Ubuntu"
-      ],
-      "metadata": {
-        "mapbox:title": "Font",
-        "mapbox:description": "Defines font family for the style from predefined options.",
-        "mapbox:group": "Typography"
-      }
-    }
   },
   "sources": {
     "composite": {
@@ -3689,6 +3579,43 @@
           0,
           0
         ],
+        "line-offset": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          0,
+          18,
+          [
+            "match",
+            [
+              "get",
+              "type"
+            ],
+            [
+              "piste"
+            ],
+            0,
+            -2
+          ],
+          22,
+          [
+            "match",
+            [
+              "get",
+              "type"
+            ],
+            [
+              "piste"
+            ],
+            0,
+            -20
+          ]
+        ],
         "line-dasharray": [
           "step",
           [
@@ -3973,6 +3900,67 @@
       }
     },
     {
+      "id": "road-steps-case",
+      "type": "line",
+      "source": "composite",
+      "source-layer": "road",
+      "minzoom": 14,
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "get",
+            "type"
+          ],
+          "steps"
+        ],
+        [
+          "match",
+          [
+            "get",
+            "structure"
+          ],
+          [
+            "none",
+            "ford"
+          ],
+          true,
+          false
+        ],
+        [
+          "==",
+          [
+            "geometry-type"
+          ],
+          "LineString"
+        ]
+      ],
+      "layout": {
+        "line-join": "round"
+      },
+      "paint": {
+        "line-emissive-strength": 0.15,
+        "line-width": [
+          "interpolate",
+          [
+            "exponential",
+            1.5
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          0,
+          18,
+          6,
+          22,
+          80
+        ],
+        "line-color": "hsl(0, 10%, 80%)"
+      }
+    },
+    {
       "id": "road-pedestrian-case",
       "type": "line",
       "source": "composite",
@@ -4191,85 +4179,6 @@
       }
     },
     {
-      "id": "road-pedestrian-polygon-case",
-      "type": "line",
-      "source": "composite",
-      "source-layer": "road",
-      "minzoom": 14,
-      "filter": [
-        "all",
-        [
-          "match",
-          [
-            "get",
-            "class"
-          ],
-          [
-            "path",
-            "pedestrian"
-          ],
-          true,
-          false
-        ],
-        [
-          "match",
-          [
-            "get",
-            "structure"
-          ],
-          [
-            "none",
-            "ford"
-          ],
-          true,
-          false
-        ],
-        [
-          "case",
-          [
-            "has",
-            "layer"
-          ],
-          [
-            ">=",
-            [
-              "get",
-              "layer"
-            ],
-            0
-          ],
-          true
-        ],
-        [
-          "==",
-          [
-            "geometry-type"
-          ],
-          "Polygon"
-        ]
-      ],
-      "paint": {
-        "line-emissive-strength": 0.15,
-        "line-width": [
-          "interpolate",
-          [
-            "exponential",
-            1.5
-          ],
-          [
-            "zoom"
-          ],
-          14,
-          0.5,
-          18,
-          1,
-          22,
-          2
-        ],
-        "line-color": "hsl(0, 10%, 80%)"
-      }
-    },
-    {
       "id": "road-pedestrian-polygon-fill",
       "type": "fill",
       "source": "composite",
@@ -4346,7 +4255,7 @@
       }
     },
     {
-      "id": "road-steps-case",
+      "id": "road-pedestrian-polygon-case",
       "type": "line",
       "source": "composite",
       "source-layer": "road",
@@ -4354,12 +4263,17 @@
       "filter": [
         "all",
         [
-          "==",
+          "match",
           [
             "get",
-            "type"
+            "class"
           ],
-          "steps"
+          [
+            "path",
+            "pedestrian"
+          ],
+          true,
+          false
         ],
         [
           "match",
@@ -4375,16 +4289,29 @@
           false
         ],
         [
+          "case",
+          [
+            "has",
+            "layer"
+          ],
+          [
+            ">=",
+            [
+              "get",
+              "layer"
+            ],
+            0
+          ],
+          true
+        ],
+        [
           "==",
           [
             "geometry-type"
           ],
-          "LineString"
+          "Polygon"
         ]
       ],
-      "layout": {
-        "line-join": "round"
-      },
       "paint": {
         "line-emissive-strength": 0.15,
         "line-width": [
@@ -4396,116 +4323,14 @@
           [
             "zoom"
           ],
-          12,
-          0,
+          14,
+          0.5,
           18,
-          6,
+          1,
           22,
-          80
+          2
         ],
         "line-color": "hsl(0, 10%, 80%)"
-      }
-    },
-    {
-      "id": "road-steps",
-      "type": "line",
-      "source": "composite",
-      "source-layer": "road",
-      "minzoom": 14,
-      "filter": [
-        "all",
-        [
-          "==",
-          [
-            "get",
-            "type"
-          ],
-          "steps"
-        ],
-        [
-          "match",
-          [
-            "get",
-            "structure"
-          ],
-          [
-            "none",
-            "ford"
-          ],
-          true,
-          false
-        ],
-        [
-          "==",
-          [
-            "geometry-type"
-          ],
-          "LineString"
-        ]
-      ],
-      "layout": {
-        "line-join": "round"
-      },
-      "paint": {
-        "line-emissive-strength": 0.25,
-        "line-width": [
-          "interpolate",
-          [
-            "exponential",
-            1.5
-          ],
-          [
-            "zoom"
-          ],
-          12,
-          0,
-          18,
-          6,
-          22,
-          80
-        ],
-        "line-color": [
-          "interpolate",
-          [
-            "linear"
-          ],
-          [
-            "zoom"
-          ],
-          15,
-          "hsl(295, 10%, 97%)",
-          16,
-          "hsl(295, 10%, 93%)"
-        ],
-        "line-dasharray": [
-          "step",
-          [
-            "zoom"
-          ],
-          [
-            "literal",
-            [
-              1,
-              0
-            ]
-          ],
-          17,
-          [
-            "literal",
-            [
-              0.2,
-              0.2
-            ]
-          ],
-          19,
-          [
-            "literal",
-            [
-              0.1,
-              0.1
-            ]
-          ]
-        ]
       }
     },
     {
@@ -4631,6 +4456,108 @@
       }
     },
     {
+      "id": "road-steps",
+      "type": "line",
+      "source": "composite",
+      "source-layer": "road",
+      "minzoom": 14,
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "get",
+            "type"
+          ],
+          "steps"
+        ],
+        [
+          "match",
+          [
+            "get",
+            "structure"
+          ],
+          [
+            "none",
+            "ford"
+          ],
+          true,
+          false
+        ],
+        [
+          "==",
+          [
+            "geometry-type"
+          ],
+          "LineString"
+        ]
+      ],
+      "layout": {
+        "line-join": "round"
+      },
+      "paint": {
+        "line-emissive-strength": 0.25,
+        "line-width": [
+          "interpolate",
+          [
+            "exponential",
+            1.5
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          0,
+          18,
+          6,
+          22,
+          80
+        ],
+        "line-color": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          15,
+          "hsl(295, 10%, 97%)",
+          16,
+          "hsl(295, 10%, 93%)"
+        ],
+        "line-dasharray": [
+          "step",
+          [
+            "zoom"
+          ],
+          [
+            "literal",
+            [
+              1,
+              0
+            ]
+          ],
+          17,
+          [
+            "literal",
+            [
+              0.2,
+              0.2
+            ]
+          ],
+          19,
+          [
+            "literal",
+            [
+              0.1,
+              0.1
+            ]
+          ]
+        ]
+      }
+    },
+    {
       "id": "road-pedestrian",
       "type": "line",
       "source": "composite",
@@ -4734,6 +4661,25 @@
           16,
           "hsl(295, 10%, 93%)"
         ]
+      }
+    },
+    {
+      "id": "golf-hole-line",
+      "type": "line",
+      "source": "composite",
+      "source-layer": "road",
+      "minzoom": 16,
+      "filter": [
+        "==",
+        [
+          "get",
+          "class"
+        ],
+        "golf"
+      ],
+      "paint": {
+        "line-emissive-strength": 0.2,
+        "line-color": "hsl(110, 29%, 70%)"
       }
     },
     {
@@ -4851,25 +4797,6 @@
           0.5,
           1
         ]
-      }
-    },
-    {
-      "id": "golf-hole-line",
-      "type": "line",
-      "source": "composite",
-      "source-layer": "road",
-      "minzoom": 16,
-      "filter": [
-        "==",
-        [
-          "get",
-          "class"
-        ],
-        "golf"
-      ],
-      "paint": {
-        "line-emissive-strength": 0.2,
-        "line-color": "hsl(110, 29%, 70%)"
       }
     },
     {
@@ -10393,6 +10320,43 @@
           0,
           0
         ],
+        "line-offset": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          0,
+          18,
+          [
+            "match",
+            [
+              "get",
+              "type"
+            ],
+            [
+              "piste"
+            ],
+            0,
+            -2
+          ],
+          22,
+          [
+            "match",
+            [
+              "get",
+              "type"
+            ],
+            [
+              "piste"
+            ],
+            0,
+            -20
+          ]
+        ],
         "line-opacity": [
           "interpolate",
           [
@@ -11715,15 +11679,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showRoadLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-size": [
           "interpolate",
           [
@@ -11792,10 +11747,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Medium"
           ],
           "Arial Unicode MS Bold"
@@ -11950,15 +11902,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showRoadLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-size": [
           "interpolate",
           [
@@ -11995,10 +11938,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Medium"
           ],
           "Arial Unicode MS Bold"
@@ -12089,15 +12029,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showPointOfInterestLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-field": [
           "coalesce",
           [
@@ -12112,10 +12043,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Medium"
           ],
           "Arial Unicode MS Bold"
@@ -12195,15 +12123,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showTransitLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-size": [
           "interpolate",
           [
@@ -12221,10 +12140,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Medium"
           ],
           "Arial Unicode MS Bold"
@@ -12908,22 +12824,10 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showPlaceLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Italic"
           ],
           "Arial Unicode MS Regular"
@@ -13057,15 +12961,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showPlaceLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-size": [
           "step",
           [
@@ -13108,10 +13003,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Medium"
           ],
           "Arial Unicode MS Bold"
@@ -13228,15 +13120,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showPlaceLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-size": [
           "step",
           [
@@ -13277,10 +13160,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Medium"
           ],
           "Arial Unicode MS Bold"
@@ -13517,15 +13397,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showPlaceLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-size": [
           "interpolate",
           [
@@ -13586,10 +13457,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Italic"
           ],
           "Arial Unicode MS Regular"
@@ -13719,15 +13587,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showPlaceLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-line-height": 1.3,
         "text-size": [
           "interpolate",
@@ -13773,10 +13632,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Italic"
           ],
           "Arial Unicode MS Regular"
@@ -13908,15 +13764,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showRoadLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-field": [
           "coalesce",
           [
@@ -13953,10 +13800,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Bold"
           ],
           "Arial Unicode MS Bold"
@@ -14089,15 +13933,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showRoadLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-size": 9,
         "icon-image": [
           "case",
@@ -14192,10 +14027,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Bold"
           ],
           "Arial Unicode MS Bold"
@@ -14370,15 +14202,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showRoadLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-field": [
           "get",
           "ref"
@@ -14398,10 +14221,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Bold"
           ],
           "Arial Unicode MS Bold"
@@ -14511,15 +14331,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showRoadLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "icon-image": [
           "match",
           [
@@ -14580,15 +14391,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showPlaceLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "icon-image": "marker",
         "text-field": [
           "get",
@@ -14602,10 +14404,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Regular"
           ],
           "Arial Unicode MS Regular"
@@ -14675,15 +14474,6 @@
       ],
       "layout": {
         "symbol-z-elevate": true,
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showPlaceLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-field": [
           "get",
           "house_num"
@@ -14691,10 +14481,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Medium"
           ],
           "Arial Unicode MS Bold"
@@ -14752,15 +14539,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showPlaceLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-field": [
           "get",
           "name"
@@ -14768,10 +14546,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Medium"
           ],
           "Arial Unicode MS Bold"
@@ -14937,15 +14712,6 @@
       ],
       "layout": {
         "symbol-z-elevate": true,
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showPointOfInterestLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-size": [
           "step",
           [
@@ -14997,10 +14763,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Medium"
           ],
           "Arial Unicode MS Bold"
@@ -15739,15 +15502,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showTransitLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-size": 13,
         "icon-image": [
           "case",
@@ -15814,10 +15568,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Medium"
           ],
           "Arial Unicode MS Bold"
@@ -16166,15 +15917,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showTransitLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-line-height": 1.1,
         "text-size": [
           "step",
@@ -16210,10 +15952,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Medium"
           ],
           "Arial Unicode MS Bold"
@@ -16387,15 +16126,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showPlaceLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-field": [
           "coalesce",
           [
@@ -16411,10 +16141,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Medium"
           ],
           "Arial Unicode MS Bold"
@@ -16643,15 +16370,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showPlaceLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-line-height": 1.1,
         "text-size": [
           "interpolate",
@@ -16817,10 +16535,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Regular"
           ],
           "Arial Unicode MS Regular"
@@ -17048,15 +16763,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showPlaceLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-line-height": 1.1,
         "text-size": [
           "interpolate",
@@ -17220,10 +16926,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Medium"
           ],
           "Arial Unicode MS Bold"
@@ -17382,15 +17085,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showPlaceLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-size": [
           "interpolate",
           [
@@ -17434,10 +17128,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Bold"
           ],
           "Arial Unicode MS Bold"
@@ -17543,15 +17234,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showPlaceLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "icon-image": "",
         "text-field": [
           "coalesce",
@@ -17569,10 +17251,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Medium"
           ],
           "Arial Unicode MS Bold"
@@ -17740,15 +17419,6 @@
         ]
       ],
       "layout": {
-        "visibility": [
-          "case",
-          [
-            "config",
-            "showPlaceLabels"
-          ],
-          "visible",
-          "none"
-        ],
         "text-field": [
           "coalesce",
           [
@@ -17765,10 +17435,7 @@
         "text-font": [
           [
             "concat",
-            [
-              "config",
-              "font"
-            ],
+            "DIN Pro",
             " Medium"
           ],
           "Arial Unicode MS Bold"

@@ -13,6 +13,7 @@ import { Basemap, MapLayer, MapOptions, type MapTheme } from '@/types/map.types'
 import standardStyle from '@/components/map/styles/standard.json'
 import streets12 from '@/components/map/styles/streets-12.json'
 import testStyle from '@/components/map/styles/test.json'
+import maptiler from '@/components/map/styles/maptiler-streets-v2.json'
 
 import { layers } from '../layers' // TODO: Refactor layers init
 import { Locale } from '@/lib/i18n'
@@ -20,7 +21,8 @@ import { Locale } from '@/lib/i18n'
 const basemapUrls: {
   [key in Basemap]: string
 } = {
-  standard: standardStyle as any,
+  // standard: standardStyle as any,
+  standard: maptiler as any,
   // standard: testStyle as any,
   // standard: streets12 as any,
   // standard: 'mapbox://styles/mapbox/standard',
@@ -78,7 +80,10 @@ export class MapboxStrategy extends MapStrategy {
       },
     })
 
+    // map.style._isInternalStyle = () => false
+
     this.map = map
+    window.m = map
 
     this.initialize()
   }
@@ -130,6 +135,18 @@ export class MapboxStrategy extends MapStrategy {
       // Find features intersecting the bounding box.
       const selectedFeatures = this.map.queryRenderedFeatures(e.point)
       console.log(selectedFeatures.map(feature => feature.properties?.name))
+
+      if (selectedFeatures.length) {
+        alert(`You clicked ${selectedFeatures[0].properties?.name}`)
+      }
+    })
+
+    this.map.on('mouseenter', 'poi-label', () => {
+      this.map.getCanvas().style.cursor = 'pointer'
+    })
+
+    this.map.on('mouseleave', 'poi-label', () => {
+      this.map.getCanvas().style.cursor = ''
     })
   }
 

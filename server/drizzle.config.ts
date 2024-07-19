@@ -1,11 +1,12 @@
 import { defineConfig } from 'drizzle-kit'
 import { dbUrl } from './src/db'
+
 export default defineConfig({
-  schema: './src/schema/*',
-  driver: 'pg',
   dbCredentials: {
-    connectionString: dbUrl!,
+    url: dbUrl!,
   },
+  schema: './src/schema/*',
+  dialect: 'postgresql',
   verbose: true,
   strict: true,
   out: './drizzle',

@@ -22,7 +22,7 @@
     "@types/nodemailer": "^6.4.15",
     "axios": "^1.6.8",
     "dotenv": "^16.4.5",
-    "drizzle-orm": "^0.30.3",
+    "drizzle-orm": "^0.32.0",
     "elysia": "latest",
     "lucia": "^3.1.1",
     "md5": "^2.3.0",
@@ -32,7 +32,7 @@
   },
   "devDependencies": {
     "bun-types": "latest",
-    "drizzle-kit": "^0.20.14",
+    "drizzle-kit": "^0.23.0",
     "postgres": "^3.4.4"
   },
   "module": "src/index.js"

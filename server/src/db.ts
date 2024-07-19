@@ -1,5 +1,10 @@
 import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
+import * as dotenv from 'dotenv'
+
+dotenv.config({
+  path: '.env.local',
+})
 
 export const dbUrl =
   process.env.NODE_ENV === 'production'

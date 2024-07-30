@@ -12,6 +12,7 @@ import { SettingsIcon, PlusIcon } from 'lucide-vue-next'
 
 import { layers } from '@/components/map/layers'
 import { useMapStore } from '@/stores/map.store'
+import { MapLibrary } from '@/types/map.types'
 
 const mapStore = useMapStore()
 </script>
@@ -26,7 +27,7 @@ const mapStore = useMapStore()
 
       <RadioGroup
         :default-value="mapStore.mapLibrary"
-        @update:model-value="mapStore.setMapLibrary"
+        @update:model-value="(library) => mapStore.setMapLibrary(library as MapLibrary)"
       >
         <div class="flex items-center space-x-2">
           <RadioGroupItem id="mapbox" value="mapbox" />

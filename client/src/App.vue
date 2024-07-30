@@ -13,7 +13,15 @@ import HotkeysMenu from '@/components/HotkeysMenu.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { Spinner } from '@/components/ui/spinner'
 import { Card } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AlertDialog, AlertDialogContent } from '@/components/ui/alert-dialog'
+import {
+  MapIcon,
+  BookMarkedIcon,
+  MilestoneIcon,
+  UsersRoundIcon,
+  SettingsIcon,
+} from 'lucide-vue-next'
 
 const route = useRoute()
 const themeStore = useThemeStore()
@@ -65,17 +73,42 @@ onMounted(() => {
 
   <div class="flex h-dvh bg-background">
     <div
-      class="flex flex-col justify-center"
+      class="invisible sm:visible flex flex-col justify-center"
       v-if="route.meta?.layout === 'floating'"
     >
       <Nav class="z-20" />
     </div>
 
     <div
-      class="absolute top-0 left-1/2 transform -translate-x-1/2 p-2 z-10 w-1/2 max-w-[30rem]"
+      class="invisible sm:visible absolute top-0 left-1/2 transform -translate-x-1/2 p-2 z-10 sm:max-w-[30rem] w-full"
     >
       <Palette class="h-fit" v-if="route.meta?.layout === 'floating'" />
     </div>
+
+    <Card class="sm:invisible bg-muted absolute bottom-0 z-10 w-full">
+      <div class="p-1 relative z-11">
+        <Palette class="h-fit" v-if="route.meta?.layout === 'floating'" />
+      </div>
+      <Tabs default-value="account" class="w-full">
+        <TabsList class="w-full h-14">
+          <TabsTrigger class="flex-1 h-full" value="map">
+            <MapIcon></MapIcon>
+          </TabsTrigger>
+          <TabsTrigger class="flex-1 h-full" value="search">
+            <BookMarkedIcon></BookMarkedIcon>
+          </TabsTrigger>
+          <TabsTrigger class="flex-1 h-full" value="directions">
+            <MilestoneIcon></MilestoneIcon>
+          </TabsTrigger>
+          <TabsTrigger class="flex-1 h-full" value="people">
+            <UsersRoundIcon></UsersRoundIcon>
+          </TabsTrigger>
+          <TabsTrigger class="flex-1 h-full" value="settings">
+            <SettingsIcon></SettingsIcon>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+    </Card>
 
     <main class="flex-1 h-full">
       <router-view v-slot="{ Component }">

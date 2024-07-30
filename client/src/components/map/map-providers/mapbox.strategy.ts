@@ -77,14 +77,14 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   initialize() {
-    this.map.addControl(new ScaleControl(), 'bottom-right')
-    this.map.addControl(new NavigationControl(), 'bottom-right')
-    this.map.addControl(new GeolocateControl(), 'bottom-right')
+    this.map.addControl(new ScaleControl(), 'top-left')
+    this.map.addControl(new NavigationControl(), 'top-right')
+    this.map.addControl(new GeolocateControl(), 'top-right')
     this.map.addControl(
       new AttributionControl({
         compact: true,
       }),
-      'bottom-left',
+      'top-left',
     )
 
     this.map.on('load', () => {

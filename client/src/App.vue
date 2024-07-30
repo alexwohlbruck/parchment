@@ -85,30 +85,32 @@ onMounted(() => {
       <Palette class="h-fit" v-if="route.meta?.layout === 'floating'" />
     </div>
 
-    <Card class="sm:invisible bg-muted absolute bottom-0 z-10 w-full">
-      <div class="p-1 relative z-11">
-        <Palette class="h-fit" v-if="route.meta?.layout === 'floating'" />
-      </div>
-      <Tabs default-value="account" class="w-full">
-        <TabsList class="w-full h-14">
-          <TabsTrigger class="flex-1 h-full" value="map">
-            <MapIcon></MapIcon>
-          </TabsTrigger>
-          <TabsTrigger class="flex-1 h-full" value="search">
-            <BookMarkedIcon></BookMarkedIcon>
-          </TabsTrigger>
-          <TabsTrigger class="flex-1 h-full" value="directions">
-            <MilestoneIcon></MilestoneIcon>
-          </TabsTrigger>
-          <TabsTrigger class="flex-1 h-full" value="people">
-            <UsersRoundIcon></UsersRoundIcon>
-          </TabsTrigger>
-          <TabsTrigger class="flex-1 h-full" value="settings">
-            <SettingsIcon></SettingsIcon>
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-    </Card>
+    <div class="p-2 absolute bottom-0 z-10 w-full">
+      <Card class="sm:invisible bg-muted">
+        <div class="p-1 relative z-11">
+          <Palette class="h-fit" v-if="route.meta?.layout === 'floating'" />
+        </div>
+        <Tabs default-value="account" class="w-full">
+          <TabsList class="w-full h-14">
+            <TabsTrigger class="flex-1 h-full" value="map">
+              <MapIcon></MapIcon>
+            </TabsTrigger>
+            <TabsTrigger class="flex-1 h-full" value="search">
+              <BookMarkedIcon></BookMarkedIcon>
+            </TabsTrigger>
+            <TabsTrigger class="flex-1 h-full" value="directions">
+              <MilestoneIcon></MilestoneIcon>
+            </TabsTrigger>
+            <TabsTrigger class="flex-1 h-full" value="people">
+              <UsersRoundIcon></UsersRoundIcon>
+            </TabsTrigger>
+            <TabsTrigger class="flex-1 h-full" value="settings">
+              <SettingsIcon></SettingsIcon>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </Card>
+    </div>
 
     <main class="flex-1 h-full">
       <router-view v-slot="{ Component }">

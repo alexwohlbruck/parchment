@@ -6,7 +6,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useMapStore } from '@/stores/map.store'
 import H5 from '@/components/ui/typography/H5.vue'
 import { basemaps, layers } from '../map/map.data'
-import { MapLayer } from '../../types/map.types'
+import { Basemap, MapLayer } from '../../types/map.types'
 
 const mapStore = useMapStore()
 const { mapState } = storeToRefs(mapStore)
@@ -23,7 +23,7 @@ function toggleLayer(layerId: MapLayer, pressed: boolean) {
       <ToggleGroup
         type="single"
         :default-value="mapState.basemap"
-        @update:model-value="mapStore.setBasemap"
+        @update:model-value="(basemap) => mapStore.setBasemap(basemap as Basemap)"
       >
         <ToggleGroupItem
           v-for="[basemapId, basemap] in Object.entries(basemaps)"

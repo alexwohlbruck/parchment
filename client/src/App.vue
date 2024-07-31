@@ -18,7 +18,7 @@ import { AlertDialog, AlertDialogContent } from '@/components/ui/alert-dialog'
 import {
   MapIcon,
   BookMarkedIcon,
-  MilestoneIcon,
+  HistoryIcon,
   UsersRoundIcon,
   SettingsIcon,
 } from 'lucide-vue-next'
@@ -85,27 +85,32 @@ onMounted(() => {
       <Palette class="h-fit" v-if="route.meta?.layout === 'floating'" />
     </div>
 
-    <div class="p-2 absolute bottom-0 z-10 w-full">
-      <Card class="sm:invisible bg-muted">
-        <div class="p-1 relative z-11">
+    <div class="p-2 gap-1 absolute bottom-0 z-10 w-full">
+      <Card class="sm:invisible bg-muted shadow-md">
+        <div class="pt-1 px-1 relative z-11">
           <Palette class="h-fit" v-if="route.meta?.layout === 'floating'" />
         </div>
         <Tabs default-value="account" class="w-full">
-          <TabsList class="w-full h-14">
-            <TabsTrigger class="flex-1 h-full" value="map">
-              <MapIcon></MapIcon>
+          <TabsList class="w-full h-16">
+            <TabsTrigger class="flex-1 h-full flex-col gap-1" value="map">
+              <MapIcon class="size-5"></MapIcon>
+              <P class="text-xs">Map</P>
             </TabsTrigger>
-            <TabsTrigger class="flex-1 h-full" value="search">
-              <BookMarkedIcon></BookMarkedIcon>
+            <TabsTrigger class="flex-1 h-full flex-col gap-1" value="saved">
+              <BookMarkedIcon class="size-5"></BookMarkedIcon>
+              <P class="text-xs">Saved</P>
             </TabsTrigger>
-            <TabsTrigger class="flex-1 h-full" value="directions">
-              <MilestoneIcon></MilestoneIcon>
+            <TabsTrigger class="flex-1 h-full flex-col gap-1" value="timeline">
+              <HistoryIcon class="size-5"></HistoryIcon>
+              <P class="text-xs">Timeline</P>
             </TabsTrigger>
-            <TabsTrigger class="flex-1 h-full" value="people">
-              <UsersRoundIcon></UsersRoundIcon>
+            <TabsTrigger class="flex-1 h-full flex-col gap-1" value="people">
+              <UsersRoundIcon class="size-5"></UsersRoundIcon>
+              <P class="text-xs">People</P>
             </TabsTrigger>
-            <TabsTrigger class="flex-1 h-full" value="settings">
-              <SettingsIcon></SettingsIcon>
+            <TabsTrigger class="flex-1 h-full flex-col gap-1" value="settings">
+              <SettingsIcon class="size-5"></SettingsIcon>
+              <P class="text-xs">Settings</P>
             </TabsTrigger>
           </TabsList>
         </Tabs>

@@ -6,22 +6,14 @@ import { useThemeStore } from '@/stores/settings/theme.store'
 import { useCommandService } from '@/services/command.service'
 import { useAuthService } from '@/services/auth.service'
 
-import Nav from '@/components/navigation/Navigation.vue'
+import DesktopNav from '@/components/navigation/DesktopNavigation.vue'
+import MobileNav from '@/components/navigation/MobileNavigation.vue'
 import Palette from '@/components/palette/Palette.vue'
 import DialogView from '@/views/DialogView.vue'
 import HotkeysMenu from '@/components/HotkeysMenu.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { Spinner } from '@/components/ui/spinner'
-import { Card } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AlertDialog, AlertDialogContent } from '@/components/ui/alert-dialog'
-import {
-  MapIcon,
-  BookMarkedIcon,
-  HistoryIcon,
-  UsersRoundIcon,
-  SettingsIcon,
-} from 'lucide-vue-next'
 
 const route = useRoute()
 const themeStore = useThemeStore()
@@ -72,50 +64,26 @@ onMounted(() => {
   </div>
 
   <div class="flex h-dvh bg-background">
-    <div
-      class="invisible sm:visible flex flex-col justify-center"
-      v-if="route.meta?.layout === 'floating'"
-    >
-      <Nav class="z-20" />
-    </div>
+    <!-- Desktop layout -->
+    <template v-if="false">
+      <div
+        class="flex flex-col justify-center"
+        v-if="route.meta?.layout === 'floating'"
+      >
+        <DesktopNav class="z-20" />
+      </div>
 
-    <div
-      class="invisible sm:visible absolute top-0 left-1/2 transform -translate-x-1/2 p-2 z-10 sm:max-w-[30rem] w-full"
-    >
-      <Palette class="h-fit" v-if="route.meta?.layout === 'floating'" />
-    </div>
+      <div
+        class="absolute top-0 left-1/2 transform -translate-x-1/2 p-2 z-10 sm:max-w-[30rem] w-full"
+      >
+        <Palette class="h-fit" v-if="route.meta?.layout === 'floating'" />
+      </div>
+    </template>
 
-    <div class="p-2 gap-1 absolute bottom-0 z-10 w-full">
-      <Card class="sm:invisible bg-muted shadow-md">
-        <div class="pt-1 px-1 relative z-11">
-          <Palette class="h-fit" v-if="route.meta?.layout === 'floating'" />
-        </div>
-        <Tabs default-value="account" class="w-full">
-          <TabsList class="w-full h-16">
-            <TabsTrigger class="flex-1 h-full flex-col gap-1" value="map">
-              <MapIcon class="size-5"></MapIcon>
-              <P class="text-xs">Map</P>
-            </TabsTrigger>
-            <TabsTrigger class="flex-1 h-full flex-col gap-1" value="saved">
-              <BookMarkedIcon class="size-5"></BookMarkedIcon>
-              <P class="text-xs">Saved</P>
-            </TabsTrigger>
-            <TabsTrigger class="flex-1 h-full flex-col gap-1" value="timeline">
-              <HistoryIcon class="size-5"></HistoryIcon>
-              <P class="text-xs">Timeline</P>
-            </TabsTrigger>
-            <TabsTrigger class="flex-1 h-full flex-col gap-1" value="people">
-              <UsersRoundIcon class="size-5"></UsersRoundIcon>
-              <P class="text-xs">People</P>
-            </TabsTrigger>
-            <TabsTrigger class="flex-1 h-full flex-col gap-1" value="settings">
-              <SettingsIcon class="size-5"></SettingsIcon>
-              <P class="text-xs">Settings</P>
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </Card>
-    </div>
+    <!-- Mobile layout -->
+    <template v-else>
+      <MobileNav />
+    </template>
 
     <main class="flex-1 h-full">
       <router-view v-slot="{ Component }">

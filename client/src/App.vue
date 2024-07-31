@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app.store'
 import { useThemeStore } from '@/stores/settings/theme.store'
 import { useCommandService } from '@/services/command.service'
 import { useAuthService } from '@/services/auth.service'
+import { useResponsive } from '@/lib/utils'
 
 import DesktopNav from '@/components/navigation/DesktopNavigation.vue'
 import MobileNav from '@/components/navigation/MobileNavigation.vue'
@@ -20,8 +21,11 @@ const themeStore = useThemeStore()
 const commandService = useCommandService()
 const authService = useAuthService()
 const appStore = useAppStore()
+const { isSmallScreen } = useResponsive()
 
 const { dialogs } = appStore
+
+const isFloatingLayout = computed(() => route.meta?.layout === 'floating')
 
 // Detect if Render server is starting from cold start. This is common with the free plan,
 // so we will show a loading screen while the server spins up.
@@ -65,24 +69,21 @@ onMounted(() => {
 
   <div class="flex h-dvh bg-background">
     <!-- Desktop layout -->
-    <template v-if="false">
-      <div
-        class="flex flex-col justify-center"
-        v-if="route.meta?.layout === 'floating'"
-      >
+    <template v-if="!isSmallScreen">
+      <div class="flex flex-col justify-center" v-if="isFloatingLayout">
         <DesktopNav class="z-20" />
       </div>
 
       <div
         class="absolute top-0 left-1/2 transform -translate-x-1/2 p-2 z-10 sm:max-w-[30rem] w-full"
       >
-        <Palette class="h-fit" v-if="route.meta?.layout === 'floating'" />
+        <Palette class="h-fit" v-if="isFloatingLayout" />
       </div>
     </template>
 
     <!-- Mobile layout -->
     <template v-else>
-      <MobileNav />
+      <MobileNav v-if="isFloatingLayout" />
     </template>
 
     <main class="flex-1 h-full">

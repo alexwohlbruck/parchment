@@ -31,11 +31,11 @@ onMounted(() => {
   const { lng, lat, zoom, bearing, pitch } = {
     // lng: -80.8432808,
     // lat: 35.2205601,
-    lng: -87.63115882873535,
-    lat: 41.87841247144975,
+    lng: -80.3759767,
+    lat: 35.4976205,
     bearing: 0,
     pitch: 0,
-    zoom: 14
+    zoom: 10
   }
 
   const transitlandApiKey = import.meta.env.VITE_TRANSITLAND_API_KEY
@@ -44,9 +44,9 @@ onMounted(() => {
   map = new Map({
     accessToken: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
     container: mapContainer.value,
-    style: 'mapbox://styles/mapbox/standard-beta',
+    // style: 'mapbox://styles/mapbox/standard-beta',
     // style: 'mapbox://styles/mapbox/streets-v12',
-    // style: 'mapbox://styles/mapbox/light-v11',
+    style: 'mapbox://styles/mapbox/light-v11',
     center: [lng, lat],
     bearing,
     pitch,
@@ -62,56 +62,111 @@ onMounted(() => {
   map.on('style.load', () => {
     console.log(map)
 
-    // LOOM maps
-    map.addSource('transit-source', {
-      type: 'vector',
-      tiles: ['https://loom.cs.uni-freiburg.de/tiles/subway-lightrail/geo/{z}/{x}/{y}.mvt'],
-      minzoom: 0,
-      maxzoom: 17
+    map.addLayer({
+      id: 'line',
+      type: 'line',
+      source: {
+        type: 'vector',
+        url: 'http://localhost:3000/planet_osm_line'
+      },
+      'source-layer': 'planet_osm_line',
+      paint: {
+        'line-color': 'green',
+        'line-width': 1
+      }
     })
 
-    // // Add layers using loomStyles
-    const loomStyles = {
-      lines: {
-        type: 'line',
-        'line-cap': 'round',
-        'line-join': 'round',
-        'line-width': 5,
-        'line-color': ['concat', '#', ['get', 'color']],
-        'line-opacity': 1
+    map.addLayer({
+      id: 'point',
+      type: 'circle',
+      source: {
+        type: 'vector',
+        url: 'http://localhost:3000/planet_osm_point'
       },
-      'inner-connections': {
-        type: 'line',
-        'line-cap': 'round',
-        'line-join': 'round',
-        'line-width': 5,
-        'line-color': ['concat', '#', ['get', 'color']],
-        'line-opacity': 1
-      },
-      stations: {
-        type: 'fill',
-        'line-cap': ['get', 'lineCap'],
-        weight: ['get', 'weight'],
-        'line-color': ['concat', '#', ['get', 'color']],
-        'line-opacity': ['get', 'opacity'],
-        'fill-color': ['concat', '#', ['get', 'fillColor']],
-        'fill-opacity': 1,
-        fill: true
+      'source-layer': 'planet_osm_point',
+      paint: {
+        'circle-color': 'blue',
+        'circle-radius': 2
       }
-    }
+    })
 
-    for (const layerId in loomStyles) {
-      map.addLayer({
-        id: layerId,
-        type: loomStyles[layerId].type,
-        source: 'transit-source',
-        'source-layer': layerId,
-        layout: {},
-        paint: loomStyles[layerId]
-      })
-    }
+    // map.addLayer({
+    //   id: 'polygon',
+    //   type: 'fill',
+    //   source: {
+    //     type: 'vector',
+    //     url: 'http://localhost:3000/planet_osm_polygon'
+    //   },
+    //   'source-layer': 'planet_osm_polygon',
+    //   paint: {
+    //     'fill-color': 'blue'
+    //   }
+    // })
 
-    // Custom .mbtiles vector tiles
+    map.addLayer({
+      id: 'roads',
+      type: 'line',
+      source: {
+        type: 'vector',
+        url: 'http://localhost:3000/planet_osm_roads'
+      },
+      'source-layer': 'planet_osm_roads',
+      paint: {
+        'line-color': 'red',
+        'line-width': 1
+      }
+    })
+
+    //////////////////// // // LOOM maps
+    // map.addSource('transit-source', {
+    //   type: 'vector',
+    //   tiles: ['https://loom.cs.uni-freiburg.de/tiles/subway-lightrail/geo/{z}/{x}/{y}.mvt'],
+    //   minzoom: 0,
+    //   maxzoom: 20
+    // })
+
+    // // // Add layers using loomStyles
+    // const loomStyles = {
+    //   lines: {
+    //     type: 'line',
+    //     'line-cap': 'round',
+    //     'line-join': 'round',
+    //     'line-width': 5,
+    //     'line-color': ['concat', '#', ['get', 'color']],
+    //     'line-opacity': 1
+    //   },
+    //   'inner-connections': {
+    //     type: 'line',
+    //     'line-cap': 'round',
+    //     'line-join': 'round',
+    //     'line-width': 5,
+    //     'line-color': ['concat', '#', ['get', 'color']],
+    //     'line-opacity': 1
+    //   },
+    //   stations: {
+    //     type: 'fill',
+    //     'line-cap': ['get', 'lineCap'],
+    //     weight: ['get', 'weight'],
+    //     'line-color': ['concat', '#', ['get', 'color']],
+    //     'line-opacity': ['get', 'opacity'],
+    //     'fill-color': ['concat', '#', ['get', 'fillColor']],
+    //     'fill-opacity': 1,
+    //     fill: true
+    //   }
+    // }
+
+    // for (const layerId in loomStyles) {
+    //   map.addLayer({
+    //     id: layerId,
+    //     type: loomStyles[layerId].type,
+    //     source: 'transit-source',
+    //     'source-layer': layerId,
+    //     layout: {},
+    //     paint: loomStyles[layerId]
+    //   })
+    // }
+
+    //////////////// Custom .mbtiles vector tiles
     // http://localhost:3650/api/tiles/nc-racks-2024-01-25-21-49-55/tiles.json
     // map.addSource('racks', {
     //   type: 'vector',
@@ -172,7 +227,7 @@ onMounted(() => {
 
     ///////
 
-    // MapTiler vector cycle paths
+    ///////////////////// MapTiler vector cycle paths
     //https://api.maptiler.com/maps/6c3893ea-7a3b-4ece-bddf-fb11520ac347/style.json?key=UBdoOia18CaufO2hbWyZ
     // map.addSource('cycle-paths', {
     //   type: 'vector',
@@ -196,7 +251,7 @@ onMounted(() => {
     //   minzoom: 10
     // })
 
-    ///////////
+    ////////////////////
 
     // Show cycle paths from mapbox streets
 

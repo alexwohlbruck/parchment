@@ -63,6 +63,19 @@ onMounted(() => {
     console.log(map)
 
     map.addLayer({
+      id: 'polygon',
+      type: 'fill',
+      source: {
+        type: 'vector',
+        url: 'http://localhost:3000/planet_osm_polygon'
+      },
+      'source-layer': 'planet_osm_polygon',
+      paint: {
+        'fill-outline-color': 'lightgrey'
+      }
+    })
+
+    map.addLayer({
       id: 'line',
       type: 'line',
       source: {
@@ -89,19 +102,6 @@ onMounted(() => {
         'circle-radius': 2
       }
     })
-
-    // map.addLayer({
-    //   id: 'polygon',
-    //   type: 'fill',
-    //   source: {
-    //     type: 'vector',
-    //     url: 'http://localhost:3000/planet_osm_polygon'
-    //   },
-    //   'source-layer': 'planet_osm_polygon',
-    //   paint: {
-    //     'fill-color': 'blue'
-    //   }
-    // })
 
     map.addLayer({
       id: 'roads',

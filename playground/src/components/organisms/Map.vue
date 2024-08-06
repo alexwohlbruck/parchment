@@ -29,13 +29,11 @@ let map = null
 
 onMounted(() => {
   const { lng, lat, zoom, bearing, pitch } = {
-    // lng: -80.8432808,
-    // lat: 35.2205601,
-    lng: -80.3759767,
-    lat: 35.4976205,
+    lng: -80.8432808,
+    lat: 35.2205601,
     bearing: 0,
     pitch: 0,
-    zoom: 10
+    zoom: 14
   }
 
   const transitlandApiKey = import.meta.env.VITE_TRANSITLAND_API_KEY
@@ -99,7 +97,7 @@ onMounted(() => {
       'source-layer': 'planet_osm_point',
       paint: {
         'circle-color': 'blue',
-        'circle-radius': 2
+        'circle-radius': 3
       }
     })
 
@@ -115,6 +113,36 @@ onMounted(() => {
         'line-color': 'red',
         'line-width': 1
       }
+    })
+
+    const popup = new Popup({
+      closeButton: false,
+      closeOnClick: false
+    })
+
+    console.log(map)
+
+    map.on('mouseenter', 'point', (e) => {
+      console.log('hover')
+      // Change the cursor style as a UI indicator.
+      map.getCanvas().style.cursor = 'pointer'
+
+      // Copy coordinates array.
+      const coordinates = e.features[0].geometry.coordinates.slice()
+      const description = `<pre>${JSON.stringify(e.features[0].properties)}</pre>`
+
+      // Ensure that if the map is zoomed out such that multiple
+      // copies of the feature are visible, the popup appears
+      // over the copy being pointed to.
+      if (['mercator', 'equirectangular'].includes(map.getProjection().name)) {
+        while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+          coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360
+        }
+      }
+
+      // Populate the popup and set its coordinates
+      // based on the feature found.
+      popup.setLngLat(coordinates).setHTML(description).addTo(map)
     })
 
     //////////////////// // // LOOM maps

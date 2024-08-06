@@ -4072,6 +4072,19 @@
           6,
           22,
           80
+        ],
+        "line-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          15,
+          0,
+          16,
+          1
         ]
       }
     },
@@ -4473,6 +4486,19 @@
           "hsl(295, 10%, 97%)",
           16,
           "hsl(295, 10%, 93%)"
+        ],
+        "line-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          14,
+          0,
+          15,
+          1
         ]
       }
     },
@@ -4934,6 +4960,19 @@
           10,
           22,
           100
+        ],
+        "line-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          15,
+          0,
+          16,
+          1
         ]
       }
     },
@@ -5788,7 +5827,20 @@
           22,
           100
         ],
-        "line-color": "hsl(224, 25%, 80%)"
+        "line-color": "hsl(224, 25%, 80%)",
+        "line-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          15,
+          0,
+          16,
+          1
+        ]
       }
     },
     {
@@ -12379,7 +12431,7 @@
       "type": "fill-extrusion",
       "source": "composite",
       "source-layer": "building",
-      "minzoom": 15,
+      "minzoom": 13,
       "filter": [
         "all",
         [
@@ -12642,7 +12694,7 @@
           ],
           15,
           0,
-          15.3,
+          15.6,
           1
         ]
       }

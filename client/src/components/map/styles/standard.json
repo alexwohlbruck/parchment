@@ -504,6 +504,10 @@
       "type": "vector",
       "url": "mapbox://mapbox.mapbox-bathymetry-v2,mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2,mapbox.mapbox-models-v1"
     },
+    "osm": {
+      "type": "vector",
+      "url": "http://localhost:3000/planet_osm_point"
+    },
     "3dbuildings": {
       "type": "batched-model",
       "url": "mapbox://mapbox.mapbox-3dbuildings-v1"
@@ -11101,6 +11105,78 @@
       "metadata": {
         "mapbox:description": "Above lines (roads, etc.) and behind 3D buildings"
       }
+    },
+    {
+      "id": "trash",
+      "layout": {
+        "model-id": "trash"
+      },
+      "paint": {
+        "model-color": [
+          "hsla",
+          [
+            "random",
+            50,
+            200,
+            [
+              "id"
+            ]
+          ],
+          60,
+          [
+            "random",
+            70,
+            90,
+            [
+              "id"
+            ]
+          ],
+          1
+        ],
+        "model-color-mix-intensity": 0.21,
+        "model-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          15,
+          0,
+          16,
+          1
+        ],
+        "model-rotation": [
+          0,
+          0,
+          [
+            "random",
+            0,
+            360,
+            [
+              "id"
+            ]
+          ]
+        ],
+        "model-scale": [
+          "literal",
+          [
+            0.5,
+            0.5,
+            0.5
+          ]
+        ]
+      },
+      "source": "osm",
+      "source-layer": "planet_osm_point",
+      "filter": [
+        "==",
+        "amenity",
+        "bicycle_parking"
+      ],
+      "minzoom": 15,
+      "type": "model"
     },
     {
       "id": "trees",

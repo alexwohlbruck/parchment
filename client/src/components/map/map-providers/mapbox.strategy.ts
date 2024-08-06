@@ -14,6 +14,8 @@ import standardStyle from '@/components/map/styles/standard.json'
 import { layers } from '../layers' // TODO: Refactor layers init
 import { Locale } from '@/lib/i18n'
 
+import trash from '@/assets/3d/trash.glb'
+
 const basemapUrls: {
   [key in Basemap]: string
 } = {
@@ -60,7 +62,13 @@ export class MapboxStrategy extends MapStrategy {
     const map = new Map({
       accessToken: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
       container,
-      style: standardStyle as any,
+      style: {
+        ...(standardStyle as any),
+        models: {
+          ...(standardStyle.models as any),
+          trash,
+        },
+      },
       center: [lng, lat],
       bearing,
       pitch,
@@ -88,11 +96,39 @@ export class MapboxStrategy extends MapStrategy {
     )
 
     this.map.on('load', () => {
-      this.setLayers.bind(this)(this.options.layers)
+      // this.setLayers.bind(this)(this.options.layers)
     })
     this.map.on('style.load', () => {
-      this.setMapTheme.bind(this)(this.options.theme)
-      this.setLocale('en-US')
+      // this.setMapTheme.bind(this)(this.options.theme)
+      // this.setLocale('en-US')
+      // this.map.loadImage(
+      //   'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Wikivoyage-icon-bicycle-trail.svg/512px-Wikivoyage-icon-bicycle-trail.svg.png?20200226224155',
+      //   (error, img) => {
+      //     this.map.addImage('bicycle', img)
+      //     this.map.addLayer({
+      //       id: 'poi-label',
+      //       type: 'symbol',
+      //       source: {
+      //         type: 'vector',
+      //         url: 'http://localhost:3000/planet_osm_point',
+      //       },
+      //       'source-layer': 'planet_osm_point',
+      //       minzoom: 16,
+      //       filter: ['==', 'amenity', 'bicycle_parking'],
+      //       layout: {
+      //         'icon-image': 'bicycle',
+      //         'icon-size': 0.05,
+      //         'text-size': 12,
+      //       },
+      //       paint: {
+      //         'text-color': 'hsl(26, 25%, 32%)',
+      //         'text-halo-color': 'hsl(0, 0%, 100%)',
+      //         'text-halo-width': 0.5,
+      //         'text-halo-blur': 0.5,
+      //       },
+      //     })
+      //   },
+      // )
     })
   }
 

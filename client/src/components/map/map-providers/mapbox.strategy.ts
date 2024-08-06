@@ -6,10 +6,14 @@ import {
   AttributionControl,
   ScaleControl,
   Projection,
+  PointLike,
 } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { Basemap, MapLayer, MapOptions, type MapTheme } from '@/types/map.types'
 import standardStyle from '@/components/map/styles/standard.json'
+import streets12 from '@/components/map/styles/streets-12.json'
+import testStyle from '@/components/map/styles/test.json'
+import maptiler from '@/components/map/styles/maptiler-streets-v2.json'
 
 import { layers } from '../layers' // TODO: Refactor layers init
 import { Locale } from '@/lib/i18n'
@@ -19,7 +23,12 @@ import trash from '@/assets/3d/trash.glb'
 const basemapUrls: {
   [key in Basemap]: string
 } = {
-  standard: standardStyle as any,
+  // standard: standardStyle as any,
+  standard: maptiler as any,
+  // standard: testStyle as any,
+  // standard: streets12 as any,
+  // standard: 'mapbox://styles/mapbox/standard',
+  // standard: 'mapbox://styles/mapbox/streets-v12',
   hybrid: 'mapbox://styles/mapbox/satellite-streets-v11',
   satellite: 'mapbox://styles/mapbox/satellite-v9',
 }
@@ -50,11 +59,11 @@ export class MapboxStrategy extends MapStrategy {
 
     // For testing
     const { lng, lat, zoom, bearing, pitch } = {
-      lng: -80.8432808,
-      lat: 35.2205601,
+      lng: -80.82406421137776,
+      lat: 35.21608791694442,
       bearing: 0,
       pitch: 0,
-      zoom: 14,
+      zoom: 17.48911968031299,
     }
     const projection: Projection['name'] =
       (localStorage.getItem('projection') as Projection['name']) || 'globe'
@@ -79,7 +88,10 @@ export class MapboxStrategy extends MapStrategy {
       },
     })
 
+    // map.style._isInternalStyle = () => false
+
     this.map = map
+    window.m = map
 
     this.initialize()
   }
@@ -95,40 +107,29 @@ export class MapboxStrategy extends MapStrategy {
       'top-left',
     )
 
+    // this.map.on('moveend', () => {
+    //   console.log(`Position: ${this.map.getCenter()}`)
+    //   console.log(`Zoom: ${this.map.getZoom()}`)
+    //   console.log(`Pitch: ${this.map.getPitch()}`)
+    //   console.log(`Bearing: ${this.map.getBearing()}`)
+    // })
+
     this.map.on('load', () => {
       // this.setLayers.bind(this)(this.options.layers)
+      // this.map.addSource('composite', {
+      //   type: 'vector',
+      //   url: 'mapbox://mapbox.mapbox-bathymetry-v2,mapbox.mapbox-streets-v8,mapbox.mapbox-terrain-v2,mapbox.mapbox-models-v1',
+      // })
+      // ;(basemapUrls.standard as any).layers.forEach(layer => {
+      //   if (layer.id === 'poi-label') {
+      //     console.log(layer)
+      //     this.map.addLayer(layer)
+      //   }
+      // })
     })
     this.map.on('style.load', () => {
-      // this.setMapTheme.bind(this)(this.options.theme)
-      // this.setLocale('en-US')
-      // this.map.loadImage(
-      //   'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Wikivoyage-icon-bicycle-trail.svg/512px-Wikivoyage-icon-bicycle-trail.svg.png?20200226224155',
-      //   (error, img) => {
-      //     this.map.addImage('bicycle', img)
-      //     this.map.addLayer({
-      //       id: 'poi-label',
-      //       type: 'symbol',
-      //       source: {
-      //         type: 'vector',
-      //         url: 'http://localhost:3000/planet_osm_point',
-      //       },
-      //       'source-layer': 'planet_osm_point',
-      //       minzoom: 16,
-      //       filter: ['==', 'amenity', 'bicycle_parking'],
-      //       layout: {
-      //         'icon-image': 'bicycle',
-      //         'icon-size': 0.05,
-      //         'text-size': 12,
-      //       },
-      //       paint: {
-      //         'text-color': 'hsl(26, 25%, 32%)',
-      //         'text-halo-color': 'hsl(0, 0%, 100%)',
-      //         'text-halo-width': 0.5,
-      //         'text-halo-blur': 0.5,
-      //       },
-      //     })
-      //   },
-      // )
+      this.setMapTheme.bind(this)(this.options.theme)
+      this.setLocale('en-US')
     })
   }
 

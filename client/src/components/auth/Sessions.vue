@@ -76,11 +76,11 @@ const columns: ColumnDef<Session>[] = [
     header: 'Created',
     accessorFn: info => dayjs(info.createdAt as string).format('LLL'),
   },
-  {
-    id: 'expires',
-    header: 'Expires',
-    accessorFn: info => dayjs(info.expiresAt as string).format('LLL'),
-  },
+  // {
+  //   id: 'expires',
+  //   header: 'Expires',
+  //   accessorFn: info => dayjs(info.expiresAt as string).format('LLL'),
+  // },
   {
     id: 'currentSession',
     cell: ({ row }) =>

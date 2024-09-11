@@ -21,7 +21,9 @@ watch(dialogOpen, open => {
 
 <template>
   <Dialog :open="dialogOpen" @update:open="open => (dialogOpen = open)">
-    <DialogContent class="overflow-y-auto h-[90vh] max-w-[80vw]">
+    <DialogContent
+      class="overflow-y-auto h-full sm:h-[90vh] max-w-full sm:max-w-[80vw]"
+    >
       <router-view name="dialogContent"></router-view>
     </DialogContent>
   </Dialog>

@@ -23,8 +23,8 @@ import trash from '@/assets/3d/trash.glb'
 const basemapUrls: {
   [key in Basemap]: string
 } = {
-  // standard: standardStyle as any,
-  standard: maptiler as any,
+  standard: standardStyle as any,
+  // standard: maptiler as any,
   // standard: testStyle as any,
   // standard: streets12 as any,
   // standard: 'mapbox://styles/mapbox/standard',
@@ -88,7 +88,7 @@ export class MapboxStrategy extends MapStrategy {
       },
     })
 
-    // map.style._isInternalStyle = () => false
+    map.style._isInternalStyle = () => false
 
     this.map = map
     window.m = map
@@ -130,6 +130,7 @@ export class MapboxStrategy extends MapStrategy {
     this.map.on('style.load', () => {
       this.setMapTheme.bind(this)(this.options.theme)
       this.setLocale('en-US')
+      this.enable3dTerrain()
     })
   }
 
@@ -190,6 +191,15 @@ export class MapboxStrategy extends MapStrategy {
 
   togglePoiLabels(value: boolean) {
     this.map.setConfigProperty('basemap', 'showPointOfInterestLabels', value)
+  }
+
+  enable3dTerrain() {
+    this.map.addSource('mapbox-dem', {
+      type: 'raster-dem',
+      url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+      tileSize: 512,
+    })
+    this.map.setTerrain({ source: 'mapbox-dem', exaggeration: 1 })
   }
 
   @ifBasemapLoaded

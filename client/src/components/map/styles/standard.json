@@ -11195,7 +11195,7 @@
       "filter": [
         "==",
         "amenity",
-        "bicycle_parking"
+        "waste_basket"
       ],
       "minzoom": 15,
       "type": "model"

@@ -28,8 +28,14 @@ function beginOtp(_email: string) {
 </style>
 
 <template>
-  <div class="flex h-full gap-4 p-4 bg-cyan-50 dark:bg-slate-900">
+  <div
+    class="flex flex-col sm:flex-row h-full gap-4 p-4 bg-cyan-50 dark:bg-slate-900"
+  >
     <div class="flex-1 flex flex-col h-full">
+      <div id="map-graphic" class="bg-blue-200 rounded-3xl h-full"></div>
+    </div>
+
+    <div class="sm:flex-1 flex flex-col h-full">
       <H4>Parchment</H4>
       <div class="flex-1 flex flex-col justify-center items-center gap-2">
         <div class="flex flex-col gap-2">
@@ -48,10 +54,6 @@ function beginOtp(_email: string) {
           </template>
         </div>
       </div>
-    </div>
-
-    <div class="flex-1 flex flex-col h-full">
-      <div id="map-graphic" class="bg-blue-200 rounded-3xl h-full"></div>
     </div>
   </div>
 </template>

@@ -21,7 +21,7 @@ const themeStore = useThemeStore()
 const commandService = useCommandService()
 const authService = useAuthService()
 const appStore = useAppStore()
-const { isSmallScreen } = useResponsive()
+const { isMobileScreen } = useResponsive()
 
 const { dialogs } = appStore
 
@@ -69,7 +69,7 @@ onMounted(() => {
 
   <div class="flex h-dvh bg-background">
     <!-- Desktop layout -->
-    <template v-if="!isSmallScreen">
+    <template v-if="!isMobileScreen">
       <div class="flex flex-col justify-center" v-if="isFloatingLayout">
         <DesktopNav class="z-20" />
       </div>

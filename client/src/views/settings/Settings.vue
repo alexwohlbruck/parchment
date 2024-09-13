@@ -7,7 +7,7 @@ import Navigation from './Navigation.vue'
 import SettingsPage from './SettingsPage.vue'
 
 const router = useRouter()
-const { isSmallScreen } = useResponsive()
+const { isMobileScreen } = useResponsive()
 
 const isRootSettingsPage = computed(() => {
   return router.currentRoute.value.path === '/settings'
@@ -15,8 +15,8 @@ const isRootSettingsPage = computed(() => {
 </script>
 
 <template>
-  <div class="flex gap-4">
-    <Navigation v-if="isRootSettingsPage || !isSmallScreen" />
-    <SettingsPage v-if="!isRootSettingsPage || !isSmallScreen" />
+  <div class="flex gap-4 overflow-y-hidden">
+    <Navigation v-if="isRootSettingsPage || !isMobileScreen" />
+    <SettingsPage v-if="!isRootSettingsPage || !isMobileScreen" />
   </div>
 </template>

@@ -10,7 +10,7 @@ import { ChevronLeftIcon } from 'lucide-vue-next'
 import { onMounted } from 'vue'
 
 const router = useRouter()
-const { isSmallScreen } = useResponsive()
+const { isMobileScreen } = useResponsive()
 
 onMounted(() => {
   if (router.currentRoute.value.path === '/settings') {
@@ -21,14 +21,15 @@ onMounted(() => {
 
 <template>
   <div class="flex-1 flex flex-col gap-4">
-    <div class="flex items-center">
+    <div class="flex items-center gap-1">
       <Button
+        v-if="isMobileScreen"
         @click="router.push('/settings')"
-        v-if="isSmallScreen"
         variant="ghost"
         size="icon"
-        :icon="ChevronLeftIcon"
-      ></Button>
+      >
+        <ChevronLeftIcon class="size-5" />
+      </Button>
       <H3>
         {{ $t(`settings.${String(router.currentRoute.value.name)}.title`) }}
       </H3>
@@ -36,6 +37,6 @@ onMounted(() => {
 
     <Separator />
 
-    <router-view class="w-full max-w-[52rem] items-start" />
+    <router-view class="overflow-y-auto w-full max-w-[52rem] items-start" />
   </div>
 </template>

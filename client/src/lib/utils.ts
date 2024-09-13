@@ -17,7 +17,12 @@ export function useResponsive() {
   const { width } = useWindowSize()
   const breakpoints = getBreakpoints()
 
-  const isSmallScreen = computed(() => width.value < parseInt(breakpoints.md))
+  const isXSmallScreen = computed(() => width.value < parseInt(breakpoints.sm))
+  const isSmallScreen = computed(
+    () =>
+      width.value >= parseInt(breakpoints.sm) &&
+      width.value < parseInt(breakpoints.md),
+  )
   const isMediumScreen = computed(
     () =>
       width.value >= parseInt(breakpoints.md) &&
@@ -25,7 +30,21 @@ export function useResponsive() {
   )
   const isLargeScreen = computed(() => width.value >= parseInt(breakpoints.lg))
 
-  return { isSmallScreen, isMediumScreen, isLargeScreen }
+  const isMobileScreen = computed(
+    () => isXSmallScreen.value || isSmallScreen.value,
+  )
+  const isDesktopScreen = computed(
+    () => isMediumScreen.value || isLargeScreen.value,
+  )
+
+  return {
+    isXSmallScreen,
+    isSmallScreen,
+    isMediumScreen,
+    isLargeScreen,
+    isMobileScreen,
+    isDesktopScreen,
+  }
 }
 
 export function cn(...inputs: ClassValue[]) {

@@ -22,7 +22,7 @@ import { computed } from 'vue'
 
 const router = useRouter()
 const authService = useAuthService()
-const { isSmallScreen } = useResponsive()
+const { isMobileScreen } = useResponsive()
 
 const pages: {
   id: string
@@ -82,7 +82,7 @@ const allowedPages = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 w-full sm:w-60">
+  <div class="flex flex-col gap-4 w-full md:w-48">
     <div>
       <H2>{{ $t('settings.title') }}</H2>
       <P>{{ $t('settings.description') }}</P>
@@ -90,12 +90,46 @@ const allowedPages = computed(() => {
 
     <Separator />
 
-    <div>
+    <!-- Grid layout for small devices -->
+    <div
+      v-if="isMobileScreen"
+      class="overflow-y-auto grid grid-cols-3 sm:grid-cols-4 gap-2"
+    >
+      <Button
+        v-for="(page, i) in allowedPages"
+        :key="i"
+        variant="outline"
+        class="flex flex-col px-3 justify-center gap-2 h-26 py-5"
+        as-child
+        :to="page.to"
+        :class="
+          router.currentRoute.value.path === page.to
+            ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50'
+            : ''
+        "
+        :disabled="page.disabled"
+      >
+        <router-link :to="page.to">
+          <component :is="page.icon" class="size-6" />
+
+          <transition-expand axis="x" :duration="50" easing="ease-out">
+            <div class="flex flex-1 gap-1 text-nowrap">
+              <div class="flex-1">
+                {{ $t(`settings.${page.id}.title`) }}
+              </div>
+            </div>
+          </transition-expand>
+        </router-link>
+      </Button>
+    </div>
+
+    <!-- Two column side nav layout for large devices -->
+    <div v-else class="overflow-y-auto">
       <Button
         v-for="(page, i) in allowedPages"
         :key="i"
         variant="ghost"
-        class="w-full flex px-3 justify-center gap-3"
+        class="flex px-3 justify-center gap-3"
         as-child
         :to="page.to"
         :class="

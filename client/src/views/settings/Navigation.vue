@@ -82,10 +82,9 @@ const allowedPages = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 w-full md:w-48">
+  <div class="flex flex-col w-full md:w-48 gap-4">
     <div>
-      <H2>{{ $t('settings.title') }}</H2>
-      <P>{{ $t('settings.description') }}</P>
+      <H2 class="p-0">{{ $t('settings.title') }}</H2>
     </div>
 
     <Separator />

@@ -30,7 +30,7 @@ onMounted(() => {
       >
         <ChevronLeftIcon class="size-5" />
       </Button>
-      <H3>
+      <H3 class="pb-[.25rem]">
         {{ $t(`settings.${String(router.currentRoute.value.name)}.title`) }}
       </H3>
     </div>

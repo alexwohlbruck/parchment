@@ -37,6 +37,8 @@ onMounted(() => {
 
     <Separator />
 
-    <router-view class="overflow-y-auto w-full max-w-[52rem] items-start" />
+    <div class="overflow-y-auto items-start">
+      <router-view class="w-full max-w-[52rem]" />
+    </div>
   </div>
 </template>

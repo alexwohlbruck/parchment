@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Signin from '@/views/auth/Signin.vue'
 import Map from '@/views/Map.vue'
 import { useAuthStore } from '@/stores/auth.store'
+import { useResponsive } from '@/lib/utils'
 
 export enum AppRoute {
   SIGNIN = 'signin',
@@ -58,33 +59,32 @@ const router = createRouter({
         layout: 'floating',
       },
       beforeEnter: [keepDefaultView],
-      redirect: '/settings/appearance',
       children: [
         {
           path: '/settings/account',
           name: AppRoute.ACCOUNT,
-          component: () => import('../views/settings/Account.vue'),
+          component: () => import('../views/settings/pages/Account.vue'),
         },
         {
           path: '/settings/behavior',
           name: AppRoute.BEHAVIOR,
-          component: () => import('../views/settings/Behavior.vue'),
+          component: () => import('../views/settings/pages/Behavior.vue'),
         },
         {
           path: '/settings/appearance',
           name: AppRoute.APPEARANCE,
           component: () =>
-            import('../views/settings/appearance/Appearance.vue'),
+            import('../views/settings/pages/appearance/Appearance.vue'),
         },
         {
           path: '/settings/map-data',
           name: AppRoute.MAP_DATA,
-          component: () => import('../views/settings/MapData.vue'),
+          component: () => import('../views/settings/pages/MapData.vue'),
         },
         {
           path: '/settings/users',
           name: AppRoute.USERS,
-          component: () => import('../views/settings/Users.vue'),
+          component: () => import('../views/settings/pages/Users.vue'),
         },
       ],
     },

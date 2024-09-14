@@ -9,7 +9,7 @@ interface SpinnerVariantProps extends VariantProps<typeof spinnerVariants> {}
 
 interface Props extends PrimitiveProps {
   size?: SpinnerVariantProps['size']
-  color: string
+  color?: string
 }
 
 withDefaults(defineProps<Props>(), {

@@ -117,7 +117,6 @@
   },
   "settings": {
     "title": "Settings",
-    "description": "Manage your account settings and app behavior",
     "account": {
       "title": "Account"
     },

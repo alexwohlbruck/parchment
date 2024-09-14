@@ -194,12 +194,12 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   enable3dTerrain() {
-    this.map.addSource('mapbox-dem', {
-      type: 'raster-dem',
-      url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
-      tileSize: 512,
-    })
-    this.map.setTerrain({ source: 'mapbox-dem', exaggeration: 1 })
+    // this.map.addSource('mapbox-dem', {
+    //   type: 'raster-dem',
+    //   url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+    //   tileSize: 512,
+    // })
+    // this.map.setTerrain({ source: 'mapbox-dem', exaggeration: 1 })
   }
 
   @ifBasemapLoaded

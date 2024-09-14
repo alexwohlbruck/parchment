@@ -4420,7 +4420,32 @@
           22,
           80
         ],
-        "line-color": "hsl(0, 10%, 80%)"
+        "line-color": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          15,
+          "hsl(295, 10%, 97%)",
+          16,
+          "hsl(295, 10%, 93%)"
+        ],
+        "line-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          14,
+          0,
+          15,
+          1
+        ]
       }
     },
     {

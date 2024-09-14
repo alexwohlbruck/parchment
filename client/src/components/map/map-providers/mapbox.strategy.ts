@@ -88,8 +88,6 @@ export class MapboxStrategy extends MapStrategy {
       },
     })
 
-    map.style._isInternalStyle = () => false
-
     this.map = map
     window.m = map
 

@@ -157,7 +157,7 @@ const traffic = {
         '#DA3838',
         '#000000',
       ],
-      'line-opacity': 0.8,
+      'line-opacity': ['match', ['get', 'congestion'], 'low', 0, 0.8],
       'line-emissive-strength': 1,
     },
   },

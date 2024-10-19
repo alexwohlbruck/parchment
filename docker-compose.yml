@@ -1,8 +1,49 @@
-version: '3.8'
+networks:
+  parchment-network:
+    driver: bridge
+
+volumes:
+  osm-db:
+  server-db:
+  server:
+
 services:
-  # Backend (Elysia)
+  # OSM imported data DB
+  osm-db:
+    container_name: osm-data
+    image: postgis/postgis:latest
+    environment:
+      POSTGRES_DB: osm_data
+      POSTGRES_USER: osm_user
+      POSTGRES_PASSWORD: osm_password
+    volumes:
+      - osm-db:/var/lib/postgresql/data
+    ports:
+      - '5433:5432'
+    networks:
+      - parchment-network
+
+  # Parchment backend server DB
+  server-db:
+    container_name: server-db
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: parchment
+      POSTGRES_USER: server_user
+      POSTGRES_PASSWORD: server_password
+    volumes:
+      - server-db:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+    networks:
+      - parchment-network
+
+  # Parchment backend (Elysia)
   backend:
-    build: ./server
+    container_name: parchment-server
+    build:
+      context: ./server
+      dockerfile: ${DOCKERFILE:-Dockerfile.dev}
     environment:
       LOCAL_ROUTING_ENGINE: 'graphhopper'
       EXTERNAL_ROUTING_ENGINE_URL: 'https://api.openrouteservice.org/v2/directions/driving-car'
@@ -13,125 +54,110 @@ services:
     networks:
       - parchment-network
     depends_on:
-      - pelias-api
-      - opensearch
-      - graphhopper
-      - martin
-
-  # Frontend (Vue)
-  frontend:
-    build: ./client
-    ports:
-      - '5173:5173' # Expose frontend to host
-    networks:
-      - parchment-network
-    depends_on:
-      - backend
-
-  # Pelias API (Search Engine)
-  pelias-api:
-    image: pelias/api:latest
-    environment:
-      PELIAS_CONFIG: /code/config
-    depends_on:
-      - opensearch
-    ports:
-      - '4000:4000'
-    networks:
-      - parchment-network
-
-  pelias-placeholder:
-    image: pelias/placeholder:latest
-    environment:
-      PELIAS_CONFIG: /code/config
-    depends_on:
-      - opensearch
-    ports:
-      - '4001:4001'
-    networks:
-      - parchment-network
-
-  # Pelias Importer (OSM)
-  pelias-osm:
-    image: pelias/openstreetmap:latest
-    environment:
-      PELIAS_CONFIG: /code/config
+      - server-db
+    #   - pelias-api
+    #   - opensearch
+    #   - graphhopper
+    #   - martin
     volumes:
-      - ./osm_data:/data # Your OSM PBF file here
-    depends_on:
-      - opensearch
-    command: sh -c "pelias prepare all && pelias import openstreetmap"
-    ports:
-      - '4002:4002'
-    networks:
-      - parchment-network
+      - ./server:/app
+      - /app/node_modules
 
-  # Pelias Importer (Who's On First data)
-  pelias-wof:
-    image: pelias/whosonfirst:latest
-    environment:
-      PELIAS_CONFIG: /code/config
-    depends_on:
-      - opensearch
-    command: sh -c "pelias import whosonfirst"
-    ports:
-      - '4003:4003'
-    networks:
-      - parchment-network
+  # # Frontend (Vue)
+  # frontend:
+  #   build: ./client
+  #   ports:
+  #     - '5173:5173' # Expose frontend to host
+  #   networks:
+  #     - parchment-network
+  #   depends_on:
+  #     - backend
 
-  # OpenSearch
-  opensearch:
-    image: opensearchproject/opensearch:latest
-    environment:
-      - discovery.type=single-node
-      - 'plugins.security.disabled=true' # Disable security plugin for simplicity
-      - 'network.host=0.0.0.0'
-      - 'cluster.name=pelias'
-    ports:
-      - '9200:9200'
-    volumes:
-      - opensearch_data:/usr/share/opensearch/data
-    networks:
-      - parchment-network
+  # # GraphHopper (Routing Engine)
+  # graphhopper:
+  #   image: graphhopper/graphhopper:latest
+  #   volumes:
+  #     - ./osm_data:/data
+  #   command: sh -c "./graphhopper.sh web /data/planet.osm.pbf"
+  #   ports:
+  #     - '8989:8989'
+  #   networks:
+  #     - parchment-network
 
-  # GraphHopper (Routing Engine)
-  graphhopper:
-    image: graphhopper/graphhopper:latest
-    volumes:
-      - ./osm_data:/data
-    command: sh -c "./graphhopper.sh web /data/planet.osm.pbf"
-    ports:
-      - '8989:8989'
-    networks:
-      - parchment-network
+  # # Martin (Tile Server)
+  # martin:
+  #   image: urbica/martin:latest
+  #   environment:
+  #     DATABASE_URL: postgres://osm_user:osm_password@postgis:5432/gis
+  #   ports:
+  #     - '3000:3000'
+  #   depends_on:
+  #     - postgis
+  #   networks:
+  #     - parchment-network
 
-  # Martin (Tile Server)
-  martin:
-    image: urbica/martin:latest
-    environment:
-      DATABASE_URL: postgres://osm_user:osm_password@postgis:5432/gis
-    ports:
-      - '3000:3000'
-    depends_on:
-      - postgis
-    networks:
-      - parchment-network
+  # # Pelias API (Search Engine)
+  # pelias-api:
+  #   image: pelias/api:latest
+  #   environment:
+  #     PELIAS_CONFIG: /code/config
+  #   depends_on:
+  #     - opensearch
+  #   ports:
+  #     - '4000:4000'
+  #   networks:
+  #     - parchment-network
 
-  # PostGIS (PostgreSQL for OSM)
-  postgis:
-    image: postgis/postgis:latest
-    environment:
-      POSTGRES_DB: gis
-      POSTGRES_USER: osm_user
-      POSTGRES_PASSWORD: osm_password
-    volumes:
-      - postgis_data:/var/lib/postgresql/data
-    ports:
-      - '5432:5432'
-    networks:
-      - parchment-network
+  # pelias-placeholder:
+  #   image: pelias/placeholder:latest
+  #   environment:
+  #     PELIAS_CONFIG: /code/config
+  #   depends_on:
+  #     - opensearch
+  #   ports:
+  #     - '4001:4001'
+  #   networks:
+  #     - parchment-network
 
-# Define the Docker network
-networks:
-  parchment-network:
-    driver: bridge
+  # # Pelias Importer (OSM)
+  # pelias-osm:
+  #   image: pelias/openstreetmap:latest
+  #   environment:
+  #     PELIAS_CONFIG: /code/config
+  #   volumes:
+  #     - ./osm_data:/data # Your OSM PBF file here
+  #   depends_on:
+  #     - opensearch
+  #   command: sh -c "pelias prepare all && pelias import openstreetmap"
+  #   ports:
+  #     - '4002:4002'
+  #   networks:
+  #     - parchment-network
+
+  # # Pelias Importer (Who's On First data)
+  # pelias-wof:
+  #   image: pelias/whosonfirst:latest
+  #   environment:
+  #     PELIAS_CONFIG: /code/config
+  #   depends_on:
+  #     - opensearch
+  #   command: sh -c "pelias import whosonfirst"
+  #   ports:
+  #     - '4003:4003'
+  #   networks:
+  #     - parchment-network
+
+  # # OpenSearch
+  # opensearch:
+  #   image: opensearchproject/opensearch:latest
+  #   environment:
+  #     - discovery.type=single-node
+  #     - 'plugins.security.disabled=true' # Disable security plugin for simplicity
+  #     - 'network.host=0.0.0.0'
+  #     - 'cluster.name=pelias'
+  #   ports:
+  #     - '9200:9200'
+  #   volumes:
+  #     - opensearch_data:/usr/share/opensearch/data
+  #   networks:
+  #     - parchment-network

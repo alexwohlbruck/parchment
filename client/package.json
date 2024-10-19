@@ -6,12 +6,14 @@
   "scripts": {
     "dev": "vite --host",
     "build": "vue-tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "docker:dev": "docker-compose up --build",
+    "docker:prod": "docker build -t parchment-frontend . && docker run -d -p 8080:80 parchment-frontend"
   },
   "dependencies": {
     "@internationalized/date": "^3.5.4",
     "@mdi/js": "^7.4.47",
-    "@morev/vue-transitions": "^2.3.6",
+    "@morev/vue-transitions": "^3.0.2",
     "@simplewebauthn/browser": "^10.0.0",
     "@tanstack/vue-table": "^8.17.0",
     "@vee-validate/zod": "^4.12.8",

@@ -1,12 +1,15 @@
-import path from "path";
-import vue from "@vitejs/plugin-vue";
-import { defineConfig } from "vite";
+import path from 'path'
+import vue from '@vitejs/plugin-vue'
+import { defineConfig } from 'vite'
 
 export default defineConfig({
   plugins: [vue()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      '@': path.resolve(__dirname, './src'),
     },
   },
-});
+  optimizeDeps: {
+    include: ['@morev/vue-transitions'],
+  },
+})

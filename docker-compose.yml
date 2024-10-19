@@ -63,15 +63,23 @@ services:
       - ./server:/app
       - /app/node_modules
 
-  # # Frontend (Vue)
-  # frontend:
-  #   build: ./client
-  #   ports:
-  #     - '5173:5173' # Expose frontend to host
-  #   networks:
-  #     - parchment-network
-  #   depends_on:
-  #     - backend
+  # Web frontend (Vue)
+  web:
+    container_name: parchment-web
+    build:
+      context: ./web
+      dockerfile: ${DOCKERFILE:-Dockerfile.dev}
+    # environment:
+    #   - VITE_BACKEND_URL=${VITE_BACKEND_URL}
+    ports:
+      - '5173:5173'
+    networks:
+      - parchment-network
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+    depends_on:
+      - backend
 
   # # GraphHopper (Routing Engine)
   # graphhopper:

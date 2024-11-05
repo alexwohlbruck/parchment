@@ -78,6 +78,7 @@ services:
     volumes:
       - ./web:/app
       - /app/node_modules
+      - ./server:/server # Mount server at root level to access shared types
     depends_on:
       - backend
 

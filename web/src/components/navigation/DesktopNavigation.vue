@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import LayersSelector from '@/components/navigation/LayersSelector.vue'
 import { useAuthStore } from '@/stores/auth.store'
 
+import { TransitionFade } from '@morev/vue-transitions'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'

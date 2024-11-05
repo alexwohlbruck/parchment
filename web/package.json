@@ -10,6 +10,9 @@
     "docker:dev": "docker-compose up --build",
     "docker:prod": "docker build -t parchment-frontend . && docker run -d -p 8080:80 parchment-frontend"
   },
+  "trustedDependencies": [
+    "@morev/vue-transitions"
+  ],
   "dependencies": {
     "@internationalized/date": "^3.5.4",
     "@mdi/js": "^7.4.47",

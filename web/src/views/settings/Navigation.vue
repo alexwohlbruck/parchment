@@ -3,6 +3,7 @@ import { useRouter } from 'vue-router'
 import { useAuthService } from '@/services/auth.service'
 import { useResponsive } from '@/lib/utils'
 
+import { TransitionFade } from '@morev/vue-transitions'
 import H2 from '@/components/ui/typography/H2.vue'
 import { Separator } from '@/components/ui/separator'
 import Button from '@/components/ui/button/Button.vue'

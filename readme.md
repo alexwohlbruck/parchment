@@ -1,23 +1,29 @@
 # Parchment Maps
 A modern mapping and navigation app based on open data and open source.
 
-## Development
 
-### Run the server
+## Setup
 
-1. Navigate to the `/server` directory and follow instructions in README.md
-
-### Run the web client
-
-2. Navigate to the `/client` directory and follow instructions in README.md
-
-## Deployment for production
-
-`docker build -t parchment`
-
+1. Enable execution of the `start.sh` script:
+  ```sh
+  chmod +x start.sh
+  ```
+1. Seed the database and start the app:
+```sh
+./start.sh --seed
 ```
-docker run -d \
-  -p 5173:5173 \  # Frontend exposed to the host
-  -p 5000:5000 \  # Backend exposed to the host
-  parchment
-```
+
+## Run the app
+
+2. Run the script:
+  ```sh
+  ./start.sh [--prod] [--migrate] [--seed]
+  ```
+  Flags:
+  - `--prod`: Run in production mode
+  - `--migrate`: Run migrations
+  - `--seed`: Run migrations and seed the database. Use if running for the first time.
+
+## Build for production
+
+#### TODO

@@ -15,14 +15,16 @@ A modern mapping and navigation app based on open data and open source.
 
 ## Run the app
 
-2. Run the script:
-  ```sh
+1. Run the script:
+  ```**sh**
   ./start.sh [--prod] [--migrate] [--seed]
   ```
   Flags:
   - `--prod`: Run in production mode
   - `--migrate`: Run migrations
   - `--seed`: Run migrations and seed the database. Use if running for the first time.
+  
+2. Open the app in your browser: [http://localhost:5173](http://localhost:5173)
 
 ## Build for production
 

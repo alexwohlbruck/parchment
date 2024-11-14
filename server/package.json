@@ -8,6 +8,7 @@
     "test": "bun test",
     "generate": "drizzle-kit generate:pg",
     "migrate": "bun generate; bun src/migrate.ts",
+    "seed": "bun src/seed/seed.ts",
     "studio": "drizzle-kit studio"
   },
   "dependencies": {

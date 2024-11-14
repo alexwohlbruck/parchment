@@ -79,7 +79,7 @@ if (originalRoleAssignments.length) {
 
 // Insert initial user if none exist
 const users = await db.select().from(usersSchema).limit(1)
-if (users.length === 0) {
+if (users.length === 0 && process.argv.length === 6) {
   const firstName = process.argv[2]
   const lastName = process.argv[3]
   const email = process.argv[4]
@@ -92,7 +92,7 @@ if (users.length === 0) {
     process.exit(1)
   }
 
-  await db
+  const [user] = await db
     .insert(usersSchema)
     .values({
       id: '1',
@@ -102,6 +102,15 @@ if (users.length === 0) {
       picture: picture!,
     })
     .returning()
+
+  console.info(`✅ Inserted user ${firstName} ${lastName}`)
+
+  await db.insert(usersToRoles).values({
+    userId: user.id,
+    roleId: 'admin',
+  })
+
+  console.info(`✅ Assigned admin role to ${firstName} ${lastName}`)
 }
 
 console.log('Seed finished')

@@ -16,15 +16,17 @@ A modern mapping and navigation app based on open data and open source.
 ```sh
 Migration finished
 Seeding the database...
-Enter first name: Alex
-Enter last name: Wohlbruck
+Enter first name: John
+Enter last name: Doe
 Enter email: email@example.com
-Enter picture URL: https://github.com/alexwohlbruck.png
+Enter picture URL: https://github.com/john-doe.png
 ✅ Inserted 5 permissions
 ✅ Inserted 3 roles
 ✅ Assigned 0 permissions to role user
 ✅ Assigned 4 permissions to role alpha
 ✅ Assigned all 5 permissions to role admin
+✅ Inserted user John Doe
+✅ Assigned admin role to John Doe
 Seed finished
 App started, running on http://localhost:5173
 ```
@@ -32,7 +34,7 @@ App started, running on http://localhost:5173
 ## Run the app
 
 1. Run the script:
-  ```**sh**
+  ```sh
   ./start.sh [--prod] [--migrate] [--seed]
   ```
   Flags:

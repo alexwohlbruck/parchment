@@ -39,6 +39,11 @@ fi
 # Start the containers (development or production)
 docker-compose up --build web -d
 
+echo "Waiting for postgres to start..."
+while ! docker exec server-db pg_isready -q; do
+  sleep 1
+done
+
 # Run migrations, seed DB
 if $IS_MIGRATE || $IS_SEED; then
   echo "Running migrations..."
@@ -47,7 +52,11 @@ fi
 
 if $IS_SEED; then
   echo "Seeding the database..."
-  docker exec parchment-server bun run seed
+  read -p "Enter first name: " firstName
+  read -p "Enter last name: " lastName
+  read -p "Enter email: " email
+  read -p "Enter picture URL: " picture
+  docker exec parchment-server bun src/seed/seed.ts "$firstName" "$lastName" "$email" "$picture"
 fi
 
-echo "App started."
+echo "App started, running on http://localhost:5173"

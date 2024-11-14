@@ -1,6 +1,7 @@
 import { db, connection } from '../db'
 import { permissions as permissionsSchema } from '../schema/permission.schema'
 import { roles as rolesSchema } from '../schema/role.schema'
+import { users as usersSchema } from '../schema/user.schema'
 import { roleToPermissions } from '../schema/role-permission.schema'
 import { usersToRoles } from '../schema/user-role.schema'
 import { permissions } from './permissions'
@@ -74,6 +75,33 @@ if (originalRoleAssignments.length) {
   console.info(
     `✅ Assigned ${uniqueRolesCount} roles to ${uniqueUsersCount} users`,
   )
+}
+
+// Insert initial user if none exist
+const users = await db.select().from(usersSchema).limit(1)
+if (users.length === 0) {
+  const firstName = process.argv[2]
+  const lastName = process.argv[3]
+  const email = process.argv[4]
+  const picture = process.argv[5]
+
+  if (!firstName || !lastName || !email || !picture) {
+    console.error(
+      'Please provide firstName, lastName, email and picture as command line arguments',
+    )
+    process.exit(1)
+  }
+
+  await db
+    .insert(usersSchema)
+    .values({
+      id: '1',
+      firstName: firstName!,
+      lastName: lastName!,
+      email: email!,
+      picture: picture!,
+    })
+    .returning()
 }
 
 console.log('Seed finished')

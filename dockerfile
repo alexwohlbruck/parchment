@@ -1,9 +1,9 @@
 # Multi-stage Dockerfile
 # Stage 1: Build Frontend (Vue)
-FROM node:18-alpine AS frontend-build
+FROM oven/bun:latest AS frontend-build
 WORKDIR /client
 COPY ./client ./
-RUN npm install && npm run build
+RUN bun install && bun run build
 
 # Stage 2: Build Backend (Elysia with Bun)
 FROM oven/bun:latest AS backend-build

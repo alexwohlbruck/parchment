@@ -26,7 +26,7 @@ Enter picture URL: https://github.com/alexwohlbruck.png
 ✅ Assigned 4 permissions to role alpha
 ✅ Assigned all 5 permissions to role admin
 Seed finished
-App started.
+App started, running on http://localhost:5173
 ```
 
 ## Run the app

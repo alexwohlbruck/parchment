@@ -8,9 +8,25 @@ A modern mapping and navigation app based on open data and open source.
   ```sh
   chmod +x start.sh
   ```
-1. Seed the database and start the app:
+2. Run the start script with the `--seed` flag:
 ```sh
 ./start.sh --seed
+```
+3. After a few moments, you will be prompted to enter your user details. Use your real email address, this will be used to sign in.
+```sh
+Migration finished
+Seeding the database...
+Enter first name: Alex
+Enter last name: Wohlbruck
+Enter email: email@example.com
+Enter picture URL: https://github.com/alexwohlbruck.png
+✅ Inserted 5 permissions
+✅ Inserted 3 roles
+✅ Assigned 0 permissions to role user
+✅ Assigned 4 permissions to role alpha
+✅ Assigned all 5 permissions to role admin
+Seed finished
+App started.
 ```
 
 ## Run the app

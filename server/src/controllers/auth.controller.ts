@@ -31,23 +31,6 @@ import {
 
 const app = new Elysia({ prefix: '/auth' })
 
-/**
- * Temporary function to create an initial user in the DB.
- * Once sign in route can automatically create users, this can be removed
- */
-app.post('me', async () => {
-  return db
-    .insert(users)
-    .values({
-      id: '1',
-      firstName: 'Alex',
-      lastName: 'Wohlbruck',
-      email: 'alexwohlbruck@gmail.com',
-      picture: 'https://github.com/alexwohlbruck.png',
-    })
-    .returning()
-})
-
 app.post(
   'verify',
   async ({ body: { email }, set, error }) => {

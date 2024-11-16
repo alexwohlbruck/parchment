@@ -16,6 +16,7 @@ Front-end web client for the Parchment Maps application.
    
 ### Environment variables
 These are env variables that are required to run the app. These are subject to change as development progresses.
+`VITE_SERVER_ORIGIN`: The server url, typically `http://localhost:5000`
 `VITE_MAPBOX_ACCESS_TOKEN`: Access token obtained from Mapbox developer portal.
 `VITE_TRANSITLAND_API_KEY`: API key obtained from Transitland developer portal.
 `VITE_MAPTILER_API_KEY`: API key obtained from Maptiler developer portal.

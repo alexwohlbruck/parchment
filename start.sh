@@ -1,11 +1,12 @@
 #!/bin/bash
 
-# Initialize boolean variables
+# TODO: Add --headless option which only starts up the server/db without web client
+
 IS_PROD=false
 IS_MIGRATE=false
 IS_SEED=false
+VITE_PORT=5173
 
-# Check for arguments and assign boolean flags
 for arg in "$@"; do
   case $arg in
     --prod)
@@ -17,15 +18,17 @@ for arg in "$@"; do
     --seed)
       IS_SEED=true
       ;;
+    --port=*)
+      VITE_PORT="${arg#*=}"
+      ;;
     *)
       echo "Unknown argument: $arg"
-      echo "Usage: $0 [--prod] [--migrate] [--seed]"
+      echo "Usage: $0 [--prod] [--migrate] [--seed] [--port=XXXX]"
       exit 1
       ;;
   esac
 done
 
-# Set environment variables based on flags
 if $IS_PROD; then
   export DOCKERFILE=Dockerfile.prod
   export NODE_ENV=production
@@ -36,7 +39,8 @@ else
   echo "Running in development mode."
 fi
 
-# Start the containers (development or production)
+export VITE_PORT
+
 docker-compose up --build web -d
 
 echo "Waiting for postgres to start..."
@@ -59,4 +63,4 @@ if $IS_SEED; then
   docker exec parchment-server bun src/seed/seed.ts "$firstName" "$lastName" "$email" "$picture"
 fi
 
-echo "App started, running on http://localhost:5173"
+echo "App started, running on http://localhost:$VITE_PORT"

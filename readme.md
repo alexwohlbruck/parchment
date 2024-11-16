@@ -7,31 +7,45 @@ A modern mapping and navigation app based on open data and open source.
 
 ## Setup
 
-1. Inside the server directory, create an `.env.local` file and fill in the required environment variables:
+1. Inside the `server` directory, create an `.env.local` file and fill in the required environment variables:
 
 ```sh
 cd server
 touch .env.local
 ```
 
-|Name              |Description                                               |
-|------------------|----------------------------------------------------------|
-|SERVER_ORIGIN     |Base URL of the backend server                            |
-|CLIENT_ORIGIN     |Base URL of the frontend server                           |
-|DATABASE_URL_NEON |Connection string for production Neon DB                  |
-|DATABASE_URL_LOCAL|Connection string for local development Postgres DB       |
-|GMAIL_EMAIL       |Your Gmail email address                                  |
-|GMAIL_APP_PASSWORD|Your Gmail app password for sending emails from the server|
+|Name                 |Description                                                |
+|---------------------|-----------------------------------------------------------|
+|SERVER_ORIGIN        |Base URL of the backend server                             |
+|CLIENT_ORIGIN        |Base URL of the frontend server                            |
+|DATABASE_URL         |Connection string for local development Postgres DB        |
+|GMAIL_EMAIL          |Your Gmail email address                                   |
+|GMAIL_APP_PASSWORD   |Your Gmail app password for sending emails from the server |
 
-2. Back in the root directroy, enable execution of the `start.sh` script:
+2. Inside the `web` directory, create an `.env.local` file and fill in the required environment variables:
+
+```sh
+cd ../web
+touch .env.local
+```
+
+|Name                        |Description                                           |
+|----------------------------|------------------------------------------------------|
+|VITE_SERVER_ORIGIN          | The server base URL, typically http://localhost:5000
+|VITE_MAPBOX_ACCESS_TOKEN    | Your Mapbox access token
+|VITE_TRANSITLAND_API_KEY    | Your Transitland API key
+|VITE_MAPTILER_API_KEY       | Your Maptiler API key
+
+
+3. Back in the root directroy, enable execution of the `start.sh` script:
 ```sh
 chmod +x start.sh
 ```
-3. Run the start script with the `--seed` flag:
+4. Run the start script with the `--seed` flag:
 ```sh
 ./start.sh --seed
 ```
-4. After a few moments, you will be prompted to enter your user details. Use your real email address, this will be used to sign in.
+5. After a few moments, you will be prompted to enter your user details. Use your real email address, this will be used to sign in.
 ```sh
 Migration finished
 Seeding the database...

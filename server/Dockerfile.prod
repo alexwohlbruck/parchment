@@ -1,15 +1,16 @@
 # TODO: Verify this is building and running correctly
 
 FROM oven/bun:latest as builder
-WORKDIR /app
-COPY package.json bun.lockb ./
+WORKDIR /app/server
+COPY server/package.json server/bun.lockb ./
 RUN bun install
-COPY . .
+COPY server/ ./
 RUN bun run build
 
 FROM oven/bun:latest
-WORKDIR /app
-COPY --from=builder /app/dist ./dist
-COPY package.json bun.lockb ./
+WORKDIR /app/server
+COPY server/package.json server/bun.lockb ./
 RUN bun install --production
+COPY --from=builder /app/server/dist ./dist
+ENV NODE_ENV=production
 CMD ["bun", "run", "start"]

@@ -17,8 +17,7 @@ Web server and API for the Parchment Maps application.
 These are env variables that are required to run the app. These are subject to change as development progresses.
 `SERVER_ORIGIN`: Base URL of the backend server
 `CLIENT_ORIGIN`: Base URL of the frontend server
-`DATABASE_URL_NEON`: Connection string for production Neon DB
-`DATABASE_URL_LOCAL`: Connection string for local development Postgres DB
+`DATABASE_URL`: Connection string for local development Postgres DB
 `GMAIL_EMAIL`: Your Gmail email address
 `GMAIL_APP_PASSWORD`: Your Gmail app password, for sending emails from the server
 

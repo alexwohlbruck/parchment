@@ -2,12 +2,15 @@ import { capitalize } from '@/filters/text.filters'
 import axios, { AxiosError } from 'axios'
 import { toast } from 'vue-sonner'
 
+console.log(import.meta.env)
+
 export const api = axios.create({
   withCredentials: true,
   baseURL:
-    process.env.NODE_ENV === 'production'
+    import.meta.env.VITE_SERVER_ORIGIN ??
+    (process.env.NODE_ENV === 'production'
       ? 'https://api.parchment.app'
-      : 'http://localhost:5000',
+      : 'http://localhost:5000'),
 })
 
 function getErrorMessage(error: AxiosError): {

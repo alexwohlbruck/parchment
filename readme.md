@@ -1,18 +1,37 @@
 # Parchment Maps
 A modern mapping and navigation app based on open data and open source.
 
+## Requirements
+
+- [Docker](https://www.docker.com/)
 
 ## Setup
 
-1. Enable execution of the `start.sh` script:
-  ```sh
-  chmod +x start.sh
-  ```
-2. Run the start script with the `--seed` flag:
+1. Inside the server directory, create an `.env.local` file and fill in the required environment variables:
+
+```sh
+cd server
+touch .env.local
+```
+
+|Name              |Description                                               |
+|------------------|----------------------------------------------------------|
+|SERVER_ORIGIN     |Base URL of the backend server                            |
+|CLIENT_ORIGIN     |Base URL of the frontend server                           |
+|DATABASE_URL_NEON |Connection string for production Neon DB                  |
+|DATABASE_URL_LOCAL|Connection string for local development Postgres DB       |
+|GMAIL_EMAIL       |Your Gmail email address                                  |
+|GMAIL_APP_PASSWORD|Your Gmail app password for sending emails from the server|
+
+2. Back in the root directroy, enable execution of the `start.sh` script:
+```sh
+chmod +x start.sh
+```
+3. Run the start script with the `--seed` flag:
 ```sh
 ./start.sh --seed
 ```
-3. After a few moments, you will be prompted to enter your user details. Use your real email address, this will be used to sign in.
+4. After a few moments, you will be prompted to enter your user details. Use your real email address, this will be used to sign in.
 ```sh
 Migration finished
 Seeding the database...

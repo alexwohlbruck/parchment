@@ -42,9 +42,10 @@ services:
   server:
     container_name: parchment-server
     build:
-      context: ./server
-      dockerfile: ${DOCKERFILE:-Dockerfile.dev}
+      context: .
+      dockerfile: server/${DOCKERFILE:-Dockerfile.dev}
     environment:
+      NODE_ENV: ${NODE_ENV:-development}
       LOCAL_ROUTING_ENGINE: 'graphhopper'
       EXTERNAL_ROUTING_ENGINE_URL: 'https://api.openrouteservice.org/v2/directions/driving-car'
       EXTERNAL_ROUTING_API_KEY: 'your-external-api-key'
@@ -60,25 +61,26 @@ services:
     #   - graphhopper
     #   - martin
     volumes:
-      - ./server:/app
-      - /app/node_modules
+      - ./server:/app/server
+      - /app/server/node_modules
 
   # Web frontend (Vue)
   web:
     container_name: parchment-web
     build:
-      context: ./web
-      dockerfile: ${DOCKERFILE:-Dockerfile.dev}
-    # environment:
-    #   - VITE_BACKEND_URL=${VITE_BACKEND_URL}
+      context: .
+      dockerfile: web/${DOCKERFILE:-Dockerfile.dev}
+    environment:
+      - VITE_SERVER_URL=${VITE_SERVER_URL}
+      - VITE_PORT=${VITE_PORT}
     ports:
-      - '5173:5173'
+      - '5173:${VITE_PORT:-5173}'
     networks:
       - parchment-network
     volumes:
-      - ./web:/app
-      - /app/node_modules
-      - ./server:/server # Mount server at root level to access shared types
+      - ./web:/app/web
+      - /app/web/node_modules
+      - ./server/src/types:/app/server/src/types
     depends_on:
       - server
 

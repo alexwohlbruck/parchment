@@ -12,4 +12,7 @@ export default defineConfig({
   optimizeDeps: {
     include: ['@morev/vue-transitions'],
   },
+  server: {
+    port: parseInt(process.env.VITE_PORT || '5173'),
+  },
 })

@@ -6,10 +6,7 @@ dotenv.config({
   path: '.env.local',
 })
 
-export const dbUrl =
-  process.env.NODE_ENV === 'production'
-    ? (process.env.DATABASE_URL_NEON as string)
-    : (process.env.DATABASE_URL_LOCAL as string)
+export const dbUrl = process.env.DATABASE_URL as string
 
 export const connection = postgres(dbUrl)
 export const db = drizzle(connection)

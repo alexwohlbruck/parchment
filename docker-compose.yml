@@ -43,7 +43,7 @@ services:
     container_name: parchment-server
     build:
       context: .
-      dockerfile: server/${DOCKERFILE:-Dockerfile.dev}
+      dockerfile: server/${DOCKERFILE:-Dockerfile.prod}
     environment:
       NODE_ENV: ${NODE_ENV:-development}
       LOCAL_ROUTING_ENGINE: 'graphhopper'
@@ -69,7 +69,7 @@ services:
     container_name: parchment-web
     build:
       context: .
-      dockerfile: web/${DOCKERFILE:-Dockerfile.dev}
+      dockerfile: web/${DOCKERFILE:-Dockerfile.prod}
     environment:
       - VITE_SERVER_URL=${VITE_SERVER_URL}
       - VITE_PORT=${VITE_PORT}

@@ -1,6 +1,8 @@
 #!/bin/bash
 
 # TODO: Add --headless option which only starts up the server/db without web client
+# TODO: Update port flag to set external port for client/server, not internal
+# TODO: Auto run seed script with onboarding flow
 
 IS_PROD=false
 IS_MIGRATE=false

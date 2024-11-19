@@ -1,3 +1,5 @@
+# TODO: Publish images for server parchment-server and parchment-web
+
 networks:
   parchment-network:
     driver: bridge

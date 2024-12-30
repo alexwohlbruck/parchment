@@ -20,7 +20,7 @@
     "@simplewebauthn/server": "^10.0.0",
     "@simplewebauthn/types": "^10.0.0",
     "@types/nodemailer": "^6.4.15",
-    "axios": "^1.6.8",
+    "axios": "^1.7.9",
     "dotenv": "^16.4.5",
     "drizzle-kit": "^0.28.1",
     "drizzle-orm": "^0.32.0",

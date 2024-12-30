@@ -7,9 +7,11 @@ const route = useRoute()
 
 <template>
   <div
-    class="relative z-10 h-full flex flex-col justify-center items-start pointer-events-none"
+    class="relative z-20 h-full flex flex-col justify-center pointer-events-none"
   >
-    <router-view v-if="!route.meta.dialog" />
+    <div class="pointer-events-auto w-fit">
+      <router-view v-if="!route.meta.dialog" />
+    </div>
   </div>
 
   <Map class="!absolute w-full h-full top-0 left-0"></Map>

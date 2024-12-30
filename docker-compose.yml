@@ -1,9 +1,4 @@
 # TODO: Publish images for server parchment-server and parchment-web
-
-networks:
-  parchment-network:
-    driver: bridge
-
 volumes:
   osm-db:
   server-db:
@@ -22,8 +17,6 @@ services:
       - osm-db:/var/lib/postgresql/data
     ports:
       - '5433:5432'
-    networks:
-      - parchment-network
 
   # Parchment backend server DB
   server-db:
@@ -37,8 +30,6 @@ services:
       - server-db:/var/lib/postgresql/data
     ports:
       - '5432:5432'
-    networks:
-      - parchment-network
 
   # Parchment backend (Elysia)
   server:
@@ -54,8 +45,6 @@ services:
       STANDARD_RESPONSE_FORMAT: 'true'
     ports:
       - '5000:5000' # Expose backend to host
-    networks:
-      - parchment-network
     depends_on:
       - server-db
     #   - pelias-api
@@ -77,8 +66,6 @@ services:
       - VITE_PORT=${VITE_PORT}
     ports:
       - '5173:${VITE_PORT:-5173}'
-    networks:
-      - parchment-network
     volumes:
       - ./web:/app/web
       - /app/web/node_modules
@@ -131,8 +118,6 @@ services:
   #   command: sh -c "./graphhopper.sh web /data/planet.osm.pbf"
   #   ports:
   #     - '8989:8989'
-  #   networks:
-  #     - parchment-network
 
   # # Martin (Tile Server)
   # martin:
@@ -143,8 +128,6 @@ services:
   #     - '3000:3000'
   #   depends_on:
   #     - postgis
-  #   networks:
-  #     - parchment-network
 
   # # Pelias API (Search Engine)
   # pelias-api:
@@ -155,8 +138,6 @@ services:
   #     - opensearch
   #   ports:
   #     - '4000:4000'
-  #   networks:
-  #     - parchment-network
 
   # pelias-placeholder:
   #   image: pelias/placeholder:latest
@@ -166,8 +147,6 @@ services:
   #     - opensearch
   #   ports:
   #     - '4001:4001'
-  #   networks:
-  #     - parchment-network
 
   # # Pelias Importer (OSM)
   # pelias-osm:
@@ -181,8 +160,6 @@ services:
   #   command: sh -c "pelias prepare all && pelias import openstreetmap"
   #   ports:
   #     - '4002:4002'
-  #   networks:
-  #     - parchment-network
 
   # # Pelias Importer (Who's On First data)
   # pelias-wof:
@@ -194,8 +171,6 @@ services:
   #   command: sh -c "pelias import whosonfirst"
   #   ports:
   #     - '4003:4003'
-  #   networks:
-  #     - parchment-network
 
   # # OpenSearch
   # opensearch:
@@ -209,5 +184,3 @@ services:
   #     - '9200:9200'
   #   volumes:
   #     - opensearch_data:/usr/share/opensearch/data
-  #   networks:
-  #     - parchment-network

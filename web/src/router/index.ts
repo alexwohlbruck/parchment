@@ -8,6 +8,7 @@ import { useResponsive } from '@/lib/utils'
 export enum AppRoute {
   SIGNIN = 'signin',
   MAP = 'map',
+  DIRECTIONS = 'directions',
   PLACE = 'place',
   SETTINGS = 'settings',
   ACCOUNT = 'account',
@@ -40,6 +41,11 @@ const router = createRouter({
         auth: true,
       },
       children: [
+        {
+          path: '/directions',
+          name: AppRoute.DIRECTIONS,
+          component: () => import('../views/Directions.vue'),
+        },
         {
           path: '/place',
           name: AppRoute.PLACE,

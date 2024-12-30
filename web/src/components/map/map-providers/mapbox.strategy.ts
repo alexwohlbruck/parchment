@@ -6,6 +6,7 @@ import {
   AttributionControl,
   ScaleControl,
   Projection,
+  Marker,
 } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { Basemap, MapLayer, MapOptions, type MapTheme } from '@/types/map.types'
@@ -13,18 +14,26 @@ import standardStyle from '@/components/map/styles/standard.json'
 
 import { layers } from '../layers' // TODO: Refactor layers init
 import { Locale } from '@/lib/i18n'
+import { Directions } from '@/types/directions.types'
+import { decodeShape } from '@/lib/utils'
+import colors from 'tailwindcss/colors'
 
 const basemapUrls: {
   [key in Basemap]: string
 } = {
-  standard: standardStyle as any,
+  // standard: standardStyle as any,
+  standard: 'mapbox://styles/mapbox/standard',
   hybrid: 'mapbox://styles/mapbox/satellite-streets-v11',
   satellite: 'mapbox://styles/mapbox/satellite-v9',
 }
 
 declare module 'mapbox-gl' {
   interface Map {
-    setConfigProperty: (namespace: string, key: string, value: any) => void
+    setConfigProperty: (
+      importId: string,
+      configName: string,
+      value: any,
+    ) => this
   }
 }
 
@@ -94,6 +103,30 @@ export class MapboxStrategy extends MapStrategy {
       this.setMapTheme.bind(this)(this.options.theme)
       this.setLocale('en-US')
     })
+
+    let selectedBuildings = []
+    this.map.addInteraction('building-click', {
+      type: 'click',
+      target: { featuresetId: 'buildings', importId: 'basemap' },
+      handler: e => {
+        console.log(e.feature)
+        // this.map.setFeatureState(e.feature, { select: !e.feature.state.select })
+        // selectedBuildings.push(e.feature)
+      },
+    })
+
+    // TODO: Handle POI Clicks
+    // Watching this discussion: https://github.com/mapbox/mapbox-gl-js/issues/13332#issuecomment-2545008324
+    let selectedPoi = null
+    const poiMarker = new Marker({ color: 'red' })
+    poiMarker.getElement().style.cursor = 'pointer'
+    this.map.addInteraction('poi-click', {
+      type: 'click',
+      target: { featuresetId: 'poi', importId: 'basemap' },
+      handler: e => {
+        console.log(e.feature)
+      },
+    })
   }
 
   setLocale(locale: Locale) {
@@ -121,7 +154,9 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   setLayers(layerIds: MapLayer[]) {
-    const mapLayers = this.map.getStyle().layers
+    const style = this.map.getStyle()
+    if (!style) return
+    const mapLayers = style.layers
     const ids = mapLayers.map(layer => layer.id)
     ids.forEach((id: any) => {
       if (!layerIds.includes(id)) {
@@ -147,6 +182,56 @@ export class MapboxStrategy extends MapStrategy {
           ...meta,
           slot: 'middle',
         })
+      })
+    })
+  }
+
+  setDirections(directions: Directions) {
+    directions.legs.forEach((leg, index) => {
+      const shape = decodeShape(leg.shape)
+
+      this.map.addSource(`route-${index}`, {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: shape.map(([lat, lon]) => [lon, lat]),
+          },
+        },
+      })
+
+      this.map.addLayer({
+        id: `route-case-${index}`,
+        type: 'line',
+        source: `route-${index}`,
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round',
+        },
+        paint: {
+          'line-color': colors.indigo[600],
+          'line-width': 8,
+          'line-emissive-strength': 1,
+        },
+        slot: 'middle',
+      })
+
+      this.map.addLayer({
+        id: `route-${index}`,
+        type: 'line',
+        source: `route-${index}`,
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round',
+        },
+        paint: {
+          'line-color': colors.indigo[500],
+          'line-width': 5,
+          'line-emissive-strength': 1,
+        },
+        slot: 'middle',
       })
     })
   }

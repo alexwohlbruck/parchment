@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { Basemap, MapLayer } from '../types/map.types'
 import { MapLibrary, MapOptions } from '@/types/map.types'
+import { Directions } from '@/types/directions.types'
 
 export const useMapStore = defineStore('map', () => {
   const mapLibrary = ref<MapLibrary>('mapbox')
@@ -20,6 +21,8 @@ export const useMapStore = defineStore('map', () => {
     basemap: 'standard',
     layers: [],
   })
+
+  const directions = ref<null | Directions>(null)
 
   function setBasemap(map: Basemap) {
     mapState.value.basemap = map
@@ -44,11 +47,22 @@ export const useMapStore = defineStore('map', () => {
     }
   }
 
+  function setDirections(directions_: Directions) {
+    directions.value = directions_
+  }
+
+  function unsetDirections() {
+    directions.value = null
+  }
+
   return {
     mapLibrary,
     setMapLibrary,
     mapState,
     setBasemap,
     toggleLayer,
+    directions,
+    setDirections,
+    unsetDirections,
   }
 })

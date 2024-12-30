@@ -63,6 +63,17 @@ onMounted(() => {
       map = getMapInstance(mapLibrary)
     },
   )
+
+  watch(
+    () => mapStore.directions,
+    directions => {
+      if (directions) {
+        map.setDirections(directions)
+      } else {
+        map.unsetDirections()
+      }
+    },
+  )
 })
 
 onUnmounted(() => {

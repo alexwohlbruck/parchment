@@ -12,9 +12,9 @@
     "studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@elysiajs/cors": "^1.0.2",
-    "@elysiajs/eden": "^1.0.12",
-    "@elysiajs/swagger": "^1.0.3",
+    "@elysiajs/cors": "^1.2.0",
+    "@elysiajs/eden": "^1.2.0",
+    "@elysiajs/swagger": "^1.2.0",
     "@lucia-auth/adapter-drizzle": "^1.0.7",
     "@simplewebauthn/browser": "^10.0.0",
     "@simplewebauthn/server": "^10.0.0",
@@ -24,7 +24,7 @@
     "dotenv": "^16.4.5",
     "drizzle-kit": "^0.28.1",
     "drizzle-orm": "^0.32.0",
-    "elysia": "latest",
+    "elysia": "^1.2.9",
     "lucia": "^3.1.1",
     "md5": "^2.3.0",
     "nodemailer": "^6.9.13",

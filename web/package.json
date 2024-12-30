@@ -27,7 +27,7 @@
     "dayjs": "^1.11.11",
     "fuzzysort": "^2.0.4",
     "lucide-vue-next": "^0.330.0",
-    "mapbox-gl": "^3.8.0",
+    "mapbox-gl": "3.9.1",
     "maplibre-gl": "^4.2.0",
     "mousetrap": "^1.6.5",
     "pinia": "^2.1.7",

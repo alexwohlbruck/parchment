@@ -288,9 +288,9 @@ export class MapboxStrategy extends MapStrategy {
     // Fit the map to show the entire route with padding
     this.map.fitBounds(bounds, {
       padding: Math.min(window.innerWidth * 0.2, 400),
-      // maxZoom: 15,
       duration: 400,
       easing: t => t * (2 - t),
+      bearing: this.map.getBearing(), // Preserve current bearing
     })
   }
 

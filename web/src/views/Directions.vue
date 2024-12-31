@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDirectionsService } from '@/services/directions.service'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useMapService } from '@/services/map.service'
 import { useMapListener } from '@/composables/useMapListener'
 import draggable from 'vuedraggable'
@@ -23,15 +23,16 @@ const MIN_LOCATIONS = 2
 const directionsService = useDirectionsService()
 const mapService = useMapService()
 
+const selectedMode = ref('pedestrian')
 const locations = ref<string[]>(['', ''])
 
 const modes = [
   {
-    type: 'Pedestrian',
+    type: 'pedestrian',
     icon: FootprintsIcon,
   },
   {
-    type: 'cycling',
+    type: 'bicycle',
     icon: BikeIcon,
   },
   {
@@ -39,6 +40,11 @@ const modes = [
     icon: CarFrontIcon,
   },
 ]
+
+// Watch for mode changes and recalculate directions
+watch(selectedMode, () => {
+  getDirections()
+})
 
 // When map is clicked, fill in the coordinates in the location list
 useMapListener('map:click', data => {
@@ -59,15 +65,16 @@ async function getDirections() {
     return
   }
 
-  const directions = await directionsService.getDirections(
-    filteredLocations.map(location => ({
+  const directions = await directionsService.getDirections({
+    locations: filteredLocations.map(location => ({
       type: 'coordinates',
       value: location.split(',').map(v => parseFloat(v.trim())) as [
         number,
         number,
       ],
     })),
-  )
+    costing: selectedMode.value,
+  })
   mapService.setDirections(directions)
 }
 
@@ -93,7 +100,7 @@ function onDragEnd() {
   <div
     class="p-4 bg-background max-h-full w-80 overflow-y-auto shadow-md flex flex-col gap-2 rounded-md"
   >
-    <Tabs default-value="account">
+    <Tabs v-model="selectedMode" default-value="pedestrian">
       <TabsList class="w-full flex">
         <TabsTrigger
           v-for="(mode, i) in modes"

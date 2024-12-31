@@ -39,7 +39,7 @@ export type Directions = {
 export type ValhallaRouteRequest = {
   locations: Location[]
   costing: string
-  costing_options: any // TODO
+  costing_options?: any // TODO
 }
 
 export type ValhallaRouteResponse = {

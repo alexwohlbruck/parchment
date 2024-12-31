@@ -4,13 +4,13 @@ import type { Location, ValhallaRouteRequest } from '../types/valhalla.types.ts'
 
 const app = new Elysia({ prefix: '/directions' })
 
-app.post('/', async ({ body: { locations, options } }) => {
+app.post('/', async ({ body: { locations, costing, options } }) => {
   const payload: ValhallaRouteRequest = {
     locations: locations.map((l: Location) => ({
       lat: l.value[0],
       lon: l.value[1],
     })),
-    costing: 'pedestrian',
+    costing,
   }
 
   console.log(payload)

@@ -1,13 +1,10 @@
 import { api } from '@/lib/api'
 import { createSharedComposable } from '@vueuse/core'
-import type { Location } from '@/types/directions.types'
+import type { Location, ValhallaRouteRequest } from '@/types/directions.types'
 
 function directionsService() {
-  async function getDirections(locations: Location[]) {
-    const { data: directions } = await api.post('/directions', {
-      locations,
-      options: {}, // TODO:
-    })
+  async function getDirections(payload: ValhallaRouteRequest) {
+    const { data: directions } = await api.post('/directions', payload)
     return directions
   }
 

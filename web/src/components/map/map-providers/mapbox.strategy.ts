@@ -7,6 +7,7 @@ import {
   ScaleControl,
   Projection,
   Marker,
+  LngLatBounds,
 } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { Basemap, MapLayer, MapOptions, type MapTheme } from '@/types/map.types'
@@ -189,6 +190,8 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   setDirections(directions: Directions) {
+    this.unsetDirections()
+
     directions.legs.forEach((leg, index) => {
       const shape = decodeShape(leg.shape)
 
@@ -235,6 +238,49 @@ export class MapboxStrategy extends MapStrategy {
         },
         slot: 'middle',
       })
+    })
+
+    // Get all route coordinates
+    const allCoordinates: mapboxgl.LngLatLike[] = directions.legs.flatMap(
+      leg => {
+        const shape = decodeShape(leg.shape)
+        return shape.map(([lat, lon]) => [lon, lat] as mapboxgl.LngLatLike)
+      },
+    )
+
+    // Create a bounds object that encompasses all coordinates
+    const bounds = allCoordinates.reduce((bounds, coord) => {
+      return bounds.extend(coord)
+    }, new LngLatBounds(allCoordinates[0], allCoordinates[0]))
+
+    // Fit the map to show the entire route with padding
+    this.map.fitBounds(bounds, {
+      padding: Math.min(window.innerWidth * 0.2, 400),
+      // maxZoom: 15,
+      duration: 400,
+      easing: t => t * (2 - t),
+    })
+  }
+
+  unsetDirections() {
+    const style = this.map.getStyle()
+    if (!style) return
+    const mapLayers = style.layers
+    const ids = mapLayers.map(layer => layer.id)
+
+    // Remove route layers
+    ids.forEach(id => {
+      if (id.startsWith('route-')) {
+        this.map.removeLayer(id)
+      }
+    })
+
+    // Remove route sources
+    const sources = Object.keys(this.map.getStyle().sources)
+    sources.forEach(source => {
+      if (source.startsWith('route-')) {
+        this.map.removeSource(source)
+      }
     })
   }
 

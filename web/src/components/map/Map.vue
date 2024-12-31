@@ -35,6 +35,8 @@ function getMapInstance(mapLibrary: MapLibrary) {
 onMounted(() => {
   map = getMapInstance(mapStore.mapLibrary)
 
+  // Watch for map store changes and update map accordingly
+
   watch(locale, locale => {
     map.setLocale(locale as Locale)
   })

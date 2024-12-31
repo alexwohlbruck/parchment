@@ -25,7 +25,7 @@ export class MapStrategy {
 
   initialize() {}
   addDataSource() {}
-  setLocale(locale: Locale) {}
+  setLocale(locale: Locale) {} // TODO:
   setLayers(layers: MapLayer[]) {}
   setDirections(directions: Directions) {}
   unsetDirections() {}

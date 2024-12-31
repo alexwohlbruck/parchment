@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDirectionsService } from '@/services/directions.service'
 import { ref } from 'vue'
 import { useMapService } from '@/services/map.service'
+import { useMapListener } from '@/composables/useMapListener'
 import {
   BikeIcon,
   BusFrontIcon,
@@ -42,6 +43,10 @@ const modes = [
   //   icon: ShuffleIcon,
   // },
 ]
+
+useMapListener('map:click', data => {
+  console.log('Map clicked:', data.name, 'at', data.coordinates)
+})
 
 async function getDirections() {
   // const directions = await directionsService.getDirections([

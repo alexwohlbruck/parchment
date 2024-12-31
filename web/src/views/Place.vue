@@ -7,7 +7,7 @@ const count = ref(0)
 
 <template>
   <div
-    class="p-4 bg-background max-h-full overflow-y-auto m-2 py-2 shadow-md flex flex-col gap-2 rounded-md"
+    class="p-4 bg-background max-h-full overflow-y-auto shadow-md flex flex-col gap-2 rounded-md"
   >
     Place
     <Button @click="count++">Increment</Button>

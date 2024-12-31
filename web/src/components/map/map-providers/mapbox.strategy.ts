@@ -240,6 +240,38 @@ export class MapboxStrategy extends MapStrategy {
       })
     })
 
+    // Add markers for each stop
+    directions.locations.forEach((location, index) => {
+      this.map.addSource(`stop-${index}`, {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'Point',
+            coordinates: [location.lon, location.lat],
+          },
+        },
+      })
+
+      // Add a larger background circle
+      this.map.addLayer({
+        id: `stop-background-${index}`,
+        type: 'circle',
+        source: `stop-${index}`,
+        paint: {
+          'circle-radius': 7,
+          'circle-color': colors.gray[50],
+          'circle-opacity': 1,
+          'circle-stroke-width': 1,
+          'circle-stroke-color': colors.gray[600],
+          'circle-blur': 0.3,
+          'circle-emissive-strength': 1,
+        },
+        slot: 'middle',
+      })
+    })
+
     // Get all route coordinates
     const allCoordinates: mapboxgl.LngLatLike[] = directions.legs.flatMap(
       leg => {
@@ -268,9 +300,9 @@ export class MapboxStrategy extends MapStrategy {
     const mapLayers = style.layers
     const ids = mapLayers.map(layer => layer.id)
 
-    // Remove route layers
+    // Remove route and stop layers
     ids.forEach(id => {
-      if (id.startsWith('route-')) {
+      if (id.startsWith('route-') || id.startsWith('stop-')) {
         this.map.removeLayer(id)
       }
     })
@@ -278,7 +310,7 @@ export class MapboxStrategy extends MapStrategy {
     // Remove route sources
     const sources = Object.keys(this.map.getStyle().sources)
     sources.forEach(source => {
-      if (source.startsWith('route-')) {
+      if (source.startsWith('route-') || source.startsWith('stop-')) {
         this.map.removeSource(source)
       }
     })

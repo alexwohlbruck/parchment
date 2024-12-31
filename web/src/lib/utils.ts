@@ -13,6 +13,7 @@ export function getBreakpoints() {
   return tailwind.theme.screens
 }
 
+// TODO: Move to composables directory
 export function useResponsive() {
   const { width } = useWindowSize()
   const breakpoints = getBreakpoints()

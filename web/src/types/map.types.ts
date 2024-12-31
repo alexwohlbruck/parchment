@@ -13,3 +13,10 @@ export type MapOptions = {
   basemap: Basemap
   layers: MapLayer[]
 }
+
+export type MapEvents = {
+  'map:click': {
+    coordinates: [number, number]
+    point: { x: number; y: number }
+  }
+}

@@ -17,6 +17,7 @@ import { Locale } from '@/lib/i18n'
 import { Directions } from '@/types/directions.types'
 import { decodeShape } from '@/lib/utils'
 import colors from 'tailwindcss/colors'
+import { useMapStore } from '@/stores/map.store'
 
 const basemapUrls: {
   [key in Basemap]: string
@@ -85,9 +86,14 @@ export class MapboxStrategy extends MapStrategy {
 
   initialize() {
     this.addControls()
-    this.map.on('load', this.onMapLoad)
-    this.map.on('style.load', this.onStyleLoad)
-    this.listenPOIClick()
+    this.map.on('load', () => {
+      this.setLayers(this.options.layers)
+    })
+    this.map.on('style.load', () => {
+      this.setMapTheme(this.options.theme)
+      this.setLocale('en-US')
+    })
+    this.configureEventListeners()
   }
 
   onMapLoad() {
@@ -109,6 +115,17 @@ export class MapboxStrategy extends MapStrategy {
       }),
       'top-left',
     )
+  }
+
+  configureEventListeners() {
+    const mapStore = useMapStore()
+
+    this.map.on('click', e => [
+      mapStore.emit('map:click', {
+        coordinates: e.lngLat.toArray(),
+        point: e.point,
+      }),
+    ])
   }
 
   // TODO:

@@ -17,6 +17,8 @@ import {
   PlusIcon,
 } from 'lucide-vue-next'
 
+const MIN_LOCATIONS = 2
+
 const directionsService = useDirectionsService()
 const mapService = useMapService()
 
@@ -53,15 +55,19 @@ useMapListener('map:click', data => {
   const emptyIndex = locations.value.findIndex(loc => loc === '')
   if (emptyIndex !== -1) {
     locations.value[emptyIndex] = text
-    if (!locations.value.includes('')) {
-      getDirections()
-    }
+    getDirections()
   }
 })
 
 async function getDirections() {
+  const filteredLocations = locations.value.filter(l => l != '')
+
+  if (filteredLocations.length < 2) {
+    return
+  }
+
   const directions = await directionsService.getDirections(
-    locations.value.map(location => ({
+    filteredLocations.map(location => ({
       type: 'coordinates',
       value: location.split(',').map(v => parseFloat(v.trim())) as [
         number,
@@ -73,7 +79,6 @@ async function getDirections() {
 }
 
 function clearLocation(index: number) {
-  const MIN_LOCATIONS = 2
   if (locations.value.length > MIN_LOCATIONS) {
     locations.value.splice(index, 1)
     getDirections()

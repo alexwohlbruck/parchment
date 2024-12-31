@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { Input } from '@/components/ui/input'
-import { H4, H6 } from '@/components/ui/typography'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDirectionsService } from '@/services/directions.service'
 import { ref } from 'vue'
 import { useMapService } from '@/services/map.service'
 import { useMapListener } from '@/composables/useMapListener'
+import draggable from 'vuedraggable'
 import {
   BikeIcon,
   BusFrontIcon,
@@ -15,6 +15,7 @@ import {
   XIcon,
   ShuffleIcon,
   PlusIcon,
+  GripHorizontalIcon,
 } from 'lucide-vue-next'
 
 const MIN_LOCATIONS = 2
@@ -33,18 +34,10 @@ const modes = [
     type: 'cycling',
     icon: BikeIcon,
   },
-  // {
-  //   type: 'transit',
-  //   icon: BusFrontIcon,
-  // },
   {
     type: 'auto',
     icon: CarFrontIcon,
   },
-  // {
-  //   type: 'multimodal',
-  //   icon: ShuffleIcon,
-  // },
 ]
 
 // When map is clicked, fill in the coordinates in the location list
@@ -90,6 +83,10 @@ function clearLocation(index: number) {
 function addLocation() {
   locations.value.push('')
 }
+
+function onDragEnd() {
+  getDirections()
+}
 </script>
 
 <template>
@@ -109,26 +106,43 @@ function addLocation() {
       </TabsList>
     </Tabs>
 
-    <div
-      v-for="(location, i) in locations"
-      :key="i"
-      class="relative w-full max-w-sm items-center"
+    <draggable
+      v-model="locations"
+      :animation="200"
+      handle=".handle"
+      item-key="index"
+      @end="onDragEnd"
+      tag="transition-group"
+      :component-data="{
+        name: 'locations-list',
+        type: 'transition-group',
+      }"
+      class="flex flex-col gap-2"
     >
-      <Input
-        :placeholder="i == 0 ? 'From' : 'To'"
-        :value="location"
-        @input="e => locations[i] = (e.target as HTMLInputElement).value"
-      />
-      <span class="absolute end-0 inset-y-0 flex items-center justify-center">
-        <Button
-          @click="clearLocation(i)"
-          variant="ghost"
-          size="icon"
-          :icon="XIcon"
-          class="rounded-l-none"
-        ></Button>
-      </span>
-    </div>
+      <template #item="{ element, index }">
+        <div
+          class="relative w-full max-w-sm items-center flex gap-2 locations-list-item"
+        >
+          <GripHorizontalIcon class="size-4 cursor-move handle" />
+          <Input
+            :placeholder="index == 0 ? 'From' : 'To'"
+            :value="element"
+            @input="e => locations[index] = (e.target as HTMLInputElement).value"
+          />
+          <span
+            class="absolute end-0 inset-y-0 flex items-center justify-center"
+          >
+            <Button
+              @click="clearLocation(index)"
+              variant="ghost"
+              size="icon"
+              :icon="XIcon"
+              class="rounded-l-none"
+            ></Button>
+          </span>
+        </div>
+      </template>
+    </draggable>
 
     <Button variant="secondary" :icon="PlusIcon" @click="addLocation()">
       Add stop

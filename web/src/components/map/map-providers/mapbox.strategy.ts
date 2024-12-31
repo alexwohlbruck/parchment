@@ -49,7 +49,6 @@ function ifBasemapLoaded(target, name, descriptor) {
 }
 
 export class MapboxStrategy extends MapStrategy {
-  // instance of mapbox `Map`
   map: Map
 
   constructor(container, options?: Partial<MapOptions>) {
@@ -81,11 +80,26 @@ export class MapboxStrategy extends MapStrategy {
     })
 
     this.map = map
-
     this.initialize()
   }
 
   initialize() {
+    this.addControls()
+    this.map.on('load', this.onMapLoad)
+    this.map.on('style.load', this.onStyleLoad)
+    this.listenPOIClick()
+  }
+
+  onMapLoad() {
+    this.setLayers.bind(this)(this.options.layers)
+  }
+
+  onStyleLoad() {
+    this.setMapTheme.bind(this)(this.options.theme)
+    this.setLocale('en-US')
+  }
+
+  addControls() {
     this.map.addControl(new ScaleControl(), 'top-left')
     this.map.addControl(new NavigationControl(), 'top-right')
     this.map.addControl(new GeolocateControl(), 'top-right')
@@ -95,15 +109,10 @@ export class MapboxStrategy extends MapStrategy {
       }),
       'top-left',
     )
+  }
 
-    this.map.on('load', () => {
-      this.setLayers.bind(this)(this.options.layers)
-    })
-    this.map.on('style.load', () => {
-      this.setMapTheme.bind(this)(this.options.theme)
-      this.setLocale('en-US')
-    })
-
+  // TODO:
+  listenPOIClick() {
     let selectedBuildings = []
     this.map.addInteraction('building-click', {
       type: 'click',
@@ -127,30 +136,6 @@ export class MapboxStrategy extends MapStrategy {
         console.log(e.feature)
       },
     })
-  }
-
-  setLocale(locale: Locale) {
-    // TODO:
-    const languageCode = locale.split('-')[0]
-    // console.log(this.map.getStyle())
-    // this.language.setLanguage(this.map.getStyle(), languageCode)
-
-    // const labelList = this.map
-    //   .getStyle()
-    //   .imports![0].data.layers.filter(layer => {
-    //     return /-label/.test(layer.id)
-    //   })
-
-    // const labelList = [{ id: 'country-label' }]
-
-    // console.log(this.map)
-
-    // for (let labelLayer of labelList) {
-    //   this.map.setLayoutProperty(labelLayer.id, 'text-field', [
-    //     'get',
-    //     'name_fr',
-    //   ])
-    // }
   }
 
   setLayers(layerIds: MapLayer[]) {

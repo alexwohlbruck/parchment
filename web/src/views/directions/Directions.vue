@@ -16,6 +16,7 @@ import {
 import { useMapStore } from '@/stores/map.store'
 import { storeToRefs } from 'pinia'
 import WaypointInput from './WaypointInput.vue'
+import TripsList from './TripsList.vue'
 
 dayjs.extend(duration)
 
@@ -27,6 +28,10 @@ const selectedMode = ref('pedestrian')
 const locations = ref<string[]>(['', ''])
 
 const modes = [
+  {
+    type: 'multi',
+    icon: ShuffleIcon,
+  },
   {
     type: 'pedestrian',
     icon: FootprintsIcon,
@@ -81,7 +86,7 @@ async function getDirections() {
 
 <template>
   <div
-    class="p-4 bg-background max-h-full w-80 overflow-y-auto shadow-md flex flex-col gap-2 rounded-md"
+    class="p-4 bg-background max-h-full w-[26rem] overflow-y-auto shadow-md flex flex-col gap-2 rounded-md"
   >
     <Tabs v-model="selectedMode" default-value="pedestrian">
       <TabsList class="w-full flex">
@@ -98,43 +103,6 @@ async function getDirections() {
 
     <WaypointInput v-model="locations" @change="getDirections" />
 
-    <div v-if="directions">
-      {{
-        (() => {
-          const seconds = directions.summary.time
-          if (seconds < 60) return seconds + ' seconds'
-          if (seconds < 3600) return Math.round(seconds / 60) + ' minutes'
-          if (seconds < 86400) {
-            const hours = Math.floor(seconds / 3600)
-            const minutes = Math.round((seconds % 3600) / 60)
-            return (
-              hours +
-              ' hour' +
-              (hours > 1 ? 's' : '') +
-              (minutes ? ' ' + minutes + ' min' : '')
-            )
-          }
-          const days = Math.floor(seconds / 86400)
-          const hours = Math.round((seconds % 86400) / 3600)
-          return (
-            days +
-            ' day' +
-            (days > 1 ? 's' : '') +
-            (hours ? ' ' + hours + ' hr' : '')
-          )
-        })()
-      }}
-    </div>
-
-    <div v-if="directions">
-      {{
-        (() => {
-          const km = directions.summary.length
-          if (km < 0.1) return (km * 1000).toFixed(0) + ' meters'
-          if (km < 100) return km.toFixed(1) + ' km'
-          return Math.round(km) + ' km'
-        })()
-      }}
-    </div>
+    <TripsList v-if="directions" />
   </div>
 </template>

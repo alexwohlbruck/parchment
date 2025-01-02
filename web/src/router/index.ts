@@ -44,7 +44,7 @@ const router = createRouter({
         {
           path: '/directions',
           name: AppRoute.DIRECTIONS,
-          component: () => import('../views/Directions.vue'),
+          component: () => import('../views/directions/Directions.vue'),
         },
         {
           path: '/place',

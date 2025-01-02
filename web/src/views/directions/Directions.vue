@@ -1,27 +1,27 @@
 <script setup lang="ts">
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
+import dayjs from 'dayjs'
+import duration from 'dayjs/plugin/duration'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDirectionsService } from '@/services/directions.service'
 import { ref, watch } from 'vue'
 import { useMapService } from '@/services/map.service'
 import { useMapListener } from '@/composables/useMapListener'
-import draggable from 'vuedraggable'
 import {
   BikeIcon,
   BusFrontIcon,
   CarFrontIcon,
   FootprintsIcon,
-  XIcon,
   ShuffleIcon,
-  PlusIcon,
-  GripHorizontalIcon,
 } from 'lucide-vue-next'
+import { useMapStore } from '@/stores/map.store'
+import { storeToRefs } from 'pinia'
+import WaypointInput from './WaypointInput.vue'
 
-const MIN_LOCATIONS = 2
+dayjs.extend(duration)
 
 const directionsService = useDirectionsService()
 const mapService = useMapService()
+const { directions } = storeToRefs(useMapStore())
 
 const selectedMode = ref('pedestrian')
 const locations = ref<string[]>(['', ''])
@@ -77,23 +77,6 @@ async function getDirections() {
   })
   mapService.setDirections(directions)
 }
-
-function clearLocation(index: number) {
-  if (locations.value.length > MIN_LOCATIONS) {
-    locations.value.splice(index, 1)
-    getDirections()
-  } else {
-    locations.value[index] = ''
-  }
-}
-
-function addLocation() {
-  locations.value.push('')
-}
-
-function onDragEnd() {
-  getDirections()
-}
 </script>
 
 <template>
@@ -113,46 +96,45 @@ function onDragEnd() {
       </TabsList>
     </Tabs>
 
-    <draggable
-      v-model="locations"
-      :animation="200"
-      handle=".handle"
-      item-key="index"
-      @end="onDragEnd"
-      tag="transition-group"
-      :component-data="{
-        name: 'locations-list',
-        type: 'transition-group',
-      }"
-      class="flex flex-col gap-2"
-    >
-      <template #item="{ element, index }">
-        <div
-          class="relative w-full max-w-sm items-center flex gap-2 locations-list-item"
-        >
-          <GripHorizontalIcon class="size-4 cursor-move handle" />
-          <Input
-            :placeholder="index == 0 ? 'From' : 'To'"
-            :value="element"
-            @input="e => locations[index] = (e.target as HTMLInputElement).value"
-          />
-          <span
-            class="absolute end-0 inset-y-0 flex items-center justify-center"
-          >
-            <Button
-              @click="clearLocation(index)"
-              variant="ghost"
-              size="icon"
-              :icon="XIcon"
-              class="rounded-l-none"
-            ></Button>
-          </span>
-        </div>
-      </template>
-    </draggable>
+    <WaypointInput v-model="locations" @change="getDirections" />
 
-    <Button variant="secondary" :icon="PlusIcon" @click="addLocation()">
-      Add stop
-    </Button>
+    <div v-if="directions">
+      {{
+        (() => {
+          const seconds = directions.summary.time
+          if (seconds < 60) return seconds + ' seconds'
+          if (seconds < 3600) return Math.round(seconds / 60) + ' minutes'
+          if (seconds < 86400) {
+            const hours = Math.floor(seconds / 3600)
+            const minutes = Math.round((seconds % 3600) / 60)
+            return (
+              hours +
+              ' hour' +
+              (hours > 1 ? 's' : '') +
+              (minutes ? ' ' + minutes + ' min' : '')
+            )
+          }
+          const days = Math.floor(seconds / 86400)
+          const hours = Math.round((seconds % 86400) / 3600)
+          return (
+            days +
+            ' day' +
+            (days > 1 ? 's' : '') +
+            (hours ? ' ' + hours + ' hr' : '')
+          )
+        })()
+      }}
+    </div>
+
+    <div v-if="directions">
+      {{
+        (() => {
+          const km = directions.summary.length
+          if (km < 0.1) return (km * 1000).toFixed(0) + ' meters'
+          if (km < 100) return km.toFixed(1) + ' km'
+          return Math.round(km) + ' km'
+        })()
+      }}
+    </div>
   </div>
 </template>

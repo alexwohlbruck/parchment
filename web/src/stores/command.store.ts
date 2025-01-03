@@ -70,8 +70,19 @@ export const useCommandStore = defineStore('command', () => {
   const mapService = useMapService()
   const { t, locale } = useI18n()
 
+  function getCommand(id: string) {
+    return commands.value.find(c => c.id === id)
+  }
+
+  function getCommandArgumentOptions(commandId: string, argumentId: string) {
+    const command = getCommand(commandId)
+    if (!command) return
+
+    return command.arguments?.find(arg => arg.id === argumentId)?.getItems()
+  }
+
   function bindCommandToFunction(id: string, action: Function) {
-    const command = commands.value.find(c => c.id === id)
+    const command = getCommand(id)
     if (command) {
       command.action = action
     }
@@ -280,6 +291,8 @@ export const useCommandStore = defineStore('command', () => {
   })
 
   return {
+    getCommand,
+    getCommandArgumentOptions,
     bindCommandToFunction,
     commands,
   }

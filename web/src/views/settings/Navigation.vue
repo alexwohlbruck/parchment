@@ -4,7 +4,7 @@ import { useAuthService } from '@/services/auth.service'
 import { useResponsive } from '@/lib/utils'
 
 import { TransitionFade } from '@morev/vue-transitions'
-import H3 from '@/components/ui/typography/H3.vue'
+import { H3 } from '@/components/ui/typography'
 import { Separator } from '@/components/ui/separator'
 import Button from '@/components/ui/button/Button.vue'
 

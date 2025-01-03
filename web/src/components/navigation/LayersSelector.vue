@@ -4,7 +4,7 @@ import { storeToRefs } from 'pinia'
 import { Toggle } from '@/components/ui/toggle'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useMapStore } from '@/stores/map.store'
-import H5 from '@/components/ui/typography/H5.vue'
+import { H5 } from '@/components/ui/typography'
 import { basemaps, layers } from '../map/map.data'
 import { Basemap, MapLayer } from '../../types/map.types'
 

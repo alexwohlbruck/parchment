@@ -47,7 +47,7 @@ function getTripDuration(trip: Trip) {
 </script>
 
 <template>
-  <div class="flex items-center min-h-[48px] hover:bg-muted/50 py-2">
+  <div class="flex items-center min-h-[48px] pt-2 pb-6">
     <div class="flex relative">
       <div
         v-for="(leg, legIndex) in trip.legs"

@@ -158,11 +158,10 @@
         }
       }
     },
-    "mapData": {
-      "title": "Datos del mapa",
+    "map": {
+      "title": "Configuración del mapa",
       "engine": {
-        "title": "Motor de mapas",
-        "description": "Elige qué motor de JavaScript te gustaría usar para mostrar el mapa"
+        "title": "Motor de mapas"
       },
       "layers": {
         "title": "Capas",

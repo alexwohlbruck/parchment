@@ -14,7 +14,7 @@ export enum AppRoute {
   ACCOUNT = 'account',
   BEHAVIOR = 'behavior',
   APPEARANCE = 'appearance',
-  MAP_DATA = 'mapData',
+  MAP_SETTINGS = 'map',
   USERS = 'users',
 }
 
@@ -83,9 +83,9 @@ const router = createRouter({
             import('../views/settings/pages/appearance/Appearance.vue'),
         },
         {
-          path: '/settings/map-data',
-          name: AppRoute.MAP_DATA,
-          component: () => import('../views/settings/pages/MapData.vue'),
+          path: '/settings/map',
+          name: AppRoute.MAP_SETTINGS,
+          component: () => import('../views/settings/pages/MapSettings.vue'),
         },
         {
           path: '/settings/users',

@@ -13,7 +13,7 @@ import {
   UserRoundIcon,
   CogIcon,
   PaintbrushIcon,
-  DatabaseIcon,
+  MapIcon,
   ActivityIcon,
   Contact2Icon,
 } from 'lucide-vue-next'
@@ -49,9 +49,9 @@ const pages: {
     icon: PaintbrushIcon,
   },
   {
-    id: 'mapData',
-    to: '/settings/map-data',
-    icon: DatabaseIcon,
+    id: 'map',
+    to: '/settings/map',
+    icon: MapIcon,
   },
   {
     id: 'users',

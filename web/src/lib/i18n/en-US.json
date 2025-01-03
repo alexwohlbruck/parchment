@@ -167,11 +167,10 @@
         }
       }
     },
-    "mapData": {
-      "title": "Map data",
+    "map": {
+      "title": "Map",
       "engine": {
-        "title": "Map engine",
-        "description": "Choose which javascript engine you would like to use to display the map"
+        "title": "Map configuration"
       },
       "layers": {
         "title": "Layers",

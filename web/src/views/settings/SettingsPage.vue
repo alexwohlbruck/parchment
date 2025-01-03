@@ -2,7 +2,7 @@
 import { useRouter } from 'vue-router'
 import { useResponsive } from '@/lib/utils'
 
-import H3 from '@/components/ui/typography/H3.vue'
+import H4 from '@/components/ui/typography/H4.vue'
 import { Separator } from '@/components/ui/separator'
 import Button from '@/components/ui/button/Button.vue'
 
@@ -30,9 +30,9 @@ onMounted(() => {
       >
         <ChevronLeftIcon class="size-5" />
       </Button>
-      <H3 class="pb-[.25rem]">
+      <H4 class="pb-[.25rem]">
         {{ $t(`settings.${String(router.currentRoute.value.name)}.title`) }}
-      </H3>
+      </H4>
     </div>
 
     <Separator />

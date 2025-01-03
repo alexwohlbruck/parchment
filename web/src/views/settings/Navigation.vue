@@ -4,7 +4,7 @@ import { useAuthService } from '@/services/auth.service'
 import { useResponsive } from '@/lib/utils'
 
 import { TransitionFade } from '@morev/vue-transitions'
-import H2 from '@/components/ui/typography/H2.vue'
+import H3 from '@/components/ui/typography/H3.vue'
 import { Separator } from '@/components/ui/separator'
 import Button from '@/components/ui/button/Button.vue'
 
@@ -85,7 +85,7 @@ const allowedPages = computed(() => {
 <template>
   <div class="flex flex-col w-full md:w-48 gap-4">
     <div>
-      <H2 class="p-0">{{ $t('settings.title') }}</H2>
+      <H3 class="p-0">{{ $t('settings.title') }}</H3>
     </div>
 
     <Separator />

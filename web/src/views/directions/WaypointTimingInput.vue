@@ -14,50 +14,48 @@ const df = new DateFormatter('en-US', {
   // TODO: Internationalize the locale
   dateStyle: 'long',
 })
+
+/**
+ * For each waypoint, we can configure a desired departure and arrival time
+ * For each consecutive waypoint pair, we can only set a departure OR an arrival time, never both
+ * We cannot set an arrival time on the first waypoint
+ * We cannot set a departure time on the last waypoint
+ */
 </script>
 
 <template>
   <div class="flex flex-col gap-4">
-    <div class="flex items-center space-x-2">
-      <Checkbox id="leave-now" />
-      <label
-        for="leave-now"
-        class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-      >
-        Leave now
-
-        <!-- <Popover>
-          <PopoverTrigger as-child>
-            <button
-              variant="outline"
-              :class="
-                cn(
-                  'justify-start text-left font-normal',
-                  !value && 'text-muted-foreground',
-                )
-              "
-            >
-              <CalendarIcon class="mr-2 h-4 w-4" />
-              {{
-                value
-                  ? df.format(value.toDate(getLocalTimeZone()))
-                  : 'Pick a date'
-              }}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent class="w-auto p-0">
-            <Calendar v-model="value" initial-focus />
-          </PopoverContent>
-        </Popover> -->
-      </label>
-    </div>
     <div class="flex items-center space-x-2">
       <Checkbox id="depart-at" />
       <label
         for="leave-now"
         class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
       >
-        Depart at
+        Leave at
+
+        <!-- <Popover>
+  <PopoverTrigger as-child>
+    <button
+      variant="outline"
+      :class="
+        cn(
+          'justify-start text-left font-normal',
+          !value && 'text-muted-foreground',
+        )
+      "
+    >
+      <CalendarIcon class="mr-2 h-4 w-4" />
+      {{
+        value
+          ? df.format(value.toDate(getLocalTimeZone()))
+          : 'Pick a date'
+      }}
+    </button>
+  </PopoverTrigger>
+  <PopoverContent class="w-auto p-0">
+    <Calendar v-model="value" initial-focus />
+  </PopoverContent>
+</Popover> -->
       </label>
     </div>
     <div class="flex items-center space-x-2">

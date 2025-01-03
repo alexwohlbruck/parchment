@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import draggable from 'vuedraggable'
-import { computed } from 'vue'
-import { XIcon, PlusIcon, GripHorizontalIcon } from 'lucide-vue-next'
+import { computed, ref } from 'vue'
+import { XIcon, PlusIcon, GripHorizontalIcon, TimerIcon } from 'lucide-vue-next'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-
+import WaypointTimingInput from './WaypointTimingInput.vue'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 const MIN_LOCATIONS = 2
 
 const props = defineProps<{
@@ -62,20 +67,27 @@ function onDragEnd() {
         class="relative w-full max-w-sm items-center flex gap-2 locations-list-item"
       >
         <GripHorizontalIcon class="size-4 cursor-move handle" />
-        <Input
-          :placeholder="index == 0 ? 'From' : 'To'"
-          :value="element"
-          @input="e => waypoints[index] = (e.target as HTMLInputElement).value"
-        />
-        <span class="absolute end-0 inset-y-0 flex items-center justify-center">
+        <div class="flex flex-1">
+          <Input
+            :placeholder="index == 0 ? 'From' : 'To'"
+            :value="element"
+            @input="e => waypoints[index] = (e.target as HTMLInputElement).value"
+          />
+          <Popover>
+            <PopoverTrigger as-child>
+              <Button variant="ghost" size="icon" :icon="TimerIcon"></Button>
+            </PopoverTrigger>
+            <PopoverContent>
+              <WaypointTimingInput />
+            </PopoverContent>
+          </Popover>
           <Button
             @click="clearWaypoint(index)"
             variant="ghost"
             size="icon"
             :icon="XIcon"
-            class="rounded-l-none"
           ></Button>
-        </span>
+        </div>
       </div>
     </template>
   </draggable>

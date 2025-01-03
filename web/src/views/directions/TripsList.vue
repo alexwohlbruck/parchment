@@ -44,6 +44,7 @@ const trips: Trip[] = [
 ]
 
 const pixelsPerMinute = 10
+const legGapPixels = 3
 const modeColors = {
   walk: 'bg-blue-300 dark:bg-blue-500',
   train: 'bg-green-300 dark:bg-green-500',
@@ -121,26 +122,29 @@ function getTripEndTime(trip: Trip): Date {
         :key="tripIndex"
         class="flex items-center min-h-[48px] hover:bg-muted/50 py-2"
       >
-        <div class="flex items-center relative">
+        <div class="flex relative">
           <div
             v-for="(leg, legIndex) in trip.legs"
             :key="legIndex"
-            class="flex flex-col items-center"
+            class="flex flex-col"
             :style="{
               marginLeft:
                 legIndex === 0
                   ? `${
                       dayjs(leg.startTime).diff(now, 'minute') * pixelsPerMinute
                     }px`
-                  : 0,
+                  : `${legGapPixels}px`,
             }"
           >
-            <div class="relative">
+            <div>
               <div
                 :class="[modeColors[leg.mode]]"
-                class="h-8 rounded flex items-center justify-center relative group border border-border"
+                class="h-8 px-1 rounded flex items-center justify-center relative group shadow-lg"
                 :style="{
-                  width: `${leg.duration * pixelsPerMinute}px`,
+                  width: `${
+                    leg.duration * pixelsPerMinute -
+                    (legIndex < trip.legs.length - 1 ? legGapPixels : 0)
+                  }px`,
                 }"
               >
                 <component
@@ -149,18 +153,20 @@ function getTripEndTime(trip: Trip): Date {
                 />
               </div>
 
-              <div
-                v-if="legIndex === 0"
-                class="absolute left-0 top-full text-xs text-muted-foreground mt-1 whitespace-nowrap"
-              >
-                {{ getRelativeTime(leg.startTime) }}
-              </div>
+              <div>
+                <div
+                  v-if="legIndex === 0"
+                  class="absolute top-full text-xs text-muted-foreground mt-1 whitespace-nowrap"
+                >
+                  {{ getRelativeTime(leg.startTime) }}
+                </div>
 
-              <div
-                v-if="legIndex === trip.legs.length - 1"
-                class="absolute right-0 top-full text-xs text-muted-foreground mt-1 whitespace-nowrap"
-              >
-                {{ getTripDuration(trip) }} min
+                <div
+                  v-if="legIndex === trip.legs.length - 1"
+                  class="absolute right-0 top-full text-xs text-muted-foreground mt-1 whitespace-nowrap"
+                >
+                  {{ getTripDuration(trip) }} min
+                </div>
               </div>
             </div>
           </div>

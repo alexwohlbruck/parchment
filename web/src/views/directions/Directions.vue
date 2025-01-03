@@ -12,6 +12,8 @@ import {
   CarFrontIcon,
   FootprintsIcon,
   ShuffleIcon,
+  TrainFrontIcon,
+  TrainIcon,
 } from 'lucide-vue-next'
 import { useMapStore } from '@/stores/map.store'
 import { storeToRefs } from 'pinia'

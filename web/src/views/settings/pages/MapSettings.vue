@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref, watch } from 'vue'
 import H4 from '@/components/ui/typography/H4.vue'
 import H6 from '@/components/ui/typography/H6.vue'
 import P from '@/components/ui/typography/P.vue'
@@ -24,6 +25,14 @@ import { MapEngine } from '@/types/map.types'
 
 const mapStore = useMapStore()
 const commandStore = useCommandStore()
+
+const projectionLocal = localStorage.getItem('projection') || 'globe'
+const projection = ref(projectionLocal)
+
+watch(projection, value => {
+  localStorage.setItem('projection', value)
+  window.location.reload()
+})
 </script>
 
 <template>
@@ -55,6 +64,28 @@ const commandStore = useCommandStore()
           </SelectContent>
         </Select>
       </SettingsItem>
+
+      <SettingsItem title="Map projection"
+        ><Select v-model="projection">
+          <SelectTrigger class="w-fit">
+            <SelectValue placeholder="Choose an option" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="globe">Globe</SelectItem>
+              <SelectItem value="mercator">Mercator</SelectItem>
+              <SelectItem value="equirectangular"> Equirectangular </SelectItem>
+              <SelectItem value="equalEarth">Equal Earth</SelectItem>
+              <SelectItem value="naturalEarth">Natural Earth</SelectItem>
+              <SelectItem value="winkelTripel">Winkel Tripel</SelectItem>
+              <SelectItem value="albers">Albers</SelectItem>
+              <SelectItem value="lambertConformalConic">
+                Lambert Conformal Conic
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select></SettingsItem
+      >
     </SettingsCard>
 
     <SettingsCard

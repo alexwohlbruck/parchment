@@ -49,7 +49,7 @@ const pages: {
     icon: PaintbrushIcon,
   },
   {
-    id: 'map',
+    id: 'mapSettings',
     to: '/settings/map',
     icon: MapIcon,
   },

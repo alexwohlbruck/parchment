@@ -2,6 +2,7 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import dayjs from 'dayjs'
 import { FootprintsIcon, TrainIcon, BikeIcon } from 'lucide-vue-next'
+import Trip from './Trip.vue'
 
 interface TripLeg {
   mode: 'walk' | 'train' | 'bike'
@@ -165,61 +166,8 @@ onUnmounted(() => {
     <div class="relative overflow-auto max-h-[24rem]" ref="containerRef">
       <!-- Timeline content -->
       <div class="relative flex flex-col gap-4 pt-1 pb-3">
-        <div
-          v-for="(trip, tripIndex) in sortedTrips"
-          :key="tripIndex"
-          class="flex items-center min-h-[48px] hover:bg-muted/50 py-2"
-        >
-          <div class="flex relative">
-            <div
-              v-for="(leg, legIndex) in trip.legs"
-              :key="legIndex"
-              class="flex flex-col"
-              :style="{
-                marginLeft:
-                  legIndex === 0
-                    ? `${
-                        dayjs(leg.startTime).diff(now, 'minute') *
-                        pixelsPerMinute
-                      }px`
-                    : `${legGapPixels}px`,
-              }"
-            >
-              <div>
-                <div
-                  :class="[modeColors[leg.mode]]"
-                  class="h-8 px-1 rounded flex items-center justify-center relative group shadow-lg"
-                  :style="{
-                    width: `${
-                      leg.duration * pixelsPerMinute -
-                      (legIndex < trip.legs.length - 1 ? legGapPixels : 0)
-                    }px`,
-                  }"
-                >
-                  <component
-                    :is="modeIcons[leg.mode]"
-                    class="size-4 text-black"
-                  />
-                </div>
-
-                <div>
-                  <div
-                    v-if="legIndex === 0"
-                    class="absolute top-full text-xs text-muted-foreground mt-1 whitespace-nowrap"
-                  >
-                    {{ getRelativeTime(leg.startTime) }}
-                  </div>
-
-                  <div
-                    v-if="legIndex === trip.legs.length - 1"
-                    class="absolute right-0 top-full text-xs text-muted-foreground mt-1 whitespace-nowrap"
-                  >
-                    {{ getTripDuration(trip) }} min
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div v-for="(trip, tripIndex) in sortedTrips" :key="tripIndex">
+          <Trip :trip="trip" :now="now" :pixels-per-minute="pixelsPerMinute" />
         </div>
       </div>
     </div>

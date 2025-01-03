@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import H4 from '@/components/ui/typography/H4.vue'
 import H6 from '@/components/ui/typography/H6.vue'
-import P from '@/components/ui/typography/P.vue'
 import { Button } from '@/components/ui/button'
 import { SettingsCard, SettingsItem } from '@/components/settings'
 import {
@@ -65,8 +63,11 @@ watch(projection, value => {
         </Select>
       </SettingsItem>
 
-      <SettingsItem title="Map projection"
-        ><Select v-model="projection">
+      <SettingsItem
+        title="Map projection"
+        v-if="mapStore.mapEngine === 'mapbox'"
+      >
+        <Select v-model="projection">
           <SelectTrigger class="w-fit">
             <SelectValue placeholder="Choose an option" />
           </SelectTrigger>

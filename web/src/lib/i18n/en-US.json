@@ -167,7 +167,7 @@
         }
       }
     },
-    "map": {
+    "mapSettings": {
       "title": "Map",
       "engine": {
         "title": "Map configuration"

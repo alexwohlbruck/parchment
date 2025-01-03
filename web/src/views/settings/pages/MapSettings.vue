@@ -28,7 +28,7 @@ const commandStore = useCommandStore()
 
 <template>
   <div class="flex flex-col gap-4 w-fit items-start">
-    <SettingsCard :title="$t('settings.map.engine.title')">
+    <SettingsCard :title="$t('settings.mapSettings.engine.title')">
       <SettingsItem
         :title="$t('palette.commands.chooseMapEngine.name')"
         :description="$t('palette.commands.chooseMapEngine.description')"
@@ -58,8 +58,8 @@ const commandStore = useCommandStore()
     </SettingsCard>
 
     <SettingsCard
-      :title="$t('settings.map.layers.title')"
-      :description="$t('settings.map.layers.description')"
+      :title="$t('settings.mapSettings.layers.title')"
+      :description="$t('settings.mapSettings.layers.description')"
     >
       <div
         class="flex flex-col gap-2 my-2"

@@ -14,7 +14,7 @@ export enum AppRoute {
   ACCOUNT = 'account',
   BEHAVIOR = 'behavior',
   APPEARANCE = 'appearance',
-  MAP_SETTINGS = 'map',
+  MAP_SETTINGS = 'mapSettings',
   USERS = 'users',
 }
 

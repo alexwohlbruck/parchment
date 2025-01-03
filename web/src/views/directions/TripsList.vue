@@ -165,7 +165,7 @@ onUnmounted(() => {
 
     <div class="relative overflow-auto max-h-[24rem]" ref="containerRef">
       <!-- Timeline content -->
-      <div class="relative flex flex-col gap-4 pt-1 pb-3">
+      <div class="relative flex flex-col pt-1 pb-3">
         <div v-for="(trip, tripIndex) in sortedTrips" :key="tripIndex">
           <Trip :trip="trip" :now="now" :pixels-per-minute="pixelsPerMinute" />
         </div>

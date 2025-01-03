@@ -4,7 +4,7 @@ import { defineStore } from 'pinia'
 import {
   Basemap,
   MapLayer,
-  MapLibrary,
+  MapEngine,
   MapOptions,
   MapEvents,
 } from '@/types/map.types'
@@ -13,10 +13,10 @@ import { Directions } from '@/types/directions.types'
 const emitter = mitt<MapEvents>()
 
 export const useMapStore = defineStore('map', () => {
-  const mapLibrary = ref<MapLibrary>('mapbox')
+  const mapEngine = ref<MapEngine>('mapbox')
 
-  function setMapLibrary(library: MapLibrary) {
-    mapLibrary.value = library
+  function setMapEngine(engine: MapEngine) {
+    mapEngine.value = engine
   }
 
   const mapState = ref<MapOptions>({
@@ -83,8 +83,8 @@ export const useMapStore = defineStore('map', () => {
   }
 
   return {
-    mapLibrary,
-    setMapLibrary,
+    mapEngine,
+    setMapEngine,
     on,
     off,
     emit,

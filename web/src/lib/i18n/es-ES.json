@@ -50,11 +50,11 @@
           }
         }
       },
-      "chooseMapLibrary": {
-        "name": "Elegir biblioteca de mapas",
-        "description": "Cambiar la biblioteca de JavaScript utilizada para renderizar el mapa",
+      "chooseMapEngine": {
+        "name": "Elegir motor de mapas",
+        "description": "Cambiar el motor de JavaScript utilizado para renderizar el mapa",
         "arguments": {
-          "library": {
+          "engine": {
             "name": "Biblioteca de mapas",
             "values": {
               "mapbox": {
@@ -160,9 +160,9 @@
     },
     "mapData": {
       "title": "Datos del mapa",
-      "library": {
-        "title": "Biblioteca de mapas",
-        "description": "Elige qué biblioteca de JavaScript te gustaría usar para mostrar el mapa"
+      "engine": {
+        "title": "Motor de mapas",
+        "description": "Elige qué motor de JavaScript te gustaría usar para mostrar el mapa"
       },
       "layers": {
         "title": "Capas",

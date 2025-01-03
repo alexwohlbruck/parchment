@@ -10,7 +10,7 @@ import { useMapStore } from '../../stores/map.store'
 import { MapboxStrategy } from './map-providers/mapbox.strategy'
 import { MapStrategy } from './map-providers/map.strategy'
 import { MaplibreStrategy } from './map-providers/maplibre.strategy'
-import { MapLibrary, MapOptions } from '@/types/map.types'
+import { MapEngine, MapOptions } from '@/types/map.types'
 import { Locale } from '@/lib/i18n'
 
 const dark = useDark()
@@ -20,11 +20,11 @@ const { locale } = useI18n()
 const mapContainer = ref(null)
 let map: MapStrategy
 
-function getMapInstance(mapLibrary: MapLibrary) {
+function getMapInstance(mapEngine: MapEngine) {
   const options: Partial<MapOptions> = {
     theme: dark.value ? 'dark' : 'light',
   }
-  switch (mapLibrary) {
+  switch (mapEngine) {
     case 'mapbox':
       return new MapboxStrategy(mapContainer.value, options)
     case 'maplibre':
@@ -33,7 +33,7 @@ function getMapInstance(mapLibrary: MapLibrary) {
 }
 
 onMounted(() => {
-  map = getMapInstance(mapStore.mapLibrary)
+  map = getMapInstance(mapStore.mapEngine)
 
   // Watch for map store changes and update map accordingly
 
@@ -60,9 +60,9 @@ onMounted(() => {
   )
 
   watch(
-    () => mapStore.mapLibrary,
-    mapLibrary => {
-      map = getMapInstance(mapLibrary)
+    () => mapStore.mapEngine,
+    mapEngine => {
+      map = getMapInstance(mapEngine)
     },
   )
 

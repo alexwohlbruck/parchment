@@ -195,35 +195,35 @@ export const useCommandStore = defineStore('command', () => {
         ],
       },
       {
-        id: 'chooseMapLibrary',
-        name: t('palette.commands.chooseMapLibrary.name'),
-        description: t('palette.commands.chooseMapLibrary.description'),
+        id: 'chooseMapEngine',
+        name: t('palette.commands.chooseMapEngine.name'),
+        description: t('palette.commands.chooseMapEngine.description'),
         icon: CogIcon,
         hotkey: ['l'],
-        action: mapService.setMapLibrary,
+        action: mapService.setMapEngine,
         arguments: [
           {
-            id: 'library',
-            name: t('palette.commands.chooseMapLibrary.arguments.library.name'),
+            id: 'engine',
+            name: t('palette.commands.chooseMapEngine.arguments.engine.name'),
             type: 'string',
             getItems() {
               return [
                 {
                   value: 'mapbox',
                   name: t(
-                    'palette.commands.chooseMapLibrary.arguments.library.values.mapbox.name',
+                    'palette.commands.chooseMapEngine.arguments.engine.values.mapbox.name',
                   ),
                   description: t(
-                    'palette.commands.chooseMapLibrary.arguments.library.values.mapbox.description',
+                    'palette.commands.chooseMapEngine.arguments.engine.values.mapbox.description',
                   ),
                 },
                 {
                   value: 'maplibre',
                   name: t(
-                    'palette.commands.chooseMapLibrary.arguments.library.values.maplibre.name',
+                    'palette.commands.chooseMapEngine.arguments.engine.values.maplibre.name',
                   ),
                   description: t(
-                    'palette.commands.chooseMapLibrary.arguments.library.values.maplibre.description',
+                    'palette.commands.chooseMapEngine.arguments.engine.values.maplibre.description',
                   ),
                 },
               ]

@@ -30,7 +30,7 @@ const trips: Trip[] = [
       },
       {
         mode: 'walk',
-        duration: 2,
+        duration: 6,
         startTime: dayjs(now).add(19, 'minute').toDate(),
       },
     ],
@@ -125,17 +125,22 @@ onUnmounted(() => {
 <template>
   <div class="relative overflow-x-hidden max-h-[24rem]">
     <!-- Time labels -->
-    <div
-      class="sticky top-0 flex bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10"
-    >
-      <div class="flex">
-        <div
-          v-for="time in timeLabels"
-          :key="time"
-          class="flex-shrink-0 w-[150px] text-xs text-muted-foreground"
-        >
-          {{ time }}
-        </div>
+    <div class="flex relative mb-2">
+      <div
+        v-for="time in timeLabels"
+        :key="time"
+        class="flex-shrink-0 text-xs text-muted-foreground absolute ml-2"
+        :style="{
+          left: `${
+            dayjs(
+              dayjs(now)
+                .startOf('hour')
+                .add(timeLabels.indexOf(time) * 15, 'minute'),
+            ).diff(now, 'minute') * pixelsPerMinute
+          }px`,
+        }"
+      >
+        {{ time }}
       </div>
     </div>
 
@@ -159,7 +164,7 @@ onUnmounted(() => {
 
     <div class="relative overflow-auto max-h-[24rem]" ref="containerRef">
       <!-- Timeline content -->
-      <div class="relative flex flex-col gap-6 pt-1 pb-3">
+      <div class="relative flex flex-col gap-4 pt-1 pb-3">
         <div
           v-for="(trip, tripIndex) in sortedTrips"
           :key="tripIndex"

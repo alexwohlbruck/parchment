@@ -43,6 +43,10 @@ const modes = [
     icon: BikeIcon,
   },
   {
+    type: 'transit',
+    icon: TrainIcon,
+  },
+  {
     type: 'auto',
     icon: CarFrontIcon,
   },

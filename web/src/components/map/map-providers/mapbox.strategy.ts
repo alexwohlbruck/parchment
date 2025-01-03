@@ -216,7 +216,7 @@ export class MapboxStrategy extends MapStrategy {
           'line-cap': 'round',
         },
         paint: {
-          'line-color': colors.indigo[600],
+          'line-color': colors.green[600],
           'line-width': 8,
           'line-emissive-strength': 1,
         },
@@ -232,7 +232,7 @@ export class MapboxStrategy extends MapStrategy {
           'line-cap': 'round',
         },
         paint: {
-          'line-color': colors.indigo[500],
+          'line-color': colors.green[400],
           'line-width': 5,
           'line-emissive-strength': 1,
         },

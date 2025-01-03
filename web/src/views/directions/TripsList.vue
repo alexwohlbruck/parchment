@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import dayjs from 'dayjs'
 import { FootprintsIcon, TrainIcon, BikeIcon } from 'lucide-vue-next'
 
@@ -47,8 +47,8 @@ const pixelsPerMinute = 10
 const legGapPixels = 3
 const modeColors = {
   walk: 'bg-blue-300 dark:bg-blue-500',
-  train: 'bg-green-300 dark:bg-green-500',
-  bike: 'bg-indigo-300 dark:bg-indigo-500',
+  train: 'bg-indigo-300 dark:bg-indigo-500',
+  bike: 'bg-green-300 dark:bg-green-500',
   bus: 'bg-violet-300 dark:bg-violet-500',
 }
 const modeIcons = {
@@ -86,8 +86,8 @@ const timeLabels = computed(() => {
 
 function getRelativeTime(date: Date) {
   const minutes = dayjs(date).diff(now, 'minute')
-  if (minutes <= 0) return 'Go now'
-  return `Go in ${minutes} min`
+  if (minutes <= 0) return 'Now'
+  return `In ${minutes} min`
 }
 
 function getTripDuration(trip: Trip) {
@@ -98,74 +98,119 @@ function getTripEndTime(trip: Trip): Date {
   const lastLeg = trip.legs[trip.legs.length - 1]
   return dayjs(lastLeg.startTime).add(lastLeg.duration, 'minute').toDate()
 }
+
+// Add these new reactive variables
+const containerRef = ref<HTMLElement | null>(null)
+const isScrolledToEnd = ref(false)
+
+// Add scroll handler function
+function handleScroll() {
+  if (!containerRef.value) return
+  const container = containerRef.value
+  const isAtEnd =
+    container.scrollLeft + container.clientWidth >= container.scrollWidth - 1
+  isScrolledToEnd.value = isAtEnd
+}
+
+// Add lifecycle hooks
+onMounted(() => {
+  containerRef.value?.addEventListener('scroll', handleScroll)
+})
+
+onUnmounted(() => {
+  containerRef.value?.removeEventListener('scroll', handleScroll)
+})
 </script>
 
 <template>
-  <div class="relative overflow-auto max-h-[24rem]">
+  <div class="relative overflow-x-hidden max-h-[24rem]">
+    <!-- Time labels -->
     <div
-      class="sticky top-0 flex bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+      class="sticky top-0 flex bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10"
     >
       <div class="flex">
         <div
           v-for="time in timeLabels"
           :key="time"
-          class="flex-shrink-0 w-[60px] text-xs text-muted-foreground"
+          class="flex-shrink-0 w-[150px] text-xs text-muted-foreground"
         >
           {{ time }}
         </div>
       </div>
     </div>
 
-    <div class="relative flex flex-col gap-6 pt-1 pb-3">
-      <div
-        v-for="(trip, tripIndex) in sortedTrips"
-        :key="tripIndex"
-        class="flex items-center min-h-[48px] hover:bg-muted/50 py-2"
-      >
-        <div class="flex relative">
-          <div
-            v-for="(leg, legIndex) in trip.legs"
-            :key="legIndex"
-            class="flex flex-col"
-            :style="{
-              marginLeft:
-                legIndex === 0
-                  ? `${
-                      dayjs(leg.startTime).diff(now, 'minute') * pixelsPerMinute
-                    }px`
-                  : `${legGapPixels}px`,
-            }"
-          >
-            <div>
-              <div
-                :class="[modeColors[leg.mode]]"
-                class="h-8 px-1 rounded flex items-center justify-center relative group shadow-lg"
-                :style="{
-                  width: `${
-                    leg.duration * pixelsPerMinute -
-                    (legIndex < trip.legs.length - 1 ? legGapPixels : 0)
-                  }px`,
-                }"
-              >
-                <component
-                  :is="modeIcons[leg.mode]"
-                  class="size-4 text-black"
-                />
-              </div>
+    <!-- Grid lines -->
+    <div class="absolute inset-0 flex pointer-events-none">
+      <div v-for="time in timeLabels" :key="time" class="flex-shrink-0">
+        <div
+          class="absolute top-0 h-full border-l border-border/75"
+          :style="{
+            left: `${
+              dayjs(
+                dayjs(now)
+                  .startOf('hour')
+                  .add(timeLabels.indexOf(time) * 15, 'minute'),
+              ).diff(now, 'minute') * pixelsPerMinute
+            }px`,
+          }"
+        />
+      </div>
+    </div>
 
+    <div class="relative overflow-auto max-h-[24rem]" ref="containerRef">
+      <!-- Timeline content -->
+      <div class="relative flex flex-col gap-6 pt-1 pb-3">
+        <div
+          v-for="(trip, tripIndex) in sortedTrips"
+          :key="tripIndex"
+          class="flex items-center min-h-[48px] hover:bg-muted/50 py-2"
+        >
+          <div class="flex relative">
+            <div
+              v-for="(leg, legIndex) in trip.legs"
+              :key="legIndex"
+              class="flex flex-col"
+              :style="{
+                marginLeft:
+                  legIndex === 0
+                    ? `${
+                        dayjs(leg.startTime).diff(now, 'minute') *
+                        pixelsPerMinute
+                      }px`
+                    : `${legGapPixels}px`,
+              }"
+            >
               <div>
                 <div
-                  v-if="legIndex === 0"
-                  class="absolute top-full text-xs text-muted-foreground mt-1 whitespace-nowrap"
+                  :class="[modeColors[leg.mode]]"
+                  class="h-8 px-1 rounded flex items-center justify-center relative group shadow-lg"
+                  :style="{
+                    width: `${
+                      leg.duration * pixelsPerMinute -
+                      (legIndex < trip.legs.length - 1 ? legGapPixels : 0)
+                    }px`,
+                  }"
                 >
-                  {{ getRelativeTime(leg.startTime) }}
+                  <component
+                    :is="modeIcons[leg.mode]"
+                    class="size-4 text-black"
+                  />
                 </div>
 
-                <div
-                  v-if="legIndex === trip.legs.length - 1"
-                  class="absolute right-0 top-full text-xs text-muted-foreground mt-1 whitespace-nowrap"
-                >
-                  {{ getTripDuration(trip) }} min
+                <div>
+                  <div
+                    v-if="legIndex === 0"
+                    class="absolute top-full text-xs text-muted-foreground mt-1 whitespace-nowrap"
+                  >
+                    {{ getRelativeTime(leg.startTime) }}
+                  </div>
+
+                  <div
+                    v-if="legIndex === trip.legs.length - 1"
+                    class="absolute right-0 top-full text-xs text-muted-foreground mt-1 whitespace-nowrap"
+                  >
+                    {{ getTripDuration(trip) }} min
+                  </div>
                 </div>
               </div>
             </div>
@@ -174,9 +219,14 @@ function getTripEndTime(trip: Trip): Date {
       </div>
     </div>
 
+    <!-- Updated scrim -->
     <div
-      class="absolute right-0 top-0 bottom-0 w-16 pointer-events-none bg-gradient-to-l from-background to-transparent"
-      style="right: var(--removed-scroll-width, 0px)"
+      class="absolute right-0 top-0 bottom-0 w-20 pointer-events-none bg-gradient-to-l from-background to-transparent transition-opacity duration-200"
+      :class="{ 'opacity-0': isScrolledToEnd }"
+      :style="{
+        right: `var(--removed-scroll-width, 0px)`,
+        position: 'absolute',
+      }"
     ></div>
   </div>
 </template>

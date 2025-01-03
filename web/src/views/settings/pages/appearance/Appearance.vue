@@ -1,14 +1,5 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import H3 from '@/components/ui/typography/H3.vue'
-import H6 from '@/components/ui/typography/H6.vue'
-import {
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
 import {
   Select,
   SelectContent,

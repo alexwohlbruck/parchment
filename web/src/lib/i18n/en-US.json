@@ -53,12 +53,12 @@
           }
         }
       },
-      "chooseMapLibrary": {
-        "name": "Choose map library",
-        "description": "Change the javascript library used to render the map",
+      "chooseMapEngine": {
+        "name": "Choose map engine",
+        "description": "Change the javascript engine used to render the map",
         "arguments": {
-          "library": {
-            "name": "Map library",
+          "engine": {
+            "name": "Map engine",
             "values": {
               "mapbox": {
                 "name": "Mapbox GL",
@@ -169,9 +169,9 @@
     },
     "mapData": {
       "title": "Map data",
-      "library": {
-        "title": "Map library",
-        "description": "Choose which javascript library you would like to use to display the map"
+      "engine": {
+        "title": "Map engine",
+        "description": "Choose which javascript engine you would like to use to display the map"
       },
       "layers": {
         "title": "Layers",

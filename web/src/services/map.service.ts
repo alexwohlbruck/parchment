@@ -1,4 +1,4 @@
-import type { MapEvents, MapLibrary } from '@/types/map.types'
+import type { MapEvents, MapEngine } from '@/types/map.types'
 import { useMapStore } from '../stores/map.store'
 import { createSharedComposable } from '@vueuse/core'
 
@@ -24,7 +24,7 @@ function mapService() {
   }
 
   return {
-    setMapLibrary: store.setMapLibrary,
+    setMapEngine: store.setMapEngine,
     setDirections: store.setDirections,
     on,
     off,

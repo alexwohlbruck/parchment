@@ -12,7 +12,7 @@ import { SettingsIcon, PlusIcon } from 'lucide-vue-next'
 
 import { layers } from '@/components/map/layers'
 import { useMapStore } from '@/stores/map.store'
-import { MapLibrary } from '@/types/map.types'
+import { MapEngine } from '@/types/map.types'
 
 const mapStore = useMapStore()
 </script>
@@ -20,14 +20,14 @@ const mapStore = useMapStore()
 <template>
   <div class="flex flex-col gap-4 w-fit items-start">
     <div>
-      <H4>{{ $t('settings.mapData.library.title') }}</H4>
+      <H4>{{ $t('settings.mapData.engine.title') }}</H4>
       <P>
-        {{ $t('settings.mapData.library.description') }}
+        {{ $t('settings.mapData.engine.description') }}
       </P>
 
       <RadioGroup
-        :default-value="mapStore.mapLibrary"
-        @update:model-value="(library) => mapStore.setMapLibrary(library as MapLibrary)"
+        :default-value="mapStore.mapEngine"
+        @update:model-value="(engine) => mapStore.setMapEngine(engine as MapEngine)"
       >
         <div class="flex items-center space-x-2">
           <RadioGroupItem id="mapbox" value="mapbox" />

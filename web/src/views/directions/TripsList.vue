@@ -103,6 +103,7 @@ function getTripEndTime(trip: Trip): Date {
 // Add these new reactive variables
 const containerRef = ref<HTMLElement | null>(null)
 const isScrolledToEnd = ref(false)
+const isScrolledToStart = ref(true)
 
 // Add scroll handler function
 function handleScroll() {
@@ -110,7 +111,9 @@ function handleScroll() {
   const container = containerRef.value
   const isAtEnd =
     container.scrollLeft + container.clientWidth >= container.scrollWidth - 1
+  const isAtStart = container.scrollLeft <= 1
   isScrolledToEnd.value = isAtEnd
+  isScrolledToStart.value = isAtStart
 }
 
 // Add lifecycle hooks
@@ -172,7 +175,17 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Updated scrim -->
+    <!-- Left scrim -->
+    <div
+      class="absolute left-0 top-0 bottom-0 w-12 pointer-events-none bg-gradient-to-r from-background to-transparent transition-opacity duration-120"
+      :class="{ 'opacity-0': isScrolledToStart }"
+      :style="{
+        left: `var(--removed-scroll-width, 0px)`,
+        position: 'absolute',
+      }"
+    ></div>
+
+    <!-- Right scrim (existing) -->
     <div
       class="absolute right-0 top-0 bottom-0 w-20 pointer-events-none bg-gradient-to-l from-background to-transparent transition-opacity duration-200"
       :class="{ 'opacity-0': isScrolledToEnd }"

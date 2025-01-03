@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import H5 from '@/components/ui/typography/H5.vue'
-import H6 from '@/components/ui/typography/H6.vue'
+import { H5, H6 } from '@/components/ui/typography'
 import Caption from '@/components/ui/typography/Caption.vue'
 import { Card } from '@/components/ui/card'
 

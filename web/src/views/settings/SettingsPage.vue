@@ -2,7 +2,7 @@
 import { useRouter } from 'vue-router'
 import { useResponsive } from '@/lib/utils'
 
-import H4 from '@/components/ui/typography/H4.vue'
+import { H4 } from '@/components/ui/typography'
 import { Separator } from '@/components/ui/separator'
 import Button from '@/components/ui/button/Button.vue'
 

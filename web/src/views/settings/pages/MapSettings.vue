@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import H6 from '@/components/ui/typography/H6.vue'
+import { H6 } from '@/components/ui/typography'
 import { Button } from '@/components/ui/button'
 import { SettingsCard, SettingsItem } from '@/components/settings'
 import {

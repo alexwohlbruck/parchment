@@ -11,7 +11,7 @@ defineProps<Props>()
 </script>
 
 <template>
-  <div class="flex justify-between items-center">
+  <div class="flex justify-between gap-2 items-center">
     <div>
       <H6>{{ title }}</H6>
       <Caption v-if="description">

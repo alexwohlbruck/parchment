@@ -9,10 +9,17 @@ import {
   DialogClose,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { ConfirmDialogOptions } from '@/types/app.types'
+import { ComponentDialogOptions } from '@/types/app.types'
 
-const { title, description, destructive, continueText, cancelText } =
-  defineProps<ConfirmDialogOptions>()
+const {
+  title,
+  description,
+  continueText,
+  cancelText,
+  destructive = false,
+  props,
+  component,
+} = defineProps<ComponentDialogOptions>()
 
 const emit = defineEmits<{
   (e: 'submit', payload: boolean): void
@@ -28,6 +35,8 @@ const emit = defineEmits<{
           {{ description }}
         </DialogDescription>
       </DialogHeader>
+
+      <component :is="component" v-bind="props || {}" />
 
       <DialogFooter>
         <DialogClose as-child>

@@ -2,6 +2,7 @@
 import { h, onMounted, ref } from 'vue'
 import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
+import { useI18n } from 'vue-i18n'
 import { ColumnDef } from '@tanstack/vue-table'
 import { Passkey } from '@/types/auth.types'
 
@@ -17,6 +18,7 @@ dayjs.extend(localizedFormat)
 
 const appService = useAppService()
 const authService = useAuthService()
+const { t } = useI18n()
 const passkeys = ref<Passkey[]>([])
 
 const columns: ColumnDef<Passkey>[] = [
@@ -26,7 +28,7 @@ const columns: ColumnDef<Passkey>[] = [
   },
   {
     header: 'Backed Up',
-    accessorFn: info => (info.backedUp ? 'Yes' : 'No'),
+    accessorFn: info => (info.backedUp ? t('general.yes') : t('general.no')),
   },
   {
     header: 'Created',

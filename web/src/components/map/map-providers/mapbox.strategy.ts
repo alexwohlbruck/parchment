@@ -13,7 +13,7 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 import { Basemap, MapLayer, MapOptions, type MapTheme } from '@/types/map.types'
 import standardStyle from '@/components/map/styles/standard.json'
 
-import { layers } from '../layers' // TODO: Refactor layers init
+import { layers } from '../layers/layers' // TODO: Refactor layers init
 import { Locale } from '@/lib/i18n'
 import { Directions } from '@/types/directions.types'
 import { decodeShape } from '@/lib/utils'

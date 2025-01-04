@@ -1,5 +1,15 @@
 {
   "palette": {
+    "general": {
+      "yes": "Sí",
+      "no": "No",
+      "cancel": "Cancelar",
+      "continue": "Continuar",
+      "delete": "Eliminar",
+      "confirm": "Confirmar",
+      "close": "Cerrar",
+      "save": "Guardar"
+    },
     "placeholder": {
       "default": "Buscar cerca...",
       "command": "Ejecutar comando...",
@@ -162,6 +172,9 @@
       "title": "Configuración del mapa",
       "engine": {
         "title": "Motor de mapas"
+      },
+      "dataSources": {
+        "title": "Fuentes de datos"
       },
       "layers": {
         "title": "Capas",

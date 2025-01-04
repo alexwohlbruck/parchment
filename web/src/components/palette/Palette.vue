@@ -214,6 +214,7 @@ function filterFunction(val: PaletteItem[], term: string): PaletteItem[] {
       <template v-if="showResults">
         <!-- Top-level commands list -->
         <CommandList v-if="!activeArgument">
+          <!-- TODO: i18n -->
           <CommandEmpty>No results found.</CommandEmpty>
 
           <CommandGroup heading="Commands">

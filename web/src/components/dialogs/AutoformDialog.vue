@@ -27,8 +27,8 @@ function onSubmit(values: Record<string, any>) {
 <template>
   <Dialog defaultOpen>
     <DialogContent>
-      <DialogHeader>
-        <DialogTitle>{{ title }}</DialogTitle>
+      <DialogHeader v-if="title || description">
+        <DialogTitle v-if="title">{{ title }}</DialogTitle>
         <DialogDescription v-if="description">
           {{ description }}
         </DialogDescription>
@@ -37,12 +37,12 @@ function onSubmit(values: Record<string, any>) {
           <DialogFooter>
             <DialogClose as-child>
               <Button @click.prevent="emit('submit', null)" variant="outline">
-                {{ cancelText || 'Cancel' }}
+                {{ cancelText || $t('general.cancel') }}
               </Button>
             </DialogClose>
             <DialogClose as-child>
               <Button type="submit">
-                {{ continueText || 'Continue' }}
+                {{ continueText || $t('general.continue') }}
               </Button>
             </DialogClose>
           </DialogFooter>

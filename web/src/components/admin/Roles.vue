@@ -40,7 +40,7 @@ const columns: ColumnDef<Role>[] = [
         size: 'icon',
         icon: Trash2Icon,
         class: 'text-destructive',
-        description: 'Delete user',
+        description: 'Delete user', // TODO: i18n
       }),
   },
 ]

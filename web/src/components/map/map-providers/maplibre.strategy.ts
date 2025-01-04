@@ -8,7 +8,7 @@ import {
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Basemap, MapLayer, MapTheme, MapOptions } from '@/types/map.types'
-import { layers } from '../layers'
+import { layers } from '../layers/layers'
 import { Locale } from '@/lib/i18n'
 
 const basemapUrls = {

@@ -18,7 +18,7 @@ defineProps<Props>()
       <Caption>{{ description }}</Caption>
     </div>
 
-    <Card class="w-full py-2 px-4 flex flex-col gap-4">
+    <Card class="w-full py-3 px-4 flex flex-col gap-4">
       <slot></slot>
     </Card>
   </div>

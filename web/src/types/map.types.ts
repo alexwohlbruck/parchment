@@ -1,7 +1,9 @@
+import { Icon } from '@/types/app.types'
+
 export type Basemap = 'standard' | 'satellite' | 'hybrid'
-export type MapLayer = 'cycling' | 'transit' | 'traffic' | 'terrain'
-export type MapEngine = 'mapbox' | 'maplibre'
+export type MapLayer = 'cycling' | 'transit' | 'traffic' | 'terrain' // TODO: Remove layer types
 export type MapTheme = 'light' | 'dark'
+export type MapEngine = 'mapbox' | 'maplibre'
 
 export type MapOptions = {
   center: [number, number]
@@ -19,4 +21,20 @@ export type MapEvents = {
     coordinates: [number, number]
     point: { x: number; y: number }
   }
+}
+
+export type Layer = {
+  name: string
+  icon: Icon
+  enabled: boolean
+  source: {
+    id: string
+    type: string
+    tiles?: string[]
+    tileSize?: number
+    attribution?: string
+    maxzoom?: number
+    url?: string
+  }
+  meta: any
 }

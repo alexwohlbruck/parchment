@@ -1,4 +1,14 @@
 {
+  "general": {
+    "yes": "Yes",
+    "no": "No",
+    "cancel": "Cancel",
+    "continue": "Continue",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "close": "Close",
+    "save": "Save"
+  },
   "palette": {
     "placeholder": {
       "default": "Search nearby...",
@@ -171,6 +181,9 @@
       "title": "Map",
       "engine": {
         "title": "Map configuration"
+      },
+      "dataSources": {
+        "title": "Data Sources"
       },
       "layers": {
         "title": "Layers",

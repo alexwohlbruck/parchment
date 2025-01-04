@@ -1,7 +1,9 @@
-import { MapLayer } from '../../types/map.types'
+import { Layer } from '@/types/map.types'
+import { BikeIcon, CarFrontIcon, TrainIcon } from 'lucide-vue-next'
 
 const cyclOSM = {
   name: 'CyclOSM',
+  icon: BikeIcon,
   enabled: true,
   source: {
     id: 'cyclosm',
@@ -23,7 +25,8 @@ const cyclOSM = {
 }
 
 const waymarkedTrails = {
-  name: 'Waymarked Trails',
+  name: 'Waymarked Traifls',
+  icon: BikeIcon,
   enabled: false,
   source: {
     id: 'waymarkedTrails',
@@ -41,6 +44,7 @@ const waymarkedTrails = {
 const transitlandApiKey = import.meta.env.VITE_TRANSITLAND_API_KEY
 const transitLand = {
   name: 'Transitland',
+  icon: TrainIcon,
   enabled: false,
   source: {
     id: 'transitland',
@@ -126,6 +130,7 @@ const transitLand = {
 // mapbox://mapbox.mapbox-traffic-v1
 const traffic = {
   name: 'Mapbox traffic',
+  icon: CarFrontIcon,
   enabled: false,
   source: {
     id: 'traffic',
@@ -163,41 +168,4 @@ const traffic = {
   },
 }
 
-type Layer = {
-  name: string
-  enabled: boolean
-  source: {
-    id: string
-    type: string
-    tiles?: string[]
-    tileSize?: number
-    attribution?: string
-    maxzoom?: number
-    url?: string
-  }
-  meta: any
-}
-
-export const layers: {
-  [key in MapLayer]: {
-    layers: Layer[]
-    name: string
-  }
-} = {
-  cycling: {
-    layers: [cyclOSM],
-    name: 'Cycling',
-  },
-  transit: {
-    layers: [transitLand],
-    name: 'Transit',
-  },
-  traffic: {
-    layers: [traffic],
-    name: 'Traffic',
-  },
-  terrain: {
-    layers: [],
-    name: 'Terrain',
-  },
-}
+export const layers: Layer[] = [cyclOSM, transitLand, traffic]

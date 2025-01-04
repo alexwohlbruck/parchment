@@ -2,6 +2,7 @@ import { DialogOptions, DialogType } from '@/types/app.types'
 import { defineStore } from 'pinia'
 import { Component, ref } from 'vue'
 
+import ComponentDialog from '@/components/dialogs/ComponentDialog.vue'
 import ConfirmDialog from '@/components/dialogs/ConfirmDialog.vue'
 import PromptDialog from '@/components/dialogs/PromptDialog.vue'
 import AutoformDialog from '@/components/dialogs/AutoformDialog.vue'
@@ -23,6 +24,7 @@ export const useAppStore = defineStore('app', () => {
     return new Promise(resolve => {
       const id = new Date().getTime()
       const dialogTypesMap = {
+        [DialogType.Component]: ComponentDialog,
         [DialogType.Confirm]: ConfirmDialog,
         [DialogType.Prompt]: PromptDialog,
         [DialogType.AutoForm]: AutoformDialog,

@@ -21,18 +21,21 @@ export type MapEvents = {
   }
 }
 
+export type Source = {
+  id?: string // TODO: Not sure if id is required
+  type: string
+  url?: string
+  tiles?: string[]
+  tileSize?: number
+  attribution?: string
+  maxzoom?: number
+}
+
 export type Layer = {
+  id: string
   name: string
   icon: Icon
   enabled: boolean
-  source: {
-    id: string
-    type: string
-    tiles?: string[]
-    tileSize?: number
-    attribution?: string
-    maxzoom?: number
-    url?: string
-  }
+  source: string | Source
   meta?: any
 }

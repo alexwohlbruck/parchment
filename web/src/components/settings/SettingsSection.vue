@@ -5,23 +5,25 @@ import { Card } from '@/components/ui/card'
 import { useI18n } from 'vue-i18n'
 
 interface Props {
-  title: string
+  title?: string
   description?: string
   frame?: boolean
+  shadow?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   frame: true,
   msg: () => useI18n().t('message'),
+  shadow: true,
 })
 </script>
 
 <template>
   <div class="flex flex-col gap-2 w-full">
-    <div class="flex justify-between items-center">
+    <div v-if="title || description" class="flex justify-between items-center">
       <div>
-        <H5>{{ title }}</H5>
-        <Caption>{{ description }}</Caption>
+        <H5 v-if="title">{{ title }}</H5>
+        <Caption v-if="description">{{ description }}</Caption>
       </div>
       <slot name="actions"></slot>
     </div>
@@ -30,7 +32,11 @@ const props = withDefaults(defineProps<Props>(), {
       <slot></slot>
     </Card>
 
-    <div v-else class="w-full flex flex-col gap-4 shadow-sm">
+    <div
+      v-else
+      class="w-full flex flex-col gap-4"
+      :class="{ 'shadow-sm': shadow }"
+    >
       <slot></slot>
     </div>
   </div>

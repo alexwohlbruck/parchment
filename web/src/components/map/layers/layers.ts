@@ -25,7 +25,7 @@ const cyclOSM = {
 }
 
 const waymarkedTrails = {
-  name: 'Waymarked Traifls',
+  name: 'Waymarked Trails',
   icon: BikeIcon,
   enabled: false,
   source: {
@@ -45,7 +45,7 @@ const transitlandApiKey = import.meta.env.VITE_TRANSITLAND_API_KEY
 const transitLand = {
   name: 'Transitland',
   icon: TrainIcon,
-  enabled: false,
+  enabled: true,
   source: {
     id: 'transitland',
     type: 'vector',
@@ -131,7 +131,7 @@ const transitLand = {
 const traffic = {
   name: 'Mapbox traffic',
   icon: CarFrontIcon,
-  enabled: false,
+  enabled: true,
   source: {
     id: 'traffic',
     type: 'vector',
@@ -168,4 +168,4 @@ const traffic = {
   },
 }
 
-export const layers: Layer[] = [cyclOSM, transitLand, traffic]
+export const layers: Layer[] = [cyclOSM, waymarkedTrails, transitLand, traffic]

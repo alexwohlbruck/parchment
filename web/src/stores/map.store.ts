@@ -57,26 +57,6 @@ export const useMapStore = defineStore('map', () => {
 
   const layers = ref<Layer[]>(defaultLayers)
 
-  function addLayer(layer: Layer) {
-    layers.value.push(layer)
-  }
-
-  function removeLayer(layer: Layer) {
-    layers.value.splice(layers.value.indexOf(layer), 1)
-  }
-
-  // TODO: Toggle layer
-  // function toggleLayer(layer: MapLayer, state?: boolean) {
-  //   if (state === undefined) {
-  //     state = !layers.includes(layer)
-  //   }
-  //   if (state) {
-  //     addLayer(layer)
-  //   } else {
-  //     removeLayer(layer)
-  //   }
-  // }
-
   function setDirections(directions_: Directions) {
     directions.value = directions_
   }

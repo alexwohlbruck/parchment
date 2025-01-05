@@ -8,7 +8,8 @@
       "delete": "Eliminar",
       "confirm": "Confirmar",
       "close": "Cerrar",
-      "save": "Guardar"
+      "save": "Guardar",
+      "name": "Nombre"
     },
     "placeholder": {
       "default": "Buscar cerca...",
@@ -96,6 +97,14 @@
   },
   "map": {
     "title": "Mapa"
+  },
+  "layers": {
+    "title": "Capas",
+    "fields": {
+      "id": "ID de la capa",
+      "name": "Nombre",
+      "enabled": "Habilitado"
+    }
   },
   "directions": {
     "title": "Direcciones"
@@ -205,8 +214,5 @@
     "system": {
       "title": "Sistema"
     }
-  },
-  "layers": {
-    "title": "Capas"
   }
 }

@@ -21,7 +21,7 @@ export interface BaseDialogOptions {
 
 export interface ComponentDialogOptions extends BaseDialogOptions {
   component: Component
-  props?: object
+  props?: any
   destructive?: boolean
 }
 

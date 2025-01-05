@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { ComponentDialogOptions } from '@/types/app.types'
+import { cn } from '@/lib/utils'
 
 const {
   title,
@@ -28,7 +29,7 @@ const emit = defineEmits<{
 
 <template>
   <Dialog defaultOpen>
-    <DialogContent>
+    <DialogContent class="max-h-[90dvh]">
       <DialogHeader v-if="title || description">
         <DialogTitle v-if="title">{{ title }}</DialogTitle>
         <DialogDescription v-if="description">
@@ -36,7 +37,13 @@ const emit = defineEmits<{
         </DialogDescription>
       </DialogHeader>
 
-      <component :is="component" v-bind="props || {}" />
+      <div class="overflow-y-auto max-h-[70dvh]">
+        <component
+          :is="component"
+          v-bind="props || {}"
+          :class="cn(props?.class, 'overflow-y-auto')"
+        />
+      </div>
 
       <DialogFooter>
         <DialogClose as-child>

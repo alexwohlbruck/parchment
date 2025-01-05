@@ -7,7 +7,8 @@
     "delete": "Delete",
     "confirm": "Confirm",
     "close": "Close",
-    "save": "Save"
+    "save": "Save",
+    "name": "Name"
   },
   "palette": {
     "placeholder": {
@@ -106,6 +107,14 @@
   },
   "map": {
     "title": "Map"
+  },
+  "layers": {
+    "title": "Layers",
+    "fields": {
+      "id": "Layer ID",
+      "name": "Layer Name",
+      "enabled": "Enabled"
+    }
   },
   "directions": {
     "title": "Directions"
@@ -214,8 +223,5 @@
     "system": {
       "title": "System"
     }
-  },
-  "layers": {
-    "title": "Layers"
   }
 }

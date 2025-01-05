@@ -5,6 +5,9 @@ import { createSharedComposable } from '@vueuse/core'
 function mapService() {
   const store = useMapStore()
 
+  /**
+   * Map events
+   */
   function on<K extends keyof MapEvents>(
     event: K,
     handler: (data: MapEvents[K]) => void,
@@ -24,6 +27,7 @@ function mapService() {
   }
 
   return {
+    toggleLayer,
     setMapEngine: store.setMapEngine,
     setDirections: store.setDirections,
     on,

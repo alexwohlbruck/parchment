@@ -7,13 +7,21 @@ import {
   MapOptions,
   MapEvents,
   Layer,
+  MapInstance,
 } from '@/types/map.types'
 import { Directions } from '@/types/directions.types'
 import { layers as defaultLayers } from '@/components/map/layers/layers'
+import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 
 const emitter = mitt<MapEvents>()
 
 export const useMapStore = defineStore('map', () => {
+  const mapInstance = ref<MapStrategy>()
+
+  function setMapInstance(map: MapStrategy) {
+    mapInstance.value = map
+  }
+
   const mapEngine = ref<MapEngine>('mapbox')
 
   function setMapEngine(engine: MapEngine) {
@@ -66,6 +74,8 @@ export const useMapStore = defineStore('map', () => {
   }
 
   return {
+    mapInstance,
+    setMapInstance,
     mapEngine,
     setMapEngine,
     on,

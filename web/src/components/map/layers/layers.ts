@@ -2,6 +2,7 @@ import { Layer } from '@/types/map.types'
 import { BikeIcon, CarFrontIcon, TrainIcon } from 'lucide-vue-next'
 
 const cyclOSM = {
+  id: 'cyclosm',
   name: 'CyclOSM',
   icon: BikeIcon,
   enabled: true,
@@ -25,6 +26,7 @@ const cyclOSM = {
 }
 
 const waymarkedTrails = {
+  id: 'waymarkedTrails',
   name: 'Waymarked Trails',
   icon: BikeIcon,
   enabled: false,
@@ -43,6 +45,7 @@ const waymarkedTrails = {
 
 const transitlandApiKey = import.meta.env.VITE_TRANSITLAND_API_KEY
 const transitLand = {
+  id: 'transitland',
   name: 'Transitland',
   icon: TrainIcon,
   enabled: true,
@@ -129,6 +132,7 @@ const transitLand = {
 
 // mapbox://mapbox.mapbox-traffic-v1
 const traffic = {
+  id: 'mapbox-traffic',
   name: 'Mapbox traffic',
   icon: CarFrontIcon,
   enabled: true,

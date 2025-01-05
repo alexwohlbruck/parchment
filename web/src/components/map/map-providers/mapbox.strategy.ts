@@ -10,7 +10,13 @@ import {
   LngLatBounds,
 } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { Basemap, MapLayer, MapOptions, type MapTheme } from '@/types/map.types'
+import {
+  Basemap,
+  Layer,
+  MapLayer,
+  MapOptions,
+  type MapTheme,
+} from '@/types/map.types'
 import standardStyle from '@/components/map/styles/standard.json'
 
 import { layers } from '../layers/layers' // TODO: Refactor layers init
@@ -86,9 +92,10 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   initialize() {
+    const mapStore = useMapStore()
     this.addControls()
     this.map.on('load', () => {
-      this.setLayers(this.options.layers)
+      this.setLayers(mapStore.layers)
     })
     this.map.on('style.load', () => {
       this.setMapTheme(this.options.theme)
@@ -98,7 +105,8 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   onMapLoad() {
-    this.setLayers.bind(this)(this.options.layers)
+    const mapStore = useMapStore()
+    this.setLayers.bind(this)(mapStore.layers)
   }
 
   onStyleLoad() {
@@ -156,35 +164,37 @@ export class MapboxStrategy extends MapStrategy {
     })
   }
 
-  setLayers(layerIds: MapLayer[]) {
+  setLayers(layers: Layer[]) {
     const style = this.map.getStyle()
     if (!style) return
     const mapLayers = style.layers
     const ids = mapLayers.map(layer => layer.id)
     ids.forEach((id: any) => {
-      if (!layerIds.includes(id)) {
+      if (!layers.find(layer => layer.id === id)) {
         this.map.removeLayer(id)
       }
     })
 
-    layerIds.forEach(layerId => {
-      const childLayers = layers[layerId].layers
-      childLayers.forEach(layer => {
-        const { meta, source } = layer
-        const id = source.id
-        if (!this.map.getSource(id)) {
-          this.map.addSource(id, {
-            ...source,
-            id,
-          } as any) // TODO: Fix type
-        }
+    layers.forEach(layer => {
+      const { meta, source } = layer
 
-        this.map.addLayer({
-          source: id,
-          id,
-          ...meta,
-          slot: 'middle',
-        })
+      const sourceId = typeof source === 'string' ? source : source.id
+
+      if (typeof source === 'object' && !this.map.getSource(sourceId)) {
+        this.map.addSource(sourceId, {
+          ...source,
+          id: sourceId,
+        } as any) // TODO: Fix type
+      }
+
+      this.map.addLayer({
+        source: sourceId,
+        id: layer.id,
+        ...meta,
+        slot: 'middle',
+        layout: {
+          visibility: 'none',
+        },
       })
     })
   }
@@ -308,7 +318,7 @@ export class MapboxStrategy extends MapStrategy {
     })
 
     // Remove route sources
-    const sources = Object.keys(this.map.getStyle().sources)
+    const sources = Object.keys(this.map.getStyle()?.sources || {})
     sources.forEach(source => {
       if (source.startsWith('route-') || source.startsWith('stop-')) {
         this.map.removeSource(source)
@@ -333,6 +343,14 @@ export class MapboxStrategy extends MapStrategy {
   setBasemap(basemap: Basemap) {
     const url = basemapUrls[basemap]
     this.map.setStyle(url)
+  }
+
+  toggleLayer(layerId: string, state?: boolean) {
+    this.map.setLayoutProperty(
+      layerId,
+      'visibility',
+      state ? 'visible' : 'none',
+    )
   }
 
   addDataSource() {

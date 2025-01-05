@@ -9,18 +9,18 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import ThemeControls from './ThemeControls.vue'
-import { SettingsCard, SettingsItem } from '@/components/settings'
+import { SettingsSection, SettingsItem } from '@/components/settings'
 
 const mapTheme = ref('auto')
 </script>
 
 <template>
   <div class="flex flex-col gap-4 w-fit">
-    <SettingsCard :title="$t('settings.appearance.appTheme.title')">
+    <SettingsSection :title="$t('settings.appearance.appTheme.title')">
       <ThemeControls class="mt-3" />
-    </SettingsCard>
+    </SettingsSection>
 
-    <SettingsCard :title="$t('settings.appearance.mapTheme.title')">
+    <SettingsSection :title="$t('settings.appearance.mapTheme.title')">
       <SettingsItem :title="$t('settings.appearance.mapTheme.title')">
         <Select v-model="mapTheme">
           <SelectTrigger class="w-fit">
@@ -50,6 +50,6 @@ const mapTheme = ref('auto')
           </SelectContent>
         </Select>
       </SettingsItem>
-    </SettingsCard>
+    </SettingsSection>
   </div>
 </template>

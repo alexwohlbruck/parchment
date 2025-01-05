@@ -1,2 +1,2 @@
-export { default as SettingsCard } from './SettingsCard.vue'
+export { default as SettingsSection } from './SettingsSection.vue'
 export { default as SettingsItem } from './SettingsItem.vue'

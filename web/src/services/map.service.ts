@@ -1,9 +1,16 @@
+import { ref } from 'vue'
 import type { MapEvents, MapEngine } from '@/types/map.types'
 import { useMapStore } from '../stores/map.store'
 import { createSharedComposable } from '@vueuse/core'
+import { storeToRefs } from 'pinia'
 
 function mapService() {
   const store = useMapStore()
+  const { mapInstance: map } = storeToRefs(store)
+
+  function toggleLayer(layerId: string, state?: boolean) {
+    map.value.toggleLayer(layerId, state)
+  }
 
   /**
    * Map events

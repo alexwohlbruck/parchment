@@ -34,6 +34,7 @@ function getMapInstance(mapEngine: MapEngine) {
 
 onMounted(() => {
   map = getMapInstance(mapStore.mapEngine)
+  mapStore.setMapInstance(map)
 
   // Watch for map store changes and update map accordingly
 
@@ -52,13 +53,12 @@ onMounted(() => {
     },
   )
 
-  // TODO:
-  // watch(
-  //   () => mapStore.mapState.layers,
-  //   layers => {
-  //     map.setLayers(layers)
-  //   },
-  // )
+  watch(
+    () => mapStore.layers,
+    layers => {
+      map.setLayers(layers)
+    },
+  )
 
   watch(
     () => mapStore.mapEngine,

@@ -147,6 +147,15 @@ const handleNewTileInput = () => {
       </template>
 
       <template v-else>
+        <SettingsItem title="Source ID">
+          <Input
+            v-model="layerData.source.id"
+            @blur="updateLayer"
+            placeholder="Source ID"
+            class="w-fit"
+          />
+        </SettingsItem>
+
         <SettingsItem title="Source Type">
           <Select v-model="layerData.source.type" @change="updateLayer">
             <SelectTrigger class="w-fit">

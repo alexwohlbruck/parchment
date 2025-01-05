@@ -1,3 +1,5 @@
+import { Map as MapboxMap } from 'mapbox-gl'
+import { Map as MaplibreMap } from 'maplibre-gl'
 import { Icon } from '@/types/app.types'
 
 export type Basemap = 'standard' | 'satellite' | 'hybrid'
@@ -22,7 +24,7 @@ export type MapEvents = {
 }
 
 export type Source = {
-  id?: string // TODO: Not sure if id is required
+  id: string
   type: string
   url?: string
   tiles?: string[]

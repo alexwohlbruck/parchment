@@ -12,6 +12,7 @@ import { useAppService } from '@/services/app.service'
 import { H4 } from '@/components/ui/typography'
 import DataTable from '@/components/table/DataTable.vue'
 import { Button } from '@/components/ui/button'
+import { SettingsCard } from '@/components/settings'
 import { PlusIcon, Trash2Icon } from 'lucide-vue-next'
 
 dayjs.extend(localizedFormat)
@@ -85,13 +86,13 @@ onMounted(getPasskeys)
 </script>
 
 <template>
-  <div class="flex w-full align-center justify-between">
-    <H4 class="leading-loose">Passkeys</H4>
+  <SettingsCard :title="$t('settings.account.passkeys.title')" :frame="false">
+    <template v-slot:actions>
+      <Button @click="addPasskey()" variant="outline" :icon="PlusIcon">
+        Add passkey
+      </Button>
+    </template>
 
-    <Button @click="addPasskey()" variant="outline" :icon="PlusIcon">
-      Add passkey
-    </Button>
-  </div>
-
-  <DataTable class="w-full" :columns="columns" :data="passkeys"></DataTable>
+    <DataTable class="w-full" :columns="columns" :data="passkeys"></DataTable>
+  </SettingsCard>
 </template>

@@ -119,7 +119,16 @@
     "title": "Ajustes",
     "description": "Administra la configuración de tu cuenta y el comportamiento de la aplicación",
     "account": {
-      "title": "Cuenta"
+      "title": "Cuenta",
+      "user": {
+        "title": "Usuario"
+      },
+      "sessions": {
+        "title": "Sesiones"
+      },
+      "passkeys": {
+        "title": "Claves de acceso"
+      }
     },
     "behavior": {
       "title": "Comportamiento"
@@ -168,7 +177,7 @@
         }
       }
     },
-    "map": {
+    "mapSettings": {
       "title": "Configuración del mapa",
       "engine": {
         "title": "Motor de mapas"
@@ -179,6 +188,18 @@
       "layers": {
         "title": "Capas",
         "description": "Elige las capas que se mostrarán en el selector de capas"
+      }
+    },
+    "users": {
+      "title": "Usuarios y roles",
+      "users": {
+        "title": "Usuarios"
+      },
+      "roles": {
+        "title": "Roles"
+      },
+      "permissions": {
+        "title": "Permisos"
       }
     },
     "system": {

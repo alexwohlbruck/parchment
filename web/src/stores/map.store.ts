@@ -3,12 +3,13 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
   Basemap,
-  MapLayer,
   MapEngine,
   MapOptions,
   MapEvents,
+  Layer,
 } from '@/types/map.types'
 import { Directions } from '@/types/directions.types'
+import { layers as defaultLayers } from '@/components/map/layers/layers'
 
 const emitter = mitt<MapEvents>()
 
@@ -27,7 +28,6 @@ export const useMapStore = defineStore('map', () => {
     projection: 'web-mercator',
     theme: 'light',
     basemap: 'standard',
-    layers: [],
   })
 
   // Event methods
@@ -55,24 +55,27 @@ export const useMapStore = defineStore('map', () => {
     mapState.value.basemap = map
   }
 
-  function addLayer(layer: MapLayer) {
-    mapState.value.layers = [...mapState.value.layers, layer]
+  const layers = ref<Layer[]>(defaultLayers)
+
+  function addLayer(layer: Layer) {
+    layers.value.push(layer)
   }
 
-  function removeLayer(layer: MapLayer) {
-    mapState.value.layers = mapState.value.layers.filter(l => l !== layer)
+  function removeLayer(layer: Layer) {
+    layers.value.splice(layers.value.indexOf(layer), 1)
   }
 
-  function toggleLayer(layer: MapLayer, state?: boolean) {
-    if (state === undefined) {
-      state = !mapState.value.layers.includes(layer)
-    }
-    if (state) {
-      addLayer(layer)
-    } else {
-      removeLayer(layer)
-    }
-  }
+  // TODO: Toggle layer
+  // function toggleLayer(layer: MapLayer, state?: boolean) {
+  //   if (state === undefined) {
+  //     state = !layers.includes(layer)
+  //   }
+  //   if (state) {
+  //     addLayer(layer)
+  //   } else {
+  //     removeLayer(layer)
+  //   }
+  // }
 
   function setDirections(directions_: Directions) {
     directions.value = directions_
@@ -90,7 +93,7 @@ export const useMapStore = defineStore('map', () => {
     emit,
     mapState,
     setBasemap,
-    toggleLayer,
+    layers,
     directions,
     setDirections,
     unsetDirections,

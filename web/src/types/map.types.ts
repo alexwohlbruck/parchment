@@ -1,7 +1,6 @@
 import { Icon } from '@/types/app.types'
 
 export type Basemap = 'standard' | 'satellite' | 'hybrid'
-export type MapLayer = 'cycling' | 'transit' | 'traffic' | 'terrain' // TODO: Remove layer types
 export type MapTheme = 'light' | 'dark'
 export type MapEngine = 'mapbox' | 'maplibre'
 
@@ -13,7 +12,6 @@ export type MapOptions = {
   projection: string
   theme: 'light' | 'dark'
   basemap: Basemap
-  layers: MapLayer[]
 }
 
 export type MapEvents = {
@@ -36,5 +34,5 @@ export type Layer = {
     maxzoom?: number
     url?: string
   }
-  meta: any
+  meta?: any
 }

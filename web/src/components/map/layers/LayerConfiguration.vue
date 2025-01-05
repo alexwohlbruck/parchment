@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type Layer } from '@/types/map.types'
+import { Source, type Layer } from '@/types/map.types'
 import { computed, ref } from 'vue'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -60,20 +60,18 @@ const updateLayer = () => {
 
 console.log(layerData.value.source)
 
-const useExisting = ref(
-  typeof layerData.value.source === 'string' ? true : false,
-)
+const useExisting = ref(typeof layerData.value.source === 'string')
 const tileConfig = ref(
-  typeof layerData.value.source === 'string'
+  useExisting.value
     ? 'custom'
-    : layerData.value.source.url
+    : (layerData.value.source as Source).url
     ? 'tilejson'
     : 'custom',
 )
 const tileInputs = ref(
-  typeof layerData.value.source === 'string'
+  useExisting.value
     ? []
-    : [...(layerData.value.source.tiles || []), ''],
+    : [...((layerData.value.source as Source).tiles || []), ''],
 )
 
 const handleNewTileInput = () => {
@@ -149,7 +147,7 @@ const handleNewTileInput = () => {
       <template v-else>
         <SettingsItem title="Source ID">
           <Input
-            v-model="layerData.source.id"
+            v-model="(layerData.source as Source).id"
             @blur="updateLayer"
             placeholder="Source ID"
             class="w-fit"
@@ -157,7 +155,10 @@ const handleNewTileInput = () => {
         </SettingsItem>
 
         <SettingsItem title="Source Type">
-          <Select v-model="layerData.source.type" @change="updateLayer">
+          <Select
+            v-model="(layerData.source as Source).type"
+            @change="updateLayer"
+          >
             <SelectTrigger class="w-fit">
               <SelectValue />
             </SelectTrigger>
@@ -197,7 +198,7 @@ const handleNewTileInput = () => {
 
           <SettingsItem title="Tile Size">
             <Input
-              v-model="layerData.source.tileSize"
+              v-model="(layerData.source as Source).tileSize"
               @blur="updateLayer"
               type="number"
               placeholder="Tile Size"
@@ -227,7 +228,7 @@ const handleNewTileInput = () => {
           <!-- TODO: Add TileJSON configuration -->
           <SettingsItem title="TileJSON URL">
             <Input
-              v-model="layerData.source.url"
+              v-model="(layerData.source as Source).url"
               @blur="updateLayer"
               type="text"
               placeholder="URL"

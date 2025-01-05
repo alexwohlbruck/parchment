@@ -12,7 +12,7 @@ import DataTable from '@/components/table/DataTable.vue'
 import { Button } from '@/components/ui/button'
 import { Trash2Icon } from 'lucide-vue-next'
 import { Code } from '@/components/ui/code'
-import { SettingsCard } from '@/components/settings'
+import { SettingsSection } from '@/components/settings'
 
 dayjs.extend(localizedFormat)
 
@@ -54,7 +54,7 @@ onMounted(getRoles)
 </script>
 
 <template>
-  <SettingsCard :title="$t('settings.users.roles.title')" :frame="false">
+  <SettingsSection :title="$t('settings.users.roles.title')" :frame="false">
     <DataTable class="w-full" :columns="columns" :data="roles"></DataTable>
-  </SettingsCard>
+  </SettingsSection>
 </template>

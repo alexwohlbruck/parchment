@@ -17,7 +17,7 @@ import { PlusIcon, Trash2Icon } from 'lucide-vue-next'
 import Avatar from '@/components/ui/avatar/Avatar.vue'
 import AvatarImage from '@/components/ui/avatar/AvatarImage.vue'
 import Badge from '@/components/ui/badge/Badge.vue'
-import { SettingsCard } from '@/components/settings'
+import { SettingsSection } from '@/components/settings'
 
 dayjs.extend(localizedFormat)
 
@@ -112,7 +112,7 @@ onMounted(getUsers)
 </script>
 
 <template>
-  <SettingsCard :title="$t('settings.users.users.title')" :frame="false">
+  <SettingsSection :title="$t('settings.users.users.title')" :frame="false">
     <template v-slot:actions>
       <Button
         v-if="authService.hasPermission(Permission.USERS_CREATE)"
@@ -125,5 +125,5 @@ onMounted(getUsers)
     </template>
 
     <DataTable class="w-full" :columns="columns" :data="users"></DataTable>
-  </SettingsCard>
+  </SettingsSection>
 </template>

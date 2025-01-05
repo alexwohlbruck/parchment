@@ -8,7 +8,7 @@ import { type Layer, MapEngine } from '@/types/map.types'
 
 import { H6 } from '@/components/ui/typography'
 import { Button } from '@/components/ui/button'
-import { SettingsCard, SettingsItem } from '@/components/settings'
+import { SettingsSection, SettingsItem } from '@/components/settings'
 import {
   Select,
   SelectContent,
@@ -48,7 +48,7 @@ function openLayerConfigDialog(layer: Layer) {
 <template>
   <div class="flex flex-col gap-4 w-fit items-start">
     <!-- Map configuration -->
-    <SettingsCard :title="$t('settings.mapSettings.engine.title')">
+    <SettingsSection :title="$t('settings.mapSettings.engine.title')">
       <SettingsItem
         :title="$t('palette.commands.chooseMapEngine.name')"
         :description="$t('palette.commands.chooseMapEngine.description')"
@@ -97,14 +97,14 @@ function openLayerConfigDialog(layer: Layer) {
           </SelectContent>
         </Select></SettingsItem
       >
-    </SettingsCard>
+    </SettingsSection>
 
     <!-- Data sources configuration -->
-    <!-- <SettingsCard :title="$t('settings.mapSettings.dataSources.title')">
-    </SettingsCard> -->
+    <!-- <SettingsSection :title="$t('settings.mapSettings.dataSources.title')">
+    </SettingsSection> -->
 
     <!-- Layers configuration -->
-    <SettingsCard
+    <SettingsSection
       :title="$t('settings.mapSettings.layers.title')"
       :description="$t('settings.mapSettings.layers.description')"
     >
@@ -124,6 +124,6 @@ function openLayerConfigDialog(layer: Layer) {
           Configure new layer
         </Button>
       </div>
-    </SettingsCard>
+    </SettingsSection>
   </div>
 </template>

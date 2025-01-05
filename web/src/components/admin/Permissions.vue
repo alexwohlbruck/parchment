@@ -12,7 +12,7 @@ import DataTable from '@/components/table/DataTable.vue'
 import { Button } from '@/components/ui/button'
 import { Trash2Icon } from 'lucide-vue-next'
 import { Code } from '@/components/ui/code'
-import { SettingsCard } from '@/components/settings'
+import { SettingsSection } from '@/components/settings'
 
 dayjs.extend(localizedFormat)
 
@@ -38,11 +38,14 @@ onMounted(getPermissions)
 </script>
 
 <template>
-  <SettingsCard :title="$t('settings.users.permissions.title')" :frame="false">
+  <SettingsSection
+    :title="$t('settings.users.permissions.title')"
+    :frame="false"
+  >
     <DataTable
       class="w-full"
       :columns="columns"
       :data="permissions"
     ></DataTable>
-  </SettingsCard>
+  </SettingsSection>
 </template>

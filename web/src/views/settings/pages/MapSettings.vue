@@ -108,7 +108,7 @@ function openLayerConfigDialog(layer: Layer) {
       :title="$t('settings.mapSettings.layers.title')"
       :description="$t('settings.mapSettings.layers.description')"
     >
-      <div class="flex gap-2">
+      <div class="flex flex-wrap gap-2">
         <Button
           v-for="(layer, i) in layers"
           :key="i"

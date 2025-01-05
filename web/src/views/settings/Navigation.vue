@@ -85,10 +85,8 @@ const allowedPages = computed(() => {
 <template>
   <div class="flex flex-col w-full md:w-48 gap-4">
     <div>
-      <H3 class="p-0">{{ $t('settings.title') }}</H3>
+      <H3 class="ml-2">{{ $t('settings.title') }}</H3>
     </div>
-
-    <Separator />
 
     <!-- Grid layout for small devices -->
     <div

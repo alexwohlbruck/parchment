@@ -128,7 +128,16 @@
   "settings": {
     "title": "Settings",
     "account": {
-      "title": "Account"
+      "title": "Account",
+      "user": {
+        "title": "User"
+      },
+      "sessions": {
+        "title": "Sessions"
+      },
+      "passkeys": {
+        "title": "Passkeys"
+      }
     },
     "behavior": {
       "title": "Behavior"
@@ -191,7 +200,16 @@
       }
     },
     "users": {
-      "title": "Users & Roles"
+      "title": "Users & Roles",
+      "users": {
+        "title": "Users"
+      },
+      "roles": {
+        "title": "Roles"
+      },
+      "permissions": {
+        "title": "Permissions"
+      }
     },
     "system": {
       "title": "System"

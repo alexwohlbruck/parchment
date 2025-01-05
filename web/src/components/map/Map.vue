@@ -52,12 +52,13 @@ onMounted(() => {
     },
   )
 
-  watch(
-    () => mapStore.mapState.layers,
-    layers => {
-      map.setLayers(layers)
-    },
-  )
+  // TODO:
+  // watch(
+  //   () => mapStore.mapState.layers,
+  //   layers => {
+  //     map.setLayers(layers)
+  //   },
+  // )
 
   watch(
     () => mapStore.mapEngine,

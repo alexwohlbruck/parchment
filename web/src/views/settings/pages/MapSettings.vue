@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useAppService } from '@/services/app.service'
-import { layers } from '@/components/map/layers/layers'
 import { useMapStore } from '@/stores/map.store'
 import { useCommandStore } from '@/stores/command.store'
 import { useI18n } from 'vue-i18n'
@@ -22,7 +21,7 @@ import { Card } from '@/components/ui/card'
 import { SettingsIcon, PlusIcon } from 'lucide-vue-next'
 import LayerConfiguration from '@/components/map/layers/LayerConfiguration.vue'
 
-const mapStore = useMapStore()
+const { mapEngine, setMapEngine, layers } = useMapStore()
 const commandStore = useCommandStore()
 const appService = useAppService()
 const { t } = useI18n()
@@ -55,8 +54,8 @@ function openLayerConfigDialog(layer: Layer) {
         :description="$t('palette.commands.chooseMapEngine.description')"
       >
         <Select
-          :default-value="mapStore.mapEngine"
-          @update:model-value="(engine) => mapStore.setMapEngine(engine as MapEngine)"
+          :default-value="mapEngine"
+          @update:model-value="(engine) => setMapEngine(engine as MapEngine)"
         >
           <SelectTrigger class="w-fit">
             <SelectValue />
@@ -77,10 +76,7 @@ function openLayerConfigDialog(layer: Layer) {
         </Select>
       </SettingsItem>
 
-      <SettingsItem
-        title="Map projection"
-        v-if="mapStore.mapEngine === 'mapbox'"
-      >
+      <SettingsItem title="Map projection" v-if="mapEngine === 'mapbox'">
         <Select v-model="projection">
           <SelectTrigger class="w-fit">
             <SelectValue placeholder="Choose an option" />

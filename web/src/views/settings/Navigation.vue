@@ -129,12 +129,12 @@ const allowedPages = computed(() => {
         v-for="(page, i) in allowedPages"
         :key="i"
         variant="ghost"
-        class="flex px-3 justify-center gap-3"
+        class="flex px-3 justify-center gap-3 hover:bg-primary/5 hover:text-primary"
         as-child
         :to="page.to"
         :class="
           router.currentRoute.value.path === page.to
-            ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50'
+            ? 'bg-primary/5 text-primary'
             : ''
         "
         :disabled="page.disabled"

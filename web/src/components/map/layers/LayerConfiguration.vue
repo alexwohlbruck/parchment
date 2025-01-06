@@ -156,6 +156,16 @@ watch(
   { immediate: true },
 )
 
+watch([attributionUrl, attributionName], () => {
+  if (
+    !useExisting.value &&
+    typeof values.source === 'object' &&
+    (attributionUrl.value || attributionName.value)
+  ) {
+    setFieldValue('source.attribution', combinedAttribution.value)
+  }
+})
+
 defineExpose({
   submit: onSubmit,
 })

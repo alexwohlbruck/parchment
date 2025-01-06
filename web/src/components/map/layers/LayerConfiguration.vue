@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { Source, type Layer } from '@/types/map.types'
 import { computed, ref, defineEmits, watch } from 'vue'
+import { useForm } from 'vee-validate'
+import { toTypedSchema } from '@vee-validate/zod'
+import * as z from 'zod'
+import { useMapStore } from '@/stores/map.store'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
@@ -12,9 +16,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { SettingsSection, SettingsItem } from '@/components/settings'
-import { useForm } from 'vee-validate'
-import { toTypedSchema } from '@vee-validate/zod'
-import * as z from 'zod'
 import {
   FormControl,
   FormField,
@@ -23,6 +24,8 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 
+const mapStore = useMapStore()
+
 const props = defineProps<{
   layer: Layer
 }>()
@@ -30,8 +33,8 @@ const props = defineProps<{
 const { layer } = props
 
 const emit = defineEmits<{
-  submit: [values: z.infer<typeof layerSchema>]
   'update:valid': [valid: boolean]
+  submit: [values: any]
 }>()
 
 const useExisting = ref(typeof layer.source === 'string')
@@ -61,7 +64,7 @@ const layerSchema = computed(() => {
   )
 })
 
-const { handleSubmit, errors, values, meta } = useForm({
+const { handleSubmit, errors, values, meta, setFieldValue } = useForm({
   validationSchema: layerSchema,
   initialValues: {
     ...layer,
@@ -73,20 +76,7 @@ const { handleSubmit, errors, values, meta } = useForm({
 })
 
 const onSubmit = handleSubmit(values => {
-  const transformedValues = {
-    ...values,
-    source: useExisting.value
-      ? (values.source as string)
-      : {
-          id: (values.source as Source).id,
-          type: (values.source as Source).type,
-          url: (values.source as Source).url,
-          tiles: (values.source as Source).tiles,
-          tileSize: (values.source as Source).tileSize,
-          attribution: (values.source as Source).attribution,
-        },
-  }
-  emit('submit', transformedValues)
+  mapStore.addLayer(values as Layer)
 })
 
 const form = ref({
@@ -128,7 +118,7 @@ const tileInputs = ref(
 const handleNewTileInput = () => {
   const tiles = tileInputs.value.filter(tile => tile !== '')
   if (!useExisting.value && typeof values.source === 'object') {
-    values.source.tiles = tiles
+    setFieldValue('source.tiles', tiles)
   }
   tileInputs.value = [...tiles, '']
 }
@@ -141,12 +131,15 @@ watch(
   },
   { immediate: true },
 )
+
+// Expose the submit function
+defineExpose({
+  submit: onSubmit,
+})
 </script>
 
 <template>
   <!-- TODO: Add FormMessage for errors -->
-  <pre>{{ errors }}</pre>
-  <pre>{{ form }}</pre>
   <form @submit="onSubmit" class="space-y-4">
     <SettingsSection
       title="Layer info"
@@ -278,26 +271,17 @@ watch(
           <FormField name="source.tiles" v-slot="{ componentField }">
             <FormItem>
               <SettingsItem title="Tiles">
-                <div class="flex flex-col gap-1.5">
-                  <FormControl>
-                    <div class="flex flex-col gap-2">
-                      <template
-                        v-for="(tile, index) in tileInputs"
-                        :key="index"
-                      >
-                        <Input
-                          :value="tile"
-                          @input="(e) => {
-                            tileInputs[index] = (e.target as HTMLInputElement).value
-                            handleNewTileInput()
-                          }"
-                          class="w-fit"
-                          :placeholder="'Tile URL ' + (index + 1)"
-                        />
-                      </template>
-                    </div>
-                  </FormControl>
-                  <FormMessage />
+                <div class="flex flex-col gap-2">
+                  <template v-for="(tile, index) in tileInputs" :key="index">
+                    <!-- TODO: New tile urls don't get added to the form model -->
+                    <!-- TODO: Add validation for URL inputs -->
+                    <Input
+                      v-model="tileInputs[index]"
+                      @input="handleNewTileInput()"
+                      class="w-fit"
+                      :placeholder="'Tile URL ' + (index + 1)"
+                    />
+                  </template>
                 </div>
               </SettingsItem>
             </FormItem>

@@ -15,13 +15,16 @@ import { ref } from 'vue'
 
 const props = defineProps<ComponentDialogOptions>()
 const isValid = ref(true)
+const componentRef = ref()
+const isLoading = ref(false)
 
-function cancel() {
-  // TODO:
-}
-
-function submit() {
-  // TODO:
+async function submit() {
+  isLoading.value = true
+  try {
+    await componentRef.value?.submit?.()
+  } finally {
+    isLoading.value = false
+  }
 }
 </script>
 
@@ -37,6 +40,7 @@ function submit() {
 
       <div class="overflow-y-auto max-h-[70dvh]">
         <component
+          ref="componentRef"
           :is="props.component"
           v-bind="props?.props || {}"
           :class="cn(props?.props?.class, 'overflow-y-auto')"
@@ -46,7 +50,7 @@ function submit() {
 
       <DialogFooter>
         <DialogClose as-child>
-          <Button @click="cancel" variant="outline">
+          <Button variant="outline">
             {{ props.cancelText || $t('general.cancel') }}
           </Button>
         </DialogClose>
@@ -55,6 +59,7 @@ function submit() {
             @click="submit"
             :variant="props.destructive ? 'destructive' : 'default'"
             :disabled="!isValid"
+            :loading="isLoading"
           >
             {{ props.continueText || $t('general.continue') }}
           </Button>

@@ -27,49 +27,58 @@ import {
 const mapStore = useMapStore()
 
 const props = defineProps<{
-  layer: Layer
+  layer?: Partial<Layer>
 }>()
 
-const { layer } = props
+const layer = props.layer || {}
 
 const emit = defineEmits<{
   'update:valid': [valid: boolean]
   submit: [values: any]
 }>()
 
-const useExisting = ref(typeof layer.source === 'string')
+const useExisting = ref(
+  props.layer ? typeof props.layer.source === 'string' : false,
+)
 
 const layerSchema = computed(() => {
   return toTypedSchema(
     z.object({
-      name: z.string().min(1, 'required'),
-      id: z.string().min(1, 'required'),
+      name: z.string().min(1, 'required').default(''),
+      id: z.string().min(1, 'required').default(''),
       description: z.string().optional(),
       enabled: z.boolean().default(true),
       source: useExisting.value
         ? z.string().min(1, 'required')
-        : z.object({
-            id: z.string().min(1, 'required'),
-            type: z.enum(['raster', 'vector']),
-            url: z.string().url('invalid').optional(),
-            tiles: z
-              .array(
-                z
-                  .string()
-                  .url('Must be a valid URL')
-                  .regex(
-                    /^https?:\/\/.*(?=.*\{x\})(?=.*\{y\})(?=.*\{z\}).*$/i,
-                    'URL must contain {z}, {x}, and {y} parameters',
-                  ),
-              )
-              .min(1, 'At least one tile URL is required')
-              .optional(),
-            tileSize: z
-              .number()
-              .positive('Must be a positive number')
-              .optional(),
-            attribution: z.string().optional(),
-          }),
+        : z
+            .object({
+              id: z.string().min(1, 'required').default(''),
+              type: z.enum(['raster', 'vector']).default('raster'),
+              url: z.string().url('invalid').optional(),
+              tiles: z
+                .array(
+                  z
+                    .string()
+                    .url('Must be a valid URL')
+                    .regex(
+                      /^https?:\/\/.*(?=.*\{x\})(?=.*\{y\})(?=.*\{z\}).*$/i,
+                      'URL must contain {z}, {x}, and {y} parameters',
+                    ),
+                )
+                .min(1, 'At least one tile URL is required')
+                .default([])
+                .optional(),
+              tileSize: z
+                .number()
+                .positive('Must be a positive number')
+                .optional(),
+              attribution: z.string().optional(),
+            })
+            .default({
+              id: '',
+              type: 'raster',
+              tiles: [],
+            }),
       meta: z.string().optional(),
     }),
   )
@@ -118,12 +127,17 @@ initializeAttribution()
 const tileConfig = ref(
   useExisting.value
     ? 'custom'
-    : (form.value.source as Source).url
+    : typeof layer.source === 'object' && layer.source.url
     ? 'tilejson'
     : 'custom',
 )
 const tileInputs = ref(
-  useExisting.value ? [] : [...((form.value.source as Source).tiles || []), ''],
+  useExisting.value
+    ? []
+    : [
+        ...(typeof layer.source === 'object' ? layer.source.tiles || [] : []),
+        '',
+      ],
 )
 
 const handleNewTileInput = () => {
@@ -134,7 +148,6 @@ const handleNewTileInput = () => {
   tileInputs.value = [...tiles, '']
 }
 
-// Watch for form validity changes and emit them
 watch(
   () => meta.value.valid,
   valid => {
@@ -143,7 +156,6 @@ watch(
   { immediate: true },
 )
 
-// Expose the submit function
 defineExpose({
   submit: onSubmit,
 })
@@ -151,6 +163,7 @@ defineExpose({
 
 <template>
   <!-- TODO: Add FormMessage for errors -->
+  <pre>{{ values }}</pre>
   <form @submit="onSubmit" class="space-y-4">
     <SettingsSection
       title="Layer info"

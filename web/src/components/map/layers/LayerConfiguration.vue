@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Source, type Layer } from '@/types/map.types'
-import { computed, ref } from 'vue'
+import { computed, ref, defineEmits, watch } from 'vue'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
@@ -12,12 +12,37 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { SettingsSection, SettingsItem } from '@/components/settings'
+import { useForm } from 'vee-validate'
+import { toTypedSchema } from '@vee-validate/zod'
+import * as z from 'zod'
 
 const props = defineProps<{
   layer: Layer
 }>()
 
-const layerData = ref(props.layer)
+const { layer } = props
+
+const layerSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  id: z.string().min(1, 'ID is required'),
+  description: z.string().optional(),
+  source: z.object({
+    type: z.string().min(1, 'Source type is required'),
+    url: z.string().url('Invalid URL'),
+    tiles: z.array(z.string()).optional(),
+    tileSize: z.number().optional(),
+    attribution: z.string().optional(),
+  }),
+  meta: z.string().optional(),
+})
+
+const { handleSubmit, errors, meta } = useForm({
+  validationSchema: toTypedSchema(layerSchema),
+})
+
+const form = ref({
+  ...layer,
+})
 
 const attributionUrl = ref('')
 const attributionName = ref('')
@@ -27,64 +52,42 @@ const combinedAttribution = computed(() => {
 })
 
 const initializeAttribution = () => {
-  const attributionMatch = layerData.value.source.attribution?.match(
-    /<a href="([^"]+)">([^<]+)<\/a>/,
-  )
-  if (attributionMatch) {
-    attributionUrl.value = attributionMatch[1]
-    attributionName.value = attributionMatch[2].replace(/^©\s*/, '')
+  if (typeof form.value.source === 'object' && form.value.source.attribution) {
+    const attributionMatch = form.value.source.attribution.match(
+      /<a href="([^"]+)">([^<]+)<\/a>/,
+    )
+    if (attributionMatch) {
+      attributionUrl.value = attributionMatch[1]
+      attributionName.value = attributionMatch[2].replace(/^©\s*/, '')
+    }
   }
 }
 
 initializeAttribution()
 
-const updateLayer = () => {
-  try {
-    props.layer.meta = JSON.parse(layerData.value.meta)
-  } catch (error) {
-    console.error('Invalid JSON format', error)
-  }
-  layerData.value.name = layerData.value.name
-  layerData.value.enabled = layerData.value.enabled
-  if (typeof layerData.value.source === 'string') {
-    layerData.value.source = layerData.value.source
-  } else {
-    layerData.value.source.id = layerData.value.source.id
-    layerData.value.source.type = layerData.value.source.type
-    layerData.value.source.tiles = layerData.value.source.tiles
-    layerData.value.source.url = layerData.value.source.url
-    layerData.value.source.tileSize = layerData.value.source.tileSize
-    layerData.value.source.attribution = combinedAttribution.value
-  }
-}
-
-console.log(layerData.value.source)
-
-const useExisting = ref(typeof layerData.value.source === 'string')
+const useExisting = ref(typeof form.value.source === 'string')
 const tileConfig = ref(
   useExisting.value
     ? 'custom'
-    : (layerData.value.source as Source).url
+    : (form.value.source as Source).url
     ? 'tilejson'
     : 'custom',
 )
 const tileInputs = ref(
-  useExisting.value
-    ? []
-    : [...((layerData.value.source as Source).tiles || []), ''],
+  useExisting.value ? [] : [...((form.value.source as Source).tiles || []), ''],
 )
 
 const handleNewTileInput = () => {
   const tiles = tileInputs.value.filter(tile => tile !== '')
-  if (typeof layerData.value.source !== 'string') {
-    layerData.value.source.tiles = tiles
+  if (typeof form.value.source !== 'string') {
+    form.value.source.tiles = tiles
   }
   tileInputs.value = [...tiles, '']
 }
 </script>
 
 <template>
-  <div>
+  <form @submit.prevent class="space-y-4">
     <SettingsSection
       title="Layer info"
       class="mt-4"
@@ -92,28 +95,15 @@ const handleNewTileInput = () => {
       :shadow="false"
     >
       <SettingsItem :title="$t('layers.fields.enabled')">
-        <Switch
-          v-model:checked="layerData.enabled"
-          @change="updateLayer"
-        ></Switch>
+        <Switch v-model:checked="form.enabled"></Switch>
       </SettingsItem>
 
       <SettingsItem :title="$t('layers.fields.name')">
-        <Input
-          v-model="layerData.name"
-          @blur="updateLayer"
-          placeholder="Layer Name"
-          class="w-fit"
-        />
+        <Input v-model="form.name" placeholder="Layer Name" class="w-fit" />
       </SettingsItem>
 
       <SettingsItem :title="$t('layers.fields.id')">
-        <Input
-          v-model="layerData.id"
-          @blur="updateLayer"
-          placeholder="Layer ID"
-          class="w-fit"
-        />
+        <Input v-model="form.id" placeholder="Layer ID" class="w-fit" />
       </SettingsItem>
 
       <!-- TODO: Add icon field -->
@@ -126,11 +116,7 @@ const handleNewTileInput = () => {
       :shadow="false"
     >
       <SettingsItem title="Use existing source">
-        <Switch
-          v-model:checked="useExisting"
-          @change="updateLayer"
-          disabled
-        ></Switch>
+        <Switch v-model:checked="useExisting" disabled></Switch>
       </SettingsItem>
 
       <template v-if="useExisting">
@@ -147,18 +133,14 @@ const handleNewTileInput = () => {
       <template v-else>
         <SettingsItem title="Source ID">
           <Input
-            v-model="(layerData.source as Source).id"
-            @blur="updateLayer"
+            v-model="(form.source as Source).id"
             placeholder="Source ID"
             class="w-fit"
           />
         </SettingsItem>
 
         <SettingsItem title="Source Type">
-          <Select
-            v-model="(layerData.source as Source).type"
-            @change="updateLayer"
-          >
+          <Select v-model="(form.source as Source).type">
             <SelectTrigger class="w-fit">
               <SelectValue />
             </SelectTrigger>
@@ -170,7 +152,7 @@ const handleNewTileInput = () => {
         </SettingsItem>
 
         <SettingsItem title="Tile Configuration">
-          <Select v-model="tileConfig" @change="updateLayer">
+          <Select v-model="tileConfig">
             <SelectTrigger class="w-fit">
               <SelectValue />
             </SelectTrigger>
@@ -198,8 +180,7 @@ const handleNewTileInput = () => {
 
           <SettingsItem title="Tile Size">
             <Input
-              v-model="(layerData.source as Source).tileSize"
-              @blur="updateLayer"
+              v-model="(form.source as Source).tileSize"
               type="number"
               placeholder="Tile Size"
               class="w-fit"
@@ -210,13 +191,11 @@ const handleNewTileInput = () => {
             <div class="flex flex-col gap-2">
               <Input
                 v-model="attributionUrl"
-                @input="updateLayer"
                 placeholder="Attribution URL"
                 class="w-fit"
               />
               <Input
                 v-model="attributionName"
-                @input="updateLayer"
                 placeholder="Attribution name"
                 class="w-fit"
               />
@@ -228,8 +207,7 @@ const handleNewTileInput = () => {
           <!-- TODO: Add TileJSON configuration -->
           <SettingsItem title="TileJSON URL">
             <Input
-              v-model="(layerData.source as Source).url"
-              @blur="updateLayer"
+              v-model="(form.source as Source).url"
               type="text"
               placeholder="URL"
               class="w-fit"
@@ -241,11 +219,10 @@ const handleNewTileInput = () => {
 
     <SettingsSection title="Custom configuration">
       <Textarea
-        v-model="layerData.meta"
-        @blur="updateLayer"
+        v-model="form.meta"
         rows="10"
         placeholder="Enter JSON for meta field"
       ></Textarea>
     </SettingsSection>
-  </div>
+  </form>
 </template>

@@ -103,7 +103,39 @@
     "fields": {
       "id": "ID de la capa",
       "name": "Nombre",
-      "enabled": "Habilitado"
+      "enabled": "Habilitado",
+      "type": {
+        "title": "Tipo de capa",
+        "values": {
+          "fill": "Relleno",
+          "line": "Línea",
+          "symbol": "Símbolo",
+          "circle": "Círculo",
+          "heatmap": "Mapa de calor",
+          "fill-extrusion": "Extrusión de relleno",
+          "raster": "Raster",
+          "raster-particle": "Partícula de raster",
+          "hillshade": "Sombreado de colinas",
+          "model": "Modelo",
+          "background": "Fondo",
+          "sky": "Cielo",
+          "slot": "Ranura",
+          "clip": "Recorte"
+        },
+        "source": {
+          "id": "ID de la fuente",
+          "type": "Tipo de fuente",
+          "tileConfiguration": "Configuración de azulejos",
+          "url": "URL",
+          "tiles": "Azulejos",
+          "tileUrlX": "URL de azulejo {x}",
+          "tileSize": "Tamaño de azulejo",
+          "attribution": "Atribución",
+          "attributionUrl": "URL de atribución",
+          "attributionName": "Nombre de atribución"
+        },
+        "custom": "Configuración personalizada"
+      }
     }
   },
   "directions": {
@@ -187,7 +219,7 @@
       }
     },
     "mapSettings": {
-      "title": "Configuración del mapa",
+      "title": "Mapa",
       "engine": {
         "title": "Motor de mapas"
       },

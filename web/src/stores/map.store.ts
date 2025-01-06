@@ -72,7 +72,7 @@ export const useMapStore = defineStore('map', () => {
     if (existingLayerIndex !== -1) {
       layers.value[existingLayerIndex] = layer
     } else {
-      layers.value.push(layer)
+      layers.value = [...layers.value, layer]
     }
   }
 

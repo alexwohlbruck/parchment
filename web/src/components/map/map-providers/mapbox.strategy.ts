@@ -188,11 +188,13 @@ export class MapboxStrategy extends MapStrategy {
       }
 
       this.map.addLayer({
+        ...meta,
         source: sourceId,
         id: layer.id,
-        ...meta,
+        type: layer.type,
         slot: 'middle',
         layout: {
+          ...meta?.layout,
           visibility: 'none',
         },
       })

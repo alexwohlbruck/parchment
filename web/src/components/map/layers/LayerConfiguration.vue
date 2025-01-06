@@ -53,10 +53,21 @@ const layerSchema = computed(() => {
             type: z.enum(['raster', 'vector']),
             url: z.string().url('invalid').optional(),
             tiles: z
-              .array(z.string().url('invalid'))
-              .min(1, 'required')
+              .array(
+                z
+                  .string()
+                  .url('Must be a valid URL')
+                  .regex(
+                    /^https?:\/\/.*(?=.*\{x\})(?=.*\{y\})(?=.*\{z\}).*$/i,
+                    'URL must contain {z}, {x}, and {y} parameters',
+                  ),
+              )
+              .min(1, 'At least one tile URL is required')
               .optional(),
-            tileSize: z.number().positive('invalid').optional(),
+            tileSize: z
+              .number()
+              .positive('Must be a positive number')
+              .optional(),
             attribution: z.string().optional(),
           }),
       meta: z.string().optional(),
@@ -147,14 +158,11 @@ defineExpose({
       :frame="false"
       :shadow="false"
     >
-      <FormField name="enabled" v-slot="{ componentField }">
+      <FormField name="enabled" v-slot="{ value, handleChange }">
         <FormItem>
           <SettingsItem :title="$t('layers.fields.enabled')">
             <FormControl>
-              <Switch
-                v-bind="componentField"
-                v-model:checked="values.enabled"
-              />
+              <Switch :checked="value" @update:checked="handleChange" />
             </FormControl>
           </SettingsItem>
         </FormItem>
@@ -167,7 +175,6 @@ defineExpose({
               <FormControl>
                 <Input
                   v-bind="componentField"
-                  v-model="values.name"
                   placeholder="Layer Name"
                   class="w-fit"
                 />
@@ -184,7 +191,6 @@ defineExpose({
               <FormControl>
                 <Input
                   v-bind="componentField"
-                  v-model="values.id"
                   placeholder="Layer ID"
                   class="w-fit"
                 />
@@ -202,7 +208,7 @@ defineExpose({
       :shadow="false"
     >
       <SettingsItem title="Use existing source">
-        <Switch v-model:checked="useExisting" disabled></Switch>
+        <Switch disabled></Switch>
       </SettingsItem>
 
       <template v-if="useExisting">
@@ -224,7 +230,6 @@ defineExpose({
                 <FormControl>
                   <Input
                     v-bind="componentField"
-                    v-model="(values.source as Source).id"
                     placeholder="Source ID"
                     class="w-fit"
                   />
@@ -238,10 +243,7 @@ defineExpose({
           <FormItem>
             <SettingsItem title="Source Type">
               <FormControl>
-                <Select
-                  v-bind="componentField"
-                  v-model="(values.source as Source).type"
-                >
+                <Select v-bind="componentField">
                   <SelectTrigger class="w-fit">
                     <SelectValue />
                   </SelectTrigger>
@@ -271,14 +273,12 @@ defineExpose({
           <FormField name="source.tiles" v-slot="{ componentField }">
             <FormItem>
               <SettingsItem title="Tiles">
-                <div class="flex flex-col gap-2">
+                <div class="flex flex-col gap-2 w-full">
                   <template v-for="(tile, index) in tileInputs" :key="index">
-                    <!-- TODO: New tile urls don't get added to the form model -->
-                    <!-- TODO: Add validation for URL inputs -->
                     <Input
                       v-model="tileInputs[index]"
                       @input="handleNewTileInput()"
-                      class="w-fit"
+                      class="w-full max-w-80 self-end"
                       :placeholder="'Tile URL ' + (index + 1)"
                     />
                   </template>

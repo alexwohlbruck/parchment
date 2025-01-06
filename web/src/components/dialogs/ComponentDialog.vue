@@ -14,10 +14,12 @@ import { cn } from '@/lib/utils'
 import { ref } from 'vue'
 
 const props = defineProps<ComponentDialogOptions>()
+const isValid = ref(true)
 
 function cancel() {
   // TODO:
 }
+
 function submit() {
   // TODO:
 }
@@ -38,6 +40,7 @@ function submit() {
           :is="props.component"
           v-bind="props?.props || {}"
           :class="cn(props?.props?.class, 'overflow-y-auto')"
+          @update:valid="valid => (isValid = valid)"
         />
       </div>
 
@@ -51,6 +54,7 @@ function submit() {
           <Button
             @click="submit"
             :variant="props.destructive ? 'destructive' : 'default'"
+            :disabled="!isValid"
           >
             {{ props.continueText || $t('general.continue') }}
           </Button>

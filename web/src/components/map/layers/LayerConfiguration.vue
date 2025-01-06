@@ -15,6 +15,13 @@ import { SettingsSection, SettingsItem } from '@/components/settings'
 import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import * as z from 'zod'
+import {
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 
 const props = defineProps<{
   layer: Layer
@@ -22,22 +29,64 @@ const props = defineProps<{
 
 const { layer } = props
 
-const layerSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  id: z.string().min(1, 'ID is required'),
-  description: z.string().optional(),
-  source: z.object({
-    type: z.string().min(1, 'Source type is required'),
-    url: z.string().url('Invalid URL'),
-    tiles: z.array(z.string()).optional(),
-    tileSize: z.number().optional(),
-    attribution: z.string().optional(),
-  }),
-  meta: z.string().optional(),
+const emit = defineEmits<{
+  submit: [values: z.infer<typeof layerSchema>]
+  'update:valid': [valid: boolean]
+}>()
+
+const useExisting = ref(typeof layer.source === 'string')
+
+const layerSchema = computed(() => {
+  return toTypedSchema(
+    z.object({
+      name: z.string().min(1, 'required'),
+      id: z.string().min(1, 'required'),
+      description: z.string().optional(),
+      enabled: z.boolean().default(true),
+      source: useExisting.value
+        ? z.string().min(1, 'required')
+        : z.object({
+            id: z.string().min(1, 'required'),
+            type: z.enum(['raster', 'vector']),
+            url: z.string().url('invalid').optional(),
+            tiles: z
+              .array(z.string().url('invalid'))
+              .min(1, 'required')
+              .optional(),
+            tileSize: z.number().positive('invalid').optional(),
+            attribution: z.string().optional(),
+          }),
+      meta: z.string().optional(),
+    }),
+  )
 })
 
-const { handleSubmit, errors, meta } = useForm({
-  validationSchema: toTypedSchema(layerSchema),
+const { handleSubmit, errors, values, meta } = useForm({
+  validationSchema: layerSchema,
+  initialValues: {
+    ...layer,
+    meta:
+      typeof layer.meta === 'string'
+        ? layer.meta
+        : JSON.stringify(layer.meta, null, 2),
+  },
+})
+
+const onSubmit = handleSubmit(values => {
+  const transformedValues = {
+    ...values,
+    source: useExisting.value
+      ? (values.source as string)
+      : {
+          id: (values.source as Source).id,
+          type: (values.source as Source).type,
+          url: (values.source as Source).url,
+          tiles: (values.source as Source).tiles,
+          tileSize: (values.source as Source).tileSize,
+          attribution: (values.source as Source).attribution,
+        },
+  }
+  emit('submit', transformedValues)
 })
 
 const form = ref({
@@ -65,7 +114,6 @@ const initializeAttribution = () => {
 
 initializeAttribution()
 
-const useExisting = ref(typeof form.value.source === 'string')
 const tileConfig = ref(
   useExisting.value
     ? 'custom'
@@ -79,34 +127,79 @@ const tileInputs = ref(
 
 const handleNewTileInput = () => {
   const tiles = tileInputs.value.filter(tile => tile !== '')
-  if (typeof form.value.source !== 'string') {
-    form.value.source.tiles = tiles
+  if (!useExisting.value && typeof values.source === 'object') {
+    values.source.tiles = tiles
   }
   tileInputs.value = [...tiles, '']
 }
+
+// Watch for form validity changes and emit them
+watch(
+  () => meta.value.valid,
+  valid => {
+    emit('update:valid', valid)
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
-  <form @submit.prevent class="space-y-4">
+  <!-- TODO: Add FormMessage for errors -->
+  <pre>{{ errors }}</pre>
+  <pre>{{ form }}</pre>
+  <form @submit="onSubmit" class="space-y-4">
     <SettingsSection
       title="Layer info"
       class="mt-4"
       :frame="false"
       :shadow="false"
     >
-      <SettingsItem :title="$t('layers.fields.enabled')">
-        <Switch v-model:checked="form.enabled"></Switch>
-      </SettingsItem>
+      <FormField name="enabled" v-slot="{ componentField }">
+        <FormItem>
+          <SettingsItem :title="$t('layers.fields.enabled')">
+            <FormControl>
+              <Switch
+                v-bind="componentField"
+                v-model:checked="values.enabled"
+              />
+            </FormControl>
+          </SettingsItem>
+        </FormItem>
+      </FormField>
 
-      <SettingsItem :title="$t('layers.fields.name')">
-        <Input v-model="form.name" placeholder="Layer Name" class="w-fit" />
-      </SettingsItem>
+      <FormField name="name" v-slot="{ componentField }">
+        <FormItem>
+          <SettingsItem :title="$t('layers.fields.name')">
+            <div class="flex flex-col gap-1.5">
+              <FormControl>
+                <Input
+                  v-bind="componentField"
+                  v-model="values.name"
+                  placeholder="Layer Name"
+                  class="w-fit"
+                />
+              </FormControl>
+            </div>
+          </SettingsItem>
+        </FormItem>
+      </FormField>
 
-      <SettingsItem :title="$t('layers.fields.id')">
-        <Input v-model="form.id" placeholder="Layer ID" class="w-fit" />
-      </SettingsItem>
-
-      <!-- TODO: Add icon field -->
+      <FormField name="id" v-slot="{ componentField }">
+        <FormItem>
+          <SettingsItem :title="$t('layers.fields.id')">
+            <div class="flex flex-col gap-1.5">
+              <FormControl>
+                <Input
+                  v-bind="componentField"
+                  v-model="values.id"
+                  placeholder="Layer ID"
+                  class="w-fit"
+                />
+              </FormControl>
+            </div>
+          </SettingsItem>
+        </FormItem>
+      </FormField>
     </SettingsSection>
 
     <SettingsSection
@@ -131,25 +224,43 @@ const handleNewTileInput = () => {
       </template>
 
       <template v-else>
-        <SettingsItem title="Source ID">
-          <Input
-            v-model="(form.source as Source).id"
-            placeholder="Source ID"
-            class="w-fit"
-          />
-        </SettingsItem>
+        <FormField name="source.id" v-slot="{ componentField }">
+          <FormItem>
+            <SettingsItem title="Source ID">
+              <div class="flex flex-col gap-1.5">
+                <FormControl>
+                  <Input
+                    v-bind="componentField"
+                    v-model="(values.source as Source).id"
+                    placeholder="Source ID"
+                    class="w-fit"
+                  />
+                </FormControl>
+              </div>
+            </SettingsItem>
+          </FormItem>
+        </FormField>
 
-        <SettingsItem title="Source Type">
-          <Select v-model="(form.source as Source).type">
-            <SelectTrigger class="w-fit">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="raster"> Raster </SelectItem>
-              <SelectItem value="vector"> Vector </SelectItem>
-            </SelectContent>
-          </Select>
-        </SettingsItem>
+        <FormField name="source.type" v-slot="{ componentField }">
+          <FormItem>
+            <SettingsItem title="Source Type">
+              <FormControl>
+                <Select
+                  v-bind="componentField"
+                  v-model="(values.source as Source).type"
+                >
+                  <SelectTrigger class="w-fit">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="raster">Raster</SelectItem>
+                    <SelectItem value="vector">Vector</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormControl>
+            </SettingsItem>
+          </FormItem>
+        </FormField>
 
         <SettingsItem title="Tile Configuration">
           <Select v-model="tileConfig">
@@ -164,23 +275,37 @@ const handleNewTileInput = () => {
         </SettingsItem>
 
         <template v-if="tileConfig === 'custom'">
-          <SettingsItem title="Tiles">
-            <div class="flex flex-col gap-2">
-              <template v-for="(tile, index) in tileInputs" :key="index">
-                <!-- TODO: Add validation for URL inputs -->
-                <Input
-                  v-model="tileInputs[index]"
-                  @input="handleNewTileInput()"
-                  class="w-fit"
-                  :placeholder="'Tile URL ' + (index + 1)"
-                />
-              </template>
-            </div>
-          </SettingsItem>
+          <FormField name="source.tiles" v-slot="{ componentField }">
+            <FormItem>
+              <SettingsItem title="Tiles">
+                <div class="flex flex-col gap-1.5">
+                  <FormControl>
+                    <div class="flex flex-col gap-2">
+                      <template
+                        v-for="(tile, index) in tileInputs"
+                        :key="index"
+                      >
+                        <Input
+                          :value="tile"
+                          @input="(e) => {
+                            tileInputs[index] = (e.target as HTMLInputElement).value
+                            handleNewTileInput()
+                          }"
+                          class="w-fit"
+                          :placeholder="'Tile URL ' + (index + 1)"
+                        />
+                      </template>
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </div>
+              </SettingsItem>
+            </FormItem>
+          </FormField>
 
           <SettingsItem title="Tile Size">
             <Input
-              v-model="(form.source as Source).tileSize"
+              v-model="(values.source as Source).tileSize"
               type="number"
               placeholder="Tile Size"
               class="w-fit"
@@ -207,7 +332,7 @@ const handleNewTileInput = () => {
           <!-- TODO: Add TileJSON configuration -->
           <SettingsItem title="TileJSON URL">
             <Input
-              v-model="(form.source as Source).url"
+              v-model="(values.source as Source).url"
               type="text"
               placeholder="URL"
               class="w-fit"
@@ -217,12 +342,19 @@ const handleNewTileInput = () => {
       </template>
     </SettingsSection>
 
-    <SettingsSection title="Custom configuration">
-      <Textarea
-        v-model="form.meta"
-        rows="10"
-        placeholder="Enter JSON for meta field"
-      ></Textarea>
-    </SettingsSection>
+    <FormField name="meta" v-slot="{ componentField }">
+      <FormItem>
+        <SettingsSection title="Custom configuration">
+          <FormControl>
+            <Textarea
+              v-bind="componentField"
+              v-model="values.meta"
+              rows="10"
+              placeholder="Enter JSON for meta field"
+            />
+          </FormControl>
+        </SettingsSection>
+      </FormItem>
+    </FormField>
   </form>
 </template>

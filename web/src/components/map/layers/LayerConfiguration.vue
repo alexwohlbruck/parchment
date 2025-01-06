@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Source, type Layer } from '@/types/map.types'
+import { Source, Layer, LayerType } from '@/types/map.types'
 import { computed, ref, defineEmits, watch } from 'vue'
 import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
@@ -48,6 +48,9 @@ const layerSchema = computed(() => {
       id: z.string().min(1, 'required').default(''),
       description: z.string().optional(),
       enabled: z.boolean().default(true),
+      type: z
+        .enum(Object.values(LayerType) as [string, ...string[]])
+        .default('line'),
       source: useExisting.value
         ? z.string().min(1, 'required')
         : z
@@ -166,6 +169,10 @@ watch([attributionUrl, attributionName], () => {
   }
 })
 
+const allowedLayerTypes = computed(() => {
+  return Object.values(layerSchema.properties.type.enum)
+})
+
 defineExpose({
   submit: onSubmit,
 })
@@ -173,7 +180,7 @@ defineExpose({
 
 <template>
   <!-- TODO: Add FormMessage for errors -->
-  <pre>{{ values }}</pre>
+  <!-- TODO: i18n -->
   <form @submit="onSubmit" class="space-y-4">
     <SettingsSection
       title="Layer info"
@@ -219,6 +226,29 @@ defineExpose({
                 />
               </FormControl>
             </div>
+          </SettingsItem>
+        </FormItem>
+      </FormField>
+
+      <FormField name="type" v-slot="{ componentField }">
+        <FormItem>
+          <SettingsItem :title="$t('layers.fields.type.title')">
+            <FormControl>
+              <Select v-bind="componentField">
+                <SelectTrigger class="w-fit">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem
+                    v-for="type in Object.values(LayerType)"
+                    :key="type"
+                    :value="type"
+                  >
+                    {{ $t(`layers.fields.type.values.${type}`) }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </FormControl>
           </SettingsItem>
         </FormItem>
       </FormField>

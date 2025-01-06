@@ -6,6 +6,7 @@ const cyclOSM = {
   name: 'CyclOSM',
   icon: BikeIcon,
   enabled: true,
+  type: 'raster',
   source: {
     id: 'cyclosm',
     type: 'raster',
@@ -16,7 +17,6 @@ const cyclOSM = {
     attribution: '<a href="https://www.opencyclemap.org/">© OpenCycleMap</a>',
   },
   meta: {
-    type: 'raster',
     paint: {
       'raster-emissive-strength': 0.9,
       'raster-hue-rotate': 290,
@@ -30,6 +30,7 @@ const waymarkedTrails = {
   name: 'Waymarked Trails',
   icon: BikeIcon,
   enabled: false,
+  type: 'raster',
   source: {
     id: 'waymarkedTrails',
     type: 'raster',
@@ -37,9 +38,6 @@ const waymarkedTrails = {
     tileSize: 256,
     attribution:
       '<a href="https://cycling.waymarkedtrails.org/">© Waymarked Trails</a>',
-  },
-  meta: {
-    type: 'raster',
   },
 }
 
@@ -49,6 +47,7 @@ const transitLand = {
   name: 'Transitland',
   icon: TrainIcon,
   enabled: true,
+  type: 'line',
   source: {
     id: 'transitland',
     type: 'vector',
@@ -59,7 +58,6 @@ const transitLand = {
   },
   meta: {
     id: 'transitland',
-    type: 'line',
     source: 'transitland',
     slot: 'middle',
     'source-layer': 'routes',
@@ -132,10 +130,11 @@ const transitLand = {
 
 // mapbox://mapbox.mapbox-traffic-v1
 const traffic = {
-  id: 'mapbox-traffic',
+  id: 'traffic',
   name: 'Mapbox traffic',
   icon: CarFrontIcon,
   enabled: true,
+  type: 'line',
   source: {
     id: 'traffic',
     type: 'vector',

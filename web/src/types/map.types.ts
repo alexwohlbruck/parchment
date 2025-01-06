@@ -33,11 +33,29 @@ export type Source = {
   maxzoom?: number
 }
 
+export enum LayerType {
+  LINE = 'line',
+  FILL = 'fill',
+  SYMBOL = 'symbol',
+  CIRCLE = 'circle',
+  HEATMAP = 'heatmap',
+  FILL_EXTRUSION = 'fill-extrusion',
+  RASTER = 'raster',
+  RASTER_PARTICLE = 'raster-particle',
+  HILLSHADE = 'hillshade',
+  MODEL = 'model',
+  BACKGROUND = 'background',
+  SKY = 'sky',
+  SLOT = 'slot',
+  CLIP = 'clip',
+}
+
 export type Layer = {
   id: string
   name: string
   icon: Icon
   enabled: boolean
+  type: LayerType
   source: string | Source
   meta?: any
 }

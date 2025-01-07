@@ -10,6 +10,13 @@ import { PermissionId, PermissionRule } from '@/types/auth.types'
 function authService() {
   const authStore = useAuthStore()
 
+  async function getPermissions() {
+    const {
+      data: { permissions },
+    } = await api.get('auth/sessions/current/permissions')
+    authStore.setPermissions(permissions)
+  }
+
   async function getAuthenticatedUser() {
     const authenticatedUserPromise = api.get('auth/sessions/current')
     authStore.setAuthenticatedUserPromise(authenticatedUserPromise)
@@ -17,7 +24,7 @@ function authService() {
       data: { user, token: sessionId },
     } = await authenticatedUserPromise
     if (user) {
-      authStore.setAuthenticatedUser(user, sessionId)
+      setAuthenticatedUser(user, sessionId)
     } else {
       authStore.unsetAuthenticatedUser()
     }
@@ -26,11 +33,9 @@ function authService() {
     }
   }
 
-  async function getPermissions() {
-    const {
-      data: { permissions },
-    } = await api.get('auth/sessions/current/permissions')
-    authStore.setPermissions(permissions)
+  async function setAuthenticatedUser(user: User, sessionId: Session['id']) {
+    setAuthenticatedUser(user, sessionId)
+    getPermissions()
   }
 
   async function verifyEmail(email: string) {
@@ -53,7 +58,7 @@ function authService() {
     const {
       data: { user, token: sessionId },
     } = response
-    authStore.setAuthenticatedUser(user, sessionId)
+    setAuthenticatedUser(user, sessionId)
     return response
   }
 
@@ -108,7 +113,7 @@ function authService() {
     )
 
     if (user) {
-      authStore.setAuthenticatedUser(user, sessionId)
+      setAuthenticatedUser(user, sessionId)
     }
   }
 

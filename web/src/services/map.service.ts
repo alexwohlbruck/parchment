@@ -9,7 +9,7 @@ function mapService() {
   const { mapInstance: map } = storeToRefs(store)
 
   function toggleLayer(layerId: string, state?: boolean) {
-    map.value.toggleLayer(layerId, state)
+    map.value?.toggleLayer(layerId, state)
   }
 
   /**

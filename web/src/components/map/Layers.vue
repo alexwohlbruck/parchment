@@ -50,7 +50,8 @@ const columns: ColumnDef<Layer>[] = [
         checked: row.original.enabled,
         onCheckedChange: (checked: boolean) => {
           const mapStore = useMapStore()
-          mapStore.updateLayerStatus(row.original.id, checked)
+          // TODO:
+          // mapStore.toggleLayer(row.original.id, checked)
         },
       }),
   },

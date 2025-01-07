@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { storeToRefs } from 'pinia'
+import { computed } from 'vue'
 import { Toggle } from '@/components/ui/toggle'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useMapStore } from '@/stores/map.store'
 import { useMapService } from '@/services/map.service'
 import { H5 } from '@/components/ui/typography'
 import { basemaps } from '../map/map.data'
-import { Basemap, Layer } from '@/types/map.types'
+import { Basemap } from '@/types/map.types'
 
 const mapStore = useMapStore()
 const mapService = useMapService()
@@ -52,7 +51,7 @@ function toggleLayer(layerId: string, pressed: boolean) {
         variant="outline"
         :aria-label="layer.name"
         :default-value="false"
-        @update:pressed="pressed => toggleLayer(layer.source.id, pressed)"
+        @update:pressed="pressed => toggleLayer(layer.id, pressed)"
         class="flex gap-2"
       >
         <component :is="layer.icon" class="size-5" />

@@ -20,6 +20,7 @@ import {
 import { Card } from '@/components/ui/card'
 import { SettingsIcon, PlusIcon } from 'lucide-vue-next'
 import LayerConfiguration from '@/components/map/layers/LayerConfiguration.vue'
+import Layers from '@/components/map/Layers.vue'
 
 const { mapEngine, setMapEngine, layers } = useMapStore()
 const commandStore = useCommandStore()
@@ -107,23 +108,16 @@ function openLayerConfigDialog(layer: Layer) {
     <SettingsSection
       :title="$t('settings.mapSettings.layers.title')"
       :description="$t('settings.mapSettings.layers.description')"
+      :frame="false"
     >
-      <div class="flex flex-wrap gap-2">
-        <Button
-          v-for="(layer, i) in layers"
-          :key="i"
-          variant="outline"
-          class="flex items-center px-4 py-2 gap-2"
-          @click="openLayerConfigDialog(layer)"
-        >
-          <component :is="layer.icon" class="size-4" />
-          <H6>{{ layer.name }}</H6>
-        </Button>
-        <Button variant="outline" @click="openLayerConfigDialog">
+      <template v-slot:actions>
+        <Button variant="outline" @click="openLayerConfigDialog" disabled>
           <PlusIcon class="size-4 mr-2" />
           Configure new layer
         </Button>
-      </div>
+      </template>
+
+      <Layers />
     </SettingsSection>
   </div>
 </template>

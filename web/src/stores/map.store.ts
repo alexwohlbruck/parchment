@@ -1,13 +1,30 @@
+import mitt from 'mitt'
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import { Basemap, MapLayer } from '../types/map.types'
-import { MapLibrary, MapOptions } from '@/types/map.types'
+import {
+  Basemap,
+  MapEngine,
+  MapOptions,
+  MapEvents,
+  Layer,
+} from '@/types/map.types'
+import { Directions } from '@/types/directions.types'
+import { layers as defaultLayers } from '@/components/map/layers/layers'
+import { MapStrategy } from '@/components/map/map-providers/map.strategy'
+
+const emitter = mitt<MapEvents>()
 
 export const useMapStore = defineStore('map', () => {
-  const mapLibrary = ref<MapLibrary>('mapbox')
+  const mapInstance = ref<MapStrategy>()
 
-  function setMapLibrary(library: MapLibrary) {
-    mapLibrary.value = library
+  function setMapInstance(map: MapStrategy) {
+    mapInstance.value = map
+  }
+
+  const mapEngine = ref<MapEngine>('mapbox')
+
+  function setMapEngine(engine: MapEngine) {
+    mapEngine.value = engine
   }
 
   const mapState = ref<MapOptions>({
@@ -18,37 +35,68 @@ export const useMapStore = defineStore('map', () => {
     projection: 'web-mercator',
     theme: 'light',
     basemap: 'standard',
-    layers: [],
   })
+
+  // Event methods
+  function on<K extends keyof MapEvents>(
+    event: K,
+    handler: (data: MapEvents[K]) => void,
+  ) {
+    emitter.on(event, handler)
+  }
+
+  function off<K extends keyof MapEvents>(
+    event: K,
+    handler: (data: MapEvents[K]) => void,
+  ) {
+    emitter.off(event, handler)
+  }
+
+  function emit<K extends keyof MapEvents>(event: K, data: MapEvents[K]) {
+    emitter.emit(event, data)
+  }
+
+  const directions = ref<null | Directions>(null)
 
   function setBasemap(map: Basemap) {
     mapState.value.basemap = map
   }
 
-  function addLayer(layer: MapLayer) {
-    mapState.value.layers = [...mapState.value.layers, layer]
-  }
+  const layers = ref<Layer[]>(defaultLayers)
 
-  function removeLayer(layer: MapLayer) {
-    mapState.value.layers = mapState.value.layers.filter(l => l !== layer)
-  }
-
-  function toggleLayer(layer: MapLayer, state?: boolean) {
-    if (state === undefined) {
-      state = !mapState.value.layers.includes(layer)
-    }
-    if (state) {
-      addLayer(layer)
+  function addLayer(layer: Layer) {
+    const existingLayerIndex = layers.value.findIndex(
+      existingLayer => existingLayer.id === layer.id,
+    )
+    if (existingLayerIndex !== -1) {
+      layers.value[existingLayerIndex] = layer
     } else {
-      removeLayer(layer)
+      layers.value = [...layers.value, layer]
     }
+  }
+
+  function setDirections(directions_: Directions) {
+    directions.value = directions_
+  }
+
+  function unsetDirections() {
+    directions.value = null
   }
 
   return {
-    mapLibrary,
-    setMapLibrary,
+    mapInstance,
+    setMapInstance,
+    mapEngine,
+    setMapEngine,
+    on,
+    off,
+    emit,
     mapState,
     setBasemap,
-    toggleLayer,
+    layers,
+    addLayer,
+    directions,
+    setDirections,
+    unsetDirections,
   }
 })

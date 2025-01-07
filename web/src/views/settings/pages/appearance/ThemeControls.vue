@@ -26,14 +26,17 @@ const { toggleDark, setAccentColor, setRadius } = themeStore
           :key="index"
           variant="outline"
           class="h-8 justify-start px-3"
-          :class="color === accentColor ? 'border-primary border-2' : ''"
+          :class="color === (accentColor as any) ? 'border-primary border-2' : ''"
           @click="setAccentColor(color)"
         >
           <span
             class="size-5 rounded-full flex items-center justify-center"
             :style="{ backgroundColor: colors[color][7].rgb }"
           >
-            <CheckIcon v-if="color === accentColor" class="size-3 text-white" />
+            <CheckIcon
+              v-if="color === (accentColor as any)"
+              class="size-3 text-white"
+            />
           </span>
           <span class="ml-2 text-xs capitalize">
             {{ $t(`settings.appearance.appTheme.color.values.${color}`) }}
@@ -51,7 +54,7 @@ const { toggleDark, setAccentColor, setRadius } = themeStore
           :key="index"
           variant="outline"
           class="h-8 justify-center px-3"
-          :class="r === radius ? 'border-primary border-2' : ''"
+          :class="r === (radius as any) ? 'border-primary border-2' : ''"
           @click="setRadius(r)"
         >
           <span class="text-xs">

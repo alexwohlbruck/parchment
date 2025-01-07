@@ -12,6 +12,7 @@ import DataTable from '@/components/table/DataTable.vue'
 import { Button } from '@/components/ui/button'
 import { Trash2Icon } from 'lucide-vue-next'
 import { Code } from '@/components/ui/code'
+import { SettingsSection } from '@/components/settings'
 
 dayjs.extend(localizedFormat)
 
@@ -40,7 +41,7 @@ const columns: ColumnDef<Role>[] = [
         size: 'icon',
         icon: Trash2Icon,
         class: 'text-destructive',
-        description: 'Delete user',
+        description: 'Delete user', // TODO: i18n
       }),
   },
 ]
@@ -53,9 +54,7 @@ onMounted(getRoles)
 </script>
 
 <template>
-  <div class="flex w-full align-center justify-between">
-    <H4 class="leading-loose">Roles</H4>
-  </div>
-
-  <DataTable class="w-full" :columns="columns" :data="roles"></DataTable>
+  <SettingsSection :title="$t('settings.users.roles.title')" :frame="false">
+    <DataTable class="w-full" :columns="columns" :data="roles"></DataTable>
+  </SettingsSection>
 </template>

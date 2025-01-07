@@ -37,7 +37,7 @@ const query = ref('')
 const commandOpen = ref(true)
 const showResults = ref(false)
 
-const container = ref()
+const container = ref<HTMLElement>()
 const commandPalette = ref<InstanceType<typeof Command>>()
 const input = ref<InstanceType<typeof CommandInput>>()
 const { escape } = useMagicKeys()
@@ -95,7 +95,8 @@ function inputFocused(event: FocusEvent) {
 }
 
 // TODO: Come up with better method
-onClickOutside(container, event => {
+// TODO: Fix type error
+onClickOutside(container as any, event => {
   showResults.value = false
   resetCommand()
 })
@@ -214,6 +215,7 @@ function filterFunction(val: PaletteItem[], term: string): PaletteItem[] {
       <template v-if="showResults">
         <!-- Top-level commands list -->
         <CommandList v-if="!activeArgument">
+          <!-- TODO: i18n -->
           <CommandEmpty>No results found.</CommandEmpty>
 
           <CommandGroup heading="Commands">

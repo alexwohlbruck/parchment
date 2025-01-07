@@ -17,6 +17,7 @@ import { PlusIcon, Trash2Icon } from 'lucide-vue-next'
 import Avatar from '@/components/ui/avatar/Avatar.vue'
 import AvatarImage from '@/components/ui/avatar/AvatarImage.vue'
 import Badge from '@/components/ui/badge/Badge.vue'
+import { SettingsSection } from '@/components/settings'
 
 dayjs.extend(localizedFormat)
 
@@ -77,7 +78,7 @@ const columns: ColumnDef<User>[] = [
         size: 'icon',
         icon: Trash2Icon,
         class: 'text-destructive',
-        description: 'Delete user',
+        description: 'Delete user', // TODO: i18n
       }),
   },
 ]
@@ -111,18 +112,18 @@ onMounted(getUsers)
 </script>
 
 <template>
-  <div class="flex w-full align-center justify-between">
-    <H4 class="leading-loose">Users</H4>
+  <SettingsSection :title="$t('settings.users.users.title')" :frame="false">
+    <template v-slot:actions>
+      <Button
+        v-if="authService.hasPermission(Permission.USERS_CREATE)"
+        @click="inviteUser()"
+        variant="outline"
+        :icon="PlusIcon"
+      >
+        Invite user
+      </Button>
+    </template>
 
-    <Button
-      v-if="authService.hasPermission(Permission.USERS_CREATE)"
-      @click="inviteUser()"
-      variant="outline"
-      :icon="PlusIcon"
-    >
-      Invite user
-    </Button>
-  </div>
-
-  <DataTable class="w-full" :columns="columns" :data="users"></DataTable>
+    <DataTable class="w-full" :columns="columns" :data="users"></DataTable>
+  </SettingsSection>
 </template>

@@ -36,7 +36,7 @@ const query = ref('')
       />
       <Card>
         <template #content>
-          <Button label="Cancel" @click="closeCallback" text></Button>
+          <Button :label="$t('general.cancel')" @click="closeCallback" text></Button>
         </template>
       </Card>
     </template>

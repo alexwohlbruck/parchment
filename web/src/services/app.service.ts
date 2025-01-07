@@ -2,6 +2,7 @@ import { toast } from 'vue-sonner'
 import { useAppStore } from '@/stores/app.store'
 import {
   AutoFormDialogOptions,
+  ComponentDialogOptions,
   ConfirmDialogOptions,
   DialogType,
   PromptDialogOptions,
@@ -10,6 +11,10 @@ import { createSharedComposable } from '@vueuse/core'
 
 function appService() {
   const appStore = useAppStore()
+
+  async function componentDialog(options: ComponentDialogOptions) {
+    return appStore.createDialog(DialogType.Component, options)
+  }
 
   async function confirm(options: ConfirmDialogOptions): Promise<boolean> {
     return appStore.createDialog(DialogType.Confirm, options)
@@ -24,6 +29,7 @@ function appService() {
   }
 
   return {
+    componentDialog,
     confirm,
     prompt,
     promptForm,

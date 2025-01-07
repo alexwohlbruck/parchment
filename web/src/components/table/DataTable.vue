@@ -71,6 +71,7 @@ const table = useVueTable({
         <template v-else>
           <TableRow>
             <TableCell :colSpan="columns.length" class="h-24 text-center">
+              <!-- TODO: i18n -->
               No items.
             </TableCell>
           </TableRow>

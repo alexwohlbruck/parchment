@@ -70,8 +70,19 @@ export const useCommandStore = defineStore('command', () => {
   const mapService = useMapService()
   const { t, locale } = useI18n()
 
+  function getCommand(id: string) {
+    return commands.value.find(c => c.id === id)
+  }
+
+  function getCommandArgumentOptions(commandId: string, argumentId: string) {
+    const command = getCommand(commandId)
+    if (!command) return
+
+    return command.arguments?.find(arg => arg.id === argumentId)?.getItems()
+  }
+
   function bindCommandToFunction(id: string, action: Function) {
-    const command = commands.value.find(c => c.id === id)
+    const command = getCommand(id)
     if (command) {
       command.action = action
     }
@@ -195,35 +206,35 @@ export const useCommandStore = defineStore('command', () => {
         ],
       },
       {
-        id: 'chooseMapLibrary',
-        name: t('palette.commands.chooseMapLibrary.name'),
-        description: t('palette.commands.chooseMapLibrary.description'),
+        id: 'chooseMapEngine',
+        name: t('palette.commands.chooseMapEngine.name'),
+        description: t('palette.commands.chooseMapEngine.description'),
         icon: CogIcon,
         hotkey: ['l'],
-        action: mapService.setMapLibrary,
+        action: mapService.setMapEngine,
         arguments: [
           {
-            id: 'library',
-            name: t('palette.commands.chooseMapLibrary.arguments.library.name'),
+            id: 'engine',
+            name: t('palette.commands.chooseMapEngine.arguments.engine.name'),
             type: 'string',
             getItems() {
               return [
                 {
                   value: 'mapbox',
                   name: t(
-                    'palette.commands.chooseMapLibrary.arguments.library.values.mapbox.name',
+                    'palette.commands.chooseMapEngine.arguments.engine.values.mapbox.name',
                   ),
                   description: t(
-                    'palette.commands.chooseMapLibrary.arguments.library.values.mapbox.description',
+                    'palette.commands.chooseMapEngine.arguments.engine.values.mapbox.description',
                   ),
                 },
                 {
                   value: 'maplibre',
                   name: t(
-                    'palette.commands.chooseMapLibrary.arguments.library.values.maplibre.name',
+                    'palette.commands.chooseMapEngine.arguments.engine.values.maplibre.name',
                   ),
                   description: t(
-                    'palette.commands.chooseMapLibrary.arguments.library.values.maplibre.description',
+                    'palette.commands.chooseMapEngine.arguments.engine.values.maplibre.description',
                   ),
                 },
               ]
@@ -280,6 +291,8 @@ export const useCommandStore = defineStore('command', () => {
   })
 
   return {
+    getCommand,
+    getCommandArgumentOptions,
     bindCommandToFunction,
     commands,
   }

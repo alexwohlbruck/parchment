@@ -2,8 +2,6 @@ import { capitalize } from '@/filters/text.filters'
 import axios, { AxiosError } from 'axios'
 import { toast } from 'vue-sonner'
 
-console.log(import.meta.env)
-
 export const api = axios.create({
   withCredentials: true,
   baseURL:

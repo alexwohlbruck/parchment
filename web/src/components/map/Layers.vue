@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { useMapStore } from '@/stores/map.store'
 import { useAppService } from '@/services/app.service'
+import { storeToRefs } from 'pinia'
 import { type Layer } from '@/types/map.types'
 import { useI18n } from 'vue-i18n'
-import { h } from 'vue'
+import { computed, h } from 'vue'
 import { ColumnDef } from '@tanstack/vue-table'
 import LayerConfiguration from './layers/LayerConfiguration.vue'
 import DataTable from '@/components/table/DataTable.vue'
@@ -11,16 +12,18 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { PencilIcon } from 'lucide-vue-next'
 
-const { layers } = useMapStore()
+const mapStore = useMapStore()
+const { layers } = storeToRefs(mapStore)
+
 const appService = useAppService()
 const { t } = useI18n()
 
-function openLayerConfigDialog(layer?: Layer) {
+function openLayerConfigDialog(layerId?: Layer['id']) {
   appService.componentDialog({
     component: LayerConfiguration,
     continueText: t('general.save'),
     props: {
-      layer,
+      layerId,
     },
   })
 }
@@ -46,7 +49,7 @@ const columns: ColumnDef<Layer>[] = [
     header: t('layers.info.fields.enabled'),
     cell: ({ row }) =>
       h(Switch, {
-        disabled: true,
+        disabled: true, // TODO: Toggleable layers
         checked: row.original.enabled,
         onCheckedChange: (checked: boolean) => {
           const mapStore = useMapStore()
@@ -59,16 +62,21 @@ const columns: ColumnDef<Layer>[] = [
     id: 'actions',
     cell: ({ row }) =>
       h(Button, {
-        disabled: true,
         variant: 'ghost',
         size: 'icon',
-        onClick: () => openLayerConfigDialog(row.original),
+        onClick: () => openLayerConfigDialog(row.original.id),
         icon: PencilIcon,
       }),
   },
 ]
+
+const layerNames = computed(() => {
+  return layers.value.map(layer => layer.name)
+})
 </script>
 
 <template>
+  <pre>{{ layerNames }}</pre>
+
   <DataTable :columns="columns" :data="layers" />
 </template>

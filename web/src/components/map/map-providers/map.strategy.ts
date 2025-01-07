@@ -1,4 +1,4 @@
-import { Basemap, MapOptions, MapTheme } from '@/types/map.types'
+import { Basemap, Layer, MapOptions, MapTheme } from '@/types/map.types'
 import { Locale } from '@/lib/i18n'
 import { Directions } from '@/types/directions.types'
 

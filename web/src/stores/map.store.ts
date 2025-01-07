@@ -7,7 +7,6 @@ import {
   MapOptions,
   MapEvents,
   Layer,
-  MapInstance,
 } from '@/types/map.types'
 import { Directions } from '@/types/directions.types'
 import { layers as defaultLayers } from '@/components/map/layers/layers'

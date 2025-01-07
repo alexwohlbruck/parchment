@@ -10,13 +10,7 @@ import {
   LngLatBounds,
 } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import {
-  Basemap,
-  Layer,
-  MapLayer,
-  MapOptions,
-  type MapTheme,
-} from '@/types/map.types'
+import { Basemap, Layer, MapOptions, type MapTheme } from '@/types/map.types'
 import standardStyle from '@/components/map/styles/standard.json'
 
 import { layers } from '../layers/layers' // TODO: Refactor layers init

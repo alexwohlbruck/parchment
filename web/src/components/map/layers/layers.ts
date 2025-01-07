@@ -171,4 +171,9 @@ const traffic = {
   },
 }
 
-export const layers: Layer[] = [cyclOSM, waymarkedTrails, transitLand, traffic]
+export const layers: Layer[] = [
+  cyclOSM,
+  waymarkedTrails,
+  transitLand,
+  traffic,
+] as Layer[]

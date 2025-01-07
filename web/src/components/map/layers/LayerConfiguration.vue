@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Source, Layer, LayerType } from '@/types/map.types'
+import { Source, Layer, LayerType, SourceType } from '@/types/map.types'
 import { computed, ref, defineEmits, watch } from 'vue'
 import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
@@ -56,7 +56,9 @@ const layerSchema = computed(() => {
         : z
             .object({
               id: z.string().min(1, 'required').default(''),
-              type: z.enum(['raster', 'vector']).default('raster'),
+              type: z
+                .enum(Object.values(SourceType) as [string, ...string[]])
+                .default('line'),
               url: z.string().url('invalid').optional(),
               tiles: z
                 .array(
@@ -180,17 +182,16 @@ defineExpose({
 
 <template>
   <!-- TODO: Add FormMessage for errors -->
-  <!-- TODO: i18n -->
   <form @submit="onSubmit" class="space-y-4">
     <SettingsSection
-      title="Layer info"
+      :title="$t('layers.info.title')"
       class="mt-4"
       :frame="false"
       :shadow="false"
     >
       <FormField name="enabled" v-slot="{ value, handleChange }">
         <FormItem>
-          <SettingsItem :title="$t('layers.fields.enabled')">
+          <SettingsItem :title="$t('layers.info.fields.enabled')">
             <FormControl>
               <Switch :checked="value" @update:checked="handleChange" />
             </FormControl>
@@ -200,12 +201,12 @@ defineExpose({
 
       <FormField name="name" v-slot="{ componentField }">
         <FormItem>
-          <SettingsItem :title="$t('layers.fields.name')">
+          <SettingsItem :title="$t('layers.info.fields.name')">
             <div class="flex flex-col gap-1.5">
               <FormControl>
                 <Input
                   v-bind="componentField"
-                  placeholder="Layer Name"
+                  :placeholder="$t('layers.info.fields.name')"
                   class="w-fit"
                 />
               </FormControl>
@@ -216,12 +217,12 @@ defineExpose({
 
       <FormField name="id" v-slot="{ componentField }">
         <FormItem>
-          <SettingsItem :title="$t('layers.fields.id')">
+          <SettingsItem :title="$t('layers.info.fields.id')">
             <div class="flex flex-col gap-1.5">
               <FormControl>
                 <Input
                   v-bind="componentField"
-                  placeholder="Layer ID"
+                  :placeholder="$t('layers.info.fields.id')"
                   class="w-fit"
                 />
               </FormControl>
@@ -232,7 +233,7 @@ defineExpose({
 
       <FormField name="type" v-slot="{ componentField }">
         <FormItem>
-          <SettingsItem :title="$t('layers.fields.type.title')">
+          <SettingsItem :title="$t('layers.info.fields.type.title')">
             <FormControl>
               <Select v-bind="componentField">
                 <SelectTrigger class="w-fit">
@@ -244,7 +245,7 @@ defineExpose({
                     :key="type"
                     :value="type"
                   >
-                    {{ $t(`layers.fields.type.values.${type}`) }}
+                    {{ $t(`layers.info.fields.type.values.${type}`) }}
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -255,17 +256,17 @@ defineExpose({
     </SettingsSection>
 
     <SettingsSection
-      title="Data source"
+      :title="$t('layers.source.title')"
       class="mt-4"
       :frame="false"
       :shadow="false"
     >
-      <SettingsItem title="Use existing source">
+      <SettingsItem :title="$t('layers.source.fields.useExisting')">
         <Switch disabled></Switch>
       </SettingsItem>
 
       <template v-if="useExisting">
-        <SettingsItem title="Source ID">
+        <SettingsItem :title="$t('layers.source.fields.id')">
           <Select>
             <SelectTrigger class="w-fit">
               <SelectValue />
@@ -278,12 +279,12 @@ defineExpose({
       <template v-else>
         <FormField name="source.id" v-slot="{ componentField }">
           <FormItem>
-            <SettingsItem title="Source ID">
+            <SettingsItem :title="$t('layers.source.fields.id')">
               <div class="flex flex-col gap-1.5">
                 <FormControl>
                   <Input
                     v-bind="componentField"
-                    placeholder="Source ID"
+                    :placeholder="$t('layers.source.fields.id')"
                     class="w-fit"
                   />
                 </FormControl>
@@ -294,15 +295,19 @@ defineExpose({
 
         <FormField name="source.type" v-slot="{ componentField }">
           <FormItem>
-            <SettingsItem title="Source Type">
+            <SettingsItem :title="$t('layers.source.fields.type')">
               <FormControl>
                 <Select v-bind="componentField">
                   <SelectTrigger class="w-fit">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="raster">Raster</SelectItem>
-                    <SelectItem value="vector">Vector</SelectItem>
+                    <SelectItem value="raster">{{
+                      $t('layers.source.fields.values.raster')
+                    }}</SelectItem>
+                    <SelectItem value="vector">{{
+                      $t('layers.source.fields.values.vector')
+                    }}</SelectItem>
                   </SelectContent>
                 </Select>
               </FormControl>
@@ -310,14 +315,20 @@ defineExpose({
           </FormItem>
         </FormField>
 
-        <SettingsItem title="Tile Configuration">
+        <SettingsItem
+          :title="$t('layers.source.fields.tileConfiguration.title')"
+        >
           <Select v-model="tileConfig">
             <SelectTrigger class="w-fit">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="tilejson">TileJSON</SelectItem>
-              <SelectItem value="custom">Custom</SelectItem>
+              <SelectItem value="tilejson">{{
+                $t('layers.source.fields.tileConfiguration.values.tilejson')
+              }}</SelectItem>
+              <SelectItem value="custom">{{
+                $t('layers.source.fields.tileConfiguration.values.custom')
+              }}</SelectItem>
             </SelectContent>
           </Select>
         </SettingsItem>
@@ -325,14 +336,18 @@ defineExpose({
         <template v-if="tileConfig === 'custom'">
           <FormField name="source.tiles" v-slot="{ componentField }">
             <FormItem>
-              <SettingsItem title="Tiles">
+              <SettingsItem :title="$t('layers.source.fields.tiles')">
                 <div class="flex flex-col gap-2 w-full">
                   <template v-for="(tile, index) in tileInputs" :key="index">
                     <Input
                       v-model="tileInputs[index]"
                       @input="handleNewTileInput()"
                       class="w-full max-w-80 self-end"
-                      :placeholder="'Tile URL ' + (index + 1)"
+                      :placeholder="
+                        $t('layers.source.fields.tileUrlPlaceholder', {
+                          0: index + 1,
+                        })
+                      "
                     />
                   </template>
                 </div>
@@ -340,25 +355,25 @@ defineExpose({
             </FormItem>
           </FormField>
 
-          <SettingsItem title="Tile Size">
+          <SettingsItem :title="$t('layers.source.fields.tileSize')">
             <Input
               v-model="(values.source as Source).tileSize"
               type="number"
-              placeholder="Tile Size"
+              :placeholder="$t('layers.source.fields.tileSize')"
               class="w-fit"
             />
           </SettingsItem>
 
-          <SettingsItem title="Attribution">
+          <SettingsItem :title="$t('layers.source.fields.attribution.title')">
             <div class="flex flex-col gap-2">
               <Input
                 v-model="attributionUrl"
-                placeholder="Attribution URL"
+                :placeholder="$t('layers.source.fields.attribution.url')"
                 class="w-fit"
               />
               <Input
                 v-model="attributionName"
-                placeholder="Attribution name"
+                :placeholder="$t('layers.source.fields.attribution.name')"
                 class="w-fit"
               />
             </div>
@@ -366,12 +381,11 @@ defineExpose({
         </template>
 
         <template v-else>
-          <!-- TODO: Add TileJSON configuration -->
-          <SettingsItem title="TileJSON URL">
+          <SettingsItem :title="$t('layers.source.fields.url')">
             <Input
               v-model="(values.source as Source).url"
               type="text"
-              placeholder="URL"
+              :placeholder="$t('layers.source.fields.url')"
               class="w-fit"
             />
           </SettingsItem>
@@ -381,13 +395,13 @@ defineExpose({
 
     <FormField name="meta" v-slot="{ componentField }">
       <FormItem>
-        <SettingsSection title="Custom configuration">
+        <SettingsSection :title="$t('layers.meta.title')">
           <FormControl>
             <Textarea
               v-bind="componentField"
               v-model="values.meta"
               rows="10"
-              placeholder="Enter JSON for meta field"
+              :placeholder="$t('layers.meta.fields.placeholder')"
             />
           </FormControl>
         </SettingsSection>

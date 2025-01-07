@@ -1,8 +1,12 @@
-import { MapLayer } from '../../types/map.types'
+import { Layer } from '@/types/map.types'
+import { BikeIcon, CarFrontIcon, TrainIcon } from 'lucide-vue-next'
 
 const cyclOSM = {
+  id: 'cyclosm',
   name: 'CyclOSM',
+  icon: BikeIcon,
   enabled: true,
+  type: 'raster',
   source: {
     id: 'cyclosm',
     type: 'raster',
@@ -13,7 +17,6 @@ const cyclOSM = {
     attribution: '<a href="https://www.opencyclemap.org/">© OpenCycleMap</a>',
   },
   meta: {
-    type: 'raster',
     paint: {
       'raster-emissive-strength': 0.9,
       'raster-hue-rotate': 290,
@@ -23,8 +26,11 @@ const cyclOSM = {
 }
 
 const waymarkedTrails = {
+  id: 'waymarkedTrails',
   name: 'Waymarked Trails',
+  icon: BikeIcon,
   enabled: false,
+  type: 'raster',
   source: {
     id: 'waymarkedTrails',
     type: 'raster',
@@ -33,15 +39,15 @@ const waymarkedTrails = {
     attribution:
       '<a href="https://cycling.waymarkedtrails.org/">© Waymarked Trails</a>',
   },
-  meta: {
-    type: 'raster',
-  },
 }
 
 const transitlandApiKey = import.meta.env.VITE_TRANSITLAND_API_KEY
 const transitLand = {
+  id: 'transitland',
   name: 'Transitland',
-  enabled: false,
+  icon: TrainIcon,
+  enabled: true,
+  type: 'line',
   source: {
     id: 'transitland',
     type: 'vector',
@@ -52,7 +58,6 @@ const transitLand = {
   },
   meta: {
     id: 'transitland',
-    type: 'line',
     source: 'transitland',
     slot: 'middle',
     'source-layer': 'routes',
@@ -125,8 +130,11 @@ const transitLand = {
 
 // mapbox://mapbox.mapbox-traffic-v1
 const traffic = {
+  id: 'traffic',
   name: 'Mapbox traffic',
-  enabled: false,
+  icon: CarFrontIcon,
+  enabled: true,
+  type: 'line',
   source: {
     id: 'traffic',
     type: 'vector',
@@ -163,41 +171,9 @@ const traffic = {
   },
 }
 
-type Layer = {
-  name: string
-  enabled: boolean
-  source: {
-    id: string
-    type: string
-    tiles?: string[]
-    tileSize?: number
-    attribution?: string
-    maxzoom?: number
-    url?: string
-  }
-  meta: any
-}
-
-export const layers: {
-  [key in MapLayer]: {
-    layers: Layer[]
-    name: string
-  }
-} = {
-  cycling: {
-    layers: [cyclOSM],
-    name: 'Cycling',
-  },
-  transit: {
-    layers: [transitLand],
-    name: 'Transit',
-  },
-  traffic: {
-    layers: [traffic],
-    name: 'Traffic',
-  },
-  terrain: {
-    layers: [],
-    name: 'Terrain',
-  },
-}
+export const layers: Layer[] = [
+  cyclOSM,
+  waymarkedTrails,
+  transitLand,
+  traffic,
+] as Layer[]

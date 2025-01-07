@@ -15,6 +15,7 @@ import HotkeysMenu from '@/components/HotkeysMenu.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { Spinner } from '@/components/ui/spinner'
 import { AlertDialog, AlertDialogContent } from '@/components/ui/alert-dialog'
+import { P } from '@/components/ui/typography'
 
 const route = useRoute()
 const themeStore = useThemeStore()

@@ -1,9 +1,4 @@
 # TODO: Publish images for server parchment-server and parchment-web
-
-networks:
-  parchment-network:
-    driver: bridge
-
 volumes:
   osm-db:
   server-db:
@@ -22,8 +17,6 @@ services:
       - osm-db:/var/lib/postgresql/data
     ports:
       - '5433:5432'
-    networks:
-      - parchment-network
 
   # Parchment backend server DB
   server-db:
@@ -37,8 +30,6 @@ services:
       - server-db:/var/lib/postgresql/data
     ports:
       - '5432:5432'
-    networks:
-      - parchment-network
 
   # Parchment backend (Elysia)
   server:
@@ -54,8 +45,6 @@ services:
       STANDARD_RESPONSE_FORMAT: 'true'
     ports:
       - '5000:5000' # Expose backend to host
-    networks:
-      - parchment-network
     depends_on:
       - server-db
     #   - pelias-api
@@ -73,18 +62,53 @@ services:
       context: .
       dockerfile: web/${DOCKERFILE:-Dockerfile.prod}
     environment:
-      - VITE_SERVER_URL=${VITE_SERVER_URL}
+      - VITE_SERVER_ORIGIN=${VITE_SERVER_ORIGIN:-http://localhost:5000}
       - VITE_PORT=${VITE_PORT}
     ports:
       - '5173:${VITE_PORT:-5173}'
-    networks:
-      - parchment-network
     volumes:
       - ./web:/app/web
       - /app/web/node_modules
       - ./server/src/types:/app/server/src/types
     depends_on:
       - server
+
+  # Valhalla (Routing Engine)
+  valhalla:
+    container_name: valhalla
+    image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
+    ports:
+      - 8002:8002
+    #build:
+    #  context: .
+    #  args:
+    #    - VALHALLA_UID=1000
+    #    - VALHALLA_GID=1000
+    volumes:
+      - ./valhalla/:/custom_files
+      # - ./gtfs_feeds:/gtfs_feeds  # only enable with build_transit=True
+    environment:
+      # Auto-download PBFs from Geofabrik
+      # - tile_urls=https://download.geofabrik.de/europe/andorra-latest.osm.pbf https://download.geofabrik.de/europe/albania-latest.osm.pbf
+      - server_threads=10 # determines how many threads will be used to run the valhalla server
+      - serve_tiles=True # If True, starts the service. If false, stops after building the graph.
+      - use_tiles_ignore_pbf=True # load existing valhalla_tiles.tar directly
+      - tileset_name=valhalla_tiles # name of the resulting graph on disk
+      - build_elevation=False # build elevation with "True" or "Force": will download only the elevation for areas covered by the graph tiles
+      - build_admins=False # build admins db with "True" or "Force"
+      - build_time_zones=False # build timezone db with "True" or "Force"
+      - build_transit=False # build transit, needs existing GTFS directories mapped to /gtfs_feeds
+      - build_tar=True # build an indexed tar file from the tile_dir for faster graph loading times
+      - force_rebuild=False # forces a rebuild of the routing tiles with "True"
+      - update_existing_config=True # if there are new config entries in the default config, add them to the existing config
+      # - path_extension=graphs  # this path will be internally appended to /custom_files; no leading or trailing path separator!
+    # adapt to the expected build time
+    # healthcheck:
+    #   test: curl --fail -s http://localhost:8002/status || exit 1
+    #   interval: 1s
+    #   retries: 10
+    #   start_period: 2s
+    #   timeout: 1s
 
   # # GraphHopper (Routing Engine)
   # graphhopper:
@@ -94,8 +118,6 @@ services:
   #   command: sh -c "./graphhopper.sh web /data/planet.osm.pbf"
   #   ports:
   #     - '8989:8989'
-  #   networks:
-  #     - parchment-network
 
   # # Martin (Tile Server)
   # martin:
@@ -106,8 +128,6 @@ services:
   #     - '3000:3000'
   #   depends_on:
   #     - postgis
-  #   networks:
-  #     - parchment-network
 
   # # Pelias API (Search Engine)
   # pelias-api:
@@ -118,8 +138,6 @@ services:
   #     - opensearch
   #   ports:
   #     - '4000:4000'
-  #   networks:
-  #     - parchment-network
 
   # pelias-placeholder:
   #   image: pelias/placeholder:latest
@@ -129,8 +147,6 @@ services:
   #     - opensearch
   #   ports:
   #     - '4001:4001'
-  #   networks:
-  #     - parchment-network
 
   # # Pelias Importer (OSM)
   # pelias-osm:
@@ -144,8 +160,6 @@ services:
   #   command: sh -c "pelias prepare all && pelias import openstreetmap"
   #   ports:
   #     - '4002:4002'
-  #   networks:
-  #     - parchment-network
 
   # # Pelias Importer (Who's On First data)
   # pelias-wof:
@@ -157,8 +171,6 @@ services:
   #   command: sh -c "pelias import whosonfirst"
   #   ports:
   #     - '4003:4003'
-  #   networks:
-  #     - parchment-network
 
   # # OpenSearch
   # opensearch:
@@ -172,5 +184,3 @@ services:
   #     - '9200:9200'
   #   volumes:
   #     - opensearch_data:/usr/share/opensearch/data
-  #   networks:
-  #     - parchment-network

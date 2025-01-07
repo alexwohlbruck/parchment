@@ -1,9 +1,11 @@
 import { Globe2Icon } from 'lucide-vue-next'
+import { Component } from 'vue'
 import { ZodObject } from 'zod'
 
 export type Icon = typeof Globe2Icon
 
 export enum DialogType {
+  Component,
   Confirm,
   Prompt,
   AutoForm,
@@ -11,10 +13,16 @@ export enum DialogType {
 }
 
 export interface BaseDialogOptions {
-  title: string
+  title?: string
   description?: string
   continueText?: string
   cancelText?: string
+}
+
+export interface ComponentDialogOptions extends BaseDialogOptions {
+  component: Component
+  props?: any
+  destructive?: boolean
 }
 
 export interface ConfirmDialogOptions extends BaseDialogOptions {
@@ -33,6 +41,7 @@ export interface AutoFormDialogOptions extends BaseDialogOptions {
 export interface TemplateDialogOptions extends BaseDialogOptions {}
 
 export type DialogOptions =
+  | ComponentDialogOptions
   | ConfirmDialogOptions
   | PromptDialogOptions
   | AutoFormDialogOptions

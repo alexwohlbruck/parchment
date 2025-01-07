@@ -5,7 +5,11 @@ import { Elysia } from 'elysia'
 import { swagger } from '@elysiajs/swagger'
 import { cors } from '@elysiajs/cors'
 import { cors as corsConfig, swagger as swaggerConfig } from './config'
-import { auth as authController, user as userController } from './controllers'
+import {
+  auth as authController,
+  user as userController,
+  directions as directionsController,
+} from './controllers'
 
 const app = new Elysia()
 
@@ -14,6 +18,7 @@ app.use(swagger(swaggerConfig))
 
 app.use(authController)
 app.use(userController)
+app.use(directionsController)
 
 app.onError(({ code }) => {
   if (code === 'NOT_FOUND') return 'Route not found :(' // TODO: i18n, proper error

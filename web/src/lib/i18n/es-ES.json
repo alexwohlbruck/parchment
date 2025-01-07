@@ -1,5 +1,16 @@
 {
   "palette": {
+    "general": {
+      "yes": "Sí",
+      "no": "No",
+      "cancel": "Cancelar",
+      "continue": "Continuar",
+      "delete": "Eliminar",
+      "confirm": "Confirmar",
+      "close": "Cerrar",
+      "save": "Guardar",
+      "name": "Nombre"
+    },
     "placeholder": {
       "default": "Buscar cerca...",
       "command": "Ejecutar comando...",
@@ -50,11 +61,11 @@
           }
         }
       },
-      "chooseMapLibrary": {
-        "name": "Elegir biblioteca de mapas",
-        "description": "Cambiar la biblioteca de JavaScript utilizada para renderizar el mapa",
+      "chooseMapEngine": {
+        "name": "Elegir motor de mapas",
+        "description": "Cambiar el motor de JavaScript utilizado para renderizar el mapa",
         "arguments": {
-          "library": {
+          "engine": {
             "name": "Biblioteca de mapas",
             "values": {
               "mapbox": {
@@ -87,6 +98,70 @@
   "map": {
     "title": "Mapa"
   },
+  "layers": {
+    "title": "Capas",
+    "info": {
+      "title": "Información de la capa",
+      "fields": {
+        "id": "ID de la capa",
+        "name": "Nombre",
+        "enabled": "Habilitado",
+        "type": {
+          "title": "Tipo de capa",
+          "values": {
+            "fill": "Relleno",
+            "line": "Línea",
+            "symbol": "Símbolo",
+            "circle": "Círculo",
+            "heatmap": "Mapa de calor",
+            "fill-extrusion": "Extrusión de relleno",
+            "raster": "Raster",
+            "raster-particle": "Partícula de raster",
+            "hillshade": "Sombreado de colinas",
+            "model": "Modelo",
+            "background": "Fondo",
+            "sky": "Cielo",
+            "slot": "Ranura",
+            "clip": "Recorte"
+          }
+        }
+      }
+    },
+    "source": {
+      "title": "Fuente de datos",
+      "fields": {
+        "useExisting": "Usar fuente existente",
+        "id": "ID de la fuente",
+        "type": "Tipo de fuente",
+        "values": {
+          "raster": "Ráster",
+          "vector": "Vectorial"
+        },
+        "tileConfiguration": {
+          "title": "Configuración de teselas",
+          "values": {
+            "tilejson": "TileJSON",
+            "custom": "Personalizado"
+          }
+        },
+        "url": "URL de TileJSON",
+        "tiles": "Teselas",
+        "tileUrlPlaceholder": "URL de tesela {0}",
+        "tileSize": "Tamaño de tesela",
+        "attribution": {
+          "title": "Atribución",
+          "url": "URL de atribución",
+          "name": "Nombre de atribución"
+        }
+      }
+    },
+    "meta": {
+      "title": "Configuración personalizada",
+      "fields": {
+        "placeholder": "Introduzca JSON para el campo meta"
+      }
+    }
+  },
   "directions": {
     "title": "Direcciones"
   },
@@ -109,7 +184,16 @@
     "title": "Ajustes",
     "description": "Administra la configuración de tu cuenta y el comportamiento de la aplicación",
     "account": {
-      "title": "Cuenta"
+      "title": "Cuenta",
+      "user": {
+        "title": "Usuario"
+      },
+      "sessions": {
+        "title": "Sesiones"
+      },
+      "passkeys": {
+        "title": "Claves de acceso"
+      }
     },
     "behavior": {
       "title": "Comportamiento"
@@ -158,22 +242,33 @@
         }
       }
     },
-    "mapData": {
-      "title": "Datos del mapa",
-      "library": {
-        "title": "Biblioteca de mapas",
-        "description": "Elige qué biblioteca de JavaScript te gustaría usar para mostrar el mapa"
+    "mapSettings": {
+      "title": "Mapa",
+      "engine": {
+        "title": "Motor de mapas"
+      },
+      "dataSources": {
+        "title": "Fuentes de datos"
       },
       "layers": {
         "title": "Capas",
         "description": "Elige las capas que se mostrarán en el selector de capas"
       }
     },
+    "users": {
+      "title": "Usuarios y roles",
+      "users": {
+        "title": "Usuarios"
+      },
+      "roles": {
+        "title": "Roles"
+      },
+      "permissions": {
+        "title": "Permisos"
+      }
+    },
     "system": {
       "title": "Sistema"
     }
-  },
-  "layers": {
-    "title": "Capas"
   }
 }

@@ -1,18 +1,22 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { storeToRefs } from 'pinia'
+import { computed } from 'vue'
 import { Toggle } from '@/components/ui/toggle'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useMapStore } from '@/stores/map.store'
-import H5 from '@/components/ui/typography/H5.vue'
-import { basemaps, layers } from '../map/map.data'
-import { Basemap, MapLayer } from '../../types/map.types'
+import { useMapService } from '@/services/map.service'
+import { H5 } from '@/components/ui/typography'
+import { basemaps } from '../map/map.data'
+import { Basemap } from '@/types/map.types'
 
 const mapStore = useMapStore()
-const { mapState } = storeToRefs(mapStore)
+const mapService = useMapService()
 
-function toggleLayer(layerId: MapLayer, pressed: boolean) {
-  mapStore.toggleLayer(layerId, pressed)
+const enabledLayers = computed(() =>
+  mapStore.layers.filter(layer => layer.enabled),
+)
+
+function toggleLayer(layerId: string, pressed: boolean) {
+  mapService.toggleLayer(layerId, pressed)
 }
 </script>
 
@@ -22,7 +26,7 @@ function toggleLayer(layerId: MapLayer, pressed: boolean) {
     <div class="flex gap-2">
       <ToggleGroup
         type="single"
-        :default-value="mapState.basemap"
+        :default-value="mapStore.mapState.basemap"
         @update:model-value="(basemap) => mapStore.setBasemap(basemap as Basemap)"
       >
         <ToggleGroupItem
@@ -42,14 +46,16 @@ function toggleLayer(layerId: MapLayer, pressed: boolean) {
     <H5>Layers</H5>
     <div class="flex gap-2">
       <Toggle
-        v-for="(layer, i) in layers"
+        v-for="(layer, i) in enabledLayers"
         :key="i"
         variant="outline"
         :aria-label="layer.name"
-        :default-value="mapState.layers.includes(layer.id)"
+        :default-value="false"
         @update:pressed="pressed => toggleLayer(layer.id, pressed)"
+        class="flex gap-2"
       >
         <component :is="layer.icon" class="size-5" />
+        <span>{{ layer.name }}</span>
       </Toggle>
     </div>
   </div>

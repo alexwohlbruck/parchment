@@ -1,5 +1,6 @@
-import { Basemap, MapLayer, MapOptions, MapTheme } from '@/types/map.types'
+import { Basemap, Layer, MapOptions, MapTheme } from '@/types/map.types'
 import { Locale } from '@/lib/i18n'
+import { Directions } from '@/types/directions.types'
 
 const defaultOptions: MapOptions = {
   center: [-80.8432808, 35.2205601],
@@ -9,7 +10,6 @@ const defaultOptions: MapOptions = {
   projection: 'mercator',
   theme: 'light',
   basemap: 'standard',
-  layers: [],
 }
 
 export class MapStrategy {
@@ -24,9 +24,12 @@ export class MapStrategy {
 
   initialize() {}
   addDataSource() {}
-  setLocale(locale: Locale) {}
-  setLayers(layers: MapLayer[]) {}
+  setLocale(locale: Locale) {} // TODO:
+  setDirections(directions: Directions) {}
+  unsetDirections() {}
   setMapTheme(theme: MapTheme) {}
   setBasemap(basemap: Basemap) {}
+  setLayers(layers: Layer[]) {}
+  toggleLayer(layerId: string, state?: boolean) {}
   remove() {}
 }

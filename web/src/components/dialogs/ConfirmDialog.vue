@@ -22,8 +22,8 @@ const emit = defineEmits<{
 <template>
   <Dialog defaultOpen>
     <DialogContent>
-      <DialogHeader>
-        <DialogTitle>{{ title }}</DialogTitle>
+      <DialogHeader v-if="title || description">
+        <DialogTitle v-if="title">{{ title }}</DialogTitle>
         <DialogDescription v-if="description">
           {{ description }}
         </DialogDescription>
@@ -32,7 +32,7 @@ const emit = defineEmits<{
       <DialogFooter>
         <DialogClose as-child>
           <Button @click="emit('submit', false)" variant="outline">
-            {{ cancelText || 'Cancel' }}
+            {{ cancelText || $t('general.cancel') }}
           </Button>
         </DialogClose>
         <DialogClose as-child>
@@ -40,7 +40,7 @@ const emit = defineEmits<{
             @click="emit('submit', true)"
             :variant="destructive ? 'destructive' : 'default'"
           >
-            {{ continueText || 'Continue' }}
+            {{ continueText || $t('general.continue') }}
           </Button>
         </DialogClose>
       </DialogFooter>

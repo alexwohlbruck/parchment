@@ -2,6 +2,7 @@
 import { h, onMounted, ref } from 'vue'
 import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
+import { useI18n } from 'vue-i18n'
 import { ColumnDef } from '@tanstack/vue-table'
 import { Passkey } from '@/types/auth.types'
 
@@ -11,12 +12,14 @@ import { useAppService } from '@/services/app.service'
 import { H4 } from '@/components/ui/typography'
 import DataTable from '@/components/table/DataTable.vue'
 import { Button } from '@/components/ui/button'
+import { SettingsSection } from '@/components/settings'
 import { PlusIcon, Trash2Icon } from 'lucide-vue-next'
 
 dayjs.extend(localizedFormat)
 
 const appService = useAppService()
 const authService = useAuthService()
+const { t } = useI18n()
 const passkeys = ref<Passkey[]>([])
 
 const columns: ColumnDef<Passkey>[] = [
@@ -26,7 +29,7 @@ const columns: ColumnDef<Passkey>[] = [
   },
   {
     header: 'Backed Up',
-    accessorFn: info => (info.backedUp ? 'Yes' : 'No'),
+    accessorFn: info => (info.backedUp ? t('general.yes') : t('general.no')),
   },
   {
     header: 'Created',
@@ -83,13 +86,16 @@ onMounted(getPasskeys)
 </script>
 
 <template>
-  <div class="flex w-full align-center justify-between">
-    <H4 class="leading-loose">Passkeys</H4>
+  <SettingsSection
+    :title="$t('settings.account.passkeys.title')"
+    :frame="false"
+  >
+    <template v-slot:actions>
+      <Button @click="addPasskey()" variant="outline" :icon="PlusIcon">
+        Add passkey
+      </Button>
+    </template>
 
-    <Button @click="addPasskey()" variant="outline" :icon="PlusIcon">
-      Add passkey
-    </Button>
-  </div>
-
-  <DataTable class="w-full" :columns="columns" :data="passkeys"></DataTable>
+    <DataTable class="w-full" :columns="columns" :data="passkeys"></DataTable>
+  </SettingsSection>
 </template>

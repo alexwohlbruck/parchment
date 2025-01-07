@@ -11,9 +11,8 @@ interface Props {
   shadow?: boolean
 }
 
-const props = withDefaults(defineProps<Props>(), {
+const { shadow, frame } = withDefaults(defineProps<Props>(), {
   frame: true,
-  msg: () => useI18n().t('message'),
   shadow: true,
 })
 </script>

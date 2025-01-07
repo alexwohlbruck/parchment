@@ -171,10 +171,6 @@ watch([attributionUrl, attributionName], () => {
   }
 })
 
-const allowedLayerTypes = computed(() => {
-  return Object.values(layerSchema.properties.type.enum)
-})
-
 defineExpose({
   submit: onSubmit,
 })

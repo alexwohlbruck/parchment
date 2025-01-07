@@ -35,7 +35,7 @@ onMounted(() => {
     </div>
 
     <div class="overflow-y-auto items-start">
-      <router-view class="w-full max-w-[52rem]" />
+      <router-view class="w-full max-w-[52rem] px-1 pb-1" />
     </div>
   </div>
 </template>

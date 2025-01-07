@@ -3,7 +3,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { createSharedComposable } from '@vueuse/core'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 import { Session } from '@/types/session.types'
-import { PermissionId, PermissionRule } from '@/types/auth.types'
+import { PermissionId, PermissionRule, User } from '@/types/auth.types'
 
 // TODO: Return types
 

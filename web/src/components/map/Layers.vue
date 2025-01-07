@@ -76,7 +76,5 @@ const layerNames = computed(() => {
 </script>
 
 <template>
-  <pre>{{ layerNames }}</pre>
-
   <DataTable :columns="columns" :data="layers" />
 </template>

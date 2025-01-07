@@ -17,6 +17,7 @@ const props = defineProps<ComponentDialogOptions>()
 const isValid = ref(true)
 const componentRef = ref()
 const isLoading = ref(false)
+const isOpen = ref(true)
 
 async function submit() {
   isLoading.value = true
@@ -24,13 +25,15 @@ async function submit() {
     await componentRef.value?.submit?.()
   } finally {
     isLoading.value = false
+    isOpen.value = false
   }
 }
 </script>
 
 <template>
-  <Dialog defaultOpen>
-    <DialogContent class="max-h-[90dvh]">
+  <Dialog :open="isOpen" @update:open="isOpen = $event">
+    <!-- TODO: Mobile layout -->
+    <DialogContent class="max-h-[90dvh] max-w-[50vw]">
       <DialogHeader v-if="props.title || props.description">
         <DialogTitle v-if="props.title">{{ props.title }}</DialogTitle>
         <DialogDescription v-if="props.description">
@@ -49,21 +52,17 @@ async function submit() {
       </div>
 
       <DialogFooter>
-        <DialogClose as-child>
-          <Button variant="outline">
-            {{ props.cancelText || $t('general.cancel') }}
-          </Button>
-        </DialogClose>
-        <DialogClose as-child>
-          <Button
-            @click="submit"
-            :variant="props.destructive ? 'destructive' : 'default'"
-            :disabled="!isValid"
-            :loading="isLoading"
-          >
-            {{ props.continueText || $t('general.continue') }}
-          </Button>
-        </DialogClose>
+        <Button variant="outline" @click="isOpen = false">
+          {{ props.cancelText || $t('general.cancel') }}
+        </Button>
+        <Button
+          @click="submit"
+          :variant="props.destructive ? 'destructive' : 'default'"
+          :disabled="!isValid"
+          :loading="isLoading"
+        >
+          {{ props.continueText || $t('general.continue') }}
+        </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>

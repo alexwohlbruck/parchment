@@ -34,7 +34,7 @@ function authService() {
   }
 
   async function setAuthenticatedUser(user: User, sessionId: Session['id']) {
-    setAuthenticatedUser(user, sessionId)
+    authStore.setAuthenticatedUser(user, sessionId)
     getPermissions()
   }
 

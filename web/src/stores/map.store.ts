@@ -81,6 +81,13 @@ export const useMapStore = defineStore('map', () => {
     }
   }
 
+  function toggleLayer(layerId: Layer['id'], enabled?: boolean) {
+    const layer = layers.value.find(layer => layer.id === layerId)
+    if (layer) {
+      layer.enabled = enabled ?? !layer.enabled
+    }
+  }
+
   function setDirections(directions_: Directions) {
     directions.value = directions_
   }
@@ -102,6 +109,7 @@ export const useMapStore = defineStore('map', () => {
     layers,
     addLayer,
     updateLayer,
+    toggleLayer,
     directions,
     setDirections,
     unsetDirections,

@@ -17,7 +17,7 @@ import { Badge } from '@/components/ui/badge'
 import { H4 } from '@/components/ui/typography'
 import { Trash2Icon } from 'lucide-vue-next'
 import DataTable from '@/components/table/DataTable.vue'
-
+import { SettingsSection } from '@/components/settings'
 dayjs.extend(localizedFormat)
 
 const authService = useAuthService()
@@ -124,9 +124,10 @@ async function deleteSession(sessionId: Session['id']) {
 </script>
 
 <template>
-  <div class="flex w-full align-center justify-between">
-    <H4 class="leading-loose">Sessions</H4>
-  </div>
-
-  <DataTable class="w-full" :columns="columns" :data="sessions"></DataTable>
+  <SettingsSection
+    :title="$t('settings.account.sessions.title')"
+    :frame="false"
+  >
+    <DataTable class="w-full" :columns="columns" :data="sessions"></DataTable>
+  </SettingsSection>
 </template>

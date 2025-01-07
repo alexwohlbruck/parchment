@@ -57,8 +57,8 @@ function onCancel() {
 <template>
   <Dialog defaultOpen>
     <DialogContent>
-      <DialogHeader>
-        <DialogTitle>{{ title }}</DialogTitle>
+      <DialogHeader v-if="title || description">
+        <DialogTitle v-if="title">{{ title }}</DialogTitle>
         <DialogDescription v-if="description">
           {{ description }}
         </DialogDescription>
@@ -82,12 +82,12 @@ function onCancel() {
       <DialogFooter>
         <DialogClose as-child>
           <Button @click="onCancel" variant="outline">
-            {{ cancelText || 'Cancel' }}
+            {{ cancelText || $t('general.cancel') }}
           </Button>
         </DialogClose>
         <DialogClose as-child>
           <Button form="prompt" type="submit" :disabled="!isFormValid">
-            {{ continueText || 'Continue' }}
+            {{ continueText || $t('general.continue') }}
           </Button>
         </DialogClose>
       </DialogFooter>

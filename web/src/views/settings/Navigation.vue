@@ -4,7 +4,7 @@ import { useAuthService } from '@/services/auth.service'
 import { useResponsive } from '@/lib/utils'
 
 import { TransitionFade } from '@morev/vue-transitions'
-import H2 from '@/components/ui/typography/H2.vue'
+import { H3 } from '@/components/ui/typography'
 import { Separator } from '@/components/ui/separator'
 import Button from '@/components/ui/button/Button.vue'
 
@@ -13,7 +13,7 @@ import {
   UserRoundIcon,
   CogIcon,
   PaintbrushIcon,
-  DatabaseIcon,
+  MapIcon,
   ActivityIcon,
   Contact2Icon,
 } from 'lucide-vue-next'
@@ -49,9 +49,9 @@ const pages: {
     icon: PaintbrushIcon,
   },
   {
-    id: 'mapData',
-    to: '/settings/map-data',
-    icon: DatabaseIcon,
+    id: 'mapSettings',
+    to: '/settings/map',
+    icon: MapIcon,
   },
   {
     id: 'users',
@@ -85,10 +85,8 @@ const allowedPages = computed(() => {
 <template>
   <div class="flex flex-col w-full md:w-48 gap-4">
     <div>
-      <H2 class="p-0">{{ $t('settings.title') }}</H2>
+      <H3 class="ml-2">{{ $t('settings.title') }}</H3>
     </div>
-
-    <Separator />
 
     <!-- Grid layout for small devices -->
     <div
@@ -129,12 +127,12 @@ const allowedPages = computed(() => {
         v-for="(page, i) in allowedPages"
         :key="i"
         variant="ghost"
-        class="flex px-3 justify-center gap-3"
+        class="flex px-3 justify-center gap-3 hover:bg-primary/5 hover:text-primary"
         as-child
         :to="page.to"
         :class="
           router.currentRoute.value.path === page.to
-            ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50'
+            ? 'bg-primary/5 text-primary'
             : ''
         "
         :disabled="page.disabled"

@@ -1,14 +1,6 @@
 import { Icon } from '@/types/app.types'
-import { Basemap, MapLayer } from '@/types/map.types'
-import {
-  Globe2Icon,
-  BlendIcon,
-  SatelliteIcon,
-  BikeIcon,
-  TramFrontIcon,
-  CarIcon,
-  MountainSnowIcon,
-} from 'lucide-vue-next'
+import { Basemap } from '@/types/map.types'
+import { Globe2Icon, BlendIcon, SatelliteIcon } from 'lucide-vue-next'
 
 /**
  * TODO:
@@ -39,30 +31,3 @@ export const basemaps: {
     url: 'mapbox://styles/mapbox/satellite-v9',
   },
 }
-
-export const layers: {
-  id: MapLayer
-  name: string
-  icon: Icon
-}[] = [
-  {
-    id: 'cycling',
-    name: 'Cycling',
-    icon: BikeIcon,
-  },
-  {
-    id: 'transit',
-    name: 'Transit',
-    icon: TramFrontIcon,
-  },
-  {
-    id: 'traffic',
-    name: 'Traffic',
-    icon: CarIcon,
-  },
-  {
-    id: 'terrain',
-    name: 'Terrain',
-    icon: MountainSnowIcon,
-  },
-]

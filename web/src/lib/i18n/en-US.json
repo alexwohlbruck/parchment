@@ -1,4 +1,15 @@
 {
+  "general": {
+    "yes": "Yes",
+    "no": "No",
+    "cancel": "Cancel",
+    "continue": "Continue",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "close": "Close",
+    "save": "Save",
+    "name": "Name"
+  },
   "palette": {
     "placeholder": {
       "default": "Search nearby...",
@@ -53,12 +64,12 @@
           }
         }
       },
-      "chooseMapLibrary": {
-        "name": "Choose map library",
-        "description": "Change the javascript library used to render the map",
+      "chooseMapEngine": {
+        "name": "Choose map engine",
+        "description": "Change the javascript engine used to render the map",
         "arguments": {
-          "library": {
-            "name": "Map library",
+          "engine": {
+            "name": "Map engine",
             "values": {
               "mapbox": {
                 "name": "Mapbox GL",
@@ -97,6 +108,70 @@
   "map": {
     "title": "Map"
   },
+  "layers": {
+    "title": "Layers",
+    "info": {
+      "title": "Layer Info",
+      "fields": {
+        "id": "Layer ID",
+        "name": "Layer Name",
+        "enabled": "Enabled",
+        "type": {
+          "title": "Layer Type",
+          "values": {
+            "fill": "Fill",
+            "line": "Line",
+            "symbol": "Symbol",
+            "circle": "Circle",
+            "heatmap": "Heatmap",
+            "fill-extrusion": "Fill Extrusion",
+            "raster": "Raster",
+            "raster-particle": "Raster Particle",
+            "hillshade": "Hillshade",
+            "model": "Model",
+            "background": "Background",
+            "sky": "Sky",
+            "slot": "Slot",
+            "clip": "Clip"
+          }
+        }
+      }
+    },
+    "source": {
+      "title": "Data Source",
+      "fields": {
+        "useExisting": "Use Existing Source",
+        "id": "Source ID",
+        "type": "Source Type",
+        "values": {
+          "raster": "Raster",
+          "vector": "Vector"
+        },
+        "tileConfiguration": {
+          "title": "Tile Configuration",
+          "values": {
+            "tilejson": "TileJSON",
+            "custom": "Custom"
+          }
+        },
+        "url": "TileJSON URL",
+        "tiles": "Tiles",
+        "tileUrlPlaceholder": "Tile URL {0}",
+        "tileSize": "Tile Size",
+        "attribution": {
+          "title": "Attribution",
+          "url": "Attribution URL",
+          "name": "Attribution Name"
+        }
+      }
+    },
+    "meta": {
+      "title": "Custom Configuration",
+      "fields": {
+        "placeholder": "Enter JSON for meta field"
+      }
+    }
+  },
   "directions": {
     "title": "Directions"
   },
@@ -118,7 +193,16 @@
   "settings": {
     "title": "Settings",
     "account": {
-      "title": "Account"
+      "title": "Account",
+      "user": {
+        "title": "User"
+      },
+      "sessions": {
+        "title": "Sessions"
+      },
+      "passkeys": {
+        "title": "Passkeys"
+      }
     },
     "behavior": {
       "title": "Behavior"
@@ -167,11 +251,13 @@
         }
       }
     },
-    "mapData": {
-      "title": "Map data",
-      "library": {
-        "title": "Map library",
-        "description": "Choose which javascript library you would like to use to display the map"
+    "mapSettings": {
+      "title": "Map",
+      "engine": {
+        "title": "Map configuration"
+      },
+      "dataSources": {
+        "title": "Data Sources"
       },
       "layers": {
         "title": "Layers",
@@ -179,13 +265,19 @@
       }
     },
     "users": {
-      "title": "Users & Roles"
+      "title": "Users & Roles",
+      "users": {
+        "title": "Users"
+      },
+      "roles": {
+        "title": "Roles"
+      },
+      "permissions": {
+        "title": "Permissions"
+      }
     },
     "system": {
       "title": "System"
     }
-  },
-  "layers": {
-    "title": "Layers"
   }
 }

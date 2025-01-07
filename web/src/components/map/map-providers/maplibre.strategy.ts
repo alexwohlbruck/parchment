@@ -7,8 +7,8 @@ import {
   ScaleControl,
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { Basemap, MapLayer, MapTheme, MapOptions } from '@/types/map.types'
-import { layers } from '../layers'
+import { Basemap, Layer, MapTheme, MapOptions } from '@/types/map.types'
+import { layers } from '../layers/layers'
 import { Locale } from '@/lib/i18n'
 
 const basemapUrls = {
@@ -74,41 +74,45 @@ export class MaplibreStrategy extends MapStrategy {
     console.log('TODO: Set locale Maplibre')
   }
 
-  setLayers(layerIds: MapLayer[]) {
-    const mapLayers = this.map.getStyle().layers
+  setLayers(layers: Layer[]) {
+    const style = this.map.getStyle()
+    if (!style) return
+    const mapLayers = style.layers
     const ids = mapLayers.map(layer => layer.id)
     ids.forEach((id: any) => {
-      if (!layerIds.includes(id)) {
+      if (!layers.find(layer => layer.id === id)) {
         this.map.removeLayer(id)
       }
     })
 
-    layerIds.forEach(layerId => {
-      const childLayers = layers[layerId].layers
-      childLayers.forEach(layer => {
-        const { meta, source } = layer
-        const id = source.id
+    layers.forEach(layer => {
+      const { meta, source } = layer
 
-        // Emissive strength is not supported in MapLibre
-        Object.keys(meta.paint).forEach(key => {
-          if (key.includes('emissive-strength')) {
-            delete meta.paint[key]
-          }
-        })
+      const sourceId = typeof source === 'string' ? source : source.id
 
-        if (!this.map.getSource(id)) {
-          this.map.addSource(id, {
-            ...source,
-            id,
-          } as any)
+      // Emissive strength is not supported in MapLibre
+      Object.keys(meta.paint).forEach(key => {
+        if (key.includes('emissive-strength')) {
+          delete meta.paint[key]
         }
+      })
 
-        this.map.addLayer({
-          source: id,
-          id,
-          ...meta,
-          slot: 'middle',
-        })
+      if (typeof source === 'object' && !this.map.getSource(sourceId)) {
+        this.map.addSource(sourceId, {
+          ...source,
+          id: sourceId,
+        } as any) // TODO: Fix type
+      }
+
+      this.map.addLayer({
+        ...meta,
+        source: sourceId,
+        id: layer.id,
+        type: layer.type,
+        layout: {
+          ...meta?.layout,
+          visibility: 'none',
+        },
       })
     })
   }

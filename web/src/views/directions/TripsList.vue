@@ -74,7 +74,7 @@ const endTime = computed(() => {
 
 // Generate time labels for the header (15-minute intervals)
 const timeLabels = computed(() => {
-  const labels = []
+  const labels: string[] = []
   let currentTime = dayjs(now).startOf('hour')
   const end = dayjs(endTime.value)
 

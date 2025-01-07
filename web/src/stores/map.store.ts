@@ -65,13 +65,19 @@ export const useMapStore = defineStore('map', () => {
   const layers = ref<Layer[]>(defaultLayers)
 
   function addLayer(layer: Layer) {
+    layers.value = [...layers.value, layer]
+  }
+
+  function updateLayer(layer: Layer) {
     const existingLayerIndex = layers.value.findIndex(
       existingLayer => existingLayer.id === layer.id,
     )
     if (existingLayerIndex !== -1) {
-      layers.value[existingLayerIndex] = layer
-    } else {
-      layers.value = [...layers.value, layer]
+      layers.value = [
+        ...layers.value.slice(0, existingLayerIndex),
+        layer,
+        ...layers.value.slice(existingLayerIndex + 1),
+      ]
     }
   }
 
@@ -95,6 +101,7 @@ export const useMapStore = defineStore('map', () => {
     setBasemap,
     layers,
     addLayer,
+    updateLayer,
     directions,
     setDirections,
     unsetDirections,

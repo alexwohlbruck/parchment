@@ -111,7 +111,7 @@ function openLayerConfigDialog(layer: Layer) {
       :frame="false"
     >
       <template v-slot:actions>
-        <Button variant="outline" @click="openLayerConfigDialog" disabled>
+        <Button variant="outline" @click="openLayerConfigDialog">
           <PlusIcon class="size-4 mr-2" />
           Configure new layer
         </Button>

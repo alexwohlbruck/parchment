@@ -27,19 +27,20 @@ import {
 const mapStore = useMapStore()
 
 const props = defineProps<{
-  layer?: Partial<Layer>
+  layerId?: Layer['id']
 }>()
 
-const layer = props.layer || {}
+const editing = computed(() => props.layerId)
+const layer = editing
+  ? mapStore.layers.find(layer => layer.id === props.layerId)
+  : null
 
 const emit = defineEmits<{
   'update:valid': [valid: boolean]
   submit: [values: any]
 }>()
 
-const useExisting = ref(
-  props.layer ? typeof props.layer.source === 'string' : false,
-)
+const useExistingSource = ref(layer ? typeof layer.source === 'string' : false)
 
 const layerSchema = computed(() => {
   return toTypedSchema(
@@ -51,7 +52,7 @@ const layerSchema = computed(() => {
       type: z
         .enum(Object.values(LayerType) as [string, ...string[]])
         .default('line'),
-      source: useExisting.value
+      source: useExistingSource.value
         ? z.string().min(1, 'required')
         : z
             .object({
@@ -94,14 +95,18 @@ const { handleSubmit, errors, values, meta, setFieldValue } = useForm({
   initialValues: {
     ...layer,
     meta:
-      typeof layer.meta === 'string'
-        ? layer.meta
-        : JSON.stringify(layer.meta, null, 2),
+      typeof (layer?.meta === 'string'
+        ? layer?.meta
+        : JSON.stringify(layer?.meta, null, 2)) || '',
   },
 })
 
 const onSubmit = handleSubmit(values => {
-  mapStore.addLayer(values as Layer)
+  if (editing.value) {
+    mapStore.updateLayer(values as Layer)
+  } else {
+    mapStore.addLayer(values as Layer)
+  }
 })
 
 const form = ref({
@@ -130,24 +135,24 @@ const initializeAttribution = () => {
 initializeAttribution()
 
 const tileConfig = ref(
-  useExisting.value
+  useExistingSource.value
     ? 'custom'
-    : typeof layer.source === 'object' && layer.source.url
+    : typeof layer?.source === 'object' && layer?.source.url
     ? 'tilejson'
     : 'custom',
 )
 const tileInputs = ref(
-  useExisting.value
+  useExistingSource.value
     ? []
     : [
-        ...(typeof layer.source === 'object' ? layer.source.tiles || [] : []),
+        ...(typeof layer?.source === 'object' ? layer?.source.tiles || [] : []),
         '',
       ],
 )
 
 const handleNewTileInput = () => {
   const tiles = tileInputs.value.filter(tile => tile !== '')
-  if (!useExisting.value && typeof values.source === 'object') {
+  if (!useExistingSource.value && typeof values.source === 'object') {
     setFieldValue('source.tiles', tiles)
   }
   tileInputs.value = [...tiles, '']
@@ -163,7 +168,7 @@ watch(
 
 watch([attributionUrl, attributionName], () => {
   if (
-    !useExisting.value &&
+    !useExistingSource.value &&
     typeof values.source === 'object' &&
     (attributionUrl.value || attributionName.value)
   ) {
@@ -261,7 +266,7 @@ defineExpose({
         <Switch disabled></Switch>
       </SettingsItem>
 
-      <template v-if="useExisting">
+      <template v-if="useExistingSource">
         <SettingsItem :title="$t('layers.source.fields.id')">
           <Select>
             <SelectTrigger class="w-fit">
@@ -351,14 +356,18 @@ defineExpose({
             </FormItem>
           </FormField>
 
-          <SettingsItem :title="$t('layers.source.fields.tileSize')">
-            <Input
-              v-model="(values.source as Source).tileSize"
-              type="number"
-              :placeholder="$t('layers.source.fields.tileSize')"
-              class="w-fit"
-            />
-          </SettingsItem>
+          <FormField name="source.tileSize" v-slot="{ componentField }">
+            <FormItem>
+              <SettingsItem :title="$t('layers.source.fields.tileSize')">
+                <Input
+                  v-bind="componentField"
+                  type="number"
+                  :placeholder="$t('layers.source.fields.tileSize')"
+                  class="w-fit"
+                />
+              </SettingsItem>
+            </FormItem>
+          </FormField>
 
           <SettingsItem :title="$t('layers.source.fields.attribution.title')">
             <div class="flex flex-col gap-2">
@@ -377,14 +386,18 @@ defineExpose({
         </template>
 
         <template v-else>
-          <SettingsItem :title="$t('layers.source.fields.url')">
-            <Input
-              v-model="(values.source as Source).url"
-              type="text"
-              :placeholder="$t('layers.source.fields.url')"
-              class="w-fit"
-            />
-          </SettingsItem>
+          <FormField name="source.url" v-slot="{ componentField }">
+            <FormItem>
+              <SettingsItem :title="$t('layers.source.fields.url')">
+                <Input
+                  v-bind="componentField"
+                  type="text"
+                  :placeholder="$t('layers.source.fields.url')"
+                  class="w-fit"
+                />
+              </SettingsItem>
+            </FormItem>
+          </FormField>
         </template>
       </template>
     </SettingsSection>
@@ -395,7 +408,6 @@ defineExpose({
           <FormControl>
             <Textarea
               v-bind="componentField"
-              v-model="values.meta"
               rows="10"
               :placeholder="$t('layers.meta.fields.placeholder')"
             />

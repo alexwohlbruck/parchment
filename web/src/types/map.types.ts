@@ -23,9 +23,14 @@ export type MapEvents = {
   }
 }
 
+export enum SourceType {
+  RASTER = 'raster',
+  VECTOR = 'vector',
+}
+
 export type Source = {
   id: string
-  type: string
+  type: SourceType
   url?: string
   tiles?: string[]
   tileSize?: number

@@ -110,41 +110,65 @@
   },
   "layers": {
     "title": "Layers",
-    "fields": {
-      "id": "Layer ID",
-      "name": "Layer Name",
-      "enabled": "Enabled",
-      "type": {
-        "title": "Layer Type",
+    "info": {
+      "title": "Layer Info",
+      "fields": {
+        "id": "Layer ID",
+        "name": "Layer Name",
+        "enabled": "Enabled",
+        "type": {
+          "title": "Layer Type",
+          "values": {
+            "fill": "Fill",
+            "line": "Line",
+            "symbol": "Symbol",
+            "circle": "Circle",
+            "heatmap": "Heatmap",
+            "fill-extrusion": "Fill Extrusion",
+            "raster": "Raster",
+            "raster-particle": "Raster Particle",
+            "hillshade": "Hillshade",
+            "model": "Model",
+            "background": "Background",
+            "sky": "Sky",
+            "slot": "Slot",
+            "clip": "Clip"
+          }
+        }
+      }
+    },
+    "source": {
+      "title": "Data Source",
+      "fields": {
+        "useExisting": "Use Existing Source",
+        "id": "Source ID",
+        "type": "Source Type",
         "values": {
-          "fill": "Fill",
-          "line": "Line",
-          "symbol": "Symbol",
-          "circle": "Circle",
-          "heatmap": "Heatmap",
-          "fill-extrusion": "Fill Extrusion",
           "raster": "Raster",
-          "raster-particle": "Raster Particle",
-          "hillshade": "Hillshade",
-          "model": "Model",
-          "background": "Background",
-          "sky": "Sky",
-          "slot": "Slot",
-          "clip": "Clip"
+          "vector": "Vector"
         },
-        "source": {
-          "id": "Source ID",
-          "type": "Source Type",
-          "tileConfiguration": "Tile Configuration",
-          "url": "URL",
-          "tiles": "Tiles",
-          "tileUrlX": "Tile URL {x}",
-          "tileSize": "Tile Size",
-          "attribution": "Attribution",
-          "attributionUrl": "Attribution URL",
-          "attributionName": "Attribution Name"
+        "tileConfiguration": {
+          "title": "Tile Configuration",
+          "values": {
+            "tilejson": "TileJSON",
+            "custom": "Custom"
+          }
         },
-        "custom": "Custom Configuration"
+        "url": "TileJSON URL",
+        "tiles": "Tiles",
+        "tileUrlPlaceholder": "Tile URL {0}",
+        "tileSize": "Tile Size",
+        "attribution": {
+          "title": "Attribution",
+          "url": "Attribution URL",
+          "name": "Attribution Name"
+        }
+      }
+    },
+    "meta": {
+      "title": "Custom Configuration",
+      "fields": {
+        "placeholder": "Enter JSON for meta field"
       }
     }
   },

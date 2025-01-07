@@ -49,13 +49,8 @@ const columns: ColumnDef<Layer>[] = [
     header: t('layers.info.fields.enabled'),
     cell: ({ row }) =>
       h(Switch, {
-        disabled: true, // TODO: Toggleable layers
         checked: row.original.enabled,
-        onCheckedChange: (checked: boolean) => {
-          const mapStore = useMapStore()
-          // TODO:
-          // mapStore.toggleLayer(row.original.id, checked)
-        },
+        onClick: () => mapStore.toggleLayer(row.original.id),
       }),
   },
   {

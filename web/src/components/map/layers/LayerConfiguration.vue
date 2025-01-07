@@ -102,7 +102,11 @@ const { handleSubmit, errors, values, meta, setFieldValue } = useForm({
 })
 
 const onSubmit = handleSubmit(values => {
-  mapStore.addLayer(values as Layer)
+  if (editing.value) {
+    mapStore.updateLayer(values as Layer)
+  } else {
+    mapStore.addLayer(values as Layer)
+  }
 })
 
 const form = ref({

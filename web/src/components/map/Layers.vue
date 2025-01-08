@@ -1,21 +1,22 @@
 <script setup lang="ts">
-import { useMapStore } from '@/stores/map.store'
-import { useAppService } from '@/services/app.service'
-import { storeToRefs } from 'pinia'
-import { type Layer } from '@/types/map.types'
-import { useI18n } from 'vue-i18n'
 import { computed, h } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useI18n } from 'vue-i18n'
+import { PencilIcon } from 'lucide-vue-next'
+import { useMapStore } from '@/stores/map.store'
+import { useMapService } from '@/services/map.service'
+import { useAppService } from '@/services/app.service'
+import { type Layer } from '@/types/map.types'
 import { ColumnDef } from '@tanstack/vue-table'
 import LayerConfiguration from './layers/LayerConfiguration.vue'
 import DataTable from '@/components/table/DataTable.vue'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { PencilIcon } from 'lucide-vue-next'
-
-const mapStore = useMapStore()
-const { layers } = storeToRefs(mapStore)
 
 const appService = useAppService()
+const mapService = useMapService()
+const mapStore = useMapStore()
+const { layers } = storeToRefs(mapStore)
 const { t } = useI18n()
 
 function openLayerConfigDialog(layerId?: Layer['id']) {
@@ -50,7 +51,7 @@ const columns: ColumnDef<Layer>[] = [
     cell: ({ row }) =>
       h(Switch, {
         checked: row.original.enabled,
-        onClick: () => mapStore.toggleLayer(row.original.id),
+        onClick: () => mapService.toggleLayer(row.original.id),
       }),
   },
   {
@@ -64,10 +65,6 @@ const columns: ColumnDef<Layer>[] = [
       }),
   },
 ]
-
-const layerNames = computed(() => {
-  return layers.value.map(layer => layer.name)
-})
 </script>
 
 <template>

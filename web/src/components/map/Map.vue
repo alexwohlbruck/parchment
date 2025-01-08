@@ -53,19 +53,19 @@ onMounted(() => {
     },
   )
 
-  watch(
-    () => mapStore.layers,
-    layers => {
-      map.setLayers(layers)
-    },
-  )
+  // watch(
+  //   () => mapStore.layers,
+  //   layers => {
+  //     map.setLayers(layers)
+  //   },
+  // )
 
-  watch(
-    () => mapStore.mapEngine,
-    mapEngine => {
-      map = getMapInstance(mapEngine)
-    },
-  )
+  // watch(
+  //   () => mapStore.mapEngine,
+  //   mapEngine => {
+  //     map = getMapInstance(mapEngine)
+  //   },
+  // )
 
   watch(
     () => mapStore.directions,

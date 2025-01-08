@@ -82,9 +82,20 @@ export const useMapStore = defineStore('map', () => {
   }
 
   function toggleLayer(layerId: Layer['id'], enabled?: boolean) {
+    console.log('toggleLayer', layerId, enabled)
     const layer = layers.value.find(layer => layer.id === layerId)
     if (layer) {
       layer.enabled = enabled ?? !layer.enabled
+      mapInstance.value?.toggleLayerVisibility(layerId, enabled)
+    }
+  }
+
+  function toggleLayerVisibility(layerId: Layer['id'], enabled: boolean) {
+    console.log('toggleLayerVisibility', layerId, enabled)
+    const layer = layers.value.find(layer => layer.id === layerId)
+    if (layer) {
+      layer.visible = enabled
+      mapInstance.value?.toggleLayerVisibility(layerId, enabled)
     }
   }
 
@@ -110,6 +121,7 @@ export const useMapStore = defineStore('map', () => {
     addLayer,
     updateLayer,
     toggleLayer,
+    toggleLayerVisibility,
     directions,
     setDirections,
     unsetDirections,

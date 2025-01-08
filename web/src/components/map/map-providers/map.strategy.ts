@@ -31,5 +31,6 @@ export class MapStrategy {
   setBasemap(basemap: Basemap) {}
   setLayers(layers: Layer[]) {}
   toggleLayer(layerId: string, state?: boolean) {}
+  toggleLayerVisibility(layerId: Layer['id'], state?: boolean) {}
   remove() {}
 }

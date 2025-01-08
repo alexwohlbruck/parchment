@@ -186,7 +186,6 @@ defineExpose({
   <form @submit="onSubmit" class="space-y-4">
     <SettingsSection
       :title="$t('layers.info.title')"
-      class="mt-4"
       :frame="false"
       :shadow="false"
     >
@@ -402,9 +401,13 @@ defineExpose({
       </template>
     </SettingsSection>
 
-    <FormField name="meta" v-slot="{ componentField }">
-      <FormItem>
-        <SettingsSection :title="$t('layers.meta.title')">
+    <SettingsSection
+      :title="$t('layers.meta.title')"
+      :frame="false"
+      :shadow="false"
+    >
+      <FormField name="meta" v-slot="{ componentField }">
+        <FormItem>
           <FormControl>
             <Textarea
               v-bind="componentField"
@@ -412,8 +415,8 @@ defineExpose({
               :placeholder="$t('layers.meta.fields.placeholder')"
             />
           </FormControl>
-        </SettingsSection>
-      </FormItem>
-    </FormField>
+        </FormItem>
+      </FormField>
+    </SettingsSection>
   </form>
 </template>

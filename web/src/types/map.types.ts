@@ -60,6 +60,7 @@ export type Layer = {
   name: string
   icon: Icon
   enabled: boolean
+  visible: boolean
   type: LayerType
   source: string | Source
   meta?: any

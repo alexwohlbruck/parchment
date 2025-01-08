@@ -1,15 +1,16 @@
-import { ref } from 'vue'
-import type { MapEvents, MapEngine } from '@/types/map.types'
+import type { Layer, MapEvents } from '@/types/map.types'
 import { useMapStore } from '../stores/map.store'
 import { createSharedComposable } from '@vueuse/core'
-import { storeToRefs } from 'pinia'
 
 function mapService() {
-  const store = useMapStore()
-  const { mapInstance: map } = storeToRefs(store)
+  const mapStore = useMapStore()
 
-  function toggleLayer(layerId: string, state?: boolean) {
-    map.value?.toggleLayer(layerId, state)
+  function toggleLayer(layerId: Layer['id'], state?: boolean) {
+    mapStore.toggleLayer(layerId, state)
+  }
+
+  function toggleLayerVisibility(layerId: Layer['id'], state: boolean) {
+    mapStore.toggleLayerVisibility(layerId, state)
   }
 
   /**
@@ -19,24 +20,25 @@ function mapService() {
     event: K,
     handler: (data: MapEvents[K]) => void,
   ) {
-    store.on(event, handler)
+    mapStore.on(event, handler)
   }
 
   function off<K extends keyof MapEvents>(
     event: K,
     handler: (data: MapEvents[K]) => void,
   ) {
-    store.off(event, handler)
+    mapStore.off(event, handler)
   }
 
   function emit<K extends keyof MapEvents>(event: K, data: MapEvents[K]) {
-    store.emit(event, data)
+    mapStore.emit(event, data)
   }
 
   return {
     toggleLayer,
-    setMapEngine: store.setMapEngine,
-    setDirections: store.setDirections,
+    toggleLayerVisibility,
+    setMapEngine: mapStore.setMapEngine,
+    setDirections: mapStore.setDirections,
     on,
     off,
     emit,

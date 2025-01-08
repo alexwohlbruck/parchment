@@ -6,6 +6,7 @@ const cyclOSM = {
   name: 'CyclOSM',
   icon: BikeIcon,
   enabled: true,
+  visible: false,
   type: 'raster',
   source: {
     id: 'cyclosm',
@@ -30,6 +31,7 @@ const waymarkedTrails = {
   name: 'Waymarked Trails',
   icon: BikeIcon,
   enabled: false,
+  visible: false,
   type: 'raster',
   source: {
     id: 'waymarkedTrails',
@@ -47,6 +49,7 @@ const transitLand = {
   name: 'Transitland',
   icon: TrainIcon,
   enabled: true,
+  visible: false,
   type: 'line',
   source: {
     id: 'transitland',
@@ -134,6 +137,7 @@ const traffic = {
   name: 'Mapbox traffic',
   icon: CarFrontIcon,
   enabled: true,
+  visible: false,
   type: 'line',
   source: {
     id: 'traffic',

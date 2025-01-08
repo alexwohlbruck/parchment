@@ -189,7 +189,7 @@ export class MapboxStrategy extends MapStrategy {
         slot: 'middle',
         layout: {
           ...meta?.layout,
-          visibility: 'none',
+          visibility: layer.visible ? 'visible' : 'none',
         },
       })
     })
@@ -341,7 +341,7 @@ export class MapboxStrategy extends MapStrategy {
     this.map.setStyle(url)
   }
 
-  toggleLayer(layerId: string, state?: boolean) {
+  toggleLayerVisibility(layerId: Layer['id'], state: boolean) {
     this.map.setLayoutProperty(
       layerId,
       'visibility',

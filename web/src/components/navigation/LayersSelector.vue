@@ -6,7 +6,7 @@ import { useMapStore } from '@/stores/map.store'
 import { useMapService } from '@/services/map.service'
 import { H5 } from '@/components/ui/typography'
 import { basemaps } from '../map/map.data'
-import { Basemap } from '@/types/map.types'
+import { Basemap, Layer } from '@/types/map.types'
 
 const mapStore = useMapStore()
 const mapService = useMapService()
@@ -15,8 +15,8 @@ const enabledLayers = computed(() =>
   mapStore.layers.filter(layer => layer.enabled),
 )
 
-function toggleLayer(layerId: string, pressed: boolean) {
-  mapService.toggleLayer(layerId, pressed)
+function toggleLayerVisibility(layerId: Layer['id'], pressed: boolean) {
+  mapService.toggleLayerVisibility(layerId, pressed)
 }
 </script>
 
@@ -50,8 +50,8 @@ function toggleLayer(layerId: string, pressed: boolean) {
         :key="i"
         variant="outline"
         :aria-label="layer.name"
-        :default-value="false"
-        @update:pressed="pressed => toggleLayer(layer.id, pressed)"
+        :default-value="layer.visible || false"
+        @update:pressed="pressed => toggleLayerVisibility(layer.id, pressed)"
         class="flex gap-2"
       >
         <component :is="layer.icon" class="size-5" />

@@ -27,27 +27,20 @@ onMounted(() => {
 
   // Watch for map store changes and update map accordingly
 
-  watch(locale, locale => {
-    map.setLocale(locale as Locale)
-  })
+  // watch(locale, locale => {
+  //   map.setLocale(locale as Locale)
+  // })
 
-  watch(dark, dark => {
-    map.setMapTheme(dark ? 'dark' : 'light')
-  })
+  // watch(dark, dark => {
+  //   map.setMapTheme(dark ? 'dark' : 'light')
+  // })
 
-  watch(
-    () => mapStore.mapState.basemap,
-    basemap => {
-      map.setBasemap(basemap)
-    },
-  )
-
-  watch(
-    () => mapStore.layers,
-    layers => {
-      map.setLayers(layers)
-    },
-  )
+  // watch(
+  //   () => mapStore.mapState.basemap,
+  //   basemap => {
+  //     map.setBasemap(basemap)
+  //   },
+  // )
 
   // watch(
   //   () => mapStore.mapEngine,
@@ -56,16 +49,16 @@ onMounted(() => {
   //   },
   // )
 
-  watch(
-    () => mapStore.directions,
-    directions => {
-      if (directions) {
-        map.setDirections(directions)
-      } else {
-        map.unsetDirections()
-      }
-    },
-  )
+  // watch(
+  //   () => mapStore.directions,
+  //   directions => {
+  //     if (directions) {
+  //       map.setDirections(directions)
+  //     } else {
+  //       map.unsetDirections()
+  //     }
+  //   },
+  // )
 })
 
 onUnmounted(() => {

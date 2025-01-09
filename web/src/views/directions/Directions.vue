@@ -52,13 +52,11 @@ const modes = [
   },
 ]
 
-// Watch for mode changes and recalculate directions
 watch(selectedMode, () => {
   getDirections()
 })
 
-// When map is clicked, fill in the coordinates in the location list
-useMapListener('map:click', data => {
+useMapListener('click', data => {
   const [lon, lat] = data.coordinates
   const text = `${lat.toFixed(6)}, ${lon.toFixed(6)}`
 

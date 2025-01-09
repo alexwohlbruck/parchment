@@ -13,7 +13,7 @@ const defaultOptions: MapOptions = {
 }
 
 export class MapStrategy {
-  map: any
+  mapInstance: any
   container: HTMLElement
   options: MapOptions
 
@@ -29,7 +29,9 @@ export class MapStrategy {
   unsetDirections() {}
   setMapTheme(theme: MapTheme) {}
   setBasemap(basemap: Basemap) {}
-  setLayers(layers: Layer[]) {}
+  addLayer(layer: Layer) {}
+  removeLayer(layerId: Layer['id']) {}
+  updateLayer(layerId: Layer['id'], updates: Partial<Layer>) {}
   toggleLayer(layerId: string, state?: boolean) {}
   toggleLayerVisibility(layerId: Layer['id'], state?: boolean) {}
   remove() {}

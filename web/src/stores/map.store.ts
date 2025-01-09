@@ -15,10 +15,15 @@ import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 const emitter = mitt<MapEvents>()
 
 export const useMapStore = defineStore('map', () => {
-  const mapStrategy = ref<MapStrategy>()
+  console.count('store instantiated')
+  let mapStrategy: MapStrategy
+  let setInstanceCount = 0
 
-  function setMapInstance(map: MapStrategy) {
-    mapStrategy.value = map
+  function setMapStrategy(map: MapStrategy) {
+    console.count('setMapInstance called')
+    setInstanceCount++
+    console.log('Total setMapInstance calls:', setInstanceCount)
+    mapStrategy = map
   }
 
   const mapEngine = ref<MapEngine>('mapbox')
@@ -64,36 +69,66 @@ export const useMapStore = defineStore('map', () => {
 
   const layers = ref<Layer[]>(defaultLayers)
 
-  function addLayer(layer: Layer) {
-    layers.value = [...layers.value, layer]
+  function initializeLayers(defaultLayers: Layer[]) {
+    layers.value = defaultLayers
+    defaultLayers.forEach(layer => {
+      if (layer.enabled) {
+        mapStrategy?.addLayer(layer)
+      }
+    })
   }
 
-  function updateLayer(layer: Layer) {
-    const existingLayerIndex = layers.value.findIndex(
-      existingLayer => existingLayer.id === layer.id,
-    )
-    if (existingLayerIndex !== -1) {
-      layers.value = [
-        ...layers.value.slice(0, existingLayerIndex),
-        layer,
-        ...layers.value.slice(existingLayerIndex + 1),
-      ]
+  function addLayer(layer: Layer) {
+    layers.value.push(layer)
+    if (layer.enabled) {
+      mapStrategy?.addLayer(layer)
+    }
+  }
+
+  function removeLayer(layerId: Layer['id']) {
+    const index = layers.value.findIndex(layer => layer.id === layerId)
+    if (index !== -1) {
+      const layer = layers.value[index]
+      if (layer.enabled) {
+        mapStrategy?.removeLayer(layerId)
+      }
+      layers.value.splice(index, 1)
+    }
+  }
+
+  function updateLayer(updatedLayer: Layer) {
+    const index = layers.value.findIndex(layer => layer.id === updatedLayer.id)
+    if (index === -1) return
+
+    layers.value[index] = updatedLayer
+
+    if (updatedLayer.enabled) {
+      removeLayer(updatedLayer.id)
+      addLayer(updatedLayer)
     }
   }
 
   function toggleLayer(layerId: Layer['id'], enabled?: boolean) {
     const layer = layers.value.find(layer => layer.id === layerId)
     if (layer) {
-      layer.enabled = enabled ?? !layer.enabled
+      const wasEnabled = layer.enabled
+      layer.enabled = enabled ?? !wasEnabled
+
+      if (wasEnabled && !enabled) {
+        mapStrategy?.removeLayer(layerId)
+      } else if (!wasEnabled && enabled) {
+        mapStrategy?.addLayer(layer)
+      }
     }
   }
 
-  function toggleLayerVisibility(layerId: Layer['id'], enabled: boolean) {
-    console.log('toggleLayerVisibility', layerId, enabled)
+  function toggleLayerVisibility(layerId: Layer['id'], visible: boolean) {
     const layer = layers.value.find(layer => layer.id === layerId)
     if (layer) {
-      layer.visible = enabled
-      mapStrategy.value?.toggleLayerVisibility(layerId, enabled)
+      layer.visible = visible
+      if (layer.enabled) {
+        mapStrategy?.toggleLayerVisibility(layerId, visible)
+      }
     }
   }
 
@@ -107,7 +142,7 @@ export const useMapStore = defineStore('map', () => {
 
   return {
     mapInstance: mapStrategy,
-    setMapInstance,
+    setMapStrategy,
     mapEngine,
     setMapEngine,
     on,
@@ -116,7 +151,9 @@ export const useMapStore = defineStore('map', () => {
     mapState,
     setBasemap,
     layers,
+    initializeLayers,
     addLayer,
+    removeLayer,
     updateLayer,
     toggleLayer,
     toggleLayerVisibility,

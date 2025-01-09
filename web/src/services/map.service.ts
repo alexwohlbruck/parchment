@@ -6,14 +6,14 @@ import { MapboxStrategy } from '@/components/map/map-providers/mapbox.strategy'
 import { MaplibreStrategy } from '@/components/map/map-providers/maplibre.strategy'
 import { mapEventBus } from '@/lib/eventBus'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 
 const dark = useDark()
 
 function mapService() {
   const mapStore = useMapStore()
   const { layers } = storeToRefs(mapStore)
-  const mapStrategy = ref<MapStrategy>()
+  let mapStrategy: MapStrategy
 
   function getMapStrategy(
     container: string | HTMLElement,
@@ -35,24 +35,26 @@ function mapService() {
     mapEngine: MapEngine,
     options?: MapOptions,
   ) {
-    mapStrategy.value = getMapStrategy(container, mapEngine)
-    mapStore.setMapInstance(mapStrategy.value)
+    mapStrategy = getMapStrategy(container, mapEngine)
+    mapStore.setMapStrategy(mapStrategy)
 
     mapEventBus.on('load', () => {
-      // mapStrategy.value?.setLayers(layers.value)
+      mapStore.initializeLayers(layers.value)
     })
 
     mapEventBus.on('style.load', () => {
-      mapStrategy.value?.setMapTheme(
-        options?.theme ?? dark.value ? 'dark' : 'light',
-      )
+      mapStrategy.setMapTheme(options?.theme ?? dark.value ? 'dark' : 'light')
     })
 
-    return mapStrategy.value
+    return mapStrategy
   }
 
+  watch(dark, newDark => {
+    mapStrategy.setMapTheme(newDark ? 'dark' : 'light')
+  })
+
   function toggleLayer(layerId: Layer['id'], state?: boolean) {
-    mapStrategy.value?.toggleLayerVisibility(layerId, state)
+    mapStrategy.toggleLayerVisibility(layerId, state)
     mapStore.toggleLayer(layerId, state)
   }
 

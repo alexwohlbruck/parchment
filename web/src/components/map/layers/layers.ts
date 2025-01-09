@@ -5,7 +5,7 @@ const cyclOSM = {
   id: 'cyclosm',
   name: 'CyclOSM',
   icon: BikeIcon,
-  enabled: true,
+  enabled: false,
   visible: false,
   type: 'raster',
   source: {

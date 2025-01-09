@@ -77,6 +77,8 @@ App started, running on http://localhost:5173
   
 2. Open the app in your browser: [http://localhost:5173](http://localhost:5173)
 
+Hot module reload is enabled, so you can make changes to the code and see them immediately. **Any packages you install or update with bun will not be available until you rebuild the `web` container.**
+
 ## Build for production
 
 ### Using start script

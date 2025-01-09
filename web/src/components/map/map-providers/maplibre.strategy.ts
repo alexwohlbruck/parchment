@@ -28,7 +28,7 @@ const basemapUrls = {
 
 export class MaplibreStrategy extends MapStrategy {
   theme: MapTheme = 'light'
-  map: Map
+  mapInstance: Map
 
   constructor(container, options?: Partial<MapOptions>) {
     super(container, options)
@@ -42,7 +42,7 @@ export class MaplibreStrategy extends MapStrategy {
       zoom: 14,
     }
 
-    this.map = new Map({
+    this.mapInstance = new Map({
       container,
       style: basemapUrls.light,
       center: [lng, lat],
@@ -55,18 +55,21 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   initialize() {
-    this.map.addControl(new ScaleControl({}), 'bottom-right')
-    this.map.addControl(new NavigationControl({}), 'bottom-right')
-    this.map.addControl(new GeolocateControl({}), 'bottom-right')
-    this.map.addControl(
+    this.mapInstance.addControl(new ScaleControl({}), 'bottom-right')
+    this.mapInstance.addControl(new NavigationControl({}), 'bottom-right')
+    this.mapInstance.addControl(new GeolocateControl({}), 'bottom-right')
+    this.mapInstance.addControl(
       new AttributionControl({
         compact: true,
       }),
       'bottom-left',
     )
 
-    this.map.on('load', this.setLayers.bind(this))
-    this.map.on('style.load', this.setMapTheme.bind(this, this.options.theme))
+    this.mapInstance.on('load', this.setLayers.bind(this))
+    this.mapInstance.on(
+      'style.load',
+      this.setMapTheme.bind(this, this.options.theme),
+    )
   }
 
   setLocale(locale: Locale) {
@@ -75,13 +78,13 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   setLayers(layers: Layer[]) {
-    const style = this.map.getStyle()
+    const style = this.mapInstance.getStyle()
     if (!style) return
     const mapLayers = style.layers
     const ids = mapLayers.map(layer => layer.id)
     ids.forEach((id: any) => {
       if (!layers.find(layer => layer.id === id)) {
-        this.map.removeLayer(id)
+        this.mapInstance.removeLayer(id)
       }
     })
 
@@ -97,14 +100,14 @@ export class MaplibreStrategy extends MapStrategy {
         }
       })
 
-      if (typeof source === 'object' && !this.map.getSource(sourceId)) {
-        this.map.addSource(sourceId, {
+      if (typeof source === 'object' && !this.mapInstance.getSource(sourceId)) {
+        this.mapInstance.addSource(sourceId, {
           ...source,
           id: sourceId,
         } as any) // TODO: Fix type
       }
 
-      this.map.addLayer({
+      this.mapInstance.addLayer({
         ...meta,
         source: sourceId,
         id: layer.id,
@@ -127,7 +130,7 @@ export class MaplibreStrategy extends MapStrategy {
 
   setMapTheme(theme: MapTheme) {
     this.options.theme = theme
-    this.map.setStyle(this.getBasemapFromTheme())
+    this.mapInstance.setStyle(this.getBasemapFromTheme())
   }
 
   setBasemap(basemap: Basemap) {
@@ -138,6 +141,6 @@ export class MaplibreStrategy extends MapStrategy {
       satellite: basemapUrls.satellite,
       hybrid: basemapUrls.hybrid,
     }
-    this.map.setStyle(themeMap[basemap])
+    this.mapInstance.setStyle(themeMap[basemap])
   }
 }

@@ -136,7 +136,6 @@ export const useMapStore = defineStore('map', () => {
   }
 
   return {
-    mapInstance: mapStrategy,
     setMapStrategy,
     mapEngine,
     setMapEngine,

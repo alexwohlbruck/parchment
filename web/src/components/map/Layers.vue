@@ -32,7 +32,7 @@ function openLayerConfigDialog(layerId?: Layer['id']) {
 const columns: ColumnDef<Layer>[] = [
   {
     id: 'name',
-    header: t('layers.info.fields.name'),
+    header: t('layers.meta.fields.name'),
     cell: ({ row }) => {
       return h('div', { class: 'flex items-center gap-2' }, [
         h(row.original.icon, { class: 'size-4' }),
@@ -42,13 +42,13 @@ const columns: ColumnDef<Layer>[] = [
   },
   {
     id: 'type',
-    header: t('layers.info.fields.type.title'),
+    header: t('layers.meta.fields.type.title'),
     cell: ({ row }) =>
-      t(`layers.info.fields.type.values.${row.original.configuration.type}`),
+      t(`layers.meta.fields.type.values.${row.original.configuration.type}`),
   },
   {
     id: 'enabled',
-    header: t('layers.info.fields.enabled'),
+    header: t('layers.meta.fields.enabled'),
     cell: ({ row }) =>
       h(Switch, {
         checked: row.original.enabled,

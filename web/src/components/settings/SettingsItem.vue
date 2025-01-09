@@ -12,7 +12,7 @@ defineProps<Props>()
 
 <template>
   <div class="flex justify-between gap-2 items-center">
-    <div>
+    <div class="self-start mt-2.5">
       <H6>{{ title }}</H6>
       <Caption v-if="description">
         {{ description }}

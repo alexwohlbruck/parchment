@@ -13,14 +13,10 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 import { Basemap, Layer, MapOptions, type MapTheme } from '@/types/map.types'
 import standardStyle from '@/components/map/styles/standard.json'
 
-import { layers } from '../layers/layers' // TODO: Refactor layers init
-import { Locale } from '@/lib/i18n'
 import { Directions } from '@/types/directions.types'
 import { decodeShape } from '@/lib/utils'
 import colors from 'tailwindcss/colors'
-import { useMapStore } from '@/stores/map.store'
 import { mapEventBus } from '@/lib/eventBus'
-import { toRaw } from 'vue'
 
 const basemapUrls: {
   [key in Basemap]: string
@@ -71,7 +67,7 @@ export class MapboxStrategy extends MapStrategy {
     const projection: Projection['name'] =
       (localStorage.getItem('projection') as Projection['name']) || 'globe'
 
-    const map = new Map({
+    this.mapInstance = new Map({
       accessToken: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
       container,
       style: standardStyle as any,
@@ -84,18 +80,13 @@ export class MapboxStrategy extends MapStrategy {
         name: projection,
       },
     })
-
-    this.mapInstance = map
     this.initialize()
   }
 
   initialize() {
-    const mapStore = useMapStore()
     this.addControls()
     this.configureEventListeners()
   }
-
-  onMapLoad() {}
 
   addControls() {
     this.mapInstance.addControl(new ScaleControl(), 'top-left')
@@ -111,7 +102,6 @@ export class MapboxStrategy extends MapStrategy {
 
   configureEventListeners() {
     this.mapInstance.on('load', () => {
-      console.log('MapboxStrategy: load')
       mapEventBus.emit('load', this.mapInstance)
     })
     this.mapInstance.on('style.load', () => {
@@ -303,7 +293,7 @@ export class MapboxStrategy extends MapStrategy {
     this.mapInstance.setStyle(url)
   }
 
-  addDataSource() {
+  addSource() {
     console.log('MapboxStrategy: adding data source')
   }
 

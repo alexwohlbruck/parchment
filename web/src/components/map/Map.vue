@@ -3,66 +3,22 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, watch, useTemplateRef } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { useDark } from '@vueuse/core'
+import { onMounted, onUnmounted, useTemplateRef } from 'vue'
 import { useMapStore } from '../../stores/map.store'
 import { useMapService } from '@/services/map.service'
 import { MapStrategy } from './map-providers/map.strategy'
-import { MapboxStrategy } from './map-providers/mapbox.strategy'
-import { MaplibreStrategy } from './map-providers/maplibre.strategy'
-import { MapEngine, MapOptions } from '@/types/map.types'
-import { Locale } from '@/lib/i18n'
-
-const dark = useDark()
 const mapService = useMapService()
 const mapStore = useMapStore()
-const { locale } = useI18n()
 
 const mapContainer = useTemplateRef('mapContainer')
-let map: MapStrategy
+let mapStrategy: MapStrategy
 
 onMounted(() => {
-  map = mapService.initializeMap(mapContainer.value, mapStore.mapEngine)
-
-  // Watch for map store changes and update map accordingly
-
-  // watch(locale, locale => {
-  //   map.setLocale(locale as Locale)
-  // })
-
-  // watch(dark, dark => {
-  //   map.setMapTheme(dark ? 'dark' : 'light')
-  // })
-
-  // watch(
-  //   () => mapStore.mapState.basemap,
-  //   basemap => {
-  //     map.setBasemap(basemap)
-  //   },
-  // )
-
-  // watch(
-  //   () => mapStore.mapEngine,
-  //   mapEngine => {
-  //     map = getMapInstance(mapEngine)
-  //   },
-  // )
-
-  // watch(
-  //   () => mapStore.directions,
-  //   directions => {
-  //     if (directions) {
-  //       map.setDirections(directions)
-  //     } else {
-  //       map.unsetDirections()
-  //     }
-  //   },
-  // )
+  mapStrategy = mapService.initializeMap(mapContainer.value, mapStore.mapEngine)
 })
 
 onUnmounted(() => {
-  map.remove()
+  mapStrategy.remove()
 })
 </script>
 

@@ -24,7 +24,6 @@ export class MapStrategy {
 
   initialize() {}
   addDataSource() {}
-  setLocale(locale: Locale) {} // TODO:
   setDirections(directions: Directions) {}
   unsetDirections() {}
   setMapTheme(theme: MapTheme) {}

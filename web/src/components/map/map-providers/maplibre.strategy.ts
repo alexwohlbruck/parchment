@@ -5,11 +5,15 @@ import {
   GeolocateControl,
   AttributionControl,
   ScaleControl,
+  LngLatBounds,
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { Basemap, Layer, MapTheme, MapOptions } from '@/types/map.types'
-import { layers } from '../layers/layers'
-import { Locale } from '@/lib/i18n'
+import { Basemap, MapTheme, MapOptions } from '@/types/map.types'
+
+import { Directions } from '@/types/directions.types'
+import { decodeShape } from '@/lib/utils'
+import colors from 'tailwindcss/colors'
+import { mapEventBus } from '@/lib/eventBus'
 
 const basemapUrls = {
   light: `https://api.maptiler.com/maps/streets-v2/style.json?key=${
@@ -55,6 +59,11 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   initialize() {
+    this.addControls()
+    this.configureEventListeners()
+  }
+
+  addControls() {
     this.mapInstance.addControl(new ScaleControl({}), 'bottom-right')
     this.mapInstance.addControl(new NavigationControl({}), 'bottom-right')
     this.mapInstance.addControl(new GeolocateControl({}), 'bottom-right')
@@ -64,59 +73,142 @@ export class MaplibreStrategy extends MapStrategy {
       }),
       'bottom-left',
     )
+  }
 
-    this.mapInstance.on('load', this.setLayers.bind(this))
-    this.mapInstance.on(
-      'style.load',
-      this.setMapTheme.bind(this, this.options.theme),
+  configureEventListeners() {
+    this.mapInstance.on('load', () => {
+      mapEventBus.emit('load', this.mapInstance)
+    })
+    this.mapInstance.on('style.load', () => {
+      mapEventBus.emit('style.load', this.mapInstance)
+      this.setMapTheme(this.options.theme)
+    })
+    this.mapInstance.on('click', e => {
+      mapEventBus.emit('click', {
+        coordinates: e.lngLat.toArray(),
+        point: e.point,
+      })
+    })
+  }
+
+  setDirections(directions: Directions) {
+    this.unsetDirections()
+
+    directions.legs.forEach((leg, index) => {
+      const shape = decodeShape(leg.shape)
+
+      this.mapInstance.addSource(`route-${index}`, {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: shape.map(([lat, lon]) => [lon, lat]),
+          },
+        },
+      })
+
+      this.mapInstance.addLayer({
+        id: `route-case-${index}`,
+        type: 'line',
+        source: `route-${index}`,
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round',
+        },
+        paint: {
+          'line-color': colors.green[600],
+          'line-width': 8,
+        },
+      })
+
+      this.mapInstance.addLayer({
+        id: `route-${index}`,
+        type: 'line',
+        source: `route-${index}`,
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round',
+        },
+        paint: {
+          'line-color': colors.green[400],
+          'line-width': 5,
+        },
+      })
+    })
+
+    // Add markers for each stop
+    directions.locations.forEach((location, index) => {
+      this.mapInstance.addSource(`stop-${index}`, {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'Point',
+            coordinates: [location.lon, location.lat],
+          },
+        },
+      })
+
+      // Add a larger background circle
+      this.mapInstance.addLayer({
+        id: `stop-background-${index}`,
+        type: 'circle',
+        source: `stop-${index}`,
+        paint: {
+          'circle-radius': 7,
+          'circle-color': colors.gray[50],
+          'circle-opacity': 1,
+          'circle-stroke-width': 1,
+          'circle-stroke-color': colors.gray[600],
+          'circle-blur': 0.3,
+        },
+      })
+    })
+
+    // Get all route coordinates
+    const allCoordinates: mapboxgl.LngLatLike[] = directions.legs.flatMap(
+      leg => {
+        const shape = decodeShape(leg.shape)
+        return shape.map(([lat, lon]) => [lon, lat] as mapboxgl.LngLatLike)
+      },
     )
+
+    // Create a bounds object that encompasses all coordinates
+    const bounds = allCoordinates.reduce((bounds, coord) => {
+      return bounds.extend(coord)
+    }, new LngLatBounds(allCoordinates[0], allCoordinates[0]))
+
+    // Fit the map to show the entire route with padding
+    this.mapInstance.fitBounds(bounds, {
+      padding: Math.min(window.innerWidth * 0.2, 400),
+      duration: 400,
+      easing: t => t * (2 - t),
+      bearing: this.mapInstance.getBearing(), // Preserve current bearing
+    })
   }
 
-  setLocale(locale: Locale) {
-    // TODO:
-    console.log('TODO: Set locale Maplibre')
-  }
-
-  setLayers(layers: Layer[]) {
+  unsetDirections() {
     const style = this.mapInstance.getStyle()
     if (!style) return
     const mapLayers = style.layers
     const ids = mapLayers.map(layer => layer.id)
-    ids.forEach((id: any) => {
-      if (!layers.find(layer => layer.id === id)) {
+
+    // Remove route and stop layers
+    ids.forEach(id => {
+      if (id.startsWith('route-') || id.startsWith('stop-')) {
         this.mapInstance.removeLayer(id)
       }
     })
 
-    layers.forEach(layer => {
-      const { meta, source } = layer
-
-      const sourceId = typeof source === 'string' ? source : source.id
-
-      // Emissive strength is not supported in MapLibre
-      Object.keys(meta.paint).forEach(key => {
-        if (key.includes('emissive-strength')) {
-          delete meta.paint[key]
-        }
-      })
-
-      if (typeof source === 'object' && !this.mapInstance.getSource(sourceId)) {
-        this.mapInstance.addSource(sourceId, {
-          ...source,
-          id: sourceId,
-        } as any) // TODO: Fix type
+    // Remove route sources
+    const sources = Object.keys(this.mapInstance.getStyle()?.sources || {})
+    sources.forEach(source => {
+      if (source.startsWith('route-') || source.startsWith('stop-')) {
+        this.mapInstance.removeSource(source)
       }
-
-      this.mapInstance.addLayer({
-        ...meta,
-        source: sourceId,
-        id: layer.id,
-        type: layer.type,
-        layout: {
-          ...meta?.layout,
-          visibility: 'none',
-        },
-      })
     })
   }
 
@@ -142,5 +234,35 @@ export class MaplibreStrategy extends MapStrategy {
       hybrid: basemapUrls.hybrid,
     }
     this.mapInstance.setStyle(themeMap[basemap])
+  }
+
+  // TODO: Get maplibre layer type
+  addLayer(layer: any) {
+    const { configuration } = layer
+    this.mapInstance.addLayer({
+      ...configuration,
+      layout: {
+        ...configuration.layout,
+        visibility: layer.visible ? 'visible' : 'none',
+      },
+    })
+  }
+
+  // TODO: Use Layer['id']
+  removeLayer(layerId: string) {
+    this.mapInstance.removeLayer(layerId)
+  }
+
+  // TODO: Use Layer['id']
+  toggleLayerVisibility(layerId: string, visible: boolean) {
+    this.mapInstance.setLayoutProperty(
+      layerId,
+      'visibility',
+      visible ? 'visible' : 'none',
+    )
+  }
+
+  remove() {
+    this.mapInstance.remove()
   }
 }

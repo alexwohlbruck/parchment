@@ -38,12 +38,11 @@ function mapService() {
     mapStrategy = getMapStrategy(container, mapEngine)
     mapStore.setMapStrategy(mapStrategy)
 
-    mapEventBus.on('load', () => {
-      mapStore.initializeLayers(layers.value)
-    })
+    mapEventBus.on('load', () => {})
 
     mapEventBus.on('style.load', () => {
       mapStrategy.setMapTheme(options?.theme ?? dark.value ? 'dark' : 'light')
+      mapStore.initializeLayers(layers.value)
     })
 
     return mapStrategy

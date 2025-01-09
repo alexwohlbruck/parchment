@@ -59,13 +59,28 @@ export enum LayerType {
   CLIP = 'clip',
 }
 
+export type MapboxLayerConfiguration = {
+  id: string
+  type: LayerType
+  source: string | Source
+  // Allow any additional properties for layer-specific configuration
+  [key: string]: any
+}
+
+export type MaplibreLayerConfiguration = {
+  id: string
+  type: LayerType
+  source: string | Source
+  // Allow any additional properties for layer-specific configuration
+  [key: string]: any
+}
+
 export type Layer = {
   id: string
   name: string
   icon: Icon
   enabled: boolean
   visible: boolean
-  type: LayerType
-  source: string | Source
-  meta?: any
+  engine: MapEngine
+  configuration: MapboxLayerConfiguration | MaplibreLayerConfiguration
 }

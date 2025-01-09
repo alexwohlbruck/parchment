@@ -43,7 +43,8 @@ const columns: ColumnDef<Layer>[] = [
   {
     id: 'type',
     header: t('layers.info.fields.type.title'),
-    cell: ({ row }) => t(`layers.info.fields.type.values.${row.original.type}`),
+    cell: ({ row }) =>
+      t(`layers.info.fields.type.values.${row.original.configuration.type}`),
   },
   {
     id: 'enabled',

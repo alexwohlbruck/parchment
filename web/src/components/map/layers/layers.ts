@@ -1,23 +1,26 @@
-import { Layer } from '@/types/map.types'
+import { Layer, LayerType, SourceType } from '@/types/map.types'
 import { BikeIcon, CarFrontIcon, TrainIcon } from 'lucide-vue-next'
+import { MapEngine } from '@/types/map.types'
 
-const cyclOSM = {
+const cyclOSM: Layer = {
   id: 'cyclosm',
   name: 'CyclOSM',
   icon: BikeIcon,
-  enabled: false,
+  enabled: true,
   visible: false,
-  type: 'raster',
-  source: {
+  engine: 'mapbox',
+  configuration: {
     id: 'cyclosm',
-    type: 'raster',
-    tiles: [
-      'https://a.tile-cyclosm.openstreetmap.fr/cyclosm-lite/{z}/{x}/{y}.png',
-    ],
-    tileSize: 256,
-    attribution: '<a href="https://www.opencyclemap.org/">© OpenCycleMap</a>',
-  },
-  meta: {
+    type: LayerType.RASTER,
+    source: {
+      id: 'cyclosm',
+      type: SourceType.RASTER,
+      tiles: [
+        'https://a.tile-cyclosm.openstreetmap.fr/cyclosm-lite/{z}/{x}/{y}.png',
+      ],
+      tileSize: 256,
+      attribution: '<a href="https://www.opencyclemap.org/">© OpenCycleMap</a>',
+    },
     paint: {
       'raster-emissive-strength': 0.9,
       'raster-hue-rotate': 290,
@@ -26,43 +29,46 @@ const cyclOSM = {
   },
 }
 
-const waymarkedTrails = {
+const waymarkedTrails: Layer = {
   id: 'waymarkedTrails',
   name: 'Waymarked Trails',
   icon: BikeIcon,
   enabled: false,
-  visible: true,
-  type: 'raster',
-  source: {
+  visible: false,
+  engine: 'mapbox',
+  configuration: {
     id: 'waymarkedTrails',
-    type: 'raster',
-    tiles: ['https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png'],
-    tileSize: 256,
-    attribution:
-      '<a href="https://cycling.waymarkedtrails.org/">© Waymarked Trails</a>',
+    type: LayerType.RASTER,
+    source: {
+      id: 'waymarkedTrails',
+      type: SourceType.RASTER,
+      tiles: ['https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution:
+        '<a href="https://cycling.waymarkedtrails.org/">© Waymarked Trails</a>',
+    },
   },
 }
 
 const transitlandApiKey = import.meta.env.VITE_TRANSITLAND_API_KEY
-const transitLand = {
+const transitLand: Layer = {
   id: 'transitland',
   name: 'Transitland',
   icon: TrainIcon,
   enabled: true,
   visible: false,
-  type: 'line',
-  source: {
+  engine: 'mapbox',
+  configuration: {
     id: 'transitland',
-    type: 'vector',
-    tiles: [
-      `https://transit.land/api/v2/tiles/routes/tiles/{z}/{x}/{y}.pbf?apikey=${transitlandApiKey}`,
-    ],
-    maxzoom: 14,
-  },
-  meta: {
-    id: 'transitland',
-    source: 'transitland',
-    slot: 'middle',
+    type: LayerType.LINE,
+    source: {
+      id: 'transitland',
+      type: SourceType.VECTOR,
+      tiles: [
+        `https://transit.land/api/v2/tiles/routes/tiles/{z}/{x}/{y}.pbf?apikey=${transitlandApiKey}`,
+      ],
+      maxzoom: 14,
+    },
     'source-layer': 'routes',
     layout: {
       'line-cap': 'round',
@@ -132,22 +138,21 @@ const transitLand = {
 }
 
 // mapbox://mapbox.mapbox-traffic-v1
-const traffic = {
+const traffic: Layer = {
   id: 'traffic',
   name: 'Mapbox traffic',
   icon: CarFrontIcon,
   enabled: true,
   visible: false,
-  type: 'line',
-  source: {
+  engine: 'mapbox',
+  configuration: {
     id: 'traffic',
-    type: 'vector',
-    url: 'mapbox://mapbox.mapbox-traffic-v1',
-  },
-  meta: {
-    id: 'traffic',
-    type: 'line',
-    source: 'traffic',
+    type: LayerType.LINE,
+    source: {
+      id: 'traffic',
+      type: SourceType.VECTOR,
+      url: 'mapbox://mapbox.mapbox-traffic-v1',
+    },
     'source-layer': 'traffic',
     layout: {
       'line-cap': 'round',

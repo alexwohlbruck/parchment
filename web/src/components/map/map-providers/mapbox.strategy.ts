@@ -20,6 +20,7 @@ import { decodeShape } from '@/lib/utils'
 import colors from 'tailwindcss/colors'
 import { useMapStore } from '@/stores/map.store'
 import { mapEventBus } from '@/lib/eventBus'
+import { toRaw } from 'vue'
 
 const basemapUrls: {
   [key in Basemap]: string
@@ -306,54 +307,15 @@ export class MapboxStrategy extends MapStrategy {
     console.log('MapboxStrategy: adding data source')
   }
 
-  // setLayers(layers: Layer[]) {
-  //   const style = this.mapInstance.getStyle()
-  //   if (!style) return
-
-  //   const existingLayerIds = new Set(style.layers.map(layer => layer.id))
-  //   const newLayerIds = new Set(layers.map(layer => layer.id))
-
-  //   existingLayerIds.forEach(id => {
-  //     if (!newLayerIds.has(id)) {
-  //       this.mapInstance.removeLayer(id)
-  //     }
-  //   })
-
-  //   layers.forEach(layer => {
-  //     const { meta, source } = layer
-  //     const sourceId = typeof source === 'string' ? source : source.id
-
-  //     if (typeof source === 'object' && !this.mapInstance.getSource(sourceId)) {
-  //       this.mapInstance.addSource(sourceId, {
-  //         ...source,
-  //         id: sourceId,
-  //       } as any)
-  //     }
-
-  //     if (existingLayerIds.has(layer.id)) {
-  //       this.mapInstance.setLayoutProperty(
-  //         layer.id,
-  //         'visibility',
-  //         layer.visible ? 'visible' : 'none',
-  //       )
-  //     } else {
-  //       this.mapInstance.addLayer({
-  //         ...meta,
-  //         source: sourceId,
-  //         id: layer.id,
-  //         type: layer.type,
-  //         slot: 'middle',
-  //         layout: {
-  //           ...meta?.layout,
-  //           visibility: layer.visible ? 'visible' : 'none',
-  //         },
-  //       })
-  //     }
-  //   })
-  // }
-
   addLayer(layer: Layer) {
-    this.mapInstance.addLayer(layer)
+    const { configuration } = layer
+    this.mapInstance.addLayer({
+      ...configuration,
+      layout: {
+        ...configuration.layout,
+        visibility: layer.visible ? 'visible' : 'none',
+      },
+    })
   }
 
   removeLayer(layerId: Layer['id']) {

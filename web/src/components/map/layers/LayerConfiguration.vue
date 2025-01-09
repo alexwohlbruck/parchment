@@ -40,52 +40,37 @@ const emit = defineEmits<{
   submit: [values: any]
 }>()
 
-const useExistingSource = ref(layer ? typeof layer.source === 'string' : false)
+const useExistingSource = ref(
+  layer ? typeof layer.configuration.source === 'string' : false,
+)
 
 const layerSchema = computed(() => {
   return toTypedSchema(
     z.object({
       name: z.string().min(1, 'required').default(''),
       id: z.string().min(1, 'required').default(''),
-      description: z.string().optional(),
       enabled: z.boolean().default(true),
-      type: z
-        .enum(Object.values(LayerType) as [string, ...string[]])
-        .default('line'),
-      source: useExistingSource.value
-        ? z.string().min(1, 'required')
-        : z
-            .object({
-              id: z.string().min(1, 'required').default(''),
-              type: z
-                .enum(Object.values(SourceType) as [string, ...string[]])
-                .default('line'),
-              url: z.string().url('invalid').optional(),
-              tiles: z
-                .array(
-                  z
-                    .string()
-                    .url('Must be a valid URL')
-                    .regex(
-                      /^https?:\/\/.*(?=.*\{x\})(?=.*\{y\})(?=.*\{z\}).*$/i,
-                      'URL must contain {z}, {x}, and {y} parameters',
-                    ),
-                )
-                .min(1, 'At least one tile URL is required')
-                .default([])
-                .optional(),
-              tileSize: z
-                .number()
-                .positive('Must be a positive number')
-                .optional(),
-              attribution: z.string().optional(),
-            })
-            .default({
-              id: '',
-              type: 'raster',
-              tiles: [],
-            }),
-      meta: z.string().optional(),
+      configuration: z
+        .object({
+          type: z
+            .enum(Object.values(LayerType) as [string, ...string[]])
+            .default('line'),
+          source: useExistingSource.value
+            ? z.string().default('')
+            : z
+                .object({
+                  type: z
+                    .enum(Object.values(SourceType) as [string, ...string[]])
+                    .default('raster'),
+                  url: z.string().url().optional(),
+                  tiles: z.array(z.string()).optional(),
+                  tileSize: z.number().positive().optional(),
+                  attribution: z.string().optional(),
+                })
+                .default({}),
+        })
+        .passthrough()
+        .default({}),
     }),
   )
 })
@@ -94,10 +79,7 @@ const { handleSubmit, errors, values, meta, setFieldValue } = useForm({
   validationSchema: layerSchema,
   initialValues: {
     ...layer,
-    meta:
-      typeof (layer?.meta === 'string'
-        ? layer?.meta
-        : JSON.stringify(layer?.meta, null, 2)) || '',
+    configuration: layer?.configuration || {},
   },
 })
 
@@ -120,9 +102,25 @@ const combinedAttribution = computed(() => {
   return `<a href="${attributionUrl.value}">© ${attributionName.value}</a>`
 })
 
+interface SourceConfig {
+  type?: string
+  url?: string
+  tiles?: string[]
+  tileSize?: number
+  attribution?: string
+}
+
+const getSourceConfig = (): SourceConfig | null => {
+  if (!form.value?.configuration?.source) return null
+  return typeof form.value.configuration.source === 'object'
+    ? (form.value.configuration.source as SourceConfig)
+    : null
+}
+
 const initializeAttribution = () => {
-  if (typeof form.value.source === 'object' && form.value.source.attribution) {
-    const attributionMatch = form.value.source.attribution.match(
+  const sourceConfig = getSourceConfig()
+  if (sourceConfig?.attribution) {
+    const attributionMatch = sourceConfig.attribution.match(
       /<a href="([^"]+)">([^<]+)<\/a>/,
     )
     if (attributionMatch) {
@@ -137,7 +135,8 @@ initializeAttribution()
 const tileConfig = ref(
   useExistingSource.value
     ? 'custom'
-    : typeof layer?.source === 'object' && layer?.source.url
+    : typeof layer?.configuration.source === 'object' &&
+      layer?.configuration.source.url
     ? 'tilejson'
     : 'custom',
 )
@@ -145,15 +144,18 @@ const tileInputs = ref(
   useExistingSource.value
     ? []
     : [
-        ...(typeof layer?.source === 'object' ? layer?.source.tiles || [] : []),
+        ...(typeof layer?.configuration.source === 'object'
+          ? layer?.configuration.source.tiles || []
+          : []),
         '',
       ],
 )
 
 const handleNewTileInput = () => {
   const tiles = tileInputs.value.filter(tile => tile !== '')
-  if (!useExistingSource.value && typeof values.source === 'object') {
-    setFieldValue('source.tiles', tiles)
+  const sourceConfig = getSourceConfig()
+  if (!useExistingSource.value && typeof sourceConfig) {
+    setFieldValue('configuration.source.tiles', tiles)
   }
   tileInputs.value = [...tiles, '']
 }
@@ -169,10 +171,10 @@ watch(
 watch([attributionUrl, attributionName], () => {
   if (
     !useExistingSource.value &&
-    typeof values.source === 'object' &&
+    typeof values.configuration?.source === 'object' &&
     (attributionUrl.value || attributionName.value)
   ) {
-    setFieldValue('source.attribution', combinedAttribution.value)
+    setFieldValue('configuration.source.attribution', combinedAttribution.value)
   }
 })
 
@@ -402,17 +404,17 @@ defineExpose({
     </SettingsSection>
 
     <SettingsSection
-      :title="$t('layers.meta.title')"
+      :title="$t('layers.configuration.title')"
       :frame="false"
       :shadow="false"
     >
-      <FormField name="meta" v-slot="{ componentField }">
+      <FormField name="configuration" v-slot="{ componentField }">
         <FormItem>
           <FormControl>
             <Textarea
               v-bind="componentField"
               rows="10"
-              :placeholder="$t('layers.meta.fields.placeholder')"
+              :placeholder="$t('layers.configuration.fields.placeholder')"
             />
           </FormControl>
         </FormItem>

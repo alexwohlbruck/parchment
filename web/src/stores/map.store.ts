@@ -15,14 +15,9 @@ import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 const emitter = mitt<MapEvents>()
 
 export const useMapStore = defineStore('map', () => {
-  console.count('store instantiated')
   let mapStrategy: MapStrategy
-  let setInstanceCount = 0
 
   function setMapStrategy(map: MapStrategy) {
-    console.count('setMapInstance called')
-    setInstanceCount++
-    console.log('Total setMapInstance calls:', setInstanceCount)
     mapStrategy = map
   }
 

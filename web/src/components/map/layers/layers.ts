@@ -31,7 +31,7 @@ const waymarkedTrails = {
   name: 'Waymarked Trails',
   icon: BikeIcon,
   enabled: false,
-  visible: false,
+  visible: true,
   type: 'raster',
   source: {
     id: 'waymarkedTrails',

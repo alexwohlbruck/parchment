@@ -19,6 +19,7 @@ import { Directions } from '@/types/directions.types'
 import { decodeShape } from '@/lib/utils'
 import colors from 'tailwindcss/colors'
 import { useMapStore } from '@/stores/map.store'
+import { mapEventBus } from '@/lib/eventBus'
 
 const basemapUrls: {
   [key in Basemap]: string
@@ -88,13 +89,6 @@ export class MapboxStrategy extends MapStrategy {
   initialize() {
     const mapStore = useMapStore()
     this.addControls()
-    this.map.on('load', () => {
-      this.setLayers(mapStore.layers)
-    })
-    this.map.on('style.load', () => {
-      this.setMapTheme(this.options.theme)
-      this.setLocale('en-US')
-    })
     this.configureEventListeners()
   }
 
@@ -121,14 +115,20 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   configureEventListeners() {
-    const mapStore = useMapStore()
-
-    this.map.on('click', e => [
-      mapStore.emit('map:click', {
+    this.map.on('load', () => {
+      console.log('MapboxStrategy: load')
+      mapEventBus.emit('load', this.map)
+    })
+    this.map.on('style.load', () => {
+      mapEventBus.emit('style.load', this.map)
+      this.setMapTheme(this.options.theme)
+    })
+    this.map.on('click', e => {
+      mapEventBus.emit('click', {
         coordinates: e.lngLat.toArray(),
         point: e.point,
-      }),
-    ])
+      })
+    })
   }
 
   // TODO:
@@ -159,39 +159,49 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   setLayers(layers: Layer[]) {
+    console.log('MapboxStrategy: setLayers', layers)
     const style = this.map.getStyle()
     if (!style) return
-    const mapLayers = style.layers
-    const ids = mapLayers.map(layer => layer.id)
-    ids.forEach((id: any) => {
-      if (!layers.find(layer => layer.id === id)) {
+
+    const existingLayerIds = new Set(style.layers.map(layer => layer.id))
+    const newLayerIds = new Set(layers.map(layer => layer.id))
+
+    existingLayerIds.forEach(id => {
+      if (!newLayerIds.has(id)) {
         this.map.removeLayer(id)
       }
     })
 
     layers.forEach(layer => {
       const { meta, source } = layer
-
       const sourceId = typeof source === 'string' ? source : source.id
 
       if (typeof source === 'object' && !this.map.getSource(sourceId)) {
         this.map.addSource(sourceId, {
           ...source,
           id: sourceId,
-        } as any) // TODO: Fix type
+        } as any)
       }
 
-      this.map.addLayer({
-        ...meta,
-        source: sourceId,
-        id: layer.id,
-        type: layer.type,
-        slot: 'middle',
-        layout: {
-          ...meta?.layout,
-          visibility: layer.visible ? 'visible' : 'none',
-        },
-      })
+      if (existingLayerIds.has(layer.id)) {
+        this.map.setLayoutProperty(
+          layer.id,
+          'visibility',
+          layer.visible ? 'visible' : 'none',
+        )
+      } else {
+        this.map.addLayer({
+          ...meta,
+          source: sourceId,
+          id: layer.id,
+          type: layer.type,
+          slot: 'middle',
+          layout: {
+            ...meta?.layout,
+            visibility: layer.visible ? 'visible' : 'none',
+          },
+        })
+      }
     })
   }
 

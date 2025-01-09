@@ -15,10 +15,10 @@ import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 const emitter = mitt<MapEvents>()
 
 export const useMapStore = defineStore('map', () => {
-  const mapInstance = ref<MapStrategy>()
+  const mapStrategy = ref<MapStrategy>()
 
   function setMapInstance(map: MapStrategy) {
-    mapInstance.value = map
+    mapStrategy.value = map
   }
 
   const mapEngine = ref<MapEngine>('mapbox')
@@ -82,11 +82,9 @@ export const useMapStore = defineStore('map', () => {
   }
 
   function toggleLayer(layerId: Layer['id'], enabled?: boolean) {
-    console.log('toggleLayer', layerId, enabled)
     const layer = layers.value.find(layer => layer.id === layerId)
     if (layer) {
       layer.enabled = enabled ?? !layer.enabled
-      mapInstance.value?.toggleLayerVisibility(layerId, enabled)
     }
   }
 
@@ -95,7 +93,7 @@ export const useMapStore = defineStore('map', () => {
     const layer = layers.value.find(layer => layer.id === layerId)
     if (layer) {
       layer.visible = enabled
-      mapInstance.value?.toggleLayerVisibility(layerId, enabled)
+      mapStrategy.value?.toggleLayerVisibility(layerId, enabled)
     }
   }
 
@@ -108,7 +106,7 @@ export const useMapStore = defineStore('map', () => {
   }
 
   return {
-    mapInstance,
+    mapInstance: mapStrategy,
     setMapInstance,
     mapEngine,
     setMapEngine,

@@ -16,11 +16,15 @@ export type MapOptions = {
   basemap: Basemap
 }
 
+export type MapInstance = MapboxMap | MaplibreMap
+
 export type MapEvents = {
-  'map:click': {
+  click: {
     coordinates: [number, number]
     point: { x: number; y: number }
   }
+  load: MapInstance
+  'style.load': MapInstance
 }
 
 export enum SourceType {

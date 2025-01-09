@@ -3,38 +3,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { onMounted, onUnmounted, watch, useTemplateRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDark } from '@vueuse/core'
 import { useMapStore } from '../../stores/map.store'
-import { MapboxStrategy } from './map-providers/mapbox.strategy'
+import { useMapService } from '@/services/map.service'
 import { MapStrategy } from './map-providers/map.strategy'
+import { MapboxStrategy } from './map-providers/mapbox.strategy'
 import { MaplibreStrategy } from './map-providers/maplibre.strategy'
 import { MapEngine, MapOptions } from '@/types/map.types'
 import { Locale } from '@/lib/i18n'
 
 const dark = useDark()
+const mapService = useMapService()
 const mapStore = useMapStore()
 const { locale } = useI18n()
 
-const mapContainer = ref(null)
+const mapContainer = useTemplateRef('mapContainer')
 let map: MapStrategy
 
-function getMapInstance(mapEngine: MapEngine) {
-  const options: Partial<MapOptions> = {
-    theme: dark.value ? 'dark' : 'light',
-  }
-  switch (mapEngine) {
-    case 'mapbox':
-      return new MapboxStrategy(mapContainer.value, options)
-    case 'maplibre':
-      return new MaplibreStrategy(mapContainer.value, options)
-  }
-}
-
 onMounted(() => {
-  map = getMapInstance(mapStore.mapEngine)
-  mapStore.setMapInstance(map)
+  map = mapService.initializeMap(mapContainer.value, mapStore.mapEngine)
 
   // Watch for map store changes and update map accordingly
 
@@ -53,12 +42,12 @@ onMounted(() => {
     },
   )
 
-  // watch(
-  //   () => mapStore.layers,
-  //   layers => {
-  //     map.setLayers(layers)
-  //   },
-  // )
+  watch(
+    () => mapStore.layers,
+    layers => {
+      map.setLayers(layers)
+    },
+  )
 
   // watch(
   //   () => mapStore.mapEngine,

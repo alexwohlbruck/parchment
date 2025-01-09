@@ -10,10 +10,13 @@ import { MapStrategy } from './map-providers/map.strategy'
 const mapService = useMapService()
 const mapStore = useMapStore()
 
-const mapContainer = useTemplateRef('mapContainer')
+const mapContainer = useTemplateRef<HTMLElement>('mapContainer')
 let mapStrategy: MapStrategy
 
 onMounted(() => {
+  if (!mapContainer.value) {
+    throw new Error('Map container element not found')
+  }
   mapStrategy = mapService.initializeMap(mapContainer.value, mapStore.mapEngine)
 })
 

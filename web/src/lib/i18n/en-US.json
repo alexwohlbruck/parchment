@@ -110,7 +110,7 @@
   },
   "layers": {
     "title": "Layers",
-    "info": {
+    "meta": {
       "title": "Layer Info",
       "fields": {
         "id": "Layer ID",
@@ -134,11 +134,15 @@
             "slot": "Slot",
             "clip": "Clip"
           }
+        },
+        "customConfiguration": {
+          "title": "Custom Configuration",
+          "placeholder": "Enter custom Mapbox layer configuration"
         }
       }
     },
-    "source": {
-      "title": "Data Source",
+    "configuration": {
+      "title": "Layer Configuration",
       "fields": {
         "useExisting": "Use Existing Source",
         "id": "Source ID",
@@ -163,12 +167,6 @@
           "url": "Attribution URL",
           "name": "Attribution Name"
         }
-      }
-    },
-    "meta": {
-      "title": "Custom Configuration",
-      "fields": {
-        "placeholder": "Enter JSON for meta field"
       }
     }
   },

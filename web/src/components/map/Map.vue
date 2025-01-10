@@ -21,7 +21,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  mapStrategy.remove()
+  mapService.destroy()
 })
 </script>
 

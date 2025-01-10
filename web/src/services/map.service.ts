@@ -20,6 +20,7 @@ function mapService() {
     container: string | HTMLElement,
     mapEngine: MapEngine,
   ) {
+    // TODO: Detect theme automatically on map init
     const options: Partial<MapOptions> = {
       theme: dark.value ? 'dark' : 'light',
     }
@@ -40,17 +41,20 @@ function mapService() {
     mapStrategy = getMapStrategy(container, mapEngine)
     mapStore.setMapStrategy(mapStrategy)
 
-    mapEventBus.on('load', () => {})
+    mapEventBus.on('load', () => {
+      mapStore.initializeLayers(layers.value)
+    })
 
     mapEventBus.on('style.load', () => {
+      console.log(options?.theme ?? dark.value ? 'dark' : 'light')
       mapStrategy.setMapTheme(options?.theme ?? dark.value ? 'dark' : 'light')
-      mapStore.initializeLayers(layers.value)
     })
 
     return mapStrategy
   }
 
   function setMapEngine(mapEngine: MapEngine) {
+    destroy()
     mapStrategy = initializeMap(mapContainer, mapEngine, mapState.value)
     mapStore.setMapEngine(mapEngine)
   }
@@ -77,13 +81,23 @@ function mapService() {
     },
   )
 
-  function toggleLayer(layerId: Layer['id'], state?: boolean) {
-    mapStrategy.toggleLayerVisibility(layerId, state)
+  function toggleLayer(layerId: Layer['configuration']['id'], state?: boolean) {
     mapStore.toggleLayer(layerId, state)
   }
 
-  function toggleLayerVisibility(layerId: Layer['id'], state: boolean) {
+  function toggleLayerVisibility(
+    layerId: Layer['configuration']['id'],
+    state: boolean,
+  ) {
     mapStore.toggleLayerVisibility(layerId, state)
+  }
+
+  function destroy() {
+    // Remove event listeners
+    // TODO: Automatically remove all listeners without explicitly naming them
+    mapEventBus.off('load')
+    mapEventBus.off('style.load')
+    mapStrategy.destroy() // Remove map instance
   }
 
   /**
@@ -113,6 +127,7 @@ function mapService() {
     toggleLayerVisibility,
     setMapEngine,
     setDirections: mapStore.setDirections,
+    destroy,
     on,
     off,
     emit,

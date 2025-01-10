@@ -80,8 +80,10 @@ export const useMapStore = defineStore('map', () => {
     }
   }
 
-  function removeLayer(layerId: Layer['id']) {
-    const index = layers.value.findIndex(layer => layer.id === layerId)
+  function removeLayer(layerId: Layer['configuration']['id']) {
+    const index = layers.value.findIndex(
+      layer => layer.configuration.id === layerId,
+    )
     if (index !== -1) {
       const layer = layers.value[index]
       if (layer.enabled) {
@@ -92,33 +94,39 @@ export const useMapStore = defineStore('map', () => {
   }
 
   function updateLayer(updatedLayer: Layer) {
-    const index = layers.value.findIndex(layer => layer.id === updatedLayer.id)
-    if (index === -1) return
+    const layer = layers.value.find(
+      layer => layer.configuration.id === updatedLayer.configuration.id,
+    )
+    if (!layer) return
 
-    layers.value[index] = updatedLayer
+    // Update properties of existing layer object to maintain reactivity
+    Object.assign(layer, updatedLayer)
 
-    if (updatedLayer.enabled) {
-      removeLayer(updatedLayer.id)
-      addLayer(updatedLayer)
+    mapStrategy?.removeLayer(layer.configuration.id)
+    if (typeof layer.configuration.source === 'object') {
+      mapStrategy?.removeSource(layer.configuration.source.id)
     }
+    mapStrategy?.addLayer(layer)
   }
 
-  function toggleLayer(layerId: Layer['id'], enabled?: boolean) {
-    const layer = layers.value.find(layer => layer.id === layerId)
-    if (layer) {
-      const wasEnabled = layer.enabled
-      layer.enabled = enabled ?? !wasEnabled
+  function toggleLayer(
+    layerId: Layer['configuration']['id'],
+    enabled?: boolean,
+  ) {
+    const layer = layers.value.find(layer => layer.configuration.id === layerId)
+    if (!layer) return
 
-      if (wasEnabled && !enabled) {
-        mapStrategy?.removeLayer(layerId)
-      } else if (!wasEnabled && enabled) {
-        mapStrategy?.addLayer(layer)
-      }
-    }
+    const newEnabled = enabled ?? !layer.enabled
+    const updatedLayer = { ...layer, enabled: newEnabled }
+
+    updateLayer(updatedLayer)
   }
 
-  function toggleLayerVisibility(layerId: Layer['id'], visible: boolean) {
-    const layer = layers.value.find(layer => layer.id === layerId)
+  function toggleLayerVisibility(
+    layerId: Layer['configuration']['id'],
+    visible: boolean,
+  ) {
+    const layer = layers.value.find(layer => layer.configuration.id === layerId)
     if (layer) {
       layer.visible = visible
       if (layer.enabled) {

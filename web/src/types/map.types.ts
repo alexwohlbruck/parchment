@@ -42,6 +42,7 @@ export type Source = {
   maxzoom?: number
 }
 
+// TODO: Rename to MapboxLayerType
 export enum LayerType {
   LINE = 'line',
   FILL = 'fill',
@@ -59,6 +60,18 @@ export enum LayerType {
   CLIP = 'clip',
 }
 
+export enum MaplibreLayerType {
+  SYMBOL = 'symbol',
+  RASTER = 'raster',
+  FILL = 'fill',
+  LINE = 'line',
+  CIRCLE = 'circle',
+  HEATMAP = 'heatmap',
+  FILL_EXTRUSION = 'fill-extrusion',
+  HILLSHADE = 'hillshade',
+  BACKGROUND = 'background',
+}
+
 export type MapboxLayerConfiguration = {
   id: string
   type: LayerType
@@ -69,18 +82,22 @@ export type MapboxLayerConfiguration = {
 
 export type MaplibreLayerConfiguration = {
   id: string
-  type: LayerType
+  type: MaplibreLayerType
   source: string | Source
   // Allow any additional properties for layer-specific configuration
   [key: string]: any
 }
 
+// TODO: Make MapboxLayer extend Layer
 export type Layer = {
-  id: string
   name: string
   icon: Icon
   enabled: boolean
   visible: boolean
-  engine: MapEngine
-  configuration: MapboxLayerConfiguration | MaplibreLayerConfiguration
+  engine: 'mapbox'
+  configuration: MapboxLayerConfiguration
+}
+
+export type MaplibreLayer = Layer & {
+  configuration: MaplibreLayerConfiguration
 }

@@ -19,7 +19,7 @@ const mapStore = useMapStore()
 const { layers } = storeToRefs(mapStore)
 const { t } = useI18n()
 
-function openLayerConfigDialog(layerId?: Layer['id']) {
+function openLayerConfigDialog(layerId?: Layer['configuration']['id']) {
   appService.componentDialog({
     component: LayerConfiguration,
     continueText: t('general.save'),
@@ -52,7 +52,7 @@ const columns: ColumnDef<Layer>[] = [
     cell: ({ row }) =>
       h(Switch, {
         checked: row.original.enabled,
-        onClick: () => mapService.toggleLayer(row.original.id),
+        onClick: () => mapService.toggleLayer(row.original.configuration.id),
       }),
   },
   {
@@ -61,7 +61,7 @@ const columns: ColumnDef<Layer>[] = [
       h(Button, {
         variant: 'ghost',
         size: 'icon',
-        onClick: () => openLayerConfigDialog(row.original.id),
+        onClick: () => openLayerConfigDialog(row.original.configuration.id),
         icon: PencilIcon,
       }),
   },

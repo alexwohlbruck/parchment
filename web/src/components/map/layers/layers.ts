@@ -2,8 +2,9 @@ import { Layer, LayerType, SourceType } from '@/types/map.types'
 import { BikeIcon, CarFrontIcon, TrainIcon } from 'lucide-vue-next'
 import { MapEngine } from '@/types/map.types'
 
+const mapboxAccessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
+
 const cyclOSM: Layer = {
-  id: 'cyclosm',
   name: 'CyclOSM',
   icon: BikeIcon,
   enabled: true,
@@ -30,10 +31,9 @@ const cyclOSM: Layer = {
 }
 
 const waymarkedTrails: Layer = {
-  id: 'waymarkedTrails',
   name: 'Waymarked Trails',
   icon: BikeIcon,
-  enabled: false,
+  enabled: true,
   visible: false,
   engine: 'mapbox',
   configuration: {
@@ -52,7 +52,6 @@ const waymarkedTrails: Layer = {
 
 const transitlandApiKey = import.meta.env.VITE_TRANSITLAND_API_KEY
 const transitLand: Layer = {
-  id: 'transitland',
   name: 'Transitland',
   icon: TrainIcon,
   enabled: true,
@@ -139,10 +138,9 @@ const transitLand: Layer = {
 
 // mapbox://mapbox.mapbox-traffic-v1
 const traffic: Layer = {
-  id: 'traffic',
   name: 'Mapbox traffic',
   icon: CarFrontIcon,
-  enabled: true,
+  enabled: false,
   visible: false,
   engine: 'mapbox',
   configuration: {
@@ -152,6 +150,10 @@ const traffic: Layer = {
       id: 'traffic',
       type: SourceType.VECTOR,
       url: 'mapbox://mapbox.mapbox-traffic-v1',
+      attribution: 'Mapbox',
+      // tiles: [
+      //   `https://a.tiles.mapbox.com/v4/mapbox.mapbox-streets-v7/{z}/{x}/{y}.vector.pbf?access_token=${mapboxAccessToken}`,
+      // ],
     },
     'source-layer': 'traffic',
     layout: {

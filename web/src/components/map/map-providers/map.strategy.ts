@@ -28,10 +28,14 @@ export class MapStrategy {
   unsetDirections() {}
   setMapTheme(theme: MapTheme) {}
   setBasemap(basemap: Basemap) {}
+  removeSource(sourceId: string) {}
   addLayer(layer: Layer) {}
-  removeLayer(layerId: Layer['id']) {}
-  updateLayer(layerId: Layer['id'], updates: Partial<Layer>) {}
+  removeLayer(layerId: Layer['configuration']['id']) {}
+  updateLayer(layerId: Layer['configuration']['id'], updates: Partial<Layer>) {}
   toggleLayer(layerId: string, state?: boolean) {}
-  toggleLayerVisibility(layerId: Layer['id'], state?: boolean) {}
-  remove() {}
+  toggleLayerVisibility(
+    layerId: Layer['configuration']['id'],
+    state?: boolean,
+  ) {}
+  destroy() {}
 }

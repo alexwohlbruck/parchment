@@ -293,8 +293,8 @@ export class MapboxStrategy extends MapStrategy {
     this.mapInstance.setStyle(url)
   }
 
-  addSource() {
-    console.log('MapboxStrategy: adding data source')
+  removeSource(sourceId: string) {
+    this.mapInstance.removeSource(sourceId)
   }
 
   addLayer(layer: Layer) {
@@ -308,11 +308,14 @@ export class MapboxStrategy extends MapStrategy {
     })
   }
 
-  removeLayer(layerId: Layer['id']) {
+  removeLayer(layerId: Layer['configuration']['id']) {
     this.mapInstance.removeLayer(layerId)
   }
 
-  toggleLayerVisibility(layerId: Layer['id'], visible: boolean) {
+  toggleLayerVisibility(
+    layerId: Layer['configuration']['id'],
+    visible: boolean,
+  ) {
     this.mapInstance.setLayoutProperty(
       layerId,
       'visibility',
@@ -320,7 +323,7 @@ export class MapboxStrategy extends MapStrategy {
     )
   }
 
-  remove() {
+  destroy() {
     this.mapInstance.remove()
   }
 }

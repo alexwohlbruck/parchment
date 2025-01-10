@@ -47,10 +47,6 @@ function openLayerConfigDialog(layer: Layer) {
     },
   })
 }
-
-function updateMapEngine(engine: MapEngine) {
-  mapService.setMapEngine(engine)
-}
 </script>
 
 <template>
@@ -61,7 +57,10 @@ function updateMapEngine(engine: MapEngine) {
         :title="$t('palette.commands.chooseMapEngine.name')"
         :description="$t('palette.commands.chooseMapEngine.description')"
       >
-        <Select v-model="mapEngine" @update:model-value="updateMapEngine">
+        <Select
+          v-model="mapEngine"
+          @update:model-value="(value) => mapService.setMapEngine(value as MapEngine)"
+        >
           <SelectTrigger class="w-fit">
             <SelectValue />
           </SelectTrigger>

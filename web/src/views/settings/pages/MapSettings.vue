@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { storeToRefs } from 'pinia'
 import { useAppService } from '@/services/app.service'
+import { useMapService } from '@/services/map.service'
 import { useMapStore } from '@/stores/map.store'
 import { useCommandStore } from '@/stores/command.store'
-import { useI18n } from 'vue-i18n'
 import { type Layer, MapEngine } from '@/types/map.types'
 
-import { H6 } from '@/components/ui/typography'
 import { Button } from '@/components/ui/button'
 import { SettingsSection, SettingsItem } from '@/components/settings'
 import {
@@ -17,15 +18,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Card } from '@/components/ui/card'
-import { SettingsIcon, PlusIcon } from 'lucide-vue-next'
+import { PlusIcon } from 'lucide-vue-next'
 import LayerConfiguration from '@/components/map/layers/LayerConfiguration.vue'
 import Layers from '@/components/map/Layers.vue'
 
-const { mapEngine, setMapEngine, layers } = useMapStore()
+const mapStore = useMapStore()
 const commandStore = useCommandStore()
 const appService = useAppService()
+const mapService = useMapService()
 const { t } = useI18n()
+
+const { mapEngine } = storeToRefs(mapStore)
 
 const projectionLocal = localStorage.getItem('projection') || 'globe'
 const projection = ref(projectionLocal)
@@ -44,6 +47,10 @@ function openLayerConfigDialog(layer: Layer) {
     },
   })
 }
+
+function updateMapEngine(engine: MapEngine) {
+  mapService.setMapEngine(engine)
+}
 </script>
 
 <template>
@@ -54,10 +61,7 @@ function openLayerConfigDialog(layer: Layer) {
         :title="$t('palette.commands.chooseMapEngine.name')"
         :description="$t('palette.commands.chooseMapEngine.description')"
       >
-        <Select
-          :default-value="mapEngine"
-          @update:model-value="(engine) => setMapEngine(engine as MapEngine)"
-        >
+        <Select v-model="mapEngine" @update:model-value="updateMapEngine">
           <SelectTrigger class="w-fit">
             <SelectValue />
           </SelectTrigger>

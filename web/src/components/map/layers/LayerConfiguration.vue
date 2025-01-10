@@ -485,6 +485,7 @@ defineExpose({
 
           <SettingsItem
             :title="$t('layers.configuration.fields.attribution.title')"
+            block
           >
             <div class="flex flex-col gap-2">
               <Input
@@ -526,6 +527,7 @@ defineExpose({
         <FormItem>
           <SettingsItem
             :title="$t('layers.meta.fields.customConfiguration.title')"
+            block
           >
             <div class="flex-1 flex flex-col gap-2 items-end">
               <FormControl>

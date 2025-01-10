@@ -14,6 +14,7 @@ import { Directions } from '@/types/directions.types'
 import { decodeShape } from '@/lib/utils'
 import colors from 'tailwindcss/colors'
 import { mapEventBus } from '@/lib/eventBus'
+import { mapboxLayerToMaplibreLayer } from '@/lib/map.utils'
 
 const basemapUrls = {
   light: `https://api.maptiler.com/maps/streets-v2/style.json?key=${
@@ -236,9 +237,13 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.setStyle(themeMap[basemap])
   }
 
+  removeSource(sourceId: string) {
+    this.mapInstance.removeSource(sourceId)
+  }
+
   // TODO: Get maplibre layer type
   addLayer(layer: any) {
-    const { configuration } = layer
+    const { configuration }: any = mapboxLayerToMaplibreLayer(layer)
     this.mapInstance.addLayer({
       ...configuration,
       layout: {
@@ -248,12 +253,12 @@ export class MaplibreStrategy extends MapStrategy {
     })
   }
 
-  // TODO: Use Layer['id']
+  // TODO: Use maplibre Layer['configuration']['id']
   removeLayer(layerId: string) {
     this.mapInstance.removeLayer(layerId)
   }
 
-  // TODO: Use Layer['id']
+  // TODO: Use maplibre Layer['configuration']['id']
   toggleLayerVisibility(layerId: string, visible: boolean) {
     this.mapInstance.setLayoutProperty(
       layerId,
@@ -262,7 +267,7 @@ export class MaplibreStrategy extends MapStrategy {
     )
   }
 
-  remove() {
+  destroy() {
     this.mapInstance.remove()
   }
 }

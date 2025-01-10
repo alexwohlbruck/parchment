@@ -15,7 +15,10 @@ const enabledLayers = computed(() =>
   mapStore.layers.filter(layer => layer.enabled),
 )
 
-function toggleLayerVisibility(layerId: Layer['id'], pressed: boolean) {
+function toggleLayerVisibility(
+  layerId: Layer['configuration']['id'],
+  pressed: boolean,
+) {
   mapService.toggleLayerVisibility(layerId, pressed)
 }
 </script>
@@ -51,7 +54,9 @@ function toggleLayerVisibility(layerId: Layer['id'], pressed: boolean) {
         variant="outline"
         :aria-label="layer.name"
         :default-value="layer.visible || false"
-        @update:pressed="pressed => toggleLayerVisibility(layer.id, pressed)"
+        @update:pressed="
+          pressed => toggleLayerVisibility(layer.configuration.id, pressed)
+        "
         class="flex gap-2"
       >
         <component :is="layer.icon" class="size-5" />

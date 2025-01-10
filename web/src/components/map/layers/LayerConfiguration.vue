@@ -27,12 +27,12 @@ import {
 const mapStore = useMapStore()
 
 const props = defineProps<{
-  layerId?: Layer['id']
+  layerId?: Layer['configuration']['id']
 }>()
 
 const editing = computed(() => props.layerId)
 const layer = editing
-  ? mapStore.layers.find(layer => layer.id === props.layerId)
+  ? mapStore.layers.find(layer => layer.configuration.id === props.layerId)
   : null
 
 const emit = defineEmits<{
@@ -44,6 +44,36 @@ const useExistingSource = ref(
   layer ? typeof layer.configuration.source === 'string' : false,
 )
 
+const getCustomConfigurationDefault = (layer: Layer | null) => {
+  if (!layer) return '{}'
+
+  const uiConfiguredFields = ['id', 'type', 'source']
+  const sourceConfigFields = [
+    'id',
+    'type',
+    'url',
+    'tiles',
+    'tileSize',
+    'attribution',
+  ]
+
+  const config = { ...layer.configuration }
+
+  // Remove top-level UI-configured fields
+  uiConfiguredFields.forEach(field => {
+    delete config[field]
+  })
+
+  // Handle source object separately
+  if (config.source && typeof config.source === 'object') {
+    sourceConfigFields.forEach(field => {
+      delete config.source[field]
+    })
+  }
+
+  return Object.keys(config).length > 0 ? JSON.stringify(config, null, 2) : '{}'
+}
+
 const layerSchema = computed(() => {
   return toTypedSchema(
     z.object({
@@ -51,6 +81,7 @@ const layerSchema = computed(() => {
       enabled: z.boolean().default(true),
       visible: z.boolean().default(true),
       engine: z.enum(['mapbox', 'maplibre']).default('mapbox'),
+      icon: z.any().default(() => null),
       customConfiguration: z
         .string()
         .refine(
@@ -64,13 +95,13 @@ const layerSchema = computed(() => {
           },
           { message: 'Invalid JSON format' },
         )
-        .default('{}'),
+        .default(() => (layer ? getCustomConfigurationDefault(layer) : '{}')),
       configuration: z
         .object({
           id: z.string().min(1, 'required').default(''),
           type: z
             .enum(Object.values(LayerType) as [string, ...string[]])
-            .default(LayerType.LINE),
+            .default(LayerType.LINE), // TODO: Not working
           source: useExistingSource.value
             ? z.string().default('')
             : z
@@ -78,7 +109,7 @@ const layerSchema = computed(() => {
                   id: z.string().min(1, 'required').default(''),
                   type: z
                     .enum(Object.values(SourceType) as [string, ...string[]])
-                    .default('raster'),
+                    .default(SourceType.RASTER), // TODO: Not working
                   url: z.string().url().optional(),
                   tiles: z
                     .array(
@@ -377,10 +408,10 @@ defineExpose({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="raster">
-                      {{ $t('layers.source.fields.values.raster') }}
+                      {{ $t('layers.configuration.fields.values.raster') }}
                     </SelectItem>
                     <SelectItem value="vector">
-                      {{ $t('layers.source.fields.values.vector') }}
+                      {{ $t('layers.configuration.fields.values.vector') }}
                     </SelectItem>
                   </SelectContent>
                 </Select>
@@ -398,10 +429,14 @@ defineExpose({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="tilejson">{{
-                $t('layers.source.fields.tileConfiguration.values.tilejson')
+                $t(
+                  'layers.configuration.fields.tileConfiguration.values.tilejson',
+                )
               }}</SelectItem>
               <SelectItem value="custom">{{
-                $t('layers.source.fields.tileConfiguration.values.custom')
+                $t(
+                  'layers.configuration.fields.tileConfiguration.values.custom',
+                )
               }}</SelectItem>
             </SelectContent>
           </Select>
@@ -470,15 +505,15 @@ defineExpose({
 
         <template v-else>
           <FormField
-            name="configuration.source.url"
+            name="configuration.configuration.url"
             v-slot="{ componentField }"
           >
             <FormItem>
-              <SettingsItem :title="$t('layers.source.fields.url')">
+              <SettingsItem :title="$t('layers.configuration.fields.url')">
                 <Input
                   v-bind="componentField"
                   type="text"
-                  :placeholder="$t('layers.source.fields.url')"
+                  :placeholder="$t('layers.configuration.fields.url')"
                   class="w-fit"
                 />
               </SettingsItem>

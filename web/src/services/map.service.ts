@@ -46,7 +46,6 @@ function mapService() {
     })
 
     mapEventBus.on('style.load', () => {
-      console.log(options?.theme ?? dark.value ? 'dark' : 'light')
       mapStrategy.setMapTheme(options?.theme ?? dark.value ? 'dark' : 'light')
     })
 

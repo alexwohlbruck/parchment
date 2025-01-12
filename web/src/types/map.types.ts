@@ -25,6 +25,10 @@ export type MapEvents = {
   }
   load: MapInstance
   'style.load': MapInstance
+  contextmenu: {
+    coordinates: [number, number]
+    point: { x: number; y: number }
+  }
 }
 
 export enum SourceType {

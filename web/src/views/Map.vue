@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
 import Map from '@/components/map/Map.vue'
-
 const route = useRoute()
 </script>
 

@@ -1,5 +1,6 @@
 import { capitalize } from '@/filters/text.filters'
 import axios, { AxiosError } from 'axios'
+import { useI18n } from 'vue-i18n'
 import { toast } from 'vue-sonner'
 
 export const api = axios.create({
@@ -37,8 +38,11 @@ function getErrorMessage(error: AxiosError): {
     }
   }
 
+  // TODO: How to get i18n in interceptor?
+  // const { t } = useI18n()
+
   return {
-    title: 'An unknown error occurred', // TODO: i18n
+    title: 'An unknown error occurred', //t('messages.unknownError'),
   }
 }
 

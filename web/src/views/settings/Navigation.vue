@@ -36,12 +36,12 @@ const pages: {
     id: 'account',
     to: '/settings/account',
     icon: UserRoundIcon,
-    disabled: true,
   },
   {
     id: 'behavior',
     to: '/settings/behavior',
     icon: CogIcon,
+    disabled: true,
   },
   {
     id: 'appearance',
@@ -57,7 +57,6 @@ const pages: {
     id: 'users',
     to: '/settings/users',
     icon: Contact2Icon,
-    disabled: true,
     permissions: {
       any: [
         Permission.USERS_READ,

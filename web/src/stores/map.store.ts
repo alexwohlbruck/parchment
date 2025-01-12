@@ -8,7 +8,6 @@ import {
   MapEvents,
   Layer,
 } from '@/types/map.types'
-import { Directions } from '@/types/directions.types'
 import { layers as defaultLayers } from '@/components/map/layers/layers'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 
@@ -55,8 +54,6 @@ export const useMapStore = defineStore('map', () => {
   function emit<K extends keyof MapEvents>(event: K, data: MapEvents[K]) {
     emitter.emit(event, data)
   }
-
-  const directions = ref<null | Directions>(null)
 
   function setBasemap(map: Basemap) {
     mapState.value.basemap = map
@@ -135,14 +132,6 @@ export const useMapStore = defineStore('map', () => {
     }
   }
 
-  function setDirections(directions_: Directions) {
-    directions.value = directions_
-  }
-
-  function unsetDirections() {
-    directions.value = null
-  }
-
   return {
     setMapStrategy,
     mapEngine,
@@ -159,8 +148,5 @@ export const useMapStore = defineStore('map', () => {
     updateLayer,
     toggleLayer,
     toggleLayerVisibility,
-    directions,
-    setDirections,
-    unsetDirections,
   }
 })

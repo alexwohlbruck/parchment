@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import draggable from 'vuedraggable'
-import { computed, ref } from 'vue'
-import { XIcon, PlusIcon, GripHorizontalIcon, TimerIcon } from 'lucide-vue-next'
+import { computed, ref, watch } from 'vue'
+import { XIcon, PlusIcon, GripHorizontalIcon } from 'lucide-vue-next'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import WaypointTimingInput from './WaypointTimingInput.vue'
@@ -9,42 +9,54 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover'
+} from '@/components/ui/popover'import { Waypoint } from '@/types/map.types'
+import { useDirectionsService } from '@/services/directions.service'
+
+const directionsService = useDirectionsService()
+
 const MIN_LOCATIONS = 2
 
 const props = defineProps<{
-  modelValue: string[]
+  modelValue: Waypoint[]
 }>()
 
 const emit = defineEmits<{
-  'update:modelValue': [value: string[]]
-  change: []
+  'update:modelValue': [value: Waypoint[]]
 }>()
 
 const waypoints = computed({
   get: () => props.modelValue,
-  set: value => emit('update:modelValue', value),
+  set: newValue => {
+    emit('update:modelValue', newValue)
+  },
 })
 
 function clearWaypoint(index: number) {
   if (waypoints.value.length > MIN_LOCATIONS) {
     const newWaypoints = [...waypoints.value]
     newWaypoints.splice(index, 1)
-    waypoints.value = newWaypoints
-    emit('change')
+    emit('update:modelValue', newWaypoints)
   } else {
     const newWaypoints = [...waypoints.value]
-    newWaypoints[index] = ''
-    waypoints.value = newWaypoints
+    newWaypoints[index] = directionsService.createBlankWaypoint()
+    emit('update:modelValue', newWaypoints)
   }
 }
 
 function addWaypoint() {
-  waypoints.value = [...waypoints.value, '']
+  emit('update:modelValue', [
+    ...waypoints.value,
+    directionsService.createBlankWaypoint(),
+  ])
 }
 
-function onDragEnd() {
-  emit('change')
+function getWaypointName(waypoint: Waypoint) {
+  if (waypoint.lngLat) {
+    return `${waypoint.lngLat.lat.toFixed(5)}, ${waypoint.lngLat.lng.toFixed(
+      5,
+    )}`
+  }
+  return ''
 }
 </script>
 
@@ -53,13 +65,7 @@ function onDragEnd() {
     v-model="waypoints"
     :animation="200"
     handle=".handle"
-    item-key="index"
-    @end="onDragEnd"
-    tag="transition-group"
-    :component-data="{
-      name: 'locations-list',
-      type: 'transition-group',
-    }"
+    tag="div"
     class="flex flex-col gap-2"
   >
     <template #item="{ element, index }">
@@ -70,8 +76,7 @@ function onDragEnd() {
         <div class="flex flex-1">
           <Input
             :placeholder="index == 0 ? 'From' : 'To'"
-            :value="element"
-            @input="e => waypoints[index] = (e.target as HTMLInputElement).value"
+            :model-value="getWaypointName(element)"
           />
           <Popover>
             <PopoverTrigger as-child>

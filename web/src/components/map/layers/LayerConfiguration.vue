@@ -27,12 +27,12 @@ import {
 const mapStore = useMapStore()
 
 const props = defineProps<{
-  layerId?: Layer['id']
+  layerId?: Layer['configuration']['id']
 }>()
 
 const editing = computed(() => props.layerId)
 const layer = editing
-  ? mapStore.layers.find(layer => layer.id === props.layerId)
+  ? mapStore.layers.find(layer => layer.configuration.id === props.layerId)
   : null
 
 const emit = defineEmits<{
@@ -40,66 +40,109 @@ const emit = defineEmits<{
   submit: [values: any]
 }>()
 
-const useExistingSource = ref(layer ? typeof layer.source === 'string' : false)
+const useExistingSource = ref(
+  layer ? typeof layer.configuration.source === 'string' : false,
+)
+
+const getCustomConfigurationDefault = (layer: Layer | null) => {
+  if (!layer) return '{}'
+
+  const uiConfiguredFields = ['id', 'type', 'source']
+  const sourceConfigFields = [
+    'id',
+    'type',
+    'url',
+    'tiles',
+    'tileSize',
+    'attribution',
+  ]
+
+  const config = { ...layer.configuration }
+
+  // Remove top-level UI-configured fields
+  uiConfiguredFields.forEach(field => {
+    delete config[field]
+  })
+
+  // Handle source object separately
+  if (config.source && typeof config.source === 'object') {
+    sourceConfigFields.forEach(field => {
+      delete config.source[field]
+    })
+  }
+
+  return Object.keys(config).length > 0 ? JSON.stringify(config, null, 2) : '{}'
+}
 
 const layerSchema = computed(() => {
   return toTypedSchema(
     z.object({
       name: z.string().min(1, 'required').default(''),
-      id: z.string().min(1, 'required').default(''),
-      description: z.string().optional(),
       enabled: z.boolean().default(true),
-      type: z
-        .enum(Object.values(LayerType) as [string, ...string[]])
-        .default('line'),
-      source: useExistingSource.value
-        ? z.string().min(1, 'required')
-        : z
-            .object({
-              id: z.string().min(1, 'required').default(''),
-              type: z
-                .enum(Object.values(SourceType) as [string, ...string[]])
-                .default('line'),
-              url: z.string().url('invalid').optional(),
-              tiles: z
-                .array(
-                  z
-                    .string()
-                    .url('Must be a valid URL')
-                    .regex(
-                      /^https?:\/\/.*(?=.*\{x\})(?=.*\{y\})(?=.*\{z\}).*$/i,
-                      'URL must contain {z}, {x}, and {y} parameters',
-                    ),
-                )
-                .min(1, 'At least one tile URL is required')
-                .default([])
-                .optional(),
-              tileSize: z
-                .number()
-                .positive('Must be a positive number')
-                .optional(),
-              attribution: z.string().optional(),
-            })
-            .default({
-              id: '',
-              type: 'raster',
-              tiles: [],
-            }),
-      meta: z.string().optional(),
+      visible: z.boolean().default(true),
+      engine: z.enum(['mapbox', 'maplibre']).default('mapbox'),
+      icon: z.any().default(() => null),
+      customConfiguration: z
+        .string()
+        .refine(
+          val => {
+            try {
+              if (val) JSON.parse(val)
+              return true
+            } catch {
+              return false
+            }
+          },
+          { message: 'Invalid JSON format' },
+        )
+        .default(() => (layer ? getCustomConfigurationDefault(layer) : '{}')),
+      configuration: z
+        .object({
+          id: z.string().min(1, 'required').default(''),
+          type: z
+            .enum(Object.values(LayerType) as [string, ...string[]])
+            .default(LayerType.LINE), // TODO: Not working
+          source: useExistingSource.value
+            ? z.string().default('')
+            : z
+                .object({
+                  id: z.string().min(1, 'required').default(''),
+                  type: z
+                    .enum(Object.values(SourceType) as [string, ...string[]])
+                    .default(SourceType.RASTER), // TODO: Not working
+                  url: z.string().url().optional(),
+                  tiles: z
+                    .array(
+                      z
+                        .string()
+                        .url('Must be a valid URL')
+                        .regex(
+                          /^https?:\/\/.*(?=.*\{x\})(?=.*\{y\})(?=.*\{z\}).*$/i,
+                          'URL must contain {z}, {x}, and {y} parameters',
+                        ),
+                    )
+                    .min(1, 'At least one tile URL is required')
+                    .default([])
+                    .optional(),
+                  tileSize: z.number().positive().optional(),
+                  attribution: z.string().optional(),
+                })
+                .default({}),
+        })
+        .passthrough()
+        .default({}),
     }),
   )
 })
 
-const { handleSubmit, errors, values, meta, setFieldValue } = useForm({
-  validationSchema: layerSchema,
-  initialValues: {
-    ...layer,
-    meta:
-      typeof (layer?.meta === 'string'
-        ? layer?.meta
-        : JSON.stringify(layer?.meta, null, 2)) || '',
-  },
-})
+const { handleSubmit, errors, values, meta, setFieldValue, setFieldError } =
+  useForm({
+    validationSchema: layerSchema,
+    initialValues: {
+      ...layer,
+      configuration: layer?.configuration || {},
+    },
+  })
 
 const onSubmit = handleSubmit(values => {
   if (editing.value) {
@@ -120,9 +163,25 @@ const combinedAttribution = computed(() => {
   return `<a href="${attributionUrl.value}">© ${attributionName.value}</a>`
 })
 
+interface SourceConfig {
+  type?: string
+  url?: string
+  tiles?: string[]
+  tileSize?: number
+  attribution?: string
+}
+
+const getSourceConfig = (): SourceConfig | null => {
+  if (!form.value?.configuration?.source) return null
+  return typeof form.value.configuration.source === 'object'
+    ? (form.value.configuration.source as SourceConfig)
+    : null
+}
+
 const initializeAttribution = () => {
-  if (typeof form.value.source === 'object' && form.value.source.attribution) {
-    const attributionMatch = form.value.source.attribution.match(
+  const sourceConfig = getSourceConfig()
+  if (sourceConfig?.attribution) {
+    const attributionMatch = sourceConfig.attribution.match(
       /<a href="([^"]+)">([^<]+)<\/a>/,
     )
     if (attributionMatch) {
@@ -137,7 +196,8 @@ initializeAttribution()
 const tileConfig = ref(
   useExistingSource.value
     ? 'custom'
-    : typeof layer?.source === 'object' && layer?.source.url
+    : typeof layer?.configuration.source === 'object' &&
+      layer?.configuration.source.url
     ? 'tilejson'
     : 'custom',
 )
@@ -145,15 +205,18 @@ const tileInputs = ref(
   useExistingSource.value
     ? []
     : [
-        ...(typeof layer?.source === 'object' ? layer?.source.tiles || [] : []),
+        ...(typeof layer?.configuration.source === 'object'
+          ? layer?.configuration.source.tiles || []
+          : []),
         '',
       ],
 )
 
 const handleNewTileInput = () => {
   const tiles = tileInputs.value.filter(tile => tile !== '')
-  if (!useExistingSource.value && typeof values.source === 'object') {
-    setFieldValue('source.tiles', tiles)
+  const sourceConfig = getSourceConfig()
+  if (!useExistingSource.value && typeof sourceConfig) {
+    setFieldValue('configuration.source.tiles', tiles)
   }
   tileInputs.value = [...tiles, '']
 }
@@ -169,12 +232,54 @@ watch(
 watch([attributionUrl, attributionName], () => {
   if (
     !useExistingSource.value &&
-    typeof values.source === 'object' &&
+    typeof values.configuration?.source === 'object' &&
     (attributionUrl.value || attributionName.value)
   ) {
-    setFieldValue('source.attribution', combinedAttribution.value)
+    setFieldValue('configuration.source.attribution', combinedAttribution.value)
   }
 })
+
+watch(
+  () => values.customConfiguration,
+  newValue => {
+    try {
+      const customConfig = JSON.parse(newValue || '{}')
+      const mergedConfig = deepMerge(
+        JSON.parse(JSON.stringify(values.configuration || {})),
+        customConfig,
+      )
+
+      if (customConfig.source && values.configuration?.source) {
+        mergedConfig.source = deepMerge(
+          JSON.parse(JSON.stringify(values.configuration.source)),
+          customConfig.source,
+        )
+      }
+
+      setFieldValue('configuration', mergedConfig)
+      setFieldError('customConfiguration', undefined)
+    } catch (e) {
+      setFieldError('customConfiguration', 'Invalid JSON format')
+    }
+  },
+)
+
+const deepMerge = (target: any, source: any) => {
+  if (!source) return target
+  if (!target) return source
+
+  for (const key in source) {
+    if (source[key] instanceof Object && !Array.isArray(source[key])) {
+      target[key] = deepMerge(
+        Object.prototype.hasOwnProperty.call(target, key) ? target[key] : {},
+        source[key],
+      )
+    } else {
+      target[key] = source[key]
+    }
+  }
+  return target
+}
 
 defineExpose({
   submit: onSubmit,
@@ -185,14 +290,13 @@ defineExpose({
   <!-- TODO: Add FormMessage for errors -->
   <form @submit="onSubmit" class="space-y-4">
     <SettingsSection
-      :title="$t('layers.info.title')"
-      class="mt-4"
+      :title="$t('layers.meta.title')"
       :frame="false"
       :shadow="false"
     >
       <FormField name="enabled" v-slot="{ value, handleChange }">
         <FormItem>
-          <SettingsItem :title="$t('layers.info.fields.enabled')">
+          <SettingsItem :title="$t('layers.meta.fields.enabled')">
             <FormControl>
               <Switch :checked="value" @update:checked="handleChange" />
             </FormControl>
@@ -202,12 +306,12 @@ defineExpose({
 
       <FormField name="name" v-slot="{ componentField }">
         <FormItem>
-          <SettingsItem :title="$t('layers.info.fields.name')">
+          <SettingsItem :title="$t('layers.meta.fields.name')">
             <div class="flex flex-col gap-1.5">
               <FormControl>
                 <Input
                   v-bind="componentField"
-                  :placeholder="$t('layers.info.fields.name')"
+                  :placeholder="$t('layers.meta.fields.name')"
                   class="w-fit"
                 />
               </FormControl>
@@ -216,14 +320,14 @@ defineExpose({
         </FormItem>
       </FormField>
 
-      <FormField name="id" v-slot="{ componentField }">
+      <FormField name="configuration.id" v-slot="{ componentField }">
         <FormItem>
-          <SettingsItem :title="$t('layers.info.fields.id')">
+          <SettingsItem :title="$t('layers.meta.fields.id')">
             <div class="flex flex-col gap-1.5">
               <FormControl>
                 <Input
                   v-bind="componentField"
-                  :placeholder="$t('layers.info.fields.id')"
+                  :placeholder="$t('layers.meta.fields.id')"
                   class="w-fit"
                 />
               </FormControl>
@@ -232,9 +336,9 @@ defineExpose({
         </FormItem>
       </FormField>
 
-      <FormField name="type" v-slot="{ componentField }">
+      <FormField name="configuration.type" v-slot="{ componentField }">
         <FormItem>
-          <SettingsItem :title="$t('layers.info.fields.type.title')">
+          <SettingsItem :title="$t('layers.meta.fields.type.title')">
             <FormControl>
               <Select v-bind="componentField">
                 <SelectTrigger class="w-fit">
@@ -246,7 +350,7 @@ defineExpose({
                     :key="type"
                     :value="type"
                   >
-                    {{ $t(`layers.info.fields.type.values.${type}`) }}
+                    {{ $t(`layers.meta.fields.type.values.${type}`) }}
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -257,17 +361,17 @@ defineExpose({
     </SettingsSection>
 
     <SettingsSection
-      :title="$t('layers.source.title')"
+      :title="$t('layers.configuration.title')"
       class="mt-4"
       :frame="false"
       :shadow="false"
     >
-      <SettingsItem :title="$t('layers.source.fields.useExisting')">
+      <SettingsItem :title="$t('layers.configuration.fields.useExisting')">
         <Switch disabled></Switch>
       </SettingsItem>
 
       <template v-if="useExistingSource">
-        <SettingsItem :title="$t('layers.source.fields.id')">
+        <SettingsItem :title="$t('layers.configuration.fields.id')">
           <Select>
             <SelectTrigger class="w-fit">
               <SelectValue />
@@ -278,14 +382,14 @@ defineExpose({
       </template>
 
       <template v-else>
-        <FormField name="source.id" v-slot="{ componentField }">
+        <FormField name="configuration.source.id" v-slot="{ componentField }">
           <FormItem>
-            <SettingsItem :title="$t('layers.source.fields.id')">
+            <SettingsItem :title="$t('layers.configuration.fields.id')">
               <div class="flex flex-col gap-1.5">
                 <FormControl>
                   <Input
                     v-bind="componentField"
-                    :placeholder="$t('layers.source.fields.id')"
+                    :placeholder="$t('layers.configuration.fields.id')"
                     class="w-fit"
                   />
                 </FormControl>
@@ -294,21 +398,21 @@ defineExpose({
           </FormItem>
         </FormField>
 
-        <FormField name="source.type" v-slot="{ componentField }">
+        <FormField name="configuration.source.type" v-slot="{ componentField }">
           <FormItem>
-            <SettingsItem :title="$t('layers.source.fields.type')">
+            <SettingsItem :title="$t('layers.configuration.fields.type')">
               <FormControl>
                 <Select v-bind="componentField">
                   <SelectTrigger class="w-fit">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="raster">{{
-                      $t('layers.source.fields.values.raster')
-                    }}</SelectItem>
-                    <SelectItem value="vector">{{
-                      $t('layers.source.fields.values.vector')
-                    }}</SelectItem>
+                    <SelectItem value="raster">
+                      {{ $t('layers.configuration.fields.values.raster') }}
+                    </SelectItem>
+                    <SelectItem value="vector">
+                      {{ $t('layers.configuration.fields.values.vector') }}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </FormControl>
@@ -317,7 +421,7 @@ defineExpose({
         </FormField>
 
         <SettingsItem
-          :title="$t('layers.source.fields.tileConfiguration.title')"
+          :title="$t('layers.configuration.fields.tileConfiguration.title')"
         >
           <Select v-model="tileConfig">
             <SelectTrigger class="w-fit">
@@ -325,19 +429,26 @@ defineExpose({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="tilejson">{{
-                $t('layers.source.fields.tileConfiguration.values.tilejson')
+                $t(
+                  'layers.configuration.fields.tileConfiguration.values.tilejson',
+                )
               }}</SelectItem>
               <SelectItem value="custom">{{
-                $t('layers.source.fields.tileConfiguration.values.custom')
+                $t(
+                  'layers.configuration.fields.tileConfiguration.values.custom',
+                )
               }}</SelectItem>
             </SelectContent>
           </Select>
         </SettingsItem>
 
         <template v-if="tileConfig === 'custom'">
-          <FormField name="source.tiles" v-slot="{ componentField }">
+          <FormField
+            name="configuration.source.tiles"
+            v-slot="{ componentField }"
+          >
             <FormItem>
-              <SettingsItem :title="$t('layers.source.fields.tiles')">
+              <SettingsItem :title="$t('layers.configuration.fields.tiles')">
                 <div class="flex flex-col gap-2 w-full">
                   <template v-for="(tile, index) in tileInputs" :key="index">
                     <Input
@@ -345,7 +456,7 @@ defineExpose({
                       @input="handleNewTileInput()"
                       class="w-full max-w-80 self-end"
                       :placeholder="
-                        $t('layers.source.fields.tileUrlPlaceholder', {
+                        $t('layers.configuration.fields.tileUrlPlaceholder', {
                           0: index + 1,
                         })
                       "
@@ -356,29 +467,37 @@ defineExpose({
             </FormItem>
           </FormField>
 
-          <FormField name="source.tileSize" v-slot="{ componentField }">
+          <FormField
+            name="configuration.source.tileSize"
+            v-slot="{ componentField }"
+          >
             <FormItem>
-              <SettingsItem :title="$t('layers.source.fields.tileSize')">
+              <SettingsItem :title="$t('layers.configuration.fields.tileSize')">
                 <Input
                   v-bind="componentField"
                   type="number"
-                  :placeholder="$t('layers.source.fields.tileSize')"
+                  :placeholder="$t('layers.configuration.fields.tileSize')"
                   class="w-fit"
                 />
               </SettingsItem>
             </FormItem>
           </FormField>
 
-          <SettingsItem :title="$t('layers.source.fields.attribution.title')">
+          <SettingsItem
+            :title="$t('layers.configuration.fields.attribution.title')"
+            block
+          >
             <div class="flex flex-col gap-2">
               <Input
                 v-model="attributionUrl"
-                :placeholder="$t('layers.source.fields.attribution.url')"
+                :placeholder="$t('layers.configuration.fields.attribution.url')"
                 class="w-fit"
               />
               <Input
                 v-model="attributionName"
-                :placeholder="$t('layers.source.fields.attribution.name')"
+                :placeholder="
+                  $t('layers.configuration.fields.attribution.name')
+                "
                 class="w-fit"
               />
             </div>
@@ -386,13 +505,16 @@ defineExpose({
         </template>
 
         <template v-else>
-          <FormField name="source.url" v-slot="{ componentField }">
+          <FormField
+            name="configuration.configuration.url"
+            v-slot="{ componentField }"
+          >
             <FormItem>
-              <SettingsItem :title="$t('layers.source.fields.url')">
+              <SettingsItem :title="$t('layers.configuration.fields.url')">
                 <Input
                   v-bind="componentField"
                   type="text"
-                  :placeholder="$t('layers.source.fields.url')"
+                  :placeholder="$t('layers.configuration.fields.url')"
                   class="w-fit"
                 />
               </SettingsItem>
@@ -400,20 +522,29 @@ defineExpose({
           </FormField>
         </template>
       </template>
-    </SettingsSection>
 
-    <FormField name="meta" v-slot="{ componentField }">
-      <FormItem>
-        <SettingsSection :title="$t('layers.meta.title')">
-          <FormControl>
-            <Textarea
-              v-bind="componentField"
-              rows="10"
-              :placeholder="$t('layers.meta.fields.placeholder')"
-            />
-          </FormControl>
-        </SettingsSection>
-      </FormItem>
-    </FormField>
+      <FormField name="customConfiguration" v-slot="{ componentField }">
+        <FormItem>
+          <SettingsItem
+            :title="$t('layers.meta.fields.customConfiguration.title')"
+            block
+          >
+            <div class="flex-1 flex flex-col gap-2 items-end">
+              <FormControl>
+                <Textarea
+                  v-bind="componentField"
+                  rows="10"
+                  :placeholder="
+                    $t('layers.meta.fields.customConfiguration.placeholder')
+                  "
+                  class="font-mono"
+                />
+              </FormControl>
+              <FormMessage />
+            </div>
+          </SettingsItem>
+        </FormItem>
+      </FormField>
+    </SettingsSection>
   </form>
 </template>

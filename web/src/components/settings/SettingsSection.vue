@@ -34,7 +34,7 @@ const { shadow, frame } = withDefaults(defineProps<Props>(), {
     <div
       v-else
       class="w-full flex flex-col gap-4"
-      :class="{ 'shadow-sm': shadow }"
+      :class="{ 'shadow-sm': shadow, 'py-3': !frame && !shadow }"
     >
       <slot></slot>
     </div>

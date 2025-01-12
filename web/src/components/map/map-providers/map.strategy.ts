@@ -13,7 +13,7 @@ const defaultOptions: MapOptions = {
 }
 
 export class MapStrategy {
-  map: any
+  mapInstance: any
   container: HTMLElement
   options: MapOptions
 
@@ -24,12 +24,18 @@ export class MapStrategy {
 
   initialize() {}
   addDataSource() {}
-  setLocale(locale: Locale) {} // TODO:
   setDirections(directions: Directions) {}
   unsetDirections() {}
   setMapTheme(theme: MapTheme) {}
   setBasemap(basemap: Basemap) {}
-  setLayers(layers: Layer[]) {}
+  removeSource(sourceId: string) {}
+  addLayer(layer: Layer) {}
+  removeLayer(layerId: Layer['configuration']['id']) {}
+  updateLayer(layerId: Layer['configuration']['id'], updates: Partial<Layer>) {}
   toggleLayer(layerId: string, state?: boolean) {}
-  remove() {}
+  toggleLayerVisibility(
+    layerId: Layer['configuration']['id'],
+    state?: boolean,
+  ) {}
+  destroy() {}
 }

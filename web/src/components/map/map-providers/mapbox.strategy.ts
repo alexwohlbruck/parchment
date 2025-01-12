@@ -13,12 +13,10 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 import { Basemap, Layer, MapOptions, type MapTheme } from '@/types/map.types'
 import standardStyle from '@/components/map/styles/standard.json'
 
-import { layers } from '../layers/layers' // TODO: Refactor layers init
-import { Locale } from '@/lib/i18n'
 import { Directions } from '@/types/directions.types'
 import { decodeShape } from '@/lib/utils'
 import colors from 'tailwindcss/colors'
-import { useMapStore } from '@/stores/map.store'
+import { mapEventBus } from '@/lib/eventBus'
 
 const basemapUrls: {
   [key in Basemap]: string
@@ -43,7 +41,9 @@ declare module 'mapbox-gl' {
 function ifBasemapLoaded(target, name, descriptor) {
   const original = descriptor.value
   descriptor.value = function (...args) {
-    if (this.map.style.fragments?.some((f: any) => f.id === 'basemap')) {
+    if (
+      this.mapInstance.style.fragments?.some((f: any) => f.id === 'basemap')
+    ) {
       original.apply(this, args)
     }
   }
@@ -51,7 +51,7 @@ function ifBasemapLoaded(target, name, descriptor) {
 }
 
 export class MapboxStrategy extends MapStrategy {
-  map: Map
+  mapInstance: Map
 
   constructor(container, options?: Partial<MapOptions>) {
     super(container, options)
@@ -67,7 +67,7 @@ export class MapboxStrategy extends MapStrategy {
     const projection: Projection['name'] =
       (localStorage.getItem('projection') as Projection['name']) || 'globe'
 
-    const map = new Map({
+    this.mapInstance = new Map({
       accessToken: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
       container,
       style: standardStyle as any,
@@ -80,39 +80,19 @@ export class MapboxStrategy extends MapStrategy {
         name: projection,
       },
     })
-
-    this.map = map
     this.initialize()
   }
 
   initialize() {
-    const mapStore = useMapStore()
     this.addControls()
-    this.map.on('load', () => {
-      this.setLayers(mapStore.layers)
-    })
-    this.map.on('style.load', () => {
-      this.setMapTheme(this.options.theme)
-      this.setLocale('en-US')
-    })
     this.configureEventListeners()
   }
 
-  onMapLoad() {
-    const mapStore = useMapStore()
-    this.setLayers.bind(this)(mapStore.layers)
-  }
-
-  onStyleLoad() {
-    this.setMapTheme.bind(this)(this.options.theme)
-    this.setLocale('en-US')
-  }
-
   addControls() {
-    this.map.addControl(new ScaleControl(), 'top-left')
-    this.map.addControl(new NavigationControl(), 'top-right')
-    this.map.addControl(new GeolocateControl(), 'top-right')
-    this.map.addControl(
+    this.mapInstance.addControl(new ScaleControl(), 'top-left')
+    this.mapInstance.addControl(new NavigationControl(), 'top-right')
+    this.mapInstance.addControl(new GeolocateControl(), 'top-right')
+    this.mapInstance.addControl(
       new AttributionControl({
         compact: true,
       }),
@@ -121,25 +101,37 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   configureEventListeners() {
-    const mapStore = useMapStore()
-
-    this.map.on('click', e => [
-      mapStore.emit('map:click', {
-        coordinates: e.lngLat.toArray(),
+    this.mapInstance.on('load', () => {
+      mapEventBus.emit('load', this.mapInstance)
+    })
+    this.mapInstance.on('style.load', () => {
+      mapEventBus.emit('style.load', this.mapInstance)
+      this.setMapTheme(this.options.theme)
+    })
+    this.mapInstance.on('click', e => {
+      mapEventBus.emit('click', {
+        lngLat: e.lngLat,
         point: e.point,
-      }),
-    ])
+      })
+    })
+    this.mapInstance.on('contextmenu', e => {
+      e.preventDefault()
+      mapEventBus.emit('contextmenu', {
+        lngLat: e.lngLat,
+        point: e.point,
+      })
+    })
   }
 
   // TODO:
   listenPOIClick() {
     let selectedBuildings = []
-    this.map.addInteraction('building-click', {
+    this.mapInstance.addInteraction('building-click', {
       type: 'click',
       target: { featuresetId: 'buildings', importId: 'basemap' },
       handler: e => {
         console.log(e.feature)
-        // this.map.setFeatureState(e.feature, { select: !e.feature.state.select })
+        // this.mapInstance.setFeatureState(e.feature, { select: !e.feature.state.select })
         // selectedBuildings.push(e.feature)
       },
     })
@@ -149,49 +141,12 @@ export class MapboxStrategy extends MapStrategy {
     let selectedPoi = null
     const poiMarker = new Marker({ color: 'red' })
     poiMarker.getElement().style.cursor = 'pointer'
-    this.map.addInteraction('poi-click', {
+    this.mapInstance.addInteraction('poi-click', {
       type: 'click',
       target: { featuresetId: 'poi', importId: 'basemap' },
       handler: e => {
         console.log(e.feature)
       },
-    })
-  }
-
-  setLayers(layers: Layer[]) {
-    const style = this.map.getStyle()
-    if (!style) return
-    const mapLayers = style.layers
-    const ids = mapLayers.map(layer => layer.id)
-    ids.forEach((id: any) => {
-      if (!layers.find(layer => layer.id === id)) {
-        this.map.removeLayer(id)
-      }
-    })
-
-    layers.forEach(layer => {
-      const { meta, source } = layer
-
-      const sourceId = typeof source === 'string' ? source : source.id
-
-      if (typeof source === 'object' && !this.map.getSource(sourceId)) {
-        this.map.addSource(sourceId, {
-          ...source,
-          id: sourceId,
-        } as any) // TODO: Fix type
-      }
-
-      this.map.addLayer({
-        ...meta,
-        source: sourceId,
-        id: layer.id,
-        type: layer.type,
-        slot: 'middle',
-        layout: {
-          ...meta?.layout,
-          visibility: 'none',
-        },
-      })
     })
   }
 
@@ -201,7 +156,7 @@ export class MapboxStrategy extends MapStrategy {
     directions.legs.forEach((leg, index) => {
       const shape = decodeShape(leg.shape)
 
-      this.map.addSource(`route-${index}`, {
+      this.mapInstance.addSource(`route-${index}`, {
         type: 'geojson',
         data: {
           type: 'Feature',
@@ -213,7 +168,7 @@ export class MapboxStrategy extends MapStrategy {
         },
       })
 
-      this.map.addLayer({
+      this.mapInstance.addLayer({
         id: `route-case-${index}`,
         type: 'line',
         source: `route-${index}`,
@@ -229,7 +184,7 @@ export class MapboxStrategy extends MapStrategy {
         slot: 'middle',
       })
 
-      this.map.addLayer({
+      this.mapInstance.addLayer({
         id: `route-${index}`,
         type: 'line',
         source: `route-${index}`,
@@ -248,7 +203,7 @@ export class MapboxStrategy extends MapStrategy {
 
     // Add markers for each stop
     directions.locations.forEach((location, index) => {
-      this.map.addSource(`stop-${index}`, {
+      this.mapInstance.addSource(`stop-${index}`, {
         type: 'geojson',
         data: {
           type: 'Feature',
@@ -261,7 +216,7 @@ export class MapboxStrategy extends MapStrategy {
       })
 
       // Add a larger background circle
-      this.map.addLayer({
+      this.mapInstance.addLayer({
         id: `stop-background-${index}`,
         type: 'circle',
         source: `stop-${index}`,
@@ -292,16 +247,16 @@ export class MapboxStrategy extends MapStrategy {
     }, new LngLatBounds(allCoordinates[0], allCoordinates[0]))
 
     // Fit the map to show the entire route with padding
-    this.map.fitBounds(bounds, {
+    this.mapInstance.fitBounds(bounds, {
       padding: Math.min(window.innerWidth * 0.2, 400),
       duration: 400,
       easing: t => t * (2 - t),
-      bearing: this.map.getBearing(), // Preserve current bearing
+      bearing: this.mapInstance.getBearing(), // Preserve current bearing
     })
   }
 
   unsetDirections() {
-    const style = this.map.getStyle()
+    const style = this.mapInstance.getStyle()
     if (!style) return
     const mapLayers = style.layers
     const ids = mapLayers.map(layer => layer.id)
@@ -309,21 +264,25 @@ export class MapboxStrategy extends MapStrategy {
     // Remove route and stop layers
     ids.forEach(id => {
       if (id.startsWith('route-') || id.startsWith('stop-')) {
-        this.map.removeLayer(id)
+        this.mapInstance.removeLayer(id)
       }
     })
 
     // Remove route sources
-    const sources = Object.keys(this.map.getStyle()?.sources || {})
+    const sources = Object.keys(this.mapInstance.getStyle()?.sources || {})
     sources.forEach(source => {
       if (source.startsWith('route-') || source.startsWith('stop-')) {
-        this.map.removeSource(source)
+        this.mapInstance.removeSource(source)
       }
     })
   }
 
   togglePoiLabels(value: boolean) {
-    this.map.setConfigProperty('basemap', 'showPointOfInterestLabels', value)
+    this.mapInstance.setConfigProperty(
+      'basemap',
+      'showPointOfInterestLabels',
+      value,
+    )
   }
 
   @ifBasemapLoaded
@@ -333,31 +292,45 @@ export class MapboxStrategy extends MapStrategy {
       dark: 'night',
     }
     const lightPreset = themeMap[theme]
-    this.map.setConfigProperty('basemap', 'lightPreset', lightPreset)
+    this.mapInstance.setConfigProperty('basemap', 'lightPreset', lightPreset)
   }
 
   setBasemap(basemap: Basemap) {
     const url = basemapUrls[basemap]
-    this.map.setStyle(url)
+    this.mapInstance.setStyle(url)
   }
 
-  toggleLayer(layerId: string, state?: boolean) {
-    this.map.setLayoutProperty(
+  removeSource(sourceId: string) {
+    this.mapInstance.removeSource(sourceId)
+  }
+
+  addLayer(layer: Layer) {
+    const { configuration } = layer
+    this.mapInstance.addLayer({
+      ...configuration,
+      layout: {
+        ...configuration.layout,
+        visibility: layer.visible ? 'visible' : 'none',
+      },
+    })
+  }
+
+  removeLayer(layerId: Layer['configuration']['id']) {
+    this.mapInstance.removeLayer(layerId)
+  }
+
+  toggleLayerVisibility(
+    layerId: Layer['configuration']['id'],
+    visible: boolean,
+  ) {
+    this.mapInstance.setLayoutProperty(
       layerId,
       'visibility',
-      state ? 'visible' : 'none',
+      visible ? 'visible' : 'none',
     )
   }
 
-  addDataSource() {
-    console.log('MapboxStrategy: adding data source')
-  }
-
-  addLayer() {
-    console.log('MapboxStrategy: adding layer')
-  }
-
-  remove() {
-    this.map.remove()
+  destroy() {
+    this.mapInstance.remove()
   }
 }

@@ -5,6 +5,7 @@ import Caption from '@/components/ui/typography/Caption.vue'
 interface Props {
   title: string
   description?: string
+  block?: boolean
 }
 
 defineProps<Props>()
@@ -12,7 +13,7 @@ defineProps<Props>()
 
 <template>
   <div class="flex justify-between gap-2 items-center">
-    <div>
+    <div :class="{ 'self-start mt-2.5': block }">
       <H6>{{ title }}</H6>
       <Caption v-if="description">
         {{ description }}

@@ -16,9 +16,26 @@ export type MapOptions = {
   basemap: Basemap
 }
 
+export type MapInstance = MapboxMap | MaplibreMap
+
+export type LngLat = {
+  lng: number
+  lat: number
+}
+
+export type Waypoint = {
+  lngLat: LngLat | null
+}
+
 export type MapEvents = {
-  'map:click': {
-    coordinates: [number, number]
+  click: {
+    lngLat: LngLat
+    point: { x: number; y: number }
+  }
+  load: MapInstance
+  'style.load': MapInstance
+  contextmenu: {
+    lngLat: LngLat
     point: { x: number; y: number }
   }
 }
@@ -38,6 +55,7 @@ export type Source = {
   maxzoom?: number
 }
 
+// TODO: Rename to MapboxLayerType
 export enum LayerType {
   LINE = 'line',
   FILL = 'fill',
@@ -55,12 +73,44 @@ export enum LayerType {
   CLIP = 'clip',
 }
 
-export type Layer = {
+export enum MaplibreLayerType {
+  SYMBOL = 'symbol',
+  RASTER = 'raster',
+  FILL = 'fill',
+  LINE = 'line',
+  CIRCLE = 'circle',
+  HEATMAP = 'heatmap',
+  FILL_EXTRUSION = 'fill-extrusion',
+  HILLSHADE = 'hillshade',
+  BACKGROUND = 'background',
+}
+
+export type MapboxLayerConfiguration = {
   id: string
+  type: LayerType
+  source: string | Source
+  // Allow any additional properties for layer-specific configuration
+  [key: string]: any
+}
+
+export type MaplibreLayerConfiguration = {
+  id: string
+  type: MaplibreLayerType
+  source: string | Source
+  // Allow any additional properties for layer-specific configuration
+  [key: string]: any
+}
+
+// TODO: Make MapboxLayer extend Layer
+export type Layer = {
   name: string
   icon: Icon
   enabled: boolean
-  type: LayerType
-  source: string | Source
-  meta?: any
+  visible: boolean
+  engine: 'mapbox'
+  configuration: MapboxLayerConfiguration
+}
+
+export type MaplibreLayer = Layer & {
+  configuration: MaplibreLayerConfiguration
 }

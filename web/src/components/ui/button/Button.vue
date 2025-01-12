@@ -15,12 +15,14 @@ interface Props extends PrimitiveProps {
   icon?: typeof PlusIcon
   description?: string
   loading?: boolean
+  disabled?: boolean
 }
 
 withDefaults(defineProps<Props>(), {
   variant: 'default',
   size: 'default',
   as: 'button',
+  disabled: false,
 })
 </script>
 
@@ -28,7 +30,12 @@ withDefaults(defineProps<Props>(), {
   <Primitive
     :as="as"
     :as-child="asChild"
-    :class="cn(buttonVariants({ variant, size }), $attrs.class ?? '')"
+    :class="
+      cn(buttonVariants({ variant, size }), $attrs.class ?? '', {
+        'opacity-50 pointer-events-none': disabled,
+      })
+    "
+    :disabled="disabled"
   >
     <Spinner size="icon" v-if="loading" :class="{ 'mr-2': size !== 'icon' }" />
 

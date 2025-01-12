@@ -1,88 +1,140 @@
-<template>
-  <div ref="mapContainer"></div>
-</template>
-
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { useDark } from '@vueuse/core'
+import { onMounted, onUnmounted, ref, useTemplateRef, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { storeToRefs } from 'pinia'
 import { useMapStore } from '../../stores/map.store'
-import { MapboxStrategy } from './map-providers/mapbox.strategy'
+import { useMapService } from '@/services/map.service'
+import { useAppService } from '@/services/app.service'
+import { useDirectionsService } from '@/services/directions.service'
 import { MapStrategy } from './map-providers/map.strategy'
-import { MaplibreStrategy } from './map-providers/maplibre.strategy'
-import { MapEngine, MapOptions } from '@/types/map.types'
-import { Locale } from '@/lib/i18n'
+import { mapEventBus } from '@/lib/eventBus'
+import { LngLat } from '@/types/map.types'
+import { useDirectionsStore } from '@/stores/directions.store'
 
-const dark = useDark()
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+
+const router = useRouter()
+const appService = useAppService()
+const mapService = useMapService()
 const mapStore = useMapStore()
-const { locale } = useI18n()
+const directionsService = useDirectionsService()
+const directionsStore = useDirectionsStore()
 
-const mapContainer = ref(null)
-let map: MapStrategy
+const { waypoints } = storeToRefs(directionsStore)
 
-function getMapInstance(mapEngine: MapEngine) {
-  const options: Partial<MapOptions> = {
-    theme: dark.value ? 'dark' : 'light',
-  }
-  switch (mapEngine) {
-    case 'mapbox':
-      return new MapboxStrategy(mapContainer.value, options)
-    case 'maplibre':
-      return new MaplibreStrategy(mapContainer.value, options)
-  }
-}
+const mapContainer = useTemplateRef<HTMLElement>('mapContainer')
+let mapStrategy: MapStrategy
+
+const showContextMenu = ref(false)
+const contextMenuPosition = ref({ x: 0, y: 0 })
+const clickedLngLat = ref<LngLat | null>(null)
 
 onMounted(() => {
-  map = getMapInstance(mapStore.mapEngine)
-  mapStore.setMapInstance(map)
+  if (!mapContainer.value) {
+    throw new Error('Map container element not found')
+  }
+  mapStrategy = mapService.initializeMap(mapContainer.value, mapStore.mapEngine)
 
-  // Watch for map store changes and update map accordingly
-
-  watch(locale, locale => {
-    map.setLocale(locale as Locale)
+  mapEventBus.on('contextmenu', e => {
+    contextMenuPosition.value = { x: e.point.x, y: e.point.y - 18 }
+    clickedLngLat.value = e.lngLat
+    showContextMenu.value = true
   })
-
-  watch(dark, dark => {
-    map.setMapTheme(dark ? 'dark' : 'light')
-  })
-
-  watch(
-    () => mapStore.mapState.basemap,
-    basemap => {
-      map.setBasemap(basemap)
-    },
-  )
-
-  watch(
-    () => mapStore.layers,
-    layers => {
-      map.setLayers(layers)
-    },
-  )
-
-  watch(
-    () => mapStore.mapEngine,
-    mapEngine => {
-      map = getMapInstance(mapEngine)
-    },
-  )
-
-  watch(
-    () => mapStore.directions,
-    directions => {
-      if (directions) {
-        map.setDirections(directions)
-      } else {
-        map.unsetDirections()
-      }
-    },
-  )
 })
 
 onUnmounted(() => {
-  map.remove()
+  mapService.destroy()
 })
+
+function copyCoordinates(lngLat: LngLat) {
+  const coordString = `${lngLat.lat}, ${lngLat.lng}`
+  navigator.clipboard.writeText(coordString)
+  appService.toast.info('Coordinates copied to clipboard')
+}
+
+const useMultistopDirections = computed(() => {
+  const filledWaypointsCount = waypoints.value.reduce(
+    (count, waypoint) => (waypoint.lngLat ? count + 1 : count),
+    0,
+  )
+  console.log(filledWaypointsCount, waypoints.value.length)
+  return waypoints.value.length > 2 || filledWaypointsCount >= 2
+})
+
+function directionsTo() {
+  router.push('/directions')
+  directionsService.directionsTo({
+    lngLat: clickedLngLat.value,
+  })
+}
+
+function directionsFrom() {
+  router.push('/directions')
+  directionsService.directionsFrom({
+    lngLat: clickedLngLat.value,
+  })
+}
+
+function fillWaypoint() {
+  router.push('/directions')
+  setTimeout(() => {
+    directionsService.fillWaypoint({
+      lngLat: clickedLngLat.value,
+    })
+  }, 0)
+}
 </script>
+
+<template>
+  <div>
+    <div ref="mapContainer" class="w-full h-full"></div>
+
+    <DropdownMenu
+      :open="showContextMenu"
+      @update:open="showContextMenu = $event"
+    >
+      <div
+        :style="{
+          position: 'fixed',
+          left: `${contextMenuPosition.x}px`,
+          top: `${contextMenuPosition.y}px`,
+        }"
+      >
+        <DropdownMenuTrigger> </DropdownMenuTrigger>
+      </div>
+      <DropdownMenuContent align="start" :side-offset="0">
+        <DropdownMenuItem
+          @click="copyCoordinates(clickedLngLat)"
+          v-if="clickedLngLat"
+        >
+          {{ clickedLngLat.lat.toFixed(5) }}, {{ clickedLngLat.lng.toFixed(5) }}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          v-if="!useMultistopDirections"
+          @click="directionsTo()"
+        >
+          Directions to here
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          v-if="!useMultistopDirections"
+          @click="directionsFrom()"
+        >
+          Directions from here
+        </DropdownMenuItem>
+        <DropdownMenuItem v-if="useMultistopDirections" @click="fillWaypoint()">
+          Add stop
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  </div>
+</template>
 
 <style>
 .mapboxgl-canvas,

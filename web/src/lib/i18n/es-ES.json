@@ -1,4 +1,15 @@
 {
+  "general": {
+    "yes": "Sí",
+    "no": "No",
+    "cancel": "Cancelar",
+    "continue": "Continuar",
+    "delete": "Eliminar",
+    "confirm": "Confirmar",
+    "close": "Cerrar",
+    "save": "Guardar",
+    "name": "Nombre"
+  },
   "palette": {
     "general": {
       "yes": "Sí",
@@ -95,6 +106,11 @@
       }
     }
   },
+  "messages": {
+    "coordinatesCopied": "Coordenadas copiadas al portapapeles",
+    "invitationSent": "Invitación enviada a {email}",
+    "unknownError": "Ha ocurrido un error desconocido"
+  },
   "map": {
     "title": "Mapa"
   },
@@ -161,7 +177,12 @@
     }
   },
   "directions": {
-    "title": "Direcciones"
+    "title": "Direcciones",
+    "directionsFromHere": "Direcciones desde aquí",
+    "directionsToHere": "Direcciones a aquí",
+    "to": "A",
+    "from": "Desde",
+    "addStop": "Añadir parada"
   },
   "places": {
     "title": "Lugares"

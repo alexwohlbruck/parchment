@@ -69,7 +69,9 @@ function getWaypointName(waypoint: Waypoint) {
       >
         <GripHorizontalIcon class="size-4 cursor-move handle" />
         <Input
-          :placeholder="index == 0 ? 'From' : 'To'"
+          :placeholder="
+            index == 0 ? $t('directions.from') : $t('directions.to')
+          "
           :model-value="getWaypointName(element)"
         />
         <span class="absolute end-0 inset-y-0 flex items-center justify-center">
@@ -86,6 +88,6 @@ function getWaypointName(waypoint: Waypoint) {
   </draggable>
 
   <Button variant="secondary" :icon="PlusIcon" @click="addWaypoint()">
-    Add stop
+    {{ $t('directions.addStop') }}
   </Button>
 </template>

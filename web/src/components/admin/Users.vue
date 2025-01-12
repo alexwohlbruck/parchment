@@ -105,7 +105,7 @@ async function inviteUser() {
 
   users.value = [...users.value, newUser]
 
-  appService.toast.success(`Invitation sent to ${user.email}`) // TODO: i18n
+  appService.toast.success(t('messages.invitationSent', { email: user.email }))
 }
 
 onMounted(getUsers)

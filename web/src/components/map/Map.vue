@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, useTemplateRef, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { useMapStore } from '../../stores/map.store'
 import { useMapService } from '@/services/map.service'
@@ -26,6 +27,7 @@ const mapService = useMapService()
 const mapStore = useMapStore()
 const directionsService = useDirectionsService()
 const directionsStore = useDirectionsStore()
+const { t } = useI18n()
 
 const { waypoints } = storeToRefs(directionsStore)
 
@@ -56,7 +58,7 @@ onUnmounted(() => {
 function copyCoordinates(lngLat: LngLat) {
   const coordString = `${lngLat.lat}, ${lngLat.lng}`
   navigator.clipboard.writeText(coordString)
-  appService.toast.info('Coordinates copied to clipboard')
+  appService.toast.info(t('messages.coordinatesCopied'))
 }
 
 const useMultistopDirections = computed(() => {
@@ -120,16 +122,16 @@ function fillWaypoint() {
           v-if="!useMultistopDirections"
           @click="directionsTo()"
         >
-          Directions to here
+          {{ $t('directions.directionsToHere') }}
         </DropdownMenuItem>
         <DropdownMenuItem
           v-if="!useMultistopDirections"
           @click="directionsFrom()"
         >
-          Directions from here
+          {{ $t('directions.directionsFromHere') }}
         </DropdownMenuItem>
         <DropdownMenuItem v-if="useMultistopDirections" @click="fillWaypoint()">
-          Add stop
+          {{ $t('directions.addStop') }}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -105,6 +105,11 @@
       }
     }
   },
+  "messages": {
+    "coordinatesCopied": "Coordinates copied to clipboard",
+    "invitationSent": "Invitation sent to {email}",
+    "unknownError": "An unknown error occurred"
+  },
   "map": {
     "title": "Map"
   },
@@ -171,7 +176,12 @@
     }
   },
   "directions": {
-    "title": "Directions"
+    "title": "Directions",
+    "directionsFromHere": "Directions from here",
+    "directionsToHere": "Directions to here",
+    "to": "To",
+    "from": "From",
+    "addStop": "Add stop"
   },
   "places": {
     "title": "Places"

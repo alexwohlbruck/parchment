@@ -5,6 +5,9 @@ import { XIcon, PlusIcon, GripHorizontalIcon } from 'lucide-vue-next'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Waypoint } from '@/types/map.types'
+import { useDirectionsService } from '@/services/directions.service'
+
+const directionsService = useDirectionsService()
 
 const MIN_LOCATIONS = 2
 

@@ -54,7 +54,6 @@ const modes = [
 
 useMapListener('click', data => {
   directionsService.fillWaypoint({
-    name: `${data.lngLat.lat}, ${data.lngLat.lng}`,
     lngLat: data.lngLat,
   })
 })

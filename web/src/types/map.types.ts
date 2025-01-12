@@ -23,6 +23,10 @@ export type LngLat = {
   lat: number
 }
 
+export type Waypoint = {
+  lngLat: LngLat | null
+}
+
 export type MapEvents = {
   click: {
     lngLat: LngLat

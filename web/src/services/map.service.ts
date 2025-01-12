@@ -1,5 +1,6 @@
 import type { Layer, MapEngine, MapEvents, MapOptions } from '@/types/map.types'
 import { useMapStore } from '../stores/map.store'
+import { useDirectionsStore } from '@/stores/directions.store'
 import { createSharedComposable, useDark } from '@vueuse/core'
 import { mapState, storeToRefs } from 'pinia'
 import { MapboxStrategy } from '@/components/map/map-providers/mapbox.strategy'
@@ -12,6 +13,7 @@ const dark = useDark()
 
 function mapService() {
   const mapStore = useMapStore()
+  const directionsStore = useDirectionsStore()
   const { mapState, layers } = storeToRefs(mapStore)
   let mapStrategy: MapStrategy
   let mapContainer: HTMLElement
@@ -70,7 +72,7 @@ function mapService() {
   )
 
   watch(
-    () => mapStore.directions,
+    () => directionsStore.directions,
     directions => {
       if (directions) {
         mapStrategy.setDirections(directions)
@@ -125,7 +127,6 @@ function mapService() {
     toggleLayer,
     toggleLayerVisibility,
     setMapEngine,
-    setDirections: mapStore.setDirections,
     destroy,
     on,
     off,

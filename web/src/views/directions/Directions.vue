@@ -3,7 +3,7 @@ import dayjs from 'dayjs'
 import duration from 'dayjs/plugin/duration'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDirectionsService } from '@/services/directions.service'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useMapService } from '@/services/map.service'
 import { useMapListener } from '@/composables/useMapListener'
 import {
@@ -15,19 +15,19 @@ import {
   TrainFrontIcon,
   TrainIcon,
 } from 'lucide-vue-next'
-import { useMapStore } from '@/stores/map.store'
+import { useDirectionsStore } from '@/stores/directions.store'
 import { storeToRefs } from 'pinia'
 import WaypointInput from './WaypointInput.vue'
 import TripsList from './TripsList.vue'
+import { Waypoint } from '@/types/map.types'
 
 dayjs.extend(duration)
 
 const directionsService = useDirectionsService()
-const mapService = useMapService()
-const { directions } = storeToRefs(useMapStore())
 
-const selectedMode = ref('pedestrian')
-const locations = ref<string[]>(['', ''])
+const { waypoints, directions, selectedMode } = storeToRefs(
+  useDirectionsStore(),
+)
 
 const modes = [
   {
@@ -52,40 +52,20 @@ const modes = [
   },
 ]
 
-watch(selectedMode, () => {
-  getDirections()
-})
-
 useMapListener('click', data => {
-  const [lon, lat] = data.coordinates
-  const text = `${lat.toFixed(6)}, ${lon.toFixed(6)}`
-
-  const emptyIndex = locations.value.findIndex(loc => loc === '')
-  if (emptyIndex !== -1) {
-    locations.value[emptyIndex] = text
-    getDirections()
-  }
+  directionsService.fillWaypoint({
+    name: `${data.lngLat.lat}, ${data.lngLat.lng}`,
+    lngLat: data.lngLat,
+  })
 })
 
-async function getDirections() {
-  const filteredLocations = locations.value.filter(l => l != '')
-
-  if (filteredLocations.length < 2) {
-    return
-  }
-
-  const directions = await directionsService.getDirections({
-    locations: filteredLocations.map(location => ({
-      type: 'coordinates',
-      value: location.split(',').map(v => parseFloat(v.trim())) as [
-        number,
-        number,
-      ],
-    })),
-    costing: selectedMode.value,
-  })
-  mapService.setDirections(directions)
-}
+watch(
+  waypoints,
+  () => {
+    directionsService.getDirections()
+  },
+  { deep: true },
+)
 </script>
 
 <template>
@@ -105,7 +85,10 @@ async function getDirections() {
       </TabsList>
     </Tabs>
 
-    <WaypointInput v-model="locations" @change="getDirections" />
+    <WaypointInput
+      :model-value="waypoints"
+      @update:modelValue="directionsService.setWaypoints"
+    />
 
     <TripsList v-if="directions" />
   </div>

@@ -93,7 +93,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.on('contextmenu', e => {
       e.preventDefault()
       mapEventBus.emit('contextmenu', {
-        coordinates: e.lngLat.toArray(),
+        coordinates: e.lngLat,
         point: e.point,
       })
     })

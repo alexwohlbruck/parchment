@@ -5,6 +5,7 @@ import { useMapService } from '@/services/map.service'
 import { useAppService } from '@/services/app.service'
 import { MapStrategy } from './map-providers/map.strategy'
 import { mapEventBus } from '@/lib/eventBus'
+import { LngLat } from '@/types/map.types'
 
 import {
   DropdownMenu,
@@ -24,7 +25,7 @@ let mapStrategy: MapStrategy
 
 const showContextMenu = ref(false)
 const contextMenuPosition = ref({ x: 0, y: 0 })
-const clickedLngLat = ref<[number, number]>([0, 0])
+const clickedLngLat = ref<LngLat>()
 
 onMounted(() => {
   if (!mapContainer.value) {
@@ -34,7 +35,7 @@ onMounted(() => {
 
   mapEventBus.on('contextmenu', e => {
     contextMenuPosition.value = { x: e.point.x, y: e.point.y - 18 }
-    clickedLngLat.value = [e.coordinates[0], e.coordinates[1]]
+    clickedLngLat.value = e.lngLat
     showContextMenu.value = true
   })
 })
@@ -43,8 +44,8 @@ onUnmounted(() => {
   mapService.destroy()
 })
 
-const copyCoordinates = (lngLat: [number, number]) => {
-  const coordString = `${lngLat[0]}, ${lngLat[1]}`
+const copyCoordinates = (lngLat: LngLat) => {
+  const coordString = `${lngLat.lat}, ${lngLat.lng}`
   navigator.clipboard.writeText(coordString)
   appService.toast.info('Coordinates copied to clipboard')
 }
@@ -68,8 +69,11 @@ const copyCoordinates = (lngLat: [number, number]) => {
         <DropdownMenuTrigger> </DropdownMenuTrigger>
       </div>
       <DropdownMenuContent align="start" :side-offset="0">
-        <DropdownMenuItem @click="copyCoordinates(clickedLngLat)">
-          {{ clickedLngLat[0].toFixed(5) }}, {{ clickedLngLat[1].toFixed(5) }}
+        <DropdownMenuItem
+          @click="copyCoordinates(clickedLngLat)"
+          v-if="clickedLngLat"
+        >
+          {{ clickedLngLat.lat.toFixed(5) }}, {{ clickedLngLat.lng.toFixed(5) }}
         </DropdownMenuItem>
         <DropdownMenuItem> Directions to here </DropdownMenuItem>
         <DropdownMenuItem> Directions from here </DropdownMenuItem>

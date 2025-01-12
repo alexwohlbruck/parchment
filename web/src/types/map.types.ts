@@ -18,15 +18,20 @@ export type MapOptions = {
 
 export type MapInstance = MapboxMap | MaplibreMap
 
+export type LngLat = {
+  lng: number
+  lat: number
+}
+
 export type MapEvents = {
   click: {
-    coordinates: [number, number]
+    lngLat: LngLat
     point: { x: number; y: number }
   }
   load: MapInstance
   'style.load': MapInstance
   contextmenu: {
-    coordinates: [number, number]
+    lngLat: LngLat
     point: { x: number; y: number }
   }
 }

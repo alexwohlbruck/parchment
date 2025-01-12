@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { useAppService } from '@/services/app.service'
@@ -47,6 +47,10 @@ function openLayerConfigDialog(layer: Layer) {
     },
   })
 }
+
+const basemap = computed(() => {
+  return mapStore.mapEngine === 'mapbox' ? 'mapbox-standard' : 'maptiler'
+})
 </script>
 
 <template>
@@ -103,6 +107,27 @@ function openLayerConfigDialog(layer: Layer) {
       >
     </SettingsSection>
 
+    <SettingsSection title="Basemaps">
+      <template v-slot:actions>
+        <Button disabled variant="outline" @click="openLayerConfigDialog">
+          <PlusIcon class="size-4 mr-2" />
+          New basemap
+        </Button>
+      </template>
+
+      <SettingsItem title="Basemap">
+        <Select disabled v-model="basemap">
+          <SelectTrigger class="w-fit">
+            <SelectValue placeholder="Choose an option" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="mapbox-standard">Mapbox Standard</SelectItem>
+            <SelectItem value="maptiler">Maptiler</SelectItem>
+          </SelectContent>
+        </Select>
+      </SettingsItem>
+    </SettingsSection>
+
     <!-- Data sources configuration -->
     <!-- <SettingsSection :title="$t('settings.mapSettings.dataSources.title')">
     </SettingsSection> -->
@@ -116,7 +141,7 @@ function openLayerConfigDialog(layer: Layer) {
       <template v-slot:actions>
         <Button variant="outline" @click="openLayerConfigDialog">
           <PlusIcon class="size-4 mr-2" />
-          Configure new layer
+          New layer
         </Button>
       </template>
 

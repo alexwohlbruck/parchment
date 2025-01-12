@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import draggable from 'vuedraggable'
 import { computed, ref, watch } from 'vue'
-import { XIcon, PlusIcon, GripHorizontalIcon } from 'lucide-vue-next'
+import { XIcon, PlusIcon, GripHorizontalIcon, TimerIcon } from 'lucide-vue-next'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import WaypointTimingInput from './WaypointTimingInput.vue'
@@ -9,7 +9,8 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover'import { Waypoint } from '@/types/map.types'
+} from '@/components/ui/popover'
+import { Waypoint } from '@/types/map.types'
 import { useDirectionsService } from '@/services/directions.service'
 
 const directionsService = useDirectionsService()

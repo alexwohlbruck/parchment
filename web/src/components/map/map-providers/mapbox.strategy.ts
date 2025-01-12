@@ -114,6 +114,13 @@ export class MapboxStrategy extends MapStrategy {
         point: e.point,
       })
     })
+    this.mapInstance.on('contextmenu', e => {
+      e.preventDefault()
+      mapEventBus.emit('contextmenu', {
+        coordinates: e.lngLat.toArray(),
+        point: e.point,
+      })
+    })
   }
 
   // TODO:

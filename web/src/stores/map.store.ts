@@ -64,9 +64,7 @@ export const useMapStore = defineStore('map', () => {
   function initializeLayers(defaultLayers: Layer[]) {
     layers.value = defaultLayers
     defaultLayers.forEach(layer => {
-      if (layer.enabled) {
-        mapStrategy?.addLayer(layer)
-      }
+      mapStrategy?.addLayer(layer)
     })
   }
 

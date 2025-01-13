@@ -12,6 +12,9 @@ import { mapEventBus } from '@/lib/eventBus'
 import { LngLat } from '@/types/map.types'
 import { useDirectionsStore } from '@/stores/directions.store'
 
+import { Button } from '@/components/ui/button'
+import { Layers3Icon } from 'lucide-vue-next'
+import LayersSelector from '@/components/navigation/LayersSelector.vue'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +23,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card'
 
 const router = useRouter()
 const appService = useAppService()
@@ -96,6 +104,20 @@ function fillWaypoint() {
 
 <template>
   <div>
+    <div class="absolute bottom-[7.5rem] md:bottom-0 right-0 z-50 p-2">
+      <HoverCard :openDelay="0" :closeDelay="0">
+        <HoverCardTrigger as-child>
+          <Button variant="outline" size="icon" class="size-11">
+            <Layers3Icon class="size-5" />
+          </Button>
+        </HoverCardTrigger>
+
+        <HoverCardContent side="top" class="w-fit fit-content max-w-[100vw]">
+          <LayersSelector />
+        </HoverCardContent>
+      </HoverCard>
+    </div>
+
     <div ref="mapContainer" class="w-full h-full"></div>
 
     <DropdownMenu

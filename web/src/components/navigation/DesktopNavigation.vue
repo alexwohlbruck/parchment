@@ -4,7 +4,6 @@ import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { cn } from '@/lib/utils'
-import LayersSelector from '@/components/navigation/LayersSelector.vue'
 import { useAuthStore } from '@/stores/auth.store'
 
 import { TransitionFade } from '@morev/vue-transitions'
@@ -105,40 +104,16 @@ const items = computed(() => {
           // hotkey: ['s'],
           to: '/settings',
         },
-        {
-          label: t('layers.title'),
-          icon: Layers3Icon,
-          hotkey: ['l'],
-          popover: LayersSelector,
-          // TODO: Fix this
-          // condition: router.currentRoute.value.matched.some(
-          //   (route) => route.name === "map"
-          // ),
-        },
       ],
     },
   ]
 })
-
-const lockMini = ref(false)
-const nav = ref(null)
-
-function popoverOpened(open: boolean) {
-  lockMini.value = open
-  if (!open) {
-    const mouseIsHoveringNav = (nav.value as any).matches(':hover')
-    if (!mouseIsHoveringNav) {
-      mini.value = true
-    }
-  }
-}
 </script>
 
 <template>
   <div
-    ref="nav"
-    @mouseover="mini = lockMini ? mini : false"
-    @mouseleave="mini = lockMini ? mini : true"
+    @mouseover="mini = false"
+    @mouseleave="mini = true"
     :class="
       cn(
         'bg-background max-h-full overflow-y-auto m-2 py-2 shadow-md flex flex-col gap-2 rounded-md',
@@ -185,39 +160,10 @@ function popoverOpened(open: boolean) {
                 </transition-expand>
               </router-link>
             </Button>
-
-            <HoverCard
-              v-if="subitem.popover"
-              :openDelay="0"
-              :closeDelay="0"
-              @update:open="popoverOpened"
-            >
-              <HoverCardTrigger as-child>
-                <Button to="" variant="ghost" class="w-full flex px-3 gap-3">
-                  <component :is="subitem.icon" class="size-5" />
-
-                  <transition-expand axis="x" :duration="50" easing="ease-out">
-                    <div v-if="!mini" class="flex flex-1 gap-1 text-nowrap">
-                      <div class="flex-1 text-start">
-                        {{ subitem.label }}
-                      </div>
-
-                      <!-- <Kbd v-if="subitem.hotkey" :hotkey="subitem.hotkey"></Kbd> -->
-                    </div>
-                  </transition-expand>
-                </Button>
-              </HoverCardTrigger>
-
-              <HoverCardContent side="right" class="fit-content w-fit">
-                <component :is="subitem.popover" />
-              </HoverCardContent>
-            </HoverCard>
           </template>
         </div>
       </div>
     </div>
-
-    <Separator v-if="me" />
 
     <router-link
       to="/settings/account"

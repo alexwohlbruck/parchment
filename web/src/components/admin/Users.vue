@@ -5,7 +5,7 @@ import { z } from 'zod'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
 import { ColumnDef } from '@tanstack/vue-table'
 import { PermissionId as Permission, User } from '@/types/auth.types'
-
+import { useI18n } from 'vue-i18n'
 import { useUserService } from '@/services/user.service'
 import { useAppService } from '@/services/app.service'
 import { useAuthService } from '@/services/auth.service'
@@ -21,6 +21,7 @@ import { SettingsSection } from '@/components/settings'
 
 dayjs.extend(localizedFormat)
 
+const { t } = useI18n()
 const appService = useAppService()
 const authService = useAuthService()
 const userService = useUserService()

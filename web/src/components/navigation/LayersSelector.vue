@@ -26,7 +26,7 @@ function toggleLayerVisibility(
 <template>
   <div class="flex flex-col gap-2">
     <H5>Base map</H5>
-    <div class="flex gap-2">
+    <div class="flex gap-2 flex-wrap">
       <ToggleGroup
         type="single"
         :default-value="mapStore.mapState.basemap"
@@ -47,7 +47,7 @@ function toggleLayerVisibility(
     </div>
 
     <H5>Layers</H5>
-    <div class="flex gap-2">
+    <div class="flex gap-2 flex-wrap">
       <Toggle
         v-for="(layer, i) in enabledLayers"
         :key="i"

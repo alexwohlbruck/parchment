@@ -13,14 +13,26 @@ import { LngLat } from '@/types/map.types'
 import { useDirectionsStore } from '@/stores/directions.store'
 
 import { Button } from '@/components/ui/button'
-import { Layers3Icon } from 'lucide-vue-next'
+import {
+  Layers3Icon,
+  PencilIcon,
+  CopyIcon,
+  ArrowDownToDot,
+  ArrowUpFromDot,
+  PlusIcon,
+} from 'lucide-vue-next'
 import LayersSelector from '@/components/navigation/LayersSelector.vue'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuPortal,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -100,6 +112,23 @@ function fillWaypoint() {
     })
   }, 0)
 }
+
+function openMapEditor(editor: 'id' | 'josm' | 'potlatch') {
+  switch (editor) {
+    case 'id':
+      window.open(
+        `https://www.openstreetmap.org/edit?editor=id#map=19/${clickedLngLat.value.lat}/${clickedLngLat.value.lng}`,
+        '_blank',
+      )
+      break
+    case 'josm':
+      // TODO:
+      break
+    case 'potlatch':
+      // TODO:
+      break
+  }
+}
 </script>
 
 <template>
@@ -134,27 +163,63 @@ function fillWaypoint() {
         <DropdownMenuTrigger> </DropdownMenuTrigger>
       </div>
       <DropdownMenuContent align="start" :side-offset="0">
-        <DropdownMenuItem
-          @click="copyCoordinates(clickedLngLat)"
-          v-if="clickedLngLat"
-        >
-          {{ clickedLngLat.lat.toFixed(5) }}, {{ clickedLngLat.lng.toFixed(5) }}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          v-if="!useMultistopDirections"
-          @click="directionsTo()"
-        >
-          {{ $t('directions.directionsToHere') }}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          v-if="!useMultistopDirections"
-          @click="directionsFrom()"
-        >
-          {{ $t('directions.directionsFromHere') }}
-        </DropdownMenuItem>
-        <DropdownMenuItem v-if="useMultistopDirections" @click="fillWaypoint()">
-          {{ $t('directions.addStop') }}
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuItem
+            v-if="!useMultistopDirections"
+            @click="directionsFrom()"
+          >
+            <ArrowUpFromDot class="size-4 rotate-90" />
+            <span>{{ $t('directions.directionsFromHere') }}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            v-if="!useMultistopDirections"
+            @click="directionsTo()"
+          >
+            <ArrowDownToDot class="size-4 -rotate-90" />
+            <span>{{ $t('directions.directionsToHere') }}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            v-if="useMultistopDirections"
+            @click="fillWaypoint()"
+          >
+            <PlusIcon class="size-4" />
+            <span>{{ $t('directions.addStop') }}</span>
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuGroup>
+          <DropdownMenuItem
+            @click="copyCoordinates(clickedLngLat)"
+            v-if="clickedLngLat"
+          >
+            <CopyIcon />
+            <span>
+              {{ clickedLngLat.lat.toFixed(5) }},
+              {{ clickedLngLat.lng.toFixed(5) }}
+            </span>
+          </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <PencilIcon class="mr-2 size-4" />
+              <span>Edit map</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem @click="openMapEditor('id')">
+                  <span>OpenStreetMap iD</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled @click="openMapEditor('josm')">
+                  <span>JOSM</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled @click="openMapEditor('potlatch')">
+                  <span>Potlatch</span>
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   </div>

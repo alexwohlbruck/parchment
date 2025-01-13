@@ -13,6 +13,7 @@ const cyclOSM: Layer = {
   configuration: {
     id: 'cyclosm',
     type: LayerType.RASTER,
+    slot: 'middle',
     source: {
       id: 'cyclosm',
       type: SourceType.RASTER,
@@ -39,6 +40,7 @@ const waymarkedTrails: Layer = {
   configuration: {
     id: 'waymarkedTrails',
     type: LayerType.RASTER,
+    slot: 'middle',
     source: {
       id: 'waymarkedTrails',
       type: SourceType.RASTER,
@@ -60,6 +62,7 @@ const transitLand: Layer = {
   configuration: {
     id: 'transitland',
     type: LayerType.LINE,
+    slot: 'middle',
     source: {
       id: 'transitland',
       type: SourceType.VECTOR,
@@ -78,7 +81,7 @@ const transitLand: Layer = {
       'text-offset': [0, 1], // adjust the text offset if needed,
     },
     paint: {
-      'line-width': 2.0,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 12, 1, 18, 6],
       'line-color': [
         'match',
         ['get', 'route_type'],
@@ -104,31 +107,32 @@ const transitLand: Layer = {
         'red',
         'grey', // default
       ],
-      'line-opacity': [
-        'match',
-        ['get', 'route_type'],
-        0, // Tram, streetcar, light rail
-        1,
-        1, // Subway, metro
-        1,
-        2, // Rail
-        1,
-        3, // Bus
-        1,
-        4, // Ferry
-        1,
-        5, // Cable tram
-        1,
-        6, // Aerial lift, suspended cable car
-        1,
-        7, // Funicular
-        1,
-        11, // Trolleybus
-        1,
-        12, // Monorail
-        1,
-        0,
-      ],
+      'line-occlusion-opacity': 0.15,
+      // 'line-opacity': [
+      //   'match',
+      //   ['get', 'route_type'],
+      //   0, // Tram, streetcar, light rail
+      //   1,
+      //   1, // Subway, metro
+      //   1,
+      //   2, // Rail
+      //   1,
+      //   3, // Bus
+      //   1,
+      //   4, // Ferry
+      //   1,
+      //   5, // Cable tram
+      //   1,
+      //   6, // Aerial lift, suspended cable car
+      //   1,
+      //   7, // Funicular
+      //   1,
+      //   11, // Trolleybus
+      //   1,
+      //   12, // Monorail
+      //   1,
+      //   0,
+      // ],
       // 'line-blur': 1
       // 'line-offset': 1
       'line-emissive-strength': 1,
@@ -146,6 +150,7 @@ const traffic: Layer = {
   configuration: {
     id: 'traffic',
     type: LayerType.LINE,
+    slot: 'middle',
     source: {
       id: 'traffic',
       type: SourceType.VECTOR,
@@ -177,6 +182,7 @@ const traffic: Layer = {
         '#000000',
       ],
       'line-opacity': 0.8,
+      'line-occlusion-opacity': 0.15,
       'line-emissive-strength': 1,
     },
   },

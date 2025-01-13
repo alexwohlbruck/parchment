@@ -203,7 +203,7 @@ function openMapEditor(editor: 'id' | 'josm' | 'potlatch') {
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <PencilIcon class="mr-2 size-4" />
-              <span>Edit map</span>
+              <span>{{ $t('map.contextMenu.edit') }}</span>
             </DropdownMenuSubTrigger>
             <DropdownMenuPortal>
               <DropdownMenuSubContent>

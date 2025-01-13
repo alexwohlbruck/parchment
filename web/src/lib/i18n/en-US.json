@@ -111,7 +111,10 @@
     "unknownError": "An unknown error occurred"
   },
   "map": {
-    "title": "Map"
+    "title": "Map",
+    "contextMenu": {
+      "edit": "Edit map"
+    }
   },
   "layers": {
     "title": "Layers",

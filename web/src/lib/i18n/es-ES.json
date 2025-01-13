@@ -112,7 +112,10 @@
     "unknownError": "Ha ocurrido un error desconocido"
   },
   "map": {
-    "title": "Mapa"
+    "title": "Mapa",
+    "contextMenu": {
+      "edit": "Editar mapa"
+    }
   },
   "layers": {
     "title": "Capas",

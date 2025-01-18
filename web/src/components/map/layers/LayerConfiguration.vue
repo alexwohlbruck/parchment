@@ -150,7 +150,7 @@ const { handleSubmit, errors, values, meta, setFieldValue, setFieldError } =
     validationSchema: layerSchema,
     initialValues: {
       ...layer,
-      engine: layer.engine,
+      engine: layer?.engine || [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
       configuration: layer?.configuration || {},
     },
   })

@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import { Source, Layer, LayerType, SourceType } from '@/types/map.types'
+import {
+  Source,
+  Layer,
+  LayerType,
+  SourceType,
+  MapEngine,
+} from '@/types/map.types'
 import { computed, ref, defineEmits, watch } from 'vue'
 import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
@@ -15,7 +21,7 @@ import {
   SelectItem,
   SelectValue,
 } from '@/components/ui/select'
-import { SettingsSection, SettingsItem } from '@/components/settings'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   FormControl,
   FormField,
@@ -23,6 +29,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { SettingsSection, SettingsItem } from '@/components/settings'
 
 const mapStore = useMapStore()
 
@@ -80,7 +87,10 @@ const layerSchema = computed(() => {
       name: z.string().min(1, 'required').default(''),
       enabled: z.boolean().default(true),
       visible: z.boolean().default(true),
-      engine: z.enum(['mapbox', 'maplibre']).default('mapbox'),
+      engine: z
+        .array(z.enum([MapEngine.MAPBOX, MapEngine.MAPLIBRE]))
+        .min(1)
+        .default([MapEngine.MAPBOX, MapEngine.MAPLIBRE]),
       icon: z.any().default(() => null),
       customConfiguration: z
         .string()
@@ -140,6 +150,7 @@ const { handleSubmit, errors, values, meta, setFieldValue, setFieldError } =
     validationSchema: layerSchema,
     initialValues: {
       ...layer,
+      engine: layer.engine,
       configuration: layer?.configuration || {},
     },
   })
@@ -355,6 +366,43 @@ defineExpose({
                 </SelectContent>
               </Select>
             </FormControl>
+          </SettingsItem>
+        </FormItem>
+      </FormField>
+
+      <FormField name="engine" v-slot="{ value, handleChange }">
+        <FormItem>
+          <SettingsItem :title="$t('layers.meta.fields.engine')">
+            <div class="flex flex-col gap-2">
+              <div class="flex items-center space-x-2">
+                <Checkbox
+                  :checked="value.includes(MapEngine.MAPBOX)"
+                  @update:checked="
+                    checked => {
+                      const newValue = checked
+                        ? [...value, MapEngine.MAPBOX]
+                        : value.filter(v => v !== MapEngine.MAPBOX)
+                      handleChange(newValue)
+                    }
+                  "
+                />
+                <Label>Mapbox</Label>
+              </div>
+              <div class="flex items-center space-x-2">
+                <Checkbox
+                  :checked="value.includes(MapEngine.MAPLIBRE)"
+                  @update:checked="
+                    checked => {
+                      const newValue = checked
+                        ? [...value, MapEngine.MAPLIBRE]
+                        : value.filter(v => v !== MapEngine.MAPLIBRE)
+                      handleChange(newValue)
+                    }
+                  "
+                />
+                <Label>Maplibre</Label>
+              </div>
+            </div>
           </SettingsItem>
         </FormItem>
       </FormField>

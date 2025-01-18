@@ -120,7 +120,7 @@ export type Layer = {
   icon: Icon
   enabled: boolean
   visible: boolean
-  engine: MapEngine | MapEngine[]
+  engine: MapEngine[]
   configuration: MapboxLayerConfiguration
 }
 

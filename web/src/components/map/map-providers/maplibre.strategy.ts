@@ -9,7 +9,7 @@ import {
   LngLatLike,
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { Basemap, MapTheme, MapOptions } from '@/types/map.types'
+import { Basemap, MapTheme, MapOptions, Layer } from '@/types/map.types'
 
 import { Directions } from '@/types/directions.types'
 import { decodeShape } from '@/lib/utils'
@@ -34,7 +34,6 @@ const basemapUrls = {
 }
 
 export class MaplibreStrategy extends MapStrategy {
-  theme = MapTheme.LIGHT
   mapInstance: Map
 
   constructor(container, options: MapOptions) {
@@ -44,7 +43,7 @@ export class MaplibreStrategy extends MapStrategy {
 
     this.mapInstance = new Map({
       container,
-      style: basemapUrls.light,
+      style: this.getBasemapFromTheme(),
       center: center as LngLatLike,
       bearing,
       pitch,
@@ -60,9 +59,9 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   addControls() {
-    this.mapInstance.addControl(new ScaleControl({}), 'bottom-right')
-    this.mapInstance.addControl(new NavigationControl({}), 'bottom-right')
-    this.mapInstance.addControl(new GeolocateControl({}), 'bottom-right')
+    this.mapInstance.addControl(new ScaleControl({}), 'top-left')
+    this.mapInstance.addControl(new NavigationControl({}), 'top-right')
+    this.mapInstance.addControl(new GeolocateControl({}), 'top-right')
     this.mapInstance.addControl(
       new AttributionControl({
         compact: true,
@@ -252,15 +251,21 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   // TODO: Get maplibre layer type
-  addLayer(layer: any) {
+  addLayer(layer: Layer, overwrite: boolean = false) {
     const { configuration }: any = mapboxLayerToMaplibreLayer(layer)
-    this.mapInstance.addLayer({
-      ...configuration,
-      layout: {
-        ...configuration.layout,
-        visibility: layer.visible ? 'visible' : 'none',
-      },
-    })
+    const existingLayer = this.mapInstance.getLayer(layer.configuration.id)
+    if (existingLayer && overwrite) {
+      this.mapInstance.removeLayer(layer.configuration.id)
+    }
+    if (!existingLayer) {
+      this.mapInstance.addLayer({
+        ...configuration,
+        layout: {
+          ...configuration.layout,
+          visibility: layer.visible ? 'visible' : 'none',
+        },
+      })
+    }
   }
 
   // TODO: Use maplibre Layer['configuration']['id']

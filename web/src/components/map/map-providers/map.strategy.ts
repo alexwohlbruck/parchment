@@ -25,7 +25,7 @@ export class MapStrategy {
   setMapTheme(theme: MapTheme) {}
   setBasemap(basemap: Basemap) {}
   removeSource(sourceId: string) {}
-  addLayer(layer: Layer) {}
+  addLayer(layer: Layer, overwrite: boolean = false) {}
   removeLayer(layerId: Layer['configuration']['id']) {}
   updateLayer(layerId: Layer['configuration']['id'], updates: Partial<Layer>) {}
   toggleLayer(layerId: string, state?: boolean) {}

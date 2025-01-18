@@ -1,8 +1,8 @@
 import {
+  MapEngine,
   MapTheme,
   type Layer,
   type MapCamera,
-  type MapEngine,
   type MapEvents,
   type MapOptions,
 } from '@/types/map.types'
@@ -21,7 +21,7 @@ const dark = useDark()
 function mapService() {
   const mapStore = useMapStore()
   const directionsStore = useDirectionsStore()
-  const { mapOptions, layers } = storeToRefs(mapStore)
+  const { enabledLayers } = storeToRefs(mapStore)
   let mapStrategy: MapStrategy
   let mapContainer: HTMLElement
 
@@ -38,30 +38,24 @@ function mapService() {
     }
 
     switch (mapEngine) {
-      case 'mapbox':
+      case MapEngine.MAPBOX:
         return new MapboxStrategy(container, options)
-      case 'maplibre':
+      case MapEngine.MAPLIBRE:
         return new MaplibreStrategy(container, options)
     }
   }
 
-  function initializeMap(
-    container: HTMLElement,
-    mapEngine: MapEngine,
-    options?: MapOptions,
-  ) {
+  function initializeMap(container: HTMLElement, mapEngine: MapEngine) {
     mapContainer = container as HTMLElement
     mapStrategy = getMapStrategy(container, mapEngine)
     mapStore.setMapStrategy(mapStrategy)
 
     mapEventBus.on('load', () => {
-      mapStore.initializeLayers(layers.value)
+      mapStore.initializeLayers(enabledLayers.value)
     })
 
     mapEventBus.on('style.load', () => {
-      mapStrategy.setMapTheme(
-        options?.theme ?? (dark.value ? MapTheme.DARK : MapTheme.LIGHT),
-      )
+      mapStore.initializeLayers(enabledLayers.value)
     })
 
     mapEventBus.on('moveend', (data: MapCamera) => {
@@ -73,8 +67,8 @@ function mapService() {
 
   function setMapEngine(mapEngine: MapEngine) {
     destroy()
-    mapStrategy = initializeMap(mapContainer, mapEngine, mapOptions.value)
     mapStore.setMapEngine(mapEngine)
+    mapStrategy = initializeMap(mapContainer, mapEngine)
   }
 
   watch(dark, newDark => {

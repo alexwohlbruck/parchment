@@ -9,7 +9,7 @@ const cyclOSM: Layer = {
   icon: BikeIcon,
   enabled: true,
   visible: false,
-  engine: 'mapbox',
+  engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
   configuration: {
     id: 'cyclosm',
     type: LayerType.RASTER,
@@ -36,7 +36,7 @@ const waymarkedTrails: Layer = {
   icon: BikeIcon,
   enabled: true,
   visible: false,
-  engine: 'mapbox',
+  engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
   configuration: {
     id: 'waymarkedTrails',
     type: LayerType.RASTER,
@@ -61,7 +61,7 @@ const transitLand: Layer = {
   icon: TrainIcon,
   enabled: true,
   visible: false,
-  engine: 'mapbox',
+  engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
   configuration: {
     id: 'transitland',
     type: LayerType.LINE,
@@ -149,7 +149,7 @@ const traffic: Layer = {
   icon: CarFrontIcon,
   enabled: false,
   visible: false,
-  engine: 'mapbox',
+  engine: [MapEngine.MAPBOX],
   configuration: {
     id: 'traffic',
     type: LayerType.LINE,

@@ -7,6 +7,7 @@ const MAPBOX_PAINT_PROPERTIES = [
   'raster-emissive-strength',
   'icon-emissive-strength',
   'text-emissive-strength',
+  'line-occlusion-opacity',
 ] as const
 
 // List of Mapbox layout properties that are not supported by Maplibre
@@ -20,12 +21,9 @@ const MAPBOX_LAYOUT_PROPERTIES = [
   'icon-size',
 ] as const
 
-// List of Mapbox layer types that are not supported by Maplibre
-const MAPBOX_LAYER_TYPES = ['background'] as const
-
 // TODO: Fix any types
 export function mapboxLayerToMaplibreLayer(layer: Layer): MaplibreLayer {
-  const { configuration } = layer
+  const { configuration } = { ...layer }
   const maplibreConfig: any = {
     ...configuration,
     type: configuration.type,

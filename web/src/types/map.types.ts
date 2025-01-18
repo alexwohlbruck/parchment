@@ -3,7 +3,11 @@ import { Map as MaplibreMap } from 'maplibre-gl'
 import { Icon } from '@/types/app.types'
 
 export type Basemap = 'standard' | 'satellite' | 'hybrid'
-export type MapEngine = 'mapbox' | 'maplibre'
+
+export enum MapEngine {
+  MAPBOX = 'mapbox',
+  MAPLIBRE = 'maplibre',
+}
 
 export enum MapTheme {
   LIGHT = 'light',
@@ -116,7 +120,7 @@ export type Layer = {
   icon: Icon
   enabled: boolean
   visible: boolean
-  engine: 'mapbox'
+  engine: MapEngine | MapEngine[]
   configuration: MapboxLayerConfiguration
 }
 

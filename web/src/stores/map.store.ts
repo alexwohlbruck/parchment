@@ -1,5 +1,5 @@
 import mitt from 'mitt'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
   Basemap,
@@ -8,6 +8,7 @@ import {
   MapEvents,
   Layer,
   MapCamera,
+  MapTheme,
 } from '@/types/map.types'
 import { layers as defaultLayers } from '@/components/map/layers/layers'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
@@ -22,7 +23,7 @@ export const useMapStore = defineStore('map', () => {
     mapStrategy = map
   }
 
-  const mapEngine = ref<MapEngine>('mapbox')
+  const mapEngine = ref<MapEngine>(MapEngine.MAPBOX)
 
   function setMapEngine(engine: MapEngine) {
     mapEngine.value = engine
@@ -41,7 +42,7 @@ export const useMapStore = defineStore('map', () => {
 
   const mapOptions = ref<MapOptions>({
     projection: 'web-mercator',
-    theme: 'light',
+    theme: MapTheme.LIGHT,
     basemap: 'standard',
   })
 
@@ -70,9 +71,14 @@ export const useMapStore = defineStore('map', () => {
 
   const layers = ref<Layer[]>(defaultLayers)
 
-  function initializeLayers(defaultLayers: Layer[]) {
-    layers.value = defaultLayers
-    defaultLayers.forEach(layer => {
+  const enabledLayers = computed(() =>
+    layers.value.filter(
+      layer => layer.enabled && layer.engine.includes(mapEngine.value),
+    ),
+  )
+
+  function initializeLayers(layers_: Layer[]) {
+    layers_.forEach(layer => {
       mapStrategy?.addLayer(layer)
     })
   }
@@ -151,6 +157,7 @@ export const useMapStore = defineStore('map', () => {
     mapOptions,
     setBasemap,
     layers,
+    enabledLayers,
     initializeLayers,
     addLayer,
     removeLayer,

@@ -49,7 +49,9 @@ function openLayerConfigDialog(layer: Layer) {
 }
 
 const basemap = computed(() => {
-  return mapStore.mapEngine === 'mapbox' ? 'mapbox-standard' : 'maptiler'
+  return mapStore.mapEngine === MapEngine.MAPBOX
+    ? 'mapbox-standard'
+    : 'maptiler'
 })
 </script>
 
@@ -84,7 +86,10 @@ const basemap = computed(() => {
         </Select>
       </SettingsItem>
 
-      <SettingsItem title="Map projection" v-if="mapEngine === 'mapbox'">
+      <SettingsItem
+        title="Map projection"
+        v-if="mapEngine === MapEngine.MAPBOX"
+      >
         <Select v-model="projection">
           <SelectTrigger class="w-fit">
             <SelectValue placeholder="Choose an option" />

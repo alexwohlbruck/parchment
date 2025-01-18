@@ -7,13 +7,11 @@ import { useMapService } from '@/services/map.service'
 import { H5 } from '@/components/ui/typography'
 import { basemaps } from '../map/map.data'
 import { Basemap, Layer } from '@/types/map.types'
+import { storeToRefs } from 'pinia'
 
 const mapStore = useMapStore()
 const mapService = useMapService()
-
-const enabledLayers = computed(() =>
-  mapStore.layers.filter(layer => layer.enabled),
-)
+const { enabledLayers } = storeToRefs(mapStore)
 
 function toggleLayerVisibility(
   layerId: Layer['configuration']['id'],

@@ -114,6 +114,7 @@ function fillWaypoint() {
 }
 
 function openMapEditor(editor: 'id' | 'josm' | 'potlatch') {
+  if (!clickedLngLat.value) return
   switch (editor) {
     case 'id':
       window.open(

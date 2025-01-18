@@ -309,15 +309,21 @@ export class MapboxStrategy extends MapStrategy {
     this.mapInstance.removeSource(sourceId)
   }
 
-  addLayer(layer: Layer) {
+  addLayer(layer: Layer, overwrite: boolean = false) {
     const { configuration } = layer
-    this.mapInstance.addLayer({
-      ...configuration,
-      layout: {
-        ...configuration.layout,
-        visibility: layer.visible ? 'visible' : 'none',
-      },
-    })
+    const existingLayer = this.mapInstance.getLayer(layer.configuration.id)
+    if (existingLayer && overwrite) {
+      this.mapInstance.removeLayer(layer.configuration.id)
+    }
+    if (!existingLayer) {
+      this.mapInstance.addLayer({
+        ...configuration,
+        layout: {
+          ...configuration.layout,
+          visibility: layer.visible ? 'visible' : 'none',
+        },
+      })
+    }
   }
 
   removeLayer(layerId: Layer['configuration']['id']) {
@@ -328,6 +334,7 @@ export class MapboxStrategy extends MapStrategy {
     layerId: Layer['configuration']['id'],
     visible: boolean,
   ) {
+    console.log(this.mapInstance.getLayer(layerId))
     this.mapInstance.setLayoutProperty(
       layerId,
       'visibility',

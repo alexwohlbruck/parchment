@@ -1,20 +1,27 @@
-import type { Layer, MapEngine, MapEvents, MapOptions } from '@/types/map.types'
+import {
+  MapTheme,
+  type Layer,
+  type MapCamera,
+  type MapEngine,
+  type MapEvents,
+  type MapOptions,
+} from '@/types/map.types'
 import { useMapStore } from '../stores/map.store'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { createSharedComposable, useDark } from '@vueuse/core'
-import { mapState, storeToRefs } from 'pinia'
+import { storeToRefs } from 'pinia'
 import { MapboxStrategy } from '@/components/map/map-providers/mapbox.strategy'
 import { MaplibreStrategy } from '@/components/map/map-providers/maplibre.strategy'
 import { mapEventBus } from '@/lib/eventBus'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
-import { ref, watch } from 'vue'
+import { watch } from 'vue'
 
 const dark = useDark()
 
 function mapService() {
   const mapStore = useMapStore()
   const directionsStore = useDirectionsStore()
-  const { mapState, layers } = storeToRefs(mapStore)
+  const { mapOptions, layers } = storeToRefs(mapStore)
   let mapStrategy: MapStrategy
   let mapContainer: HTMLElement
 
@@ -22,10 +29,14 @@ function mapService() {
     container: string | HTMLElement,
     mapEngine: MapEngine,
   ) {
-    // TODO: Detect theme automatically on map init
-    const options: Partial<MapOptions> = {
-      theme: dark.value ? 'dark' : 'light',
+    const { mapOptions, mapCamera } = mapStore
+
+    const options = {
+      ...mapOptions,
+      theme: dark.value ? MapTheme.DARK : MapTheme.LIGHT,
+      camera: mapCamera,
     }
+
     switch (mapEngine) {
       case 'mapbox':
         return new MapboxStrategy(container, options)
@@ -48,7 +59,13 @@ function mapService() {
     })
 
     mapEventBus.on('style.load', () => {
-      mapStrategy.setMapTheme(options?.theme ?? dark.value ? 'dark' : 'light')
+      mapStrategy.setMapTheme(
+        options?.theme ?? (dark.value ? MapTheme.DARK : MapTheme.LIGHT),
+      )
+    })
+
+    mapEventBus.on('moveend', (data: MapCamera) => {
+      mapStore.setMapCamera(data)
     })
 
     return mapStrategy
@@ -56,16 +73,16 @@ function mapService() {
 
   function setMapEngine(mapEngine: MapEngine) {
     destroy()
-    mapStrategy = initializeMap(mapContainer, mapEngine, mapState.value)
+    mapStrategy = initializeMap(mapContainer, mapEngine, mapOptions.value)
     mapStore.setMapEngine(mapEngine)
   }
 
   watch(dark, newDark => {
-    mapStrategy.setMapTheme(newDark ? 'dark' : 'light')
+    mapStrategy.setMapTheme(newDark ? MapTheme.DARK : MapTheme.LIGHT)
   })
 
   watch(
-    () => mapStore.mapState.basemap,
+    () => mapStore.mapOptions.basemap,
     basemap => {
       mapStrategy.setBasemap(basemap)
     },

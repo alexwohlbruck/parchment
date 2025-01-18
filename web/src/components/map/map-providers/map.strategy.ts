@@ -3,12 +3,8 @@ import { Locale } from '@/lib/i18n'
 import { Directions } from '@/types/directions.types'
 
 const defaultOptions: MapOptions = {
-  center: [-80.8432808, 35.2205601],
-  zoom: 14,
-  bearing: 0,
-  pitch: 0,
   projection: 'mercator',
-  theme: 'light',
+  theme: MapTheme.LIGHT,
   basemap: 'standard',
 }
 
@@ -17,7 +13,7 @@ export class MapStrategy {
   container: HTMLElement
   options: MapOptions
 
-  constructor(container, options?: Partial<MapOptions>) {
+  constructor(container, options: MapOptions) {
     this.container = container
     this.options = { ...defaultOptions, ...options }
   }

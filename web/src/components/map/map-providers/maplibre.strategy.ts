@@ -6,6 +6,7 @@ import {
   AttributionControl,
   ScaleControl,
   LngLatBounds,
+  LngLatLike,
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Basemap, MapTheme, MapOptions } from '@/types/map.types'
@@ -15,6 +16,7 @@ import { decodeShape } from '@/lib/utils'
 import colors from 'tailwindcss/colors'
 import { mapEventBus } from '@/lib/eventBus'
 import { mapboxLayerToMaplibreLayer } from '@/lib/map.utils'
+import { useMapStore } from '@/stores/map.store'
 
 const basemapUrls = {
   light: `https://api.maptiler.com/maps/streets-v2/style.json?key=${
@@ -32,25 +34,18 @@ const basemapUrls = {
 }
 
 export class MaplibreStrategy extends MapStrategy {
-  theme: MapTheme = 'light'
+  theme = MapTheme.LIGHT
   mapInstance: Map
 
-  constructor(container, options?: Partial<MapOptions>) {
+  constructor(container, options: MapOptions) {
     super(container, options)
 
-    // For testing
-    const { lng, lat, zoom, bearing, pitch } = {
-      lng: -80.8432808,
-      lat: 35.2205601,
-      bearing: 0,
-      pitch: 0,
-      zoom: 14,
-    }
+    const { center, zoom, bearing, pitch } = options.camera || {}
 
     this.mapInstance = new Map({
       container,
       style: basemapUrls.light,
-      center: [lng, lat],
+      center: center as LngLatLike,
       bearing,
       pitch,
       zoom,
@@ -83,6 +78,14 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.on('style.load', () => {
       mapEventBus.emit('style.load', this.mapInstance)
       this.setMapTheme(this.options.theme)
+    })
+    this.mapInstance.on('moveend', () => {
+      mapEventBus.emit('moveend', {
+        center: this.mapInstance.getCenter(),
+        zoom: this.mapInstance.getZoom(),
+        bearing: this.mapInstance.getBearing(),
+        pitch: this.mapInstance.getPitch(),
+      })
     })
     this.mapInstance.on('click', e => {
       mapEventBus.emit('click', {

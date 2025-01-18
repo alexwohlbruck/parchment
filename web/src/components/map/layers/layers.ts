@@ -49,6 +49,9 @@ const waymarkedTrails: Layer = {
       attribution:
         '<a href="https://cycling.waymarkedtrails.org/">© Waymarked Trails</a>',
     },
+    paint: {
+      'raster-emissive-strength': 0.9,
+    },
   },
 }
 

@@ -1,19 +1,27 @@
-import { Map as MapboxMap } from 'mapbox-gl'
+import { LngLatLike, Map as MapboxMap } from 'mapbox-gl'
 import { Map as MaplibreMap } from 'maplibre-gl'
 import { Icon } from '@/types/app.types'
 
 export type Basemap = 'standard' | 'satellite' | 'hybrid'
-export type MapTheme = 'light' | 'dark'
 export type MapEngine = 'mapbox' | 'maplibre'
 
+export enum MapTheme {
+  LIGHT = 'light',
+  DARK = 'dark',
+}
+
 export type MapOptions = {
-  center: [number, number]
+  projection: string
+  theme: MapTheme
+  basemap: Basemap
+  camera?: MapCamera
+}
+
+export type MapCamera = {
+  center: LngLatLike
   zoom: number
   bearing: number
   pitch: number
-  projection: string
-  theme: 'light' | 'dark'
-  basemap: Basemap
 }
 
 export type MapInstance = MapboxMap | MaplibreMap
@@ -33,6 +41,7 @@ export type MapEvents = {
     point: { x: number; y: number }
   }
   load: MapInstance
+  moveend: MapCamera
   'style.load': MapInstance
   contextmenu: {
     lngLat: LngLat

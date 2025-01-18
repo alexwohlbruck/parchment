@@ -29,7 +29,7 @@ function toggleLayerVisibility(
     <div class="flex gap-2 flex-wrap">
       <ToggleGroup
         type="single"
-        :default-value="mapStore.mapState.basemap"
+        :default-value="mapStore.mapOptions.basemap"
         @update:model-value="(basemap) => mapStore.setBasemap(basemap as Basemap)"
       >
         <ToggleGroupItem

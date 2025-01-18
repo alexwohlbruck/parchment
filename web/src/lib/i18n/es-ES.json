@@ -122,6 +122,7 @@
     "meta": {
       "title": "Información de la capa",
       "fields": {
+        "engine": "Motores compatibles",
         "id": "ID de la capa",
         "name": "Nombre",
         "enabled": "Habilitado",

@@ -121,6 +121,7 @@
     "meta": {
       "title": "Layer Info",
       "fields": {
+        "engine": "Compatible engines",
         "id": "Layer ID",
         "name": "Layer Name",
         "enabled": "Enabled",

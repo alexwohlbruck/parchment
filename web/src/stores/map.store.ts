@@ -7,9 +7,11 @@ import {
   MapOptions,
   MapEvents,
   Layer,
+  MapCamera,
 } from '@/types/map.types'
 import { layers as defaultLayers } from '@/components/map/layers/layers'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import { useStorage } from '@vueuse/core'
 
 const emitter = mitt<MapEvents>()
 
@@ -26,11 +28,18 @@ export const useMapStore = defineStore('map', () => {
     mapEngine.value = engine
   }
 
-  const mapState = ref<MapOptions>({
-    center: [-80.8432808, 35.2205601],
-    zoom: 14,
+  const mapCamera = useStorage<MapCamera>('map-camera', {
+    center: [-44.808291513887866, 21.851187958608364],
+    zoom: 2,
     bearing: 0,
     pitch: 0,
+  })
+
+  function setMapCamera(camera: MapCamera) {
+    mapCamera.value = camera
+  }
+
+  const mapOptions = ref<MapOptions>({
     projection: 'web-mercator',
     theme: 'light',
     basemap: 'standard',
@@ -56,7 +65,7 @@ export const useMapStore = defineStore('map', () => {
   }
 
   function setBasemap(map: Basemap) {
-    mapState.value.basemap = map
+    mapOptions.value.basemap = map
   }
 
   const layers = ref<Layer[]>(defaultLayers)
@@ -134,10 +143,12 @@ export const useMapStore = defineStore('map', () => {
     setMapStrategy,
     mapEngine,
     setMapEngine,
+    mapCamera,
+    setMapCamera,
     on,
     off,
     emit,
-    mapState,
+    mapOptions,
     setBasemap,
     layers,
     initializeLayers,

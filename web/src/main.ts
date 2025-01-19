@@ -9,6 +9,10 @@ import { i18n } from '@/lib/i18n'
 import '@morev/vue-transitions/styles'
 import '@/styles/themes.css'
 
+// TODO: Move to dedicated file
+// import 'mapillary-js/dist/mapillary.css'
+import 'mapillary-js/dist/mapillary.css'
+
 const app = createApp(App)
 const pinia = createPinia()
 

@@ -13,6 +13,7 @@ import { LngLat } from '@/types/map.types'
 import { useDirectionsStore } from '@/stores/directions.store'
 
 import { Button } from '@/components/ui/button'
+import StreetView from '@/components/map/StreetView.vue'
 import {
   Layers3Icon,
   PencilIcon,
@@ -134,10 +135,17 @@ function openMapEditor(editor: 'id' | 'josm' | 'potlatch') {
 
 <template>
   <div>
-    <div class="absolute bottom-[7.5rem] md:bottom-0 right-0 z-50 p-2">
+    <div
+      class="absolute bottom-[7.5rem] md:bottom-0 right-0 z-50 p-2 flex flex-col gap-2 items-end"
+    >
+      <StreetView
+        class="rounded-lg shadow-md"
+        style="width: 400px; height: 250px"
+      />
+
       <HoverCard :openDelay="0" :closeDelay="0">
         <HoverCardTrigger as-child>
-          <Button variant="outline" size="icon" class="size-11">
+          <Button variant="outline" size="icon" class="size-11 shadow-md">
             <Layers3Icon class="size-5" />
           </Button>
         </HoverCardTrigger>

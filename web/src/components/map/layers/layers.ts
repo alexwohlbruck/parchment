@@ -49,9 +49,6 @@ const waymarkedTrails: Layer = {
       attribution:
         '<a href="https://cycling.waymarkedtrails.org/">© Waymarked Trails</a>',
     },
-    paint: {
-      'raster-emissive-strength': 0.9,
-    },
   },
 }
 
@@ -147,7 +144,7 @@ const transitLand: Layer = {
 const traffic: Layer = {
   name: 'Mapbox traffic',
   icon: CarFrontIcon,
-  enabled: false,
+  enabled: true,
   visible: false,
   engine: [MapEngine.MAPBOX],
   configuration: {

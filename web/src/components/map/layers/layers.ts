@@ -232,6 +232,7 @@ const traffic: Layer = {
   icon: CarFrontIcon,
   enabled: true,
   visible: false,
+  type: LayerType.CUSTOM,
   engine: [MapEngine.MAPBOX],
   configuration: {
     id: 'traffic',

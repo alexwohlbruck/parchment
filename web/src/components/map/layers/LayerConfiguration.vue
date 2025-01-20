@@ -5,6 +5,7 @@ import {
   MapboxLayerType,
   SourceType,
   MapEngine,
+  LayerType,
 } from '@/types/map.types'
 import { computed, ref, defineEmits, watch } from 'vue'
 import { useForm } from 'vee-validate'
@@ -86,6 +87,14 @@ const layerSchema = computed(() => {
     z.object({
       name: z.string().min(1, 'required').default(''),
       enabled: z.boolean().default(true),
+      // TODO: Add field for layer type
+      type: z
+        .enum([
+          LayerType.CUSTOM,
+          LayerType.STREET_VIEW_IMAGE,
+          LayerType.STREET_VIEW_SEQUENCE,
+        ])
+        .default(LayerType.CUSTOM),
       visible: z.boolean().default(true),
       engine: z
         .array(z.enum([MapEngine.MAPBOX, MapEngine.MAPLIBRE]))

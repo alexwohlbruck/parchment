@@ -50,6 +50,7 @@ const directionsService = useDirectionsService()
 const directionsStore = useDirectionsStore()
 const { t } = useI18n()
 
+const { streetView } = storeToRefs(mapStore)
 const { waypoints } = storeToRefs(directionsStore)
 
 const mapContainer = useTemplateRef<HTMLElement>('mapContainer')
@@ -138,11 +139,6 @@ function openMapEditor(editor: 'id' | 'josm' | 'potlatch') {
     <div
       class="absolute bottom-[7.5rem] md:bottom-0 right-0 z-50 p-2 flex flex-col gap-2 items-end"
     >
-      <StreetView
-        class="rounded-lg shadow-md"
-        style="width: 400px; height: 250px"
-      />
-
       <HoverCard :openDelay="0" :closeDelay="0">
         <HoverCardTrigger as-child>
           <Button variant="outline" size="icon" class="size-11 shadow-md">
@@ -154,6 +150,13 @@ function openMapEditor(editor: 'id' | 'josm' | 'potlatch') {
           <LayersSelector />
         </HoverCardContent>
       </HoverCard>
+
+      <StreetView
+        v-if="streetView"
+        :image="streetView"
+        class="rounded-lg shadow-md"
+        style="width: 600px; height: 400px"
+      />
     </div>
 
     <div ref="mapContainer" class="w-full h-full"></div>

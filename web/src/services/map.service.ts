@@ -1,10 +1,10 @@
 import {
+  MapCamera,
   MapEngine,
   MapTheme,
+  StreetViewType,
   type Layer,
-  type MapCamera,
   type MapEvents,
-  type MapOptions,
 } from '@/types/map.types'
 import { useMapStore } from '../stores/map.store'
 import { useDirectionsStore } from '@/stores/directions.store'
@@ -58,11 +58,25 @@ function mapService() {
       mapStore.initializeLayers(enabledLayers.value)
     })
 
-    mapEventBus.on('moveend', (data: MapCamera) => {
+    mapEventBus.on('moveend', data => {
       mapStore.setMapCamera(data)
     })
 
+    mapEventBus.on('click:mapillary-image', ({ lngLat, image }) => {
+      if (image) {
+        mapStore.setStreetView({
+          type: StreetViewType.MAPILLARY,
+          lngLat,
+          data: image,
+        })
+      }
+    })
+
     return mapStrategy
+  }
+
+  function flyTo(camera: Partial<MapCamera>) {
+    mapStrategy.flyTo(camera)
   }
 
   function setMapEngine(mapEngine: MapEngine) {
@@ -137,6 +151,7 @@ function mapService() {
     initializeMap,
     toggleLayer,
     toggleLayerVisibility,
+    flyTo,
     setMapEngine,
     destroy,
     on,

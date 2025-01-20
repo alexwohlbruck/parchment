@@ -1,18 +1,102 @@
-import { Layer, LayerType, SourceType } from '@/types/map.types'
-import { BikeIcon, CarFrontIcon, TrainIcon } from 'lucide-vue-next'
+import {
+  Layer,
+  LayerType,
+  MapboxLayerType,
+  SourceType,
+} from '@/types/map.types'
+import {
+  BikeIcon,
+  CarFrontIcon,
+  MapIcon,
+  TrainIcon,
+  PersonStandingIcon,
+} from 'lucide-vue-next'
 import { MapEngine } from '@/types/map.types'
+import colors from 'tailwindcss/colors'
 
 const mapboxAccessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
+const mapillaryAccessToken = import.meta.env.VITE_MAPILLARY_ACCESS_TOKEN
+
+const mapillarySequence: Layer = {
+  name: 'Mapillary Sequences',
+  icon: PersonStandingIcon,
+  enabled: true,
+  visible: false,
+  type: LayerType.STREET_VIEW_SEQUENCE,
+  engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+  configuration: {
+    id: 'mapillary-sequence',
+    type: MapboxLayerType.LINE,
+    slot: 'middle',
+    source: {
+      id: 'mapillary-sequence',
+      type: SourceType.VECTOR,
+      tiles: [
+        `https://tiles.mapillary.com/maps/vtp/mly1_computed_public/2/{z}/{x}/{y}?access_token=${mapillaryAccessToken}`,
+      ],
+      minzoom: 6,
+      maxzoom: 14,
+    },
+    'source-layer': 'sequence',
+    paint: {
+      'line-color': colors.blue[500],
+      'line-opacity': 0.75,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1, 14, 5],
+      'line-emissive-strength': 1,
+    },
+    layout: {
+      'line-cap': 'round',
+      'line-join': 'round',
+    },
+  },
+}
+
+const mapillaryImage: Layer = {
+  name: 'Mapillary Images',
+  icon: PersonStandingIcon,
+  enabled: true,
+  visible: false,
+  type: LayerType.STREET_VIEW_IMAGE,
+  engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+  configuration: {
+    id: 'mapillary-image',
+    type: MapboxLayerType.CIRCLE,
+    slot: 'middle',
+    source: {
+      id: 'mapillary-image',
+      type: SourceType.VECTOR,
+      tiles: [
+        `https://tiles.mapillary.com/maps/vtp/mly1_computed_public/2/{z}/{x}/{y}?access_token=${mapillaryAccessToken}`,
+      ],
+      minzoom: 6,
+      maxzoom: 14,
+    },
+    'source-layer': 'image',
+    layout: {
+      cursor: 'pointer',
+    },
+    paint: {
+      'circle-color': colors.blue[600],
+      'circle-radius': 5,
+      'circle-opacity': 1,
+      'circle-stroke-color': colors.blue[900],
+      'circle-stroke-width': 1.5,
+      'circle-stroke-opacity': 0.7,
+      'circle-emissive-strength': 1,
+    },
+  },
+}
 
 const cyclOSM: Layer = {
   name: 'CyclOSM',
   icon: BikeIcon,
   enabled: true,
   visible: false,
+  type: LayerType.CUSTOM,
   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
   configuration: {
     id: 'cyclosm',
-    type: LayerType.RASTER,
+    type: MapboxLayerType.RASTER,
     slot: 'middle',
     source: {
       id: 'cyclosm',
@@ -36,10 +120,11 @@ const waymarkedTrails: Layer = {
   icon: BikeIcon,
   enabled: true,
   visible: false,
+  type: LayerType.CUSTOM,
   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
   configuration: {
     id: 'waymarkedTrails',
-    type: LayerType.RASTER,
+    type: MapboxLayerType.RASTER,
     slot: 'middle',
     source: {
       id: 'waymarkedTrails',
@@ -58,10 +143,11 @@ const transitLand: Layer = {
   icon: TrainIcon,
   enabled: true,
   visible: false,
+  type: LayerType.CUSTOM,
   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
   configuration: {
     id: 'transitland',
-    type: LayerType.LINE,
+    type: MapboxLayerType.LINE,
     slot: 'middle',
     source: {
       id: 'transitland',
@@ -149,7 +235,7 @@ const traffic: Layer = {
   engine: [MapEngine.MAPBOX],
   configuration: {
     id: 'traffic',
-    type: LayerType.LINE,
+    type: MapboxLayerType.LINE,
     slot: 'middle',
     source: {
       id: 'traffic',
@@ -189,6 +275,8 @@ const traffic: Layer = {
 }
 
 export const layers: Layer[] = [
+  mapillarySequence,
+  mapillaryImage,
   cyclOSM,
   waymarkedTrails,
   transitLand,

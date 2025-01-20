@@ -2,7 +2,7 @@
 import {
   Source,
   Layer,
-  LayerType,
+  MapboxLayerType,
   SourceType,
   MapEngine,
 } from '@/types/map.types'
@@ -110,8 +110,8 @@ const layerSchema = computed(() => {
         .object({
           id: z.string().min(1, 'required').default(''),
           type: z
-            .enum(Object.values(LayerType) as [string, ...string[]])
-            .default(LayerType.LINE), // TODO: Not working
+            .enum(Object.values(MapboxLayerType) as [string, ...string[]])
+            .default(MapboxLayerType.LINE), // TODO: Not working
           source: useExistingSource.value
             ? z.string().default('')
             : z
@@ -357,7 +357,7 @@ defineExpose({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem
-                    v-for="type in Object.values(LayerType)"
+                    v-for="type in Object.values(MapboxLayerType)"
                     :key="type"
                     :value="type"
                   >

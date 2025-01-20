@@ -9,7 +9,14 @@ import {
   LngLatLike,
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { Basemap, MapTheme, MapOptions, Layer } from '@/types/map.types'
+import {
+  Basemap,
+  MapTheme,
+  MapOptions,
+  Layer,
+  MapCamera,
+  MapillaryImage,
+} from '@/types/map.types'
 
 import { Directions } from '@/types/directions.types'
 import { decodeShape } from '@/lib/utils'
@@ -98,6 +105,29 @@ export class MaplibreStrategy extends MapStrategy {
         lngLat: e.lngLat,
         point: e.point,
       })
+    })
+    this.mapInstance.on('click', 'mapillary-image', e => {
+      mapEventBus.emit('click:mapillary-image', {
+        lngLat: e.lngLat,
+        point: e.point,
+        image: (e.features?.[0]?.properties as MapillaryImage) || undefined,
+      })
+    })
+    // Change pointers on hover
+    this.mapInstance.on('mouseenter', 'mapillary-image', () => {
+      this.mapInstance.getCanvas().style.cursor = 'pointer'
+    })
+    this.mapInstance.on('mouseleave', 'mapillary-image', () => {
+      this.mapInstance.getCanvas().style.cursor = ''
+    })
+  }
+
+  flyTo(camera: Partial<MapCamera>) {
+    this.mapInstance.flyTo({
+      center: camera.center,
+      zoom: camera.zoom,
+      bearing: camera.bearing,
+      pitch: camera.pitch,
     })
   }
 

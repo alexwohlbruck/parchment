@@ -1,4 +1,10 @@
-import { Basemap, Layer, MapOptions, MapTheme } from '@/types/map.types'
+import {
+  Basemap,
+  Layer,
+  MapCamera,
+  MapOptions,
+  MapTheme,
+} from '@/types/map.types'
 import { Locale } from '@/lib/i18n'
 import { Directions } from '@/types/directions.types'
 
@@ -20,6 +26,7 @@ export class MapStrategy {
 
   initialize() {}
   addDataSource() {}
+  flyTo(camera: Partial<MapCamera>) {}
   setDirections(directions: Directions) {}
   unsetDirections() {}
   setMapTheme(theme: MapTheme) {}

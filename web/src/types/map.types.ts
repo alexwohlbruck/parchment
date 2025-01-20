@@ -2,6 +2,9 @@ import { LngLatLike, Map as MapboxMap } from 'mapbox-gl'
 import { Map as MaplibreMap } from 'maplibre-gl'
 import { Icon } from '@/types/app.types'
 
+// TODO: Use types from official libs
+// import { LayerSpecification, VectorSourceSpecification } from 'mapbox-gl'
+
 export type Basemap = 'standard' | 'satellite' | 'hybrid'
 
 export enum MapEngine {
@@ -44,6 +47,11 @@ export type MapEvents = {
     lngLat: LngLat
     point: { x: number; y: number }
   }
+  'click:mapillary-image': {
+    lngLat: LngLat
+    point: { x: number; y: number }
+    image?: MapillaryImage
+  }
   load: MapInstance
   moveend: MapCamera
   'style.load': MapInstance
@@ -66,10 +74,11 @@ export type Source = {
   tileSize?: number
   attribution?: string
   maxzoom?: number
+  minzoom?: number
 }
 
 // TODO: Rename to MapboxLayerType
-export enum LayerType {
+export enum MapboxLayerType {
   LINE = 'line',
   FILL = 'fill',
   SYMBOL = 'symbol',
@@ -100,8 +109,9 @@ export enum MaplibreLayerType {
 
 export type MapboxLayerConfiguration = {
   id: string
-  type: LayerType
+  type: MapboxLayerType
   source: string | Source
+  slot?: string
   // Allow any additional properties for layer-specific configuration
   [key: string]: any
 }
@@ -114,10 +124,17 @@ export type MaplibreLayerConfiguration = {
   [key: string]: any
 }
 
+export enum LayerType {
+  CUSTOM = 'custom',
+  STREET_VIEW_IMAGE = 'street-view-image',
+  STREET_VIEW_SEQUENCE = 'street-view-sequence',
+}
+
 // TODO: Make MapboxLayer extend Layer
 export type Layer = {
   name: string
   icon: Icon
+  type: LayerType
   enabled: boolean
   visible: boolean
   engine: MapEngine[]
@@ -126,4 +143,24 @@ export type Layer = {
 
 export type MaplibreLayer = Layer & {
   configuration: MaplibreLayerConfiguration
+}
+
+export type MapillaryImage = {
+  captured_at: number
+  compass_angle: number
+  creator_id: number
+  id: number
+  is_pano: boolean
+  sequence_id: number
+}
+
+export enum StreetViewType {
+  MAPILLARY = 'mapillary',
+  STREET_VIEW = 'street-view',
+}
+
+export type StreetViewImage = {
+  type: StreetViewType
+  lngLat: LngLat
+  data: MapillaryImage
 }

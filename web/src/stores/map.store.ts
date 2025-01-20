@@ -9,6 +9,7 @@ import {
   Layer,
   MapCamera,
   MapTheme,
+  StreetViewImage,
 } from '@/types/map.types'
 import { layers as defaultLayers } from '@/components/map/layers/layers'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
@@ -145,6 +146,16 @@ export const useMapStore = defineStore('map', () => {
     }
   }
 
+  const streetView = ref<StreetViewImage | null>(null)
+
+  function setStreetView(streetView_: StreetViewImage) {
+    streetView.value = streetView_
+  }
+
+  function clearStreetView() {
+    streetView.value = null
+  }
+
   return {
     setMapStrategy,
     mapEngine,
@@ -164,5 +175,8 @@ export const useMapStore = defineStore('map', () => {
     updateLayer,
     toggleLayer,
     toggleLayerVisibility,
+    streetView,
+    setStreetView,
+    clearStreetView,
   }
 })

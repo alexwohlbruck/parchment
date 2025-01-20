@@ -11,7 +11,14 @@ import {
   LngLatLike,
 } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { Basemap, Layer, MapOptions, MapTheme } from '@/types/map.types'
+import {
+  Basemap,
+  Layer,
+  MapCamera,
+  MapillaryImage,
+  MapOptions,
+  MapTheme,
+} from '@/types/map.types'
 import standardStyle from '@/components/map/styles/standard.json'
 
 import { Directions } from '@/types/directions.types'
@@ -126,6 +133,21 @@ export class MapboxStrategy extends MapStrategy {
         point: e.point,
       })
     })
+    this.mapInstance.on('click', 'mapillary-image', e => {
+      mapEventBus.emit('click:mapillary-image', {
+        lngLat: e.lngLat,
+        point: e.point,
+        image: (e.features?.[0]?.properties as MapillaryImage) || undefined,
+      })
+    })
+    // Change pointers on hover
+    // TODO: This is a bad spot for this
+    this.mapInstance.on('mouseenter', 'mapillary-image', () => {
+      this.mapInstance.getCanvas().style.cursor = 'pointer'
+    })
+    this.mapInstance.on('mouseleave', 'mapillary-image', () => {
+      this.mapInstance.getCanvas().style.cursor = ''
+    })
   }
 
   // TODO:
@@ -152,6 +174,15 @@ export class MapboxStrategy extends MapStrategy {
       handler: e => {
         console.log(e.feature)
       },
+    })
+  }
+
+  flyTo(camera: Partial<MapCamera>) {
+    this.mapInstance.flyTo({
+      center: camera.center,
+      // zoom: camera.zoom,
+      // bearing: camera.bearing,
+      // pitch: camera.pitch,
     })
   }
 

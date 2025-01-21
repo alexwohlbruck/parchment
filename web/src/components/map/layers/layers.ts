@@ -17,11 +17,41 @@ import colors from 'tailwindcss/colors'
 const mapboxAccessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 const mapillaryAccessToken = import.meta.env.VITE_MAPILLARY_ACCESS_TOKEN
 
+const mapillaryOverview: Layer = {
+  name: 'Mapillary Overview',
+  enabled: true,
+  visible: true,
+  type: LayerType.STREET_VIEW_OVERVIEW,
+  engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+  configuration: {
+    id: 'mapillary-overview',
+    type: MapboxLayerType.CIRCLE,
+    source: {
+      id: 'mapillary-overview',
+      type: SourceType.VECTOR,
+      tiles: [
+        `https://tiles.mapillary.com/maps/vtp/mly1_computed_public/2/{z}/{x}/{y}?access_token=${mapillaryAccessToken}`,
+      ],
+      minzoom: 0,
+      maxzoom: 5,
+    },
+    'source-layer': 'images',
+    paint: {
+      'circle-color': colors.indigo[500],
+      'circle-radius': 4,
+      'circle-opacity': 1,
+      'circle-stroke-color': colors.indigo[800],
+      'circle-stroke-width': 1.5,
+      'circle-stroke-opacity': 0.7,
+      'circle-emissive-strength': 1,
+    },
+  },
+}
+
 const mapillarySequence: Layer = {
   name: 'Mapillary Sequences',
-  icon: PersonStandingIcon,
   enabled: true,
-  visible: false,
+  visible: true,
   type: LayerType.STREET_VIEW_SEQUENCE,
   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
   configuration: {
@@ -39,7 +69,7 @@ const mapillarySequence: Layer = {
     },
     'source-layer': 'sequence',
     paint: {
-      'line-color': colors.blue[500],
+      'line-color': colors.indigo[500],
       'line-opacity': 0.75,
       'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1, 14, 5],
       'line-emissive-strength': 1,
@@ -53,9 +83,8 @@ const mapillarySequence: Layer = {
 
 const mapillaryImage: Layer = {
   name: 'Mapillary Images',
-  icon: PersonStandingIcon,
   enabled: true,
-  visible: false,
+  visible: true,
   type: LayerType.STREET_VIEW_IMAGE,
   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
   configuration: {
@@ -76,10 +105,10 @@ const mapillaryImage: Layer = {
       cursor: 'pointer',
     },
     paint: {
-      'circle-color': colors.blue[600],
-      'circle-radius': 5,
+      'circle-color': colors.indigo[500],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 1, 14, 3.5],
       'circle-opacity': 1,
-      'circle-stroke-color': colors.blue[900],
+      'circle-stroke-color': colors.indigo[800],
       'circle-stroke-width': 1.5,
       'circle-stroke-opacity': 0.7,
       'circle-emissive-strength': 1,
@@ -276,6 +305,7 @@ const traffic: Layer = {
 }
 
 export const layers: Layer[] = [
+  mapillaryOverview,
   mapillarySequence,
   mapillaryImage,
   cyclOSM,

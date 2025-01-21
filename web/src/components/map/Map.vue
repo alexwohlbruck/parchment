@@ -137,9 +137,9 @@ function openMapEditor(editor: 'id' | 'josm' | 'potlatch') {
 <template>
   <div>
     <div
-      class="absolute bottom-[7.5rem] md:bottom-0 right-0 z-50 p-2 flex flex-col gap-2 items-end"
+      class="w-full absolute bottom-[7.5rem] md:bottom-0 right-0 z-50 p-2 flex flex-col gap-2 items-end pointer-events-none"
     >
-      <HoverCard :openDelay="0" :closeDelay="0">
+      <HoverCard :openDelay="0" :closeDelay="0" class="pointer-events-auto">
         <HoverCardTrigger as-child>
           <Button variant="outline" size="icon" class="size-11 shadow-md">
             <Layers3Icon class="size-5" />
@@ -154,8 +154,7 @@ function openMapEditor(editor: 'id' | 'josm' | 'potlatch') {
       <StreetView
         v-if="streetView"
         :image="streetView"
-        class="rounded-lg shadow-md"
-        style="width: 600px; height: 400px"
+        class="pointer-events-auto rounded-lg shadow-md w-full md:w-[40vw] aspect-video"
       />
     </div>
 

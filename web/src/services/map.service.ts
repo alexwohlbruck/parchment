@@ -79,6 +79,10 @@ function mapService() {
     mapStrategy.flyTo(camera)
   }
 
+  function jumpTo(camera: Partial<MapCamera>) {
+    mapStrategy.jumpTo(camera)
+  }
+
   function setMapEngine(mapEngine: MapEngine) {
     destroy()
     mapStore.setMapEngine(mapEngine)
@@ -152,11 +156,13 @@ function mapService() {
     toggleLayer,
     toggleLayerVisibility,
     flyTo,
+    jumpTo,
     setMapEngine,
     destroy,
     on,
     off,
     emit,
+    clearStreetView: mapStore.clearStreetView,
   }
 }
 

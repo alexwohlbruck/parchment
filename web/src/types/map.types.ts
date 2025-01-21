@@ -128,12 +128,13 @@ export enum LayerType {
   CUSTOM = 'custom',
   STREET_VIEW_IMAGE = 'street-view-image',
   STREET_VIEW_SEQUENCE = 'street-view-sequence',
+  STREET_VIEW_OVERVIEW = 'street-view-overview',
 }
 
 // TODO: Make MapboxLayer extend Layer
 export type Layer = {
   name: string
-  icon: Icon
+  icon?: Icon
   type: LayerType
   enabled: boolean
   visible: boolean

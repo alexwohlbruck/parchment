@@ -27,6 +27,7 @@ export class MapStrategy {
   initialize() {}
   addDataSource() {}
   flyTo(camera: Partial<MapCamera>) {}
+  jumpTo(camera: Partial<MapCamera>) {}
   setDirections(directions: Directions) {}
   unsetDirections() {}
   setMapTheme(theme: MapTheme) {}

@@ -35,7 +35,7 @@ const columns: ColumnDef<Layer>[] = [
     header: t('layers.meta.fields.name'),
     cell: ({ row }) => {
       return h('div', { class: 'flex items-center gap-2' }, [
-        h(row.original.icon, { class: 'size-4' }),
+        row.original.icon ? h(row.original.icon, { class: 'size-4' }) : null,
         row.original.name,
       ])
     },

@@ -8,6 +8,8 @@
     "mapbox",
     "mapboxgl",
     "maplibre",
+    "maxzoom",
+    "minzoom",
     "morev",
     "pinia",
     "primevue",

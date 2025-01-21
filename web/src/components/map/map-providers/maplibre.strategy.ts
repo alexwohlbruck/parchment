@@ -123,12 +123,11 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   flyTo(camera: Partial<MapCamera>) {
-    this.mapInstance.flyTo({
-      center: camera.center,
-      zoom: camera.zoom,
-      bearing: camera.bearing,
-      pitch: camera.pitch,
-    })
+    this.mapInstance.flyTo(camera)
+  }
+
+  jumpTo(camera: Partial<MapCamera>) {
+    this.mapInstance.jumpTo(camera)
   }
 
   setDirections(directions: Directions) {

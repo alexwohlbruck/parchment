@@ -8,6 +8,7 @@ import {
   LngLatBounds,
   LngLatLike,
   Marker,
+  GeoJSONSource,
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import {
@@ -16,8 +17,8 @@ import {
   MapOptions,
   Layer,
   MapCamera,
-  MapillaryImage,
   Pegman,
+  MapillaryImage,
 } from '@/types/map.types'
 
 import { Directions } from '@/types/directions.types'
@@ -45,7 +46,6 @@ const basemapUrls = {
 
 export class MaplibreStrategy extends MapStrategy {
   mapInstance: Map
-  pegman: Marker
 
   constructor(container, options: MapOptions) {
     super(container, options)
@@ -63,7 +63,6 @@ export class MaplibreStrategy extends MapStrategy {
     })
     this.addControls()
     this.configureEventListeners()
-    this.pegman = new Marker({ color: colors.amber[600] })
   }
 
   addControls() {
@@ -253,13 +252,12 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   setPegman(pegman: Pegman) {
-    // Initialize pegman layers if they don't exist yet
     if (!this.mapInstance.getSource('pegman')) {
       createPegmanLayers(this.mapInstance)
     }
-    const source = this.mapInstance.getSource('pegman')
+    const source = this.mapInstance.getSource('pegman') as GeoJSONSource
     if (source) {
-      source.setData(updatePegmanData(pegman))
+      source.setData(updatePegmanData({ ...pegman, visible: true }))
     }
   }
 

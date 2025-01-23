@@ -9,15 +9,16 @@ import {
   Marker,
   LngLatBounds,
   LngLatLike,
+  GeoJSONSource,
 } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import {
   Basemap,
   Layer,
   MapCamera,
-  MapillaryImage,
   MapOptions,
   MapTheme,
+  MapillaryImage,
   Pegman,
   PEGMAN_LAYERS,
 } from '@/types/map.types'
@@ -315,7 +316,7 @@ export class MapboxStrategy extends MapStrategy {
       createPegmanLayers(this.mapInstance)
     }
 
-    const source = this.mapInstance.getSource('pegman')
+    const source = this.mapInstance.getSource('pegman') as GeoJSONSource
     if (source) {
       source.setData(updatePegmanData({ ...pegman, visible: true }))
     }

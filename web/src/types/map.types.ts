@@ -43,6 +43,8 @@ export type Waypoint = {
   lngLat: LngLat | null
 }
 
+export type MapillaryImage = Image // TODO: Use custom type
+
 export type MapEvents = {
   click: {
     lngLat: LngLat

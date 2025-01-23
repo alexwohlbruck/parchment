@@ -313,7 +313,7 @@ export class MapboxStrategy extends MapStrategy {
 
   setPegman(pegman: Pegman) {
     if (!this.mapInstance.getSource('pegman')) {
-      createPegmanLayers(this.mapInstance)
+      createPegmanLayers(this.mapInstance, true)
     }
 
     const source = this.mapInstance.getSource('pegman') as GeoJSONSource

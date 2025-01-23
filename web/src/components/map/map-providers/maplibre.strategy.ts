@@ -253,7 +253,7 @@ export class MaplibreStrategy extends MapStrategy {
 
   setPegman(pegman: Pegman) {
     if (!this.mapInstance.getSource('pegman')) {
-      createPegmanLayers(this.mapInstance)
+      createPegmanLayers(this.mapInstance, false)
     }
     const source = this.mapInstance.getSource('pegman') as GeoJSONSource
     if (source) {

@@ -25,7 +25,8 @@ export function getDestinationPoint(
   return [(lon2 * 180) / Math.PI, (lat2 * 180) / Math.PI]
 }
 
-export function createPegmanLayers(map: any) {
+// TODO: Clean up
+export function createPegmanLayers(map: any, mapbox: boolean) {
   // Add source for pegman position and FOV
   map.addSource('pegman', {
     type: 'geojson',
@@ -45,6 +46,7 @@ export function createPegmanLayers(map: any) {
       'circle-color': '#4285F4',
       'circle-stroke-width': 2,
       'circle-stroke-color': '#ffffff',
+      'circle-emissive-strength': mapbox ? 1 : 0,
     },
     filter: ['==', '$type', 'Point'],
   })
@@ -57,6 +59,7 @@ export function createPegmanLayers(map: any) {
     paint: {
       'fill-color': '#4285F4',
       'fill-opacity': 0.2,
+      'fill-emissive-strength': mapbox ? 1 : 0,
     },
     filter: ['==', '$type', 'Polygon'],
   })

@@ -169,7 +169,9 @@ export const PEGMAN_LAYERS: PegmanLayerType = {
 } as const
 
 export type Pegman = {
-  pov: PointOfView
+  pov: {
+    bearing: number
+  }
   position: LngLat
   fov: number
   visible?: boolean

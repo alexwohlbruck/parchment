@@ -4,7 +4,7 @@ import { storeToRefs } from 'pinia'
 import { Viewer, ViewerOptions } from 'mapillary-js'
 import { useMapService } from '@/services/map.service'
 import { useMapStore } from '@/stores/map.store'
-import { StreetViewImage } from '@/types/map.types'
+import { StreetViewImage, StreetViewType } from '@/types/map.types'
 import { Button } from '@/components/ui/button'
 import { XIcon } from 'lucide-vue-next'
 import { cn } from '@/lib/utils'
@@ -27,11 +27,17 @@ onMounted(() => {
     },
   }
   viewer = new Viewer(options)
-  console.log(viewer)
 
-  viewer.on('position', async e => {
-    const position = await viewer!.getPosition()
-    mapService.jumpTo({ center: position })
+  viewer.on('pov', async e => {
+    const pov = await e.target.getPointOfView()
+    const position = await e.target.getPosition()
+    const fov = await e.target.getFieldOfView()
+
+    mapService.setPegman({
+      pov,
+      position,
+      fov,
+    })
   })
 })
 

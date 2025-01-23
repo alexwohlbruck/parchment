@@ -4,9 +4,11 @@ import {
   MapCamera,
   MapOptions,
   MapTheme,
+  Pegman,
 } from '@/types/map.types'
 import { Locale } from '@/lib/i18n'
 import { Directions } from '@/types/directions.types'
+import { LngLatLike } from 'mapbox-gl' // TODO: This is specific to mapbox, make generic
 
 const defaultOptions: MapOptions = {
   projection: 'mercator',
@@ -24,12 +26,13 @@ export class MapStrategy {
     this.options = { ...defaultOptions, ...options }
   }
 
-  initialize() {}
   addDataSource() {}
   flyTo(camera: Partial<MapCamera>) {}
   jumpTo(camera: Partial<MapCamera>) {}
   setDirections(directions: Directions) {}
   unsetDirections() {}
+  setPegman(pegman: Pegman) {}
+  removePegman() {}
   setMapTheme(theme: MapTheme) {}
   setBasemap(basemap: Basemap) {}
   removeSource(sourceId: string) {}

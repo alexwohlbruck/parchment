@@ -94,6 +94,17 @@ function mapService() {
   })
 
   watch(
+    () => mapStore.pegman,
+    (pegman, oldPegman) => {
+      if (pegman) {
+        mapStrategy.setPegman(pegman)
+      } else {
+        mapStrategy.removePegman()
+      }
+    },
+  )
+
+  watch(
     () => mapStore.mapOptions.basemap,
     basemap => {
       mapStrategy.setBasemap(basemap)
@@ -162,7 +173,10 @@ function mapService() {
     on,
     off,
     emit,
+    setStreetView: mapStore.setStreetView,
     clearStreetView: mapStore.clearStreetView,
+    setPegman: mapStore.setPegman,
+    clearPegman: mapStore.clearPegman,
   }
 }
 

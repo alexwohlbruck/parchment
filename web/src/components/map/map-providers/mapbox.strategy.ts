@@ -19,6 +19,7 @@ import {
   MapOptions,
   MapTheme,
   Pegman,
+  PEGMAN_LAYERS,
 } from '@/types/map.types'
 import standardStyle from '@/components/map/styles/standard.json'
 
@@ -61,7 +62,6 @@ function ifBasemapLoaded(target, name, descriptor) {
 
 export class MapboxStrategy extends MapStrategy {
   mapInstance: Map
-  pegman: Marker
 
   constructor(container, options: MapOptions) {
     super(container, options)
@@ -87,7 +87,6 @@ export class MapboxStrategy extends MapStrategy {
     })
     this.addControls()
     this.configureEventListeners()
-    this.pegman = new Marker({ color: colors.amber[600] })
   }
 
   addControls() {
@@ -311,15 +310,22 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   setPegman(pegman: Pegman) {
-    this.pegman.setLngLat(pegman.position)
-    this.pegman.setRotation(pegman.pov.bearing)
-    // this.pegman.setPitch(pegman.pov.pitch)
-    // this.pegman.setFov(pegman.pov.fov)
-    this.pegman.addTo(this.mapInstance)
+    // Initialize pegman layers if they don't exist yet
+    if (!this.mapInstance.getSource('pegman')) {
+      this.setupPegmanLayers()
+    }
+    this.updatePegman({ ...pegman, visible: true })
   }
 
   removePegman() {
-    this.pegman.remove()
+    if (this.mapInstance.getSource('pegman')) {
+      this.updatePegman({
+        position: { lng: 0, lat: 0 },
+        pov: { bearing: 0, pitch: 0 },
+        fov: 0,
+        visible: false,
+      })
+    }
   }
 
   togglePoiLabels(value: boolean) {
@@ -384,5 +390,114 @@ export class MapboxStrategy extends MapStrategy {
 
   destroy() {
     this.mapInstance.remove()
+  }
+
+  private setupPegmanLayers() {
+    // Add source for pegman position and FOV
+    this.mapInstance.addSource('pegman', {
+      type: 'geojson',
+      data: {
+        type: 'FeatureCollection',
+        features: [],
+      },
+    })
+
+    // Position dot
+    this.mapInstance.addLayer({
+      id: PEGMAN_LAYERS.POSITION,
+      type: 'circle',
+      source: 'pegman',
+      paint: {
+        'circle-radius': 6,
+        'circle-color': '#4285F4',
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#ffffff',
+      },
+      filter: ['==', '$type', 'Point'],
+    })
+
+    // FOV cone
+    this.mapInstance.addLayer({
+      id: PEGMAN_LAYERS.FOV,
+      type: 'fill',
+      source: 'pegman',
+      paint: {
+        'fill-color': '#4285F4',
+        'fill-opacity': 0.2,
+      },
+      filter: ['==', '$type', 'Polygon'],
+    })
+  }
+
+  private updatePegman(pegman: Pegman) {
+    if (!pegman.visible) {
+      // Clear the source if pegman is not visible
+      this.mapInstance.getSource('pegman').setData({
+        type: 'FeatureCollection',
+        features: [],
+      })
+      return
+    }
+
+    const { position, pov, fov } = pegman
+    const bearing = pov.bearing
+    const fovRadians = (fov * Math.PI) / 180
+    const radius = 0.0002 // Adjust this value to change the size of the FOV cone
+
+    // Calculate FOV triangle points
+    const center: [number, number] = [position.lng, position.lat]
+    const points = [
+      center,
+      this.getDestinationPoint(center, radius, bearing - fov / 2),
+      this.getDestinationPoint(center, radius, bearing + fov / 2),
+      center,
+    ]
+
+    // Update the source with new position and FOV
+    this.mapInstance.getSource('pegman').setData({
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: center,
+          },
+          properties: {},
+        },
+        {
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [points],
+          },
+          properties: {},
+        },
+      ],
+    })
+  }
+
+  private getDestinationPoint(
+    center: [number, number],
+    radius: number,
+    bearing: number,
+  ): [number, number] {
+    const bearingRad = (bearing * Math.PI) / 180
+    const lat1 = (center[1] * Math.PI) / 180
+    const lon1 = (center[0] * Math.PI) / 180
+
+    const lat2 = Math.asin(
+      Math.sin(lat1) * Math.cos(radius) +
+        Math.cos(lat1) * Math.sin(radius) * Math.cos(bearingRad),
+    )
+
+    const lon2 =
+      lon1 +
+      Math.atan2(
+        Math.sin(bearingRad) * Math.sin(radius) * Math.cos(lat1),
+        Math.cos(radius) - Math.sin(lat1) * Math.sin(lat2),
+      )
+
+    return [(lon2 * 180) / Math.PI, (lat2 * 180) / Math.PI]
   }
 }

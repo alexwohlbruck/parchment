@@ -1,4 +1,5 @@
 import { LngLat, Pegman } from '@/types/map.types'
+import { FeatureCollection, Feature, Point, Polygon } from 'geojson'
 
 export function getDestinationPoint(
   center: [number, number],
@@ -61,12 +62,12 @@ export function createPegmanLayers(map: any) {
   })
 }
 
-export function updatePegmanData(pegman: Pegman) {
+export function updatePegmanData(pegman: Pegman): FeatureCollection {
   if (!pegman.visible) {
     return {
       type: 'FeatureCollection',
       features: [],
-    }
+    } as FeatureCollection
   }
 
   const { position, pov, fov } = pegman
@@ -77,7 +78,7 @@ export function updatePegmanData(pegman: Pegman) {
   const numPoints = 16
   const startAngle = bearing - fov / 2
   const endAngle = bearing + fov / 2
-  const arcPoints = []
+  const arcPoints: [number, number][] = []
 
   arcPoints.push(center)
 
@@ -98,7 +99,7 @@ export function updatePegmanData(pegman: Pegman) {
           coordinates: center,
         },
         properties: {},
-      },
+      } as Feature<Point>,
       {
         type: 'Feature',
         geometry: {
@@ -106,7 +107,7 @@ export function updatePegmanData(pegman: Pegman) {
           coordinates: [arcPoints],
         },
         properties: {},
-      },
+      } as Feature<Polygon>,
     ],
   }
 }

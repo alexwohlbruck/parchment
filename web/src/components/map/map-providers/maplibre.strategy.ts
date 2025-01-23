@@ -26,6 +26,7 @@ import colors from 'tailwindcss/colors'
 import { mapEventBus } from '@/lib/eventBus'
 import { mapboxLayerToMaplibreLayer } from '@/lib/map.utils'
 import { useMapStore } from '@/stores/map.store'
+import { createPegmanLayers, updatePegmanData } from '@/lib/pegman.utils'
 
 const basemapUrls = {
   light: `https://api.maptiler.com/maps/streets-v2/style.json?key=${
@@ -252,15 +253,27 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   setPegman(pegman: Pegman) {
-    this.pegman.setLngLat(pegman.position)
-    this.pegman.setRotation(pegman.pov.bearing)
-    // this.pegman.setPitch(pegman.pov.pitch)
-    // this.pegman.setFov(pegman.pov.fov)
-    this.pegman.addTo(this.mapInstance)
+    // Initialize pegman layers if they don't exist yet
+    if (!this.mapInstance.getSource('pegman')) {
+      createPegmanLayers(this.mapInstance)
+    }
+    const source = this.mapInstance.getSource('pegman')
+    if (source) {
+      source.setData(updatePegmanData(pegman))
+    }
   }
 
   removePegman() {
-    this.pegman.remove()
+    // Remove pegman layers if they exist
+    if (this.mapInstance.getLayer('pegman-fov')) {
+      this.mapInstance.removeLayer('pegman-fov')
+    }
+    if (this.mapInstance.getLayer('pegman-position')) {
+      this.mapInstance.removeLayer('pegman-position')
+    }
+    if (this.mapInstance.getSource('pegman')) {
+      this.mapInstance.removeSource('pegman')
+    }
   }
 
   togglePoiLabels() {

@@ -98,7 +98,14 @@ function mapService() {
     (pegman, oldPegman) => {
       if (pegman) {
         mapStrategy.setPegman(pegman)
-      } else {
+      }
+    },
+  )
+
+  watch(
+    () => mapStore.streetView,
+    streetView => {
+      if (!streetView) {
         mapStrategy.removePegman()
       }
     },

@@ -8,6 +8,7 @@ const MAPBOX_PAINT_PROPERTIES = [
   'icon-emissive-strength',
   'text-emissive-strength',
   'line-occlusion-opacity',
+  'circle-emissive-strength',
 ] as const
 
 // List of Mapbox layout properties that are not supported by Maplibre

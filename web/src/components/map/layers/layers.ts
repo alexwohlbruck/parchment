@@ -111,9 +111,6 @@ const mapillaryImage: Layer = {
       maxzoom: 14,
     },
     'source-layer': 'image',
-    layout: {
-      cursor: 'pointer',
-    },
     paint: {
       'circle-color': colors.blue[500],
       'circle-radius': [
@@ -136,7 +133,7 @@ const mapillaryImage: Layer = {
         14,
         0,
         16,
-        1,
+        2,
       ],
       'circle-stroke-opacity': 0.7,
       'circle-emissive-strength': 1,

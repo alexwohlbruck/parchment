@@ -27,6 +27,7 @@ import { Directions } from '@/types/directions.types'
 import { decodeShape } from '@/lib/utils'
 import colors from 'tailwindcss/colors'
 import { mapEventBus } from '@/lib/eventBus'
+import { createPegmanLayers, updatePegmanData } from '@/lib/pegman.utils'
 
 const basemapUrls: {
   [key in Basemap]: string
@@ -310,21 +311,25 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   setPegman(pegman: Pegman) {
-    // Initialize pegman layers if they don't exist yet
     if (!this.mapInstance.getSource('pegman')) {
-      this.setupPegmanLayers()
+      createPegmanLayers(this.mapInstance)
     }
-    this.updatePegman({ ...pegman, visible: true })
+
+    const source = this.mapInstance.getSource('pegman')
+    if (source) {
+      source.setData(updatePegmanData({ ...pegman, visible: true }))
+    }
   }
 
   removePegman() {
+    if (this.mapInstance.getLayer('pegman-fov')) {
+      this.mapInstance.removeLayer('pegman-fov')
+    }
+    if (this.mapInstance.getLayer('pegman-position')) {
+      this.mapInstance.removeLayer('pegman-position')
+    }
     if (this.mapInstance.getSource('pegman')) {
-      this.updatePegman({
-        position: { lng: 0, lat: 0 },
-        pov: { bearing: 0, pitch: 0 },
-        fov: 0,
-        visible: false,
-      })
+      this.mapInstance.removeSource('pegman')
     }
   }
 
@@ -390,118 +395,5 @@ export class MapboxStrategy extends MapStrategy {
 
   destroy() {
     this.mapInstance.remove()
-  }
-
-  private setupPegmanLayers() {
-    // Add source for pegman position and FOV
-    this.mapInstance.addSource('pegman', {
-      type: 'geojson',
-      data: {
-        type: 'FeatureCollection',
-        features: [],
-      },
-    })
-
-    // Position dot
-    this.mapInstance.addLayer({
-      id: PEGMAN_LAYERS.POSITION,
-      type: 'circle',
-      source: 'pegman',
-      paint: {
-        'circle-radius': 6,
-        'circle-color': '#4285F4',
-        'circle-stroke-width': 2,
-        'circle-stroke-color': '#ffffff',
-      },
-      filter: ['==', '$type', 'Point'],
-    })
-
-    // FOV cone
-    this.mapInstance.addLayer({
-      id: PEGMAN_LAYERS.FOV,
-      type: 'fill',
-      source: 'pegman',
-      paint: {
-        'fill-color': '#4285F4',
-        'fill-opacity': 0.2,
-      },
-      filter: ['==', '$type', 'Polygon'],
-    })
-  }
-
-  private updatePegman(pegman: Pegman) {
-    if (!pegman.visible) {
-      this.mapInstance.getSource('pegman').setData({
-        type: 'FeatureCollection',
-        features: [],
-      })
-      return
-    }
-
-    const { position, pov, fov } = pegman
-    const bearing = pov.bearing
-    const radius = 0.00001
-    const center: [number, number] = [position.lng, position.lat]
-
-    const numPoints = 16
-    const startAngle = bearing - fov / 2
-    const endAngle = bearing + fov / 2
-    const arcPoints = []
-
-    arcPoints.push(center)
-
-    for (let i = 0; i <= numPoints; i++) {
-      const angle = startAngle + (i / numPoints) * (endAngle - startAngle)
-      arcPoints.push(this.getDestinationPoint(center, radius, angle))
-    }
-
-    arcPoints.push(center)
-
-    // Update the source with new position and FOV
-    this.mapInstance.getSource('pegman').setData({
-      type: 'FeatureCollection',
-      features: [
-        {
-          type: 'Feature',
-          geometry: {
-            type: 'Point',
-            coordinates: center,
-          },
-          properties: {},
-        },
-        {
-          type: 'Feature',
-          geometry: {
-            type: 'Polygon',
-            coordinates: [arcPoints],
-          },
-          properties: {},
-        },
-      ],
-    })
-  }
-
-  private getDestinationPoint(
-    center: [number, number],
-    radius: number,
-    bearing: number,
-  ): [number, number] {
-    const bearingRad = (bearing * Math.PI) / 180
-    const lat1 = (center[1] * Math.PI) / 180
-    const lon1 = (center[0] * Math.PI) / 180
-
-    const lat2 = Math.asin(
-      Math.sin(lat1) * Math.cos(radius) +
-        Math.cos(lat1) * Math.sin(radius) * Math.cos(bearingRad),
-    )
-
-    const lon2 =
-      lon1 +
-      Math.atan2(
-        Math.sin(bearingRad) * Math.sin(radius) * Math.cos(lat1),
-        Math.cos(radius) - Math.sin(lat1) * Math.sin(lat2),
-      )
-
-    return [(lon2 * 180) / Math.PI, (lat2 * 180) / Math.PI]
   }
 }

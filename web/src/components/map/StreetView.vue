@@ -43,7 +43,10 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (viewer) {
-    viewer.remove()
+    // Wait for transition animation
+    setTimeout(() => {
+      viewer!.remove()
+    }, 1000)
   }
 })
 
@@ -73,8 +76,9 @@ watch(
       variant="ghost"
       size="icon"
       class="absolute top-1 right-1 bg-black/50 hover:bg-black/70 text-white hover:text-white"
+      @click="mapService.clearStreetView()"
     >
-      <XIcon class="size-5" @click="mapService.clearStreetView()" />
+      <XIcon class="size-5" />
     </Button>
   </div>
 </template>

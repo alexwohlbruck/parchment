@@ -77,7 +77,7 @@
         "description": "Cambiar el motor de JavaScript utilizado para renderizar el mapa",
         "arguments": {
           "engine": {
-            "name": "Biblioteca de mapas",
+            "name": "Motor de mapas",
             "values": {
               "mapbox": {
                 "name": "Mapbox GL",

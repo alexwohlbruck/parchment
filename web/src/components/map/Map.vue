@@ -11,7 +11,7 @@ import { MapStrategy } from './map-providers/map.strategy'
 import { mapEventBus } from '@/lib/eventBus'
 import { LngLat } from '@/types/map.types'
 import { useDirectionsStore } from '@/stores/directions.store'
-import { TransitionSlide } from '@morev/vue-transitions'
+import { TransitionExpand } from '@morev/vue-transitions'
 import { Button } from '@/components/ui/button'
 import StreetView from '@/components/map/StreetView.vue'
 import {
@@ -153,13 +153,13 @@ function openMapEditor(editor: 'id' | 'josm' | 'potlatch') {
         </HoverCard>
       </div>
 
-      <TransitionSlide :offset="[0, '100%']">
+      <TransitionExpand>
         <StreetView
           v-if="streetView"
           :image="streetView"
           class="pointer-events-auto rounded-lg shadow-md w-full md:w-[40vw] aspect-video"
         />
-      </TransitionSlide>
+      </TransitionExpand>
     </div>
 
     <div ref="mapContainer" class="w-full h-full"></div>

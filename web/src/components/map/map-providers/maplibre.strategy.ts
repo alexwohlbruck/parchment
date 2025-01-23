@@ -7,6 +7,7 @@ import {
   ScaleControl,
   LngLatBounds,
   LngLatLike,
+  Marker,
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import {
@@ -16,6 +17,7 @@ import {
   Layer,
   MapCamera,
   MapillaryImage,
+  Pegman,
 } from '@/types/map.types'
 
 import { Directions } from '@/types/directions.types'
@@ -42,6 +44,7 @@ const basemapUrls = {
 
 export class MaplibreStrategy extends MapStrategy {
   mapInstance: Map
+  pegman: Marker
 
   constructor(container, options: MapOptions) {
     super(container, options)
@@ -57,12 +60,9 @@ export class MaplibreStrategy extends MapStrategy {
       zoom,
       attributionControl: false,
     })
-    this.initialize()
-  }
-
-  initialize() {
     this.addControls()
     this.configureEventListeners()
+    this.pegman = new Marker({ color: colors.amber[600] })
   }
 
   addControls() {
@@ -249,6 +249,18 @@ export class MaplibreStrategy extends MapStrategy {
         this.mapInstance.removeSource(source)
       }
     })
+  }
+
+  setPegman(pegman: Pegman) {
+    this.pegman.setLngLat(pegman.position)
+    this.pegman.setRotation(pegman.pov.bearing)
+    // this.pegman.setPitch(pegman.pov.pitch)
+    // this.pegman.setFov(pegman.pov.fov)
+    this.pegman.addTo(this.mapInstance)
+  }
+
+  removePegman() {
+    this.pegman.remove()
   }
 
   togglePoiLabels() {

@@ -18,6 +18,7 @@ import {
   MapillaryImage,
   MapOptions,
   MapTheme,
+  Pegman,
 } from '@/types/map.types'
 import standardStyle from '@/components/map/styles/standard.json'
 
@@ -25,7 +26,6 @@ import { Directions } from '@/types/directions.types'
 import { decodeShape } from '@/lib/utils'
 import colors from 'tailwindcss/colors'
 import { mapEventBus } from '@/lib/eventBus'
-import { useMapStore } from '@/stores/map.store'
 
 const basemapUrls: {
   [key in Basemap]: string
@@ -61,6 +61,7 @@ function ifBasemapLoaded(target, name, descriptor) {
 
 export class MapboxStrategy extends MapStrategy {
   mapInstance: Map
+  pegman: Marker
 
   constructor(container, options: MapOptions) {
     super(container, options)
@@ -84,12 +85,9 @@ export class MapboxStrategy extends MapStrategy {
         name: projection,
       },
     })
-    this.initialize()
-  }
-
-  initialize() {
     this.addControls()
     this.configureEventListeners()
+    this.pegman = new Marker({ color: colors.amber[600] })
   }
 
   addControls() {
@@ -310,6 +308,18 @@ export class MapboxStrategy extends MapStrategy {
         this.mapInstance.removeSource(source)
       }
     })
+  }
+
+  setPegman(pegman: Pegman) {
+    this.pegman.setLngLat(pegman.position)
+    this.pegman.setRotation(pegman.pov.bearing)
+    // this.pegman.setPitch(pegman.pov.pitch)
+    // this.pegman.setFov(pegman.pov.fov)
+    this.pegman.addTo(this.mapInstance)
+  }
+
+  removePegman() {
+    this.pegman.remove()
   }
 
   togglePoiLabels(value: boolean) {

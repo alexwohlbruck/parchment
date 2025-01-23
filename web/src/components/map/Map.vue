@@ -139,17 +139,19 @@ function openMapEditor(editor: 'id' | 'josm' | 'potlatch') {
     <div
       class="w-full absolute bottom-[7.5rem] md:bottom-0 right-0 z-50 p-2 flex flex-col gap-2 items-end pointer-events-none"
     >
-      <HoverCard :openDelay="0" :closeDelay="0" class="pointer-events-auto">
-        <HoverCardTrigger as-child>
-          <Button variant="outline" size="icon" class="size-11 shadow-md">
-            <Layers3Icon class="size-5" />
-          </Button>
-        </HoverCardTrigger>
+      <div class="pointer-events-auto">
+        <HoverCard :openDelay="0" :closeDelay="0">
+          <HoverCardTrigger as-child>
+            <Button variant="outline" size="icon" class="size-11 shadow-md">
+              <Layers3Icon class="size-5" />
+            </Button>
+          </HoverCardTrigger>
 
-        <HoverCardContent side="top" class="w-fit fit-content max-w-[100vw]">
-          <LayersSelector />
-        </HoverCardContent>
-      </HoverCard>
+          <HoverCardContent side="top" class="w-fit fit-content max-w-[100vw]">
+            <LayersSelector />
+          </HoverCardContent>
+        </HoverCard>
+      </div>
 
       <StreetView
         v-if="streetView"

@@ -1,6 +1,7 @@
 import { LngLatLike, Map as MapboxMap } from 'mapbox-gl'
 import { Map as MaplibreMap } from 'maplibre-gl'
 import { Icon } from '@/types/app.types'
+import { Image, PointOfView } from 'mapillary-js'
 
 // TODO: Use types from official libs
 // import { LayerSpecification, VectorSourceSpecification } from 'mapbox-gl'
@@ -25,7 +26,7 @@ export type MapOptions = {
 }
 
 export type MapCamera = {
-  center: LngLatLike
+  center: LngLatLike // TODO: Use custom LngLatLike
   zoom: number
   bearing: number
   pitch: number
@@ -146,15 +147,6 @@ export type MaplibreLayer = Layer & {
   configuration: MaplibreLayerConfiguration
 }
 
-export type MapillaryImage = {
-  captured_at: number
-  compass_angle: number
-  creator_id: number
-  id: number
-  is_pano: boolean
-  sequence_id: number
-}
-
 export enum StreetViewType {
   MAPILLARY = 'mapillary',
   STREET_VIEW = 'street-view',
@@ -163,5 +155,11 @@ export enum StreetViewType {
 export type StreetViewImage = {
   type: StreetViewType
   lngLat: LngLat
-  data: MapillaryImage
+  data: Image // TODO: Make custom type
+}
+
+export type Pegman = {
+  pov: PointOfView // TODO: Make custom type
+  position: LngLat
+  fov: number
 }

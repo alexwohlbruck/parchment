@@ -431,7 +431,6 @@ export class MapboxStrategy extends MapStrategy {
 
   private updatePegman(pegman: Pegman) {
     if (!pegman.visible) {
-      // Clear the source if pegman is not visible
       this.mapInstance.getSource('pegman').setData({
         type: 'FeatureCollection',
         features: [],
@@ -441,17 +440,22 @@ export class MapboxStrategy extends MapStrategy {
 
     const { position, pov, fov } = pegman
     const bearing = pov.bearing
-    const fovRadians = (fov * Math.PI) / 180
-    const radius = 0.0002 // Adjust this value to change the size of the FOV cone
-
-    // Calculate FOV triangle points
+    const radius = 0.00001
     const center: [number, number] = [position.lng, position.lat]
-    const points = [
-      center,
-      this.getDestinationPoint(center, radius, bearing - fov / 2),
-      this.getDestinationPoint(center, radius, bearing + fov / 2),
-      center,
-    ]
+
+    const numPoints = 16
+    const startAngle = bearing - fov / 2
+    const endAngle = bearing + fov / 2
+    const arcPoints = []
+
+    arcPoints.push(center)
+
+    for (let i = 0; i <= numPoints; i++) {
+      const angle = startAngle + (i / numPoints) * (endAngle - startAngle)
+      arcPoints.push(this.getDestinationPoint(center, radius, angle))
+    }
+
+    arcPoints.push(center)
 
     // Update the source with new position and FOV
     this.mapInstance.getSource('pegman').setData({
@@ -469,7 +473,7 @@ export class MapboxStrategy extends MapStrategy {
           type: 'Feature',
           geometry: {
             type: 'Polygon',
-            coordinates: [points],
+            coordinates: [arcPoints],
           },
           properties: {},
         },

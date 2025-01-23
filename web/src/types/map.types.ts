@@ -158,8 +158,19 @@ export type StreetViewImage = {
   data: Image // TODO: Make custom type
 }
 
+export type PegmanLayerType = {
+  POSITION: 'pegman-position'
+  FOV: 'pegman-fov'
+}
+
+export const PEGMAN_LAYERS: PegmanLayerType = {
+  POSITION: 'pegman-position',
+  FOV: 'pegman-fov',
+} as const
+
 export type Pegman = {
-  pov: PointOfView // TODO: Make custom type
+  pov: PointOfView
   position: LngLat
   fov: number
+  visible?: boolean
 }

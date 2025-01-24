@@ -6,7 +6,7 @@ import { useMapStore } from '@/stores/map.store'
 import { useMapService } from '@/services/map.service'
 import { H5 } from '@/components/ui/typography'
 import { basemaps } from '../map/map.data'
-import { Basemap, Layer } from '@/types/map.types'
+import { Basemap, Layer, LayerType } from '@/types/map.types'
 import { storeToRefs } from 'pinia'
 
 const mapStore = useMapStore()
@@ -19,6 +19,12 @@ function toggleLayerVisibility(
 ) {
   mapService.toggleLayerVisibility(layerId, pressed)
 }
+
+const layers = computed(() => {
+  return enabledLayers.value.filter(
+    layer => layer.type !== LayerType.STREET_VIEW,
+  )
+})
 </script>
 
 <template>
@@ -47,7 +53,7 @@ function toggleLayerVisibility(
     <H5>Layers</H5>
     <div class="flex gap-2 flex-wrap">
       <Toggle
-        v-for="(layer, i) in enabledLayers"
+        v-for="(layer, i) in layers"
         :key="i"
         variant="outline"
         :aria-label="layer.name"

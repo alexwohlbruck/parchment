@@ -129,9 +129,7 @@ export type MaplibreLayerConfiguration = {
 
 export enum LayerType {
   CUSTOM = 'custom',
-  STREET_VIEW_IMAGE = 'street-view-image',
-  STREET_VIEW_SEQUENCE = 'street-view-sequence',
-  STREET_VIEW_OVERVIEW = 'street-view-overview',
+  STREET_VIEW = 'street-view',
 }
 
 // TODO: Make MapboxLayer extend Layer

@@ -9,10 +9,12 @@ import { useAppService } from '@/services/app.service'
 import { useDirectionsService } from '@/services/directions.service'
 import { MapStrategy } from './map-providers/map.strategy'
 import { mapEventBus } from '@/lib/eventBus'
-import { LngLat } from '@/types/map.types'
+import { LngLat, LayerType } from '@/types/map.types'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { TransitionExpand } from '@morev/vue-transitions'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Toggle } from '@/components/ui/toggle'
 import StreetView from '@/components/map/StreetView.vue'
 import {
   Layers3Icon,
@@ -21,6 +23,7 @@ import {
   ArrowDownToDot,
   ArrowUpFromDot,
   PlusIcon,
+  PersonStandingIcon,
 } from 'lucide-vue-next'
 import LayersSelector from '@/components/navigation/LayersSelector.vue'
 import {
@@ -41,6 +44,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
+import { layers } from '@/components/map/layers/layers'
 
 const router = useRouter()
 const appService = useAppService()
@@ -132,6 +136,14 @@ function openMapEditor(editor: 'id' | 'josm' | 'potlatch') {
       break
   }
 }
+
+function toggleStreetViewLayers() {
+  layers.forEach(layer => {
+    if (layer.type === LayerType.STREET_VIEW) {
+      mapService.toggleLayerVisibility(layer.configuration.id)
+    }
+  })
+}
 </script>
 
 <template>
@@ -139,10 +151,21 @@ function openMapEditor(editor: 'id' | 'josm' | 'potlatch') {
     <div
       class="w-full absolute bottom-[7.5rem] md:bottom-0 right-0 z-50 p-2 flex flex-col gap-2 items-end pointer-events-none"
     >
-      <div class="pointer-events-auto">
+      <div class="flex flex-col gap-2 pointer-events-auto">
+        <Card class="border-none">
+          <Toggle
+            variant="outline"
+            size="icon"
+            class="size-10"
+            @click="toggleStreetViewLayers()"
+          >
+            <PersonStandingIcon class="size-6" />
+          </Toggle>
+        </Card>
+
         <HoverCard :openDelay="0" :closeDelay="0">
           <HoverCardTrigger as-child>
-            <Button variant="outline" size="icon" class="size-11 shadow-md">
+            <Button variant="outline" size="icon" class="size-10 shadow-md">
               <Layers3Icon class="size-5" />
             </Button>
           </HoverCardTrigger>

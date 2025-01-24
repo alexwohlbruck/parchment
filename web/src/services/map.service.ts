@@ -135,8 +135,12 @@ function mapService() {
 
   function toggleLayerVisibility(
     layerId: Layer['configuration']['id'],
-    state: boolean,
+    state?: boolean,
   ) {
+    if (state === undefined) {
+      state = !mapStore.layers.find(layer => layer.configuration.id === layerId)
+        ?.visible
+    }
     mapStore.toggleLayerVisibility(layerId, state)
   }
 

@@ -20,8 +20,8 @@ const mapillaryAccessToken = import.meta.env.VITE_MAPILLARY_ACCESS_TOKEN
 const mapillaryOverview: Layer = {
   name: 'Mapillary Overview',
   enabled: true,
-  visible: true,
-  type: LayerType.STREET_VIEW_OVERVIEW,
+  visible: false,
+  type: LayerType.STREET_VIEW,
   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
   configuration: {
     id: 'mapillary-overview',
@@ -51,8 +51,8 @@ const mapillaryOverview: Layer = {
 const mapillarySequence: Layer = {
   name: 'Mapillary Sequences',
   enabled: true,
-  visible: true,
-  type: LayerType.STREET_VIEW_SEQUENCE,
+  visible: false,
+  type: LayerType.STREET_VIEW,
   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
   configuration: {
     id: 'mapillary-sequence',
@@ -94,8 +94,8 @@ const mapillarySequence: Layer = {
 const mapillaryImage: Layer = {
   name: 'Mapillary Images',
   enabled: true,
-  visible: true,
-  type: LayerType.STREET_VIEW_IMAGE,
+  visible: false,
+  type: LayerType.STREET_VIEW,
   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
   configuration: {
     id: 'mapillary-image',

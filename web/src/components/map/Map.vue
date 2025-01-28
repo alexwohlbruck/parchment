@@ -1,18 +1,13 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, useTemplateRef } from 'vue'
-import { storeToRefs } from 'pinia'
 import { useMapStore } from '../../stores/map.store'
 import { useMapService } from '@/services/map.service'
 import { MapStrategy } from './map-providers/map.strategy'
-import { TransitionExpand } from '@morev/vue-transitions'
 
-import StreetView from '@/components/map/StreetView.vue'
 import ContextMenu from '@/components/map/ContextMenu.vue'
 
 const mapService = useMapService()
 const mapStore = useMapStore()
-
-const { streetView } = storeToRefs(mapStore)
 
 const mapContainer = useTemplateRef<HTMLElement>('mapContainer')
 let mapStrategy: MapStrategy
@@ -31,20 +26,6 @@ onUnmounted(() => {
 
 <template>
   <div>
-    <div
-      class="w-full absolute bottom-[7.5rem] md:bottom-0 right-0 z-50 p-2 flex flex-col gap-2 items-end pointer-events-none"
-    >
-      <LayerControls />
-
-      <TransitionExpand>
-        <StreetView
-          v-if="streetView"
-          :image="streetView"
-          class="pointer-events-auto rounded-lg shadow-md w-full md:w-[40vw] aspect-video"
-        />
-      </TransitionExpand>
-    </div>
-
     <div ref="mapContainer" class="w-full h-full"></div>
 
     <ContextMenu />

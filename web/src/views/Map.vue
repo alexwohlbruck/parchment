@@ -5,6 +5,7 @@ import { useMapStore } from '@/stores/map.store'
 import Map from '@/components/map/Map.vue'
 import { TransitionExpand } from '@morev/vue-transitions'
 import StreetView from '@/components/map/StreetView.vue'
+import LayerControls from '@/components/map/LayerControls.vue'
 
 const route = useRoute()
 const mapStore = useMapStore()

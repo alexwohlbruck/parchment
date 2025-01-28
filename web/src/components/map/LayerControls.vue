@@ -1,9 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, useTemplateRef } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useMapStore } from '../../stores/map.store'
 import { useMapService } from '@/services/map.service'
-import { MapStrategy } from './map-providers/map.strategy'
 import { LayerType } from '@/types/map.types'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -18,21 +14,6 @@ import {
 import { layers } from '@/components/map/layers/layers'
 
 const mapService = useMapService()
-const mapStore = useMapStore()
-
-const mapContainer = useTemplateRef<HTMLElement>('mapContainer')
-let mapStrategy: MapStrategy
-
-onMounted(() => {
-  if (!mapContainer.value) {
-    throw new Error('Map container element not found')
-  }
-  mapStrategy = mapService.initializeMap(mapContainer.value, mapStore.mapEngine)
-})
-
-onUnmounted(() => {
-  mapService.destroy()
-})
 
 function toggleStreetViewLayers() {
   layers.forEach(layer => {
@@ -66,6 +47,7 @@ function toggleStreetViewLayers() {
       <HoverCardContent
         side="left"
         align="end"
+        :side-offset="8"
         class="w-fit fit-content max-w-[calc(100vw-3.75rem)] md:max-w-[50vw]"
       >
         <LayersSelector />

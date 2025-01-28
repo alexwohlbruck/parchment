@@ -26,6 +26,7 @@ export class MapStrategy {
     this.options = { ...defaultOptions, ...options }
   }
 
+  resize() {}
   addDataSource() {}
   flyTo(camera: Partial<MapCamera>) {}
   jumpTo(camera: Partial<MapCamera>) {}

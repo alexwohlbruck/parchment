@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, useTemplateRef } from 'vue'
+import { onMounted, onUnmounted, useTemplateRef, watch } from 'vue'
 import { useMapStore } from '../../stores/map.store'
 import { useMapService } from '@/services/map.service'
 import { MapStrategy } from './map-providers/map.strategy'
@@ -12,6 +12,10 @@ const mapStore = useMapStore()
 const mapContainer = useTemplateRef<HTMLElement>('mapContainer')
 let mapStrategy: MapStrategy
 
+const props = defineProps<{
+  pipSwapped: boolean
+}>()
+
 onMounted(() => {
   if (!mapContainer.value) {
     throw new Error('Map container element not found')
@@ -22,14 +26,21 @@ onMounted(() => {
 onUnmounted(() => {
   mapService.destroy()
 })
+
+watch(
+  () => props.pipSwapped,
+  () => {
+    setTimeout(() => {
+      mapService.resize()
+    }, 0)
+  },
+)
 </script>
 
 <template>
-  <div>
-    <div ref="mapContainer" class="w-full h-full"></div>
+  <div ref="mapContainer" class="w-full h-full"></div>
 
-    <ContextMenu />
-  </div>
+  <ContextMenu />
 </template>
 
 <style>

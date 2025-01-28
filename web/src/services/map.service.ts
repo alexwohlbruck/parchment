@@ -89,6 +89,10 @@ function mapService() {
     mapStrategy = initializeMap(mapContainer, mapEngine)
   }
 
+  function resize() {
+    mapStrategy.resize()
+  }
+
   watch(dark, newDark => {
     mapStrategy.setMapTheme(newDark ? MapTheme.DARK : MapTheme.LIGHT)
   })
@@ -175,6 +179,7 @@ function mapService() {
 
   return {
     initializeMap,
+    resize,
     toggleLayer,
     toggleLayerVisibility,
     flyTo,

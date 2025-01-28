@@ -176,6 +176,10 @@ export class MapboxStrategy extends MapStrategy {
     })
   }
 
+  resize() {
+    this.mapInstance.resize()
+  }
+
   flyTo(camera: Partial<MapCamera>) {
     this.mapInstance.flyTo(camera)
   }

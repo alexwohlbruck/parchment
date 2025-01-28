@@ -4,9 +4,6 @@ import { storeToRefs } from 'pinia'
 import { Viewer, ViewerOptions } from 'mapillary-js'
 import { useMapService } from '@/services/map.service'
 import { useMapStore } from '@/stores/map.store'
-import { StreetViewImage, StreetViewType } from '@/types/map.types'
-import { Button } from '@/components/ui/button'
-import { XIcon } from 'lucide-vue-next'
 import { cn } from '@/lib/utils'
 
 const container = ref()
@@ -14,6 +11,10 @@ let viewer: Viewer | null = null
 
 const mapService = useMapService()
 const { streetView } = storeToRefs(useMapStore())
+
+const props = defineProps<{
+  pipSwapped: boolean
+}>()
 
 onMounted(() => {
   if (!container.value) return
@@ -50,6 +51,15 @@ onUnmounted(() => {
   }
 })
 
+watch(
+  () => props.pipSwapped,
+  () => {
+    setTimeout(() => {
+      viewer?.resize()
+    }, 0)
+  },
+)
+
 // Watch for changes to imageId and update the viewer
 watch(
   () => streetView.value,
@@ -70,15 +80,5 @@ watch(
 </script>
 
 <template>
-  <div class="relative">
-    <div :class="cn($attrs.class ?? '', 'w-full h-full')" ref="container"></div>
-    <Button
-      variant="ghost"
-      size="icon"
-      class="absolute top-1 right-1 bg-black/50 hover:bg-black/70 text-white hover:text-white"
-      @click="mapService.clearStreetView()"
-    >
-      <XIcon class="size-5" />
-    </Button>
-  </div>
+  <div :class="cn($attrs.class ?? '', 'w-full h-full')" ref="container"></div>
 </template>

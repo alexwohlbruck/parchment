@@ -20,6 +20,7 @@ const { streetView } = storeToRefs(mapStore)
 
 const pipSwapped = ref(false)
 const mountTeleports = ref(false)
+const pipExists = ref(false)
 
 function swapPip() {
   pipSwapped.value = !pipSwapped.value
@@ -31,9 +32,15 @@ onMounted(() => {
   })
 })
 
-watch(streetView, () => {
-  if (!streetView.value) {
+watch(streetView, newValue => {
+  if (!newValue) {
     pipSwapped.value = false
+    pipExists.value = false
+  } else {
+    // Wait for next tick to ensure pip container is rendered
+    nextTick(() => {
+      pipExists.value = true
+    })
   }
 })
 </script>
@@ -49,7 +56,7 @@ watch(streetView, () => {
 
   <div class="!absolute w-full h-full top-0 left-0" id="mainContent">
     <template v-if="mountTeleports">
-      <Teleport :to="pipSwapped ? '#pipContent' : '#mainContent'">
+      <Teleport :to="pipSwapped && pipExists ? '#pipContent' : '#mainContent'">
         <Map :pip-swapped="pipSwapped" />
       </Teleport>
     </template>
@@ -62,10 +69,11 @@ watch(streetView, () => {
 
     <TransitionExpand>
       <div
+        v-if="streetView"
         id="pipContent"
-        class="pointer-events-auto shadow-md w-full md:w-[40vw] aspect-video rounded-lg relative"
+        class="pointer-events-auto shadow-md w-full md:w-[40vw] aspect-video rounded-lg overflow-hidden relative"
       >
-        <template v-if="mountTeleports && streetView">
+        <template v-if="mountTeleports && pipExists">
           <Button
             variant="ghost"
             size="icon"
@@ -87,7 +95,7 @@ watch(streetView, () => {
           <Teleport :to="pipSwapped ? '#mainContent' : '#pipContent'">
             <StreetView
               :image="streetView"
-              class="w-full h-full rounded-lg"
+              class="w-full h-full"
               :pip-swapped="pipSwapped"
             />
           </Teleport>

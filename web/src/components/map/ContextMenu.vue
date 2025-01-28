@@ -90,20 +90,26 @@ function fillWaypoint() {
   }, 0)
 }
 
-function openMapEditor(editor: 'id' | 'josm' | 'potlatch') {
+function openMapEditor(editor: 'id' | 'rapid' | 'josm') {
   if (!clickedLngLat.value) return
   switch (editor) {
     case 'id':
       window.open(
-        `https://www.openstreetmap.org/edit?editor=id#map=19/${clickedLngLat.value.lat}/${clickedLngLat.value.lng}`,
+        `https://www.openstreetmap.org/edit?editor=id#map=18/${clickedLngLat.value.lat}/${clickedLngLat.value.lng}`,
+        '_blank',
+      )
+      break
+    case 'rapid':
+      window.open(
+        `https://mapwith.ai/rapid?#map=18/${clickedLngLat.value.lat}/${clickedLngLat.value.lng}&photo_overlay=mapillary&photo=mapillary/147417114029979`,
         '_blank',
       )
       break
     case 'josm':
-      // TODO:
-      break
-    case 'potlatch':
-      // TODO:
+      window.open(
+        `http://127.0.0.1:8111/load_and_zoom?left=${clickedLngLat.value.lng}&right=${clickedLngLat.value.lng}&top=${clickedLngLat.value.lat}&bottom=${clickedLngLat.value.lat}`,
+        '_blank',
+      )
       break
   }
 }
@@ -165,11 +171,11 @@ function openMapEditor(editor: 'id' | 'josm' | 'potlatch') {
               <DropdownMenuItem @click="openMapEditor('id')">
                 <span>OpenStreetMap iD</span>
               </DropdownMenuItem>
-              <DropdownMenuItem disabled @click="openMapEditor('josm')">
-                <span>JOSM</span>
+              <DropdownMenuItem @click="openMapEditor('rapid')">
+                <span>Rapid</span>
               </DropdownMenuItem>
-              <DropdownMenuItem disabled @click="openMapEditor('potlatch')">
-                <span>Potlatch</span>
+              <DropdownMenuItem @click="openMapEditor('josm')">
+                <span>JOSM</span>
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuPortal>

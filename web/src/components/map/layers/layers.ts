@@ -184,12 +184,253 @@ const waymarkedTrails: Layer = {
       id: 'waymarkedTrails',
       type: SourceType.RASTER,
       tiles: ['https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png'],
-      tileSize: 256,
+      tileSize: 512,
       attribution:
         '<a href="https://cycling.waymarkedtrails.org/">© Waymarked Trails</a>',
     },
   },
 }
+
+// https://loom.cs.uni-freiburg.de/tiles/subway-lightrail/geo/13/2258/3240.mvt
+const loomLightRail: Layer = {
+  name: 'Loom Light Rail',
+  icon: TrainIcon,
+  enabled: true,
+  visible: false,
+  type: LayerType.CUSTOM,
+  engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+  configuration: {
+    id: 'loom-light-rail',
+    type: MapboxLayerType.LINE,
+    slot: 'middle',
+    source: {
+      id: 'loom-light-rail',
+      type: SourceType.VECTOR,
+      tiles: [
+        'https://loom.cs.uni-freiburg.de/tiles/subway-lightrail/geo/{z}/{x}/{y}.mvt',
+      ],
+      maxzoom: 17,
+    },
+    'source-layer': 'lines',
+    paint: {
+      'line-color': ['concat', '#', ['get', 'color']],
+      'line-width': 5,
+      'line-opacity': 1,
+      'line-emissive-strength': 1,
+      'line-occlusion-opacity': 0.15,
+    },
+    layout: {
+      'line-cap': 'round',
+      'line-join': 'round',
+    },
+  },
+}
+
+const loomTram: Layer = {
+  name: 'Loom Tram',
+  icon: TrainIcon,
+  enabled: true,
+  visible: false,
+  type: LayerType.CUSTOM,
+  engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+  configuration: {
+    id: 'loom-tram',
+    type: MapboxLayerType.LINE,
+    slot: 'middle',
+    source: {
+      id: 'loom-tram',
+      type: SourceType.VECTOR,
+      tiles: ['https://loom.cs.uni-freiburg.de/tiles/tram/geo/{z}/{x}/{y}.mvt'],
+      maxzoom: 17,
+    },
+    'source-layer': 'lines',
+    paint: {
+      'line-color': ['concat', '#', ['get', 'color']],
+      'line-width': 5,
+      'line-opacity': 1,
+      'line-emissive-strength': 1,
+      'line-occlusion-opacity': 0.15,
+    },
+    layout: {
+      'line-cap': 'round',
+      'line-join': 'round',
+    },
+  },
+}
+
+const loomRailCommuter: Layer = {
+  name: 'Loom Rail (Commuter)',
+  icon: TrainIcon,
+  enabled: true,
+  visible: false,
+  type: LayerType.CUSTOM,
+  engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+  slot: 'middle',
+  configuration: {
+    id: 'loom-rail-commuter',
+    type: MapboxLayerType.LINE,
+    source: {
+      id: 'loom-rail-commuter',
+      type: SourceType.VECTOR,
+      tiles: [
+        'https://loom.cs.uni-freiburg.de/tiles/rail-commuter/geo/{z}/{x}/{y}.mvt',
+      ],
+      maxzoom: 17,
+    },
+    'source-layer': 'lines',
+    paint: {
+      'line-color': ['concat', '#', ['get', 'color']],
+      'line-width': 5,
+      'line-opacity': 1,
+      'line-emissive-strength': 1,
+      'line-occlusion-opacity': 0.15,
+    },
+    layout: {
+      'line-cap': 'round',
+      'line-join': 'round',
+    },
+  },
+}
+
+const loomRail: Layer = {
+  name: 'Loom Rail (Long Distance)',
+  icon: TrainIcon,
+  enabled: true,
+  visible: false,
+  type: LayerType.CUSTOM,
+  engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+  configuration: {
+    id: 'loom-rail',
+    type: MapboxLayerType.LINE,
+    slot: 'middle',
+    source: {
+      id: 'loom-rail',
+      type: SourceType.VECTOR,
+      tiles: ['https://loom.cs.uni-freiburg.de/tiles/rail/geo/{z}/{x}/{y}.mvt'],
+      maxzoom: 17,
+    },
+    'source-layer': 'lines',
+    paint: {
+      'line-color': ['concat', '#', ['get', 'color']],
+      'line-width': 5,
+      'line-opacity': 1,
+      'line-emissive-strength': 1,
+      'line-occlusion-opacity': 0.15,
+    },
+    layout: {
+      'line-cap': 'round',
+      'line-join': 'round',
+    },
+  },
+}
+
+// const loomLightRailStations: Layer = {
+//   name: 'Loom Light Rail Stations',
+//   icon: TrainIcon,
+//   enabled: true,
+//   visible: true,
+//   type: LayerType.CUSTOM,
+//   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+//   configuration: {
+//     id: 'loom-light-rail-stations',
+//     type: MapboxLayerType.FILL,
+//     source: {
+//       id: 'loom-light-rail-stations',
+//       type: SourceType.VECTOR,
+//       tiles: [
+//         'https://loom.cs.uni-freiburg.de/tiles/subway-lightrail/geo/{z}/{x}/{y}.mvt',
+//       ],
+//       maxzoom: 17,
+//     },
+//     'source-layer': 'stations',
+//     paint: {
+//       'fill-color': '#0d0d8a',
+//       'fill-opacity': 1,
+//       'fill-outline-color': '#ffffff',
+//       'fill-emissive-strength': 1,
+//     },
+//   },
+// }
+
+// const loomTramStations: Layer = {
+//   name: 'Loom Tram Stations',
+//   icon: TrainIcon,
+//   enabled: true,
+//   visible: true,
+//   type: LayerType.CUSTOM,
+//   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+//   configuration: {
+//     id: 'loom-tram-stations',
+//     type: MapboxLayerType.FILL,
+//     source: {
+//       id: 'loom-tram-stations',
+//       type: SourceType.VECTOR,
+//       tiles: ['https://loom.cs.uni-freiburg.de/tiles/tram/geo/{z}/{x}/{y}.mvt'],
+//       maxzoom: 17,
+//     },
+//     'source-layer': 'stations',
+//     paint: {
+//       'fill-color': '#0d0d8a',
+//       'fill-opacity': 1,
+//       'fill-outline-color': '#ffffff',
+//       'fill-emissive-strength': 1,
+//     },
+//   },
+// }
+
+// const loomRailCommuterStations: Layer = {
+//   name: 'Loom Rail (Commuter) Stations',
+//   icon: TrainIcon,
+//   enabled: true,
+//   visible: true,
+//   type: LayerType.CUSTOM,
+//   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+//   configuration: {
+//     id: 'loom-rail-commuter-stations',
+//     type: MapboxLayerType.FILL,
+//     source: {
+//       id: 'loom-rail-commuter-stations',
+//       type: SourceType.VECTOR,
+//       tiles: [
+//         'https://loom.cs.uni-freiburg.de/tiles/rail-commuter/geo/{z}/{x}/{y}.mvt',
+//       ],
+//       maxzoom: 17,
+//     },
+//     'source-layer': 'stations',
+//     paint: {
+//       'fill-color': '#0d0d8a',
+//       'fill-opacity': 1,
+//       'fill-outline-color': '#ffffff',
+//       'fill-emissive-strength': 1,
+//     },
+//   },
+// }
+
+// const loomRailStations: Layer = {
+//   name: 'Loom Rail (Long Distance) Stations',
+//   icon: TrainIcon,
+//   enabled: true,
+//   visible: true,
+//   type: LayerType.CUSTOM,
+//   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+//   configuration: {
+//     id: 'loom-rail-stations',
+//     type: MapboxLayerType.FILL,
+//     source: {
+//       id: 'loom-rail-stations',
+//       type: SourceType.VECTOR,
+//       tiles: ['https://loom.cs.uni-freiburg.de/tiles/rail/geo/{z}/{x}/{y}.mvt'],
+//       maxzoom: 17,
+//     },
+//     'source-layer': 'stations',
+//     paint: {
+//       'fill-color': '#0d0d8a',
+//       'fill-opacity': 1,
+//       'fill-outline-color': '#ffffff',
+//       'fill-emissive-strength': 1,
+//     },
+//   },
+// }
 
 const transitlandApiKey = import.meta.env.VITE_TRANSITLAND_API_KEY
 const transitLand: Layer = {
@@ -335,6 +576,14 @@ export const layers: Layer[] = [
   mapillaryImage,
   cyclOSM,
   waymarkedTrails,
+  loomTram,
+  // loomTramStations,
+  loomLightRail,
+  // loomLightRailStations,
+  loomRailCommuter,
+  // loomRailCommuterStations,
+  loomRail,
+  // loomRailStations,
   transitLand,
   traffic,
 ] as Layer[]

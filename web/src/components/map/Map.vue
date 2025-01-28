@@ -72,7 +72,11 @@ function toggleStreetViewLayers() {
             </Button>
           </HoverCardTrigger>
 
-          <HoverCardContent side="top" class="w-fit fit-content max-w-[100vw]">
+          <HoverCardContent
+            side="left"
+            align="end"
+            class="w-fit fit-content max-w-[calc(100vw-3.75rem)] md:max-w-[50vw]"
+          >
             <LayersSelector />
           </HoverCardContent>
         </HoverCard>

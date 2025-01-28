@@ -265,10 +265,10 @@ const loomRailCommuter: Layer = {
   visible: false,
   type: LayerType.CUSTOM,
   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
-  slot: 'middle',
   configuration: {
     id: 'loom-rail-commuter',
     type: MapboxLayerType.LINE,
+    slot: 'middle',
     source: {
       id: 'loom-rail-commuter',
       type: SourceType.VECTOR,

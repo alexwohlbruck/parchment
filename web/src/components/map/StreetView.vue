@@ -7,6 +7,7 @@ import { useMapStore } from '@/stores/map.store'
 import { cn } from '@/lib/utils'
 import { TransitionFade } from '@morev/vue-transitions'
 import { Loader2Icon } from 'lucide-vue-next'
+import { useResizeObserver } from '@vueuse/core'
 
 let viewer: Viewer | null = null
 const container = ref()
@@ -56,6 +57,13 @@ onUnmounted(() => {
       viewer!.remove()
     }, 1000)
   }
+})
+
+// Add resize observer with debounce
+useResizeObserver(container, () => {
+  setTimeout(() => {
+    viewer?.resize()
+  }, 10)
 })
 
 watch(

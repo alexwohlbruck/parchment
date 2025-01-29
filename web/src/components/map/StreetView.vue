@@ -5,9 +5,12 @@ import { Viewer, ViewerOptions } from 'mapillary-js'
 import { useMapService } from '@/services/map.service'
 import { useMapStore } from '@/stores/map.store'
 import { cn } from '@/lib/utils'
+import { TransitionFade } from '@morev/vue-transitions'
+import { Loader2Icon } from 'lucide-vue-next'
 
-const container = ref()
 let viewer: Viewer | null = null
+const container = ref()
+const loading = ref(false)
 
 const mapService = useMapService()
 const { streetView } = storeToRefs(useMapStore())
@@ -39,6 +42,10 @@ onMounted(() => {
       position,
       fov,
     })
+  })
+
+  viewer.on('dataloading', e => {
+    loading.value = e.loading
   })
 })
 
@@ -80,5 +87,18 @@ watch(
 </script>
 
 <template>
-  <div :class="cn($attrs.class ?? '', 'w-full h-full')" ref="container"></div>
+  <div
+    :class="cn($attrs.class ?? '', 'w-full h-full')"
+    ref="container"
+    class="relative"
+  >
+    <TransitionFade>
+      <div
+        v-if="loading"
+        class="absolute inset-0 bg-black/30 flex items-center justify-center z-10"
+      >
+        <Loader2Icon class="size-8 animate-spin" />
+      </div>
+    </TransitionFade>
+  </div>
 </template>

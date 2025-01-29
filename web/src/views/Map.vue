@@ -71,7 +71,12 @@ watch(streetView, newValue => {
       <div
         v-if="streetView"
         id="pipContent"
-        class="pointer-events-auto shadow-md w-full md:w-[40vw] aspect-video rounded-lg overflow-hidden relative"
+        class="pointer-events-auto shadow-md aspect-video rounded-lg overflow-hidden relative transition-width duration-300"
+        :class="
+          pipSwapped
+            ? 'w-full sm:w-[40vw] md:w-[30vw]'
+            : 'w-full sm:w-[50vw] md:w-[40vw]'
+        "
       >
         <template v-if="mountTeleports && pipExists">
           <Button

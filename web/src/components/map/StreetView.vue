@@ -8,6 +8,7 @@ import { useMapService } from '@/services/map.service'
 import { cn } from '@/lib/utils'
 import { TransitionFade } from '@morev/vue-transitions'
 import { Loader2Icon } from 'lucide-vue-next'
+import { updatePegmanData } from '@/lib/pegman.utils'
 
 let viewer: Viewer | null = null
 const container = ref()
@@ -21,6 +22,22 @@ const props = defineProps<{
 
 const router = useRouter()
 const route = useRoute()
+
+async function updatePegman(viewer: Viewer) {
+  const pov = await viewer.getPointOfView()
+  const position = await viewer.getPosition()
+  const fov = await viewer.getFieldOfView()
+
+  mapService.setPegman({
+    pov,
+    position,
+    fov,
+  })
+
+  mapService.jumpTo({
+    center: position,
+  })
+}
 
 onMounted(() => {
   if (!container.value) return
@@ -36,21 +53,17 @@ onMounted(() => {
   viewer = new Viewer(options)
 
   viewer.on('pov', async e => {
-    const pov = await e.target.getPointOfView()
-    const position = await e.target.getPosition()
-    const fov = await e.target.getFieldOfView()
+    updatePegman(e.target as Viewer)
+  })
 
-    mapService.setPegman({
-      pov,
-      position,
-      fov,
-    })
+  viewer.on('position', async e => {
+    updatePegman(e.target as Viewer)
+  })
 
-    const image = await viewer!.getImage()
-
+  viewer.on('image', e => {
     router.replace({
       params: {
-        id: image.id,
+        id: e.image.id,
       },
       query: route.query,
     })
@@ -101,23 +114,7 @@ watch(
   async newStreetView => {
     const currentImage = await viewer!.getImage()
     if (viewer && newStreetView && newStreetView !== currentImage.id) {
-      try {
-        router.replace({
-          name: AppRoute.STREET,
-          params: {
-            id: newStreetView,
-          },
-          query: route.query,
-        })
-        // Make sure viewer is activated before moving
-        await viewer.moveTo(newStreetView as string)
-        const position = await viewer.getPosition()
-        mapService.flyTo({
-          center: position,
-        })
-      } catch (error) {
-        console.error('Error moving to new image:', error)
-      }
+      await viewer.moveTo(newStreetView as string)
     }
   },
 )

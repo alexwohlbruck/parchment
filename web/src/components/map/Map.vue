@@ -34,9 +34,18 @@ onUnmounted(() => {
 watch(
   () => props.pipSwapped,
   () => {
-    setTimeout(() => {
-      mapService.resize()
-    }, 0)
+    if (props.pipSwapped) {
+      const interval = setInterval(() => {
+        mapService.resize()
+      }, 1000 / 30)
+      setTimeout(() => {
+        clearInterval(interval)
+      }, 300)
+    } else {
+      setTimeout(() => {
+        mapService.resize()
+      }, 0)
+    }
   },
 )
 </script>

@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, defineProps, onUnmounted } from 'vue'
-import { useResizeObserver, useUrlSearchParams } from '@vueuse/core'
+import { useResizeObserver } from '@vueuse/core'
 import { useRouter, useRoute } from 'vue-router'
 import { AppRoute } from '@/router'
-import { storeToRefs } from 'pinia'
 import { Viewer, ViewerOptions } from 'mapillary-js'
 import { useMapService } from '@/services/map.service'
-import { useMapStore } from '@/stores/map.store'
 import { cn } from '@/lib/utils'
 import { TransitionFade } from '@morev/vue-transitions'
 import { Loader2Icon } from 'lucide-vue-next'
@@ -26,8 +24,6 @@ const route = useRoute()
 
 onMounted(() => {
   if (!container.value) return
-
-  console.log(route.params)
 
   const options: ViewerOptions = {
     accessToken: import.meta.env.VITE_MAPILLARY_ACCESS_TOKEN,

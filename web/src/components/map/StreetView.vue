@@ -99,7 +99,8 @@ watch(
 watch(
   () => route.params.id,
   async newStreetView => {
-    if (viewer && newStreetView && newStreetView !== route.params.id) {
+    const currentImage = await viewer!.getImage()
+    if (viewer && newStreetView && newStreetView !== currentImage.id) {
       try {
         router.replace({
           name: AppRoute.STREET,

@@ -31,6 +31,7 @@ onUnmounted(() => {
   mapService.destroy()
 })
 
+// Resize the map when street view pip is swapped. We are accounting for the transition animation.
 watch(
   () => props.pipSwapped,
   () => {

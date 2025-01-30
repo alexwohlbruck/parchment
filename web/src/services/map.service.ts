@@ -15,6 +15,7 @@ import { MaplibreStrategy } from '@/components/map/map-providers/maplibre.strate
 import { mapEventBus } from '@/lib/eventBus'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { watch } from 'vue'
+import router, { AppRoute } from '@/router'
 
 const dark = useDark()
 
@@ -64,10 +65,11 @@ function mapService() {
 
     mapEventBus.on('click:mapillary-image', ({ lngLat, image }) => {
       if (image) {
-        mapStore.setStreetView({
-          type: StreetViewType.MAPILLARY,
-          lngLat,
-          data: image,
+        router.push({
+          name: AppRoute.STREET,
+          params: {
+            id: image.id,
+          },
         })
       }
     })
@@ -107,9 +109,9 @@ function mapService() {
   )
 
   watch(
-    () => mapStore.streetView,
-    streetView => {
-      if (!streetView) {
+    () => router.currentRoute.value.name,
+    (routeName, oldRouteName) => {
+      if (oldRouteName === AppRoute.STREET && routeName !== AppRoute.STREET) {
         mapStrategy.removePegman()
       }
     },
@@ -189,8 +191,6 @@ function mapService() {
     on,
     off,
     emit,
-    setStreetView: mapStore.setStreetView,
-    clearStreetView: mapStore.clearStreetView,
     setPegman: mapStore.setPegman,
     clearPegman: mapStore.clearPegman,
   }

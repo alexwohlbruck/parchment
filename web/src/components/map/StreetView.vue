@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, defineProps, onUnmounted } from 'vue'
+import { useResizeObserver, useUrlSearchParams } from '@vueuse/core'
+import { useRouter, useRoute } from 'vue-router'
+import { AppRoute } from '@/router'
 import { storeToRefs } from 'pinia'
 import { Viewer, ViewerOptions } from 'mapillary-js'
 import { useMapService } from '@/services/map.service'
@@ -7,26 +10,30 @@ import { useMapStore } from '@/stores/map.store'
 import { cn } from '@/lib/utils'
 import { TransitionFade } from '@morev/vue-transitions'
 import { Loader2Icon } from 'lucide-vue-next'
-import { useResizeObserver } from '@vueuse/core'
 
 let viewer: Viewer | null = null
 const container = ref()
 const loading = ref(false)
 
 const mapService = useMapService()
-const { streetView } = storeToRefs(useMapStore())
 
 const props = defineProps<{
   pipSwapped: boolean
 }>()
 
+const router = useRouter()
+const route = useRoute()
+const params = useUrlSearchParams('history')
+
 onMounted(() => {
   if (!container.value) return
+
+  console.log(route.params)
 
   const options: ViewerOptions = {
     accessToken: import.meta.env.VITE_MAPILLARY_ACCESS_TOKEN,
     container: container.value,
-    imageId: streetView.value?.data.id.toString(),
+    imageId: route.params.id as string,
     component: {
       cover: false,
     },
@@ -57,6 +64,9 @@ onUnmounted(() => {
       viewer!.remove()
     }, 1000)
   }
+  router.push({
+    name: AppRoute.MAP,
+  })
 })
 
 // Add resize observer with debounce
@@ -68,7 +78,8 @@ useResizeObserver(container, () => {
 
 watch(
   () => props.pipSwapped,
-  () => {
+  newValue => {
+    params.large = newValue ? 'true' : null
     setTimeout(() => {
       viewer?.resize()
     }, 0)
@@ -77,14 +88,22 @@ watch(
 
 // Watch for changes to imageId and update the viewer
 watch(
-  () => streetView.value,
+  () => route.params.id,
   async newStreetView => {
     if (viewer && newStreetView) {
       try {
+        // Update route with new ID
+        router.replace({
+          name: AppRoute.STREET,
+          params: {
+            id: newStreetView,
+          },
+        })
         // Make sure viewer is activated before moving
-        await viewer.moveTo(newStreetView.data.id.toString())
+        await viewer.moveTo(newStreetView as string)
+        const position = await viewer.getPosition()
         mapService.flyTo({
-          center: newStreetView.lngLat,
+          center: position,
         })
       } catch (error) {
         console.error('Error moving to new image:', error)

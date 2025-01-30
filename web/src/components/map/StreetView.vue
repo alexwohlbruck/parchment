@@ -23,7 +23,6 @@ const props = defineProps<{
 
 const router = useRouter()
 const route = useRoute()
-const params = useUrlSearchParams('history')
 
 onMounted(() => {
   if (!container.value) return
@@ -49,6 +48,15 @@ onMounted(() => {
       pov,
       position,
       fov,
+    })
+
+    const image = await viewer!.getImage()
+
+    router.replace({
+      params: {
+        id: image.id,
+      },
+      query: route.query,
     })
   })
 
@@ -79,7 +87,12 @@ useResizeObserver(container, () => {
 watch(
   () => props.pipSwapped,
   newValue => {
-    params.large = newValue ? 'true' : null
+    router.replace({
+      query: {
+        ...route.query,
+        large: newValue ? 'true' : undefined,
+      },
+    })
     setTimeout(() => {
       viewer?.resize()
     }, 0)
@@ -90,14 +103,14 @@ watch(
 watch(
   () => route.params.id,
   async newStreetView => {
-    if (viewer && newStreetView) {
+    if (viewer && newStreetView && newStreetView !== route.params.id) {
       try {
-        // Update route with new ID
         router.replace({
           name: AppRoute.STREET,
           params: {
             id: newStreetView,
           },
+          query: route.query,
         })
         // Make sure viewer is activated before moving
         await viewer.moveTo(newStreetView as string)

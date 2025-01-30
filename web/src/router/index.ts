@@ -4,10 +4,13 @@ import Signin from '@/views/auth/Signin.vue'
 import Map from '@/views/Map.vue'
 import { useAuthStore } from '@/stores/auth.store'
 import { useResponsive } from '@/lib/utils'
+import { useMapStore } from '@/stores/map.store'
+import { useMapService } from '@/services/map.service'
 
 export enum AppRoute {
   SIGNIN = 'signin',
   MAP = 'map',
+  STREET = 'street',
   DIRECTIONS = 'directions',
   PLACE = 'place',
   SETTINGS = 'settings',
@@ -93,6 +96,20 @@ const router = createRouter({
           component: () => import('../views/settings/pages/Users.vue'),
         },
       ],
+    },
+    {
+      path: '/street/:id',
+      name: AppRoute.STREET,
+      component: Map,
+      meta: {
+        auth: true,
+      },
+      beforeEnter: async (to, from) => {
+        const id = to.params.id
+        if (!id) {
+          return { name: AppRoute.MAP }
+        }
+      },
     },
   ],
 })

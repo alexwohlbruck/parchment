@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick, watch } from 'vue'
-import { useRoute } from 'vue-router'
-import { storeToRefs } from 'pinia'
-import { useMapStore } from '@/stores/map.store'
-import { useMapService } from '@/services/map.service'
+import { useRoute, useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
 
 import { TransitionExpand } from '@morev/vue-transitions'
 import { Button } from '@/components/ui/button'
@@ -13,14 +11,11 @@ import StreetView from '@/components/map/StreetView.vue'
 import LayerControls from '@/components/map/LayerControls.vue'
 
 const route = useRoute()
-const mapStore = useMapStore()
-const mapService = useMapService()
-
-const { streetView } = storeToRefs(mapStore)
+const router = useRouter()
 
 const pipSwapped = ref(false)
 const mountTeleports = ref(false)
-const pipExists = ref(false)
+const streetView = ref(false)
 
 function swapPip() {
   pipSwapped.value = !pipSwapped.value
@@ -32,17 +27,22 @@ onMounted(() => {
   })
 })
 
-watch(streetView, newValue => {
-  if (!newValue) {
-    pipSwapped.value = false
-    pipExists.value = false
-  } else {
-    // Wait for next tick to ensure pip container is rendered
-    nextTick(() => {
-      pipExists.value = true
-    })
-  }
-})
+watch(
+  () => route.name,
+  name => {
+    streetView.value = name === AppRoute.STREET
+  },
+  { immediate: true },
+)
+
+watch(
+  () => route.params.id,
+  id => {
+    if (!id) {
+      pipSwapped.value = false
+    }
+  },
+)
 </script>
 
 <template>
@@ -56,7 +56,7 @@ watch(streetView, newValue => {
 
   <div class="!absolute w-full h-full top-0 left-0" id="mainContent">
     <template v-if="mountTeleports">
-      <Teleport :to="pipSwapped && pipExists ? '#pipContent' : '#mainContent'">
+      <Teleport :to="pipSwapped && streetView ? '#pipContent' : '#mainContent'">
         <Map :pip-swapped="pipSwapped" />
       </Teleport>
     </template>
@@ -69,7 +69,7 @@ watch(streetView, newValue => {
 
     <TransitionExpand>
       <div
-        v-if="streetView"
+        v-if="route.name === AppRoute.STREET"
         id="pipContent"
         class="pointer-events-auto shadow-md aspect-video rounded-lg overflow-hidden relative transition-width duration-300"
         :class="
@@ -78,12 +78,12 @@ watch(streetView, newValue => {
             : 'w-full sm:w-[50vw] md:w-[40vw]'
         "
       >
-        <template v-if="mountTeleports && pipExists">
+        <template v-if="mountTeleports && streetView">
           <Button
             variant="ghost"
             size="icon"
             class="absolute top-1 right-1 bg-black/50 hover:bg-black/70 text-white hover:text-white z-10"
-            @click="mapService.clearStreetView()"
+            @click="router.push({ name: AppRoute.MAP })"
           >
             <XIcon class="size-5" />
           </Button>
@@ -98,11 +98,7 @@ watch(streetView, newValue => {
           </Button>
 
           <Teleport :to="pipSwapped ? '#mainContent' : '#pipContent'">
-            <StreetView
-              :image="streetView"
-              class="w-full h-full"
-              :pip-swapped="pipSwapped"
-            />
+            <StreetView class="w-full h-full" :pip-swapped="pipSwapped" />
           </Teleport>
         </template>
       </div>

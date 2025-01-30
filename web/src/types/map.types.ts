@@ -154,8 +154,7 @@ export enum StreetViewType {
 
 export type StreetViewImage = {
   type: StreetViewType
-  lngLat: LngLat
-  data: Image // TODO: Make custom type
+  id: string
 }
 
 export type PegmanLayerType = {

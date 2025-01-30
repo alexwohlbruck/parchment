@@ -30,7 +30,9 @@ onMounted(() => {
 watch(
   () => route.name,
   name => {
-    streetView.value = name === AppRoute.STREET
+    nextTick(() => {
+      streetView.value = name === AppRoute.STREET
+    })
   },
   { immediate: true },
 )

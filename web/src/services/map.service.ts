@@ -65,6 +65,9 @@ function mapService() {
 
     mapEventBus.on('click:mapillary-image', ({ lngLat, image }) => {
       if (image) {
+        mapStrategy.flyTo({
+          center: lngLat,
+        })
         router.push({
           name: AppRoute.STREET,
           params: {

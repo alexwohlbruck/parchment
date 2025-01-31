@@ -131,7 +131,7 @@ watch(
         v-if="loading"
         class="absolute inset-0 bg-black/30 flex items-center justify-center z-10"
       >
-        <Loader2Icon class="size-8 animate-spin" />
+        <Loader2Icon class="size-8 animate-spin text-white" />
       </div>
     </TransitionFade>
   </div>

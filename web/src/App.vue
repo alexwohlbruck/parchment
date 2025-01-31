@@ -16,6 +16,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { Spinner } from '@/components/ui/spinner'
 import { AlertDialog, AlertDialogContent } from '@/components/ui/alert-dialog'
 import { P } from '@/components/ui/typography'
+import { TransitionSlide } from '@morev/vue-transitions'
 
 const route = useRoute()
 const themeStore = useThemeStore()
@@ -71,20 +72,24 @@ onMounted(() => {
   <div class="flex h-dvh bg-background">
     <!-- Desktop layout -->
     <template v-if="!isMobileScreen">
-      <div class="flex flex-col justify-center" v-if="isFloatingLayout">
-        <DesktopNav class="z-20" />
-      </div>
+      <transition-slide no-opacity :offset="['-130%', 0]">
+        <DesktopNav v-if="isFloatingLayout" class="z-20" />
+      </transition-slide>
 
       <div
         class="absolute top-0 left-1/2 transform -translate-x-1/2 p-2 z-10 sm:max-w-[30rem] w-full"
       >
-        <Palette class="h-fit" v-if="isFloatingLayout" />
+        <transition-slide no-opacity :offset="[0, '-130%']">
+          <Palette class="h-fit" v-if="isFloatingLayout" />
+        </transition-slide>
       </div>
     </template>
 
     <!-- Mobile layout -->
     <template v-else>
-      <MobileNav v-if="isFloatingLayout" />
+      <transition-slide no-opacity :offset="[0, '130%']">
+        <MobileNav v-if="isFloatingLayout" />
+      </transition-slide>
     </template>
 
     <main class="flex-1 h-full">

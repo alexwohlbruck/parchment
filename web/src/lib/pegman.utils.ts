@@ -36,31 +36,39 @@ export function createPegmanLayers(map: any, mapbox: boolean) {
     },
   })
 
+  console.log(mapbox)
+
   // Position dot
+  const positionPaint = {
+    'circle-radius': 6,
+    'circle-color': '#4285F4',
+    'circle-stroke-width': 2,
+    'circle-stroke-color': '#ffffff',
+  }
+  if (mapbox) {
+    positionPaint['circle-emissive-strength'] = 1
+  }
   map.addLayer({
     id: 'pegman-position',
     type: 'circle',
     source: 'pegman',
-    paint: {
-      'circle-radius': 6,
-      'circle-color': '#4285F4',
-      'circle-stroke-width': 2,
-      'circle-stroke-color': '#ffffff',
-      'circle-emissive-strength': mapbox ? 1 : 0,
-    },
+    paint: positionPaint,
     filter: ['==', '$type', 'Point'],
   })
 
   // FOV cone
+  const fovPaint = {
+    'fill-color': '#4285F4',
+    'fill-opacity': 0.2,
+  }
+  if (mapbox) {
+    fovPaint['fill-emissive-strength'] = 1
+  }
   map.addLayer({
     id: 'pegman-fov',
     type: 'fill',
     source: 'pegman',
-    paint: {
-      'fill-color': '#4285F4',
-      'fill-opacity': 0.2,
-      'fill-emissive-strength': mapbox ? 1 : 0,
-    },
+    paint: fovPaint,
     filter: ['==', '$type', 'Polygon'],
   })
 }

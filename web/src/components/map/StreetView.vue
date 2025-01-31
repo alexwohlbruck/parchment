@@ -76,11 +76,9 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (viewer) {
-    // Wait for transition animation
-    setTimeout(() => {
-      viewer!.remove()
-    }, 1000)
+    viewer!.remove()
   }
+  mapService.clearPegman()
   router.push({
     name: AppRoute.MAP,
   })

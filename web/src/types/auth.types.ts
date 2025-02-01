@@ -1,4 +1,4 @@
-import { Permission as PermissionId } from '../../../server/src/types/auth.types'
+import { Permission as PermissionId } from '@server/types/auth.types'
 
 export { PermissionId }
 

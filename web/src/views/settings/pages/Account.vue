@@ -1,16 +1,32 @@
 <script setup lang="ts">
 import { useAuthStore } from '@/stores/auth.store'
+import { useCommandStore } from '@/stores/command.store'
 import { storeToRefs } from 'pinia'
+import { useI18n } from 'vue-i18n'
 import { useAuthService } from '@/services/auth.service'
+import { CommandName } from '@/stores/command.store'
 import { Avatar, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { LanguagesIcon } from 'lucide-vue-next'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { SettingsSection, SettingsItem } from '@/components/settings'
 import Passkeys from '@/components/auth/Passkeys.vue'
 import Sessions from '@/components/auth/Sessions.vue'
-import { SettingsSection } from '@/components/settings'
 
 const authService = useAuthService()
 const authStore = useAuthStore()
+const commandStore = useCommandStore()
+
 const { me } = storeToRefs(authStore)
+const { locale } = useI18n()
+
+const languageCommand = commandStore.useCommand(CommandName.UPDATE_LANGUAGE)
 </script>
 
 <template>
@@ -35,6 +51,30 @@ const { me } = storeToRefs(authStore)
             Sign out
           </Button>
         </div>
+
+        <SettingsItem
+          v-if="languageCommand"
+          :title="languageCommand.name"
+          :description="languageCommand.description"
+          :icon="LanguagesIcon"
+        >
+          <Select v-model="locale">
+            <SelectTrigger class="w-fit">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem
+                v-for="language in commandStore.getCommandArgumentOptions(
+                  CommandName.UPDATE_LANGUAGE,
+                  'language',
+                )"
+                :value="language.value.toString()"
+              >
+                {{ language.name }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </SettingsItem>
       </SettingsSection>
 
       <Sessions />

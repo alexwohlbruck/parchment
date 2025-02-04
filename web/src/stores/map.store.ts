@@ -12,6 +12,7 @@ import {
   StreetViewImage,
   LngLat,
   Pegman,
+  MapProjection,
 } from '@/types/map.types'
 import { layers as defaultLayers } from '@/components/map/layers/layers'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
@@ -30,6 +31,12 @@ export const useMapStore = defineStore('map', () => {
 
   function setMapEngine(engine: MapEngine) {
     mapEngine.value = engine
+  }
+
+  const mapProjection = ref<MapProjection>(MapProjection.GLOBE)
+
+  function setMapProjection(projection: MapProjection) {
+    mapProjection.value = projection
   }
 
   const mapCamera = useStorage<MapCamera>('map-camera', {
@@ -162,6 +169,8 @@ export const useMapStore = defineStore('map', () => {
     setMapStrategy,
     mapEngine,
     setMapEngine,
+    mapProjection,
+    setMapProjection,
     mapCamera,
     setMapCamera,
     on,

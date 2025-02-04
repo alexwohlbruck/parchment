@@ -21,6 +21,7 @@ import {
   MapillaryImage,
   Pegman,
   PEGMAN_LAYERS,
+  MapProjection,
 } from '@/types/map.types'
 import standardStyle from '@/components/map/styles/standard.json'
 
@@ -344,6 +345,10 @@ export class MapboxStrategy extends MapStrategy {
       'showPointOfInterestLabels',
       value,
     )
+  }
+
+  setMapProjection(projection: MapProjection) {
+    this.mapInstance.setProjection(projection)
   }
 
   @ifBasemapLoaded

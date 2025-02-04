@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import mousetrap from 'mousetrap'
-import { useCommandStore } from '@/stores/command.store'
+import { CommandName, useCommandStore } from '@/stores/command.store'
 import { ArgumentType, Command } from '@/types/command.types'
 import { type Command as TCommand } from '@/types/command.types'
 import { createSharedComposable } from '@vueuse/core'
@@ -60,7 +60,7 @@ function commandService() {
     })
   }
 
-  function bindCommandToFunction(id: string, f: Function) {
+  function bindCommandToFunction(id: CommandName, f: Function) {
     commandStore.bindCommandToFunction(id, f)
     const command = commandStore.commands.find(c => c.id === id)
     if (command) {

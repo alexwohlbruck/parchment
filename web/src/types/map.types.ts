@@ -13,6 +13,16 @@ export enum MapEngine {
   MAPLIBRE = 'maplibre',
 }
 
+export enum MapProjection {
+  MERCATOR = 'mercator',
+  GLOBE = 'globe',
+  EQUIRECTANGULAR = 'equirectangular',
+  NATURAL_EARTH = 'naturalEarth',
+  WINKEL_TRIPEL = 'winkelTripel',
+  ALBERS = 'albers',
+  LAMBERT_CONFORMAL_CONIC = 'lambertConformalConic',
+}
+
 export enum MapTheme {
   LIGHT = 'light',
   DARK = 'dark',

@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import fuzzysort from 'fuzzysort'
 import { onClickOutside, useMagicKeys } from '@vueuse/core'
 import { useCommandService } from '@/services/command.service'
-import { useCommandStore } from '@/stores/command.store'
+import { CommandName, useCommandStore } from '@/stores/command.store'
 import {
   ArgumentType,
   CommandArgumentOption,
@@ -42,11 +42,13 @@ const commandPalette = ref<InstanceType<typeof Command>>()
 const input = ref<InstanceType<typeof CommandInput>>()
 const { escape } = useMagicKeys()
 
-bindCommandToFunction('openPalette', focusInput)
+bindCommandToFunction(CommandName.OPEN_PALETTE, focusInput)
 
 const filteredCommands = computed(() => {
   // Don't include the openPalette command in the results, we are already looking at the search palette
-  return commandStore.commands.filter(command => command.id != 'openPalette')
+  return commandStore.commands.filter(
+    command => command.id != CommandName.OPEN_PALETTE,
+  )
 })
 
 function openPalette(withSearch = false) {

@@ -83,6 +83,25 @@
           }
         }
       },
+      "mapProjection": {
+        "name": "Map projection",
+        "description": "Change the map projection",
+        "arguments": {
+          "projection": {
+            "name": "Projection",
+            "values": {
+              "globe": "Globe",
+              "mercator": "Mercator",
+              "equirectangular": "Equirectangular",
+              "equalEarth": "Equal Earth",
+              "naturalEarth": "Natural Earth",
+              "winkelTripel": "Winkel Tripel",
+              "albers": "Albers",
+              "lambertConformalConic": "Lambert Conformal Conic"
+            }
+          }
+        }
+      },
       "openHotkeysMenu": {
         "name": "Keyboard shortcuts",
         "description": "View all available keyboard shortcuts",

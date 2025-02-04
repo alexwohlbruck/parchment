@@ -91,6 +91,25 @@
           }
         }
       },
+      "mapProjection": {
+        "name": "Proyección del mapa",
+        "description": "Cambiar la proyección del mapa",
+        "arguments": {
+          "projection": {
+            "name": "Proyección",
+            "values": {
+              "globe": "Globo",
+              "mercator": "Mercator",
+              "equirectangular": "Equirectangular",
+              "equalEarth": "Tierra Igual",
+              "naturalEarth": "Tierra Natural",
+              "winkelTripel": "Winkel Tripel",
+              "albers": "Albers",
+              "lambertConformalConic": "Coniforme de Lambert"
+            }
+          }
+        }
+      },
       "openHotkeysMenu": {
         "name": "Atajos de teclado",
         "description": "Ver todos los atajos de teclado disponibles"

@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia'
+import { defineStore, storeToRefs } from 'pinia'
 import { computed, markRaw, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Command } from '@/types/command.types'
@@ -7,6 +7,7 @@ import {
   ChevronsRightIcon,
   CogIcon,
   DraftingCompassIcon,
+  GlobeIcon,
   HelpCircleIcon,
   LanguagesIcon,
   LogOutIcon,
@@ -22,11 +23,27 @@ import {
   useThemeStore,
   allRadii,
 } from '@/stores/settings/theme.store'
+import { useMapStore } from '@/stores/map.store'
 import { useMapService } from '@/services/map.service'
 
 import ColorCommandArgumentOption from '@/components/palette/custom-items/ColorCommandArgumentOption.vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthService } from '@/services/auth.service'
+import { MapEngine, MapProjection } from '@/types/map.types'
+
+export enum CommandName {
+  OPEN_PALETTE = 'openPalette',
+  SEARCH = 'search',
+  GOTO = 'goto',
+  TOGGLE_THEME = 'toggleTheme',
+  UPDATE_THEME_COLOR = 'updateThemeColor',
+  UPDATE_THEME_RADIUS = 'updateThemeRadius',
+  CHOOSE_MAP_ENGINE = 'chooseMapEngine',
+  MAP_PROJECTION = 'mapProjection',
+  OPEN_HOTKEYS_MENU = 'openHotkeysMenu',
+  UPDATE_LANGUAGE = 'updateLanguage',
+  SIGN_OUT = 'signOut',
+}
 
 const places = [
   {
@@ -61,6 +78,8 @@ const places = [
   },
 ]
 
+// TODO: Move command options to separate file
+
 export const useCommandStore = defineStore('command', () => {
   const isDark = useDark()
   const toggleDark = useToggle(isDark)
@@ -70,18 +89,36 @@ export const useCommandStore = defineStore('command', () => {
   const mapService = useMapService()
   const { t, locale } = useI18n()
 
-  function getCommand(id: string) {
-    return commands.value.find(c => c.id === id)
+  const { mapEngine } = storeToRefs(useMapStore())
+
+  function getCommand(id: CommandName) {
+    const command = commands.value.find(c => c.id === id)
+
+    if (
+      command &&
+      (!command.engine || command.engine?.includes(mapEngine.value))
+    ) {
+      return command
+    }
+
+    return null
   }
 
-  function getCommandArgumentOptions(commandId: string, argumentId: string) {
+  function useCommand(id: CommandName) {
+    return computed(() => getCommand(id))
+  }
+
+  function getCommandArgumentOptions(
+    commandId: CommandName,
+    argumentId: string,
+  ) {
     const command = getCommand(commandId)
     if (!command) return
 
     return command.arguments?.find(arg => arg.id === argumentId)?.getItems()
   }
 
-  function bindCommandToFunction(id: string, action: Function) {
+  function bindCommandToFunction(id: CommandName, action: Function) {
     const command = getCommand(id)
     if (command) {
       command.action = action
@@ -91,14 +128,14 @@ export const useCommandStore = defineStore('command', () => {
   const commands = computed<Command[]>(() => {
     return [
       {
-        id: 'openPalette',
+        id: CommandName.OPEN_PALETTE,
         name: t('palette.commands.openPalette.name'),
         description: t('palette.commands.openPalette.description'),
         hotkey: ['mod', 'k'],
         icon: TerminalIcon,
       },
       {
-        id: 'search',
+        id: CommandName.SEARCH,
         name: t('palette.commands.search.name'),
         description: t('palette.commands.search.description'),
         hotkey: ['/'],
@@ -124,7 +161,7 @@ export const useCommandStore = defineStore('command', () => {
         ],
       },
       {
-        id: 'goto',
+        id: CommandName.GOTO,
         name: t('palette.commands.goto.name'),
         description: t('palette.commands.goto.description'),
         hotkey: ['mod', 'g'],
@@ -150,7 +187,7 @@ export const useCommandStore = defineStore('command', () => {
         ],
       },
       {
-        id: 'toggleTheme',
+        id: CommandName.TOGGLE_THEME,
         name: t('palette.commands.toggleTheme.name'),
         description: t('palette.commands.toggleTheme.description'),
         icon: SunMoonIcon,
@@ -159,7 +196,7 @@ export const useCommandStore = defineStore('command', () => {
         action: toggleDark,
       },
       {
-        id: 'updateThemeColor',
+        id: CommandName.UPDATE_THEME_COLOR,
         name: t('palette.commands.updateThemeColor.name'),
         description: t('palette.commands.updateThemeColor.description'),
         icon: PaletteIcon,
@@ -184,7 +221,7 @@ export const useCommandStore = defineStore('command', () => {
         ],
       },
       {
-        id: 'updateThemeRadius',
+        id: CommandName.UPDATE_THEME_RADIUS,
         name: t('palette.commands.updateThemeRadius.name'),
         description: t('palette.commands.updateThemeRadius.description'),
         icon: DraftingCompassIcon,
@@ -206,7 +243,7 @@ export const useCommandStore = defineStore('command', () => {
         ],
       },
       {
-        id: 'chooseMapEngine',
+        id: CommandName.CHOOSE_MAP_ENGINE,
         name: t('palette.commands.chooseMapEngine.name'),
         description: t('palette.commands.chooseMapEngine.description'),
         icon: CogIcon,
@@ -243,7 +280,31 @@ export const useCommandStore = defineStore('command', () => {
         ],
       },
       {
-        id: 'openHotkeysMenu',
+        id: CommandName.MAP_PROJECTION,
+        engine: [MapEngine.MAPBOX],
+        name: t('palette.commands.mapProjection.name'),
+        description: t('palette.commands.mapProjection.description'),
+        icon: GlobeIcon,
+        hotkey: ['p'],
+        action: mapService.setMapProjection,
+        arguments: [
+          {
+            id: 'projection',
+            name: t('palette.commands.mapProjection.arguments.projection.name'),
+            type: 'string',
+            getItems() {
+              return Object.values(MapProjection).map(projection => ({
+                value: projection,
+                name: t(
+                  `palette.commands.mapProjection.arguments.projection.values.${projection}`,
+                ),
+              }))
+            },
+          },
+        ],
+      },
+      {
+        id: CommandName.OPEN_HOTKEYS_MENU,
         name: t('palette.commands.openHotkeysMenu.name'),
         description: t('palette.commands.openHotkeysMenu.description'),
         keywords: t('palette.commands.openHotkeysMenu.keywords'),
@@ -251,7 +312,7 @@ export const useCommandStore = defineStore('command', () => {
         icon: HelpCircleIcon,
       },
       {
-        id: 'updateLanguage',
+        id: CommandName.UPDATE_LANGUAGE,
         name: t('palette.commands.updateLanguage.name'),
         description: t('palette.commands.updateLanguage.description'),
         keywords: t('palette.commands.updateLanguage.keywords'),
@@ -280,7 +341,7 @@ export const useCommandStore = defineStore('command', () => {
         ],
       },
       {
-        id: 'signOut',
+        id: CommandName.SIGN_OUT,
         name: t('palette.commands.signOut.name'),
         description: t('palette.commands.signOut.description'),
         keywords: t('palette.commands.signOut.keywords'),
@@ -292,6 +353,7 @@ export const useCommandStore = defineStore('command', () => {
 
   return {
     getCommand,
+    useCommand,
     getCommandArgumentOptions,
     bindCommandToFunction,
     commands,

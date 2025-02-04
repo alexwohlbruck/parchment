@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { useCommandService } from '@/services/command.service'
-import { useCommandStore } from '@/stores/command.store'
+import { CommandName, useCommandStore } from '@/stores/command.store'
 import Span from '@/components/ui/typography/Span.vue'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 
@@ -43,7 +43,10 @@ watch(open, value => {
   if (!value) query.value = ''
 })
 
-commandService.bindCommandToFunction('openHotkeysMenu', openHotkeysMenu)
+commandService.bindCommandToFunction(
+  CommandName.OPEN_HOTKEYS_MENU,
+  openHotkeysMenu,
+)
 </script>
 
 <template>

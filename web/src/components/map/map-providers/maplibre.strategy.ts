@@ -19,6 +19,7 @@ import {
   MapCamera,
   Pegman,
   MapillaryImage,
+  MapProjection,
 } from '@/types/map.types'
 
 import { Directions } from '@/types/directions.types'
@@ -280,6 +281,10 @@ export class MaplibreStrategy extends MapStrategy {
 
   togglePoiLabels() {
     // TODO:
+  }
+
+  setMapProjection(projection: MapProjection) {
+    return
   }
 
   getBasemapFromTheme() {

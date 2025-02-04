@@ -3,6 +3,7 @@ import {
   Layer,
   MapCamera,
   MapOptions,
+  MapProjection,
   MapTheme,
   Pegman,
 } from '@/types/map.types'
@@ -34,6 +35,8 @@ export class MapStrategy {
   unsetDirections() {}
   setPegman(pegman: Pegman) {}
   removePegman() {}
+  togglePoiLabels(value: boolean) {}
+  setMapProjection(projection: MapProjection) {}
   setMapTheme(theme: MapTheme) {}
   setBasemap(basemap: Basemap) {}
   removeSource(sourceId: string) {}

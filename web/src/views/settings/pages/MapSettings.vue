@@ -6,7 +6,8 @@ import { useAppService } from '@/services/app.service'
 import { useMapService } from '@/services/map.service'
 import { useMapStore } from '@/stores/map.store'
 import { useCommandStore } from '@/stores/command.store'
-import { type Layer, MapEngine } from '@/types/map.types'
+import { type Layer, MapEngine, MapProjection } from '@/types/map.types'
+import { CommandName } from '@/stores/command.store'
 
 import { Button } from '@/components/ui/button'
 import { SettingsSection, SettingsItem } from '@/components/settings'
@@ -18,7 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { PlusIcon } from 'lucide-vue-next'
+import { Switch } from '@/components/ui/switch'
+import { MountainSnowIcon, PlusIcon, Building2Icon } from 'lucide-vue-next'
 import LayerConfiguration from '@/components/map/layers/LayerConfiguration.vue'
 import Layers from '@/components/map/Layers.vue'
 
@@ -30,13 +32,8 @@ const { t } = useI18n()
 
 const { mapEngine } = storeToRefs(mapStore)
 
-const projectionLocal = localStorage.getItem('projection') || 'globe'
-const projection = ref(projectionLocal)
-
-watch(projection, value => {
-  localStorage.setItem('projection', value)
-  window.location.reload()
-})
+const engineCommand = commandStore.useCommand(CommandName.CHOOSE_MAP_ENGINE)
+const projectionCommand = commandStore.useCommand(CommandName.MAP_PROJECTION)
 
 function openLayerConfigDialog(layer: Layer) {
   appService.componentDialog({
@@ -60,8 +57,10 @@ const basemap = computed(() => {
     <!-- Map configuration -->
     <SettingsSection :title="$t('settings.mapSettings.engine.title')">
       <SettingsItem
-        :title="$t('palette.commands.chooseMapEngine.name')"
-        :description="$t('palette.commands.chooseMapEngine.description')"
+        v-if="engineCommand"
+        :title="engineCommand.name"
+        :description="engineCommand.description"
+        :icon="engineCommand.icon"
       >
         <Select
           v-model="mapEngine"
@@ -74,7 +73,7 @@ const basemap = computed(() => {
             <SelectGroup>
               <SelectItem
                 v-for="argumentOption in commandStore.getCommandArgumentOptions(
-                  'chooseMapEngine',
+                  CommandName.CHOOSE_MAP_ENGINE,
                   'engine',
                 )"
                 :value="argumentOption.value.toString()"
@@ -87,29 +86,43 @@ const basemap = computed(() => {
       </SettingsItem>
 
       <SettingsItem
-        title="Map projection"
-        v-if="mapEngine === MapEngine.MAPBOX"
+        v-if="projectionCommand"
+        :title="projectionCommand.name"
+        :description="projectionCommand.description"
+        :icon="projectionCommand.icon"
       >
-        <Select v-model="projection">
+        <Select
+          :model-value="mapStore.mapProjection"
+          @update:model-value="
+            mapService.setMapProjection($event as MapProjection)
+          "
+        >
           <SelectTrigger class="w-fit">
             <SelectValue placeholder="Choose an option" />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectItem value="globe">Globe</SelectItem>
-              <SelectItem value="mercator">Mercator</SelectItem>
-              <SelectItem value="equirectangular"> Equirectangular </SelectItem>
-              <SelectItem value="equalEarth">Equal Earth</SelectItem>
-              <SelectItem value="naturalEarth">Natural Earth</SelectItem>
-              <SelectItem value="winkelTripel">Winkel Tripel</SelectItem>
-              <SelectItem value="albers">Albers</SelectItem>
-              <SelectItem value="lambertConformalConic">
-                Lambert Conformal Conic
+              <SelectItem
+                v-for="argumentOption in commandStore.getCommandArgumentOptions(
+                  CommandName.MAP_PROJECTION,
+                  'projection',
+                )"
+                :value="argumentOption.value.toString()"
+              >
+                {{ argumentOption.name }}
               </SelectItem>
             </SelectGroup>
           </SelectContent>
-        </Select></SettingsItem
-      >
+        </Select>
+      </SettingsItem>
+
+      <SettingsItem title="3D terrain" :icon="MountainSnowIcon">
+        <Switch disabled />
+      </SettingsItem>
+
+      <SettingsItem title="3D buildings" :icon="Building2Icon">
+        <Switch disabled />
+      </SettingsItem>
     </SettingsSection>
 
     <SettingsSection title="Basemaps">

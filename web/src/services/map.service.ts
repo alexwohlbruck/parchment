@@ -1,6 +1,7 @@
 import {
   MapCamera,
   MapEngine,
+  MapProjection,
   MapTheme,
   StreetViewType,
   type Layer,
@@ -92,6 +93,11 @@ function mapService() {
     destroy()
     mapStore.setMapEngine(mapEngine)
     mapStrategy = initializeMap(mapContainer, mapEngine)
+  }
+
+  function setMapProjection(projection: MapProjection) {
+    mapStore.setMapProjection(projection)
+    mapStrategy.setMapProjection(projection)
   }
 
   function resize() {
@@ -190,6 +196,7 @@ function mapService() {
     flyTo,
     jumpTo,
     setMapEngine,
+    setMapProjection,
     destroy,
     on,
     off,

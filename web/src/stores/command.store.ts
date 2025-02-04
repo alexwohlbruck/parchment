@@ -91,13 +91,18 @@ export const useCommandStore = defineStore('command', () => {
 
   const { mapEngine } = storeToRefs(useMapStore())
 
-  function getCommand(id: CommandName) {
-    const command = commands.value.find(c => c.id === id)
+  function commandIsAvailable(command: Command) {
+    if (!command.engine || command.engine?.includes(mapEngine.value)) {
+      return true
+    }
 
-    if (
-      command &&
-      (!command.engine || command.engine?.includes(mapEngine.value))
-    ) {
+    return false
+  }
+
+  function getCommand(id: CommandName) {
+    const command = commands.value.find(c => c.id === id)!
+
+    if (commandIsAvailable(command)) {
       return command
     }
 
@@ -121,7 +126,11 @@ export const useCommandStore = defineStore('command', () => {
   function bindCommandToFunction(id: CommandName, action: Function) {
     const command = getCommand(id)
     if (command) {
-      command.action = action
+      command.action = (...args: any[]) => {
+        if (commandIsAvailable(command)) {
+          action(...args)
+        }
+      }
     }
   }
 
@@ -247,7 +256,7 @@ export const useCommandStore = defineStore('command', () => {
         name: t('palette.commands.chooseMapEngine.name'),
         description: t('palette.commands.chooseMapEngine.description'),
         icon: CogIcon,
-        hotkey: ['l'],
+        hotkey: ['e'],
         action: mapService.setMapEngine,
         arguments: [
           {
@@ -352,6 +361,7 @@ export const useCommandStore = defineStore('command', () => {
   })
 
   return {
+    commandIsAvailable,
     getCommand,
     useCommand,
     getCommandArgumentOptions,

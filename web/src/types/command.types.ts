@@ -1,6 +1,7 @@
 import { Component } from 'vue'
 import { Icon } from '@/types/app.types'
 import { MapEngine } from '@/types/map.types'
+import { CommandName } from '@/stores/command.store'
 
 export type Hotkey = string[]
 
@@ -12,7 +13,7 @@ export type PaletteItem = {
 }
 
 export type Command = PaletteItem & {
-  id: string
+  id: CommandName
   engine?: MapEngine[]
   hotkey?: Hotkey
   action?: Function

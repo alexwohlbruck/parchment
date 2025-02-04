@@ -41,30 +41,37 @@ function commandService() {
     argumentsList.value = []
   }
 
-  function bindHotkeyToCommand(command: Command) {
-    if (!command.hotkey || !command.action) return
+  function bindHotkeyToCommand(id: CommandName) {
+    const command = commandStore.useCommand(id)
+    if (!command.value?.hotkey || !command.value?.action) return
 
-    const bindingString = command.hotkey.join('+')
+    const bindingString = command.value.hotkey.join('+')
 
     mousetrap.bind(bindingString, e => {
-      if (command.action) {
+      if (
+        command.value &&
+        command.value.action &&
+        commandStore.commandIsAvailable(command.value)
+      ) {
         e.preventDefault()
-        executeCommand(command)
+        executeCommand(command.value)
       }
     })
   }
 
   function bindAllHotkeysToCommands() {
     commandStore.commands.forEach(command => {
-      bindHotkeyToCommand(command)
+      bindHotkeyToCommand(command.id)
     })
   }
 
   function bindCommandToFunction(id: CommandName, f: Function) {
-    commandStore.bindCommandToFunction(id, f)
     const command = commandStore.commands.find(c => c.id === id)
+    if (command && !commandStore.commandIsAvailable(command)) return
+
+    commandStore.bindCommandToFunction(id, f)
     if (command) {
-      bindHotkeyToCommand(command)
+      bindHotkeyToCommand(command.id)
     }
   }
 

@@ -47,7 +47,9 @@ bindCommandToFunction(CommandName.OPEN_PALETTE, focusInput)
 const filteredCommands = computed(() => {
   // Don't include the openPalette command in the results, we are already looking at the search palette
   return commandStore.commands.filter(
-    command => command.id != CommandName.OPEN_PALETTE,
+    command =>
+      command.id != CommandName.OPEN_PALETTE &&
+      commandStore.commandIsAvailable(command),
   )
 })
 

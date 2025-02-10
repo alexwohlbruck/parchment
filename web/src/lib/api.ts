@@ -38,6 +38,12 @@ function getErrorMessage(error: AxiosError): {
     }
   }
 
+  if (error.message) {
+    return {
+      title: error.message,
+    }
+  }
+
   // TODO: How to get i18n in interceptor?
   // const { t } = useI18n()
 

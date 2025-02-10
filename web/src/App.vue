@@ -92,7 +92,7 @@ onMounted(() => {
       </transition-slide>
     </template>
 
-    <main class="flex-1 h-full">
+    <main class="flex-1 h-dvh">
       <router-view v-slot="{ Component }">
         <keep-alive include="Map">
           <component :is="Component" />

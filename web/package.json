@@ -8,7 +8,7 @@
     "dev:ios": "bun tauri ios dev",
     "dev:android": "bun tauri android dev",
     "build": "vue-tsc && vite build",
-    "build:ios": "bun tauri ios build 'iPhone 16",
+    "build:ios": "bun tauri ios build",
     "build:android": "bun tauri android build",
     "preview": "vite preview",
     "docker:dev": "docker-compose up --build",

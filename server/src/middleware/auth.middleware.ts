@@ -12,44 +12,78 @@ import {
 } from '../schema/permission.schema'
 import { getPermissions, hasPermission } from '../services/auth.service'
 import { PermissionRule } from '../types/auth.types'
+import { sessions } from '../schema/session.schema'
+import { eq } from 'drizzle-orm'
+
+/**
+ * Extract session ID from either cookie or bearer token
+ */
+async function getSessionId(request: Request) {
+  // Try bearer token first
+  const authHeader = request.headers.get('Authorization')
+  if (authHeader?.startsWith('Bearer ')) {
+    return authHeader.slice(7)
+  }
+
+  // Fallback to cookie
+  const cookieHeader = request.headers.get('Cookie') ?? ''
+  return lucia.readSessionCookie(cookieHeader)
+}
 
 export const getSession = (app: Elysia) =>
   app.derive(
     async ({
       request,
       cookie,
+      set,
     }): Promise<{
       user: User | null
+      session: Session | null
     }> => {
-      // CSRF check for sessions
-      if (request.method !== 'GET') {
+      // CSRF check for cookie-based auth
+      const isUsingCookie = request.headers
+        .get('Cookie')
+        ?.includes('auth_session')
+      if (isUsingCookie && request.method !== 'GET') {
         const originHeader = request.headers.get('Origin')
         const hostHeader = request.headers.get('Host')
 
         if (
           !originHeader ||
           !hostHeader ||
-          !verifyRequestOrigin(originHeader, [hostHeader, origins.clientOrigin])
+          !verifyRequestOrigin(originHeader, [
+            hostHeader,
+            origins.clientOrigin!,
+          ])
         ) {
           return {
             user: null,
+            session: null,
           }
         }
       }
 
-      // const sessionId = lucia_session.value
-      const cookieHeader = request.headers.get('Cookie') ?? ''
-      const sessionId = lucia.readSessionCookie(cookieHeader)
+      const sessionId = await getSessionId(request)
       if (!sessionId) {
         return {
           user: null,
+          session: null,
         }
       }
 
-      const { session, user } = await lucia.validateSession(sessionId)
-      if (session && session.fresh) {
-        const sessionCookie = lucia.createSessionCookie(session.id)
+      const result = await lucia.validateSession(sessionId)
+      if (!result.session || !result.user) {
+        return {
+          user: null,
+          session: null,
+        }
+      }
 
+      const { session, user } = result
+
+      // Only set cookie if using cookie auth
+      if (isUsingCookie && session.fresh) {
+        const sessionCookie = lucia.createSessionCookie(session.id)
         cookie[sessionCookie.name].set({
           value: sessionCookie.value,
           ...sessionCookie.attributes,
@@ -58,18 +92,20 @@ export const getSession = (app: Elysia) =>
 
       return {
         user,
+        session,
       }
     },
   )
 
 // Use getSession to get user ID, return 401 if user is not authenticated
 export const requireAuth = (app: Elysia) =>
-  app.use(getSession).derive(async ({ set, user, error }) => {
-    if (!user) {
+  app.use(getSession).derive(async ({ set, user, session, error }) => {
+    if (!user || !session) {
       return error(401, { message: 'You must be signed in' }) // TODO: i18n
     }
     return {
       user,
+      session,
     }
   })
 

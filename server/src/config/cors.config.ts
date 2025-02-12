@@ -7,6 +7,7 @@ export default {
     clientHostname,
     'tauri://localhost',
     'http://tauri.localhost',
+    'http://tauri.localhost/',
     'http://10.0.2.2:5173',
   ],
   credentials: true,

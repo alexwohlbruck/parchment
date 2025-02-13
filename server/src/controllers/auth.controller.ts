@@ -2,7 +2,11 @@ import Elysia, { t } from 'elysia'
 import { and, eq, desc } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from '../schema/user.schema'
-import { getSession, requireAuth } from '../middleware/auth.middleware'
+import {
+  getSession,
+  requireAuth,
+  getSessionId,
+} from '../middleware/auth.middleware'
 import { origins } from '../config'
 import { Passkey, passkeys } from '../schema/passkey.schema'
 import { sessions } from '../schema/session.schema'
@@ -192,7 +196,7 @@ app.group('/passkeys', (app) => {
 
     app.post(
       'verify',
-      async ({ body, cookie: { challenge }, set, headers, error }) => {
+      async ({ body, cookie: { challenge }, set, headers, error, request }) => {
         if (!challenge.value) {
           return error(401, { message: 'Could not find challenge cookie' }) // TODO: i18n
         }
@@ -228,7 +232,7 @@ app.group('/passkeys', (app) => {
           })
           set.status = 201
           return {
-            token: session.id,
+            token: getSessionId(request),
             user,
           }
         }
@@ -279,6 +283,7 @@ app.group('/sessions', (app) => {
       const {
         body: { email, token },
         error,
+        request,
       } = context
       const user = await fetchUserByEmail(email)
 
@@ -294,7 +299,7 @@ app.group('/sessions', (app) => {
       const session = await createSession(user.id, context)
 
       return {
-        token: session.id,
+        token: getSessionId(request),
         user,
       }
     },
@@ -333,17 +338,18 @@ app.group('/sessions', (app) => {
 
   app.use(getSession).get(
     'current',
-    async ({ user, set, cookie }) => {
+    async ({ user, set, request }) => {
       if (!user) {
         set.status = 204
         return null
       }
 
-      const sessionCookie = cookie['auth_session']
+      const sessionId = getSessionId(request)
       const me = (await db.select().from(users).where(eq(users.id, user.id)))[0]
+
       return {
         user: me,
-        token: sessionCookie.value,
+        token: sessionId,
       }
     },
     {

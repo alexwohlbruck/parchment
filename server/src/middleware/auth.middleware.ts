@@ -18,15 +18,14 @@ import { eq } from 'drizzle-orm'
 /**
  * Extract session ID from either cookie or bearer token
  */
-async function getSessionId(request: Request) {
-  // Try bearer token first
+export function getSessionId(request: Request) {
   const authHeader = request.headers.get('Authorization')
   if (authHeader?.startsWith('Bearer ')) {
     return authHeader.slice(7)
   }
 
-  // Fallback to cookie
   const cookieHeader = request.headers.get('Cookie') ?? ''
+  console.log(cookieHeader)
   return lucia.readSessionCookie(cookieHeader)
 }
 
@@ -63,7 +62,7 @@ export const getSession = (app: Elysia) =>
         }
       }
 
-      const sessionId = await getSessionId(request)
+      const sessionId = getSessionId(request)
       if (!sessionId) {
         return {
           user: null,

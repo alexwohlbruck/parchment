@@ -1,14 +1,33 @@
-import { api } from '@/lib/api'
+import { api, isTauri } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
 import { createSharedComposable } from '@vueuse/core'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 import { Session } from '@/types/session.types'
 import { PermissionId, PermissionRule, User } from '@/types/auth.types'
+import { auth as deviceStore } from '@/lib/device-store'
 
-// TODO: Return types
+function setAuthHeader(token: string | null) {
+  if (token) {
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+  } else {
+    delete api.defaults.headers.common['Authorization']
+  }
+  console.log(api)
+}
 
 function authService() {
   const authStore = useAuthStore()
+
+  async function loadToken() {
+    if (isTauri) {
+      const token = await deviceStore.getToken()
+      if (token) {
+        authStore.setAuthToken(token)
+        setAuthHeader(token)
+      }
+      return token
+    }
+  }
 
   async function getPermissions() {
     const {
@@ -18,15 +37,17 @@ function authService() {
   }
 
   async function getAuthenticatedUser() {
+    const localAuthToken = await loadToken()
     const authenticatedUserPromise = api.get('auth/sessions/current')
     authStore.setAuthenticatedUserPromise(authenticatedUserPromise)
+
     const {
       data: { user, token: sessionId },
     } = await authenticatedUserPromise
     if (user) {
       setAuthenticatedUser(user, sessionId)
     } else {
-      authStore.unsetAuthenticatedUser()
+      // authStore.unsetAuthenticatedUser()
     }
     return {
       user,
@@ -35,6 +56,7 @@ function authService() {
 
   async function setAuthenticatedUser(user: User, sessionId: Session['id']) {
     authStore.setAuthenticatedUser(user, sessionId)
+    setAuthHeader(sessionId)
     getPermissions()
   }
 
@@ -43,29 +65,31 @@ function authService() {
   }
 
   async function signIn(email: string, token: string) {
-    const response = await api.post(
-      'auth/sessions',
-      {
-        method: 'otp',
-        email,
-        token,
-      },
-      {
-        withCredentials: true,
-      },
-    )
+    const response = await api.post('auth/sessions', {
+      method: 'otp',
+      email,
+      token,
+    })
 
     const {
       data: { user, token: sessionId },
     } = response
+
+    if (isTauri) {
+      await deviceStore.setToken(sessionId)
+    }
+
     setAuthenticatedUser(user, sessionId)
     return response
   }
 
   async function signOut() {
     const response = await api.delete('auth/sessions')
+    if (isTauri) {
+      await deviceStore.clearToken()
+    }
+    setAuthHeader(null)
     authStore.unsetAuthenticatedUser()
-
     return response
   }
 
@@ -176,6 +200,7 @@ function authService() {
   }
 
   return {
+    loadToken,
     getAuthenticatedUser,
     getPermissions,
     verifyEmail,

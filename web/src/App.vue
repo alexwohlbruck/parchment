@@ -35,11 +35,7 @@ const requestReceived = ref(false)
 const serversSpinning = ref(false)
 
 onMounted(() => {
-  setTimeout(() => {
-    if (!requestReceived.value) {
-      serversSpinning.value = true
-    }
-  }, 1000)
+  serversSpinning.value = true
   authService.getAuthenticatedUser().then(() => {
     requestReceived.value = true
     serversSpinning.value = false

@@ -2,14 +2,37 @@ import { capitalize } from '@/filters/text.filters'
 import axios, { AxiosError } from 'axios'
 import { useI18n } from 'vue-i18n'
 import { toast } from 'vue-sonner'
+import { platform } from '@tauri-apps/plugin-os'
 
-export const api = axios.create({
-  withCredentials: true,
-  baseURL:
+export const isTauri = !!window.isTauri
+
+const baseUrl = () => {
+  if (isTauri) {
+    const currentPlatform = platform()
+    // Tauri on Android doesn't expose local servers on localhost, rather 10.0.2.2
+    if (
+      currentPlatform === 'android' &&
+      process.env.NODE_ENV === 'development'
+    ) {
+      return (
+        import.meta.env.VITE_TAURI_ANDROID_SERVER_ORIGIN ??
+        import.meta.env.VITE_SERVER_ORIGIN
+      )
+    }
+    return import.meta.env.VITE_SERVER_ORIGIN
+  }
+
+  return (
     import.meta.env.VITE_SERVER_ORIGIN ??
     (process.env.NODE_ENV === 'production'
       ? 'https://api.parchment.app'
-      : 'http://localhost:5000'),
+      : 'http://localhost:5000')
+  )
+}
+
+export const api = axios.create({
+  withCredentials: !isTauri, // Only use credentials for web
+  baseURL: baseUrl(),
 })
 
 function getErrorMessage(error: AxiosError): {

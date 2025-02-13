@@ -232,7 +232,7 @@ app.group('/passkeys', (app) => {
           })
           set.status = 201
           return {
-            token: getSessionId(request),
+            token: session.id,
             user,
           }
         }
@@ -283,7 +283,6 @@ app.group('/sessions', (app) => {
       const {
         body: { email, token },
         error,
-        request,
       } = context
       const user = await fetchUserByEmail(email)
 
@@ -299,7 +298,7 @@ app.group('/sessions', (app) => {
       const session = await createSession(user.id, context)
 
       return {
-        token: getSessionId(request),
+        token: session.id,
         user,
       }
     },

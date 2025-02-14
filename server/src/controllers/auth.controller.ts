@@ -55,11 +55,16 @@ app.post(
       // )[0]
     }
 
-    const verificationCode = await createServerToken('otp', user.id)
-    const emailSuccess = await sendEmailVerificationCode(
-      user.email,
-      verificationCode,
+    const isAppTester = user.email === process.env.APP_TESTER_EMAIL
+
+    const verificationCode = await createServerToken(
+      'otp',
+      user.id,
+      isAppTester ? '00000000' : undefined,
     )
+    const emailSuccess = isAppTester
+      ? true
+      : await sendEmailVerificationCode(user.email, verificationCode)
 
     if (emailSuccess) {
       set.status = 201

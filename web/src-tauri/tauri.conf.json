@@ -1,13 +1,13 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "parchment",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "identifier": "app.parchment",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "bun dev",
-    "beforeBuildCommand": "bun run build"
+    "beforeBuildCommand": "VITE_SERVER_ORIGIN='https://api.parchment.app' bun run build"
   },
   "app": {
     "windows": [

@@ -27,9 +27,9 @@ export const roles: Role[] = [
     description:
       'A privileged user that is able to read all data in the app, but has limited write permissions',
     permissions: [
-      Permission.USERS_READ,
-      Permission.ROLES_READ,
-      Permission.PERMISSIONS_READ,
+      // Permission.USERS_READ,
+      // Permission.ROLES_READ,
+      // Permission.PERMISSIONS_READ,
       Permission.SYSTEM_READ,
     ],
   },

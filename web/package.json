@@ -1,7 +1,7 @@
 {
   "name": "parchment",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -9,7 +9,8 @@
     "dev:android": "bun tauri android dev",
     "build": "vue-tsc && vite build",
     "build:ios": "bun tauri ios build",
-    "build:android": "bun tauri android build",
+    "build:android": "bun tauri android build --aab",
+    "build:android:apk": "bun tauri android build --apk --verbose",
     "tauri:clean": "cd src-tauri && cargo clean",
     "preview": "vite preview",
     "docker:dev": "docker-compose up --build",

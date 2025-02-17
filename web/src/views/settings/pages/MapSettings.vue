@@ -121,7 +121,7 @@ const basemap = computed(() => {
       </SettingsItem>
 
       <SettingsItem title="3D buildings" :icon="Building2Icon">
-        <Switch disabled />
+        <Switch disabled :checked="true" />
       </SettingsItem>
     </SettingsSection>
 

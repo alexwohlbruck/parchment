@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
+    "dev:desktop": "bun tauri dev",
     "dev:ios": "bun tauri ios dev",
-    "dev:android": "bun tauri android dev",
+    "dev:android": "adb reverse tcp:5000 tcp:5000 && bun tauri android dev",
     "build": "vue-tsc && vite build",
     "build:ios": "bun tauri ios build",
     "build:android": "bun tauri android build --aab",

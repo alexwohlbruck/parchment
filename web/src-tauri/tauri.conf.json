@@ -35,6 +35,9 @@
     ],
     "iOS": {
       "developmentTeam": "app.parchment"
+    },
+    "android": {
+      "versionCode": 2
     }
   }
 }

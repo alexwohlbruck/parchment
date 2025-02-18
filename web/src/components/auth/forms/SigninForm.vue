@@ -4,6 +4,8 @@ import * as z from 'zod'
 import { useForm, useIsFormValid } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import { useAuthService } from '@/services/auth.service'
+import { useAppService } from '@/services/app.service'
+import { isTauri } from '@/lib/api'
 
 import { Input } from '@/components/ui/input'
 import { FingerprintIcon } from 'lucide-vue-next'
@@ -19,6 +21,7 @@ import {
 } from '@/components/ui/form'
 
 const authService = useAuthService()
+const appService = useAppService()
 const email = ref('')
 const awaitingPasskey = ref(false)
 
@@ -38,6 +41,9 @@ async function requestOtp() {
 }
 
 async function startPasskeySignin() {
+  if (isTauri) {
+    return appService.toast('Passkey sign in not supported') // TODO: i18n
+  }
   awaitingPasskey.value = true
   try {
     await authService.signInWithPasskey(false)
@@ -81,13 +87,14 @@ const isFormValid = useIsFormValid()
     </Button>
   </form>
 
-  <div class="flex w-full items-center">
+  <div class="flex w-full items-center" v-if="!isTauri">
     <hr class="flex-1" />
     <span class="px-3 text-sm font-semibold">Or</span>
     <hr class="flex-1" />
   </div>
 
   <Button
+    v-if="!isTauri"
     @click="startPasskeySignin"
     :icon="FingerprintIcon"
     :loading="awaitingPasskey"

@@ -1,11 +1,18 @@
 {
   "name": "parchment",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
+    "dev:desktop": "bun tauri dev",
+    "dev:ios": "bun tauri ios dev",
+    "dev:android": "sh -c 'sleep 5 && adb reverse tcp:5000 tcp:5000' & bun tauri android dev",
     "build": "vue-tsc && vite build",
+    "build:ios": "bun tauri ios build",
+    "build:android": "bun tauri android build --aab",
+    "build:android:apk": "bun tauri android build --apk --verbose",
+    "tauri:clean": "cd src-tauri && cargo clean",
     "preview": "vite preview",
     "docker:dev": "docker-compose up --build",
     "docker:prod": "docker build -t parchment-frontend . && docker run -d -p 8080:80 parchment-frontend"
@@ -19,6 +26,8 @@
     "@morev/vue-transitions": "^3.0.2",
     "@simplewebauthn/browser": "^10.0.0",
     "@tanstack/vue-table": "^8.17.0",
+    "@tauri-apps/plugin-os": "~2",
+    "@tauri-apps/plugin-store": "~2",
     "@vee-validate/zod": "^4.12.8",
     "@vueuse/core": "^12.3.0",
     "axios": "^1.6.8",
@@ -48,6 +57,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.2.7",
     "@types/mapbox-gl": "^2.7.21",
     "@types/node": "^20.12.11",
     "@types/vue-router": "^2.0.0",

@@ -1,6 +1,13 @@
 **/node_modules
 **/.git
-**/.env
 **/dist
+**/.cache
+**/.env
+**/coverage
 **/.DS_Store
+**/build
+**/target
+**/*.rs.bk
+**/*.pdb
 **/*.log
+web/src-tauri

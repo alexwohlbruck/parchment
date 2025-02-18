@@ -57,13 +57,16 @@ const items = computed(() => {
 </script>
 
 <template>
-  <div class="p-2 gap-1 absolute bottom-0 z-10 w-full">
-    <Card class="bg-muted shadow-md">
-      <div class="pt-1 px-1 relative z-11">
+  <div class="gap-1 fixed bottom-0 z-50 w-full">
+    <Card
+      class="flex flex-col gap-2 p-2 bg-muted shadow-md rounded-b-none border-0 pb-[min(calc(env(safe-area-inset-bottom)-.25rem), 1rem)]"
+    >
+      <div class="relative z-11">
         <Palette />
       </div>
+
       <Tabs v-model="routeModel" default-value="/" class="w-full">
-        <TabsList class="w-full h-16">
+        <TabsList class="w-full h-16 px-0">
           <TabsTrigger
             v-for="(item, i) in items"
             class="flex-1 h-full flex-col gap-1"

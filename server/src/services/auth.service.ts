@@ -25,7 +25,7 @@ export const rpID = origins.clientHostname.replace(/:\d+$/, '') // Remove port n
 /**
  * Create a new session for a user, sign in
  * @param userId The user's ID
- * @param set Elysia set object
+ * @param context Request context
  * @returns Newly created session
  */
 export async function createSession(
@@ -33,14 +33,20 @@ export async function createSession(
   { set, headers }: { set: Context['set']; headers: Context['headers'] },
 ) {
   const session = await lucia.createSession(userId, {})
-  const sessionCookie = lucia.createSessionCookie(session.id)
+
+  // Check if client wants cookie auth
+  const wantsCookie = !headers['authorization']
+  if (wantsCookie) {
+    const sessionCookie = lucia.createSessionCookie(session.id)
+    set.cookie = {
+      auth_session: {
+        value: sessionCookie.value,
+        ...sessionCookie.attributes,
+      },
+    }
+  }
 
   set.status = 201
-  set.headers = {
-    ...set.headers,
-    Location: '/',
-    'Set-Cookie': sessionCookie.serialize(),
-  }
 
   // TODO: Set ip address
   await db

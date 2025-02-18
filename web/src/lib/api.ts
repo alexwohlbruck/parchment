@@ -3,8 +3,10 @@ import axios, { AxiosError } from 'axios'
 import { useI18n } from 'vue-i18n'
 import { toast } from 'vue-sonner'
 
+export const isTauri = !!window.isTauri
+
 export const api = axios.create({
-  withCredentials: true,
+  withCredentials: !isTauri, // Only use credentials for web
   baseURL:
     import.meta.env.VITE_SERVER_ORIGIN ??
     (process.env.NODE_ENV === 'production'
@@ -35,6 +37,12 @@ function getErrorMessage(error: AxiosError): {
   if (response?.status || response?.statusText) {
     return {
       title: response.statusText || response.status.toString(),
+    }
+  }
+
+  if (error.message) {
+    return {
+      title: error.message,
     }
   }
 

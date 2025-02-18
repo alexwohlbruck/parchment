@@ -65,9 +65,10 @@ watch(
   </div>
 
   <div
-    class="w-full absolute right-0 z-50 p-2 flex flex-col gap-2 items-end pointer-events-none"
+    class="w-full absolute right-0 z-40 p-2 flex flex-col gap-2 items-end pointer-events-none"
     :class="{
-      'bottom-[7.5rem] md:bottom-0': route.meta.layout === 'floating',
+      'bottom-[calc(8.25rem+env(safe-area-inset-bottom))] md:bottom-0':
+        route.meta.layout === 'floating',
       'bottom-0': route.meta.layout !== 'floating',
     }"
   >

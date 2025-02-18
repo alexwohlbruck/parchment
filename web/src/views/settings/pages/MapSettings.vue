@@ -20,7 +20,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { MountainSnowIcon, PlusIcon, Building2Icon } from 'lucide-vue-next'
+import {
+  MountainSnowIcon,
+  PlusIcon,
+  Building2Icon,
+  MapIcon,
+  MilestoneIcon,
+  InfoIcon,
+  TrainIcon,
+  MapPinIcon,
+} from 'lucide-vue-next'
 import LayerConfiguration from '@/components/map/layers/LayerConfiguration.vue'
 import Layers from '@/components/map/Layers.vue'
 
@@ -30,7 +39,15 @@ const appService = useAppService()
 const mapService = useMapService()
 const { t } = useI18n()
 
-const { mapEngine, map3dTerrain, map3dBuildings } = storeToRefs(mapStore)
+const {
+  mapEngine,
+  map3dTerrain,
+  map3dBuildings,
+  mapPoiLabels,
+  mapRoadLabels,
+  mapTransitLabels,
+  mapPlaceLabels,
+} = storeToRefs(mapStore)
 
 const engineCommand = commandStore.useCommand(CommandName.CHOOSE_MAP_ENGINE)
 const projectionCommand = commandStore.useCommand(CommandName.MAP_PROJECTION)
@@ -131,6 +148,43 @@ const basemap = computed(() => {
           disabled
           :checked="map3dBuildings"
           @click="mapService.toggle3dBuildings()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.configuration.poiLabels')"
+        :icon="InfoIcon"
+      >
+        <Switch :checked="mapPoiLabels" @click="mapService.togglePoiLabels()" />
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.configuration.roadLabels')"
+        :icon="MilestoneIcon"
+      >
+        <Switch
+          :checked="mapRoadLabels"
+          @click="mapService.toggleRoadLabels()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.configuration.transitLabels')"
+        :icon="TrainIcon"
+      >
+        <Switch
+          :checked="mapTransitLabels"
+          @click="mapService.toggleTransitLabels()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.configuration.placeLabels')"
+        :icon="MapPinIcon"
+      >
+        <Switch
+          :checked="mapPlaceLabels"
+          @click="mapService.togglePlaceLabels()"
         />
       </SettingsItem>
     </SettingsSection>

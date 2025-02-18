@@ -347,6 +347,18 @@ export class MapboxStrategy extends MapStrategy {
     )
   }
 
+  setRoadLabels(value: boolean) {
+    this.mapInstance.setConfigProperty('basemap', 'showRoadLabels', value)
+  }
+
+  setTransitLabels(value: boolean) {
+    this.mapInstance.setConfigProperty('basemap', 'showTransitLabels', value)
+  }
+
+  setPlaceLabels(value: boolean) {
+    this.mapInstance.setConfigProperty('basemap', 'showPlaceLabels', value)
+  }
+
   setMapProjection(projection: MapProjection) {
     this.mapInstance.setProjection(projection)
   }

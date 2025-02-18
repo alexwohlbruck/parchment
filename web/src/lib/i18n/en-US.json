@@ -287,7 +287,11 @@
       "configuration": {
         "title": "Map configuration",
         "3dTerrain": "3D terrain",
-        "3dBuildings": "3D buildings"
+        "3dBuildings": "3D buildings",
+        "poiLabels": "POI labels",
+        "roadLabels": "Road labels",
+        "transitLabels": "Transit labels",
+        "placeLabels": "Place labels"
       },
       "basemaps": {
         "title": "Basemaps",

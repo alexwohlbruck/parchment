@@ -22,21 +22,28 @@ const emitter = mitt<MapEvents>()
 
 export const useMapStore = defineStore('map', () => {
   let mapStrategy: MapStrategy
-
   function setMapStrategy(map: MapStrategy) {
     mapStrategy = map
   }
 
   const mapEngine = ref<MapEngine>(MapEngine.MAPBOX)
-
   function setMapEngine(engine: MapEngine) {
     mapEngine.value = engine
   }
 
   const mapProjection = ref<MapProjection>(MapProjection.GLOBE)
-
   function setMapProjection(projection: MapProjection) {
     mapProjection.value = projection
+  }
+
+  const map3dTerrain = ref<boolean>(false)
+  function setMap3dTerrain(value?: boolean) {
+    map3dTerrain.value = value ?? !map3dTerrain.value
+  }
+
+  const map3dBuildings = ref<boolean>(false)
+  function setMap3dBuildings(value?: boolean) {
+    map3dBuildings.value = value ?? !map3dBuildings.value
   }
 
   const mapCamera = useStorage<MapCamera>('map-camera', {
@@ -45,7 +52,6 @@ export const useMapStore = defineStore('map', () => {
     bearing: 0,
     pitch: 0,
   })
-
   function setMapCamera(camera: MapCamera) {
     mapCamera.value = camera
   }
@@ -171,6 +177,10 @@ export const useMapStore = defineStore('map', () => {
     setMapEngine,
     mapProjection,
     setMapProjection,
+    map3dTerrain,
+    setMap3dTerrain,
+    map3dBuildings,
+    setMap3dBuildings,
     mapCamera,
     setMapCamera,
     on,

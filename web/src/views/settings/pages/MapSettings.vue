@@ -30,7 +30,7 @@ const appService = useAppService()
 const mapService = useMapService()
 const { t } = useI18n()
 
-const { mapEngine } = storeToRefs(mapStore)
+const { mapEngine, map3dTerrain, map3dBuildings } = storeToRefs(mapStore)
 
 const engineCommand = commandStore.useCommand(CommandName.CHOOSE_MAP_ENGINE)
 const projectionCommand = commandStore.useCommand(CommandName.MAP_PROJECTION)
@@ -120,14 +120,18 @@ const basemap = computed(() => {
         :title="$t('settings.mapSettings.configuration.3dTerrain')"
         :icon="MountainSnowIcon"
       >
-        <Switch disabled />
+        <Switch :checked="map3dTerrain" @click="mapService.toggle3dTerrain()" />
       </SettingsItem>
 
       <SettingsItem
         :title="$t('settings.mapSettings.configuration.3dBuildings')"
         :icon="Building2Icon"
       >
-        <Switch disabled :checked="true" />
+        <Switch
+          disabled
+          :checked="map3dBuildings"
+          @click="mapService.toggle3dBuildings()"
+        />
       </SettingsItem>
     </SettingsSection>
 

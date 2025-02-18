@@ -128,6 +128,50 @@ function mapService() {
     },
   )
 
+  function togglePoiLabels(value?: boolean) {
+    mapStore.setMapPoiLabels(value)
+  }
+
+  watch(
+    () => mapStore.mapPoiLabels,
+    value => {
+      mapStrategy?.setPoiLabels(value)
+    },
+  )
+
+  function toggleRoadLabels(value?: boolean) {
+    mapStore.setMapRoadLabels(value)
+  }
+
+  watch(
+    () => mapStore.mapRoadLabels,
+    value => {
+      mapStrategy?.setRoadLabels(value)
+    },
+  )
+
+  function toggleTransitLabels(value?: boolean) {
+    mapStore.setMapTransitLabels(value)
+  }
+
+  watch(
+    () => mapStore.mapTransitLabels,
+    value => {
+      mapStrategy?.setTransitLabels(value)
+    },
+  )
+
+  function togglePlaceLabels(value?: boolean) {
+    mapStore.setMapPlaceLabels(value)
+  }
+
+  watch(
+    () => mapStore.mapPlaceLabels,
+    value => {
+      mapStrategy?.setPlaceLabels(value)
+    },
+  )
+
   function resize() {
     mapStrategy.resize()
   }
@@ -227,6 +271,10 @@ function mapService() {
     setMapProjection,
     toggle3dTerrain,
     toggle3dBuildings,
+    togglePoiLabels,
+    toggleRoadLabels,
+    toggleTransitLabels,
+    togglePlaceLabels,
     destroy,
     on,
     off,

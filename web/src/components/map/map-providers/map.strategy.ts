@@ -36,6 +36,9 @@ export class MapStrategy {
   setPegman(pegman: Pegman) {}
   removePegman() {}
   setPoiLabels(value: boolean) {}
+  setRoadLabels(value: boolean) {}
+  setTransitLabels(value: boolean) {}
+  setPlaceLabels(value: boolean) {}
   setMapProjection(projection: MapProjection) {}
   setMap3dTerrain(value: boolean) {}
   setMap3dBuildings(value: boolean) {}

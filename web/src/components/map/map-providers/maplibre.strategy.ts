@@ -279,8 +279,80 @@ export class MaplibreStrategy extends MapStrategy {
     }
   }
 
-  setPoiLabels() {
-    // TODO:
+  setPoiLabels(value: boolean) {
+    const poiLayers = this.mapInstance.getStyle().layers.filter(layer => {
+      return (
+        layer.id.includes('poi') ||
+        layer.id.includes('point_of_interest') ||
+        layer.id.includes('place')
+      )
+    })
+
+    poiLayers.forEach(layer => {
+      this.mapInstance.setLayoutProperty(
+        layer.id,
+        'visibility',
+        value ? 'visible' : 'none',
+      )
+    })
+  }
+
+  setRoadLabels(value: boolean) {
+    const roadLabelLayers = this.mapInstance.getStyle().layers.filter(layer => {
+      return (
+        layer.id.includes('road-label') ||
+        layer.id.includes('road-name') ||
+        layer.id.includes('road-number')
+      )
+    })
+
+    roadLabelLayers.forEach(layer => {
+      this.mapInstance.setLayoutProperty(
+        layer.id,
+        'visibility',
+        value ? 'visible' : 'none',
+      )
+    })
+  }
+
+  setTransitLabels(value: boolean) {
+    const transitLayers = this.mapInstance.getStyle().layers.filter(layer => {
+      return (
+        layer.id.includes('transit') ||
+        layer.id.includes('railway') ||
+        layer.id.includes('subway') ||
+        layer.id.includes('bus') ||
+        layer.id.includes('airport')
+      )
+    })
+
+    transitLayers.forEach(layer => {
+      this.mapInstance.setLayoutProperty(
+        layer.id,
+        'visibility',
+        value ? 'visible' : 'none',
+      )
+    })
+  }
+
+  setPlaceLabels(value: boolean) {
+    const placeLayers = this.mapInstance.getStyle().layers.filter(layer => {
+      return (
+        layer.id.includes('place-label') ||
+        layer.id.includes('country-label') ||
+        layer.id.includes('state-label') ||
+        layer.id.includes('settlement-label') ||
+        layer.id.includes('city-label')
+      )
+    })
+
+    placeLayers.forEach(layer => {
+      this.mapInstance.setLayoutProperty(
+        layer.id,
+        'visibility',
+        value ? 'visible' : 'none',
+      )
+    })
   }
 
   setMapProjection(projection: MapProjection) {

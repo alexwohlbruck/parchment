@@ -289,7 +289,11 @@
       "configuration": {
         "title": "Configuración del mapa",
         "3dTerrain": "Terreno 3D",
-        "3dBuildings": "Edificios 3D"
+        "3dBuildings": "Edificios 3D",
+        "poiLabels": "Etiquetas de POI",
+        "roadLabels": "Etiquetas de calles",
+        "transitLabels": "Etiquetas de tránsito",
+        "placeLabels": "Etiquetas de lugares"
       },
       "basemaps": {
         "title": "Mapas base",

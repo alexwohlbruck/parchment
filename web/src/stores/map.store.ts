@@ -41,9 +41,29 @@ export const useMapStore = defineStore('map', () => {
     map3dTerrain.value = value ?? !map3dTerrain.value
   }
 
-  const map3dBuildings = ref<boolean>(false)
+  const map3dBuildings = ref<boolean>(true)
   function setMap3dBuildings(value?: boolean) {
     map3dBuildings.value = value ?? !map3dBuildings.value
+  }
+
+  const mapPoiLabels = ref<boolean>(true)
+  function setMapPoiLabels(value?: boolean) {
+    mapPoiLabels.value = value ?? !mapPoiLabels.value
+  }
+
+  const mapRoadLabels = ref<boolean>(true)
+  function setMapRoadLabels(value?: boolean) {
+    mapRoadLabels.value = value ?? !mapRoadLabels.value
+  }
+
+  const mapTransitLabels = ref<boolean>(true)
+  function setMapTransitLabels(value?: boolean) {
+    mapTransitLabels.value = value ?? !mapTransitLabels.value
+  }
+
+  const mapPlaceLabels = ref<boolean>(true)
+  function setMapPlaceLabels(value?: boolean) {
+    mapPlaceLabels.value = value ?? !mapPlaceLabels.value
   }
 
   const mapCamera = useStorage<MapCamera>('map-camera', {
@@ -61,7 +81,6 @@ export const useMapStore = defineStore('map', () => {
     theme: MapTheme.LIGHT,
     basemap: 'standard',
   })
-
   // Event methods
   function on<K extends keyof MapEvents>(
     event: K,
@@ -181,6 +200,14 @@ export const useMapStore = defineStore('map', () => {
     setMap3dTerrain,
     map3dBuildings,
     setMap3dBuildings,
+    mapPoiLabels,
+    setMapPoiLabels,
+    mapRoadLabels,
+    setMapRoadLabels,
+    mapTransitLabels,
+    setMapTransitLabels,
+    mapPlaceLabels,
+    setMapPlaceLabels,
     mapCamera,
     setMapCamera,
     on,

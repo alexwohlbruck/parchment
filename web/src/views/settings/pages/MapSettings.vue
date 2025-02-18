@@ -55,7 +55,7 @@ const basemap = computed(() => {
 <template>
   <div class="flex flex-col gap-4 w-fit items-start">
     <!-- Map configuration -->
-    <SettingsSection :title="$t('settings.mapSettings.engine.title')">
+    <SettingsSection :title="$t('settings.mapSettings.configuration.title')">
       <SettingsItem
         v-if="engineCommand"
         :title="engineCommand.name"
@@ -116,24 +116,30 @@ const basemap = computed(() => {
         </Select>
       </SettingsItem>
 
-      <SettingsItem title="3D terrain" :icon="MountainSnowIcon">
+      <SettingsItem
+        :title="$t('settings.mapSettings.configuration.3dTerrain')"
+        :icon="MountainSnowIcon"
+      >
         <Switch disabled />
       </SettingsItem>
 
-      <SettingsItem title="3D buildings" :icon="Building2Icon">
+      <SettingsItem
+        :title="$t('settings.mapSettings.configuration.3dBuildings')"
+        :icon="Building2Icon"
+      >
         <Switch disabled :checked="true" />
       </SettingsItem>
     </SettingsSection>
 
-    <SettingsSection title="Basemaps">
+    <SettingsSection :title="$t('settings.mapSettings.basemaps.title')">
       <template v-slot:actions>
         <Button disabled variant="outline" @click="openLayerConfigDialog">
           <PlusIcon class="size-4 mr-2" />
-          New basemap
+          {{ $t('settings.mapSettings.basemaps.new') }}
         </Button>
       </template>
 
-      <SettingsItem title="Basemap">
+      <SettingsItem :title="$t('settings.mapSettings.basemaps.basemap')">
         <Select disabled v-model="basemap">
           <SelectTrigger class="w-fit">
             <SelectValue placeholder="Choose an option" />
@@ -159,7 +165,7 @@ const basemap = computed(() => {
       <template v-slot:actions>
         <Button variant="outline" @click="openLayerConfigDialog">
           <PlusIcon class="size-4 mr-2" />
-          New layer
+          {{ $t('settings.mapSettings.layers.new') }}
         </Button>
       </template>
 

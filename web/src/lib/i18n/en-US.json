@@ -284,14 +284,22 @@
     },
     "mapSettings": {
       "title": "Map",
-      "engine": {
-        "title": "Map configuration"
+      "configuration": {
+        "title": "Map configuration",
+        "3dTerrain": "3D terrain",
+        "3dBuildings": "3D buildings"
+      },
+      "basemaps": {
+        "title": "Basemaps",
+        "new": "New basemap",
+        "basemap": "Basemap"
       },
       "dataSources": {
         "title": "Data Sources"
       },
       "layers": {
         "title": "Layers",
+        "new": "New layer",
         "description": "Choose layers to display in the layer selector"
       }
     },

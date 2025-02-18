@@ -4,8 +4,11 @@ import { AppRoute } from '@/router'
 import { defineStore } from 'pinia'
 import { PermissionId, User } from '@/types/auth.types'
 import { Session } from '@/types/session.types'
+import { isTauri } from '@/lib/api'
+import { auth as deviceStore } from '@/lib/device-store'
+import { api } from '@/lib/api'
 
-export const useAuthStore = defineStore('user', () => {
+export const useAuthStore = defineStore('auth', () => {
   const router = useRouter()
 
   const me = ref<User | null | undefined>()
@@ -23,9 +26,18 @@ export const useAuthStore = defineStore('user', () => {
     stashedPath.value = path
   }
 
-  function setAuthenticatedUser(user: User, _sessionId: Session['id']) {
+  function setAuthToken(token: Session['id']) {
+    sessionId.value = token
+  }
+
+  async function setAuthenticatedUser(user: User, _sessionId: Session['id']) {
     me.value = user
     sessionId.value = _sessionId
+
+    if (isTauri) {
+      await deviceStore.setToken(_sessionId)
+    }
+
     router.push(stashedPath.value || { name: AppRoute.MAP })
   }
 
@@ -33,9 +45,12 @@ export const useAuthStore = defineStore('user', () => {
     permissions.value = _permissions
   }
 
-  function unsetAuthenticatedUser() {
+  async function unsetAuthenticatedUser() {
     me.value = null
     sessionId.value = null
+    if (isTauri) {
+      await deviceStore.clearToken()
+    }
     router.push({ name: AppRoute.SIGNIN })
   }
 
@@ -63,6 +78,7 @@ export const useAuthStore = defineStore('user', () => {
     permissions,
     sessionId,
     stashPath,
+    setAuthToken,
     setAuthenticatedUser,
     setPermissions,
     unsetAuthenticatedUser,

@@ -5,7 +5,13 @@ const allowedMethods: HTTPMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 export default {
   origin: [clientHostname, 'tauri://localhost', 'http://tauri.localhost'],
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Set-Cookie'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Set-Cookie',
+    'X-Requested-With',
+    'Accept',
+  ],
   exposedHeaders: '*',
   methods: allowedMethods,
 }

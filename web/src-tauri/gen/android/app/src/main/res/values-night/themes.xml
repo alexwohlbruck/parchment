@@ -1,0 +1,13 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+  <!-- Base application theme. -->
+  <style name="Theme.app" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <!-- Customize your theme here. -->
+    <!-- Status bar and Navigation bar configurations -->
+    <!-- <item name="android:statusBarColor">@android:color/transparent</item>
+    <item name="android:navigationBarColor">@android:color/transparent</item>
+    <item name="android:windowLightStatusBar">false</item>
+    <item name="android:windowLightNavigationBar" tools:targetApi="27">false</item>
+    <item name="android:windowTranslucentStatus">true</item>
+    <item name="android:windowTranslucentNavigation">true</item> -->
+  </style>
+</resources>

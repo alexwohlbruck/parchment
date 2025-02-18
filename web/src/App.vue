@@ -35,11 +35,7 @@ const requestReceived = ref(false)
 const serversSpinning = ref(false)
 
 onMounted(() => {
-  setTimeout(() => {
-    if (!requestReceived.value) {
-      serversSpinning.value = true
-    }
-  }, 1000)
+  serversSpinning.value = true
   authService.getAuthenticatedUser().then(() => {
     requestReceived.value = true
     serversSpinning.value = false
@@ -92,7 +88,7 @@ onMounted(() => {
       </transition-slide>
     </template>
 
-    <main class="flex-1 h-full">
+    <main class="flex-1 h-dvh">
       <router-view v-slot="{ Component }">
         <keep-alive include="Map">
           <component :is="Component" />

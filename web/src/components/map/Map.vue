@@ -90,4 +90,28 @@ watch(
 .mapboxgl-control-container {
   visibility: v-bind(mapControlsVisibility);
 }
+
+.mapboxgl-ctrl-top,
+.mapboxgl-ctrl-top-left,
+.mapboxgl-ctrl-top-right {
+  padding-top: env(safe-area-inset-top);
+}
+
+.mapboxgl-ctrl-bottom,
+.mapboxgl-ctrl-bottom-left,
+.mapboxgl-ctrl-bottom-right {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.mapboxgl-ctrl-left,
+.mapboxgl-ctrl-left-top,
+.mapboxgl-ctrl-right-bottom {
+  padding-right: env(safe-area-inset-right);
+}
+
+.mapboxgl-ctrl-right,
+.mapboxgl-ctrl-right-top,
+.mapboxgl-ctrl-right-bottom {
+  padding-right: env(safe-area-inset-right);
+}
 </style>

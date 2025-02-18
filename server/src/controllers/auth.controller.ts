@@ -2,7 +2,11 @@ import Elysia, { t } from 'elysia'
 import { and, eq, desc } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from '../schema/user.schema'
-import { getSession, requireAuth } from '../middleware/auth.middleware'
+import {
+  getSession,
+  requireAuth,
+  getSessionId,
+} from '../middleware/auth.middleware'
 import { origins } from '../config'
 import { Passkey, passkeys } from '../schema/passkey.schema'
 import { sessions } from '../schema/session.schema'
@@ -51,11 +55,16 @@ app.post(
       // )[0]
     }
 
-    const verificationCode = await createServerToken('otp', user.id)
-    const emailSuccess = await sendEmailVerificationCode(
-      user.email,
-      verificationCode,
+    const isAppTester = user.email === process.env.APP_TESTER_EMAIL
+
+    const verificationCode = await createServerToken(
+      'otp',
+      user.id,
+      isAppTester ? '00000000' : undefined,
     )
+    const emailSuccess = isAppTester
+      ? true
+      : await sendEmailVerificationCode(user.email, verificationCode)
 
     if (emailSuccess) {
       set.status = 201
@@ -192,7 +201,7 @@ app.group('/passkeys', (app) => {
 
     app.post(
       'verify',
-      async ({ body, cookie: { challenge }, set, headers, error }) => {
+      async ({ body, cookie: { challenge }, set, headers, error, request }) => {
         if (!challenge.value) {
           return error(401, { message: 'Could not find challenge cookie' }) // TODO: i18n
         }
@@ -333,17 +342,18 @@ app.group('/sessions', (app) => {
 
   app.use(getSession).get(
     'current',
-    async ({ user, set, cookie }) => {
+    async ({ user, set, request }) => {
       if (!user) {
         set.status = 204
         return null
       }
 
-      const sessionCookie = cookie['auth_session']
+      const sessionId = getSessionId(request)
       const me = (await db.select().from(users).where(eq(users.id, user.id)))[0]
+
       return {
         user: me,
-        token: sessionCookie.value,
+        token: sessionId,
       }
     },
     {

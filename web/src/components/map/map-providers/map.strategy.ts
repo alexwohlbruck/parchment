@@ -35,8 +35,10 @@ export class MapStrategy {
   unsetDirections() {}
   setPegman(pegman: Pegman) {}
   removePegman() {}
-  togglePoiLabels(value: boolean) {}
+  setPoiLabels(value: boolean) {}
   setMapProjection(projection: MapProjection) {}
+  setMap3dTerrain(value: boolean) {}
+  setMap3dBuildings(value: boolean) {}
   setMapTheme(theme: MapTheme) {}
   setBasemap(basemap: Basemap) {}
   removeSource(sourceId: string) {}

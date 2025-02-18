@@ -97,8 +97,36 @@ function mapService() {
 
   function setMapProjection(projection: MapProjection) {
     mapStore.setMapProjection(projection)
-    mapStrategy.setMapProjection(projection)
   }
+
+  watch(
+    () => mapStore.mapProjection,
+    projection => {
+      mapStrategy?.setMapProjection(projection)
+    },
+  )
+
+  function toggle3dTerrain(value?: boolean) {
+    mapStore.setMap3dTerrain(value)
+  }
+
+  watch(
+    () => mapStore.map3dTerrain,
+    value => {
+      mapStrategy?.setMap3dTerrain(value)
+    },
+  )
+
+  function toggle3dBuildings(value?: boolean) {
+    mapStore.setMap3dBuildings(value)
+  }
+
+  watch(
+    () => mapStore.map3dBuildings,
+    value => {
+      mapStrategy?.setMap3dBuildings(value)
+    },
+  )
 
   function resize() {
     mapStrategy.resize()
@@ -197,6 +225,8 @@ function mapService() {
     jumpTo,
     setMapEngine,
     setMapProjection,
+    toggle3dTerrain,
+    toggle3dBuildings,
     destroy,
     on,
     off,

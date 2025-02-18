@@ -279,11 +279,21 @@ export class MaplibreStrategy extends MapStrategy {
     }
   }
 
-  togglePoiLabels() {
+  setPoiLabels() {
     // TODO:
   }
 
   setMapProjection(projection: MapProjection) {
+    // TODO:
+    return
+  }
+
+  setMap3dTerrain(value: boolean) {
+    // TODO:
+    return
+  }
+
+  setMap3dBuildings(value: boolean) {
     return
   }
 

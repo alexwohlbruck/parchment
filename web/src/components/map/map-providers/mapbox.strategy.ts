@@ -339,7 +339,7 @@ export class MapboxStrategy extends MapStrategy {
     }
   }
 
-  togglePoiLabels(value: boolean) {
+  setPoiLabels(value: boolean) {
     this.mapInstance.setConfigProperty(
       'basemap',
       'showPointOfInterestLabels',
@@ -349,6 +349,24 @@ export class MapboxStrategy extends MapStrategy {
 
   setMapProjection(projection: MapProjection) {
     this.mapInstance.setProjection(projection)
+  }
+
+  setMap3dTerrain(value: boolean) {
+    const existingTerrainSource = this.mapInstance.getSource('mapbox-dem')
+    if (!existingTerrainSource) {
+      this.mapInstance.addSource('mapbox-dem', {
+        type: 'raster-dem',
+        url: 'mapbox://mapbox.terrain-rgb',
+      })
+    }
+    this.mapInstance.setTerrain({
+      source: 'mapbox-dem',
+      exaggeration: value ? 1 : 0,
+    })
+  }
+
+  setMap3dBuildings(value: boolean) {
+    this.mapInstance.setConfigProperty('basemap', 'show3dObjects', value)
   }
 
   @ifBasemapLoaded

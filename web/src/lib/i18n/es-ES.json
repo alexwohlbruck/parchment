@@ -286,14 +286,22 @@
     },
     "mapSettings": {
       "title": "Mapa",
-      "engine": {
-        "title": "Motor de mapas"
+      "configuration": {
+        "title": "Configuración del mapa",
+        "3dTerrain": "Terreno 3D",
+        "3dBuildings": "Edificios 3D"
+      },
+      "basemaps": {
+        "title": "Mapas base",
+        "new": "Nuevo mapa base",
+        "basemap": "Mapa base"
       },
       "dataSources": {
         "title": "Fuentes de datos"
       },
       "layers": {
         "title": "Capas",
+        "new": "Nueva capa",
         "description": "Elige las capas que se mostrarán en el selector de capas"
       }
     },

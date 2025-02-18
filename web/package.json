@@ -36,7 +36,7 @@
     "dayjs": "^1.11.11",
     "fuzzysort": "^2.0.4",
     "lucide-vue-next": "^0.330.0",
-    "mapbox-gl": "3.9.1",
+    "mapbox-gl": "^3.10.0",
     "mapillary-js": "^4.1.2",
     "maplibre-gl": "^4.2.0",
     "mitt": "^3.0.1",

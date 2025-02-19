@@ -78,7 +78,7 @@ export class MapboxStrategy extends MapStrategy {
     this.mapInstance = new Map({
       accessToken: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
       container,
-      style: standardStyle as any,
+      style: basemapUrls.standard, //standardStyle as any,
       center: center as LngLatLike,
       bearing,
       pitch,
@@ -148,6 +148,7 @@ export class MapboxStrategy extends MapStrategy {
     this.mapInstance.on('mouseleave', 'mapillary-image', () => {
       this.mapInstance.getCanvas().style.cursor = ''
     })
+    this.listenPOIClick()
   }
 
   // TODO:

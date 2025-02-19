@@ -145,7 +145,6 @@ const basemap = computed(() => {
         :icon="Building2Icon"
       >
         <Switch
-          disabled
           :checked="map3dBuildings"
           @click="mapService.toggle3dBuildings()"
         />

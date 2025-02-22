@@ -36017,9 +36017,15 @@ var clientHostname = hostname(clientOrigin);
 // src/config/cors.config.ts
 var allowedMethods = ["GET", "POST", "PUT", "PATCH", "DELETE"];
 var cors_config_default = {
-  origin: [clientHostname],
+  origin: [clientHostname, "tauri://localhost", "http://tauri.localhost"],
   credentials: true,
-  allowedHeaders: ["Content-Type", "Set-Cookie"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "Set-Cookie",
+    "X-Requested-With",
+    "Accept"
+  ],
   exposedHeaders: "*",
   methods: allowedMethods
 };
@@ -51650,13 +51656,17 @@ var rpName = appName;
 var rpID = exports_origins_config.clientHostname.replace(/:\d+$/, "");
 async function createSession(userId, { set: set2, headers }) {
   const session = await lucia.createSession(userId, {});
-  const sessionCookie = lucia.createSessionCookie(session.id);
+  const wantsCookie = !headers["authorization"];
+  if (wantsCookie) {
+    const sessionCookie = lucia.createSessionCookie(session.id);
+    set2.cookie = {
+      auth_session: {
+        value: sessionCookie.value,
+        ...sessionCookie.attributes
+      }
+    };
+  }
   set2.status = 201;
-  set2.headers = {
-    ...set2.headers,
-    Location: "/",
-    "Set-Cookie": sessionCookie.serialize()
-  };
   await db.update(sessions).set({
     userAgent: headers ? headers["user-agent"] || "" : ""
   }).where(eq(sessions.id, session.id)).returning();
@@ -51737,28 +51747,50 @@ async function getRoles(userId) {
 }
 
 // src/middleware/auth.middleware.ts
+function getSessionId(request) {
+  const authHeader = request.headers.get("Authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    return authHeader.slice(7);
+  }
+  const cookieHeader = request.headers.get("Cookie") ?? "";
+  console.log(cookieHeader);
+  return lucia.readSessionCookie(cookieHeader);
+}
 var getSession = (app) => app.derive(async ({
   request,
-  cookie
+  cookie,
+  set: set2
 }) => {
-  if (request.method !== "GET") {
+  const isUsingCookie = request.headers.get("Cookie")?.includes("auth_session");
+  if (isUsingCookie && request.method !== "GET") {
     const originHeader = request.headers.get("Origin");
     const hostHeader = request.headers.get("Host");
-    if (!originHeader || !hostHeader || !verifyRequestOrigin(originHeader, [hostHeader, exports_origins_config.clientOrigin])) {
+    if (!originHeader || !hostHeader || !verifyRequestOrigin(originHeader, [
+      hostHeader,
+      exports_origins_config.clientOrigin
+    ])) {
       return {
-        user: null
+        user: null,
+        session: null
       };
     }
   }
-  const cookieHeader = request.headers.get("Cookie") ?? "";
-  const sessionId = lucia.readSessionCookie(cookieHeader);
+  const sessionId = getSessionId(request);
   if (!sessionId) {
     return {
-      user: null
+      user: null,
+      session: null
     };
   }
-  const { session, user } = await lucia.validateSession(sessionId);
-  if (session && session.fresh) {
+  const result = await lucia.validateSession(sessionId);
+  if (!result.session || !result.user) {
+    return {
+      user: null,
+      session: null
+    };
+  }
+  const { session, user } = result;
+  if (isUsingCookie && session.fresh) {
     const sessionCookie = lucia.createSessionCookie(session.id);
     cookie[sessionCookie.name].set({
       value: sessionCookie.value,
@@ -51766,15 +51798,17 @@ var getSession = (app) => app.derive(async ({
     });
   }
   return {
-    user
+    user,
+    session
   };
 });
-var requireAuth = (app) => app.use(getSession).derive(async ({ set: set2, user, error: error2 }) => {
-  if (!user) {
+var requireAuth = (app) => app.use(getSession).derive(async ({ set: set2, user, session, error: error2 }) => {
+  if (!user || !session) {
     return error2(401, { message: "You must be signed in" });
   }
   return {
-    user
+    user,
+    session
   };
 });
 var getUser = (app) => app.use(requireAuth).derive(async ({ user: { id } }) => {
@@ -51864,8 +51898,9 @@ app.post("verify", async ({ body: { email }, set: set2, error: error2 }) => {
   if (!user) {
     return error2(404, { message: "User does not exist" });
   }
-  const verificationCode = await createServerToken("otp", user.id);
-  const emailSuccess = await sendEmailVerificationCode(user.email, verificationCode);
+  const isAppTester = user.email === "alexwohlbruck@gmail.com";
+  const verificationCode = await createServerToken("otp", user.id, isAppTester ? "00000000" : undefined);
+  const emailSuccess = isAppTester ? true : await sendEmailVerificationCode(user.email, verificationCode);
   if (emailSuccess) {
     set2.status = 201;
   } else {
@@ -51968,7 +52003,7 @@ app.group("/passkeys", (app2) => {
         set2.status = 500;
       }
     });
-    app3.post("verify", async ({ body, cookie: { challenge }, set: set2, headers, error: error2 }) => {
+    app3.post("verify", async ({ body, cookie: { challenge }, set: set2, headers, error: error2, request }) => {
       if (!challenge.value) {
         return error2(401, { message: "Could not find challenge cookie" });
       }
@@ -52071,16 +52106,16 @@ app.group("/sessions", (app2) => {
       description: "Sign out a user."
     }
   });
-  app2.use(getSession).get("current", async ({ user, set: set2, cookie }) => {
+  app2.use(getSession).get("current", async ({ user, set: set2, request }) => {
     if (!user) {
       set2.status = 204;
       return null;
     }
-    const sessionCookie = cookie["auth_session"];
+    const sessionId = getSessionId(request);
     const me = (await db.select().from(users).where(eq(users.id, user.id)))[0];
     return {
       user: me,
-      token: sessionCookie.value
+      token: sessionId
     };
   }, {
     detail: {

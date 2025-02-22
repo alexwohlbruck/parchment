@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import { usePlaceService } from '@/services/place.service'
@@ -15,6 +15,21 @@ import {
 const route = useRoute()
 const { currentPlace, loading, error, fetchPlaceDetails, clearPlace } =
   usePlaceService()
+
+const hiddenTags = [
+  'name',
+  'addr:street',
+  'addr:housenumber',
+  'opening_hours',
+  'phone',
+  'website',
+]
+
+const filteredTags = computed(() => {
+  return Object.entries(currentPlace.value?.tags ?? {}).filter(
+    ([key]) => !hiddenTags.includes(key),
+  )
+})
 
 async function loadPlace(type: string, id: string) {
   clearPlace()
@@ -124,21 +139,7 @@ function formatOpeningHours(hours: string) {
 
       <!-- Additional Tags -->
       <div class="mt-4">
-        <div
-          v-for="(value, key) in currentPlace.tags"
-          :key="key"
-          class="text-sm"
-          v-if="
-            ![
-              'name',
-              'addr:street',
-              'addr:housenumber',
-              'opening_hours',
-              'phone',
-              'website',
-            ].includes(key)
-          "
-        >
+        <div v-for="[key, value] in filteredTags" :key="key" class="text-sm">
           <span class="font-medium">{{ key }}:</span> {{ value }}
         </div>
       </div>

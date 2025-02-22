@@ -51,8 +51,6 @@ declare module 'mapbox-gl' {
       value: any,
     ) => this
   }
-
-  type MapInteractionEventType = 'click' | 'hover'
 }
 
 // Guard decorator to ensure the basemap is loaded

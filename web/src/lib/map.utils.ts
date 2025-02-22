@@ -61,3 +61,26 @@ export function mapboxLayerToMaplibreLayer(layer: Layer): MaplibreLayer {
     configuration: maplibreConfig,
   } as any
 }
+
+export function parseMapboxToOsmId(featureId: string | number): {
+  osmId: string
+  poiType: 'node' | 'way' | 'relation' | 'unknown'
+} {
+  const typeCode = String(featureId).slice(-1)
+  const osmId = String(featureId).slice(0, -1)
+
+  const poiTypeCodeMap: {
+    [key: string]: 'node' | 'way' | 'relation' | 'unknown'
+  } = {
+    '0': 'node',
+    '1': 'way',
+    '2': 'unknown',
+    '3': 'unknown',
+    '4': 'relation',
+  }
+
+  return {
+    osmId,
+    poiType: poiTypeCodeMap[typeCode] || 'unknown',
+  }
+}

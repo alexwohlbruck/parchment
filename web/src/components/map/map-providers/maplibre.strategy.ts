@@ -355,18 +355,14 @@ export class MaplibreStrategy extends MapStrategy {
     })
   }
 
-  setMapProjection(projection: MapProjection) {
-    // TODO:
-    return
-  }
+  setMapProjection(projection: MapProjection) {}
 
   setMap3dTerrain(value: boolean) {
     // TODO:
-    return
   }
 
   setMap3dBuildings(value: boolean) {
-    return
+    // TODO:
   }
 
   getBasemapFromTheme() {

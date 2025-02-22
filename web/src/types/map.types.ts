@@ -72,6 +72,12 @@ export type MapEvents = {
     lngLat: LngLat
     point: { x: number; y: number }
   }
+  'click:poi': {
+    osmId: string
+    poiType: 'node' | 'way' | 'relation'
+    lngLat: LngLat
+    point: { x: number; y: number }
+  }
 }
 
 export enum SourceType {
@@ -184,4 +190,22 @@ export type Pegman = {
   position: LngLat
   fov: number
   visible?: boolean
+}
+
+export type Place = {
+  id: number
+  type: 'node' | 'way' | 'relation'
+  tags: {
+    name?: string
+    'addr:street'?: string
+    'addr:housenumber'?: string
+    amenity?: string
+    shop?: string
+    opening_hours?: string
+    phone?: string
+    website?: string
+    [key: string]: string | undefined
+  }
+  lat?: number
+  lon?: number
 }

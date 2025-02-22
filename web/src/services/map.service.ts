@@ -17,6 +17,7 @@ import { mapEventBus } from '@/lib/eventBus'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { watch } from 'vue'
 import router, { AppRoute } from '@/router'
+import { useRouter } from 'vue-router'
 
 const dark = useDark()
 
@@ -24,6 +25,7 @@ function mapService() {
   const mapStore = useMapStore()
   const directionsStore = useDirectionsStore()
   const { enabledLayers } = storeToRefs(mapStore)
+  const router = useRouter()
   let mapStrategy: MapStrategy
   let mapContainer: HTMLElement
 
@@ -76,6 +78,16 @@ function mapService() {
           },
         })
       }
+    })
+
+    mapEventBus.on('click:poi', ({ osmId, poiType }) => {
+      router.push({
+        name: AppRoute.PLACE,
+        params: {
+          type: poiType,
+          id: osmId,
+        },
+      })
     })
 
     return mapStrategy

@@ -2,6 +2,15 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 import Signin from '@/views/auth/Signin.vue'
 import Map from '@/views/Map.vue'
+import Directions from '@/views/directions/Directions.vue'
+import Place from '@/views/Place.vue'
+import Settings from '@/views/settings/Settings.vue'
+import Account from '@/views/settings/pages/Account.vue'
+import Behavior from '@/views/settings/pages/Behavior.vue'
+import Appearance from '@/views/settings/pages/appearance/Appearance.vue'
+import MapSettings from '@/views/settings/pages/MapSettings.vue'
+import Users from '@/views/settings/pages/Users.vue'
+
 import { useAuthStore } from '@/stores/auth.store'
 import { useResponsive } from '@/lib/utils'
 import { useMapStore } from '@/stores/map.store'
@@ -10,9 +19,10 @@ import { useMapService } from '@/services/map.service'
 export enum AppRoute {
   SIGNIN = 'signin',
   MAP = 'map',
+  PLACE = 'place',
   STREET = 'street',
   DIRECTIONS = 'directions',
-  PLACE = 'place',
+  // SAVED = 'saved',
   SETTINGS = 'settings',
   ACCOUNT = 'account',
   BEHAVIOR = 'behavior',
@@ -47,20 +57,26 @@ const router = createRouter({
         {
           path: '/directions',
           name: AppRoute.DIRECTIONS,
-          component: () => import('../views/directions/Directions.vue'),
+          component: Directions,
         },
         {
-          path: '/place',
+          path: '/place/:type/:id',
           name: AppRoute.PLACE,
-          component: () => import('../views/Place.vue'),
+          component: Place,
         },
+        // TODO: Support places from external sources
+        // {
+        //   path: '/place/external/:id',
+        //   name: AppRoute.PLACE_EXTERNAL,
+        //   component: () => import('../views/PlaceExternal.vue'),
+        // },
       ],
     },
     {
       path: '/settings',
       components: {
         default: Map,
-        dialogContent: () => import('../views/settings/Settings.vue'),
+        dialogContent: Settings,
       },
       meta: {
         auth: true,
@@ -72,28 +88,27 @@ const router = createRouter({
         {
           path: '/settings/account',
           name: AppRoute.ACCOUNT,
-          component: () => import('../views/settings/pages/Account.vue'),
+          component: Account,
         },
         {
           path: '/settings/behavior',
           name: AppRoute.BEHAVIOR,
-          component: () => import('../views/settings/pages/Behavior.vue'),
+          component: Behavior,
         },
         {
           path: '/settings/appearance',
           name: AppRoute.APPEARANCE,
-          component: () =>
-            import('../views/settings/pages/appearance/Appearance.vue'),
+          component: Appearance,
         },
         {
           path: '/settings/map',
           name: AppRoute.MAP_SETTINGS,
-          component: () => import('../views/settings/pages/MapSettings.vue'),
+          component: MapSettings,
         },
         {
           path: '/settings/users',
           name: AppRoute.USERS,
-          component: () => import('../views/settings/pages/Users.vue'),
+          component: Users,
         },
       ],
     },

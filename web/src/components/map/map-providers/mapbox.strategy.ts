@@ -30,6 +30,9 @@ import { decodeShape } from '@/lib/utils'
 import colors from 'tailwindcss/colors'
 import { mapEventBus } from '@/lib/eventBus'
 import { createPegmanLayers, updatePegmanData } from '@/lib/pegman.utils'
+import { parseMapboxToOsmId } from '@/lib/map.utils'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
 
 const basemapUrls: {
   [key in Basemap]: string
@@ -48,6 +51,8 @@ declare module 'mapbox-gl' {
       value: any,
     ) => this
   }
+
+  type MapInteractionEventType = 'click' | 'hover'
 }
 
 // Guard decorator to ensure the basemap is loaded
@@ -142,38 +147,65 @@ export class MapboxStrategy extends MapStrategy {
     })
     // Change pointers on hover
     // TODO: This is a bad spot for this
-    this.mapInstance.on('mouseenter', 'mapillary-image', () => {
-      this.mapInstance.getCanvas().style.cursor = 'pointer'
+    this.mapInstance.addInteraction('mapillary-mouseenter', {
+      type: 'mouseenter',
+      target: { layerId: 'mapillary-image' },
+      handler: () => {
+        this.mapInstance.getCanvas().style.cursor = 'pointer'
+      },
     })
-    this.mapInstance.on('mouseleave', 'mapillary-image', () => {
-      this.mapInstance.getCanvas().style.cursor = ''
+    this.mapInstance.addInteraction('mapillary-mouseleave', {
+      type: 'mouseleave',
+      target: { layerId: 'mapillary-image' },
+      handler: () => {
+        this.mapInstance.getCanvas().style.cursor = ''
+      },
     })
     this.listenPOIClick()
   }
 
-  // TODO:
   listenPOIClick() {
-    let selectedBuildings = []
-    this.mapInstance.addInteraction('building-click', {
-      type: 'click',
-      target: { featuresetId: 'buildings', importId: 'basemap' },
+    this.mapInstance.addInteraction('poi-mouseenter', {
+      type: 'mouseenter',
+      target: { featuresetId: 'poi', importId: 'basemap' },
       handler: e => {
-        console.log(e.feature)
-        // this.mapInstance.setFeatureState(e.feature, { select: !e.feature.state.select })
-        // selectedBuildings.push(e.feature)
+        this.mapInstance.getCanvas().style.cursor = 'pointer'
       },
     })
 
-    // TODO: Handle POI Clicks
-    // Watching this discussion: https://github.com/mapbox/mapbox-gl-js/issues/13332#issuecomment-2545008324
-    let selectedPoi = null
-    const poiMarker = new Marker({ color: 'red' })
-    poiMarker.getElement().style.cursor = 'pointer'
+    this.mapInstance.addInteraction('poi-mouseleave', {
+      type: 'mouseleave',
+      target: { featuresetId: 'poi', importId: 'basemap' },
+      handler: e => {
+        this.mapInstance.getCanvas().style.cursor = ''
+      },
+    })
+
     this.mapInstance.addInteraction('poi-click', {
       type: 'click',
       target: { featuresetId: 'poi', importId: 'basemap' },
       handler: e => {
-        console.log(e.feature)
+        if (!e.feature?.id) return
+
+        const { osmId, poiType } = parseMapboxToOsmId(e.feature.id)
+
+        if (poiType !== 'unknown') {
+          mapEventBus.emit('click:poi', {
+            osmId,
+            poiType,
+            lngLat: e.lngLat,
+            point: e.point,
+          })
+
+          const router = useRouter()
+          router.push({
+            name: AppRoute.PLACE,
+            params: {
+              type: poiType,
+              id: osmId,
+            },
+          })
+        }
       },
     })
   }

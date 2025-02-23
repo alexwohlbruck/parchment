@@ -195,19 +195,13 @@ export type Pegman = {
 export type Place = {
   id: number
   type: 'node' | 'way' | 'relation'
-  tags: {
-    name?: string
-    'addr:street'?: string
-    'addr:housenumber'?: string
-    amenity?: string
-    shop?: string
-    opening_hours?: string
-    phone?: string
-    website?: string
-    [key: string]: string | undefined
-  }
+  tags: Record<string, string | undefined>
   lat?: number
   lon?: number
   version: number
   user: string
+  center?: {
+    lat: number
+    lon: number
+  }
 }

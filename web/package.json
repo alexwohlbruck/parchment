@@ -35,7 +35,7 @@
     "clsx": "^2.1.1",
     "dayjs": "^1.11.11",
     "fuzzysort": "^2.0.4",
-    "lucide-vue-next": "^0.330.0",
+    "lucide-vue-next": "0.475.0",
     "mapbox-gl": "^3.10.0",
     "mapillary-js": "^4.1.2",
     "maplibre-gl": "^4.2.0",

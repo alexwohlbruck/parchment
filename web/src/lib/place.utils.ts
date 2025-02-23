@@ -242,6 +242,42 @@ export function getPlaceType(tags: Record<string, string | undefined>): string {
       case 'lounger':
         return 'Lounger'
 
+      // Social Facility
+      case 'social_facility':
+        const facilityType = tags['social_facility']
+        switch (facilityType) {
+          case 'group_home':
+            return 'Group Home'
+          case 'nursing_home':
+            return 'Nursing Home'
+          case 'hospice':
+            return 'Hospice'
+          case 'assisted_living':
+            return 'Assisted Living Facility'
+          case 'day_care':
+            return 'Day Care Center'
+          case 'shelter':
+            return 'Shelter'
+          case 'ambulatory_care':
+            return 'Ambulatory Care Center'
+          case 'outreach':
+            return 'Outreach Center'
+          case 'workshop':
+            return 'Workshop'
+          case 'clothing_bank':
+            return 'Clothing Bank'
+          case 'food_bank':
+            return 'Food Bank'
+          case 'soup_kitchen':
+            return 'Soup Kitchen'
+          case 'dairy_kitchen':
+            return 'Dairy Kitchen'
+          case 'healthcare':
+            return 'Healthcare Center'
+          default:
+            return 'Social Facility'
+        }
+
       // Generic fallback with nice formatting
       default:
         return `${amenity.charAt(0).toUpperCase()}${amenity
@@ -778,4 +814,47 @@ export async function fetchWikidataBrandLogo(
     console.error('Failed to fetch Wikidata logo:', error)
     return null
   }
+}
+
+export function getWheelchairAccess(tags: Record<string, string | undefined>) {
+  switch (tags.wheelchair) {
+    case 'yes':
+      return 'Fully wheelchair accessible'
+    case 'limited':
+      return 'Limited wheelchair access'
+    case 'no':
+      return 'Not wheelchair accessible'
+    case 'designated':
+      return 'Designated wheelchair access'
+    default:
+      return null
+  }
+}
+
+export function getSmokingStatus(tags: Record<string, string | undefined>) {
+  switch (tags.smoking) {
+    case 'dedicated':
+      return 'Smoking establishment'
+    case 'yes':
+      return 'Smoking permitted'
+    case 'separated':
+      return 'Separate smoking area'
+    case 'isolated':
+      return 'Isolated smoking room'
+    case 'no':
+      return 'No smoking'
+    case 'outside':
+      return 'Smoking allowed outside only'
+    default:
+      return null
+  }
+}
+
+export function getRestroomAccess(tags: Record<string, string | undefined>) {
+  if (!tags.toilets) return null
+
+  const access = tags['toilets:access']
+  if (access === 'customers') return 'Restrooms for customers'
+  if (access === 'yes') return 'Public restrooms available'
+  return 'Restrooms available'
 }

@@ -17,8 +17,11 @@ function placeService() {
     error.value = null
 
     try {
+      const query = `[out:json];${type}(${osmId});out body center;`
       const response = await fetch(
-        `https://www.openstreetmap.org/api/0.6/${type}/${osmId}.json`,
+        `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(
+          query,
+        )}`,
       )
       if (!response.ok) throw new Error('Failed to fetch place details')
 

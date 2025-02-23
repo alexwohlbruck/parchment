@@ -84,3 +84,84 @@ export function parseMapboxToOsmId(featureId: string | number): {
     poiType: poiTypeCodeMap[typeCode] || 'unknown',
   }
 }
+
+interface OsmTags {
+  [key: string]: string | undefined
+}
+
+export function getPlaceType(tags: OsmTags): string {
+  // Helper to check if tag exists and matches value
+  const hasTag = (key: string, value?: string) => {
+    const tag = tags[key]
+    return value ? tag === value : !!tag
+  }
+
+  // Check amenity tag first
+  if (hasTag('amenity')) {
+    const amenity = tags.amenity
+    if (!amenity) return 'Place'
+
+    switch (amenity) {
+      case 'cafe':
+        return hasTag('cuisine', 'coffee_shop') ? 'Coffee shop' : 'Café'
+      case 'restaurant':
+        if (!tags.cuisine) return 'Restaurant'
+        const cuisineType = tags.cuisine.split(';')[0].replace('_', ' ')
+        return `${cuisineType.charAt(0).toUpperCase()}${cuisineType.slice(
+          1,
+        )} restaurant`
+      case 'bar':
+        return 'Bar'
+      case 'bank':
+        return 'Bank'
+      case 'pharmacy':
+        return 'Pharmacy'
+      case 'library':
+        return 'Library'
+      case 'school':
+        return 'School'
+      case 'hospital':
+        return 'Hospital'
+      default:
+        return `${amenity.charAt(0).toUpperCase()}${amenity
+          .slice(1)
+          .replace('_', ' ')}`
+    }
+  }
+
+  // Check shop tag
+  if (hasTag('shop')) {
+    const shop = tags.shop
+    if (!shop) return 'Shop'
+    return `${shop.charAt(0).toUpperCase()}${shop
+      .slice(1)
+      .replace('_', ' ')} shop`
+  }
+
+  // Check other common tags
+  if (hasTag('tourism')) {
+    const tourism = tags.tourism
+    if (!tourism) return 'Tourist spot'
+    return `${tourism.charAt(0).toUpperCase()}${tourism
+      .slice(1)
+      .replace('_', ' ')}`
+  }
+
+  if (hasTag('leisure')) {
+    const leisure = tags.leisure
+    if (!leisure) return 'Leisure venue'
+    return `${leisure.charAt(0).toUpperCase()}${leisure
+      .slice(1)
+      .replace('_', ' ')}`
+  }
+
+  if (hasTag('office')) {
+    const office = tags.office
+    if (!office) return 'Office'
+    return `${office.charAt(0).toUpperCase()}${office
+      .slice(1)
+      .replace('_', ' ')} office`
+  }
+
+  return 'Place' // Default fallback
+}

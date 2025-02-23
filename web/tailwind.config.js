@@ -79,12 +79,20 @@ export default {
           from: { height: 'var(--radix-collapsible-content-height)' },
           to: { height: 0 },
         },
+        shimmer: {
+          '100%': { transform: 'translateX(100%)' }
+        },
+        'fade-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' }
+        }
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-in-out',
         'accordion-up': 'accordion-up 0.2s ease-in-out',
         'collapsible-down': 'collapsible-down 0.2s ease-in-out',
         'collapsible-up': 'collapsible-up 0.2s ease-in-out',
+        'fade-in': 'fade-in 0.2s ease-out',
       },
     },
   },

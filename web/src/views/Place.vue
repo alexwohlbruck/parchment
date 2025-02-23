@@ -16,18 +16,29 @@ import {
   UtensilsCrossedIcon,
   WifiIcon,
   TreesIcon,
+  AccessibilityIcon,
+  CigaretteIcon,
+  ToiletIcon,
+  MailIcon,
 } from 'lucide-vue-next'
 import { parseOpeningHours } from '@/lib/map.utils'
-import { getPlaceType } from '@/lib/place.utils'
+import {
+  getPlaceType,
+  getWheelchairAccess,
+  getSmokingStatus,
+  getRestroomAccess,
+} from '@/lib/place.utils'
 import { useAppService } from '@/services/app.service'
 import CopyButton from '@/components/CopyButton.vue'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { TransitionExpand } from '@morev/vue-transitions'
+import { useMapService } from '@/services/map.service'
 
 const route = useRoute()
 const { currentPlace, loading, error, fetchPlaceDetails, clearPlace } =
   usePlaceService()
 const { toast } = useAppService()
+const { flyTo } = useMapService()
 
 const placeType = computed(() => {
   return getPlaceType(currentPlace.value?.tags ?? {})
@@ -127,6 +138,18 @@ const hasOutdoorSeating = computed(() => {
   const seating = currentPlace.value?.tags.outdoor_seating
   return seating === 'yes'
 })
+
+const wheelchairAccessText = computed(() =>
+  getWheelchairAccess(currentPlace.value?.tags ?? {}),
+)
+
+const smokingStatusText = computed(() =>
+  getSmokingStatus(currentPlace.value?.tags ?? {}),
+)
+
+const restroomAccessText = computed(() =>
+  getRestroomAccess(currentPlace.value?.tags ?? {}),
+)
 
 async function fetchWikidataImage() {
   const wikidataId =
@@ -229,7 +252,8 @@ async function loadPlace(type: string, id: string) {
   brandLogo.value = null
   placeImageLoaded.value = false
   brandLogoLoaded.value = false
-  await fetchPlaceDetails(id, type as any)
+
+  const place = await fetchPlaceDetails(id, type as any)
   await Promise.all([fetchWikidataImage(), fetchWikidataBrandLogo()])
 }
 
@@ -246,6 +270,24 @@ watch(
     const { type, id } = params
     if (typeof type === 'string' && typeof id === 'string') {
       await loadPlace(type, id)
+    }
+  },
+)
+
+watch(
+  () => currentPlace.value,
+  place => {
+    if (place) {
+      // Use center coordinates if available (for ways/relations), otherwise use lat/lon (for nodes)
+      const lat = place.center?.lat ?? place.lat
+      const lon = place.center?.lon ?? place.lon
+
+      if (lat && lon) {
+        flyTo({
+          center: [lon, lat],
+          zoom: 17,
+        })
+      }
     }
   },
 )
@@ -537,6 +579,65 @@ function formatOpeningHours(hours: string) {
           <div v-if="hasOutdoorSeating" class="flex gap-3 items-center">
             <TreesIcon class="size-4 text-muted-foreground flex-shrink-0" />
             <span>Has outdoor seating</span>
+          </div>
+
+          <!-- Wheelchair Access -->
+          <div
+            v-if="currentPlace.tags.wheelchair"
+            class="flex gap-3 items-center"
+          >
+            <AccessibilityIcon
+              class="size-4 text-muted-foreground flex-shrink-0"
+            />
+            <span>
+              {{ wheelchairAccessText }}
+            </span>
+          </div>
+
+          <!-- Smoking -->
+          <div v-if="currentPlace.tags.smoking" class="flex gap-3 items-center">
+            <CigaretteIcon class="size-4 text-muted-foreground flex-shrink-0" />
+            <span>
+              {{ smokingStatusText }}
+            </span>
+          </div>
+
+          <!-- Restrooms -->
+          <div v-if="currentPlace.tags.toilets" class="flex gap-3 items-center">
+            <ToiletIcon class="size-4 text-muted-foreground flex-shrink-0" />
+            <div class="flex flex-col">
+              <span>{{ restroomAccessText }}</span>
+              <span
+                v-if="currentPlace.tags['toilets:wheelchair']"
+                class="text-sm text-muted-foreground"
+              >
+                Wheelchair
+                {{
+                  currentPlace.tags['toilets:wheelchair'] === 'yes'
+                    ? 'accessible'
+                    : 'not accessible'
+                }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Email -->
+          <div
+            v-if="currentPlace.tags['contact:email']"
+            class="flex gap-3 items-center group"
+          >
+            <MailIcon class="size-4 text-muted-foreground flex-shrink-0" />
+            <a
+              :href="`mailto:${currentPlace.tags['contact:email']}`"
+              class="text-primary hover:underline truncate"
+            >
+              {{ currentPlace.tags['contact:email'] }}
+            </a>
+            <CopyButton
+              :text="currentPlace.tags['contact:email']"
+              message="Email copied to clipboard"
+              class="opacity-0 group-hover:opacity-100"
+            />
           </div>
         </div>
 

@@ -208,4 +208,6 @@ export type Place = {
   }
   lat?: number
   lon?: number
+  version: number
+  user: string
 }

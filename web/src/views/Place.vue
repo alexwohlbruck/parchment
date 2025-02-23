@@ -10,25 +10,53 @@ import {
   ClockIcon,
   PhoneIcon,
   GlobeIcon,
+  MapPinIcon,
 } from 'lucide-vue-next'
+import { getPlaceType } from '@/lib/map.utils'
+import { useAppService } from '@/services/app.service'
+import CopyButton from '@/components/CopyButton.vue'
 
 const route = useRoute()
 const { currentPlace, loading, error, fetchPlaceDetails, clearPlace } =
   usePlaceService()
+const { toast } = useAppService()
 
 const hiddenTags = [
   'name',
   'addr:street',
   'addr:housenumber',
+  'addr:city',
+  'addr:state',
+  'addr:postcode',
+  'addr:country',
   'opening_hours',
   'phone',
   'website',
 ]
 
+const placeType = computed(() => {
+  return getPlaceType(currentPlace.value?.tags ?? {})
+})
+
 const filteredTags = computed(() => {
   return Object.entries(currentPlace.value?.tags ?? {}).filter(
     ([key]) => !hiddenTags.includes(key),
   )
+})
+
+const formattedAddress = computed(() => {
+  const tags = currentPlace.value?.tags
+  if (!tags) return ''
+
+  const parts = [
+    `${tags['addr:housenumber'] || ''} ${tags['addr:street'] || ''}`.trim(),
+    `${tags['addr:city'] || ''}${
+      tags['addr:city'] && tags['addr:state'] ? ',' : ''
+    } ${tags['addr:state'] || ''} ${tags['addr:postcode'] || ''}`.trim(),
+    tags['addr:country'],
+  ].filter(Boolean)
+
+  return parts.join('\n')
 })
 
 async function loadPlace(type: string, id: string) {
@@ -76,12 +104,8 @@ function formatOpeningHours(hours: string) {
         <h1 class="text-xl font-semibold">
           {{ currentPlace.tags.name || 'Unnamed Place' }}
         </h1>
-        <p
-          v-if="currentPlace.tags['addr:street']"
-          class="text-muted-foreground"
-        >
-          {{ currentPlace.tags['addr:housenumber'] }}
-          {{ currentPlace.tags['addr:street'] }}
+        <p class="text-muted-foreground">
+          {{ placeType }}
         </p>
       </div>
 
@@ -99,6 +123,53 @@ function formatOpeningHours(hours: string) {
 
       <!-- Details -->
       <div class="flex flex-col gap-3">
+        <!-- Address -->
+        <div
+          v-if="
+            currentPlace.tags['addr:street'] ||
+            currentPlace.tags['addr:housenumber'] ||
+            currentPlace.tags['addr:city'] ||
+            currentPlace.tags['addr:postcode']
+          "
+          class="flex gap-3 items-start group"
+        >
+          <MapPinIcon class="w-5 h-5 mt-1 text-muted-foreground" />
+          <div class="flex flex-col flex-1">
+            <span>
+              {{ currentPlace.tags['addr:housenumber'] }}
+              {{ currentPlace.tags['addr:street'] }}
+            </span>
+            <span
+              v-if="
+                currentPlace.tags['addr:city'] ||
+                currentPlace.tags['addr:state'] ||
+                currentPlace.tags['addr:postcode']
+              "
+              class="text-muted-foreground text-sm"
+            >
+              {{ currentPlace.tags['addr:city']
+              }}{{
+                currentPlace.tags['addr:city'] &&
+                currentPlace.tags['addr:state']
+                  ? ','
+                  : ''
+              }}
+              {{ currentPlace.tags['addr:state'] }}
+              {{ currentPlace.tags['addr:postcode'] }}
+            </span>
+            <span
+              v-if="currentPlace.tags['addr:country']"
+              class="text-muted-foreground text-sm"
+            >
+              {{ currentPlace.tags['addr:country'] }}
+            </span>
+          </div>
+          <CopyButton
+            :text="formattedAddress"
+            message="Address copied to clipboard"
+          />
+        </div>
+
         <!-- Opening Hours -->
         <div
           v-if="currentPlace.tags.opening_hours"

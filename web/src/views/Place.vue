@@ -37,7 +37,7 @@ import CopyButton from '@/components/CopyButton.vue'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { TransitionExpand } from '@morev/vue-transitions'
 import { useMapService } from '@/services/map.service'
-import { MarkerIds } from '@/types/map.types'
+import { MarkerIds, Place } from '@/types/map.types'
 import { LngLat } from 'mapbox-gl'
 import { AppRoute } from '@/router'
 

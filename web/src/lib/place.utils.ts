@@ -858,3 +858,33 @@ export function getRestroomAccess(tags: Record<string, string | undefined>) {
   if (access === 'yes') return 'Public restrooms available'
   return 'Restrooms available'
 }
+
+export function calculatePlaceCenter(
+  place: Place,
+): { lat: number; lon: number } | null {
+  // For nodes, use direct coordinates
+  if (place.type === 'node' && place.lat && place.lon) {
+    return { lat: place.lat, lon: place.lon }
+  }
+
+  // For ways/relations, try bounds first
+  if (place.bounds) {
+    return {
+      lat: (place.bounds.minlat + place.bounds.maxlat) / 2,
+      lon: (place.bounds.minlon + place.bounds.maxlon) / 2,
+    }
+  }
+
+  // Fall back to geometry centroid
+  if (place.geometry?.length) {
+    const sumLat = place.geometry.reduce((sum, point) => sum + point.lat, 0)
+    const sumLon = place.geometry.reduce((sum, point) => sum + point.lon, 0)
+    const count = place.geometry.length
+    return {
+      lat: sumLat / count,
+      lon: sumLon / count,
+    }
+  }
+
+  return null
+}

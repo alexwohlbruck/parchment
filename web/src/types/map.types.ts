@@ -44,7 +44,10 @@ export type MapCamera = {
 
 export type MapInstance = MapboxMap | MaplibreMap
 
-export type LngLat = MapboxLngLat
+export type LngLat = {
+  lng: number
+  lat: number
+}
 
 export type Waypoint = {
   lngLat: LngLat | null

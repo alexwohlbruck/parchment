@@ -6,6 +6,9 @@ import {
   StreetViewType,
   type Layer,
   type MapEvents,
+  MarkerIds,
+  type MarkerId,
+  type LngLat,
 } from '@/types/map.types'
 import { useMapStore } from '../stores/map.store'
 import { useDirectionsStore } from '@/stores/directions.store'
@@ -80,7 +83,21 @@ function mapService() {
       }
     })
 
-    mapEventBus.on('click:poi', ({ osmId, poiType }) => {
+    mapEventBus.on('click:poi', ({ osmId, poiType, lngLat }) => {
+      if (lngLat) {
+        // Remove any existing POI markers
+        mapStrategy.removeAllMarkers()
+
+        // Add marker at clicked location
+        mapStrategy.addMarker(MarkerIds.SELECTED_POI, lngLat)
+
+        // Fly to location
+        mapStrategy.flyTo({
+          center: lngLat,
+          zoom: 17,
+        })
+      }
+
       router.push({
         name: AppRoute.PLACE,
         params: {
@@ -293,6 +310,9 @@ function mapService() {
     emit,
     setPegman: mapStore.setPegman,
     clearPegman: mapStore.clearPegman,
+    addMarker: (id: MarkerId, lngLat: LngLat) =>
+      mapStrategy.addMarker(id, lngLat),
+    removeAllMarkers: () => mapStrategy.removeAllMarkers(),
   }
 }
 

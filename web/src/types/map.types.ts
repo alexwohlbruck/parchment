@@ -1,4 +1,4 @@
-import { LngLatLike, Map as MapboxMap } from 'mapbox-gl'
+import { LngLatLike, Map as MapboxMap, LngLat as MapboxLngLat } from 'mapbox-gl'
 import { Map as MaplibreMap } from 'maplibre-gl'
 import { Icon } from '@/types/app.types'
 import { Image, PointOfView } from 'mapillary-js'
@@ -44,10 +44,7 @@ export type MapCamera = {
 
 export type MapInstance = MapboxMap | MaplibreMap
 
-export type LngLat = {
-  lng: number
-  lat: number
-}
+export type LngLat = MapboxLngLat
 
 export type Waypoint = {
   lngLat: LngLat | null
@@ -204,4 +201,20 @@ export type Place = {
     lat: number
     lon: number
   }
+  geometry?: Array<{
+    lat: number
+    lon: number
+  }>
+  bounds?: {
+    minlat: number
+    minlon: number
+    maxlat: number
+    maxlon: number
+  }
 }
+
+export const MarkerIds = {
+  SELECTED_POI: 'selected-poi',
+} as const
+
+export type MarkerId = (typeof MarkerIds)[keyof typeof MarkerIds]

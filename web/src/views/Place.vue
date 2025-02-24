@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { encode } from 'pluscodes'
 import { Button } from '@/components/ui/button'
 import { usePlaceService } from '@/services/place.service'
@@ -23,6 +23,7 @@ import {
   MailIcon,
   LinkIcon,
   PlusIcon,
+  XIcon,
 } from 'lucide-vue-next'
 import { parseOpeningHours } from '@/lib/map.utils'
 import {
@@ -37,8 +38,11 @@ import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { TransitionExpand } from '@morev/vue-transitions'
 import { useMapService } from '@/services/map.service'
 import { MarkerIds } from '@/types/map.types'
+import { LngLat } from 'mapbox-gl'
+import { AppRoute } from '@/router'
 
 const route = useRoute()
+const router = useRouter()
 const { currentPlace, loading, error, fetchPlaceDetails, clearPlace } =
   usePlaceService()
 const { toast } = useAppService()
@@ -305,7 +309,7 @@ async function loadPlace(type: string, id: string) {
 
     if (lat && lon) {
       removeAllMarkers()
-      addMarker(MarkerIds.SELECTED_POI, { lng: lon, lat })
+      addMarker(MarkerIds.SELECTED_POI, new LngLat(lon, lat))
     }
   }
 
@@ -352,8 +356,18 @@ onUnmounted(() => {
 
 <template>
   <div
-    class="bg-background max-h-full overflow-y-auto shadow-md flex flex-col rounded-md w-[400px]"
+    class="bg-background max-h-full overflow-y-auto shadow-md flex flex-col rounded-md w-[400px] relative"
   >
+    <!-- Add close button -->
+    <Button
+      variant="ghost"
+      size="icon"
+      class="absolute top-2 right-2 z-10"
+      @click="router.push({ name: AppRoute.MAP })"
+    >
+      <XIcon class="size-4" />
+    </Button>
+
     <div v-if="loading" class="p-4 flex items-center justify-center py-8">
       <Spinner class="w-6 h-6" />
     </div>
@@ -451,7 +465,7 @@ onUnmounted(() => {
 
         <!-- Action Buttons -->
         <div class="flex gap-2">
-          <Button variant="outline" class="flex-1">
+          <Button class="flex-1">
             <NavigationIcon class="mr-2 h-4 w-4" />
             Directions
           </Button>

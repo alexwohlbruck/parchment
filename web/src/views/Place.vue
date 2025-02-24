@@ -40,6 +40,7 @@ import { useMapService } from '@/services/map.service'
 import { MarkerIds, Place } from '@/types/map.types'
 import { LngLat } from 'mapbox-gl'
 import { AppRoute } from '@/router'
+import { useDirectionsService } from '@/services/directions.service'
 
 const route = useRoute()
 const router = useRouter()
@@ -47,6 +48,7 @@ const { currentPlace, loading, error, fetchPlaceDetails, clearPlace } =
   usePlaceService()
 const { toast } = useAppService()
 const { flyTo, addMarker, removeAllMarkers } = useMapService()
+const directionsService = useDirectionsService()
 
 const placeType = computed(() => {
   return getPlaceType(currentPlace.value?.tags ?? {})
@@ -357,6 +359,22 @@ function copyToClipboard() {
   navigator.clipboard.writeText(window.location.href)
   toast.info('Link copied to clipboard')
 }
+
+// Add function to handle directions click
+function handleDirectionsClick() {
+  if (!coordinates.value) return
+
+  // Create waypoint from current place coordinates
+  const waypoint = {
+    lngLat: new LngLat(coordinates.value.lon, coordinates.value.lat),
+  }
+
+  // Set as destination (second waypoint)
+  directionsService.directionsTo(waypoint)
+
+  // Navigate to directions view
+  router.push({ name: AppRoute.DIRECTIONS })
+}
 </script>
 
 <template>
@@ -470,7 +488,7 @@ function copyToClipboard() {
 
         <!-- Action Buttons -->
         <div class="flex gap-2">
-          <Button class="flex-1">
+          <Button class="flex-1" @click="handleDirectionsClick">
             <NavigationIcon class="mr-2 h-4 w-4" />
             Directions
           </Button>

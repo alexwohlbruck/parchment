@@ -32,6 +32,22 @@ function placeService() {
 
       if (!place) throw new Error('Place not found')
 
+      // Calculate and add center if not provided by Overpass
+      if (!place.center && place.bounds) {
+        place.center = {
+          lat: (place.bounds.minlat + place.bounds.maxlat) / 2,
+          lon: (place.bounds.minlon + place.bounds.maxlon) / 2,
+        }
+      } else if (!place.center && place.geometry?.length) {
+        const sumLat = place.geometry.reduce((sum, point) => sum + point.lat, 0)
+        const sumLon = place.geometry.reduce((sum, point) => sum + point.lon, 0)
+        const count = place.geometry.length
+        place.center = {
+          lat: sumLat / count,
+          lon: sumLon / count,
+        }
+      }
+
       currentPlace.value = place
       return place
     } catch (e) {

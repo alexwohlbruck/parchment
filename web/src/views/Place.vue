@@ -169,17 +169,9 @@ const coordinates = computed(() => {
     return { lat: place.lat, lon: place.lon }
   }
 
-  // For ways/relations, use center
-  if (place.center?.lat && place.center?.lon) {
+  // For ways/relations, use calculated center
+  if (place.center) {
     return { lat: place.center.lat, lon: place.center.lon }
-  }
-
-  // If no center, try to use first point of geometry
-  if (place.geometry?.[0]) {
-    return {
-      lat: place.geometry[0].lat,
-      lon: place.geometry[0].lon,
-    }
   }
 
   return null
@@ -310,6 +302,11 @@ async function loadPlace(type: string, id: string) {
     if (lat && lon) {
       removeAllMarkers()
       addMarker(MarkerIds.SELECTED_POI, new LngLat(lon, lat))
+
+      flyTo({
+        center: new LngLat(lon, lat),
+        zoom: 17,
+      })
     }
   }
 
@@ -352,6 +349,14 @@ function formatCoordinates(lat: number, lon: number) {
 onUnmounted(() => {
   removeAllMarkers()
 })
+
+const window = globalThis.window
+
+// Add this function to handle copying
+function copyToClipboard() {
+  navigator.clipboard.writeText(window.location.href)
+  toast.info('Link copied to clipboard')
+}
 </script>
 
 <template>
@@ -469,7 +474,7 @@ onUnmounted(() => {
             <NavigationIcon class="mr-2 h-4 w-4" />
             Directions
           </Button>
-          <Button variant="outline" class="flex-1">
+          <Button variant="outline" class="flex-1" @click="copyToClipboard">
             <ShareIcon class="mr-2 h-4 w-4" />
             Share
           </Button>

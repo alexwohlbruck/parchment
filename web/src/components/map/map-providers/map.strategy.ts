@@ -6,10 +6,11 @@ import {
   MapProjection,
   MapTheme,
   Pegman,
+  LngLat,
 } from '@/types/map.types'
 import { Locale } from '@/lib/i18n'
 import { Directions } from '@/types/directions.types'
-import { LngLatLike, LngLat } from 'mapbox-gl' // TODO: This is specific to mapbox, make generic
+import { LngLatLike } from 'mapbox-gl' // TODO: This is specific to mapbox, make generic
 
 const defaultOptions: MapOptions = {
   projection: 'mercator',

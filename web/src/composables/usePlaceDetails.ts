@@ -1,4 +1,4 @@
-import { computed } from 'vue'
+import { computed, Ref } from 'vue'
 import { Place } from '@/types/map.types'
 import { parseOpeningHours } from '@/lib/map.utils'
 import {

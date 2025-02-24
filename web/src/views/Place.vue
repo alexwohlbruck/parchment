@@ -44,7 +44,7 @@ import { useDirectionsService } from '@/services/directions.service'
 
 const route = useRoute()
 const router = useRouter()
-const { currentPlace, loading, error, fetchPlaceDetails, clearPlace } =
+const { currentPlace, loading, fetchPlaceDetails, clearPlace } =
   usePlaceService()
 const { toast } = useAppService()
 const { flyTo, addMarker, removeAllMarkers } = useMapService()
@@ -205,7 +205,10 @@ async function fetchWikidataImage() {
     const response = await fetch(
       `https://www.wikidata.org/w/api.php?action=wbgetclaims&property=P18&entity=${wikidataId}&format=json&origin=*`,
     )
-    if (!response.ok) throw new Error('Failed to fetch from Wikidata')
+    if (!response.ok) {
+      toast.error('Failed to fetch from Wikidata')
+      return
+    }
     const data = await response.json()
 
     const imageFileName = data.claims?.P18?.[0]?.mainsnak?.datavalue?.value
@@ -216,13 +219,19 @@ async function fetchWikidataImage() {
       imageFileName,
     )}&prop=imageinfo&iiprop=url&format=json&origin=*`
     const imageResponse = await fetch(imageUrl)
-    if (!imageResponse.ok) throw new Error('Failed to fetch from Wikimedia')
+    if (!imageResponse.ok) {
+      toast.error('Failed to fetch from Wikimedia')
+      return
+    }
     const imageData = await imageResponse.json()
 
     const pages = imageData.query?.pages || {}
     const page = Object.values(pages)[0] as any
     const url = page?.imageinfo?.[0]?.url
-    if (!url) throw new Error('No image URL found')
+    if (!url) {
+      toast.error('No image URL found')
+      return
+    }
 
     placeImage.value = url
   } catch (error) {
@@ -393,10 +402,6 @@ function handleDirectionsClick() {
 
     <div v-if="loading" class="p-4 flex items-center justify-center py-8">
       <Spinner class="w-6 h-6" />
-    </div>
-
-    <div v-else-if="error" class="p-4 text-destructive">
-      {{ error }}
     </div>
 
     <template v-else-if="currentPlace">

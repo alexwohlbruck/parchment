@@ -10,6 +10,7 @@ import {
   LngLatBounds,
   LngLatLike,
   GeoJSONSource,
+  LngLat,
 } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import {
@@ -186,14 +187,11 @@ export class MapboxStrategy extends MapStrategy {
         if (!e.feature?.id) return
 
         const { osmId, poiType } = parseMapboxToOsmId(e.feature.id)
-        const coordinates = e.feature.geometry.coordinates
         const center = e.feature.properties?.center
 
         if (poiType !== 'unknown') {
           // For ways/relations, use center point if available
-          const lngLat = center
-            ? { lng: center[0], lat: center[1] }
-            : { lng: coordinates[0], lat: coordinates[1] }
+          const lngLat = { lng: center[0], lat: center[1] }
 
           mapEventBus.emit('click:poi', {
             osmId,

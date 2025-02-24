@@ -1,3 +1,5 @@
+import { Place } from '@/types/map.types'
+
 export function getPlaceType(tags: Record<string, string | undefined>): string {
   const hasTag = (key: string, value?: string) => {
     const tag = tags[key]

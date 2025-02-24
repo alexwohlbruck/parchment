@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { Ref, ref } from 'vue'
 import type { Place } from '@/types/map.types'
 
 export function useWikidata(place: Ref<Place | null>) {

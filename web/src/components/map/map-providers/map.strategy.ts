@@ -9,7 +9,7 @@ import {
 } from '@/types/map.types'
 import { Locale } from '@/lib/i18n'
 import { Directions } from '@/types/directions.types'
-import { LngLatLike } from 'mapbox-gl' // TODO: This is specific to mapbox, make generic
+import { LngLatLike, LngLat } from 'mapbox-gl' // TODO: This is specific to mapbox, make generic
 
 const defaultOptions: MapOptions = {
   projection: 'mercator',
@@ -21,6 +21,7 @@ export class MapStrategy {
   mapInstance: any
   container: HTMLElement
   options: MapOptions
+  markers: Map<string, any> = new Map() // Track active markers
 
   constructor(container, options: MapOptions) {
     this.container = container
@@ -54,4 +55,21 @@ export class MapStrategy {
     state?: boolean,
   ) {}
   destroy() {}
+
+  addMarker(id: string, lngLat: LngLat) {
+    this.removeMarker(id) // Remove existing marker if any
+  }
+
+  removeMarker(id: string) {
+    const marker = this.markers.get(id)
+    if (marker) {
+      marker.remove()
+      this.markers.delete(id)
+    }
+  }
+
+  removeAllMarkers() {
+    this.markers.forEach(marker => marker.remove())
+    this.markers.clear()
+  }
 }

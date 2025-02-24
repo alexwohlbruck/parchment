@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, watch, computed, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { encode } from 'pluscodes'
 import { Button } from '@/components/ui/button'
 import { usePlaceService } from '@/services/place.service'
 import { Spinner } from '@/components/ui/spinner'
@@ -20,6 +21,8 @@ import {
   CigaretteIcon,
   ToiletIcon,
   MailIcon,
+  LinkIcon,
+  PlusIcon,
 } from 'lucide-vue-next'
 import { parseOpeningHours } from '@/lib/map.utils'
 import {
@@ -33,12 +36,13 @@ import CopyButton from '@/components/CopyButton.vue'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { TransitionExpand } from '@morev/vue-transitions'
 import { useMapService } from '@/services/map.service'
+import { MarkerIds } from '@/types/map.types'
 
 const route = useRoute()
 const { currentPlace, loading, error, fetchPlaceDetails, clearPlace } =
   usePlaceService()
 const { toast } = useAppService()
-const { flyTo } = useMapService()
+const { flyTo, addMarker, removeAllMarkers } = useMapService()
 
 const placeType = computed(() => {
   return getPlaceType(currentPlace.value?.tags ?? {})
@@ -151,6 +155,43 @@ const restroomAccessText = computed(() =>
   getRestroomAccess(currentPlace.value?.tags ?? {}),
 )
 
+const coordinates = computed(() => {
+  if (!currentPlace.value) return null
+
+  const place = currentPlace.value
+
+  // For nodes, use lat/lon
+  if (place.type === 'node' && place.lat && place.lon) {
+    return { lat: place.lat, lon: place.lon }
+  }
+
+  // For ways/relations, use center
+  if (place.center?.lat && place.center?.lon) {
+    return { lat: place.center.lat, lon: place.center.lon }
+  }
+
+  // If no center, try to use first point of geometry
+  if (place.geometry?.[0]) {
+    return {
+      lat: place.geometry[0].lat,
+      lon: place.geometry[0].lon,
+    }
+  }
+
+  return null
+})
+
+const plusCode = computed(() => {
+  if (!coordinates.value) return null
+  return encode(
+    {
+      latitude: coordinates.value.lat,
+      longitude: coordinates.value.lon,
+    },
+    10,
+  )
+})
+
 async function fetchWikidataImage() {
   const wikidataId =
     currentPlace.value?.tags.wikidata ||
@@ -254,6 +295,20 @@ async function loadPlace(type: string, id: string) {
   brandLogoLoaded.value = false
 
   const place = await fetchPlaceDetails(id, type as any)
+
+  // Add marker when place loads
+  if (place) {
+    // For ways/relations, use center point
+    // For nodes, use exact coordinates
+    const lat = place.center?.lat ?? place.lat
+    const lon = place.center?.lon ?? place.lon
+
+    if (lat && lon) {
+      removeAllMarkers()
+      addMarker(MarkerIds.SELECTED_POI, { lng: lon, lat })
+    }
+  }
+
   await Promise.all([fetchWikidataImage(), fetchWikidataBrandLogo()])
 }
 
@@ -277,24 +332,22 @@ watch(
 watch(
   () => currentPlace.value,
   place => {
-    if (place) {
-      // Use center coordinates if available (for ways/relations), otherwise use lat/lon (for nodes)
-      const lat = place.center?.lat ?? place.lat
-      const lon = place.center?.lon ?? place.lon
-
-      if (lat && lon) {
-        flyTo({
-          center: [lon, lat],
-          zoom: 17,
-        })
-      }
-    }
+    // Remove the flyTo code since we now do it on click
   },
 )
 
 function formatOpeningHours(hours: string) {
   return hours.split(';').join('\n')
 }
+
+function formatCoordinates(lat: number, lon: number) {
+  return `${lat.toFixed(6)}, ${lon.toFixed(6)}`
+}
+
+// Clean up marker when component unmounts
+onUnmounted(() => {
+  removeAllMarkers()
+})
 </script>
 
 <template>
@@ -538,7 +591,7 @@ function formatOpeningHours(hours: string) {
 
           <!-- Website -->
           <div v-if="currentPlace.tags.website" class="flex gap-3 items-center">
-            <GlobeIcon class="size-4 text-muted-foreground flex-shrink-0" />
+            <LinkIcon class="size-4 text-muted-foreground flex-shrink-0" />
             <a
               :href="currentPlace.tags.website"
               target="_blank"
@@ -636,6 +689,36 @@ function formatOpeningHours(hours: string) {
             <CopyButton
               :text="currentPlace.tags['contact:email']"
               message="Email copied to clipboard"
+              class="opacity-0 group-hover:opacity-100"
+            />
+          </div>
+
+          <!-- Coordinates -->
+          <div v-if="coordinates" class="flex gap-3 items-center group">
+            <GlobeIcon class="size-4 text-muted-foreground flex-shrink-0" />
+            <div class="flex flex-col flex-1">
+              <span class="text-sm">
+                {{ formatCoordinates(coordinates.lat, coordinates.lon) }}
+              </span>
+            </div>
+            <CopyButton
+              :text="formatCoordinates(coordinates.lat, coordinates.lon)"
+              message="Coordinates copied to clipboard"
+              class="opacity-0 group-hover:opacity-100"
+            />
+          </div>
+
+          <!-- Plus Code -->
+          <div v-if="plusCode" class="flex gap-3 items-center group">
+            <PlusIcon class="size-4 text-muted-foreground flex-shrink-0" />
+            <div class="flex flex-col flex-1">
+              <span class="text-sm">
+                {{ plusCode }}
+              </span>
+            </div>
+            <CopyButton
+              :text="plusCode"
+              message="Plus code copied to clipboard"
               class="opacity-0 group-hover:opacity-100"
             />
           </div>

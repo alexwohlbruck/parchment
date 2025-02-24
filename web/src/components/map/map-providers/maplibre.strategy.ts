@@ -424,4 +424,16 @@ export class MaplibreStrategy extends MapStrategy {
   destroy() {
     this.mapInstance.remove()
   }
+
+  addMarker(id: string, lngLat: LngLat) {
+    super.addMarker(id, lngLat)
+
+    const marker = new Marker({
+      color: 'hsl(var(--primary))', // Use CSS variable from shadcn theme
+    })
+      .setLngLat(lngLat)
+      .addTo(this.mapInstance)
+
+    this.markers.set(id, marker)
+  }
 }

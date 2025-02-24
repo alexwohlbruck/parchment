@@ -17,7 +17,9 @@ function placeService() {
     error.value = null
 
     try {
-      const query = `[out:json];${type}(${osmId});out body center;`
+      const query = `[out:json][timeout:25];
+      ${type}(${osmId});
+      out body meta center geom;`
       const response = await fetch(
         `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(
           query,

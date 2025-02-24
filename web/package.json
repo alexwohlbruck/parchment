@@ -42,6 +42,7 @@
     "mitt": "^3.0.1",
     "mousetrap": "^1.6.5",
     "pinia": "^2.1.7",
+    "pluscodes": "^2.6.0",
     "radix-vue": "^1.9.12",
     "tailwind-merge": "^2.3.0",
     "tailwindcss-animate": "^1.0.7",

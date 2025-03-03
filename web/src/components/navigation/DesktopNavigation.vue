@@ -94,7 +94,7 @@ const items = computed(() => {
       ],
     },
     {
-      separator: true,
+      spacer: true,
     },
     {
       items: [
@@ -117,7 +117,7 @@ const items = computed(() => {
       @mouseleave="mini = true"
       :class="
         cn(
-          'bg-background max-h-full overflow-y-auto m-2 py-2 shadow-md flex flex-col gap-2 rounded-md',
+          'bg-background overflow-y-auto py-2 shadow-md flex flex-col gap-2',
           $attrs.class ?? '',
         )
       "
@@ -129,8 +129,9 @@ const items = computed(() => {
         </transition-expand>
       </h2>
 
-      <div v-for="(item, i) in items" :key="i">
+      <template v-for="(item, i) in items" :key="i">
         <Separator v-if="item.separator" />
+        <div v-else-if="item.spacer" class="flex-1"></div>
         <div v-else>
           <div class="flex flex-col px-1">
             <template v-for="subitem in item.items">
@@ -164,7 +165,7 @@ const items = computed(() => {
             </template>
           </div>
         </div>
-      </div>
+      </template>
 
       <router-link
         to="/settings/account"

@@ -64,30 +64,30 @@ onMounted(() => {
     />
   </div>
 
-  <div class="flex h-dvh bg-background">
-    <!-- Desktop layout -->
+  <!-- Add absolute positioned palette container -->
+  <div
+    v-if="!isMobileScreen && isFloatingLayout"
+    class="fixed m-2 left-[3.25rem] z-20 w-[24rem] w-full"
+  >
+    <transition-slide no-opacity :offset="[0, '-130%']">
+      <Palette class="h-fit" />
+    </transition-slide>
+  </div>
+
+  <div class="flex flex-row h-dvh bg-background items-stretch">
     <template v-if="!isMobileScreen">
       <transition-slide no-opacity :offset="['-130%', 0]">
-        <DesktopNav v-if="isFloatingLayout" class="z-20" />
+        <DesktopNav v-if="isFloatingLayout" class="z-20 h-full" />
       </transition-slide>
-
-      <div
-        class="absolute top-0 left-1/2 transform -translate-x-1/2 p-2 z-10 sm:max-w-[30rem] w-full"
-      >
-        <transition-slide no-opacity :offset="[0, '-130%']">
-          <Palette class="h-fit" v-if="isFloatingLayout" />
-        </transition-slide>
-      </div>
     </template>
 
-    <!-- Mobile layout -->
     <template v-else>
       <transition-slide no-opacity :offset="[0, '130%']">
         <MobileNav v-if="isFloatingLayout" />
       </transition-slide>
     </template>
 
-    <main class="flex-1 h-dvh">
+    <main class="flex-1">
       <router-view v-slot="{ Component }">
         <keep-alive include="Map">
           <component :is="Component" />

@@ -388,24 +388,16 @@ function handleDirectionsClick() {
 
 <template>
   <div
-    class="bg-background max-h-full overflow-y-auto shadow-md flex flex-col rounded-md w-[400px] relative"
+    class="max-h-full h-full overflow-y-auto shadow-md flex flex-col rounded-r-md w-[400px] relative"
   >
-    <!-- Add close button -->
-    <Button
-      variant="ghost"
-      size="icon"
-      class="absolute top-2 right-2 z-10"
-      @click="router.push({ name: AppRoute.MAP })"
+    <div
+      v-if="loading"
+      class="h-full p-4 flex items-center justify-center py-8"
     >
-      <XIcon class="size-4" />
-    </Button>
-
-    <div v-if="loading" class="p-4 flex items-center justify-center py-8">
       <Spinner class="w-6 h-6" />
     </div>
 
     <template v-else-if="currentPlace">
-      <!-- Header with full-bleed image -->
       <div class="flex flex-col">
         <TransitionExpand>
           <div
@@ -479,16 +471,27 @@ function handleDirectionsClick() {
         </TransitionExpand>
       </div>
 
-      <!-- All other content in padded container -->
-      <div class="p-4 flex flex-col gap-4">
-        <!-- Name and type -->
-        <div>
-          <h1 v-if="currentPlace.tags.name" class="text-2xl font-semibold">
-            {{ currentPlace.tags.name }}
-          </h1>
-          <p class="text-muted-foreground">
-            {{ placeType }}
-          </p>
+      <div
+        class="p-4 flex flex-col gap-4"
+        :class="{ 'pt-[4.25rem]': !placeImage }"
+      >
+        <div class="flex items-center">
+          <div class="flex-1">
+            <h1 v-if="currentPlace.tags.name" class="text-2xl font-semibold">
+              {{ currentPlace.tags.name }}
+            </h1>
+            <p class="text-muted-foreground">
+              {{ placeType }}
+            </p>
+          </div>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            @click="router.push({ name: AppRoute.MAP })"
+          >
+            <XIcon class="size-4" />
+          </Button>
         </div>
 
         <!-- Action Buttons -->

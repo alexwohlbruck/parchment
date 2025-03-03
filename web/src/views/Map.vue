@@ -1,18 +1,21 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch } from 'vue'
+import { ref, onMounted, nextTick, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 
-import { TransitionExpand } from '@morev/vue-transitions'
+import { TransitionExpand, TransitionSlide } from '@morev/vue-transitions'
 import { Button } from '@/components/ui/button'
 import { Maximize2Icon, XIcon } from 'lucide-vue-next'
 import Map from '@/components/map/Map.vue'
 import StreetView from '@/components/map/StreetView.vue'
 import LayerControls from '@/components/map/LayerControls.vue'
-
+import { Card } from '@/components/ui/card'
 const route = useRoute()
 const router = useRouter()
 
+const isMapSubview = computed(() => {
+  return route.matched.length > 1 && route.name !== AppRoute.MAP
+})
 const pipSwapped = ref(false)
 const mountTeleports = ref(false)
 const streetView = ref(false)
@@ -48,20 +51,25 @@ watch(
 </script>
 
 <template>
-  <div
-    class="relative z-20 h-full flex flex-col justify-center pointer-events-none"
-  >
-    <div class="pointer-events-auto w-fit">
-      <router-view v-if="!route.meta.dialog" />
-    </div>
-  </div>
+  <div class="flex flex-1 h-full relative">
+    <transition-slide no-opacity :offset="['-130%', 0]">
+      <Card
+        v-if="!route.meta.dialog && isMapSubview"
+        class="absolute bg-muted z-10 top-0 left-0 w-fit h-full flex flex-col rounded-l-none border-l-0 border-y-0 justify-center"
+      >
+        <router-view />
+      </Card>
+    </transition-slide>
 
-  <div class="!absolute w-full h-full top-0 left-0" id="mainContent">
-    <template v-if="mountTeleports">
-      <Teleport :to="pipSwapped && streetView ? '#pipContent' : '#mainContent'">
-        <Map :pip-swapped="pipSwapped" />
-      </Teleport>
-    </template>
+    <div id="mainContent" class="flex-1 fixed top-0 left-0 w-full h-dvh">
+      <template v-if="mountTeleports">
+        <Teleport
+          :to="pipSwapped && streetView ? '#pipContent' : '#mainContent'"
+        >
+          <Map :pip-swapped="pipSwapped" />
+        </Teleport>
+      </template>
+    </div>
   </div>
 
   <div

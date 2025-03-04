@@ -356,14 +356,10 @@ function formatCoordinates(lat: number, lon: number) {
   return `${lat.toFixed(6)}, ${lon.toFixed(6)}`
 }
 
-// Clean up marker when component unmounts
 onUnmounted(() => {
   removeAllMarkers()
 })
 
-const window = globalThis.window
-
-// Add this function to handle copying
 function sharePlace() {
   const url = window.location.href
   if (navigator.share) {
@@ -381,19 +377,14 @@ function sharePlace() {
   }
 }
 
-// Add function to handle directions click
 function handleDirectionsClick() {
   if (!coordinates.value) return
 
-  // Create waypoint from current place coordinates
   const waypoint = {
     lngLat: new LngLat(coordinates.value.lon, coordinates.value.lat),
   }
 
-  // Set as destination (second waypoint)
   directionsService.directionsTo(waypoint)
-
-  // Navigate to directions view
   router.push({ name: AppRoute.DIRECTIONS })
 }
 </script>

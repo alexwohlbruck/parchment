@@ -54,13 +54,14 @@ watch(
 
 <template>
   <div class="flex flex-1 h-full relative">
+    <!-- Map subview -->
     <transition-slide
       no-opacity
       :offset="isMobileScreen ? [0, '100%'] : ['-130%', 0]"
     >
       <Card
         v-if="!route.meta.dialog && isMapSubview"
-        class="absolute bg-muted z-40 top-0 left-0 w-full md:w-[26rem] h-full flex flex-col rounded-l-none border-l-0 border-y-0 justify-center"
+        class="absolute bg-muted z-30 top-0 left-0 w-full md:w-[26rem] h-full flex flex-col rounded-l-none border-l-0 border-y-0 justify-center"
       >
         <div
           class="h-[3.25rem]"
@@ -70,6 +71,7 @@ watch(
       </Card>
     </transition-slide>
 
+    <!-- Map canvas -->
     <div id="mainContent" class="flex-1 fixed top-0 left-0 w-full h-dvh">
       <template v-if="mountTeleports">
         <Teleport

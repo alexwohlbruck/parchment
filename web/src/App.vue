@@ -74,18 +74,21 @@ onMounted(() => {
   </div>
 
   <div class="flex flex-row h-dvh bg-background items-stretch">
+    <!-- Desktop navigation -->
     <template v-if="!isMobileScreen">
       <transition-slide no-opacity :offset="['-130%', 0]">
-        <DesktopNav v-if="isFloatingLayout" class="z-20 h-full" />
+        <DesktopNav v-if="isFloatingLayout" class="z-40 h-full" />
       </transition-slide>
     </template>
 
+    <!-- Mobile navigation -->
     <template v-else>
       <transition-slide no-opacity :offset="[0, '130%']">
-        <MobileNav v-if="isFloatingLayout" />
+        <MobileNav v-if="isFloatingLayout" class="z-20" />
       </transition-slide>
     </template>
 
+    <!-- Main content -->
     <main class="flex-1">
       <router-view v-slot="{ Component }">
         <keep-alive include="Map">

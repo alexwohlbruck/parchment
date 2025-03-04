@@ -57,11 +57,11 @@ const items = computed(() => {
 </script>
 
 <template>
-  <div class="gap-1 fixed bottom-0 z-50 w-full">
+  <div class="gap-1 fixed bottom-0 z-40 w-full">
     <Card
       class="flex flex-col gap-2 p-2 bg-muted shadow-md rounded-b-none border-0 pb-[min(calc(env(safe-area-inset-bottom)-.25rem), 1rem)]"
     >
-      <div class="relative z-11">
+      <div class="relative">
         <Palette />
       </div>
 

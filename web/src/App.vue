@@ -66,7 +66,7 @@ onMounted(() => {
 
   <div
     v-if="!isMobileScreen && isFloatingLayout"
-    class="fixed m-2 left-[3.25rem] z-50 w-[25rem] w-full"
+    class="fixed m-2 left-[3.25rem] z-50 w-[25rem]"
   >
     <transition-slide no-opacity :offset="[0, '-130%']">
       <Palette class="h-fit" />

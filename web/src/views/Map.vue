@@ -2,6 +2,7 @@
 import { ref, onMounted, nextTick, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
+import { useResponsive } from '@/lib/utils'
 
 import { TransitionExpand, TransitionSlide } from '@morev/vue-transitions'
 import { Button } from '@/components/ui/button'
@@ -12,6 +13,7 @@ import LayerControls from '@/components/map/LayerControls.vue'
 import { Card } from '@/components/ui/card'
 const route = useRoute()
 const router = useRouter()
+const { isMobileScreen } = useResponsive()
 
 const isMapSubview = computed(() => {
   return route.matched.length > 1 && route.name !== AppRoute.MAP
@@ -52,12 +54,18 @@ watch(
 
 <template>
   <div class="flex flex-1 h-full relative">
-    <transition-slide no-opacity :offset="['-130%', 0]">
+    <transition-slide
+      no-opacity
+      :offset="isMobileScreen ? [0, '100%'] : ['-130%', 0]"
+    >
       <Card
         v-if="!route.meta.dialog && isMapSubview"
-        class="absolute bg-muted z-10 top-0 left-0 w-[26rem] h-full flex flex-col rounded-l-none border-l-0 border-y-0 justify-center"
+        class="absolute bg-muted z-40 top-0 left-0 w-full md:w-[26rem] h-full flex flex-col rounded-l-none border-l-0 border-y-0 justify-center"
       >
-        <div class="h-[3.25rem]" v-if="!route.meta.bleedUnderPalette"></div>
+        <div
+          class="h-[3.25rem]"
+          v-if="!isMobileScreen && !route.meta.bleedUnderPalette"
+        ></div>
         <router-view />
       </Card>
     </transition-slide>
@@ -74,7 +82,7 @@ watch(
   </div>
 
   <div
-    class="w-full absolute right-0 z-40 p-2 flex flex-col gap-2 items-end pointer-events-none"
+    class="w-full absolute right-0 z-12 p-2 flex flex-col gap-2 items-end pointer-events-none"
     :class="{
       'bottom-[calc(8.25rem+env(safe-area-inset-bottom))] md:bottom-0':
         route.meta.layout === 'floating',

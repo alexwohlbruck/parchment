@@ -41,6 +41,7 @@ import { MarkerIds, Place } from '@/types/map.types'
 import { LngLat } from 'mapbox-gl'
 import { AppRoute } from '@/router'
 import { useDirectionsService } from '@/services/directions.service'
+import { useResponsive } from '@/lib/utils'
 
 const route = useRoute()
 const router = useRouter()
@@ -49,6 +50,7 @@ const { currentPlace, loading, fetchPlaceDetails, clearPlace } =
 const { toast } = useAppService()
 const { flyTo, addMarker, removeAllMarkers } = useMapService()
 const directionsService = useDirectionsService()
+const { isMobileScreen } = useResponsive()
 
 const placeType = computed(() => {
   return getPlaceType(currentPlace.value?.tags ?? {})
@@ -476,7 +478,7 @@ function handleDirectionsClick() {
 
       <div
         class="p-4 flex flex-col gap-4"
-        :class="{ 'pt-[4.25rem]': !placeImage }"
+        :class="{ 'pt-[4.25rem]': !placeImage && !isMobileScreen }"
       >
         <div class="flex items-center">
           <div class="flex-1">

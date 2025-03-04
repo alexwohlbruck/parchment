@@ -67,7 +67,7 @@ onMounted(() => {
   <!-- Add absolute positioned palette container -->
   <div
     v-if="!isMobileScreen && isFloatingLayout"
-    class="fixed m-2 left-[3.25rem] z-20 w-[24rem] w-full"
+    class="fixed m-2 left-[3.25rem] z-20 w-[25rem] w-full"
   >
     <transition-slide no-opacity :offset="[0, '-130%']">
       <Palette class="h-fit" />

@@ -6,16 +6,10 @@ import { useI18n } from 'vue-i18n'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth.store'
 
-import { TransitionFade } from '@morev/vue-transitions'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from '@/components/ui/hover-card'
 import {
   MapIcon,
   MilestoneIcon,
@@ -25,7 +19,7 @@ import {
   MapPinnedIcon,
   UsersRoundIcon,
   SettingsIcon,
-  Layers3Icon,
+  PanelLeftIcon,
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -99,6 +93,13 @@ const items = computed(() => {
     {
       items: [
         {
+          label: 'Minimize',
+          icon: PanelLeftIcon,
+          onClick: () => {
+            mini.value = !mini.value
+          },
+        },
+        {
           label: t('settings.title'),
           icon: SettingsIcon,
           // hotkey: ['s'],
@@ -113,8 +114,6 @@ const items = computed(() => {
 <template>
   <div class="flex flex-col justify-center">
     <div
-      @mouseover="mini = false"
-      @mouseleave="mini = true"
       :class="
         cn(
           'bg-background overflow-y-auto py-2 shadow-md flex flex-col gap-2',
@@ -136,6 +135,22 @@ const items = computed(() => {
           <div class="flex flex-col px-1">
             <template v-for="subitem in item.items">
               <!-- v-if="subitem.to && (subitem.condition ?? true)" -->
+              <Button
+                v-if="subitem.onClick"
+                variant="ghost"
+                class="w-full flex px-3 justify-center gap-3 hover:bg-primary/5 hover:text-primary"
+                @click="subitem.onClick"
+              >
+                <component :is="subitem.icon" class="size-5" />
+                <transition-expand axis="x" :duration="50" easing="ease-out">
+                  <div v-if="!mini" class="flex flex-1 gap-1 text-nowrap">
+                    <div>
+                      {{ subitem.label }}
+                    </div>
+                  </div>
+                </transition-expand>
+              </Button>
+
               <Button
                 v-if="subitem.to"
                 variant="ghost"

@@ -55,8 +55,9 @@ watch(
     <transition-slide no-opacity :offset="['-130%', 0]">
       <Card
         v-if="!route.meta.dialog && isMapSubview"
-        class="absolute bg-muted z-10 top-0 left-0 w-fit h-full flex flex-col rounded-l-none border-l-0 border-y-0 justify-center"
+        class="absolute bg-muted z-10 top-0 left-0 w-[26rem] h-full flex flex-col rounded-l-none border-l-0 border-y-0 justify-center"
       >
+        <div class="h-[3.25rem]" v-if="!route.meta.bleedUnderPalette"></div>
         <router-view />
       </Card>
     </transition-slide>

@@ -63,6 +63,9 @@ const router = createRouter({
           path: '/place/:type/:id',
           name: AppRoute.PLACE,
           component: Place,
+          meta: {
+            bleedUnderPalette: true,
+          },
         },
         // TODO: Support places from external sources
         // {

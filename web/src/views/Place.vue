@@ -388,7 +388,7 @@ function handleDirectionsClick() {
 
 <template>
   <div
-    class="max-h-full h-full overflow-y-auto shadow-md flex flex-col rounded-r-md w-[400px] relative"
+    class="max-h-full h-full overflow-y-auto shadow-md flex flex-col rounded-r-md w-full relative"
   >
     <div
       v-if="loading"

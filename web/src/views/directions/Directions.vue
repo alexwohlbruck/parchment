@@ -69,7 +69,7 @@ watch(
 
 <template>
   <div
-    class="p-4 bg-background max-h-full w-[26rem] overflow-y-auto shadow-md flex flex-col gap-2 rounded-md"
+    class="p-4 h-full w-full overflow-y-auto shadow-md flex flex-col gap-2 rounded-md"
   >
     <Tabs v-model="selectedMode" default-value="pedestrian">
       <TabsList class="w-full flex">

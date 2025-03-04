@@ -364,9 +364,21 @@ onUnmounted(() => {
 const window = globalThis.window
 
 // Add this function to handle copying
-function copyToClipboard() {
-  navigator.clipboard.writeText(window.location.href)
-  toast.info('Link copied to clipboard')
+function sharePlace() {
+  const url = window.location.href
+  if (navigator.share) {
+    try {
+      navigator.share({
+        url,
+        title: currentPlace.value?.tags.name,
+        text: currentPlace.value?.tags.name,
+      })
+      return
+    } catch (err) {
+      navigator.clipboard.writeText(url)
+      toast.info('Link copied to clipboard')
+    }
+  }
 }
 
 // Add function to handle directions click
@@ -500,7 +512,7 @@ function handleDirectionsClick() {
             <NavigationIcon class="mr-2 h-4 w-4" />
             Directions
           </Button>
-          <Button variant="outline" class="flex-1" @click="copyToClipboard">
+          <Button variant="outline" class="flex-1" @click="sharePlace">
             <ShareIcon class="mr-2 h-4 w-4" />
             Share
           </Button>

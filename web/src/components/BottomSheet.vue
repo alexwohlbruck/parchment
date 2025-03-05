@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from 'vue'
-import { ref } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { cn } from '@/lib/utils'
 import { useGesture } from '@vueuse/gesture'
 import {
@@ -8,15 +8,39 @@ import {
   useMotionProperties,
   useMotionTransitions,
 } from '@vueuse/motion'
-import { useElementBounding } from '@vueuse/core'
+import { useElementBounding, useWindowSize, useScroll } from '@vueuse/core'
 
 const props = defineProps<{
   class?: HTMLAttributes['class']
 }>()
 
 const sheet = ref<HTMLElement | null>(null)
-const height = ref(0)
+const scrollContainer = ref<HTMLElement | null>(null)
 const translateY = ref(0)
+
+// Get window and sheet dimensions
+const { height: windowHeight } = useWindowSize()
+const { height: sheetHeight } = useElementBounding(sheet)
+
+// Track scroll position
+const { y: scrollY } = useScroll(scrollContainer)
+const isAtTop = computed(() => scrollY.value === 0)
+
+watch(scrollY, value => {
+  console.log({ scrollY: value })
+})
+
+watch(isAtTop, value => {
+  console.log({ isAtTop: value })
+})
+
+// Define snap points as percentages of window height
+const snapPoints = computed(() => [
+  0, // Fully expanded
+  windowHeight.value * 0.5, // 50% height
+  windowHeight.value * 0.75, // 25% height
+  windowHeight.value * 1, // hidden
+])
 
 // Motion setup
 const { motionProperties } = useMotionProperties(sheet)
@@ -27,28 +51,50 @@ const { set, stop: stopMotion } = useMotionControls(
   { push, motionValues, stop },
 )
 
-// Get sheet dimensions
-const { height: sheetHeight } = useElementBounding(sheet)
+// Computed to check if sheet is fully expanded
+const isFullyExpanded = computed(() => {
+  const currentY = motionValues.value.y?.get() ?? 0
+  return Math.abs(currentY) < 1 // Using small threshold to account for floating point
+})
+
+// Find closest snap point
+function getClosestSnapPoint(y: number) {
+  return snapPoints.value.reduce((prev, curr) =>
+    Math.abs(curr - y) < Math.abs(prev - y) ? curr : prev,
+  )
+}
 
 // Handle drag gestures
 useGesture(
   {
-    onDragStart: () => {
+    onDragStart: ({ event }) => {
+      // Prevent drag if not at top and fully expanded
+      if (!isAtTop.value && isFullyExpanded.value) {
+        event.preventDefault()
+        return
+      }
+
       translateY.value = motionValues.value.y?.get() ?? 0
       stopMotion()
     },
-    onDrag: ({ delta: [_deltaX, deltaY] }) => {
+    onDrag: ({ delta: [_deltaX, deltaY], event }) => {
+      // Extra check during drag
+      if (!isAtTop.value && isFullyExpanded.value) {
+        event.preventDefault()
+        return
+      }
+
       translateY.value += deltaY
       set({ y: translateY.value })
     },
     onDragEnd: () => {
-      // Snap back to original position
-      push('y', 0, motionProperties, {
+      const snapPoint = getClosestSnapPoint(translateY.value)
+      push('y', snapPoint, motionProperties, {
         type: 'spring',
         stiffness: 300,
         damping: 30,
       })
-      translateY.value = 0
+      translateY.value = snapPoint
     },
   },
   {
@@ -64,9 +110,16 @@ useGesture(
 <template>
   <Card
     ref="sheet"
-    :class="cn('touch-none', props.class)"
+    :class="cn('touch-none h-full flex flex-col', props.class)"
     v-motion="motionProperties"
   >
-    <slot />
+    <div
+      ref="scrollContainer"
+      :class="
+        cn('flex-1 overflow-y-auto', { 'overflow-y-hidden': !isFullyExpanded })
+      "
+    >
+      <slot />
+    </div>
   </Card>
 </template>

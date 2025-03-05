@@ -392,9 +392,7 @@ function handleDirectionsClick() {
 </script>
 
 <template>
-  <div
-    class="max-h-full h-full overflow-y-auto shadow-md flex flex-col rounded-r-md w-full relative"
-  >
+  <div class="h-full flex flex-col relative">
     <div
       v-if="loading"
       class="h-full p-4 flex items-center justify-center py-8"

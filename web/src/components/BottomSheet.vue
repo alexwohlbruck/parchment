@@ -2,7 +2,7 @@
 import type { HTMLAttributes } from 'vue'
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { cn } from '@/lib/utils'
-import { useGesture } from '@vueuse/gesture'
+import { useGesture, Vector2 } from '@vueuse/gesture'
 import {
   useMotionControls,
   useMotionProperties,
@@ -24,31 +24,60 @@ const translateY = ref(0)
 const currentSnapPoint = ref(0)
 const preventScroll = ref(false)
 
-// Get window and sheet dimensions
 const { height: windowHeight } = useWindowSize()
 const { height: sheetHeight } = useElementBounding(sheet)
 
-// Track scroll position
 const { y: scrollY } = useScroll(scrollContainer)
 const isAtTop = computed(() => scrollY.value === 0)
 
-watch(scrollY, value => {
-  console.log({ scrollY: value })
-})
+enum SnapPointName {
+  EXPANDED = 'EXPANDED',
+  HALF = 'HALF',
+  PEEK = 'PEEK',
+  HIDDEN = 'HIDDEN',
+}
 
-watch(isAtTop, value => {
-  console.log({ isAtTop: value })
-})
+interface SnapPoint {
+  name: SnapPointName
+  value: number
+}
 
-// Define snap points as percentages of window height
-const snapPoints = computed(() => [
-  0, // Fully expanded
-  windowHeight.value * 0.5, // 50% height
-  windowHeight.value * 0.75, // 25% height
-  windowHeight.value, // hidden
+const snapPoints = computed<SnapPoint[]>(() => [
+  { name: SnapPointName.EXPANDED, value: 0 },
+  { name: SnapPointName.HALF, value: windowHeight.value * 0.5 },
+  { name: SnapPointName.PEEK, value: windowHeight.value * 0.75 },
+  { name: SnapPointName.HIDDEN, value: windowHeight.value },
 ])
 
-// Motion setup
+function getClosestSnapPoint(y: number): SnapPoint {
+  return snapPoints.value.reduce((prev, curr) => {
+    return Math.abs(curr.value - y) < Math.abs(prev.value - y) ? curr : prev
+  })
+}
+
+function getTargetSnapPoint(
+  y: number,
+  velocity: number,
+  direction: Vector2,
+): SnapPoint {
+  const closestSnapPoint = getClosestSnapPoint(y)
+  const currentIndex = snapPoints.value.indexOf(closestSnapPoint)
+  const [_dirX, dirY] = direction
+  const isDraggingDown = dirY > 0
+
+  const getTargetIndex = (offset: number) => {
+    return isDraggingDown
+      ? Math.min(currentIndex + offset, snapPoints.value.length - 1)
+      : Math.max(currentIndex - offset, 0)
+  }
+
+  const velocityOffset = Math.abs(velocity) > 2 ? 2 : 1
+  const targetIndex =
+    Math.abs(velocity) > 1 ? getTargetIndex(velocityOffset) : getTargetIndex(1)
+
+  return snapPoints.value[targetIndex]
+}
+
 const { motionProperties } = useMotionProperties(sheet)
 const { push, stop, motionValues } = useMotionTransitions()
 const { set, stop: stopMotion } = useMotionControls(
@@ -58,12 +87,16 @@ const { set, stop: stopMotion } = useMotionControls(
 )
 
 onMounted(() => {
-  // Start at hidden position
-  set({ y: windowHeight.value })
+  const hidden = snapPoints.value.find(
+    point => point.name === SnapPointName.HIDDEN,
+  )!
+  set({ y: hidden.value })
 
-  // Animate to 25% covered position
   nextTick(() => {
-    const targetY = windowHeight.value * 0.75
+    const peek = snapPoints.value.find(
+      point => point.name === SnapPointName.PEEK,
+    )!
+    const targetY = peek.value
     currentSnapPoint.value = targetY
     translateY.value = targetY
     push('y', targetY, motionProperties, {
@@ -74,27 +107,21 @@ onMounted(() => {
   })
 })
 
-// Computed to check if sheet is fully expanded
-const isFullyExpanded = computed(() => currentSnapPoint.value === 0)
+const isFullyExpanded = computed(() => {
+  const expanded = snapPoints.value.find(
+    point => point.name === SnapPointName.EXPANDED,
+  )!
+  return currentSnapPoint.value === expanded.value
+})
 
-// Find closest snap point
-function getClosestSnapPoint(y: number) {
-  return snapPoints.value.reduce((prev, curr) =>
-    Math.abs(curr - y) < Math.abs(prev - y) ? curr : prev,
-  )
-}
-
-// Handle drag gestures
 useGesture(
   {
-    onDragStart: ({ direction: [_directionX, _directionY], event }) => {
+    onDragStart: ({ direction: [_directionX, _directionY] }) => {
       const isDraggingDown = _directionY > 0
 
-      // When fully expanded, only allow drag when at top
       if (isFullyExpanded.value) {
         preventScroll.value = isAtTop.value && isDraggingDown
 
-        // If we shouldn't prevent scroll, don't start the drag
         if (!preventScroll.value) {
           return
         }
@@ -103,10 +130,7 @@ useGesture(
       translateY.value = motionValues.value.y?.get() ?? 0
       stopMotion()
     },
-    onDrag: ({ delta: [_deltaX, deltaY], event }) => {
-      // When expanded:
-      // - Allow dragging down only from the top
-      // - Don't allow dragging up at all
+    onDrag: ({ delta: [_deltaX, deltaY] }) => {
       if (isFullyExpanded.value) {
         if (!isAtTop.value || deltaY < 0) {
           return
@@ -116,22 +140,34 @@ useGesture(
       translateY.value += deltaY
       set({ y: translateY.value })
     },
-    onDragEnd: () => {
+    onDragEnd: ({ velocity, direction }) => {
       preventScroll.value = false
-      const snapPoint = getClosestSnapPoint(translateY.value)
-      currentSnapPoint.value = snapPoint
 
-      // Emit close event if snapping to hidden position
-      if (snapPoint === windowHeight.value) {
-        emit('close')
-      }
+      const snapPoint = getTargetSnapPoint(
+        translateY.value,
+        velocity,
+        direction,
+      )
+      const targetY = snapPoint.value
+      currentSnapPoint.value = targetY
 
-      push('y', snapPoint, motionProperties, {
+      const shouldClose = snapPoint.name === SnapPointName.HIDDEN
+      const stiffness = Math.abs(velocity) > 2 ? 200 : 300
+      const damping = Math.abs(velocity) > 2 ? 20 : 25
+
+      push('y', targetY, motionProperties, {
         type: 'spring',
-        stiffness: 300,
-        damping: 30,
+        stiffness,
+        damping,
+        velocity: velocity * 1000,
       })
-      translateY.value = snapPoint
+      translateY.value = targetY
+
+      setTimeout(() => {
+        if (shouldClose) {
+          emit('close')
+        }
+      }, 300)
     },
   },
   {

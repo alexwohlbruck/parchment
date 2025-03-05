@@ -21,7 +21,6 @@
     "@morev/vue-transitions"
   ],
   "dependencies": {
-    "@douxcode/vue-spring-bottom-sheet": "^1.2.6",
     "@internationalized/date": "^3.5.4",
     "@mdi/js": "^7.4.47",
     "@morev/vue-transitions": "^3.0.2",

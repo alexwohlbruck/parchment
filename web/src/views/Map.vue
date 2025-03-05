@@ -59,6 +59,7 @@ watch(
     <BottomSheet
       v-if="!route.meta.dialog && isMapSubview"
       class="absolute bg-muted z-30 top-0 left-0 w-full md:w-[26rem] h-full border-l-0 border-y-0 justify-center"
+      @close="router.push({ name: AppRoute.MAP })"
     >
       <div class="flex justify-center p-2">
         <div class="h-1 w-16 rounded-full bg-muted-foreground"></div>

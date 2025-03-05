@@ -21,6 +21,7 @@
     "@morev/vue-transitions"
   ],
   "dependencies": {
+    "@douxcode/vue-spring-bottom-sheet": "^1.2.6",
     "@internationalized/date": "^3.5.4",
     "@mdi/js": "^7.4.47",
     "@morev/vue-transitions": "^3.0.2",
@@ -30,6 +31,8 @@
     "@tauri-apps/plugin-store": "~2",
     "@vee-validate/zod": "^4.12.8",
     "@vueuse/core": "^12.3.0",
+    "@vueuse/gesture": "^2.0.0",
+    "@vueuse/motion": "^2.2.6",
     "axios": "^1.6.8",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",

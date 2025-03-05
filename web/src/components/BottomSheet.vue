@@ -173,7 +173,7 @@ useGesture(
   {
     domTarget: sheet,
     drag: {
-      filterTaps: true,
+      filterTaps: false,
       axis: 'y',
     },
   },

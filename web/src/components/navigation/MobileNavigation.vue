@@ -5,7 +5,6 @@ import { useI18n } from 'vue-i18n'
 import { Card } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import Palette from '@/components/palette/Palette.vue'
-
 import {
   MapIcon,
   BookMarkedIcon,
@@ -73,7 +72,8 @@ const items = computed(() => {
             :value="item.to"
           >
             <component :is="item.icon" class="size-5" />
-            <P class="text-xs">{{ item.label }}</P>
+            <!-- TODO: Use typography component -->
+            <p class="text-xs">{{ item.label }}</p>
           </TabsTrigger>
         </TabsList>
       </Tabs>

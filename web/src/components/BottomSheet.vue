@@ -14,9 +14,14 @@ const props = defineProps<{
   class?: HTMLAttributes['class']
 }>()
 
+const emit = defineEmits<{
+  (e: 'close'): void
+}>()
+
 const sheet = ref<HTMLElement | null>(null)
 const scrollContainer = ref<HTMLElement | null>(null)
 const translateY = ref(0)
+const currentSnapPoint = ref(0)
 
 // Get window and sheet dimensions
 const { height: windowHeight } = useWindowSize()
@@ -39,7 +44,7 @@ const snapPoints = computed(() => [
   0, // Fully expanded
   windowHeight.value * 0.5, // 50% height
   windowHeight.value * 0.75, // 25% height
-  windowHeight.value * 1, // hidden
+  windowHeight.value, // hidden
 ])
 
 // Motion setup
@@ -52,10 +57,7 @@ const { set, stop: stopMotion } = useMotionControls(
 )
 
 // Computed to check if sheet is fully expanded
-const isFullyExpanded = computed(() => {
-  const currentY = motionValues.value.y?.get() ?? 0
-  return Math.abs(currentY) < 1 // Using small threshold to account for floating point
-})
+const isFullyExpanded = computed(() => currentSnapPoint.value === 0)
 
 // Find closest snap point
 function getClosestSnapPoint(y: number) {
@@ -80,7 +82,6 @@ useGesture(
     onDrag: ({ delta: [_deltaX, deltaY], event }) => {
       // Extra check during drag
       if (!isAtTop.value && isFullyExpanded.value) {
-        event.preventDefault()
         return
       }
 
@@ -89,6 +90,13 @@ useGesture(
     },
     onDragEnd: () => {
       const snapPoint = getClosestSnapPoint(translateY.value)
+      currentSnapPoint.value = snapPoint
+
+      // Emit close event if snapping to hidden position
+      if (snapPoint === windowHeight.value) {
+        emit('close')
+      }
+
       push('y', snapPoint, motionProperties, {
         type: 'spring',
         stiffness: 300,

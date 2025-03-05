@@ -141,6 +141,10 @@ useGesture(
       set({ y: translateY.value })
     },
     onDragEnd: ({ velocity, direction }) => {
+      if (!isAtTop.value) {
+        return
+      }
+
       preventScroll.value = false
 
       const snapPoint = getTargetSnapPoint(

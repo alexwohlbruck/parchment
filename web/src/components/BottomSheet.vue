@@ -60,6 +60,10 @@ function getTargetSnapPoint(
   velocity: number,
   direction: Vector2,
 ): SnapPoint {
+  if (Math.abs(velocity) < 0.5) {
+    return getClosestSnapPoint(y)
+  }
+
   const closestSnapPoint = getClosestSnapPoint(y)
   const currentIndex = snapPoints.value.indexOf(closestSnapPoint)
   const [_dirX, dirY] = direction
@@ -72,8 +76,7 @@ function getTargetSnapPoint(
   }
 
   const velocityOffset = Math.abs(velocity) > 2 ? 2 : 1
-  const targetIndex =
-    Math.abs(velocity) > 1 ? getTargetIndex(velocityOffset) : getTargetIndex(1)
+  const targetIndex = getTargetIndex(velocityOffset)
 
   return snapPoints.value[targetIndex]
 }

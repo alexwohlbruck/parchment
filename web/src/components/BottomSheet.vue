@@ -22,6 +22,7 @@ const sheet = ref<HTMLElement | null>(null)
 const scrollContainer = ref<HTMLElement | null>(null)
 const translateY = ref(0)
 const currentSnapPoint = ref(0)
+const preventScroll = ref(false)
 
 // Get window and sheet dimensions
 const { height: windowHeight } = useWindowSize()
@@ -86,26 +87,37 @@ function getClosestSnapPoint(y: number) {
 // Handle drag gestures
 useGesture(
   {
-    onDragStart: ({ event }) => {
-      // Prevent drag if not at top and fully expanded
-      if (!isAtTop.value && isFullyExpanded.value) {
-        event.preventDefault()
-        return
+    onDragStart: ({ direction: [_directionX, _directionY], event }) => {
+      const isDraggingDown = _directionY > 0
+
+      // When fully expanded, only allow drag when at top
+      if (isFullyExpanded.value) {
+        preventScroll.value = isAtTop.value && isDraggingDown
+
+        // If we shouldn't prevent scroll, don't start the drag
+        if (!preventScroll.value) {
+          return
+        }
       }
 
       translateY.value = motionValues.value.y?.get() ?? 0
       stopMotion()
     },
     onDrag: ({ delta: [_deltaX, deltaY], event }) => {
-      // Extra check during drag
-      if (!isAtTop.value && isFullyExpanded.value) {
-        return
+      // When expanded:
+      // - Allow dragging down only from the top
+      // - Don't allow dragging up at all
+      if (isFullyExpanded.value) {
+        if (!isAtTop.value || deltaY < 0) {
+          return
+        }
       }
 
       translateY.value += deltaY
       set({ y: translateY.value })
     },
     onDragEnd: () => {
+      preventScroll.value = false
       const snapPoint = getClosestSnapPoint(translateY.value)
       currentSnapPoint.value = snapPoint
 
@@ -135,20 +147,20 @@ useGesture(
 <template>
   <Card
     ref="sheet"
-    :class="cn('touch-none h-full flex flex-col', props.class)"
+    :class="cn('h-full flex flex-col', props.class)"
     v-motion="motionProperties"
   >
+    <div class="flex justify-center p-2 absolute top-0 left-0 w-full">
+      <div class="h-1 w-16 rounded-full bg-muted-foreground"></div>
+    </div>
     <div
       ref="scrollContainer"
       :class="
-        cn('flex-1 overflow-y-auto', {
+        cn('flex-1 overflow-y-auto overscroll-contain touch-pan-y', {
           'overflow-y-hidden': !isFullyExpanded,
         })
       "
     >
-      <div class="flex justify-center p-2 absolute top-0 left-0 w-full">
-        <div class="h-1 w-16 rounded-full bg-muted-foreground"></div>
-      </div>
       <slot />
     </div>
   </Card>

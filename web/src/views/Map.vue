@@ -61,8 +61,11 @@ watch(
     >
       <Card
         v-if="!route.meta.dialog && isMapSubview"
-        class="absolute bg-muted z-30 top-0 left-0 w-full md:w-[26rem] h-full flex flex-col rounded-l-none border-l-0 border-y-0 justify-center"
+        class="absolute bg-muted z-30 top-0 left-0 w-full md:w-[26rem] h-full flex flex-col md:rounded-l-none border-l-0 border-y-0 justify-center"
       >
+        <div class="flex justify-center p-2">
+          <div class="h-1 w-16 rounded-full bg-muted-foreground"></div>
+        </div>
         <div
           class="h-[3.25rem]"
           v-if="!isMobileScreen && !route.meta.bleedUnderPalette"

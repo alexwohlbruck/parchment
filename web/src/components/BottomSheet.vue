@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from 'vue'
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { cn } from '@/lib/utils'
 import { useGesture } from '@vueuse/gesture'
 import {
@@ -55,6 +55,23 @@ const { set, stop: stopMotion } = useMotionControls(
   {},
   { push, motionValues, stop },
 )
+
+onMounted(() => {
+  // Start at hidden position
+  set({ y: windowHeight.value })
+
+  // Animate to 25% covered position
+  nextTick(() => {
+    const targetY = windowHeight.value * 0.75
+    currentSnapPoint.value = targetY
+    translateY.value = targetY
+    push('y', targetY, motionProperties, {
+      type: 'spring',
+      stiffness: 300,
+      damping: 30,
+    })
+  })
+})
 
 // Computed to check if sheet is fully expanded
 const isFullyExpanded = computed(() => currentSnapPoint.value === 0)
@@ -124,9 +141,14 @@ useGesture(
     <div
       ref="scrollContainer"
       :class="
-        cn('flex-1 overflow-y-auto', { 'overflow-y-hidden': !isFullyExpanded })
+        cn('flex-1 overflow-y-auto', {
+          'overflow-y-hidden': !isFullyExpanded,
+        })
       "
     >
+      <div class="flex justify-center p-2 absolute top-0 left-0 w-full">
+        <div class="h-1 w-16 rounded-full bg-muted-foreground"></div>
+      </div>
       <slot />
     </div>
   </Card>

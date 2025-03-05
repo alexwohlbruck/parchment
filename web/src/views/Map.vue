@@ -54,7 +54,7 @@ watch(
 </script>
 
 <template>
-  <div class="flex flex-1 h-full relative">
+  <div class="flex flex-1 h-full relative overflow-hidden">
     <!-- Map subview -->
     <BottomSheet
       v-if="!route.meta.dialog && isMapSubview"

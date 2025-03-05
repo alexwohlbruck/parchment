@@ -4,6 +4,7 @@ import './style.css'
 import App from './App.vue'
 import router from './router'
 import VueTransitions from '@morev/vue-transitions'
+import { MotionPlugin } from '@vueuse/motion'
 import { i18n } from '@/lib/i18n'
 
 import '@morev/vue-transitions/styles'
@@ -20,5 +21,6 @@ app.use(router)
 app.use(pinia)
 app.use(i18n)
 app.use(VueTransitions)
+app.use(MotionPlugin)
 
 app.mount('#app')

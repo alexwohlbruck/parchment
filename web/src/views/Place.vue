@@ -401,11 +401,78 @@ function handleDirectionsClick() {
     </div>
 
     <template v-else-if="currentPlace">
-      <div class="flex flex-col">
+      <div class="p-4 flex flex-col gap-4">
+        <!-- Title section with brand logo -->
+        <div class="flex items-center gap-4">
+          <!-- Brand Logo -->
+          <div
+            v-if="logoLoading || brandLogo || logoError"
+            class="size-12 rounded-lg overflow-hidden border border-border shadow flex-shrink-0"
+          >
+            <div
+              v-if="logoLoading"
+              class="w-full h-full bg-muted/50 animate-pulse relative overflow-hidden"
+            >
+              <div
+                class="absolute inset-0 -translate-x-full animate-[shimmer_1s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent"
+              />
+            </div>
+            <div v-if="brandLogo" class="w-full h-full">
+              <transition
+                enter-from-class="opacity-0"
+                enter-to-class="opacity-100"
+                enter-active-class="transition-opacity duration-200"
+              >
+                <img
+                  v-show="brandLogoLoaded"
+                  :src="brandLogo"
+                  :alt="currentPlace.tags.name + ' logo'"
+                  class="w-full h-full object-contain bg-white"
+                  @load="handleBrandLogoLoad"
+                />
+              </transition>
+            </div>
+            <div
+              v-if="logoError"
+              class="w-full h-full flex items-center justify-center bg-muted"
+            />
+          </div>
+
+          <div class="flex-1">
+            <h1 v-if="currentPlace.tags.name" class="text-2xl font-semibold">
+              {{ currentPlace.tags.name }}
+            </h1>
+            <p class="text-muted-foreground">
+              {{ placeType }}
+            </p>
+          </div>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            @click="router.push({ name: AppRoute.MAP })"
+          >
+            <XIcon class="size-4" />
+          </Button>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex gap-2">
+          <Button class="flex-1" @click="handleDirectionsClick">
+            <NavigationIcon class="mr-2 h-4 w-4" />
+            Directions
+          </Button>
+          <Button variant="outline" class="flex-1" @click="sharePlace">
+            <ShareIcon class="mr-2 h-4 w-4" />
+            Share
+          </Button>
+        </div>
+
+        <!-- Main Image -->
         <TransitionExpand>
           <div
             v-if="imageLoading || placeImage || imageError"
-            class="w-full relative aspect-video"
+            class="w-full relative aspect-video rounded-lg overflow-hidden"
           >
             <div
               v-if="imageLoading"
@@ -436,78 +503,8 @@ function handleDirectionsClick() {
             >
               Failed to load image
             </div>
-
-            <!-- Brand Logo -->
-            <div
-              v-if="logoLoading || brandLogo || logoError"
-              class="absolute bottom-4 left-4 size-20 rounded-lg overflow-hidden border-2 border-border shadow-lg"
-            >
-              <div
-                v-if="logoLoading"
-                class="w-full h-full bg-muted/50 animate-pulse relative overflow-hidden"
-              >
-                <div
-                  class="absolute inset-0 -translate-x-full animate-[shimmer_1s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent"
-                />
-              </div>
-              <div v-if="brandLogo" class="w-full h-full">
-                <transition
-                  enter-from-class="opacity-0"
-                  enter-to-class="opacity-100"
-                  enter-active-class="transition-opacity duration-200"
-                >
-                  <img
-                    v-show="brandLogoLoaded"
-                    :src="brandLogo"
-                    :alt="currentPlace.tags.name + ' logo'"
-                    class="w-full h-full object-contain bg-white"
-                    @load="handleBrandLogoLoad"
-                  />
-                </transition>
-              </div>
-              <div
-                v-if="logoError"
-                class="w-full h-full flex items-center justify-center bg-muted"
-              />
-            </div>
           </div>
         </TransitionExpand>
-      </div>
-
-      <div
-        class="p-4 flex flex-col gap-4"
-        :class="{ 'pt-[4.25rem]': !placeImage && !isMobileScreen }"
-      >
-        <div class="flex items-center">
-          <div class="flex-1">
-            <h1 v-if="currentPlace.tags.name" class="text-2xl font-semibold">
-              {{ currentPlace.tags.name }}
-            </h1>
-            <p class="text-muted-foreground">
-              {{ placeType }}
-            </p>
-          </div>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            @click="router.push({ name: AppRoute.MAP })"
-          >
-            <XIcon class="size-4" />
-          </Button>
-        </div>
-
-        <!-- Action Buttons -->
-        <div class="flex gap-2">
-          <Button class="flex-1" @click="handleDirectionsClick">
-            <NavigationIcon class="mr-2 h-4 w-4" />
-            Directions
-          </Button>
-          <Button variant="outline" class="flex-1" @click="sharePlace">
-            <ShareIcon class="mr-2 h-4 w-4" />
-            Share
-          </Button>
-        </div>
 
         <!-- Details -->
         <div class="flex flex-col gap-4">

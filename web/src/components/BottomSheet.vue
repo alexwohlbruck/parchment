@@ -44,7 +44,7 @@ interface SnapPoint {
 
 const snapPoints = computed<SnapPoint[]>(() => [
   { name: SnapPointName.EXPANDED, value: 0 },
-  { name: SnapPointName.HALF, value: windowHeight.value * 0.5 },
+  { name: SnapPointName.HALF, value: windowHeight.value * 0.45 },
   { name: SnapPointName.PEEK, value: windowHeight.value * 0.75 },
   { name: SnapPointName.HIDDEN, value: windowHeight.value },
 ])
@@ -97,7 +97,7 @@ onMounted(() => {
 
   nextTick(() => {
     const peek = snapPoints.value.find(
-      point => point.name === SnapPointName.PEEK,
+      point => point.name === SnapPointName.HALF,
     )!
     const targetY = peek.value
     currentSnapPoint.value = targetY
@@ -190,7 +190,7 @@ useGesture(
 <template>
   <Card
     ref="sheet"
-    :class="cn('h-full flex flex-col', props.class)"
+    :class="cn('h-full flex flex-col pt-2', props.class)"
     v-motion="motionProperties"
   >
     <div class="flex justify-center p-2 absolute top-0 left-0 w-full">

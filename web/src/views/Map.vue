@@ -59,7 +59,7 @@ watch(
     <template v-if="isMobileScreen">
       <BottomSheet
         v-if="!route.meta.dialog && isMapSubview"
-        class="absolute bg-muted z-30 top-0 left-0 w-full md:w-[26rem] h-full border-l-0 border-y-0 justify-center"
+        class="absolute bg-background z-30 top-0 left-0 w-full md:w-[26rem] h-full rounded-t-md shadow-lg justify-center"
         @close="router.push({ name: AppRoute.MAP })"
       >
         <router-view />

@@ -11,6 +11,7 @@ import {
   LngLatLike,
   GeoJSONSource,
   LngLat as MapboxLngLat,
+  CameraOptions,
 } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import {
@@ -212,11 +213,11 @@ export class MapboxStrategy extends MapStrategy {
     this.mapInstance.resize()
   }
 
-  flyTo(camera: Partial<MapCamera>) {
+  flyTo(camera: Partial<CameraOptions>) {
     this.mapInstance.flyTo(camera)
   }
 
-  jumpTo(camera: Partial<MapCamera>) {
+  jumpTo(camera: Partial<CameraOptions>) {
     this.mapInstance.jumpTo(camera)
   }
 

@@ -439,7 +439,10 @@ function handleDirectionsClick() {
           </div>
 
           <div class="flex-1">
-            <h1 v-if="currentPlace.tags.name" class="text-2xl font-semibold">
+            <h1
+              v-if="currentPlace.tags.name"
+              class="text-2xl font-semibold leading-7"
+            >
               {{ currentPlace.tags.name }}
             </h1>
             <p class="text-muted-foreground">

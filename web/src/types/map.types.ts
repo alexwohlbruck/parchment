@@ -40,6 +40,12 @@ export type MapCamera = {
   zoom: number
   bearing: number
   pitch: number
+  padding?: {
+    top?: number
+    bottom?: number
+    left?: number
+    right?: number
+  } // Padding around the viewport edges when considering visible content
 }
 
 export type MapInstance = MapboxMap | MaplibreMap

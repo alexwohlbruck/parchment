@@ -467,14 +467,6 @@ export class MapboxStrategy extends MapStrategy {
     this.mapInstance?.remove()
   }
 
-  unproject(point: [number, number]): LngLat {
-    if (!this.mapInstance) {
-      throw new Error('Map instance not initialized')
-    }
-    const mbLngLat = this.mapInstance.unproject(point)
-    return { lng: mbLngLat.lng, lat: mbLngLat.lat }
-  }
-
   addMarker(id: string, lngLat: LngLat) {
     super.addMarker(id, lngLat)
 

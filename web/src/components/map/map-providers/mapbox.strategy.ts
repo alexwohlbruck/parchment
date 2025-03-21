@@ -10,7 +10,7 @@ import {
   LngLatBounds,
   LngLatLike,
   GeoJSONSource,
-  LngLat,
+  LngLat as MapboxLngLat,
 } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import {
@@ -23,6 +23,7 @@ import {
   Pegman,
   PEGMAN_LAYERS,
   MapProjection,
+  LngLat,
 } from '@/types/map.types'
 import standardStyle from '@/components/map/styles/standard.json'
 
@@ -455,7 +456,6 @@ export class MapboxStrategy extends MapStrategy {
     layerId: Layer['configuration']['id'],
     visible: boolean,
   ) {
-    console.log(this.mapInstance.getLayer(layerId))
     this.mapInstance.setLayoutProperty(
       layerId,
       'visibility',
@@ -464,7 +464,15 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   destroy() {
-    this.mapInstance.remove()
+    this.mapInstance?.remove()
+  }
+
+  unproject(point: [number, number]): LngLat {
+    if (!this.mapInstance) {
+      throw new Error('Map instance not initialized')
+    }
+    const mbLngLat = this.mapInstance.unproject(point)
+    return { lng: mbLngLat.lng, lat: mbLngLat.lat }
   }
 
   addMarker(id: string, lngLat: LngLat) {

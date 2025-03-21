@@ -16,6 +16,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { Spinner } from '@/components/ui/spinner'
 import { AlertDialog, AlertDialogContent } from '@/components/ui/alert-dialog'
 import { P } from '@/components/ui/typography'
+import { Button } from '@/components/ui/button'
 
 const route = useRoute()
 const themeStore = useThemeStore()
@@ -25,7 +26,10 @@ const appStore = useAppStore()
 const { isMobileScreen } = useResponsive()
 
 const { dialogs } = appStore
+const visibleMapArea = computed(() => appStore.visibleMapArea)
 
+// Debug "visibleMapArea" reactangle
+const showDebugRect = ref(false)
 const isFloatingLayout = computed(() => route.meta?.layout === 'floating')
 
 // Detect if Render server is starting from cold start. This is common with the free plan,
@@ -64,6 +68,25 @@ onMounted(() => {
     />
   </div>
 
+  <!-- Debug rectangle showing visibleMapArea -->
+  <div
+    v-if="showDebugRect"
+    class="debug-rect fixed pointer-events-none z-[999]"
+    :style="{
+      left: `${visibleMapArea.x}px`,
+      top: `${visibleMapArea.y}px`,
+      width: `${visibleMapArea.width}px`,
+      height: `${visibleMapArea.height}px`,
+    }"
+  >
+    <div
+      class="debug-info absolute top-0 right-0 bg-black/70 text-white text-xs p-1"
+    >
+      {{ visibleMapArea.width.toFixed(0) }} x
+      {{ visibleMapArea.height.toFixed(0) }}
+    </div>
+  </div>
+
   <div
     v-if="!isMobileScreen && isFloatingLayout"
     class="fixed m-2 left-[3.25rem] z-50 w-[25rem]"
@@ -98,3 +121,10 @@ onMounted(() => {
     </main>
   </div>
 </template>
+
+<style scoped>
+.debug-rect {
+  border: 2px dashed rgba(255, 0, 0, 0.7);
+  background-color: rgba(255, 0, 0, 0.1);
+}
+</style>

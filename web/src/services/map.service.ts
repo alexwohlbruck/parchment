@@ -11,6 +11,7 @@ import {
   type LngLat,
 } from '@/types/map.types'
 import { useMapStore } from '../stores/map.store'
+import { useAppStore } from '../stores/app.store'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { createSharedComposable, useDark } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
@@ -26,6 +27,7 @@ const dark = useDark()
 
 function mapService() {
   const mapStore = useMapStore()
+  const appStore = useAppStore()
   const directionsStore = useDirectionsStore()
   const { enabledLayers } = storeToRefs(mapStore)
   const router = useRouter()
@@ -90,12 +92,6 @@ function mapService() {
 
         // Add marker at clicked location
         mapStrategy.addMarker(MarkerIds.SELECTED_POI, lngLat)
-
-        // Fly to location
-        mapStrategy.flyTo({
-          center: lngLat,
-          zoom: 17,
-        })
       }
 
       router.push({
@@ -110,12 +106,73 @@ function mapService() {
     return mapStrategy
   }
 
+  // This function was 100% vibe coded. Thank u claude
+  function adjustCameraForVisibleCenter(
+    camera: Partial<MapCamera>,
+  ): Partial<MapCamera> {
+    const adjustedCamera = { ...camera }
+
+    if (adjustedCamera.center) {
+      const currentCenter = mapStore.mapCamera.center
+      const visibleArea = appStore.visibleMapArea
+
+      const visibleCenterPixelX = visibleArea.x + visibleArea.width / 2
+      const visibleCenterPixelY = visibleArea.y + visibleArea.height / 2
+
+      let visibleCenter
+      try {
+        visibleCenter = mapStrategy.unproject([
+          visibleCenterPixelX,
+          visibleCenterPixelY,
+        ])
+      } catch (error) {
+        console.warn('Could not calculate visible map center', error)
+        return adjustedCamera
+      }
+
+      let currentLng, currentLat
+      if (Array.isArray(currentCenter)) {
+        ;[currentLng, currentLat] = currentCenter
+      } else if (
+        typeof currentCenter === 'object' &&
+        'lng' in currentCenter &&
+        'lat' in currentCenter
+      ) {
+        currentLng = currentCenter.lng
+        currentLat = currentCenter.lat
+      }
+
+      const offsetX = currentLng - visibleCenter.lng
+      const offsetY = currentLat - visibleCenter.lat
+
+      if (Array.isArray(adjustedCamera.center)) {
+        adjustedCamera.center = [
+          adjustedCamera.center[0] + offsetX,
+          adjustedCamera.center[1] + offsetY,
+        ]
+      } else if (
+        typeof adjustedCamera.center === 'object' &&
+        'lng' in adjustedCamera.center &&
+        'lat' in adjustedCamera.center
+      ) {
+        adjustedCamera.center = {
+          lng: adjustedCamera.center.lng + offsetX,
+          lat: adjustedCamera.center.lat + offsetY,
+        }
+      }
+    }
+
+    return adjustedCamera
+  }
+
   function flyTo(camera: Partial<MapCamera>) {
-    mapStrategy.flyTo(camera)
+    const adjustedCamera = adjustCameraForVisibleCenter(camera)
+    mapStrategy.flyTo(adjustedCamera)
   }
 
   function jumpTo(camera: Partial<MapCamera>) {
-    mapStrategy.jumpTo(camera)
+    const adjustedCamera = adjustCameraForVisibleCenter(camera)
+    mapStrategy.jumpTo(adjustedCamera)
   }
 
   function setMapEngine(mapEngine: MapEngine) {

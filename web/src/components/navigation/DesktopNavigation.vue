@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth.store'
+import { useObstructingComponent } from '@/composables/useObstructingComponent'
 
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -22,6 +23,7 @@ import {
   PanelLeftIcon,
 } from 'lucide-vue-next'
 
+useObstructingComponent()
 const router = useRouter()
 const { t } = useI18n()
 const authStore = useAuthStore()

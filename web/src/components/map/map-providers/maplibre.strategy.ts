@@ -10,6 +10,7 @@ import {
   Marker,
   GeoJSONSource,
   LngLat as MaplibreLngLat,
+  CameraOptions,
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import {
@@ -129,11 +130,11 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.resize()
   }
 
-  flyTo(camera: Partial<MapCamera>) {
+  flyTo(camera: Partial<CameraOptions>) {
     this.mapInstance.flyTo(camera)
   }
 
-  jumpTo(camera: Partial<MapCamera>) {
+  jumpTo(camera: Partial<CameraOptions>) {
     this.mapInstance.jumpTo(camera)
   }
 

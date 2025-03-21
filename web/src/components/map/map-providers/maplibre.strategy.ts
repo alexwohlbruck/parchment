@@ -427,14 +427,6 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance?.remove()
   }
 
-  unproject(point: [number, number]): LngLat {
-    if (!this.mapInstance) {
-      throw new Error('Map instance not initialized')
-    }
-    const mlLngLat = this.mapInstance.unproject(point)
-    return { lng: mlLngLat.lng, lat: mlLngLat.lat }
-  }
-
   addMarker(id: string, lngLat: LngLat) {
     super.addMarker(id, lngLat)
 

@@ -20,7 +20,7 @@ import { MaplibreStrategy } from '@/components/map/map-providers/maplibre.strate
 import { mapEventBus } from '@/lib/eventBus'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { watch } from 'vue'
-import router, { AppRoute } from '@/router'
+import { AppRoute } from '@/router'
 import { useRouter } from 'vue-router'
 
 const dark = useDark()
@@ -106,63 +106,53 @@ function mapService() {
     return mapStrategy
   }
 
-  // This function was 100% vibe coded. Thank u claude
+  // Helper function to adjust camera center based on visible map area
   function adjustCameraForVisibleCenter(
     camera: Partial<MapCamera>,
   ): Partial<MapCamera> {
     const adjustedCamera = { ...camera }
 
-    if (adjustedCamera.center) {
-      const currentCenter = mapStore.mapCamera.center
+    try {
       const visibleArea = appStore.visibleMapArea
+      const mapWidth = mapContainer.clientWidth
+      const mapHeight = mapContainer.clientHeight
 
-      const visibleCenterPixelX = visibleArea.x + visibleArea.width / 2
-      const visibleCenterPixelY = visibleArea.y + visibleArea.height / 2
-
-      let visibleCenter
-      try {
-        visibleCenter = mapStrategy.unproject([
-          visibleCenterPixelX,
-          visibleCenterPixelY,
-        ])
-      } catch (error) {
-        console.warn('Could not calculate visible map center', error)
+      // If we're showing the full map or if we don't have a valid map container yet
+      if (
+        !mapStrategy ||
+        !mapWidth ||
+        !mapHeight ||
+        (visibleArea.width === mapWidth && visibleArea.height === mapHeight)
+      ) {
         return adjustedCamera
       }
 
-      let currentLng, currentLat
-      if (Array.isArray(currentCenter)) {
-        ;[currentLng, currentLat] = currentCenter
-      } else if (
-        typeof currentCenter === 'object' &&
-        'lng' in currentCenter &&
-        'lat' in currentCenter
-      ) {
-        currentLng = currentCenter.lng
-        currentLat = currentCenter.lat
+      // Calculate padding values based on the differences between
+      // the map container edges and the visible area edges
+      const paddingLeft = Math.max(0, visibleArea.x)
+      const paddingTop = Math.max(0, visibleArea.y)
+      const paddingRight = Math.max(
+        0,
+        mapWidth - (visibleArea.x + visibleArea.width),
+      )
+      const paddingBottom = Math.max(
+        0,
+        mapHeight - (visibleArea.y + visibleArea.height),
+      )
+
+      // Set padding instead of offset
+      adjustedCamera.padding = {
+        left: paddingLeft,
+        top: paddingTop,
+        right: paddingRight,
+        bottom: paddingBottom,
       }
 
-      const offsetX = currentLng - visibleCenter.lng
-      const offsetY = currentLat - visibleCenter.lat
-
-      if (Array.isArray(adjustedCamera.center)) {
-        adjustedCamera.center = [
-          adjustedCamera.center[0] + offsetX,
-          adjustedCamera.center[1] + offsetY,
-        ]
-      } else if (
-        typeof adjustedCamera.center === 'object' &&
-        'lng' in adjustedCamera.center &&
-        'lat' in adjustedCamera.center
-      ) {
-        adjustedCamera.center = {
-          lng: adjustedCamera.center.lng + offsetX,
-          lat: adjustedCamera.center.lat + offsetY,
-        }
-      }
+      return adjustedCamera
+    } catch (error) {
+      console.warn('Error adjusting camera for visible map area', error)
+      return camera
     }
-
-    return adjustedCamera
   }
 
   function flyTo(camera: Partial<MapCamera>) {

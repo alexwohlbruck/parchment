@@ -9,8 +9,6 @@ import {
   Layer,
   MapCamera,
   MapTheme,
-  StreetViewImage,
-  LngLat,
   Pegman,
   MapProjection,
 } from '@/types/map.types'

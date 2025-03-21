@@ -57,11 +57,6 @@ export class MapStrategy {
   ) {}
   destroy() {}
 
-  // Convert pixel coordinates to geographic coordinates
-  unproject(point: [number, number]): LngLat {
-    throw new Error('Method not implemented in base class')
-  }
-
   addMarker(id: string, lngLat: LngLat) {
     this.removeMarker(id) // Remove existing marker if any
   }

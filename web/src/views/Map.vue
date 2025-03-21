@@ -10,11 +10,12 @@ import { Maximize2Icon, XIcon } from 'lucide-vue-next'
 import Map from '@/components/map/Map.vue'
 import StreetView from '@/components/map/StreetView.vue'
 import LayerControls from '@/components/map/LayerControls.vue'
-import { Card } from '@/components/ui/card'
+import BottomSheet from '@/components/BottomSheet.vue'
+import LeftSheet from '@/components/LeftSheet.vue'
+
 const route = useRoute()
 const router = useRouter()
 const { isMobileScreen } = useResponsive()
-import BottomSheet from '@/components/BottomSheet.vue'
 
 const isMapSubview = computed(() => {
   return route.matched.length > 1 && route.name !== AppRoute.MAP
@@ -25,6 +26,10 @@ const streetView = ref(false)
 
 function swapPip() {
   pipSwapped.value = !pipSwapped.value
+}
+
+function closeSheet() {
+  router.push({ name: AppRoute.MAP })
 }
 
 onMounted(() => {
@@ -60,22 +65,22 @@ watch(
       <BottomSheet
         v-if="!route.meta.dialog && isMapSubview"
         class="absolute bg-background z-30 top-0 left-0 w-full md:w-[26rem] h-full rounded-t-md shadow-lg justify-center"
-        @close="router.push({ name: AppRoute.MAP })"
+        @close="closeSheet"
       >
         <router-view />
       </BottomSheet>
     </template>
 
-    <!-- Desktop drawer container -->
+    <!-- Desktop left sheet container -->
     <template v-else>
-      <transition-slide no-opacity :offset="['-130%', 0]">
-        <Card
+      <TransitionSlide no-opacity :offset="['-130%', 0]">
+        <LeftSheet
           v-if="!route.meta.dialog && isMapSubview"
-          class="bg-muted z-30 top-0 left-0 w-full md:w-[26rem] h-full pt-[3.5rem] flex flex-col rounded-l-none border-l-0 border-y-0 justify-center"
+          @close="closeSheet"
         >
           <router-view />
-        </Card>
-      </transition-slide>
+        </LeftSheet>
+      </TransitionSlide>
     </template>
 
     <!-- Map canvas -->

@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { useObstructingComponent } from '@/composables/useObstructingComponent'
 import { Card } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import Palette from '@/components/palette/Palette.vue'
@@ -13,6 +14,7 @@ import {
   SettingsIcon,
 } from 'lucide-vue-next'
 
+useObstructingComponent()
 const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()

@@ -81,6 +81,7 @@ export const useMapStore = defineStore('map', () => {
     theme: MapTheme.LIGHT,
     basemap: 'standard',
   })
+
   // Event methods
   function on<K extends keyof MapEvents>(
     event: K,

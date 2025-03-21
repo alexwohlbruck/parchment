@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from 'vue'
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { cn } from '@/lib/utils'
 import { useGesture, Vector2 } from '@vueuse/gesture'
 import {
@@ -9,6 +9,7 @@ import {
   useMotionTransitions,
 } from '@vueuse/motion'
 import { useElementBounding, useWindowSize, useScroll } from '@vueuse/core'
+import { useObstructingComponent } from '@/composables/useObstructingComponent'
 
 const props = defineProps<{
   class?: HTMLAttributes['class']
@@ -24,6 +25,7 @@ const translateY = ref(0)
 const currentSnapPoint = ref(0)
 const preventScroll = ref(false)
 
+useObstructingComponent(sheet)
 const { height: windowHeight } = useWindowSize()
 const { height: sheetHeight } = useElementBounding(sheet)
 

@@ -220,6 +220,9 @@ export type Place = {
     maxlat: number
     maxlon: number
   }
+  placeType?: string
+  image?: string | null
+  brandLogo?: string | null
 }
 
 export const MarkerIds = {

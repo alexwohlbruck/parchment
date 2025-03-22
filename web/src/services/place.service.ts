@@ -1,20 +1,13 @@
 import { ref } from 'vue'
 import { createSharedComposable } from '@vueuse/core'
-import { Place } from '@/types/map.types'
-import { calculatePlaceCenter } from '@/lib/place.utils'
-import { OVERPASS_API_URL } from '@/lib/constants'
+import type { Place } from '@/types/map.types'
 import { useAppService } from '@/services/app.service'
+import { API_BASE_URL } from '@/lib/constants'
 
 function placeService() {
   const currentPlace = ref<Place | null>(null)
   const loading = ref(false)
   const { toast } = useAppService()
-
-  function buildOverpassQuery(type: string, id: string) {
-    return `[out:json][timeout:25];
-      ${type}(${id});
-      out body meta center geom;`
-  }
 
   async function fetchPlaceDetails(
     osmId: string,
@@ -25,10 +18,7 @@ function placeService() {
     loading.value = true
 
     try {
-      const query = buildOverpassQuery(type, osmId)
-      const response = await fetch(
-        `${OVERPASS_API_URL}?data=${encodeURIComponent(query)}`,
-      )
+      const response = await fetch(`${API_BASE_URL}/places/${type}/${osmId}`)
 
       if (!response.ok) {
         throw new Error(
@@ -36,18 +26,7 @@ function placeService() {
         )
       }
 
-      const data = await response.json()
-      const place = data.elements?.[0] as Place
-
-      if (!place) {
-        throw new Error(`Place not found: ${osmId}`)
-      }
-
-      // Calculate center coordinates
-      const center = calculatePlaceCenter(place)
-      if (center) {
-        place.center = center
-      }
+      const place = (await response.json()) as Place
 
       currentPlace.value = place
       return place

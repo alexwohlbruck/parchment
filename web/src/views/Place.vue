@@ -27,7 +27,6 @@ import {
 } from 'lucide-vue-next'
 import { parseOpeningHours } from '@/lib/map.utils'
 import {
-  getPlaceType,
   getWheelchairAccess,
   getSmokingStatus,
   getRestroomAccess,
@@ -37,7 +36,7 @@ import CopyButton from '@/components/CopyButton.vue'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { TransitionExpand } from '@morev/vue-transitions'
 import { useMapService } from '@/services/map.service'
-import { MarkerIds, Place } from '@/types/map.types'
+import { MarkerIds } from '@/types/map.types'
 import { LngLat } from 'mapbox-gl'
 import { AppRoute } from '@/router'
 import { useDirectionsService } from '@/services/directions.service'
@@ -52,9 +51,7 @@ const { flyTo, addMarker, removeAllMarkers } = useMapService()
 const directionsService = useDirectionsService()
 const { isMobileScreen } = useResponsive()
 
-const placeType = computed(() => {
-  return getPlaceType(currentPlace.value?.tags ?? {})
-})
+const placeType = computed(() => currentPlace.value?.placeType || 'Place')
 
 const formattedAddress = computed(() => {
   const tags = currentPlace.value?.tags
@@ -112,14 +109,27 @@ const cuisines = computed(() => {
     .map(c => c.charAt(0).toUpperCase() + c.slice(1))
 })
 
-const placeImage = ref<string | null>(null)
-const brandLogo = ref<string | null>(null)
+const placeImage = computed(() => currentPlace.value?.image || null)
+const brandLogo = computed(() => currentPlace.value?.brandLogo || null)
 const imageLoading = ref(false)
 const logoLoading = ref(false)
 const imageError = ref(false)
 const logoError = ref(false)
 const placeImageLoaded = ref(false)
 const brandLogoLoaded = ref(false)
+
+// Reset loading and error states when currentPlace changes
+watch(
+  () => currentPlace.value,
+  newPlace => {
+    if (newPlace) {
+      imageLoading.value = !!newPlace.image && !placeImageLoaded.value
+      logoLoading.value = !!newPlace.brandLogo && !brandLogoLoaded.value
+      imageError.value = false
+      logoError.value = false
+    }
+  },
+)
 
 const wifiStatus = computed(() => {
   const access = currentPlace.value?.tags.internet_access
@@ -192,114 +202,8 @@ const plusCode = computed(() => {
   )
 })
 
-async function fetchWikidataImage() {
-  const wikidataId =
-    currentPlace.value?.tags.wikidata ||
-    currentPlace.value?.tags['brand:wikidata']
-  if (!wikidataId) return
-
-  imageLoading.value = true
-  imageError.value = false
-  placeImage.value = null
-
-  try {
-    // Query Wikidata API for the image
-    const response = await fetch(
-      `https://www.wikidata.org/w/api.php?action=wbgetclaims&property=P18&entity=${wikidataId}&format=json&origin=*`,
-    )
-    if (!response.ok) {
-      toast.error('Failed to fetch from Wikidata')
-      return
-    }
-    const data = await response.json()
-
-    const imageFileName = data.claims?.P18?.[0]?.mainsnak?.datavalue?.value
-    if (!imageFileName) return
-
-    // Get the actual image URL from Wikimedia Commons
-    const imageUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=File:${encodeURIComponent(
-      imageFileName,
-    )}&prop=imageinfo&iiprop=url&format=json&origin=*`
-    const imageResponse = await fetch(imageUrl)
-    if (!imageResponse.ok) {
-      toast.error('Failed to fetch from Wikimedia')
-      return
-    }
-    const imageData = await imageResponse.json()
-
-    const pages = imageData.query?.pages || {}
-    const page = Object.values(pages)[0] as any
-    const url = page?.imageinfo?.[0]?.url
-    if (!url) {
-      toast.error('No image URL found')
-      return
-    }
-
-    placeImage.value = url
-  } catch (error) {
-    console.error('Failed to fetch Wikidata image:', error)
-    imageError.value = true
-  } finally {
-    imageLoading.value = false
-  }
-}
-
-async function fetchWikidataBrandLogo() {
-  const wikidataId =
-    currentPlace.value?.tags.wikidata ||
-    currentPlace.value?.tags['brand:wikidata']
-  if (!wikidataId) return
-
-  logoLoading.value = true
-  logoError.value = false
-  brandLogo.value = null
-
-  try {
-    // First get the entity data to find the logo
-    const response = await fetch(
-      `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${wikidataId}&format=json&origin=*`,
-    )
-    if (!response.ok) throw new Error('Failed to fetch from Wikidata')
-    const data = await response.json()
-
-    const logoFileName =
-      data.entities?.[wikidataId]?.claims?.P154?.[0]?.mainsnak?.datavalue?.value
-    if (!logoFileName) return
-
-    // Get the actual image URL from Wikimedia Commons
-    const imageUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=File:${encodeURIComponent(
-      logoFileName,
-    )}&prop=imageinfo&iiprop=url&format=json&origin=*`
-    const imageResponse = await fetch(imageUrl)
-    if (!imageResponse.ok) throw new Error('Failed to fetch from Wikimedia')
-    const imageData = await imageResponse.json()
-
-    const pages = imageData.query?.pages || {}
-    const page = Object.values(pages)[0] as any
-    const url = page?.imageinfo?.[0]?.url
-    if (!url) throw new Error('No logo URL found')
-
-    brandLogo.value = url
-  } catch (error) {
-    console.error('Failed to fetch Wikidata logo:', error)
-    logoError.value = true
-  } finally {
-    logoLoading.value = false
-  }
-}
-
-function handlePlaceImageLoad() {
-  placeImageLoaded.value = true
-}
-
-function handleBrandLogoLoad() {
-  brandLogoLoaded.value = true
-}
-
 async function loadPlace(type: string, id: string) {
   clearPlace()
-  placeImage.value = null
-  brandLogo.value = null
   placeImageLoaded.value = false
   brandLogoLoaded.value = false
 
@@ -322,8 +226,6 @@ async function loadPlace(type: string, id: string) {
       })
     }
   }
-
-  await Promise.all([fetchWikidataImage(), fetchWikidataBrandLogo()])
 }
 
 onMounted(async () => {
@@ -389,6 +291,26 @@ function handleDirectionsClick() {
   directionsService.directionsTo(waypoint)
   router.push({ name: AppRoute.DIRECTIONS })
 }
+
+function handlePlaceImageLoad() {
+  placeImageLoaded.value = true
+  imageLoading.value = false
+}
+
+function handleBrandLogoLoad() {
+  brandLogoLoaded.value = true
+  logoLoading.value = false
+}
+
+function handlePlaceImageError() {
+  imageError.value = true
+  imageLoading.value = false
+}
+
+function handleBrandLogoError() {
+  logoError.value = true
+  logoLoading.value = false
+}
 </script>
 
 <template>
@@ -429,6 +351,7 @@ function handleDirectionsClick() {
                   :alt="currentPlace.tags.name + ' logo'"
                   class="w-full h-full object-contain bg-white"
                   @load="handleBrandLogoLoad"
+                  @error="handleBrandLogoError"
                 />
               </transition>
             </div>
@@ -497,6 +420,7 @@ function handleDirectionsClick() {
                   :alt="currentPlace.tags.name"
                   class="w-full h-full object-cover"
                   @load="handlePlaceImageLoad"
+                  @error="handlePlaceImageError"
                 />
               </transition>
             </div>

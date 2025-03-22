@@ -1,11 +1,11 @@
 import { ref } from 'vue'
 import { createSharedComposable } from '@vueuse/core'
-import type { Place } from '@/types/map.types'
 import { useAppService } from '@/services/app.service'
 import { API_BASE_URL } from '@/lib/constants'
+import type { UnifiedPlace } from '@/types/unified-place.types'
 
 function placeService() {
-  const currentPlace = ref<Place | null>(null)
+  const currentPlace = ref<UnifiedPlace | null>(null)
   const loading = ref(false)
   const { toast } = useAppService()
 
@@ -26,7 +26,7 @@ function placeService() {
         )
       }
 
-      const place = (await response.json()) as Place
+      const place = (await response.json()) as UnifiedPlace
 
       currentPlace.value = place
       return place

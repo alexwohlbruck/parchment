@@ -8,6 +8,13 @@ export interface PlaceCenter {
   lon: number
 }
 
+export interface PlaceBounds {
+  minlat: number
+  minlon: number
+  maxlat: number
+  maxlon: number
+}
+
 export interface Place {
   id: number
   type: 'node' | 'way' | 'relation'
@@ -16,6 +23,7 @@ export interface Place {
   lon?: number
   center?: PlaceCenter
   geometry?: PlaceNode[]
+  bounds?: PlaceBounds
   version?: number
   user?: string
   placeType?: string

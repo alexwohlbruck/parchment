@@ -11,7 +11,7 @@ import AutoformDialog from '@/components/dialogs/AutoformDialog.vue'
 export const useAppStore = defineStore('app', () => {
   const obstructingComponents = ref<Component[]>([])
   const { width: windowWidth, height: windowHeight } = useWindowSize()
-  const forceRefresh = ref(0) // Counter to force recomputation
+  const forceRefresh = ref(0)
 
   // To use these, call the composable `useObstructingComponent`
   function trackObstructingComponents(component: Component) {
@@ -24,26 +24,20 @@ export const useAppStore = defineStore('app', () => {
     )
   }
 
-  // Force a refresh of component positions
   function refreshObstructingComponents() {
     forceRefresh.value++
   }
 
-  // Watch for window resize and refresh positions when it happens
   watch([windowWidth, windowHeight], () => {
     refreshObstructingComponents()
   })
 
   const visibleMapArea = computed(() => {
-    console.log('refreshObstructingComponents')
-    // Use forceRefresh as a dependency to ensure this is recalculated when needed
     const _ = forceRefresh.value
 
-    // Get the current viewport dimensions from VueUse's reactive window size
     const viewportWidth = windowWidth.value
     const viewportHeight = windowHeight.value
 
-    // Initialize with full viewport area
     let availableArea = {
       x: 0,
       y: 0,
@@ -51,22 +45,17 @@ export const useAppStore = defineStore('app', () => {
       height: viewportHeight,
     }
 
-    // If no obstructing components, return full viewport
     if (obstructingComponents.value.length === 0) {
       return availableArea
     }
 
-    // Get DOM elements for all obstructing components
     const obstacles = obstructingComponents.value
       .map(component => {
         try {
-          // Access the DOM element - Vue components store this in various ways
-          // Use type assertion as unknown first to avoid TypeScript errors
           const el = (component as unknown as { $el?: HTMLElement }).$el
 
           if (!el) return null
 
-          // Get the bounding client rect with any transforms applied
           const rect = el.getBoundingClientRect()
 
           return {
@@ -91,10 +80,7 @@ export const useAppStore = defineStore('app', () => {
         } => obstacle !== null,
       )
 
-    // Find the largest rectangle that doesn't intersect with any obstacle
-    // Start with full viewport and progressively reduce it
     for (const obstacle of obstacles) {
-      // Skip if obstacle is entirely outside the viewport
       if (
         obstacle.x >= viewportWidth ||
         obstacle.y >= viewportHeight ||
@@ -104,16 +90,13 @@ export const useAppStore = defineStore('app', () => {
         continue
       }
 
-      // Calculate potential rectangles by splitting around the obstacle
       const potentialRects = [
-        // Rectangle above the obstacle
         {
           x: availableArea.x,
           y: availableArea.y,
           width: availableArea.width,
           height: Math.max(0, obstacle.y - availableArea.y),
         },
-        // Rectangle below the obstacle
         {
           x: availableArea.x,
           y: obstacle.y + obstacle.height,
@@ -125,14 +108,12 @@ export const useAppStore = defineStore('app', () => {
               (obstacle.y + obstacle.height),
           ),
         },
-        // Rectangle to the left of the obstacle
         {
           x: availableArea.x,
           y: availableArea.y,
           width: Math.max(0, obstacle.x - availableArea.x),
           height: availableArea.height,
         },
-        // Rectangle to the right of the obstacle
         {
           x: obstacle.x + obstacle.width,
           y: availableArea.y,
@@ -146,11 +127,9 @@ export const useAppStore = defineStore('app', () => {
         },
       ]
 
-      // Find the rectangle with the largest area
       const areas = potentialRects.map(rect => rect.width * rect.height)
       const maxAreaIndex = areas.indexOf(Math.max(...areas))
 
-      // Update the available area
       if (maxAreaIndex !== -1 && areas[maxAreaIndex] > 0) {
         availableArea = potentialRects[maxAreaIndex]
       }

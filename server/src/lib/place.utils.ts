@@ -1,8 +1,9 @@
-import { Place } from '@/types/map.types'
-import { OpeningTime } from '@/types/unified-place.types'
+import { OpeningTime } from '../types/unified-place.types'
 
-// Client-specific implementation of utility functions
-export function getPlaceType(tags: Record<string, string | undefined>): string {
+/**
+ * Get a human-readable place type from OSM tags
+ */
+export function getPlaceType(tags: Record<string, string>): string {
   const amenity = tags.amenity
   const shop = tags.shop
   const tourism = tags.tourism
@@ -134,128 +135,94 @@ export function getPlaceType(tags: Record<string, string | undefined>): string {
   return tags.name ? 'Place' : 'Unnamed Place'
 }
 
-export function formatAddress(
-  tags: Record<string, string | undefined>,
-): string {
-  if (!tags) return ''
+/**
+ * Parse OSM opening_hours format into structured OpeningTime array
+ * This is a simplified version that attempts to handle basic OSM opening hours format
+ */
+export function parseOpeningHoursForUnifiedFormat(
+  hoursString: string,
+): OpeningTime[] | null {
+  try {
+    if (!hoursString) return null
 
-  const parts = [
-    `${tags['addr:housenumber'] || ''} ${tags['addr:street'] || ''}`.trim(),
-    `${tags['addr:city'] || ''}${
-      tags['addr:city'] && tags['addr:state'] ? ',' : ''
-    } ${tags['addr:state'] || ''} ${tags['addr:postcode'] || ''}`.trim(),
-    tags['addr:country'],
-  ].filter(Boolean)
+    const days = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+    const result: OpeningTime[] = []
 
-  return parts.join('\n')
-}
+    // Split by semicolons for different day patterns
+    const patterns = hoursString.split(';').map((p) => p.trim())
 
-export function parseCuisines(cuisine: string | undefined): string[] | null {
-  if (!cuisine) return null
+    for (const pattern of patterns) {
+      const [dayPart, timePart] = pattern.split(' ', 2)
 
-  return cuisine
-    .split(';')
-    .map(c => c.trim())
-    .map(c => c.replace(/_/g, ' '))
-    .map(c => c.charAt(0).toUpperCase() + c.slice(1))
-}
+      if (!dayPart || !timePart) continue
 
-export function getWifiStatus(tags: Record<string, string | undefined>) {
-  const access = tags.internet_access
-  const ssid = tags['internet_access:ssid']
-  const fee = tags['internet_access:fee']
-  const password = tags['internet_access:password']
+      // Process day ranges like Mo-Fr or Mo,We
+      let daysToApply: number[] = []
 
-  if (!access || access === 'no') return null
+      if (dayPart === 'Mo-Su' || dayPart === '24/7') {
+        // Represents all days
+        daysToApply = [0, 1, 2, 3, 4, 5, 6]
+      } else {
+        const dayPatterns = dayPart.split(',')
 
-  let label = 'WiFi available'
+        for (const dp of dayPatterns) {
+          if (dp.includes('-')) {
+            // Handle day ranges like Mo-Fr
+            const [start, end] = dp.split('-')
+            const startIdx = days.indexOf(start)
+            const endIdx = days.indexOf(end)
 
-  if (access === 'free' || fee === 'no') {
-    label = 'Free WiFi available'
-  } else if (access === 'customers') {
-    label = 'WiFi for customers'
-  } else if (fee === 'yes') {
-    label = 'Paid WiFi available'
-  }
+            if (startIdx !== -1 && endIdx !== -1) {
+              for (let i = startIdx; i <= endIdx; i++) {
+                daysToApply.push(i)
+              }
+            }
+          } else {
+            // Handle individual days like Mo
+            const dayIdx = days.indexOf(dp)
+            if (dayIdx !== -1) {
+              daysToApply.push(dayIdx)
+            }
+          }
+        }
+      }
 
-  return {
-    label,
-    ssid,
-    password,
-  }
-}
+      if (daysToApply.length === 0) continue
 
-export function hasOutdoorSeating(
-  tags: Record<string, string | undefined>,
-): boolean {
-  return tags.outdoor_seating === 'yes'
-}
+      // Process time ranges like 08:00-17:00
+      if (timePart === 'off' || timePart === 'closed') {
+        // Skip closed days
+        continue
+      }
 
-export function getWheelchairAccess(
-  tags: Record<string, string | undefined>,
-): string {
-  const wheelchair = tags?.wheelchair || 'unknown'
+      const timeRanges = timePart.split(',')
 
-  switch (wheelchair) {
-    case 'yes':
-      return 'Wheelchair accessible'
-    case 'no':
-      return 'Not wheelchair accessible'
-    case 'limited':
-      return 'Limited wheelchair accessibility'
-    case 'designated':
-      return 'Designated wheelchair access'
-    default:
-      return 'Unknown wheelchair accessibility'
-  }
-}
+      for (const timeRange of timeRanges) {
+        const [start, end] = timeRange.split('-')
 
-export function getSmokingStatus(
-  tags: Record<string, string | undefined>,
-): string {
-  const smoking = tags?.smoking || 'unknown'
+        if (!start || !end) continue
 
-  switch (smoking) {
-    case 'yes':
-      return 'Smoking allowed'
-    case 'no':
-      return 'No smoking'
-    case 'separated':
-      return 'Separate smoking area'
-    case 'isolated':
-      return 'Isolated smoking area'
-    case 'outside':
-      return 'Smoking allowed outside'
-    case 'dedicated':
-      return 'Dedicated smoking area'
-    default:
-      return 'Unknown smoking policy'
+        // Apply to all days in the range
+        for (const day of daysToApply) {
+          result.push({
+            day,
+            open: start.trim(),
+            close: end.trim(),
+          })
+        }
+      }
+    }
+
+    return result.length > 0 ? result : null
+  } catch (error) {
+    console.error('Error parsing opening hours:', error)
+    return null
   }
 }
 
-export function getRestroomAccess(
-  tags: Record<string, string | undefined>,
-): string {
-  const toilets = tags?.toilets || 'unknown'
-
-  switch (toilets) {
-    case 'yes':
-      return 'Restrooms available'
-    case 'no':
-      return 'No restrooms'
-    case 'customers':
-      return 'Restrooms for customers only'
-    default:
-      return 'Unknown restroom availability'
-  }
-}
-
-export function parseOpeningHours(hoursStr: string) {
-  // Client-side implementation for opening hours parsing
-  // Simplified version for now
-  return hoursStr
-}
-
+/**
+ * Determine if a place is currently open based on its opening hours
+ */
 export function isPlaceOpen(openingTimes: OpeningTime[]): {
   isOpen: boolean
   nextChange?: string
@@ -353,51 +320,127 @@ export function isPlaceOpen(openingTimes: OpeningTime[]): {
   return { isOpen: false }
 }
 
-// These functions are now handled server-side, but keeping stubs here
-// for backward compatibility
-export async function fetchWikidataImage(
-  wikidataId: string,
-): Promise<string | null> {
-  console.warn('fetchWikidataImage is deprecated - use server-side API instead')
-  return null
+/**
+ * Helper function to get a formatted display of wheelchair accessibility
+ */
+export function getWheelchairAccess(
+  tags: Record<string, string | undefined>,
+): string {
+  const wheelchair = tags?.wheelchair || 'unknown'
+
+  switch (wheelchair) {
+    case 'yes':
+      return 'Wheelchair accessible'
+    case 'no':
+      return 'Not wheelchair accessible'
+    case 'limited':
+      return 'Limited wheelchair accessibility'
+    case 'designated':
+      return 'Designated wheelchair access'
+    default:
+      return 'Unknown wheelchair accessibility'
+  }
 }
 
-export async function fetchWikidataBrandLogo(
-  wikidataId: string,
-): Promise<string | null> {
-  console.warn(
-    'fetchWikidataBrandLogo is deprecated - use server-side API instead',
-  )
-  return null
+/**
+ * Helper function to get a formatted display of smoking status
+ */
+export function getSmokingStatus(
+  tags: Record<string, string | undefined>,
+): string {
+  const smoking = tags?.smoking || 'unknown'
+
+  switch (smoking) {
+    case 'yes':
+      return 'Smoking allowed'
+    case 'no':
+      return 'No smoking'
+    case 'separated':
+      return 'Separate smoking area'
+    case 'isolated':
+      return 'Isolated smoking area'
+    case 'outside':
+      return 'Smoking allowed outside'
+    case 'dedicated':
+      return 'Dedicated smoking area'
+    default:
+      return 'Unknown smoking policy'
+  }
 }
 
-// This function may still be used by some components
-export function calculatePlaceCenter(
-  place: Place,
-): { lat: number; lon: number } | null {
-  // For nodes, use direct coordinates
-  if (place.type === 'node' && place.lat && place.lon) {
-    return { lat: place.lat, lon: place.lon }
+/**
+ * Helper function to get a formatted display of restroom access
+ */
+export function getRestroomAccess(
+  tags: Record<string, string | undefined>,
+): string {
+  const toilets = tags?.toilets || 'unknown'
+
+  switch (toilets) {
+    case 'yes':
+      return 'Restrooms available'
+    case 'no':
+      return 'No restrooms'
+    case 'customers':
+      return 'Restrooms for customers only'
+    default:
+      return 'Unknown restroom availability'
+  }
+}
+
+export function formatAddress(
+  tags: Record<string, string | undefined>,
+): string {
+  if (!tags) return ''
+
+  const parts = [
+    `${tags['addr:housenumber'] || ''} ${tags['addr:street'] || ''}`.trim(),
+    `${tags['addr:city'] || ''}${
+      tags['addr:city'] && tags['addr:state'] ? ',' : ''
+    } ${tags['addr:state'] || ''} ${tags['addr:postcode'] || ''}`.trim(),
+    tags['addr:country'],
+  ].filter(Boolean)
+
+  return parts.join('\n')
+}
+
+export function parseCuisines(cuisine: string | undefined): string[] | null {
+  if (!cuisine) return null
+
+  return cuisine
+    .split(';')
+    .map((c) => c.trim())
+    .map((c) => c.replace(/_/g, ' '))
+    .map((c) => c.charAt(0).toUpperCase() + c.slice(1))
+}
+
+export function getWifiStatus(tags: Record<string, string | undefined>) {
+  const access = tags.internet_access
+  const ssid = tags['internet_access:ssid']
+  const fee = tags['internet_access:fee']
+  const password = tags['internet_access:password']
+
+  if (!access || access === 'no') return null
+
+  let label = 'WiFi available'
+
+  if (access === 'free' || fee === 'no') {
+    label = 'Free WiFi available'
+  } else if (access === 'customers') {
+    label = 'WiFi for customers'
+  } else if (fee === 'yes') {
+    label = 'Paid WiFi available'
   }
 
-  // For ways/relations, try bounds first
-  if (place.bounds) {
-    return {
-      lat: (place.bounds.minlat + place.bounds.maxlat) / 2,
-      lon: (place.bounds.minlon + place.bounds.maxlon) / 2,
-    }
+  return {
+    label,
+    ssid,
+    password,
   }
+}
 
-  // Fall back to geometry centroid
-  if (place.geometry?.length) {
-    const sumLat = place.geometry.reduce((sum, point) => sum + point.lat, 0)
-    const sumLon = place.geometry.reduce((sum, point) => sum + point.lon, 0)
-    const count = place.geometry.length
-    return {
-      lat: sumLat / count,
-      lon: sumLon / count,
-    }
-  }
-
-  return null
+export function hasOutdoorSeating(
+  tags: Record<string, string | undefined>,
+): boolean {
+  return tags.outdoor_seating === 'yes'
 }

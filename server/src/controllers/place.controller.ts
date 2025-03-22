@@ -1,5 +1,6 @@
 import { Elysia, t, error } from 'elysia'
 import { getPlaceDetails } from '../services/place.service'
+import { adaptOsmPlace } from '../adapters/osm-adapter'
 
 const app = new Elysia({ prefix: '/places' })
 
@@ -19,13 +20,18 @@ app.get(
       })
     }
 
-    const place = await getPlaceDetails(type as 'node' | 'way' | 'relation', id)
+    const osmPlace = await getPlaceDetails(
+      type as 'node' | 'way' | 'relation',
+      id,
+    )
 
-    if (!place) {
+    if (!osmPlace) {
       return error(404, { message: `Place not found: ${type}/${id}` })
     }
 
-    return place
+    const unifiedPlace = adaptOsmPlace(osmPlace)
+
+    return unifiedPlace
   },
   {
     params: t.Object({

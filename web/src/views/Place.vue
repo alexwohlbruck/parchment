@@ -25,11 +25,16 @@ import {
   PlusIcon,
   XIcon,
 } from 'lucide-vue-next'
-import { parseOpeningHours } from '@/lib/map.utils'
 import {
   getWheelchairAccess,
   getSmokingStatus,
   getRestroomAccess,
+  hasOutdoorSeating,
+  getWifiStatus,
+  parseCuisines,
+  formatAddress,
+  parseOpeningHours,
+  isPlaceOpen,
 } from '@/lib/place.utils'
 import { useAppService } from '@/services/app.service'
 import CopyButton from '@/components/CopyButton.vue'
@@ -41,6 +46,19 @@ import { LngLat } from 'mapbox-gl'
 import { AppRoute } from '@/router'
 import { useDirectionsService } from '@/services/directions.service'
 import { useResponsive } from '@/lib/utils'
+import {
+  getBestName,
+  getBestPlaceType,
+  getBestAddress,
+  getBestPhone,
+  getBestEmail,
+  getBestWebsite,
+  getPrimaryPhoto,
+  getLogoPhoto,
+  getOpeningHours,
+  getFormattedAddress,
+  OpeningHours,
+} from '@/types/unified-place.types'
 
 const route = useRoute()
 const router = useRouter()
@@ -51,31 +69,29 @@ const { flyTo, addMarker, removeAllMarkers } = useMapService()
 const directionsService = useDirectionsService()
 const { isMobileScreen } = useResponsive()
 
-const placeType = computed(() => currentPlace.value?.placeType || 'Place')
+const placeType = computed(() => {
+  if (!currentPlace.value) return 'Place'
+  return getBestPlaceType(currentPlace.value)
+})
 
 const formattedAddress = computed(() => {
-  const tags = currentPlace.value?.tags
-  if (!tags) return ''
-
-  const parts = [
-    `${tags['addr:housenumber'] || ''} ${tags['addr:street'] || ''}`.trim(),
-    `${tags['addr:city'] || ''}${
-      tags['addr:city'] && tags['addr:state'] ? ',' : ''
-    } ${tags['addr:state'] || ''} ${tags['addr:postcode'] || ''}`.trim(),
-    tags['addr:country'],
-  ].filter(Boolean)
-
-  return parts.join('\n')
+  if (!currentPlace.value) return ''
+  return getFormattedAddress(currentPlace.value) || ''
 })
 
 const showTags = ref(false)
 const showHours = ref(false)
 
-const openingStatus = computed(() => {
-  const hours = currentPlace.value?.tags.opening_hours
-  if (!hours) return null
+const openingHours = computed(() => {
+  if (!currentPlace.value) return null
+  return getOpeningHours(currentPlace.value)
+})
 
-  const status = parseOpeningHours(hours)
+const openingStatus = computed(() => {
+  const hours = openingHours.value
+  if (!hours || !hours.regularHours) return null
+
+  const status = isPlaceOpen(hours.regularHours)
   if (!status) return null
 
   if (status.isOpen) {
@@ -94,23 +110,24 @@ const openingStatus = computed(() => {
 
 const osmUrl = computed(() => {
   if (!currentPlace.value) return ''
-  const { type, id } = route.params
-  return `https://www.openstreetmap.org/${type}/${id}`
+  const osmSource = currentPlace.value.sources.find(s => s.id === 'osm')
+  return osmSource?.url || ''
 })
 
 const cuisines = computed(() => {
-  const cuisine = currentPlace.value?.tags.cuisine
-  if (!cuisine) return null
-
-  return cuisine
-    .split(';')
-    .map(c => c.trim())
-    .map(c => c.replace(/_/g, ' '))
-    .map(c => c.charAt(0).toUpperCase() + c.slice(1))
+  if (!currentPlace.value) return null
+  const amenity = currentPlace.value.amenities?.cuisine?.[0]?.value as string
+  return amenity ? parseCuisines(amenity) : null
 })
 
-const placeImage = computed(() => currentPlace.value?.image || null)
-const brandLogo = computed(() => currentPlace.value?.brandLogo || null)
+const placeImage = computed(() =>
+  currentPlace.value ? getPrimaryPhoto(currentPlace.value)?.url : null,
+)
+
+const brandLogo = computed(() =>
+  currentPlace.value ? getLogoPhoto(currentPlace.value)?.url : null,
+)
+
 const imageLoading = ref(false)
 const logoLoading = ref(false)
 const imageError = ref(false)
@@ -123,8 +140,10 @@ watch(
   () => currentPlace.value,
   newPlace => {
     if (newPlace) {
-      imageLoading.value = !!newPlace.image && !placeImageLoaded.value
-      logoLoading.value = !!newPlace.brandLogo && !brandLogoLoaded.value
+      const primaryPhoto = getPrimaryPhoto(newPlace)
+      const logoPhoto = getLogoPhoto(newPlace)
+      imageLoading.value = !!primaryPhoto && !placeImageLoaded.value
+      logoLoading.value = !!logoPhoto && !brandLogoLoaded.value
       imageError.value = false
       logoError.value = false
     }
@@ -132,63 +151,65 @@ watch(
 )
 
 const wifiStatus = computed(() => {
-  const access = currentPlace.value?.tags.internet_access
-  const ssid = currentPlace.value?.tags['internet_access:ssid']
-  const fee = currentPlace.value?.tags['internet_access:fee']
-  const password = currentPlace.value?.tags['internet_access:password']
+  if (!currentPlace.value) return null
+  const wifiAmenity = currentPlace.value.amenities?.['internet_access']?.[0]
+    ?.value as string
+  if (!wifiAmenity) return null
 
-  if (!access || access === 'no') return null
-
-  let label = 'WiFi available'
-
-  if (access === 'free' || fee === 'no') {
-    label = 'Free WiFi available'
-  } else if (access === 'customers') {
-    label = 'WiFi for customers'
-  } else if (fee === 'yes') {
-    label = 'Paid WiFi available'
+  // Simulate the old structure for the utility function
+  const wifiTags = {
+    internet_access: wifiAmenity,
+    'internet_access:ssid': currentPlace.value.amenities?.[
+      'internet_access:ssid'
+    ]?.[0]?.value as string,
+    'internet_access:fee': currentPlace.value.amenities?.[
+      'internet_access:fee'
+    ]?.[0]?.value as string,
+    'internet_access:password': currentPlace.value.amenities?.[
+      'internet_access:password'
+    ]?.[0]?.value as string,
   }
 
-  return {
-    label,
-    ssid,
-    password,
-  }
+  return getWifiStatus(wifiTags)
 })
 
-const hasOutdoorSeating = computed(() => {
-  const seating = currentPlace.value?.tags.outdoor_seating
-  return seating === 'yes'
+const outdoorSeating = computed(() => {
+  if (!currentPlace.value) return false
+  const seating = currentPlace.value.amenities?.['outdoor_seating']?.[0]?.value
+  return seating === 'yes' || seating === true
 })
 
-const wheelchairAccessText = computed(() =>
-  getWheelchairAccess(currentPlace.value?.tags ?? {}),
-)
+const wheelchairAccessText = computed(() => {
+  if (!currentPlace.value) return 'Unknown wheelchair accessibility'
+  const wheelchair = currentPlace.value.amenities?.['wheelchair']?.[0]
+    ?.value as string
+  return getWheelchairAccess({ wheelchair })
+})
 
-const smokingStatusText = computed(() =>
-  getSmokingStatus(currentPlace.value?.tags ?? {}),
-)
+const smokingStatusText = computed(() => {
+  if (!currentPlace.value) return 'Unknown smoking policy'
+  const smoking = currentPlace.value.amenities?.['smoking']?.[0]
+    ?.value as string
+  return getSmokingStatus({ smoking })
+})
 
-const restroomAccessText = computed(() =>
-  getRestroomAccess(currentPlace.value?.tags ?? {}),
-)
+const restroomAccessText = computed(() => {
+  if (!currentPlace.value) return 'Unknown restroom availability'
+  const toilets = currentPlace.value.amenities?.['toilets']?.[0]
+    ?.value as string
+  return getRestroomAccess({ toilets })
+})
 
 const coordinates = computed(() => {
   if (!currentPlace.value) return null
 
-  const place = currentPlace.value
+  const geometry = currentPlace.value.geometry[0]?.value
+  if (!geometry) return null
 
-  // For nodes, use lat/lon
-  if (place.type === 'node' && place.lat && place.lon) {
-    return { lat: place.lat, lon: place.lon }
+  return {
+    lat: geometry.center.lat,
+    lng: geometry.center.lng,
   }
-
-  // For ways/relations, use calculated center
-  if (place.center) {
-    return { lat: place.center.lat, lon: place.center.lon }
-  }
-
-  return null
 })
 
 const plusCode = computed(() => {
@@ -196,7 +217,7 @@ const plusCode = computed(() => {
   return encode(
     {
       latitude: coordinates.value.lat,
-      longitude: coordinates.value.lon,
+      longitude: coordinates.value.lng,
     },
     10,
   )
@@ -210,18 +231,16 @@ async function loadPlace(type: string, id: string) {
   const place = await fetchPlaceDetails(id, type as any)
 
   // Add marker when place loads
-  if (place) {
-    // For ways/relations, use center point
-    // For nodes, use exact coordinates
-    const lat = place.center?.lat ?? place.lat
-    const lon = place.center?.lon ?? place.lon
+  if (place && place.geometry?.length > 0) {
+    const geometry = place.geometry[0].value
+    const { lat, lng } = geometry.center
 
-    if (lat && lon) {
+    if (lat && lng) {
       removeAllMarkers()
-      addMarker(MarkerIds.SELECTED_POI, new LngLat(lon, lat))
+      addMarker(MarkerIds.SELECTED_POI, new LngLat(lng, lat))
 
       flyTo({
-        center: new LngLat(lon, lat),
+        center: new LngLat(lng, lat),
         zoom: 17,
       })
     }
@@ -245,19 +264,13 @@ watch(
   },
 )
 
-watch(
-  () => currentPlace.value,
-  place => {
-    // Remove the flyTo code since we now do it on click
-  },
-)
-
-function formatOpeningHours(hours: string) {
-  return hours.split(';').join('\n')
+function formatOpeningHours(hours: OpeningHours | null) {
+  if (!hours || !hours.rawText) return ''
+  return hours.rawText.split(';').join('\n')
 }
 
-function formatCoordinates(lat: number, lon: number) {
-  return `${lat.toFixed(6)}, ${lon.toFixed(6)}`
+function formatCoordinates(lat: number, lng: number) {
+  return `${lat.toFixed(6)}, ${lng.toFixed(6)}`
 }
 
 onUnmounted(() => {
@@ -268,10 +281,11 @@ function sharePlace() {
   const url = window.location.href
   if (navigator.share) {
     try {
+      const name = currentPlace.value ? getBestName(currentPlace.value) : ''
       navigator.share({
         url,
-        title: currentPlace.value?.tags.name,
-        text: currentPlace.value?.tags.name,
+        title: name,
+        text: name,
       })
       return
     } catch (err) {
@@ -285,7 +299,7 @@ function handleDirectionsClick() {
   if (!coordinates.value) return
 
   const waypoint = {
-    lngLat: new LngLat(coordinates.value.lon, coordinates.value.lat),
+    lngLat: new LngLat(coordinates.value.lng, coordinates.value.lat),
   }
 
   directionsService.directionsTo(waypoint)
@@ -348,7 +362,7 @@ function handleBrandLogoError() {
                 <img
                   v-show="brandLogoLoaded"
                   :src="brandLogo"
-                  :alt="currentPlace.tags.name + ' logo'"
+                  :alt="getBestName(currentPlace) + ' logo'"
                   class="w-full h-full object-contain bg-white"
                   @load="handleBrandLogoLoad"
                   @error="handleBrandLogoError"
@@ -362,11 +376,8 @@ function handleBrandLogoError() {
           </div>
 
           <div class="flex-1">
-            <h1
-              v-if="currentPlace.tags.name"
-              class="text-2xl font-semibold leading-7"
-            >
-              {{ currentPlace.tags.name }}
+            <h1 class="text-2xl font-semibold leading-7">
+              {{ getBestName(currentPlace) }}
             </h1>
             <p class="text-muted-foreground">
               {{ placeType }}
@@ -417,7 +428,7 @@ function handleBrandLogoError() {
                 <img
                   v-show="placeImageLoaded"
                   :src="placeImage"
-                  :alt="currentPlace.tags.name"
+                  :alt="getBestName(currentPlace)"
                   class="w-full h-full object-cover"
                   @load="handlePlaceImageLoad"
                   @error="handlePlaceImageError"
@@ -456,43 +467,37 @@ function handleBrandLogoError() {
 
           <!-- Address -->
           <div
-            v-if="
-              currentPlace.tags['addr:street'] ||
-              currentPlace.tags['addr:housenumber'] ||
-              currentPlace.tags['addr:city'] ||
-              currentPlace.tags['addr:postcode']
-            "
+            v-if="getBestAddress(currentPlace)"
             class="flex gap-3 items-center group"
           >
             <MapPinIcon class="size-4 text-muted-foreground flex-shrink-0" />
             <div class="flex flex-col flex-1 py-1">
               <span>
-                {{ currentPlace.tags['addr:housenumber'] }}
-                {{ currentPlace.tags['addr:street'] }}
+                {{ getBestAddress(currentPlace)?.street1 }}
               </span>
               <span
                 v-if="
-                  currentPlace.tags['addr:city'] ||
-                  currentPlace.tags['addr:state'] ||
-                  currentPlace.tags['addr:postcode']
+                  getBestAddress(currentPlace)?.locality ||
+                  getBestAddress(currentPlace)?.region ||
+                  getBestAddress(currentPlace)?.postalCode
                 "
                 class="text-muted-foreground text-sm"
               >
-                {{ currentPlace.tags['addr:city']
+                {{ getBestAddress(currentPlace)?.locality
                 }}{{
-                  currentPlace.tags['addr:city'] &&
-                  currentPlace.tags['addr:state']
+                  getBestAddress(currentPlace)?.locality &&
+                  getBestAddress(currentPlace)?.region
                     ? ','
                     : ''
                 }}
-                {{ currentPlace.tags['addr:state'] }}
-                {{ currentPlace.tags['addr:postcode'] }}
+                {{ getBestAddress(currentPlace)?.region }}
+                {{ getBestAddress(currentPlace)?.postalCode }}
               </span>
               <span
-                v-if="currentPlace.tags['addr:country']"
+                v-if="getBestAddress(currentPlace)?.country"
                 class="text-muted-foreground text-sm"
               >
-                {{ currentPlace.tags['addr:country'] }}
+                {{ getBestAddress(currentPlace)?.country }}
               </span>
             </div>
             <CopyButton
@@ -502,10 +507,7 @@ function handleBrandLogoError() {
           </div>
 
           <!-- Opening Hours -->
-          <div
-            v-if="currentPlace.tags.opening_hours"
-            class="flex gap-3 items-center group"
-          >
+          <div v-if="openingHours" class="flex gap-3 items-center group">
             <ClockIcon class="size-4 text-muted-foreground flex-shrink-0" />
             <div class="flex flex-col flex-1">
               <div class="flex items-center gap-2">
@@ -535,42 +537,49 @@ function handleBrandLogoError() {
               <pre
                 v-show="showHours"
                 class="whitespace-pre-line text-sm mt-1"
-                >{{ formatOpeningHours(currentPlace.tags.opening_hours) }}</pre
+                >{{ formatOpeningHours(openingHours) }}</pre
               >
             </div>
           </div>
 
           <!-- Phone -->
           <div
-            v-if="currentPlace.tags.phone"
+            v-if="getBestPhone(currentPlace)"
             class="flex gap-3 items-center group"
           >
             <PhoneIcon class="size-4 text-muted-foreground flex-shrink-0" />
             <div class="flex flex-col flex-1">
               <a
-                :href="`tel:${currentPlace.tags.phone}`"
+                :href="
+                  getBestPhone(currentPlace)
+                    ? `tel:${getBestPhone(currentPlace)}`
+                    : undefined
+                "
                 class="text-primary hover:underline"
               >
-                {{ currentPlace.tags.phone }}
+                {{ getBestPhone(currentPlace) }}
               </a>
             </div>
             <CopyButton
-              :text="currentPlace.tags.phone"
+              :text="getBestPhone(currentPlace) || ''"
               message="Phone number copied to clipboard"
               class="opacity-0 group-hover:opacity-100"
             />
           </div>
 
           <!-- Website -->
-          <div v-if="currentPlace.tags.website" class="flex gap-3 items-center">
+          <div
+            v-if="getBestWebsite(currentPlace)"
+            class="flex gap-3 items-center"
+          >
             <LinkIcon class="size-4 text-muted-foreground flex-shrink-0" />
             <a
-              :href="currentPlace.tags.website"
+              :href="getBestWebsite(currentPlace) || undefined"
               target="_blank"
               rel="noopener noreferrer"
               class="text-primary hover:underline truncate"
             >
-              {{ currentPlace.tags.website }}
+              {{ getBestWebsite(currentPlace) }}
             </a>
           </div>
 
@@ -601,14 +610,14 @@ function handleBrandLogoError() {
           </div>
 
           <!-- Outdoor Seating -->
-          <div v-if="hasOutdoorSeating" class="flex gap-3 items-center">
+          <div v-if="outdoorSeating" class="flex gap-3 items-center">
             <TreesIcon class="size-4 text-muted-foreground flex-shrink-0" />
             <span>Has outdoor seating</span>
           </div>
 
           <!-- Wheelchair Access -->
           <div
-            v-if="currentPlace.tags.wheelchair"
+            v-if="currentPlace.amenities?.wheelchair"
             class="flex gap-3 items-center"
           >
             <AccessibilityIcon
@@ -620,7 +629,10 @@ function handleBrandLogoError() {
           </div>
 
           <!-- Smoking -->
-          <div v-if="currentPlace.tags.smoking" class="flex gap-3 items-center">
+          <div
+            v-if="currentPlace.amenities?.smoking"
+            class="flex gap-3 items-center"
+          >
             <CigaretteIcon class="size-4 text-muted-foreground flex-shrink-0" />
             <span>
               {{ smokingStatusText }}
@@ -628,17 +640,23 @@ function handleBrandLogoError() {
           </div>
 
           <!-- Restrooms -->
-          <div v-if="currentPlace.tags.toilets" class="flex gap-3 items-center">
+          <div
+            v-if="currentPlace.amenities?.toilets"
+            class="flex gap-3 items-center"
+          >
             <ToiletIcon class="size-4 text-muted-foreground flex-shrink-0" />
             <div class="flex flex-col">
               <span>{{ restroomAccessText }}</span>
               <span
-                v-if="currentPlace.tags['toilets:wheelchair']"
+                v-if="currentPlace.amenities?.['toilets:wheelchair']"
                 class="text-sm text-muted-foreground"
               >
                 Wheelchair
                 {{
-                  currentPlace.tags['toilets:wheelchair'] === 'yes'
+                  currentPlace.amenities?.['toilets:wheelchair'][0]?.value ===
+                    'yes' ||
+                  currentPlace.amenities?.['toilets:wheelchair'][0]?.value ===
+                    true
                     ? 'accessible'
                     : 'not accessible'
                 }}
@@ -648,18 +666,22 @@ function handleBrandLogoError() {
 
           <!-- Email -->
           <div
-            v-if="currentPlace.tags['contact:email']"
+            v-if="getBestEmail(currentPlace)"
             class="flex gap-3 items-center group"
           >
             <MailIcon class="size-4 text-muted-foreground flex-shrink-0" />
             <a
-              :href="`mailto:${currentPlace.tags['contact:email']}`"
+              :href="
+                getBestEmail(currentPlace)
+                  ? `mailto:${getBestEmail(currentPlace)}`
+                  : undefined
+              "
               class="text-primary hover:underline truncate"
             >
-              {{ currentPlace.tags['contact:email'] }}
+              {{ getBestEmail(currentPlace) }}
             </a>
             <CopyButton
-              :text="currentPlace.tags['contact:email']"
+              :text="getBestEmail(currentPlace) || ''"
               message="Email copied to clipboard"
               class="opacity-0 group-hover:opacity-100"
             />
@@ -670,11 +692,11 @@ function handleBrandLogoError() {
             <GlobeIcon class="size-4 text-muted-foreground flex-shrink-0" />
             <div class="flex flex-col flex-1">
               <span class="text-sm">
-                {{ formatCoordinates(coordinates.lat, coordinates.lon) }}
+                {{ formatCoordinates(coordinates.lat, coordinates.lng) }}
               </span>
             </div>
             <CopyButton
-              :text="formatCoordinates(coordinates.lat, coordinates.lon)"
+              :text="formatCoordinates(coordinates.lat, coordinates.lng)"
               message="Coordinates copied to clipboard"
               class="opacity-0 group-hover:opacity-100"
             />
@@ -699,21 +721,31 @@ function handleBrandLogoError() {
         <!-- Sources -->
         <div class="flex flex-col gap-2">
           <h2 class="text-sm font-medium">Sources</h2>
-          <!-- OSM Info -->
-          <div class="border border-border rounded-lg overflow-hidden">
+          <!-- Source Info -->
+          <div
+            v-for="source in currentPlace.sources"
+            :key="source.id"
+            class="border border-border rounded-lg overflow-hidden"
+          >
             <div class="pl-3 pr-1 py-1 flex flex-col">
               <div class="flex items-center justify-between">
                 <div class="flex-1">
                   <div class="flex items-center justify-between">
                     <button
+                      v-if="source.id === 'osm'"
                       @click="showTags = !showTags"
                       class="flex-1 flex items-center justify-between"
                     >
                       <div class="div flex flex-col items-start">
-                        <span class="text-sm">OpenStreetMap</span>
+                        <span class="text-sm">{{ source.name }}</span>
                         <span class="text-xs text-muted-foreground text-start">
-                          #{{ currentPlace.version }} last edited by
-                          {{ currentPlace.user }}
+                          Last updated
+                          {{
+                            new Date(
+                              source.updated || Date.now(),
+                            ).toLocaleDateString()
+                          }}
+                          {{ source.updatedBy ? `by ${source.updatedBy}` : '' }}
                         </span>
                       </div>
                       <ChevronDownIcon
@@ -721,12 +753,29 @@ function handleBrandLogoError() {
                         :class="{ 'rotate-180': showTags }"
                       />
                     </button>
-                    <Button variant="ghost" size="icon" class="ml-2" asChild>
+                    <div v-else class="flex-1 flex flex-col items-start">
+                      <span class="text-sm">{{ source.name }}</span>
+                      <span class="text-xs text-muted-foreground">
+                        Last updated
+                        {{
+                          new Date(
+                            source.updated || Date.now(),
+                          ).toLocaleDateString()
+                        }}
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="ml-2"
+                      asChild
+                      v-if="source.url"
+                    >
                       <a
-                        :href="osmUrl"
+                        :href="source.url"
                         target="_blank"
                         rel="noopener noreferrer"
-                        title="View on OpenStreetMap"
+                        :title="`View on ${source.name}`"
                       >
                         <ExternalLinkIcon class="size-4" />
                       </a>
@@ -735,18 +784,20 @@ function handleBrandLogoError() {
                 </div>
               </div>
             </div>
-            <div v-show="showTags">
+            <div v-if="source.id === 'osm' && showTags">
               <Table>
                 <TableBody>
                   <TableRow
-                    v-for="[key, value] in Object.entries(currentPlace.tags)"
+                    v-for="[key, values] in Object.entries(
+                      currentPlace.amenities || {},
+                    )"
                     :key="key"
                   >
                     <TableCell class="font-medium text-muted-foreground">
                       {{ key }}
                     </TableCell>
                     <TableCell class="break-all">
-                      {{ value }}
+                      {{ values[0]?.value }}
                     </TableCell>
                   </TableRow>
                 </TableBody>

@@ -3,4 +3,4 @@ WORKDIR /app/server
 COPY server/package.json server/bun.lockb ./
 RUN bun install
 COPY server/ ./
-CMD ["bun", "run", "dev"]
+CMD ["bun", "run", "--hot", "--inspect=0.0.0.0:6499", "src/index.ts"]

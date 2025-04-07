@@ -1,7 +1,6 @@
 // Import the types from the server
 import type {
   UnifiedPlace,
-  AttributedValue,
   PlaceGeometry,
   Address,
   OpeningHours,
@@ -11,14 +10,12 @@ import type {
   Coordinates,
   OpeningTime,
   Amenity,
+  AttributedValue,
 } from '@server/types/unified-place.types'
-
-import { selectBestValue } from '@server/types/unified-place.types'
 
 // Re-export for use in client code
 export type {
   UnifiedPlace,
-  AttributedValue,
   PlaceGeometry,
   Address,
   OpeningHours,
@@ -28,45 +25,15 @@ export type {
   Coordinates,
   OpeningTime,
   Amenity,
-}
-
-export { selectBestValue }
-
-// Convenience utilities for the client
-export function getBestName(place: UnifiedPlace): string {
-  return selectBestValue(place.name) || 'Unnamed Place'
-}
-
-export function getBestPlaceType(place: UnifiedPlace): string {
-  return selectBestValue(place.placeType) || 'Place'
-}
-
-export function getBestAddress(place: UnifiedPlace): Address | null {
-  return selectBestValue(place.address)
-}
-
-export function getBestPhone(place: UnifiedPlace): string | null {
-  return selectBestValue(place.contactInfo.phone)
-}
-
-export function getBestEmail(place: UnifiedPlace): string | null {
-  return selectBestValue(place.contactInfo.email)
-}
-
-export function getBestWebsite(place: UnifiedPlace): string | null {
-  return selectBestValue(place.contactInfo.website)
+  AttributedValue,
 }
 
 export function getPrimaryPhoto(place: UnifiedPlace): PlacePhoto | null {
-  return place.photos.find(photo => photo.isPrimary) || place.photos[0] || null
+  return place.photos.find(photo => photo.isPrimary) || null
 }
 
 export function getLogoPhoto(place: UnifiedPlace): PlacePhoto | null {
   return place.photos.find(photo => photo.isLogo) || null
-}
-
-export function getOpeningHours(place: UnifiedPlace): OpeningHours | null {
-  return selectBestValue(place.openingHours)
 }
 
 export function getSourceById(
@@ -77,6 +44,5 @@ export function getSourceById(
 }
 
 export function getFormattedAddress(place: UnifiedPlace): string | null {
-  const address = getBestAddress(place)
-  return address?.formatted || null
+  return place.address?.formatted || null
 }

@@ -83,7 +83,6 @@ export function adaptOsmPlace(osmPlace: Place): UnifiedPlace {
     value: geometry,
     sourceId,
     timestamp: new Date().toISOString(),
-    confidence: 1,
   }
 
   const address: Address = {}
@@ -118,7 +117,6 @@ export function adaptOsmPlace(osmPlace: Place): UnifiedPlace {
   const attributedAddress: AttributedValue<Address> = {
     value: address,
     sourceId,
-    confidence: 1,
     timestamp: new Date().toISOString(),
   }
 
@@ -149,14 +147,14 @@ export function adaptOsmPlace(osmPlace: Place): UnifiedPlace {
       openingHours = {
         regularHours: parsedHours,
         rawText: osmPlace.tags.opening_hours,
+        isOpen24_7: false,
+        isPermanentlyClosed: false,
+        isTemporarilyClosed: false,
       }
     }
   }
 
-  const amenities: Record<
-    string,
-    AttributedValue<string | boolean | number>[]
-  > = {}
+  const amenities: Record<string, string | boolean | number> = {}
   if (osmPlace.tags) {
     const knownAmenityTags = [
       'wheelchair',
@@ -180,14 +178,7 @@ export function adaptOsmPlace(osmPlace: Place): UnifiedPlace {
         !['name', 'website', 'phone', 'opening_hours'].includes(key) &&
         (knownAmenityTags.includes(key) || key.includes(':'))
       ) {
-        amenities[key] = [
-          {
-            value: value,
-            sourceId,
-            confidence: 1,
-            timestamp: new Date().toISOString(),
-          },
-        ]
+        amenities[key] = value
       }
     }
   }
@@ -197,83 +188,38 @@ export function adaptOsmPlace(osmPlace: Place): UnifiedPlace {
     externalIds: {
       [sourceId]: `${osmPlace.type}/${osmPlace.id}`,
     },
-
-    name: [
-      {
-        value: osmPlace.tags?.name || `Unnamed Place (${osmPlace.id})`,
-        sourceId,
-        confidence: 1,
-        timestamp: new Date().toISOString(),
-      },
-    ],
-
-    placeType: [
-      {
-        value: osmPlace.tags ? getPlaceType(osmPlace.tags) : 'Place',
-        sourceId,
-        confidence: 1,
-        timestamp: new Date().toISOString(),
-      },
-    ],
-
-    geometry: [attributedGeometry],
+    name: osmPlace.tags?.name || `Unnamed Place (${osmPlace.id})`,
+    placeType: osmPlace.tags ? getPlaceType(osmPlace.tags) : 'Place',
+    geometry: geometry,
     photos,
-
-    address: [attributedAddress],
-
+    address: address,
     contactInfo: {
       phone: osmPlace.tags?.phone
-        ? [
-            {
-              value: osmPlace.tags.phone,
-              sourceId,
-              confidence: 1,
-              timestamp: new Date().toISOString(),
-            },
-          ]
-        : [],
-
-      email:
-        osmPlace.tags?.email || osmPlace.tags?.['contact:email']
-          ? [
-              {
-                value: osmPlace.tags.email || osmPlace.tags['contact:email'],
-                sourceId,
-                confidence: 1,
-                timestamp: new Date().toISOString(),
-              },
-            ]
-          : [],
-
+        ? {
+            value: osmPlace.tags.phone,
+            sourceId,
+            timestamp: Date.now().toString(),
+          }
+        : null,
+      email: osmPlace.tags?.email
+        ? {
+            value: osmPlace.tags.email,
+            sourceId,
+            timestamp: Date.now().toString(),
+          }
+        : null,
       website: osmPlace.tags?.website
-        ? [
-            {
-              value: osmPlace.tags.website,
-              sourceId,
-              confidence: 1,
-              timestamp: new Date().toISOString(),
-            },
-          ]
-        : [],
-
+        ? {
+            value: osmPlace.tags.website,
+            sourceId,
+            timestamp: Date.now().toString(),
+          }
+        : null,
       socials: {},
     },
-
-    openingHours: openingHours
-      ? [
-          {
-            value: openingHours,
-            sourceId,
-            confidence: 1,
-            timestamp: new Date().toISOString(),
-          },
-        ]
-      : [],
-
+    openingHours: openingHours || null,
     amenities,
-
     sources: [source],
-
     lastUpdated: new Date().toISOString(),
     createdAt: new Date().toISOString(),
   }
@@ -289,16 +235,11 @@ export function adaptOsmPlace(osmPlace: Place): UnifiedPlace {
   if (osmPlace.tags) {
     for (const [key, mappedKey] of Object.entries(socialMap)) {
       if (osmPlace.tags[key]) {
-        if (!unifiedPlace.contactInfo.socials[mappedKey]) {
-          unifiedPlace.contactInfo.socials[mappedKey] = []
-        }
-
-        unifiedPlace.contactInfo.socials[mappedKey].push({
+        unifiedPlace.contactInfo.socials[mappedKey] = {
           value: osmPlace.tags[key],
           sourceId,
-          confidence: 1,
           timestamp: new Date().toISOString(),
-        })
+        }
       }
     }
   }

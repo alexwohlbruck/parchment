@@ -25,7 +25,6 @@ export function getSessionId(request: Request) {
   }
 
   const cookieHeader = request.headers.get('Cookie') ?? ''
-  console.log(cookieHeader)
   return lucia.readSessionCookie(cookieHeader)
 }
 

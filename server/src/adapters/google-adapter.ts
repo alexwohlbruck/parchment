@@ -38,6 +38,20 @@ export const googleAdapter: PlaceDataAdapter = {
         }
       }
 
+      // Description - from editorial_summary if available
+      if (data.editorial_summary?.overview) {
+        transformed.description = {
+          value: data.editorial_summary.overview,
+          sourceId: SOURCE.GOOGLE,
+        }
+      } else if (data.editorial_summary?.text) {
+        // Alternative field name that might be used
+        transformed.description = {
+          value: data.editorial_summary.text,
+          sourceId: SOURCE.GOOGLE,
+        }
+      }
+
       // Photos
       if (data.photos?.length) {
         const photos: PlacePhoto[] = []

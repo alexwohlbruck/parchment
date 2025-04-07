@@ -273,6 +273,8 @@ const osmSource = computed(() => {
   return currentPlace.value.sources.find(s => s.id === SOURCE.OSM) || null
 })
 
+const description = computed(() => currentPlace.value?.description || null)
+
 async function loadPlace(type: string, id: string) {
   clearPlace()
   placeImageLoaded.value = false
@@ -417,71 +419,92 @@ function formatDate(dateString: string) {
 
     <template v-else-if="currentPlace">
       <div class="flex flex-col gap-4 pt-4">
-        <!-- Title section with brand logo -->
-        <div class="px-4 flex items-center gap-4">
-          <!-- Brand Logo -->
-          <div
-            v-if="logoLoading || brandLogo || logoError"
-            class="size-12 rounded-lg overflow-hidden border border-border shadow flex-shrink-0"
-          >
-            <div
-              v-if="logoLoading"
-              class="w-full h-full bg-muted/50 animate-pulse relative overflow-hidden"
-            >
+        <div class="flex flex-col px-4 space-y-0">
+          <!-- Title, Type, and Rating Section -->
+          <div class="flex flex-col gap-2">
+            <div class="flex items-start justify-between gap-2">
+              <!-- Brand Logo -->
               <div
-                class="absolute inset-0 -translate-x-full animate-[shimmer_1s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent"
-              />
-            </div>
-            <div v-if="brandLogo" class="w-full h-full">
-              <transition
-                enter-from-class="opacity-0"
-                enter-to-class="opacity-100"
-                enter-active-class="transition-opacity duration-200"
+                v-if="logoLoading || brandLogo || logoError"
+                class="size-12 rounded-lg overflow-hidden border border-border shadow flex-shrink-0 mr-2"
               >
-                <img
-                  v-show="brandLogoLoaded"
-                  :src="brandLogo"
-                  :alt="currentPlace.name + ' logo'"
-                  class="w-full h-full object-contain bg-white"
-                  @load="handleBrandLogoLoad"
-                  @error="handleBrandLogoError"
-                />
-              </transition>
-            </div>
-            <div
-              v-if="logoError"
-              class="w-full h-full flex items-center justify-center bg-muted"
-            />
-          </div>
-
-          <div class="flex-1">
-            <h1 class="text-2xl font-semibold leading-7">
-              {{ currentPlace.name }}
-            </h1>
-            <div class="flex items-center gap-2">
-              <p class="text-muted-foreground">
-                {{ placeType }}
-              </p>
-              <div v-if="rating !== null" class="flex items-center gap-1.5">
-                <span class="text-muted-foreground">·</span>
-                <div class="flex items-center gap-1">
-                  <StarIcon class="size-4 text-yellow-400" />
-                  <span class="text-sm">{{ formatRating(rating) }}</span>
-                  <span class="text-sm text-muted-foreground"
-                    >({{ reviewCount }})</span
+                <div
+                  v-if="logoLoading"
+                  class="w-full h-full bg-muted/50 animate-pulse relative overflow-hidden"
+                >
+                  <div
+                    class="absolute inset-0 -translate-x-full animate-[shimmer_1s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent"
+                  />
+                </div>
+                <div v-if="brandLogo" class="w-full h-full">
+                  <transition
+                    enter-from-class="opacity-0"
+                    enter-to-class="opacity-100"
+                    enter-active-class="transition-opacity duration-200"
                   >
+                    <img
+                      v-show="brandLogoLoaded"
+                      :src="brandLogo"
+                      :alt="currentPlace.name + ' logo'"
+                      class="w-full h-full object-contain bg-white"
+                      @load="handleBrandLogoLoad"
+                      @error="handleBrandLogoError"
+                    />
+                  </transition>
+                </div>
+                <div
+                  v-if="logoError"
+                  class="w-full h-full flex items-center justify-center bg-muted"
+                />
+              </div>
+
+              <div class="flex-1">
+                <h1 class="text-2xl font-semibold line-clamp-2">
+                  {{ currentPlace.name }}
+                </h1>
+                <div class="text-sm text-muted-foreground">
+                  {{ placeType }}
+                </div>
+                <div
+                  v-if="rating !== null"
+                  class="flex items-center gap-1 mt-1"
+                >
+                  <div class="flex">
+                    <StarIcon
+                      v-for="i in Math.floor(rating * 5)"
+                      :key="i"
+                      class="w-3 h-3 fill-current text-yellow-400"
+                    />
+                    <StarIcon
+                      v-for="i in 5 - Math.floor(rating * 5)"
+                      :key="i + 5"
+                      class="w-3 h-3 text-muted-foreground"
+                    />
+                  </div>
+                  <span class="text-sm">
+                    {{ (rating * 5).toFixed(1) }}
+                    <span class="text-muted-foreground"
+                      >({{ reviewCount }})</span
+                    >
+                  </span>
                 </div>
               </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                @click="router.push({ name: AppRoute.MAP })"
+              >
+                <XIcon class="size-4" />
+              </Button>
+            </div>
+
+            <!-- Description Section -->
+            <div v-if="description">
+              <p class="text-sm text-muted-foreground leading-relaxed">
+                {{ description }}
+              </p>
             </div>
           </div>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            @click="router.push({ name: AppRoute.MAP })"
-          >
-            <XIcon class="size-4" />
-          </Button>
         </div>
 
         <!-- Action Buttons -->

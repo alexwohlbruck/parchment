@@ -38,6 +38,13 @@ export interface GooglePlaceDetails {
     }[]
     weekday_text?: string[]
   }
+  // Editorial summary with place description
+  editorial_summary?: {
+    language?: string
+    languageCode?: string
+    overview?: string
+    text?: string
+  }
   // New fields
   google_maps_uri: string
   price_level: string

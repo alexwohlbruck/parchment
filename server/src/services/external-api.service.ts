@@ -56,7 +56,8 @@ export async function searchGooglePlace(
         headers: {
           'Content-Type': 'application/json',
           'X-Goog-Api-Key': process.env.GOOGLE_MAPS_API_KEY,
-          'X-Goog-FieldMask': '*',
+          'X-Goog-FieldMask':
+            'places.id,places.displayName,places.formattedAddress,places.internationalPhoneNumber,places.websiteUri,places.types,places.photos,places.rating,places.userRatingCount,places.googleMapsUri,places.priceLevel,places.businessStatus,places.editorialSummary,places.location,places.dineIn,places.takeout,places.delivery,places.curbsidePickup,places.servesBreakfast,places.servesLunch,places.servesDinner,places.servesBeer,places.servesVegetarianFood,places.servesCocktails,places.servesCoffee,places.outdoorSeating,places.liveMusic,places.goodForChildren,places.goodForGroups,places.restroom,places.regularOpeningHours,places.utcOffsetMinutes',
         },
       },
     )
@@ -101,6 +102,14 @@ function transformGooglePlace(place: any): GooglePlaceDetails {
     )
   }
 
+  // Log editorial summary data if available for debugging
+  if (place.editorialSummary) {
+    console.log(
+      'Editorial summary from Google Places API:',
+      JSON.stringify(place.editorialSummary, null, 2),
+    )
+  }
+
   return {
     place_id: place.id,
     name: place.displayName?.text || '',
@@ -120,6 +129,15 @@ function transformGooglePlace(place: any): GooglePlaceDetails {
     google_maps_uri: place.googleMapsUri || '',
     price_level: place.priceLevel || '',
     business_status: place.businessStatus || '',
+    editorial_summary: place.editorialSummary
+      ? {
+          language: place.editorialSummary.languageCode || undefined,
+          overview:
+            place.editorialSummary.text ||
+            place.editorialSummary.overview ||
+            '',
+        }
+      : undefined,
     dine_in: place.dineIn || false,
     takeout: place.takeout || false,
     delivery: place.delivery || false,

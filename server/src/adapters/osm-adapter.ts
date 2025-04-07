@@ -56,6 +56,17 @@ export const osmAdapter: PlaceDataAdapter = {
         }
       }
 
+      // Description
+      const description = place.tags.description
+      if (description) {
+        transformed.description = {
+          value: description,
+          sourceId: SOURCE.OSM,
+          timestamp: osmTimestamp,
+          updatedBy: osmUpdatedBy,
+        }
+      }
+
       // Address
       const address = extractAddress(place.tags)
       if (address) {

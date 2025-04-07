@@ -11,6 +11,7 @@ export interface PlaceDataAdapter {
   sourceUrl: (data: any) => string
   transform: (data: any) => {
     name?: AttributedValue<string>
+    description?: AttributedValue<string>
     address?: AttributedValue<Address>
     contactInfo?: {
       phone: AttributedValue<string> | null

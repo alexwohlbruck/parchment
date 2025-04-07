@@ -31,7 +31,7 @@ async function copyToClipboard() {
 <template>
   <button
     @click="copyToClipboard"
-    class="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-muted rounded"
+    class="p-1 hover:bg-muted rounded"
     title="Copy"
   >
     <TransitionFade mode="out-in" :duration="100">

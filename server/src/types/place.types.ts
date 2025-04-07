@@ -15,6 +15,52 @@ export interface PlaceBounds {
   maxlon: number
 }
 
+export interface GooglePlaceDetails {
+  place_id: string
+  name: string
+  formatted_address: string
+  formatted_phone_number: string
+  website: string
+  types: string[]
+  photos: {
+    photo_reference: string
+    height: number
+    width: number
+    html_attributions: string[]
+  }[]
+  rating: number
+  user_ratings_total: number
+  opening_hours?: {
+    open_now?: boolean
+    periods?: {
+      open: { day: number; time: string }
+      close: { day: number; time: string }
+    }[]
+    weekday_text?: string[]
+  }
+  // New fields
+  google_maps_uri: string
+  price_level: string
+  business_status: string
+  dine_in: boolean
+  takeout: boolean
+  delivery: boolean
+  curbside_pickup: boolean
+  serves_breakfast: boolean
+  serves_lunch: boolean
+  serves_dinner: boolean
+  serves_beer: boolean
+  serves_vegetarian: boolean
+  serves_cocktails: boolean
+  serves_coffee: boolean
+  outdoor_seating: boolean
+  live_music: boolean
+  good_for_children: boolean
+  good_for_groups: boolean
+  restroom: boolean
+  utc_offset: number
+}
+
 export interface Place {
   id: number
   type: 'node' | 'way' | 'relation'
@@ -29,4 +75,23 @@ export interface Place {
   placeType?: string
   image?: string | null
   brandLogo?: string | null
+  // Extended data from external APIs
+  name?: string
+  rating?: number
+  reviewCount?: number
+  url?: string
+  photos?: string[]
+  hours?: {
+    isOpenNow: boolean
+    periods: Array<{
+      day: number
+      open: string
+      close: string
+    }>
+  }
+  categories?: string[]
+  address?: string
+  externalIds?: {
+    googlePlaces?: string
+  }
 }

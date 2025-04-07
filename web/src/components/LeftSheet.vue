@@ -14,7 +14,7 @@ useObstructingComponent(sheet)
 <template>
   <Card
     ref="sheet"
-    class="bg-muted z-30 top-0 left-0 w-full md:w-[26rem] h-full pt-[3.5rem] flex flex-col rounded-l-none border-l-0 border-y-0 justify-center"
+    class="bg-muted overflow-y-auto z-30 top-0 left-0 w-full md:w-[26rem] h-full pt-[3.5rem] flex flex-col rounded-l-none border-l-0 border-y-0 justify-center"
   >
     <slot />
   </Card>

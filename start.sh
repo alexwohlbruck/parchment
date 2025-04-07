@@ -42,6 +42,7 @@ else
 fi
 
 export VITE_PORT
+export BUN_DEBUG_PORT=6499
 
 docker-compose up --build web -d
 

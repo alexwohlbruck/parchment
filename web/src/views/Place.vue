@@ -24,6 +24,7 @@ import {
   LinkIcon,
   PlusIcon,
   XIcon,
+  StarIcon,
 } from 'lucide-vue-next'
 import {
   getWheelchairAccess,
@@ -47,18 +48,11 @@ import { AppRoute } from '@/router'
 import { useDirectionsService } from '@/services/directions.service'
 import { useResponsive } from '@/lib/utils'
 import {
-  getBestName,
-  getBestPlaceType,
-  getBestAddress,
-  getBestPhone,
-  getBestEmail,
-  getBestWebsite,
   getPrimaryPhoto,
   getLogoPhoto,
-  getOpeningHours,
-  getFormattedAddress,
-  OpeningHours,
+  getSourceById,
 } from '@/types/unified-place.types'
+import type { UnifiedPlace, OpeningHours } from '@/types/unified-place.types'
 
 const route = useRoute()
 const router = useRouter()
@@ -69,44 +63,97 @@ const { flyTo, addMarker, removeAllMarkers } = useMapService()
 const directionsService = useDirectionsService()
 const { isMobileScreen } = useResponsive()
 
-const placeType = computed(() => {
-  if (!currentPlace.value) return 'Place'
-  return getBestPlaceType(currentPlace.value)
-})
+const placeType = computed(() => currentPlace.value?.placeType || 'Place')
 
-const formattedAddress = computed(() => {
-  if (!currentPlace.value) return ''
-  return getFormattedAddress(currentPlace.value) || ''
-})
+const rating = computed(
+  () => currentPlace.value?.ratings?.rating?.value || null,
+)
+const reviewCount = computed(
+  () => currentPlace.value?.ratings?.reviewCount?.value || 0,
+)
+
+const address = computed(() => currentPlace.value?.address || null)
+const formattedAddress = computed(() => address.value?.formatted || '')
 
 const showTags = ref(false)
 const showHours = ref(false)
 
-const openingHours = computed(() => {
-  if (!currentPlace.value) return null
-  return getOpeningHours(currentPlace.value)
-})
+const openingHours = computed(() => currentPlace.value?.openingHours || null)
+
+const DAYS = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+]
 
 const openingStatus = computed(() => {
-  const hours = openingHours.value
-  if (!hours || !hours.regularHours) return null
+  if (!currentPlace.value?.openingHours) return null
 
-  const status = isPlaceOpen(hours.regularHours)
-  if (!status) return null
+  const hours = currentPlace.value.openingHours
 
-  if (status.isOpen) {
+  if (hours.isPermanentlyClosed) {
+    return { status: 'Permanently closed', color: 'text-red-500' }
+  }
+
+  if (hours.isTemporarilyClosed) {
+    return { status: 'Temporarily closed', color: 'text-orange-500' }
+  }
+
+  if (hours.isOpen24_7) {
+    return { status: 'Open 24/7', color: 'text-green-500' }
+  }
+
+  const now = new Date()
+  const currentDay = now.getDay()
+  const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now
+    .getMinutes()
+    .toString()
+    .padStart(2, '0')}`
+
+  const todayHours = hours.regularHours.find(h => h.day === currentDay)
+  if (!todayHours) {
+    return { status: 'Closed today', color: 'text-red-500' }
+  }
+
+  if (currentTime >= todayHours.open && currentTime <= todayHours.close) {
     return {
-      state: 'open',
-      message: 'Open now',
-      closingTime: status.nextChange,
+      status: `Open until ${formatTime(todayHours.close)}`,
+      color: 'text-green-500',
+    }
+  } else if (currentTime < todayHours.open) {
+    return {
+      status: `Opens at ${formatTime(todayHours.open)}`,
+      color: 'text-orange-500',
     }
   } else {
-    return {
-      state: 'closed',
-      message: status.nextChange ? `Opens ${status.nextChange}` : 'Closed',
+    // Find next day's opening time
+    let nextDay = (currentDay + 1) % 7
+    let daysChecked = 0
+    while (daysChecked < 7) {
+      const nextDayHours = hours.regularHours.find(h => h.day === nextDay)
+      if (nextDayHours) {
+        return {
+          status: `Opens ${DAYS[nextDay]} at ${formatTime(nextDayHours.open)}`,
+          color: 'text-orange-500',
+        }
+      }
+      nextDay = (nextDay + 1) % 7
+      daysChecked++
     }
+    return { status: 'Closed', color: 'text-red-500' }
   }
 })
+
+function formatTime(time: string) {
+  const [hours, minutes] = time.split(':').map(Number)
+  const period = hours >= 12 ? 'PM' : 'AM'
+  const hour = hours % 12 || 12
+  return `${hour}:${minutes.toString().padStart(2, '0')} ${period}`
+}
 
 const osmUrl = computed(() => {
   if (!currentPlace.value) return ''
@@ -134,6 +181,7 @@ const imageError = ref(false)
 const logoError = ref(false)
 const placeImageLoaded = ref(false)
 const brandLogoLoaded = ref(false)
+const currentPhotoIndex = ref(0)
 
 // Reset loading and error states when currentPlace changes
 watch(
@@ -146,6 +194,8 @@ watch(
       logoLoading.value = !!logoPhoto && !brandLogoLoaded.value
       imageError.value = false
       logoError.value = false
+      placeImageLoaded.value = false
+      currentPhotoIndex.value = 0
     }
   },
 )
@@ -179,37 +229,22 @@ const outdoorSeating = computed(() => {
   return seating === 'yes' || seating === true
 })
 
-const wheelchairAccessText = computed(() => {
-  if (!currentPlace.value) return 'Unknown wheelchair accessibility'
-  const wheelchair = currentPlace.value.amenities?.['wheelchair']?.[0]
-    ?.value as string
-  return getWheelchairAccess({ wheelchair })
-})
-
-const smokingStatusText = computed(() => {
-  if (!currentPlace.value) return 'Unknown smoking policy'
-  const smoking = currentPlace.value.amenities?.['smoking']?.[0]
-    ?.value as string
-  return getSmokingStatus({ smoking })
-})
-
-const restroomAccessText = computed(() => {
-  if (!currentPlace.value) return 'Unknown restroom availability'
-  const toilets = currentPlace.value.amenities?.['toilets']?.[0]
-    ?.value as string
-  return getRestroomAccess({ toilets })
-})
+const wheelchairAccess = computed(
+  () => currentPlace.value?.amenities.wheelchair || null,
+)
+const smokingStatus = computed(
+  () => currentPlace.value?.amenities.smoking || null,
+)
+const restroomAccess = computed(
+  () => currentPlace.value?.amenities.toilets || null,
+)
+const wheelchairRestroomAccess = computed(
+  () => currentPlace.value?.amenities['toilets:wheelchair'] || null,
+)
 
 const coordinates = computed(() => {
-  if (!currentPlace.value) return null
-
-  const geometry = currentPlace.value.geometry[0]?.value
-  if (!geometry) return null
-
-  return {
-    lat: geometry.center.lat,
-    lng: geometry.center.lng,
-  }
+  if (!currentPlace.value?.geometry) return null
+  return currentPlace.value.geometry.center
 })
 
 const plusCode = computed(() => {
@@ -223,6 +258,15 @@ const plusCode = computed(() => {
   )
 })
 
+const phoneValue = computed(() => currentPlace.value?.contactInfo.phone?.value)
+const websiteValue = computed(
+  () => currentPlace.value?.contactInfo.website?.value,
+)
+const emailValue = computed(() => {
+  console.log(JSON.stringify(currentPlace.value))
+  return currentPlace.value?.contactInfo.email?.value
+})
+
 async function loadPlace(type: string, id: string) {
   clearPlace()
   placeImageLoaded.value = false
@@ -231,9 +275,8 @@ async function loadPlace(type: string, id: string) {
   const place = await fetchPlaceDetails(id, type as any)
 
   // Add marker when place loads
-  if (place && place.geometry?.length > 0) {
-    const geometry = place.geometry[0].value
-    const { lat, lng } = geometry.center
+  if (place && place.geometry) {
+    const { lat, lng } = place.geometry.center
 
     if (lat && lng) {
       removeAllMarkers()
@@ -266,6 +309,17 @@ watch(
 
 function formatOpeningHours(hours: OpeningHours | null) {
   if (!hours || !hours.rawText) return ''
+
+  if (hours.isPermanentlyClosed) return 'Permanently closed'
+  if (hours.isTemporarilyClosed) {
+    return hours.nextOpenDate
+      ? `Temporarily closed until ${new Date(
+          hours.nextOpenDate,
+        ).toLocaleDateString()}`
+      : 'Temporarily closed'
+  }
+  if (hours.isOpen24_7) return 'Open 24/7'
+
   return hours.rawText.split(';').join('\n')
 }
 
@@ -281,7 +335,7 @@ function sharePlace() {
   const url = window.location.href
   if (navigator.share) {
     try {
-      const name = currentPlace.value ? getBestName(currentPlace.value) : ''
+      const name = currentPlace.value?.name || ''
       navigator.share({
         url,
         title: name,
@@ -325,6 +379,11 @@ function handleBrandLogoError() {
   logoError.value = true
   logoLoading.value = false
 }
+
+function formatRating(rating: number | null): string {
+  if (rating === null) return '0'
+  return (rating * 5).toFixed(1)
+}
 </script>
 
 <template>
@@ -337,9 +396,9 @@ function handleBrandLogoError() {
     </div>
 
     <template v-else-if="currentPlace">
-      <div class="p-4 flex flex-col gap-4">
+      <div class="flex flex-col gap-4 pt-4">
         <!-- Title section with brand logo -->
-        <div class="flex items-center gap-4">
+        <div class="px-4 flex items-center gap-4">
           <!-- Brand Logo -->
           <div
             v-if="logoLoading || brandLogo || logoError"
@@ -362,7 +421,7 @@ function handleBrandLogoError() {
                 <img
                   v-show="brandLogoLoaded"
                   :src="brandLogo"
-                  :alt="getBestName(currentPlace) + ' logo'"
+                  :alt="currentPlace.name + ' logo'"
                   class="w-full h-full object-contain bg-white"
                   @load="handleBrandLogoLoad"
                   @error="handleBrandLogoError"
@@ -377,11 +436,23 @@ function handleBrandLogoError() {
 
           <div class="flex-1">
             <h1 class="text-2xl font-semibold leading-7">
-              {{ getBestName(currentPlace) }}
+              {{ currentPlace.name }}
             </h1>
-            <p class="text-muted-foreground">
-              {{ placeType }}
-            </p>
+            <div class="flex items-center gap-2">
+              <p class="text-muted-foreground">
+                {{ placeType }}
+              </p>
+              <div v-if="rating !== null" class="flex items-center gap-1.5">
+                <span class="text-muted-foreground">·</span>
+                <div class="flex items-center gap-1">
+                  <StarIcon class="size-4 text-yellow-400" />
+                  <span class="text-sm">{{ formatRating(rating) }}</span>
+                  <span class="text-sm text-muted-foreground"
+                    >({{ reviewCount }})</span
+                  >
+                </div>
+              </div>
+            </div>
           </div>
 
           <Button
@@ -394,7 +465,7 @@ function handleBrandLogoError() {
         </div>
 
         <!-- Action Buttons -->
-        <div class="flex gap-2">
+        <div class="px-4 flex gap-2">
           <Button class="flex-1" @click="handleDirectionsClick">
             <NavigationIcon class="mr-2 h-4 w-4" />
             Directions
@@ -405,47 +476,46 @@ function handleBrandLogoError() {
           </Button>
         </div>
 
-        <!-- Main Image -->
+        <!-- Main Image - Full bleed -->
         <TransitionExpand>
-          <div
-            v-if="imageLoading || placeImage || imageError"
-            class="w-full relative aspect-video rounded-lg overflow-hidden"
-          >
+          <div v-if="currentPlace.photos.length > 0" class="w-full relative">
             <div
-              v-if="imageLoading"
-              class="absolute inset-0 bg-muted/50 animate-pulse"
+              class="w-full overflow-x-auto snap-x snap-mandatory flex gap-2"
+              style="scrollbar-width: none; -ms-overflow-style: none"
             >
               <div
-                class="absolute inset-0 -translate-x-full animate-[shimmer_1s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent"
-              />
-            </div>
-            <div v-if="placeImage" class="absolute inset-0">
-              <transition
-                enter-from-class="opacity-0"
-                enter-to-class="opacity-100"
-                enter-active-class="transition-opacity duration-200"
+                v-for="(photo, index) in currentPlace.photos"
+                :key="index"
+                class="w-[calc(100%-2rem)] flex-none snap-center relative aspect-video first:ml-4 last:mr-4 rounded-lg overflow-hidden"
               >
+                <div
+                  v-if="imageLoading && !placeImageLoaded"
+                  class="absolute inset-0 bg-muted/50 animate-pulse"
+                >
+                  <div
+                    class="absolute inset-0 -translate-x-full animate-[shimmer_1s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent"
+                  />
+                </div>
                 <img
-                  v-show="placeImageLoaded"
-                  :src="placeImage"
-                  :alt="getBestName(currentPlace)"
+                  :src="photo.url"
+                  :alt="currentPlace.name"
                   class="w-full h-full object-cover"
                   @load="handlePlaceImageLoad"
                   @error="handlePlaceImageError"
                 />
-              </transition>
-            </div>
-            <div
-              v-if="imageError"
-              class="absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground"
-            >
-              Failed to load image
+                <div
+                  v-if="imageError"
+                  class="absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground"
+                >
+                  Failed to load image
+                </div>
+              </div>
             </div>
           </div>
         </TransitionExpand>
 
         <!-- Details -->
-        <div class="flex flex-col gap-4">
+        <div class="px-4 flex flex-col gap-4">
           <!-- Cuisines -->
           <div
             v-if="cuisines && cuisines.length > 0"
@@ -466,121 +536,204 @@ function handleBrandLogoError() {
           </div>
 
           <!-- Address -->
-          <div
-            v-if="getBestAddress(currentPlace)"
-            class="flex gap-3 items-center group"
-          >
+          <div v-if="address" class="flex gap-3 items-center group">
             <MapPinIcon class="size-4 text-muted-foreground flex-shrink-0" />
             <div class="flex flex-col flex-1 py-1">
-              <span>
-                {{ getBestAddress(currentPlace)?.street1 }}
-              </span>
-              <span
-                v-if="
-                  getBestAddress(currentPlace)?.locality ||
-                  getBestAddress(currentPlace)?.region ||
-                  getBestAddress(currentPlace)?.postalCode
-                "
-                class="text-muted-foreground text-sm"
-              >
-                {{ getBestAddress(currentPlace)?.locality
-                }}{{
-                  getBestAddress(currentPlace)?.locality &&
-                  getBestAddress(currentPlace)?.region
-                    ? ','
-                    : ''
-                }}
-                {{ getBestAddress(currentPlace)?.region }}
-                {{ getBestAddress(currentPlace)?.postalCode }}
-              </span>
-              <span
-                v-if="getBestAddress(currentPlace)?.country"
-                class="text-muted-foreground text-sm"
-              >
-                {{ getBestAddress(currentPlace)?.country }}
-              </span>
+              <template v-if="address.street1">
+                <span>
+                  {{ address.street1 }}
+                </span>
+                <span
+                  v-if="
+                    address.locality || address.region || address.postalCode
+                  "
+                  class="text-muted-foreground text-sm"
+                >
+                  {{ address.locality
+                  }}{{ address.locality && address.region ? ',' : '' }}
+                  {{ address.region }}
+                  {{ address.postalCode }}
+                </span>
+                <span
+                  v-if="address.country"
+                  class="text-muted-foreground text-sm"
+                >
+                  {{ address.country }}
+                </span>
+              </template>
+              <template v-else>
+                <span>{{ address.formatted }}</span>
+              </template>
             </div>
-            <CopyButton
-              :text="formattedAddress"
-              message="Address copied to clipboard"
-            />
+            <div
+              class="flex opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <CopyButton
+                :text="formattedAddress"
+                message="Address copied to clipboard"
+              />
+              <a
+                v-if="osmUrl"
+                :href="`${osmUrl}#map=19/${coordinates?.lat}/${coordinates?.lng}`"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="p-1 hover:bg-muted rounded"
+                title="View on OpenStreetMap"
+              >
+                <ExternalLinkIcon class="w-4 h-4 text-muted-foreground" />
+              </a>
+            </div>
           </div>
 
           <!-- Opening Hours -->
           <div v-if="openingHours" class="flex gap-3 items-center group">
-            <ClockIcon class="size-4 text-muted-foreground flex-shrink-0" />
+            <ClockIcon
+              class="size-4 text-muted-foreground flex-shrink-0"
+              :class="openingStatus?.color"
+            />
             <div class="flex flex-col flex-1">
               <div class="flex items-center gap-2">
-                <span
-                  :class="[
-                    'text-sm font-medium',
-                    openingStatus?.state === 'open'
-                      ? 'text-green-600 dark:text-green-500'
-                      : 'text-red-600 dark:text-red-500',
-                  ]"
+                <span :class="openingStatus?.color">{{
+                  openingStatus?.status
+                }}</span>
+                <button
+                  class="text-sm text-muted-foreground hover:text-foreground text-left"
+                  @click="showHours = !showHours"
                 >
-                  {{ openingStatus?.message }}
-                </span>
-                <span
-                  v-if="openingStatus?.closingTime"
-                  class="text-sm text-muted-foreground"
-                >
-                  · Closes {{ openingStatus.closingTime }}
-                </span>
+                  See hours
+                </button>
               </div>
-              <button
-                class="text-sm text-muted-foreground hover:text-foreground text-left"
-                @click="showHours = !showHours"
-              >
-                See hours
-              </button>
-              <pre
+              <div
                 v-show="showHours"
-                class="whitespace-pre-line text-sm mt-1"
-                >{{ formatOpeningHours(openingHours) }}</pre
+                class="text-sm text-muted-foreground mt-1"
               >
+                <div
+                  v-for="day in DAYS"
+                  :key="day"
+                  class="flex justify-between"
+                  :class="{ 'font-medium': day === DAYS[new Date().getDay()] }"
+                >
+                  <span>{{ day }}:</span>
+                  <span>
+                    <template
+                      v-if="
+                        openingHours.regularHours.find(
+                          h => h.day === DAYS.indexOf(day),
+                        )
+                      "
+                    >
+                      {{
+                        formatTime(
+                          openingHours.regularHours.find(
+                            h => h.day === DAYS.indexOf(day),
+                          )!.open,
+                        )
+                      }}
+                      -
+                      {{
+                        formatTime(
+                          openingHours.regularHours.find(
+                            h => h.day === DAYS.indexOf(day),
+                          )!.close,
+                        )
+                      }}
+                    </template>
+                    <template v-else> Closed </template>
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <CopyButton
+                :text="formatOpeningHours(openingHours)"
+                message="Hours copied to clipboard"
+              />
+              <a
+                v-if="osmUrl"
+                :href="osmUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="p-1 hover:bg-muted rounded"
+                title="View on OpenStreetMap"
+              >
+                <ExternalLinkIcon class="w-4 h-4 text-muted-foreground" />
+              </a>
             </div>
           </div>
 
           <!-- Phone -->
-          <div
-            v-if="getBestPhone(currentPlace)"
-            class="flex gap-3 items-center group"
-          >
+          <div v-if="phoneValue" class="flex gap-3 items-center group">
             <PhoneIcon class="size-4 text-muted-foreground flex-shrink-0" />
             <div class="flex flex-col flex-1">
               <a
-                :href="
-                  getBestPhone(currentPlace)
-                    ? `tel:${getBestPhone(currentPlace)}`
-                    : undefined
-                "
+                :href="`tel:${phoneValue}`"
                 class="text-primary hover:underline"
               >
-                {{ getBestPhone(currentPlace) }}
+                {{ phoneValue }}
               </a>
             </div>
-            <CopyButton
-              :text="getBestPhone(currentPlace) || ''"
-              message="Phone number copied to clipboard"
-              class="opacity-0 group-hover:opacity-100"
-            />
+            <div
+              class="flex opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <CopyButton
+                :text="phoneValue"
+                message="Phone number copied to clipboard"
+              />
+              <a
+                v-if="osmUrl"
+                :href="osmUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="p-1 hover:bg-muted rounded"
+                title="View on OpenStreetMap"
+              >
+                <ExternalLinkIcon class="w-4 h-4 text-muted-foreground" />
+              </a>
+            </div>
           </div>
 
           <!-- Website -->
-          <div
-            v-if="getBestWebsite(currentPlace)"
-            class="flex gap-3 items-center"
-          >
+          <div v-if="websiteValue" class="flex gap-3 items-center">
             <LinkIcon class="size-4 text-muted-foreground flex-shrink-0" />
             <a
-              :href="getBestWebsite(currentPlace) || undefined"
+              :href="websiteValue"
               target="_blank"
               rel="noopener noreferrer"
               class="text-primary hover:underline truncate"
             >
-              {{ getBestWebsite(currentPlace) }}
+              {{ websiteValue }}
             </a>
+          </div>
+
+          <!-- Email -->
+          <div v-if="emailValue" class="flex gap-3 items-center group">
+            <MailIcon class="size-4 text-muted-foreground flex-shrink-0" />
+            <a
+              :href="`mailto:${emailValue}`"
+              class="text-primary hover:underline truncate"
+            >
+              {{ emailValue }}
+            </a>
+            <div
+              class="flex opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <CopyButton
+                :text="emailValue"
+                message="Email copied to clipboard"
+              />
+              <a
+                v-if="osmUrl"
+                :href="osmUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="p-1 hover:bg-muted rounded"
+                title="View on OpenStreetMap"
+              >
+                <ExternalLinkIcon class="w-4 h-4 text-muted-foreground" />
+              </a>
+            </div>
           </div>
 
           <!-- WiFi -->
@@ -601,12 +754,25 @@ function handleBrandLogoError() {
                 Password: {{ wifiStatus.password }}
               </span>
             </div>
-            <CopyButton
-              v-if="wifiStatus.password"
-              :text="wifiStatus.password"
-              message="Password copied to clipboard"
-              class="opacity-0 group-hover:opacity-100"
-            />
+            <div
+              class="flex opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <CopyButton
+                v-if="wifiStatus.password"
+                :text="wifiStatus.password"
+                message="Password copied to clipboard"
+              />
+              <a
+                v-if="osmUrl"
+                :href="osmUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="p-1 hover:bg-muted rounded"
+                title="View on OpenStreetMap"
+              >
+                <ExternalLinkIcon class="w-4 h-4 text-muted-foreground" />
+              </a>
+            </div>
           </div>
 
           <!-- Outdoor Seating -->
@@ -616,75 +782,47 @@ function handleBrandLogoError() {
           </div>
 
           <!-- Wheelchair Access -->
-          <div
-            v-if="currentPlace.amenities?.wheelchair"
-            class="flex gap-3 items-center"
-          >
+          <div v-if="wheelchairAccess" class="flex gap-3 items-center">
             <AccessibilityIcon
               class="size-4 text-muted-foreground flex-shrink-0"
             />
             <span>
-              {{ wheelchairAccessText }}
+              {{
+                wheelchairAccess === 'yes'
+                  ? 'Wheelchair accessible'
+                  : 'Not wheelchair accessible'
+              }}
             </span>
           </div>
 
           <!-- Smoking -->
-          <div
-            v-if="currentPlace.amenities?.smoking"
-            class="flex gap-3 items-center"
-          >
+          <div v-if="smokingStatus" class="flex gap-3 items-center">
             <CigaretteIcon class="size-4 text-muted-foreground flex-shrink-0" />
             <span>
-              {{ smokingStatusText }}
+              {{ smokingStatus === 'yes' ? 'Smoking allowed' : 'No smoking' }}
             </span>
           </div>
 
           <!-- Restrooms -->
-          <div
-            v-if="currentPlace.amenities?.toilets"
-            class="flex gap-3 items-center"
-          >
+          <div v-if="restroomAccess" class="flex gap-3 items-center">
             <ToiletIcon class="size-4 text-muted-foreground flex-shrink-0" />
             <div class="flex flex-col">
-              <span>{{ restroomAccessText }}</span>
+              <span>{{
+                restroomAccess === 'yes'
+                  ? 'Restrooms available'
+                  : 'No restrooms'
+              }}</span>
               <span
-                v-if="currentPlace.amenities?.['toilets:wheelchair']"
+                v-if="wheelchairRestroomAccess"
                 class="text-sm text-muted-foreground"
               >
-                Wheelchair
                 {{
-                  currentPlace.amenities?.['toilets:wheelchair'][0]?.value ===
-                    'yes' ||
-                  currentPlace.amenities?.['toilets:wheelchair'][0]?.value ===
-                    true
-                    ? 'accessible'
-                    : 'not accessible'
+                  wheelchairRestroomAccess === 'yes'
+                    ? 'Wheelchair accessible restrooms'
+                    : 'No wheelchair accessible restrooms'
                 }}
               </span>
             </div>
-          </div>
-
-          <!-- Email -->
-          <div
-            v-if="getBestEmail(currentPlace)"
-            class="flex gap-3 items-center group"
-          >
-            <MailIcon class="size-4 text-muted-foreground flex-shrink-0" />
-            <a
-              :href="
-                getBestEmail(currentPlace)
-                  ? `mailto:${getBestEmail(currentPlace)}`
-                  : undefined
-              "
-              class="text-primary hover:underline truncate"
-            >
-              {{ getBestEmail(currentPlace) }}
-            </a>
-            <CopyButton
-              :text="getBestEmail(currentPlace) || ''"
-              message="Email copied to clipboard"
-              class="opacity-0 group-hover:opacity-100"
-            />
           </div>
 
           <!-- Coordinates -->
@@ -695,11 +833,24 @@ function handleBrandLogoError() {
                 {{ formatCoordinates(coordinates.lat, coordinates.lng) }}
               </span>
             </div>
-            <CopyButton
-              :text="formatCoordinates(coordinates.lat, coordinates.lng)"
-              message="Coordinates copied to clipboard"
-              class="opacity-0 group-hover:opacity-100"
-            />
+            <div
+              class="flex opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <CopyButton
+                :text="formatCoordinates(coordinates.lat, coordinates.lng)"
+                message="Coordinates copied to clipboard"
+              />
+              <a
+                v-if="osmUrl"
+                :href="`${osmUrl}#map=19/${coordinates.lat}/${coordinates.lng}`"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="p-1 hover:bg-muted rounded"
+                title="View on OpenStreetMap"
+              >
+                <ExternalLinkIcon class="w-4 h-4 text-muted-foreground" />
+              </a>
+            </div>
           </div>
 
           <!-- Plus Code -->
@@ -710,16 +861,29 @@ function handleBrandLogoError() {
                 {{ plusCode }}
               </span>
             </div>
-            <CopyButton
-              :text="plusCode"
-              message="Plus code copied to clipboard"
-              class="opacity-0 group-hover:opacity-100"
-            />
+            <div
+              class="flex opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <CopyButton
+                :text="plusCode"
+                message="Plus code copied to clipboard"
+              />
+              <a
+                v-if="osmUrl"
+                :href="`${osmUrl}#map=19/${coordinates?.lat}/${coordinates?.lng}`"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="p-1 hover:bg-muted rounded"
+                title="View on OpenStreetMap"
+              >
+                <ExternalLinkIcon class="w-4 h-4 text-muted-foreground" />
+              </a>
+            </div>
           </div>
         </div>
 
         <!-- Sources -->
-        <div class="flex flex-col gap-2">
+        <div class="px-4 flex flex-col gap-2">
           <h2 class="text-sm font-medium">Sources</h2>
           <!-- Source Info -->
           <div
@@ -788,7 +952,7 @@ function handleBrandLogoError() {
               <Table>
                 <TableBody>
                   <TableRow
-                    v-for="[key, values] in Object.entries(
+                    v-for="[key, value] in Object.entries(
                       currentPlace.amenities || {},
                     )"
                     :key="key"
@@ -797,7 +961,7 @@ function handleBrandLogoError() {
                       {{ key }}
                     </TableCell>
                     <TableCell class="break-all">
-                      {{ values[0]?.value }}
+                      {{ value }}
                     </TableCell>
                   </TableRow>
                 </TableBody>
@@ -809,3 +973,21 @@ function handleBrandLogoError() {
     </template>
   </div>
 </template>
+
+<style>
+/* Hide scrollbar for Chrome, Safari and Opera */
+.snap-x::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.snap-x {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* Active indicator dot */
+.snap-x::-webkit-scrollbar-thumb {
+  background-color: white;
+}
+</style>

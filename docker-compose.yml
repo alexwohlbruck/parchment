@@ -45,6 +45,7 @@ services:
       STANDARD_RESPONSE_FORMAT: 'true'
     ports:
       - '5000:5000' # Expose backend to host
+      - '${BUN_DEBUG_PORT}:6499' # Bun debugger
     depends_on:
       - server-db
     #   - pelias-api

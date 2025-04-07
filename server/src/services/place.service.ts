@@ -64,6 +64,14 @@ function mergePlaceData(
         ''
     }
 
+    // Description
+    if (transformed.description) {
+      // If we don't have a description yet or if OSM provides a description, use it
+      if (!unifiedPlace.description || adapter.sourceId === SOURCE.OSM) {
+        unifiedPlace.description = transformed.description.value
+      }
+    }
+
     // Address
     if (transformed.address) {
       // If we don't have an address yet, or if OSM provides an address, use it

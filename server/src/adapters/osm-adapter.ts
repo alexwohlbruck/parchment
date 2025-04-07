@@ -1,248 +1,303 @@
+import type { Place } from '../types/place.types'
+import type { PlaceDataAdapter } from '../types/adapter.types'
+import type {
+  PlacePhoto,
+  AttributedValue,
+  Address,
+  OpeningHours,
+} from '../types/unified-place.types'
+import { parseOsmHours } from '../lib/hours.utils'
+import { getTimestamp } from '../services/merge.service'
+import { getPlaceType } from '../lib/place.utils'
 import {
   UnifiedPlace,
-  AttributedValue,
   PlaceGeometry,
-  Address,
   Coordinates,
-  OpeningHours,
   OpeningTime,
   SourceReference,
 } from '../types/unified-place.types'
-import { Place } from '../types/place.types'
-import {
-  parseOpeningHoursForUnifiedFormat,
-  getPlaceType,
-} from '../lib/place.utils'
 import { encode } from 'pluscodes'
+import { SOURCE } from '../lib/constants'
 
-export function adaptOsmPlace(osmPlace: Place): UnifiedPlace {
-  if (!osmPlace || !osmPlace.id) {
-    throw new Error('Invalid OSM place data')
-  }
-
-  const sourceId = 'osm'
-  const sourceName = 'OpenStreetMap'
-  const sourceUrl = `https://www.openstreetmap.org/${osmPlace.type}/${osmPlace.id}`
-
-  const source: SourceReference = {
-    id: sourceId,
-    name: sourceName,
-    url: sourceUrl,
-    updated: osmPlace.version ? new Date().toISOString() : undefined,
-    updatedBy: osmPlace.user,
-  }
-
-  const center: Coordinates = {
-    lat: osmPlace.center?.lat ?? osmPlace.lat ?? 0,
-    lng: osmPlace.center?.lon ?? osmPlace.lon ?? 0,
-  }
-
-  let plusCode: string | undefined
-  if (center.lat !== 0 && center.lng !== 0) {
+/**
+ * Adapter for transforming OpenStreetMap data to our unified format
+ */
+export const osmAdapter: PlaceDataAdapter = {
+  sourceId: SOURCE.OSM,
+  sourceName: 'OpenStreetMap',
+  sourceUrl: (place: Place) =>
+    `https://www.openstreetmap.org/${place.type}/${place.id}`,
+  transform: (place: Place) => {
     try {
-      const code = encode(
-        {
-          latitude: center.lat,
-          longitude: center.lng,
+      const transformed: ReturnType<PlaceDataAdapter['transform']> = {
+        contactInfo: {
+          phone: null,
+          email: null,
+          website: null,
+          socials: {},
         },
-        10,
+        amenities: {},
+      }
+
+      if (!place.tags) return transformed
+
+      // Extract OSM metadata for attribution
+      const osmUpdatedBy = place.user
+      const osmTimestamp = place.timestamp || getTimestamp()
+
+      // Name
+      const name = place.tags.name || place.tags['brand:name']
+      if (name) {
+        transformed.name = {
+          value: name,
+          sourceId: SOURCE.OSM,
+          timestamp: osmTimestamp,
+          updatedBy: osmUpdatedBy,
+        }
+      }
+
+      // Address
+      const address = extractAddress(place.tags)
+      if (address) {
+        transformed.address = {
+          value: address,
+          sourceId: SOURCE.OSM,
+          timestamp: osmTimestamp,
+          updatedBy: osmUpdatedBy,
+        }
+      }
+
+      // Contact Info
+      const contactInfo = extractContactInfo(
+        place.tags,
+        osmTimestamp,
+        osmUpdatedBy,
+      )
+      transformed.contactInfo = contactInfo
+
+      // Opening Hours
+      const openingHours = parseOsmHours(place.tags)
+      if (openingHours) {
+        transformed.openingHours = {
+          value: openingHours,
+          sourceId: SOURCE.OSM,
+          timestamp: osmTimestamp,
+          updatedBy: osmUpdatedBy,
+        }
+      }
+
+      // Photos
+      const photos: PlacePhoto[] = []
+
+      // Handle Wikidata images, if they were merged into the place object
+      if (place.image) {
+        photos.push({
+          url: place.image,
+          sourceId: SOURCE.OSM,
+          isPrimary: true,
+        })
+      }
+
+      if (place.brandLogo) {
+        photos.push({
+          url: place.brandLogo,
+          sourceId: SOURCE.OSM,
+          isLogo: true,
+        })
+      }
+
+      if (photos.length > 0) {
+        transformed.photos = photos
+      }
+
+      // Amenities
+      transformed.amenities = extractAmenities(
+        place.tags,
+        osmTimestamp,
+        osmUpdatedBy,
       )
 
-      // Check if code is not null before assigning
-      if (code !== null) {
-        plusCode = code
+      return transformed
+    } catch (error) {
+      console.error('Error transforming OSM data:', error)
+      return {
+        contactInfo: {
+          phone: null,
+          email: null,
+          website: null,
+          socials: {},
+        },
+        amenities: {},
       }
-    } catch (e) {
-      console.error('Failed to generate plus code:', e)
     }
-  }
+  },
+}
 
-  const geometry: PlaceGeometry = {
-    type: osmPlace.type === 'node' ? 'point' : 'polygon',
-    center,
-    plusCode,
-  }
-
-  if (osmPlace.bounds) {
-    geometry.bounds = {
-      minLat: osmPlace.bounds.minlat,
-      minLng: osmPlace.bounds.minlon,
-      maxLat: osmPlace.bounds.maxlat,
-      maxLng: osmPlace.bounds.maxlon,
-    }
-  }
-
-  if (osmPlace.geometry) {
-    geometry.nodes = osmPlace.geometry.map((node) => ({
-      lat: node.lat,
-      lng: node.lon,
-    }))
-  }
-
-  const attributedGeometry: AttributedValue<PlaceGeometry> = {
-    value: geometry,
-    sourceId,
-    timestamp: new Date().toISOString(),
-  }
-
+/**
+ * Extract address information from OSM tags
+ */
+function extractAddress(tags: Record<string, string>): Address | null {
   const address: Address = {}
-  if (osmPlace.tags) {
-    if (osmPlace.tags['addr:housenumber'] || osmPlace.tags['addr:street']) {
-      address.street1 = [
-        osmPlace.tags['addr:housenumber'],
-        osmPlace.tags['addr:street'],
-      ]
-        .filter(Boolean)
-        .join(' ')
-    }
 
-    address.street2 = osmPlace.tags['addr:unit'] || undefined
-    address.locality = osmPlace.tags['addr:city'] || undefined
-    address.region = osmPlace.tags['addr:state'] || undefined
-    address.postalCode = osmPlace.tags['addr:postcode'] || undefined
-    address.country = osmPlace.tags['addr:country'] || undefined
-
-    const formattedParts = [
-      address.street1,
-      address.street2,
-      address.locality ? `${address.locality}${address.region ? ',' : ''}` : '',
-      address.region,
-      address.postalCode,
-      address.country,
-    ].filter(Boolean)
-
-    address.formatted = formattedParts.join(' ')
+  if (tags['addr:housenumber'] || tags['addr:street']) {
+    address.street1 = [tags['addr:housenumber'], tags['addr:street']]
+      .filter(Boolean)
+      .join(' ')
   }
 
-  const attributedAddress: AttributedValue<Address> = {
-    value: address,
-    sourceId,
-    timestamp: new Date().toISOString(),
+  address.street2 = tags['addr:unit'] || undefined
+  address.locality = tags['addr:city'] || undefined
+  address.region = tags['addr:state'] || undefined
+  address.postalCode = tags['addr:postcode'] || undefined
+  address.country = tags['addr:country'] || undefined
+  address.countryCode = tags['addr:country'] || undefined
+
+  // Create formatted address
+  const formattedParts = [
+    address.street1,
+    address.street2,
+    address.locality ? `${address.locality}${address.region ? ',' : ''}` : '',
+    address.region,
+    address.postalCode,
+    address.country,
+  ].filter(Boolean)
+
+  address.formatted = formattedParts.join(' ')
+
+  // Return null if no address components found
+  return Object.keys(address).length > 0 ? address : null
+}
+
+/**
+ * Extract contact information from OSM tags
+ */
+function extractContactInfo(
+  tags: Record<string, string>,
+  timestamp: string,
+  updatedBy?: string,
+): {
+  phone: AttributedValue<string> | null
+  email: AttributedValue<string> | null
+  website: AttributedValue<string> | null
+  socials: Record<string, AttributedValue<string>>
+} {
+  const contactInfo = {
+    phone: null as AttributedValue<string> | null,
+    email: null as AttributedValue<string> | null,
+    website: null as AttributedValue<string> | null,
+    socials: {} as Record<string, AttributedValue<string>>,
   }
 
-  const photos = []
-  if (osmPlace.image) {
-    photos.push({
-      url: osmPlace.image,
-      sourceId,
-      isPrimary: true,
-      isCover: true,
-    })
-  }
-
-  if (osmPlace.brandLogo) {
-    photos.push({
-      url: osmPlace.brandLogo,
-      sourceId,
-      isLogo: true,
-    })
-  }
-
-  let openingHours: OpeningHours | undefined
-  if (osmPlace.tags?.opening_hours) {
-    const parsedHours = parseOpeningHoursForUnifiedFormat(
-      osmPlace.tags.opening_hours,
-    )
-    if (parsedHours) {
-      openingHours = {
-        regularHours: parsedHours,
-        rawText: osmPlace.tags.opening_hours,
-        isOpen24_7: false,
-        isPermanentlyClosed: false,
-        isTemporarilyClosed: false,
-      }
+  // Phone number
+  if (tags.phone) {
+    contactInfo.phone = {
+      value: tags.phone,
+      sourceId: SOURCE.OSM,
+      timestamp,
+      updatedBy,
     }
   }
 
-  const amenities: Record<string, string | boolean | number> = {}
-  if (osmPlace.tags) {
-    const knownAmenityTags = [
-      'wheelchair',
-      'internet_access',
-      'smoking',
-      'toilets',
-      'outdoor_seating',
-      'payment:credit_cards',
-      'payment:cash',
-      'delivery',
-      'takeaway',
-      'drive_through',
-      'air_conditioning',
-      'wifi',
-    ]
-
-    for (const [key, value] of Object.entries(osmPlace.tags)) {
-      if (
-        value &&
-        !key.startsWith('addr:') &&
-        !['name', 'website', 'phone', 'opening_hours'].includes(key) &&
-        (knownAmenityTags.includes(key) || key.includes(':'))
-      ) {
-        amenities[key] = value
-      }
+  // Email (check both standard and contact: prefix)
+  const email = tags.email || tags['contact:email']
+  if (email) {
+    contactInfo.email = {
+      value: email,
+      sourceId: SOURCE.OSM,
+      timestamp,
+      updatedBy,
     }
   }
 
-  const unifiedPlace: UnifiedPlace = {
-    id: `osm:${osmPlace.type}:${osmPlace.id}`,
-    externalIds: {
-      [sourceId]: `${osmPlace.type}/${osmPlace.id}`,
-    },
-    name: osmPlace.tags?.name || `Unnamed Place (${osmPlace.id})`,
-    placeType: osmPlace.tags ? getPlaceType(osmPlace.tags) : 'Place',
-    geometry: geometry,
-    photos,
-    address: address,
-    contactInfo: {
-      phone: osmPlace.tags?.phone
-        ? {
-            value: osmPlace.tags.phone,
-            sourceId,
-            timestamp: Date.now().toString(),
-          }
-        : null,
-      email: osmPlace.tags?.email
-        ? {
-            value: osmPlace.tags.email,
-            sourceId,
-            timestamp: Date.now().toString(),
-          }
-        : null,
-      website: osmPlace.tags?.website
-        ? {
-            value: osmPlace.tags.website,
-            sourceId,
-            timestamp: Date.now().toString(),
-          }
-        : null,
-      socials: {},
-    },
-    openingHours: openingHours || null,
-    amenities,
-    sources: [source],
-    lastUpdated: new Date().toISOString(),
-    createdAt: new Date().toISOString(),
+  // Website
+  if (tags.website) {
+    contactInfo.website = {
+      value: tags.website,
+      sourceId: SOURCE.OSM,
+      timestamp,
+      updatedBy,
+    }
   }
 
+  // Social media links
   const socialMap = {
     'contact:facebook': 'facebook',
     'contact:instagram': 'instagram',
     'contact:twitter': 'twitter',
     'contact:linkedin': 'linkedin',
     'contact:youtube': 'youtube',
+    'contact:pinterest': 'pinterest',
   }
 
-  if (osmPlace.tags) {
-    for (const [key, mappedKey] of Object.entries(socialMap)) {
-      if (osmPlace.tags[key]) {
-        unifiedPlace.contactInfo.socials[mappedKey] = {
-          value: osmPlace.tags[key],
-          sourceId,
-          timestamp: new Date().toISOString(),
-        }
+  for (const [key, platform] of Object.entries(socialMap)) {
+    if (tags[key]) {
+      contactInfo.socials[platform] = {
+        value: tags[key],
+        sourceId: SOURCE.OSM,
+        timestamp,
+        updatedBy,
       }
     }
   }
 
-  return unifiedPlace
+  return contactInfo
+}
+
+/**
+ * Extract amenities from OSM tags
+ */
+function extractAmenities(
+  tags: Record<string, string>,
+  timestamp: string,
+  updatedBy?: string,
+): Record<string, AttributedValue<string>[]> {
+  const amenities: Record<string, AttributedValue<string>[]> = {}
+
+  // List of common amenity tags to capture
+  const knownAmenityTags = [
+    'wheelchair',
+    'internet_access',
+    'smoking',
+    'toilets',
+    'outdoor_seating',
+    'payment:credit_cards',
+    'payment:cash',
+    'payment:debit_cards',
+    'payment:mastercard',
+    'payment:visa',
+    'payment:amex',
+    'delivery',
+    'takeaway',
+    'drive_through',
+    'air_conditioning',
+    'wifi',
+    'toilets:wheelchair',
+    'internet_access:fee',
+    'internet_access:ssid',
+    'cuisine',
+    'diet:vegetarian',
+    'diet:vegan',
+    'diet:gluten_free',
+  ]
+
+  for (const [key, value] of Object.entries(tags)) {
+    // Skip address, name, contact, and opening hours tags which are handled separately
+    if (
+      value &&
+      !key.startsWith('addr:') &&
+      !['name', 'website', 'phone', 'opening_hours'].includes(key) &&
+      (knownAmenityTags.includes(key) || key.includes(':'))
+    ) {
+      amenities[key] = [
+        {
+          value: value,
+          sourceId: SOURCE.OSM,
+          timestamp,
+          updatedBy,
+        },
+      ]
+    }
+  }
+
+  return amenities
 }

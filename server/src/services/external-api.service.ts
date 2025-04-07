@@ -2,11 +2,13 @@ import axios from 'axios'
 import type { GooglePlaceDetails } from '../types/place.types'
 import type { Place } from '../types/place.types'
 import * as turf from '@turf/turf'
+import { SOURCE } from '../lib/constants'
 
-const GOOGLE_MAPS_PHOTO_URL = 'https://maps.googleapis.com/maps/api/place/photo'
-const DEFAULT_SEARCH_RADIUS = 500 // meters
-
+// Google API constants
+export const GOOGLE_MAPS_PHOTO_URL =
+  'https://maps.googleapis.com/maps/api/place/photo'
 export const GOOGLE_PLACES_API_URL = 'https://places.googleapis.com/v1/places'
+const DEFAULT_SEARCH_RADIUS = 500 // meters
 
 function calculateSearchRadius(place: Place): number {
   // For points (nodes), use default radius
@@ -144,5 +146,3 @@ function transformGooglePlace(place: any): GooglePlaceDetails {
     utc_offset: place.utcOffsetMinutes || 0,
   }
 }
-
-export { GOOGLE_MAPS_PHOTO_URL }

@@ -53,6 +53,7 @@ import {
   getSourceById,
 } from '@/types/unified-place.types'
 import type { UnifiedPlace, OpeningHours } from '@/types/unified-place.types'
+import { SOURCE } from '../lib/constants'
 
 const route = useRoute()
 const router = useRouter()
@@ -157,7 +158,7 @@ function formatTime(time: string) {
 
 const osmUrl = computed(() => {
   if (!currentPlace.value) return ''
-  const osmSource = currentPlace.value.sources.find(s => s.id === 'osm')
+  const osmSource = currentPlace.value.sources.find(s => s.id === SOURCE.OSM)
   return osmSource?.url || ''
 })
 
@@ -265,6 +266,11 @@ const websiteValue = computed(
 const emailValue = computed(() => {
   console.log(JSON.stringify(currentPlace.value))
   return currentPlace.value?.contactInfo.email?.value
+})
+
+const osmSource = computed(() => {
+  if (!currentPlace.value) return null
+  return currentPlace.value.sources.find(s => s.id === SOURCE.OSM) || null
 })
 
 async function loadPlace(type: string, id: string) {
@@ -383,6 +389,20 @@ function handleBrandLogoError() {
 function formatRating(rating: number | null): string {
   if (rating === null) return '0'
   return (rating * 5).toFixed(1)
+}
+
+function formatDate(dateString: string) {
+  try {
+    const date = new Date(dateString)
+    return new Intl.DateTimeFormat(navigator.language, {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+    }).format(date)
+  } catch (e) {
+    console.error('Error formatting date:', e)
+    return dateString
+  }
 }
 </script>
 
@@ -902,13 +922,12 @@ function formatRating(rating: number | null): string {
                     >
                       <div class="div flex flex-col items-start">
                         <span class="text-sm">{{ source.name }}</span>
-                        <span class="text-xs text-muted-foreground text-start">
+                        <span
+                          v-if="source.updated"
+                          class="text-xs text-muted-foreground text-start"
+                        >
                           Last updated
-                          {{
-                            new Date(
-                              source.updated || Date.now(),
-                            ).toLocaleDateString()
-                          }}
+                          {{ formatDate(source.updated) }}
                           {{ source.updatedBy ? `by ${source.updatedBy}` : '' }}
                         </span>
                       </div>
@@ -919,13 +938,13 @@ function formatRating(rating: number | null): string {
                     </button>
                     <div v-else class="flex-1 flex flex-col items-start">
                       <span class="text-sm">{{ source.name }}</span>
-                      <span class="text-xs text-muted-foreground">
+                      <span
+                        v-if="source.updated"
+                        class="text-xs text-muted-foreground"
+                      >
                         Last updated
-                        {{
-                          new Date(
-                            source.updated || Date.now(),
-                          ).toLocaleDateString()
-                        }}
+                        {{ formatDate(source.updated) }}
+                        {{ source.updatedBy ? `by ${source.updatedBy}` : '' }}
                       </span>
                     </div>
                     <Button

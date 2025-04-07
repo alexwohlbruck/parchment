@@ -14,82 +14,18 @@ import {
   GOOGLE_PLACES_API_URL,
   GOOGLE_MAPS_PHOTO_URL,
 } from './external-api.service'
-import { mergeAttributedValues, selectBestValue } from './merge.service'
 import {
-  fetchPlaceFromOverpass,
-  extractOsmAddress,
-  extractOsmContactInfo,
-  extractOsmOpeningHours,
-  extractOsmAmenities,
-} from './osm.service'
+  mergeAttributedValues,
+  selectBestValue,
+  getTimestamp,
+} from './merge.service'
+import { fetchPlaceFromOverpass } from './osm.service'
 import { fetchWikidataImage, fetchWikidataBrandLogo } from './wikidata.service'
 import { parseGoogleHours, parseOsmHours } from '../lib/hours.utils'
 import { googleAdapter } from '../adapters/google-adapter'
 import type { PlaceDataAdapter } from '../types/adapter.types'
-
-const API_CONFIG = {
-  useGooglePlaces: true,
-  useWikidata: true,
-} as const
-
-const osmAdapter: PlaceDataAdapter = {
-  sourceId: 'osm',
-  sourceName: 'OpenStreetMap',
-  sourceUrl: (place: Place) =>
-    `https://www.openstreetmap.org/${place.type}/${place.id}`,
-  transform: (place: Place) => {
-    if (!place.tags) return {}
-
-    const address = extractOsmAddress(place.tags)
-    const contactInfo = extractOsmContactInfo(place.tags)
-    const openingHours = parseOsmHours(place.tags)
-    const amenities = extractOsmAmenities(place.tags)
-
-    return {
-      ...(address && {
-        address: {
-          value: address,
-          sourceId: 'osm',
-        },
-      }),
-      contactInfo: {
-        phone: contactInfo.phone.map((phone) => ({
-          value: phone,
-          sourceId: 'osm',
-          timestamp: new Date().toISOString(),
-        })),
-        email: contactInfo.email.map((email) => ({
-          value: email,
-          sourceId: 'osm',
-          timestamp: new Date().toISOString(),
-        })),
-        website: contactInfo.website.map((website) => ({
-          value: website,
-          sourceId: 'osm',
-          timestamp: new Date().toISOString(),
-        })),
-      },
-      ...(openingHours && {
-        openingHours: {
-          value: openingHours,
-          sourceId: 'osm',
-        },
-      }),
-      amenities: Object.entries(amenities).reduce(
-        (acc, [key, value]) => ({
-          ...acc,
-          [key]: [
-            {
-              value,
-              sourceId: 'osm',
-            },
-          ],
-        }),
-        {},
-      ),
-    }
-  },
-}
+import { API_CONFIG, SOURCE } from '../lib/constants'
+import { osmAdapter } from '../adapters/osm-adapter'
 
 function mergePlaceData(
   unifiedPlace: UnifiedPlace,
@@ -98,94 +34,172 @@ function mergePlaceData(
 ) {
   if (!data) return
 
-  const transformed = adapter.transform(data)
+  try {
+    const transformed = adapter.transform(data)
 
-  // Add Google Maps place ID to externalIds if it exists
-  if (adapter.sourceId === 'google' && data.place_id) {
-    unifiedPlace.externalIds.google = data.place_id
-  }
+    // Use the timestamp from the source data if available (for OSM)
+    // otherwise use the current timestamp
+    const timestamp =
+      adapter.sourceId === SOURCE.OSM && data.timestamp
+        ? data.timestamp
+        : getTimestamp()
 
-  // For name, use OSM as primary, Google as backup
-  if (transformed.name) {
-    if (!unifiedPlace.name || adapter.sourceId === 'osm') {
-      unifiedPlace.name = transformed.name.value
+    // Add source ID to externalIds if it exists
+    if (adapter.sourceId === SOURCE.GOOGLE && 'place_id' in data) {
+      unifiedPlace.externalIds[adapter.sourceId] = data.place_id
+    } else if (adapter.sourceId === SOURCE.OSM && 'id' in data) {
+      unifiedPlace.externalIds[adapter.sourceId] = data.id.toString()
     }
-  }
 
-  // For address, use OSM as primary, Google as backup
-  if (transformed.address) {
-    // If we don't have an address yet, or if the current address is empty (no fields set), use this one
-    if (
-      !unifiedPlace.address ||
-      !unifiedPlace.address.formatted ||
-      unifiedPlace.address.formatted.trim() === '' ||
-      adapter.sourceId === 'osm'
-    ) {
-      unifiedPlace.address = transformed.address.value
+    // Name
+    if (transformed.name) {
+      unifiedPlace.name =
+        selectBestValue([
+          ...(unifiedPlace.name
+            ? [{ value: unifiedPlace.name, sourceId: 'existing', timestamp }]
+            : []),
+          transformed.name,
+        ]) ||
+        unifiedPlace.name ||
+        ''
     }
-  }
 
-  // For contact info, use OSM as primary, Google as backup for each field
-  if (transformed.contactInfo) {
-    const { phone, email, website } = transformed.contactInfo
+    // Address
+    if (transformed.address) {
+      // If we don't have an address yet, or if OSM provides an address, use it
+      if (
+        !unifiedPlace.address ||
+        !unifiedPlace.address.formatted ||
+        adapter.sourceId === SOURCE.OSM
+      ) {
+        unifiedPlace.address = transformed.address.value
+      }
+    }
 
-    if (phone) {
-      if (!unifiedPlace.contactInfo.phone || adapter.sourceId === 'osm') {
+    // Contact Info
+    if (transformed.contactInfo) {
+      const { phone, email, website, socials } = transformed.contactInfo
+
+      // Handle phone number
+      if (
+        phone &&
+        (!unifiedPlace.contactInfo.phone || adapter.sourceId === SOURCE.OSM)
+      ) {
         unifiedPlace.contactInfo.phone = phone
       }
-    }
 
-    if (email) {
-      if (!unifiedPlace.contactInfo.email || adapter.sourceId === 'osm') {
+      // Handle email
+      if (
+        email &&
+        (!unifiedPlace.contactInfo.email || adapter.sourceId === SOURCE.OSM)
+      ) {
         unifiedPlace.contactInfo.email = email
       }
-    }
 
-    if (website) {
-      if (!unifiedPlace.contactInfo.website || adapter.sourceId === 'osm') {
+      // Handle website
+      if (
+        website &&
+        (!unifiedPlace.contactInfo.website || adapter.sourceId === SOURCE.OSM)
+      ) {
         unifiedPlace.contactInfo.website = website
       }
-    }
-  }
 
-  if (transformed.openingHours) {
-    if (
-      !unifiedPlace.openingHours ||
-      !unifiedPlace.openingHours.regularHours?.length ||
-      adapter.sourceId === 'osm'
-    ) {
-      unifiedPlace.openingHours = transformed.openingHours.value
-    }
-  }
-
-  if (transformed.photos) {
-    unifiedPlace.photos.push(...transformed.photos)
-  }
-
-  if (transformed.ratings) {
-    unifiedPlace.ratings = {
-      ...unifiedPlace.ratings,
-      ...transformed.ratings,
-    }
-  }
-
-  if (transformed.amenities) {
-    Object.entries(transformed.amenities).forEach(([key, values]) => {
-      const value = values[0]?.value
-      if (value !== undefined) {
-        if (!unifiedPlace.amenities[key] || adapter.sourceId === 'osm') {
-          unifiedPlace.amenities[key] = value
-        }
+      // Handle social media links
+      if (socials && Object.keys(socials).length > 0) {
+        // Merge social media links
+        Object.entries(socials).forEach(([platform, value]) => {
+          if (
+            !unifiedPlace.contactInfo.socials[platform] ||
+            adapter.sourceId === SOURCE.OSM
+          ) {
+            unifiedPlace.contactInfo.socials[platform] = value
+          }
+        })
       }
-    })
-  }
+    }
 
-  unifiedPlace.sources.push({
-    id: adapter.sourceId,
-    name: adapter.sourceName,
-    url: adapter.sourceUrl(data),
-    updated: new Date().toISOString(),
-  })
+    // Opening Hours
+    if (transformed.openingHours) {
+      if (
+        !unifiedPlace.openingHours ||
+        !unifiedPlace.openingHours.regularHours?.length ||
+        adapter.sourceId === SOURCE.OSM
+      ) {
+        unifiedPlace.openingHours = transformed.openingHours.value
+      }
+    }
+
+    // Photos - just append, no priority handling
+    if (transformed.photos && transformed.photos.length > 0) {
+      unifiedPlace.photos.push(...transformed.photos)
+    }
+
+    // Ratings
+    if (transformed.ratings) {
+      // If we already have ratings, determine which to use based on source priority
+      if (unifiedPlace.ratings) {
+        if (transformed.ratings.rating) {
+          unifiedPlace.ratings.rating =
+            selectBestValue([
+              unifiedPlace.ratings.rating,
+              transformed.ratings.rating,
+            ]) === transformed.ratings.rating.value
+              ? transformed.ratings.rating
+              : unifiedPlace.ratings.rating
+        }
+
+        if (transformed.ratings.reviewCount) {
+          unifiedPlace.ratings.reviewCount =
+            selectBestValue([
+              unifiedPlace.ratings.reviewCount,
+              transformed.ratings.reviewCount,
+            ]) === transformed.ratings.reviewCount.value
+              ? transformed.ratings.reviewCount
+              : unifiedPlace.ratings.reviewCount
+        }
+      } else {
+        // If no existing ratings, use the new ones
+        unifiedPlace.ratings = transformed.ratings
+      }
+    }
+
+    // Amenities
+    if (
+      transformed.amenities &&
+      Object.keys(transformed.amenities).length > 0
+    ) {
+      Object.entries(transformed.amenities).forEach(([key, values]) => {
+        const value = values[0]?.value
+        if (value !== undefined) {
+          if (!unifiedPlace.amenities[key] || adapter.sourceId === SOURCE.OSM) {
+            unifiedPlace.amenities[key] = value
+          }
+        }
+      })
+    }
+
+    // Add source reference with the correct timestamp
+    unifiedPlace.sources.push({
+      id: adapter.sourceId,
+      name: adapter.sourceName,
+      url: adapter.sourceUrl(data),
+      updated:
+        adapter.sourceId === SOURCE.OSM && data.timestamp
+          ? data.timestamp
+          : undefined,
+      updatedBy:
+        adapter.sourceId === SOURCE.OSM && 'user' in data
+          ? data.user
+          : undefined,
+    })
+
+    // Update lastUpdated timestamp only if this is from OSM or there is no lastUpdated yet
+    if (adapter.sourceId === SOURCE.OSM || !unifiedPlace.lastUpdated) {
+      unifiedPlace.lastUpdated = timestamp
+    }
+  } catch (error) {
+    console.error(`Error merging data from ${adapter.sourceName}:`, error)
+  }
 }
 
 function createBaseUnifiedPlace(
@@ -195,7 +209,7 @@ function createBaseUnifiedPlace(
 ): UnifiedPlace {
   return {
     id: `${place.type}/${place.id}`,
-    externalIds: { osm: place.id.toString() },
+    externalIds: { [SOURCE.OSM]: place.id.toString() },
     name: name,
     placeType: placeType,
     geometry: createGeometry(place),
@@ -246,11 +260,11 @@ async function fetchExternalData(
 ) {
   const promises: Promise<any>[] = []
 
-  if (API_CONFIG.useGooglePlaces) {
+  if (API_CONFIG[SOURCE.GOOGLE]) {
     promises.push(searchGooglePlace(name, center.lat, center.lon, place))
   }
 
-  if (API_CONFIG.useWikidata) {
+  if (API_CONFIG[SOURCE.WIKIDATA]) {
     const wikidataId = place.tags?.wikidata || place.tags?.['brand:wikidata']
     promises.push(
       Promise.all([
@@ -292,7 +306,7 @@ export const getPlaceDetails = async (
     const externalData = await fetchExternalData(name, place.center, place)
     let currentIndex = 0
 
-    if (API_CONFIG.useGooglePlaces) {
+    if (API_CONFIG[SOURCE.GOOGLE]) {
       const googleData = externalData[currentIndex] as GooglePlaceDetails | null
       if (googleData) {
         mergePlaceData(unifiedPlace, googleAdapter, googleData)
@@ -300,7 +314,7 @@ export const getPlaceDetails = async (
       currentIndex++
     }
 
-    if (API_CONFIG.useWikidata) {
+    if (API_CONFIG[SOURCE.WIKIDATA]) {
       const [image, logo] = externalData[currentIndex] as [
         string | null,
         string | null,
@@ -308,14 +322,14 @@ export const getPlaceDetails = async (
       if (image) {
         unifiedPlace.photos.push({
           url: image,
-          sourceId: 'wikidata',
+          sourceId: SOURCE.WIKIDATA,
           isPrimary: true,
         })
       }
       if (logo) {
         unifiedPlace.photos.push({
           url: logo,
-          sourceId: 'wikidata',
+          sourceId: SOURCE.WIKIDATA,
           isLogo: true,
         })
       }

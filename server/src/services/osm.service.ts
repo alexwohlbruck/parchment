@@ -7,10 +7,9 @@ const OVERPASS_API_URL = 'https://overpass-api.de/api/interpreter'
 export const buildOverpassQuery = (type: string, id: string) => {
   return `[out:json][timeout:60];
     ${type}(${id});
-    out body geom;
-    out meta;
+    out body geom meta;
     >;
-    out body;`
+    out body meta;`
 }
 
 export const calculatePlaceCenter = (place: Place) => {

@@ -72,6 +72,7 @@ export interface Place {
   bounds?: PlaceBounds
   version?: number
   user?: string
+  timestamp?: string // ISO date string of when the OSM object was last updated
   placeType?: string
   image?: string | null
   brandLogo?: string | null

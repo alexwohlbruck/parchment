@@ -1,4 +1,9 @@
 import axios from 'axios'
+import { SOURCE } from '../lib/constants'
+
+// Wikidata API URLs
+const WIKIDATA_API_BASE = 'https://www.wikidata.org/w/api.php'
+const WIKIMEDIA_COMMONS_API_BASE = 'https://commons.wikimedia.org/w/api.php'
 
 export const fetchWikidataImage = async (
   wikidataId: string | undefined,
@@ -7,7 +12,7 @@ export const fetchWikidataImage = async (
 
   try {
     const response = await axios.get(
-      `https://www.wikidata.org/w/api.php?action=wbgetclaims&property=P18&entity=${wikidataId}&format=json&origin=*`,
+      `${WIKIDATA_API_BASE}?action=wbgetclaims&property=P18&entity=${wikidataId}&format=json&origin=*`,
     )
 
     if (response.status !== 200) {
@@ -19,7 +24,7 @@ export const fetchWikidataImage = async (
 
     if (!imageFileName) return null
 
-    const imageUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=File:${encodeURIComponent(
+    const imageUrl = `${WIKIMEDIA_COMMONS_API_BASE}?action=query&titles=File:${encodeURIComponent(
       imageFileName,
     )}&prop=imageinfo&iiprop=url&format=json&origin=*`
 
@@ -48,7 +53,7 @@ export const fetchWikidataBrandLogo = async (
 
   try {
     const response = await axios.get(
-      `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${wikidataId}&format=json&origin=*`,
+      `${WIKIDATA_API_BASE}?action=wbgetentities&ids=${wikidataId}&format=json&origin=*`,
     )
 
     if (response.status !== 200) return null
@@ -59,7 +64,7 @@ export const fetchWikidataBrandLogo = async (
 
     if (!logoFileName) return null
 
-    const imageUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=File:${encodeURIComponent(
+    const imageUrl = `${WIKIMEDIA_COMMONS_API_BASE}?action=query&titles=File:${encodeURIComponent(
       logoFileName,
     )}&prop=imageinfo&iiprop=url&format=json&origin=*`
 

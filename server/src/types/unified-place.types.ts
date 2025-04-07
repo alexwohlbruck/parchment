@@ -1,11 +1,6 @@
-export type SourceId =
-  | 'osm'
-  | 'yelp'
-  | 'opentable'
-  | 'google'
-  | 'tripadvisor'
-  | 'foursquare'
-  | string
+import { SOURCE } from '../lib/constants'
+
+export type SourceId = (typeof SOURCE)[keyof typeof SOURCE] | string
 
 export interface SourceReference {
   id: SourceId

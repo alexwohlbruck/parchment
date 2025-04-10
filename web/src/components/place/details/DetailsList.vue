@@ -15,7 +15,7 @@ import {
   MapIcon,
   PlusIcon,
 } from 'lucide-vue-next'
-import DetailItem from '../DetailItem.vue'
+import DetailItem from './DetailItem.vue'
 import type { UnifiedPlace } from '@/types/unified-place.types'
 import { computed, ref } from 'vue'
 import { getWifiStatus, parseCuisines } from '@/lib/place.utils'

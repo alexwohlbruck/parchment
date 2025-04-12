@@ -132,7 +132,8 @@
   "map": {
     "title": "Map",
     "contextMenu": {
-      "edit": "Edit map"
+      "edit": "Edit map",
+      "viewIn": "View in"
     }
   },
   "layers": {

@@ -128,13 +128,16 @@
   "messages": {
     "coordinatesCopied": "Coordenadas copiadas al portapapeles",
     "invitationSent": "Invitación enviada a {email}",
-    "unknownError": "Ha ocurrido un error desconocido"
+    "unknownError": "Ha ocurrido un error desconocido",
+    "plusCodeCopied": "Código Plus copiado al portapapeles",
+    "plusCodeError": "Error al generar el Código Plus"
   },
   "map": {
     "title": "Mapa",
     "contextMenu": {
       "edit": "Editar mapa",
-      "viewIn": "Ver en"
+      "viewIn": "Ver en",
+      "copyLocation": "Copiar ubicación"
     }
   },
   "layers": {

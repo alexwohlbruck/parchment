@@ -127,13 +127,16 @@
   "messages": {
     "coordinatesCopied": "Coordinates copied to clipboard",
     "invitationSent": "Invitation sent to {email}",
-    "unknownError": "An unknown error occurred"
+    "unknownError": "An unknown error occurred",
+    "plusCodeCopied": "Plus Code copied to clipboard",
+    "plusCodeError": "Error generating Plus Code"
   },
   "map": {
     "title": "Map",
     "contextMenu": {
       "edit": "Edit map",
-      "viewIn": "View in"
+      "viewIn": "View in",
+      "copyLocation": "Copy location"
     }
   },
   "layers": {

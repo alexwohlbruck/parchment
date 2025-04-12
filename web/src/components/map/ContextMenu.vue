@@ -9,6 +9,7 @@ import { mapEventBus } from '@/lib/eventBus'
 import { LngLat } from '@/types/map.types'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useMapStore } from '@/stores/map.store'
+import { encode } from 'pluscodes'
 import {
   PencilIcon,
   CopyIcon,
@@ -60,6 +61,14 @@ function copyCoordinates(lngLat: LngLat) {
   const coordString = `${lngLat.lat}, ${lngLat.lng}`
   navigator.clipboard.writeText(coordString)
   appService.toast.info(t('messages.coordinatesCopied'))
+}
+
+function copyPlusCode(lngLat: LngLat) {
+  const plusCode = encode({ latitude: lngLat.lat, longitude: lngLat.lng })
+  if (plusCode) {
+    navigator.clipboard.writeText(plusCode)
+    appService.toast.info(t('messages.plusCodeCopied'))
+  }
 }
 
 const useMultistopDirections = computed(() => {
@@ -180,16 +189,37 @@ function openExternalMap(service: 'google' | 'apple' | 'bing') {
       <DropdownMenuSeparator />
 
       <DropdownMenuGroup>
-        <DropdownMenuItem
-          @click="copyCoordinates(clickedLngLat)"
-          v-if="clickedLngLat"
-        >
-          <CopyIcon />
-          <span>
-            {{ clickedLngLat.lat.toFixed(5) }},
-            {{ clickedLngLat.lng.toFixed(5) }}
-          </span>
-        </DropdownMenuItem>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <CopyIcon class="mr-2 size-4" />
+            <span>{{ $t('map.contextMenu.copyLocation') }}</span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuPortal>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem
+                @click="copyCoordinates(clickedLngLat)"
+                v-if="clickedLngLat"
+              >
+                <span>
+                  {{ clickedLngLat.lat.toFixed(5) }},
+                  {{ clickedLngLat.lng.toFixed(5) }}
+                </span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                @click="copyPlusCode(clickedLngLat)"
+                v-if="clickedLngLat"
+              >
+                <span>{{
+                  encode({
+                    latitude: clickedLngLat.lat,
+                    longitude: clickedLngLat.lng,
+                  }) || ''
+                }}</span>
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuPortal>
+        </DropdownMenuSub>
 
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>

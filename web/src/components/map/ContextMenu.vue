@@ -118,7 +118,7 @@ function openMapEditor(editor: 'id' | 'rapid' | 'josm') {
   }
 }
 
-function openExternalMap(service: 'google' | 'apple') {
+function openExternalMap(service: 'google' | 'apple' | 'bing') {
   if (!clickedLngLat.value) return
   switch (service) {
     case 'google':
@@ -131,6 +131,12 @@ function openExternalMap(service: 'google' | 'apple') {
       const span = Math.pow(2, 20 - mapCamera.value.zoom) / 1024
       window.open(
         `https://maps.apple.com/frame?center=${clickedLngLat.value.lat}%2C${clickedLngLat.value.lng}&span=${span}%2C${span}`,
+        '_blank',
+      )
+      break
+    case 'bing':
+      window.open(
+        `https://www.bing.com/maps?cp=${clickedLngLat.value.lat}~${clickedLngLat.value.lng}&lvl=${mapCamera.value.zoom}`,
         '_blank',
       )
       break
@@ -197,6 +203,9 @@ function openExternalMap(service: 'google' | 'apple') {
               </DropdownMenuItem>
               <DropdownMenuItem @click="openExternalMap('apple')">
                 <span>Apple Maps</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem @click="openExternalMap('bing')">
+                <span>Bing Maps</span>
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuPortal>

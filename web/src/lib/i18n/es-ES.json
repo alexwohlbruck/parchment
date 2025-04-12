@@ -133,7 +133,8 @@
   "map": {
     "title": "Mapa",
     "contextMenu": {
-      "edit": "Editar mapa"
+      "edit": "Editar mapa",
+      "viewIn": "Ver en"
     }
   },
   "layers": {

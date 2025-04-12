@@ -8,12 +8,14 @@ import { useDirectionsService } from '@/services/directions.service'
 import { mapEventBus } from '@/lib/eventBus'
 import { LngLat } from '@/types/map.types'
 import { useDirectionsStore } from '@/stores/directions.store'
+import { useMapStore } from '@/stores/map.store'
 import {
   PencilIcon,
   CopyIcon,
-  ArrowDownToDot,
-  ArrowUpFromDot,
+  ArrowDownToDotIcon,
+  ArrowUpFromDotIcon,
   PlusIcon,
+  ExternalLinkIcon,
 } from 'lucide-vue-next'
 import {
   DropdownMenu,
@@ -32,9 +34,11 @@ const router = useRouter()
 const appService = useAppService()
 const directionsService = useDirectionsService()
 const directionsStore = useDirectionsStore()
+const mapStore = useMapStore()
 const { t } = useI18n()
 
 const { waypoints } = storeToRefs(directionsStore)
+const { mapCamera } = storeToRefs(mapStore)
 
 const showContextMenu = ref(false)
 const contextMenuPosition = ref({ x: 0, y: 0 })
@@ -113,6 +117,25 @@ function openMapEditor(editor: 'id' | 'rapid' | 'josm') {
       break
   }
 }
+
+function openExternalMap(service: 'google' | 'apple') {
+  if (!clickedLngLat.value) return
+  switch (service) {
+    case 'google':
+      window.open(
+        `https://www.google.com/maps/@${clickedLngLat.value.lat},${clickedLngLat.value.lng},${mapCamera.value.zoom}z`,
+        '_blank',
+      )
+      break
+    case 'apple':
+      const span = Math.pow(2, 20 - mapCamera.value.zoom) / 1024
+      window.open(
+        `https://maps.apple.com/frame?center=${clickedLngLat.value.lat}%2C${clickedLngLat.value.lng}&span=${span}%2C${span}`,
+        '_blank',
+      )
+      break
+  }
+}
 </script>
 
 <template>
@@ -132,14 +155,14 @@ function openMapEditor(editor: 'id' | 'rapid' | 'josm') {
           v-if="!useMultistopDirections"
           @click="directionsFrom()"
         >
-          <ArrowUpFromDot class="size-4 rotate-90" />
+          <ArrowUpFromDotIcon class="size-4 rotate-90" />
           <span>{{ $t('directions.directionsFromHere') }}</span>
         </DropdownMenuItem>
         <DropdownMenuItem
           v-if="!useMultistopDirections"
           @click="directionsTo()"
         >
-          <ArrowDownToDot class="size-4 -rotate-90" />
+          <ArrowDownToDotIcon class="size-4 -rotate-90" />
           <span>{{ $t('directions.directionsToHere') }}</span>
         </DropdownMenuItem>
         <DropdownMenuItem v-if="useMultistopDirections" @click="fillWaypoint()">
@@ -161,6 +184,24 @@ function openMapEditor(editor: 'id' | 'rapid' | 'josm') {
             {{ clickedLngLat.lng.toFixed(5) }}
           </span>
         </DropdownMenuItem>
+
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <ExternalLinkIcon class="mr-2 size-4" />
+            <span>{{ $t('map.contextMenu.viewIn') }}</span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuPortal>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem @click="openExternalMap('google')">
+                <span>Google Maps</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem @click="openExternalMap('apple')">
+                <span>Apple Maps</span>
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuPortal>
+        </DropdownMenuSub>
+
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
             <PencilIcon class="mr-2 size-4" />

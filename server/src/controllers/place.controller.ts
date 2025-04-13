@@ -1,5 +1,9 @@
 import { Elysia, t, error } from 'elysia'
-import { getPlaceDetails, searchPlaces } from '../services/place.service'
+import {
+  getPlaceDetails,
+  searchPlaces,
+  getPlaceAutocomplete,
+} from '../services/place.service'
 
 const app = new Elysia({ prefix: '/places' })
 
@@ -57,6 +61,46 @@ app.get(
     return {
       query: q,
       results,
+    }
+  },
+  {
+    query: t.Object({
+      q: t.String(),
+      lat: t.Optional(t.String()),
+      lng: t.Optional(t.String()),
+      radius: t.Optional(t.String()),
+    }),
+  },
+)
+
+// Add autocomplete endpoint for faster search suggestions
+app.get(
+  '/autocomplete',
+  async ({ query }) => {
+    const { q, lat, lng, radius = 10000 } = query
+
+    if (!q) {
+      return error(400, { message: 'Search query is required' })
+    }
+
+    // Require at least 2 characters for autocomplete
+    if (q.length < 2) {
+      return error(400, { message: 'Query must be at least 2 characters' })
+    }
+
+    // Convert coordinates to numbers if provided
+    const coordinates =
+      lat && lng ? { lat: parseFloat(lat), lng: parseFloat(lng) } : undefined
+
+    const suggestions = await getPlaceAutocomplete(
+      q,
+      coordinates,
+      parseInt(radius as string),
+    )
+
+    return {
+      query: q,
+      suggestions,
     }
   },
   {

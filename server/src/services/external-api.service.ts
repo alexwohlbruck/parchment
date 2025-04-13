@@ -63,6 +63,15 @@ export const GOOGLE_MAPS_PHOTO_URL =
 export const GOOGLE_PLACES_API_URL = 'https://places.googleapis.com/v1/places'
 const DEFAULT_SEARCH_RADIUS = 500 // meters
 
+// Interface for autocomplete prediction results
+export interface AutocompletePrediction {
+  placeId: string
+  description: string
+  mainText: string
+  secondaryText: string
+  types: string[]
+}
+
 function calculateSearchRadius(place: Place): number {
   // For points (nodes), use default radius
   if (place.type === 'node' || !place.bounds) {
@@ -277,5 +286,106 @@ function transformGooglePlace(
         }
       : undefined,
     utc_offset: place.utcOffsetMinutes || 0,
+  }
+}
+
+// Autocomplete suggestions from Google Places
+export async function getGooglePlacesAutocomplete(
+  query: string,
+  lat?: number,
+  lng?: number,
+  radius: number = 10000, // Wider radius for autocomplete
+): Promise<AutocompletePrediction[]> {
+  try {
+    if (!query || query.length < 2) {
+      return []
+    }
+
+    console.log(`Getting autocomplete suggestions for "${query}"`)
+    console.log(
+      `API key configured: ${process.env.GOOGLE_MAPS_API_KEY ? 'Yes' : 'No'}`,
+    )
+
+    // Build the autocomplete request
+    const request: any = {
+      textQuery: query,
+      languageCode: 'en', // English results
+      maxResultCount: 5, // Limit to top 5 for better performance
+    }
+
+    // Add location bias if coordinates are provided
+    if (lat && lng) {
+      request.locationBias = {
+        circle: {
+          center: {
+            latitude: lat,
+            longitude: lng,
+          },
+          radius: radius,
+        },
+      }
+      console.log(
+        `Using location bias: lat=${lat}, lng=${lng}, radius=${radius}m`,
+      )
+    }
+
+    // Log the full request for debugging
+    console.log('Request payload:', JSON.stringify(request, null, 2))
+
+    const response = await axios.post(
+      `${GOOGLE_PLACES_API_URL}:searchText`,
+      request,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': process.env.GOOGLE_MAPS_API_KEY,
+          'X-Goog-FieldMask':
+            'places.id,places.displayName,places.formattedAddress,places.types,places.location',
+        },
+      },
+    )
+
+    // Log the raw response for debugging
+    console.log('Response status:', response.status)
+    console.log('Response data structure:', Object.keys(response.data))
+    console.log('Places returned:', response.data.places?.length || 0)
+
+    if (!response.data.places || response.data.places.length === 0) {
+      console.log('No places found in the response')
+      return []
+    }
+
+    // Debug first result
+    if (response.data.places.length > 0) {
+      console.log(
+        'First result:',
+        JSON.stringify(response.data.places[0], null, 2),
+      )
+    }
+
+    // Transform the response into our simplified format
+    const predictions = response.data.places.map((place: any) => ({
+      placeId: place.id,
+      description: `${place.displayName?.text || ''}, ${
+        place.formattedAddress || ''
+      }`,
+      mainText: place.displayName?.text || '',
+      secondaryText: place.formattedAddress || '',
+      types: place.types || [],
+      // We can't get distanceMeters from the API, remove it
+    }))
+
+    console.log(`Returning ${predictions.length} autocomplete suggestions`)
+    return predictions
+  } catch (error) {
+    console.error(
+      'Error getting Google Places autocomplete suggestions:',
+      error,
+    )
+    if (axios.isAxiosError(error) && error.response) {
+      console.error('Response status:', error.response.status)
+      console.error('Response data:', error.response.data)
+    }
+    return []
   }
 }

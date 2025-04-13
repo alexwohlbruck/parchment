@@ -14,6 +14,8 @@ import {
   GOOGLE_PLACES_API_URL,
   GOOGLE_MAPS_PHOTO_URL,
   searchGooglePlaces,
+  getGooglePlacesAutocomplete,
+  AutocompletePrediction,
 } from './external-api.service'
 import {
   mergeAttributedValues,
@@ -719,6 +721,41 @@ export const searchPlaces = async (
     return results.slice(0, 20)
   } catch (error) {
     console.error('Error searching for places:', error)
+    return []
+  }
+}
+
+// Function to get autocomplete suggestions for places
+export const getPlaceAutocomplete = async (
+  query: string,
+  coordinates?: { lat: number; lng: number },
+  radius: number = 10000,
+): Promise<AutocompletePrediction[]> => {
+  try {
+    if (!query || query.length < 2) {
+      return []
+    }
+
+    console.log(`Getting autocomplete suggestions for "${query}"`)
+
+    // For now, use only Google Places autocomplete
+    // Later, we'll integrate with Pelias as well
+    const googleSuggestions = await getGooglePlacesAutocomplete(
+      query,
+      coordinates?.lat,
+      coordinates?.lng,
+      radius,
+    )
+
+    return googleSuggestions
+
+    // Future implementation:
+    // When Pelias is integrated, we can add code to:
+    // 1. Search both Google Places and Pelias
+    // 2. Merge and deduplicate results
+    // 3. Sort by relevance
+  } catch (error) {
+    console.error('Error getting place autocomplete suggestions:', error)
     return []
   }
 }

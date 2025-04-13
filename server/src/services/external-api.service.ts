@@ -2,7 +2,60 @@ import axios from 'axios'
 import type { GooglePlaceDetails } from '../types/place.types'
 import type { Place } from '../types/place.types'
 import * as turf from '@turf/turf'
-import { SOURCE } from '../lib/constants'
+
+// Define the structure of Google Places API response
+interface GooglePlaceApiResponse {
+  id: string
+  displayName?: { text: string }
+  formattedAddress?: string
+  internationalPhoneNumber?: string
+  websiteUri?: string
+  types?: string[]
+  photos?: Array<{
+    name: string
+    heightPx?: number
+    widthPx?: number
+  }>
+  rating?: number
+  userRatingCount?: number
+  googleMapsUri?: string
+  priceLevel?: string
+  businessStatus?: string
+  editorialSummary?: {
+    languageCode?: string
+    text?: string
+    overview?: string
+  }
+  location?: {
+    latitude: number
+    longitude: number
+  }
+  dineIn?: boolean
+  takeout?: boolean
+  delivery?: boolean
+  curbsidePickup?: boolean
+  servesBreakfast?: boolean
+  servesLunch?: boolean
+  servesDinner?: boolean
+  servesBeer?: boolean
+  servesVegetarianFood?: boolean
+  servesCocktails?: boolean
+  servesCoffee?: boolean
+  outdoorSeating?: boolean
+  liveMusic?: boolean
+  goodForChildren?: boolean
+  goodForGroups?: boolean
+  restroom?: boolean
+  regularOpeningHours?: {
+    openNow?: boolean
+    periods?: Array<{
+      open: { day: number; time: string }
+      close: { day: number; time: string }
+    }>
+    weekdayDescriptions?: string[]
+  }
+  utcOffsetMinutes?: number
+}
 
 // Google API constants
 export const GOOGLE_MAPS_PHOTO_URL =
@@ -27,6 +80,7 @@ function calculateSearchRadius(place: Place): number {
   return diagonalDistance / 2 + DEFAULT_SEARCH_RADIUS
 }
 
+// Search for a single place that matches an OSM place
 export async function searchGooglePlace(
   name: string,
   lat: number,
@@ -67,7 +121,7 @@ export async function searchGooglePlace(
     }
 
     // Get the first result's coordinates
-    const place = searchResponse.data.places[0]
+    const place = searchResponse.data.places[0] as GooglePlaceApiResponse
     const resultLat = place.location?.latitude
     const resultLng = place.location?.longitude
 
@@ -93,7 +147,59 @@ export async function searchGooglePlace(
   }
 }
 
-function transformGooglePlace(place: any): GooglePlaceDetails {
+// Search for multiple places based on query and location
+export async function searchGooglePlaces(
+  query: string,
+  lat: number,
+  lng: number,
+  radius: number = 1000,
+): Promise<GooglePlaceDetails[]> {
+  try {
+    console.log(`Searching Google Places for "${query}" with radius ${radius}m`)
+
+    // Search for places matching the query
+    const searchResponse = await axios.post(
+      `${GOOGLE_PLACES_API_URL}:searchText`,
+      {
+        textQuery: query,
+        locationBias: {
+          circle: {
+            center: {
+              latitude: lat,
+              longitude: lng,
+            },
+            radius: radius,
+          },
+        },
+        maxResultCount: 20,
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': process.env.GOOGLE_MAPS_API_KEY,
+          'X-Goog-FieldMask':
+            'places.id,places.displayName,places.formattedAddress,places.internationalPhoneNumber,places.websiteUri,places.types,places.photos,places.rating,places.userRatingCount,places.googleMapsUri,places.priceLevel,places.businessStatus,places.editorialSummary,places.location,places.dineIn,places.takeout,places.delivery,places.curbsidePickup,places.servesBreakfast,places.servesLunch,places.servesDinner,places.servesBeer,places.servesVegetarianFood,places.servesCocktails,places.servesCoffee,places.outdoorSeating,places.liveMusic,places.goodForChildren,places.goodForGroups,places.restroom,places.regularOpeningHours,places.utcOffsetMinutes',
+        },
+      },
+    )
+
+    if (!searchResponse.data.places?.length) {
+      return []
+    }
+
+    // Transform all results
+    return searchResponse.data.places.map((place: GooglePlaceApiResponse) =>
+      transformGooglePlace(place),
+    )
+  } catch (error) {
+    console.error('Error searching Google Places:', error)
+    return []
+  }
+}
+
+function transformGooglePlace(
+  place: GooglePlaceApiResponse,
+): GooglePlaceDetails {
   // Log raw photo data
   if (place.photos?.length) {
     console.log(
@@ -118,10 +224,10 @@ function transformGooglePlace(place: any): GooglePlaceDetails {
     website: place.websiteUri || '',
     types: place.types || [],
     photos:
-      place.photos?.map((photo: any) => ({
+      place.photos?.map((photo) => ({
         photo_reference: photo.name,
-        height: photo.heightPx,
-        width: photo.widthPx,
+        height: photo.heightPx || 0,
+        width: photo.widthPx || 0,
         html_attributions: [],
       })) || [],
     rating: place.rating || 0,
@@ -136,6 +242,15 @@ function transformGooglePlace(place: any): GooglePlaceDetails {
             place.editorialSummary.text ||
             place.editorialSummary.overview ||
             '',
+        }
+      : undefined,
+    // Add location/geometry information
+    geometry: place.location
+      ? {
+          location: {
+            lat: place.location.latitude,
+            lng: place.location.longitude,
+          },
         }
       : undefined,
     dine_in: place.dineIn || false,

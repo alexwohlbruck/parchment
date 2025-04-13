@@ -19,7 +19,13 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
-import { SearchIcon, MapPinIcon, TerminalIcon, XIcon } from 'lucide-vue-next'
+import {
+  SearchIcon,
+  MapPinIcon,
+  TerminalIcon,
+  XIcon,
+  LoaderIcon,
+} from 'lucide-vue-next'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 
 const { t } = useI18n()
@@ -31,11 +37,16 @@ const {
   argumentsList,
   reset: resetCommand,
   executeCommand,
+  updateSearchQuery,
 } = useCommandService()
 
 const query = ref('')
 const commandOpen = ref(true)
 const showResults = ref(false)
+
+// For async argument options
+const argumentOptions = ref<CommandArgumentOption[]>([])
+const loadingOptions = ref(false)
 
 const container = ref<HTMLElement>()
 const commandPalette = ref<InstanceType<typeof Command>>()
@@ -134,6 +145,67 @@ function onArgumentSelected(value: ArgumentType) {
     closePalette()
   }
 }
+
+// Load argument options with async support
+async function loadArgumentOptions() {
+  if (!activeArgument.value) return
+
+  loadingOptions.value = true
+  try {
+    const items = activeArgument.value.getItems()
+    // Check if result is a Promise
+    if (items instanceof Promise) {
+      argumentOptions.value = await items
+    } else {
+      argumentOptions.value = items
+    }
+  } catch (error) {
+    console.error('Error loading argument options:', error)
+    argumentOptions.value = []
+  } finally {
+    loadingOptions.value = false
+  }
+}
+
+// Watch for command/argument changes to load options
+watch(activeArgument, async newArg => {
+  if (newArg) {
+    await loadArgumentOptions()
+  } else {
+    argumentOptions.value = []
+  }
+})
+
+// Add a timer reference for manual debouncing
+let searchTimer: number | null = null
+
+// Create a function that uses setTimeout for debouncing
+function debouncedSearch(newQuery: string) {
+  // First update the search query in the command service immediately
+  updateSearchQuery(newQuery)
+
+  // Clear any pending timer
+  if (searchTimer) {
+    clearTimeout(searchTimer)
+  }
+
+  // Set a new timer to load search options after delay
+  searchTimer = window.setTimeout(async () => {
+    // Then load options if we're in search mode
+    if (
+      activeCommand.value?.id === CommandName.SEARCH &&
+      activeArgument.value
+    ) {
+      await loadArgumentOptions()
+    }
+    searchTimer = null
+  }, 300)
+}
+
+// Watch query and call the debounced handler
+watch(query, newQuery => {
+  debouncedSearch(newQuery)
+})
 
 // If a command is executed that needs arguments, open the palette
 watch(activeArgument, (newVal, prevVal) => {
@@ -252,8 +324,18 @@ function filterFunction(val: PaletteItem[], term: string): PaletteItem[] {
         <!-- Command selected, display arguments -->
         <CommandList v-if="activeArgument">
           <CommandGroup :heading="activeArgument.name">
+            <div v-if="loadingOptions" class="py-6 text-center">
+              <LoaderIcon class="mx-auto h-4 w-4 animate-spin opacity-50" />
+              <p class="mt-2 text-sm text-muted-foreground">
+                Loading suggestions...
+              </p>
+            </div>
+            <CommandEmpty v-else-if="argumentOptions.length === 0">
+              No results found.
+            </CommandEmpty>
             <CommandItem
-              v-for="argumentOption in activeArgument.getItems()"
+              v-else
+              v-for="argumentOption in argumentOptions"
               :key="argumentOption.value"
               :value="argumentOption"
               class="flex gap-2"

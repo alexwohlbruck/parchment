@@ -80,6 +80,13 @@ function commandService() {
     return command?.hotkey
   }
 
+  // Function to update the search query in the command store
+  const currentSearchQuery = ref('')
+  function updateSearchQuery(query: string) {
+    currentSearchQuery.value = query
+    return query
+  }
+
   return {
     executeCommand,
     activeCommand,
@@ -92,6 +99,8 @@ function commandService() {
     bindAllHotkeysToCommands,
     bindCommandToFunction,
     getHotkey,
+    updateSearchQuery,
+    currentSearchQuery,
   }
 }
 

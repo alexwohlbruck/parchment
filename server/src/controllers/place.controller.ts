@@ -1,5 +1,5 @@
 import { Elysia, t, error } from 'elysia'
-import { getPlaceDetails } from '../services/place.service'
+import { getPlaceDetails, searchPlaces } from '../services/place.service'
 
 const app = new Elysia({ prefix: '/places' })
 
@@ -30,6 +30,41 @@ app.get(
     params: t.Object({
       type: placeTypeSchema,
       id: t.String(),
+    }),
+  },
+)
+
+// Add search endpoint
+app.get(
+  '/search',
+  async ({ query }) => {
+    const { q, lat, lng, radius = 1000 } = query
+
+    if (!q) {
+      return error(400, { message: 'Search query is required' })
+    }
+
+    // Convert coordinates to numbers if provided
+    const coordinates =
+      lat && lng ? { lat: parseFloat(lat), lng: parseFloat(lng) } : undefined
+
+    const results = await searchPlaces(
+      q,
+      coordinates,
+      parseInt(radius as string),
+    )
+
+    return {
+      query: q,
+      results,
+    }
+  },
+  {
+    query: t.Object({
+      q: t.String(),
+      lat: t.Optional(t.String()),
+      lng: t.Optional(t.String()),
+      radius: t.Optional(t.String()),
     }),
   },
 )

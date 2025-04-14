@@ -2,13 +2,75 @@ import axios from 'axios'
 import type { GooglePlaceDetails } from '../types/place.types'
 import type { Place } from '../types/place.types'
 import * as turf from '@turf/turf'
-import { SOURCE } from '../lib/constants'
+
+// Define the structure of Google Places API response
+interface GooglePlaceApiResponse {
+  id: string
+  displayName?: { text: string }
+  formattedAddress?: string
+  internationalPhoneNumber?: string
+  websiteUri?: string
+  types?: string[]
+  photos?: Array<{
+    name: string
+    heightPx?: number
+    widthPx?: number
+  }>
+  rating?: number
+  userRatingCount?: number
+  googleMapsUri?: string
+  priceLevel?: string
+  businessStatus?: string
+  editorialSummary?: {
+    languageCode?: string
+    text?: string
+    overview?: string
+  }
+  location?: {
+    latitude: number
+    longitude: number
+  }
+  dineIn?: boolean
+  takeout?: boolean
+  delivery?: boolean
+  curbsidePickup?: boolean
+  servesBreakfast?: boolean
+  servesLunch?: boolean
+  servesDinner?: boolean
+  servesBeer?: boolean
+  servesVegetarianFood?: boolean
+  servesCocktails?: boolean
+  servesCoffee?: boolean
+  outdoorSeating?: boolean
+  liveMusic?: boolean
+  goodForChildren?: boolean
+  goodForGroups?: boolean
+  restroom?: boolean
+  regularOpeningHours?: {
+    openNow?: boolean
+    periods?: Array<{
+      open: { day: number; time: string }
+      close: { day: number; time: string }
+    }>
+    weekdayDescriptions?: string[]
+  }
+  utcOffsetMinutes?: number
+}
 
 // Google API constants
 export const GOOGLE_MAPS_PHOTO_URL =
   'https://maps.googleapis.com/maps/api/place/photo'
 export const GOOGLE_PLACES_API_URL = 'https://places.googleapis.com/v1/places'
 const DEFAULT_SEARCH_RADIUS = 500 // meters
+
+// Interface for autocomplete prediction results
+export interface AutocompletePrediction {
+  placeId: string
+  description: string
+  mainText: string
+  secondaryText: string
+  types: string[]
+}
 
 function calculateSearchRadius(place: Place): number {
   // For points (nodes), use default radius
@@ -27,6 +89,7 @@ function calculateSearchRadius(place: Place): number {
   return diagonalDistance / 2 + DEFAULT_SEARCH_RADIUS
 }
 
+// Search for a single place that matches an OSM place
 export async function searchGooglePlace(
   name: string,
   lat: number,
@@ -67,7 +130,7 @@ export async function searchGooglePlace(
     }
 
     // Get the first result's coordinates
-    const place = searchResponse.data.places[0]
+    const place = searchResponse.data.places[0] as GooglePlaceApiResponse
     const resultLat = place.location?.latitude
     const resultLng = place.location?.longitude
 
@@ -93,7 +156,59 @@ export async function searchGooglePlace(
   }
 }
 
-function transformGooglePlace(place: any): GooglePlaceDetails {
+// Search for multiple places based on query and location
+export async function searchGooglePlaces(
+  query: string,
+  lat: number,
+  lng: number,
+  radius: number = 1000,
+): Promise<GooglePlaceDetails[]> {
+  try {
+    console.log(`Searching Google Places for "${query}" with radius ${radius}m`)
+
+    // Search for places matching the query
+    const searchResponse = await axios.post(
+      `${GOOGLE_PLACES_API_URL}:searchText`,
+      {
+        textQuery: query,
+        locationBias: {
+          circle: {
+            center: {
+              latitude: lat,
+              longitude: lng,
+            },
+            radius: radius,
+          },
+        },
+        maxResultCount: 20,
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': process.env.GOOGLE_MAPS_API_KEY,
+          'X-Goog-FieldMask':
+            'places.id,places.displayName,places.formattedAddress,places.internationalPhoneNumber,places.websiteUri,places.types,places.photos,places.rating,places.userRatingCount,places.googleMapsUri,places.priceLevel,places.businessStatus,places.editorialSummary,places.location,places.dineIn,places.takeout,places.delivery,places.curbsidePickup,places.servesBreakfast,places.servesLunch,places.servesDinner,places.servesBeer,places.servesVegetarianFood,places.servesCocktails,places.servesCoffee,places.outdoorSeating,places.liveMusic,places.goodForChildren,places.goodForGroups,places.restroom,places.regularOpeningHours,places.utcOffsetMinutes',
+        },
+      },
+    )
+
+    if (!searchResponse.data.places?.length) {
+      return []
+    }
+
+    // Transform all results
+    return searchResponse.data.places.map((place: GooglePlaceApiResponse) =>
+      transformGooglePlace(place),
+    )
+  } catch (error) {
+    console.error('Error searching Google Places:', error)
+    return []
+  }
+}
+
+function transformGooglePlace(
+  place: GooglePlaceApiResponse,
+): GooglePlaceDetails {
   // Log raw photo data
   if (place.photos?.length) {
     console.log(
@@ -118,10 +233,10 @@ function transformGooglePlace(place: any): GooglePlaceDetails {
     website: place.websiteUri || '',
     types: place.types || [],
     photos:
-      place.photos?.map((photo: any) => ({
+      place.photos?.map((photo) => ({
         photo_reference: photo.name,
-        height: photo.heightPx,
-        width: photo.widthPx,
+        height: photo.heightPx || 0,
+        width: photo.widthPx || 0,
         html_attributions: [],
       })) || [],
     rating: place.rating || 0,
@@ -136,6 +251,15 @@ function transformGooglePlace(place: any): GooglePlaceDetails {
             place.editorialSummary.text ||
             place.editorialSummary.overview ||
             '',
+        }
+      : undefined,
+    // Add location/geometry information
+    geometry: place.location
+      ? {
+          location: {
+            lat: place.location.latitude,
+            lng: place.location.longitude,
+          },
         }
       : undefined,
     dine_in: place.dineIn || false,
@@ -162,5 +286,106 @@ function transformGooglePlace(place: any): GooglePlaceDetails {
         }
       : undefined,
     utc_offset: place.utcOffsetMinutes || 0,
+  }
+}
+
+// Autocomplete suggestions from Google Places
+export async function getGooglePlacesAutocomplete(
+  query: string,
+  lat?: number,
+  lng?: number,
+  radius: number = 10000, // Wider radius for autocomplete
+): Promise<AutocompletePrediction[]> {
+  try {
+    if (!query || query.length < 2) {
+      return []
+    }
+
+    console.log(`Getting autocomplete suggestions for "${query}"`)
+    console.log(
+      `API key configured: ${process.env.GOOGLE_MAPS_API_KEY ? 'Yes' : 'No'}`,
+    )
+
+    // Build the autocomplete request
+    const request: any = {
+      textQuery: query,
+      languageCode: 'en', // English results
+      maxResultCount: 5, // Limit to top 5 for better performance
+    }
+
+    // Add location bias if coordinates are provided
+    if (lat && lng) {
+      request.locationBias = {
+        circle: {
+          center: {
+            latitude: lat,
+            longitude: lng,
+          },
+          radius: radius,
+        },
+      }
+      console.log(
+        `Using location bias: lat=${lat}, lng=${lng}, radius=${radius}m`,
+      )
+    }
+
+    // Log the full request for debugging
+    console.log('Request payload:', JSON.stringify(request, null, 2))
+
+    const response = await axios.post(
+      `${GOOGLE_PLACES_API_URL}:searchText`,
+      request,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': process.env.GOOGLE_MAPS_API_KEY,
+          'X-Goog-FieldMask':
+            'places.id,places.displayName,places.formattedAddress,places.types,places.location',
+        },
+      },
+    )
+
+    // Log the raw response for debugging
+    console.log('Response status:', response.status)
+    console.log('Response data structure:', Object.keys(response.data))
+    console.log('Places returned:', response.data.places?.length || 0)
+
+    if (!response.data.places || response.data.places.length === 0) {
+      console.log('No places found in the response')
+      return []
+    }
+
+    // Debug first result
+    if (response.data.places.length > 0) {
+      console.log(
+        'First result:',
+        JSON.stringify(response.data.places[0], null, 2),
+      )
+    }
+
+    // Transform the response into our simplified format
+    const predictions = response.data.places.map((place: any) => ({
+      placeId: place.id,
+      description: `${place.displayName?.text || ''}, ${
+        place.formattedAddress || ''
+      }`,
+      mainText: place.displayName?.text || '',
+      secondaryText: place.formattedAddress || '',
+      types: place.types || [],
+      // We can't get distanceMeters from the API, remove it
+    }))
+
+    console.log(`Returning ${predictions.length} autocomplete suggestions`)
+    return predictions
+  } catch (error) {
+    console.error(
+      'Error getting Google Places autocomplete suggestions:',
+      error,
+    )
+    if (axios.isAxiosError(error) && error.response) {
+      console.error('Response status:', error.response.status)
+      console.error('Response data:', error.response.data)
+    }
+    return []
   }
 }

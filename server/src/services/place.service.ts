@@ -90,88 +90,173 @@ function mergePlaceData(
       unifiedPlace.externalIds[adapter.sourceId] = data.id.toString()
     }
 
-    // Name
+    // Name - create attributed values and use selectBestValue to properly respect source priorities
     if (transformed.name) {
-      unifiedPlace.name =
-        selectBestValue([
-          ...(unifiedPlace.name
-            ? [{ value: unifiedPlace.name, sourceId: 'existing', timestamp }]
-            : []),
-          transformed.name,
-        ]) ||
-        unifiedPlace.name ||
-        ''
+      const existingName = unifiedPlace.name
+        ? {
+            value: unifiedPlace.name,
+            sourceId:
+              unifiedPlace.sources.length > 0
+                ? unifiedPlace.sources[0].id
+                : 'unknown',
+            timestamp,
+          }
+        : null
+
+      // Only compare if we have an existing name
+      if (existingName) {
+        const selectedName = selectBestValue([existingName, transformed.name])
+        unifiedPlace.name = selectedName || unifiedPlace.name || ''
+        console.log(
+          `Name selection: existingName=${existingName.value} (${existingName.sourceId}), newName=${transformed.name.value} (${transformed.name.sourceId}), selected=${selectedName}`,
+        )
+      } else {
+        unifiedPlace.name = transformed.name.value
+      }
     }
 
-    // Description
+    // Description - respect source priorities
     if (transformed.description) {
-      // If we don't have a description yet or if OSM provides a description, use it
-      if (!unifiedPlace.description || adapter.sourceId === SOURCE.OSM) {
+      const existingDescription = unifiedPlace.description
+        ? {
+            value: unifiedPlace.description,
+            sourceId:
+              unifiedPlace.sources.length > 0
+                ? unifiedPlace.sources[0].id
+                : 'unknown',
+            timestamp,
+          }
+        : null
+
+      if (existingDescription) {
+        const selectedDescription = selectBestValue([
+          existingDescription,
+          transformed.description,
+        ])
+        unifiedPlace.description =
+          selectedDescription || unifiedPlace.description || ''
+      } else {
         unifiedPlace.description = transformed.description.value
       }
     }
 
-    // Address
+    // Address - respect source priorities
     if (transformed.address) {
-      // If we don't have an address yet, or if OSM provides an address, use it
-      if (
-        !unifiedPlace.address ||
-        !unifiedPlace.address.formatted ||
-        adapter.sourceId === SOURCE.OSM
-      ) {
+      const existingAddress = unifiedPlace.address?.formatted
+        ? {
+            value: unifiedPlace.address,
+            sourceId:
+              unifiedPlace.sources.length > 0
+                ? unifiedPlace.sources[0].id
+                : 'unknown',
+            timestamp,
+          }
+        : null
+
+      if (existingAddress) {
+        const selectedAddress = selectBestValue([
+          existingAddress,
+          transformed.address,
+        ])
+        unifiedPlace.address = selectedAddress || unifiedPlace.address || null
+      } else {
         unifiedPlace.address = transformed.address.value
       }
     }
 
-    // Contact Info
+    // Contact Info - respect source priorities for each field
     if (transformed.contactInfo) {
       const { phone, email, website, socials } = transformed.contactInfo
 
-      // Handle phone number
-      if (
-        phone &&
-        (!unifiedPlace.contactInfo.phone || adapter.sourceId === SOURCE.OSM)
-      ) {
-        unifiedPlace.contactInfo.phone = phone
+      // Handle phone number with source priority
+      if (phone) {
+        const existingPhone = unifiedPlace.contactInfo.phone
+          ? { ...unifiedPlace.contactInfo.phone }
+          : null
+
+        if (existingPhone) {
+          unifiedPlace.contactInfo.phone =
+            selectBestValue([existingPhone, phone]) === phone.value
+              ? phone
+              : existingPhone
+        } else {
+          unifiedPlace.contactInfo.phone = phone
+        }
       }
 
-      // Handle email
-      if (
-        email &&
-        (!unifiedPlace.contactInfo.email || adapter.sourceId === SOURCE.OSM)
-      ) {
-        unifiedPlace.contactInfo.email = email
+      // Handle email with source priority
+      if (email) {
+        const existingEmail = unifiedPlace.contactInfo.email
+          ? { ...unifiedPlace.contactInfo.email }
+          : null
+
+        if (existingEmail) {
+          unifiedPlace.contactInfo.email =
+            selectBestValue([existingEmail, email]) === email.value
+              ? email
+              : existingEmail
+        } else {
+          unifiedPlace.contactInfo.email = email
+        }
       }
 
-      // Handle website
-      if (
-        website &&
-        (!unifiedPlace.contactInfo.website || adapter.sourceId === SOURCE.OSM)
-      ) {
-        unifiedPlace.contactInfo.website = website
+      // Handle website with source priority
+      if (website) {
+        const existingWebsite = unifiedPlace.contactInfo.website
+          ? { ...unifiedPlace.contactInfo.website }
+          : null
+
+        if (existingWebsite) {
+          unifiedPlace.contactInfo.website =
+            selectBestValue([existingWebsite, website]) === website.value
+              ? website
+              : existingWebsite
+        } else {
+          unifiedPlace.contactInfo.website = website
+        }
       }
 
-      // Handle social media links
+      // Handle social media links with source priority
       if (socials && Object.keys(socials).length > 0) {
         // Merge social media links
         Object.entries(socials).forEach(([platform, value]) => {
-          if (
-            !unifiedPlace.contactInfo.socials[platform] ||
-            adapter.sourceId === SOURCE.OSM
-          ) {
+          const existingSocial = unifiedPlace.contactInfo.socials[platform]
+            ? { ...unifiedPlace.contactInfo.socials[platform] }
+            : null
+
+          if (existingSocial) {
+            unifiedPlace.contactInfo.socials[platform] =
+              selectBestValue([existingSocial, value]) === value.value
+                ? value
+                : existingSocial
+          } else {
             unifiedPlace.contactInfo.socials[platform] = value
           }
         })
       }
     }
 
-    // Opening Hours
+    // Opening Hours - respect source priorities
     if (transformed.openingHours) {
-      if (
-        !unifiedPlace.openingHours ||
-        !unifiedPlace.openingHours.regularHours?.length ||
-        adapter.sourceId === SOURCE.OSM
-      ) {
+      const existingHours = unifiedPlace.openingHours
+        ? {
+            value: unifiedPlace.openingHours,
+            sourceId:
+              unifiedPlace.sources.length > 0
+                ? unifiedPlace.sources[0].id
+                : 'unknown',
+            timestamp,
+          }
+        : null
+
+      if (existingHours) {
+        const selectedHours = selectBestValue([
+          existingHours,
+          transformed.openingHours,
+        ])
+        unifiedPlace.openingHours =
+          selectedHours || unifiedPlace.openingHours || null
+      } else {
         unifiedPlace.openingHours = transformed.openingHours.value
       }
     }
@@ -181,28 +266,43 @@ function mergePlaceData(
       unifiedPlace.photos.push(...transformed.photos)
     }
 
-    // Ratings
+    // Ratings - respect source priorities
     if (transformed.ratings) {
-      // If we already have ratings, determine which to use based on source priority
       if (unifiedPlace.ratings) {
+        // Handle rating score
         if (transformed.ratings.rating) {
-          unifiedPlace.ratings.rating =
-            selectBestValue([
-              unifiedPlace.ratings.rating,
-              transformed.ratings.rating,
-            ]) === transformed.ratings.rating.value
-              ? transformed.ratings.rating
-              : unifiedPlace.ratings.rating
+          const existingRating = unifiedPlace.ratings.rating
+            ? { ...unifiedPlace.ratings.rating }
+            : null
+
+          if (existingRating) {
+            unifiedPlace.ratings.rating =
+              selectBestValue([existingRating, transformed.ratings.rating]) ===
+              transformed.ratings.rating.value
+                ? transformed.ratings.rating
+                : existingRating
+          } else {
+            unifiedPlace.ratings.rating = transformed.ratings.rating
+          }
         }
 
+        // Handle review count
         if (transformed.ratings.reviewCount) {
-          unifiedPlace.ratings.reviewCount =
-            selectBestValue([
-              unifiedPlace.ratings.reviewCount,
-              transformed.ratings.reviewCount,
-            ]) === transformed.ratings.reviewCount.value
-              ? transformed.ratings.reviewCount
-              : unifiedPlace.ratings.reviewCount
+          const existingReviewCount = unifiedPlace.ratings.reviewCount
+            ? { ...unifiedPlace.ratings.reviewCount }
+            : null
+
+          if (existingReviewCount) {
+            unifiedPlace.ratings.reviewCount =
+              selectBestValue([
+                existingReviewCount,
+                transformed.ratings.reviewCount,
+              ]) === transformed.ratings.reviewCount.value
+                ? transformed.ratings.reviewCount
+                : existingReviewCount
+          } else {
+            unifiedPlace.ratings.reviewCount = transformed.ratings.reviewCount
+          }
         }
       } else {
         // If no existing ratings, use the new ones
@@ -210,17 +310,36 @@ function mergePlaceData(
       }
     }
 
-    // Amenities
+    // Amenities - respect source priorities
     if (
       transformed.amenities &&
       Object.keys(transformed.amenities).length > 0
     ) {
       Object.entries(transformed.amenities).forEach(([key, values]) => {
-        const value = values[0]?.value
-        if (value !== undefined) {
-          if (!unifiedPlace.amenities[key] || adapter.sourceId === SOURCE.OSM) {
-            unifiedPlace.amenities[key] = value
+        if (!values || !values.length) return
+
+        const value = values[0]
+        if (!value || value.value === undefined) return
+
+        const existingAmenity =
+          unifiedPlace.amenities[key] !== undefined
+            ? {
+                value: unifiedPlace.amenities[key],
+                sourceId:
+                  unifiedPlace.sources.length > 0
+                    ? unifiedPlace.sources[0].id
+                    : 'unknown',
+                timestamp,
+              }
+            : null
+
+        if (existingAmenity) {
+          const selectedValue = selectBestValue([existingAmenity, value])
+          if (selectedValue !== null) {
+            unifiedPlace.amenities[key] = selectedValue
           }
+        } else if (value.value !== undefined) {
+          unifiedPlace.amenities[key] = value.value
         }
       })
     }
@@ -346,34 +465,48 @@ export const getPlaceDetails = async (
 
     const name = place.tags?.name || place.tags?.['brand:name'] || ''
     const placeType = getPlaceType(place.tags || {})
+
+    console.log(`Creating base unified place from OSM: ${name}`)
     const unifiedPlace = createBaseUnifiedPlace(place, name, placeType)
 
+    // Add OSM data first
+    console.log('Adding OSM data')
     mergePlaceData(unifiedPlace, osmAdapter, place)
 
+    // Then fetch and add external data
     const externalData = await fetchExternalData(name, place.center, place)
     let currentIndex = 0
 
+    // Add Google data if enabled (OSM will still have priority)
     if (API_CONFIG[SOURCE.GOOGLE]) {
       const googleData = externalData[currentIndex] as GooglePlaceDetails | null
       if (googleData) {
+        console.log(`Adding Google data: ${googleData.name}`)
         mergePlaceData(unifiedPlace, googleAdapter, googleData)
+      } else {
+        console.log('No Google data found')
       }
       currentIndex++
     }
 
+    // Add Wikidata
     if (API_CONFIG[SOURCE.WIKIDATA]) {
       const [image, logo] = externalData[currentIndex] as [
         string | null,
         string | null,
       ]
+
       if (image) {
+        console.log('Adding Wikidata image')
         unifiedPlace.photos.push({
           url: image,
           sourceId: SOURCE.WIKIDATA,
           isPrimary: true,
         })
       }
+
       if (logo) {
+        console.log('Adding Wikidata logo')
         unifiedPlace.photos.push({
           url: logo,
           sourceId: SOURCE.WIKIDATA,
@@ -836,30 +969,48 @@ async function getPlaceDetailsByGoogleId(
       },
       openingHours: null,
       amenities: {},
-      sources: [
-        {
-          id: SOURCE.GOOGLE,
-          name: 'Google Places',
-          url: googlePlace.google_maps_uri,
-        },
-      ],
+      sources: [],
       lastUpdated: new Date().toISOString(),
       createdAt: new Date().toISOString(),
     }
 
+    // First, add Google data
+    console.log(`Adding Google data for: ${googlePlace.name}`)
     mergePlaceData(unifiedPlace, googleAdapter, googlePlace)
 
+    // Then try to find and merge OSM data to ensure OSM takes priority
     if (googlePlace.geometry?.location) {
       const { lat, lng } = googlePlace.geometry.location
+      console.log(
+        `Looking for matching OSM places near: lat=${lat}, lng=${lng}`,
+      )
+
       const osmPlaces = await searchOverpass(googlePlace.name, lat, lng, 300)
 
       if (osmPlaces.length > 0) {
+        console.log(
+          `Found ${
+            osmPlaces.length
+          } potential OSM matches, using the first one: ${
+            osmPlaces[0].tags?.name || 'unnamed'
+          }`,
+        )
+
+        // Since we're adding OSM data after Google, and OSM has higher priority,
+        // fields that exist in both will use the OSM values due to priority system
         mergePlaceData(unifiedPlace, osmAdapter, osmPlaces[0])
 
+        // Update the ID to use the OSM ID if available
         if (osmPlaces[0].type && osmPlaces[0].id) {
+          const oldId = unifiedPlace.id
           unifiedPlace.id = `${osmPlaces[0].type}/${osmPlaces[0].id}`
           unifiedPlace.externalIds[SOURCE.OSM] = osmPlaces[0].id.toString()
+          console.log(
+            `Updated place ID from ${oldId} to ${unifiedPlace.id} based on OSM data`,
+          )
         }
+      } else {
+        console.log(`No matching OSM places found. Using Google data only.`)
       }
     }
 
@@ -909,23 +1060,39 @@ export const getPlaceDetailsByNameAndLocation = async (
     }
 
     const bestCandidate = candidates[0]
+    console.log(
+      `Best candidate: OSM=${!!bestCandidate.osmPlace}, Google=${!!bestCandidate.googlePlace}, similarity=${
+        bestCandidate.similarity
+      }`,
+    )
 
     let unifiedPlace: UnifiedPlace
 
+    // Prioritize OSM data - if we have an OSM place, start with that
     if (bestCandidate.osmPlace) {
       const osmPlace = bestCandidate.osmPlace
       const placeName =
         osmPlace.tags?.name || osmPlace.tags?.['brand:name'] || name
       const placeType = getPlaceType(osmPlace.tags || {})
 
+      console.log(`Creating base unified place from OSM: ${placeName}`)
       unifiedPlace = createBaseUnifiedPlace(osmPlace, placeName, placeType)
+
+      // First add OSM data
       mergePlaceData(unifiedPlace, osmAdapter, osmPlace)
 
+      // Then add Google data (OSM fields will be preserved due to priority)
       if (bestCandidate.googlePlace) {
+        console.log(
+          `Merging Google place data: ${bestCandidate.googlePlace.name}`,
+        )
         mergePlaceData(unifiedPlace, googleAdapter, bestCandidate.googlePlace)
       }
-    } else if (bestCandidate.googlePlace) {
+    }
+    // If no OSM data, fall back to Google
+    else if (bestCandidate.googlePlace) {
       const googlePlace = bestCandidate.googlePlace
+      console.log(`Creating place from Google data only: ${googlePlace.name}`)
 
       unifiedPlace = {
         id: `google/${googlePlace.place_id}`,

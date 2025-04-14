@@ -29,7 +29,7 @@ const { t } = useI18n()
 const authStore = useAuthStore()
 const { me } = storeToRefs(authStore)
 
-const mini = ref(true)
+const mini = defineModel('mini', { type: Boolean, default: true })
 
 const items = computed(() => {
   return [

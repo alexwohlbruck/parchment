@@ -92,7 +92,9 @@ onMounted(() => {
     v-if="!isMobileScreen && isFloatingLayout"
     class="fixed m-2 left-[3.25rem] z-50 w-[25rem]"
     :style="{
-      transform: navMini ? 'translateX(0)' : 'translateX(10rem)',
+      transform: navMini
+        ? 'translateX(0)'
+        : `translateX(calc(${visibleMapArea.x}px - 3.25rem))`,
       transition: 'transform 100ms',
     }"
   >

@@ -160,12 +160,8 @@ export const useCommandStore = defineStore('command', () => {
           if (parts.length >= 2) {
             const type = parts[0]
             const id = parts[1]
-            // router.push({ name: 'place', params: { type, id } })
+            router.push({ name: 'place', params: { type, id } })
           }
-          router.push({
-            name: 'place',
-            params: { type: 'way', id: '559319591' },
-          })
         },
         arguments: [
           {
@@ -173,7 +169,7 @@ export const useCommandStore = defineStore('command', () => {
             name: t('palette.commands.search.arguments.places.name'),
             type: 'string',
             async getItems() {
-              // Use the command service to get the current search text
+              // Use the command service to get the current search query
               const { currentSearchQuery } = useCommandService()
               const searchText = currentSearchQuery.value
 
@@ -182,13 +178,26 @@ export const useCommandStore = defineStore('command', () => {
               }
 
               try {
-                // Get user's location if available (for future use)
-                // let lat, lng
-                // TODO: Get user coordinates from map or geolocation
+                const mapStore = useMapStore()
+                const center = mapStore.mapCamera.center
 
-                console.log('Searching for places with query:', searchText)
+                let lng, lat
+                if (Array.isArray(center)) {
+                  ;[lng, lat] = center
+                } else if (typeof center === 'object') {
+                  lng =
+                    'lng' in center
+                      ? center.lng
+                      : 'lon' in center
+                      ? center.lon
+                      : 0
+                  lat = center.lat || 0
+                }
+
                 const suggestions = await placeSearchService.getAutocomplete(
                   searchText,
+                  lat,
+                  lng,
                 )
 
                 if (suggestions.length === 0) {

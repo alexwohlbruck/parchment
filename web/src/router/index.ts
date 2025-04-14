@@ -20,6 +20,8 @@ export enum AppRoute {
   SIGNIN = 'signin',
   MAP = 'map',
   PLACE = 'place',
+  PLACE_PROVIDER = 'place-provider',
+  PLACE_LOCATION = 'place-location',
   STREET = 'street',
   DIRECTIONS = 'directions',
   // SAVED = 'saved',
@@ -62,6 +64,16 @@ const router = createRouter({
         {
           path: '/place/:type/:id',
           name: AppRoute.PLACE,
+          component: Place,
+        },
+        {
+          path: '/place/provider/:provider/:placeId',
+          name: AppRoute.PLACE_PROVIDER,
+          component: Place,
+        },
+        {
+          path: '/place/location/:name/:lat/:lng',
+          name: AppRoute.PLACE_LOCATION,
           component: Place,
         },
         // TODO: Support places from external sources

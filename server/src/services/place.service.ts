@@ -16,6 +16,7 @@ import {
   searchGooglePlaces,
   getGooglePlacesAutocomplete,
   AutocompletePrediction,
+  transformGooglePlace,
 } from './external-api.service'
 import {
   mergeAttributedValues,
@@ -33,6 +34,7 @@ import { googleAdapter } from '../adapters/google-adapter'
 import type { PlaceDataAdapter } from '../types/adapter.types'
 import { API_CONFIG, SOURCE } from '../lib/constants'
 import { osmAdapter } from '../adapters/osm-adapter'
+import axios from 'axios'
 
 // New type for search results
 export interface PlaceSearchResult {
@@ -757,5 +759,361 @@ export const getPlaceAutocomplete = async (
   } catch (error) {
     console.error('Error getting place autocomplete suggestions:', error)
     return []
+  }
+}
+
+// Generic function to get place details by any provider ID
+export const getPlaceDetailsByProviderId = async (
+  provider: string,
+  id: string,
+): Promise<UnifiedPlace | null> => {
+  try {
+    console.log(
+      `Getting place details by provider ID - Provider: "${provider}", ID: "${id}"`,
+    )
+
+    // Factory pattern - dispatch to the appropriate handler based on provider
+    switch (provider) {
+      case SOURCE.GOOGLE:
+        return getPlaceDetailsByGoogleId(id)
+      // Add more provider cases as needed
+      default:
+        console.error(`Unsupported provider: ${provider}`)
+        return null
+    }
+  } catch (error) {
+    console.error(`Error getting place details by ${provider} ID:`, error)
+    return null
+  }
+}
+
+// Google ID-specific implementation
+async function getPlaceDetailsByGoogleId(
+  googleId: string,
+): Promise<UnifiedPlace | null> {
+  try {
+    console.log(`Inside getPlaceDetailsByGoogleId with ID: "${googleId}"`)
+
+    // Log the entire route that would be returned by the getPlaceRoute function
+    console.log(
+      `This ID would create a route to: provider=google, placeId=${googleId}`,
+    )
+
+    // Fetch place details from Google
+    const googlePlace = await fetchGooglePlaceById(googleId)
+
+    if (!googlePlace) {
+      console.log(`fetchGooglePlaceById returned null for ID: "${googleId}"`)
+      return null
+    }
+
+    console.log(`Successfully fetched Google place: "${googlePlace.name}"`)
+
+    // Create a unified place from Google data
+    const unifiedPlace: UnifiedPlace = {
+      id: `google/${googleId}`,
+      externalIds: { [SOURCE.GOOGLE]: googleId },
+      name: googlePlace.name,
+      placeType: googlePlace.types[0] || 'unknown',
+      geometry: {
+        type: 'point',
+        center: {
+          lat: googlePlace.geometry?.location.lat || 0,
+          lng: googlePlace.geometry?.location.lng || 0,
+        },
+      },
+      photos: [],
+      address: googlePlace.formatted_address
+        ? {
+            formatted: googlePlace.formatted_address,
+          }
+        : null,
+      contactInfo: {
+        phone: null,
+        email: null,
+        website: null,
+        socials: {},
+      },
+      openingHours: null,
+      amenities: {},
+      sources: [
+        {
+          id: SOURCE.GOOGLE,
+          name: 'Google Places',
+          url: googlePlace.google_maps_uri,
+        },
+      ],
+      lastUpdated: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    }
+
+    mergePlaceData(unifiedPlace, googleAdapter, googlePlace)
+
+    if (googlePlace.geometry?.location) {
+      const { lat, lng } = googlePlace.geometry.location
+      const osmPlaces = await searchOverpass(googlePlace.name, lat, lng, 300)
+
+      if (osmPlaces.length > 0) {
+        mergePlaceData(unifiedPlace, osmAdapter, osmPlaces[0])
+
+        if (osmPlaces[0].type && osmPlaces[0].id) {
+          unifiedPlace.id = `${osmPlaces[0].type}/${osmPlaces[0].id}`
+          unifiedPlace.externalIds[SOURCE.OSM] = osmPlaces[0].id.toString()
+        }
+      }
+    }
+
+    return unifiedPlace
+  } catch (error) {
+    console.error('Error getting place details by Google ID:', error)
+    return null
+  }
+}
+
+export const getPlaceDetailsByNameAndLocation = async (
+  name: string,
+  coordinates: { lat: number; lng: number },
+  radius: number = 500,
+): Promise<UnifiedPlace | null> => {
+  try {
+    const promises: Promise<any>[] = []
+
+    promises.push(
+      searchOverpass(name, coordinates.lat, coordinates.lng, radius),
+    )
+
+    if (API_CONFIG[SOURCE.GOOGLE]) {
+      promises.push(
+        searchGooglePlaces(name, coordinates.lat, coordinates.lng, radius),
+      )
+    }
+
+    const results = await Promise.all(promises)
+
+    const osmPlaces = results[0] || []
+    let googlePlaces: GooglePlaceDetails[] = []
+
+    if (API_CONFIG[SOURCE.GOOGLE]) {
+      googlePlaces = results[1] || []
+    }
+
+    // Match and bucket results
+    const candidates = matchPlaceCandidates(
+      osmPlaces,
+      googlePlaces,
+      coordinates,
+    )
+
+    if (candidates.length === 0) {
+      return null
+    }
+
+    const bestCandidate = candidates[0]
+
+    let unifiedPlace: UnifiedPlace
+
+    if (bestCandidate.osmPlace) {
+      const osmPlace = bestCandidate.osmPlace
+      const placeName =
+        osmPlace.tags?.name || osmPlace.tags?.['brand:name'] || name
+      const placeType = getPlaceType(osmPlace.tags || {})
+
+      unifiedPlace = createBaseUnifiedPlace(osmPlace, placeName, placeType)
+      mergePlaceData(unifiedPlace, osmAdapter, osmPlace)
+
+      if (bestCandidate.googlePlace) {
+        mergePlaceData(unifiedPlace, googleAdapter, bestCandidate.googlePlace)
+      }
+    } else if (bestCandidate.googlePlace) {
+      const googlePlace = bestCandidate.googlePlace
+
+      unifiedPlace = {
+        id: `google/${googlePlace.place_id}`,
+        externalIds: { [SOURCE.GOOGLE]: googlePlace.place_id },
+        name: googlePlace.name,
+        placeType: googlePlace.types[0] || 'unknown',
+        geometry: {
+          type: 'point',
+          center: {
+            lat: googlePlace.geometry?.location.lat || 0,
+            lng: googlePlace.geometry?.location.lng || 0,
+          },
+        },
+        photos: [],
+        address: null,
+        contactInfo: {
+          phone: null,
+          email: null,
+          website: null,
+          socials: {},
+        },
+        openingHours: null,
+        amenities: {},
+        sources: [],
+        lastUpdated: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      }
+
+      mergePlaceData(unifiedPlace, googleAdapter, googlePlace)
+    } else {
+      return null
+    }
+
+    return unifiedPlace
+  } catch (error) {
+    console.error('Error getting place details by name and location:', error)
+    return null
+  }
+}
+
+async function fetchGooglePlaceById(
+  placeId: string,
+): Promise<GooglePlaceDetails | null> {
+  try {
+    // Debug information about the ID
+    console.log(`Fetching Google place by ID: ${placeId}`)
+    console.log(`Raw placeId provided: "${placeId}"`)
+
+    // Clean up the Place ID
+    let cleanPlaceId = placeId
+
+    // 1. Strip the 'google/' prefix if it exists
+    if (cleanPlaceId.startsWith('google/')) {
+      cleanPlaceId = cleanPlaceId.substring(7)
+      console.log(`Stripped 'google/' prefix, using ID: "${cleanPlaceId}"`)
+    }
+
+    // 2. Handle potential double-prefixing (e.g., "google/google/ChIJ...")
+    if (cleanPlaceId.startsWith('google/')) {
+      cleanPlaceId = cleanPlaceId.substring(7)
+      console.log(
+        `Found another 'google/' prefix, now using ID: "${cleanPlaceId}"`,
+      )
+    }
+
+    console.log(`Final cleaned place ID: "${cleanPlaceId}"`)
+    console.log(
+      `Using Google Maps API key: ${
+        process.env.GOOGLE_MAPS_API_KEY ? 'Key is set' : 'Key is missing!'
+      }`,
+    )
+    console.log(
+      `API key first few chars: ${
+        process.env.GOOGLE_MAPS_API_KEY
+          ? process.env.GOOGLE_MAPS_API_KEY.substring(0, 5) + '...'
+          : 'missing'
+      }`,
+    )
+
+    // Use the GET endpoint instead of searchText
+    console.log(`Making request to get details for place ID: ${cleanPlaceId}`)
+    const endpoint = `${GOOGLE_PLACES_API_URL}/${cleanPlaceId}`
+    console.log(`Request URL: ${endpoint}`)
+
+    const response = await axios.get(endpoint, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': process.env.GOOGLE_MAPS_API_KEY,
+        'X-Goog-FieldMask':
+          'id,displayName,formattedAddress,internationalPhoneNumber,websiteUri,types,photos,rating,userRatingCount,googleMapsUri,priceLevel,businessStatus,editorialSummary,location,dineIn,takeout,delivery,curbsidePickup,servesBreakfast,servesLunch,servesDinner,servesBeer,servesVegetarianFood,servesCocktails,servesCoffee,outdoorSeating,liveMusic,goodForChildren,goodForGroups,restroom,regularOpeningHours,utcOffsetMinutes',
+      },
+    })
+
+    console.log('Google Places API response status:', response.status)
+    console.log(
+      'Google Places API response data structure:',
+      Object.keys(response.data),
+    )
+
+    if (!response.data || Object.keys(response.data).length === 0) {
+      console.error('No place details returned for the given Google Place ID')
+      console.error(`Attempted to find place with ID: ${cleanPlaceId}`)
+      return null
+    }
+
+    console.log(
+      'Complete Google Places API response:',
+      JSON.stringify(response.data, null, 2),
+    )
+
+    // Transform the response data into our GooglePlaceDetails format
+    const transformedPlace = {
+      place_id: response.data.id,
+      name: response.data.displayName?.text || '',
+      formatted_address: response.data.formattedAddress || '',
+      formatted_phone_number: response.data.internationalPhoneNumber || '',
+      website: response.data.websiteUri || '',
+      types: response.data.types || [],
+      photos:
+        response.data.photos?.map(
+          (photo: { name: string; heightPx?: number; widthPx?: number }) => ({
+            photo_reference: photo.name,
+            height: photo.heightPx || 0,
+            width: photo.widthPx || 0,
+            html_attributions: [],
+          }),
+        ) || [],
+      rating: response.data.rating || 0,
+      user_ratings_total: response.data.userRatingCount || 0,
+      google_maps_uri: response.data.googleMapsUri || '',
+      price_level: response.data.priceLevel || '',
+      business_status: response.data.businessStatus || '',
+      editorial_summary: response.data.editorialSummary
+        ? {
+            language: response.data.editorialSummary.languageCode || undefined,
+            overview:
+              response.data.editorialSummary.text ||
+              response.data.editorialSummary.overview ||
+              '',
+          }
+        : undefined,
+      geometry: response.data.location
+        ? {
+            location: {
+              lat: response.data.location.latitude,
+              lng: response.data.location.longitude,
+            },
+          }
+        : undefined,
+      opening_hours: response.data.regularOpeningHours
+        ? {
+            open_now: response.data.regularOpeningHours.openNow || false,
+            periods: response.data.regularOpeningHours.periods || [],
+            weekday_text:
+              response.data.regularOpeningHours.weekdayDescriptions || [],
+          }
+        : undefined,
+      dine_in: response.data.dineIn || false,
+      takeout: response.data.takeout || false,
+      delivery: response.data.delivery || false,
+      curbside_pickup: response.data.curbsidePickup || false,
+      serves_breakfast: response.data.servesBreakfast || false,
+      serves_lunch: response.data.servesLunch || false,
+      serves_dinner: response.data.servesDinner || false,
+      serves_beer: response.data.servesBeer || false,
+      serves_vegetarian: response.data.servesVegetarianFood || false,
+      serves_cocktails: response.data.servesCocktails || false,
+      serves_coffee: response.data.servesCoffee || false,
+      outdoor_seating: response.data.outdoorSeating || false,
+      live_music: response.data.liveMusic || false,
+      good_for_children: response.data.goodForChildren || false,
+      good_for_groups: response.data.goodForGroups || false,
+      restroom: response.data.restroom || false,
+      utc_offset: response.data.utcOffsetMinutes || 0,
+    }
+
+    console.log(
+      'Transformed place details:',
+      JSON.stringify(transformedPlace, null, 2),
+    )
+
+    return transformedPlace
+  } catch (error) {
+    console.error('Error fetching Google place by ID:', error)
+    if (axios.isAxiosError(error) && error.response) {
+      console.error('Error response status:', error.response.status)
+      console.error('Error response data:', error.response.data)
+    }
+    return null
   }
 }

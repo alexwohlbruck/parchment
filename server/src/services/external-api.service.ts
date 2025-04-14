@@ -173,8 +173,37 @@ export async function searchGooglePlace(
 
     // Only return the result if it's within the calculated search radius
     if (distance <= searchRadius) {
-      console.log('Result is within search radius, using it')
-      return transformGooglePlace(place)
+      const resultName = place.displayName?.text || ''
+
+      let nameSimilarity = 0
+
+      if (
+        resultName.toLowerCase().includes(name.toLowerCase()) ||
+        name.toLowerCase().includes(resultName.toLowerCase())
+      ) {
+        nameSimilarity = 0.8
+      } else {
+        const nameWords = name.toLowerCase().split(/\s+/)
+        const resultWords = resultName.toLowerCase().split(/\s+/)
+        const commonWords = nameWords.filter((word) =>
+          resultWords.includes(word),
+        )
+
+        if (commonWords.length > 0) {
+          nameSimilarity =
+            (commonWords.length * 2) / (nameWords.length + resultWords.length)
+        }
+      }
+
+      if (nameSimilarity >= 0.3) {
+        console.log('Result is within search radius, using it')
+        return transformGooglePlace(place)
+      } else {
+        console.log(
+          `Result name "${resultName}" is too different from search query "${name}", rejecting match`,
+        )
+        return null
+      }
     }
 
     console.log('Result is outside search radius, skipping')
@@ -403,8 +432,8 @@ export async function getGooglePlacesAutocomplete(
     // Build the autocomplete request
     const request: any = {
       textQuery: query,
-      languageCode: 'en', // English results
-      maxResultCount: 5, // Limit to top 5 for better performance
+      languageCode: 'en',
+      maxResultCount: 10,
     }
 
     // Add location bias if coordinates are provided

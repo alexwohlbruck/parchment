@@ -27,6 +27,7 @@ const { isMobileScreen } = useResponsive()
 
 const { dialogs } = appStore
 const visibleMapArea = computed(() => appStore.visibleMapArea)
+const navMini = ref(true)
 
 // Debug "visibleMapArea" reactangle
 const showDebugRect = ref(false)
@@ -90,6 +91,10 @@ onMounted(() => {
   <div
     v-if="!isMobileScreen && isFloatingLayout"
     class="fixed m-2 left-[3.25rem] z-50 w-[25rem]"
+    :style="{
+      transform: navMini ? 'translateX(0)' : 'translateX(10rem)',
+      transition: 'transform 100ms',
+    }"
   >
     <transition-slide no-opacity :offset="[0, '-130%']">
       <Palette class="h-fit" />
@@ -100,7 +105,11 @@ onMounted(() => {
     <!-- Desktop navigation -->
     <template v-if="!isMobileScreen">
       <transition-slide no-opacity :offset="['-130%', 0]">
-        <DesktopNav v-if="isFloatingLayout" class="z-40 h-full" />
+        <DesktopNav
+          v-if="isFloatingLayout"
+          v-model:mini="navMini"
+          class="z-40 h-full"
+        />
       </transition-slide>
     </template>
 

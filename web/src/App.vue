@@ -30,7 +30,7 @@ const visibleMapArea = computed(() => appStore.visibleMapArea)
 const navMini = ref(true)
 
 // Debug "visibleMapArea" reactangle
-const showDebugRect = ref(true)
+const showDebugRect = ref(false)
 const isFloatingLayout = computed(() => route.meta?.layout === 'floating')
 
 // Detect if Render server is starting from cold start. This is common with the free plan,

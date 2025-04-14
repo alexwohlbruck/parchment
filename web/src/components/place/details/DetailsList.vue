@@ -11,13 +11,13 @@ import {
   ToiletIcon,
   MailIcon,
   LinkIcon,
-  ClockIcon,
   MapIcon,
   PlusIcon,
 } from 'lucide-vue-next'
 import DetailItem from './DetailItem.vue'
+import PlaceHours from './PlaceHours.vue'
 import type { UnifiedPlace } from '@/types/unified-place.types'
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { getWifiStatus, parseCuisines } from '@/lib/place.utils'
 import { SOURCE } from '@/lib/constants'
 import { encode } from 'pluscodes'
@@ -25,18 +25,6 @@ import { encode } from 'pluscodes'
 const props = defineProps<{
   place: UnifiedPlace
 }>()
-
-const showHours = ref(false)
-
-const DAYS = [
-  'Sunday',
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-]
 
 const cuisines = computed(() => {
   if (!props.place) return null
@@ -94,86 +82,6 @@ const wheelchairRestroomAccess = computed(
   () => props.place?.amenities['toilets:wheelchair'] || null,
 )
 
-const openingStatus = computed(() => {
-  const hours = props.place?.openingHours
-  if (!hours) return null
-
-  if (hours.isPermanentlyClosed) {
-    return { status: 'Permanently closed', color: 'text-red-500' }
-  }
-
-  if (hours.isTemporarilyClosed) {
-    return { status: 'Temporarily closed', color: 'text-orange-500' }
-  }
-
-  if (hours.isOpen24_7) {
-    return { status: 'Open 24/7', color: 'text-green-500' }
-  }
-
-  const now = new Date()
-  const currentDay = now.getDay()
-  const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now
-    .getMinutes()
-    .toString()
-    .padStart(2, '0')}`
-
-  const todayHours = hours.regularHours.find(h => h.day === currentDay)
-  if (!todayHours) {
-    return { status: 'Closed today', color: 'text-red-500' }
-  }
-
-  if (currentTime >= todayHours.open && currentTime <= todayHours.close) {
-    return {
-      status: `Open until ${formatTime(todayHours.close)}`,
-      color: 'text-green-500',
-    }
-  } else if (currentTime < todayHours.open) {
-    return {
-      status: `Opens at ${formatTime(todayHours.open)}`,
-      color: 'text-orange-500',
-    }
-  } else {
-    // Find next day's opening time
-    let nextDay = (currentDay + 1) % 7
-    let daysChecked = 0
-    while (daysChecked < 7) {
-      const nextDayHours = hours.regularHours.find(h => h.day === nextDay)
-      if (nextDayHours) {
-        return {
-          status: `Opens ${DAYS[nextDay]} at ${formatTime(nextDayHours.open)}`,
-          color: 'text-orange-500',
-        }
-      }
-      nextDay = (nextDay + 1) % 7
-      daysChecked++
-    }
-    return { status: 'Closed', color: 'text-red-500' }
-  }
-})
-
-function formatTime(time: string) {
-  const [hours, minutes] = time.split(':').map(Number)
-  const period = hours >= 12 ? 'PM' : 'AM'
-  const hour = hours % 12 || 12
-  return `${hour}:${minutes.toString().padStart(2, '0')} ${period}`
-}
-
-function formatOpeningHours(hours: typeof props.place.openingHours) {
-  if (!hours || !hours.rawText) return ''
-
-  if (hours.isPermanentlyClosed) return 'Permanently closed'
-  if (hours.isTemporarilyClosed) {
-    return hours.nextOpenDate
-      ? `Temporarily closed until ${new Date(
-          hours.nextOpenDate,
-        ).toLocaleDateString()}`
-      : 'Temporarily closed'
-  }
-  if (hours.isOpen24_7) return 'Open 24/7'
-
-  return hours.rawText.split(';').join('\n')
-}
-
 function formatCoordinates(lat: number, lng: number) {
   return `${lat.toFixed(6)}, ${lng.toFixed(6)}`
 }
@@ -207,62 +115,11 @@ const plusCode = computed(() => {
     </div>
 
     <!-- Hours -->
-    <DetailItem
+    <PlaceHours
       v-if="place.openingHours"
-      :icon="ClockIcon"
+      :hours="place.openingHours"
       :osmUrl="osmUrl"
-      :copyValue="formatOpeningHours(place.openingHours)"
-      :color="openingStatus?.color"
-      label="Hours"
-    >
-      <div class="flex flex-col">
-        <div class="flex items-center gap-2">
-          <span :class="openingStatus?.color">{{ openingStatus?.status }}</span>
-          <button
-            class="text-sm text-muted-foreground hover:text-foreground text-left"
-            @click="showHours = !showHours"
-          >
-            See hours
-          </button>
-        </div>
-        <div v-show="showHours" class="text-sm text-muted-foreground mt-1">
-          <div
-            v-for="day in DAYS"
-            :key="day"
-            class="flex justify-between"
-            :class="{ 'font-medium': day === DAYS[new Date().getDay()] }"
-          >
-            <span>{{ day }}:</span>
-            <span>
-              <template
-                v-if="
-                  place.openingHours.regularHours.find(
-                    h => h.day === DAYS.indexOf(day),
-                  )
-                "
-              >
-                {{
-                  formatTime(
-                    place.openingHours.regularHours.find(
-                      h => h.day === DAYS.indexOf(day),
-                    )!.open,
-                  )
-                }}
-                -
-                {{
-                  formatTime(
-                    place.openingHours.regularHours.find(
-                      h => h.day === DAYS.indexOf(day),
-                    )!.close,
-                  )
-                }}
-              </template>
-              <template v-else> Closed </template>
-            </span>
-          </div>
-        </div>
-      </div>
-    </DetailItem>
+    />
 
     <!-- Address -->
     <DetailItem

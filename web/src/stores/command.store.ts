@@ -26,10 +26,11 @@ import {
 import { useMapStore } from '@/stores/map.store'
 import { useMapService } from '@/services/map.service'
 
-import ColorCommandArgumentOption from '@/components/palette/custom-items/ColorCommandArgumentOption.vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthService } from '@/services/auth.service'
 import { MapEngine, MapProjection } from '@/types/map.types'
+import { usePlaceSearchService } from '@/services/place-search.service'
+import { useCommandService } from '@/services/command.service'
 
 export enum CommandName {
   OPEN_PALETTE = 'openPalette',
@@ -45,6 +46,7 @@ export enum CommandName {
   SIGN_OUT = 'signOut',
 }
 
+// For testing purposes - to be removed once real search is implemented
 const places = [
   {
     name: 'Viva Chicken',
@@ -88,6 +90,7 @@ export const useCommandStore = defineStore('command', () => {
   const authService = useAuthService()
   const mapService = useMapService()
   const { t, locale } = useI18n()
+  const placeSearchService = usePlaceSearchService()
 
   const { mapEngine } = storeToRefs(useMapStore())
 
@@ -150,21 +153,67 @@ export const useCommandStore = defineStore('command', () => {
         hotkey: ['/'],
         icon: SearchIcon,
         keywords: t('palette.commands.search.keywords'),
-        action: (query: string) => {
-          console.log('Search:', query)
+        action: (placeId: string) => {
+          console.log('Selected place:', placeId)
+          // Extract type and id from placeId format (e.g., "node/123456789")
+          const parts = placeId.split('/')
+          if (parts.length >= 2) {
+            const type = parts[0]
+            const id = parts[1]
+            router.push({ name: 'place', params: { type, id } })
+          }
         },
         arguments: [
           {
             id: 'places',
             name: t('palette.commands.search.arguments.places.name'),
             type: 'string',
-            getItems() {
-              return places.map(place => ({
-                value: place.name,
-                name: place.name,
-                description: place.address,
-                icon: MapPinIcon,
-              }))
+            async getItems() {
+              // Use the command service to get the current search query
+              const { currentSearchQuery } = useCommandService()
+              const searchText = currentSearchQuery.value
+
+              if (!searchText || searchText.length < 2) {
+                return []
+              }
+
+              try {
+                const mapStore = useMapStore()
+                const center = mapStore.mapCamera.center
+
+                let lng, lat
+                if (Array.isArray(center)) {
+                  ;[lng, lat] = center
+                } else if (typeof center === 'object') {
+                  lng =
+                    'lng' in center
+                      ? center.lng
+                      : 'lon' in center
+                      ? center.lon
+                      : 0
+                  lat = center.lat || 0
+                }
+
+                const suggestions = await placeSearchService.getAutocomplete(
+                  searchText,
+                  lat,
+                  lng,
+                )
+
+                if (suggestions.length === 0) {
+                  return []
+                }
+
+                return suggestions.map(suggestion => ({
+                  value: suggestion.placeId,
+                  name: suggestion.mainText,
+                  description: suggestion.secondaryText,
+                  icon: MapPinIcon,
+                }))
+              } catch (error) {
+                console.error('Error loading place suggestions:', error)
+                return []
+              }
             },
           },
         ],
@@ -218,7 +267,6 @@ export const useCommandStore = defineStore('command', () => {
             id: 'color',
             name: t('palette.commands.updateThemeColor.arguments.color.name'),
             type: 'string',
-            customItemComponent: markRaw(ColorCommandArgumentOption),
             getItems() {
               // TODO: This get called for each item, should be called once
               return allColors.map(color => ({

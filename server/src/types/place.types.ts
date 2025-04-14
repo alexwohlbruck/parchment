@@ -45,6 +45,13 @@ export interface GooglePlaceDetails {
     overview?: string
     text?: string
   }
+  // Location/geometry data
+  geometry?: {
+    location: {
+      lat: number
+      lng: number
+    }
+  }
   // New fields
   google_maps_uri: string
   price_level: string

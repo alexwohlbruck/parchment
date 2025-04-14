@@ -26,7 +26,9 @@ export type CommandArgument = {
   id: string
   name: string
   type: 'string' | 'number'
-  getItems: (query?: string) => CommandArgumentOption[]
+  getItems: (
+    query?: string,
+  ) => CommandArgumentOption[] | Promise<CommandArgumentOption[]>
   customItemComponent?: Component
 }
 

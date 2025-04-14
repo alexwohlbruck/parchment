@@ -23,11 +23,16 @@ const watchedComponents: ObstructingComponent[] = []
  * Now uses reactive element tracking to update automatically when components move.
  *
  * @param elementRef Optional ref to an element to track instead of the current component
+ * @param key Optional unique key to identify this component for later reference
  */
-export function useObstructingComponent(elementRef?: Ref<HTMLElement | null>) {
+export function useObstructingComponent(
+  elementRef?: Ref<HTMLElement | null>,
+  key?: string,
+) {
   const appStore = useAppStore()
   const instance = getCurrentInstance()
   let componentElement: Ref<HTMLElement | null> = elementRef || ref(null)
+  let trackingId: string | undefined
 
   onMounted(() => {
     if (instance?.proxy) {
@@ -36,7 +41,12 @@ export function useObstructingComponent(elementRef?: Ref<HTMLElement | null>) {
         componentElement.value = instance.proxy.$el
       }
 
-      appStore.trackObstructingComponents(instance.proxy)
+      if (key) {
+        appStore.trackObstructingComponentWithKey(key, instance.proxy)
+        trackingId = key
+      } else {
+        trackingId = appStore.trackObstructingComponents(instance.proxy)
+      }
 
       if (componentElement.value) {
         const bounds = useElementBounding(componentElement)

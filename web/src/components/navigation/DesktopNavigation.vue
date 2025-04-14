@@ -23,7 +23,7 @@ import {
   PanelLeftIcon,
 } from 'lucide-vue-next'
 
-useObstructingComponent()
+useObstructingComponent(undefined, 'desktopNav')
 const router = useRouter()
 const { t } = useI18n()
 const authStore = useAuthStore()

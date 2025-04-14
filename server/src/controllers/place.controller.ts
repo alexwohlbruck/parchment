@@ -3,6 +3,8 @@ import {
   getPlaceDetails,
   searchPlaces,
   getPlaceAutocomplete,
+  getPlaceDetailsByProviderId,
+  getPlaceDetailsByNameAndLocation,
 } from '../services/place.service'
 
 const app = new Elysia({ prefix: '/places' })
@@ -13,6 +15,75 @@ const placeTypeSchema = t.Union([
   t.Literal('relation'),
 ])
 
+// Add universal lookup endpoint
+app.get(
+  '/lookup',
+  async ({ query }) => {
+    const { provider, id, name, lat, lng, radius = 500 } = query
+
+    // Check for at least one valid lookup parameter
+    if (!((provider && id) || (name && lat && lng))) {
+      return error(400, {
+        message: 'Please provide either provider+id, or name+lat+lng',
+      })
+    }
+
+    let place = null
+
+    // Handle provider-specific ID lookup
+    if (provider && id) {
+      // Special handling for OSM
+      if (provider === 'osm') {
+        const [osmType, osmId] = id.includes('/') ? id.split('/') : [null, id]
+
+        if (!osmType || !['node', 'way', 'relation'].includes(osmType)) {
+          return error(400, {
+            message:
+              'Invalid OSM type. Format should be "type/id" where type is node, way, or relation.',
+          })
+        }
+
+        place = await getPlaceDetails(
+          osmType as 'node' | 'way' | 'relation',
+          osmId,
+        )
+      }
+      // Handle other providers through common interface
+      else {
+        place = await getPlaceDetailsByProviderId(provider, id)
+      }
+    }
+    // Handle name+location lookup
+    else if (name && lat && lng) {
+      const coordinates = { lat: parseFloat(lat), lng: parseFloat(lng) }
+      place = await getPlaceDetailsByNameAndLocation(
+        name,
+        coordinates,
+        parseInt(radius as string),
+      )
+    }
+
+    if (!place) {
+      return error(404, {
+        message: 'Place not found with the provided parameters',
+      })
+    }
+
+    return place
+  },
+  {
+    query: t.Object({
+      provider: t.Optional(t.String()),
+      id: t.Optional(t.String()),
+      name: t.Optional(t.String()),
+      lat: t.Optional(t.String()),
+      lng: t.Optional(t.String()),
+      radius: t.Optional(t.String()),
+    }),
+  },
+)
+
+// Existing endpoint for backward compatibility
 app.get(
   '/:type/:id',
   async ({ params: { type, id } }) => {

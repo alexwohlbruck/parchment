@@ -3,6 +3,8 @@ import { computed, markRaw, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Command } from '@/types/command.types'
 import { Locale } from '@/lib/i18n'
+import { AppRoute } from '@/router'
+import { getPlaceRoute } from '@/lib/place-utils'
 import {
   ChevronsRightIcon,
   CogIcon,
@@ -155,12 +157,14 @@ export const useCommandStore = defineStore('command', () => {
         keywords: t('palette.commands.search.keywords'),
         action: (placeId: string) => {
           console.log('Selected place:', placeId)
-          // Extract type and id from placeId format (e.g., "node/123456789")
-          const parts = placeId.split('/')
-          if (parts.length >= 2) {
-            const type = parts[0]
-            const id = parts[1]
-            router.push({ name: 'place', params: { type, id } })
+
+          try {
+            // Use the utility function to get the appropriate route
+            const route = getPlaceRoute(placeId)
+            router.push(route)
+          } catch (error) {
+            console.error('Error navigating to place:', error)
+            // Could add toast notification here if needed
           }
         },
         arguments: [

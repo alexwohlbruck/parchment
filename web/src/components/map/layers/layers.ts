@@ -16,6 +16,7 @@ import colors from 'tailwindcss/colors'
 
 const mapboxAccessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 const mapillaryAccessToken = import.meta.env.VITE_MAPILLARY_ACCESS_TOKEN
+const serverOrigin = import.meta.env.VITE_SERVER_ORIGIN
 
 const mapillaryOverview: Layer = {
   name: 'Mapillary Overview',
@@ -206,9 +207,7 @@ const loomLightRail: Layer = {
     source: {
       id: 'loom-light-rail',
       type: SourceType.VECTOR,
-      tiles: [
-        'https://loom.cs.uni-freiburg.de/tiles/subway-lightrail/geo/{z}/{x}/{y}.mvt',
-      ],
+      tiles: [`${serverOrigin}/proxy/loom/subway-lightrail/geo/{z}/{x}/{y}`],
       maxzoom: 17,
     },
     'source-layer': 'lines',
@@ -240,7 +239,7 @@ const loomTram: Layer = {
     source: {
       id: 'loom-tram',
       type: SourceType.VECTOR,
-      tiles: ['https://loom.cs.uni-freiburg.de/tiles/tram/geo/{z}/{x}/{y}.mvt'],
+      tiles: [`${serverOrigin}/proxy/loom/tram/geo/{z}/{x}/{y}`],
       maxzoom: 17,
     },
     'source-layer': 'lines',
@@ -272,9 +271,7 @@ const loomRailCommuter: Layer = {
     source: {
       id: 'loom-rail-commuter',
       type: SourceType.VECTOR,
-      tiles: [
-        'https://loom.cs.uni-freiburg.de/tiles/rail-commuter/geo/{z}/{x}/{y}.mvt',
-      ],
+      tiles: [`${serverOrigin}/proxy/loom/rail-commuter/geo/{z}/{x}/{y}`],
       maxzoom: 17,
     },
     'source-layer': 'lines',
@@ -306,7 +303,7 @@ const loomRail: Layer = {
     source: {
       id: 'loom-rail',
       type: SourceType.VECTOR,
-      tiles: ['https://loom.cs.uni-freiburg.de/tiles/rail/geo/{z}/{x}/{y}.mvt'],
+      tiles: [`${serverOrigin}/proxy/loom/rail/geo/{z}/{x}/{y}`],
       maxzoom: 17,
     },
     'source-layer': 'lines',

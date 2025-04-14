@@ -3,11 +3,12 @@ import { createSharedComposable } from '@vueuse/core'
 import { api } from '@/lib/api'
 
 export interface AutocompletePrediction {
-  placeId: string
-  description: string
-  mainText: string
-  secondaryText: string
-  types: string[]
+  placeId: string // Will be formatted as "provider/id" for provider-specific places
+  description: string // Full description of the place
+  mainText: string // Primary text (place name)
+  secondaryText: string // Secondary text (usually address)
+  types: string[] // Place types
+  provider?: string // Added to keep track of the data provider
 }
 
 interface AutocompleteResponse {
@@ -49,8 +50,27 @@ function placeSearchService() {
         '/places/autocomplete',
         { params },
       )
-      suggestions.value = response.data.suggestions
-      return response.data.suggestions
+
+      // Process the suggestions to ensure they have the correct format
+      const processedSuggestions = response.data.suggestions.map(suggestion => {
+        // If placeId doesn't already include a provider prefix,
+        // it's likely a Google place ID and should be prefixed with "google/"
+        if (!suggestion.placeId.includes('/')) {
+          suggestion.placeId = `google/${suggestion.placeId}`
+          suggestion.provider = 'google'
+        } else {
+          // Extract provider from placeId if it exists (e.g., "osm/node/123456")
+          const parts = suggestion.placeId.split('/')
+          if (parts.length > 1) {
+            suggestion.provider = parts[0]
+          }
+        }
+
+        return suggestion
+      })
+
+      suggestions.value = processedSuggestions
+      return processedSuggestions
     } catch (err) {
       console.error('Error fetching place autocomplete:', err)
       error.value =
@@ -61,11 +81,21 @@ function placeSearchService() {
     }
   }
 
+  // Add a function to create a location-based placeId
+  function createLocationPlaceId(
+    name: string,
+    lat: number,
+    lng: number,
+  ): string {
+    return `location/${encodeURIComponent(name)}/${lat}/${lng}`
+  }
+
   return {
     loading,
     suggestions,
     error,
     getAutocomplete,
+    createLocationPlaceId,
   }
 }
 

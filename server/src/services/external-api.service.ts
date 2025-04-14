@@ -99,22 +99,30 @@ export async function searchGooglePlace(
   try {
     const searchRadius = calculateSearchRadius(osmPlace)
     console.log(`Searching for "${name}" with radius ${searchRadius}m`)
+    console.log(
+      `API key configured: ${process.env.GOOGLE_MAPS_API_KEY ? 'Yes' : 'No'}`,
+    )
 
-    // Search for the place with calculated radius
-    const searchResponse = await axios.post(
-      `${GOOGLE_PLACES_API_URL}:searchText`,
-      {
-        textQuery: name,
-        locationBias: {
-          circle: {
-            center: {
-              latitude: lat,
-              longitude: lon,
-            },
-            radius: searchRadius,
+    const requestPayload = {
+      textQuery: name,
+      locationBias: {
+        circle: {
+          center: {
+            latitude: lat,
+            longitude: lon,
           },
+          radius: searchRadius,
         },
       },
+    }
+
+    console.log('Request payload:', JSON.stringify(requestPayload, null, 2))
+    console.log('Request URL:', `${GOOGLE_PLACES_API_URL}:searchText`)
+
+    // Search for the place with calculated radius
+    const response = await axios.post(
+      `${GOOGLE_PLACES_API_URL}:searchText`,
+      requestPayload,
       {
         headers: {
           'Content-Type': 'application/json',
@@ -125,17 +133,30 @@ export async function searchGooglePlace(
       },
     )
 
-    if (!searchResponse.data.places?.length) {
+    console.log('Response status:', response.status)
+    console.log('Response data structure:', Object.keys(response.data))
+
+    if (!response.data.places?.length) {
+      console.log('No places found in the response')
       return null
     }
 
+    // Log the first result for debugging
+    if (response.data.places.length > 0) {
+      console.log(
+        'First place in response:',
+        JSON.stringify(response.data.places[0], null, 2),
+      )
+    }
+
     // Get the first result's coordinates
-    const place = searchResponse.data.places[0] as GooglePlaceApiResponse
+    const place = response.data.places[0] as GooglePlaceApiResponse
     const resultLat = place.location?.latitude
     const resultLng = place.location?.longitude
 
     // If location is missing, don't use this result
     if (!resultLat || !resultLng) {
+      console.log('Location missing in the result, skipping')
       return null
     }
 
@@ -144,14 +165,40 @@ export async function searchGooglePlace(
     const to = turf.point([resultLng, resultLat])
     const distance = turf.distance(from, to, { units: 'meters' })
 
+    console.log(
+      `Distance between query location and result: ${distance.toFixed(
+        2,
+      )}m (radius: ${searchRadius}m)`,
+    )
+
     // Only return the result if it's within the calculated search radius
     if (distance <= searchRadius) {
+      console.log('Result is within search radius, using it')
       return transformGooglePlace(place)
     }
 
+    console.log('Result is outside search radius, skipping')
     return null
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching Google Places data:', error)
+    if (axios.isAxiosError(error) && error.response) {
+      console.error('Response status:', error.response.status)
+      console.error(
+        'Response data:',
+        JSON.stringify(error.response.data, null, 2),
+      )
+      console.error(
+        'Response headers:',
+        JSON.stringify(error.response.headers, null, 2),
+      )
+    } else if (axios.isAxiosError(error) && error.request) {
+      console.error(
+        'No response received, request was:',
+        JSON.stringify(error.request, null, 2),
+      )
+    } else {
+      console.error('Error setting up request:', error.message)
+    }
     return null
   }
 }
@@ -165,23 +212,31 @@ export async function searchGooglePlaces(
 ): Promise<GooglePlaceDetails[]> {
   try {
     console.log(`Searching Google Places for "${query}" with radius ${radius}m`)
+    console.log(
+      `API key configured: ${process.env.GOOGLE_MAPS_API_KEY ? 'Yes' : 'No'}`,
+    )
+
+    const requestPayload = {
+      textQuery: query,
+      locationBias: {
+        circle: {
+          center: {
+            latitude: lat,
+            longitude: lng,
+          },
+          radius: radius,
+        },
+      },
+      maxResultCount: 20,
+    }
+
+    console.log('Request payload:', JSON.stringify(requestPayload, null, 2))
+    console.log('Request URL:', `${GOOGLE_PLACES_API_URL}:searchText`)
 
     // Search for places matching the query
-    const searchResponse = await axios.post(
+    const response = await axios.post(
       `${GOOGLE_PLACES_API_URL}:searchText`,
-      {
-        textQuery: query,
-        locationBias: {
-          circle: {
-            center: {
-              latitude: lat,
-              longitude: lng,
-            },
-            radius: radius,
-          },
-        },
-        maxResultCount: 20,
-      },
+      requestPayload,
       {
         headers: {
           'Content-Type': 'application/json',
@@ -192,21 +247,53 @@ export async function searchGooglePlaces(
       },
     )
 
-    if (!searchResponse.data.places?.length) {
+    console.log('Response status:', response.status)
+    console.log('Response data structure:', Object.keys(response.data))
+    console.log('Places returned:', response.data.places?.length || 0)
+
+    if (!response.data.places?.length) {
+      console.log('No places found in the response')
       return []
     }
 
+    // Log the first result for debugging
+    if (response.data.places.length > 0) {
+      console.log(
+        'First result:',
+        JSON.stringify(response.data.places[0], null, 2),
+      )
+    }
+
     // Transform all results
-    return searchResponse.data.places.map((place: GooglePlaceApiResponse) =>
+    return response.data.places.map((place: GooglePlaceApiResponse) =>
       transformGooglePlace(place),
     )
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error searching Google Places:', error)
+    if (axios.isAxiosError(error) && error.response) {
+      console.error('Response status:', error.response.status)
+      console.error(
+        'Response data:',
+        JSON.stringify(error.response.data, null, 2),
+      )
+      console.error(
+        'Response headers:',
+        JSON.stringify(error.response.headers, null, 2),
+      )
+    } else if (axios.isAxiosError(error) && error.request) {
+      console.error(
+        'No response received, request was:',
+        JSON.stringify(error.request, null, 2),
+      )
+    } else {
+      console.error('Error setting up request:', error.message)
+    }
     return []
   }
 }
 
-function transformGooglePlace(
+// Export the transformGooglePlace function so it can be used elsewhere
+export function transformGooglePlace(
   place: GooglePlaceApiResponse,
 ): GooglePlaceDetails {
   // Log raw photo data
@@ -305,6 +392,13 @@ export async function getGooglePlacesAutocomplete(
     console.log(
       `API key configured: ${process.env.GOOGLE_MAPS_API_KEY ? 'Yes' : 'No'}`,
     )
+    console.log(
+      `API key value: ${
+        process.env.GOOGLE_MAPS_API_KEY
+          ? process.env.GOOGLE_MAPS_API_KEY.substring(0, 8) + '...'
+          : 'missing'
+      }`,
+    )
 
     // Build the autocomplete request
     const request: any = {
@@ -331,6 +425,22 @@ export async function getGooglePlacesAutocomplete(
 
     // Log the full request for debugging
     console.log('Request payload:', JSON.stringify(request, null, 2))
+    console.log('Request URL:', `${GOOGLE_PLACES_API_URL}:searchText`)
+    console.log(
+      'Request headers:',
+      JSON.stringify(
+        {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': process.env.GOOGLE_MAPS_API_KEY
+            ? '[REDACTED]'
+            : 'missing',
+          'X-Goog-FieldMask':
+            'places.id,places.displayName,places.formattedAddress,places.types,places.location',
+        },
+        null,
+        2,
+      ),
+    )
 
     const response = await axios.post(
       `${GOOGLE_PLACES_API_URL}:searchText`,
@@ -349,6 +459,7 @@ export async function getGooglePlacesAutocomplete(
     console.log('Response status:', response.status)
     console.log('Response data structure:', Object.keys(response.data))
     console.log('Places returned:', response.data.places?.length || 0)
+    console.log('Full response data:', JSON.stringify(response.data, null, 2))
 
     if (!response.data.places || response.data.places.length === 0) {
       console.log('No places found in the response')
@@ -377,14 +488,28 @@ export async function getGooglePlacesAutocomplete(
 
     console.log(`Returning ${predictions.length} autocomplete suggestions`)
     return predictions
-  } catch (error) {
+  } catch (error: any) {
     console.error(
       'Error getting Google Places autocomplete suggestions:',
       error,
     )
     if (axios.isAxiosError(error) && error.response) {
       console.error('Response status:', error.response.status)
-      console.error('Response data:', error.response.data)
+      console.error(
+        'Response data:',
+        JSON.stringify(error.response.data, null, 2),
+      )
+      console.error(
+        'Response headers:',
+        JSON.stringify(error.response.headers, null, 2),
+      )
+    } else if (axios.isAxiosError(error) && error.request) {
+      console.error(
+        'No response received, request was:',
+        JSON.stringify(error.request, null, 2),
+      )
+    } else {
+      console.error('Error setting up request:', error.message)
     }
     return []
   }

@@ -27,6 +27,11 @@ const { isMobileScreen } = useResponsive()
 
 const { dialogs } = appStore
 const visibleMapArea = computed(() => appStore.visibleMapArea)
+const componentDimensions = computed(() => appStore.componentDimensions)
+const navWidth = computed(() => {
+  const navDimensions = componentDimensions.value.get('desktopNav')
+  return navDimensions?.width || 0
+})
 const navMini = ref(true)
 
 // Debug "visibleMapArea" reactangle
@@ -92,7 +97,9 @@ onMounted(() => {
     v-if="!isMobileScreen && isFloatingLayout"
     class="fixed m-2 left-[3.25rem] z-50 w-[25rem]"
     :style="{
-      transform: navMini ? 'translateX(0)' : 'translateX(10rem)',
+      transform: navMini
+        ? 'translateX(0)'
+        : `translateX(calc(${navWidth}px - 3.25rem))`,
       transition: 'transform 100ms',
     }"
   >

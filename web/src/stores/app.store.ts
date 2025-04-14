@@ -9,19 +9,33 @@ import PromptDialog from '@/components/dialogs/PromptDialog.vue'
 import AutoformDialog from '@/components/dialogs/AutoformDialog.vue'
 
 export const useAppStore = defineStore('app', () => {
-  const obstructingComponents = ref<Component[]>([])
+  const obstructingComponentsMap = ref<Map<string, Component>>(new Map())
   const { width: windowWidth, height: windowHeight } = useWindowSize()
   const forceRefresh = ref(0)
+  let nextId = 0
 
   // To use these, call the composable `useObstructingComponent`
-  function trackObstructingComponents(component: Component) {
-    obstructingComponents.value.push(component)
+  function trackObstructingComponent(component: Component) {
+    const id = `auto_${nextId++}`
+    obstructingComponentsMap.value.set(id, component)
+    return id
+  }
+
+  function trackObstructingComponentWithKey(key: string, component: Component) {
+    obstructingComponentsMap.value.set(key, component)
+  }
+
+  function getObstructingComponent(key: string) {
+    return obstructingComponentsMap.value.get(key)
   }
 
   function untrackObstructingComponent(component: Component) {
-    obstructingComponents.value = obstructingComponents.value.filter(
-      c => c !== component,
-    )
+    // Find and remove component from map
+    for (const [key, comp] of obstructingComponentsMap.value.entries()) {
+      if (comp === component) {
+        obstructingComponentsMap.value.delete(key)
+      }
+    }
   }
 
   function refreshObstructingComponents() {
@@ -30,6 +44,34 @@ export const useAppStore = defineStore('app', () => {
 
   watch([windowWidth, windowHeight], () => {
     refreshObstructingComponents()
+  })
+
+  const componentDimensions = computed(() => {
+    const _ = forceRefresh.value
+    const dimensions = new Map<
+      string,
+      { width: number; height: number; x: number; y: number }
+    >()
+
+    for (const [key, component] of obstructingComponentsMap.value.entries()) {
+      try {
+        const el = (component as unknown as { $el?: HTMLElement }).$el
+
+        if (!el) continue
+
+        const rect = el.getBoundingClientRect()
+        dimensions.set(key, {
+          width: rect.width,
+          height: rect.height,
+          x: rect.left,
+          y: rect.top,
+        })
+      } catch (error) {
+        console.error('Failed to get dimensions for component', key, error)
+      }
+    }
+
+    return dimensions
   })
 
   const visibleMapArea = computed(() => {
@@ -45,11 +87,11 @@ export const useAppStore = defineStore('app', () => {
       height: viewportHeight,
     }
 
-    if (obstructingComponents.value.length === 0) {
+    if (obstructingComponentsMap.value.size === 0) {
       return availableArea
     }
 
-    const obstacles = obstructingComponents.value
+    const obstacles = Array.from(obstructingComponentsMap.value.values())
       .map(component => {
         try {
           const el = (component as unknown as { $el?: HTMLElement }).$el
@@ -184,10 +226,13 @@ export const useAppStore = defineStore('app', () => {
     dialogs,
     createDialog,
     removeDialog,
-    obstructingComponents,
-    trackObstructingComponents,
+    obstructingComponentsMap,
+    trackObstructingComponents: trackObstructingComponent,
+    trackObstructingComponentWithKey,
+    getObstructingComponent,
     untrackObstructingComponent,
     visibleMapArea,
     refreshObstructingComponents,
+    componentDimensions,
   }
 })

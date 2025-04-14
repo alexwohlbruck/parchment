@@ -1,7 +1,7 @@
 import { defineStore, storeToRefs } from 'pinia'
 import { computed, markRaw, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Command } from '@/types/command.types'
+import { Command, CommandArgumentOption } from '@/types/command.types'
 import { Locale } from '@/lib/i18n'
 import { AppRoute } from '@/router'
 import { getPlaceRoute } from '@/lib/place-utils'
@@ -121,11 +121,14 @@ export const useCommandStore = defineStore('command', () => {
   function getCommandArgumentOptions(
     commandId: CommandName,
     argumentId: string,
-  ) {
+  ): CommandArgumentOption[] | undefined {
     const command = getCommand(commandId)
     if (!command) return
 
-    return command.arguments?.find(arg => arg.id === argumentId)?.getItems()
+    const items = command.arguments
+      ?.find(arg => arg.id === argumentId)
+      ?.getItems()
+    return items as CommandArgumentOption[]
   }
 
   function bindCommandToFunction(id: CommandName, action: Function) {

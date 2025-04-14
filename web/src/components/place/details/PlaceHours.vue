@@ -21,8 +21,23 @@ const DAYS = [
   'Saturday',
 ]
 
+const hasHoursData = computed(() => {
+  const hours = props.hours
+  return (
+    hours.regularHours.length > 0 ||
+    hours.isOpen24_7 ||
+    hours.isPermanentlyClosed ||
+    hours.isTemporarilyClosed ||
+    hours.rawText
+  )
+})
+
 const openingStatus = computed(() => {
   const hours = props.hours
+
+  if (!hasHoursData.value) {
+    return { status: '', color: '' }
+  }
 
   if (hours.isPermanentlyClosed) {
     return { status: 'Permanently closed', color: 'text-red-500' }
@@ -34,6 +49,10 @@ const openingStatus = computed(() => {
 
   if (hours.isOpen24_7) {
     return { status: 'Open 24/7', color: 'text-green-500' }
+  }
+
+  if (hours.regularHours.length === 0) {
+    return { status: '', color: '' }
   }
 
   const now = new Date()
@@ -103,14 +122,16 @@ function formatOpeningHours(hours: OpeningHours) {
 
 <template>
   <DetailItem
+    v-if="hasHoursData"
     :icon="ClockIcon"
     :osmUrl="osmUrl"
     :copyValue="formatOpeningHours(hours)"
   >
     <div class="flex flex-col">
-      <div class="flex items-center gap-2">
+      <div v-if="openingStatus.status" class="flex items-center gap-2">
         <span :class="openingStatus.color">{{ openingStatus.status }}</span>
         <button
+          v-if="hours.regularHours.length > 0"
           class="text-sm text-muted-foreground hover:text-foreground text-left"
           @click="showHours = !showHours"
         >

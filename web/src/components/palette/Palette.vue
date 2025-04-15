@@ -235,7 +235,10 @@ const icon = computed(() => {
     : SearchIcon
 })
 
-function filterFunction(val: PaletteItem[], term: string): PaletteItem[] {
+function fuzzyFilter<PaletteItem>(
+  val: PaletteItem[],
+  term: string,
+): PaletteItem[] {
   if (!term) return val
 
   return fuzzysort
@@ -244,6 +247,23 @@ function filterFunction(val: PaletteItem[], term: string): PaletteItem[] {
     })
     .map(result => result.obj)
 }
+
+function emptyFilter<PaletteItem>(
+  val: PaletteItem[],
+  _term: string,
+): PaletteItem[] {
+  return val
+}
+
+const filterFunction = computed(() => {
+  switch (activeCommand.value?.id) {
+    case CommandName.SEARCH:
+      // Don't filter for autocomplete search, backend will handle this
+      return emptyFilter as any
+    default:
+      return fuzzyFilter as any
+  }
+})
 </script>
 
 <template>
@@ -253,7 +273,7 @@ function filterFunction(val: PaletteItem[], term: string): PaletteItem[] {
       ref="commandPalette"
       v-model:searchTerm="query"
       :open="commandOpen"
-      :filter-function="filterFunction as any"
+      :filter-function="filterFunction"
     >
       <CommandInput
         ref="input"

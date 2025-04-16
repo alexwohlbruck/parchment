@@ -13,6 +13,7 @@ import LayerControl from '@/components/map/controls/LayerControl.vue'
 import StreetViewControl from '@/components/map/controls/StreetViewControl.vue'
 import CameraControl from '@/components/map/controls/CameraControl.vue'
 import LocateControl from '@/components/map/controls/LocateControl.vue'
+import ScaleControl from '@/components/map/controls/ScaleControl.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
 import LeftSheet from '@/components/LeftSheet.vue'
 import StreetViewPip from '@/components/map/StreetViewPip.vue'
@@ -110,7 +111,9 @@ defineExpose({
 
       <!-- Left bottom -->
       <transition-slide no-opacity :offset="[0, '130%']">
-        <div v-if="navTransitionComplete" class="pointer-events-auto"></div>
+        <div v-if="navTransitionComplete" class="pointer-events-auto mt-auto">
+          <ScaleControl class="mb-2" />
+        </div>
       </transition-slide>
     </div>
 

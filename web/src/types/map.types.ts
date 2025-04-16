@@ -73,6 +73,7 @@ export type MapEvents = {
   }
   load: MapInstance
   moveend: MapCamera
+  move: MapCamera
   'style.load': MapInstance
   contextmenu: {
     lngLat: LngLat

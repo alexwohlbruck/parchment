@@ -22,7 +22,11 @@ export const buttonVariants = cva(
         sm: 'h-9 rounded-md px-3',
         lg: 'h-11 rounded-md px-8',
         xl: 'h-20 rounded-md px-10',
-        icon: 'h-10 w-10',
+        icon: 'size-10',
+        'icon-xs': 'size-6',
+        'icon-sm': 'size-8',
+        'icon-lg': 'size-12',
+        'icon-xl': 'size-16',
       },
     },
     defaultVariants: {

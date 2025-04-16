@@ -57,6 +57,10 @@ export class MapStrategy {
   ) {}
   destroy() {}
 
+  zoomIn() {}
+  zoomOut() {}
+  resetNorth() {}
+
   addMarker(id: string, lngLat: LngLat) {
     this.removeMarker(id) // Remove existing marker if any
   }

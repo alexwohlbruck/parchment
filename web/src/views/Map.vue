@@ -112,7 +112,7 @@ defineExpose({
       <!-- Left bottom -->
       <transition-slide no-opacity :offset="[0, '130%']">
         <div v-if="navTransitionComplete" class="pointer-events-auto mt-auto">
-          <ScaleControl class="mb-2" />
+          <ScaleControl />
         </div>
       </transition-slide>
     </div>
@@ -121,7 +121,7 @@ defineExpose({
     <transition-slide no-opacity :offset="['130%', 0]">
       <div
         v-if="navTransitionComplete"
-        class="flex flex-col justify-between pointer-events-auto"
+        class="flex flex-col items-end justify-between pointer-events-auto"
       >
         <!-- Right top -->
         <div class="pointer-events-auto flex flex-col gap-2">

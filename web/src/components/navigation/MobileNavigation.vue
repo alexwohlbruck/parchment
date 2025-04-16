@@ -14,7 +14,7 @@ import {
   SettingsIcon,
 } from 'lucide-vue-next'
 
-useObstructingComponent()
+useObstructingComponent(undefined, 'mobileNav')
 const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()

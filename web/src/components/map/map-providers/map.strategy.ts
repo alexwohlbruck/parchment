@@ -56,6 +56,31 @@ export class MapStrategy {
     state?: boolean,
   ) {}
   destroy() {}
+  locate() {
+    if (!navigator.geolocation) {
+      console.error('Geolocation is not supported by your browser')
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        this.flyTo({
+          center: [position.coords.longitude, position.coords.latitude],
+          zoom: 16,
+        })
+      },
+      error => {
+        console.error('Error getting location:', error)
+      },
+      {
+        enableHighAccuracy: true,
+      },
+    )
+  }
+
+  zoomIn() {}
+  zoomOut() {}
+  resetNorth() {}
 
   addMarker(id: string, lngLat: LngLat) {
     this.removeMarker(id) // Remove existing marker if any

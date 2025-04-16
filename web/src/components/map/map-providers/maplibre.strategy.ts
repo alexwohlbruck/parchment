@@ -50,6 +50,7 @@ const basemapUrls = {
 
 export class MaplibreStrategy extends MapStrategy {
   mapInstance: Map
+  geolocateControl: GeolocateControl
 
   constructor(container, options: MapOptions) {
     super(container, options)
@@ -65,14 +66,30 @@ export class MaplibreStrategy extends MapStrategy {
       zoom,
       attributionControl: false,
     })
+
+    // Add geolocate control but hide it off-screen
+    this.geolocateControl = new GeolocateControl({
+      positionOptions: {
+        enableHighAccuracy: true,
+      },
+      trackUserLocation: true,
+      showUserLocation: true,
+      showAccuracyCircle: true,
+    })
+    // Add to top-left but move it off-screen
+    this.mapInstance.addControl(this.geolocateControl, 'top-left')
+    const geolocateButton = container.querySelector(
+      '.maplibregl-ctrl-geolocate',
+    )
+    if (geolocateButton?.parentElement) {
+      geolocateButton.parentElement.style.margin = '-100px 0 0 -100px'
+    }
+
     this.addControls()
     this.configureEventListeners()
   }
 
   addControls() {
-    this.mapInstance.addControl(new ScaleControl({}), 'top-left')
-    this.mapInstance.addControl(new NavigationControl({}), 'top-right')
-    this.mapInstance.addControl(new GeolocateControl({}), 'top-right')
     this.mapInstance.addControl(
       new AttributionControl({
         compact: true,
@@ -88,6 +105,14 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.on('style.load', () => {
       mapEventBus.emit('style.load', this.mapInstance)
       this.setMapTheme(this.options.theme)
+    })
+    this.mapInstance.on('move', () => {
+      mapEventBus.emit('move', {
+        center: this.mapInstance.getCenter(),
+        zoom: this.mapInstance.getZoom(),
+        bearing: this.mapInstance.getBearing(),
+        pitch: this.mapInstance.getPitch(),
+      })
     })
     this.mapInstance.on('moveend', () => {
       mapEventBus.emit('moveend', {
@@ -422,6 +447,25 @@ export class MaplibreStrategy extends MapStrategy {
       'visibility',
       visible ? 'visible' : 'none',
     )
+  }
+
+  zoomIn() {
+    this.mapInstance.zoomIn()
+  }
+
+  zoomOut() {
+    this.mapInstance.zoomOut()
+  }
+
+  resetNorth() {
+    this.mapInstance.easeTo({
+      bearing: 0,
+      pitch: 0,
+    })
+  }
+
+  locate() {
+    this.geolocateControl.trigger()
   }
 
   destroy() {

@@ -9,6 +9,7 @@ import {
   MarkerIds,
   type MarkerId,
   type LngLat,
+  LayerType,
 } from '@/types/map.types'
 import { useMapStore } from '../stores/map.store'
 import { useAppStore } from '../stores/app.store'
@@ -65,6 +66,10 @@ function mapService() {
 
     mapEventBus.on('style.load', () => {
       mapStore.initializeLayers(enabledLayers.value)
+    })
+
+    mapEventBus.on('move', data => {
+      mapStore.emit('move', data)
     })
 
     mapEventBus.on('moveend', data => {
@@ -307,11 +312,20 @@ function mapService() {
     mapStore.toggleLayerVisibility(layerId, state)
   }
 
+  function toggleStreetViewLayers(visible?: boolean) {
+    mapStore.layers.forEach(layer => {
+      if (layer.type === LayerType.STREET_VIEW) {
+        toggleLayerVisibility(layer.configuration.id, visible)
+      }
+    })
+  }
+
   function destroy() {
     // Remove event listeners
     // TODO: Automatically remove all listeners without explicitly naming them
     mapEventBus.off('load')
     mapEventBus.off('style.load')
+    mapEventBus.off('move')
     mapStrategy.destroy() // Remove map instance
   }
 
@@ -336,11 +350,24 @@ function mapService() {
     mapStore.emit(event, data)
   }
 
+  function zoomIn() {
+    mapStrategy?.zoomIn()
+  }
+
+  function zoomOut() {
+    mapStrategy?.zoomOut()
+  }
+
+  function resetNorth() {
+    mapStrategy?.resetNorth()
+  }
+
   return {
     initializeMap,
     resize,
     toggleLayer,
     toggleLayerVisibility,
+    toggleStreetViewLayers,
     flyTo,
     jumpTo,
     setMapEngine,
@@ -360,6 +387,10 @@ function mapService() {
     addMarker: (id: MarkerId, lngLat: LngLat) =>
       mapStrategy.addMarker(id, lngLat),
     removeAllMarkers: () => mapStrategy.removeAllMarkers(),
+    zoomIn,
+    zoomOut,
+    resetNorth,
+    locate: () => mapStrategy?.locate(),
   }
 }
 

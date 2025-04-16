@@ -4,18 +4,26 @@ import { useRoute, useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { useResponsive } from '@/lib/utils'
 
-import { TransitionExpand, TransitionSlide } from '@morev/vue-transitions'
-import { Button } from '@/components/ui/button'
-import { Maximize2Icon, XIcon } from 'lucide-vue-next'
+import { TransitionSlide } from '@morev/vue-transitions'
+import { useAppStore } from '@/stores/app.store'
+import Palette from '@/components/palette/Palette.vue'
 import Map from '@/components/map/Map.vue'
 import StreetView from '@/components/map/StreetView.vue'
-import LayerControls from '@/components/map/LayerControls.vue'
+import LayerControl from '@/components/map/controls/LayerControl.vue'
+import StreetViewControl from '@/components/map/controls/StreetViewControl.vue'
+import CameraControl from '@/components/map/controls/CameraControl.vue'
+import LocateControl from '@/components/map/controls/LocateControl.vue'
+import ScaleControl from '@/components/map/controls/ScaleControl.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
 import LeftSheet from '@/components/LeftSheet.vue'
+import StreetViewPip from '@/components/map/StreetViewPip.vue'
+import { useMapService } from '@/services/map.service'
 
 const route = useRoute()
 const router = useRouter()
 const { isMobileScreen } = useResponsive()
+const appStore = useAppStore()
+const mapService = useMapService()
 
 const isMapSubview = computed(() => {
   return route.matched.length > 1 && route.name !== AppRoute.MAP
@@ -23,9 +31,13 @@ const isMapSubview = computed(() => {
 const pipSwapped = ref(false)
 const mountTeleports = ref(false)
 const streetView = ref(false)
+const mapUIArea = computed(() => appStore.mapUIArea)
+const isFloatingLayout = computed(() => route.meta?.layout === 'floating')
+const navTransitionComplete = ref(false)
 
-function swapPip() {
-  pipSwapped.value = !pipSwapped.value
+// Method to be called when nav transition completes
+function onNavTransitionComplete() {
+  navTransitionComplete.value = true
 }
 
 function closeSheet() {
@@ -43,6 +55,9 @@ watch(
   name => {
     nextTick(() => {
       streetView.value = name === AppRoute.STREET
+      if (streetView.value) {
+        mapService.toggleStreetViewLayers(true)
+      }
     })
   },
   { immediate: true },
@@ -56,9 +71,75 @@ watch(
     }
   },
 )
+
+defineExpose({
+  onNavTransitionComplete,
+})
 </script>
 
 <template>
+  <!-- Map UI items -->
+  <div
+    v-if="isFloatingLayout"
+    class="fixed z-50 p-2 flex justify-between gap-2 pointer-events-none"
+    :style="{
+      left: `${mapUIArea.x}px`,
+      top: `${mapUIArea.y}px`,
+      width: `${mapUIArea.width}px`,
+      height: `${mapUIArea.height}px`,
+    }"
+  >
+    <!-- Left section -->
+    <div class="flex flex-col items-start gap-2">
+      <!-- Left top -->
+      <transition-slide no-opacity :offset="[0, '-130%']">
+        <div
+          v-if="navTransitionComplete && !isMobileScreen"
+          class="pointer-events-auto"
+        >
+          <Palette class="h-fit w-[25rem]" />
+        </div>
+      </transition-slide>
+
+      <!-- Left middle -->
+      <transition-slide no-opacity :offset="['-130%', 0]">
+        <div
+          v-if="navTransitionComplete"
+          class="pointer-events-auto flex flex-col"
+        ></div>
+      </transition-slide>
+
+      <!-- Left bottom -->
+      <transition-slide no-opacity :offset="[0, '130%']">
+        <div v-if="navTransitionComplete" class="pointer-events-auto mt-auto">
+          <ScaleControl class="mb-2" />
+        </div>
+      </transition-slide>
+    </div>
+
+    <!-- Right section -->
+    <transition-slide no-opacity :offset="['130%', 0]">
+      <div
+        v-if="navTransitionComplete"
+        class="flex flex-col justify-between pointer-events-auto"
+      >
+        <!-- Right top -->
+        <div class="pointer-events-auto flex flex-col gap-2">
+          <CameraControl />
+          <LocateControl />
+        </div>
+
+        <!-- Right bottom -->
+        <div class="pointer-events-auto flex flex-col gap-2">
+          <StreetViewControl />
+          <LayerControl />
+        </div>
+      </div>
+    </transition-slide>
+  </div>
+
+  <!-- Search palette -->
+
   <div class="flex flex-1 h-full relative overflow-hidden">
     <!-- Mobile bottom sheet container -->
     <template v-if="isMobileScreen">
@@ -95,51 +176,12 @@ watch(
     </div>
   </div>
 
-  <div
-    class="w-full absolute right-0 z-12 p-2 flex flex-col gap-2 items-end pointer-events-none"
-    :class="{
-      'bottom-[calc(8.25rem+env(safe-area-inset-bottom))] md:bottom-0':
-        route.meta.layout === 'floating',
-      'bottom-0': route.meta.layout !== 'floating',
-    }"
-  >
-    <LayerControls />
-
-    <TransitionExpand>
-      <div
-        v-if="route.name === AppRoute.STREET"
-        id="pipContent"
-        class="pointer-events-auto shadow-md aspect-video rounded-lg overflow-hidden relative transition-width duration-300"
-        :class="
-          pipSwapped
-            ? 'w-full sm:w-[40vw] md:w-[30vw]'
-            : 'w-full sm:w-[50vw] md:w-[40vw]'
-        "
-      >
-        <template v-if="mountTeleports && streetView">
-          <Button
-            variant="ghost"
-            size="icon"
-            class="absolute top-1 right-1 bg-black/50 hover:bg-black/70 text-white hover:text-white z-10"
-            @click="router.push({ name: AppRoute.MAP })"
-          >
-            <XIcon class="size-5" />
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            class="absolute top-1 left-1 bg-black/50 hover:bg-black/70 text-white hover:text-white z-10"
-            @click="swapPip()"
-          >
-            <Maximize2Icon class="size-5 rotate-90" />
-          </Button>
-
-          <Teleport :to="pipSwapped ? '#mainContent' : '#pipContent'">
-            <StreetView class="w-full h-full" :pip-swapped="pipSwapped" />
-          </Teleport>
-        </template>
-      </div>
-    </TransitionExpand>
-  </div>
+  <!-- Street view pip -->
+  <StreetViewPip :layout="route.meta?.layout" v-model:pip-swapped="pipSwapped">
+    <template v-if="mountTeleports && streetView">
+      <Teleport :to="pipSwapped ? '#mainContent' : '#pipContent'">
+        <StreetView class="w-full h-full" :pip-swapped="pipSwapped" />
+      </Teleport>
+    </template>
+  </StreetViewPip>
 </template>

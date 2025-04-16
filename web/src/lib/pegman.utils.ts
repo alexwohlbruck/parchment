@@ -36,8 +36,6 @@ export function createPegmanLayers(map: any, mapbox: boolean) {
     },
   })
 
-  console.log(mapbox)
-
   // Position dot
   const positionPaint = {
     'circle-radius': 6,

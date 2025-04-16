@@ -42,19 +42,40 @@ function calculateScaleSegments(width: number, unit: string) {
 
   let segments: number[]
 
-  if (fullUnitsFit < 0.85) {
-    // Show just 2 segments
-    segments = [0, baseUnit]
-  } else if (fullUnitsFit < 1.7) {
-    // Show 3 segments
-    segments = [0, baseUnit, baseUnit * 2]
-  } else if (fullUnitsFit < 2.5) {
-    // Show 3 segments with a larger base unit
-    const nextBaseUnit = units[Math.min(baseUnitIndex + 1, units.length - 1)]
-    segments = [0, nextBaseUnit / 2, nextBaseUnit]
+  // Special cases for nice round numbers
+  if (unit === 'km' || unit === 'mi') {
+    if (Math.abs(width - 1) < 0.2) {
+      segments = [0, 1]
+    } else if (Math.abs(width - 2) < 0.3) {
+      segments = [0, 1, 2]
+    } else if (Math.abs(width - 3) < 0.3) {
+      segments = [0, 1, 2, 3]
+    } else if (fullUnitsFit < 0.85) {
+      // Show just 2 segments
+      segments = [0, baseUnit]
+    } else if (fullUnitsFit < 1.7) {
+      // Show 3 segments
+      segments = [0, baseUnit, baseUnit * 2]
+    } else if (fullUnitsFit < 2.5) {
+      // Show 3 segments with a larger base unit
+      const nextBaseUnit = units[Math.min(baseUnitIndex + 1, units.length - 1)]
+      segments = [0, nextBaseUnit / 2, nextBaseUnit]
+    } else {
+      // Show 4 segments
+      segments = [0, baseUnit, baseUnit * 2, baseUnit * 3]
+    }
   } else {
-    // Show 4 segments
-    segments = [0, baseUnit, baseUnit * 2, baseUnit * 3]
+    // For meters and feet, use the regular segmentation
+    if (fullUnitsFit < 0.85) {
+      segments = [0, baseUnit]
+    } else if (fullUnitsFit < 1.7) {
+      segments = [0, baseUnit, baseUnit * 2]
+    } else if (fullUnitsFit < 2.5) {
+      const nextBaseUnit = units[Math.min(baseUnitIndex + 1, units.length - 1)]
+      segments = [0, nextBaseUnit / 2, nextBaseUnit]
+    } else {
+      segments = [0, baseUnit, baseUnit * 2, baseUnit * 3]
+    }
   }
 
   return segments
@@ -69,6 +90,7 @@ const scale = computed(() => {
   console.log(zoom)
 
   // At zoom level 0, one pixel represents about 78271.5170 meters at the equator
+  // TODO: This gets slightly inaccurate at extreme latitudes. Cross ref with mapbox source code
   const metersPerPixel =
     (78271.517 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, zoom)
 
@@ -172,7 +194,7 @@ const isLowZoom = computed(() => {
     <div class="relative">
       <!-- Segments with alternating colors -->
       <div
-        class="flex h-1.5 rounded overflow-hidden cursor-pointer"
+        class="flex h-1.5 rounded overflow-hidden cursor-pointer transition-[background-color,border-color] duration-300"
         :class="[
           isLowZoom
             ? 'ring-1 ring-slate-700'
@@ -185,7 +207,7 @@ const isLowZoom = computed(() => {
           :key="index"
         >
           <div
-            class="h-full"
+            class="h-full transition-colors duration-300"
             :class="[
               isLowZoom
                 ? index % 2 === 0
@@ -210,7 +232,7 @@ const isLowZoom = computed(() => {
         <template v-for="(value, index) in scale.segments" :key="index">
           <div class="flex flex-col items-center">
             <span
-              class="text-xs font-medium"
+              class="text-xs font-medium transition-colors duration-300"
               :class="[
                 isLowZoom
                   ? 'text-slate-200'

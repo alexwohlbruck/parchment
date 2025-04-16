@@ -68,6 +68,10 @@ function mapService() {
       mapStore.initializeLayers(enabledLayers.value)
     })
 
+    mapEventBus.on('move', data => {
+      mapStore.emit('move', data)
+    })
+
     mapEventBus.on('moveend', data => {
       mapStore.setMapCamera(data)
     })
@@ -321,6 +325,7 @@ function mapService() {
     // TODO: Automatically remove all listeners without explicitly naming them
     mapEventBus.off('load')
     mapEventBus.off('style.load')
+    mapEventBus.off('move')
     mapStrategy.destroy() // Remove map instance
   }
 
@@ -343,6 +348,18 @@ function mapService() {
 
   function emit<K extends keyof MapEvents>(event: K, data: MapEvents[K]) {
     mapStore.emit(event, data)
+  }
+
+  function zoomIn() {
+    mapStrategy?.zoomIn()
+  }
+
+  function zoomOut() {
+    mapStrategy?.zoomOut()
+  }
+
+  function resetNorth() {
+    mapStrategy?.resetNorth()
   }
 
   return {
@@ -370,6 +387,9 @@ function mapService() {
     addMarker: (id: MarkerId, lngLat: LngLat) =>
       mapStrategy.addMarker(id, lngLat),
     removeAllMarkers: () => mapStrategy.removeAllMarkers(),
+    zoomIn,
+    zoomOut,
+    resetNorth,
   }
 }
 

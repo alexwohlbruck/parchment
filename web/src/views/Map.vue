@@ -9,7 +9,10 @@ import { useAppStore } from '@/stores/app.store'
 import Palette from '@/components/palette/Palette.vue'
 import Map from '@/components/map/Map.vue'
 import StreetView from '@/components/map/StreetView.vue'
-import LayerControls from '@/components/map/LayerControls.vue'
+import LayerControl from '@/components/map/controls/LayerControl.vue'
+import StreetViewControl from '@/components/map/controls/StreetViewControl.vue'
+import CameraControl from '@/components/map/controls/CameraControl.vue'
+import LocateControl from '@/components/map/controls/LocateControl.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
 import LeftSheet from '@/components/LeftSheet.vue'
 import StreetViewPip from '@/components/map/StreetViewPip.vue'
@@ -118,11 +121,15 @@ defineExpose({
         class="flex flex-col justify-between pointer-events-auto"
       >
         <!-- Right top -->
-        <div class="pointer-events-auto"></div>
+        <div class="pointer-events-auto flex flex-col gap-2">
+          <CameraControl />
+          <LocateControl />
+        </div>
 
         <!-- Right bottom -->
-        <div class="pointer-events-auto">
-          <LayerControls />
+        <div class="pointer-events-auto flex flex-col gap-2">
+          <StreetViewControl />
+          <LayerControl />
         </div>
       </div>
     </transition-slide>

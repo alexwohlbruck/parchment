@@ -89,6 +89,14 @@ export class MaplibreStrategy extends MapStrategy {
       mapEventBus.emit('style.load', this.mapInstance)
       this.setMapTheme(this.options.theme)
     })
+    this.mapInstance.on('move', () => {
+      mapEventBus.emit('move', {
+        center: this.mapInstance.getCenter(),
+        zoom: this.mapInstance.getZoom(),
+        bearing: this.mapInstance.getBearing(),
+        pitch: this.mapInstance.getPitch(),
+      })
+    })
     this.mapInstance.on('moveend', () => {
       mapEventBus.emit('moveend', {
         center: this.mapInstance.getCenter(),
@@ -422,6 +430,21 @@ export class MaplibreStrategy extends MapStrategy {
       'visibility',
       visible ? 'visible' : 'none',
     )
+  }
+
+  zoomIn() {
+    this.mapInstance.zoomIn()
+  }
+
+  zoomOut() {
+    this.mapInstance.zoomOut()
+  }
+
+  resetNorth() {
+    this.mapInstance.easeTo({
+      bearing: 0,
+      pitch: 0,
+    })
   }
 
   destroy() {

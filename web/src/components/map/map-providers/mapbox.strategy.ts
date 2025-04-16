@@ -100,8 +100,8 @@ export class MapboxStrategy extends MapStrategy {
 
   addControls() {
     this.mapInstance.addControl(new ScaleControl(), 'top-left')
-    this.mapInstance.addControl(new NavigationControl(), 'top-right')
-    this.mapInstance.addControl(new GeolocateControl(), 'top-right')
+    // this.mapInstance.addControl(new NavigationControl(), 'top-right')
+    // this.mapInstance.addControl(new GeolocateControl(), 'top-right')
     this.mapInstance.addControl(
       new AttributionControl({
         compact: true,
@@ -117,6 +117,14 @@ export class MapboxStrategy extends MapStrategy {
     this.mapInstance.on('style.load', () => {
       mapEventBus.emit('style.load', this.mapInstance)
       this.setMapTheme(this.options.theme)
+    })
+    this.mapInstance.on('move', () => {
+      mapEventBus.emit('move', {
+        center: this.mapInstance.getCenter(),
+        zoom: this.mapInstance.getZoom(),
+        bearing: this.mapInstance.getBearing(),
+        pitch: this.mapInstance.getPitch(),
+      })
     })
     this.mapInstance.on('moveend', () => {
       mapEventBus.emit('moveend', {
@@ -462,6 +470,21 @@ export class MapboxStrategy extends MapStrategy {
       'visibility',
       visible ? 'visible' : 'none',
     )
+  }
+
+  zoomIn() {
+    this.mapInstance.zoomIn()
+  }
+
+  zoomOut() {
+    this.mapInstance.zoomOut()
+  }
+
+  resetNorth() {
+    this.mapInstance.easeTo({
+      bearing: 0,
+      pitch: 0,
+    })
   }
 
   destroy() {

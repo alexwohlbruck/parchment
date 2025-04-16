@@ -90,8 +90,6 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   addControls() {
-    this.mapInstance.addControl(new ScaleControl({}), 'top-left')
-    this.mapInstance.addControl(new NavigationControl({}), 'top-right')
     this.mapInstance.addControl(
       new AttributionControl({
         compact: true,

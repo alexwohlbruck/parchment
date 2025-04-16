@@ -2,33 +2,14 @@
 import { Button } from '@/components/ui/button'
 import { Plus, Minus } from 'lucide-vue-next'
 import { useMapService } from '@/services/map.service'
-import { useMapStore } from '@/stores/map.store'
-import { computed, ref, onMounted, onUnmounted } from 'vue'
-import { storeToRefs } from 'pinia'
-import type { MapCamera } from '@/types/map.types'
+import { useMapCamera } from '@/composables/useMapCamera'
+import { onMounted, onUnmounted } from 'vue'
 import CompassIcon from './CompassIcon.vue'
 
 const mapService = useMapService()
-const mapStore = useMapStore()
-const camera = ref<MapCamera>({
-  center: [0, 0],
-  zoom: 0,
-  bearing: 0,
-  pitch: 0,
-})
-
-const compassTransform = computed(() => {
-  const { bearing = 0, pitch = 0 } = camera.value
-  return `rotateX(${pitch}deg) rotateZ(${-bearing}deg)`
-})
-
-function onCameraMove(newCamera: MapCamera) {
-  console.log('onCameraMove', newCamera)
-  camera.value = newCamera
-}
+const { camera, onCameraMove, compassTransform } = useMapCamera()
 
 onMounted(() => {
-  camera.value = mapStore.mapCamera
   mapService.on('move', onCameraMove)
 })
 

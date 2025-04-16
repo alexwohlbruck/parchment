@@ -9,14 +9,13 @@ import { useResponsive } from '@/lib/utils'
 
 import DesktopNav from '@/components/navigation/DesktopNavigation.vue'
 import MobileNav from '@/components/navigation/MobileNavigation.vue'
-import Palette from '@/components/palette/Palette.vue'
 import DialogView from '@/views/DialogView.vue'
 import HotkeysMenu from '@/components/HotkeysMenu.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { Spinner } from '@/components/ui/spinner'
 import { AlertDialog, AlertDialogContent } from '@/components/ui/alert-dialog'
 import { P } from '@/components/ui/typography'
-import { Button } from '@/components/ui/button'
+import { TransitionSlide } from '@morev/vue-transitions'
 
 const route = useRoute()
 const themeStore = useThemeStore()
@@ -26,16 +25,9 @@ const appStore = useAppStore()
 const { isMobileScreen } = useResponsive()
 
 const { dialogs } = appStore
-const visibleMapArea = computed(() => appStore.visibleMapArea)
-const componentDimensions = computed(() => appStore.componentDimensions)
-const navWidth = computed(() => {
-  const navDimensions = componentDimensions.value.get('desktopNav')
-  return navDimensions?.width || 0
-})
 const navMini = ref(true)
+const viewRef = ref()
 
-// Debug "visibleMapArea" reactangle
-const showDebugRect = ref(false)
 const isFloatingLayout = computed(() => route.meta?.layout === 'floating')
 
 // Detect if Render server is starting from cold start. This is common with the free plan,
@@ -52,6 +44,12 @@ onMounted(() => {
   commandService.bindAllHotkeysToCommands()
   themeStore.initAccentColor()
 })
+
+function onNavTransitionEnd() {
+  if (viewRef.value?.onNavTransitionComplete && route.name === 'map') {
+    viewRef.value.onNavTransitionComplete()
+  }
+}
 </script>
 
 <template>
@@ -74,44 +72,14 @@ onMounted(() => {
     />
   </div>
 
-  <!-- Debug rectangle showing visibleMapArea -->
-  <div
-    v-if="showDebugRect"
-    class="debug-rect fixed pointer-events-none z-[999]"
-    :style="{
-      left: `${visibleMapArea.x}px`,
-      top: `${visibleMapArea.y}px`,
-      width: `${visibleMapArea.width}px`,
-      height: `${visibleMapArea.height}px`,
-    }"
-  >
-    <div
-      class="debug-info absolute top-0 right-0 bg-black/70 text-white text-xs p-1"
-    >
-      {{ visibleMapArea.width.toFixed(0) }} x
-      {{ visibleMapArea.height.toFixed(0) }}
-    </div>
-  </div>
-
-  <div
-    v-if="!isMobileScreen && isFloatingLayout"
-    class="fixed m-2 left-[3.25rem] z-50 w-[25rem]"
-    :style="{
-      transform: navMini
-        ? 'translateX(0)'
-        : `translateX(calc(${navWidth}px - 3.25rem))`,
-      transition: 'transform 100ms',
-    }"
-  >
-    <transition-slide no-opacity :offset="[0, '-130%']">
-      <Palette class="h-fit" />
-    </transition-slide>
-  </div>
-
   <div class="flex flex-row h-dvh bg-background items-stretch">
     <!-- Desktop navigation -->
     <template v-if="!isMobileScreen">
-      <transition-slide no-opacity :offset="['-130%', 0]">
+      <transition-slide
+        no-opacity
+        :offset="['-130%', 0]"
+        @after-enter="onNavTransitionEnd"
+      >
         <DesktopNav
           v-if="isFloatingLayout"
           v-model:mini="navMini"
@@ -122,7 +90,11 @@ onMounted(() => {
 
     <!-- Mobile navigation -->
     <template v-else>
-      <transition-slide no-opacity :offset="[0, '130%']">
+      <transition-slide
+        no-opacity
+        :offset="[0, '130%']"
+        @after-enter="onNavTransitionEnd"
+      >
         <MobileNav v-if="isFloatingLayout" class="z-20" />
       </transition-slide>
     </template>
@@ -131,7 +103,7 @@ onMounted(() => {
     <main class="flex-1">
       <router-view v-slot="{ Component }">
         <keep-alive include="Map">
-          <component :is="Component" />
+          <component :is="Component" ref="viewRef" />
         </keep-alive>
       </router-view>
     </main>

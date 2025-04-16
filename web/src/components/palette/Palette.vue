@@ -269,7 +269,7 @@ const filterFunction = computed(() => {
 <template>
   <div ref="container">
     <Command
-      class="shadow-md"
+      class="shadow-md bg-background"
       ref="commandPalette"
       v-model:searchTerm="query"
       :open="commandOpen"

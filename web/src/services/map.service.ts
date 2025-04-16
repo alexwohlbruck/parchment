@@ -390,6 +390,7 @@ function mapService() {
     zoomIn,
     zoomOut,
     resetNorth,
+    locate: () => mapStrategy?.locate(),
   }
 }
 

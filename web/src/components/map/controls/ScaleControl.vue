@@ -8,7 +8,7 @@ import { useResponsive } from '@/lib/utils'
 const mapService = useMapService()
 const { camera, onCameraMove } = useMapCamera()
 const { isMobileScreen, isMediumScreen } = useResponsive()
-const useMetric = ref(false) // TODO: Create user setting for this
+const useMetric = ref(true) // TODO: Create user setting for this
 
 onMounted(() => {
   mapService.on('move', onCameraMove)
@@ -69,6 +69,7 @@ const scale = computed(() => {
   console.log(zoom)
 
   // At zoom level 0, one pixel represents about 78271.5170 meters at the equator
+  // TODO: This gets slightly inaccurate at extreme latitudes. Cross ref with mapbox source code
   const metersPerPixel =
     (78271.517 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, zoom)
 
@@ -172,7 +173,7 @@ const isLowZoom = computed(() => {
     <div class="relative">
       <!-- Segments with alternating colors -->
       <div
-        class="flex h-1.5 rounded overflow-hidden cursor-pointer"
+        class="flex h-1.5 rounded overflow-hidden cursor-pointer transition-[background-color,border-color] duration-300"
         :class="[
           isLowZoom
             ? 'ring-1 ring-slate-700'
@@ -185,7 +186,7 @@ const isLowZoom = computed(() => {
           :key="index"
         >
           <div
-            class="h-full"
+            class="h-full transition-colors duration-300"
             :class="[
               isLowZoom
                 ? index % 2 === 0
@@ -210,7 +211,7 @@ const isLowZoom = computed(() => {
         <template v-for="(value, index) in scale.segments" :key="index">
           <div class="flex flex-col items-center">
             <span
-              class="text-xs font-medium"
+              class="text-xs font-medium transition-colors duration-300"
               :class="[
                 isLowZoom
                   ? 'text-slate-200'

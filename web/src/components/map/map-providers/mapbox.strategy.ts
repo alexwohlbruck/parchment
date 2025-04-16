@@ -121,7 +121,7 @@ export class MapboxStrategy extends MapStrategy {
       new AttributionControl({
         compact: true,
       }),
-      'top-left',
+      'bottom-left',
     )
   }
 

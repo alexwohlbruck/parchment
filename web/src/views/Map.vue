@@ -77,7 +77,7 @@ defineExpose({
   <!-- Map UI items -->
   <div
     v-if="isFloatingLayout"
-    class="fixed z-50 p-2 flex pointer-events-none"
+    class="fixed z-50 p-2 flex justify-between gap-2 pointer-events-none"
     :style="{
       left: `${mapUIArea.x}px`,
       top: `${mapUIArea.y}px`,
@@ -86,7 +86,7 @@ defineExpose({
     }"
   >
     <!-- Left section -->
-    <div class="flex flex-col justify-between flex-1">
+    <div class="flex flex-col items-start gap-2">
       <!-- Left top -->
       <transition-slide no-opacity :offset="[0, '-130%']">
         <div
@@ -99,7 +99,10 @@ defineExpose({
 
       <!-- Left middle -->
       <transition-slide no-opacity :offset="['-130%', 0]">
-        <div v-if="navTransitionComplete" class="pointer-events-auto"></div>
+        <div
+          v-if="navTransitionComplete"
+          class="pointer-events-auto flex flex-col"
+        ></div>
       </transition-slide>
 
       <!-- Left bottom -->

@@ -8,7 +8,7 @@ import { useResponsive } from '@/lib/utils'
 const mapService = useMapService()
 const { camera, onCameraMove } = useMapCamera()
 const { isMobileScreen, isMediumScreen } = useResponsive()
-const useMetric = ref(true) // TODO: Create user setting for this
+const useMetric = ref(false) // TODO: Create user setting for this
 
 onMounted(() => {
   mapService.on('move', onCameraMove)
@@ -42,19 +42,40 @@ function calculateScaleSegments(width: number, unit: string) {
 
   let segments: number[]
 
-  if (fullUnitsFit < 0.85) {
-    // Show just 2 segments
-    segments = [0, baseUnit]
-  } else if (fullUnitsFit < 1.7) {
-    // Show 3 segments
-    segments = [0, baseUnit, baseUnit * 2]
-  } else if (fullUnitsFit < 2.5) {
-    // Show 3 segments with a larger base unit
-    const nextBaseUnit = units[Math.min(baseUnitIndex + 1, units.length - 1)]
-    segments = [0, nextBaseUnit / 2, nextBaseUnit]
+  // Special cases for nice round numbers
+  if (unit === 'km' || unit === 'mi') {
+    if (Math.abs(width - 1) < 0.2) {
+      segments = [0, 1]
+    } else if (Math.abs(width - 2) < 0.3) {
+      segments = [0, 1, 2]
+    } else if (Math.abs(width - 3) < 0.3) {
+      segments = [0, 1, 2, 3]
+    } else if (fullUnitsFit < 0.85) {
+      // Show just 2 segments
+      segments = [0, baseUnit]
+    } else if (fullUnitsFit < 1.7) {
+      // Show 3 segments
+      segments = [0, baseUnit, baseUnit * 2]
+    } else if (fullUnitsFit < 2.5) {
+      // Show 3 segments with a larger base unit
+      const nextBaseUnit = units[Math.min(baseUnitIndex + 1, units.length - 1)]
+      segments = [0, nextBaseUnit / 2, nextBaseUnit]
+    } else {
+      // Show 4 segments
+      segments = [0, baseUnit, baseUnit * 2, baseUnit * 3]
+    }
   } else {
-    // Show 4 segments
-    segments = [0, baseUnit, baseUnit * 2, baseUnit * 3]
+    // For meters and feet, use the regular segmentation
+    if (fullUnitsFit < 0.85) {
+      segments = [0, baseUnit]
+    } else if (fullUnitsFit < 1.7) {
+      segments = [0, baseUnit, baseUnit * 2]
+    } else if (fullUnitsFit < 2.5) {
+      const nextBaseUnit = units[Math.min(baseUnitIndex + 1, units.length - 1)]
+      segments = [0, nextBaseUnit / 2, nextBaseUnit]
+    } else {
+      segments = [0, baseUnit, baseUnit * 2, baseUnit * 3]
+    }
   }
 
   return segments

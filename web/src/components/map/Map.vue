@@ -114,4 +114,8 @@ watch(
 .mapboxgl-ctrl-right-bottom {
   padding-right: env(safe-area-inset-right);
 }
+
+.mapboxgl-ctrl-logo {
+  display: none !important;
+}
 </style>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed, onMounted } from 'vue'
 import { useMapService } from '@/services/map.service'
 import { LayerType } from '@/types/map.types'
 import { Card } from '@/components/ui/card'
@@ -11,17 +12,16 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
-import { layers } from '@/components/map/layers/layers'
+import { useMapStore } from '@/stores/map.store'
 
 const mapService = useMapService()
+const mapStore = useMapStore()
 
-function toggleStreetViewLayers() {
-  layers.forEach(layer => {
-    if (layer.type === LayerType.STREET_VIEW) {
-      mapService.toggleLayerVisibility(layer.configuration.id)
-    }
-  })
-}
+const isStreetViewLayerVisible = computed(() => {
+  return mapStore.layers.some(
+    layer => layer.type === LayerType.STREET_VIEW && layer.visible,
+  )
+})
 </script>
 
 <template>
@@ -31,7 +31,8 @@ function toggleStreetViewLayers() {
         variant="outline"
         size="icon"
         class="size-10"
-        @click="toggleStreetViewLayers()"
+        @click="mapService.toggleStreetViewLayers()"
+        :default-value="isStreetViewLayerVisible"
       >
         <PersonStandingIcon class="size-6" />
       </Toggle>

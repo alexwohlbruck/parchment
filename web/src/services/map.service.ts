@@ -9,6 +9,7 @@ import {
   MarkerIds,
   type MarkerId,
   type LngLat,
+  LayerType,
 } from '@/types/map.types'
 import { useMapStore } from '../stores/map.store'
 import { useAppStore } from '../stores/app.store'
@@ -307,6 +308,14 @@ function mapService() {
     mapStore.toggleLayerVisibility(layerId, state)
   }
 
+  function toggleStreetViewLayers(visible?: boolean) {
+    mapStore.layers.forEach(layer => {
+      if (layer.type === LayerType.STREET_VIEW) {
+        toggleLayerVisibility(layer.configuration.id, visible)
+      }
+    })
+  }
+
   function destroy() {
     // Remove event listeners
     // TODO: Automatically remove all listeners without explicitly naming them
@@ -341,6 +350,7 @@ function mapService() {
     resize,
     toggleLayer,
     toggleLayerVisibility,
+    toggleStreetViewLayers,
     flyTo,
     jumpTo,
     setMapEngine,

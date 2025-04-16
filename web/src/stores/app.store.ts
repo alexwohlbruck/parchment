@@ -74,9 +74,8 @@ export const useAppStore = defineStore('app', () => {
     return dimensions
   })
 
-  const visibleMapArea = computed(() => {
-    const _ = forceRefresh.value
-
+  // Helper function to calculate visible area given a list of components
+  function calculateVisibleArea(components: Component[]) {
     const viewportWidth = windowWidth.value
     const viewportHeight = windowHeight.value
 
@@ -87,11 +86,11 @@ export const useAppStore = defineStore('app', () => {
       height: viewportHeight,
     }
 
-    if (obstructingComponentsMap.value.size === 0) {
+    if (components.length === 0) {
       return availableArea
     }
 
-    const obstacles = Array.from(obstructingComponentsMap.value.values())
+    const obstacles = components
       .map(component => {
         try {
           const el = (component as unknown as { $el?: HTMLElement }).$el
@@ -178,6 +177,23 @@ export const useAppStore = defineStore('app', () => {
     }
 
     return availableArea
+  }
+
+  const visibleMapArea = computed(() => {
+    const _ = forceRefresh.value
+    return calculateVisibleArea(
+      Array.from(obstructingComponentsMap.value.values()),
+    )
+  })
+
+  const mapUIArea = computed(() => {
+    const _ = forceRefresh.value
+    const navKeys = ['desktopNav', 'mobileNav']
+    const navComponents = navKeys
+      .map(key => obstructingComponentsMap.value.get(key))
+      .filter((component): component is Component => component !== undefined)
+
+    return calculateVisibleArea(navComponents)
   })
 
   const dialogs = ref<
@@ -232,6 +248,7 @@ export const useAppStore = defineStore('app', () => {
     getObstructingComponent,
     untrackObstructingComponent,
     visibleMapArea,
+    mapUIArea,
     refreshObstructingComponents,
     componentDimensions,
   }

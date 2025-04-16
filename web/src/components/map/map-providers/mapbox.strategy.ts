@@ -71,6 +71,7 @@ function ifBasemapLoaded(target, name, descriptor) {
 
 export class MapboxStrategy extends MapStrategy {
   mapInstance: Map
+  geolocateControl: GeolocateControl
 
   constructor(container, options: MapOptions) {
     super(container, options)
@@ -94,6 +95,23 @@ export class MapboxStrategy extends MapStrategy {
         name: projection,
       },
     })
+
+    // Add geolocate control but hide it off-screen
+    this.geolocateControl = new GeolocateControl({
+      positionOptions: {
+        enableHighAccuracy: true,
+      },
+      trackUserLocation: true,
+      showUserLocation: true,
+      showAccuracyCircle: true,
+    })
+    // Add to top-left but move it off-screen
+    this.mapInstance.addControl(this.geolocateControl, 'top-left')
+    const geolocateButton = container.querySelector('.mapboxgl-ctrl-geolocate')
+    if (geolocateButton?.parentElement) {
+      geolocateButton.parentElement.style.margin = '-100px 0 0 -100px'
+    }
+
     this.addControls()
     this.configureEventListeners()
   }
@@ -485,6 +503,10 @@ export class MapboxStrategy extends MapStrategy {
       bearing: 0,
       pitch: 0,
     })
+  }
+
+  locate() {
+    this.geolocateControl.trigger()
   }
 
   destroy() {

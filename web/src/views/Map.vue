@@ -81,7 +81,7 @@ defineExpose({
   <!-- Map UI items -->
   <div
     v-if="isFloatingLayout"
-    class="fixed z-50 p-2 flex justify-between gap-2 pointer-events-none"
+    class="fixed z-20 p-2 flex justify-between gap-2 pointer-events-none"
     :style="{
       left: `${mapUIArea.x}px`,
       top: `${mapUIArea.y}px`,

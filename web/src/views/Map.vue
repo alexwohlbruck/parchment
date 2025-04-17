@@ -11,7 +11,8 @@ import Map from '@/components/map/Map.vue'
 import StreetView from '@/components/map/StreetView.vue'
 import LayerControl from '@/components/map/controls/LayerControl.vue'
 import StreetViewControl from '@/components/map/controls/StreetViewControl.vue'
-import CameraControl from '@/components/map/controls/CameraControl.vue'
+import ZoomControl from '@/components/map/controls/ZoomControl.vue'
+import CompassControl from '@/components/map/controls/CompassControl.vue'
 import LocateControl from '@/components/map/controls/LocateControl.vue'
 import ScaleControl from '@/components/map/controls/ScaleControl.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
@@ -35,7 +36,6 @@ const mapUIArea = computed(() => appStore.mapUIArea)
 const isFloatingLayout = computed(() => route.meta?.layout === 'floating')
 const navTransitionComplete = ref(false)
 
-// Method to be called when nav transition completes
 function onNavTransitionComplete() {
   navTransitionComplete.value = true
 }
@@ -153,7 +153,8 @@ defineExpose({
       >
         <!-- Right top -->
         <div class="pointer-events-auto flex flex-col gap-2">
-          <CameraControl />
+          <ZoomControl />
+          <CompassControl />
           <LocateControl />
         </div>
 

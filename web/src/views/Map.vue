@@ -79,6 +79,33 @@ defineExpose({
 
 <template>
   <!-- Map UI items -->
+
+  <!-- z-50 above drawers -->
+  <div
+    v-if="isFloatingLayout"
+    class="fixed z-50 p-2 flex justify-between gap-2 pointer-events-none"
+    :style="{
+      left: `${mapUIArea.x}px`,
+      top: `${mapUIArea.y}px`,
+      width: `${mapUIArea.width}px`,
+      height: `${mapUIArea.height}px`,
+    }"
+  >
+    <!-- Left section -->
+    <div class="flex flex-col items-start gap-2">
+      <!-- Left top -->
+      <transition-slide no-opacity :offset="[0, '-130%']">
+        <div
+          v-if="navTransitionComplete && !isMobileScreen"
+          class="pointer-events-auto"
+        >
+          <Palette class="h-fit w-[25rem]" />
+        </div>
+      </transition-slide>
+    </div>
+  </div>
+
+  <!-- z-20 below drawers -->
   <div
     v-if="isFloatingLayout"
     class="fixed z-20 p-2 flex justify-between gap-2 pointer-events-none"
@@ -97,7 +124,8 @@ defineExpose({
           v-if="navTransitionComplete && !isMobileScreen"
           class="pointer-events-auto"
         >
-          <Palette class="h-fit w-[25rem]" />
+          <!-- Palette placeholder -->
+          <span class="h-11 w-[25rem]"></span>
         </div>
       </transition-slide>
 

@@ -1,15 +1,10 @@
 import { ref, computed } from 'vue'
-import { useMapService } from '@/services/map.service'
+import { useMapStore } from '@/stores/map.store'
 import type { MapCamera } from '@/types/map.types'
 
 export function useMapCamera() {
-  const mapService = useMapService()
-  const camera = ref<MapCamera>({
-    center: [0, 0],
-    zoom: 0,
-    bearing: 0,
-    pitch: 0,
-  })
+  const mapStore = useMapStore()
+  const camera = ref<MapCamera>(mapStore.mapCamera)
 
   function onCameraMove(newCamera: MapCamera) {
     camera.value = newCamera

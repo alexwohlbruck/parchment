@@ -19,7 +19,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col">
+  <div class="flex flex-col shadow-md rounded-md">
     <Button
       variant="outline"
       size="icon-sm"

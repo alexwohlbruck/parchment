@@ -44,12 +44,6 @@ onMounted(() => {
   commandService.bindAllHotkeysToCommands()
   themeStore.initAccentColor()
 })
-
-function onNavTransitionEnd() {
-  if (viewRef.value?.onNavTransitionComplete && route.name === 'map') {
-    viewRef.value.onNavTransitionComplete()
-  }
-}
 </script>
 
 <template>
@@ -78,7 +72,7 @@ function onNavTransitionEnd() {
       <transition-slide
         no-opacity
         :offset="['-130%', 0]"
-        @after-enter="onNavTransitionEnd"
+        @after-enter="viewRef?.onNavTransitionComplete"
       >
         <DesktopNav
           v-if="isFloatingLayout"
@@ -93,7 +87,7 @@ function onNavTransitionEnd() {
       <transition-slide
         no-opacity
         :offset="[0, '130%']"
-        @after-enter="onNavTransitionEnd"
+        @after-enter="viewRef?.onNavTransitionComplete"
       >
         <MobileNav v-if="isFloatingLayout" class="z-20" />
       </transition-slide>

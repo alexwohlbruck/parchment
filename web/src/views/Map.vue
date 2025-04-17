@@ -15,6 +15,7 @@ import ZoomControl from '@/components/map/controls/ZoomControl.vue'
 import CompassControl from '@/components/map/controls/CompassControl.vue'
 import LocateControl from '@/components/map/controls/LocateControl.vue'
 import ScaleControl from '@/components/map/controls/ScaleControl.vue'
+import AttributionControl from '@/components/map/controls/AttributionControl.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
 import LeftSheet from '@/components/LeftSheet.vue'
 import StreetViewPip from '@/components/map/StreetViewPip.vue'
@@ -121,11 +122,13 @@ defineExpose({
       <!-- Left top -->
       <transition-slide no-opacity :offset="[0, '-130%']">
         <div
-          v-if="navTransitionComplete && !isMobileScreen"
-          class="pointer-events-auto"
+          v-if="navTransitionComplete"
+          class="pointer-events-auto flex flex-col gap-2 items-start"
         >
           <!-- Palette placeholder -->
-          <span class="h-11 w-[25rem]"></span>
+          <div class="h-11 w-[25rem]" v-if="!isMobileScreen"></div>
+
+          <ScaleControl />
         </div>
       </transition-slide>
 
@@ -139,8 +142,11 @@ defineExpose({
 
       <!-- Left bottom -->
       <transition-slide no-opacity :offset="[0, '130%']">
-        <div v-if="navTransitionComplete" class="pointer-events-auto mt-auto">
-          <ScaleControl />
+        <div
+          v-if="navTransitionComplete"
+          class="pointer-events-auto mt-auto flex flex-col gap-2"
+        >
+          <AttributionControl />
         </div>
       </transition-slide>
     </div>

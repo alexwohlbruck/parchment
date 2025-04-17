@@ -118,4 +118,8 @@ watch(
 .mapboxgl-ctrl-logo {
   display: none !important;
 }
+
+.mapboxgl-ctrl-geolocate {
+  display: none !important;
+}
 </style>

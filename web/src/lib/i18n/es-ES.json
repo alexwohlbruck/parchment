@@ -212,7 +212,37 @@
     "addStop": "Añadir parada"
   },
   "library": {
-    "title": "Biblioteca"
+    "title": "biblioteca",
+    "collections": {
+      "places": {
+        "title": {
+          "singular": "lugar",
+          "plural": "lugares"
+        }
+      },
+      "collections": {
+        "title": {
+          "singular": "colección",
+          "plural": "colecciones"
+        }
+      },
+      "routes": {
+        "title": {
+          "singular": "ruta",
+          "plural": "rutas"
+        }
+      },
+      "maps": {
+        "title": {
+          "singular": "mapa",
+          "plural": "mapas"
+        }
+      }
+    },
+    "empty": {
+      "message": "no hay {collection} todavía",
+      "action": "crear {item}"
+    }
   },
   "timeline": {
     "title": "Línea de tiempo"

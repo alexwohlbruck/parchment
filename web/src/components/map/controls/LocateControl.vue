@@ -11,7 +11,7 @@ const mapService = useMapService()
     <Button
       variant="outline"
       size="icon-sm"
-      class="rounded-md"
+      class="rounded-md shadow-md"
       @click="mapService.locate()"
     >
       <Locate class="size-4" strokeWidth="2.75" />

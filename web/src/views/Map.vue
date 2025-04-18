@@ -11,9 +11,11 @@ import Map from '@/components/map/Map.vue'
 import StreetView from '@/components/map/StreetView.vue'
 import LayerControl from '@/components/map/controls/LayerControl.vue'
 import StreetViewControl from '@/components/map/controls/StreetViewControl.vue'
-import CameraControl from '@/components/map/controls/CameraControl.vue'
+import ZoomControl from '@/components/map/controls/ZoomControl.vue'
+import CompassControl from '@/components/map/controls/CompassControl.vue'
 import LocateControl from '@/components/map/controls/LocateControl.vue'
 import ScaleControl from '@/components/map/controls/ScaleControl.vue'
+import AttributionControl from '@/components/map/controls/AttributionControl.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
 import LeftSheet from '@/components/LeftSheet.vue'
 import StreetViewPip from '@/components/map/StreetViewPip.vue'
@@ -35,7 +37,6 @@ const mapUIArea = computed(() => appStore.mapUIArea)
 const isFloatingLayout = computed(() => route.meta?.layout === 'floating')
 const navTransitionComplete = ref(false)
 
-// Method to be called when nav transition completes
 function onNavTransitionComplete() {
   navTransitionComplete.value = true
 }
@@ -79,6 +80,8 @@ defineExpose({
 
 <template>
   <!-- Map UI items -->
+
+  <!-- z-50 above drawers -->
   <div
     v-if="isFloatingLayout"
     class="fixed z-50 p-2 flex justify-between gap-2 pointer-events-none"
@@ -100,6 +103,34 @@ defineExpose({
           <Palette class="h-fit w-[25rem]" />
         </div>
       </transition-slide>
+    </div>
+  </div>
+
+  <!-- z-20 below drawers -->
+  <div
+    v-if="isFloatingLayout"
+    class="fixed z-20 p-2 flex justify-between gap-2 pointer-events-none"
+    :style="{
+      left: `${mapUIArea.x}px`,
+      top: `${mapUIArea.y}px`,
+      width: `${mapUIArea.width}px`,
+      height: `${mapUIArea.height}px`,
+    }"
+  >
+    <!-- Left section -->
+    <div class="flex flex-col items-start gap-2">
+      <!-- Left top -->
+      <transition-slide no-opacity :offset="[0, '-130%']">
+        <div
+          v-if="navTransitionComplete"
+          class="pointer-events-auto flex flex-col gap-2 items-start"
+        >
+          <!-- Palette placeholder -->
+          <div class="h-11 w-[25rem]" v-if="!isMobileScreen"></div>
+
+          <ScaleControl />
+        </div>
+      </transition-slide>
 
       <!-- Left middle -->
       <transition-slide no-opacity :offset="['-130%', 0]">
@@ -111,8 +142,11 @@ defineExpose({
 
       <!-- Left bottom -->
       <transition-slide no-opacity :offset="[0, '130%']">
-        <div v-if="navTransitionComplete" class="pointer-events-auto mt-auto">
-          <ScaleControl />
+        <div
+          v-if="navTransitionComplete"
+          class="pointer-events-auto mt-auto flex flex-col gap-2"
+        >
+          <AttributionControl />
         </div>
       </transition-slide>
     </div>
@@ -125,7 +159,8 @@ defineExpose({
       >
         <!-- Right top -->
         <div class="pointer-events-auto flex flex-col gap-2">
-          <CameraControl />
+          <ZoomControl />
+          <CompassControl />
           <LocateControl />
         </div>
 

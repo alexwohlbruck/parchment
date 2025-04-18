@@ -76,14 +76,6 @@ export class MaplibreStrategy extends MapStrategy {
       showUserLocation: true,
       showAccuracyCircle: true,
     })
-    // Add to top-left but move it off-screen
-    this.mapInstance.addControl(this.geolocateControl, 'top-left')
-    const geolocateButton = container.querySelector(
-      '.maplibregl-ctrl-geolocate',
-    )
-    if (geolocateButton?.parentElement) {
-      geolocateButton.parentElement.style.margin = '-100px 0 0 -100px'
-    }
 
     this.addControls()
     this.configureEventListeners()
@@ -96,6 +88,7 @@ export class MaplibreStrategy extends MapStrategy {
       }),
       'bottom-left',
     )
+    this.mapInstance.addControl(this.geolocateControl, 'top-left')
   }
 
   configureEventListeners() {

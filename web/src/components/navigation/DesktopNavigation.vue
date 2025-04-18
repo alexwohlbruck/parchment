@@ -61,7 +61,7 @@ const items = computed(() => {
           label: t('places.title'),
           icon: BookMarkedIcon,
           // hotkey: ['p'],
-          to: '/place',
+          to: '/bookmarks',
         },
         {
           label: t('timeline.title'),

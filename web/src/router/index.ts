@@ -10,6 +10,8 @@ import Behavior from '@/views/settings/pages/Behavior.vue'
 import Appearance from '@/views/settings/pages/appearance/Appearance.vue'
 import MapSettings from '@/views/settings/pages/MapSettings.vue'
 import Users from '@/views/settings/pages/Users.vue'
+import Library from '@/views/library/Library.vue'
+import NotFound from '@/views/NotFound.vue'
 
 import { useAuthStore } from '@/stores/auth.store'
 import { useResponsive } from '@/lib/utils'
@@ -24,13 +26,14 @@ export enum AppRoute {
   PLACE_LOCATION = 'place-location',
   STREET = 'street',
   DIRECTIONS = 'directions',
-  // SAVED = 'saved',
+  LIBRARY = 'library',
   SETTINGS = 'settings',
   ACCOUNT = 'account',
   BEHAVIOR = 'behavior',
   APPEARANCE = 'appearance',
   MAP_SETTINGS = 'mapSettings',
   USERS = 'users',
+  NOT_FOUND = 'not-found',
 }
 
 function keepDefaultView(to, from) {
@@ -76,12 +79,11 @@ const router = createRouter({
           name: AppRoute.PLACE_LOCATION,
           component: Place,
         },
-        // TODO: Support places from external sources
-        // {
-        //   path: '/place/external/:id',
-        //   name: AppRoute.PLACE_EXTERNAL,
-        //   component: () => import('../views/PlaceExternal.vue'),
-        // },
+        {
+          path: '/library',
+          name: AppRoute.LIBRARY,
+          component: Library,
+        },
       ],
     },
     {
@@ -137,6 +139,11 @@ const router = createRouter({
           return { name: AppRoute.MAP }
         }
       },
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      name: AppRoute.NOT_FOUND,
+      component: NotFound,
     },
   ],
 })

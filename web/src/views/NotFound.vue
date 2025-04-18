@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
+import { Button } from '@/components/ui/button'
+import { H1, H3, Span } from '@/components/ui/typography'
+import { ArrowLeftIcon } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 
 const router = useRouter()
+const { t } = useI18n()
 
 const goHome = () => {
   router.push({ name: AppRoute.MAP })
@@ -10,66 +15,59 @@ const goHome = () => {
 </script>
 
 <template>
-  <div class="not-found">
-    <div class="not-found-content">
-      <h1>404</h1>
-      <h2>Page Not Found</h2>
-      <p>The page you're looking for doesn't exist or has been moved.</p>
-      <button class="primary" @click="goHome">Return to Map</button>
+  <div class="h-full w-full flex gap-4 items-center justify-center h-screen">
+    <div class="ship-wrapper">
+      <div class="ship">⛵</div>
+    </div>
+    <div class="flex flex-col gap-4 items-start">
+      <div class="flex flex-col gap-1">
+        <H1 class="font-bold">{{ t('notFound.title') }}</H1>
+        <H3 class="font-semibold">{{ t('notFound.subtitle') }}</H3>
+        <Span class="text-muted-foreground !mt-0">
+          {{ t('notFound.message') }}
+        </Span>
+      </div>
+      <Button variant="outline" @click="goHome" class="gap-2 mt-8">
+        <ArrowLeftIcon class="h-4 w-4" />
+        {{ t('notFound.action') }}
+      </Button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.not-found {
-  height: 100vh;
-  width: 100vw;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-background);
+.ship-wrapper {
+  animation: bobUpDown 2.3s ease-in-out infinite;
 }
 
-.not-found-content {
-  text-align: center;
-  padding: 2rem;
+.ship {
+  font-size: 5rem;
+  margin-bottom: 1rem;
+  animation: rockSideToSide 3.7s ease-in-out infinite;
+  transform-origin: center;
 }
 
-.not-found-content h1 {
-  font-size: 6rem;
-  font-weight: 700;
-  margin: 0;
-  color: var(--color-primary);
-  line-height: 1;
+.compass {
+  font-size: 1.2rem;
 }
 
-.not-found-content h2 {
-  font-size: 2rem;
-  font-weight: 600;
-  margin: 1rem 0;
+@keyframes rockSideToSide {
+  0%,
+  100% {
+    transform: rotate(-5deg);
+  }
+  50% {
+    transform: rotate(5deg);
+  }
 }
 
-.not-found-content p {
-  color: var(--color-text-secondary);
-  margin-bottom: 2rem;
-}
-
-button {
-  padding: 0.75rem 1.5rem;
-  font-size: 1rem;
-  font-weight: 500;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-button.primary {
-  background: var(--color-primary);
-  color: white;
-  border: none;
-}
-
-button.primary:hover {
-  background: var(--color-primary-dark);
+@keyframes bobUpDown {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
 }
 </style>

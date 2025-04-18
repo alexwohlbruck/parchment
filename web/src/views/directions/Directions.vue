@@ -68,9 +68,7 @@ watch(
 </script>
 
 <template>
-  <div
-    class="p-4 h-full w-full overflow-y-auto shadow-md flex flex-col gap-2 rounded-md"
-  >
+  <div class="p-4 h-full w-full overflow-y-auto flex flex-col gap-2">
     <Tabs v-model="selectedMode" default-value="pedestrian">
       <TabsList class="w-full flex">
         <TabsTrigger

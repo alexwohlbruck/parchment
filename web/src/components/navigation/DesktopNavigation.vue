@@ -21,6 +21,7 @@ import {
   UsersRoundIcon,
   SettingsIcon,
   PanelLeftIcon,
+  LibraryIcon,
 } from 'lucide-vue-next'
 
 useObstructingComponent(undefined, 'desktopNav')
@@ -58,10 +59,10 @@ const items = computed(() => {
     {
       items: [
         {
-          label: t('places.title'),
-          icon: BookMarkedIcon,
+          label: t('library.title'),
+          icon: LibraryIcon,
           // hotkey: ['p'],
-          to: '/bookmarks',
+          to: '/library',
         },
         {
           label: t('timeline.title'),

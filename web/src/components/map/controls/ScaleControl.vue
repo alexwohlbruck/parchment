@@ -189,7 +189,7 @@ const isLowZoom = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col items-start gap-1 pt-5">
+  <div class="flex flex-col items-start gap-1 pt-4">
     <!-- Scale bar with alternating segments -->
     <div class="relative">
       <!-- Segments with alternating colors -->

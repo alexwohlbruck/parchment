@@ -11,7 +11,13 @@ import { ref, computed } from 'vue'
 import mapboxLogo from '@/assets/img/mapbox-logo.svg'
 import { useMapCamera } from '@/composables/useMapCamera'
 import Separator from '@/components/ui/separator/Separator.vue'
-import { siGithub, siX, siThreads, siMapbox } from 'simple-icons'
+import {
+  siGithub,
+  siX,
+  siThreads,
+  siMapbox,
+  siOpenstreetmap,
+} from 'simple-icons'
 import BrandIcon from '@/components/ui/brand-icon/BrandIcon.vue'
 import { useMapStore } from '@/stores/map.store'
 import { MapEngine } from '@/types/map.types'
@@ -59,19 +65,19 @@ const attributionLinks = computed(() => {
 const socialLinks = [
   {
     text: 'GitHub',
-    url: 'https://github.com/alexwohlbruck/parchment',
+    url: 'https://github.com/alexwohlbruck/parchment?ref=parchment',
     icon: siGithub,
     color: `#${siGithub.hex}`,
   },
   {
     text: 'Twitter',
-    url: 'https://twitter.com/parchmentmaps',
+    url: 'https://twitter.com/parchmentmaps?ref=parchment',
     icon: siX,
     color: `#${siX.hex}`,
   },
   {
     text: 'Threads',
-    url: 'https://threads.net/parchmentmaps',
+    url: 'https://www.threads.net/@parchmentmaps?ref=parchment',
     icon: siThreads,
     color: `#${siThreads.hex}`,
   },
@@ -124,27 +130,47 @@ const socialLinks = [
 
           <Separator class="w-full" />
 
-          <a
-            v-if="mapStore.mapEngine === MapEngine.MAPBOX"
-            :href="feedbackUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Button variant="outline" class="w-full">
-              <BrandIcon :icon="siMapbox" class="size-4 mr-2" use-theme-color />
-              Improve this map
-            </Button>
-          </a>
+          <div class="flex gap-2">
+            <a
+              href="https://wiki.openstreetmap.org/wiki/How_to_contribute"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex-1"
+            >
+              <Button variant="outline" class="w-full">
+                <BrandIcon
+                  :icon="siOpenstreetmap"
+                  class="size-4 mr-2"
+                  use-theme-color
+                />
+                Contribute
+              </Button>
+            </a>
 
-          <Separator
-            v-if="mapStore.mapEngine === MapEngine.MAPBOX"
-            class="w-full"
-          />
+            <a
+              v-if="mapStore.mapEngine === MapEngine.MAPBOX"
+              :href="feedbackUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex-1"
+            >
+              <Button variant="outline" class="w-full">
+                <BrandIcon
+                  :icon="siMapbox"
+                  class="size-4 mr-2"
+                  use-theme-color
+                />
+                Improve this map
+              </Button>
+            </a>
+          </div>
 
-          <div class="flex flex-wrap justify-between gap-2">
+          <Separator class="w-full" />
+
+          <div class="flex gap-2">
             <template v-for="(link, index) in socialLinks" :key="index">
-              <a :href="link.url" target="_blank" rel="noopener noreferrer">
-                <Button variant="outline">
+              <a :href="link.url" target="_blank" class="flex-1">
+                <Button variant="outline" class="w-full">
                   <BrandIcon
                     :icon="link.icon"
                     class="size-4 mr-2"

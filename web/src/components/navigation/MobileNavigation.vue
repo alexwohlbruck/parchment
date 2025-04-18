@@ -6,6 +6,7 @@ import { useObstructingComponent } from '@/composables/useObstructingComponent'
 import { Card } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import Palette from '@/components/palette/Palette.vue'
+import { capitalize } from '@/filters/text.filters'
 import {
   MapIcon,
   HistoryIcon,
@@ -34,7 +35,7 @@ const items = computed(() => {
       to: '/',
     },
     {
-      label: t('library.title'),
+      label: capitalize(t('library.title')),
       icon: LibraryIcon,
       to: '/library',
     },

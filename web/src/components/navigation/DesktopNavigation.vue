@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth.store'
 import { useObstructingComponent } from '@/composables/useObstructingComponent'
+import { capitalize } from '@/filters/text.filters'
 
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -59,7 +60,7 @@ const items = computed(() => {
     {
       items: [
         {
-          label: t('library.title'),
+          label: capitalize(t('library.title')),
           icon: LibraryIcon,
           // hotkey: ['p'],
           to: '/library',

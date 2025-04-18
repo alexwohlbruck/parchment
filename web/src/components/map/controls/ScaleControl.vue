@@ -189,7 +189,7 @@ const isLowZoom = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col items-start gap-1">
+  <div class="flex flex-col items-start gap-1 pt-5">
     <!-- Scale bar with alternating segments -->
     <div class="relative">
       <!-- Segments with alternating colors -->
@@ -212,10 +212,10 @@ const isLowZoom = computed(() => {
               isLowZoom
                 ? index % 2 === 0
                   ? 'bg-slate-900'
-                  : 'bg-slate-200'
+                  : 'bg-slate-500'
                 : index % 2 === 0
-                ? 'bg-slate-500 dark:bg-slate-900'
-                : 'bg-white dark:bg-slate-200',
+                ? 'bg-slate-400 dark:bg-slate-900'
+                : 'bg-white dark:bg-slate-500',
             ]"
             :style="{
               width: `${
@@ -232,11 +232,11 @@ const isLowZoom = computed(() => {
         <template v-for="(value, index) in scale.segments" :key="index">
           <div class="flex flex-col items-center">
             <span
-              class="text-xs font-medium transition-colors duration-300"
+              class="text-[.65rem] font-bold transition-colors duration-300"
               :class="[
                 isLowZoom
                   ? 'text-slate-200'
-                  : 'text-slate-700 dark:text-slate-200',
+                  : 'text-slate-500 dark:text-slate-200',
               ]"
               >{{
                 formatDistance(

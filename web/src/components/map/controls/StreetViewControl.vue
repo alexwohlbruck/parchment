@@ -18,7 +18,7 @@ const isStreetViewLayerVisible = computed(() => {
 </script>
 
 <template>
-  <Card class="border-none">
+  <Card class="border-none shadow-md rounded-md">
     <Toggle
       variant="outline"
       size="icon"

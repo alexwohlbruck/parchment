@@ -11,17 +11,16 @@ import {
   PlusIcon,
 } from 'lucide-vue-next'
 import { useResponsive } from '@/lib/utils'
+import { useI18n } from 'vue-i18n'
+import { capitalize } from '@/filters/text.filters'
+
+const { t } = useI18n()
 
 const collections = [
-  { id: 'places', label: 'Places', singular: 'place', icon: MapPinIcon },
-  {
-    id: 'collections',
-    label: 'Collections',
-    singular: 'collection',
-    icon: FolderOpenIcon,
-  },
-  { id: 'routes', label: 'Routes', singular: 'route', icon: RouteIcon },
-  { id: 'maps', label: 'Maps', singular: 'map', icon: MapIcon },
+  { id: 'places', icon: MapPinIcon },
+  { id: 'collections', icon: FolderOpenIcon },
+  { id: 'routes', icon: RouteIcon },
+  { id: 'maps', icon: MapIcon },
 ]
 
 const activeCollection = ref('places')
@@ -42,7 +41,11 @@ const { isXSmallScreen } = useResponsive()
             :is="collection.icon"
             :class="['w-4 h-4', { 'w-5 h-5': isXSmallScreen }]"
           />
-          <span v-if="!isXSmallScreen">{{ collection.label }}</span>
+          <span v-if="!isXSmallScreen">
+            {{
+              capitalize(t(`library.collections.${collection.id}.title.plural`))
+            }}
+          </span>
         </TabsTrigger>
       </TabsList>
 
@@ -58,11 +61,27 @@ const { isXSmallScreen } = useResponsive()
             class="h-12 w-12 text-muted-foreground"
           />
           <p class="text-muted-foreground text-sm">
-            No {{ collection.label.toLowerCase() }} yet
+            {{
+              capitalize(
+                t('library.empty.message', {
+                  collection: t(
+                    `library.collections.${collection.id}.title.plural`,
+                  ),
+                }),
+              )
+            }}
           </p>
           <Button disabled variant="outline" size="sm" class="gap-1.5">
             <PlusIcon class="h-3 w-3" />
-            Create {{ collection.singular }}
+            {{
+              capitalize(
+                t('library.empty.action', {
+                  item: t(
+                    `library.collections.${collection.id}.title.singular`,
+                  ),
+                }),
+              )
+            }}
           </Button>
         </div>
       </TabsContent>

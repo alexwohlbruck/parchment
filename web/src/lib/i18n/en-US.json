@@ -211,7 +211,37 @@
     "addStop": "Add stop"
   },
   "library": {
-    "title": "Library"
+    "title": "library",
+    "collections": {
+      "places": {
+        "title": {
+          "singular": "place",
+          "plural": "places"
+        }
+      },
+      "collections": {
+        "title": {
+          "singular": "collection",
+          "plural": "collections"
+        }
+      },
+      "routes": {
+        "title": {
+          "singular": "route",
+          "plural": "routes"
+        }
+      },
+      "maps": {
+        "title": {
+          "singular": "map",
+          "plural": "maps"
+        }
+      }
+    },
+    "empty": {
+      "message": "no {collection} yet",
+      "action": "create {item}"
+    }
   },
   "timeline": {
     "title": "Timeline"

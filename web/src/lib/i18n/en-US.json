@@ -326,5 +326,11 @@
     "system": {
       "title": "System"
     }
+  },
+  "notFound": {
+    "title": "404",
+    "subtitle": "Wrong continent",
+    "message": "Even Columbus was a better navigator.",
+    "action": "Return to Spain"
   }
 }

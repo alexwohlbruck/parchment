@@ -328,5 +328,11 @@
     "system": {
       "title": "Sistema"
     }
+  },
+  "notFound": {
+    "title": "404",
+    "subtitle": "Continente equivocado",
+    "message": "Incluso Colón fue un mejor navegante",
+    "action": "Volver a España"
   }
 }

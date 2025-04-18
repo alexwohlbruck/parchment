@@ -211,8 +211,8 @@
     "from": "Desde",
     "addStop": "Añadir parada"
   },
-  "places": {
-    "title": "Lugares"
+  "library": {
+    "title": "Biblioteca"
   },
   "timeline": {
     "title": "Línea de tiempo"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useObstructingComponent } from '@/composables/useObstructingComponent'
@@ -8,10 +8,10 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import Palette from '@/components/palette/Palette.vue'
 import {
   MapIcon,
-  BookMarkedIcon,
   HistoryIcon,
   UsersRoundIcon,
   SettingsIcon,
+  LibraryIcon,
 } from 'lucide-vue-next'
 
 useObstructingComponent(undefined, 'mobileNav')
@@ -34,9 +34,9 @@ const items = computed(() => {
       to: '/',
     },
     {
-      label: t('places.title'),
-      icon: BookMarkedIcon,
-      to: '/place',
+      label: t('library.title'),
+      icon: LibraryIcon,
+      to: '/library',
     },
     {
       label: t('timeline.title'),

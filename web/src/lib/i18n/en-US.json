@@ -210,8 +210,8 @@
     "from": "From",
     "addStop": "Add stop"
   },
-  "places": {
-    "title": "Places"
+  "library": {
+    "title": "Library"
   },
   "timeline": {
     "title": "Timeline"

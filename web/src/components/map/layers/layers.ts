@@ -10,6 +10,7 @@ import {
   MapIcon,
   TrainIcon,
   PersonStandingIcon,
+  MountainSnowIcon,
 } from 'lucide-vue-next'
 import { MapEngine } from '@/types/map.types'
 import colors from 'tailwindcss/colors'
@@ -567,6 +568,94 @@ const traffic: Layer = {
   },
 }
 
+const hillshade: Layer = {
+  name: 'Hillshade',
+  icon: MountainSnowIcon,
+  enabled: true,
+  visible: false,
+  type: LayerType.CUSTOM,
+  engine: [MapEngine.MAPBOX],
+  configuration: {
+    id: 'hillshade',
+    type: MapboxLayerType.HILLSHADE,
+    source: {
+      id: 'terrain-rgb',
+      type: SourceType.RASTER_DEM,
+      url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+      tileSize: 256,
+      maxzoom: 15,
+    },
+    paint: {
+      'hillshade-shadow-color': colors.slate[900],
+      'hillshade-highlight-color': colors.amber[100],
+      'hillshade-accent-color': colors.amber[300],
+      'hillshade-illumination-direction': 315,
+      'hillshade-exaggeration': 1,
+    },
+  },
+}
+
+const contours: Layer = {
+  name: 'Contours',
+  icon: MountainSnowIcon,
+  enabled: true,
+  visible: false,
+  type: LayerType.CUSTOM,
+  engine: [MapEngine.MAPBOX],
+  configuration: {
+    id: 'contours',
+    type: MapboxLayerType.LINE,
+    source: {
+      id: 'contours',
+      type: SourceType.VECTOR,
+      url: 'mapbox://mapbox.mapbox-terrain-v2',
+    },
+    'source-layer': 'contour',
+    paint: {
+      'line-color': colors.slate[700],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.5, 16, 1],
+      'line-opacity': ['interpolate', ['linear'], ['zoom'], 11, 0.5, 16, 0.8],
+    },
+    layout: {
+      'line-join': 'round',
+    },
+  },
+}
+
+const contourLabels: Layer = {
+  name: 'Contour Labels',
+  icon: MountainSnowIcon,
+  enabled: true,
+  visible: false,
+  type: LayerType.CUSTOM,
+  engine: [MapEngine.MAPBOX],
+  configuration: {
+    id: 'contour-labels',
+    type: MapboxLayerType.SYMBOL,
+    source: {
+      id: 'contours',
+      type: SourceType.VECTOR,
+      url: 'mapbox://mapbox.mapbox-terrain-v2',
+    },
+    'source-layer': 'contour',
+    paint: {
+      'text-color': colors.slate[700],
+      'text-halo-color': colors.white,
+      'text-halo-width': 1,
+    },
+    layout: {
+      'symbol-placement': 'line',
+      'text-field': ['concat', ['get', 'ele'], 'm'],
+      'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+      'text-size': 10,
+      'text-letter-spacing': 0.1,
+      'text-max-angle': 30,
+      'text-padding': 5,
+      'text-spacing': 500,
+    },
+  },
+}
+
 export const layers: Layer[] = [
   mapillaryOverview,
   mapillarySequence,
@@ -583,4 +672,7 @@ export const layers: Layer[] = [
   // loomRailStations,
   transitLand,
   traffic,
+  hillshade,
+  contours,
+  contourLabels,
 ] as Layer[]

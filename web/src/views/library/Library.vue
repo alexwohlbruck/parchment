@@ -8,15 +8,17 @@ import {
   FolderOpenIcon,
   RouteIcon,
   MapIcon,
-  PlusIcon,
   Layers3Icon,
+  PlusIcon,
 } from 'lucide-vue-next'
 import { useResponsive } from '@/lib/utils'
 import { useI18n } from 'vue-i18n'
-import { capitalize } from '@/filters/text.filters'
 import EmptyState from '@/components/library/EmptyState.vue'
-
-const { t } = useI18n()
+import Layers from '@/components/map/Layers.vue'
+import { storeToRefs } from 'pinia'
+import { useMapStore } from '@/stores/map.store'
+import { useAppService } from '@/services/app.service'
+import LayerConfiguration from '@/components/map/layers/LayerConfiguration.vue'
 
 const collections = [
   { id: 'places', icon: MapPinIcon },
@@ -28,6 +30,17 @@ const collections = [
 
 const activeCollection = ref('places')
 const { isXSmallScreen } = useResponsive()
+const mapStore = useMapStore()
+const { layers } = storeToRefs(mapStore)
+const appService = useAppService()
+const { t } = useI18n()
+
+function openLayerConfigDialog() {
+  appService.componentDialog({
+    component: LayerConfiguration,
+    continueText: t('general.save'),
+  })
+}
 </script>
 
 <template>
@@ -48,9 +61,29 @@ const { isXSmallScreen } = useResponsive()
         v-for="collection in collections"
         :key="collection.id"
         :value="collection.id"
-        class="flex-1 mt-32"
+        class="flex-1"
       >
-        <EmptyState :icon="collection.icon" :collection-id="collection.id" />
+        <template v-if="collection.id === 'layers'">
+          <div class="flex flex-col gap-4">
+            <div class="flex justify-end">
+              <Button variant="outline" @click="openLayerConfigDialog">
+                <PlusIcon class="size-4 mr-2" />
+                {{ t('settings.mapSettings.layers.new') }}
+              </Button>
+            </div>
+            <Layers v-if="layers.length > 0" />
+            <EmptyState
+              v-else
+              :icon="collection.icon"
+              :collection-id="collection.id"
+            />
+          </div>
+        </template>
+        <EmptyState
+          v-else
+          :icon="collection.icon"
+          :collection-id="collection.id"
+        />
       </TabsContent>
     </Tabs>
   </div>

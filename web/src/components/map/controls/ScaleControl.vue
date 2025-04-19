@@ -87,8 +87,6 @@ const scale = computed(() => {
   const lat = Array.isArray(center) ? center[1] : center.lat
   const zoom = camera.value.zoom
 
-  console.log(zoom)
-
   // At zoom level 0, one pixel represents about 78271.5170 meters at the equator
   // TODO: This gets slightly inaccurate at extreme latitudes. Cross ref with mapbox source code
   const metersPerPixel =

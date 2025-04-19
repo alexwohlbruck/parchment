@@ -9,10 +9,12 @@ import {
   RouteIcon,
   MapIcon,
   PlusIcon,
+  Layers3Icon,
 } from 'lucide-vue-next'
 import { useResponsive } from '@/lib/utils'
 import { useI18n } from 'vue-i18n'
 import { capitalize } from '@/filters/text.filters'
+import EmptyState from '@/components/library/EmptyState.vue'
 
 const { t } = useI18n()
 
@@ -20,6 +22,7 @@ const collections = [
   { id: 'places', icon: MapPinIcon },
   { id: 'collections', icon: FolderOpenIcon },
   { id: 'routes', icon: RouteIcon },
+  { id: 'layers', icon: Layers3Icon },
   { id: 'maps', icon: MapIcon },
 ]
 
@@ -37,15 +40,7 @@ const { isXSmallScreen } = useResponsive()
           :value="collection.id"
           class="flex-1 gap-2"
         >
-          <component
-            :is="collection.icon"
-            :class="['w-4 h-4', { 'w-5 h-5': isXSmallScreen }]"
-          />
-          <span v-if="!isXSmallScreen">
-            {{
-              capitalize(t(`library.collections.${collection.id}.title.plural`))
-            }}
-          </span>
+          <component :is="collection.icon" class="size-5" />
         </TabsTrigger>
       </TabsList>
 
@@ -55,35 +50,7 @@ const { isXSmallScreen } = useResponsive()
         :value="collection.id"
         class="flex-1 mt-32"
       >
-        <div class="flex flex-col items-center gap-3">
-          <component
-            :is="collection.icon"
-            class="h-12 w-12 text-muted-foreground"
-          />
-          <p class="text-muted-foreground text-sm">
-            {{
-              capitalize(
-                t('library.empty.message', {
-                  collection: t(
-                    `library.collections.${collection.id}.title.plural`,
-                  ),
-                }),
-              )
-            }}
-          </p>
-          <Button disabled variant="outline" size="sm" class="gap-1.5">
-            <PlusIcon class="h-3 w-3" />
-            {{
-              capitalize(
-                t('library.empty.action', {
-                  item: t(
-                    `library.collections.${collection.id}.title.singular`,
-                  ),
-                }),
-              )
-            }}
-          </Button>
-        </div>
+        <EmptyState :icon="collection.icon" :collection-id="collection.id" />
       </TabsContent>
     </Tabs>
   </div>

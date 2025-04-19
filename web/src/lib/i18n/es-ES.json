@@ -213,7 +213,7 @@
   },
   "library": {
     "title": "biblioteca",
-    "collections": {
+    "entities": {
       "places": {
         "title": {
           "singular": "lugar",
@@ -232,6 +232,12 @@
           "plural": "rutas"
         }
       },
+      "layers": {
+        "title": {
+          "singular": "capa",
+          "plural": "capas"
+        }
+      },
       "maps": {
         "title": {
           "singular": "mapa",
@@ -240,8 +246,8 @@
       }
     },
     "empty": {
-      "message": "no hay {collection} todavía",
-      "action": "crear {item}"
+      "message": "no hay {entityPlural} todavía",
+      "action": "crear {entitySingular}"
     }
   },
   "timeline": {

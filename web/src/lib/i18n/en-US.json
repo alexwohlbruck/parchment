@@ -212,7 +212,7 @@
   },
   "library": {
     "title": "library",
-    "collections": {
+    "entities": {
       "places": {
         "title": {
           "singular": "place",
@@ -231,6 +231,12 @@
           "plural": "routes"
         }
       },
+      "layers": {
+        "title": {
+          "singular": "layer",
+          "plural": "layers"
+        }
+      },
       "maps": {
         "title": {
           "singular": "map",
@@ -239,8 +245,8 @@
       }
     },
     "empty": {
-      "message": "no {collection} yet",
-      "action": "create {item}"
+      "message": "no {entityPlural} yet",
+      "action": "create {entitySingular}"
     }
   },
   "timeline": {

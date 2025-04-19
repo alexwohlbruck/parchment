@@ -410,14 +410,33 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.removeSource(sourceId)
   }
 
-  // TODO: Get maplibre layer type
   addLayer(layer: Layer, overwrite: boolean = false) {
     const { configuration }: any = mapboxLayerToMaplibreLayer(layer)
-    const existingLayer = this.mapInstance.getLayer(layer.configuration.id)
-    if (existingLayer && overwrite) {
-      this.mapInstance.removeLayer(layer.configuration.id)
+
+    // Handle source if it exists in the configuration
+    if (typeof configuration.source === 'object') {
+      const sourceId = configuration.source.id
+      const existingSource = this.mapInstance.getSource(sourceId)
+
+      if (existingSource) {
+        if (overwrite) {
+          this.mapInstance.removeSource(sourceId)
+          this.mapInstance.addSource(sourceId, configuration.source)
+        }
+      } else {
+        this.mapInstance.addSource(sourceId, configuration.source)
+      }
+
+      // Update configuration to use source ID instead of source object
+      configuration.source = sourceId
     }
-    if (!existingLayer) {
+
+    // Handle layer
+    const existingLayer = this.mapInstance.getLayer(configuration.id)
+    if (existingLayer && overwrite) {
+      this.mapInstance.removeLayer(configuration.id)
+    }
+    if (!existingLayer || overwrite) {
       this.mapInstance.addLayer({
         ...configuration,
         layout: {

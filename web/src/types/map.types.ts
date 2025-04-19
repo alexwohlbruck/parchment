@@ -90,6 +90,7 @@ export type MapEvents = {
 export enum SourceType {
   RASTER = 'raster',
   VECTOR = 'vector',
+  RASTER_DEM = 'raster-dem',
 }
 
 export type Source = {

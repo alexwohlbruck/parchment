@@ -124,17 +124,17 @@ export const useLibraryService = createSharedComposable(() => {
     }
   }
 
-  async function unsavePlace(id: string, place: SavedPlace) {
+  async function unsavePlace(id: string, placeName: string) {
     try {
       await api.delete(`/library/places/${id}`)
 
       // Update store
       libraryStore.removeSavedPlace(id)
-      toast.success(`Unsaved ${place.name}`)
+      toast.success(`Unsaved ${placeName}`)
 
       return true
     } catch (error) {
-      toast.error('Failed to delete place')
+      toast.error('Failed to unsave place')
       return false
     }
   }

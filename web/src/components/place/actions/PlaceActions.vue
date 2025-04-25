@@ -52,7 +52,7 @@ async function unsavePlace() {
   }
 
   try {
-    await libraryService.unsavePlace(savedPlaceId.value, props.place)
+    await libraryService.unsavePlace(savedPlaceId.value, props.place.name)
   } catch (error) {
     toast.error('Failed to remove place')
   }

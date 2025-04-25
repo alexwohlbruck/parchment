@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { Card, CardContent } from '@/components/ui/card'
+import { useI18n } from 'vue-i18n'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,6 +53,7 @@ const router = useRouter()
 const libraryStore = useLibraryStore()
 const { collections } = storeToRefs(libraryStore)
 const libraryService = useLibraryService()
+const { t } = useI18n()
 const collectionSearchQuery = ref('')
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const isAddingToCollection = ref(false)
@@ -176,7 +178,7 @@ function handleKeydown(event: KeyboardEvent) {
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <FolderPlusIcon class="size-4 mr-2" />
-                  Add to Collection
+                  {{ t('library.actions.addToCollection') }}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent class="min-w-[240px]">
                   <!-- Collection search input -->
@@ -193,7 +195,7 @@ function handleKeydown(event: KeyboardEvent) {
                         ref="searchInputRef"
                         v-model="collectionSearchQuery"
                         class="w-full h-8 pl-7"
-                        placeholder="Search collections..."
+                        :placeholder="t('library.actions.searchCollections')"
                         @keydown="handleKeydown"
                       />
                     </div>
@@ -226,20 +228,26 @@ function handleKeydown(event: KeyboardEvent) {
                     v-else-if="collections.length === 0"
                     class="px-2 py-4 text-center text-sm text-muted-foreground"
                   >
-                    No collections available.
+                    {{ t('library.empty.noCollections') }}
                   </div>
 
                   <div
                     v-else-if="collectionSearchQuery"
                     class="px-2 py-4 text-center text-sm text-muted-foreground"
                   >
-                    No collections found.
+                    {{
+                      t('library.empty.searchResults', {
+                        entityPlural: t(
+                          'library.entities.collections.title.plural',
+                        ),
+                      })
+                    }}
                   </div>
 
                   <!-- Create new collection option -->
                   <DropdownMenuItem @click.stop="createNewCollection" disabled>
                     <PlusIcon class="size-4" />
-                    Create new collection
+                    {{ t('library.actions.createNewCollection') }}
                   </DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
@@ -250,7 +258,7 @@ function handleKeydown(event: KeyboardEvent) {
                 class="text-destructive hover:text-destructive focus:text-destructive focus:bg-destructive/10 hover:bg-destructive/10"
               >
                 <Trash class="size-4" />
-                Unsave
+                {{ t('general.unsave') }}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useI18n } from 'vue-i18n'
 
 import {
   PlusIcon,
@@ -22,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
+const { t } = useI18n()
 const libraryService = useLibraryService()
 const libraryStore = useLibraryStore()
 const { collections } = storeToRefs(libraryStore)
@@ -92,7 +94,7 @@ function createCollection() {
           <Input
             v-model="searchQuery"
             class="w-full pl-8"
-            placeholder="Search collections..."
+            :placeholder="t('library.search.collections')"
           />
         </div>
 
@@ -107,14 +109,14 @@ function createCollection() {
               :class="{ 'font-medium': sortBy === 'name' }"
               @click="setSortBy('name')"
             >
-              Name
+              {{ t('general.name') }}
               {{ sortBy === 'name' ? (sortOrder === 'asc' ? '↑' : '↓') : '' }}
             </DropdownMenuItem>
             <DropdownMenuItem
               :class="{ 'font-medium': sortBy === 'createdAt' }"
               @click="setSortBy('createdAt')"
             >
-              Date Added
+              {{ t('general.dateAdded') }}
               {{
                 sortBy === 'createdAt' ? (sortOrder === 'asc' ? '↑' : '↓') : ''
               }}
@@ -136,7 +138,9 @@ function createCollection() {
 
     <!-- Collections List -->
     <div v-if="loading" class="flex-1 flex items-center justify-center">
-      <div class="text-muted-foreground">Loading collections...</div>
+      <div class="text-muted-foreground">
+        {{ t('library.loading.collections') }}
+      </div>
     </div>
 
     <div
@@ -150,9 +154,15 @@ function createCollection() {
       />
       <div v-else class="text-center">
         <p class="text-muted-foreground mb-2">
-          No collections match your search
+          {{
+            t('library.empty.searchResults', {
+              entityPlural: t('library.entities.collections.title.plural'),
+            })
+          }}
         </p>
-        <Button @click="searchQuery = ''">Clear Search</Button>
+        <Button @click="searchQuery = ''">{{
+          t('general.clearSearch')
+        }}</Button>
       </div>
     </div>
 

@@ -7,7 +7,7 @@ import { LucideIcon } from 'lucide-vue-next'
 
 interface Props {
   icon: LucideIcon
-  collectionId: string
+  entityId: string
 }
 
 const props = defineProps<Props>()
@@ -21,7 +21,7 @@ const { t } = useI18n()
       {{
         capitalize(
           t('library.empty.message', {
-            entityPlural: t(`library.entities.${collectionId}.title.plural`),
+            entityPlural: t(`library.entities.${entityId}.title.plural`),
           }),
         )
       }}
@@ -31,9 +31,7 @@ const { t } = useI18n()
       {{
         capitalize(
           t('library.empty.action', {
-            entitySingular: t(
-              `library.entities.${collectionId}.title.singular`,
-            ),
+            entitySingular: t(`library.entities.${entityId}.title.singular`),
           }),
         )
       }}

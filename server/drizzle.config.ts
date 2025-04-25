@@ -1,9 +1,9 @@
 import { defineConfig } from 'drizzle-kit'
-import { dbUrl } from './src/db'
+import { dbUrlLocal } from './src/db'
 
 export default defineConfig({
   dbCredentials: {
-    url: dbUrl!,
+    url: dbUrlLocal,
   },
   schema: './src/schema/*',
   dialect: 'postgresql',

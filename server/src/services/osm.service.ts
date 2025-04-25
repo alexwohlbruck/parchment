@@ -5,9 +5,10 @@ import type { Address, AttributedValue } from '../types/unified-place.types'
 const OVERPASS_API_URL = 'https://overpass-api.de/api/interpreter'
 const NOMINATIM_API_URL = 'https://nominatim.openstreetmap.org/search'
 
-export const buildOverpassQuery = (type: string, id: string) => {
+export const buildOverpassQuery = (id: string) => {
+  const [type, rawId] = id.includes('/') ? id.split('/') : [null, id]
   return `[out:json][timeout:60];
-    ${type}(${id});
+    ${type}(${rawId});
     out body geom meta;
     >;
     out body meta;`
@@ -89,26 +90,24 @@ export const calculatePlaceCenter = (place: Place) => {
 }
 
 export const fetchPlaceFromOverpass = async (
-  type: 'node' | 'way' | 'relation',
   id: string,
 ): Promise<Place | null> => {
   try {
-    const query = buildOverpassQuery(type, id)
-    console.log('Overpass query:', query)
+    const query = buildOverpassQuery(id)
 
     const response = await axios.get(
       `${OVERPASS_API_URL}?data=${encodeURIComponent(query)}`,
     )
 
+    console.log('Overpass response:', JSON.stringify(response.data, null, 2))
+
     if (response.status !== 200) {
       throw new Error(`Failed to fetch place details (HTTP ${response.status})`)
     }
 
-    console.log('Overpass response:', JSON.stringify(response.data, null, 2))
-
     const place = response.data.elements?.[0] as Place
     if (!place) {
-      throw new Error(`Place not found: ${type}/${id}`)
+      throw new Error(`Place not found: ${id}`)
     }
 
     const center = calculatePlaceCenter(place)
@@ -118,7 +117,10 @@ export const fetchPlaceFromOverpass = async (
       console.error('Could not calculate center for place:', place)
     }
 
-    return place
+    return {
+      ...place,
+      id: `${place.type}/${place.id}`, // Convert id to composite type/id
+    }
   } catch (error) {
     console.error('Error fetching place from Overpass:', error)
     if (axios.isAxiosError(error)) {

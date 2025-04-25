@@ -1,7 +1,62 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import { Button } from '@/components/ui/button'
-import { NavigationIcon, ShareIcon } from 'lucide-vue-next'
+import { NavigationIcon, ShareIcon, BookmarkIcon, Check } from 'lucide-vue-next'
+import { useLibraryService } from '@/services/library.service'
+import { useAppService } from '@/services/app.service'
+import type { UnifiedPlace } from '@/types/unified-place.types'
+import { useLibraryStore } from '@/stores/library.store'
 
+const props = defineProps<{
+  place: UnifiedPlace
+}>()
+
+const libraryService = useLibraryService()
+const libraryStore = useLibraryStore()
+const { toast } = useAppService()
+
+// Track the saved place ID so we can use it when unsaving
+const savedPlaceId = computed(() => {
+  // Find the saved place that matches this place's external IDs
+  if (!props.place.externalIds) return null
+
+  // Look through saved places to find one with matching external IDs
+  const savedPlace = libraryStore.savedPlaces.find(savedPlace => {
+    return Object.entries(props.place.externalIds).some(([provider, id]) => {
+      return savedPlace.externalIds[provider] === id
+    })
+  })
+
+  return savedPlace?.id || null
+})
+
+const isSaved = computed(() => {
+  return savedPlaceId.value !== null
+})
+
+async function savePlace() {
+  try {
+    await libraryService.savePlace(props.place)
+    if (!isSaved.value) {
+      toast.success(`Saved ${props.place.name}`)
+    }
+  } catch (error) {
+    toast.error('Failed to save place')
+  }
+}
+
+async function unsavePlace() {
+  if (!savedPlaceId.value) {
+    toast.error('Cannot find the saved place to remove')
+    return
+  }
+
+  try {
+    await libraryService.unsavePlace(savedPlaceId.value, props.place)
+  } catch (error) {
+    toast.error('Failed to remove place')
+  }
+}
 const emit = defineEmits<{
   (e: 'directions'): void
   (e: 'share'): void
@@ -17,6 +72,15 @@ const emit = defineEmits<{
     <Button variant="outline" class="flex-1" @click="$emit('share')">
       <ShareIcon class="mr-2 h-4 w-4" />
       Share
+    </Button>
+    <Button
+      size="icon"
+      variant="outline"
+      @click="isSaved ? unsavePlace() : savePlace()"
+      title="Save place"
+    >
+      <BookmarkIcon v-if="!isSaved" class="h-4 w-4" />
+      <Check v-else class="h-4 w-4" />
     </Button>
   </div>
 </template>

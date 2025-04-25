@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import fuzzysort from 'fuzzysort'
 import { onClickOutside, useMagicKeys } from '@vueuse/core'
 import { useCommandService } from '@/services/command.service'
 import { CommandName, useCommandStore } from '@/stores/command.store'
@@ -27,6 +26,7 @@ import {
   LoaderIcon,
 } from 'lucide-vue-next'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
+import { fuzzyFilter, noFilter } from '@/lib/utils'
 
 const { t } = useI18n()
 const commandStore = useCommandStore()
@@ -235,33 +235,18 @@ const icon = computed(() => {
     : SearchIcon
 })
 
-function fuzzyFilter<PaletteItem>(
-  val: PaletteItem[],
-  term: string,
-): PaletteItem[] {
-  if (!term) return val
-
-  return fuzzysort
-    .go(term, val, {
-      keys: ['name', 'description', 'keywords'],
-    })
-    .map(result => result.obj)
-}
-
-function emptyFilter<PaletteItem>(
-  val: PaletteItem[],
-  _term: string,
-): PaletteItem[] {
-  return val
-}
-
 const filterFunction = computed(() => {
   switch (activeCommand.value?.id) {
     case CommandName.SEARCH:
       // Don't filter for autocomplete search, backend will handle this
-      return emptyFilter as any
+      return noFilter
     default:
-      return fuzzyFilter as any
+      // Use fuzzy search for commands with name, description, and keywords as searchable fields
+      return (items: any[], query: string) =>
+        fuzzyFilter(items, query, {
+          keys: ['name', 'description', 'keywords'],
+          preserveOrder: false, // Sort by relevance for better command search results
+        })
   }
 })
 </script>

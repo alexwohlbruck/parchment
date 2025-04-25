@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Card, CardContent } from '@/components/ui/card'
+import { useI18n } from 'vue-i18n'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +24,7 @@ const props = defineProps<{
 }>()
 
 const router = useRouter()
+const { t } = useI18n()
 
 const collectionIcon = computed(() => {
   return getIconFromString(props.collection.icon)
@@ -79,11 +81,11 @@ function goToCollection() {
             <DropdownMenuContent align="end">
               <DropdownMenuItem>
                 <Pencil class="size-4 mr-2" />
-                Edit
+                {{ t('general.edit') }}
               </DropdownMenuItem>
               <DropdownMenuItem class="text-destructive">
                 <Trash class="size-4 mr-2" />
-                Delete
+                {{ t('general.delete') }}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

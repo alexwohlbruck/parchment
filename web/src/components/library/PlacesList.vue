@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useI18n } from 'vue-i18n'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +20,7 @@ const props = defineProps<{
   loading?: boolean
 }>()
 
+const { t } = useI18n()
 const localPlaces = ref<SavedPlace[]>([...props.places])
 const libraryService = useLibraryService()
 
@@ -98,7 +100,7 @@ function handleAddToCollection(place: SavedPlace) {
           <Input
             v-model="searchQuery"
             class="w-full pl-8"
-            placeholder="Search saved places..."
+            :placeholder="t('library.search.places')"
           />
         </div>
 
@@ -113,14 +115,14 @@ function handleAddToCollection(place: SavedPlace) {
               :class="{ 'font-medium': sortBy === 'name' }"
               @click="setSortBy('name')"
             >
-              Name
+              {{ t('general.name') }}
               {{ sortBy === 'name' ? (sortOrder === 'asc' ? '↑' : '↓') : '' }}
             </DropdownMenuItem>
             <DropdownMenuItem
               :class="{ 'font-medium': sortBy === 'createdAt' }"
               @click="setSortBy('createdAt')"
             >
-              Date Added
+              {{ t('general.dateAdded') }}
               {{
                 sortBy === 'createdAt' ? (sortOrder === 'asc' ? '↑' : '↓') : ''
               }}
@@ -132,7 +134,7 @@ function handleAddToCollection(place: SavedPlace) {
 
     <!-- Loading State -->
     <div v-if="loading" class="flex-1 flex items-center justify-center">
-      <div class="text-muted-foreground">Loading places...</div>
+      <div class="text-muted-foreground">{{ t('library.loading.places') }}</div>
     </div>
 
     <!-- Empty State -->
@@ -144,12 +146,14 @@ function handleAddToCollection(place: SavedPlace) {
         <p class="text-muted-foreground mb-2">
           {{
             searchQuery
-              ? 'No places match your search'
-              : 'No places in this collection yet'
+              ? t('library.empty.searchResults', {
+                  entityPlural: t('library.entities.places.title.plural'),
+                })
+              : t('library.empty.collectionPlaces')
           }}
         </p>
         <Button v-if="searchQuery" @click="searchQuery = ''">
-          Clear Search
+          {{ t('general.clearSearch') }}
         </Button>
       </div>
     </div>

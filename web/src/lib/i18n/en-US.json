@@ -8,7 +8,15 @@
     "confirm": "Confirm",
     "close": "Close",
     "save": "Save",
-    "name": "Name"
+    "name": "Name",
+    "edit": "Edit",
+    "unsave": "Unsave",
+    "clearSearch": "Clear Search",
+    "search": "Search",
+    "create": "Create",
+    "add": "Add",
+    "loading": "Loading...",
+    "dateAdded": "Date Added"
   },
   "palette": {
     "placeholder": {
@@ -212,6 +220,30 @@
   },
   "library": {
     "title": "library",
+    "search": {
+      "places": "Search saved places...",
+      "collections": "Search collections..."
+    },
+    "sort": {
+      "name": "Name"
+    },
+    "actions": {
+      "addToCollection": "Add to Collection",
+      "createNewCollection": "Create new collection",
+      "searchCollections": "Search collections..."
+    },
+    "loading": {
+      "places": "Loading places...",
+      "collections": "Loading collections...",
+      "collection": "Loading collection..."
+    },
+    "empty": {
+      "message": "no {entityPlural} yet",
+      "action": "create {entitySingular}",
+      "searchResults": "No {entityPlural} match your search",
+      "collectionPlaces": "No places in this collection yet",
+      "noCollections": "No collections available."
+    },
     "entities": {
       "places": {
         "title": {
@@ -244,10 +276,7 @@
         }
       }
     },
-    "empty": {
-      "message": "no {entityPlural} yet",
-      "action": "create {entitySingular}"
-    }
+    "confirmDelete": "Are you sure you want to delete \"{name}\"?"
   },
   "timeline": {
     "title": "Timeline"

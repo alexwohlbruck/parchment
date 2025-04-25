@@ -8,7 +8,15 @@
     "confirm": "Confirmar",
     "close": "Cerrar",
     "save": "Guardar",
-    "name": "Nombre"
+    "name": "Nombre",
+    "edit": "Editar",
+    "unsave": "Eliminar de guardados",
+    "clearSearch": "Borrar búsqueda",
+    "search": "Buscar",
+    "create": "Crear",
+    "add": "Añadir",
+    "loading": "Cargando...",
+    "dateAdded": "Fecha añadida"
   },
   "palette": {
     "general": {
@@ -213,6 +221,30 @@
   },
   "library": {
     "title": "biblioteca",
+    "search": {
+      "places": "Buscar lugares guardados...",
+      "collections": "Buscar colecciones..."
+    },
+    "sort": {
+      "name": "Nombre"
+    },
+    "actions": {
+      "addToCollection": "Añadir a colección",
+      "createNewCollection": "Crear nueva colección",
+      "searchCollections": "Buscar colecciones..."
+    },
+    "loading": {
+      "places": "Cargando lugares...",
+      "collections": "Cargando colecciones...",
+      "collection": "Cargando colección..."
+    },
+    "empty": {
+      "message": "no hay {entityPlural} todavía",
+      "action": "crear {entitySingular}",
+      "searchResults": "No hay {entityPlural} que coincidan con tu búsqueda",
+      "collectionPlaces": "No hay lugares en esta colección todavía",
+      "noCollections": "No hay colecciones disponibles."
+    },
     "entities": {
       "places": {
         "title": {
@@ -245,10 +277,7 @@
         }
       }
     },
-    "empty": {
-      "message": "no hay {entityPlural} todavía",
-      "action": "crear {entitySingular}"
-    }
+    "confirmDelete": "¿Estás seguro de que deseas eliminar \"{name}\"?"
   },
   "timeline": {
     "title": "Línea de tiempo"

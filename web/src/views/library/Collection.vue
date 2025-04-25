@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import { AppRoute } from '@/router'
+import { useI18n } from 'vue-i18n'
 import {
   ArrowLeftIcon,
   FolderIcon,
@@ -32,6 +33,7 @@ import { toast } from 'vue-sonner'
 const route = useRoute()
 const router = useRouter()
 const libraryService = useLibraryService()
+const { t } = useI18n()
 
 const id = route.params.id as string
 const loading = ref(true)
@@ -83,7 +85,7 @@ function editCollection() {
 function deleteCollection() {
   if (!collection.value) return
 
-  if (confirm(`Are you sure you want to delete "${collection.value.name}"?`)) {
+  if (confirm(t('library.confirmDelete', { name: collection.value.name }))) {
     libraryService.deleteCollection(id).then(() => {
       router.push({ name: AppRoute.LIBRARY_COLLECTIONS })
     })
@@ -94,7 +96,9 @@ function deleteCollection() {
 <template>
   <div class="h-full flex flex-col p-4 gap-4">
     <div v-if="loading" class="flex-1 flex items-center justify-center">
-      <div class="text-muted-foreground">Loading collection...</div>
+      <div class="text-muted-foreground">
+        {{ t('library.loading.collection') }}
+      </div>
     </div>
 
     <template v-else-if="collection">
@@ -134,14 +138,14 @@ function deleteCollection() {
           <DropdownMenuContent align="end">
             <DropdownMenuItem @click="editCollection">
               <PencilIcon class="size-4 mr-2" />
-              Edit
+              {{ t('general.edit') }}
             </DropdownMenuItem>
             <DropdownMenuItem
               @click="deleteCollection"
               class="text-destructive focus:text-destructive focus:bg-destructive/10"
             >
               <TrashIcon class="size-4 mr-2" />
-              Delete
+              {{ t('general.delete') }}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

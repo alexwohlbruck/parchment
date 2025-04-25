@@ -125,6 +125,7 @@ function handleBrandLogoError() {
 
           <PlaceActions
             class="mt-4"
+            :place="place"
             @directions="handleDirectionsClick"
             @share="sharePlace"
           />

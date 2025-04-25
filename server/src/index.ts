@@ -12,6 +12,7 @@ import {
   place as placeController,
   proxy as proxyController,
 } from './controllers'
+import libraryController from './controllers/library.controller'
 
 const app = new Elysia()
 
@@ -23,6 +24,7 @@ app.use(userController)
 app.use(directionsController)
 app.use(placeController)
 app.use(proxyController)
+app.use(libraryController)
 
 app.onError(({ code }) => {
   if (code === 'NOT_FOUND') return 'Route not found :(' // TODO: i18n, proper error

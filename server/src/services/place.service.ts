@@ -371,7 +371,7 @@ function createBaseUnifiedPlace(
   placeType: string,
 ): UnifiedPlace {
   return {
-    id: `${place.type}/${place.id}`,
+    id: place.id,
     externalIds: { [SOURCE.OSM]: place.id.toString() },
     name: name,
     placeType: placeType,
@@ -441,12 +441,10 @@ async function fetchExternalData(
 }
 
 export const getPlaceDetails = async (
-  type: 'node' | 'way' | 'relation',
   id: string,
 ): Promise<UnifiedPlace | null> => {
   try {
-    console.log(`Fetching place details for ${type}/${id}`)
-    const place = await fetchPlaceFromOverpass(type, id)
+    const place = await fetchPlaceFromOverpass(id)
 
     if (!place) {
       console.error('Could not fetch place from Overpass')

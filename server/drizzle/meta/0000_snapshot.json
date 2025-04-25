@@ -1,10 +1,8 @@
 {
-  "id": "841531fe-b086-41f6-855d-66bdca3a0a46",
-  "prevId": "00000000-0000-0000-0000-000000000000",
-  "version": "5",
-  "dialect": "pg",
+  "version": "7",
+  "dialect": "postgresql",
   "tables": {
-    "passkey": {
+    "public.passkey": {
       "name": "passkey",
       "schema": "",
       "columns": {
@@ -70,21 +68,24 @@
         "passkey_user_id_user_id_fk": {
           "name": "passkey_user_id_user_id_fk",
           "tableFrom": "passkey",
-          "tableTo": "user",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "user",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "permission": {
+    "public.permission": {
       "name": "permission",
       "schema": "",
       "columns": {
@@ -118,9 +119,12 @@
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "role_permission": {
+    "public.role_permission": {
       "name": "role_permission",
       "schema": "",
       "columns": {
@@ -142,28 +146,28 @@
         "role_permission_role_id_role_id_fk": {
           "name": "role_permission_role_id_role_id_fk",
           "tableFrom": "role_permission",
-          "tableTo": "role",
           "columnsFrom": [
             "role_id"
           ],
+          "tableTo": "role",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "role_permission_permission_id_permission_id_fk": {
           "name": "role_permission_permission_id_permission_id_fk",
           "tableFrom": "role_permission",
-          "tableTo": "permission",
           "columnsFrom": [
             "permission_id"
           ],
+          "tableTo": "permission",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -175,9 +179,12 @@
           ]
         }
       },
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "role": {
+    "public.role": {
       "name": "role",
       "schema": "",
       "columns": {
@@ -217,9 +224,12 @@
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "session": {
+    "public.session": {
       "name": "session",
       "schema": "",
       "columns": {
@@ -266,21 +276,24 @@
         "session_user_id_user_id_fk": {
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
-          "tableTo": "user",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "user",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "token": {
+    "public.token": {
       "name": "token",
       "schema": "",
       "columns": {
@@ -341,21 +354,24 @@
         "token_user_id_user_id_fk": {
           "name": "token_user_id_user_id_fk",
           "tableFrom": "token",
-          "tableTo": "user",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "user",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "user_role": {
+    "public.user_role": {
       "name": "user_role",
       "schema": "",
       "columns": {
@@ -377,28 +393,28 @@
         "user_role_user_id_user_id_fk": {
           "name": "user_role_user_id_user_id_fk",
           "tableFrom": "user_role",
-          "tableTo": "user",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "user",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "user_role_role_id_role_id_fk": {
           "name": "user_role_role_id_role_id_fk",
           "tableFrom": "user_role",
-          "tableTo": "role",
           "columnsFrom": [
             "role_id"
           ],
+          "tableTo": "role",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -410,9 +426,12 @@
           ]
         }
       },
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "user": {
+    "public.user": {
       "name": "user",
       "schema": "",
       "columns": {
@@ -453,27 +472,37 @@
       "uniqueConstraints": {
         "user_email_unique": {
           "name": "user_email_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "email"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
-      }
+      },
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     }
   },
   "enums": {
-    "token_type": {
+    "public.token_type": {
       "name": "token_type",
-      "values": {
-        "otp": "otp",
-        "token": "token"
-      }
+      "schema": "public",
+      "values": [
+        "otp",
+        "token"
+      ]
     }
   },
   "schemas": {},
   "_meta": {
-    "columns": {},
     "schemas": {},
-    "tables": {}
-  }
+    "tables": {},
+    "columns": {}
+  },
+  "id": "841531fe-b086-41f6-855d-66bdca3a0a46",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "sequences": {},
+  "policies": {},
+  "views": {},
+  "roles": {}
 }

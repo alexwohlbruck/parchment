@@ -11,7 +11,10 @@ import Appearance from '@/views/settings/pages/appearance/Appearance.vue'
 import MapSettings from '@/views/settings/pages/MapSettings.vue'
 import Users from '@/views/settings/pages/Users.vue'
 import Library from '@/views/library/Library.vue'
+import Collection from '@/views/library/Collection.vue'
 import NotFound from '@/views/NotFound.vue'
+import SavedPlaces from '@/views/library/SavedPlaces.vue'
+import Collections from '@/views/library/Collections.vue'
 
 import { useAuthStore } from '@/stores/auth.store'
 import { useResponsive } from '@/lib/utils'
@@ -27,6 +30,12 @@ export enum AppRoute {
   STREET = 'street',
   DIRECTIONS = 'directions',
   LIBRARY = 'library',
+  LIBRARY_PLACES = 'library-places',
+  LIBRARY_COLLECTIONS = 'library-collections',
+  LIBRARY_ROUTES = 'library-routes',
+  LIBRARY_LAYERS = 'library-layers',
+  LIBRARY_MAPS = 'library-maps',
+  COLLECTION = 'collection',
   SETTINGS = 'settings',
   ACCOUNT = 'account',
   BEHAVIOR = 'behavior',
@@ -83,6 +92,40 @@ const router = createRouter({
           path: '/library',
           name: AppRoute.LIBRARY,
           component: Library,
+          redirect: { name: AppRoute.LIBRARY_PLACES },
+          children: [
+            {
+              path: 'places',
+              name: AppRoute.LIBRARY_PLACES,
+              component: SavedPlaces,
+            },
+            {
+              path: 'collections',
+              name: AppRoute.LIBRARY_COLLECTIONS,
+              component: Collections,
+            },
+            {
+              path: 'routes',
+              name: AppRoute.LIBRARY_ROUTES,
+              component: () => import('@/views/library/EmptyTab.vue'),
+            },
+            {
+              path: 'layers',
+              name: AppRoute.LIBRARY_LAYERS,
+              component: () => import('@/views/library/EmptyTab.vue'),
+            },
+            {
+              path: 'maps',
+              name: AppRoute.LIBRARY_MAPS,
+              component: () => import('@/views/library/EmptyTab.vue'),
+            },
+          ],
+        },
+        {
+          path: '/library/collections/:id',
+          name: AppRoute.COLLECTION,
+          component: Collection,
+          props: true,
         },
       ],
     },

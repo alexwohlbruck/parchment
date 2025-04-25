@@ -76,7 +76,7 @@ export interface GooglePlaceDetails {
 }
 
 export interface Place {
-  id: number
+  id: string
   type: 'node' | 'way' | 'relation'
   tags?: Record<string, string>
   lat?: number

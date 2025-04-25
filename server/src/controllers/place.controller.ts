@@ -34,7 +34,7 @@ app.get(
     if (provider && id) {
       // Special handling for OSM
       if (provider === 'osm') {
-        const [osmType, osmId] = id.includes('/') ? id.split('/') : [null, id]
+        const [osmType, rawId] = id.includes('/') ? id.split('/') : [null, id]
 
         if (!osmType || !['node', 'way', 'relation'].includes(osmType)) {
           return error(400, {
@@ -43,10 +43,7 @@ app.get(
           })
         }
 
-        place = await getPlaceDetails(
-          osmType as 'node' | 'way' | 'relation',
-          osmId,
-        )
+        place = await getPlaceDetails(id)
       }
       // Handle other providers through common interface
       else {
@@ -83,20 +80,13 @@ app.get(
   },
 )
 
-// Existing endpoint for backward compatibility
 app.get(
-  '/:type/:id',
-  async ({ params: { type, id } }) => {
-    if (!['node', 'way', 'relation'].includes(type)) {
-      return error(400, {
-        message: 'Invalid place type. Must be node, way, or relation.',
-      })
-    }
-
-    const place = await getPlaceDetails(type as 'node' | 'way' | 'relation', id)
+  '/:id',
+  async ({ params: { id } }) => {
+    const place = await getPlaceDetails(id)
 
     if (!place) {
-      return error(404, { message: `Place not found: ${type}/${id}` })
+      return error(404, { message: `Place not found: ${id}` })
     }
 
     return place

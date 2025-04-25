@@ -96,7 +96,7 @@ function goToPlace() {
 
 async function unsavePlace() {
   try {
-    await libraryService.unsavePlace(props.place.id, props.place)
+    await libraryService.unsavePlace(props.place.id, props.place.name)
     emit('unsave', props.place)
   } catch (error) {
     console.error('Failed to unsave place:', error)

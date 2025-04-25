@@ -25,8 +25,7 @@ import { SOURCE } from '../lib/constants'
 export const osmAdapter: PlaceDataAdapter = {
   sourceId: SOURCE.OSM,
   sourceName: 'OpenStreetMap',
-  sourceUrl: (place: Place) =>
-    `https://www.openstreetmap.org/${place.type}/${place.id}`,
+  sourceUrl: (place: Place) => `https://www.openstreetmap.org/${place.id}`,
   transform: (place: Place) => {
     try {
       const transformed: ReturnType<PlaceDataAdapter['transform']> = {

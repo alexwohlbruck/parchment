@@ -231,7 +231,8 @@
     "actions": {
       "addToCollection": "Añadir a colección",
       "createNewCollection": "Crear nueva colección",
-      "searchCollections": "Buscar colecciones..."
+      "searchCollections": "Buscar colecciones...",
+      "removeFromCollection": "Quitar de la colección"
     },
     "loading": {
       "places": "Cargando lugares...",

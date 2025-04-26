@@ -41,12 +41,14 @@ import { toast } from 'vue-sonner'
 
 const props = defineProps<{
   place: SavedPlace
+  collectionId?: string
 }>()
 
 const emit = defineEmits<{
   edit: [place: SavedPlace]
   unsave: [place: SavedPlace]
   addToCollection: [place: SavedPlace]
+  removeFromCollection: [place: SavedPlace]
 }>()
 
 const router = useRouter()
@@ -65,10 +67,17 @@ onMounted(async () => {
 })
 
 const filteredCollections = computed(() => {
-  return fuzzyFilter(collections.value, collectionSearchQuery.value, {
+  let filtered = fuzzyFilter(collections.value, collectionSearchQuery.value, {
     keys: ['name', 'description'],
     preserveOrder: true,
   })
+
+  // Filter out the current collection if we're in a collection context
+  if (props.collectionId) {
+    filtered = filtered.filter(c => c.id !== props.collectionId)
+  }
+
+  return filtered
 })
 
 const placeIcon = computed(() => {
@@ -130,6 +139,20 @@ function handleKeydown(event: KeyboardEvent) {
     event.stopPropagation()
   }
 }
+
+async function removeFromCollection() {
+  try {
+    await libraryService.removePlaceFromCollection(
+      props.place.id,
+      props.collectionId!,
+    )
+    toast.success(t('library.actions.removedFromCollection'))
+    emit('removeFromCollection', props.place)
+  } catch (error) {
+    console.error('Failed to remove place from collection:', error)
+    toast.error(t('library.actions.failedToRemoveFromCollection'))
+  }
+}
 </script>
 
 <template>
@@ -138,7 +161,6 @@ function handleKeydown(event: KeyboardEvent) {
     @click="goToPlace"
   >
     <CardContent class="p-2 flex items-center gap-3">
-      <!-- Icon -->
       <div
         class="size-10 rounded-md flex items-center justify-center flex-shrink-0"
         :class="colorClasses"
@@ -146,18 +168,15 @@ function handleKeydown(event: KeyboardEvent) {
         <component :is="placeIcon" class="size-5" />
       </div>
 
-      <!-- Content -->
       <div class="flex-grow min-w-0">
         <div class="flex items-center justify-between">
           <div class="flex flex-col justify-center">
             <h3 class="font-semibold text-sm">{{ place.name }}</h3>
 
-            <!-- Display address if available -->
             <div v-if="place.address" class="text-xs text-muted-foreground">
               {{ place.address }}
             </div>
 
-            <!-- Display place type or preset type if available -->
             <div
               v-if="place.presetType"
               class="text-xs text-muted-foreground capitalize"
@@ -174,14 +193,12 @@ function handleKeydown(event: KeyboardEvent) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <!-- Add to Collection Sub-Menu -->
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <FolderPlusIcon class="size-4 mr-2" />
                   {{ t('library.actions.addToCollection') }}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent class="min-w-[240px]">
-                  <!-- Collection search input -->
                   <div
                     class="px-2 py-1.5"
                     @click.stop="preventPropagation"
@@ -202,7 +219,6 @@ function handleKeydown(event: KeyboardEvent) {
                   </div>
                   <DropdownMenuSeparator />
 
-                  <!-- List of collections -->
                   <div v-if="filteredCollections.length > 0">
                     <DropdownMenuItem
                       v-for="collection in filteredCollections"
@@ -244,7 +260,6 @@ function handleKeydown(event: KeyboardEvent) {
                     }}
                   </div>
 
-                  <!-- Create new collection option -->
                   <DropdownMenuItem @click.stop="createNewCollection" disabled>
                     <PlusIcon class="size-4" />
                     {{ t('library.actions.createNewCollection') }}
@@ -252,7 +267,15 @@ function handleKeydown(event: KeyboardEvent) {
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
 
-              <!-- Unsave option -->
+              <DropdownMenuItem
+                v-if="collectionId"
+                @click.stop="removeFromCollection"
+                class="text-destructive hover:text-destructive focus:text-destructive focus:bg-destructive/10 hover:bg-destructive/10"
+              >
+                <FolderIcon class="size-4" />
+                {{ t('library.actions.removeFromCollection') }}
+              </DropdownMenuItem>
+
               <DropdownMenuItem
                 @click.stop="unsavePlace"
                 class="text-destructive hover:text-destructive focus:text-destructive focus:bg-destructive/10 hover:bg-destructive/10"

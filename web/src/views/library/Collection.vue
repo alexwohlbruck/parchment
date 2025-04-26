@@ -152,7 +152,11 @@ function deleteCollection() {
       </div>
 
       <!-- Places List -->
-      <PlacesList :places="places" :loading="placesLoading" />
+      <PlacesList
+        :places="places"
+        :loading="placesLoading"
+        :collection-id="id"
+      />
     </template>
   </div>
 </template>

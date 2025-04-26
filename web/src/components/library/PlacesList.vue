@@ -18,6 +18,7 @@ import { useLibraryService } from '@/services/library.service'
 const props = defineProps<{
   places: SavedPlace[]
   loading?: boolean
+  collectionId?: string
 }>()
 
 const { t } = useI18n()
@@ -73,18 +74,17 @@ function setSortBy(field: 'name' | 'createdAt') {
   }
 }
 
-// Handle place unsaved (removing it from the local list)
 function handlePlaceUnsaved(place: SavedPlace) {
-  // No need to call the API here since the SavedPlaceCard already did it
-  // Just update our local state to remove the place
   localPlaces.value = localPlaces.value.filter(p => p.id !== place.id)
 }
 
-// Handle adding a place to a collection (no UI change needed)
 function handleAddToCollection(place: SavedPlace) {
-  // No UI change needed as the operation doesn't affect the list
-  // The SavedPlaceCard component handles the API call and toast
   console.log('Place added to collection:', place.name)
+}
+
+// Handle place removed from collection
+function handleRemoveFromCollection(place: SavedPlace) {
+  localPlaces.value = localPlaces.value.filter(p => p.id !== place.id)
 }
 </script>
 
@@ -164,8 +164,10 @@ function handleAddToCollection(place: SavedPlace) {
         v-for="place in filteredPlaces"
         :key="place.id"
         :place="place"
+        :collection-id="collectionId"
         @unsave="handlePlaceUnsaved"
         @add-to-collection="handleAddToCollection"
+        @remove-from-collection="handleRemoveFromCollection"
         class="w-full"
       />
     </div>

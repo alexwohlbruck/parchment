@@ -230,7 +230,8 @@
     "actions": {
       "addToCollection": "Add to Collection",
       "createNewCollection": "Create new collection",
-      "searchCollections": "Search collections..."
+      "searchCollections": "Search collections...",
+      "removeFromCollection": "Remove from collection"
     },
     "loading": {
       "places": "Loading places...",

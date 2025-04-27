@@ -17,9 +17,6 @@ import SavedPlaces from '@/views/library/SavedPlaces.vue'
 import Collections from '@/views/library/Collections.vue'
 
 import { useAuthStore } from '@/stores/auth.store'
-import { useResponsive } from '@/lib/utils'
-import { useMapStore } from '@/stores/map.store'
-import { useMapService } from '@/services/map.service'
 
 export enum AppRoute {
   SIGNIN = 'signin',
@@ -93,6 +90,9 @@ const router = createRouter({
           name: AppRoute.LIBRARY,
           component: Library,
           redirect: { name: AppRoute.LIBRARY_PLACES },
+          meta: {
+            auth: true,
+          },
           children: [
             {
               path: 'places',

@@ -3,28 +3,33 @@ import { ref, onMounted, computed } from 'vue'
 import { MapPinIcon } from 'lucide-vue-next'
 import PlacesList from '@/components/library/PlacesList.vue'
 import EmptyState from '@/components/library/EmptyState.vue'
-import { useLibraryService } from '@/services/library.service'
-import type { SavedPlace } from '@/types/library.types'
+import { useSavedPlacesService } from '@/services/library/saved-places.service'
+import { useSavedPlacesStore } from '@/stores/library/savedPlaces.store'
+import { storeToRefs } from 'pinia'
 
-const libraryService = useLibraryService()
-const places = ref<SavedPlace[]>([])
-const loading = ref(true)
+const savedPlacesService = useSavedPlacesService()
+const savedPlacesStore = useSavedPlacesStore()
+
+const loadingPlaces = ref(false)
+const { savedPlaces } = storeToRefs(savedPlacesStore)
 
 onMounted(async () => {
-  loading.value = true
-  places.value = await libraryService.fetchPlaces()
-  loading.value = false
+  loadingPlaces.value = true
+  await savedPlacesService.getSavedPlaces()
+  loadingPlaces.value = false
 })
 
-// Check if there are no places and we're not loading
 const showEmptyState = computed(() => {
-  return !loading.value && places.value.length === 0
+  return !loadingPlaces.value && savedPlaces.value.length === 0
+})
+
+const loading = computed(() => {
+  return loadingPlaces.value && savedPlaces.value.length === 0
 })
 </script>
 
 <template>
   <div class="h-full flex flex-col">
-    <!-- Show empty state when no places and not loading -->
     <EmptyState
       v-if="showEmptyState"
       :icon="MapPinIcon"
@@ -32,7 +37,6 @@ const showEmptyState = computed(() => {
       class="flex-1"
     />
 
-    <!-- Show places list when we have places or are loading -->
-    <PlacesList v-else :places="places" :loading="loading" />
+    <PlacesList v-else :places="savedPlaces" :loading="loading" />
   </div>
 </template>

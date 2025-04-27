@@ -11,8 +11,8 @@ import {
   directions as directionsController,
   place as placeController,
   proxy as proxyController,
+  library as libraryController,
 } from './controllers'
-import libraryController from './controllers/library.controller'
 
 const app = new Elysia()
 

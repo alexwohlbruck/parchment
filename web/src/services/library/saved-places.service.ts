@@ -48,7 +48,6 @@ export const useSavedPlacesService = createSharedComposable(() => {
       const response = await api.post('/library/places', params)
       const savedPlace = response.data
 
-      // Update store
       savedPlacesStore.addSavedPlace(savedPlace)
       toast.success(`Saved ${place.name}`)
 
@@ -81,7 +80,6 @@ export const useSavedPlacesService = createSharedComposable(() => {
     try {
       await api.delete(`/library/places/${id}`)
 
-      // Update store
       savedPlacesStore.removeSavedPlace(id)
       toast.success(`Unsaved ${placeName}`)
 
@@ -92,11 +90,9 @@ export const useSavedPlacesService = createSharedComposable(() => {
     }
   }
 
-  // Check if a place is saved
   function isPlaceSaved(place: UnifiedPlace) {
     if (!place.externalIds) return false
 
-    // Check directly instead of using the store's computed property
     return savedPlacesStore.savedPlaces.some(savedPlace => {
       return Object.entries(place.externalIds).some(([provider, id]) => {
         return savedPlace.externalIds[provider] === id

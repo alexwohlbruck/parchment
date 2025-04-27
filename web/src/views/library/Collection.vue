@@ -28,7 +28,6 @@ import type {
   SavedPlace,
 } from '@/types/library.types'
 import PlacesList from '@/components/library/PlacesList.vue'
-import { toast } from 'vue-sonner'
 
 const route = useRoute()
 const router = useRouter()

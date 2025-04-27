@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import { AppRoute } from '@/router'
 import { useI18n } from 'vue-i18n'
+import { useAppService } from '@/services/app.service'
+import CollectionForm from '@/components/library/CollectionForm.vue'
 import {
   ArrowLeftIcon,
   FolderIcon,
@@ -26,19 +28,18 @@ import type {
   SavedPlace,
 } from '@/types/library.types'
 import PlacesList from '@/components/library/PlacesList.vue'
-import CollectionDialog from '@/components/library/CollectionDialog.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
 
 const route = useRoute()
 const router = useRouter()
 const collectionsService = useCollectionsService()
+const appService = useAppService()
 const { t } = useI18n()
 
 const id = route.params.id as string
 const loading = ref(true)
 const collection = ref<CollectionType | null>(null)
 const places = ref<SavedPlace[]>([])
-const showEditDialog = ref(false)
 
 const collectionIcon = computed(() => {
   if (!collection.value) return FolderIcon
@@ -76,7 +77,50 @@ function goBack() {
 
 function editCollection() {
   if (!collection.value) return
-  showEditDialog.value = true
+
+  appService
+    .componentDialog({
+      component: CollectionForm,
+      title: t('library.dialog.editCollection.title'),
+      description: t('library.dialog.editCollection.description'),
+      continueText: t('general.save'),
+      cancelText: t('general.cancel'),
+      props: {
+        collection: collection.value,
+      },
+    })
+    .then(async formData => {
+      if (!formData) return
+
+      try {
+        // Create the params object with correct structure
+        const params = {
+          name: formData.name,
+          ...(formData.description
+            ? { description: formData.description }
+            : {}),
+          ...(formData.type ? { type: formData.type } : {}),
+          icon: formData.icon,
+          iconColor: formData.iconColor,
+          isPublic: formData.isPublic,
+        }
+
+        // Update existing collection
+        await collectionsService.updateCollection(id, params)
+
+        // Update local state
+        if (collection.value) {
+          collection.value.name = params.name
+          if (params.description)
+            collection.value.description = params.description
+          collection.value.icon = params.icon
+          collection.value.iconColor = params.iconColor
+          collection.value.isPublic = params.isPublic
+        }
+      } catch (error) {
+        console.error('Error updating collection:', error)
+      }
+    })
 }
 
 function deleteCollection() {
@@ -148,13 +192,6 @@ function deleteCollection() {
 
       <!-- Places List -->
       <PlacesList :places="places" :loading="loading" :collection-id="id" />
-
-      <!-- Edit Collection Dialog -->
-      <CollectionDialog
-        v-if="showEditDialog"
-        :collection="collection"
-        @update:open="showEditDialog = $event"
-      />
     </template>
   </div>
 </template>

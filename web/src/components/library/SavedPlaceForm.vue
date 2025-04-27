@@ -2,7 +2,6 @@
 import { computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { IconPicker } from '@/components/ui/icon-picker'
 import {
   Select,
@@ -11,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { Collection } from '@/types/library.types'
+import type { SavedPlace } from '@/types/library.types'
 import type { ThemeColor } from '@/lib/utils'
 import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
@@ -28,74 +27,64 @@ const { t } = useI18n()
 const emit = defineEmits(['update:valid'])
 
 const props = defineProps<{
-  collection?: Collection
+  place: SavedPlace
 }>()
 
-// TODO: Allow user to deselect type
-// Collection types (use the same values as in the place types)
-const collectionTypes = [
+// Place types - using same options as collections for now
+const placeTypes = [
   { value: 'home', label: t('library.types.home') },
   { value: 'work', label: t('library.types.work') },
   { value: 'school', label: t('library.types.school') },
 ]
 
 // Define form schema with zod
-const collectionSchema = toTypedSchema(
+const placeSchema = toTypedSchema(
   z.object({
     name: z.string().min(1, 'Name is required'),
-    description: z.string().default(''),
     type: z.string().optional(),
-    icon: z.string().default('Folder'),
+    icon: z.string().default('MapPin'),
     iconColor: z.string().default('blue'),
-    isPublic: z.boolean().default(false),
   }),
 )
 
-// Additional field for the collection type that's not part of the Collection type
-interface CollectionFormValues {
+// Form values interface
+interface SavedPlaceFormValues {
   name: string
-  description: string
   type?: string
   icon: string
   iconColor: string
-  isPublic: boolean
 }
 
 // Initialize form with vee-validate
 const { handleSubmit, values, meta, setFieldValue, resetForm } =
-  useForm<CollectionFormValues>({
-    validationSchema: collectionSchema,
+  useForm<SavedPlaceFormValues>({
+    validationSchema: placeSchema,
     initialValues: {
       name: '',
-      description: '',
       type: undefined,
-      icon: 'Folder',
+      icon: 'MapPin',
       iconColor: 'blue',
-      isPublic: false,
     },
   })
 
-// Load collection data if available
+// Load place data if available
 onMounted(() => {
-  if (props.collection) {
+  if (props.place) {
     resetForm({
       values: {
-        name: props.collection.name,
-        description: props.collection.description || '',
-        // Type is a custom field not in the Collection type
-        type: undefined,
-        icon: props.collection.icon,
-        iconColor: props.collection.iconColor,
-        isPublic: props.collection.isPublic,
+        name: props.place.name,
+        type: props.place.presetType || undefined,
+        icon: props.place.icon,
+        iconColor: props.place.iconColor as ThemeColor,
       },
     })
   }
 })
 
 // Combined icon and color style value for the picker
-const collectionStyle = computed({
+const placeStyle = computed({
   get: () => ({
-    icon: values.icon || 'Folder',
+    icon: values.icon || 'MapPin',
     color: values.iconColor as ThemeColor,
   }),
   set: newValue => {
@@ -119,20 +108,17 @@ watch(
   { immediate: true },
 )
 
-// Watch for collection prop changes
+// Watch for place prop changes
 watch(
-  () => props.collection,
-  newCollection => {
-    if (newCollection) {
+  () => props.place,
+  newPlace => {
+    if (newPlace) {
       resetForm({
         values: {
-          name: newCollection.name,
-          description: newCollection.description || '',
-          // Type is a custom field not in the Collection type
-          type: undefined,
-          icon: newCollection.icon,
-          iconColor: newCollection.iconColor,
-          isPublic: newCollection.isPublic,
+          name: newPlace.name,
+          type: newPlace.presetType || undefined,
+          icon: newPlace.icon,
+          iconColor: newPlace.iconColor as ThemeColor,
         },
       })
     }
@@ -155,14 +141,14 @@ defineExpose({
         <FormControl>
           <Input
             v-bind="field"
-            :placeholder="t('library.form.placeholders.collectionName')"
+            :placeholder="t('library.form.placeholders.placeName')"
           />
         </FormControl>
         <FormMessage>{{ errorMessage }}</FormMessage>
       </FormItem>
     </FormField>
 
-    <!-- Collection type field -->
+    <!-- Place type field -->
     <FormField name="type" v-slot="{ field }">
       <FormItem>
         <FormLabel>{{ t('general.type') }}</FormLabel>
@@ -174,12 +160,12 @@ defineExpose({
           >
             <SelectTrigger>
               <SelectValue
-                :placeholder="t('library.form.placeholders.collectionType')"
+                :placeholder="t('library.form.placeholders.placeType')"
               />
             </SelectTrigger>
             <SelectContent>
               <SelectItem
-                v-for="type in collectionTypes"
+                v-for="type in placeTypes"
                 :key="type.value"
                 :value="type.value"
               >
@@ -196,23 +182,11 @@ defineExpose({
       <FormItem>
         <FormLabel>{{ t('general.icon') }}</FormLabel>
         <FormControl>
-          <IconPicker v-model="collectionStyle" />
+          <IconPicker v-model="placeStyle" />
         </FormControl>
       </FormItem>
     </FormField>
 
-    <!-- Description field -->
-    <FormField name="description" v-slot="{ field }">
-      <FormItem>
-        <FormLabel>{{ t('general.description') }}</FormLabel>
-        <FormControl>
-          <Textarea
-            v-bind="field"
-            rows="3"
-            :placeholder="t('library.form.placeholders.collectionDescription')"
-          />
-        </FormControl>
-      </FormItem>
-    </FormField>
+    <!-- We've removed description and notes fields since they don't exist on the SavedPlace type -->
   </form>
 </template>

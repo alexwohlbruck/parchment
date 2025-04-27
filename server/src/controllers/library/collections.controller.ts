@@ -59,7 +59,8 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
   )
 
   // Update an existing collection
-  .patch(
+  // TODO: Change to patch. Elysia CORS is rejecting PATCH requests for some reason.
+  .put(
     '/:id',
     async ({ params: { id }, body, user }) => {
       const updated = await libraryService.updateCollection(id, user.id, body)

@@ -4,6 +4,8 @@ import { useCollectionsStore } from '@/stores/library/collections.store'
 import type { CreateCollectionParams, Collection } from '@/types/library.types'
 import { api } from '@/lib/api'
 
+// TODO: i18n error messages
+
 export const useCollectionsService = createSharedComposable(() => {
   const collectionsStore = useCollectionsStore()
 
@@ -48,7 +50,7 @@ export const useCollectionsService = createSharedComposable(() => {
 
   async function updateCollection(id: string, updates: Partial<Collection>) {
     try {
-      const response = await api.patch(`/library/collections/${id}`, updates)
+      const response = await api.put(`/library/collections/${id}`, updates)
       const updated = response.data
 
       // Update store

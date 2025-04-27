@@ -16,7 +16,7 @@ import {
 
 const app = new Elysia()
 
-app.use(cors(corsConfig) as any) // TODO: any
+app.use(cors(corsConfig))
 app.use(swagger(swaggerConfig))
 
 app.use(authController)

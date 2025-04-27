@@ -16,7 +16,13 @@
     "create": "Crear",
     "add": "Añadir",
     "loading": "Cargando...",
-    "dateAdded": "Fecha añadida"
+    "dateAdded": "Fecha añadida",
+    "description": "Descripción",
+    "icon": "Icono",
+    "color": "Color",
+    "style": "Estilo",
+    "type": "Tipo",
+    "none": "Ninguno"
   },
   "palette": {
     "general": {
@@ -239,7 +245,8 @@
       "action": "crear {entitySingular}",
       "searchResults": "No hay {entityPlural} que coincidan con tu búsqueda",
       "collectionPlaces": "No hay lugares en esta colección todavía",
-      "noCollections": "No hay colecciones disponibles."
+      "noCollections": "No hay colecciones disponibles.",
+      "noCollectionsFound": "No se encontraron colecciones"
     },
     "entities": {
       "places": {
@@ -273,7 +280,32 @@
         }
       }
     },
-    "confirmDelete": "¿Estás seguro de que deseas eliminar \"{name}\"?"
+    "confirmDelete": "¿Estás seguro de que deseas eliminar \"{name}\"?",
+    "dialog": {
+      "createCollection": {
+        "title": "Crear Colección",
+        "description": "Crea una nueva colección para organizar tus lugares guardados"
+      },
+      "editCollection": {
+        "title": "Editar Colección",
+        "description": "Modificar detalles de la colección"
+      }
+    },
+    "form": {
+      "placeholders": {
+        "collectionName": "Introduce el nombre de la colección",
+        "collectionDescription": "Añade una descripción (opcional)",
+        "selectType": "Selecciona un tipo (opcional)"
+      }
+    },
+    "presetTypes": {
+      "home": "Casa",
+      "work": "Trabajo",
+      "school": "Escuela"
+    },
+    "loading": {
+      "collection": "Cargando colección..."
+    }
   },
   "timeline": {
     "title": "Línea de tiempo"

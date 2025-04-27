@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Card, CardContent } from '@/components/ui/card'
 import { useI18n } from 'vue-i18n'
 import {
@@ -13,11 +13,10 @@ import { MoreVerticalIcon, Pencil, Trash } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import type { Collection } from '@/types/library.types'
-import {
-  getIconFromString,
-  getThemeColorClasses,
-  type ThemeColor,
-} from '@/lib/utils'
+import { getThemeColorClasses, type ThemeColor } from '@/lib/utils'
+import CollectionDialog from '@/components/library/CollectionDialog.vue'
+import { useCollectionsService } from '@/services/library/collections.service'
+import { ItemIcon } from '@/components/ui/item-icon'
 
 const props = defineProps<{
   collection: Collection
@@ -25,10 +24,9 @@ const props = defineProps<{
 
 const router = useRouter()
 const { t } = useI18n()
+const collectionsService = useCollectionsService()
 
-const collectionIcon = computed(() => {
-  return getIconFromString(props.collection.icon)
-})
+const showEditDialog = ref(false)
 
 const colorClasses = computed(() => {
   return getThemeColorClasses(props.collection.iconColor as ThemeColor)
@@ -40,6 +38,16 @@ function goToCollection() {
     params: { id: props.collection.id },
   })
 }
+
+function editCollection() {
+  showEditDialog.value = true
+}
+
+function deleteCollection() {
+  if (confirm(t('library.confirmDelete', { name: props.collection.name }))) {
+    collectionsService.deleteCollection(props.collection.id)
+  }
+}
 </script>
 
 <template>
@@ -49,12 +57,11 @@ function goToCollection() {
   >
     <CardContent class="p-2 flex items-center gap-3">
       <!-- Icon -->
-      <div
-        class="size-10 rounded-md flex items-center justify-center flex-shrink-0"
-        :class="colorClasses"
-      >
-        <component :is="collectionIcon" class="size-5" />
-      </div>
+      <ItemIcon
+        :icon="collection.icon"
+        :color="collection.iconColor"
+        size="md"
+      />
 
       <!-- Content -->
       <div class="flex-grow min-w-0">
@@ -79,11 +86,14 @@ function goToCollection() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem>
+              <DropdownMenuItem @click.stop="editCollection">
                 <Pencil class="size-4 mr-2" />
                 {{ t('general.edit') }}
               </DropdownMenuItem>
-              <DropdownMenuItem class="text-destructive">
+              <DropdownMenuItem
+                @click.stop="deleteCollection"
+                class="text-destructive"
+              >
                 <Trash class="size-4 mr-2" />
                 {{ t('general.delete') }}
               </DropdownMenuItem>
@@ -93,4 +103,11 @@ function goToCollection() {
       </div>
     </CardContent>
   </Card>
+
+  <!-- Edit Collection Dialog -->
+  <CollectionDialog
+    v-if="showEditDialog"
+    :collection="collection"
+    @update:open="showEditDialog = $event"
+  />
 </template>

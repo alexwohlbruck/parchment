@@ -76,6 +76,7 @@ export const useSavedPlacesService = createSharedComposable(() => {
     }
   }
 
+  // TODO: Remove from any collections the place is in
   async function unsavePlace(id: string, placeName: string) {
     try {
       await api.delete(`/library/places/${id}`)

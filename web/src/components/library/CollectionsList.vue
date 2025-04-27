@@ -12,6 +12,7 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { SearchIcon, ArrowUpDownIcon, PlusIcon } from 'lucide-vue-next'
 import CollectionCard from '@/components/library/CollectionCard.vue'
+import CollectionDialog from '@/components/library/CollectionDialog.vue'
 import { fuzzyFilter } from '@/lib/utils'
 import type { Collection } from '@/types/library.types'
 
@@ -26,6 +27,7 @@ const localCollections = ref<Collection[]>([...props.collections])
 const searchQuery = ref('')
 const sortBy = ref<'name' | 'createdAt'>('createdAt')
 const sortOrder = ref<'asc' | 'desc'>('desc')
+const showCreateDialog = ref(false)
 
 watch(
   () => props.collections,
@@ -73,7 +75,7 @@ function setSortBy(field: 'name' | 'createdAt') {
 }
 
 function createCollection() {
-  console.log('createCollection')
+  showCreateDialog.value = true
 }
 </script>
 
@@ -120,7 +122,6 @@ function createCollection() {
         </DropdownMenu>
 
         <Button
-          disabled
           variant="outline"
           size="icon"
           class="h-10 w-10"
@@ -166,5 +167,11 @@ function createCollection() {
         class="w-full"
       />
     </div>
+
+    <!-- Create Collection Dialog -->
+    <CollectionDialog
+      v-if="showCreateDialog"
+      @update:open="showCreateDialog = $event"
+    />
   </div>
 </template>

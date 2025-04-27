@@ -16,7 +16,13 @@
     "create": "Create",
     "add": "Add",
     "loading": "Loading...",
-    "dateAdded": "Date Added"
+    "dateAdded": "Date Added",
+    "description": "Description",
+    "icon": "Icon",
+    "color": "Color",
+    "style": "Style",
+    "type": "Type",
+    "none": "None"
   },
   "palette": {
     "placeholder": {
@@ -238,7 +244,8 @@
       "action": "create {entitySingular}",
       "searchResults": "No {entityPlural} match your search",
       "collectionPlaces": "No places in this collection yet",
-      "noCollections": "No collections available."
+      "noCollections": "No collections available.",
+      "noCollectionsFound": "No collections found"
     },
     "entities": {
       "places": {
@@ -272,7 +279,32 @@
         }
       }
     },
-    "confirmDelete": "Are you sure you want to delete \"{name}\"?"
+    "confirmDelete": "Are you sure you want to delete \"{name}\"?",
+    "dialog": {
+      "createCollection": {
+        "title": "Create Collection",
+        "description": "Create a new collection to organize your saved places"
+      },
+      "editCollection": {
+        "title": "Edit Collection",
+        "description": "Modify collection details"
+      }
+    },
+    "form": {
+      "placeholders": {
+        "collectionName": "Enter collection name",
+        "collectionDescription": "Add a description (optional)",
+        "selectType": "Select a type (optional)"
+      }
+    },
+    "presetTypes": {
+      "home": "Home",
+      "work": "Work",
+      "school": "School"
+    },
+    "loading": {
+      "collection": "Loading collection..."
+    }
   },
   "timeline": {
     "title": "Timeline"

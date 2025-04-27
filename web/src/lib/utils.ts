@@ -71,22 +71,6 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Get icon component from a string name (kebab-case)
- * @param iconName Icon name in kebab-case, e.g. 'map-pin'
- * @returns Lucide icon component
- */
-export function getIconFromString(iconName: string): LucideIcon {
-  // Convert kebab case to pascal case
-  const formattedIconName =
-    iconName
-      .split('-')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join('') + 'Icon'
-  return (LucideIcons[formattedIconName as keyof typeof LucideIcons] ||
-    LucideIcons.FileIcon) as LucideIcon
-}
-
-/**
  * Get CSS classes for a theme color that adapt to light/dark mode
  * @param color Theme color name
  * @returns Tailwind CSS classes for that color

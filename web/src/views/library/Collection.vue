@@ -10,7 +10,9 @@ import {
   PencilIcon,
   TrashIcon,
   MoreVerticalIcon,
+  FileIcon,
 } from 'lucide-vue-next'
+import * as LucideIcons from 'lucide-vue-next'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,16 +20,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useCollectionsService } from '@/services/library/collections.service'
-import {
-  getIconFromString,
-  getThemeColorClasses,
-  type ThemeColor,
-} from '@/lib/utils'
+import { getThemeColorClasses, type ThemeColor } from '@/lib/utils'
 import type {
   Collection as CollectionType,
   SavedPlace,
 } from '@/types/library.types'
 import PlacesList from '@/components/library/PlacesList.vue'
+import CollectionDialog from '@/components/library/CollectionDialog.vue'
+import { ItemIcon } from '@/components/ui/item-icon'
 
 const route = useRoute()
 const router = useRouter()
@@ -38,10 +38,17 @@ const id = route.params.id as string
 const loading = ref(true)
 const collection = ref<CollectionType | null>(null)
 const places = ref<SavedPlace[]>([])
+const showEditDialog = ref(false)
 
 const collectionIcon = computed(() => {
   if (!collection.value) return FolderIcon
-  return getIconFromString(collection.value.icon)
+
+  // Add "Icon" suffix if not already present
+  const iconName = collection.value.icon.endsWith('Icon')
+    ? collection.value.icon
+    : `${collection.value.icon}Icon`
+
+  return LucideIcons[iconName as keyof typeof LucideIcons] || FolderIcon
 })
 
 const colorClasses = computed(() => {
@@ -69,8 +76,7 @@ function goBack() {
 
 function editCollection() {
   if (!collection.value) return
-  // TODO: Open edit dialog
-  console.log('Edit collection:', collection.value)
+  showEditDialog.value = true
 }
 
 function deleteCollection() {
@@ -100,13 +106,11 @@ function deleteCollection() {
           </Button>
 
           <div class="flex items-center gap-3">
-            <div
-              class="size-10 rounded-md flex items-center justify-center flex-shrink-0"
-              :class="colorClasses"
-            >
-              <component :is="collectionIcon" class="size-5" />
-            </div>
-
+            <ItemIcon
+              :icon="collection.icon"
+              :color="collection.iconColor as ThemeColor"
+              size="md"
+            />
             <div>
               <h1 class="text-xl font-semibold">{{ collection.name }}</h1>
               <p
@@ -144,6 +148,13 @@ function deleteCollection() {
 
       <!-- Places List -->
       <PlacesList :places="places" :loading="loading" :collection-id="id" />
+
+      <!-- Edit Collection Dialog -->
+      <CollectionDialog
+        v-if="showEditDialog"
+        :collection="collection"
+        @update:open="showEditDialog = $event"
+      />
     </template>
   </div>
 </template>

@@ -288,16 +288,22 @@
       "editCollection": {
         "title": "Edit Collection",
         "description": "Modify collection details"
+      },
+      "editPlace": {
+        "title": "Edit Place",
+        "description": "Modify saved place details"
       }
     },
     "form": {
       "placeholders": {
         "collectionName": "Enter collection name",
         "collectionDescription": "Add a description (optional)",
-        "selectType": "Select a type (optional)"
+        "collectionType": "Select type (optional)",
+        "placeName": "Enter place name",
+        "placeType": "Select place type (optional)"
       }
     },
-    "presetTypes": {
+    "types": {
       "home": "Home",
       "work": "Work",
       "school": "School"

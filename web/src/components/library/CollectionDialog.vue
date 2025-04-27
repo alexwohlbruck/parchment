@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import ComponentDialog from '@/components/dialogs/ComponentDialog.vue'
 import CollectionForm from '@/components/library/CollectionForm.vue'
 import { useCollectionsService } from '@/services/library/collections.service'
+import { useAppService } from '@/services/app.service'
 import type { Collection, CreateCollectionParams } from '@/types/library.types'
 
 const props = defineProps<{
@@ -11,65 +11,63 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const appService = useAppService()
 const collectionsService = useCollectionsService()
 
-const isOpen = ref(true)
-const isSubmitting = ref(false)
+function openCollectionDialog(collection?: Collection) {
+  appService
+    .componentDialog({
+      component: CollectionForm,
+      title: collection
+        ? t('library.dialog.editCollection.title')
+        : t('library.dialog.createCollection.title'),
+      description: collection
+        ? t('library.dialog.editCollection.description')
+        : t('library.dialog.createCollection.description'),
+      continueText: collection ? t('general.save') : t('general.create'),
+      cancelText: t('general.cancel'),
+      props: {
+        collection,
+      },
+    })
+    .then(async formData => {
+      console.log('Form data received in dialog:', formData)
+      if (!formData) return
 
-function getDialogTitle() {
-  return props.collection
-    ? t('library.dialog.editCollection.title')
-    : t('library.dialog.createCollection.title')
+      try {
+        // Create the params object with correct structure
+        const params: CreateCollectionParams = {
+          name: formData.name,
+          ...(formData.description
+            ? { description: formData.description }
+            : {}),
+          ...(formData.type ? { type: formData.type } : {}),
+          icon: formData.icon,
+          iconColor: formData.iconColor,
+          isPublic: formData.isPublic,
+        }
+
+        console.log('Sending to API:', params)
+
+        if (collection) {
+          // Update existing collection
+          await collectionsService.updateCollection(collection.id, params)
+        } else {
+          // Create new collection
+          await collectionsService.createCollection(params)
+        }
+      } catch (error) {
+        console.error('Error saving collection:', error)
+      }
+    })
 }
 
-function getDialogDescription() {
-  return props.collection
-    ? t('library.dialog.editCollection.description')
-    : t('library.dialog.createCollection.description')
-}
-
-// When the form is submitted in the component dialog
-async function handleSubmit(formRef: any) {
-  try {
-    isSubmitting.value = true
-
-    // Get form data from the component
-    const formData = await formRef.submit()
-
-    // Create the params object with correct structure
-    const params: CreateCollectionParams = {
-      name: formData.name,
-      ...(formData.description ? { description: formData.description } : {}),
-      icon: formData.icon,
-      iconColor: formData.iconColor,
-      isPublic: formData.isPublic,
-    }
-
-    if (props.collection) {
-      // Update existing collection
-      await collectionsService.updateCollection(props.collection.id, params)
-    } else {
-      // Create new collection
-      await collectionsService.createCollection(params)
-    }
-
-    isOpen.value = false
-  } finally {
-    isSubmitting.value = false
-  }
-}
+// Auto-open the dialog when the component is mounted
+onMounted(() => {
+  openCollectionDialog(props.collection)
+})
 </script>
 
 <template>
-  <ComponentDialog
-    v-model:open="isOpen"
-    :component="CollectionForm"
-    :props="{ collection: props.collection }"
-    :title="getDialogTitle()"
-    :description="getDialogDescription()"
-    :continue-text="props.collection ? t('general.save') : t('general.create')"
-    :cancel-text="t('general.cancel')"
-    :loading="isSubmitting"
-    @submit="handleSubmit"
-  />
+  <!-- This component doesn't render anything in the template -->
 </template>

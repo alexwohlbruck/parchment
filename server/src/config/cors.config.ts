@@ -1,8 +1,19 @@
-import { HTTPMethod } from '@elysiajs/cors'
+import { cors, HTTPMethod } from '@elysiajs/cors'
 import { clientHostname } from './origins.config'
 
-const allowedMethods: HTTPMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
-export default {
+type CORSConfig = Parameters<typeof cors>[0]
+
+const allowedMethods: HTTPMethod[] = [
+  'GET',
+  'POST',
+  'PUT',
+  'DELETE',
+  'PATCH',
+  'HEAD',
+  'OPTIONS',
+]
+
+const corsConfig: CORSConfig = {
   origin: [clientHostname, 'tauri://localhost', 'http://tauri.localhost'],
   credentials: true,
   allowedHeaders: [
@@ -12,6 +23,8 @@ export default {
     'X-Requested-With',
     'Accept',
   ],
-  exposedHeaders: '*',
+  exposeHeaders: '*',
   methods: allowedMethods,
 }
+
+export default corsConfig

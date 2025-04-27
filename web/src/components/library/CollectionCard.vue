@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { Card, CardContent } from '@/components/ui/card'
 import { useI18n } from 'vue-i18n'
 import {
@@ -17,6 +17,8 @@ import { getThemeColorClasses, type ThemeColor } from '@/lib/utils'
 import CollectionDialog from '@/components/library/CollectionDialog.vue'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { ItemIcon } from '@/components/ui/item-icon'
+import { useAppService } from '@/services/app.service'
+import CollectionForm from '@/components/library/CollectionForm.vue'
 
 const props = defineProps<{
   collection: Collection
@@ -25,8 +27,7 @@ const props = defineProps<{
 const router = useRouter()
 const { t } = useI18n()
 const collectionsService = useCollectionsService()
-
-const showEditDialog = ref(false)
+const appService = useAppService()
 
 const colorClasses = computed(() => {
   return getThemeColorClasses(props.collection.iconColor as ThemeColor)
@@ -40,7 +41,39 @@ function goToCollection() {
 }
 
 function editCollection() {
-  showEditDialog.value = true
+  appService
+    .componentDialog({
+      component: CollectionForm,
+      title: t('library.dialog.editCollection.title'),
+      description: t('library.dialog.editCollection.description'),
+      continueText: t('general.save'),
+      cancelText: t('general.cancel'),
+      props: {
+        collection: props.collection,
+      },
+    })
+    .then(async formData => {
+      if (!formData) return
+
+      try {
+        // Create the params object with correct structure
+        const params = {
+          name: formData.name,
+          ...(formData.description
+            ? { description: formData.description }
+            : {}),
+          ...(formData.type ? { type: formData.type } : {}),
+          icon: formData.icon,
+          iconColor: formData.iconColor as ThemeColor,
+          isPublic: formData.isPublic,
+        }
+
+        // Update existing collection
+        await collectionsService.updateCollection(props.collection.id, params)
+      } catch (error) {
+        console.error('Error updating collection:', error)
+      }
+    })
 }
 
 function deleteCollection() {
@@ -59,7 +92,7 @@ function deleteCollection() {
       <!-- Icon -->
       <ItemIcon
         :icon="collection.icon"
-        :color="collection.iconColor"
+        :color="collection.iconColor as ThemeColor"
         size="md"
       />
 
@@ -103,11 +136,4 @@ function deleteCollection() {
       </div>
     </CardContent>
   </Card>
-
-  <!-- Edit Collection Dialog -->
-  <CollectionDialog
-    v-if="showEditDialog"
-    :collection="collection"
-    @update:open="showEditDialog = $event"
-  />
 </template>

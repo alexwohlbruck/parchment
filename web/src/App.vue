@@ -62,7 +62,7 @@ onMounted(() => {
     <component
       :is="dialog.component"
       v-bind="dialog.props"
-      @submit="dialog.onSubmit($event)"
+      @submit="async e => dialog.onSubmit(await e)"
     />
   </div>
 

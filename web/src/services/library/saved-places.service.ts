@@ -6,6 +6,8 @@ import type { CreateSavedPlaceParams, SavedPlace } from '@/types/library.types'
 import { ref } from 'vue'
 import { api } from '@/lib/api'
 
+// TODO: i18n error messages
+
 export const useSavedPlacesService = createSharedComposable(() => {
   const savedPlacesStore = useSavedPlacesStore()
   const isSaving = ref(false) // Keep isSaving here for the savePlace action
@@ -62,7 +64,7 @@ export const useSavedPlacesService = createSharedComposable(() => {
 
   async function updatePlace(id: string, updates: Partial<SavedPlace>) {
     try {
-      const response = await api.patch(`/library/places/${id}`, updates)
+      const response = await api.put(`/library/places/${id}`, updates)
       const updated = response.data
 
       // Update store

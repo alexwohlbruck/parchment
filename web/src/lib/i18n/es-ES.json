@@ -289,16 +289,22 @@
       "editCollection": {
         "title": "Editar Colección",
         "description": "Modificar detalles de la colección"
+      },
+      "editPlace": {
+        "title": "Editar Lugar",
+        "description": "Modificar detalles del lugar guardado"
       }
     },
     "form": {
       "placeholders": {
         "collectionName": "Introduce el nombre de la colección",
         "collectionDescription": "Añade una descripción (opcional)",
-        "selectType": "Selecciona un tipo (opcional)"
+        "collectionType": "Selecciona un tipo (opcional)",
+        "placeName": "Introduce el nombre del lugar",
+        "placeType": "Selecciona el tipo de lugar (opcional)"
       }
     },
-    "presetTypes": {
+    "types": {
       "home": "Casa",
       "work": "Trabajo",
       "school": "Escuela"

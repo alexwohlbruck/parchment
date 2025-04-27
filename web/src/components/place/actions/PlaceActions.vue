@@ -35,27 +35,18 @@ const isSaved = computed(() => {
 })
 
 async function savePlace() {
-  try {
-    await savedPlacesService.savePlace(props.place)
-    if (!isSaved.value) {
-      toast.success(`Saved ${props.place.name}`)
-    }
-  } catch (error) {
-    toast.error('Failed to save place')
+  await savedPlacesService.savePlace(props.place)
+  if (!isSaved.value) {
+    toast.success(`Saved ${props.place.name}`)
   }
 }
 
 async function unsavePlace() {
   if (!savedPlaceId.value) {
-    toast.error('Cannot find the saved place to remove')
     return
   }
 
-  try {
-    await savedPlacesService.unsavePlace(savedPlaceId.value, props.place.name)
-  } catch (error) {
-    toast.error('Failed to remove place')
-  }
+  await savedPlacesService.unsavePlace(savedPlaceId.value, props.place.name)
 }
 const emit = defineEmits<{
   (e: 'directions'): void

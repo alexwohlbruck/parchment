@@ -22,6 +22,7 @@ import {
   SearchIcon,
   FolderXIcon,
   BookmarkXIcon,
+  PencilIcon,
 } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { useCollectionsStore } from '@/stores/library/collections.store'
@@ -32,6 +33,8 @@ import { storeToRefs } from 'pinia'
 import type { SavedPlace } from '@/types/library.types'
 import { getThemeColorClasses, fuzzyFilter, type ThemeColor } from '@/lib/utils'
 import { toast } from 'vue-sonner'
+import { useAppService } from '@/services/app.service'
+import SavedPlaceForm from '@/components/library/SavedPlaceForm.vue'
 
 const props = defineProps<{
   place: SavedPlace
@@ -51,6 +54,7 @@ const savedPlacesStore = useSavedPlacesStore()
 const { collections } = storeToRefs(collectionsStore)
 const collectionsService = useCollectionsService()
 const savedPlacesService = useSavedPlacesService()
+const appService = useAppService()
 const { t } = useI18n()
 const collectionSearchQuery = ref('')
 const searchInputRef = ref<HTMLInputElement | null>(null)
@@ -136,6 +140,32 @@ async function removeFromCollection() {
     toast.error(t('library.actions.failedToRemoveFromCollection'))
   }
 }
+
+async function editPlace() {
+  appService
+    .componentDialog({
+      component: SavedPlaceForm,
+      title: t('library.dialog.editPlace.title'),
+      description: t('library.dialog.editPlace.description'),
+      continueText: t('general.save'),
+      cancelText: t('general.cancel'),
+      props: {
+        place: props.place,
+      },
+    })
+    .then(async formData => {
+      if (!formData) return
+
+      const params = {
+        name: formData.name,
+        ...(formData.type ? { presetType: formData.type } : {}),
+        icon: formData.icon,
+        iconColor: formData.iconColor as ThemeColor,
+      }
+
+      await savedPlacesService.updatePlace(props.place.id, params)
+    })
+}
 </script>
 
 <template>
@@ -148,7 +178,11 @@ async function removeFromCollection() {
         class="size-10 rounded-md flex items-center justify-center flex-shrink-0"
         :class="colorClasses"
       >
-        <ItemIcon :icon="place.icon" :color="place.iconColor" size="md" />
+        <ItemIcon
+          :icon="place.icon"
+          :color="place.iconColor as ThemeColor"
+          size="md"
+        />
       </div>
 
       <div class="flex-grow min-w-0">
@@ -176,6 +210,10 @@ async function removeFromCollection() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem @click.stop="editPlace">
+                <PencilIcon class="size-4" />
+                {{ t('general.edit') }}
+              </DropdownMenuItem>
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <FolderPlusIcon class="size-4 mr-2" />
@@ -215,7 +253,7 @@ async function removeFromCollection() {
                       >
                         <ItemIcon
                           :icon="collection.icon"
-                          :color="collection.iconColor"
+                          :color="collection.iconColor as ThemeColor"
                           size="sm"
                         />
                       </div>

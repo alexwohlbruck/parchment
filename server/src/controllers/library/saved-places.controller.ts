@@ -58,7 +58,8 @@ const placesRouter = new Elysia({ prefix: '/places' })
   )
 
   // Update an existing saved place
-  .patch(
+  // TODO: Change to patch. Elysia CORS is rejecting PATCH requests for some reason.
+  .put(
     '/:id',
     async ({ params: { id }, body, user }) => {
       const updated = await libraryService.updateSavedPlace(id, user.id, body)

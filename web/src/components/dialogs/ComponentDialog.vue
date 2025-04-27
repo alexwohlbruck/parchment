@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { ref } from 'vue'
 
 const props = defineProps<ComponentDialogOptions>()
+const emit = defineEmits(['submit'])
 const isValid = ref(true)
 const componentRef = ref()
 const isLoading = ref(false)
@@ -22,7 +23,9 @@ const isOpen = ref(true)
 async function submit() {
   isLoading.value = true
   try {
-    await componentRef.value?.submit?.()
+    const result = await componentRef.value?.submit?.()
+    emit('submit', result)
+    return result
   } finally {
     isLoading.value = false
     isOpen.value = false

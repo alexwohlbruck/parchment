@@ -17,7 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useLibraryService } from '@/services/library.service'
+import { useCollectionsService } from '@/services/library/collections.service'
 import {
   getIconFromString,
   getThemeColorClasses,
@@ -32,12 +32,11 @@ import { toast } from 'vue-sonner'
 
 const route = useRoute()
 const router = useRouter()
-const libraryService = useLibraryService()
+const collectionsService = useCollectionsService()
 const { t } = useI18n()
 
 const id = route.params.id as string
 const loading = ref(true)
-const placesLoading = ref(true)
 const collection = ref<CollectionType | null>(null)
 const places = ref<SavedPlace[]>([])
 
@@ -54,21 +53,14 @@ const colorClasses = computed(() => {
 onMounted(async () => {
   loading.value = true
 
-  collection.value = await libraryService.fetchCollectionById(id)
+  collection.value = await collectionsService.fetchCollectionById(id)
 
   if (!collection.value) {
-    router.push('/library')
+    router.push({ name: AppRoute.LIBRARY_COLLECTIONS })
     return
   }
 
-  try {
-    placesLoading.value = true
-    places.value = await libraryService.fetchPlacesInCollection(id)
-    placesLoading.value = false
-  } catch (error) {
-    toast.error('Failed to load places in this collection')
-  }
-
+  places.value = (collection.value as any).places || []
   loading.value = false
 })
 
@@ -86,7 +78,7 @@ function deleteCollection() {
   if (!collection.value) return
 
   if (confirm(t('library.confirmDelete', { name: collection.value.name }))) {
-    libraryService.deleteCollection(id).then(() => {
+    collectionsService.deleteCollection(id).then(() => {
       router.push({ name: AppRoute.LIBRARY_COLLECTIONS })
     })
   }
@@ -103,7 +95,7 @@ function deleteCollection() {
 
     <template v-else-if="collection">
       <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-1">
           <Button variant="ghost" size="icon" @click="goBack">
             <ArrowLeftIcon class="size-4" />
           </Button>
@@ -152,11 +144,7 @@ function deleteCollection() {
       </div>
 
       <!-- Places List -->
-      <PlacesList
-        :places="places"
-        :loading="placesLoading"
-        :collection-id="id"
-      />
+      <PlacesList :places="places" :loading="loading" :collection-id="id" />
     </template>
   </div>
 </template>

@@ -2,17 +2,17 @@
 import { computed, ref } from 'vue'
 import { Button } from '@/components/ui/button'
 import { NavigationIcon, ShareIcon, BookmarkIcon, Check } from 'lucide-vue-next'
-import { useLibraryService } from '@/services/library.service'
+import { useSavedPlacesService } from '@/services/library/saved-places.service'
 import { useAppService } from '@/services/app.service'
 import type { UnifiedPlace } from '@/types/unified-place.types'
-import { useLibraryStore } from '@/stores/library.store'
+import { useSavedPlacesStore } from '@/stores/library/savedPlaces.store'
 
 const props = defineProps<{
   place: UnifiedPlace
 }>()
 
-const libraryService = useLibraryService()
-const libraryStore = useLibraryStore()
+const savedPlacesService = useSavedPlacesService()
+const savedPlacesStore = useSavedPlacesStore()
 const { toast } = useAppService()
 
 // Track the saved place ID so we can use it when unsaving
@@ -21,7 +21,7 @@ const savedPlaceId = computed(() => {
   if (!props.place.externalIds) return null
 
   // Look through saved places to find one with matching external IDs
-  const savedPlace = libraryStore.savedPlaces.find(savedPlace => {
+  const savedPlace = savedPlacesStore.savedPlaces.find(savedPlace => {
     return Object.entries(props.place.externalIds).some(([provider, id]) => {
       return savedPlace.externalIds[provider] === id
     })
@@ -36,7 +36,7 @@ const isSaved = computed(() => {
 
 async function savePlace() {
   try {
-    await libraryService.savePlace(props.place)
+    await savedPlacesService.savePlace(props.place)
     if (!isSaved.value) {
       toast.success(`Saved ${props.place.name}`)
     }
@@ -52,7 +52,7 @@ async function unsavePlace() {
   }
 
   try {
-    await libraryService.unsavePlace(savedPlaceId.value, props.place.name)
+    await savedPlacesService.unsavePlace(savedPlaceId.value, props.place.name)
   } catch (error) {
     toast.error('Failed to remove place')
   }

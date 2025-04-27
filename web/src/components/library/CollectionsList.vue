@@ -10,39 +10,38 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
-import { SearchIcon, ArrowUpDownIcon } from 'lucide-vue-next'
-import SavedPlaceCard from '@/components/library/SavedPlaceCard.vue'
+import { SearchIcon, ArrowUpDownIcon, PlusIcon } from 'lucide-vue-next'
+import CollectionCard from '@/components/library/CollectionCard.vue'
 import { fuzzyFilter } from '@/lib/utils'
-import type { SavedPlace } from '@/types/library.types'
+import type { Collection } from '@/types/library.types'
 
 const props = defineProps<{
-  places: SavedPlace[]
+  collections: Collection[]
   loading?: boolean
-  collectionId?: string
 }>()
 
 const { t } = useI18n()
-const localPlaces = ref<SavedPlace[]>([...props.places])
+const localCollections = ref<Collection[]>([...props.collections])
 
 const searchQuery = ref('')
 const sortBy = ref<'name' | 'createdAt'>('createdAt')
 const sortOrder = ref<'asc' | 'desc'>('desc')
 
 watch(
-  () => props.places,
-  newPlaces => {
-    localPlaces.value = [...newPlaces]
+  () => props.collections,
+  newCollections => {
+    localCollections.value = [...newCollections]
   },
   { deep: true },
 )
 
-const filteredPlaces = computed(() => {
+const filteredCollections = computed(() => {
   let result = searchQuery.value
-    ? fuzzyFilter(localPlaces.value, searchQuery.value, {
-        keys: ['name', 'presetType', 'address'],
+    ? fuzzyFilter(localCollections.value, searchQuery.value, {
+        keys: ['name', 'description'],
         preserveOrder: true,
       })
-    : localPlaces.value
+    : localCollections.value
 
   result = [...result].sort((a, b) => {
     let comparison = 0
@@ -73,17 +72,8 @@ function setSortBy(field: 'name' | 'createdAt') {
   }
 }
 
-function handlePlaceUnsaved(place: SavedPlace) {
-  localPlaces.value = localPlaces.value.filter(p => p.id !== place.id)
-}
-
-function handleAddToCollection(place: SavedPlace) {
-  console.log('Place added to collection:', place.name)
-}
-
-// Handle place removed from collection
-function handleRemoveFromCollection(place: SavedPlace) {
-  localPlaces.value = localPlaces.value.filter(p => p.id !== place.id)
+function createCollection() {
+  console.log('createCollection')
 }
 </script>
 
@@ -99,7 +89,7 @@ function handleRemoveFromCollection(place: SavedPlace) {
           <Input
             v-model="searchQuery"
             class="w-full pl-8"
-            :placeholder="t('library.search.places')"
+            :placeholder="t('library.search.collections')"
           />
         </div>
 
@@ -128,6 +118,16 @@ function handleRemoveFromCollection(place: SavedPlace) {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <Button
+          disabled
+          variant="outline"
+          size="icon"
+          class="h-10 w-10"
+          @click="createCollection"
+        >
+          <PlusIcon class="h-4 w-4" />
+        </Button>
       </div>
     </div>
 
@@ -138,7 +138,7 @@ function handleRemoveFromCollection(place: SavedPlace) {
 
     <!-- Empty State -->
     <div
-      v-else-if="filteredPlaces.length === 0"
+      v-else-if="filteredCollections.length === 0"
       class="flex-1 flex items-center justify-center"
     >
       <div class="text-center">
@@ -146,9 +146,9 @@ function handleRemoveFromCollection(place: SavedPlace) {
           {{
             searchQuery
               ? t('library.empty.searchResults', {
-                  entityPlural: t('library.entities.places.title.plural'),
+                  entityPlural: t('library.entities.collections.title.plural'),
                 })
-              : t('library.empty.collectionPlaces')
+              : t('library.empty.noCollectionsFound')
           }}
         </p>
         <Button v-if="searchQuery" @click="searchQuery = ''">
@@ -157,16 +157,12 @@ function handleRemoveFromCollection(place: SavedPlace) {
       </div>
     </div>
 
-    <!-- Places List -->
-    <div v-else class="flex flex-col gap-2 pb-4">
-      <SavedPlaceCard
-        v-for="place in filteredPlaces"
-        :key="place.id"
-        :place="place"
-        :collection-id="collectionId"
-        @unsave="handlePlaceUnsaved"
-        @add-to-collection="handleAddToCollection"
-        @remove-from-collection="handleRemoveFromCollection"
+    <!-- Collections List -->
+    <div v-else class="flex flex-col gap-2 pb-4 flex-1 overflow-y-auto">
+      <CollectionCard
+        v-for="collection in filteredCollections"
+        :key="collection.id"
+        :collection="collection"
         class="w-full"
       />
     </div>

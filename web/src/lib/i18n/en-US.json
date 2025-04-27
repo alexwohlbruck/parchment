@@ -233,11 +233,6 @@
       "searchCollections": "Search collections...",
       "removeFromCollection": "Remove from collection"
     },
-    "loading": {
-      "places": "Loading places...",
-      "collections": "Loading collections...",
-      "collection": "Loading collection..."
-    },
     "empty": {
       "message": "no {entityPlural} yet",
       "action": "create {entitySingular}",

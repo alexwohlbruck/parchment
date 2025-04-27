@@ -15,22 +15,20 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  LucideIcon,
   MoreVerticalIcon,
-  Pencil,
-  Trash,
   FolderPlusIcon,
-  FolderIcon,
   PlusIcon,
   SearchIcon,
+  FolderXIcon,
+  BookmarkXIcon,
 } from 'lucide-vue-next'
-import * as LucideIcons from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
-import { useLibraryStore } from '@/stores/library.store'
-import { useLibraryService } from '@/services/library.service'
+import { useCollectionsStore } from '@/stores/library/collections.store'
+import { useSavedPlacesStore } from '@/stores/library/savedPlaces.store'
+import { useCollectionsService } from '@/services/library/collections.service'
+import { useSavedPlacesService } from '@/services/library/saved-places.service'
 import { storeToRefs } from 'pinia'
-import type { SavedPlace, Collection } from '@/types/library.types'
-import type { UnifiedPlace } from '@/types/unified-place.types'
+import type { SavedPlace } from '@/types/library.types'
 import {
   getIconFromString,
   getThemeColorClasses,
@@ -52,9 +50,11 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
-const libraryStore = useLibraryStore()
-const { collections } = storeToRefs(libraryStore)
-const libraryService = useLibraryService()
+const collectionsStore = useCollectionsStore()
+const savedPlacesStore = useSavedPlacesStore()
+const { collections } = storeToRefs(collectionsStore)
+const collectionsService = useCollectionsService()
+const savedPlacesService = useSavedPlacesService()
 const { t } = useI18n()
 const collectionSearchQuery = ref('')
 const searchInputRef = ref<HTMLInputElement | null>(null)
@@ -62,7 +62,7 @@ const isAddingToCollection = ref(false)
 
 onMounted(async () => {
   if (collections.value.length === 0) {
-    await libraryService.fetchCollections()
+    await collectionsService.fetchCollections()
   }
 })
 
@@ -89,7 +89,7 @@ const colorClasses = computed(() => {
 })
 
 function goToPlace() {
-  const route = libraryStore.navigateToPlace(props.place)
+  const route = savedPlacesStore.navigateToPlace(props.place)
   const [type, osmId] = props.place.externalIds.osm.split('/')
   console.log(type, osmId)
   if (route) {
@@ -104,22 +104,13 @@ function goToPlace() {
 }
 
 async function unsavePlace() {
-  try {
-    await libraryService.unsavePlace(props.place.id, props.place.name)
-    emit('unsave', props.place)
-  } catch (error) {
-    console.error('Failed to unsave place:', error)
-  }
+  await savedPlacesService.unsavePlace(props.place.id, props.place.name)
 }
 
 async function addToCollection(collectionId: string) {
   try {
     isAddingToCollection.value = true
-    await libraryService.addPlaceToCollection(props.place.id, collectionId)
-    toast.success(`Added to collection`)
-  } catch (error) {
-    console.error('Failed to add place to collection:', error)
-    toast.error('Failed to add to collection')
+    await collectionsService.addPlaceToCollection(props.place.id, collectionId)
   } finally {
     isAddingToCollection.value = false
   }
@@ -142,7 +133,7 @@ function handleKeydown(event: KeyboardEvent) {
 
 async function removeFromCollection() {
   try {
-    await libraryService.removePlaceFromCollection(
+    await collectionsService.removePlaceFromCollection(
       props.place.id,
       props.collectionId!,
     )
@@ -272,7 +263,7 @@ async function removeFromCollection() {
                 @click.stop="removeFromCollection"
                 class="text-destructive hover:text-destructive focus:text-destructive focus:bg-destructive/10 hover:bg-destructive/10"
               >
-                <FolderIcon class="size-4" />
+                <FolderXIcon class="size-4" />
                 {{ t('library.actions.removeFromCollection') }}
               </DropdownMenuItem>
 
@@ -280,7 +271,7 @@ async function removeFromCollection() {
                 @click.stop="unsavePlace"
                 class="text-destructive hover:text-destructive focus:text-destructive focus:bg-destructive/10 hover:bg-destructive/10"
               >
-                <Trash class="size-4" />
+                <BookmarkXIcon class="size-4" />
                 {{ t('general.unsave') }}
               </DropdownMenuItem>
             </DropdownMenuContent>

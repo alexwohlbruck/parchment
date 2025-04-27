@@ -234,11 +234,6 @@
       "searchCollections": "Buscar colecciones...",
       "removeFromCollection": "Quitar de la colección"
     },
-    "loading": {
-      "places": "Cargando lugares...",
-      "collections": "Cargando colecciones...",
-      "collection": "Cargando colección..."
-    },
     "empty": {
       "message": "no hay {entityPlural} todavía",
       "action": "crear {entitySingular}",

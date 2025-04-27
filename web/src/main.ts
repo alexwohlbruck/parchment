@@ -1,11 +1,12 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import { i18n } from '@/lib/i18n'
 import './style.css'
 import App from './App.vue'
 import router from './router'
 import VueTransitions from '@morev/vue-transitions'
 import { MotionPlugin } from '@vueuse/motion'
-import { i18n } from '@/lib/i18n'
+import VueVirtualScroller from 'vue-virtual-scroller'
 
 import '@morev/vue-transitions/styles'
 import '@/styles/themes.css'
@@ -22,5 +23,6 @@ app.use(pinia)
 app.use(i18n)
 app.use(VueTransitions)
 app.use(MotionPlugin)
+app.use(VueVirtualScroller)
 
 app.mount('#app')

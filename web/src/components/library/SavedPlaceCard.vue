@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { ItemIcon } from '@/components/ui/item-icon'
 import {
   MoreVerticalIcon,
   FolderPlusIcon,
@@ -29,12 +30,7 @@ import { useCollectionsService } from '@/services/library/collections.service'
 import { useSavedPlacesService } from '@/services/library/saved-places.service'
 import { storeToRefs } from 'pinia'
 import type { SavedPlace } from '@/types/library.types'
-import {
-  getIconFromString,
-  getThemeColorClasses,
-  fuzzyFilter,
-  type ThemeColor,
-} from '@/lib/utils'
+import { getThemeColorClasses, fuzzyFilter, type ThemeColor } from '@/lib/utils'
 import { toast } from 'vue-sonner'
 
 const props = defineProps<{
@@ -78,10 +74,6 @@ const filteredCollections = computed(() => {
   }
 
   return filtered
-})
-
-const placeIcon = computed(() => {
-  return getIconFromString(props.place.icon)
 })
 
 const colorClasses = computed(() => {
@@ -156,7 +148,7 @@ async function removeFromCollection() {
         class="size-10 rounded-md flex items-center justify-center flex-shrink-0"
         :class="colorClasses"
       >
-        <component :is="placeIcon" class="size-5" />
+        <ItemIcon :icon="place.icon" :color="place.iconColor" size="md" />
       </div>
 
       <div class="flex-grow min-w-0">
@@ -221,9 +213,10 @@ async function removeFromCollection() {
                         class="size-7 rounded-sm flex items-center justify-center flex-shrink-0"
                         :class="getThemeColorClasses(collection.iconColor as ThemeColor)"
                       >
-                        <component
-                          :is="getIconFromString(collection.icon)"
-                          class="size-4"
+                        <ItemIcon
+                          :icon="collection.icon"
+                          :color="collection.iconColor"
+                          size="sm"
                         />
                       </div>
                       {{ collection.name }}

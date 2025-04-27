@@ -20,24 +20,13 @@ export const useCollectionsService = createSharedComposable(() => {
   }
 
   async function fetchCollectionById(id: string): Promise<Collection | null> {
-    let collection = collectionsStore.getCollectionById(id)
-
-    if (!collection && collectionsStore.collections.length === 0) {
-      await fetchCollections()
-      collection = collectionsStore.getCollectionById(id)
+    try {
+      const response = await api.get(`/library/collections/${id}`)
+      return response.data
+    } catch (error) {
+      toast.error('Collection not found')
+      return null
     }
-
-    if (!collection) {
-      try {
-        const response = await api.get(`/library/collections/${id}`)
-        collection = response.data
-      } catch (error) {
-        toast.error('Collection not found')
-        return null
-      }
-    }
-
-    return collection || null
   }
 
   // Collection operations

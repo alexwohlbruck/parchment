@@ -3,6 +3,8 @@ import { computed } from 'vue'
 import { useStorage } from '@vueuse/core'
 import type { Collection } from '@/types/library.types'
 
+// TODO: Use pinia-orm to normalize collections and saved places data
+
 export const useCollectionsStore = defineStore('collections', () => {
   const collections = useStorage<Collection[]>('collections', [])
 

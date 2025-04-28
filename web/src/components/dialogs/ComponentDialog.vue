@@ -35,8 +35,9 @@ async function submit() {
 
 <template>
   <Dialog :open="isOpen" @update:open="isOpen = $event">
-    <!-- TODO: Mobile layout -->
-    <DialogContent class="max-h-[90dvh] max-w-[50vw]">
+    <DialogContent
+      class="flex flex-col p-4 sm:p-6 h-full w-full sm:max-h-[90vh] md:max-w-[70%] lg:max-w-[50vw] md:max-h-[90dvh] sm:max-h-[90dvh]"
+    >
       <DialogHeader v-if="props.title || props.description">
         <DialogTitle v-if="props.title">{{ props.title }}</DialogTitle>
         <DialogDescription v-if="props.description">
@@ -44,7 +45,7 @@ async function submit() {
         </DialogDescription>
       </DialogHeader>
 
-      <div class="overflow-y-auto max-h-[70dvh]">
+      <div class="overflow-y-auto h-full">
         <component
           ref="componentRef"
           :is="props.component"
@@ -54,11 +55,16 @@ async function submit() {
         />
       </div>
 
-      <DialogFooter>
-        <Button variant="outline" @click="isOpen = false">
+      <DialogFooter class="flex flex-row gap-2 sm:gap-0">
+        <Button
+          class="flex-1 sm:flex-none"
+          variant="outline"
+          @click="isOpen = false"
+        >
           {{ props.cancelText || $t('general.cancel') }}
         </Button>
         <Button
+          class="!mt-0 flex-1 sm:flex-none"
           @click="submit"
           :variant="props.destructive ? 'destructive' : 'default'"
           :disabled="!isValid"

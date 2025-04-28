@@ -23,7 +23,8 @@
     "style": "Style",
     "type": "Type",
     "none": "None",
-    "optional": "Optional"
+    "optional": "Optional",
+    "default": "Default"
   },
   "palette": {
     "placeholder": {
@@ -238,7 +239,10 @@
       "addToCollection": "Add to Collection",
       "createNewCollection": "Create new collection",
       "searchCollections": "Search collections...",
-      "removeFromCollection": "Remove from collection"
+      "removeFromCollection": "Remove from collection",
+      "makeDefault": "Make Default",
+      "addedToCollection": "Added to {collection}",
+      "failedToAddToCollection": "Failed to add to collection"
     },
     "empty": {
       "message": "no {entityPlural} yet",

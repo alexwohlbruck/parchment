@@ -16,4 +16,19 @@ SELECT
 FROM users
 WHERE NOT EXISTS (
   SELECT 1 FROM collections WHERE collections.user_id = users.id AND collections.is_default = true
+);
+
+-- Add default collection
+INSERT INTO collections (id, name, description, icon, icon_color, is_public, is_default, user_id, created_at, updated_at)
+VALUES (
+  'default',
+  'Bookmarks',
+  'Your bookmarks',
+  'bookmark',
+  'blue',
+  false,
+  true,
+  'default',
+  NOW(),
+  NOW()
 ); 

@@ -10,8 +10,8 @@
     "save": "Guardar",
     "name": "Nombre",
     "edit": "Editar",
-    "unsave": "Eliminar de guardados",
-    "clearSearch": "Borrar búsqueda",
+    "unsave": "Desguardar",
+    "clearSearch": "Limpiar búsqueda",
     "search": "Buscar",
     "create": "Crear",
     "add": "Añadir",
@@ -23,7 +23,8 @@
     "style": "Estilo",
     "type": "Tipo",
     "none": "Ninguno",
-    "optional": "Opcional"
+    "optional": "Opcional",
+    "default": "Predeterminado"
   },
   "palette": {
     "general": {
@@ -236,10 +237,13 @@
       "name": "Nombre"
     },
     "actions": {
-      "addToCollection": "Añadir a colección",
+      "addToCollection": "Añadir a Colección",
       "createNewCollection": "Crear nueva colección",
       "searchCollections": "Buscar colecciones...",
-      "removeFromCollection": "Quitar de la colección"
+      "removeFromCollection": "Eliminar de la colección",
+      "makeDefault": "Hacer Predeterminado",
+      "addedToCollection": "Añadido a {collection}",
+      "failedToAddToCollection": "Error al añadir a la colección"
     },
     "empty": {
       "message": "no hay {entityPlural} todavía",

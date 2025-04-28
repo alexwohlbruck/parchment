@@ -13,7 +13,6 @@ import Users from '@/views/settings/pages/Users.vue'
 import Library from '@/views/library/Library.vue'
 import Collection from '@/views/library/Collection.vue'
 import NotFound from '@/views/NotFound.vue'
-import Bookmarks from '@/views/library/Bookmarks.vue'
 import Collections from '@/views/library/Collections.vue'
 
 import { useAuthStore } from '@/stores/auth.store'
@@ -27,7 +26,6 @@ export enum AppRoute {
   STREET = 'street',
   DIRECTIONS = 'directions',
   LIBRARY = 'library',
-  LIBRARY_PLACES = 'library-places',
   LIBRARY_COLLECTIONS = 'library-collections',
   LIBRARY_ROUTES = 'library-routes',
   LIBRARY_LAYERS = 'library-layers',
@@ -89,16 +87,11 @@ const router = createRouter({
           path: '/library',
           name: AppRoute.LIBRARY,
           component: Library,
-          redirect: { name: AppRoute.LIBRARY_PLACES },
+          redirect: { name: AppRoute.LIBRARY_COLLECTIONS },
           meta: {
             auth: true,
           },
           children: [
-            {
-              path: 'places',
-              name: AppRoute.LIBRARY_PLACES,
-              component: Bookmarks,
-            },
             {
               path: 'collections',
               name: AppRoute.LIBRARY_COLLECTIONS,

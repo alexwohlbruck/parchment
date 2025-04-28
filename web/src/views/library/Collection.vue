@@ -6,21 +6,8 @@ import { AppRoute } from '@/router'
 import { useI18n } from 'vue-i18n'
 import { useAppService } from '@/services/app.service'
 import CollectionForm from '@/components/library/CollectionForm.vue'
-import {
-  ArrowLeftIcon,
-  FolderIcon,
-  PencilIcon,
-  TrashIcon,
-  MoreVerticalIcon,
-  FileIcon,
-} from 'lucide-vue-next'
+import { ArrowLeftIcon, FolderIcon, FileIcon } from 'lucide-vue-next'
 import * as LucideIcons from 'lucide-vue-next'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { getThemeColorClasses, type ThemeColor } from '@/lib/utils'
 import type {
@@ -29,6 +16,7 @@ import type {
 } from '@/types/library.types'
 import BookmarkList from '@/components/library/BookmarkList.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
+import CollectionContextMenu from '@/components/library/CollectionContextMenu.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -87,61 +75,22 @@ function goBack() {
   router.push({ name: AppRoute.LIBRARY_COLLECTIONS })
 }
 
-function editCollection() {
+function handleCollectionEdit() {
   if (!collection.value) return
 
-  appService
-    .componentDialog({
-      component: CollectionForm,
-      title: t('library.dialog.editCollection.title'),
-      description: t('library.dialog.editCollection.description'),
-      continueText: t('general.save'),
-      cancelText: t('general.cancel'),
-      props: {
-        collection: collection.value,
-      },
-    })
-    .then(async formData => {
-      if (!formData) return
-
-      try {
-        // Create the params object with correct structure
-        const params = {
-          name: formData.name,
-          ...(formData.description
-            ? { description: formData.description }
-            : {}),
-          icon: formData.icon,
-          iconColor: formData.iconColor,
-          isPublic: formData.isPublic,
-        }
-
-        // Update existing collection
-        await collectionsService.updateCollection(id, params)
-
-        // Update local state
-        if (collection.value) {
-          collection.value.name = params.name
-          if (params.description)
-            collection.value.description = params.description
-          collection.value.icon = params.icon
-          collection.value.iconColor = params.iconColor
-          collection.value.isPublic = params.isPublic
-        }
-      } catch (error) {
-        console.error('Error updating collection:', error)
+  // Update local state
+  if (collection.value) {
+    // We need to fetch the updated collection data
+    collectionsService.fetchCollectionById(id).then(updatedCollection => {
+      if (updatedCollection) {
+        collection.value = updatedCollection
       }
     })
+  }
 }
 
-function deleteCollection() {
-  if (!collection.value) return
-
-  if (confirm(t('library.confirmDelete', { name: collection.value.name }))) {
-    collectionsService.deleteCollection(id).then(() => {
-      router.push({ name: AppRoute.LIBRARY_COLLECTIONS })
-    })
-  }
+function handleCollectionDelete() {
+  router.push({ name: AppRoute.LIBRARY_COLLECTIONS })
 }
 </script>
 
@@ -179,26 +128,11 @@ function deleteCollection() {
         </div>
 
         <!-- Actions dropdown menu -->
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" class="h-9 w-9">
-              <MoreVerticalIcon class="size-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem @click="editCollection">
-              <PencilIcon class="size-4 mr-2" />
-              {{ t('general.edit') }}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              @click="deleteCollection"
-              class="text-destructive focus:text-destructive focus:bg-destructive/10"
-            >
-              <TrashIcon class="size-4 mr-2" />
-              {{ t('general.delete') }}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <CollectionContextMenu
+          :collection="collection"
+          @edit="handleCollectionEdit"
+          @delete="handleCollectionDelete"
+        />
       </div>
 
       <!-- Places List -->

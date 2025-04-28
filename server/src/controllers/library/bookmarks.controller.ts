@@ -5,16 +5,16 @@ import * as libraryService from '../../services/library'
 const placesRouter = new Elysia({ prefix: '/places' })
   .use(requireAuth)
 
-  // Get all saved places for the authenticated user
+  // Get all bookmarks for the authenticated user
   .get('/', async ({ user }) => {
-    return await libraryService.getSavedPlaces(user.id)
+    return await libraryService.getBookmarks(user.id)
   })
 
-  // Get a single saved place by ID
+  // Get a single bookmark by ID
   .get(
     '/:id',
     async ({ params: { id }, user }) => {
-      const place = await libraryService.getSavedPlaceById(id, user.id)
+      const place = await libraryService.getBookmarkById(id, user.id)
       if (!place) {
         return { error: 'Place not found' }
       }
@@ -27,7 +27,7 @@ const placesRouter = new Elysia({ prefix: '/places' })
     },
   )
 
-  // Create a new saved place
+  // Create a new bookmark
   .post(
     '/',
     async ({ body, user }) => {
@@ -36,7 +36,7 @@ const placesRouter = new Elysia({ prefix: '/places' })
         return { error: 'Missing required OSM ID in externalIds' }
       }
 
-      const createdPlace = await libraryService.createSavedPlace({
+      const createdPlace = await libraryService.createBookmark({
         ...body,
         userId: user.id,
       })
@@ -57,12 +57,12 @@ const placesRouter = new Elysia({ prefix: '/places' })
     },
   )
 
-  // Update an existing saved place
+  // Update an existing bookmark
   // TODO: Change to patch. Elysia CORS is rejecting PATCH requests for some reason.
   .put(
     '/:id',
     async ({ params: { id }, body, user }) => {
-      const updated = await libraryService.updateSavedPlace(id, user.id, body)
+      const updated = await libraryService.updateBookmark(id, user.id, body)
       if (!updated) {
         return { error: 'Place not found or update failed' }
       }

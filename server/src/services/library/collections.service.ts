@@ -8,7 +8,7 @@ import {
   Collection,
 } from '../../types/library.types'
 import { generateId } from '../../util'
-import { getSavedPlaceById } from './saved-places.service' // Import from sibling service
+import { getBookmarkById } from './bookmarks.service' // Import from sibling service
 
 export async function getCollections(userId: string) {
   // Ensure the default collection exists
@@ -149,18 +149,16 @@ export async function getPlacesInCollection(
 
   const placeIds = placeLinks.map((link) => link.placeId)
 
-  // Fetch the actual saved places corresponding to these IDs, ensuring they belong to the user
-  // We need to import savedPlaces schema and potentially inArray
-  // Also need to import savedPlaces table definition from schema
-  const { savedPlaces } = await import('../../schema/library.schema')
+  // Fetch the actual bookmarks corresponding to these IDs, ensuring they belong to the user
+  // We need to import bookmarks schema and potentially inArray
+  // Also need to import bookmarks table definition from schema
+  const { bookmarks } = await import('../../schema/library.schema')
   const { inArray } = await import('drizzle-orm')
 
   const places = await db
     .select()
-    .from(savedPlaces)
-    .where(
-      and(inArray(savedPlaces.id, placeIds), eq(savedPlaces.userId, userId)),
-    )
+    .from(bookmarks)
+    .where(and(inArray(bookmarks.id, placeIds), eq(bookmarks.userId, userId)))
 
   return places
 }
@@ -171,7 +169,7 @@ export async function addPlaceToCollection(
   userId: string,
 ) {
   // Verify both the place and collection belong to the user
-  const place = await getSavedPlaceById(placeId, userId)
+  const place = await getBookmarkById(placeId, userId)
   const collection = await getCollectionById(collectionId, userId)
 
   if (!place || !collection) {
@@ -218,7 +216,7 @@ export async function removePlaceFromCollection(
   // Note: We don't strictly need to fetch the collection here if we trust the foreign key constraints
   // or if the goal is simply to remove the link if it exists, regardless of collection ownership.
   // However, verifying ownership is generally safer.
-  const place = await getSavedPlaceById(placeId, userId)
+  const place = await getBookmarkById(placeId, userId)
   const collection = await getCollectionById(collectionId, userId)
 
   if (!place || !collection) {
@@ -243,7 +241,7 @@ export async function removePlaceFromCollection(
   return deleted
 }
 
-// Update a place in a collection (previously updateSavedPlace)
+// Update a place in a collection (previously updateBookmark)
 export async function updatePlaceInCollection(
   placeId: string,
   collectionId: string,
@@ -251,7 +249,7 @@ export async function updatePlaceInCollection(
   updates: any,
 ) {
   // First verify the place exists and belongs to the user
-  const place = await getSavedPlaceById(placeId, userId)
+  const place = await getBookmarkById(placeId, userId)
   if (!place) {
     throw new Error('Place not found')
   }
@@ -266,13 +264,13 @@ export async function updatePlaceInCollection(
   const { externalIds, userId: _, id: __, ...validUpdates } = updates
 
   // Update the place
-  const { savedPlaces } = await import('../../schema/library.schema')
+  const { bookmarks } = await import('../../schema/library.schema')
   const [updated] = await db
-    .update(savedPlaces)
+    .update(bookmarks)
     .set({
       ...validUpdates,
     })
-    .where(and(eq(savedPlaces.id, placeId), eq(savedPlaces.userId, userId)))
+    .where(and(eq(bookmarks.id, placeId), eq(bookmarks.userId, userId)))
     .returning()
 
   return updated

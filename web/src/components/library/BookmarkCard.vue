@@ -26,34 +26,34 @@ import {
 } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { useCollectionsStore } from '@/stores/library/collections.store'
-import { useSavedPlacesStore } from '@/stores/library/savedPlaces.store'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useCollectionsService } from '@/services/library/collections.service'
-import { useSavedPlacesService } from '@/services/library/saved-places.service'
+import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { storeToRefs } from 'pinia'
-import type { SavedPlace } from '@/types/library.types'
+import type { Bookmark } from '@/types/library.types'
 import { getThemeColorClasses, fuzzyFilter, type ThemeColor } from '@/lib/utils'
 import { toast } from 'vue-sonner'
 import { useAppService } from '@/services/app.service'
-import SavedPlaceForm from '@/components/library/SavedPlaceForm.vue'
+import BookmarkForm from '@/components/library/BookmarkForm.vue'
 
 const props = defineProps<{
-  place: SavedPlace
+  place: Bookmark
   collectionId?: string
 }>()
 
 const emit = defineEmits<{
-  edit: [place: SavedPlace]
-  unsave: [place: SavedPlace]
-  addToCollection: [place: SavedPlace]
-  removeFromCollection: [place: SavedPlace]
+  edit: [place: Bookmark]
+  unsave: [place: Bookmark]
+  addToCollection: [place: Bookmark]
+  removeFromCollection: [place: Bookmark]
 }>()
 
 const router = useRouter()
 const collectionsStore = useCollectionsStore()
-const savedPlacesStore = useSavedPlacesStore()
+const bookmarksStore = useBookmarksStore()
 const { collections } = storeToRefs(collectionsStore)
 const collectionsService = useCollectionsService()
-const savedPlacesService = useSavedPlacesService()
+const bookmarksService = useBookmarksService()
 const appService = useAppService()
 const { t } = useI18n()
 const collectionSearchQuery = ref('')
@@ -85,7 +85,7 @@ const colorClasses = computed(() => {
 })
 
 function goToPlace() {
-  const route = savedPlacesStore.navigateToPlace(props.place)
+  const route = bookmarksStore.navigateToPlace(props.place)
   const [type, osmId] = props.place.externalIds.osm.split('/')
   console.log(type, osmId)
   if (route) {
@@ -100,7 +100,7 @@ function goToPlace() {
 }
 
 async function unsavePlace() {
-  await savedPlacesService.unsavePlace(props.place.id, props.place.name)
+  await bookmarksService.unsavePlace(props.place.id, props.place.name)
 }
 
 async function addToCollection(collectionId: string) {
@@ -144,7 +144,7 @@ async function removeFromCollection() {
 async function editPlace() {
   appService
     .componentDialog({
-      component: SavedPlaceForm,
+      component: BookmarkForm,
       title: t('library.dialog.editPlace.title'),
       description: t('library.dialog.editPlace.description'),
       continueText: t('general.save'),

@@ -229,7 +229,7 @@
   "library": {
     "title": "biblioteca",
     "search": {
-      "places": "Buscar lugares guardados...",
+      "places": "Buscar marcadores...",
       "collections": "Buscar colecciones..."
     },
     "sort": {
@@ -261,7 +261,7 @@
           "singular": "colección",
           "plural": "colecciones"
         },
-        "default": "Lugares Guardados"
+        "default": "Marcadores"
       },
       "routes": {
         "title": {
@@ -286,7 +286,7 @@
     "dialog": {
       "createCollection": {
         "title": "Crear Colección",
-        "description": "Crea una nueva colección para organizar tus lugares guardados"
+        "description": "Crear una nueva colección para organizar tus marcadores"
       },
       "editCollection": {
         "title": "Editar Colección",
@@ -294,7 +294,7 @@
       },
       "editPlace": {
         "title": "Editar Lugar",
-        "description": "Modificar detalles del lugar guardado"
+        "description": "Modificar detalles del marcador"
       }
     },
     "form": {

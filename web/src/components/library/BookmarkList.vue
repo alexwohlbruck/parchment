@@ -11,20 +11,20 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
 import { SearchIcon, ArrowUpDownIcon } from 'lucide-vue-next'
-import SavedPlaceCard from '@/components/library/SavedPlaceCard.vue'
+import BookmarkCard from '@/components/library/BookmarkCard.vue'
 import { fuzzyFilter } from '@/lib/utils'
 import { useCollectionsService } from '@/services/library/collections.service'
-import type { SavedPlace } from '@/types/library.types'
+import type { Bookmark } from '@/types/library.types'
 
 const props = defineProps<{
-  places: SavedPlace[]
+  places: Bookmark[]
   loading?: boolean
   collectionId?: string
 }>()
 
 const { t } = useI18n()
 const collectionsService = useCollectionsService()
-const localPlaces = ref<SavedPlace[]>([...props.places])
+const localPlaces = ref<Bookmark[]>([...props.places])
 
 const searchQuery = ref('')
 const sortBy = ref<'name' | 'createdAt'>('createdAt')
@@ -75,7 +75,7 @@ function setSortBy(field: 'name' | 'createdAt') {
   }
 }
 
-async function handlePlaceUnsaved(place: SavedPlace) {
+async function handlePlaceUnsaved(place: Bookmark) {
   if (props.collectionId) {
     await collectionsService.removePlaceFromCollection(
       place.id,
@@ -94,13 +94,13 @@ async function handlePlaceUnsaved(place: SavedPlace) {
   localPlaces.value = localPlaces.value.filter(p => p.id !== place.id)
 }
 
-async function handleAddToCollection(place: SavedPlace) {
+async function handleAddToCollection(place: Bookmark) {
   console.log('Place added to collection:', place.name)
   // This function will be implemented when we add the ability to add places to collections
 }
 
 // Handle place removed from collection
-async function handleRemoveFromCollection(place: SavedPlace) {
+async function handleRemoveFromCollection(place: Bookmark) {
   if (props.collectionId) {
     await collectionsService.removePlaceFromCollection(
       place.id,
@@ -183,7 +183,7 @@ async function handleRemoveFromCollection(place: SavedPlace) {
 
     <!-- Places List -->
     <div v-else class="flex flex-col gap-2 pb-4">
-      <SavedPlaceCard
+      <BookmarkCard
         v-for="place in filteredPlaces"
         :key="place.id"
         :place="place"

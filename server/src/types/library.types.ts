@@ -1,18 +1,17 @@
 import {
-  savedPlaces,
+  bookmarks,
   collections,
   placesCollections,
 } from '../schema/library.schema'
 
-export type SavedPlace = typeof savedPlaces.$inferSelect
-export type NewSavedPlace = typeof savedPlaces.$inferInsert
+export type Bookmark = typeof bookmarks.$inferSelect
+export type NewBookmark = typeof bookmarks.$inferInsert
 export type Collection = typeof collections.$inferSelect
 export type NewCollection = typeof collections.$inferInsert
 export type PlaceCollection = typeof placesCollections.$inferSelect
 export type NewPlaceCollection = typeof placesCollections.$inferInsert
 
-// Helper type to enforce required fields when creating saved places
-export type CreateSavedPlaceParams = {
+export type CreateBookmarkParams = {
   externalIds: Record<string, string> // Must include at least 'osm' key
   name: string
   address?: string
@@ -22,7 +21,6 @@ export type CreateSavedPlaceParams = {
   userId: string
 }
 
-// Helper type to enforce required fields when creating collections
 export type CreateCollectionParams = {
   name: string
   description?: string

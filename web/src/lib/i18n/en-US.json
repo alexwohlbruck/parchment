@@ -228,7 +228,7 @@
   "library": {
     "title": "library",
     "search": {
-      "places": "Search saved places...",
+      "places": "Search bookmarks...",
       "collections": "Search collections..."
     },
     "sort": {
@@ -260,7 +260,7 @@
           "singular": "collection",
           "plural": "collections"
         },
-        "default": "Saved Places"
+        "default": "Bookmarks"
       },
       "routes": {
         "title": {
@@ -285,7 +285,7 @@
     "dialog": {
       "createCollection": {
         "title": "Create Collection",
-        "description": "Create a new collection to organize your saved places"
+        "description": "Create a new collection to organize your bookmarks"
       },
       "editCollection": {
         "title": "Edit Collection",
@@ -293,7 +293,7 @@
       },
       "editPlace": {
         "title": "Edit Place",
-        "description": "Modify saved place details"
+        "description": "Modify bookmark details"
       }
     },
     "form": {

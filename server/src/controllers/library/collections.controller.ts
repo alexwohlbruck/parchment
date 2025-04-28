@@ -10,7 +10,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     return await libraryService.getCollections(user.id)
   })
 
-  // Get the default collection (previously saved places)
+  // Get the default collection (previously bookmarks)
   .get('/default', async ({ user }) => {
     // Ensure the default collection exists
     const defaultCollection = await libraryService.ensureDefaultCollection(
@@ -169,7 +169,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     },
   )
 
-  // Update a place in a collection (previously updateSavedPlace)
+  // Update a place in a collection (previously updateBookmark)
   .put(
     '/:id/places/:placeId',
     async ({ params: { id, placeId }, body, user, set }) => {

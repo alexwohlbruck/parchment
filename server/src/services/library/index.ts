@@ -1,2 +1,2 @@
-export * from './saved-places.service'
+export * from './bookmarks.service'
 export * from './collections.service'

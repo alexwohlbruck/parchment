@@ -1,25 +1,25 @@
 import { createSharedComposable } from '@vueuse/core'
 import { toast } from 'vue-sonner'
-import { useSavedPlacesStore } from '@/stores/library/savedPlaces.store'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import type { UnifiedPlace } from '@/types/unified-place.types'
-import type { CreateSavedPlaceParams, SavedPlace } from '@/types/library.types'
+import type { CreateBookmarkParams, Bookmark } from '@/types/library.types'
 import { ref } from 'vue'
 import { api } from '@/lib/api'
 
 // TODO: i18n error messages
 
-export const useSavedPlacesService = createSharedComposable(() => {
-  const savedPlacesStore = useSavedPlacesStore()
+export const useBookmarksService = createSharedComposable(() => {
+  const bookmarksStore = useBookmarksStore()
   const isSaving = ref(false) // Keep isSaving here for the savePlace action
 
-  async function getSavedPlaces() {
+  async function getBookmarks() {
     try {
       const response = await api.get('/library/places')
       const places = response.data
-      savedPlacesStore.setSavedPlaces(places)
+      bookmarksStore.setBookmarks(places)
       return places
     } catch (error) {
-      toast.error('Failed to fetch saved places')
+      toast.error('Failed to fetch bookmarks')
       return []
     }
   }
@@ -39,7 +39,7 @@ export const useSavedPlacesService = createSharedComposable(() => {
     isSaving.value = true
 
     try {
-      const params: CreateSavedPlaceParams = {
+      const params: CreateBookmarkParams = {
         externalIds: place.externalIds,
         name: customName || place.name,
         address: place.address?.formatted,
@@ -48,12 +48,12 @@ export const useSavedPlacesService = createSharedComposable(() => {
       }
 
       const response = await api.post('/library/places', params)
-      const savedPlace = response.data
+      const bookmark = response.data
 
-      savedPlacesStore.addSavedPlace(savedPlace)
+      bookmarksStore.addBookmark(bookmark)
       toast.success(`Saved ${place.name}`)
 
-      return savedPlace
+      return bookmark
     } catch (error) {
       toast.error('Failed to save place')
       return null
@@ -62,13 +62,13 @@ export const useSavedPlacesService = createSharedComposable(() => {
     }
   }
 
-  async function updatePlace(id: string, updates: Partial<SavedPlace>) {
+  async function updatePlace(id: string, updates: Partial<Bookmark>) {
     try {
       const response = await api.put(`/library/places/${id}`, updates)
       const updated = response.data
 
       // Update store
-      savedPlacesStore.updateSavedPlace(id, updated)
+      bookmarksStore.updateBookmark(id, updated)
       toast.success('Place updated successfully')
 
       return updated
@@ -83,7 +83,7 @@ export const useSavedPlacesService = createSharedComposable(() => {
     try {
       await api.delete(`/library/places/${id}`)
 
-      savedPlacesStore.removeSavedPlace(id)
+      bookmarksStore.removeBookmark(id)
       toast.success(`Unsaved ${placeName}`)
 
       return true
@@ -96,16 +96,16 @@ export const useSavedPlacesService = createSharedComposable(() => {
   function isPlaceSaved(place: UnifiedPlace) {
     if (!place.externalIds) return false
 
-    return savedPlacesStore.savedPlaces.some(savedPlace => {
+    return bookmarksStore.bookmarks.some(bookmark => {
       return Object.entries(place.externalIds).some(([provider, id]) => {
-        return savedPlace.externalIds[provider] === id
+        return bookmark.externalIds[provider] === id
       })
     })
   }
 
   return {
     isSaving,
-    getSavedPlaces,
+    getBookmarks,
     savePlace,
     updatePlace,
     unsavePlace,

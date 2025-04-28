@@ -3,70 +3,61 @@ import { computed, ref } from 'vue'
 import { Button } from '@/components/ui/button'
 import { NavigationIcon, ShareIcon, BookmarkIcon, Check } from 'lucide-vue-next'
 import { useCollectionsService } from '@/services/library/collections.service'
-import { useSavedPlacesService } from '@/services/library/saved-places.service'
+import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { useAppService } from '@/services/app.service'
 import type { UnifiedPlace } from '@/types/unified-place.types'
-import { useSavedPlacesStore } from '@/stores/library/savedPlaces.store'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 
 const props = defineProps<{
   place: UnifiedPlace
 }>()
 
 const collectionsService = useCollectionsService()
-const savedPlacesService = useSavedPlacesService()
-const savedPlacesStore = useSavedPlacesStore()
+const bookmarksService = useBookmarksService()
+const bookmarksStore = useBookmarksStore()
 const { toast } = useAppService()
 
-// Track the saved place ID so we can use it when unsaving
-const savedPlaceId = computed(() => {
-  // Find the saved place that matches this place's external IDs
+const bookmarkId = computed(() => {
   if (!props.place.externalIds) return null
 
-  // Look through saved places to find one with matching external IDs
-  const savedPlace = savedPlacesStore.savedPlaces.find(savedPlace => {
+  const bookmark = bookmarksStore.bookmarks.find(bookmark => {
     return Object.entries(props.place.externalIds).some(([provider, id]) => {
-      return savedPlace.externalIds[provider] === id
+      return bookmark.externalIds[provider] === id
     })
   })
 
-  return savedPlace?.id || null
+  return bookmark?.id || null
 })
 
 const isSaved = computed(() => {
-  return savedPlaceId.value !== null
+  return bookmarkId.value !== null
 })
 
 async function savePlace() {
-  // First save the place using the saved places service
-  const savedPlace = await savedPlacesService.savePlace(props.place)
-  if (!savedPlace) return
+  const bookmark = await bookmarksService.savePlace(props.place)
+  if (!bookmark) return
 
-  // Get the default collection
   const defaultCollection = await collectionsService.fetchDefaultCollection()
   if (!defaultCollection) return
 
-  // Add the place to the default collection
   await collectionsService.addPlaceToCollection(
-    savedPlace.id,
+    bookmark.id,
     defaultCollection.id,
   )
 }
 
 async function unsavePlace() {
-  if (!savedPlaceId.value) return
+  if (!bookmarkId.value) return
 
-  // Get the default collection
   const defaultCollection = await collectionsService.fetchDefaultCollection()
   if (!defaultCollection) return
 
-  // Remove the place from the default collection first
   await collectionsService.removePlaceFromCollection(
-    savedPlaceId.value,
+    bookmarkId.value,
     defaultCollection.id,
   )
 
-  // Then unsave the place - this will show a single toast
-  await savedPlacesService.unsavePlace(savedPlaceId.value, props.place.name)
+  await bookmarksService.unsavePlace(bookmarkId.value, props.place.name)
 }
 
 const emit = defineEmits<{

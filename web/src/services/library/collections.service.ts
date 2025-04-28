@@ -31,7 +31,6 @@ export const useCollectionsService = createSharedComposable(() => {
     }
   }
 
-  // Get the default collection (previously saved places)
   async function fetchDefaultCollection(): Promise<Collection | null> {
     try {
       const response = await api.get('/library/collections/default')
@@ -50,13 +49,11 @@ export const useCollectionsService = createSharedComposable(() => {
     }
   }
 
-  // Collection operations
   async function createCollection(params: CreateCollectionParams) {
     try {
       const response = await api.post('/library/collections', params)
       const collection = response.data
 
-      // Update store
       collectionsStore.addCollection(collection)
       toast.success('Collection created successfully')
 
@@ -72,7 +69,6 @@ export const useCollectionsService = createSharedComposable(() => {
       const response = await api.put(`/library/collections/${id}`, updates)
       const updated = response.data
 
-      // Update store
       collectionsStore.updateCollection(id, updated)
       toast.success('Collection updated successfully')
 
@@ -87,7 +83,6 @@ export const useCollectionsService = createSharedComposable(() => {
     try {
       await api.delete(`/library/collections/${id}`)
 
-      // Update store
       collectionsStore.removeCollection(id)
       toast.success('Collection deleted successfully')
 
@@ -98,7 +93,6 @@ export const useCollectionsService = createSharedComposable(() => {
     }
   }
 
-  // Collection-place relationships
   async function addPlaceToCollection(placeId: string, collectionId: string) {
     try {
       const response = await api.post(
@@ -144,7 +138,6 @@ export const useCollectionsService = createSharedComposable(() => {
     }
   }
 
-  // Update a place in a collection (previously updateSavedPlace)
   async function updatePlaceInCollection(
     placeId: string,
     collectionId: string,
@@ -157,8 +150,6 @@ export const useCollectionsService = createSharedComposable(() => {
       )
       const updated = response.data
 
-      // Update store if needed
-      // This might need to be handled differently depending on how the store is structured
       toast.success('Place updated successfully')
 
       return updated
@@ -169,17 +160,12 @@ export const useCollectionsService = createSharedComposable(() => {
   }
 
   return {
-    // Data fetching
     fetchCollections,
     fetchCollectionById,
     fetchDefaultCollection,
-
-    // Collection operations
     createCollection,
     updateCollection,
     deleteCollection,
-
-    // Collection-place relationships
     addPlaceToCollection,
     removePlaceFromCollection,
     fetchPlacesInCollection,

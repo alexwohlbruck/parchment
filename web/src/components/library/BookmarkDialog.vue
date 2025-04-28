@@ -1,23 +1,23 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import SavedPlaceForm from '@/components/library/SavedPlaceForm.vue'
+import BookmarkForm from '@/components/library/BookmarkForm.vue'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useAppService } from '@/services/app.service'
-import type { SavedPlace } from '@/types/library.types'
+import type { Bookmark } from '@/types/library.types'
 
 const props = defineProps<{
-  place: SavedPlace
+  place: Bookmark
 }>()
 
 const { t } = useI18n()
 const appService = useAppService()
 const collectionsService = useCollectionsService()
 
-function openSavedPlaceDialog(place: SavedPlace) {
+function openBookmarkDialog(place: Bookmark) {
   appService
     .componentDialog({
-      component: SavedPlaceForm,
+      component: BookmarkForm,
       title: t('library.dialog.editPlace.title'),
       description: t('library.dialog.editPlace.description'),
       continueText: t('general.save'),
@@ -54,7 +54,7 @@ function openSavedPlaceDialog(place: SavedPlace) {
 
 // Auto-open the dialog when the component is mounted
 onMounted(() => {
-  openSavedPlaceDialog(props.place)
+  openBookmarkDialog(props.place)
 })
 </script>
 

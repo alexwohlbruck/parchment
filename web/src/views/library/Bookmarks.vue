@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { MapPinIcon } from 'lucide-vue-next'
-import PlacesList from '@/components/library/PlacesList.vue'
+import BookmarkList from '@/components/library/BookmarkList.vue'
 import EmptyState from '@/components/library/EmptyState.vue'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useCollectionsStore } from '@/stores/library/collections.store'
@@ -61,7 +61,7 @@ const defaultCollectionName = computed(() => {
       class="flex-1"
     />
 
-    <PlacesList
+    <BookmarkList
       v-else
       :places="places"
       :loading="loading"

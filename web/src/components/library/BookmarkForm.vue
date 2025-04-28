@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { SavedPlace } from '@/types/library.types'
+import type { Bookmark } from '@/types/library.types'
 import type { ThemeColor } from '@/lib/utils'
 import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
@@ -27,7 +27,7 @@ const { t } = useI18n()
 const emit = defineEmits(['update:valid'])
 
 const props = defineProps<{
-  place: SavedPlace
+  place: Bookmark
 }>()
 
 // Place types - using same options as collections for now
@@ -48,7 +48,7 @@ const placeSchema = toTypedSchema(
 )
 
 // Form values interface
-interface SavedPlaceFormValues {
+interface BookmarkFormValues {
   name: string
   type?: string
   icon: string
@@ -57,7 +57,7 @@ interface SavedPlaceFormValues {
 
 // Initialize form with vee-validate
 const { handleSubmit, values, meta, setFieldValue, resetForm } =
-  useForm<SavedPlaceFormValues>({
+  useForm<BookmarkFormValues>({
     validationSchema: placeSchema,
     initialValues: {
       name: '',
@@ -187,6 +187,6 @@ defineExpose({
       </FormItem>
     </FormField>
 
-    <!-- We've removed description and notes fields since they don't exist on the SavedPlace type -->
+    <!-- We've removed description and notes fields since they don't exist on the Bookmark type -->
   </form>
 </template>

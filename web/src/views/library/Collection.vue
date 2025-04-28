@@ -25,9 +25,9 @@ import { useCollectionsService } from '@/services/library/collections.service'
 import { getThemeColorClasses, type ThemeColor } from '@/lib/utils'
 import type {
   Collection as CollectionType,
-  SavedPlace,
+  Bookmark,
 } from '@/types/library.types'
-import PlacesList from '@/components/library/PlacesList.vue'
+import BookmarkList from '@/components/library/BookmarkList.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
 
 const route = useRoute()
@@ -39,7 +39,7 @@ const { t } = useI18n()
 const id = route.params.id as string
 const loading = ref(true)
 const collection = ref<CollectionType | null>(null)
-const places = ref<SavedPlace[]>([])
+const places = ref<Bookmark[]>([])
 
 const collectionIcon = computed(() => {
   if (!collection.value) return FolderIcon
@@ -202,7 +202,7 @@ function deleteCollection() {
       </div>
 
       <!-- Places List -->
-      <PlacesList :places="places" :loading="loading" :collection-id="id" />
+      <BookmarkList :places="places" :loading="loading" :collection-id="id" />
     </template>
   </div>
 </template>

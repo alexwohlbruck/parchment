@@ -13,7 +13,7 @@ import Users from '@/views/settings/pages/Users.vue'
 import Library from '@/views/library/Library.vue'
 import Collection from '@/views/library/Collection.vue'
 import NotFound from '@/views/NotFound.vue'
-import SavedPlaces from '@/views/library/SavedPlaces.vue'
+import Bookmarks from '@/views/library/Bookmarks.vue'
 import Collections from '@/views/library/Collections.vue'
 
 import { useAuthStore } from '@/stores/auth.store'
@@ -97,7 +97,7 @@ const router = createRouter({
             {
               path: 'places',
               name: AppRoute.LIBRARY_PLACES,
-              component: SavedPlaces,
+              component: Bookmarks,
             },
             {
               path: 'collections',

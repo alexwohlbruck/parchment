@@ -1,37 +1,37 @@
 import { db } from '../../db'
 import {
-  savedPlaces,
+  bookmarks,
   collections,
   placesCollections,
 } from '../../schema/library.schema'
 import { and, eq, desc, inArray } from 'drizzle-orm'
 import {
-  CreateSavedPlaceParams,
-  NewSavedPlace,
-  SavedPlace,
+  CreateBookmarkParams,
+  NewBookmark,
+  Bookmark,
   PlaceCollection,
 } from '../../types/library.types'
 import { generateId } from '../../util'
 
-export async function getSavedPlaces(userId: string) {
+export async function getBookmarks(userId: string) {
   return await db
     .select()
-    .from(savedPlaces)
-    .where(eq(savedPlaces.userId, userId))
-    .orderBy(desc(savedPlaces.createdAt))
+    .from(bookmarks)
+    .where(eq(bookmarks.userId, userId))
+    .orderBy(desc(bookmarks.createdAt))
 }
 
-export async function getSavedPlaceById(id: string, userId: string) {
+export async function getBookmarkById(id: string, userId: string) {
   return (
     await db
       .select()
-      .from(savedPlaces)
-      .where(and(eq(savedPlaces.id, id), eq(savedPlaces.userId, userId)))
+      .from(bookmarks)
+      .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)))
   )[0]
 }
 
-export async function createSavedPlace(params: CreateSavedPlaceParams) {
-  const newPlace: NewSavedPlace = {
+export async function createBookmark(params: CreateBookmarkParams) {
+  const newPlace: NewBookmark = {
     id: generateId(),
     externalIds: params.externalIds,
     name: params.name,
@@ -42,24 +42,24 @@ export async function createSavedPlace(params: CreateSavedPlaceParams) {
     userId: params.userId,
   }
 
-  const [inserted] = await db.insert(savedPlaces).values(newPlace).returning()
+  const [inserted] = await db.insert(bookmarks).values(newPlace).returning()
   return inserted
 }
 
-export async function updateSavedPlace(
+export async function updateBookmark(
   id: string,
   userId: string,
-  updates: Partial<SavedPlace>,
+  updates: Partial<Bookmark>,
 ) {
   // Don't allow updating externalIds or userId
   const { externalIds, userId: _, id: __, ...validUpdates } = updates
 
   const [updated] = await db
-    .update(savedPlaces)
+    .update(bookmarks)
     .set({
       ...validUpdates,
     })
-    .where(and(eq(savedPlaces.id, id), eq(savedPlaces.userId, userId)))
+    .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)))
     .returning()
 
   return updated
@@ -70,8 +70,8 @@ export async function unsavePlace(id: string, userId: string) {
   await db.delete(placesCollections).where(eq(placesCollections.placeId, id))
 
   const [deleted] = await db
-    .delete(savedPlaces)
-    .where(and(eq(savedPlaces.id, id), eq(savedPlaces.userId, userId)))
+    .delete(bookmarks)
+    .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)))
     .returning()
 
   return deleted
@@ -79,7 +79,7 @@ export async function unsavePlace(id: string, userId: string) {
 
 export async function getCollectionsForPlace(placeId: string, userId: string) {
   // Verify the place belongs to the user
-  const place = await getSavedPlaceById(placeId, userId)
+  const place = await getBookmarkById(placeId, userId)
   if (!place) return []
 
   // Get the junction table entries
@@ -106,3 +106,5 @@ export async function getCollectionsForPlace(placeId: string, userId: string) {
       ),
     )
 }
+
+// Helper type to enforce required fields when creating bookmarks

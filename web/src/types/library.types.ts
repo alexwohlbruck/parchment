@@ -1,6 +1,6 @@
 import { Icon } from './app.types'
 
-export interface SavedPlace {
+export interface Bookmark {
   id: string
   externalIds: Record<string, string>
   name: string
@@ -32,12 +32,12 @@ export interface PlaceCollection {
   addedAt: string
 }
 
-export interface SavedPlaceWithDetails {
-  savedPlace: SavedPlace
+export interface BookmarkWithDetails {
+  bookmark: Bookmark
   details: any // UnifiedPlace from the place service
 }
 
-export interface CreateSavedPlaceParams {
+export interface CreateBookmarkParams {
   externalIds: Record<string, string>
   name: string
   address?: string

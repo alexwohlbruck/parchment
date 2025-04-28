@@ -1,9 +1,9 @@
 import { Elysia } from 'elysia'
-import savedPlaces from './saved-places.controller'
+import bookmarks from './bookmarks.controller'
 import collections from './collections.controller'
 
 const libraryController = new Elysia({ prefix: '/library' })
-  .use(savedPlaces)
+  .use(bookmarks)
   .use(collections)
 
 export default libraryController

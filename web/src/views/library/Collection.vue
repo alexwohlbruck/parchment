@@ -57,6 +57,18 @@ const colorClasses = computed(() => {
   return getThemeColorClasses(collection.value.iconColor as ThemeColor)
 })
 
+const collectionName = computed(() => {
+  if (!collection.value) return ''
+
+  // If this is the default collection, use the i18n name
+  if (collection.value.isDefault) {
+    // If the collection has a custom name, use it, otherwise use the i18n name
+    return collection.value.name || t('library.entities.collections.default')
+  }
+
+  return collection.value.name
+})
+
 onMounted(async () => {
   loading.value = true
 
@@ -155,7 +167,7 @@ function deleteCollection() {
               size="md"
             />
             <div>
-              <h1 class="text-xl font-semibold">{{ collection.name }}</h1>
+              <h1 class="text-xl font-semibold">{{ collectionName }}</h1>
               <p
                 v-if="collection.description"
                 class="text-sm text-muted-foreground"

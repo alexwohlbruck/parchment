@@ -10,6 +10,26 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     return await libraryService.getCollections(user.id)
   })
 
+  // Get the default collection (previously saved places)
+  .get('/default', async ({ user }) => {
+    // Ensure the default collection exists
+    const defaultCollection = await libraryService.ensureDefaultCollection(
+      user.id,
+    )
+
+    // Fetch associated places
+    const places = await libraryService.getPlacesInCollection(
+      defaultCollection.id,
+      user.id,
+    )
+
+    // Combine and return
+    return {
+      ...defaultCollection,
+      places,
+    }
+  })
+
   // Get a single collection by ID
   .get(
     '/:id',
@@ -87,12 +107,17 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
   .delete(
     '/:id',
     async ({ params: { id }, user, set }) => {
-      const deleted = await libraryService.deleteCollection(id, user.id)
-      if (!deleted) {
-        set.status = 404 // Or appropriate error status
-        return { error: 'Collection not found or delete failed' }
+      try {
+        const deleted = await libraryService.deleteCollection(id, user.id)
+        if (!deleted) {
+          set.status = 404 // Or appropriate error status
+          return { error: 'Collection not found or delete failed' }
+        }
+        set.status = 204
+      } catch (err) {
+        set.status = 400
+        return { error: (err as Error).message }
       }
-      set.status = 204
     },
     {
       params: t.Object({
@@ -140,6 +165,49 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
       params: t.Object({
         id: t.String(),
         placeId: t.String(),
+      }),
+    },
+  )
+
+  // Update a place in a collection (previously updateSavedPlace)
+  .put(
+    '/:id/places/:placeId',
+    async ({ params: { id, placeId }, body, user, set }) => {
+      try {
+        const updated = await libraryService.updatePlaceInCollection(
+          placeId,
+          id,
+          user.id,
+          body,
+        )
+        if (!updated) {
+          set.status = 404
+          return { error: 'Place not found or update failed' }
+        }
+        return updated
+      } catch (err) {
+        set.status = 404
+        return { error: (err as Error).message }
+      }
+    },
+    {
+      params: t.Object({
+        id: t.String(),
+        placeId: t.String(),
+      }),
+      body: t.Object({
+        name: t.Optional(t.String()),
+        address: t.Optional(t.String()),
+        icon: t.Optional(t.String()),
+        iconColor: t.Optional(t.String()),
+        presetType: t.Optional(
+          t.Union([
+            t.Literal('home'),
+            t.Literal('work'),
+            t.Literal('school'),
+            t.Null(),
+          ]),
+        ),
       }),
     },
   )

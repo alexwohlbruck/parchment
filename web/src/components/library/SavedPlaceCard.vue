@@ -163,7 +163,25 @@ async function editPlace() {
         iconColor: formData.iconColor as ThemeColor,
       }
 
-      await savedPlacesService.updatePlace(props.place.id, params)
+      // Use the collections service to update the place
+      if (props.collectionId) {
+        await collectionsService.updatePlaceInCollection(
+          props.place.id,
+          props.collectionId,
+          params,
+        )
+      } else {
+        // If no collection ID is provided, update in the default collection
+        const defaultCollection =
+          await collectionsService.fetchDefaultCollection()
+        if (defaultCollection) {
+          await collectionsService.updatePlaceInCollection(
+            props.place.id,
+            defaultCollection.id,
+            params,
+          )
+        }
+      }
     })
 }
 </script>

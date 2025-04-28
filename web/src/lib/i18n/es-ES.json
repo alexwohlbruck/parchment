@@ -22,7 +22,8 @@
     "color": "Color",
     "style": "Estilo",
     "type": "Tipo",
-    "none": "Ninguno"
+    "none": "Ninguno",
+    "optional": "Opcional"
   },
   "palette": {
     "general": {
@@ -259,7 +260,8 @@
         "title": {
           "singular": "colección",
           "plural": "colecciones"
-        }
+        },
+        "default": "Lugares Guardados"
       },
       "routes": {
         "title": {

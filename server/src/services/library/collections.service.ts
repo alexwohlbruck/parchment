@@ -50,7 +50,7 @@ export async function ensureDefaultCollection(userId: string) {
   const newCollection: NewCollection = {
     id: generateId(),
     name: null,
-    icon: 'bookmark',
+    icon: 'Bookmark',
     iconColor: 'blue',
     isPublic: false,
     isDefault: true,
@@ -70,8 +70,8 @@ export async function createCollection(params: CreateCollectionParams) {
     id: generateId(),
     name: params.name,
     description: params.description,
-    icon: params.icon || 'folder',
-    iconColor: params.iconColor || '#3B82F6',
+    icon: params.icon || 'Bookmark',
+    iconColor: params.iconColor || 'blue',
     isPublic: params.isPublic || false,
     isDefault: false, // Ensure new collections are not default
     userId: params.userId,
@@ -192,6 +192,16 @@ export async function addPlaceToCollection(
   if (existing) {
     return existing // Already exists, just return it
   }
+
+  // Update the bookmark to match the collection's icon and color
+  const { bookmarks } = await import('../../schema/library.schema')
+  await db
+    .update(bookmarks)
+    .set({
+      icon: collection.icon,
+      iconColor: collection.iconColor,
+    })
+    .where(and(eq(bookmarks.id, placeId), eq(bookmarks.userId, userId)))
 
   // Create the relationship
   const newRelation: NewPlaceCollection = {

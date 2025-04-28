@@ -4,7 +4,6 @@ import { useRouter, useRoute } from 'vue-router'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AppRoute } from '@/router'
 import {
-  MapPinIcon,
   FolderOpenIcon,
   RouteIcon,
   MapIcon,
@@ -12,7 +11,6 @@ import {
 } from 'lucide-vue-next'
 
 const tabs = [
-  { id: 'places', route: AppRoute.LIBRARY_PLACES, icon: MapPinIcon },
   {
     id: 'collections',
     route: AppRoute.LIBRARY_COLLECTIONS,
@@ -26,11 +24,11 @@ const tabs = [
 const router = useRouter()
 const route = useRoute()
 
-const tabValue = ref('places')
+const tabValue = ref('collections')
 
 function getTabIdFromRouteName(routeName) {
   const tab = tabs.find(tab => tab.route === routeName)
-  return tab ? tab.id : 'places'
+  return tab ? tab.id : 'collections'
 }
 
 watch(

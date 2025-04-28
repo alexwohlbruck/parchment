@@ -51,7 +51,7 @@ const { handleSubmit, values, meta, setFieldValue, resetForm } =
     initialValues: {
       name: '',
       description: '',
-      icon: 'Folder',
+      icon: 'Bookmark',
       iconColor: 'blue',
       isPublic: false,
     },

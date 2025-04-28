@@ -107,6 +107,12 @@ async function addToCollection(collectionId: string) {
   try {
     isAddingToCollection.value = true
     await collectionsService.addPlaceToCollection(props.place.id, collectionId)
+    const collection = collections.value.find(c => c.id === collectionId)
+    if (collection) {
+      toast.success(
+        t('library.actions.addedToCollection', { collection: collection.name }),
+      )
+    }
   } finally {
     isAddingToCollection.value = false
   }

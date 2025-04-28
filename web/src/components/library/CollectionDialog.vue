@@ -41,7 +41,6 @@ function openCollectionDialog(collection?: Collection) {
           ...(formData.description
             ? { description: formData.description }
             : {}),
-          ...(formData.type ? { type: formData.type } : {}),
           icon: formData.icon,
           iconColor: formData.iconColor,
           isPublic: formData.isPublic,
@@ -68,6 +67,4 @@ onMounted(() => {
 })
 </script>
 
-<template>
-  <!-- This component doesn't render anything in the template -->
-</template>
+<template></template>

@@ -4,13 +4,6 @@ import { useI18n } from 'vue-i18n'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { IconPicker } from '@/components/ui/icon-picker'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import type { Collection } from '@/types/library.types'
 import type { ThemeColor } from '@/lib/utils'
 import { useForm } from 'vee-validate'
@@ -31,31 +24,21 @@ const props = defineProps<{
   collection?: Collection
 }>()
 
-// TODO: Allow user to deselect type
-// Collection types (use the same values as in the place types)
-const collectionTypes = [
-  { value: 'home', label: t('library.types.home') },
-  { value: 'work', label: t('library.types.work') },
-  { value: 'school', label: t('library.types.school') },
-]
-
 // Define form schema with zod
 const collectionSchema = toTypedSchema(
   z.object({
     name: z.string().min(1, 'Name is required'),
     description: z.string().default(''),
-    type: z.string().optional(),
     icon: z.string().default('Folder'),
     iconColor: z.string().default('blue'),
     isPublic: z.boolean().default(false),
   }),
 )
 
-// Additional field for the collection type that's not part of the Collection type
+// Form values interface
 interface CollectionFormValues {
   name: string
   description: string
-  type?: string
   icon: string
   iconColor: string
   isPublic: boolean
@@ -68,7 +51,6 @@ const { handleSubmit, values, meta, setFieldValue, resetForm } =
     initialValues: {
       name: '',
       description: '',
-      type: undefined,
       icon: 'Folder',
       iconColor: 'blue',
       isPublic: false,
@@ -82,8 +64,6 @@ onMounted(() => {
       values: {
         name: props.collection.name,
         description: props.collection.description || '',
-        // Type is a custom field not in the Collection type
-        type: undefined,
         icon: props.collection.icon,
         iconColor: props.collection.iconColor,
         isPublic: props.collection.isPublic,
@@ -128,8 +108,6 @@ watch(
         values: {
           name: newCollection.name,
           description: newCollection.description || '',
-          // Type is a custom field not in the Collection type
-          type: undefined,
           icon: newCollection.icon,
           iconColor: newCollection.iconColor,
           isPublic: newCollection.isPublic,
@@ -159,35 +137,6 @@ defineExpose({
           />
         </FormControl>
         <FormMessage>{{ errorMessage }}</FormMessage>
-      </FormItem>
-    </FormField>
-
-    <!-- Collection type field -->
-    <FormField name="type" v-slot="{ field }">
-      <FormItem>
-        <FormLabel>{{ t('general.type') }}</FormLabel>
-        <FormControl>
-          <Select
-            :model-value="field.value"
-            @update:model-value="field.onChange"
-            :can-clear="true"
-          >
-            <SelectTrigger>
-              <SelectValue
-                :placeholder="t('library.form.placeholders.collectionType')"
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem
-                v-for="type in collectionTypes"
-                :key="type.value"
-                :value="type.value"
-              >
-                {{ type.label }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </FormControl>
       </FormItem>
     </FormField>
 

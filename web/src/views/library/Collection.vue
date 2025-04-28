@@ -99,7 +99,6 @@ function editCollection() {
           ...(formData.description
             ? { description: formData.description }
             : {}),
-          ...(formData.type ? { type: formData.type } : {}),
           icon: formData.icon,
           iconColor: formData.iconColor,
           isPublic: formData.isPublic,

@@ -29,5 +29,6 @@ export type CreateCollectionParams = {
   icon?: string
   iconColor?: string
   isPublic?: boolean
+  isDefault?: boolean
   userId: string
 }

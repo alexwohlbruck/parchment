@@ -25,7 +25,7 @@ export const savedPlaces = pgTable('saved_places', {
 
 export const collections = pgTable('collections', {
   id: text('id').primaryKey().notNull(),
-  name: text('name').notNull(),
+  name: text('name'),
   description: text('description'),
   icon: text('icon').notNull().default('folder'),
   iconColor: text('icon_color').notNull().default('#3B82F6'),
@@ -33,6 +33,7 @@ export const collections = pgTable('collections', {
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   isPublic: boolean('is_public').default(false).notNull(),
+  isDefault: boolean('is_default').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })

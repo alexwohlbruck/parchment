@@ -2,7 +2,7 @@
 import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import SavedPlaceForm from '@/components/library/SavedPlaceForm.vue'
-import { useSavedPlacesService } from '@/services/library/saved-places.service'
+import { useCollectionsService } from '@/services/library/collections.service'
 import { useAppService } from '@/services/app.service'
 import type { SavedPlace } from '@/types/library.types'
 
@@ -12,7 +12,7 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const appService = useAppService()
-const savedPlacesService = useSavedPlacesService()
+const collectionsService = useCollectionsService()
 
 function openSavedPlaceDialog(place: SavedPlace) {
   appService
@@ -39,7 +39,16 @@ function openSavedPlaceDialog(place: SavedPlace) {
 
       console.log('Sending to API:', params)
 
-      await savedPlacesService.updatePlace(place.id, params)
+      // Get the default collection and update the place in it
+      const defaultCollection =
+        await collectionsService.fetchDefaultCollection()
+      if (defaultCollection) {
+        await collectionsService.updatePlaceInCollection(
+          place.id,
+          defaultCollection.id,
+          params,
+        )
+      }
     })
 }
 

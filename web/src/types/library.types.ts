@@ -21,6 +21,7 @@ export interface Collection {
   iconColor: string
   userId: string
   isPublic: boolean
+  isDefault?: boolean
   createdAt: string
   updatedAt: string
 }

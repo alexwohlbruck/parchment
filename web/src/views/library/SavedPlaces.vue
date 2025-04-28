@@ -3,28 +3,52 @@ import { ref, onMounted, computed } from 'vue'
 import { MapPinIcon } from 'lucide-vue-next'
 import PlacesList from '@/components/library/PlacesList.vue'
 import EmptyState from '@/components/library/EmptyState.vue'
-import { useSavedPlacesService } from '@/services/library/saved-places.service'
-import { useSavedPlacesStore } from '@/stores/library/savedPlaces.store'
+import { useCollectionsService } from '@/services/library/collections.service'
+import { useCollectionsStore } from '@/stores/library/collections.store'
 import { storeToRefs } from 'pinia'
+import { useI18n } from 'vue-i18n'
 
-const savedPlacesService = useSavedPlacesService()
-const savedPlacesStore = useSavedPlacesStore()
+const collectionsService = useCollectionsService()
+const collectionsStore = useCollectionsStore()
+const { t } = useI18n()
 
 const loadingPlaces = ref(false)
-const { savedPlaces } = storeToRefs(savedPlacesStore)
+const defaultCollection = ref<any>(null)
 
 onMounted(async () => {
   loadingPlaces.value = true
-  await savedPlacesService.getSavedPlaces()
+  defaultCollection.value = await collectionsService.fetchDefaultCollection()
   loadingPlaces.value = false
 })
 
 const showEmptyState = computed(() => {
-  return !loadingPlaces.value && savedPlaces.value.length === 0
+  return (
+    !loadingPlaces.value &&
+    (!defaultCollection.value ||
+      !defaultCollection.value.places ||
+      defaultCollection.value.places.length === 0)
+  )
 })
 
 const loading = computed(() => {
-  return loadingPlaces.value && savedPlaces.value.length === 0
+  return (
+    loadingPlaces.value &&
+    (!defaultCollection.value ||
+      !defaultCollection.value.places ||
+      defaultCollection.value.places.length === 0)
+  )
+})
+
+const places = computed(() => {
+  return defaultCollection.value?.places || []
+})
+
+// Get the translated name for the default collection
+const defaultCollectionName = computed(() => {
+  if (defaultCollection.value?.name) {
+    return defaultCollection.value.name
+  }
+  return t('library.entities.collections.default')
 })
 </script>
 
@@ -37,6 +61,11 @@ const loading = computed(() => {
       class="flex-1"
     />
 
-    <PlacesList v-else :places="savedPlaces" :loading="loading" />
+    <PlacesList
+      v-else
+      :places="places"
+      :loading="loading"
+      :collection-id="defaultCollection?.id"
+    />
   </div>
 </template>

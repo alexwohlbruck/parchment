@@ -27,7 +27,7 @@ const props = defineProps<{
 // Define form schema with zod
 const collectionSchema = toTypedSchema(
   z.object({
-    name: z.string().min(1, 'Name is required'),
+    name: z.string().optional(),
     description: z.string().default(''),
     icon: z.string().default('Folder'),
     iconColor: z.string().default('blue'),
@@ -129,7 +129,14 @@ defineExpose({
     <!-- Name field -->
     <FormField name="name" v-slot="{ field, errorMessage }">
       <FormItem>
-        <FormLabel>{{ t('general.name') }} *</FormLabel>
+        <FormLabel
+          >{{ t('general.name') }}
+          <span
+            v-if="collection?.isDefault"
+            class="text-muted-foreground text-xs"
+            >({{ t('general.optional') }})</span
+          ></FormLabel
+        >
         <FormControl>
           <Input
             v-bind="field"

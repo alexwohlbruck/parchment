@@ -13,6 +13,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { SearchIcon, ArrowUpDownIcon } from 'lucide-vue-next'
 import SavedPlaceCard from '@/components/library/SavedPlaceCard.vue'
 import { fuzzyFilter } from '@/lib/utils'
+import { useCollectionsService } from '@/services/library/collections.service'
 import type { SavedPlace } from '@/types/library.types'
 
 const props = defineProps<{
@@ -22,6 +23,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const collectionsService = useCollectionsService()
 const localPlaces = ref<SavedPlace[]>([...props.places])
 
 const searchQuery = ref('')
@@ -73,16 +75,38 @@ function setSortBy(field: 'name' | 'createdAt') {
   }
 }
 
-function handlePlaceUnsaved(place: SavedPlace) {
+async function handlePlaceUnsaved(place: SavedPlace) {
+  if (props.collectionId) {
+    await collectionsService.removePlaceFromCollection(
+      place.id,
+      props.collectionId,
+    )
+  } else {
+    // If no collection ID is provided, get the default collection
+    const defaultCollection = await collectionsService.fetchDefaultCollection()
+    if (defaultCollection) {
+      await collectionsService.removePlaceFromCollection(
+        place.id,
+        defaultCollection.id,
+      )
+    }
+  }
   localPlaces.value = localPlaces.value.filter(p => p.id !== place.id)
 }
 
-function handleAddToCollection(place: SavedPlace) {
+async function handleAddToCollection(place: SavedPlace) {
   console.log('Place added to collection:', place.name)
+  // This function will be implemented when we add the ability to add places to collections
 }
 
 // Handle place removed from collection
-function handleRemoveFromCollection(place: SavedPlace) {
+async function handleRemoveFromCollection(place: SavedPlace) {
+  if (props.collectionId) {
+    await collectionsService.removePlaceFromCollection(
+      place.id,
+      props.collectionId,
+    )
+  }
   localPlaces.value = localPlaces.value.filter(p => p.id !== place.id)
 }
 </script>

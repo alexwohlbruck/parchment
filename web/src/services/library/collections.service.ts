@@ -31,6 +31,25 @@ export const useCollectionsService = createSharedComposable(() => {
     }
   }
 
+  // Get the default collection (previously saved places)
+  async function fetchDefaultCollection(): Promise<Collection | null> {
+    try {
+      const response = await api.get('/library/collections/default')
+      const collection = response.data
+
+      // If this is the default collection, we'll use the i18n name
+      if (collection && collection.isDefault) {
+        // We'll keep the original name in the API response, but the UI will display the translated name
+        // The actual translation will happen in the UI components
+      }
+
+      return collection
+    } catch (error) {
+      toast.error('Failed to fetch default collection')
+      return null
+    }
+  }
+
   // Collection operations
   async function createCollection(params: CreateCollectionParams) {
     try {
@@ -125,10 +144,35 @@ export const useCollectionsService = createSharedComposable(() => {
     }
   }
 
+  // Update a place in a collection (previously updateSavedPlace)
+  async function updatePlaceInCollection(
+    placeId: string,
+    collectionId: string,
+    updates: any,
+  ) {
+    try {
+      const response = await api.put(
+        `/library/collections/${collectionId}/places/${placeId}`,
+        updates,
+      )
+      const updated = response.data
+
+      // Update store if needed
+      // This might need to be handled differently depending on how the store is structured
+      toast.success('Place updated successfully')
+
+      return updated
+    } catch (error) {
+      toast.error('Failed to update place')
+      return null
+    }
+  }
+
   return {
     // Data fetching
     fetchCollections,
     fetchCollectionById,
+    fetchDefaultCollection,
 
     // Collection operations
     createCollection,
@@ -139,5 +183,6 @@ export const useCollectionsService = createSharedComposable(() => {
     addPlaceToCollection,
     removePlaceFromCollection,
     fetchPlacesInCollection,
+    updatePlaceInCollection,
   }
 })

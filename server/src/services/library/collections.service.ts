@@ -11,6 +11,10 @@ import { generateId } from '../../util'
 import { getSavedPlaceById } from './saved-places.service' // Import from sibling service
 
 export async function getCollections(userId: string) {
+  // Ensure the default collection exists
+  await ensureDefaultCollection(userId)
+
+  // Then return all collections
   return await db
     .select()
     .from(collections)
@@ -26,6 +30,41 @@ export async function getCollectionById(id: string, userId: string) {
   )[0]
 }
 
+export async function getDefaultCollection(userId: string) {
+  return (
+    await db
+      .select()
+      .from(collections)
+      .where(
+        and(eq(collections.userId, userId), eq(collections.isDefault, true)),
+      )
+  )[0]
+}
+
+export async function ensureDefaultCollection(userId: string) {
+  const existingDefault = await getDefaultCollection(userId)
+  if (existingDefault) {
+    return existingDefault
+  }
+
+  const newCollection: NewCollection = {
+    id: generateId(),
+    name: null,
+    icon: 'bookmark',
+    iconColor: 'blue',
+    isPublic: false,
+    isDefault: true,
+    userId: userId,
+  }
+
+  const [inserted] = await db
+    .insert(collections)
+    .values(newCollection)
+    .returning()
+
+  return inserted
+}
+
 export async function createCollection(params: CreateCollectionParams) {
   const newCollection: NewCollection = {
     id: generateId(),
@@ -34,6 +73,7 @@ export async function createCollection(params: CreateCollectionParams) {
     icon: params.icon || 'folder',
     iconColor: params.iconColor || '#3B82F6',
     isPublic: params.isPublic || false,
+    isDefault: false, // Ensure new collections are not default
     userId: params.userId,
   }
 
@@ -64,6 +104,12 @@ export async function updateCollection(
 }
 
 export async function deleteCollection(id: string, userId: string) {
+  // First, check if this is the default collection
+  const collection = await getCollectionById(id, userId)
+  if (collection && collection.isDefault) {
+    throw new Error('Cannot delete the default collection')
+  }
+
   // First, remove all place associations
   await db
     .delete(placesCollections)
@@ -195,4 +241,39 @@ export async function removePlaceFromCollection(
 
   // We might want to return null or indicate failure if nothing was deleted
   return deleted
+}
+
+// Update a place in a collection (previously updateSavedPlace)
+export async function updatePlaceInCollection(
+  placeId: string,
+  collectionId: string,
+  userId: string,
+  updates: any,
+) {
+  // First verify the place exists and belongs to the user
+  const place = await getSavedPlaceById(placeId, userId)
+  if (!place) {
+    throw new Error('Place not found')
+  }
+
+  // Verify the collection exists and belongs to the user
+  const collection = await getCollectionById(collectionId, userId)
+  if (!collection) {
+    throw new Error('Collection not found')
+  }
+
+  // Don't allow updating externalIds or userId
+  const { externalIds, userId: _, id: __, ...validUpdates } = updates
+
+  // Update the place
+  const { savedPlaces } = await import('../../schema/library.schema')
+  const [updated] = await db
+    .update(savedPlaces)
+    .set({
+      ...validUpdates,
+    })
+    .where(and(eq(savedPlaces.id, placeId), eq(savedPlaces.userId, userId)))
+    .returning()
+
+  return updated
 }

@@ -22,7 +22,8 @@
     "color": "Color",
     "style": "Style",
     "type": "Type",
-    "none": "None"
+    "none": "None",
+    "optional": "Optional"
   },
   "palette": {
     "placeholder": {
@@ -258,7 +259,8 @@
         "title": {
           "singular": "collection",
           "plural": "collections"
-        }
+        },
+        "default": "Saved Places"
       },
       "routes": {
         "title": {

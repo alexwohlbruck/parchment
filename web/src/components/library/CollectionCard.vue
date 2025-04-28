@@ -33,6 +33,16 @@ const colorClasses = computed(() => {
   return getThemeColorClasses(props.collection.iconColor as ThemeColor)
 })
 
+const collectionName = computed(() => {
+  // If this is the default collection, use the i18n name
+  if (props.collection.isDefault) {
+    // If the collection has a custom name, use it, otherwise use the i18n name
+    return props.collection.name || t('library.entities.collections.default')
+  }
+
+  return props.collection.name
+})
+
 function goToCollection() {
   router.push({
     name: AppRoute.COLLECTION,
@@ -99,7 +109,7 @@ function deleteCollection() {
       <div class="flex-grow min-w-0">
         <div class="flex items-center justify-between">
           <div class="flex flex-col justify-center">
-            <h3 class="font-semibold text-sm">{{ collection.name }}</h3>
+            <h3 class="font-semibold text-sm">{{ collectionName }}</h3>
 
             <!-- Display collection description if available -->
             <div

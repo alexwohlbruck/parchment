@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { Button } from '@/components/ui/button'
 import { NavigationIcon, ShareIcon, BookmarkIcon, Check } from 'lucide-vue-next'
+import { useCollectionsService } from '@/services/library/collections.service'
 import { useSavedPlacesService } from '@/services/library/saved-places.service'
 import { useAppService } from '@/services/app.service'
 import type { UnifiedPlace } from '@/types/unified-place.types'
@@ -11,6 +12,7 @@ const props = defineProps<{
   place: UnifiedPlace
 }>()
 
+const collectionsService = useCollectionsService()
 const savedPlacesService = useSavedPlacesService()
 const savedPlacesStore = useSavedPlacesStore()
 const { toast } = useAppService()
@@ -35,19 +37,38 @@ const isSaved = computed(() => {
 })
 
 async function savePlace() {
-  await savedPlacesService.savePlace(props.place)
-  if (!isSaved.value) {
-    toast.success(`Saved ${props.place.name}`)
-  }
+  // First save the place using the saved places service
+  const savedPlace = await savedPlacesService.savePlace(props.place)
+  if (!savedPlace) return
+
+  // Get the default collection
+  const defaultCollection = await collectionsService.fetchDefaultCollection()
+  if (!defaultCollection) return
+
+  // Add the place to the default collection
+  await collectionsService.addPlaceToCollection(
+    savedPlace.id,
+    defaultCollection.id,
+  )
 }
 
 async function unsavePlace() {
-  if (!savedPlaceId.value) {
-    return
-  }
+  if (!savedPlaceId.value) return
 
+  // Get the default collection
+  const defaultCollection = await collectionsService.fetchDefaultCollection()
+  if (!defaultCollection) return
+
+  // Remove the place from the default collection first
+  await collectionsService.removePlaceFromCollection(
+    savedPlaceId.value,
+    defaultCollection.id,
+  )
+
+  // Then unsave the place - this will show a single toast
   await savedPlacesService.unsavePlace(savedPlaceId.value, props.place.name)
 }
+
 const emit = defineEmits<{
   (e: 'directions'): void
   (e: 'share'): void

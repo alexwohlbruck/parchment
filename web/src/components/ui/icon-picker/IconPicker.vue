@@ -40,7 +40,6 @@ const activeTab = ref('icon')
 const iconSearch = ref('')
 
 const iconComponents = computed<IconItem[]>(() => {
-  console.log(Object.entries(LucideIcons))
   return Object.entries(LucideIcons)
     .filter(
       ([key]) =>
@@ -54,8 +53,6 @@ const iconComponents = computed<IconItem[]>(() => {
       return { name, component: component as LucideIcon }
     })
 })
-
-console.log(iconComponents.value[869])
 
 const filteredIconComponents = computed(() => {
   if (!iconSearch.value) return iconComponents.value

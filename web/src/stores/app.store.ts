@@ -1,6 +1,6 @@
 import { DialogOptions, DialogType } from '@/types/app.types'
 import { defineStore } from 'pinia'
-import { Component, computed, ref, watch } from 'vue'
+import { Component, computed, ref, watch, markRaw } from 'vue'
 import { useWindowSize } from '@vueuse/core'
 
 import ComponentDialog from '@/components/dialogs/ComponentDialog.vue'
@@ -219,9 +219,17 @@ export const useAppStore = defineStore('app', () => {
         [DialogType.Template]: ConfirmDialog, // TODO
       }
 
+      if (type === DialogType.Component) {
+        const componentOptions =
+          options as import('@/types/app.types').ComponentDialogOptions
+        if (componentOptions.component) {
+          componentOptions.component = markRaw(componentOptions.component)
+        }
+      }
+
       dialogs.value.push({
         id,
-        component: dialogTypesMap[type],
+        component: markRaw(dialogTypesMap[type]),
         props: options,
         onSubmit: (payload: any) => {
           if (payload) resolve(payload)

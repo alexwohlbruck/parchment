@@ -307,7 +307,8 @@
         "collectionDescription": "Añade una descripción (opcional)",
         "collectionType": "Selecciona un tipo (opcional)",
         "placeName": "Introduce el nombre del lugar",
-        "placeType": "Selecciona el tipo de lugar (opcional)"
+        "placeType": "Selecciona el tipo de lugar (opcional)",
+        "isDefault": "Colección Predeterminada"
       }
     },
     "types": {

@@ -307,7 +307,8 @@
         "collectionType": "Select type (optional)",
         "placeName": "Enter place name",
         "placeType": "Select place type (optional)"
-      }
+      },
+      "isDefault": "Default Collection"
     },
     "types": {
       "home": "Home",

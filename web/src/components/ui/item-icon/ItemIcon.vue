@@ -4,25 +4,26 @@ import { getThemeColorClasses, type ThemeColor } from '@/lib/utils'
 import * as LucideIcons from 'lucide-vue-next'
 import { FolderIcon } from 'lucide-vue-next'
 
-const props = defineProps<{
-  icon?: string
-  color?: ThemeColor
-  size?: 'sm' | 'md' | 'lg'
-}>()
+const props = withDefaults(
+  defineProps<{
+    icon?: string
+    color?: ThemeColor
+    size?: 'sm' | 'md' | 'lg'
+    plain?: boolean
+  }>(),
+  {
+    icon: 'Folder',
+    color: 'blue',
+    size: 'md',
+    plain: false,
+  },
+)
 
-// Default props
-const iconName = computed(() => props.icon || 'Folder')
-const iconColor = computed(() => props.color || 'blue')
-const iconSize = computed(() => props.size || 'md')
-
-// Get the icon component
 const iconComponent = computed(() => {
-  // Add "Icon" suffix if not already present
-  const fullName = iconName.value.endsWith('Icon')
-    ? iconName.value
-    : `${iconName.value}Icon`
+  const fullName = props.icon.endsWith('Icon')
+    ? props.icon
+    : `${props.icon}Icon`
 
-  // Check if the key exists and is not the index export
   const isValidIcon =
     fullName !== 'icons' &&
     typeof LucideIcons[fullName as keyof typeof LucideIcons] === 'function'
@@ -32,14 +33,12 @@ const iconComponent = computed(() => {
     : FolderIcon
 })
 
-// Get color classes
 const colorClasses = computed(() => {
-  return getThemeColorClasses(iconColor.value as ThemeColor)
+  return getThemeColorClasses(props.color as ThemeColor)
 })
 
-// Calculate container size based on the size prop
 const containerSizeClass = computed(() => {
-  switch (iconSize.value) {
+  switch (props.size) {
     case 'sm':
       return 'size-6'
     case 'lg':
@@ -50,11 +49,10 @@ const containerSizeClass = computed(() => {
   }
 })
 
-// Calculate icon size based on the size prop
 const iconSizeClass = computed(() => {
-  switch (iconSize.value) {
+  switch (props.size) {
     case 'sm':
-      return 'size-3.5'
+      return 'size-4'
     case 'lg':
       return 'size-6'
     case 'md':
@@ -67,8 +65,8 @@ const iconSizeClass = computed(() => {
 <template>
   <div
     class="rounded-md flex items-center justify-center flex-shrink-0"
-    :class="[containerSizeClass, colorClasses]"
+    :class="[containerSizeClass, props.plain ? '' : colorClasses]"
   >
-    <component :is="iconComponent" :class="iconSizeClass" />
+    <component :is="iconComponent as any" :class="iconSizeClass" />
   </div>
 </template>

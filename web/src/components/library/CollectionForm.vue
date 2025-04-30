@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { IconPicker } from '@/components/ui/icon-picker'
+import { Checkbox } from '@/components/ui/checkbox'
 import type { Collection } from '@/types/library.types'
 import type { ThemeColor } from '@/lib/utils'
 import { useForm } from 'vee-validate'
@@ -24,7 +25,6 @@ const props = defineProps<{
   collection?: Collection
 }>()
 
-// Define form schema with zod
 const collectionSchema = toTypedSchema(
   z.object({
     name: z.string().optional(),
@@ -35,16 +35,15 @@ const collectionSchema = toTypedSchema(
   }),
 )
 
-// Form values interface
 interface CollectionFormValues {
   name: string
   description: string
   icon: string
   iconColor: string
   isPublic: boolean
+  isDefault: boolean
 }
 
-// Initialize form with vee-validate
 const { handleSubmit, values, meta, setFieldValue, resetForm } =
   useForm<CollectionFormValues>({
     validationSchema: collectionSchema,
@@ -54,10 +53,10 @@ const { handleSubmit, values, meta, setFieldValue, resetForm } =
       icon: 'Bookmark',
       iconColor: 'blue',
       isPublic: false,
+      isDefault: false,
     },
   })
 
-// Load collection data if available
 onMounted(() => {
   if (props.collection) {
     resetForm({
@@ -67,12 +66,16 @@ onMounted(() => {
         icon: props.collection.icon,
         iconColor: props.collection.iconColor,
         isPublic: props.collection.isPublic,
+        isDefault: props.collection.isDefault || false,
       },
     })
+
+    if (props.collection.isDefault && !props.collection.name) {
+      setFieldValue('name', t('library.entities.collections.default'))
+    }
   }
 })
 
-// Combined icon and color style value for the picker
 const collectionStyle = computed({
   get: () => ({
     icon: values.icon || 'Folder',
@@ -84,13 +87,11 @@ const collectionStyle = computed({
   },
 })
 
-// Form submission handler
 const onSubmit = handleSubmit(formValues => {
   console.log('Form submitted with values:', formValues)
   return formValues
 })
 
-// Watch form validity and emit to parent
 watch(
   () => meta.value.valid,
   valid => {
@@ -99,7 +100,6 @@ watch(
   { immediate: true },
 )
 
-// Watch for collection prop changes
 watch(
   () => props.collection,
   newCollection => {
@@ -111,6 +111,7 @@ watch(
           icon: newCollection.icon,
           iconColor: newCollection.iconColor,
           isPublic: newCollection.isPublic,
+          isDefault: newCollection.isDefault || false,
         },
       })
     }
@@ -118,7 +119,6 @@ watch(
   { deep: true },
 )
 
-// Expose submit method to parent component
 defineExpose({
   submit: onSubmit,
 })
@@ -131,9 +131,7 @@ defineExpose({
       <FormItem>
         <FormLabel
           >{{ t('general.name') }}
-          <span
-            v-if="collection?.isDefault"
-            class="text-muted-foreground text-xs"
+          <span v-if="values.isDefault" class="text-muted-foreground text-xs"
             >({{ t('general.optional') }})</span
           ></FormLabel
         >
@@ -143,7 +141,7 @@ defineExpose({
             :placeholder="t('library.form.placeholders.collectionName')"
           />
         </FormControl>
-        <FormMessage>{{ errorMessage }}</FormMessage>
+        <FormMessage v-if="errorMessage">{{ t(errorMessage) }}</FormMessage>
       </FormItem>
     </FormField>
 
@@ -168,6 +166,18 @@ defineExpose({
             :placeholder="t('library.form.placeholders.collectionDescription')"
           />
         </FormControl>
+      </FormItem>
+    </FormField>
+
+    <!-- isDefault field (disabled checkbox) -->
+    <FormField name="isDefault" v-slot="{ field }">
+      <FormItem class="flex flex-row items-start space-x-3 space-y-0">
+        <FormControl>
+          <Checkbox :checked="field.value" disabled />
+        </FormControl>
+        <div class="space-y-1 leading-none">
+          <FormLabel>{{ t('library.form.isDefault') }}</FormLabel>
+        </div>
       </FormItem>
     </FormField>
   </form>

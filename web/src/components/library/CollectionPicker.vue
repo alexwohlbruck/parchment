@@ -21,8 +21,6 @@ const props = defineProps<{
   collectionId?: string
 }>()
 
-const emit = defineEmits(['toggle-collection', 'create-collection'])
-
 const collectionsStore = useCollectionsStore()
 const collectionsService = useCollectionsService()
 const { collections } = storeToRefs(collectionsStore)
@@ -116,15 +114,9 @@ async function toggleCollection(collectionId: string) {
         )
       }
     }
-
-    emit('toggle-collection', collectionId)
   } finally {
     isAddingToCollection.value = false
   }
-}
-
-function createNewCollection() {
-  emit('create-collection', props.place)
 }
 </script>
 

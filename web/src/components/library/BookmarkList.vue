@@ -25,11 +25,10 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const collectionsService = useCollectionsService()
-const bookmarksStore = useBookmarksStore()
 const localPlaces = ref<Bookmark[]>([...props.places])
 
 const searchQuery = ref('')
-const sortBy = ref<'name' | 'createdAt'>('createdAt')
+const sortBy = ref<'name' | 'createdAt' | 'updatedAt'>('updatedAt')
 const sortOrder = ref<'asc' | 'desc'>('desc')
 
 watch(
@@ -53,6 +52,9 @@ const filteredPlaces = computed(() => {
 
     if (sortBy.value === 'name') {
       comparison = a.name.localeCompare(b.name)
+    } else if (sortBy.value === 'updatedAt') {
+      comparison =
+        new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
     } else if (sortBy.value === 'createdAt') {
       comparison =
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
@@ -68,7 +70,7 @@ function toggleSortOrder() {
   sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
 }
 
-function setSortBy(field: 'name' | 'createdAt') {
+function setSortBy(field: 'name' | 'createdAt' | 'updatedAt') {
   if (sortBy.value === field) {
     toggleSortOrder()
   } else {
@@ -79,7 +81,7 @@ function setSortBy(field: 'name' | 'createdAt') {
 
 async function handlePlaceUnsaved(place: Bookmark) {
   if (props.collectionId) {
-    await collectionsService.removePlaceFromCollection(
+    await collectionsService.removeBookmarkFromCollection(
       place.id,
       props.collectionId,
     )
@@ -87,7 +89,7 @@ async function handlePlaceUnsaved(place: Bookmark) {
     // If no collection ID is provided, get the default collection
     const defaultCollection = await collectionsService.fetchDefaultCollection()
     if (defaultCollection) {
-      await collectionsService.removePlaceFromCollection(
+      await collectionsService.removeBookmarkFromCollection(
         place.id,
         defaultCollection.id,
       )
@@ -104,7 +106,7 @@ async function handleAddToCollection(place: Bookmark) {
 // Handle place removed from collection
 async function handleRemoveFromCollection(place: Bookmark) {
   if (props.collectionId) {
-    await collectionsService.removePlaceFromCollection(
+    await collectionsService.removeBookmarkFromCollection(
       place.id,
       props.collectionId,
     )
@@ -142,6 +144,15 @@ async function handleRemoveFromCollection(place: Bookmark) {
             >
               {{ t('general.name') }}
               {{ sortBy === 'name' ? (sortOrder === 'asc' ? '↑' : '↓') : '' }}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              :class="{ 'font-medium': sortBy === 'updatedAt' }"
+              @click="setSortBy('updatedAt')"
+            >
+              {{ t('general.lastModified') }}
+              {{
+                sortBy === 'updatedAt' ? (sortOrder === 'asc' ? '↑' : '↓') : ''
+              }}
             </DropdownMenuItem>
             <DropdownMenuItem
               :class="{ 'font-medium': sortBy === 'createdAt' }"

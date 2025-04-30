@@ -92,15 +92,16 @@ export async function updateCollection(
   // Don't allow updating userId
   const { userId: _, id: __, ...validUpdates } = updates
 
-  const [updated] = await db
+  const [updatedCollection] = await db
     .update(collections)
     .set({
       ...validUpdates,
+      updatedAt: new Date(), // Explicitly set updatedAt
     })
     .where(and(eq(collections.id, id), eq(collections.userId, userId)))
     .returning()
 
-  return updated
+  return updatedCollection
 }
 
 export async function deleteCollection(id: string, userId: string) {
@@ -120,6 +121,14 @@ export async function deleteCollection(id: string, userId: string) {
     .delete(collections)
     .where(and(eq(collections.id, id), eq(collections.userId, userId)))
     .returning()
+
+  if (deleted) {
+    // If deletion occurred, update the collection's updatedAt timestamp
+    await db
+      .update(collections)
+      .set({ updatedAt: new Date() })
+      .where(eq(collections.id, id))
+  }
 
   return deleted
 }
@@ -176,7 +185,7 @@ export async function addPlaceToCollection(
     throw new Error('Place or collection not found')
   }
 
-  // Check if the relationship already exists
+  // Check if the relationship already exists to avoid redundant updates
   const existing = (
     await db
       .select()
@@ -193,15 +202,11 @@ export async function addPlaceToCollection(
     return existing // Already exists, just return it
   }
 
-  // Update the bookmark to match the collection's icon and color
-  const { bookmarks } = await import('../../schema/library.schema')
+  // Update the collection's updatedAt timestamp
   await db
-    .update(bookmarks)
-    .set({
-      icon: collection.icon,
-      iconColor: collection.iconColor,
-    })
-    .where(and(eq(bookmarks.id, placeId), eq(bookmarks.userId, userId)))
+    .update(collections)
+    .set({ updatedAt: new Date() })
+    .where(eq(collections.id, collectionId))
 
   // Create the relationship
   const newRelation: NewPlaceCollection = {
@@ -236,7 +241,7 @@ export async function removePlaceFromCollection(
     throw new Error('Place or collection not found for this user')
   }
 
-  // Delete the relationship
+  // Delete the relationship first
   const [deleted] = await db
     .delete(placesCollections)
     .where(
@@ -248,6 +253,14 @@ export async function removePlaceFromCollection(
     .returning()
 
   // We might want to return null or indicate failure if nothing was deleted
+  if (deleted) {
+    // If deletion occurred, update the collection's updatedAt timestamp
+    await db
+      .update(collections)
+      .set({ updatedAt: new Date() })
+      .where(eq(collections.id, collectionId))
+  }
+
   return deleted
 }
 

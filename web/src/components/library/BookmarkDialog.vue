@@ -39,7 +39,6 @@ function openBookmarkDialog(place: Bookmark) {
 
       console.log('Sending to API:', params)
 
-      // Get the default collection and update the place in it
       const defaultCollection =
         await collectionsService.fetchDefaultCollection()
       if (defaultCollection) {
@@ -52,12 +51,9 @@ function openBookmarkDialog(place: Bookmark) {
     })
 }
 
-// Auto-open the dialog when the component is mounted
 onMounted(() => {
   openBookmarkDialog(props.place)
 })
 </script>
 
-<template>
-  <!-- This component doesn't render anything in the template -->
-</template>
+<template></template>

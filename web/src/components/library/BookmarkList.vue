@@ -15,6 +15,7 @@ import BookmarkCard from '@/components/library/BookmarkCard.vue'
 import { fuzzyFilter } from '@/lib/utils'
 import { useCollectionsService } from '@/services/library/collections.service'
 import type { Bookmark } from '@/types/library.types'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 
 const props = defineProps<{
   places: Bookmark[]
@@ -24,6 +25,7 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const collectionsService = useCollectionsService()
+const bookmarksStore = useBookmarksStore()
 const localPlaces = ref<Bookmark[]>([...props.places])
 
 const searchQuery = ref('')

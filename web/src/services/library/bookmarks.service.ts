@@ -94,13 +94,9 @@ export const useBookmarksService = createSharedComposable(() => {
   }
 
   function isPlaceSaved(place: UnifiedPlace) {
-    if (!place.externalIds) return false
+    if (!place.id) return false
 
-    return bookmarksStore.bookmarks.some(bookmark => {
-      return Object.entries(place.externalIds).some(([provider, id]) => {
-        return bookmark.externalIds[provider] === id
-      })
-    })
+    return bookmarksStore.bookmarks.some(bookmark => bookmark.id === place.id)
   }
 
   return {

@@ -7,22 +7,18 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { ItemIcon } from '@/components/ui/item-icon'
 import {
   MoreVerticalIcon,
-  FolderPlusIcon,
-  PlusIcon,
-  SearchIcon,
   FolderXIcon,
-  BookmarkXIcon,
   PencilIcon,
+  FolderPlusIcon,
 } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { useCollectionsStore } from '@/stores/library/collections.store'
@@ -31,10 +27,11 @@ import { useCollectionsService } from '@/services/library/collections.service'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { storeToRefs } from 'pinia'
 import type { Bookmark } from '@/types/library.types'
-import { getThemeColorClasses, fuzzyFilter, type ThemeColor } from '@/lib/utils'
+import { getThemeColorClasses, type ThemeColor } from '@/lib/utils'
 import { toast } from 'vue-sonner'
 import { useAppService } from '@/services/app.service'
 import BookmarkForm from '@/components/library/BookmarkForm.vue'
+import CollectionPicker from '@/components/library/CollectionPicker.vue'
 
 const props = defineProps<{
   place: Bookmark
@@ -53,31 +50,13 @@ const collectionsStore = useCollectionsStore()
 const bookmarksStore = useBookmarksStore()
 const { collections } = storeToRefs(collectionsStore)
 const collectionsService = useCollectionsService()
-const bookmarksService = useBookmarksService()
 const appService = useAppService()
 const { t } = useI18n()
-const collectionSearchQuery = ref('')
-const searchInputRef = ref<HTMLInputElement | null>(null)
-const isAddingToCollection = ref(false)
 
 onMounted(async () => {
   if (collections.value.length === 0) {
     await collectionsService.fetchCollections()
   }
-})
-
-const filteredCollections = computed(() => {
-  let filtered = fuzzyFilter(collections.value, collectionSearchQuery.value, {
-    keys: ['name', 'description'],
-    preserveOrder: true,
-  })
-
-  // Filter out the current collection if we're in a collection context
-  if (props.collectionId) {
-    filtered = filtered.filter(c => c.id !== props.collectionId)
-  }
-
-  return filtered
 })
 
 const colorClasses = computed(() => {
@@ -99,40 +78,6 @@ function goToPlace() {
   }
 }
 
-async function unsavePlace() {
-  await bookmarksService.unsavePlace(props.place.id, props.place.name)
-}
-
-async function addToCollection(collectionId: string) {
-  try {
-    isAddingToCollection.value = true
-    await collectionsService.addPlaceToCollection(props.place.id, collectionId)
-    const collection = collections.value.find(c => c.id === collectionId)
-    if (collection) {
-      toast.success(
-        t('library.actions.addedToCollection', { collection: collection.name }),
-      )
-    }
-  } finally {
-    isAddingToCollection.value = false
-  }
-}
-
-function createNewCollection() {
-  console.log('Create new collection with:', props.place)
-}
-
-function preventPropagation(event: Event) {
-  event.stopPropagation()
-}
-
-function handleKeydown(event: KeyboardEvent) {
-  const preventedKeys = ['ArrowDown', 'ArrowUp', 'Enter', 'Tab', ' ']
-  if (preventedKeys.includes(event.key)) {
-    event.stopPropagation()
-  }
-}
-
 async function removeFromCollection() {
   try {
     await collectionsService.removePlaceFromCollection(
@@ -145,6 +90,14 @@ async function removeFromCollection() {
     console.error('Failed to remove place from collection:', error)
     toast.error(t('library.actions.failedToRemoveFromCollection'))
   }
+}
+
+function handleCollectionToggle(collectionId: string) {
+  emit('addToCollection', props.place)
+}
+
+function handleCreateCollection(place: Bookmark) {
+  console.log('Create new collection with:', place)
 }
 
 async function editPlace() {
@@ -169,7 +122,6 @@ async function editPlace() {
         iconColor: formData.iconColor as ThemeColor,
       }
 
-      // Use the collections service to update the place
       if (props.collectionId) {
         await collectionsService.updatePlaceInCollection(
           props.place.id,
@@ -177,7 +129,6 @@ async function editPlace() {
           params,
         )
       } else {
-        // If no collection ID is provided, update in the default collection
         const defaultCollection =
           await collectionsService.fetchDefaultCollection()
         if (defaultCollection) {
@@ -238,78 +189,20 @@ async function editPlace() {
                 <PencilIcon class="size-4" />
                 {{ t('general.edit') }}
               </DropdownMenuItem>
+
+              <!-- Add to collections submenu -->
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <FolderPlusIcon class="size-4 mr-2" />
                   {{ t('library.actions.addToCollection') }}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent class="min-w-[240px]">
-                  <div
-                    class="px-2 py-1.5"
-                    @click.stop="preventPropagation"
-                    @keydown.stop="handleKeydown"
-                  >
-                    <div class="relative">
-                      <SearchIcon
-                        class="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground"
-                      />
-                      <Input
-                        ref="searchInputRef"
-                        v-model="collectionSearchQuery"
-                        class="w-full h-8 pl-7"
-                        :placeholder="t('library.actions.searchCollections')"
-                        @keydown="handleKeydown"
-                      />
-                    </div>
-                  </div>
-                  <DropdownMenuSeparator />
-
-                  <div v-if="filteredCollections.length > 0">
-                    <DropdownMenuItem
-                      v-for="collection in filteredCollections"
-                      :key="collection.id"
-                      :disabled="isAddingToCollection"
-                      @click.stop="addToCollection(collection.id)"
-                    >
-                      <div
-                        class="size-7 rounded-sm flex items-center justify-center flex-shrink-0"
-                        :class="getThemeColorClasses(collection.iconColor as ThemeColor)"
-                      >
-                        <ItemIcon
-                          :icon="collection.icon"
-                          :color="collection.iconColor as ThemeColor"
-                          size="sm"
-                        />
-                      </div>
-                      {{ collection.name }}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </div>
-
-                  <div
-                    v-else-if="collections.length === 0"
-                    class="px-2 py-4 text-center text-sm text-muted-foreground"
-                  >
-                    {{ t('library.empty.noCollections') }}
-                  </div>
-
-                  <div
-                    v-else-if="collectionSearchQuery"
-                    class="px-2 py-4 text-center text-sm text-muted-foreground"
-                  >
-                    {{
-                      t('library.empty.searchResults', {
-                        entityPlural: t(
-                          'library.entities.collections.title.plural',
-                        ),
-                      })
-                    }}
-                  </div>
-
-                  <DropdownMenuItem @click.stop="createNewCollection" disabled>
-                    <PlusIcon class="size-4" />
-                    {{ t('library.actions.createNewCollection') }}
-                  </DropdownMenuItem>
+                  <CollectionPicker
+                    :place="place"
+                    :collection-id="collectionId"
+                    @toggle-collection="handleCollectionToggle"
+                    @create-collection="handleCreateCollection"
+                  />
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
 
@@ -320,14 +213,6 @@ async function editPlace() {
               >
                 <FolderXIcon class="size-4" />
                 {{ t('library.actions.removeFromCollection') }}
-              </DropdownMenuItem>
-
-              <DropdownMenuItem
-                @click.stop="unsavePlace"
-                class="text-destructive hover:text-destructive focus:text-destructive focus:bg-destructive/10 hover:bg-destructive/10"
-              >
-                <BookmarkXIcon class="size-4" />
-                {{ t('general.unsave') }}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

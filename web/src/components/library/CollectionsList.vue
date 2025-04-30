@@ -12,9 +12,11 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { SearchIcon, ArrowUpDownIcon, PlusIcon } from 'lucide-vue-next'
 import CollectionCard from '@/components/library/CollectionCard.vue'
-import CollectionDialog from '@/components/library/CollectionDialog.vue'
+import CollectionForm from '@/components/library/CollectionForm.vue'
+import { useAppService } from '@/services/app.service'
+import { useCollectionsService } from '@/services/library/collections.service'
 import { fuzzyFilter } from '@/lib/utils'
-import type { Collection } from '@/types/library.types'
+import type { Collection, CreateCollectionParams } from '@/types/library.types'
 
 const props = defineProps<{
   collections: Collection[]
@@ -27,7 +29,8 @@ const localCollections = ref<Collection[]>([...props.collections])
 const searchQuery = ref('')
 const sortBy = ref<'name' | 'createdAt'>('createdAt')
 const sortOrder = ref<'asc' | 'desc'>('desc')
-const showCreateDialog = ref(false)
+const appService = useAppService()
+const collectionsService = useCollectionsService()
 
 watch(
   () => props.collections,
@@ -74,8 +77,30 @@ function setSortBy(field: 'name' | 'createdAt') {
   }
 }
 
-function createCollection() {
-  showCreateDialog.value = true
+async function createCollection() {
+  appService
+    .componentDialog({
+      component: CollectionForm,
+      title: t('library.dialog.createCollection.title'),
+      description: t('library.dialog.createCollection.description'),
+      continueText: t('general.create'),
+      cancelText: t('general.cancel'),
+      props: {},
+    })
+    .then(async formData => {
+      if (!formData) return
+
+      const params: CreateCollectionParams = {
+        name: formData.name,
+        ...(formData.description ? { description: formData.description } : {}),
+        icon: formData.icon,
+        iconColor: formData.iconColor,
+        isPublic: formData.isPublic,
+      }
+      // The parent component listening for changes should handle the list update
+      // automatically if props.collections is reactive
+      await collectionsService.createCollection(params)
+    })
 }
 </script>
 
@@ -164,11 +189,5 @@ function createCollection() {
         class="w-full"
       />
     </div>
-
-    <!-- Create Collection Dialog -->
-    <CollectionDialog
-      v-if="showCreateDialog"
-      @update:open="showCreateDialog = $event"
-    />
   </div>
 </template>

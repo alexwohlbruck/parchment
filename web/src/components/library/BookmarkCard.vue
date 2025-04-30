@@ -80,7 +80,7 @@ function goToPlace() {
 
 async function removeFromCollection() {
   try {
-    await collectionsService.removePlaceFromCollection(
+    await collectionsService.removeFromCollection(
       props.place.id,
       props.collectionId!,
     )
@@ -123,7 +123,7 @@ async function editPlace() {
       }
 
       if (props.collectionId) {
-        await collectionsService.updatePlaceInCollection(
+        await collectionsService.updateBookmarkInCollection(
           props.place.id,
           props.collectionId,
           params,
@@ -132,7 +132,7 @@ async function editPlace() {
         const defaultCollection =
           await collectionsService.fetchDefaultCollection()
         if (defaultCollection) {
-          await collectionsService.updatePlaceInCollection(
+          await collectionsService.updateBookmarkInCollection(
             props.place.id,
             defaultCollection.id,
             params,

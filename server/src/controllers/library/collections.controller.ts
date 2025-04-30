@@ -12,18 +12,15 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
 
   // Get the default collection (previously bookmarks)
   .get('/default', async ({ user }) => {
-    // Ensure the default collection exists
     const defaultCollection = await libraryService.ensureDefaultCollection(
       user.id,
     )
 
-    // Fetch associated places
     const places = await libraryService.getPlacesInCollection(
       defaultCollection.id,
       user.id,
     )
 
-    // Combine and return
     return {
       ...defaultCollection,
       places,
@@ -40,10 +37,8 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         return { error: 'Collection not found' }
       }
 
-      // Fetch associated places
       const places = await libraryService.getPlacesInCollection(id, user.id)
 
-      // Combine and return
       return {
         ...collection,
         places,
@@ -110,7 +105,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
       try {
         const deleted = await libraryService.deleteCollection(id, user.id)
         if (!deleted) {
-          set.status = 404 // Or appropriate error status
+          set.status = 404
           return { error: 'Collection not found or delete failed' }
         }
         set.status = 204
@@ -131,7 +126,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     '/:id/places/:placeId',
     async ({ params: { id, placeId }, user }) => {
       try {
-        const added = await libraryService.addPlaceToCollection(
+        const added = await libraryService.saveToCollection(
           placeId,
           id,
           user.id,
@@ -154,10 +149,10 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     '/:id/places/:placeId',
     async ({ params: { id, placeId }, user, set }) => {
       try {
-        await libraryService.removePlaceFromCollection(placeId, id, user.id)
+        await libraryService.removeFromCollection(placeId, id, user.id)
         set.status = 204
       } catch (err) {
-        set.status = 404 // Or appropriate error status for not found/permission issues
+        set.status = 404
         return { error: (err as Error).message }
       }
     },
@@ -174,7 +169,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     '/:id/places/:placeId',
     async ({ params: { id, placeId }, body, user, set }) => {
       try {
-        const updated = await libraryService.updatePlaceInCollection(
+        const updated = await libraryService.updateBookmarkInCollection(
           placeId,
           id,
           user.id,

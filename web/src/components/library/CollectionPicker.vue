@@ -79,7 +79,7 @@ async function toggleCollection(collectionId: string) {
     isAddingToCollection.value = true
 
     if (placeCollections.value.includes(collectionId)) {
-      await collectionsService.removeBookmarkFromCollection(
+      await collectionsService.removeFromCollection(
         props.place.id,
         collectionId,
       )
@@ -87,10 +87,7 @@ async function toggleCollection(collectionId: string) {
         id => id !== collectionId,
       )
     } else {
-      await collectionsService.addBookmarkToCollection(
-        props.place.id,
-        collectionId,
-      )
+      await collectionsService.saveToCollection(props.place.id, collectionId)
       placeCollections.value.push(collectionId)
     }
   } finally {

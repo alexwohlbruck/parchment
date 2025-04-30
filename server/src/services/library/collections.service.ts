@@ -172,7 +172,7 @@ export async function getPlacesInCollection(
   return places
 }
 
-export async function addPlaceToCollection(
+export async function saveToCollection(
   placeId: string,
   collectionId: string,
   userId: string,
@@ -222,7 +222,7 @@ export async function addPlaceToCollection(
   return inserted
 }
 
-export async function removePlaceFromCollection(
+export async function removeFromCollection(
   placeId: string,
   collectionId: string,
   userId: string,
@@ -265,7 +265,7 @@ export async function removePlaceFromCollection(
 }
 
 // Update a place in a collection (previously updateBookmark)
-export async function updatePlaceInCollection(
+export async function updateBookmarkInCollection(
   placeId: string,
   collectionId: string,
   userId: string,

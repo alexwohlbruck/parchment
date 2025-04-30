@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { Button } from '@/components/ui/button'
 import {
   NavigationIcon,
@@ -12,8 +12,12 @@ import { useCollectionsService } from '@/services/library/collections.service'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { useAppService } from '@/services/app.service'
 import type { UnifiedPlace } from '@/types/unified-place.types'
+import type { Collection } from '@/types/library.types'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
+import { useCollectionsStore } from '@/stores/library/collections.store'
 import CollectionPicker from '@/components/library/CollectionPicker.vue'
+import { ItemIcon } from '@/components/ui/item-icon'
+import { type ThemeColor } from '@/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,8 +29,14 @@ const props = defineProps<{
 }>()
 
 const collectionsService = useCollectionsService()
+const collectionsStore = useCollectionsStore()
 const bookmarksService = useBookmarksService()
 const bookmarksStore = useBookmarksStore()
+const defaultCollection = ref<Collection | null>(null)
+
+onMounted(async () => {
+  defaultCollection.value = await collectionsService.fetchDefaultCollection()
+})
 
 const bookmarkId = computed(() => {
   if (!props.place.externalIds) return null
@@ -48,21 +58,16 @@ async function savePlace() {
   const bookmark = await bookmarksService.savePlace(props.place)
   if (!bookmark) return
 
-  const defaultCollection = await collectionsService.fetchDefaultCollection()
-  if (!defaultCollection) return
+  if (!defaultCollection.value) {
+    defaultCollection.value = await collectionsService.fetchDefaultCollection()
+  }
 
-  await collectionsService.addPlaceToCollection(
-    bookmark.id,
-    defaultCollection.id,
-  )
-}
-
-function handleCollectionToggle(collectionId: string) {
-  // Already handled in CollectionPicker component
-}
-
-function handleCreateCollection() {
-  console.log('Create new collection')
+  if (defaultCollection.value) {
+    await collectionsService.addPlaceToCollection(
+      bookmark.id,
+      defaultCollection.value.id,
+    )
+  }
 }
 </script>
 
@@ -83,11 +88,7 @@ function handleCreateCollection() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" class="min-w-[240px]">
-        <CollectionPicker
-          :place="{ id: bookmarkId } as any"
-          @toggle-collection="handleCollectionToggle"
-          @create-collection="handleCreateCollection"
-        />
+        <CollectionPicker :place="{ id: bookmarkId } as any" />
       </DropdownMenuContent>
     </DropdownMenu>
     <Button
@@ -97,7 +98,14 @@ function handleCreateCollection() {
       @click="savePlace()"
       title="Save place"
     >
-      <BookmarkIcon class="h-4 w-4" />
+      <ItemIcon
+        v-if="defaultCollection"
+        :icon="defaultCollection.icon"
+        :color="defaultCollection.iconColor as ThemeColor"
+        size="sm"
+        plain
+      />
+      <BookmarkIcon v-else class="h-4 w-4" />
     </Button>
   </div>
 </template>

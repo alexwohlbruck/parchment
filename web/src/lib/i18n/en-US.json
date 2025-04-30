@@ -240,6 +240,7 @@
       "createNewCollection": "Create new collection",
       "searchCollections": "Search collections...",
       "removeFromCollection": "Remove from collection",
+      "removedFromCollectionSuccess": "Removed from collection",
       "makeDefault": "Make Default",
       "addedToCollection": "Added to {collection}",
       "failedToAddToCollection": "Failed to add to collection"

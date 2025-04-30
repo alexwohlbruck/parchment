@@ -241,6 +241,7 @@
       "createNewCollection": "Crear nueva colección",
       "searchCollections": "Buscar colecciones...",
       "removeFromCollection": "Eliminar de la colección",
+      "removedFromCollectionSuccess": "Eliminado de la colección",
       "makeDefault": "Hacer Predeterminado",
       "addedToCollection": "Añadido a {collection}",
       "failedToAddToCollection": "Error al añadir a la colección"

@@ -158,7 +158,7 @@ export const useCollectionsService = createSharedComposable(() => {
       // Refresh the collection to ensure consistent state
       fetchCollectionById(collectionId)
 
-      toast.success('Place removed from collection')
+      toast.success(t('library.actions.removedFromCollectionSuccess'))
       return response.data
     } catch (error) {
       toast.error('Failed to remove place from collection')

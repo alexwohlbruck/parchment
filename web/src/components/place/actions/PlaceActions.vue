@@ -1,12 +1,24 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { Button } from '@/components/ui/button'
-import { NavigationIcon, ShareIcon, BookmarkIcon, Check } from 'lucide-vue-next'
+import {
+  NavigationIcon,
+  ShareIcon,
+  BookmarkIcon,
+  Check,
+  FolderPlusIcon,
+} from 'lucide-vue-next'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { useAppService } from '@/services/app.service'
 import type { UnifiedPlace } from '@/types/unified-place.types'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
+import CollectionPicker from '@/components/library/CollectionPicker.vue'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 const props = defineProps<{
   place: UnifiedPlace
@@ -15,7 +27,6 @@ const props = defineProps<{
 const collectionsService = useCollectionsService()
 const bookmarksService = useBookmarksService()
 const bookmarksStore = useBookmarksStore()
-const { toast } = useAppService()
 
 const bookmarkId = computed(() => {
   if (!props.place.externalIds) return null
@@ -46,24 +57,13 @@ async function savePlace() {
   )
 }
 
-async function unsavePlace() {
-  if (!bookmarkId.value) return
-
-  const defaultCollection = await collectionsService.fetchDefaultCollection()
-  if (!defaultCollection) return
-
-  await collectionsService.removePlaceFromCollection(
-    bookmarkId.value,
-    defaultCollection.id,
-  )
-
-  await bookmarksService.unsavePlace(bookmarkId.value, props.place.name)
+function handleCollectionToggle(collectionId: string) {
+  // Already handled in CollectionPicker component
 }
 
-const emit = defineEmits<{
-  (e: 'directions'): void
-  (e: 'share'): void
-}>()
+function handleCreateCollection() {
+  console.log('Create new collection')
+}
 </script>
 
 <template>
@@ -76,14 +76,28 @@ const emit = defineEmits<{
       <ShareIcon class="mr-2 h-4 w-4" />
       Share
     </Button>
+    <DropdownMenu v-if="isSaved && bookmarkId">
+      <DropdownMenuTrigger as-child>
+        <Button size="icon" variant="outline" title="Manage collections">
+          <FolderPlusIcon class="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" class="min-w-[240px]">
+        <CollectionPicker
+          :place="{ id: bookmarkId } as any"
+          @toggle-collection="handleCollectionToggle"
+          @create-collection="handleCreateCollection"
+        />
+      </DropdownMenuContent>
+    </DropdownMenu>
     <Button
+      v-else
       size="icon"
       variant="outline"
-      @click="isSaved ? unsavePlace() : savePlace()"
+      @click="savePlace()"
       title="Save place"
     >
-      <BookmarkIcon v-if="!isSaved" class="h-4 w-4" />
-      <Check v-else class="h-4 w-4" />
+      <BookmarkIcon class="h-4 w-4" />
     </Button>
   </div>
 </template>

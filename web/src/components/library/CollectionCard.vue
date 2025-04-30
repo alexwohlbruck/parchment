@@ -22,9 +22,7 @@ const colorClasses = computed(() => {
 })
 
 const collectionName = computed(() => {
-  // If this is the default collection, use the i18n name
   if (props.collection.isDefault) {
-    // If the collection has a custom name, use it, otherwise use the i18n name
     return props.collection.name || t('library.entities.collections.default')
   }
 
@@ -54,7 +52,7 @@ function goToCollection() {
         />
         <div
           v-if="collection.isDefault"
-          class="absolute -top-1 -right-1 bg-yellow-500 text-yellow-800 rounded-full p-[.15rem]"
+          class="absolute -top-1 -right-1 bg-yellow-300 dark:bg-yellow-400 text-yellow-800 rounded-full p-[.15rem]"
           title="Default Collection"
         >
           <StarIcon class="size-2.5" stroke-width="3" />

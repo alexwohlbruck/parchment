@@ -1,6 +1,7 @@
 import { createSharedComposable } from '@vueuse/core'
 import { toast } from 'vue-sonner'
 import { useCollectionsStore } from '@/stores/library/collections.store'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import type { CreateCollectionParams, Collection } from '@/types/library.types'
 import { api } from '@/lib/api'
 
@@ -8,6 +9,7 @@ import { api } from '@/lib/api'
 
 export const useCollectionsService = createSharedComposable(() => {
   const collectionsStore = useCollectionsStore()
+  const bookmarksStore = useBookmarksStore()
 
   async function fetchCollections() {
     try {
@@ -117,6 +119,18 @@ export const useCollectionsService = createSharedComposable(() => {
       const response = await api.delete(
         `/library/collections/${collectionId}/places/${placeId}`,
       )
+
+      // Only remove the bookmark from the store if it's not in any other collections
+      // First check if this place is in any other collections
+      const collectionsForPlace = await api.get(
+        `/library/places/${placeId}/collections`,
+      )
+      const collections = collectionsForPlace.data
+
+      // If this was the last collection containing the place, then remove the bookmark
+      if (collections.length === 0) {
+        bookmarksStore.removeBookmark(placeId)
+      }
 
       toast.success('Place removed from collection')
       return response.data

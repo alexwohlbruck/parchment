@@ -132,12 +132,10 @@ function createCollection() {
       </div>
     </div>
 
-    <!-- Loading State -->
     <div v-if="loading" class="flex-1 flex items-center justify-center">
       <Spinner />
     </div>
 
-    <!-- Empty State -->
     <div
       v-else-if="filteredCollections.length === 0"
       class="flex-1 flex items-center justify-center"
@@ -158,7 +156,6 @@ function createCollection() {
       </div>
     </div>
 
-    <!-- Collections List -->
     <div v-else class="flex flex-col gap-2 pb-4 flex-1 overflow-y-auto">
       <CollectionCard
         v-for="collection in filteredCollections"

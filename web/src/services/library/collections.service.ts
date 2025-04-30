@@ -1,5 +1,6 @@
 import { createSharedComposable } from '@vueuse/core'
 import { toast } from 'vue-sonner'
+import { useI18n } from 'vue-i18n'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import type { CreateCollectionParams, Collection } from '@/types/library.types'
@@ -10,6 +11,16 @@ import { api } from '@/lib/api'
 export const useCollectionsService = createSharedComposable(() => {
   const collectionsStore = useCollectionsStore()
   const bookmarksStore = useBookmarksStore()
+  const { t } = useI18n()
+
+  // Helper function to get display name
+  function getCollectionDisplayName(collection: Collection | null): string {
+    if (!collection) return ''
+    if (collection.isDefault) {
+      return collection.name || t('library.entities.collections.default')
+    }
+    return collection.name
+  }
 
   async function fetchCollections() {
     try {
@@ -107,9 +118,15 @@ export const useCollectionsService = createSharedComposable(() => {
         `/library/collections/${collectionId}/places/${placeId}`,
       )
 
-      console.log(response.data)
-      // TODO: Add toast message using collection name (requires fetching collection first?)
-      // toast.success(`Added to ${collection.name}`)
+      const collection = await fetchCollectionById(collectionId)
+      if (collection) {
+        toast.success(
+          t('library.actions.addedToCollection', {
+            collection: getCollectionDisplayName(collection),
+          }),
+        )
+      }
+
       return response.data
     } catch (error) {
       toast.error('Failed to add place to collection')

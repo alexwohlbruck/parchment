@@ -6,10 +6,11 @@ import { ItemIcon } from '@/components/ui/item-icon'
 import { SearchIcon, PlusIcon, CheckIcon } from 'lucide-vue-next'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useCollectionsService } from '@/services/library/collections.service'
+import { useAppService } from '@/services/app.service'
+import CollectionForm from '@/components/library/CollectionForm.vue'
 import { storeToRefs } from 'pinia'
-import type { Bookmark } from '@/types/library.types'
+import type { Bookmark, CreateCollectionParams } from '@/types/library.types'
 import { getThemeColorClasses, fuzzyFilter, type ThemeColor } from '@/lib/utils'
-import { toast } from 'vue-sonner'
 import { api } from '@/lib/api'
 import {
   DropdownMenuItem,
@@ -25,6 +26,7 @@ const collectionsStore = useCollectionsStore()
 const collectionsService = useCollectionsService()
 const { collections } = storeToRefs(collectionsStore)
 const { t } = useI18n()
+const appService = useAppService()
 const collectionSearchQuery = ref('')
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const isAddingToCollection = ref(false)
@@ -34,22 +36,14 @@ onMounted(async () => {
   if (collections.value.length === 0) {
     await collectionsService.fetchCollections()
   }
-
-  // Fetch collections for this place
   await fetchCollectionsForPlace()
 })
 
 async function fetchCollectionsForPlace() {
-  try {
-    const response = await api.get(
-      `/library/places/${props.place.id}/collections`,
-    )
-    placeCollections.value = response.data.map(
-      (collection: any) => collection.id,
-    )
-  } catch (error) {
-    console.error('Failed to fetch collections for place:', error)
-  }
+  const response = await api.get(
+    `/library/places/${props.place.id}/collections`,
+  )
+  placeCollections.value = response.data.map((collection: any) => collection.id)
 }
 
 const filteredCollections = computed(() => {
@@ -92,31 +86,44 @@ async function toggleCollection(collectionId: string) {
       placeCollections.value = placeCollections.value.filter(
         id => id !== collectionId,
       )
-
-      const collection = collections.value.find(c => c.id === collectionId)
-      if (collection) {
-        toast.success(t('library.actions.removedFromCollection'))
-      }
     } else {
-      // Add to collection
       await collectionsService.addPlaceToCollection(
         props.place.id,
         collectionId,
       )
       placeCollections.value.push(collectionId)
-
-      const collection = collections.value.find(c => c.id === collectionId)
-      if (collection) {
-        toast.success(
-          t('library.actions.addedToCollection', {
-            collection: getCollectionDisplayName(collection),
-          }),
-        )
-      }
     }
   } finally {
     isAddingToCollection.value = false
   }
+}
+
+function openCreateCollectionDialog() {
+  appService
+    .componentDialog({
+      component: CollectionForm,
+      title: t('library.dialog.createCollection.title'),
+      description: t('library.dialog.createCollection.description'),
+      continueText: t('general.create'),
+      cancelText: t('general.cancel'),
+      props: {},
+    })
+    .then(async formData => {
+      if (!formData) return
+
+      const params: CreateCollectionParams = {
+        name: formData.name,
+        ...(formData.description ? { description: formData.description } : {}),
+        icon: formData.icon,
+        iconColor: formData.iconColor,
+        isPublic: formData.isPublic,
+      }
+      const newCollection = await collectionsService.createCollection(params)
+
+      if (newCollection && newCollection.id) {
+        await toggleCollection(newCollection.id)
+      }
+    })
 }
 </script>
 
@@ -188,7 +195,7 @@ async function toggleCollection(collectionId: string) {
       }}
     </div>
 
-    <DropdownMenuItem @click.stop="createNewCollection" disabled>
+    <DropdownMenuItem @click.stop="openCreateCollectionDialog">
       <PlusIcon class="size-4 mr-2" />
       {{ t('library.actions.createNewCollection') }}
     </DropdownMenuItem>

@@ -26,7 +26,14 @@ export const useCollectionsService = createSharedComposable(() => {
   async function fetchCollectionById(id: string): Promise<Collection | null> {
     try {
       const response = await api.get(`/library/collections/${id}`)
-      return response.data
+      const collection = response.data
+
+      // Store the collection and its places in the normalized store
+      if (collection) {
+        collectionsStore.updateCollection(id, collection)
+      }
+
+      return collection
     } catch (error) {
       toast.error('Collection not found')
       return null
@@ -38,10 +45,9 @@ export const useCollectionsService = createSharedComposable(() => {
       const response = await api.get('/library/collections/default')
       const collection = response.data
 
-      // If this is the default collection, we'll use the i18n name
-      if (collection && collection.isDefault) {
-        // We'll keep the original name in the API response, but the UI will display the translated name
-        // The actual translation will happen in the UI components
+      // Store the collection and its places in the normalized store
+      if (collection) {
+        collectionsStore.updateCollection(collection.id, collection)
       }
 
       return collection
@@ -132,6 +138,9 @@ export const useCollectionsService = createSharedComposable(() => {
         bookmarksStore.removeBookmark(placeId)
       }
 
+      // Refresh the collection to ensure consistent state
+      fetchCollectionById(collectionId)
+
       toast.success('Place removed from collection')
       return response.data
     } catch (error) {
@@ -163,6 +172,21 @@ export const useCollectionsService = createSharedComposable(() => {
         updates,
       )
       const updated = response.data
+
+      // Update the bookmark in the bookmarks store
+      const currentBookmark = bookmarksStore.bookmarks.find(
+        bookmark => bookmark.id === placeId,
+      )
+      if (currentBookmark) {
+        const updatedBookmark = {
+          ...currentBookmark,
+          ...updates,
+        }
+        bookmarksStore.updateBookmark(placeId, updatedBookmark)
+      }
+
+      // Refresh the collection to ensure consistent state
+      fetchCollectionById(collectionId)
 
       toast.success('Place updated successfully')
 

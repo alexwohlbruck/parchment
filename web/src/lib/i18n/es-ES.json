@@ -324,6 +324,36 @@
   "timeline": {
     "title": "Línea de tiempo"
   },
+  "services": {
+    "bookmarks": {
+      "fetchError": "Error al obtener marcadores",
+      "saveErrorNoOsmId": "No se puede marcar el lugar sin un ID de OSM",
+      "saveSuccess": "Marcado {name}",
+      "saveError": "Error al guardar marcador",
+      "updateSuccess": "Marcador actualizado correctamente",
+      "updateError": "Error al actualizar marcador",
+      "deleteSuccess": "Desmarcado {name}",
+      "deleteError": "Error al desmarcar"
+    },
+    "collections": {
+      "fetchError": "Error al obtener colecciones",
+      "fetchOneError": "Colección no encontrada",
+      "fetchDefaultError": "Error al obtener la colección predeterminada",
+      "createSuccess": "Colección creada correctamente",
+      "createError": "Error al crear colección",
+      "updateSuccess": "Colección actualizada correctamente",
+      "updateError": "Error al actualizar colección",
+      "deleteSuccess": "Colección eliminada correctamente",
+      "deleteError": "Error al eliminar colección",
+      "addPlaceSuccess": "Añadido a {collectionName}",
+      "addPlaceError": "Error al añadir lugar a la colección",
+      "removePlaceSuccess": "Eliminado de la colección",
+      "removePlaceError": "Error al eliminar lugar de la colección",
+      "fetchPlacesError": "Error al obtener lugares en la colección",
+      "updatePlaceSuccess": "Lugar actualizado correctamente en la colección",
+      "updatePlaceError": "Error al actualizar lugar en la colección"
+    }
+  },
   "offlineMaps": {
     "title": "Mapas sin conexión"
   },
@@ -439,7 +469,7 @@
   "notFound": {
     "title": "404",
     "subtitle": "Continente equivocado",
-    "message": "Incluso Colón fue un mejor navegante",
+    "message": "Incluso Colón fue un mejor navegante.",
     "action": "Volver a España"
   }
 }

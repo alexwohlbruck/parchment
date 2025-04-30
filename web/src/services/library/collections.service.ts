@@ -13,7 +13,6 @@ export const useCollectionsService = createSharedComposable(() => {
   const bookmarksStore = useBookmarksStore()
   const { t } = useI18n()
 
-  // Helper function to get display name
   function getCollectionDisplayName(collection: Collection | null): string {
     if (!collection) return ''
     if (collection.isDefault) {
@@ -29,7 +28,7 @@ export const useCollectionsService = createSharedComposable(() => {
       collectionsStore.setCollections(collections)
       return collections
     } catch (error) {
-      toast.error('Failed to fetch collections')
+      toast.error(t('services.collections.fetchError'))
       return []
     }
   }
@@ -39,14 +38,13 @@ export const useCollectionsService = createSharedComposable(() => {
       const response = await api.get(`/library/collections/${id}`)
       const collection = response.data
 
-      // Store the collection and its places in the normalized store
       if (collection) {
         collectionsStore.updateCollection(id, collection)
       }
 
       return collection
     } catch (error) {
-      toast.error('Collection not found')
+      toast.error(t('services.collections.fetchOneError'))
       return null
     }
   }
@@ -63,7 +61,7 @@ export const useCollectionsService = createSharedComposable(() => {
 
       return collection
     } catch (error) {
-      toast.error('Failed to fetch default collection')
+      toast.error(t('services.collections.fetchDefaultError'))
       return null
     }
   }
@@ -74,11 +72,11 @@ export const useCollectionsService = createSharedComposable(() => {
       const collection = response.data
 
       collectionsStore.addCollection(collection)
-      toast.success('Collection created successfully')
+      toast.success(t('services.collections.createSuccess'))
 
       return collection
     } catch (error) {
-      toast.error('Failed to create collection')
+      toast.error(t('services.collections.createError'))
       return null
     }
   }
@@ -89,11 +87,11 @@ export const useCollectionsService = createSharedComposable(() => {
       const updated = response.data
 
       collectionsStore.updateCollection(id, updated)
-      toast.success('Collection updated successfully')
+      toast.success(t('services.collections.updateSuccess'))
 
       return updated
     } catch (error) {
-      toast.error('Failed to update collection')
+      toast.error(t('services.collections.updateError'))
       return null
     }
   }
@@ -103,16 +101,19 @@ export const useCollectionsService = createSharedComposable(() => {
       await api.delete(`/library/collections/${id}`)
 
       collectionsStore.removeCollection(id)
-      toast.success('Collection deleted successfully')
+      toast.success(t('services.collections.deleteSuccess'))
 
       return true
     } catch (error) {
-      toast.error('Failed to delete collection')
+      toast.error(t('services.collections.deleteError'))
       return false
     }
   }
 
-  async function addPlaceToCollection(placeId: string, collectionId: string) {
+  async function addBookmarkToCollection(
+    placeId: string,
+    collectionId: string,
+  ) {
     try {
       const response = await api.post(
         `/library/collections/${collectionId}/places/${placeId}`,
@@ -121,20 +122,20 @@ export const useCollectionsService = createSharedComposable(() => {
       const collection = await fetchCollectionById(collectionId)
       if (collection) {
         toast.success(
-          t('library.actions.addedToCollection', {
-            collection: getCollectionDisplayName(collection),
+          t('services.collections.addPlaceSuccess', {
+            collectionName: getCollectionDisplayName(collection),
           }),
         )
       }
 
       return response.data
     } catch (error) {
-      toast.error('Failed to add place to collection')
+      toast.error(t('services.collections.addPlaceError'))
       return false
     }
   }
 
-  async function removePlaceFromCollection(
+  async function removeBookmarkFromCollection(
     placeId: string,
     collectionId: string,
   ) {
@@ -143,42 +144,38 @@ export const useCollectionsService = createSharedComposable(() => {
         `/library/collections/${collectionId}/places/${placeId}`,
       )
 
-      // Only remove the bookmark from the store if it's not in any other collections
-      // First check if this place is in any other collections
       const collectionsForPlace = await api.get(
         `/library/places/${placeId}/collections`,
       )
       const collections = collectionsForPlace.data
 
-      // If this was the last collection containing the place, then remove the bookmark
       if (collections.length === 0) {
         bookmarksStore.removeBookmark(placeId)
       }
 
-      // Refresh the collection to ensure consistent state
       fetchCollectionById(collectionId)
 
-      toast.success(t('library.actions.removedFromCollectionSuccess'))
+      toast.success(t('services.collections.removePlaceSuccess'))
       return response.data
     } catch (error) {
-      toast.error('Failed to remove place from collection')
+      toast.error(t('services.collections.removePlaceError'))
       return false
     }
   }
 
-  async function fetchPlacesInCollection(collectionId: string) {
+  async function fetchBookmarksInCollection(collectionId: string) {
     try {
       const response = await api.get(
         `/library/collections/${collectionId}/places`,
       )
       return response.data
     } catch (error) {
-      toast.error('Failed to fetch places in collection')
+      toast.error(t('services.collections.fetchPlacesError'))
       return []
     }
   }
 
-  async function updatePlaceInCollection(
+  async function updateBookmarkInCollection(
     placeId: string,
     collectionId: string,
     updates: any,
@@ -190,7 +187,6 @@ export const useCollectionsService = createSharedComposable(() => {
       )
       const updated = response.data
 
-      // Update the bookmark in the bookmarks store
       const currentBookmark = bookmarksStore.bookmarks.find(
         bookmark => bookmark.id === placeId,
       )
@@ -202,14 +198,13 @@ export const useCollectionsService = createSharedComposable(() => {
         bookmarksStore.updateBookmark(placeId, updatedBookmark)
       }
 
-      // Refresh the collection to ensure consistent state
       fetchCollectionById(collectionId)
 
-      toast.success('Place updated successfully')
+      toast.success(t('services.collections.updatePlaceSuccess'))
 
       return updated
     } catch (error) {
-      toast.error('Failed to update place')
+      toast.error(t('services.collections.updatePlaceError'))
       return null
     }
   }
@@ -221,9 +216,9 @@ export const useCollectionsService = createSharedComposable(() => {
     createCollection,
     updateCollection,
     deleteCollection,
-    addPlaceToCollection,
-    removePlaceFromCollection,
-    fetchPlacesInCollection,
-    updatePlaceInCollection,
+    addBookmarkToCollection,
+    removeBookmarkFromCollection,
+    fetchBookmarksInCollection,
+    updateBookmarkInCollection,
   }
 })

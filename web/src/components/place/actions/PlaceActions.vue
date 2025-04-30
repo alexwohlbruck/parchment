@@ -29,7 +29,6 @@ const props = defineProps<{
 }>()
 
 const collectionsService = useCollectionsService()
-const collectionsStore = useCollectionsStore()
 const bookmarksService = useBookmarksService()
 const bookmarksStore = useBookmarksStore()
 const defaultCollection = ref<Collection | null>(null)

@@ -19,7 +19,6 @@ import {
 
 const props = defineProps<{
   place: Bookmark
-  collectionId?: string
 }>()
 
 const collectionsStore = useCollectionsStore()
@@ -40,39 +39,52 @@ onMounted(async () => {
 })
 
 async function fetchCollectionsForPlace() {
-  const response = await api.get(
-    `/library/places/${props.place.id}/collections`,
-  )
-  placeCollections.value = response.data.map((collection: any) => collection.id)
+  if (!props.place || !props.place.id) {
+    console.warn(
+      '[CollectionPicker] Attempted fetchCollectionsForPlace without a valid place ID.',
+    )
+    placeCollections.value = []
+    return
+  }
+
+  try {
+    const response = await api.get(
+      `/library/places/${props.place.id}/collections`,
+    )
+    placeCollections.value = response.data.map(
+      (collection: any) => collection.id,
+    )
+  } catch (error) {
+    console.error(
+      `[CollectionPicker] Error fetching collections for place ${props.place.id}:`,
+      error,
+    )
+    placeCollections.value = []
+  }
 }
 
-const filteredCollections = computed(() => {
-  let filtered = fuzzyFilter(collections.value, collectionSearchQuery.value, {
-    keys: ['name', 'description'],
-    preserveOrder: true,
-  })
-
-  return filtered
-})
-
 const sortedAndFilteredCollections = computed(() => {
-  let filtered = filteredCollections.value
-
-  const defaultCollectionIndex = filtered.findIndex(c => c.isDefault)
-  let defaultCollection: (typeof filtered)[number] | null = null
-  if (defaultCollectionIndex !== -1) {
-    defaultCollection = filtered.splice(defaultCollectionIndex, 1)[0]
-  }
-
-  filtered.sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+  const sourceCollections = fuzzyFilter(
+    collections.value,
+    collectionSearchQuery.value,
+    {
+      keys: ['name', 'description'],
+      preserveOrder: true,
+    },
   )
 
-  if (defaultCollection) {
-    filtered.unshift(defaultCollection)
-  }
+  const defaultCollection = sourceCollections.find(c => c.isDefault)
 
-  return filtered
+  const otherCollectionsSorted = sourceCollections
+    .filter(c => !c.isDefault)
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    )
+
+  return defaultCollection
+    ? [defaultCollection, ...otherCollectionsSorted]
+    : otherCollectionsSorted
 })
 
 function getCollectionDisplayName(collection: any) {
@@ -95,6 +107,10 @@ function handleKeydown(event: KeyboardEvent) {
 }
 
 async function toggleCollection(collectionId: string) {
+  if (!props.place || !props.place.id) {
+    return
+  }
+
   try {
     isAddingToCollection.value = true
 
@@ -103,12 +119,8 @@ async function toggleCollection(collectionId: string) {
         props.place.id,
         collectionId,
       )
-      placeCollections.value = placeCollections.value.filter(
-        id => id !== collectionId,
-      )
     } else {
       await collectionsService.saveToCollection(props.place.id, collectionId)
-      placeCollections.value.push(collectionId)
     }
   } finally {
     isAddingToCollection.value = false
@@ -175,7 +187,6 @@ function openCreateCollectionDialog() {
           :disabled="isAddingToCollection"
           @click.prevent.stop="toggleCollection(collection.id)"
         >
-          <!-- Icon container with optional star badge -->
           <div class="relative mr-2">
             <div
               class="size-7 rounded-sm flex items-center justify-center flex-shrink-0"
@@ -204,7 +215,6 @@ function openCreateCollectionDialog() {
             class="size-4 text-primary ml-auto"
           />
         </DropdownMenuItem>
-        <!-- Add separator after the first item (pinned default) if it exists and there are more items -->
         <DropdownMenuSeparator
           v-if="
             index === 0 &&

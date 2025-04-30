@@ -3,7 +3,7 @@ import { computed, ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Input } from '@/components/ui/input'
 import { ItemIcon } from '@/components/ui/item-icon'
-import { SearchIcon, PlusIcon, CheckIcon } from 'lucide-vue-next'
+import { SearchIcon, PlusIcon, CheckIcon, StarIcon } from 'lucide-vue-next'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useAppService } from '@/services/app.service'
@@ -51,6 +51,26 @@ const filteredCollections = computed(() => {
     keys: ['name', 'description'],
     preserveOrder: true,
   })
+
+  return filtered
+})
+
+const sortedAndFilteredCollections = computed(() => {
+  let filtered = filteredCollections.value
+
+  const defaultCollectionIndex = filtered.findIndex(c => c.isDefault)
+  let defaultCollection: (typeof filtered)[number] | null = null
+  if (defaultCollectionIndex !== -1) {
+    defaultCollection = filtered.splice(defaultCollectionIndex, 1)[0]
+  }
+
+  filtered.sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+  )
+
+  if (defaultCollection) {
+    filtered.unshift(defaultCollection)
+  }
 
   return filtered
 })
@@ -146,31 +166,53 @@ function openCreateCollectionDialog() {
     </div>
     <DropdownMenuSeparator />
 
-    <div v-if="filteredCollections.length > 0">
-      <DropdownMenuItem
-        v-for="collection in filteredCollections"
+    <div v-if="sortedAndFilteredCollections.length > 0">
+      <template
+        v-for="(collection, index) in sortedAndFilteredCollections"
         :key="collection.id"
-        :disabled="isAddingToCollection"
-        @click.stop="toggleCollection(collection.id)"
       >
-        <div
-          class="size-7 rounded-sm flex items-center justify-center flex-shrink-0"
-          :class="getThemeColorClasses(collection.iconColor as ThemeColor)"
+        <DropdownMenuItem
+          :disabled="isAddingToCollection"
+          @click.prevent.stop="toggleCollection(collection.id)"
         >
-          <ItemIcon
-            :icon="collection.icon"
-            :color="collection.iconColor as ThemeColor"
-            size="sm"
+          <!-- Icon container with optional star badge -->
+          <div class="relative mr-2">
+            <div
+              class="size-7 rounded-sm flex items-center justify-center flex-shrink-0"
+              :class="getThemeColorClasses(collection.iconColor as ThemeColor)"
+            >
+              <ItemIcon
+                :icon="collection.icon"
+                :color="collection.iconColor as ThemeColor"
+                size="sm"
+              />
+            </div>
+            <div
+              v-if="collection.isDefault"
+              class="absolute -top-1 -right-1 bg-yellow-300 dark:bg-yellow-400 text-yellow-800 rounded-full p-[.15rem]"
+              title="Default Collection"
+            >
+              <StarIcon class="size-2.5" stroke-width="3" />
+            </div>
+          </div>
+
+          <span class="flex-grow min-w-0">
+            {{ getCollectionDisplayName(collection) }}
+          </span>
+          <CheckIcon
+            v-if="placeCollections.includes(collection.id)"
+            class="size-4 text-primary ml-auto"
           />
-        </div>
-        <span class="flex-grow">
-          {{ getCollectionDisplayName(collection) }}
-        </span>
-        <CheckIcon
-          v-if="placeCollections.includes(collection.id)"
-          class="size-4 text-primary"
+        </DropdownMenuItem>
+        <!-- Add separator after the first item (pinned default) if it exists and there are more items -->
+        <DropdownMenuSeparator
+          v-if="
+            index === 0 &&
+            collection.isDefault &&
+            sortedAndFilteredCollections.length > 1
+          "
         />
-      </DropdownMenuItem>
+      </template>
       <DropdownMenuSeparator />
     </div>
 
@@ -192,7 +234,7 @@ function openCreateCollectionDialog() {
       }}
     </div>
 
-    <DropdownMenuItem @click.stop="openCreateCollectionDialog">
+    <DropdownMenuItem @click.prevent.stop="openCreateCollectionDialog">
       <PlusIcon class="size-4 mr-2" />
       {{ t('library.actions.createNewCollection') }}
     </DropdownMenuItem>

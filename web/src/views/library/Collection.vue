@@ -100,8 +100,8 @@ function handleCollectionDelete() {
         <!-- Actions dropdown menu -->
         <CollectionContextMenu
           :collection="collection"
+          :on-delete-success="handleCollectionDelete"
           @edit="handleCollectionEdit"
-          @delete="handleCollectionDelete"
         />
       </div>
 

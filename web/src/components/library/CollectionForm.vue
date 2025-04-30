@@ -27,11 +27,12 @@ const props = defineProps<{
 
 const collectionSchema = toTypedSchema(
   z.object({
-    name: z.string().optional(),
+    name: z.string().min(1),
     description: z.string().default(''),
     icon: z.string().default('Folder'),
     iconColor: z.string().default('blue'),
     isPublic: z.boolean().default(false),
+    isDefault: z.boolean().default(false),
   }),
 )
 
@@ -131,17 +132,19 @@ defineExpose({
       <FormItem>
         <FormLabel
           >{{ t('general.name') }}
-          <span v-if="values.isDefault" class="text-muted-foreground text-xs"
+          <!-- <span v-if="values.isDefault" class="text-muted-foreground text-xs"
             >({{ t('general.optional') }})</span
-          ></FormLabel
-        >
+          > -->
+        </FormLabel>
         <FormControl>
           <Input
             v-bind="field"
             :placeholder="t('library.form.placeholders.collectionName')"
           />
         </FormControl>
-        <FormMessage v-if="errorMessage">{{ t(errorMessage) }}</FormMessage>
+        <FormMessage v-if="errorMessage">
+          {{ t(errorMessage) }}
+        </FormMessage>
       </FormItem>
     </FormField>
 

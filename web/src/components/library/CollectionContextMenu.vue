@@ -17,11 +17,11 @@ import type { ThemeColor } from '@/lib/utils'
 
 const props = defineProps<{
   collection: Collection
+  onDeleteSuccess?: () => void
 }>()
 
 const emit = defineEmits<{
   (e: 'edit'): void
-  (e: 'delete'): void
 }>()
 
 const { t } = useI18n()
@@ -64,10 +64,29 @@ function editCollection() {
     })
 }
 
-function deleteCollection() {
-  if (confirm(t('library.confirmDelete', { name: props.collection.name }))) {
-    collectionsService.deleteCollection(props.collection.id)
-    emit('delete')
+async function deleteCollection() {
+  const confirmed = await appService.confirm({
+    title: t('general.delete') + '?',
+    description: t('library.confirmDelete', {
+      name: props.collection.name || t('library.entities.collections.default'),
+    }),
+    continueText: t('general.delete'),
+    cancelText: t('general.cancel'),
+    destructive: true,
+  })
+
+  if (confirmed) {
+    try {
+      const success = await collectionsService.deleteCollection(
+        props.collection.id,
+      )
+      if (success) {
+        props.onDeleteSuccess?.()
+      } // Error toast is handled by the service
+    } catch (error) {
+      // Error toast is handled by the service
+      console.error('Failed to initiate delete collection:', error)
+    }
   }
 }
 </script>

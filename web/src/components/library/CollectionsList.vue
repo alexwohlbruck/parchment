@@ -27,7 +27,7 @@ const { t } = useI18n()
 const localCollections = ref<Collection[]>([...props.collections])
 
 const searchQuery = ref('')
-const sortBy = ref<'name' | 'createdAt'>('createdAt')
+const sortBy = ref<'name' | 'createdAt' | 'updatedAt'>('updatedAt')
 const sortOrder = ref<'asc' | 'desc'>('desc')
 const appService = useAppService()
 const collectionsService = useCollectionsService()
@@ -52,7 +52,10 @@ const filteredCollections = computed(() => {
     let comparison = 0
 
     if (sortBy.value === 'name') {
-      comparison = a.name.localeCompare(b.name)
+      comparison = (a.name || '').localeCompare(b.name || '')
+    } else if (sortBy.value === 'updatedAt') {
+      comparison =
+        new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
     } else if (sortBy.value === 'createdAt') {
       comparison =
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
@@ -68,7 +71,7 @@ function toggleSortOrder() {
   sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
 }
 
-function setSortBy(field: 'name' | 'createdAt') {
+function setSortBy(field: 'name' | 'createdAt' | 'updatedAt') {
   if (sortBy.value === field) {
     toggleSortOrder()
   } else {
@@ -97,8 +100,6 @@ async function createCollection() {
         iconColor: formData.iconColor,
         isPublic: formData.isPublic,
       }
-      // The parent component listening for changes should handle the list update
-      // automatically if props.collections is reactive
       await collectionsService.createCollection(params)
     })
 }
@@ -133,6 +134,15 @@ async function createCollection() {
             >
               {{ t('general.name') }}
               {{ sortBy === 'name' ? (sortOrder === 'asc' ? '↑' : '↓') : '' }}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              :class="{ 'font-medium': sortBy === 'updatedAt' }"
+              @click="setSortBy('updatedAt')"
+            >
+              {{ t('general.lastModified') }}
+              {{
+                sortBy === 'updatedAt' ? (sortOrder === 'asc' ? '↑' : '↓') : ''
+              }}
             </DropdownMenuItem>
             <DropdownMenuItem
               :class="{ 'font-medium': sortBy === 'createdAt' }"

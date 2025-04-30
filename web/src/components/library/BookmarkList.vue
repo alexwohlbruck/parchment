@@ -81,15 +81,12 @@ function setSortBy(field: 'name' | 'createdAt' | 'updatedAt') {
 
 async function handlePlaceUnsaved(place: Bookmark) {
   if (props.collectionId) {
-    await collectionsService.removeBookmarkFromCollection(
-      place.id,
-      props.collectionId,
-    )
+    await collectionsService.removeFromCollection(place.id, props.collectionId)
   } else {
     // If no collection ID is provided, get the default collection
     const defaultCollection = await collectionsService.fetchDefaultCollection()
     if (defaultCollection) {
-      await collectionsService.removeBookmarkFromCollection(
+      await collectionsService.removeFromCollection(
         place.id,
         defaultCollection.id,
       )
@@ -106,10 +103,7 @@ async function handleAddToCollection(place: Bookmark) {
 // Handle place removed from collection
 async function handleRemoveFromCollection(place: Bookmark) {
   if (props.collectionId) {
-    await collectionsService.removeBookmarkFromCollection(
-      place.id,
-      props.collectionId,
-    )
+    await collectionsService.removeFromCollection(place.id, props.collectionId)
   }
   localPlaces.value = localPlaces.value.filter(p => p.id !== place.id)
 }

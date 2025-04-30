@@ -63,7 +63,7 @@ async function savePlace() {
   }
 
   if (defaultCollection.value) {
-    await collectionsService.addPlaceToCollection(
+    await collectionsService.saveToCollection(
       bookmark.id,
       defaultCollection.value.id,
     )

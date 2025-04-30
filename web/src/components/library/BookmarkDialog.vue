@@ -42,7 +42,7 @@ function openBookmarkDialog(place: Bookmark) {
       const defaultCollection =
         await collectionsService.fetchDefaultCollection()
       if (defaultCollection) {
-        await collectionsService.updatePlaceInCollection(
+        await collectionsService.updateBookmarkInCollection(
           place.id,
           defaultCollection.id,
           params,

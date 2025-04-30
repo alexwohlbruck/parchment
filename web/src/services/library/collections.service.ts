@@ -110,10 +110,7 @@ export const useCollectionsService = createSharedComposable(() => {
     }
   }
 
-  async function addBookmarkToCollection(
-    placeId: string,
-    collectionId: string,
-  ) {
+  async function saveToCollection(placeId: string, collectionId: string) {
     try {
       const response = await api.post(
         `/library/collections/${collectionId}/places/${placeId}`,
@@ -135,10 +132,7 @@ export const useCollectionsService = createSharedComposable(() => {
     }
   }
 
-  async function removeBookmarkFromCollection(
-    placeId: string,
-    collectionId: string,
-  ) {
+  async function removeFromCollection(placeId: string, collectionId: string) {
     try {
       const response = await api.delete(
         `/library/collections/${collectionId}/places/${placeId}`,
@@ -216,8 +210,8 @@ export const useCollectionsService = createSharedComposable(() => {
     createCollection,
     updateCollection,
     deleteCollection,
-    addBookmarkToCollection,
-    removeBookmarkFromCollection,
+    saveToCollection,
+    removeFromCollection,
     fetchBookmarksInCollection,
     updateBookmarkInCollection,
   }

@@ -323,6 +323,36 @@
   "timeline": {
     "title": "Timeline"
   },
+  "services": {
+    "bookmarks": {
+      "fetchError": "Failed to fetch bookmarks",
+      "saveErrorNoOsmId": "Cannot bookmark place without an OSM ID",
+      "saveSuccess": "Bookmarked {name}",
+      "saveError": "Failed to save bookmark",
+      "updateSuccess": "Bookmark updated successfully",
+      "updateError": "Failed to update bookmark",
+      "deleteSuccess": "Unbookmarked {name}",
+      "deleteError": "Failed to unbookmark"
+    },
+    "collections": {
+      "fetchError": "Failed to fetch collections",
+      "fetchOneError": "Collection not found",
+      "fetchDefaultError": "Failed to fetch default collection",
+      "createSuccess": "Collection created successfully",
+      "createError": "Failed to create collection",
+      "updateSuccess": "Collection updated successfully",
+      "updateError": "Failed to update collection",
+      "deleteSuccess": "Collection deleted successfully",
+      "deleteError": "Failed to delete collection",
+      "addPlaceSuccess": "Added to {collectionName}",
+      "addPlaceError": "Failed to add place to collection",
+      "removePlaceSuccess": "Removed from collection",
+      "removePlaceError": "Failed to remove place from collection",
+      "fetchPlacesError": "Failed to fetch places in collection",
+      "updatePlaceSuccess": "Place updated successfully in collection",
+      "updatePlaceError": "Failed to update place in collection"
+    }
+  },
   "offlineMaps": {
     "title": "Offline maps"
   },

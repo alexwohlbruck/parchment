@@ -1,5 +1,6 @@
 import { createSharedComposable } from '@vueuse/core'
 import { toast } from 'vue-sonner'
+import { useI18n } from 'vue-i18n'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import type { UnifiedPlace } from '@/types/unified-place.types'
 import type { CreateBookmarkParams, Bookmark } from '@/types/library.types'
@@ -10,6 +11,7 @@ import { api } from '@/lib/api'
 
 export const useBookmarksService = createSharedComposable(() => {
   const bookmarksStore = useBookmarksStore()
+  const { t } = useI18n()
   const isSaving = ref(false) // Keep isSaving here for the savePlace action
 
   async function getBookmarks() {
@@ -19,7 +21,7 @@ export const useBookmarksService = createSharedComposable(() => {
       bookmarksStore.setBookmarks(places)
       return places
     } catch (error) {
-      toast.error('Failed to fetch bookmarks')
+      toast.error(t('services.bookmarks.fetchError'))
       return []
     }
   }
@@ -31,8 +33,8 @@ export const useBookmarksService = createSharedComposable(() => {
     icon = 'map-pin',
     iconColor = '#F43F5E',
   ) {
-    if (!place.externalIds || !place.externalIds.osm) {
-      toast.error('Cannot save place without an OSM ID')
+    if (!place.externalIds?.osm) {
+      toast.error(t('services.bookmarks.saveErrorNoOsmId'))
       return null
     }
 
@@ -51,11 +53,11 @@ export const useBookmarksService = createSharedComposable(() => {
       const bookmark = response.data
 
       bookmarksStore.addBookmark(bookmark)
-      toast.success(`Saved ${place.name}`)
+      toast.success(t('services.bookmarks.saveSuccess', { name: place.name }))
 
       return bookmark
     } catch (error) {
-      toast.error('Failed to save place')
+      toast.error(t('services.bookmarks.saveError'))
       return null
     } finally {
       isSaving.value = false
@@ -69,11 +71,11 @@ export const useBookmarksService = createSharedComposable(() => {
 
       // Update store
       bookmarksStore.updateBookmark(id, updated)
-      toast.success('Place updated successfully')
+      toast.success(t('services.bookmarks.updateSuccess'))
 
       return updated
     } catch (error) {
-      toast.error('Failed to update place')
+      toast.error(t('services.bookmarks.updateError'))
       return null
     }
   }
@@ -84,11 +86,11 @@ export const useBookmarksService = createSharedComposable(() => {
       await api.delete(`/library/places/${id}`)
 
       bookmarksStore.removeBookmark(id)
-      toast.success(`Unsaved ${placeName}`)
+      toast.success(t('services.bookmarks.deleteSuccess', { name: placeName }))
 
       return true
     } catch (error) {
-      toast.error('Failed to unsave place')
+      toast.error(t('services.bookmarks.deleteError'))
       return false
     }
   }

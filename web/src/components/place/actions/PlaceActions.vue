@@ -18,10 +18,10 @@ import CollectionPicker from '@/components/library/CollectionPicker.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { type ThemeColor } from '@/lib/utils'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 
 const props = defineProps<{
   place: UnifiedPlace
@@ -70,19 +70,19 @@ async function createBookmark() {
       <ShareIcon class="mr-2 h-4 w-4" />
       Share
     </Button>
-    <DropdownMenu v-if="isSaved && bookmarkId">
-      <DropdownMenuTrigger as-child>
+    <Popover v-if="isSaved && bookmarkId">
+      <PopoverTrigger as-child>
         <Button size="icon" variant="outline" title="Manage collections">
           <FolderPlusIcon class="h-4 w-4" />
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" class="min-w-[240px]">
+      </PopoverTrigger>
+      <PopoverContent align="end" class="w-auto p-0 min-w-[240px]">
         <CollectionPicker
           :bookmark="{ id: bookmarkId } as any"
           @bookmark-deleted="setBookmarkStatus(null, null)"
         />
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverContent>
+    </Popover>
     <Button
       v-else
       size="icon"

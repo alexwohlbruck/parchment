@@ -17,10 +17,8 @@ import type {
 } from '@/types/library.types'
 import { getThemeColorClasses, fuzzyFilter, type ThemeColor } from '@/lib/utils'
 import { api } from '@/lib/api'
-import {
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu'
+import { Separator } from '@/components/ui/separator'
+import { Button } from '@/components/ui/button'
 
 const props = defineProps<{
   bookmark: Bookmark
@@ -219,18 +217,23 @@ function openCreateCollectionDialog() {
         />
       </div>
     </div>
-    <DropdownMenuSeparator />
+    <Separator class="my-1" />
 
-    <div v-if="sortedAndFilteredCollections.length > 0">
+    <div
+      v-if="sortedAndFilteredCollections.length > 0"
+      class="max-h-[200px] overflow-y-auto px-1"
+    >
       <template
         v-for="(collection, index) in sortedAndFilteredCollections"
         :key="collection.id"
       >
-        <DropdownMenuItem
+        <Button
+          variant="ghost"
+          class="w-full justify-start h-auto px-2 py-1.5 text-sm font-normal flex items-center gap-2"
           :disabled="isTogglingCollection"
           @click.prevent.stop="toggleCollection(collection.id)"
         >
-          <div class="relative mr-2">
+          <div class="relative mr-0.5">
             <div
               class="size-7 rounded-sm flex items-center justify-center flex-shrink-0"
               :class="getThemeColorClasses(collection.iconColor as ThemeColor)"
@@ -250,23 +253,24 @@ function openCreateCollectionDialog() {
             </div>
           </div>
 
-          <span class="flex-grow min-w-0">
+          <span class="flex-grow min-w-0 text-left">
             {{ getDisplayName(collection) }}
           </span>
           <CheckIcon
             v-if="bookmarkCollectionIds.includes(collection.id)"
             class="size-4 text-primary ml-auto"
           />
-        </DropdownMenuItem>
-        <DropdownMenuSeparator
+        </Button>
+        <Separator
           v-if="
             index === 0 &&
             collection.isDefault &&
             sortedAndFilteredCollections.length > 1
           "
+          class="my-1"
         />
       </template>
-      <DropdownMenuSeparator />
+      <Separator class="my-1" />
     </div>
 
     <div
@@ -287,9 +291,15 @@ function openCreateCollectionDialog() {
       }}
     </div>
 
-    <DropdownMenuItem @click.prevent.stop="openCreateCollectionDialog">
-      <PlusIcon class="size-4 mr-2" />
-      {{ t('library.actions.createNewCollection') }}
-    </DropdownMenuItem>
+    <div class="px-1">
+      <Button
+        variant="ghost"
+        class="w-full justify-start h-auto px-2 py-1.5 text-sm font-normal flex items-center gap-2"
+        @click.prevent.stop="openCreateCollectionDialog"
+      >
+        <PlusIcon class="size-4 mr-0.5" />
+        {{ t('library.actions.createNewCollection') }}
+      </Button>
+    </div>
   </div>
 </template>

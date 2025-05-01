@@ -17,6 +17,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { useCollectionsService } from '@/services/library/collections.service'
 
 const { t } = useI18n()
 const emit = defineEmits(['update:valid'])
@@ -24,6 +25,8 @@ const emit = defineEmits(['update:valid'])
 const props = defineProps<{
   collection?: Collection
 }>()
+
+const collectionsService = useCollectionsService()
 
 const collectionSchema = toTypedSchema(
   z.object({
@@ -72,7 +75,10 @@ onMounted(() => {
     })
 
     if (props.collection.isDefault && !props.collection.name) {
-      setFieldValue('name', t('library.entities.collections.default'))
+      setFieldValue(
+        'name',
+        collectionsService.getCollectionDisplayName(props.collection),
+      )
     }
   }
 })

@@ -230,7 +230,7 @@
   "library": {
     "title": "library",
     "search": {
-      "places": "Search bookmarks...",
+      "bookmarks": "Search bookmarks...",
       "collections": "Search collections..."
     },
     "sort": {
@@ -250,15 +250,15 @@
       "message": "no {entityPlural} yet",
       "action": "create {entitySingular}",
       "searchResults": "No {entityPlural} match your search",
-      "collectionPlaces": "No places in this collection yet",
+      "collectionBookmarks": "No bookmarks in this collection yet",
       "noCollections": "No collections available.",
       "noCollectionsFound": "No collections found"
     },
     "entities": {
-      "places": {
+      "bookmarks": {
         "title": {
-          "singular": "place",
-          "plural": "places"
+          "singular": "bookmark",
+          "plural": "bookmarks"
         }
       },
       "collections": {
@@ -297,8 +297,8 @@
         "title": "Edit Collection",
         "description": "Modify collection details"
       },
-      "editPlace": {
-        "title": "Edit Place",
+      "editBookmark": {
+        "title": "Edit Bookmark",
         "description": "Modify bookmark details"
       }
     },
@@ -307,8 +307,8 @@
         "collectionName": "Enter collection name",
         "collectionDescription": "Add a description (optional)",
         "collectionType": "Select type (optional)",
-        "placeName": "Enter place name",
-        "placeType": "Select place type (optional)"
+        "bookmarkName": "Enter bookmark name",
+        "bookmarkType": "Select bookmark type (optional)"
       },
       "isDefault": "Default Collection"
     },
@@ -330,10 +330,15 @@
       "saveErrorNoOsmId": "Cannot bookmark place without an OSM ID",
       "saveSuccess": "Bookmarked {name}",
       "saveError": "Failed to save bookmark",
-      "updateSuccess": "Bookmark updated successfully",
+      "updateSuccess": "Bookmark updated",
       "updateError": "Failed to update bookmark",
-      "deleteSuccess": "Unbookmarked {name}",
-      "deleteError": "Failed to unbookmark"
+      "deleteSuccess": "Bookmark '{name}' deleted.",
+      "deleteError": "Failed to delete bookmark.",
+      "saveErrorNoCollectionId": "Bookmark must belong to at least one collection.",
+      "removeFromCollectionSuccess": "Bookmark '{name}' removed from collection.",
+      "removeFromCollectionError": "Failed to remove bookmark from collection.",
+      "unsaveSuccess": "Removed {name}",
+      "updateErrorNotFound": "Bookmark not found. It may have been deleted."
     },
     "collections": {
       "fetchError": "Failed to fetch collections",
@@ -345,13 +350,11 @@
       "updateError": "Failed to update collection",
       "deleteSuccess": "Collection deleted successfully",
       "deleteError": "Failed to delete collection",
-      "addPlaceSuccess": "Added to {collectionName}",
-      "addPlaceError": "Failed to add place to collection",
-      "removePlaceSuccess": "Removed from collection",
-      "removePlaceError": "Failed to remove place from collection",
-      "fetchPlacesError": "Failed to fetch places in collection",
-      "updatePlaceSuccess": "Place updated successfully in collection",
-      "updatePlaceError": "Failed to update place in collection"
+      "addBookmarkSuccess": "Added to {collectionName}",
+      "addBookmarkError": "Failed to add bookmark to collection",
+      "fetchBookmarksError": "Failed to fetch bookmarks in collection",
+      "updateBookmarkSuccess": "Bookmark updated successfully in collection",
+      "updateBookmarkError": "Failed to update bookmark in collection"
     }
   },
   "offlineMaps": {

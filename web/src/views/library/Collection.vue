@@ -22,20 +22,16 @@ const id = route.params.id as string
 const loading = ref(true)
 
 const collection = computed(() => {
-  const getCollection = collectionsStore.getCollectionById
-  return getCollection(id)
+  return collectionsStore.getCollectionById(id)
 })
 
-const places = computed(() => collection.value?.places || [])
+const bookmarks = computed(() => collection.value?.bookmarks || [])
 
 const collectionName = computed(() => {
-  if (!collection.value) return ''
-
-  if (collection.value.isDefault) {
-    return collection.value.name || t('library.entities.collections.default')
+  if (!collection.value) {
+    return ''
   }
-
-  return collection.value.name
+  return collectionsService.getCollectionDisplayName(collection.value)
 })
 
 onMounted(async () => {
@@ -97,7 +93,6 @@ function handleCollectionDelete() {
           </div>
         </div>
 
-        <!-- Actions dropdown menu -->
         <CollectionContextMenu
           :collection="collection"
           :on-delete-success="handleCollectionDelete"
@@ -105,8 +100,11 @@ function handleCollectionDelete() {
         />
       </div>
 
-      <!-- Places List -->
-      <BookmarkList :places="places" :loading="loading" :collection-id="id" />
+      <BookmarkList
+        :bookmarks="bookmarks"
+        :loading="loading"
+        :collection-id="id"
+      />
     </template>
   </div>
 </template>

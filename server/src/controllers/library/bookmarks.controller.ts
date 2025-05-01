@@ -1,47 +1,35 @@
 import { Elysia, t } from 'elysia'
-import { requireAuth } from '../../middleware/auth.middleware.js'
-import * as libraryService from '../../services/library'
+import { requireAuth } from '../../middleware/auth.middleware'
+import * as bookmarksService from '../../services/library/bookmarks.service'
 
-const placesRouter = new Elysia({ prefix: '/places' })
+const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
   .use(requireAuth)
 
-  // Get all bookmarks for the authenticated user
-  .get('/', async ({ user }) => {
-    return await libraryService.getBookmarks(user.id)
-  })
-
-  // Get a single bookmark by ID
-  .get(
-    '/:id',
-    async ({ params: { id }, user }) => {
-      const place = await libraryService.getBookmarkById(id, user.id)
-      if (!place) {
-        return { error: 'Place not found' }
-      }
-      return place
-    },
-    {
-      params: t.Object({
-        id: t.String(),
-      }),
-    },
-  )
-
-  // Create a new bookmark
+  // Create a new bookmark and assign to collections
   .post(
     '/',
-    async ({ body, user }) => {
+    async ({ body, user, set }) => {
       // Ensure the externalIds contains at least osm
       if (!body.externalIds || !body.externalIds.osm) {
+        set.status = 400
         return { error: 'Missing required OSM ID in externalIds' }
       }
 
-      const createdPlace = await libraryService.createBookmark({
-        ...body,
-        userId: user.id,
-      })
-
-      return createdPlace
+      try {
+        const createdBookmark = await bookmarksService.createBookmark(
+          {
+            ...body,
+            userId: user.id,
+          },
+          body.collectionIds,
+          user.id,
+        )
+        set.status = 201
+        return createdBookmark
+      } catch (error) {
+        set.status = 500
+        return { error: 'Failed to create bookmark' } // TODO: Improve error handling
+      }
     },
     {
       body: t.Object({
@@ -53,65 +41,100 @@ const placesRouter = new Elysia({ prefix: '/places' })
         presetType: t.Optional(
           t.Union([t.Literal('home'), t.Literal('work'), t.Literal('school')]),
         ),
+        collectionIds: t.Optional(t.Array(t.String())),
       }),
     },
   )
 
-  // Update an existing bookmark
-  // TODO: Change to patch. Elysia CORS is rejecting PATCH requests for some reason.
+  // Update an existing bookmark (using PUT due to CORS issues with PATCH)
   .put(
     '/:id',
-    async ({ params: { id }, body, user }) => {
-      const updated = await libraryService.updateBookmark(id, user.id, body)
-      if (!updated) {
-        return { error: 'Place not found or update failed' }
+    async ({ params: { id }, body, user, set }) => {
+      // Keep validation for empty body if desired, though PUT often implies full replacement
+      // However, we are using it for partial updates here.
+      if (Object.keys(body).length === 0) {
+        set.status = 400
+        return { error: 'Request body cannot be empty' }
       }
+
+      const updated = await bookmarksService.updateBookmark(id, user.id, body)
+
+      // Service logic remains the same (handles deletion if orphaned)
+      if (updated === undefined) {
+        // Service error
+        set.status = 404
+        return { error: 'Bookmark not found or update failed' }
+      } else if (updated === null) {
+        // Deleted by service
+        set.status = 204
+        return
+      }
+
+      // Success
       return updated
     },
     {
       params: t.Object({
         id: t.String(),
       }),
-      body: t.Object({
-        name: t.Optional(t.String()),
-        address: t.Optional(t.String()),
-        icon: t.Optional(t.String()),
-        iconColor: t.Optional(t.String()),
-        presetType: t.Optional(
-          t.Union([
+      // Keep the t.Partial schema, as we are effectively using PUT for partial updates
+      body: t.Partial(
+        t.Object({
+          name: t.String(),
+          address: t.Optional(t.String()),
+          icon: t.String(),
+          iconColor: t.String(),
+          presetType: t.Union([
             t.Literal('home'),
             t.Literal('work'),
             t.Literal('school'),
             t.Null(),
           ]),
-        ),
-      }),
+          collectionIds: t.Array(t.String()),
+        }),
+      ),
     },
   )
 
-  // Unsave place
+  // DELETE endpoint remains for removing from specific collections (optional, maybe remove later if PATCH covers all cases)
   .delete(
     '/:id',
-    async ({ params: { id }, user, set }) => {
-      const deleted = await libraryService.unsavePlace(id, user.id)
-      if (!deleted) {
-        set.status = 404 // Or appropriate error status
-        return { error: 'Place not found or delete failed' }
+    async ({ params: { id }, body, user, set }) => {
+      if (!body.collectionIds || body.collectionIds.length === 0) {
+        set.status = 400
+        return { error: 'Missing required collectionIds in body' }
       }
-      set.status = 204
+      try {
+        const success = await bookmarksService.removeBookmarkFromCollections(
+          id,
+          body.collectionIds,
+          user.id,
+        )
+        if (!success) {
+          set.status = 404
+          return { error: 'Bookmark not found or removal failed' }
+        }
+        set.status = 204 // Success, no content
+      } catch (error) {
+        set.status = 500
+        return { error: 'Failed to remove bookmark from collections' }
+      }
     },
     {
       params: t.Object({
         id: t.String(),
       }),
+      body: t.Object({
+        collectionIds: t.Array(t.String()),
+      }),
     },
   )
 
-  // Get collections for a place
+  // Get collections for a bookmark
   .get(
     '/:id/collections',
     async ({ params: { id }, user }) => {
-      const collections = await libraryService.getCollectionsForPlace(
+      const collections = await bookmarksService.getCollectionsForBookmark(
         id,
         user.id,
       )
@@ -124,4 +147,4 @@ const placesRouter = new Elysia({ prefix: '/places' })
     },
   )
 
-export default placesRouter
+export default bookmarksRouter

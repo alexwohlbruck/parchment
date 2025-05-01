@@ -231,7 +231,7 @@
   "library": {
     "title": "biblioteca",
     "search": {
-      "places": "Buscar marcadores...",
+      "bookmarks": "Buscar marcadores...",
       "collections": "Buscar colecciones..."
     },
     "sort": {
@@ -251,15 +251,15 @@
       "message": "no hay {entityPlural} todavía",
       "action": "crear {entitySingular}",
       "searchResults": "No hay {entityPlural} que coincidan con tu búsqueda",
-      "collectionPlaces": "No hay lugares en esta colección todavía",
+      "collectionBookmarks": "No hay marcadores en esta colección todavía",
       "noCollections": "No hay colecciones disponibles.",
       "noCollectionsFound": "No se encontraron colecciones"
     },
     "entities": {
-      "places": {
+      "bookmarks": {
         "title": {
-          "singular": "lugar",
-          "plural": "lugares"
+          "singular": "marcador",
+          "plural": "marcadores"
         }
       },
       "collections": {
@@ -298,8 +298,8 @@
         "title": "Editar Colección",
         "description": "Modificar detalles de la colección"
       },
-      "editPlace": {
-        "title": "Editar Lugar",
+      "editBookmark": {
+        "title": "Editar Marcador",
         "description": "Modificar detalles del marcador"
       }
     },
@@ -308,8 +308,8 @@
         "collectionName": "Introduce el nombre de la colección",
         "collectionDescription": "Añade una descripción (opcional)",
         "collectionType": "Selecciona un tipo (opcional)",
-        "placeName": "Introduce el nombre del lugar",
-        "placeType": "Selecciona el tipo de lugar (opcional)",
+        "bookmarkName": "Introduce el nombre del marcador",
+        "bookmarkType": "Selecciona el tipo de marcador (opcional)",
         "isDefault": "Colección Predeterminada"
       }
     },
@@ -328,13 +328,18 @@
   "services": {
     "bookmarks": {
       "fetchError": "Error al obtener marcadores",
-      "saveErrorNoOsmId": "No se puede marcar el lugar sin un ID de OSM",
+      "saveErrorNoOsmId": "No se puede guardar el lugar sin un ID de OSM.",
+      "saveErrorNoCollectionId": "El marcador debe pertenecer al menos a una colección.",
       "saveSuccess": "Marcado {name}",
       "saveError": "Error al guardar marcador",
-      "updateSuccess": "Marcador actualizado correctamente",
+      "updateSuccess": "Marcador actualizado",
       "updateError": "Error al actualizar marcador",
-      "deleteSuccess": "Desmarcado {name}",
-      "deleteError": "Error al desmarcar"
+      "deleteSuccess": "Marcador '{name}' eliminado.",
+      "deleteError": "Error al eliminar el marcador.",
+      "removeFromCollectionSuccess": "Marcador '{name}' eliminado de la colección.",
+      "removeFromCollectionError": "Error al eliminar el marcador de la colección.",
+      "unsaveSuccess": "Eliminado {name}",
+      "updateErrorNotFound": "Marcador no encontrado. Puede haber sido eliminado."
     },
     "collections": {
       "fetchError": "Error al obtener colecciones",
@@ -346,13 +351,13 @@
       "updateError": "Error al actualizar colección",
       "deleteSuccess": "Colección eliminada correctamente",
       "deleteError": "Error al eliminar colección",
-      "addPlaceSuccess": "Añadido a {collectionName}",
-      "addPlaceError": "Error al añadir lugar a la colección",
-      "removePlaceSuccess": "Eliminado de la colección",
-      "removePlaceError": "Error al eliminar lugar de la colección",
-      "fetchPlacesError": "Error al obtener lugares en la colección",
-      "updatePlaceSuccess": "Lugar actualizado correctamente en la colección",
-      "updatePlaceError": "Error al actualizar lugar en la colección"
+      "addBookmarkSuccess": "Añadido a {collectionName}",
+      "addBookmarkError": "Error al añadir marcador a la colección",
+      "removeBookmarkSuccess": "Eliminado de la colección",
+      "removeBookmarkError": "Error al eliminar marcador de la colección",
+      "fetchBookmarksError": "Error al obtener marcadores en la colección",
+      "updateBookmarkSuccess": "Marcador actualizado correctamente en la colección",
+      "updateBookmarkError": "Error al actualizar marcador en la colección"
     }
   },
   "offlineMaps": {

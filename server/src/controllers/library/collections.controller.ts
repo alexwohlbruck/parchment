@@ -1,29 +1,29 @@
 import { Elysia, t } from 'elysia'
 import { requireAuth } from '../../middleware/auth.middleware.js'
-import * as libraryService from '../../services/library'
+import * as collectionsService from '../../services/library/collections.service'
 
 const collectionsRouter = new Elysia({ prefix: '/collections' })
   .use(requireAuth)
 
   // Get all collections for the authenticated user
   .get('/', async ({ user }) => {
-    return await libraryService.getCollections(user.id)
+    return await collectionsService.getCollections(user.id)
   })
 
   // Get the default collection (previously bookmarks)
   .get('/default', async ({ user }) => {
-    const defaultCollection = await libraryService.ensureDefaultCollection(
+    const defaultCollection = await collectionsService.ensureDefaultCollection(
       user.id,
     )
 
-    const places = await libraryService.getPlacesInCollection(
+    const bookmarks = await collectionsService.getBookmarksInCollection(
       defaultCollection.id,
       user.id,
     )
 
     return {
       ...defaultCollection,
-      places,
+      bookmarks,
     }
   })
 
@@ -31,17 +31,20 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
   .get(
     '/:id',
     async ({ params: { id }, user, set }) => {
-      const collection = await libraryService.getCollectionById(id, user.id)
+      const collection = await collectionsService.getCollectionById(id, user.id)
       if (!collection) {
         set.status = 404
         return { error: 'Collection not found' }
       }
 
-      const places = await libraryService.getPlacesInCollection(id, user.id)
+      const bookmarks = await collectionsService.getBookmarksInCollection(
+        id,
+        user.id,
+      )
 
       return {
         ...collection,
-        places,
+        bookmarks,
       }
     },
     {
@@ -55,7 +58,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
   .post(
     '/',
     async ({ body, user }) => {
-      const createdCollection = await libraryService.createCollection({
+      const createdCollection = await collectionsService.createCollection({
         ...body,
         userId: user.id,
       })
@@ -78,7 +81,11 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
   .put(
     '/:id',
     async ({ params: { id }, body, user }) => {
-      const updated = await libraryService.updateCollection(id, user.id, body)
+      const updated = await collectionsService.updateCollection(
+        id,
+        user.id,
+        body,
+      )
       if (!updated) {
         return { error: 'Collection not found or update failed' }
       }
@@ -103,7 +110,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     '/:id',
     async ({ params: { id }, user, set }) => {
       try {
-        const deleted = await libraryService.deleteCollection(id, user.id)
+        const deleted = await collectionsService.deleteCollection(id, user.id)
         if (!deleted) {
           set.status = 404
           return { error: 'Collection not found or delete failed' }
@@ -117,92 +124,6 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     {
       params: t.Object({
         id: t.String(),
-      }),
-    },
-  )
-
-  // Add a place to a collection
-  .post(
-    '/:id/places/:placeId',
-    async ({ params: { id, placeId }, user }) => {
-      try {
-        const added = await libraryService.saveToCollection(
-          placeId,
-          id,
-          user.id,
-        )
-        return { success: true, added }
-      } catch (err) {
-        return { error: (err as Error).message }
-      }
-    },
-    {
-      params: t.Object({
-        id: t.String(),
-        placeId: t.String(),
-      }),
-    },
-  )
-
-  // Remove a place from a collection
-  .delete(
-    '/:id/places/:placeId',
-    async ({ params: { id, placeId }, user, set }) => {
-      try {
-        await libraryService.removeFromCollection(placeId, id, user.id)
-        set.status = 204
-      } catch (err) {
-        set.status = 404
-        return { error: (err as Error).message }
-      }
-    },
-    {
-      params: t.Object({
-        id: t.String(),
-        placeId: t.String(),
-      }),
-    },
-  )
-
-  // Update a place in a collection (previously updateBookmark)
-  .put(
-    '/:id/places/:placeId',
-    async ({ params: { id, placeId }, body, user, set }) => {
-      try {
-        const updated = await libraryService.updateBookmarkInCollection(
-          placeId,
-          id,
-          user.id,
-          body,
-        )
-        if (!updated) {
-          set.status = 404
-          return { error: 'Place not found or update failed' }
-        }
-        return updated
-      } catch (err) {
-        set.status = 404
-        return { error: (err as Error).message }
-      }
-    },
-    {
-      params: t.Object({
-        id: t.String(),
-        placeId: t.String(),
-      }),
-      body: t.Object({
-        name: t.Optional(t.String()),
-        address: t.Optional(t.String()),
-        icon: t.Optional(t.String()),
-        iconColor: t.Optional(t.String()),
-        presetType: t.Optional(
-          t.Union([
-            t.Literal('home'),
-            t.Literal('work'),
-            t.Literal('school'),
-            t.Null(),
-          ]),
-        ),
       }),
     },
   )

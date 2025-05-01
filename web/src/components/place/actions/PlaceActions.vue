@@ -10,11 +10,9 @@ import {
 } from 'lucide-vue-next'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
-import { useAppService } from '@/services/app.service'
 import type { UnifiedPlace } from '@/types/unified-place.types'
 import type { Collection } from '@/types/library.types'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
-import { useCollectionsStore } from '@/stores/library/collections.store'
 import CollectionPicker from '@/components/library/CollectionPicker.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { type ThemeColor } from '@/lib/utils'
@@ -54,19 +52,13 @@ const isSaved = computed(() => {
 })
 
 async function savePlace() {
-  const bookmark = await bookmarksService.savePlace(props.place)
-  if (!bookmark) return
-
   if (!defaultCollection.value) {
-    defaultCollection.value = await collectionsService.fetchDefaultCollection()
+    console.error('Default collection not loaded, cannot save place.')
+    return
   }
-
-  if (defaultCollection.value) {
-    await collectionsService.saveToCollection(
-      bookmark.id,
-      defaultCollection.value.id,
-    )
-  }
+  await bookmarksService.createBookmark(props.place, [
+    defaultCollection.value.id,
+  ])
 }
 </script>
 
@@ -87,7 +79,7 @@ async function savePlace() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" class="min-w-[240px]">
-        <CollectionPicker :place="{ id: bookmarkId } as any" />
+        <CollectionPicker :bookmark="{ id: bookmarkId } as any" />
       </DropdownMenuContent>
     </DropdownMenu>
     <Button

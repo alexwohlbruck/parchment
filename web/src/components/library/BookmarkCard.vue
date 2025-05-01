@@ -7,7 +7,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
@@ -34,15 +33,15 @@ import BookmarkForm from '@/components/library/BookmarkForm.vue'
 import CollectionPicker from '@/components/library/CollectionPicker.vue'
 
 const props = defineProps<{
-  place: Bookmark
+  bookmark: Bookmark
   collectionId?: string
 }>()
 
 const emit = defineEmits<{
-  edit: [place: Bookmark]
-  unsave: [place: Bookmark]
-  addToCollection: [place: Bookmark]
-  removeFromCollection: [place: Bookmark]
+  edit: [bookmark: Bookmark]
+  unsave: [bookmark: Bookmark]
+  addToCollection: [bookmark: Bookmark]
+  removeFromCollection: [bookmark: Bookmark]
 }>()
 
 const router = useRouter()
@@ -50,6 +49,7 @@ const collectionsStore = useCollectionsStore()
 const bookmarksStore = useBookmarksStore()
 const { collections } = storeToRefs(collectionsStore)
 const collectionsService = useCollectionsService()
+const bookmarksService = useBookmarksService()
 const appService = useAppService()
 const { t } = useI18n()
 
@@ -60,12 +60,12 @@ onMounted(async () => {
 })
 
 const colorClasses = computed(() => {
-  return getThemeColorClasses(props.place.iconColor as ThemeColor)
+  return getThemeColorClasses(props.bookmark.iconColor as ThemeColor)
 })
 
-function goToPlace() {
-  const route = bookmarksStore.navigateToPlace(props.place)
-  const [type, osmId] = props.place.externalIds.osm.split('/')
+function navigateToBookmark() {
+  const route = bookmarksStore.navigateToBookmark(props.bookmark)
+  const [type, osmId] = props.bookmark.externalIds.osm.split('/')
   console.log(type, osmId)
   if (route) {
     router.push({
@@ -78,38 +78,24 @@ function goToPlace() {
   }
 }
 
-async function removeFromCollection() {
-  try {
-    await collectionsService.removeFromCollection(
-      props.place.id,
-      props.collectionId!,
-    )
-    toast.success(t('library.actions.removedFromCollection'))
-    emit('removeFromCollection', props.place)
-  } catch (error) {
-    console.error('Failed to remove place from collection:', error)
-    toast.error(t('library.actions.failedToRemoveFromCollection'))
-  }
-}
-
 function handleCollectionToggle(collectionId: string) {
-  emit('addToCollection', props.place)
+  emit('addToCollection', props.bookmark)
 }
 
-function handleCreateCollection(place: Bookmark) {
-  console.log('Create new collection with:', place)
+function handleCreateCollection(bookmark: Bookmark) {
+  console.log('Create new collection with:', bookmark)
 }
 
-async function editPlace() {
+async function editBookmark() {
   appService
     .componentDialog({
       component: BookmarkForm,
-      title: t('library.dialog.editPlace.title'),
-      description: t('library.dialog.editPlace.description'),
+      title: t('library.dialog.editBookmark.title'),
+      description: t('library.dialog.editBookmark.description'),
       continueText: t('general.save'),
       cancelText: t('general.cancel'),
       props: {
-        place: props.place,
+        bookmark: props.bookmark,
       },
     })
     .then(async formData => {
@@ -117,28 +103,12 @@ async function editPlace() {
 
       const params = {
         name: formData.name,
-        ...(formData.type ? { presetType: formData.type } : {}),
+        presetType: formData.type || null,
         icon: formData.icon,
         iconColor: formData.iconColor as ThemeColor,
       }
 
-      if (props.collectionId) {
-        await collectionsService.updateBookmarkInCollection(
-          props.place.id,
-          props.collectionId,
-          params,
-        )
-      } else {
-        const defaultCollection =
-          await collectionsService.fetchDefaultCollection()
-        if (defaultCollection) {
-          await collectionsService.updateBookmarkInCollection(
-            props.place.id,
-            defaultCollection.id,
-            params,
-          )
-        }
-      }
+      await bookmarksService.updateBookmark(props.bookmark.id, params)
     })
 }
 </script>
@@ -146,7 +116,7 @@ async function editPlace() {
 <template>
   <Card
     class="overflow-hidden hover:bg-secondary/40 transition-colors cursor-pointer"
-    @click="goToPlace"
+    @click="navigateToBookmark"
   >
     <CardContent class="p-2 flex items-center gap-3">
       <div
@@ -154,8 +124,8 @@ async function editPlace() {
         :class="colorClasses"
       >
         <ItemIcon
-          :icon="place.icon"
-          :color="place.iconColor as ThemeColor"
+          :icon="bookmark.icon"
+          :color="bookmark.iconColor as ThemeColor"
           size="md"
         />
       </div>
@@ -163,17 +133,17 @@ async function editPlace() {
       <div class="flex-grow min-w-0">
         <div class="flex items-center justify-between">
           <div class="flex flex-col justify-center">
-            <h3 class="font-semibold text-sm">{{ place.name }}</h3>
+            <h3 class="font-semibold text-sm">{{ bookmark.name }}</h3>
 
-            <div v-if="place.address" class="text-xs text-muted-foreground">
-              {{ place.address }}
+            <div v-if="bookmark.address" class="text-xs text-muted-foreground">
+              {{ bookmark.address }}
             </div>
 
             <div
-              v-if="place.presetType"
+              v-if="bookmark.presetType"
               class="text-xs text-muted-foreground capitalize"
             >
-              {{ place.presetType }}
+              {{ bookmark.presetType }}
             </div>
           </div>
 
@@ -185,7 +155,7 @@ async function editPlace() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem @click.stop="editPlace">
+              <DropdownMenuItem @click.stop="editBookmark">
                 <PencilIcon class="size-4" />
                 {{ t('general.edit') }}
               </DropdownMenuItem>
@@ -198,22 +168,13 @@ async function editPlace() {
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent class="min-w-[240px]">
                   <CollectionPicker
-                    :place="place"
+                    :bookmark="bookmark"
                     :collection-id="collectionId"
                     @toggle-collection="handleCollectionToggle"
                     @create-collection="handleCreateCollection"
                   />
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
-
-              <DropdownMenuItem
-                v-if="collectionId"
-                @click.stop="removeFromCollection"
-                class="text-destructive hover:text-destructive focus:text-destructive focus:bg-destructive/10 hover:bg-destructive/10"
-              >
-                <FolderXIcon class="size-4" />
-                {{ t('library.actions.removeFromCollection') }}
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

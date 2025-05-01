@@ -10,7 +10,6 @@ import { api } from '@/lib/api'
 
 export const useCollectionsService = createSharedComposable(() => {
   const collectionsStore = useCollectionsStore()
-  const bookmarksStore = useBookmarksStore()
   const { t } = useI18n()
 
   function getCollectionDisplayName(collection: Collection | null): string {
@@ -38,9 +37,7 @@ export const useCollectionsService = createSharedComposable(() => {
       const response = await api.get(`/library/collections/${id}`)
       const collection = response.data
 
-      if (collection) {
-        collectionsStore.updateCollection(id, collection)
-      }
+      collectionsStore.updateCollection(collection)
 
       return collection
     } catch (error) {
@@ -56,7 +53,7 @@ export const useCollectionsService = createSharedComposable(() => {
 
       // Store the collection and its places in the normalized store
       if (collection) {
-        collectionsStore.updateCollection(collection.id, collection)
+        collectionsStore.updateCollection(collection)
       }
 
       return collection
@@ -71,7 +68,8 @@ export const useCollectionsService = createSharedComposable(() => {
       const response = await api.post('/library/collections', params)
       const collection = response.data
 
-      collectionsStore.addCollection(collection)
+      // Add the new collection using the upsert logic
+      collectionsStore.updateCollection(collection)
       toast.success(t('services.collections.createSuccess'))
 
       return collection
@@ -86,7 +84,7 @@ export const useCollectionsService = createSharedComposable(() => {
       const response = await api.put(`/library/collections/${id}`, updates)
       const updated = response.data
 
-      collectionsStore.updateCollection(id, updated)
+      collectionsStore.updateCollection(updated)
       toast.success(t('services.collections.updateSuccess'))
 
       return updated
@@ -110,96 +108,15 @@ export const useCollectionsService = createSharedComposable(() => {
     }
   }
 
-  async function saveToCollection(placeId: string, collectionId: string) {
-    try {
-      const response = await api.post(
-        `/library/collections/${collectionId}/places/${placeId}`,
-      )
-
-      const collection = await fetchCollectionById(collectionId)
-      if (collection) {
-        toast.success(
-          t('services.collections.addPlaceSuccess', {
-            collectionName: getCollectionDisplayName(collection),
-          }),
-        )
-      }
-
-      return response.data
-    } catch (error) {
-      toast.error(t('services.collections.addPlaceError'))
-      return false
-    }
-  }
-
-  async function removeFromCollection(placeId: string, collectionId: string) {
-    try {
-      const response = await api.delete(
-        `/library/collections/${collectionId}/places/${placeId}`,
-      )
-
-      const collectionsForPlace = await api.get(
-        `/library/places/${placeId}/collections`,
-      )
-      const collections = collectionsForPlace.data
-
-      if (collections.length === 0) {
-        bookmarksStore.removeBookmark(placeId)
-      }
-
-      fetchCollectionById(collectionId)
-
-      toast.success(t('services.collections.removePlaceSuccess'))
-      return response.data
-    } catch (error) {
-      toast.error(t('services.collections.removePlaceError'))
-      return false
-    }
-  }
-
-  async function fetchBookmarksInCollection(collectionId: string) {
+  async function getBookmarksInCollection(collectionId: string) {
     try {
       const response = await api.get(
-        `/library/collections/${collectionId}/places`,
+        `/library/collections/${collectionId}/bookmarks`,
       )
       return response.data
     } catch (error) {
-      toast.error(t('services.collections.fetchPlacesError'))
+      toast.error(t('services.collections.fetchBookmarksError'))
       return []
-    }
-  }
-
-  async function updateBookmarkInCollection(
-    placeId: string,
-    collectionId: string,
-    updates: any,
-  ) {
-    try {
-      const response = await api.put(
-        `/library/collections/${collectionId}/places/${placeId}`,
-        updates,
-      )
-      const updated = response.data
-
-      const currentBookmark = bookmarksStore.bookmarks.find(
-        bookmark => bookmark.id === placeId,
-      )
-      if (currentBookmark) {
-        const updatedBookmark = {
-          ...currentBookmark,
-          ...updates,
-        }
-        bookmarksStore.updateBookmark(placeId, updatedBookmark)
-      }
-
-      fetchCollectionById(collectionId)
-
-      toast.success(t('services.collections.updatePlaceSuccess'))
-
-      return updated
-    } catch (error) {
-      toast.error(t('services.collections.updatePlaceError'))
-      return null
     }
   }
 
@@ -210,9 +127,7 @@ export const useCollectionsService = createSharedComposable(() => {
     createCollection,
     updateCollection,
     deleteCollection,
-    saveToCollection,
-    removeFromCollection,
-    fetchBookmarksInCollection,
-    updateBookmarkInCollection,
+    getBookmarksInCollection,
+    getCollectionDisplayName,
   }
 })

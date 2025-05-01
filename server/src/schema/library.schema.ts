@@ -8,7 +8,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import { users } from './user.schema'
 
-export const bookmarks = pgTable('saved_places', {
+export const bookmarks = pgTable('bookmarks', {
   id: text('id').primaryKey().notNull(),
   externalIds: jsonb('external_ids').notNull(), // Store OSM ID and possibly other provider IDs
   name: text('name').notNull(),
@@ -38,10 +38,10 @@ export const collections = pgTable('collections', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
-export const placesCollections = pgTable(
-  'places_collections',
+export const bookmarksCollections = pgTable(
+  'bookmarks_collections',
   {
-    placeId: text('place_id')
+    bookmarkId: text('bookmark_id')
       .notNull()
       .references(() => bookmarks.id, { onDelete: 'cascade' }),
     collectionId: text('collection_id')
@@ -50,6 +50,6 @@ export const placesCollections = pgTable(
     addedAt: timestamp('added_at').defaultNow().notNull(),
   },
   (t) => ({
-    pk: primaryKey({ columns: [t.placeId, t.collectionId] }),
+    pk: primaryKey({ columns: [t.bookmarkId, t.collectionId] }),
   }),
 )

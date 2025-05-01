@@ -4,51 +4,38 @@ import { MapPinIcon } from 'lucide-vue-next'
 import BookmarkList from '@/components/library/BookmarkList.vue'
 import EmptyState from '@/components/library/EmptyState.vue'
 import { useCollectionsService } from '@/services/library/collections.service'
-import { useCollectionsStore } from '@/stores/library/collections.store'
-import { storeToRefs } from 'pinia'
-import { useI18n } from 'vue-i18n'
 
 const collectionsService = useCollectionsService()
-const collectionsStore = useCollectionsStore()
-const { t } = useI18n()
 
-const loadingPlaces = ref(false)
+const loadingBookmarks = ref(false)
 const defaultCollection = ref<any>(null)
 
 onMounted(async () => {
-  loadingPlaces.value = true
+  loadingBookmarks.value = true
   defaultCollection.value = await collectionsService.fetchDefaultCollection()
-  loadingPlaces.value = false
+  loadingBookmarks.value = false
 })
 
 const showEmptyState = computed(() => {
   return (
-    !loadingPlaces.value &&
+    !loadingBookmarks.value &&
     (!defaultCollection.value ||
-      !defaultCollection.value.places ||
-      defaultCollection.value.places.length === 0)
+      !defaultCollection.value.bookmarks ||
+      defaultCollection.value.bookmarks.length === 0)
   )
 })
 
 const loading = computed(() => {
   return (
-    loadingPlaces.value &&
+    loadingBookmarks.value &&
     (!defaultCollection.value ||
-      !defaultCollection.value.places ||
-      defaultCollection.value.places.length === 0)
+      !defaultCollection.value.bookmarks ||
+      defaultCollection.value.bookmarks.length === 0)
   )
 })
 
-const places = computed(() => {
-  return defaultCollection.value?.places || []
-})
-
-// Get the translated name for the default collection
-const defaultCollectionName = computed(() => {
-  if (defaultCollection.value?.name) {
-    return defaultCollection.value.name
-  }
-  return t('library.entities.collections.default')
+const bookmarks = computed(() => {
+  return defaultCollection.value?.bookmarks || []
 })
 </script>
 
@@ -57,13 +44,13 @@ const defaultCollectionName = computed(() => {
     <EmptyState
       v-if="showEmptyState"
       :icon="MapPinIcon"
-      entity-id="places"
+      entity-id="bookmarks"
       class="flex-1"
     />
 
     <BookmarkList
       v-else
-      :places="places"
+      :bookmarks="bookmarks"
       :loading="loading"
       :collection-id="defaultCollection?.id"
     />

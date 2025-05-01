@@ -2,10 +2,11 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useStorage } from '@vueuse/core'
 import type { Bookmark } from '@/types/library.types'
+import { useCollectionsStore } from '@/stores/library/collections.store'
 
 export const useBookmarksStore = defineStore('bookmarks', () => {
   const bookmarks = useStorage<Bookmark[]>('bookmarks', [])
-
+  const collectionsStore = useCollectionsStore()
   const getBookmarkById = computed(() => {
     return (id: string) => bookmarks.value.find(place => place.id === id)
   })
@@ -28,7 +29,7 @@ export const useBookmarksStore = defineStore('bookmarks', () => {
     }
   })
 
-  function navigateToPlace(bookmark: Bookmark) {
+  function navigateToBookmark(bookmark: Bookmark) {
     const osmId = bookmark.externalIds.osm
     const osmType = bookmark.externalIds.osmType || 'node'
 
@@ -50,7 +51,10 @@ export const useBookmarksStore = defineStore('bookmarks', () => {
     bookmarks.value = [...bookmarks.value, place]
   }
 
-  function updateBookmark(id: string, updatedPlace: Bookmark) {
+  function updateBookmark(
+    id: string,
+    updatedPlace: Bookmark & { collectionIds?: string[] },
+  ) {
     const index = bookmarks.value.findIndex(place => place.id === id)
     if (index !== -1) {
       bookmarks.value[index] = updatedPlace
@@ -66,7 +70,7 @@ export const useBookmarksStore = defineStore('bookmarks', () => {
     getBookmarkById,
     getBookmarkByExternalId,
     isPlaceSaved,
-    navigateToPlace,
+    navigateToBookmark,
     setBookmarks,
     addBookmark,
     updateBookmark,

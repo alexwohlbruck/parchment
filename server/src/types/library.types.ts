@@ -1,15 +1,15 @@
 import {
   bookmarks,
   collections,
-  placesCollections,
+  bookmarksCollections,
 } from '../schema/library.schema'
 
 export type Bookmark = typeof bookmarks.$inferSelect
 export type NewBookmark = typeof bookmarks.$inferInsert
 export type Collection = typeof collections.$inferSelect
 export type NewCollection = typeof collections.$inferInsert
-export type PlaceCollection = typeof placesCollections.$inferSelect
-export type NewPlaceCollection = typeof placesCollections.$inferInsert
+export type BookmarkCollection = typeof bookmarksCollections.$inferSelect
+export type NewBookmarkCollection = typeof bookmarksCollections.$inferInsert
 
 export type CreateBookmarkParams = {
   externalIds: Record<string, string> // Must include at least 'osm' key

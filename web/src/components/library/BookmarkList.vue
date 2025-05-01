@@ -14,38 +14,40 @@ import { SearchIcon, ArrowUpDownIcon } from 'lucide-vue-next'
 import BookmarkCard from '@/components/library/BookmarkCard.vue'
 import { fuzzyFilter } from '@/lib/utils'
 import { useCollectionsService } from '@/services/library/collections.service'
+import { useBookmarksService } from '@/services/library/bookmarks.service'
 import type { Bookmark } from '@/types/library.types'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 
 const props = defineProps<{
-  places: Bookmark[]
+  bookmarks: Bookmark[]
   loading?: boolean
   collectionId?: string
 }>()
 
 const { t } = useI18n()
 const collectionsService = useCollectionsService()
-const localPlaces = ref<Bookmark[]>([...props.places])
+const bookmarksService = useBookmarksService()
+const localBookmarks = ref<Bookmark[]>([...props.bookmarks])
 
 const searchQuery = ref('')
 const sortBy = ref<'name' | 'createdAt' | 'updatedAt'>('updatedAt')
 const sortOrder = ref<'asc' | 'desc'>('desc')
 
 watch(
-  () => props.places,
-  newPlaces => {
-    localPlaces.value = [...newPlaces]
+  () => props.bookmarks,
+  newBookmarks => {
+    localBookmarks.value = [...newBookmarks]
   },
   { deep: true },
 )
 
-const filteredPlaces = computed(() => {
+const filteredBookmarks = computed(() => {
   let result = searchQuery.value
-    ? fuzzyFilter(localPlaces.value, searchQuery.value, {
+    ? fuzzyFilter(localBookmarks.value, searchQuery.value, {
         keys: ['name', 'presetType', 'address'],
         preserveOrder: true,
       })
-    : localPlaces.value
+    : localBookmarks.value
 
   result = [...result].sort((a, b) => {
     let comparison = 0
@@ -79,33 +81,32 @@ function setSortBy(field: 'name' | 'createdAt' | 'updatedAt') {
   }
 }
 
-async function handlePlaceUnsaved(place: Bookmark) {
+async function handleAddToCollection(bookmark: Bookmark) {
+  console.log('Bookmark added to collection:', bookmark.name)
+  // TODO: Re-fetch data or update UI if necessary after CollectionPicker interaction
+  // For now, CollectionPicker handles the API call and updates its internal state.
+  // We might need to refresh this list's data depending on UX.
+}
+
+// Handle bookmark removed from the *current* collection context
+async function handleRemoveFromCollection(bookmark: Bookmark) {
   if (props.collectionId) {
-    await collectionsService.removeFromCollection(place.id, props.collectionId)
-  } else {
-    // If no collection ID is provided, get the default collection
-    const defaultCollection = await collectionsService.fetchDefaultCollection()
-    if (defaultCollection) {
-      await collectionsService.removeFromCollection(
-        place.id,
-        defaultCollection.id,
+    const success = await bookmarksService.removeBookmark(
+      bookmark.id,
+      [props.collectionId], // Only remove from this specific collection context
+      bookmark.name, // Pass name for potential toast message
+    )
+    if (success) {
+      // Optimistically remove from the local list for this view
+      localBookmarks.value = localBookmarks.value.filter(
+        b => b.id !== bookmark.id,
       )
     }
+  } else {
+    console.warn(
+      '[BookmarkList] handleRemoveFromCollection called without collectionId',
+    )
   }
-  localPlaces.value = localPlaces.value.filter(p => p.id !== place.id)
-}
-
-async function handleAddToCollection(place: Bookmark) {
-  console.log('Place added to collection:', place.name)
-  // This function will be implemented when we add the ability to add places to collections
-}
-
-// Handle place removed from collection
-async function handleRemoveFromCollection(place: Bookmark) {
-  if (props.collectionId) {
-    await collectionsService.removeFromCollection(place.id, props.collectionId)
-  }
-  localPlaces.value = localPlaces.value.filter(p => p.id !== place.id)
 }
 </script>
 
@@ -121,7 +122,7 @@ async function handleRemoveFromCollection(place: Bookmark) {
           <Input
             v-model="searchQuery"
             class="w-full pl-8"
-            :placeholder="t('library.search.places')"
+            :placeholder="t('library.search.bookmarks')"
           />
         </div>
 
@@ -169,7 +170,7 @@ async function handleRemoveFromCollection(place: Bookmark) {
 
     <!-- Empty State -->
     <div
-      v-else-if="filteredPlaces.length === 0"
+      v-else-if="filteredBookmarks.length === 0"
       class="flex-1 flex items-center justify-center"
     >
       <div class="text-center">
@@ -177,9 +178,9 @@ async function handleRemoveFromCollection(place: Bookmark) {
           {{
             searchQuery
               ? t('library.empty.searchResults', {
-                  entityPlural: t('library.entities.places.title.plural'),
+                  entityPlural: t('library.entities.bookmarks.title.plural'),
                 })
-              : t('library.empty.collectionPlaces')
+              : t('library.empty.collectionBookmarks')
           }}
         </p>
         <Button v-if="searchQuery" @click="searchQuery = ''">
@@ -189,13 +190,12 @@ async function handleRemoveFromCollection(place: Bookmark) {
     </div>
 
     <!-- Places List -->
-    <div v-else class="flex flex-col gap-2 pb-4">
+    <div v-else class="flex flex-col gap-2 pb-4 flex-1 overflow-y-auto">
       <BookmarkCard
-        v-for="place in filteredPlaces"
-        :key="place.id"
-        :place="place"
+        v-for="bookmark in filteredBookmarks"
+        :key="bookmark.id"
+        :bookmark="bookmark"
         :collection-id="collectionId"
-        @unsave="handlePlaceUnsaved"
         @add-to-collection="handleAddToCollection"
         @remove-from-collection="handleRemoveFromCollection"
         class="w-full"

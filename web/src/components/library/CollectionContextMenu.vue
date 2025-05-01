@@ -66,9 +66,9 @@ function editCollection() {
 
 async function deleteCollection() {
   const confirmed = await appService.confirm({
-    title: t('general.delete') + '?',
-    description: t('library.confirmDelete', {
-      name: props.collection.name || t('library.entities.collections.default'),
+    title: t('library.dialog.deleteCollection.title'),
+    description: t('library.dialog.deleteCollection.description', {
+      name: collectionsService.getCollectionDisplayName(props.collection),
     }),
     continueText: t('general.delete'),
     cancelText: t('general.cancel'),
@@ -76,17 +76,7 @@ async function deleteCollection() {
   })
 
   if (confirmed) {
-    try {
-      const success = await collectionsService.deleteCollection(
-        props.collection.id,
-      )
-      if (success) {
-        props.onDeleteSuccess?.()
-      } // Error toast is handled by the service
-    } catch (error) {
-      // Error toast is handled by the service
-      console.error('Failed to initiate delete collection:', error)
-    }
+    await collectionsService.deleteCollection(props.collection.id)
   }
 }
 </script>

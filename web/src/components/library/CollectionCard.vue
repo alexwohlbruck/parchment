@@ -6,27 +6,20 @@ import { StarIcon } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import type { Collection } from '@/types/library.types'
-import { getThemeColorClasses, type ThemeColor } from '@/lib/utils'
+import { type ThemeColor } from '@/lib/utils'
 import { ItemIcon } from '@/components/ui/item-icon'
 import CollectionContextMenu from '@/components/library/CollectionContextMenu.vue'
+import { useCollectionsService } from '@/services/library/collections.service'
 
 const props = defineProps<{
   collection: Collection
 }>()
 
 const router = useRouter()
-const { t } = useI18n()
+const collectionsService = useCollectionsService()
 
-const colorClasses = computed(() => {
-  return getThemeColorClasses(props.collection.iconColor as ThemeColor)
-})
-
-const collectionName = computed(() => {
-  if (props.collection.isDefault) {
-    return props.collection.name || t('library.entities.collections.default')
-  }
-
-  return props.collection.name
+const displayName = computed(() => {
+  return collectionsService.getCollectionDisplayName(props.collection)
 })
 
 function goToCollection() {
@@ -64,7 +57,7 @@ function goToCollection() {
         <div class="flex items-center justify-between">
           <div class="flex flex-col justify-center">
             <div class="flex items-center gap-2">
-              <h3 class="font-semibold text-sm">{{ collectionName }}</h3>
+              <h3 class="font-semibold text-sm">{{ displayName }}</h3>
             </div>
 
             <!-- Display collection description if available -->

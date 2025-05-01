@@ -582,8 +582,6 @@ const hillshade: Layer = {
       id: 'terrain-rgb',
       type: SourceType.RASTER_DEM,
       url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
-      tileSize: 256,
-      maxzoom: 15,
     },
     paint: {
       'hillshade-shadow-color': colors.slate[900],

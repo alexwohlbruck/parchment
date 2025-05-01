@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BookmarkForm from '@/components/library/BookmarkForm.vue'
 import { useCollectionsService } from '@/services/library/collections.service'
+import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { useAppService } from '@/services/app.service'
 import type { Bookmark } from '@/types/library.types'
 
@@ -13,6 +14,7 @@ const props = defineProps<{
 const { t } = useI18n()
 const appService = useAppService()
 const collectionsService = useCollectionsService()
+const bookmarksService = useBookmarksService()
 
 function openBookmarkDialog(place: Bookmark) {
   appService
@@ -39,15 +41,7 @@ function openBookmarkDialog(place: Bookmark) {
 
       console.log('Sending to API:', params)
 
-      const defaultCollection =
-        await collectionsService.fetchDefaultCollection()
-      if (defaultCollection) {
-        await collectionsService.updateBookmarkInCollection(
-          place.id,
-          defaultCollection.id,
-          params,
-        )
-      }
+      await bookmarksService.updateBookmark(place.id, params)
     })
 }
 

@@ -43,6 +43,13 @@
       "when": 1745811399240,
       "tag": "0005_colorful_lake",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1746111700992,
+      "tag": "0006_striped_sprite",
+      "breakpoints": true
     }
   ]
 }

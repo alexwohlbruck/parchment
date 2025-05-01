@@ -1,5 +1,3 @@
-import { Icon } from './app.types'
-
 export interface Bookmark {
   id: string
   externalIds: Record<string, string>
@@ -26,15 +24,15 @@ export interface Collection {
   updatedAt: string
 }
 
-export interface PlaceCollection {
-  placeId: string
+export interface BookmarkCollection {
+  bookmarkId: string
   collectionId: string
   addedAt: string
 }
 
 export interface BookmarkWithDetails {
   bookmark: Bookmark
-  details: any // UnifiedPlace from the place service
+  details: any
 }
 
 export interface CreateBookmarkParams {

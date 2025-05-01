@@ -1,20 +1,21 @@
 import { db } from '../../db'
-import { collections, placesCollections } from '../../schema/library.schema'
-import { and, eq } from 'drizzle-orm'
+import { collections, bookmarksCollections } from '../../schema/library.schema'
+import { and, eq, count } from 'drizzle-orm'
 import {
   CreateCollectionParams,
   NewCollection,
-  NewPlaceCollection,
+  NewBookmarkCollection,
   Collection,
 } from '../../types/library.types'
 import { generateId } from '../../util'
-import { getBookmarkById } from './bookmarks.service' // Import from sibling service
+import { getBookmarkById } from './bookmarks.service'
+import { bookmarks as bookmarksSchema } from '../../schema/library.schema'
+import { inArray } from 'drizzle-orm'
+import { unbookmark } from './bookmarks.service'
 
 export async function getCollections(userId: string) {
-  // Ensure the default collection exists
   await ensureDefaultCollection(userId)
 
-  // Then return all collections
   return await db
     .select()
     .from(collections)
@@ -89,14 +90,13 @@ export async function updateCollection(
   userId: string,
   updates: Partial<Collection>,
 ) {
-  // Don't allow updating userId
   const { userId: _, id: __, ...validUpdates } = updates
 
   const [updatedCollection] = await db
     .update(collections)
     .set({
       ...validUpdates,
-      updatedAt: new Date(), // Explicitly set updatedAt
+      updatedAt: new Date(),
     })
     .where(and(eq(collections.id, id), eq(collections.userId, userId)))
     .returning()
@@ -105,25 +105,21 @@ export async function updateCollection(
 }
 
 export async function deleteCollection(id: string, userId: string) {
-  // First, check if this is the default collection
   const collection = await getCollectionById(id, userId)
   if (collection && collection.isDefault) {
     throw new Error('Cannot delete the default collection')
   }
 
-  // First, remove all place associations
   await db
-    .delete(placesCollections)
-    .where(eq(placesCollections.collectionId, id))
+    .delete(bookmarksCollections)
+    .where(eq(bookmarksCollections.collectionId, id))
 
-  // Then delete the collection itself
   const [deleted] = await db
     .delete(collections)
     .where(and(eq(collections.id, id), eq(collections.userId, userId)))
     .returning()
 
   if (deleted) {
-    // If deletion occurred, update the collection's updatedAt timestamp
     await db
       .update(collections)
       .set({ updatedAt: new Date() })
@@ -133,168 +129,37 @@ export async function deleteCollection(id: string, userId: string) {
   return deleted
 }
 
-// ===== Places in Collections =====
+// ===== Bookmarks in Collections =====
 
-export async function getPlacesInCollection(
+export async function getBookmarksInCollection(
   collectionId: string,
   userId: string,
 ) {
-  // First, verify the collection exists and belongs to the user
   const collection = await getCollectionById(collectionId, userId)
   if (!collection) {
-    // Or throw an error, depending on desired behavior
     return []
   }
 
-  // Get the IDs of places linked to this collection
-  const placeLinks = await db
-    .select({ placeId: placesCollections.placeId })
-    .from(placesCollections)
-    .where(eq(placesCollections.collectionId, collectionId))
+  const bookmarkLinks = await db
+    .select({ bookmarkId: bookmarksCollections.bookmarkId })
+    .from(bookmarksCollections)
+    .where(eq(bookmarksCollections.collectionId, collectionId))
 
-  if (placeLinks.length === 0) {
+  if (bookmarkLinks.length === 0) {
     return []
   }
 
-  const placeIds = placeLinks.map((link) => link.placeId)
+  const bookmarkIds = bookmarkLinks.map((link) => link.bookmarkId)
 
-  // Fetch the actual bookmarks corresponding to these IDs, ensuring they belong to the user
-  // We need to import bookmarks schema and potentially inArray
-  // Also need to import bookmarks table definition from schema
-  const { bookmarks } = await import('../../schema/library.schema')
-  const { inArray } = await import('drizzle-orm')
-
-  const places = await db
+  const bookmarks = await db
     .select()
-    .from(bookmarks)
-    .where(and(inArray(bookmarks.id, placeIds), eq(bookmarks.userId, userId)))
-
-  return places
-}
-
-export async function saveToCollection(
-  placeId: string,
-  collectionId: string,
-  userId: string,
-) {
-  // Verify both the place and collection belong to the user
-  const place = await getBookmarkById(placeId, userId)
-  const collection = await getCollectionById(collectionId, userId)
-
-  if (!place || !collection) {
-    throw new Error('Place or collection not found')
-  }
-
-  // Check if the relationship already exists to avoid redundant updates
-  const existing = (
-    await db
-      .select()
-      .from(placesCollections)
-      .where(
-        and(
-          eq(placesCollections.placeId, placeId),
-          eq(placesCollections.collectionId, collectionId),
-        ),
-      )
-  )[0]
-
-  if (existing) {
-    return existing // Already exists, just return it
-  }
-
-  // Update the collection's updatedAt timestamp
-  await db
-    .update(collections)
-    .set({ updatedAt: new Date() })
-    .where(eq(collections.id, collectionId))
-
-  // Create the relationship
-  const newRelation: NewPlaceCollection = {
-    placeId,
-    collectionId,
-    addedAt: new Date(),
-  }
-
-  const [inserted] = await db
-    .insert(placesCollections)
-    .values(newRelation)
-    .returning()
-  return inserted
-}
-
-export async function removeFromCollection(
-  placeId: string,
-  collectionId: string,
-  userId: string,
-) {
-  // Verify both the place and collection belong to the user
-  // Note: We don't strictly need to fetch the collection here if we trust the foreign key constraints
-  // or if the goal is simply to remove the link if it exists, regardless of collection ownership.
-  // However, verifying ownership is generally safer.
-  const place = await getBookmarkById(placeId, userId)
-  const collection = await getCollectionById(collectionId, userId)
-
-  if (!place || !collection) {
-    // Decide if we should throw an error if the *collection* doesn't exist/belong to user,
-    // or just proceed to delete the relationship if the *place* exists.
-    // Current logic requires both to exist and belong to the user.
-    throw new Error('Place or collection not found for this user')
-  }
-
-  // Delete the relationship first
-  const [deleted] = await db
-    .delete(placesCollections)
+    .from(bookmarksSchema)
     .where(
       and(
-        eq(placesCollections.placeId, placeId),
-        eq(placesCollections.collectionId, collectionId),
+        inArray(bookmarksSchema.id, bookmarkIds),
+        eq(bookmarksSchema.userId, userId),
       ),
     )
-    .returning()
 
-  // We might want to return null or indicate failure if nothing was deleted
-  if (deleted) {
-    // If deletion occurred, update the collection's updatedAt timestamp
-    await db
-      .update(collections)
-      .set({ updatedAt: new Date() })
-      .where(eq(collections.id, collectionId))
-  }
-
-  return deleted
-}
-
-// Update a place in a collection (previously updateBookmark)
-export async function updateBookmarkInCollection(
-  placeId: string,
-  collectionId: string,
-  userId: string,
-  updates: any,
-) {
-  // First verify the place exists and belongs to the user
-  const place = await getBookmarkById(placeId, userId)
-  if (!place) {
-    throw new Error('Place not found')
-  }
-
-  // Verify the collection exists and belongs to the user
-  const collection = await getCollectionById(collectionId, userId)
-  if (!collection) {
-    throw new Error('Collection not found')
-  }
-
-  // Don't allow updating externalIds or userId
-  const { externalIds, userId: _, id: __, ...validUpdates } = updates
-
-  // Update the place
-  const { bookmarks } = await import('../../schema/library.schema')
-  const [updated] = await db
-    .update(bookmarks)
-    .set({
-      ...validUpdates,
-    })
-    .where(and(eq(bookmarks.id, placeId), eq(bookmarks.userId, userId)))
-    .returning()
-
-  return updated
+  return bookmarks
 }

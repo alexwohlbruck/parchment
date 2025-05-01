@@ -35,6 +35,8 @@ import type { PlaceDataAdapter } from '../types/adapter.types'
 import { API_CONFIG, SOURCE } from '../lib/constants'
 import { osmAdapter } from '../adapters/osm-adapter'
 import axios from 'axios'
+import type { Bookmark } from '../types/library.types'
+import { findBookmarkByExternalIds } from './library/bookmarks.service'
 
 // New type for search results
 export interface PlaceSearchResult {
@@ -56,6 +58,8 @@ export interface PlaceSearchResult {
   }
   distance?: number
   sources: SourceReference[]
+  bookmark?: Bookmark | null
+  collectionIds?: string[] | null
 }
 
 // New interface to represent a place candidate before merging
@@ -442,6 +446,7 @@ async function fetchExternalData(
 
 export const getPlaceDetails = async (
   id: string,
+  userId: string | null,
 ): Promise<UnifiedPlace | null> => {
   try {
     const place = await fetchPlaceFromOverpass(id)
@@ -507,6 +512,18 @@ export const getPlaceDetails = async (
           sourceId: SOURCE.WIKIDATA,
           isLogo: true,
         })
+      }
+    }
+
+    // Find associated bookmark
+    if (userId && unifiedPlace.externalIds) {
+      const bookmarkInfo = await findBookmarkByExternalIds(
+        unifiedPlace.externalIds,
+        userId,
+      )
+      if (bookmarkInfo) {
+        unifiedPlace.bookmark = bookmarkInfo.bookmark
+        unifiedPlace.collectionIds = bookmarkInfo.collectionIds
       }
     }
 
@@ -757,6 +774,8 @@ function createSearchResult(unifiedPlace: UnifiedPlace): PlaceSearchResult {
         }
       : undefined,
     sources: unifiedPlace.sources,
+    bookmark: unifiedPlace.bookmark || null,
+    collectionIds: unifiedPlace.collectionIds || null,
   }
 }
 
@@ -929,7 +948,9 @@ export function matchPlaceCandidates(
       // Create a simplified Place object from GooglePlaceDetails
       const googlePlace = bestMatch.googlePlace
       const placeLike: Place = {
-        id: parseInt(googlePlace.place_id.substring(0, 8), 16) || 0, // Generate a numeric ID from first part of place_id
+        id: (
+          parseInt(googlePlace.place_id.substring(0, 8), 16) || 0
+        ).toString(), // Generate a numeric ID from first part of place_id
         type: 'node', // Assume it's a node for simplicity
         tags: {
           name: googlePlace.name,
@@ -957,6 +978,7 @@ export function matchPlaceCandidates(
 // Updated function to handle place search
 export const searchPlaces = async (
   query: string,
+  userId: string | null,
   coordinates?: { lat: number; lng: number },
   radius: number = 1000,
 ): Promise<PlaceSearchResult[]> => {
@@ -1116,6 +1138,18 @@ export const searchPlaces = async (
 
       // Add the search result if we have a valid unified place
       if (unifiedPlace) {
+        // Find associated bookmark for search results
+        if (userId && unifiedPlace.externalIds) {
+          const bookmarkInfo = await findBookmarkByExternalIds(
+            unifiedPlace.externalIds,
+            userId,
+          )
+          if (bookmarkInfo) {
+            unifiedPlace.bookmark = bookmarkInfo.bookmark
+            unifiedPlace.collectionIds = bookmarkInfo.collectionIds
+          }
+        }
+
         const searchResult = createSearchResult(unifiedPlace)
         searchResult.distance = candidate.distance
         results.push(searchResult)
@@ -1206,6 +1240,7 @@ export const getPlaceAutocomplete = async (
 export const getPlaceDetailsByProviderId = async (
   provider: string,
   id: string,
+  userId: string | null,
 ): Promise<UnifiedPlace | null> => {
   try {
     console.log(
@@ -1215,7 +1250,7 @@ export const getPlaceDetailsByProviderId = async (
     // Factory pattern - dispatch to the appropriate handler based on provider
     switch (provider) {
       case SOURCE.GOOGLE:
-        return getPlaceDetailsByGoogleId(id)
+        return getPlaceDetailsByGoogleId(id, userId)
       // Add more provider cases as needed
       default:
         console.error(`Unsupported provider: ${provider}`)
@@ -1230,6 +1265,7 @@ export const getPlaceDetailsByProviderId = async (
 // Google ID-specific implementation
 async function getPlaceDetailsByGoogleId(
   googleId: string,
+  userId: string | null,
 ): Promise<UnifiedPlace | null> {
   try {
     console.log(`Inside getPlaceDetailsByGoogleId with ID: "${googleId}"`)
@@ -1321,6 +1357,18 @@ async function getPlaceDetailsByGoogleId(
       }
     }
 
+    // Find associated bookmark
+    if (userId && unifiedPlace.externalIds) {
+      const bookmarkInfo = await findBookmarkByExternalIds(
+        unifiedPlace.externalIds,
+        userId,
+      )
+      if (bookmarkInfo) {
+        unifiedPlace.bookmark = bookmarkInfo.bookmark
+        unifiedPlace.collectionIds = bookmarkInfo.collectionIds
+      }
+    }
+
     return unifiedPlace
   } catch (error) {
     console.error('Error getting place details by Google ID:', error)
@@ -1331,6 +1379,7 @@ async function getPlaceDetailsByGoogleId(
 export const getPlaceDetailsByNameAndLocation = async (
   name: string,
   coordinates: { lat: number; lng: number },
+  userId: string | null,
   radius: number = 500,
 ): Promise<UnifiedPlace | null> => {
   try {
@@ -1431,6 +1480,18 @@ export const getPlaceDetailsByNameAndLocation = async (
       mergePlaceData(unifiedPlace, googleAdapter, googlePlace)
     } else {
       return null
+    }
+
+    // Find associated bookmark
+    if (userId && unifiedPlace.externalIds) {
+      const bookmarkInfo = await findBookmarkByExternalIds(
+        unifiedPlace.externalIds,
+        userId,
+      )
+      if (bookmarkInfo) {
+        unifiedPlace.bookmark = bookmarkInfo.bookmark
+        unifiedPlace.collectionIds = bookmarkInfo.collectionIds
+      }
     }
 
     return unifiedPlace

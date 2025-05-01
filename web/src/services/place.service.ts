@@ -3,6 +3,7 @@ import { createSharedComposable } from '@vueuse/core'
 import { useAppService } from '@/services/app.service'
 import { api } from '@/lib/api'
 import type { UnifiedPlace } from '@/types/unified-place.types'
+import type { Bookmark } from '@/types/library.types'
 
 function placeService() {
   const currentPlace = ref<UnifiedPlace | null>(null)
@@ -89,12 +90,34 @@ function placeService() {
     currentPlace.value = null
   }
 
+  function setBookmarkStatus(
+    bookmark: Bookmark | null,
+    collectionIds: string[] | null,
+  ) {
+    if (currentPlace.value) {
+      // Convert date strings to Date objects before assigning
+      const bookmarkToAssign = bookmark
+        ? {
+            ...bookmark,
+            createdAt: new Date(bookmark.createdAt),
+            updatedAt: new Date(bookmark.updatedAt),
+            address: bookmark.address ?? null,
+            presetType: bookmark.presetType ?? null,
+          }
+        : undefined
+
+      currentPlace.value.bookmark = bookmarkToAssign
+      currentPlace.value.collectionIds = collectionIds ?? undefined
+    }
+  }
+
   return {
     currentPlace,
     loading,
     fetchPlaceDetails,
     fetchPlaceByOsmId, // Legacy method
     clearPlace,
+    setBookmarkStatus, // Export the new function
   }
 }
 

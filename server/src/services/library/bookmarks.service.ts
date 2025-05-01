@@ -298,3 +298,44 @@ export async function getCollectionsForBookmark(
       ),
     )
 }
+
+export async function findBookmarkByExternalIds(
+  externalIds: Record<string, string>,
+  userId: string,
+): Promise<{ bookmark: Bookmark; collectionIds: string[] } | null> {
+  if (!externalIds || Object.keys(externalIds).length === 0) {
+    return null
+  }
+
+  // Find bookmark matching any of the external IDs
+  // This is tricky with jsonb, might need a more specific query if performance is an issue
+  // For now, fetching all and filtering in code is simpler but less efficient
+  const userBookmarks = await db
+    .select()
+    .from(bookmarks)
+    .where(eq(bookmarks.userId, userId))
+
+  const foundBookmark = userBookmarks.find((bm) => {
+    const bmExternalIds = bm.externalIds as Record<string, string>
+    return Object.entries(externalIds).some(([provider, id]) => {
+      return bmExternalIds && bmExternalIds[provider] === id
+    })
+  })
+
+  if (!foundBookmark) {
+    return null
+  }
+
+  // Find associated collection IDs
+  const collectionLinks = await db
+    .select({ collectionId: bookmarksCollections.collectionId })
+    .from(bookmarksCollections)
+    .where(eq(bookmarksCollections.bookmarkId, foundBookmark.id))
+
+  const collectionIds = collectionLinks.map((link) => link.collectionId)
+
+  return {
+    bookmark: foundBookmark,
+    collectionIds,
+  }
+}

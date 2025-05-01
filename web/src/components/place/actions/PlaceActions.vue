@@ -76,7 +76,7 @@ async function createBookmark() {
           <FolderPlusIcon class="h-4 w-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" class="w-auto p-0 min-w-[240px]">
+      <PopoverContent align="end" class="w-auto px-0 py-1 min-w-[240px]">
         <CollectionPicker
           :bookmark="{ id: bookmarkId } as any"
           @bookmark-deleted="setBookmarkStatus(null, null)"

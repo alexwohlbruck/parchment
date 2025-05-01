@@ -217,7 +217,6 @@ function openCreateCollectionDialog() {
         />
       </div>
     </div>
-    <Separator class="my-1" />
 
     <div
       v-if="sortedAndFilteredCollections.length > 0"

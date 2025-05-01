@@ -13,6 +13,7 @@ import { useBookmarksService } from '@/services/library/bookmarks.service'
 import type { UnifiedPlace } from '@/types/unified-place.types'
 import type { Collection } from '@/types/library.types'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
+import { usePlaceService } from '@/services/place.service'
 import CollectionPicker from '@/components/library/CollectionPicker.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { type ThemeColor } from '@/lib/utils'
@@ -29,6 +30,7 @@ const props = defineProps<{
 const collectionsService = useCollectionsService()
 const bookmarksService = useBookmarksService()
 const bookmarksStore = useBookmarksStore()
+const { setBookmarkStatus } = usePlaceService()
 const defaultCollection = ref<Collection | null>(null)
 
 onMounted(async () => {
@@ -36,29 +38,25 @@ onMounted(async () => {
 })
 
 const bookmarkId = computed(() => {
-  if (!props.place.externalIds) return null
-
-  const bookmark = bookmarksStore.bookmarks.find(bookmark => {
-    return Object.entries(props.place.externalIds).some(([provider, id]) => {
-      return bookmark.externalIds[provider] === id
-    })
-  })
-
-  return bookmark?.id || null
+  return props.place?.bookmark?.id || null
 })
 
 const isSaved = computed(() => {
-  return bookmarkId.value !== null
+  return !!props.place?.bookmark
 })
 
-async function savePlace() {
+async function createBookmark() {
   if (!defaultCollection.value) {
     console.error('Default collection not loaded, cannot save place.')
     return
   }
-  await bookmarksService.createBookmark(props.place, [
+  const newBookmark = await bookmarksService.createBookmark(props.place, [
     defaultCollection.value.id,
   ])
+
+  if (newBookmark) {
+    setBookmarkStatus(newBookmark, [defaultCollection.value.id])
+  }
 }
 </script>
 
@@ -79,14 +77,17 @@ async function savePlace() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" class="min-w-[240px]">
-        <CollectionPicker :bookmark="{ id: bookmarkId } as any" />
+        <CollectionPicker
+          :bookmark="{ id: bookmarkId } as any"
+          @bookmark-deleted="setBookmarkStatus(null, null)"
+        />
       </DropdownMenuContent>
     </DropdownMenu>
     <Button
       v-else
       size="icon"
       variant="outline"
-      @click="savePlace()"
+      @click="createBookmark()"
       title="Save place"
     >
       <ItemIcon

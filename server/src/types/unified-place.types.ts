@@ -1,4 +1,5 @@
 import { SOURCE } from '../lib/constants'
+import type { Bookmark } from './library.types'
 
 export type SourceId = (typeof SOURCE)[keyof typeof SOURCE] | string
 
@@ -121,6 +122,10 @@ export interface UnifiedPlace {
   // Metadata
   lastUpdated: string // ISO date string
   createdAt: string // ISO date string
+
+  // Add bookmark and collection information
+  bookmark?: Bookmark
+  collectionIds?: string[]
 }
 
 export function selectBestValue<T>(values: AttributedValue<T>[]): T | null {

@@ -1,4 +1,5 @@
 import { Elysia, t, error } from 'elysia'
+import { getSession } from '../middleware/auth.middleware.js'
 import {
   getPlaceDetails,
   searchPlaces,
@@ -7,7 +8,7 @@ import {
   getPlaceDetailsByNameAndLocation,
 } from '../services/place.service'
 
-const app = new Elysia({ prefix: '/places' })
+const app = new Elysia({ prefix: '/places' }).use(getSession)
 
 const placeTypeSchema = t.Union([
   t.Literal('node'),
@@ -18,7 +19,7 @@ const placeTypeSchema = t.Union([
 // Add universal lookup endpoint
 app.get(
   '/lookup',
-  async ({ query }) => {
+  async ({ query, user }) => {
     const { provider, id, name, lat, lng, radius = 500 } = query
 
     // Check for at least one valid lookup parameter
@@ -43,11 +44,15 @@ app.get(
           })
         }
 
-        place = await getPlaceDetails(id)
+        place = await getPlaceDetails(id, user?.id ?? null)
       }
       // Handle other providers through common interface
       else {
-        place = await getPlaceDetailsByProviderId(provider, id)
+        place = await getPlaceDetailsByProviderId(
+          provider,
+          id,
+          user?.id ?? null,
+        )
       }
     }
     // Handle name+location lookup
@@ -56,6 +61,7 @@ app.get(
       place = await getPlaceDetailsByNameAndLocation(
         name,
         coordinates,
+        user?.id ?? null,
         parseInt(radius as string),
       )
     }
@@ -82,8 +88,8 @@ app.get(
 
 app.get(
   '/:id',
-  async ({ params: { id } }) => {
-    const place = await getPlaceDetails(id)
+  async ({ params: { id }, user }) => {
+    const place = await getPlaceDetails(id, user?.id ?? null)
 
     if (!place) {
       return error(404, { message: `Place not found: ${id}` })
@@ -102,7 +108,7 @@ app.get(
 // Add search endpoint
 app.get(
   '/search',
-  async ({ query }) => {
+  async ({ query, user }) => {
     const { q, lat, lng, radius = 1000 } = query
 
     if (!q) {
@@ -115,6 +121,7 @@ app.get(
 
     const results = await searchPlaces(
       q,
+      user?.id ?? null,
       coordinates,
       parseInt(radius as string),
     )

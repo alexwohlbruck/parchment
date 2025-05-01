@@ -26,6 +26,8 @@ const props = defineProps<{
   bookmark: Bookmark
 }>()
 
+const emit = defineEmits(['bookmark-deleted'])
+
 const collectionsStore = useCollectionsStore()
 const collectionsService = useCollectionsService()
 const bookmarksService = useBookmarksService()
@@ -133,6 +135,7 @@ async function toggleCollection(collectionId: string) {
       // Handle error case (toast shown by service)
     } else if (updatedBookmark === null) {
       bookmarkCollectionIds.value = []
+      emit('bookmark-deleted')
     } else {
       bookmarkCollectionIds.value = newCollectionIds
     }

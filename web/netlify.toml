@@ -1,0 +1,7 @@
+[build]
+  base = "web"
+  publish = "dist"
+  command = "bun install && cd ../server && bun install && cd ../web && bun run build"
+
+[build.environment]
+  NODE_VERSION = "18" 

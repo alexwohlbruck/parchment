@@ -24,7 +24,7 @@
     "axios": "^1.8.4",
     "dotenv": "^16.4.7",
     "drizzle-kit": "^0.31.0",
-    "drizzle-orm": "^0.42.0",
+    "drizzle-orm": "^0.43.1",
     "elysia": "^1.2.25",
     "lucia": "^3.2.2",
     "md5": "^2.3.0",

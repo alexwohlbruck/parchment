@@ -30,6 +30,14 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import BrandIcon from '@/components/ui/brand-icon/BrandIcon.vue'
+import {
+  siOpenstreetmap,
+  siGooglemaps,
+  siApple,
+  siYandexcloud,
+  siBaidu,
+} from 'simple-icons'
 
 const router = useRouter()
 const appService = useAppService()
@@ -127,7 +135,7 @@ function openMapEditor(editor: 'id' | 'rapid' | 'josm') {
   }
 }
 
-function openExternalMap(service: 'osm' | 'google' | 'apple' | 'bing') {
+function openExternalMap(service: 'osm' | 'google' | 'apple' | 'yandex') {
   if (!clickedLngLat.value) return
   switch (service) {
     case 'osm':
@@ -151,9 +159,11 @@ function openExternalMap(service: 'osm' | 'google' | 'apple' | 'bing') {
         '_blank',
       )
       break
-    case 'bing':
+    case 'yandex':
       window.open(
-        `https://www.bing.com/maps?cp=${clickedLngLat.value.lat}~${clickedLngLat.value.lng}&lvl=${mapCamera.value.zoom}`,
+        `https://yandex.com/maps/?ll=${clickedLngLat.value.lng}%2C${
+          clickedLngLat.value.lat
+        }&z=${Math.ceil(mapCamera.value.zoom)}`,
         '_blank',
       )
       break
@@ -179,18 +189,18 @@ function openExternalMap(service: 'osm' | 'google' | 'apple' | 'bing') {
           @click="directionsFrom()"
         >
           <ArrowUpFromDotIcon class="size-4 rotate-90" />
-          <span>{{ $t('directions.directionsFromHere') }}</span>
+          <span>{{ t('directions.directionsFromHere') }}</span>
         </DropdownMenuItem>
         <DropdownMenuItem
           v-if="!useMultistopDirections"
           @click="directionsTo()"
         >
           <ArrowDownToDotIcon class="size-4 -rotate-90" />
-          <span>{{ $t('directions.directionsToHere') }}</span>
+          <span>{{ t('directions.directionsToHere') }}</span>
         </DropdownMenuItem>
         <DropdownMenuItem v-if="useMultistopDirections" @click="fillWaypoint()">
           <PlusIcon class="size-4" />
-          <span>{{ $t('directions.addStop') }}</span>
+          <span>{{ t('directions.addStop') }}</span>
         </DropdownMenuItem>
       </DropdownMenuGroup>
 
@@ -200,7 +210,7 @@ function openExternalMap(service: 'osm' | 'google' | 'apple' | 'bing') {
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
             <CopyIcon class="mr-2 size-4" />
-            <span>{{ $t('map.contextMenu.copyLocation') }}</span>
+            <span>{{ t('map.contextMenu.copyLocation') }}</span>
           </DropdownMenuSubTrigger>
           <DropdownMenuPortal>
             <DropdownMenuSubContent>
@@ -232,21 +242,25 @@ function openExternalMap(service: 'osm' | 'google' | 'apple' | 'bing') {
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
             <ExternalLinkIcon class="mr-2 size-4" />
-            <span>{{ $t('map.contextMenu.viewIn') }}</span>
+            <span>{{ t('map.contextMenu.viewIn') }}</span>
           </DropdownMenuSubTrigger>
           <DropdownMenuPortal>
             <DropdownMenuSubContent>
               <DropdownMenuItem @click="openExternalMap('osm')">
+                <BrandIcon :icon="siOpenstreetmap" class="size-4" />
                 <span>OpenStreetMap</span>
               </DropdownMenuItem>
               <DropdownMenuItem @click="openExternalMap('google')">
+                <BrandIcon :icon="siGooglemaps" class="size-4" />
                 <span>Google Maps</span>
               </DropdownMenuItem>
               <DropdownMenuItem @click="openExternalMap('apple')">
+                <BrandIcon :icon="siApple" class="size-4" />
                 <span>Apple Maps</span>
               </DropdownMenuItem>
-              <DropdownMenuItem @click="openExternalMap('bing')">
-                <span>Bing Maps</span>
+              <DropdownMenuItem @click="openExternalMap('yandex')">
+                <BrandIcon :icon="siYandexcloud" class="size-4" />
+                <span>Yandex Maps</span>
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuPortal>
@@ -255,7 +269,7 @@ function openExternalMap(service: 'osm' | 'google' | 'apple' | 'bing') {
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
             <PencilIcon class="mr-2 size-4" />
-            <span>{{ $t('map.contextMenu.edit') }}</span>
+            <span>{{ t('map.contextMenu.edit') }}</span>
           </DropdownMenuSubTrigger>
           <DropdownMenuPortal>
             <DropdownMenuSubContent>

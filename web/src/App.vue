@@ -30,30 +30,14 @@ const viewRef = ref()
 
 const isFloatingLayout = computed(() => route.meta?.layout === 'floating')
 
-// Detect if Render server is starting from cold start. This is common with the free plan,
-// so we will show a loading screen while the server spins up.
-const requestReceived = ref(false)
-const serversSpinning = ref(false)
-
 onMounted(() => {
-  serversSpinning.value = true
-  authService.getAuthenticatedUser().then(() => {
-    requestReceived.value = true
-    serversSpinning.value = false
-  })
+  authService.getAuthenticatedUser()
   commandService.bindAllHotkeysToCommands()
   themeStore.initAccentColor()
 })
 </script>
 
 <template>
-  <AlertDialog :open="serversSpinning">
-    <AlertDialogContent class="flex flex-col items-center gap-2">
-      <Spinner size="lg" color="primary" />
-      <P>Spinning servers...</P>
-    </AlertDialogContent>
-  </AlertDialog>
-
   <!-- Popups and modals -->
   <Toaster richColors closeButton :duration="7000" position="bottom-center" />
   <HotkeysMenu />

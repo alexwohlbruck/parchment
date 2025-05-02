@@ -1,6 +1,6 @@
 <script setup lang="ts">
 defineProps<{
-  class?: string
+  customClass?: string
 }>()
 </script>
 
@@ -9,7 +9,7 @@ defineProps<{
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 24 24"
     fill="none"
-    :class="class"
+    :class="customClass"
   >
     <!-- North arrow (more opaque) -->
     <path

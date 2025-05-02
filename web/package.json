@@ -36,6 +36,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.11",
+    "drizzle-orm": "^0.43.1",
     "fuzzysort": "^2.0.4",
     "lucide-vue-next": "0.475.0",
     "mapbox-gl": "^3.10.0",

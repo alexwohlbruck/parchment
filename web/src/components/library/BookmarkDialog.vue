@@ -2,7 +2,6 @@
 import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BookmarkForm from '@/components/library/BookmarkForm.vue'
-import { useCollectionsService } from '@/services/library/collections.service'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { useAppService } from '@/services/app.service'
 import type { Bookmark } from '@/types/library.types'
@@ -13,7 +12,6 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const appService = useAppService()
-const collectionsService = useCollectionsService()
 const bookmarksService = useBookmarksService()
 
 function openBookmarkDialog(place: Bookmark) {

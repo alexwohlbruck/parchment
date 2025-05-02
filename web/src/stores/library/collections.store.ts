@@ -133,6 +133,18 @@ export const useCollectionsStore = defineStore('collections', () => {
     }
   }
 
+  function updateBookmarkCollections(
+    bookmarkId: string,
+    newCollectionIds: string[],
+  ) {
+    const collection = collections.value.find(c =>
+      c.bookmarkIds?.includes(bookmarkId),
+    )
+    if (collection) {
+      collection.bookmarkIds = newCollectionIds
+    }
+  }
+
   return {
     collections,
     getCollectionById,
@@ -142,6 +154,7 @@ export const useCollectionsStore = defineStore('collections', () => {
     removeBookmarkFromCollections,
     addBookmarkToCollection,
     removeBookmarkFromSingleCollection,
+    updateBookmarkCollections,
     normalizeCollection,
   }
 })

@@ -14,12 +14,9 @@ export const useBookmarksService = createSharedComposable(() => {
   const bookmarksStore = useBookmarksStore()
   const collectionsStore = useCollectionsStore()
   const { t } = useI18n()
-  const isSaving = ref(false) // Keep isSaving here for the savePlace action
+  const isSaving = ref(false)
 
-  async function createBookmark(
-    place: UnifiedPlace,
-    collectionIds?: string[], // Require collection IDs to add to
-  ) {
+  async function createBookmark(place: UnifiedPlace, collectionIds?: string[]) {
     if (!place.externalIds?.osm) {
       toast.error(t('services.bookmarks.saveErrorNoOsmId'))
       return null
@@ -50,6 +47,7 @@ export const useBookmarksService = createSharedComposable(() => {
     }
   }
 
+  // TODO: Clean this up
   async function updateBookmark(
     id: string,
     updates: Partial<Bookmark> & { collectionIds?: string[] },
@@ -58,13 +56,14 @@ export const useBookmarksService = createSharedComposable(() => {
       // Use PUT method again
       const response = await api.put(`/library/bookmarks/${id}`, updates)
 
-      // Response handling logic remains the same
       if (response && response.status === 200 && response.data) {
+        // Added or removed collection-bookmark relations
         const updatedBookmark = response.data
         bookmarksStore.updateBookmark(id, updatedBookmark)
         toast.success(t('services.bookmarks.updateSuccess'))
         return updatedBookmark
       } else if (response && response.status === 204) {
+        // Completely removed bookmark from all collections
         const bookmarkToRemove = bookmarksStore.getBookmarkById(id)
         const name = bookmarkToRemove?.name || t('library.entities.bookmark')
         bookmarksStore.removeBookmark(id)
@@ -99,17 +98,11 @@ export const useBookmarksService = createSharedComposable(() => {
       return false
     }
     try {
-      // **Potential Refactor:** Instead of DELETE, construct the new list of collectionIds
-      // and call `updateBookmark(bookmarkId, { collectionIds: newIdList })`?
-      // For now, keeping the specific DELETE endpoint call.
       await api.delete(`/library/bookmarks/${bookmarkId}/collections`, {
         data: { collectionIds },
       })
 
-      // Update store manually since this doesn't go through the main update logic
-      // We know exactly which collections to remove the bookmark from here.
       collectionIds.forEach(collectionId => {
-        // Call the correct store action for removing from a single collection
         collectionsStore.removeBookmarkFromSingleCollection(
           collectionId,
           bookmarkId,

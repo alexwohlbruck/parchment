@@ -59,6 +59,10 @@ export const useBookmarksStore = defineStore('bookmarks', () => {
     if (index !== -1) {
       bookmarks.value[index] = updatedPlace
     }
+
+    if (updatedPlace.collectionIds) {
+      collectionsStore.updateBookmarkCollections(id, updatedPlace.collectionIds)
+    }
   }
 
   function removeBookmark(id: string) {

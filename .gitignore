@@ -1,2 +1,4 @@
 .DS_Store
 valhalla
+node_modules
+dist

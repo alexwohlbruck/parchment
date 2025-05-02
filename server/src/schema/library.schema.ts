@@ -53,3 +53,7 @@ export const bookmarksCollections = pgTable(
     pk: primaryKey({ columns: [t.bookmarkId, t.collectionId] }),
   }),
 )
+
+export type Bookmark = typeof bookmarks.$inferSelect
+export type Collection = typeof collections.$inferSelect
+export type BookmarkCollection = typeof bookmarksCollections.$inferSelect

@@ -27,18 +27,16 @@ const { t } = useI18n()
 const emit = defineEmits(['update:valid'])
 
 const props = defineProps<{
-  place: Bookmark
+  bookmark: Bookmark
 }>()
 
-// Place types - using same options as collections for now
-const placeTypes = [
+const bookmarkTypes = [
   { value: 'home', label: t('library.types.home') },
   { value: 'work', label: t('library.types.work') },
   { value: 'school', label: t('library.types.school') },
 ]
 
-// Define form schema with zod
-const placeSchema = toTypedSchema(
+const bookmarkSchema = toTypedSchema(
   z.object({
     name: z.string().min(1, 'Name is required'),
     type: z.string().optional(),
@@ -47,7 +45,6 @@ const placeSchema = toTypedSchema(
   }),
 )
 
-// Form values interface
 interface BookmarkFormValues {
   name: string
   type?: string
@@ -55,10 +52,9 @@ interface BookmarkFormValues {
   iconColor: string
 }
 
-// Initialize form with vee-validate
 const { handleSubmit, values, meta, setFieldValue, resetForm } =
   useForm<BookmarkFormValues>({
-    validationSchema: placeSchema,
+    validationSchema: bookmarkSchema,
     initialValues: {
       name: '',
       type: undefined,
@@ -67,22 +63,20 @@ const { handleSubmit, values, meta, setFieldValue, resetForm } =
     },
   })
 
-// Load place data if available
 onMounted(() => {
-  if (props.place) {
+  if (props.bookmark) {
     resetForm({
       values: {
-        name: props.place.name,
-        type: props.place.presetType || undefined,
-        icon: props.place.icon,
-        iconColor: props.place.iconColor as ThemeColor,
+        name: props.bookmark.name,
+        type: props.bookmark.presetType || undefined,
+        icon: props.bookmark.icon,
+        iconColor: props.bookmark.iconColor as ThemeColor,
       },
     })
   }
 })
 
-// Combined icon and color style value for the picker
-const placeStyle = computed({
+const bookmarkStyle = computed({
   get: () => ({
     icon: values.icon || 'MapPin',
     color: values.iconColor as ThemeColor,
@@ -93,13 +87,11 @@ const placeStyle = computed({
   },
 })
 
-// Form submission handler
 const onSubmit = handleSubmit(formValues => {
   console.log('Form submitted with values:', formValues)
   return formValues
 })
 
-// Watch form validity and emit to parent
 watch(
   () => meta.value.valid,
   valid => {
@@ -108,17 +100,16 @@ watch(
   { immediate: true },
 )
 
-// Watch for place prop changes
 watch(
-  () => props.place,
-  newPlace => {
-    if (newPlace) {
+  () => props.bookmark,
+  newBookmark => {
+    if (newBookmark) {
       resetForm({
         values: {
-          name: newPlace.name,
-          type: newPlace.presetType || undefined,
-          icon: newPlace.icon,
-          iconColor: newPlace.iconColor as ThemeColor,
+          name: newBookmark.name,
+          type: newBookmark.presetType || undefined,
+          icon: newBookmark.icon,
+          iconColor: newBookmark.iconColor as ThemeColor,
         },
       })
     }
@@ -126,7 +117,6 @@ watch(
   { deep: true },
 )
 
-// Expose submit method to parent component
 defineExpose({
   submit: onSubmit,
 })
@@ -141,14 +131,14 @@ defineExpose({
         <FormControl>
           <Input
             v-bind="field"
-            :placeholder="t('library.form.placeholders.placeName')"
+            :placeholder="t('library.form.placeholders.bookmarkName')"
           />
         </FormControl>
         <FormMessage>{{ errorMessage }}</FormMessage>
       </FormItem>
     </FormField>
 
-    <!-- Place type field -->
+    <!-- Bookmark type field -->
     <FormField name="type" v-slot="{ field }">
       <FormItem>
         <FormLabel>{{ t('general.type') }}</FormLabel>
@@ -160,12 +150,12 @@ defineExpose({
           >
             <SelectTrigger>
               <SelectValue
-                :placeholder="t('library.form.placeholders.placeType')"
+                :placeholder="t('library.form.placeholders.bookmarkType')"
               />
             </SelectTrigger>
             <SelectContent>
               <SelectItem
-                v-for="type in placeTypes"
+                v-for="type in bookmarkTypes"
                 :key="type.value"
                 :value="type.value"
               >
@@ -182,7 +172,7 @@ defineExpose({
       <FormItem>
         <FormLabel>{{ t('general.icon') }}</FormLabel>
         <FormControl>
-          <IconPicker v-model="placeStyle" />
+          <IconPicker v-model="bookmarkStyle" />
         </FormControl>
       </FormItem>
     </FormField>

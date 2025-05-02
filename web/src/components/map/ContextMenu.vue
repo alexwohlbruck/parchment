@@ -127,9 +127,17 @@ function openMapEditor(editor: 'id' | 'rapid' | 'josm') {
   }
 }
 
-function openExternalMap(service: 'google' | 'apple' | 'bing') {
+function openExternalMap(service: 'osm' | 'google' | 'apple' | 'bing') {
   if (!clickedLngLat.value) return
   switch (service) {
+    case 'osm':
+      window.open(
+        `https://www.openstreetmap.org/#map=${Math.ceil(
+          mapCamera.value.zoom,
+        )}/${clickedLngLat.value.lat}/${clickedLngLat.value.lng}`,
+        '_blank',
+      )
+      break
     case 'google':
       window.open(
         `https://www.google.com/maps/@${clickedLngLat.value.lat},${clickedLngLat.value.lng},${mapCamera.value.zoom}z`,
@@ -228,6 +236,9 @@ function openExternalMap(service: 'google' | 'apple' | 'bing') {
           </DropdownMenuSubTrigger>
           <DropdownMenuPortal>
             <DropdownMenuSubContent>
+              <DropdownMenuItem @click="openExternalMap('osm')">
+                <span>OpenStreetMap</span>
+              </DropdownMenuItem>
               <DropdownMenuItem @click="openExternalMap('google')">
                 <span>Google Maps</span>
               </DropdownMenuItem>

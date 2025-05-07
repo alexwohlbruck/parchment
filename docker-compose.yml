@@ -1,8 +1,8 @@
 # TODO: Publish images for server parchment-server and parchment-web
 volumes:
-  osm-db:
   server-db:
   server:
+  osm-data:
 
 services:
   # # OSM imported data DB

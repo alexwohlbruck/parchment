@@ -1,0 +1,21 @@
+services:
+  router:
+    image: graphhopper/graphhopper:latest
+    container_name: parchment-router
+    depends_on:
+      - db
+    environment:
+      - GH_IMPORT_FILE=/osm/planet-latest.osm.pbf
+      - GRAPHHOPPER_CONFIG=config.yml
+    volumes:
+      - osm-data:/osm
+      - graphhopper-data:/data
+    ports:
+      - '8989:8989'
+    restart: unless-stopped
+
+volumes:
+  osm-data:
+    external: true
+
+  graphhopper-data:

@@ -1,0 +1,16 @@
+# Example overrides file for docker-compose configuration
+# Define variables in .env file
+
+# services:
+#   geocoder:
+#     image: mediagis/nominatim:4.3
+#     container_name: geocoder
+#     ports:
+#       - '${GEOCODER_PORT:-7070}:8080'
+#     volumes:
+#       - ./data/nominatim:/var/lib/postgresql/14/main
+#     environment:
+#       - PBF_URL=${PBF_URL}
+#       - REPLICATION_URL=${REPLICATION_URL}
+#       - IMPORT_STYLE=${IMPORT_STYLE:-full}
+#     restart: unless-stopped

@@ -1,0 +1,13 @@
+datareader.file: /data/osm/north-carolina-latest.osm.pbf
+graph.location: /data/graphhopper/graph-cache
+
+# Vehicles: car,foot,bike,motorcycle,bike2,mtb,racingbike,foot,hike,wheelchair
+graph.flag_encoders: car,foot
+
+# Enable turn restrictions for car routing
+graph.flag_encoders.car.turn_costs: true 
+
+# Enable contraction hierarchy for faster routing
+prepare.ch.weightings: fastest
+prepare.min_network_size: 200
+prepare.min_one_way_network_size: 200

@@ -1,0 +1,27 @@
+# Optional development overrides
+# To use: docker-compose -f docker-compose.yml -f docker-compose.override.yml up
+
+services:
+  opensearch:
+    # Lower memory requirement for development
+    environment:
+      - 'OPENSEARCH_JAVA_OPTS=-Xms256m -Xmx256m'
+
+  # For development, preconfigure for North Carolina region
+  graphhopper:
+    environment:
+      - JAVA_OPTS=-Xmx512m -Xms512m
+    volumes:
+      - ./data/osm/north-carolina-latest.osm.pbf:/data/osm/osm.pbf
+
+  # Debugging aid for Pelias
+  opensearch-dashboard:
+    image: opensearchproject/opensearch-dashboards:latest
+    container_name: opensearch-dashboard
+    ports:
+      - '5601:5601'
+    environment:
+      - 'OPENSEARCH_HOSTS=["http://opensearch:9200"]'
+      - 'DISABLE_SECURITY_DASHBOARDS_PLUGIN=true'
+    depends_on:
+      - opensearch

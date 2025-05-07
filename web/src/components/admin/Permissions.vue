@@ -4,15 +4,14 @@ import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
 import { ColumnDef } from '@tanstack/vue-table'
 import { Permission, Role } from '@/types/auth.types'
+import { useI18n } from 'vue-i18n'
 
 import { useUserService } from '@/services/user.service'
 
-import { H4 } from '@/components/ui/typography'
 import DataTable from '@/components/table/DataTable.vue'
-import { Button } from '@/components/ui/button'
-import { Trash2Icon } from 'lucide-vue-next'
 import { Code } from '@/components/ui/code'
 import { SettingsSection } from '@/components/settings'
+const { t } = useI18n()
 
 dayjs.extend(localizedFormat)
 
@@ -39,7 +38,7 @@ onMounted(getPermissions)
 
 <template>
   <SettingsSection
-    :title="$t('settings.users.permissions.title')"
+    :title="t('settings.users.permissions.title')"
     :frame="false"
   >
     <DataTable

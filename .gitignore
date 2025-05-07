@@ -2,5 +2,3 @@
 valhalla
 node_modules
 dist
-/data
-/pelias

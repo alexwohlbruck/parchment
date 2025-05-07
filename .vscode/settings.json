@@ -21,7 +21,7 @@
     "vueuse"
   ],
   "search.followSymlinks": false,
-  "cSpell.ignoreWords": ["rchment"],
+  "cSpell.ignoreWords": [],
   "javascript.preferences.importModuleSpecifier": "non-relative",
 
   // The path to the `bun` executable.
@@ -44,7 +44,8 @@
     "**/node_modules/**": true,
     "**/tmp/**": true,
     "**/dist/**": true,
-    "**/src-tauri/**": true
+    "**/src-tauri/**": true,
+    "**/data/**": true
   },
   "search.exclude": {
     "**/node_modules/**": true,

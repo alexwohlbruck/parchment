@@ -3,7 +3,7 @@ volumes:
   osm-data:
   server-db:
   server:
-  opensearch-data:
+  elasticsearch-data:
   graphhopper-data:
 
 services:
@@ -76,24 +76,23 @@ services:
     depends_on:
       - server
 
-  # OpenSearch (replacement for Elasticsearch)
-  opensearch:
-    container_name: opensearch
-    image: opensearchproject/opensearch:2.11.0
+  # Elasticsearch (replacement for OpenSearch)
+  elasticsearch:
+    container_name: elasticsearch
+    image: elasticsearch:7.17.10
     environment:
       - discovery.type=single-node
       - bootstrap.memory_lock=true
-      - 'OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m'
-      - plugins.security.disabled=true
+      - 'ES_JAVA_OPTS=-Xms512m -Xmx512m'
+      - xpack.security.enabled=false
     ulimits:
       memlock:
         soft: -1
         hard: -1
     volumes:
-      - opensearch-data:/usr/share/opensearch/data
+      - elasticsearch-data:/usr/share/elasticsearch/data
     ports:
       - '9200:9200'
-      - '9600:9600'
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:9200']
       interval: 30s
@@ -107,14 +106,14 @@ services:
     restart: always
     environment:
       - PORT=4000
-      - ELASTICSEARCH_HOST=opensearch
+      - ELASTICSEARCH_HOST=elasticsearch
       - ELASTICSEARCH_PORT=9200
     ports:
       - '4000:4000'
     volumes:
       - ./config/pelias:/etc/pelias
     depends_on:
-      - opensearch
+      - elasticsearch
       - libpostal
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:4000/v1/search?text=test']

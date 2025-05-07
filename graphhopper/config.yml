@@ -1,8 +1,8 @@
 datareader.file: /data/osm/north-carolina-latest.osm.pbf
 graph.location: /data/graphhopper/graph-cache
 
-# Vehicles: car,foot,bike,motorcycle,bike2,mtb,racingbike,foot,hike,wheelchair
-graph.flag_encoders: car,foot
+# Vehicles: car,foot,bike,motorcycle,bike2,mtb,racingbike,hike,wheelchair
+graph.flag_encoders: car,foot,bike,wheelchair
 
 # Enable turn restrictions for car routing
 graph.flag_encoders.car.turn_costs: true 

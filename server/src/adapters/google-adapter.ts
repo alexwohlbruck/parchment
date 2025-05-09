@@ -6,7 +6,7 @@ import type {
   Address,
   OpeningHours,
 } from '../types/unified-place.types'
-import { GOOGLE_MAPS_PHOTO_URL } from '../services/external-api.service'
+import { GOOGLE_MAPS_PHOTO_URL } from '../lib/constants'
 import { parseGoogleHours } from '../lib/hours.utils'
 import { getTimestamp } from '../services/merge.service'
 import { BUSINESS_STATUS, SOURCE } from '../lib/constants'

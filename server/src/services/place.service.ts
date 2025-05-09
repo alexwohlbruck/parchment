@@ -11,13 +11,12 @@ import type {
 import { getPlaceType } from '../lib/place.utils'
 import {
   searchGooglePlace,
-  GOOGLE_PLACES_API_URL,
-  GOOGLE_MAPS_PHOTO_URL,
   searchGooglePlaces,
   getGooglePlacesAutocomplete,
-  AutocompletePrediction,
+  getPeliasAutocomplete,
   transformGooglePlace,
 } from './external-api.service'
+import { GOOGLE_PLACES_API_URL } from '../lib/constants'
 import {
   mergeAttributedValues,
   selectBestValue,
@@ -37,7 +36,9 @@ import { osmAdapter } from '../adapters/osm-adapter'
 import axios from 'axios'
 import type { Bookmark } from '../types/library.types'
 import { findBookmarkByExternalIds } from './library/bookmarks.service'
+import type { AutocompletePrediction } from '../types/place.types'
 
+// TODO: Replace with unified place
 // New type for search results
 export interface PlaceSearchResult {
   id: string
@@ -1206,7 +1207,7 @@ export const getPlaceAutocomplete = async (
   query: string,
   coordinates?: { lat: number; lng: number },
   radius: number = 10000,
-): Promise<AutocompletePrediction[]> => {
+): Promise<UnifiedPlace[]> => {
   try {
     if (!query || query.length < 2) {
       return []
@@ -1214,26 +1215,434 @@ export const getPlaceAutocomplete = async (
 
     console.log(`Getting autocomplete suggestions for "${query}"`)
 
-    // For now, use only Google Places autocomplete
-    // Later, we'll integrate with Pelias as well
-    const googleSuggestions = await getGooglePlacesAutocomplete(
-      query,
-      coordinates?.lat,
-      coordinates?.lng,
-      radius,
+    const promises: Promise<UnifiedPlace[]>[] = []
+
+    promises.push(
+      getPeliasAutocomplete(query, coordinates?.lat, coordinates?.lng, radius),
     )
 
-    return googleSuggestions
+    if (API_CONFIG[SOURCE.GOOGLE]) {
+      promises.push(
+        transformGoogleAutocomplete(
+          getGooglePlacesAutocomplete(
+            query,
+            coordinates?.lat,
+            coordinates?.lng,
+            radius,
+          ),
+        ),
+      )
+    }
 
-    // Future implementation:
-    // When Pelias is integrated, we can add code to:
-    // 1. Search both Google Places and Pelias
-    // 2. Merge and deduplicate results
-    // 3. Sort by relevance
+    // Wait for all queries to complete
+    const results = await Promise.all(promises)
+
+    console.log(`Found ${results.length} autocomplete results`)
+
+    // Combine all results
+    let allPlaces: UnifiedPlace[] = []
+    results.forEach((providerPlaces) => {
+      allPlaces = allPlaces.concat(providerPlaces)
+    })
+
+    // Deduplicate places between different providers
+    const uniquePlaces = deduplicateAutocompletePlaces(allPlaces, coordinates)
+
+    return uniquePlaces
   } catch (error) {
     console.error('Error getting place autocomplete suggestions:', error)
     return []
   }
+}
+
+// Helper function to transform Google autocomplete predictions to UnifiedPlace objects
+async function transformGoogleAutocomplete(
+  googlePromise: Promise<AutocompletePrediction[]>,
+): Promise<UnifiedPlace[]> {
+  try {
+    const predictions = await googlePromise
+
+    return predictions.map((prediction) => {
+      // Ensure the Google place ID is properly formatted with google/ prefix
+      // If it already has the prefix, keep it as is
+      const googleId = prediction.placeId.startsWith('google/')
+        ? prediction.placeId
+        : `google/${prediction.placeId}`
+
+      // Create a description that includes the name and address for better display
+      const description =
+        prediction.description ||
+        `${prediction.mainText}, ${prediction.secondaryText}`
+
+      // Extract coordinates from the prediction if available
+      let lat = 0
+      let lng = 0
+
+      // Check various possible location properties on the prediction
+      if (
+        typeof prediction.lat === 'number' &&
+        typeof prediction.lng === 'number'
+      ) {
+        // Direct lat/lng properties
+        lat = prediction.lat
+        lng = prediction.lng
+      } else {
+        // Try to access the location property safely
+        // TypeScript doesn't know about location, but it might exist at runtime
+        const anyPrediction = prediction as any
+        if (
+          anyPrediction.location &&
+          typeof anyPrediction.location.latitude === 'number' &&
+          typeof anyPrediction.location.longitude === 'number'
+        ) {
+          lat = anyPrediction.location.latitude
+          lng = anyPrediction.location.longitude
+        }
+      }
+
+      // Log coordinate extraction for debugging
+      console.log(
+        `Extracted coordinates for ${prediction.mainText}: (${lat}, ${lng})`,
+      )
+
+      const unifiedPlace: UnifiedPlace = {
+        id: googleId,
+        externalIds: {
+          [SOURCE.GOOGLE]: prediction.placeId.replace('google/', ''),
+        },
+        name: prediction.mainText,
+        description: description,
+        placeType: prediction.types[0] || 'unknown',
+        geometry: {
+          type: 'point',
+          center: {
+            lat: lat,
+            lng: lng,
+          },
+        },
+        photos: [],
+        address: prediction.secondaryText
+          ? {
+              formatted: prediction.secondaryText,
+            }
+          : null,
+        contactInfo: {
+          phone: null,
+          email: null,
+          website: null,
+          socials: {},
+        },
+        openingHours: null,
+        amenities: {},
+        sources: [
+          {
+            id: SOURCE.GOOGLE,
+            name: 'Google',
+            url: '',
+          },
+        ],
+        lastUpdated: getTimestamp(),
+        createdAt: getTimestamp(),
+      }
+
+      return unifiedPlace
+    })
+  } catch (error) {
+    console.error('Error transforming Google autocomplete predictions:', error)
+    return []
+  }
+}
+
+/**
+ * This function deduplicates autocomplete results across different providers.
+ * It groups places by provider first, then by name, and finally by location.
+ * It then selects the best result for each group.
+ */
+function deduplicateAutocompletePlaces(
+  places: UnifiedPlace[],
+  coordinates?: { lat: number; lng: number },
+): UnifiedPlace[] {
+  if (!places.length) return []
+
+  console.log(
+    `Deduplicating ${places.length} autocomplete places across providers`,
+  )
+
+  // Log place sources and coordinates for debugging
+  places.forEach((place) => {
+    console.log(
+      `Place ${place.name} (${place.id}): source=${place.sources[0]?.id}, coordinates=(${place.geometry.center.lat}, ${place.geometry.center.lng})`,
+    )
+  })
+
+  // Group places by provider first
+  const placesByProvider: Record<string, UnifiedPlace[]> = {}
+
+  places.forEach((place) => {
+    const providerId = place.sources[0]?.id || 'unknown'
+    if (!placesByProvider[providerId]) {
+      placesByProvider[providerId] = []
+    }
+    placesByProvider[providerId].push(place)
+  })
+
+  // First priority: Add all OSM/Pelias results as base places
+  const finalResults: UnifiedPlace[] = []
+  const nameToPlaceMap: Record<
+    string,
+    { place: UnifiedPlace; nameKey: string }
+  > = {}
+
+  // Helper function to normalize name for comparison
+  const normalizeName = (name: string): string => {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s]/g, '')
+      .replace(/\s+/g, ' ')
+  }
+
+  // Helper function to normalize address for comparison
+  const normalizeAddress = (address: string): string => {
+    return address
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, ' ')
+      .replace(/,/g, '')
+      .replace(/\bstreet\b/g, 'st')
+      .replace(/\blane\b/g, 'ln')
+      .replace(/\bavenue\b/g, 'ave')
+      .replace(/\bboulevard\b/g, 'blvd')
+      .replace(/\broad\b/g, 'rd')
+      .replace(/\bunit\b/g, '')
+      .replace(/\bsuite\b/g, '')
+      .replace(/\bapt\b/g, '')
+      .replace(/\bnorth\b/g, 'n')
+      .replace(/\bsouth\b/g, 's')
+      .replace(/\beast\b/g, 'e')
+      .replace(/\bwest\b/g, 'w')
+      .replace(/\b(nc|north carolina)\b/g, '')
+      .replace(/\busa\b/g, '')
+      .replace(/[^\w\s]/g, '') // Remove special characters
+      .replace(/\d{5}(\-\d{4})?/g, '') // Remove zip codes
+      .trim()
+  }
+
+  const getAddressString = (place: UnifiedPlace): string | null => {
+    if (place.address?.formatted) {
+      return place.address.formatted
+    }
+    if (place.address?.street1) {
+      let addressStr = place.address.street1
+      if (place.address.locality) addressStr += ' ' + place.address.locality
+      return addressStr
+    }
+    if (place.description && place.description.includes(',')) {
+      const parts = place.description.split(',')
+      if (parts.length > 1) {
+        return parts.slice(1).join(',').trim()
+      }
+    }
+    return null
+  }
+
+  const getStreetNumber = (address: string): string | null => {
+    const match = address.match(/^\d+/)
+    return match ? match[0] : null
+  }
+
+  const osmPeliasResults = [
+    ...(placesByProvider[SOURCE.OSM] || []),
+    ...(placesByProvider[SOURCE.PELIAS] || []),
+  ]
+
+  osmPeliasResults.forEach((place) => {
+    const nameKey = normalizeName(place.name)
+    finalResults.push(place)
+    nameToPlaceMap[place.id] = { place, nameKey }
+  })
+
+  Object.entries(placesByProvider).forEach(([providerId, providerPlaces]) => {
+    if (providerId === SOURCE.OSM || providerId === SOURCE.PELIAS) return
+
+    providerPlaces.forEach((place) => {
+      const normalizedName = normalizeName(place.name)
+
+      let matchFound = false
+
+      for (const { place: existingPlace, nameKey } of Object.values(
+        nameToPlaceMap,
+      )) {
+        // Skip if provider is the same (no need to merge within the same provider)
+        if (existingPlace.sources[0]?.id === place.sources[0]?.id) continue
+
+        if (nameKey === normalizedName) {
+          const placeAddress = getAddressString(place)
+          const existingAddress = getAddressString(existingPlace)
+
+          console.log(
+            `Comparing addresses for ${place.name}: "${placeAddress}" vs "${existingAddress}"`,
+          )
+
+          let isMatch = true
+
+          if (placeAddress && existingAddress) {
+            const placeStreetNum = getStreetNumber(placeAddress)
+            const existingStreetNum = getStreetNumber(existingAddress)
+
+            console.log(
+              `Street numbers: ${placeStreetNum} vs ${existingStreetNum}`,
+            )
+
+            if (
+              placeStreetNum &&
+              existingStreetNum &&
+              placeStreetNum !== existingStreetNum
+            ) {
+              console.log(
+                `Different street numbers (${placeStreetNum} vs ${existingStreetNum}), not merging`,
+              )
+              isMatch = false
+            } else {
+              const normalizedPlaceAddr = normalizeAddress(placeAddress)
+              const normalizedExistingAddr = normalizeAddress(existingAddress)
+
+              console.log(
+                `Normalized addresses: "${normalizedPlaceAddr}" vs "${normalizedExistingAddr}"`,
+              )
+
+              isMatch =
+                !!normalizedPlaceAddr &&
+                !!normalizedExistingAddr &&
+                (normalizedPlaceAddr.includes(normalizedExistingAddr) ||
+                  normalizedExistingAddr.includes(normalizedPlaceAddr) ||
+                  // Check for matching street number if available
+                  (!!placeStreetNum &&
+                    !!existingStreetNum &&
+                    placeStreetNum === existingStreetNum))
+
+              console.log(`Address match result: ${isMatch}`)
+            }
+          }
+
+          if (isMatch) {
+            console.log(
+              `Merging duplicate ${providerId} place: ${place.name} into existing place (address match)`,
+            )
+
+            // Preserve external IDs from both sources
+            if (place.externalIds) {
+              Object.entries(place.externalIds).forEach(
+                ([idSource, idValue]) => {
+                  existingPlace.externalIds[idSource] = idValue
+                },
+              )
+            }
+
+            // Find the appropriate adapter for this provider
+            let adapter: PlaceDataAdapter
+            if (providerId === SOURCE.GOOGLE) {
+              adapter = googleAdapter
+            } else {
+              // Skip if we don't have an adapter for this provider
+              console.log(
+                `No adapter found for provider ${providerId}, skipping merge`,
+              )
+              continue
+            }
+
+            // Use existing merge logic to combine the places
+            mergePlaceData(existingPlace, adapter, place)
+            matchFound = true
+            break
+          } else {
+            console.log(
+              `Same name but different address, not merging: ${place.name}`,
+            )
+          }
+        }
+
+        // Check for close matches with coordinates if available
+        if (
+          !matchFound &&
+          coordinates &&
+          place.geometry.center.lat !== 0 &&
+          place.geometry.center.lng !== 0 &&
+          existingPlace.geometry.center.lat !== 0 &&
+          existingPlace.geometry.center.lng !== 0
+        ) {
+          // Check name similarity
+          const nameSimilarity = calculateNameSimilarity(
+            existingPlace.name,
+            place.name,
+          )
+          if (nameSimilarity > 0.85) {
+            // If names are similar, check if locations are close
+            const distance = calculateDistance(
+              existingPlace.geometry.center.lat,
+              existingPlace.geometry.center.lng,
+              place.geometry.center.lat,
+              place.geometry.center.lng,
+            )
+
+            console.log(
+              `Distance between similar places ${place.name} and ${
+                existingPlace.name
+              }: ${distance.toFixed(0)}m`,
+            )
+
+            if (distance < 300) {
+              // Places within 300m with similar names
+              console.log(
+                `Merging likely duplicate ${providerId} place: ${
+                  place.name
+                } based on name similarity (${nameSimilarity.toFixed(
+                  2,
+                )}) and location (${distance.toFixed(0)}m)`,
+              )
+
+              // Preserve external IDs from both sources
+              if (place.externalIds) {
+                Object.entries(place.externalIds).forEach(
+                  ([idSource, idValue]) => {
+                    existingPlace.externalIds[idSource] = idValue
+                  },
+                )
+              }
+
+              // Find the appropriate adapter
+              let adapter: PlaceDataAdapter
+              if (providerId === SOURCE.GOOGLE) {
+                adapter = googleAdapter
+              } else {
+                console.log(
+                  `No adapter found for provider ${providerId}, skipping merge`,
+                )
+                continue
+              }
+
+              // Merge the place data
+              mergePlaceData(existingPlace, adapter, place)
+              matchFound = true
+              break
+            }
+          }
+        }
+      }
+
+      // If no match was found, add as a new place
+      if (!matchFound) {
+        console.log(`No match found for ${place.name}, adding as new place`)
+        finalResults.push(place)
+        nameToPlaceMap[place.id] = { place, nameKey: normalizedName }
+      }
+    })
+  })
+
+  console.log(
+    `Returned ${finalResults.length} deduplicated places (original: ${places.length})`,
+  )
+  return finalResults
 }
 
 // Generic function to get place details by any provider ID
@@ -1251,6 +1660,8 @@ export const getPlaceDetailsByProviderId = async (
     switch (provider) {
       case SOURCE.GOOGLE:
         return getPlaceDetailsByGoogleId(id, userId)
+      case SOURCE.PELIAS:
+        return getPlaceDetailsByPeliasId(id, userId)
       // Add more provider cases as needed
       default:
         console.error(`Unsupported provider: ${provider}`)
@@ -1372,6 +1783,41 @@ async function getPlaceDetailsByGoogleId(
     return unifiedPlace
   } catch (error) {
     console.error('Error getting place details by Google ID:', error)
+    return null
+  }
+}
+
+// Pelias ID-specific implementation
+async function getPlaceDetailsByPeliasId(
+  peliasId: string,
+  userId: string | null,
+): Promise<UnifiedPlace | null> {
+  try {
+    console.log(`Getting place details by Pelias ID: "${peliasId}"`)
+
+    // Pelias IDs should be in OSM format (way/123456, node/123456, relation/123456)
+    // If the ID starts with "way/", "node/", or "relation/", use it directly
+    // Otherwise, try to parse it from the OpenStreetMap ID format
+
+    let osmId = peliasId
+
+    // Check if we need to extract the OSM ID from a Pelias format (which might include source prefix)
+    if (peliasId.includes(':')) {
+      const parts = peliasId.split(':')
+      if (parts.length > 1) {
+        // Format could be "openstreetmap:venue:way/123456"
+        const lastPart = parts[parts.length - 1]
+        if (lastPart.includes('/')) {
+          osmId = lastPart
+        }
+      }
+    }
+
+    // Once we have the OSM ID, use our existing getPlaceDetails function
+    console.log(`Using OSM ID for lookup: "${osmId}"`)
+    return getPlaceDetails(osmId, userId)
+  } catch (error) {
+    console.error('Error getting place details by Pelias ID:', error)
     return null
   }
 }

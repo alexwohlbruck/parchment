@@ -4,6 +4,11 @@ volumes:
   server:
   osm-data:
 
+networks:
+  default:
+    external: true
+    name: parchment-network
+
 services:
   # # OSM imported data DB
   # osm-db:

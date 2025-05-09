@@ -16,7 +16,7 @@ const placeTypeSchema = t.Union([
   t.Literal('relation'),
 ])
 
-// Add universal lookup endpoint
+// Get place by provider+id, name+lat+lng, or id
 app.get(
   '/lookup',
   async ({ query, user }) => {
@@ -86,6 +86,7 @@ app.get(
   },
 )
 
+// Get place details by id
 app.get(
   '/:id',
   async ({ params: { id }, user }) => {
@@ -105,7 +106,70 @@ app.get(
   },
 )
 
-// Add search endpoint
+// Autocomplete search for fast suggestions
+app.get(
+  '/autocomplete',
+  async ({ query }) => {
+    const { q, lat, lng, radius = 10000 } = query
+
+    console.log(
+      `Autocomplete request: q="${q}", lat=${lat}, lng=${lng}, radius=${radius}`,
+    )
+
+    if (!q) {
+      console.log('Error: Search query is required')
+      return error(400, { message: 'Search query is required' })
+    }
+
+    // Require at least 2 characters for autocomplete
+    if (q.length < 2) {
+      console.log('Error: Query must be at least 2 characters')
+      return error(400, { message: 'Query must be at least 2 characters' })
+    }
+
+    // Convert coordinates to numbers if provided
+    const coordinates =
+      lat && lng ? { lat: parseFloat(lat), lng: parseFloat(lng) } : undefined
+
+    console.log(
+      `Using coordinates: ${
+        coordinates ? `${coordinates.lat}, ${coordinates.lng}` : 'none provided'
+      }`,
+    )
+
+    // Get autocomplete suggestions from multiple providers (Pelias and optionally Google)
+    console.log('Calling getPlaceAutocomplete')
+    const places = await getPlaceAutocomplete(
+      q,
+      coordinates,
+      parseInt(radius as string),
+    )
+
+    console.log(`Returning ${places.length} places for autocomplete`)
+    console.log(
+      `Sources breakdown: ${places.reduce((acc, place) => {
+        const source = place.sources[0]?.id || 'unknown'
+        acc[source] = (acc[source] || 0) + 1
+        return acc
+      }, {} as Record<string, number>)}`,
+    )
+
+    return {
+      query: q,
+      places,
+    }
+  },
+  {
+    query: t.Object({
+      q: t.String(),
+      lat: t.Optional(t.String()),
+      lng: t.Optional(t.String()),
+      radius: t.Optional(t.String()),
+    }),
+  },
+)
+
+// Search for places by name
 app.get(
   '/search',
   async ({ query, user }) => {
@@ -129,46 +193,6 @@ app.get(
     return {
       query: q,
       results,
-    }
-  },
-  {
-    query: t.Object({
-      q: t.String(),
-      lat: t.Optional(t.String()),
-      lng: t.Optional(t.String()),
-      radius: t.Optional(t.String()),
-    }),
-  },
-)
-
-// Add autocomplete endpoint for faster search suggestions
-app.get(
-  '/autocomplete',
-  async ({ query }) => {
-    const { q, lat, lng, radius = 10000 } = query
-
-    if (!q) {
-      return error(400, { message: 'Search query is required' })
-    }
-
-    // Require at least 2 characters for autocomplete
-    if (q.length < 2) {
-      return error(400, { message: 'Query must be at least 2 characters' })
-    }
-
-    // Convert coordinates to numbers if provided
-    const coordinates =
-      lat && lng ? { lat: parseFloat(lat), lng: parseFloat(lng) } : undefined
-
-    const suggestions = await getPlaceAutocomplete(
-      q,
-      coordinates,
-      parseInt(radius as string),
-    )
-
-    return {
-      query: q,
-      suggestions,
     }
   },
   {

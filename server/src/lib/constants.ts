@@ -9,6 +9,7 @@ export const SOURCE = {
   FOURSQUARE: 'foursquare',
   TRIPADVISOR: 'tripadvisor',
   OPENTABLE: 'opentable',
+  PELIAS: 'pelias',
 } as const
 
 /**
@@ -43,8 +44,19 @@ export const BUSINESS_STATUS = {
  * API configuration
  */
 export const API_CONFIG = {
-  [SOURCE.GOOGLE]: true,
-  [SOURCE.WIKIDATA]: true,
+  [SOURCE.OSM]: true, // Always enabled
+  [SOURCE.GOOGLE]: true, //!!process.env.GOOGLE_MAPS_API_KEY,
+  [SOURCE.WIKIDATA]: true, // Always enabled
+  [SOURCE.PELIAS]: true, // Always enabled, hosted locally
   [SOURCE.YELP]: false, // Not implemented yet
   [SOURCE.FOURSQUARE]: false, // Not implemented yet
 } as const
+
+// Google API constants
+export const GOOGLE_MAPS_PHOTO_URL =
+  'https://maps.googleapis.com/maps/api/place/photo'
+export const GOOGLE_PLACES_API_URL = 'https://places.googleapis.com/v1/places'
+export const DEFAULT_SEARCH_RADIUS = 500 // meters
+
+// Pelias constants
+export const PELIAS_API_URL = 'http://pelias_api:4000/v1/autocomplete'

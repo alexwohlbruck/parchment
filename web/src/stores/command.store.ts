@@ -19,6 +19,7 @@ import {
   SunMoonIcon,
   TerminalIcon,
 } from 'lucide-vue-next'
+import { UnifiedPlace } from '../types/unified-place.types'
 import { useDark, useToggle } from '@vueuse/core'
 import {
   allColors,
@@ -158,16 +159,19 @@ export const useCommandStore = defineStore('command', () => {
         hotkey: ['/'],
         icon: SearchIcon,
         keywords: t('palette.commands.search.keywords'),
-        action: (placeId: string) => {
-          console.log('Selected place:', placeId)
-
-          try {
-            // Use the utility function to get the appropriate route
-            const route = getPlaceRoute(placeId)
+        action: (place: UnifiedPlace) => {
+          if (Object.keys(place.externalIds).includes('osm')) {
+            const route = getPlaceRoute(place.externalIds.osm)
             router.push(route)
-          } catch (error) {
-            console.error('Error navigating to place:', error)
-            // Could add toast notification here if needed
+          } else {
+            const [provider, placeId] = Object.entries(place.externalIds)[0]
+            router.push({
+              name: AppRoute.PLACE_PROVIDER,
+              params: {
+                provider,
+                placeId,
+              },
+            })
           }
         },
         arguments: [
@@ -211,10 +215,13 @@ export const useCommandStore = defineStore('command', () => {
                   return []
                 }
 
-                return suggestions.map(suggestion => ({
-                  value: suggestion.placeId,
-                  name: suggestion.mainText,
-                  description: suggestion.secondaryText,
+                console.log(suggestions)
+
+                return suggestions.map(place => ({
+                  value: place,
+                  name: place.name,
+                  description:
+                    place.address?.street1 || place.address?.formatted || '',
                   icon: MapPinIcon,
                 }))
               } catch (error) {

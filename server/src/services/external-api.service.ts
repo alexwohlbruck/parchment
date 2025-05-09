@@ -2,6 +2,16 @@ import axios from 'axios'
 import type { GooglePlaceDetails } from '../types/place.types'
 import type { Place } from '../types/place.types'
 import * as turf from '@turf/turf'
+import {
+  PeliasFeature,
+  createUnifiedPlaceFromPelias,
+} from '../adapters/pelias-adapter'
+import type { UnifiedPlace } from '../types/unified-place.types'
+import {
+  GOOGLE_PLACES_API_URL,
+  DEFAULT_SEARCH_RADIUS,
+  PELIAS_API_URL,
+} from '../lib/constants'
 
 // Define the structure of Google Places API response
 interface GooglePlaceApiResponse {
@@ -57,12 +67,6 @@ interface GooglePlaceApiResponse {
   utcOffsetMinutes?: number
 }
 
-// Google API constants
-export const GOOGLE_MAPS_PHOTO_URL =
-  'https://maps.googleapis.com/maps/api/place/photo'
-export const GOOGLE_PLACES_API_URL = 'https://places.googleapis.com/v1/places'
-const DEFAULT_SEARCH_RADIUS = 500 // meters
-
 // Interface for autocomplete prediction results
 export interface AutocompletePrediction {
   placeId: string
@@ -70,6 +74,9 @@ export interface AutocompletePrediction {
   mainText: string
   secondaryText: string
   types: string[]
+  provider?: string
+  lat?: number
+  lng?: number
 }
 
 function calculateSearchRadius(place: Place): number {
@@ -512,7 +519,10 @@ export async function getGooglePlacesAutocomplete(
       mainText: place.displayName?.text || '',
       secondaryText: place.formattedAddress || '',
       types: place.types || [],
-      // We can't get distanceMeters from the API, remove it
+      // Include location data if available
+      lat: place.location?.latitude,
+      lng: place.location?.longitude,
+      provider: 'google',
     }))
 
     console.log(`Returning ${predictions.length} autocomplete suggestions`)
@@ -540,6 +550,65 @@ export async function getGooglePlacesAutocomplete(
     } else {
       console.error('Error setting up request:', error.message)
     }
+    return []
+  }
+}
+
+// Function to get autocomplete suggestions from Pelias
+export async function getPeliasAutocomplete(
+  query: string,
+  lat?: number,
+  lng?: number,
+  radius: number = 10000,
+): Promise<UnifiedPlace[]> {
+  try {
+    if (!query || query.length < 2) {
+      return []
+    }
+
+    console.log(`Querying Pelias autocomplete with "${query}"`)
+
+    const params: Record<string, string | number> = {
+      text: query,
+      size: 10,
+    }
+
+    // Add location bias if coordinates are provided
+    if (lat !== undefined && lng !== undefined) {
+      console.log(`Adding location bias: (${lat}, ${lng})`)
+      params['focus.point.lat'] = lat
+      params['focus.point.lon'] = lng
+
+      // We can optionally restrict the search radius with boundary.circle
+      if (radius) {
+        params['boundary.circle.lat'] = lat
+        params['boundary.circle.lon'] = lng
+        // Convert radius from meters to kilometers for Pelias
+        params['boundary.circle.radius'] = radius / 1000
+      }
+    }
+
+    const response = await axios.get(PELIAS_API_URL, { params })
+
+    if (
+      !response.data ||
+      !response.data.features ||
+      !Array.isArray(response.data.features)
+    ) {
+      console.error('Invalid Pelias response format')
+      return []
+    }
+
+    // Transform Pelias results to UnifiedPlace objects
+    const places: UnifiedPlace[] = response.data.features.map(
+      (feature: PeliasFeature) => {
+        return createUnifiedPlaceFromPelias(feature)
+      },
+    )
+
+    return places
+  } catch (error) {
+    console.error('Error getting Pelias autocomplete suggestions:', error)
     return []
   }
 }

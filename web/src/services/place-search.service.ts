@@ -1,24 +1,16 @@
 import { ref } from 'vue'
 import { createSharedComposable } from '@vueuse/core'
 import { api } from '@/lib/api'
-
-export interface AutocompletePrediction {
-  placeId: string // Will be formatted as "provider/id" for provider-specific places
-  description: string // Full description of the place
-  mainText: string // Primary text (place name)
-  secondaryText: string // Secondary text (usually address)
-  types: string[] // Place types
-  provider?: string // Added to keep track of the data provider
-}
+import type { UnifiedPlace } from '@/types/unified-place.types'
 
 interface AutocompleteResponse {
   query: string
-  suggestions: AutocompletePrediction[]
+  places: UnifiedPlace[] // Updated to use UnifiedPlace
 }
 
 function placeSearchService() {
   const loading = ref(false)
-  const suggestions = ref<AutocompletePrediction[]>([])
+  const suggestions = ref<UnifiedPlace[]>([]) // Updated to use UnifiedPlace
   const error = ref<string | null>(null)
 
   async function getAutocomplete(
@@ -26,7 +18,7 @@ function placeSearchService() {
     lat?: number,
     lng?: number,
     radius: number = 10000,
-  ): Promise<AutocompletePrediction[]> {
+  ): Promise<UnifiedPlace[]> {
     if (!query || query.length < 2) {
       return []
     }
@@ -51,26 +43,8 @@ function placeSearchService() {
         { params },
       )
 
-      // Process the suggestions to ensure they have the correct format
-      const processedSuggestions = response.data.suggestions.map(suggestion => {
-        // If placeId doesn't already include a provider prefix,
-        // it's likely a Google place ID and should be prefixed with "google/"
-        if (!suggestion.placeId.includes('/')) {
-          suggestion.placeId = `google/${suggestion.placeId}`
-          suggestion.provider = 'google'
-        } else {
-          // Extract provider from placeId if it exists (e.g., "osm/node/123456")
-          const parts = suggestion.placeId.split('/')
-          if (parts.length > 1) {
-            suggestion.provider = parts[0]
-          }
-        }
-
-        return suggestion
-      })
-
-      suggestions.value = processedSuggestions
-      return processedSuggestions
+      suggestions.value = response.data.places // Updated to use places
+      return response.data.places // Updated to use places
     } catch (err) {
       console.error('Error fetching place autocomplete:', err)
       error.value =
@@ -81,7 +55,6 @@ function placeSearchService() {
     }
   }
 
-  // Add a function to create a location-based placeId
   function createLocationPlaceId(
     name: string,
     lat: number,

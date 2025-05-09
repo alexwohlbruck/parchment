@@ -110,3 +110,14 @@ export interface Place {
     googlePlaces?: string
   }
 }
+
+export interface AutocompletePrediction {
+  placeId: string // Will be formatted as "provider/id" for provider-specific places
+  description: string // Full description of the place
+  mainText: string // Primary text (place name)
+  secondaryText: string // Secondary text (usually address)
+  types: string[] // Place types
+  provider?: string // Data provider (e.g., 'google', 'pelias')
+  lat?: number // Optional latitude (when available)
+  lng?: number // Optional longitude (when available)
+}

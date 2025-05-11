@@ -47,7 +47,7 @@ export const API_CONFIG = {
   [SOURCE.OSM]: true, // Always enabled
   [SOURCE.GOOGLE]: true, //!!process.env.GOOGLE_MAPS_API_KEY,
   [SOURCE.WIKIDATA]: true, // Always enabled
-  [SOURCE.PELIAS]: true, // Always enabled, hosted locally
+  [SOURCE.PELIAS]: false, // Always enabled, hosted locally
   [SOURCE.YELP]: false, // Not implemented yet
   [SOURCE.FOURSQUARE]: false, // Not implemented yet
 } as const

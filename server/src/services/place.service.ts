@@ -18,9 +18,9 @@ import {
 } from './external-api.service'
 import { GOOGLE_PLACES_API_URL } from '../lib/constants'
 import {
-  mergeAttributedValues,
-  selectBestValue,
   getTimestamp,
+  deduplicateAutocompletePlaces,
+  mergePlaceData,
 } from './merge.service'
 import {
   fetchPlaceFromOverpass,
@@ -28,7 +28,6 @@ import {
   searchNominatim,
 } from './osm.service'
 import { fetchWikidataImage, fetchWikidataBrandLogo } from './wikidata.service'
-import { parseGoogleHours, parseOsmHours } from '../lib/hours.utils'
 import { googleAdapter } from '../adapters/google-adapter'
 import type { PlaceDataAdapter } from '../types/adapter.types'
 import { API_CONFIG, SOURCE } from '../lib/constants'
@@ -37,6 +36,7 @@ import axios from 'axios'
 import type { Bookmark } from '../types/library.types'
 import { findBookmarkByExternalIds } from './library/bookmarks.service'
 import type { AutocompletePrediction } from '../types/place.types'
+import * as turf from '@turf/turf'
 
 // TODO: Replace with unified place
 // New type for search results
@@ -71,305 +71,9 @@ interface PlaceCandidate {
   distance: number
 }
 
-function mergePlaceData(
-  unifiedPlace: UnifiedPlace,
-  adapter: PlaceDataAdapter,
-  data: any,
-) {
-  if (!data) return
-
-  try {
-    const transformed = adapter.transform(data)
-
-    // Use the timestamp from the source data if available (for OSM)
-    // otherwise use the current timestamp
-    const timestamp =
-      adapter.sourceId === SOURCE.OSM && data.timestamp
-        ? data.timestamp
-        : getTimestamp()
-
-    // Add source ID to externalIds if it exists
-    if (adapter.sourceId === SOURCE.GOOGLE && 'place_id' in data) {
-      unifiedPlace.externalIds[adapter.sourceId] = data.place_id
-    } else if (adapter.sourceId === SOURCE.OSM && 'id' in data) {
-      unifiedPlace.externalIds[adapter.sourceId] = data.id.toString()
-    }
-
-    // Name - create attributed values and use selectBestValue to properly respect source priorities
-    if (transformed.name) {
-      const existingName = unifiedPlace.name
-        ? {
-            value: unifiedPlace.name,
-            sourceId:
-              unifiedPlace.sources.length > 0
-                ? unifiedPlace.sources[0].id
-                : 'unknown',
-            timestamp,
-          }
-        : null
-
-      // Only compare if we have an existing name
-      if (existingName) {
-        const selectedName = selectBestValue([existingName, transformed.name])
-        unifiedPlace.name = selectedName || unifiedPlace.name || ''
-      } else {
-        unifiedPlace.name = transformed.name.value
-      }
-    }
-
-    // Description - respect source priorities
-    if (transformed.description) {
-      const existingDescription = unifiedPlace.description
-        ? {
-            value: unifiedPlace.description,
-            sourceId:
-              unifiedPlace.sources.length > 0
-                ? unifiedPlace.sources[0].id
-                : 'unknown',
-            timestamp,
-          }
-        : null
-
-      if (existingDescription) {
-        const selectedDescription = selectBestValue([
-          existingDescription,
-          transformed.description,
-        ])
-        unifiedPlace.description =
-          selectedDescription || unifiedPlace.description || ''
-      } else {
-        unifiedPlace.description = transformed.description.value
-      }
-    }
-
-    // Address - respect source priorities
-    if (transformed.address) {
-      const existingAddress = unifiedPlace.address?.formatted
-        ? {
-            value: unifiedPlace.address,
-            sourceId:
-              unifiedPlace.sources.length > 0
-                ? unifiedPlace.sources[0].id
-                : 'unknown',
-            timestamp,
-          }
-        : null
-
-      if (existingAddress) {
-        const selectedAddress = selectBestValue([
-          existingAddress,
-          transformed.address,
-        ])
-        unifiedPlace.address = selectedAddress || unifiedPlace.address || null
-      } else {
-        unifiedPlace.address = transformed.address.value
-      }
-    }
-
-    // Contact Info - respect source priorities for each field
-    if (transformed.contactInfo) {
-      const { phone, email, website, socials } = transformed.contactInfo
-
-      // Handle phone number with source priority
-      if (phone) {
-        const existingPhone = unifiedPlace.contactInfo.phone
-          ? { ...unifiedPlace.contactInfo.phone }
-          : null
-
-        if (existingPhone) {
-          unifiedPlace.contactInfo.phone =
-            selectBestValue([existingPhone, phone]) === phone.value
-              ? phone
-              : existingPhone
-        } else {
-          unifiedPlace.contactInfo.phone = phone
-        }
-      }
-
-      // Handle email with source priority
-      if (email) {
-        const existingEmail = unifiedPlace.contactInfo.email
-          ? { ...unifiedPlace.contactInfo.email }
-          : null
-
-        if (existingEmail) {
-          unifiedPlace.contactInfo.email =
-            selectBestValue([existingEmail, email]) === email.value
-              ? email
-              : existingEmail
-        } else {
-          unifiedPlace.contactInfo.email = email
-        }
-      }
-
-      // Handle website with source priority
-      if (website) {
-        const existingWebsite = unifiedPlace.contactInfo.website
-          ? { ...unifiedPlace.contactInfo.website }
-          : null
-
-        if (existingWebsite) {
-          unifiedPlace.contactInfo.website =
-            selectBestValue([existingWebsite, website]) === website.value
-              ? website
-              : existingWebsite
-        } else {
-          unifiedPlace.contactInfo.website = website
-        }
-      }
-
-      // Handle social media links with source priority
-      if (socials && Object.keys(socials).length > 0) {
-        // Merge social media links
-        Object.entries(socials).forEach(([platform, value]) => {
-          const existingSocial = unifiedPlace.contactInfo.socials[platform]
-            ? { ...unifiedPlace.contactInfo.socials[platform] }
-            : null
-
-          if (existingSocial) {
-            unifiedPlace.contactInfo.socials[platform] =
-              selectBestValue([existingSocial, value]) === value.value
-                ? value
-                : existingSocial
-          } else {
-            unifiedPlace.contactInfo.socials[platform] = value
-          }
-        })
-      }
-    }
-
-    // Opening Hours - respect source priorities
-    if (transformed.openingHours) {
-      const existingHours = unifiedPlace.openingHours
-        ? {
-            value: unifiedPlace.openingHours,
-            sourceId:
-              unifiedPlace.sources.length > 0
-                ? unifiedPlace.sources[0].id
-                : 'unknown',
-            timestamp,
-          }
-        : null
-
-      if (existingHours) {
-        const selectedHours = selectBestValue([
-          existingHours,
-          transformed.openingHours,
-        ])
-        unifiedPlace.openingHours =
-          selectedHours || unifiedPlace.openingHours || null
-      } else {
-        unifiedPlace.openingHours = transformed.openingHours.value
-      }
-    }
-
-    // Photos - just append, no priority handling
-    if (transformed.photos && transformed.photos.length > 0) {
-      unifiedPlace.photos.push(...transformed.photos)
-    }
-
-    // Ratings - respect source priorities
-    if (transformed.ratings) {
-      if (unifiedPlace.ratings) {
-        // Handle rating score
-        if (transformed.ratings.rating) {
-          const existingRating = unifiedPlace.ratings.rating
-            ? { ...unifiedPlace.ratings.rating }
-            : null
-
-          if (existingRating) {
-            unifiedPlace.ratings.rating =
-              selectBestValue([existingRating, transformed.ratings.rating]) ===
-              transformed.ratings.rating.value
-                ? transformed.ratings.rating
-                : existingRating
-          } else {
-            unifiedPlace.ratings.rating = transformed.ratings.rating
-          }
-        }
-
-        // Handle review count
-        if (transformed.ratings.reviewCount) {
-          const existingReviewCount = unifiedPlace.ratings.reviewCount
-            ? { ...unifiedPlace.ratings.reviewCount }
-            : null
-
-          if (existingReviewCount) {
-            unifiedPlace.ratings.reviewCount =
-              selectBestValue([
-                existingReviewCount,
-                transformed.ratings.reviewCount,
-              ]) === transformed.ratings.reviewCount.value
-                ? transformed.ratings.reviewCount
-                : existingReviewCount
-          } else {
-            unifiedPlace.ratings.reviewCount = transformed.ratings.reviewCount
-          }
-        }
-      } else {
-        // If no existing ratings, use the new ones
-        unifiedPlace.ratings = transformed.ratings
-      }
-    }
-
-    // Amenities - respect source priorities
-    if (
-      transformed.amenities &&
-      Object.keys(transformed.amenities).length > 0
-    ) {
-      Object.entries(transformed.amenities).forEach(([key, values]) => {
-        if (!values || !values.length) return
-
-        const value = values[0]
-        if (!value || value.value === undefined) return
-
-        const existingAmenity =
-          unifiedPlace.amenities[key] !== undefined
-            ? {
-                value: unifiedPlace.amenities[key],
-                sourceId:
-                  unifiedPlace.sources.length > 0
-                    ? unifiedPlace.sources[0].id
-                    : 'unknown',
-                timestamp,
-              }
-            : null
-
-        if (existingAmenity) {
-          const selectedValue = selectBestValue([existingAmenity, value])
-          if (selectedValue !== null) {
-            unifiedPlace.amenities[key] = selectedValue
-          }
-        } else if (value.value !== undefined) {
-          unifiedPlace.amenities[key] = value.value
-        }
-      })
-    }
-
-    // Add source reference with the correct timestamp
-    unifiedPlace.sources.push({
-      id: adapter.sourceId,
-      name: adapter.sourceName,
-      url: adapter.sourceUrl(data),
-      updated:
-        adapter.sourceId === SOURCE.OSM && data.timestamp
-          ? data.timestamp
-          : undefined,
-      updatedBy:
-        adapter.sourceId === SOURCE.OSM && 'user' in data
-          ? data.user
-          : undefined,
-    })
-
-    // Update lastUpdated timestamp only if this is from OSM or there is no lastUpdated yet
-    if (adapter.sourceId === SOURCE.OSM || !unifiedPlace.lastUpdated) {
-      unifiedPlace.lastUpdated = timestamp
-    }
-  } catch (error) {
-    console.error(`Error merging data from ${adapter.sourceName}:`, error)
-  }
-}
-
+/**
+ * Generates a base unified place object from an OSM place
+ */
 function createBaseUnifiedPlace(
   place: Place,
   name: string,
@@ -535,8 +239,8 @@ export const getPlaceDetails = async (
   }
 }
 
-// Calculate similarity score between two place names
-function calculateNameSimilarity(name1: string, name2: string): number {
+// Export calculateNameSimilarity for use in merge.service.ts
+export function calculateNameSimilarity(name1: string, name2: string): number {
   if (!name1 || !name2) return 0
 
   const normalizeForComparison = (name: string): string => {
@@ -722,27 +426,6 @@ function calculateNameSimilarity(name1: string, name2: string): number {
   return finalScore
 }
 
-// Calculate distance between two coordinates in meters
-function calculateDistance(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number,
-): number {
-  // Simple Haversine formula implementation
-  const R = 6371e3 // Earth radius in meters
-  const φ1 = (lat1 * Math.PI) / 180
-  const φ2 = (lat2 * Math.PI) / 180
-  const Δφ = ((lat2 - lat1) * Math.PI) / 180
-  const Δλ = ((lng2 - lng1) * Math.PI) / 180
-
-  const a =
-    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  return R * c
-}
-
 // Create a simplified search result from a unified place
 function createSearchResult(unifiedPlace: UnifiedPlace): PlaceSearchResult {
   // Find primary photo
@@ -790,11 +473,12 @@ export function matchPlaceCandidates(
     return []
   }
 
-  // Get the target place's geographic center
-  const targetCenter = [
-    targetPlace.center?.lon || 0,
-    targetPlace.center?.lat || 0,
-  ]
+  // Create a Turf point from the target coordinates for spatial analysis
+  const targetPoint = coordinates
+    ? turf.point([coordinates.lng, coordinates.lat])
+    : targetPlace.center
+    ? turf.point([targetPlace.center.lon, targetPlace.center.lat])
+    : null
 
   // Calculate match scores for all candidates
   const candidatesWithScores: PlaceCandidate[] = candidates.map((candidate) => {
@@ -823,7 +507,7 @@ export function matchPlaceCandidates(
     )
 
     // Hard threshold - if names are too dissimilar, don't match regardless of distance
-    const MIN_NAME_SIMILARITY = 0.7 // Increased from 0.6 to 0.7 to prevent obviously different buildings from matching
+    const MIN_NAME_SIMILARITY = 0.7
     if (nameSimilarity < MIN_NAME_SIMILARITY) {
       return {
         googlePlace:
@@ -836,17 +520,17 @@ export function matchPlaceCandidates(
       }
     }
 
-    // Calculate geographic distance
+    // Calculate geographic distance using Turf
     let distanceMeters = Infinity
-    if (coordinates) {
+    if (targetPoint && coordinates) {
+      let candidatePoint
+
       if ('center' in candidate && candidate.center) {
         // OSM place
-        distanceMeters = calculateDistance(
-          coordinates.lat,
-          coordinates.lng,
-          candidate.center.lat,
+        candidatePoint = turf.point([
           candidate.center.lon,
-        )
+          candidate.center.lat,
+        ])
       } else if ('geometry' in candidate && candidate.geometry) {
         // Google place with location property
         const googleCandidate = candidate as GooglePlaceDetails
@@ -855,13 +539,12 @@ export function matchPlaceCandidates(
           'location' in googleCandidate.geometry
         ) {
           const location = googleCandidate.geometry.location
-          distanceMeters = calculateDistance(
-            coordinates.lat,
-            coordinates.lng,
-            location.lat,
-            location.lng,
-          )
+          candidatePoint = turf.point([location.lng, location.lat])
         }
+      }
+
+      if (candidatePoint) {
+        distanceMeters = turf.distance(targetPoint, candidatePoint) * 1000 // Convert km to meters
       }
     }
 
@@ -1202,7 +885,7 @@ export const searchPlaces = async (
   }
 }
 
-// Function to get autocomplete suggestions for places
+// Update the call to deduplicateAutocompletePlaces
 export const getPlaceAutocomplete = async (
   query: string,
   coordinates?: { lat: number; lng: number },
@@ -1217,9 +900,16 @@ export const getPlaceAutocomplete = async (
 
     const promises: Promise<UnifiedPlace[]>[] = []
 
-    promises.push(
-      getPeliasAutocomplete(query, coordinates?.lat, coordinates?.lng, radius),
-    )
+    if (API_CONFIG[SOURCE.PELIAS]) {
+      promises.push(
+        getPeliasAutocomplete(
+          query,
+          coordinates?.lat,
+          coordinates?.lng,
+          radius,
+        ),
+      )
+    }
 
     if (API_CONFIG[SOURCE.GOOGLE]) {
       promises.push(
@@ -1351,298 +1041,6 @@ async function transformGoogleAutocomplete(
     console.error('Error transforming Google autocomplete predictions:', error)
     return []
   }
-}
-
-/**
- * This function deduplicates autocomplete results across different providers.
- * It groups places by provider first, then by name, and finally by location.
- * It then selects the best result for each group.
- */
-function deduplicateAutocompletePlaces(
-  places: UnifiedPlace[],
-  coordinates?: { lat: number; lng: number },
-): UnifiedPlace[] {
-  if (!places.length) return []
-
-  console.log(
-    `Deduplicating ${places.length} autocomplete places across providers`,
-  )
-
-  // Log place sources and coordinates for debugging
-  places.forEach((place) => {
-    console.log(
-      `Place ${place.name} (${place.id}): source=${place.sources[0]?.id}, coordinates=(${place.geometry.center.lat}, ${place.geometry.center.lng})`,
-    )
-  })
-
-  // Group places by provider first
-  const placesByProvider: Record<string, UnifiedPlace[]> = {}
-
-  places.forEach((place) => {
-    const providerId = place.sources[0]?.id || 'unknown'
-    if (!placesByProvider[providerId]) {
-      placesByProvider[providerId] = []
-    }
-    placesByProvider[providerId].push(place)
-  })
-
-  // First priority: Add all OSM/Pelias results as base places
-  const finalResults: UnifiedPlace[] = []
-  const nameToPlaceMap: Record<
-    string,
-    { place: UnifiedPlace; nameKey: string }
-  > = {}
-
-  // Helper function to normalize name for comparison
-  const normalizeName = (name: string): string => {
-    return name
-      .toLowerCase()
-      .trim()
-      .replace(/[^\w\s]/g, '')
-      .replace(/\s+/g, ' ')
-  }
-
-  // Helper function to normalize address for comparison
-  const normalizeAddress = (address: string): string => {
-    return address
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, ' ')
-      .replace(/,/g, '')
-      .replace(/\bstreet\b/g, 'st')
-      .replace(/\blane\b/g, 'ln')
-      .replace(/\bavenue\b/g, 'ave')
-      .replace(/\bboulevard\b/g, 'blvd')
-      .replace(/\broad\b/g, 'rd')
-      .replace(/\bunit\b/g, '')
-      .replace(/\bsuite\b/g, '')
-      .replace(/\bapt\b/g, '')
-      .replace(/\bnorth\b/g, 'n')
-      .replace(/\bsouth\b/g, 's')
-      .replace(/\beast\b/g, 'e')
-      .replace(/\bwest\b/g, 'w')
-      .replace(/\b(nc|north carolina)\b/g, '')
-      .replace(/\busa\b/g, '')
-      .replace(/[^\w\s]/g, '') // Remove special characters
-      .replace(/\d{5}(\-\d{4})?/g, '') // Remove zip codes
-      .trim()
-  }
-
-  const getAddressString = (place: UnifiedPlace): string | null => {
-    if (place.address?.formatted) {
-      return place.address.formatted
-    }
-    if (place.address?.street1) {
-      let addressStr = place.address.street1
-      if (place.address.locality) addressStr += ' ' + place.address.locality
-      return addressStr
-    }
-    if (place.description && place.description.includes(',')) {
-      const parts = place.description.split(',')
-      if (parts.length > 1) {
-        return parts.slice(1).join(',').trim()
-      }
-    }
-    return null
-  }
-
-  const getStreetNumber = (address: string): string | null => {
-    const match = address.match(/^\d+/)
-    return match ? match[0] : null
-  }
-
-  const osmPeliasResults = [
-    ...(placesByProvider[SOURCE.OSM] || []),
-    ...(placesByProvider[SOURCE.PELIAS] || []),
-  ]
-
-  osmPeliasResults.forEach((place) => {
-    const nameKey = normalizeName(place.name)
-    finalResults.push(place)
-    nameToPlaceMap[place.id] = { place, nameKey }
-  })
-
-  Object.entries(placesByProvider).forEach(([providerId, providerPlaces]) => {
-    if (providerId === SOURCE.OSM || providerId === SOURCE.PELIAS) return
-
-    providerPlaces.forEach((place) => {
-      const normalizedName = normalizeName(place.name)
-
-      let matchFound = false
-
-      for (const { place: existingPlace, nameKey } of Object.values(
-        nameToPlaceMap,
-      )) {
-        // Skip if provider is the same (no need to merge within the same provider)
-        if (existingPlace.sources[0]?.id === place.sources[0]?.id) continue
-
-        if (nameKey === normalizedName) {
-          const placeAddress = getAddressString(place)
-          const existingAddress = getAddressString(existingPlace)
-
-          console.log(
-            `Comparing addresses for ${place.name}: "${placeAddress}" vs "${existingAddress}"`,
-          )
-
-          let isMatch = true
-
-          if (placeAddress && existingAddress) {
-            const placeStreetNum = getStreetNumber(placeAddress)
-            const existingStreetNum = getStreetNumber(existingAddress)
-
-            console.log(
-              `Street numbers: ${placeStreetNum} vs ${existingStreetNum}`,
-            )
-
-            if (
-              placeStreetNum &&
-              existingStreetNum &&
-              placeStreetNum !== existingStreetNum
-            ) {
-              console.log(
-                `Different street numbers (${placeStreetNum} vs ${existingStreetNum}), not merging`,
-              )
-              isMatch = false
-            } else {
-              const normalizedPlaceAddr = normalizeAddress(placeAddress)
-              const normalizedExistingAddr = normalizeAddress(existingAddress)
-
-              console.log(
-                `Normalized addresses: "${normalizedPlaceAddr}" vs "${normalizedExistingAddr}"`,
-              )
-
-              isMatch =
-                !!normalizedPlaceAddr &&
-                !!normalizedExistingAddr &&
-                (normalizedPlaceAddr.includes(normalizedExistingAddr) ||
-                  normalizedExistingAddr.includes(normalizedPlaceAddr) ||
-                  // Check for matching street number if available
-                  (!!placeStreetNum &&
-                    !!existingStreetNum &&
-                    placeStreetNum === existingStreetNum))
-
-              console.log(`Address match result: ${isMatch}`)
-            }
-          }
-
-          if (isMatch) {
-            console.log(
-              `Merging duplicate ${providerId} place: ${place.name} into existing place (address match)`,
-            )
-
-            // Preserve external IDs from both sources
-            if (place.externalIds) {
-              Object.entries(place.externalIds).forEach(
-                ([idSource, idValue]) => {
-                  existingPlace.externalIds[idSource] = idValue
-                },
-              )
-            }
-
-            // Find the appropriate adapter for this provider
-            let adapter: PlaceDataAdapter
-            if (providerId === SOURCE.GOOGLE) {
-              adapter = googleAdapter
-            } else {
-              // Skip if we don't have an adapter for this provider
-              console.log(
-                `No adapter found for provider ${providerId}, skipping merge`,
-              )
-              continue
-            }
-
-            // Use existing merge logic to combine the places
-            mergePlaceData(existingPlace, adapter, place)
-            matchFound = true
-            break
-          } else {
-            console.log(
-              `Same name but different address, not merging: ${place.name}`,
-            )
-          }
-        }
-
-        // Check for close matches with coordinates if available
-        if (
-          !matchFound &&
-          coordinates &&
-          place.geometry.center.lat !== 0 &&
-          place.geometry.center.lng !== 0 &&
-          existingPlace.geometry.center.lat !== 0 &&
-          existingPlace.geometry.center.lng !== 0
-        ) {
-          // Check name similarity
-          const nameSimilarity = calculateNameSimilarity(
-            existingPlace.name,
-            place.name,
-          )
-          if (nameSimilarity > 0.85) {
-            // If names are similar, check if locations are close
-            const distance = calculateDistance(
-              existingPlace.geometry.center.lat,
-              existingPlace.geometry.center.lng,
-              place.geometry.center.lat,
-              place.geometry.center.lng,
-            )
-
-            console.log(
-              `Distance between similar places ${place.name} and ${
-                existingPlace.name
-              }: ${distance.toFixed(0)}m`,
-            )
-
-            if (distance < 300) {
-              // Places within 300m with similar names
-              console.log(
-                `Merging likely duplicate ${providerId} place: ${
-                  place.name
-                } based on name similarity (${nameSimilarity.toFixed(
-                  2,
-                )}) and location (${distance.toFixed(0)}m)`,
-              )
-
-              // Preserve external IDs from both sources
-              if (place.externalIds) {
-                Object.entries(place.externalIds).forEach(
-                  ([idSource, idValue]) => {
-                    existingPlace.externalIds[idSource] = idValue
-                  },
-                )
-              }
-
-              // Find the appropriate adapter
-              let adapter: PlaceDataAdapter
-              if (providerId === SOURCE.GOOGLE) {
-                adapter = googleAdapter
-              } else {
-                console.log(
-                  `No adapter found for provider ${providerId}, skipping merge`,
-                )
-                continue
-              }
-
-              // Merge the place data
-              mergePlaceData(existingPlace, adapter, place)
-              matchFound = true
-              break
-            }
-          }
-        }
-      }
-
-      // If no match was found, add as a new place
-      if (!matchFound) {
-        console.log(`No match found for ${place.name}, adding as new place`)
-        finalResults.push(place)
-        nameToPlaceMap[place.id] = { place, nameKey: normalizedName }
-      }
-    })
-  })
-
-  console.log(
-    `Returned ${finalResults.length} deduplicated places (original: ${places.length})`,
-  )
-  return finalResults
 }
 
 // Generic function to get place details by any provider ID

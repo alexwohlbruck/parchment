@@ -403,7 +403,7 @@
             "slate": "Pizarra",
             "stone": "Piedra",
             "gray": "Gris",
-            "neutral": "Neutro",
+            "neutral": "Neutral",
             "yellow": "Amarillo",
             "violet": "Violeta"
           }
@@ -427,7 +427,7 @@
           "day": "Día",
           "night": "Noche",
           "dawn": "Amanecer",
-          "dusk": "Anochecer"
+          "dusk": "Atardecer"
         }
       }
     },
@@ -438,7 +438,7 @@
         "3dTerrain": "Terreno 3D",
         "3dBuildings": "Edificios 3D",
         "poiLabels": "Etiquetas de POI",
-        "roadLabels": "Etiquetas de calles",
+        "roadLabels": "Etiquetas de carreteras",
         "transitLabels": "Etiquetas de tránsito",
         "placeLabels": "Etiquetas de lugares"
       },
@@ -453,11 +453,44 @@
       "layers": {
         "title": "Capas",
         "new": "Nueva capa",
-        "description": "Elige las capas que se mostrarán en el selector de capas"
+        "description": "Elige las capas para mostrar en el selector de capas"
+      }
+    },
+    "integrations": {
+      "title": "Integraciones",
+      "description": "Conecta y gestiona integraciones de terceros",
+      "empty": "Aún no hay integraciones configuradas",
+      "available": "Integraciones Disponibles",
+      "configure": "Configurar",
+      "enabled": "Activado",
+      "apiKey": "Clave API",
+      "apiKeyPlaceholder": "Ingresa tu clave API",
+      "capabilities": {
+        "routing": "Rutas",
+        "geocoding": "Geocodificación",
+        "place_info": "Lugares",
+        "imagery": "Imágenes"
+      },
+      "status": {
+        "active": "Activo",
+        "inactive": "Inactivo",
+        "available": "Disponible"
+      },
+      "descriptions": {
+        "google-maps": "Servicios completos de mapas y ubicación",
+        "pelias": "Geocodificación y búsqueda de código abierto",
+        "graphhopper": "Motor de enrutamiento rápido y eficiente",
+        "yelp": "Reseñas y calificaciones de negocios locales",
+        "opentable": "Descubrimiento y reservas de restaurantes",
+        "foursquare": "Red social basada en ubicación",
+        "mapillary": "Plataforma de imágenes a nivel de calle",
+        "nominatim": "Geocodificación y geocodificación inversa de código abierto",
+        "tripadvisor": "Reseñas y recomendaciones de viajes",
+        "geoapify": "Geocodificación, enrutamiento y datos de lugares"
       }
     },
     "users": {
-      "title": "Usuarios y roles",
+      "title": "Usuarios y Roles",
       "users": {
         "title": "Usuarios"
       },

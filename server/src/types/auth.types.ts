@@ -4,6 +4,7 @@ export enum Permission {
   ROLES_READ = 'roles:read',
   PERMISSIONS_READ = 'permissions:read',
   SYSTEM_READ = 'system:read', // TODO
+  INTEGRATIONS_READ = 'integrations:read',
 }
 
 export type PermissionRule =

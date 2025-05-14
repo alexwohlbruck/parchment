@@ -15,9 +15,31 @@ import {
 } from 'simple-icons'
 import { Cloud } from 'lucide-vue-next'
 import type { Integration } from '@/types/integrations.types'
+import {
+  apiKeySchema,
+  hostConfigSchema,
+  oauthConfigSchema,
+} from '@/types/integrations.types'
+import { z } from 'zod'
 
 const { t } = useI18n()
 const appService = useAppService()
+
+// Custom schemas for specific integrations
+const nominatimSchema = z.object({
+  host: z
+    .string()
+    .url('Please enter a valid URL')
+    .default('https://nominatim.openstreetmap.org'),
+  email: z.string().email('Please enter a valid email for usage tracking'),
+  enabled: z.boolean().default(true),
+})
+
+const googleMapsSchema = z.object({
+  apiKey: z.string().min(1, 'API Key is required'),
+  clientId: z.string().optional(),
+  enabled: z.boolean().default(true),
+})
 
 const integrations = ref<Integration[]>([
   {
@@ -30,6 +52,7 @@ const integrations = ref<Integration[]>([
     capabilities: ['routing', 'geocoding', 'place_info', 'imagery'],
     paid: true,
     cloud: true,
+    configSchema: googleMapsSchema,
   },
   {
     id: 'pelias',
@@ -41,6 +64,7 @@ const integrations = ref<Integration[]>([
     capabilities: ['geocoding'],
     paid: false,
     cloud: false,
+    configSchema: hostConfigSchema,
   },
   {
     id: 'graphhopper',
@@ -52,6 +76,7 @@ const integrations = ref<Integration[]>([
     capabilities: ['routing'],
     paid: false,
     cloud: false,
+    configSchema: apiKeySchema,
   },
   {
     id: 'yelp',
@@ -63,6 +88,7 @@ const integrations = ref<Integration[]>([
     capabilities: ['place_info'],
     paid: true,
     cloud: true,
+    configSchema: oauthConfigSchema,
   },
   {
     id: 'opentable',
@@ -74,6 +100,7 @@ const integrations = ref<Integration[]>([
     capabilities: ['place_info'],
     paid: true,
     cloud: true,
+    configSchema: apiKeySchema,
   },
   {
     id: 'foursquare',
@@ -85,6 +112,7 @@ const integrations = ref<Integration[]>([
     capabilities: ['place_info'],
     paid: true,
     cloud: true,
+    configSchema: oauthConfigSchema,
   },
   {
     id: 'mapillary',
@@ -96,6 +124,7 @@ const integrations = ref<Integration[]>([
     capabilities: ['imagery'],
     paid: false,
     cloud: true,
+    configSchema: apiKeySchema,
   },
   {
     id: 'nominatim',
@@ -107,6 +136,7 @@ const integrations = ref<Integration[]>([
     capabilities: ['geocoding'],
     paid: false,
     cloud: false,
+    configSchema: nominatimSchema,
   },
   {
     id: 'tripadvisor',
@@ -118,6 +148,7 @@ const integrations = ref<Integration[]>([
     capabilities: ['place_info'],
     paid: true,
     cloud: true,
+    configSchema: apiKeySchema,
   },
   {
     id: 'geoapify',
@@ -129,6 +160,7 @@ const integrations = ref<Integration[]>([
     capabilities: ['geocoding', 'routing', 'place_info'],
     paid: true,
     cloud: true,
+    configSchema: apiKeySchema,
   },
 ])
 
@@ -159,20 +191,21 @@ function getStatusColors(status: Integration['status']) {
 
 async function handleCardClick(integration: Integration) {
   const isConfigured = integration.status === 'active'
-  const result = await appService.componentDialog({
-    component: IntegrationForm,
-    props: {
-      integration,
-      isConfigured,
-    },
+  const result = await appService.promptForm({
+    schema: integration.configSchema || apiKeySchema,
     title: isConfigured
       ? t('settings.integrations.edit', { name: integration.name })
       : t('settings.integrations.configure', { name: integration.name }),
-    description: integration.description,
+    description: t(`settings.integrations.descriptions.${integration.id}`),
   })
 
   if (result) {
     console.log('Integration updated:', result)
+    // In a real app, you'd update the integration status and save the config
+    if (!isConfigured) {
+      // If it was not configured, update its status to active
+      integration.status = 'active'
+    }
   }
 }
 </script>

@@ -1,44 +1,26 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
+import { computed } from 'vue'
+import { AutoForm } from '@/components/ui/auto-form'
+import { apiKeySchema } from '@/types/integrations.types'
+import type { Integration } from '@/types/integrations.types'
 
 const props = defineProps<{
-  integration: {
-    id: string
-    name: string
-    description: string
-    icon: any
-    color: string
-    status?: string
-  }
+  integration: Integration
   isConfigured: boolean
 }>()
 
 const emit = defineEmits(['update:valid'])
 
-const { t } = useI18n()
-const apiKey = ref('')
-const isEnabled = ref(props.isConfigured)
+const schema = computed(() => props.integration.configSchema || apiKeySchema)
 
-// Example validation - in a real app, this would be more complex
-const isValid = ref(props.isConfigured || apiKey.value.length > 0)
-
-// Watch for changes to update validity
-watch([apiKey, isEnabled], () => {
-  isValid.value =
-    isEnabled.value && (props.isConfigured || apiKey.value.length > 0)
-  emit('update:valid', isValid.value)
+const defaultValues = computed(() => {
+  return {
+    enabled: props.isConfigured,
+  }
 })
 
-// Function to handle form submission
-async function submit() {
-  return {
-    apiKey: apiKey.value,
-    isEnabled: isEnabled.value,
-  }
+async function submit(values: any) {
+  return values
 }
 
 defineExpose({
@@ -48,19 +30,11 @@ defineExpose({
 
 <template>
   <div class="flex flex-col gap-4">
-    <div class="flex items-center justify-between">
-      <Label>{{ t('settings.integrations.enabled') }}</Label>
-      <Switch v-model="isEnabled" />
-    </div>
-
-    <div class="flex flex-col gap-2">
-      <Label for="apiKey">{{ t('settings.integrations.apiKey') }}</Label>
-      <Input
-        id="apiKey"
-        v-model="apiKey"
-        type="password"
-        :placeholder="t('settings.integrations.apiKeyPlaceholder')"
-      />
-    </div>
+    <AutoForm
+      :schema="schema"
+      :initial-values="defaultValues"
+      @submit="submit"
+      class="space-y-4"
+    />
   </div>
 </template>

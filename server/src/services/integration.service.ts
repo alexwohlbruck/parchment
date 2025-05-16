@@ -138,6 +138,10 @@ export async function getConfiguredIntegrations(
   // Format the configured integrations for response
   return userIntegrations.map((integration) => {
     const parsedConfig = JSON.parse(integration.config as string)
+    const parsedCapabilities = JSON.parse(
+      integration.capabilities as string,
+    ) as IntegrationCapability[]
+
     // Remove capabilities from config if they exist there
     if (parsedConfig.capabilities) {
       delete parsedConfig.capabilities
@@ -146,9 +150,7 @@ export async function getConfiguredIntegrations(
     return {
       id: integration.id,
       integrationId: integration.integrationId as IntegrationId,
-      capabilities: JSON.parse(
-        integration.capabilities as string,
-      ) as IntegrationCapability[],
+      capabilities: parsedCapabilities,
       config: parsedConfig,
     }
   })
@@ -186,10 +188,15 @@ export async function getIntegration(
     .from(integrations)
     .where(and(eq(integrations.id, id), eq(integrations.userId, userId)))
 
-  if (result.length === 0) return null
+  if (result.length === 0) {
+    return null
+  }
 
   const integration = result[0]
   const parsedConfig = JSON.parse(integration.config as string)
+  const parsedCapabilities = JSON.parse(
+    integration.capabilities as string,
+  ) as IntegrationCapability[]
 
   // Remove capabilities from config if they exist there
   if (parsedConfig.capabilities) {
@@ -199,9 +206,7 @@ export async function getIntegration(
   return {
     id: integration.id,
     integrationId: integration.integrationId as IntegrationId,
-    capabilities: JSON.parse(
-      integration.capabilities as string,
-    ) as IntegrationCapability[],
+    capabilities: parsedCapabilities,
     config: parsedConfig,
   }
 }
@@ -213,6 +218,7 @@ export async function createIntegration(
   userId: string,
   integrationId: IntegrationId,
   config: Record<string, any>,
+  customCapabilities?: IntegrationCapability[],
 ): Promise<IntegrationResponse> {
   // Find the integration definition
   const integrationDef = availableIntegrations.find(
@@ -226,18 +232,24 @@ export async function createIntegration(
   // Test the configuration
   await testIntegrationConfig(integrationId, config)
 
-  // Create capabilities with all set to active
-  const capabilities: IntegrationCapability[] = integrationDef.capabilities.map(
-    (id) => ({
+  // Use customCapabilities if provided, otherwise create with all active
+  const capabilities: IntegrationCapability[] =
+    customCapabilities ||
+    integrationDef.capabilities.map((id) => ({
       id,
       active: true,
-    }),
-  )
+    }))
 
-  // Remove capabilities from config if they exist there
+  // Remove capabilities from config if they exist there and flatten nested config objects
   const cleanedConfig = { ...config }
   if (cleanedConfig.capabilities) {
     delete cleanedConfig.capabilities
+  }
+
+  // If there's a nested config property, flatten it
+  if (cleanedConfig.config && typeof cleanedConfig.config === 'object') {
+    Object.assign(cleanedConfig, cleanedConfig.config)
+    delete cleanedConfig.config
   }
 
   // Create the integration
@@ -254,10 +266,14 @@ export async function createIntegration(
     })
     .returning()
 
+  const parsedCapabilities = JSON.parse(
+    result[0].capabilities as string,
+  ) as IntegrationCapability[]
+
   return {
     id: result[0].id,
     integrationId: integrationId,
-    capabilities: capabilities,
+    capabilities: parsedCapabilities,
     config: cleanedConfig,
   }
 }
@@ -291,6 +307,13 @@ export async function updateIntegration(
     if (configUpdate.capabilities) {
       delete configUpdate.capabilities
     }
+
+    // If there's a nested config property, flatten it
+    if (configUpdate.config && typeof configUpdate.config === 'object') {
+      Object.assign(configUpdate, configUpdate.config)
+      delete configUpdate.config
+    }
+
     updateData.config = JSON.stringify(configUpdate)
   }
 

@@ -157,15 +157,22 @@ export function useIntegrationService() {
   async function createIntegration(
     integrationId: string,
     config: Record<string, any>,
+    capabilities?: IntegrationCapability[],
   ) {
     isLoading.value = true
     error.value = null
 
     try {
-      const response = await api.post('/integrations', {
+      const requestData: any = {
         integrationId,
         config,
-      })
+      }
+
+      if (capabilities) {
+        requestData.capabilities = capabilities
+      }
+
+      const response = await api.post('/integrations', requestData)
 
       await fetchConfiguredIntegrations()
       return response.data

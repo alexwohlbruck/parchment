@@ -68,7 +68,6 @@ const { values, meta, setFieldValue, resetForm } = useForm<FormValues>({
 const configForm = useForm({
   validationSchema: toTypedSchema(props.schema),
   initialValues: props.isConfigured ? { ...props.integration.config } : {},
-  validateOnMount: true,
 })
 
 const isConnectionTested = ref(props.isConfigured)

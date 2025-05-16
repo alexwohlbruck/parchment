@@ -82,11 +82,16 @@ async function handleCardClick(integration: UiIntegration) {
         if (isConfigured) {
           // Update existing integration
           await integrationService.updateIntegration(integration.id, {
-            config: result,
+            config: result.config,
+            capabilities: result.capabilities,
           })
         } else {
-          // Create new integration
-          await integrationService.createIntegration(integration.id, result)
+          // Create new integration with capabilities separated from config
+          await integrationService.createIntegration(
+            integration.id,
+            result.config,
+            result.capabilities,
+          )
         }
 
         const successMessage = isConfigured

@@ -45,7 +45,7 @@ export const BUSINESS_STATUS = {
  */
 export const API_CONFIG = {
   [SOURCE.OSM]: true, // Always enabled
-  [SOURCE.GOOGLE]: true, //!!process.env.GOOGLE_MAPS_API_KEY,
+  [SOURCE.GOOGLE]: false, //!!process.env.GOOGLE_MAPS_API_KEY,
   [SOURCE.WIKIDATA]: true, // Always enabled
   [SOURCE.PELIAS]: false, // Always enabled, hosted locally
   [SOURCE.YELP]: false, // Not implemented yet

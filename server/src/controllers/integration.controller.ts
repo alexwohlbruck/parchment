@@ -56,7 +56,7 @@ app.get(
 app.post(
   '/',
   async ({ body, user }) => {
-    const { integrationId, config } = body
+    const { integrationId, config, capabilities } = body
 
     // Verify the integration ID is valid
     const validId = Object.values(IntegrationId).includes(
@@ -67,11 +67,20 @@ app.post(
     }
 
     try {
+      const processedCapabilities = capabilities
+        ? capabilities.map((cap) => ({
+            id: cap.id as IntegrationCapabilityId,
+            active: cap.active,
+          }))
+        : undefined
+
       const integration = await createIntegration(
         user.id,
         integrationId as IntegrationId,
         config,
+        processedCapabilities,
       )
+
       return integration
     } catch (err: any) {
       return error(400, {
@@ -83,6 +92,14 @@ app.post(
     body: t.Object({
       integrationId: t.String(),
       config: t.Record(t.String(), t.Any()),
+      capabilities: t.Optional(
+        t.Array(
+          t.Object({
+            id: t.String(),
+            active: t.Boolean(),
+          }),
+        ),
+      ),
     }),
   },
 )

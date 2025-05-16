@@ -69,9 +69,11 @@ const configForm = useForm({
   initialValues: props.isConfigured ? { ...props.integration.config } : {},
 })
 
-const isConnectionTested = ref(false)
+const isConnectionTested = ref(props.isConfigured)
 const isTesting = ref(false)
-const testResult = ref<{ success: boolean; message?: string } | null>(null)
+const testResult = ref<{ success: boolean; message?: string } | null>(
+  props.isConfigured ? { success: true } : null,
+)
 const formRef = ref()
 
 // Computed properties
@@ -79,11 +81,24 @@ const wasInitiallyActive = computed(
   () => props.isConfigured && props.integration.enabled,
 )
 
-const isEnabledToggleDisabled = computed(
-  () =>
+const isEnabledToggleDisabled = computed(() => {
+  // For already active integrations without config changes, allow toggling
+  if (wasInitiallyActive.value && !hasConfigChanges.value) {
+    return false
+  }
+
+  // For already configured but inactive integrations without config changes
+  if (
+    props.isConfigured &&
     !wasInitiallyActive.value &&
-    (!isConnectionTested.value || !testResult.value?.success),
-)
+    !hasConfigChanges.value
+  ) {
+    return false
+  }
+
+  // For new integrations or when config changes are made, require a successful test
+  return !isConnectionTested.value || !testResult.value?.success
+})
 
 const allCapabilitiesEnabled = computed({
   get: () => {
@@ -108,12 +123,23 @@ const isFormValid = computed(
 )
 
 const isValid = computed(() => {
-  // For already configured integrations, consider it valid if form is valid (no validation errors)
+  // Check if there are significant config changes (not just capability changes)
+  const hasConfigChanges = props.isConfigured
+    ? JSON.stringify(props.integration.config) !==
+      JSON.stringify(configForm.values)
+    : false
+
+  // For already configured integrations without changes, consider them valid
   if (props.isConfigured && !configForm.meta.value?.dirty) {
     return isFormValid.value
   }
 
-  // For new integrations or when changes have been made, require a successful test
+  // For already configured integrations with only capability changes (no config changes)
+  if (props.isConfigured && configForm.meta.value?.dirty && !hasConfigChanges) {
+    return isFormValid.value
+  }
+
+  // For new integrations or existing ones with config changes, require a successful test
   return (
     isFormValid.value &&
     isConnectionTested.value &&
@@ -121,7 +147,14 @@ const isValid = computed(() => {
   )
 })
 
-// Watchers
+const hasConfigChanges = computed(() => {
+  if (!props.isConfigured) return configForm.meta.value?.dirty
+  return (
+    JSON.stringify(props.integration.config) !==
+    JSON.stringify(configForm.values)
+  )
+})
+
 watch(
   () => configForm.values,
   newConfig => setFieldValue('config', newConfig),
@@ -137,7 +170,13 @@ watch(
 watch(
   () => values.config,
   newConfig => {
-    if (isConnectionTested.value) {
+    // Check if there are actual config changes (not just capability changes)
+    const hasActualConfigChanges = props.isConfigured
+      ? JSON.stringify(props.integration.config) !== JSON.stringify(newConfig)
+      : true
+
+    // Reset test status if there are config changes
+    if (hasActualConfigChanges) {
       isConnectionTested.value = false
       testResult.value = null
       updateValidity()
@@ -171,7 +210,6 @@ watch(
   },
 )
 
-// Methods
 function toggleCapability(capability: string, enabled: boolean) {
   const newCapabilities = values.capabilities.map(cap => ({
     ...cap,
@@ -206,10 +244,7 @@ async function testConnection() {
       toast.error(result.message || t('settings.integrations.test.failure'))
     }
   } catch (error: any) {
-    testResult.value = {
-      success: false,
-      message: error.toString(),
-    }
+    testResult.value = null
     toast.error(error.toString())
   } finally {
     isTesting.value = false
@@ -219,12 +254,27 @@ async function testConnection() {
 
 async function submit() {
   if (!isValid.value) return null
-  return { ...configForm.values }
+
+  // Convert the proxy object to a plain JavaScript object
+  const plainCapabilities = values.capabilities.map(cap => ({
+    id: cap.id,
+    active: cap.active,
+  }))
+
+  return {
+    config: configForm.values,
+    capabilities: plainCapabilities,
+  }
 }
 
 onMounted(() => {
   if (props.isConfigured && props.integration.config) {
     configForm.resetForm({ values: { ...props.integration.config } })
+
+    // For configured integrations, mark as already tested
+    isConnectionTested.value = true
+    testResult.value = { success: true }
+    updateValidity()
   }
 })
 
@@ -243,8 +293,10 @@ defineExpose({ submit })
     <TransitionExpand :duration="300">
       <div
         v-if="
-          (!isConnectionTested || !testResult?.success) &&
-          configForm.meta.value?.dirty
+          hasConfigChanges &&
+          (!isConnectionTested ||
+            !testResult?.success ||
+            configForm.meta.value?.dirty)
         "
         class="mt-2"
       >
@@ -282,10 +334,7 @@ defineExpose({ submit })
     </div>
 
     <TransitionExpand :duration="300" :delay="150">
-      <div
-        v-if="integration.capabilities?.length > 0 && allCapabilitiesEnabled"
-        class="space-y-2"
-      >
+      <div v-if="integration.capabilities?.length > 0" class="space-y-2">
         <div class="block text-sm font-medium text-foreground">
           {{ t('settings.integrations.capabilities.title') }}
         </div>
@@ -309,6 +358,7 @@ defineExpose({ submit })
               @update:checked="
                 checked => toggleCapability(capability.id, checked)
               "
+              :disabled="isEnabledToggleDisabled"
             />
           </div>
         </div>

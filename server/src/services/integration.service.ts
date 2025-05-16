@@ -11,7 +11,7 @@ import {
   TestIntegrationResponse,
 } from '../types/integration.types'
 
-// Define available integrations
+// Available integration definitions
 const availableIntegrations: IntegrationDefinition[] = [
   {
     id: IntegrationId.GOOGLE_MAPS,
@@ -124,9 +124,44 @@ const availableIntegrations: IntegrationDefinition[] = [
   },
 ]
 
-/**
- * Get all configured integrations for a user
- */
+// Helper functions
+function parseIntegrationData(integrationRecord: any): IntegrationResponse {
+  const parsedConfig = JSON.parse(integrationRecord.config as string)
+  const parsedCapabilities = JSON.parse(
+    integrationRecord.capabilities as string,
+  ) as IntegrationCapability[]
+
+  // Remove capabilities from config if they exist there
+  if (parsedConfig.capabilities) {
+    delete parsedConfig.capabilities
+  }
+
+  return {
+    id: integrationRecord.id,
+    integrationId: integrationRecord.integrationId as IntegrationId,
+    capabilities: parsedCapabilities,
+    config: parsedConfig,
+  }
+}
+
+function cleanConfig(config: Record<string, any>): Record<string, any> {
+  const cleanedConfig = { ...config }
+
+  // Remove capabilities from config
+  if (cleanedConfig.capabilities) {
+    delete cleanedConfig.capabilities
+  }
+
+  // Flatten nested config objects
+  if (cleanedConfig.config && typeof cleanedConfig.config === 'object') {
+    Object.assign(cleanedConfig, cleanedConfig.config)
+    delete cleanedConfig.config
+  }
+
+  return cleanedConfig
+}
+
+// Service functions
 export async function getConfiguredIntegrations(
   userId: string,
 ): Promise<IntegrationResponse[]> {
@@ -135,30 +170,9 @@ export async function getConfiguredIntegrations(
     .from(integrations)
     .where(eq(integrations.userId, userId))
 
-  // Format the configured integrations for response
-  return userIntegrations.map((integration) => {
-    const parsedConfig = JSON.parse(integration.config as string)
-    const parsedCapabilities = JSON.parse(
-      integration.capabilities as string,
-    ) as IntegrationCapability[]
-
-    // Remove capabilities from config if they exist there
-    if (parsedConfig.capabilities) {
-      delete parsedConfig.capabilities
-    }
-
-    return {
-      id: integration.id,
-      integrationId: integration.integrationId as IntegrationId,
-      capabilities: parsedCapabilities,
-      config: parsedConfig,
-    }
-  })
+  return userIntegrations.map(parseIntegrationData)
 }
 
-/**
- * Get all available integrations (excluding those the user has already configured)
- */
 export async function getAvailableIntegrationsForUser(
   userId: string,
 ): Promise<IntegrationDefinition[]> {
@@ -167,18 +181,13 @@ export async function getAvailableIntegrationsForUser(
     .from(integrations)
     .where(eq(integrations.userId, userId))
 
-  // Get the IDs of integrations that the user has already configured
   const configuredIds = new Set(userIntegrations.map((i) => i.integrationId))
 
-  // Filter out integrations that the user has already configured
   return availableIntegrations.filter(
     (integration) => !configuredIds.has(integration.id),
   )
 }
 
-/**
- * Get a specific integration by ID
- */
 export async function getIntegration(
   id: string,
   userId: string,
@@ -192,35 +201,15 @@ export async function getIntegration(
     return null
   }
 
-  const integration = result[0]
-  const parsedConfig = JSON.parse(integration.config as string)
-  const parsedCapabilities = JSON.parse(
-    integration.capabilities as string,
-  ) as IntegrationCapability[]
-
-  // Remove capabilities from config if they exist there
-  if (parsedConfig.capabilities) {
-    delete parsedConfig.capabilities
-  }
-
-  return {
-    id: integration.id,
-    integrationId: integration.integrationId as IntegrationId,
-    capabilities: parsedCapabilities,
-    config: parsedConfig,
-  }
+  return parseIntegrationData(result[0])
 }
 
-/**
- * Create a new integration configuration
- */
 export async function createIntegration(
   userId: string,
   integrationId: IntegrationId,
   config: Record<string, any>,
   customCapabilities?: IntegrationCapability[],
 ): Promise<IntegrationResponse> {
-  // Find the integration definition
   const integrationDef = availableIntegrations.find(
     (integration) => integration.id === integrationId,
   )
@@ -232,27 +221,18 @@ export async function createIntegration(
   // Test the configuration
   await testIntegrationConfig(integrationId, config)
 
-  // Use customCapabilities if provided, otherwise create with all active
-  const capabilities: IntegrationCapability[] =
+  // Use provided capabilities or create with all active
+  const capabilities =
     customCapabilities ||
     integrationDef.capabilities.map((id) => ({
       id,
       active: true,
     }))
 
-  // Remove capabilities from config if they exist there and flatten nested config objects
-  const cleanedConfig = { ...config }
-  if (cleanedConfig.capabilities) {
-    delete cleanedConfig.capabilities
-  }
+  // Clean config by removing capabilities and flattening nested objects
+  const cleanedConfig = cleanConfig(config)
 
-  // If there's a nested config property, flatten it
-  if (cleanedConfig.config && typeof cleanedConfig.config === 'object') {
-    Object.assign(cleanedConfig, cleanedConfig.config)
-    delete cleanedConfig.config
-  }
-
-  // Create the integration
+  // Insert into database
   const result = await db
     .insert(integrations)
     .values({
@@ -266,21 +246,9 @@ export async function createIntegration(
     })
     .returning()
 
-  const parsedCapabilities = JSON.parse(
-    result[0].capabilities as string,
-  ) as IntegrationCapability[]
-
-  return {
-    id: result[0].id,
-    integrationId: integrationId,
-    capabilities: parsedCapabilities,
-    config: cleanedConfig,
-  }
+  return parseIntegrationData(result[0])
 }
 
-/**
- * Update an existing integration configuration
- */
 export async function updateIntegration(
   id: string,
   userId: string,
@@ -289,32 +257,19 @@ export async function updateIntegration(
     capabilities?: IntegrationCapability[]
   },
 ): Promise<IntegrationResponse> {
-  // Find the integration
   const currentIntegration = await getIntegration(id, userId)
 
   if (!currentIntegration) {
     throw new Error('Integration not found')
   }
 
-  // Prepare update data
-  const updateData: Record<string, any> = {}
-  const now = new Date()
+  const updateData: Record<string, any> = {
+    updatedAt: new Date(),
+  }
 
   // Update config if provided
   if (updates.config) {
-    // Make sure we don't store capabilities in the config object
-    const configUpdate = { ...updates.config }
-    if (configUpdate.capabilities) {
-      delete configUpdate.capabilities
-    }
-
-    // If there's a nested config property, flatten it
-    if (configUpdate.config && typeof configUpdate.config === 'object') {
-      Object.assign(configUpdate, configUpdate.config)
-      delete configUpdate.config
-    }
-
-    updateData.config = JSON.stringify(configUpdate)
+    updateData.config = JSON.stringify(cleanConfig(updates.config))
   }
 
   // Update capabilities if provided
@@ -322,10 +277,8 @@ export async function updateIntegration(
     updateData.capabilities = JSON.stringify(updates.capabilities)
   }
 
-  updateData.updatedAt = now
-
-  // Only perform update if there are fields to update
-  if (Object.keys(updateData).length === 0) {
+  // Only perform update if there are fields to update besides updatedAt
+  if (Object.keys(updateData).length <= 1) {
     throw new Error('No updates provided')
   }
 
@@ -337,22 +290,13 @@ export async function updateIntegration(
 
   // Get the updated integration
   const updatedIntegration = await getIntegration(id, userId)
-
   if (!updatedIntegration) {
     throw new Error('Failed to retrieve updated integration')
   }
 
-  return {
-    id: updatedIntegration.id,
-    integrationId: updatedIntegration.integrationId as IntegrationId,
-    capabilities: updatedIntegration.capabilities,
-    config: updatedIntegration.config,
-  }
+  return updatedIntegration
 }
 
-/**
- * Delete an integration configuration
- */
 export async function deleteIntegration(
   id: string,
   userId: string,
@@ -369,62 +313,47 @@ export async function deleteIntegration(
   await db.delete(integrations).where(eq(integrations.id, id))
 }
 
-/**
- * Test an integration configuration
- */
 export async function testIntegrationConfig(
   integrationId: IntegrationId,
   config: Record<string, any>,
 ): Promise<TestIntegrationResponse> {
-  // For now, we'll simulate a test by just validating that required fields exist
-  // In a real implementation, you would make API calls to the service to verify the credentials
-
+  // Validate required credentials based on integration type
   switch (integrationId) {
     case IntegrationId.GOOGLE_MAPS:
       if (!config.apiKey) {
         return { success: false, message: 'API Key is required' }
       }
-      // Here you would actually test the Google Maps API key
       break
 
     case IntegrationId.PELIAS:
       if (!config.host || !config.apiKey) {
         return { success: false, message: 'Host and API Key are required' }
       }
-      // Test the Pelias connection
       break
 
     case IntegrationId.NOMINATIM:
       if (!config.host || !config.email) {
         return { success: false, message: 'Host and email are required' }
       }
-      // Test the Nominatim connection
       break
 
-    // Add cases for other integrations
-
     default:
-      // For most integrations, just check if apiKey exists
+      // Default check for API key
       if (!config.apiKey) {
         return { success: false, message: 'API Key is required' }
       }
   }
 
+  // In a real implementation, API calls would be made to verify credentials
   return { success: true }
 }
 
-/**
- * Get an integration definition by ID
- */
 export function getIntegrationDefinition(
   integrationId: IntegrationId,
 ): IntegrationDefinition | undefined {
   return availableIntegrations.find((i) => i.id === integrationId)
 }
 
-/**
- * Get all available integration definitions
- */
 export function getAvailableIntegrations(): IntegrationDefinition[] {
   return [...availableIntegrations]
 }

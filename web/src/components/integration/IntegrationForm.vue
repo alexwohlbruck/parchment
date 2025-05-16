@@ -27,6 +27,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const { toast } = useAppService()
 const integrationService = useIntegrationService()
+const formRef = ref(null)
 
 interface FormValues {
   config: Record<string, any>
@@ -48,7 +49,7 @@ const combinedSchema = toTypedSchema(
   }),
 )
 
-const { values, meta, setFieldValue, resetForm, errors } = useForm<FormValues>({
+const { values, meta, setFieldValue, resetForm } = useForm<FormValues>({
   validationSchema: combinedSchema,
   initialValues: {
     config: props.isConfigured ? { ...props.integration.config } : {},
@@ -67,6 +68,7 @@ const { values, meta, setFieldValue, resetForm, errors } = useForm<FormValues>({
 const configForm = useForm({
   validationSchema: toTypedSchema(props.schema),
   initialValues: props.isConfigured ? { ...props.integration.config } : {},
+  validateOnMount: true,
 })
 
 const isConnectionTested = ref(props.isConfigured)
@@ -74,29 +76,32 @@ const isTesting = ref(false)
 const testResult = ref<{ success: boolean; message?: string } | null>(
   props.isConfigured ? { success: true } : null,
 )
-const formRef = ref()
 
-// Computed properties
 const wasInitiallyActive = computed(
   () => props.isConfigured && props.integration.enabled,
 )
 
-const isEnabledToggleDisabled = computed(() => {
-  // For already active integrations without config changes, allow toggling
-  if (wasInitiallyActive.value && !hasConfigChanges.value) {
-    return false
-  }
+const hasConfigChanges = computed(() => {
+  if (!props.isConfigured) return configForm.meta.value?.dirty
+  return (
+    JSON.stringify(props.integration.config) !==
+    JSON.stringify(configForm.values)
+  )
+})
 
-  // For already configured but inactive integrations without config changes
+const isFormValid = computed(
+  () =>
+    Object.keys(configForm.errors.value).length === 0 &&
+    configForm.meta.value?.valid,
+)
+
+const isEnabledToggleDisabled = computed(() => {
   if (
-    props.isConfigured &&
-    !wasInitiallyActive.value &&
+    (wasInitiallyActive.value || props.isConfigured) &&
     !hasConfigChanges.value
   ) {
     return false
   }
-
-  // For new integrations or when config changes are made, require a successful test
   return !isConnectionTested.value || !testResult.value?.success
 })
 
@@ -116,26 +121,12 @@ const allCapabilitiesEnabled = computed({
   },
 })
 
-const isFormValid = computed(
-  () =>
-    Object.keys(configForm.errors.value).length === 0 &&
-    configForm.meta.value?.valid,
-)
-
 const isValid = computed(() => {
-  // Check if there are significant config changes (not just capability changes)
-  const hasConfigChanges = props.isConfigured
-    ? JSON.stringify(props.integration.config) !==
-      JSON.stringify(configForm.values)
-    : false
-
-  // For already configured integrations without changes, consider them valid
-  if (props.isConfigured && !configForm.meta.value?.dirty) {
-    return isFormValid.value
-  }
-
-  // For already configured integrations with only capability changes (no config changes)
-  if (props.isConfigured && configForm.meta.value?.dirty && !hasConfigChanges) {
+  // For already configured integrations without changes or with only capability changes
+  if (
+    props.isConfigured &&
+    (!configForm.meta.value?.dirty || !hasConfigChanges.value)
+  ) {
     return isFormValid.value
   }
 
@@ -147,22 +138,80 @@ const isValid = computed(() => {
   )
 })
 
-const hasConfigChanges = computed(() => {
-  if (!props.isConfigured) return configForm.meta.value?.dirty
-  return (
-    JSON.stringify(props.integration.config) !==
-    JSON.stringify(configForm.values)
-  )
-})
+async function validateConfigForm() {
+  await configForm.validate()
+  updateValidity()
+}
+
+function toggleCapability(capability: string, enabled: boolean) {
+  const newCapabilities = values.capabilities.map(cap => ({
+    ...cap,
+    active: cap.id === capability ? enabled : cap.active,
+  }))
+  setFieldValue('capabilities', newCapabilities)
+}
+
+function updateValidity() {
+  emit('update:valid', isValid.value)
+}
+
+async function testConnection() {
+  await validateConfigForm()
+
+  if (!isFormValid.value) {
+    toast.error(t('settings.integrations.test.validation_error'))
+    return
+  }
+
+  isTesting.value = true
+  testResult.value = null
+
+  try {
+    const result = await integrationService.testIntegrationConfig(
+      props.integration.id,
+      configForm.values,
+    )
+
+    testResult.value = result
+    isConnectionTested.value = true
+
+    if (result.success) {
+      toast.success(t('settings.integrations.test.success'))
+    } else {
+      toast.error(result.message || t('settings.integrations.test.failure'))
+    }
+  } catch (error: any) {
+    testResult.value = null
+    toast.error(error.toString())
+  } finally {
+    isTesting.value = false
+    updateValidity()
+  }
+}
+
+async function submit() {
+  if (!isValid.value) return null
+
+  return {
+    config: configForm.values,
+    capabilities: values.capabilities.map(cap => ({
+      id: cap.id,
+      active: cap.active,
+    })),
+  }
+}
 
 watch(
   () => configForm.values,
-  newConfig => setFieldValue('config', newConfig),
+  newConfig => {
+    setFieldValue('config', newConfig)
+    validateConfigForm()
+  },
   { deep: true },
 )
 
 watch(
-  [() => configForm.errors.value, () => configForm.meta.value],
+  [() => configForm.errors, () => configForm.meta],
   () => updateValidity(),
   { deep: true },
 )
@@ -170,13 +219,8 @@ watch(
 watch(
   () => values.config,
   newConfig => {
-    // Check if there are actual config changes (not just capability changes)
-    const hasActualConfigChanges = props.isConfigured
-      ? JSON.stringify(props.integration.config) !== JSON.stringify(newConfig)
-      : true
-
     // Reset test status if there are config changes
-    if (hasActualConfigChanges) {
+    if (hasConfigChanges.value) {
       isConnectionTested.value = false
       testResult.value = null
       updateValidity()
@@ -210,72 +254,25 @@ watch(
   },
 )
 
-function toggleCapability(capability: string, enabled: boolean) {
-  const newCapabilities = values.capabilities.map(cap => ({
-    ...cap,
-    active: cap.id === capability ? enabled : cap.active,
-  }))
-  setFieldValue('capabilities', newCapabilities)
-}
-
-function updateValidity() {
-  emit('update:valid', isValid.value)
-}
-
-async function testConnection() {
-  const isValid = await configForm.validate()
-  if (!isValid) return
-
-  isTesting.value = true
-  testResult.value = null
-
-  try {
-    const result = await integrationService.testIntegrationConfig(
-      props.integration.id,
-      configForm.values,
-    )
-
-    testResult.value = result
-    isConnectionTested.value = true
-
-    if (result.success) {
-      toast.success(t('settings.integrations.test.success'))
-    } else {
-      toast.error(result.message || t('settings.integrations.test.failure'))
-    }
-  } catch (error: any) {
-    testResult.value = null
-    toast.error(error.toString())
-  } finally {
-    isTesting.value = false
-    updateValidity()
-  }
-}
-
-async function submit() {
-  if (!isValid.value) return null
-
-  // Convert the proxy object to a plain JavaScript object
-  const plainCapabilities = values.capabilities.map(cap => ({
-    id: cap.id,
-    active: cap.active,
-  }))
-
-  return {
-    config: configForm.values,
-    capabilities: plainCapabilities,
-  }
-}
-
 onMounted(() => {
   if (props.isConfigured && props.integration.config) {
     configForm.resetForm({ values: { ...props.integration.config } })
-
-    // For configured integrations, mark as already tested
     isConnectionTested.value = true
     testResult.value = { success: true }
-    updateValidity()
+
+    // Validate form after mount
+    setTimeout(() => {
+      validateConfigForm()
+    }, 0)
   }
+})
+
+// Make test button available based on form state
+const showTestButton = computed(() => {
+  if (props.isConfigured && !configForm.meta.value?.dirty) {
+    return false
+  }
+  return true
 })
 
 defineExpose({ submit })
@@ -291,15 +288,7 @@ defineExpose({ submit })
     />
 
     <TransitionExpand :duration="300">
-      <div
-        v-if="
-          hasConfigChanges &&
-          (!isConnectionTested ||
-            !testResult?.success ||
-            configForm.meta.value?.dirty)
-        "
-        class="mt-2"
-      >
+      <div v-if="showTestButton" class="mt-2">
         <div class="flex items-center justify-between">
           <div>
             <div class="block text-sm font-medium text-foreground">

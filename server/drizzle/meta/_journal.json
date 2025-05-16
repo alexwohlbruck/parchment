@@ -50,6 +50,13 @@
       "when": 1746111700992,
       "tag": "0006_striped_sprite",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1747283940118,
+      "tag": "0007_minor_colleen_wing",
+      "breakpoints": true
     }
   ]
 }

@@ -25,7 +25,9 @@
     "type": "Tipo",
     "none": "Ninguno",
     "optional": "Opcional",
-    "default": "Predeterminado"
+    "default": "Predeterminado",
+    "enabled": "Habilitado",
+    "all": "Todos"
   },
   "palette": {
     "general": {
@@ -370,7 +372,7 @@
     "title": "Personas"
   },
   "settings": {
-    "title": "Ajustes",
+    "title": "Configuración",
     "description": "Administra la configuración de tu cuenta y el comportamiento de la aplicación",
     "account": {
       "title": "Cuenta",
@@ -458,40 +460,54 @@
     },
     "integrations": {
       "title": "Integraciones",
-      "description": "Conecta y gestiona integraciones de terceros",
-      "empty": "Aún no hay integraciones configuradas",
+      "description": "Gestionar tus conexiones a servicios externos",
       "available": "Integraciones Disponibles",
+      "noConfigured": "No hay integraciones configuradas",
+      "noAvailable": "No hay integraciones disponibles",
       "configure": "Configurar {name}",
       "edit": "Editar {name}",
-      "enabled": "Activado",
-      "apiKey": "Clave API",
-      "apiKeyPlaceholder": "Ingresa tu clave API",
-      "host": "URL del Host",
-      "email": "Correo Electrónico",
-      "clientId": "ID de Cliente",
-      "clientSecret": "Secreto del Cliente",
+      "success": "Éxito",
+      "error": "Error",
+      "created": "Integración {name} creada exitosamente",
+      "updated": "Integración {name} actualizada exitosamente",
+      "enabled": "Integración {name} habilitada exitosamente",
+      "disabled": "Integración {name} deshabilitada exitosamente",
+      "delete": {
+        "title": "Eliminar Integración",
+        "description": "¿Estás seguro que quieres eliminar la integración {name}?",
+        "success": "Integración {name} eliminada exitosamente"
+      },
+      "test": {
+        "title": "Probar Conexión",
+        "description": "Debes probar tu conexión antes de guardar",
+        "button": "Probar Conexión",
+        "success": "Conexión exitosa",
+        "failure": "Conexión fallida",
+        "error": "Error al probar la conexión"
+      },
+      "status": {
+        "active": "activa",
+        "inactive": "inactiva",
+        "available": "disponible"
+      },
       "capabilities": {
         "routing": "Rutas",
         "geocoding": "Geocodificación",
-        "place_info": "Lugares",
-        "imagery": "Imágenes"
-      },
-      "status": {
-        "active": "Activo",
-        "inactive": "Inactivo",
-        "available": "Disponible"
+        "place_info": "Información de Lugares",
+        "imagery": "Imágenes",
+        "title": "Capacidades"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",
         "pelias": "Geocodificación y búsqueda de código abierto",
-        "graphhopper": "Motor de enrutamiento rápido y eficiente",
+        "graphhopper": "Motor de rutas rápido y eficiente",
         "yelp": "Reseñas y calificaciones de negocios locales",
         "opentable": "Descubrimiento y reservas de restaurantes",
-        "foursquare": "Red social basada en ubicación",
+        "foursquare": "Red social basada en la ubicación",
         "mapillary": "Plataforma de imágenes a nivel de calle",
-        "nominatim": "Geocodificación y geocodificación inversa de código abierto",
+        "nominatim": "Geocodificación de código abierto",
         "tripadvisor": "Reseñas y recomendaciones de viajes",
-        "geoapify": "Geocodificación, enrutamiento y datos de lugares"
+        "geoapify": "Geocodificación, rutas e información de lugares"
       }
     },
     "users": {

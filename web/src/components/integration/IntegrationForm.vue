@@ -326,7 +326,7 @@ defineExpose({ submit })
         <div class="block text-sm font-medium text-foreground">
           {{ t('settings.integrations.capabilities.title') }}
         </div>
-        <div class="space-y-3 p-3 border rounded-md">
+        <div class="space-y-3 p-3 border border-border rounded-md">
           <div
             v-for="capability in values.capabilities"
             :key="capability.id"

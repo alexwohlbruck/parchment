@@ -11,6 +11,7 @@ import {
   oauthConfigSchema,
   nominatimSchema,
   googleMapsSchema,
+  peliasSchema,
 } from '@/types/integrations.types'
 import IntegrationsList from '@/components/integration/IntegrationsList.vue'
 import IntegrationForm from '@/components/integration/IntegrationForm.vue'
@@ -45,12 +46,14 @@ async function handleCardClick(integration: UiIntegration) {
 
   try {
     // Map the schema name to the actual schema object
+    // TODO: Auto import schemas from integration.types.ts
     const schemaMap: Record<string, ZodObject<any>> = {
       apiKeySchema,
       hostConfigSchema,
       oauthConfigSchema,
       nominatimSchema,
       googleMapsSchema,
+      peliasSchema,
     }
 
     // Get the actual schema based on the schema name or use apiKeySchema as fallback

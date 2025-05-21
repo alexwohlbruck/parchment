@@ -1,11 +1,9 @@
 import { pgTable, text, timestamp } from 'drizzle-orm/pg-core'
-import { users } from './user.schema'
+import { users } from './users.schema'
 
 export const integrations = pgTable('integrations', {
   id: text('id').primaryKey(),
-  userId: text('user_id')
-    .references(() => users.id)
-    .notNull(),
+  userId: text('user_id').references(() => users.id),
   integrationId: text('integration_id').notNull(),
   config: text('config').notNull(), // JSON string
   capabilities: text('capabilities').notNull(), // JSON string

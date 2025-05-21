@@ -3,6 +3,7 @@ export enum IntegrationCapabilityId {
   GEOCODING = 'geocoding',
   PLACE_INFO = 'place_info',
   IMAGERY = 'imagery',
+  AUTOCOMPLETE = 'autocomplete',
 }
 
 export enum IntegrationId {

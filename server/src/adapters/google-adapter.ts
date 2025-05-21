@@ -8,7 +8,6 @@ import type {
 } from '../types/unified-place.types'
 import { GOOGLE_MAPS_PHOTO_URL } from '../lib/constants'
 import { parseGoogleHours } from '../lib/hours.utils'
-import { getTimestamp } from '../services/merge.service'
 import { BUSINESS_STATUS, SOURCE } from '../lib/constants'
 
 /**

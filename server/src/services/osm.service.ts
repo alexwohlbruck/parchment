@@ -95,36 +95,36 @@ export const fetchPlaceFromOverpass = async (
   try {
     const query = buildOverpassQuery(id)
 
-    const response = await axios.get(
-      `${OVERPASS_API_URL}?data=${encodeURIComponent(query)}`,
-    )
+    console.log('Fetching OSM place by ID:', id)
+    const response = await axios.post(OVERPASS_API_URL, query, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    })
 
     console.log('Overpass response:', JSON.stringify(response.data, null, 2))
 
-    if (response.status !== 200) {
-      throw new Error(`Failed to fetch place details (HTTP ${response.status})`)
+    if (!response.data.elements || response.data.elements.length === 0) {
+      console.error('No place found with ID:', id)
+      return null
     }
 
-    const place = response.data.elements?.[0] as Place
-    if (!place) {
-      throw new Error(`Place not found: ${id}`)
-    }
-
+    // The first element should be our place
+    const place = response.data.elements[0] as Place
     const center = calculatePlaceCenter(place)
     if (center) {
       place.center = center
-    } else {
-      console.error('Could not calculate center for place:', place)
     }
 
-    return {
-      ...place,
-      id: `${place.type}/${place.id}`, // Convert id to composite type/id
-    }
-  } catch (error) {
-    console.error('Error fetching place from Overpass:', error)
-    if (axios.isAxiosError(error)) {
-      console.error('Response data:', error.response?.data)
+    return place
+  } catch (error: any) {
+    console.error('Error fetching place from Overpass:', error.message || error)
+    if (axios.isAxiosError(error) && error.response) {
+      console.error('Response status:', error.response.status)
+      console.error(
+        'Response data:',
+        JSON.stringify(error.response?.data, null, 2),
+      )
     }
     return null
   }
@@ -244,10 +244,17 @@ export const searchNominatim = async (
 
       return 0
     })
-  } catch (error) {
-    console.error('Error searching places from Nominatim:', error)
-    if (axios.isAxiosError(error)) {
-      console.error('Response data:', error.response?.data)
+  } catch (error: any) {
+    console.error(
+      'Error searching places from Nominatim:',
+      error.message || error,
+    )
+    if (axios.isAxiosError(error) && error.response) {
+      console.error('Response status:', error.response.status)
+      console.error(
+        'Response data:',
+        JSON.stringify(error.response?.data, null, 2),
+      )
     }
     return []
   }
@@ -357,16 +364,18 @@ export const searchOverpass = async (
   radius: number = 1000,
 ): Promise<Place[]> => {
   try {
-    const searchQuery = buildOverpassSearchQuery(query, lat, lon, radius)
-    console.log('Overpass search query:', searchQuery)
+    if (!query) return []
 
-    const response = await axios.get(
-      `${OVERPASS_API_URL}?data=${encodeURIComponent(searchQuery)}`,
-      { timeout: 10000 }, // 10 second timeout
-    )
+    const overpassQuery = buildOverpassSearchQuery(query, lat, lon, radius)
 
-    if (response.status !== 200) {
-      throw new Error(`Failed to search places (HTTP ${response.status})`)
+    const response = await axios.post(OVERPASS_API_URL, overpassQuery, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    })
+
+    if (!response.data.elements) {
+      return []
     }
 
     const places = response.data.elements as Place[]
@@ -379,10 +388,17 @@ export const searchOverpass = async (
       }
       return place
     })
-  } catch (error) {
-    console.error('Error searching places from Overpass:', error)
-    if (axios.isAxiosError(error)) {
-      console.error('Response data:', error.response?.data)
+  } catch (error: any) {
+    console.error(
+      'Error searching places from Overpass:',
+      error.message || error,
+    )
+    if (axios.isAxiosError(error) && error.response) {
+      console.error('Response status:', error.response.status)
+      console.error(
+        'Response data:',
+        JSON.stringify(error.response?.data, null, 2),
+      )
     }
     return []
   }

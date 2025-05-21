@@ -10,6 +10,7 @@ export const SOURCE = {
   TRIPADVISOR: 'tripadvisor',
   OPENTABLE: 'opentable',
   PELIAS: 'pelias',
+  NOMINATIM: 'nominatim',
 } as const
 
 /**
@@ -29,6 +30,9 @@ export const SOURCE_PRIORITIES = {
   [SOURCE.FOURSQUARE]: 40, // Foursquare
   [SOURCE.TRIPADVISOR]: 40, // TripAdvisor
   [SOURCE.OPENTABLE]: 30, // OpenTable
+  // TODO: Differentiate between "data sources" and "providers"
+  [SOURCE.PELIAS]: 70, // Pelias geocoder
+  [SOURCE.NOMINATIM]: 70, // Nominatim geocoder
 } as const
 
 /**
@@ -45,9 +49,10 @@ export const BUSINESS_STATUS = {
  */
 export const API_CONFIG = {
   [SOURCE.OSM]: true, // Always enabled
-  [SOURCE.GOOGLE]: false, //!!process.env.GOOGLE_MAPS_API_KEY,
+  [SOURCE.GOOGLE]: true, // Enabled, configured through integration manager
   [SOURCE.WIKIDATA]: true, // Always enabled
   [SOURCE.PELIAS]: false, // Always enabled, hosted locally
+  [SOURCE.NOMINATIM]: true, // Always enabled
   [SOURCE.YELP]: false, // Not implemented yet
   [SOURCE.FOURSQUARE]: false, // Not implemented yet
 } as const

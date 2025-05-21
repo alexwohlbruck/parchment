@@ -28,16 +28,25 @@ app.get('/available/user', async ({ user }) => {
   return await getAvailableIntegrationsForUser(user.id)
 })
 
-// Get user's configured integrations
+// Get user's configured integrations (user-specific ones plus system-wide ones)
 app.get('/configured', async ({ user }) => {
-  return await getConfiguredIntegrations(user.id)
+  const userIntegrations = await getConfiguredIntegrations(user.id)
+  const systemIntegrations = await getConfiguredIntegrations(null)
+
+  return [...userIntegrations, ...systemIntegrations]
 })
 
 // Get a specific integration
 app.get(
   '/:id',
   async ({ params: { id }, user }) => {
-    const integration = await getIntegration(id, user.id)
+    // First try user-specific integration
+    let integration = await getIntegration(id, user.id)
+
+    // If not found, try system-wide integration
+    if (!integration) {
+      integration = await getIntegration(id, null)
+    }
 
     if (!integration) {
       return error(404, { message: 'Integration not found' })
@@ -56,7 +65,7 @@ app.get(
 app.post(
   '/',
   async ({ body, user }) => {
-    const { integrationId, config, capabilities } = body
+    const { integrationId, config, capabilities, isSystemWide } = body
 
     // Verify the integration ID is valid
     const validId = Object.values(IntegrationId).includes(
@@ -74,8 +83,12 @@ app.post(
           }))
         : undefined
 
+      // For system-wide integrations, userId is null
+      let userId: string | null = isSystemWide ? null : user.id
+      userId = null // TODO: When we add user-specific integrations, allow this to be set to user.id
+
       const integration = await createIntegration(
-        user.id,
+        userId,
         integrationId as IntegrationId,
         config,
         processedCapabilities,
@@ -100,6 +113,7 @@ app.post(
           }),
         ),
       ),
+      isSystemWide: t.Optional(t.Boolean()),
     }),
   },
 )
@@ -114,6 +128,16 @@ app.put(
     }
 
     try {
+      // First, check if this is a system-wide integration
+      const systemIntegration = await getIntegration(id, null)
+      const userIntegration = await getIntegration(id, user.id)
+
+      if (!systemIntegration && !userIntegration) {
+        return error(404, { message: 'Integration not found' })
+      }
+
+      const userId: string | null = systemIntegration ? null : user.id
+
       // Convert capabilities array if provided
       const updates = {
         config: body.config,
@@ -125,7 +149,7 @@ app.put(
           : undefined,
       }
 
-      const integration = await updateIntegration(id, user.id, updates)
+      const integration = await updateIntegration(id, userId, updates)
       return integration
     } catch (err: any) {
       return error(400, {
@@ -156,7 +180,18 @@ app.delete(
   '/:id',
   async ({ params: { id }, user, set }) => {
     try {
-      await deleteIntegration(id, user.id)
+      // First, check if this is a system-wide integration
+      const systemIntegration = await getIntegration(id, null)
+      const userIntegration = await getIntegration(id, user.id)
+
+      if (!systemIntegration && !userIntegration) {
+        return error(404, { message: 'Integration not found' })
+      }
+
+      const userId: string | null = systemIntegration ? null : user.id
+
+      await deleteIntegration(id, userId)
+
       set.status = 204
       return null
     } catch (err: any) {

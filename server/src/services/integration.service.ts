@@ -1,7 +1,7 @@
 import { db } from '../db'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, isNull, or } from 'drizzle-orm'
 import { generateId } from '../util'
-import { integrations } from '../schema/integration.schema'
+import { integrations } from '../schema/integrations.schema'
 import {
   IntegrationCapability,
   IntegrationCapabilityId,
@@ -10,6 +10,8 @@ import {
   IntegrationResponse,
   TestIntegrationResponse,
 } from '../types/integration.types'
+import { integrationManager } from './integrations'
+import { users } from '../schema/users.schema'
 
 // Available integration definitions
 const availableIntegrations: IntegrationDefinition[] = [
@@ -23,6 +25,7 @@ const availableIntegrations: IntegrationDefinition[] = [
       IntegrationCapabilityId.GEOCODING,
       IntegrationCapabilityId.PLACE_INFO,
       IntegrationCapabilityId.IMAGERY,
+      IntegrationCapabilityId.AUTOCOMPLETE,
     ],
     paid: true,
     cloud: true,
@@ -33,10 +36,13 @@ const availableIntegrations: IntegrationDefinition[] = [
     name: 'Pelias',
     description: 'Open-source geocoding and search',
     color: '#7EBC6F',
-    capabilities: [IntegrationCapabilityId.GEOCODING],
+    capabilities: [
+      IntegrationCapabilityId.GEOCODING,
+      IntegrationCapabilityId.AUTOCOMPLETE,
+    ],
     paid: false,
     cloud: false,
-    configSchema: 'hostConfigSchema',
+    configSchema: 'peliasSchema',
   },
   {
     id: IntegrationId.GRAPHHOPPER,
@@ -93,7 +99,10 @@ const availableIntegrations: IntegrationDefinition[] = [
     name: 'Nominatim',
     description: 'Open-source geocoding and reverse geocoding',
     color: '#7EBC6F',
-    capabilities: [IntegrationCapabilityId.GEOCODING],
+    capabilities: [
+      IntegrationCapabilityId.GEOCODING,
+      IntegrationCapabilityId.AUTOCOMPLETE,
+    ],
     paid: false,
     cloud: false,
     configSchema: 'nominatimSchema',
@@ -123,6 +132,16 @@ const availableIntegrations: IntegrationDefinition[] = [
     configSchema: 'apiKeySchema',
   },
 ]
+
+export async function initializeIntegrations() {
+  await getConfiguredIntegrations(null)
+
+  const allUsers = await db.select().from(users)
+
+  for (const user of allUsers) {
+    await getConfiguredIntegrations(user.id)
+  }
+}
 
 // Helper functions
 function parseIntegrationData(integrationRecord: any): IntegrationResponse {
@@ -163,23 +182,41 @@ function cleanConfig(config: Record<string, any>): Record<string, any> {
 
 // Service functions
 export async function getConfiguredIntegrations(
-  userId: string,
+  userId: string | null,
 ): Promise<IntegrationResponse[]> {
-  const userIntegrations = await db
-    .select()
-    .from(integrations)
-    .where(eq(integrations.userId, userId))
+  let userIntegrations
 
-  return userIntegrations.map(parseIntegrationData)
+  if (userId === null) {
+    // Get system-wide integrations (where userId is null)
+    userIntegrations = await db
+      .select()
+      .from(integrations)
+      .where(isNull(integrations.userId))
+  } else {
+    // Get user-specific integrations
+    userIntegrations = await db
+      .select()
+      .from(integrations)
+      .where(eq(integrations.userId, userId))
+  }
+
+  const parsedIntegrations = userIntegrations.map(parseIntegrationData)
+
+  parsedIntegrations.forEach((integration) => {
+    integrationManager.initializeIntegration(userId, integration)
+  })
+
+  return parsedIntegrations
 }
 
 export async function getAvailableIntegrationsForUser(
   userId: string,
 ): Promise<IntegrationDefinition[]> {
+  // Get both system-wide and user-specific integrations
   const userIntegrations = await db
     .select()
     .from(integrations)
-    .where(eq(integrations.userId, userId))
+    .where(or(eq(integrations.userId, userId), isNull(integrations.userId)))
 
   const configuredIds = new Set(userIntegrations.map((i) => i.integrationId))
 
@@ -190,22 +227,44 @@ export async function getAvailableIntegrationsForUser(
 
 export async function getIntegration(
   id: string,
-  userId: string,
+  userId: string | null,
 ): Promise<IntegrationResponse | null> {
-  const result = await db
-    .select()
-    .from(integrations)
-    .where(and(eq(integrations.id, id), eq(integrations.userId, userId)))
+  let result
+
+  if (userId) {
+    result = await db
+      .select()
+      .from(integrations)
+      .where(and(eq(integrations.id, id), eq(integrations.userId, userId)))
+
+    if (result.length === 0) {
+      // If not found, check for system-wide integration
+      result = await db
+        .select()
+        .from(integrations)
+        .where(and(eq(integrations.id, id), isNull(integrations.userId)))
+    }
+  } else {
+    result = await db
+      .select()
+      .from(integrations)
+      .where(and(eq(integrations.id, id), isNull(integrations.userId)))
+  }
 
   if (result.length === 0) {
     return null
   }
 
-  return parseIntegrationData(result[0])
+  const integration = parseIntegrationData(result[0])
+
+  // Initialize and cache the integration
+  integrationManager.initializeIntegration(userId, integration)
+
+  return integration
 }
 
 export async function createIntegration(
-  userId: string,
+  userId: string | null,
   integrationId: IntegrationId,
   config: Record<string, any>,
   customCapabilities?: IntegrationCapability[],
@@ -218,10 +277,17 @@ export async function createIntegration(
     throw new Error(`Integration with ID ${integrationId} not found`)
   }
 
-  // Test the configuration
-  await testIntegrationConfig(integrationId, config)
+  const testResult = await integrationManager.testIntegration(
+    integrationId,
+    config,
+  )
 
-  // Use provided capabilities or create with all active
+  if (!testResult.success) {
+    throw new Error(
+      testResult.message || `Failed to test integration: ${integrationId}`,
+    )
+  }
+
   const capabilities =
     customCapabilities ||
     integrationDef.capabilities.map((id) => ({
@@ -229,29 +295,33 @@ export async function createIntegration(
       active: true,
     }))
 
-  // Clean config by removing capabilities and flattening nested objects
   const cleanedConfig = cleanConfig(config)
 
-  // Insert into database
-  const result = await db
-    .insert(integrations)
-    .values({
-      id: generateId(),
-      userId,
-      integrationId,
-      capabilities: JSON.stringify(capabilities),
-      config: JSON.stringify(cleanedConfig),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .returning()
+  const values: any = {
+    id: generateId(),
+    integrationId,
+    capabilities: JSON.stringify(capabilities),
+    config: JSON.stringify(cleanedConfig),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }
 
-  return parseIntegrationData(result[0])
+  if (userId !== null) {
+    values.userId = userId
+  }
+
+  const result = await db.insert(integrations).values(values).returning()
+
+  const newIntegration = parseIntegrationData(result[0])
+
+  integrationManager.initializeIntegration(userId, newIntegration)
+
+  return newIntegration
 }
 
 export async function updateIntegration(
   id: string,
-  userId: string,
+  userId: string | null,
   updates: {
     config?: Record<string, any>
     capabilities?: IntegrationCapability[]
@@ -267,85 +337,82 @@ export async function updateIntegration(
     updatedAt: new Date(),
   }
 
-  // Update config if provided
   if (updates.config) {
+    const testResult = await integrationManager.testIntegration(
+      currentIntegration.integrationId,
+      updates.config,
+    )
+
+    if (!testResult.success) {
+      throw new Error(
+        testResult.message || 'Failed to test updated configuration',
+      )
+    }
+
     updateData.config = JSON.stringify(cleanConfig(updates.config))
   }
 
-  // Update capabilities if provided
   if (updates.capabilities) {
     updateData.capabilities = JSON.stringify(updates.capabilities)
   }
 
-  // Only perform update if there are fields to update besides updatedAt
   if (Object.keys(updateData).length <= 1) {
     throw new Error('No updates provided')
   }
 
-  // Update the integration
-  await db
-    .update(integrations)
-    .set(updateData)
-    .where(and(eq(integrations.id, id), eq(integrations.userId, userId)))
+  let whereCondition
+  if (userId !== null) {
+    whereCondition = and(
+      eq(integrations.id, id),
+      eq(integrations.userId, userId),
+    )
+  } else {
+    whereCondition = and(eq(integrations.id, id), isNull(integrations.userId))
+  }
 
-  // Get the updated integration
+  await db.update(integrations).set(updateData).where(whereCondition)
+
   const updatedIntegration = await getIntegration(id, userId)
   if (!updatedIntegration) {
     throw new Error('Failed to retrieve updated integration')
   }
+
+  integrationManager.initializeIntegration(userId, updatedIntegration)
 
   return updatedIntegration
 }
 
 export async function deleteIntegration(
   id: string,
-  userId: string,
+  userId: string | null,
 ): Promise<void> {
-  const result = await db
-    .select()
-    .from(integrations)
-    .where(and(eq(integrations.id, id), eq(integrations.userId, userId)))
+  // Build the where condition based on userId
+  let whereCondition
+  if (userId !== null) {
+    whereCondition = and(
+      eq(integrations.id, id),
+      eq(integrations.userId, userId),
+    )
+  } else {
+    whereCondition = and(eq(integrations.id, id), isNull(integrations.userId))
+  }
+
+  const result = await db.select().from(integrations).where(whereCondition)
 
   if (result.length === 0) {
     throw new Error(`Integration with ID ${id} not found`)
   }
 
   await db.delete(integrations).where(eq(integrations.id, id))
+
+  integrationManager.removeIntegration(userId, id)
 }
 
 export async function testIntegrationConfig(
   integrationId: IntegrationId,
   config: Record<string, any>,
 ): Promise<TestIntegrationResponse> {
-  // Validate required credentials based on integration type
-  switch (integrationId) {
-    case IntegrationId.GOOGLE_MAPS:
-      if (!config.apiKey) {
-        return { success: false, message: 'API Key is required' }
-      }
-      break
-
-    case IntegrationId.PELIAS:
-      if (!config.host || !config.apiKey) {
-        return { success: false, message: 'Host and API Key are required' }
-      }
-      break
-
-    case IntegrationId.NOMINATIM:
-      if (!config.host || !config.email) {
-        return { success: false, message: 'Host and email are required' }
-      }
-      break
-
-    default:
-      // Default check for API key
-      if (!config.apiKey) {
-        return { success: false, message: 'API Key is required' }
-      }
-  }
-
-  // In a real implementation, API calls would be made to verify credentials
-  return { success: true }
+  return integrationManager.testIntegration(integrationId, config)
 }
 
 export function getIntegrationDefinition(
@@ -355,5 +422,5 @@ export function getIntegrationDefinition(
 }
 
 export function getAvailableIntegrations(): IntegrationDefinition[] {
-  return [...availableIntegrations]
+  return availableIntegrations
 }

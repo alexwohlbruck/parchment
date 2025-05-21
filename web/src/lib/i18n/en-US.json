@@ -491,6 +491,7 @@
         "geocoding": "Geocoding",
         "place_info": "Place Info",
         "imagery": "Imagery",
+        "autocomplete": "Autocomplete",
         "title": "Capabilities"
       },
       "descriptions": {

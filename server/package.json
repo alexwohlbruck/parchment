@@ -36,7 +36,7 @@
     "postgres": "^3.4.5"
   },
   "devDependencies": {
-    "@types/node": "^22.9.0",
+    "@types/node": "^22.15.21",
     "bun-types": "latest"
   },
   "module": "src/index.js"

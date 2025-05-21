@@ -6,7 +6,6 @@ import { siGooglemaps } from 'simple-icons'
 import { z } from 'zod'
 import {
   IntegrationCapabilityId,
-  IntegrationId,
   IntegrationCapability,
 } from '@server/types/integration.types'
 
@@ -30,12 +29,15 @@ export const nominatimSchema = z.object({
     .string()
     .url('Please enter a valid URL')
     .default('https://nominatim.openstreetmap.org'),
-  email: z.string().email('Please enter a valid email for usage tracking'),
 })
 
 export const googleMapsSchema = z.object({
   apiKey: z.string().min(1, 'API Key is required'),
-  clientId: z.string().optional(),
+  // clientId: z.string().optional(),
+})
+
+export const peliasSchema = z.object({
+  host: z.string().url('Please enter a valid URL'),
 })
 
 // UI-specific integration type that combines server data with UI elements

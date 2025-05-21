@@ -4,19 +4,9 @@ import type {
   PlacePhoto,
   AttributedValue,
   Address,
-  OpeningHours,
 } from '../types/unified-place.types'
 import { parseOsmHours } from '../lib/hours.utils'
 import { getTimestamp } from '../services/merge.service'
-import { getPlaceType } from '../lib/place.utils'
-import {
-  UnifiedPlace,
-  PlaceGeometry,
-  Coordinates,
-  OpeningTime,
-  SourceReference,
-} from '../types/unified-place.types'
-import { encode } from 'pluscodes'
 import { SOURCE } from '../lib/constants'
 
 /**

@@ -14,6 +14,7 @@ import {
   library as libraryController,
   integrations as integrationsController,
 } from './controllers'
+import { initializeIntegrations } from './services/integration.service'
 
 const app = new Elysia()
 
@@ -37,3 +38,5 @@ app.listen(process.env.PORT || 5000)
 console.log(
   `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`,
 )
+
+initializeIntegrations()

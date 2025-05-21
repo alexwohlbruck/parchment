@@ -1,5 +1,5 @@
 import { Elysia, t, error } from 'elysia'
-import { getSession } from '../middleware/auth.middleware.js'
+import { getSession, requireAuth } from '../middleware/auth.middleware.js'
 import {
   getPlaceDetails,
   searchPlaces,
@@ -117,13 +117,11 @@ app.get(
     )
 
     if (!q) {
-      console.log('Error: Search query is required')
       return error(400, { message: 'Search query is required' })
     }
 
     // Require at least 2 characters for autocomplete
     if (q.length < 2) {
-      console.log('Error: Query must be at least 2 characters')
       return error(400, { message: 'Query must be at least 2 characters' })
     }
 
@@ -131,14 +129,6 @@ app.get(
     const coordinates =
       lat && lng ? { lat: parseFloat(lat), lng: parseFloat(lng) } : undefined
 
-    console.log(
-      `Using coordinates: ${
-        coordinates ? `${coordinates.lat}, ${coordinates.lng}` : 'none provided'
-      }`,
-    )
-
-    // Get autocomplete suggestions from multiple providers (Pelias and optionally Google)
-    console.log('Calling getPlaceAutocomplete')
     const places = await getPlaceAutocomplete(
       q,
       coordinates,

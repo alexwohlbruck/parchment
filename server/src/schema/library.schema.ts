@@ -6,7 +6,7 @@ import {
   boolean,
   primaryKey,
 } from 'drizzle-orm/pg-core'
-import { users } from './user.schema'
+import { users } from './users.schema'
 
 export const bookmarks = pgTable('bookmarks', {
   id: text('id').primaryKey().notNull(),

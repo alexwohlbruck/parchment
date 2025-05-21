@@ -614,6 +614,11 @@ export function deduplicateAutocompletePlaces(
   // Group places by provider
   const placesByProvider = groupPlacesByProvider(places)
 
+  // If we only have one provider, return all places from that provider
+  if (Object.keys(placesByProvider).length === 1) {
+    return places
+  }
+
   // First priority: Add all OSM/Pelias results as base places
   const finalResults: UnifiedPlace[] = []
   const nameToPlaceMap: Record<
@@ -698,7 +703,8 @@ export function deduplicateAutocompletePlaces(
   })
 
   console.log(
-    `Returned ${finalResults.length} deduplicated places (original: ${places.length})`,
+    `Returning ${finalResults.length} deduplicated places (original: ${places.length})`,
   )
+
   return finalResults
 }

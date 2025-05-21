@@ -1,9 +1,7 @@
 import type { PlaceDataAdapter } from '../types/adapter.types'
 import type {
-  PlacePhoto,
   AttributedValue,
   Address,
-  OpeningHours,
   UnifiedPlace,
   PlaceGeometry,
 } from '../types/unified-place.types'

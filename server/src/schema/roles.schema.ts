@@ -1,8 +1,8 @@
 import { pgTable, text } from 'drizzle-orm/pg-core'
-import { usersToRoles } from './user-role.schema'
+import { usersToRoles } from './users-roles.schema'
 import { relations } from 'drizzle-orm'
 
-export const roles = pgTable('role', {
+export const roles = pgTable('roles', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   description: text('description').notNull(),

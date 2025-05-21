@@ -279,6 +279,7 @@ defineExpose({ submit })
 
 <template>
   <div class="space-y-6">
+    <!-- TODO: Add "show secrets" toggle to text fields -->
     <AutoForm
       ref="formRef"
       :schema="schema"

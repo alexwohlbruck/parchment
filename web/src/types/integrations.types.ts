@@ -9,6 +9,8 @@ import {
   IntegrationCapability,
 } from '@server/types/integration.types'
 
+// TODO: i18n translate error messages
+
 // Schema templates for form validation
 export const apiKeySchema = z.object({
   apiKey: z.string().min(1, 'API Key is required'),
@@ -29,6 +31,13 @@ export const nominatimSchema = z.object({
     .string()
     .url('Please enter a valid URL')
     .default('https://nominatim.openstreetmap.org'),
+})
+
+export const overpassSchema = z.object({
+  host: z
+    .string()
+    .url('Please enter a valid URL')
+    .default('https://overpass-api.de/api/interpreter'),
 })
 
 export const googleMapsSchema = z.object({

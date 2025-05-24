@@ -8,8 +8,13 @@ import {
   IntegrationConfig,
   IntegrationTestResult,
 } from './integration.interface'
-import { UnifiedPlace } from '../../types/unified-place.types'
+import {
+  UnifiedPlace,
+  PlaceGeometry,
+  OpeningHours,
+} from '../../types/unified-place.types'
 import { getTimestamp } from '../../services/merge.service'
+import { SOURCE } from '../../lib/constants'
 
 /**
  * Nominatim integration
@@ -20,6 +25,31 @@ export class NominatimIntegration extends BaseIntegration {
     IntegrationCapabilityId.GEOCODING,
     IntegrationCapabilityId.AUTOCOMPLETE,
   ]
+  readonly sources = [SOURCE.OSM]
+
+  protected config: {
+    host: string
+    email?: string
+  } = {
+    host: 'https://nominatim.openstreetmap.org',
+  }
+
+  /**
+   * Initialize the integration with configuration
+   * @param config Configuration for the integration
+   */
+  override initialize(config: IntegrationConfig): void {
+    if (!this.validateConfig(config)) {
+      throw new Error('Invalid configuration: Host is required')
+    }
+
+    this.config = {
+      host: config.host,
+      email: config.email,
+    }
+
+    super.initialize(config)
+  }
 
   /**
    * Tests the connection with the given configuration
@@ -137,6 +167,88 @@ export class NominatimIntegration extends BaseIntegration {
   }
 
   /**
+   * Get place details by Nominatim ID
+   * @param id The place ID
+   * @returns Place details or null if not found
+   */
+  async getPlaceDetails(id: string): Promise<any | null> {
+    this.ensureInitialized()
+
+    try {
+      console.log(`Getting place details from Nominatim for ID: ${id}`)
+
+      // Remove provider prefix if present
+      let osmId = id
+      if (id.startsWith('nominatim/')) {
+        osmId = id.substring(10)
+      }
+
+      // Handle potential prefix like 'node/'
+      let osmType: string | null = null
+      let osmIdValue: string = osmId
+
+      if (osmId.includes('/')) {
+        const parts = osmId.split('/')
+        osmType = parts[0]
+        osmIdValue = parts[1]
+      }
+
+      // Validate OSM type
+      if (osmType && !['node', 'way', 'relation'].includes(osmType)) {
+        console.error(`Invalid OSM type: ${osmType}`)
+        return null
+      }
+
+      // Build the query for Nominatim - use reverse lookup if no type is provided
+      const apiUrl = `${
+        this.config.host.endsWith('/')
+          ? this.config.host.slice(0, -1)
+          : this.config.host
+      }/lookup`
+
+      const params: Record<string, any> = {
+        osm_ids: `${osmType?.charAt(0).toUpperCase() || 'N'}${osmIdValue}`,
+        format: 'json',
+        addressdetails: 1,
+        extratags: 1,
+        namedetails: 1,
+        'accept-language': 'en',
+      }
+
+      if (this.config.email) {
+        params.email = this.config.email
+      }
+
+      console.log(`Calling Nominatim lookup API with params:`, params)
+
+      const response = await axios.get(apiUrl, {
+        params,
+        headers: {
+          'User-Agent': 'Parchment/1.0',
+        },
+      })
+
+      // Nominatim lookup returns an array
+      if (
+        !response.data ||
+        !Array.isArray(response.data) ||
+        response.data.length === 0
+      ) {
+        console.error('No results found from Nominatim lookup')
+        return null
+      }
+
+      console.log(
+        `Nominatim lookup successful, got ${response.data.length} results`,
+      )
+      return response.data[0]
+    } catch (error) {
+      console.error('Error getting place details from Nominatim:', error)
+      return null
+    }
+  }
+
+  /**
    * Get autocomplete suggestions for a query
    * @param query The search query
    * @param lat Optional latitude for location bias
@@ -195,115 +307,171 @@ export class NominatimIntegration extends BaseIntegration {
   }
 
   /**
-   * Override createUnifiedPlace to properly handle Nominatim response format
+   * Create a unified place object from Nominatim place data
+   * @param nominatimPlace Nominatim place data
+   * @param placeId Place ID string
+   * @returns UnifiedPlace object
    */
-  createUnifiedPlace(providerData: any, id?: string): UnifiedPlace {
-    try {
-      // Ensure required data is present
-      if (!providerData || !providerData.osm_id) {
-        return super.createUnifiedPlace(providerData, id)
-      }
-
-      // Extract location coordinates
-      const lat = parseFloat(providerData.lat || 0)
-      const lng = parseFloat(providerData.lon || 0)
-
-      // Create a unique ID
-      const placeId = id || `${this.integrationId}/${providerData.osm_id}`
-
-      // Get name from namedetails or display_name
-      let name = ''
-      if (providerData.namedetails && providerData.namedetails.name) {
-        name = providerData.namedetails.name
-      } else if (providerData.display_name) {
-        // Only use the first part of display_name as the name (before the first comma)
-        const firstPart = providerData.display_name.split(',')[0]
-        name = firstPart.trim()
-      } else {
-        name = 'Unnamed Place'
-      }
-
-      // Create structured address from addressdetails
-      const address: {
-        street1?: string
-        street2?: string
-        neighborhood?: string
-        locality?: string
-        region?: string
-        postalCode?: string
-        country?: string
-        countryCode?: string
-        formatted?: string
-      } = {}
-
-      // Extract address components from the addressdetails object
-      if (providerData.address) {
-        const addr = providerData.address
-
-        // Build street1 from house_number and road/street
-        if (addr.house_number || addr.road || addr.street) {
-          address.street1 = [addr.house_number, addr.road || addr.street]
-            .filter(Boolean)
-            .join(' ')
-        }
-
-        address.neighborhood = addr.neighbourhood || addr.suburb || undefined
-        address.locality = addr.city || addr.town || addr.village || undefined
-        address.region = addr.state || addr.county || undefined
-        address.postalCode = addr.postcode || undefined
-        address.country = addr.country || undefined
-        address.countryCode = addr.country_code
-          ? addr.country_code.toUpperCase()
-          : undefined
-      }
-
-      // Create a formatted address that doesn't include the place name
-      const addressParts = []
-      if (address.street1) addressParts.push(address.street1)
-      if (address.street2) addressParts.push(address.street2)
-      if (address.neighborhood) addressParts.push(address.neighborhood)
-      if (address.locality) addressParts.push(address.locality)
-      if (address.region) addressParts.push(address.region)
-      if (address.postalCode) addressParts.push(address.postalCode)
-      if (address.country) addressParts.push(address.country)
-
-      if (addressParts.length > 0) {
-        address.formatted = addressParts.join(', ')
-      }
-
-      // Create the unified place
-      return {
-        id: placeId,
-        externalIds: { [this.integrationId]: providerData.osm_id.toString() },
-        name: name,
-        placeType: providerData.type || providerData.class || 'unknown',
-        geometry: {
-          type: 'point',
-          center: { lat, lng },
-        },
-        photos: [],
-        address: Object.keys(address).length > 0 ? address : null,
-        contactInfo: {
-          phone: null,
-          email: null,
-          website: null,
-          socials: {},
-        },
-        openingHours: null,
-        amenities: {},
-        sources: [
-          {
-            id: this.integrationId,
-            name: this.getDisplayName(),
-            url: '',
-          },
-        ],
-        lastUpdated: getTimestamp(),
-        createdAt: getTimestamp(),
-      }
-    } catch (error) {
-      console.error('Error creating unified place from Nominatim data:', error)
-      return super.createUnifiedPlace(providerData, id)
+  createUnifiedPlace(nominatimPlace: any, placeId: string): UnifiedPlace {
+    if (!nominatimPlace) {
+      throw new Error('Nominatim place data is null or undefined')
     }
+
+    // Extract the ID (clean it if it has a prefix)
+    let id = placeId
+    if (!id.includes('/')) {
+      // If no OSM type is included, we need to use the osm_type and osm_id
+      if (nominatimPlace.osm_type && nominatimPlace.osm_id) {
+        const osmType = nominatimPlace.osm_type.toLowerCase()
+        id = `${osmType}/${nominatimPlace.osm_id}`
+      }
+    }
+
+    // Create external IDs object
+    const externalIds: Record<string, string> = {
+      nominatim: id,
+    }
+
+    // Add OSM ID if available
+    if (nominatimPlace.osm_type && nominatimPlace.osm_id) {
+      const osmType = nominatimPlace.osm_type.toLowerCase()
+      externalIds[SOURCE.OSM] = `${osmType}/${nominatimPlace.osm_id}`
+    }
+
+    // Extract place name - try different possible fields
+    const name =
+      nominatimPlace.namedetails?.name ||
+      nominatimPlace.name ||
+      nominatimPlace.display_name ||
+      'Unknown place'
+
+    // Determine place type
+    let placeType = 'unknown'
+    if (nominatimPlace.type && nominatimPlace.category) {
+      placeType = `${nominatimPlace.category}/${nominatimPlace.type}`
+    } else if (nominatimPlace.type) {
+      placeType = nominatimPlace.type
+    } else if (nominatimPlace.category) {
+      placeType = nominatimPlace.category
+    }
+
+    // Create geometry object
+    const geometry: PlaceGeometry = {
+      type: 'point' as const,
+      center: {
+        lat: parseFloat(nominatimPlace.lat) || 0,
+        lng: parseFloat(nominatimPlace.lon) || 0,
+      },
+    }
+
+    // Create address object
+    const address = nominatimPlace.address
+      ? {
+          formatted: nominatimPlace.display_name || null,
+          street:
+            nominatimPlace.address.road ||
+            nominatimPlace.address.street ||
+            null,
+          houseNumber: nominatimPlace.address.house_number || null,
+          neighborhood:
+            nominatimPlace.address.neighbourhood ||
+            nominatimPlace.address.suburb ||
+            null,
+          locality:
+            nominatimPlace.address.city ||
+            nominatimPlace.address.town ||
+            nominatimPlace.address.village ||
+            nominatimPlace.address.hamlet ||
+            null,
+          region:
+            nominatimPlace.address.state ||
+            nominatimPlace.address.county ||
+            null,
+          postalCode: nominatimPlace.address.postcode || null,
+          country: nominatimPlace.address.country || null,
+          countryCode: nominatimPlace.address.country_code
+            ? nominatimPlace.address.country_code.toUpperCase()
+            : null,
+        }
+      : null
+
+    // Get website and phone from extratags
+    const website =
+      nominatimPlace.extratags?.website ||
+      nominatimPlace.extratags?.['contact:website'] ||
+      null
+
+    const phone =
+      nominatimPlace.extratags?.phone ||
+      nominatimPlace.extratags?.['contact:phone'] ||
+      null
+
+    // Create contact info object
+    const contactInfo = {
+      phone: phone,
+      email: nominatimPlace.extratags?.['contact:email'] || null,
+      website: website,
+      socials: {},
+    }
+
+    // Extract opening hours if available
+    let openingHours: OpeningHours | null = null
+    if (nominatimPlace.extratags?.opening_hours) {
+      openingHours = {
+        regularHours: [],
+        isOpen24_7: nominatimPlace.extratags.opening_hours.includes('24/7'),
+        isPermanentlyClosed: false,
+        isTemporarilyClosed: false,
+        holidayHours: {},
+        rawText: nominatimPlace.extratags.opening_hours,
+      }
+    }
+
+    // Extract amenities from extratags
+    const amenities: Record<string, boolean> = {}
+    if (nominatimPlace.extratags) {
+      const amenityFlags = [
+        'wheelchair',
+        'toilets',
+        'internet_access',
+        'outdoor_seating',
+        'smoking',
+        'takeaway',
+        'delivery',
+        'drive_through',
+        'reservation',
+      ]
+
+      for (const flag of amenityFlags) {
+        if (nominatimPlace.extratags[flag]) {
+          // Convert 'yes'/'no' to boolean
+          amenities[flag] = nominatimPlace.extratags[flag] === 'yes'
+        }
+      }
+    }
+
+    const unifiedPlace: UnifiedPlace = {
+      id,
+      externalIds,
+      name,
+      placeType,
+      geometry,
+      address,
+      contactInfo,
+      openingHours,
+      amenities,
+      photos: [],
+      sources: [
+        {
+          id: this.integrationId,
+          name: this.getDisplayName(),
+          url: '',
+        },
+      ],
+      lastUpdated: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    }
+
+    return unifiedPlace
   }
 }

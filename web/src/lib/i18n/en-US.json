@@ -497,6 +497,7 @@
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",
         "pelias": "Open-source geocoding and search",
+        "overpass": "OpenStreetMap data filtering and retrieval",
         "graphhopper": "Fast and efficient routing engine",
         "yelp": "Local business reviews and ratings",
         "opentable": "Restaurant discovery and reservations",

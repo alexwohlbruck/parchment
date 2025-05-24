@@ -3,22 +3,15 @@ import {
   IntegrationCapability,
   IntegrationResponse,
   IntegrationCapabilityId,
+  CachedIntegration,
 } from '../../types/integration.types'
 import { IntegrationRegistry } from './integration-registry'
 import {
-  Integration,
+  Integration as IntegrationInterface,
   IntegrationConfig,
   IntegrationTestResult,
 } from './integration.interface'
-
-type CachedIntegration = {
-  userId: string | null
-  id: string
-  integrationId: IntegrationId
-  integration: Integration
-  capabilities: IntegrationCapability[]
-  config: IntegrationConfig
-}
+import { Source, SOURCE, SOURCE_PRIORITIES } from '../../lib/constants'
 
 /**
  * Service for managing integrations and their configurations
@@ -115,12 +108,12 @@ export class IntegrationManagerService {
           this.systemIntegrationsCache.push(cacheKey)
         }
         console.log(
-          `Initialized and cached system-wide integration ${integrationData.id}`,
+          `Initialized and cached system-wide integration ${integrationData.integrationId}`,
         )
       }
     } catch (error) {
       console.error(
-        `Failed to initialize integration ${integrationData.id}:`,
+        `Failed to initialize integration ${integrationData.integrationId}:`,
         error,
       )
     }
@@ -149,6 +142,26 @@ export class IntegrationManagerService {
     // also check for a system-wide integration
     const systemCacheKey = `system:${integrationId}`
     return this.integrationsCache.get(systemCacheKey)
+  }
+
+  /**
+   * Gets a cached integration that supports a specific data source and capability
+   * @param sourceId The source ID (e.g., SOURCE.GOOGLE, SOURCE.OSM)
+   * @param capabilityId The capability ID that the integration must support
+   * @returns The best matching cached integration, or undefined if not found
+   */
+  getIntegrationForSource(
+    sourceId: Source,
+    capabilityId: IntegrationCapabilityId,
+  ): CachedIntegration | undefined {
+    const integrations = this.getIntegrationsByCapability(capabilityId)
+
+    const compatibleIntegrations = integrations.filter((integration) =>
+      integration.integration.sources.includes(sourceId),
+    )
+
+    // Return the first compatible integration
+    return compatibleIntegrations.length ? compatibleIntegrations[0] : undefined
   }
 
   /**
@@ -290,16 +303,64 @@ export class IntegrationManagerService {
    * @param sourceId The integration ID to look for
    * @returns The first cached integration with the specified source ID, or undefined if not found
    */
-  getIntegrationBySourceId(sourceId: string): CachedIntegration | undefined {
-    // Find the first integration that matches this source ID
+  getIntegrationById(id: IntegrationId): CachedIntegration | undefined {
     let result: CachedIntegration | undefined
 
     this.integrationsCache.forEach((cachedIntegration) => {
-      if (cachedIntegration.integrationId === sourceId && !result) {
+      if (cachedIntegration.integrationId === id && !result) {
         result = cachedIntegration
       }
     })
 
     return result
+  }
+
+  /**
+   * Get place details from an integration
+   *
+   * @param integrationId The integration ID to use
+   * @param placeId The place ID to look up
+   * @returns Place details or null if not found
+   */
+  async getPlaceDetails(
+    integrationId: IntegrationId,
+    placeId: string,
+  ): Promise<any | null> {
+    const integration = this.getIntegrationById(integrationId)
+
+    if (!integration) {
+      console.error(`No integration found with ID: ${integrationId}`)
+      return null
+    }
+
+    if (!integration.integration.getPlaceDetails) {
+      console.error(
+        `Integration ${integrationId} does not support getPlaceDetails`,
+      )
+      return null
+    }
+
+    try {
+      return await integration.integration.getPlaceDetails(placeId)
+    } catch (error) {
+      console.error(`Error getting place details from ${integrationId}:`, error)
+      return null
+    }
+  }
+
+  /**
+   * Gets the capabilities supported by an integration
+   * @param integrationId The integration ID
+   * @returns Array of capability IDs supported by the integration
+   */
+  getIntegrationCapabilities(
+    integrationId: IntegrationId,
+  ): IntegrationCapabilityId[] {
+    const integration = this.registry.getIntegration(integrationId)
+    if (!integration) {
+      console.warn(`Integration with ID ${integrationId} not found`)
+      return []
+    }
+    return integration.capabilities
   }
 }

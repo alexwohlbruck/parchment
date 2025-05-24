@@ -1,8 +1,11 @@
+// TODO: Move this to the types folder
+
 import {
   IntegrationCapabilityId,
   IntegrationId,
 } from '../../types/integration.types'
 import { UnifiedPlace } from '../../types/unified-place.types'
+import { Source } from '../../lib/constants'
 
 export interface IntegrationTestResult {
   success: boolean
@@ -26,6 +29,11 @@ export interface Integration {
    * The capabilities this integration provides
    */
   readonly capabilities: IntegrationCapabilityId[]
+
+  /**
+   * The data sources this integration can access
+   */
+  readonly sources: Source[]
 
   /**
    * Tests the connection with the given configuration
@@ -84,4 +92,11 @@ export interface Integration {
     lng?: number,
     radius?: number,
   ): Promise<any[]>
+
+  /**
+   * Get place details by provider-specific ID
+   * @param id The provider-specific ID of the place
+   * @returns Provider-specific place data or null if not found
+   */
+  getPlaceDetails?(id: string): Promise<any | null>
 }

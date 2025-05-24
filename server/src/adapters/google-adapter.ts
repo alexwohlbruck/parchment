@@ -6,9 +6,11 @@ import type {
   Address,
   OpeningHours,
 } from '../types/unified-place.types'
-import { GOOGLE_MAPS_PHOTO_URL } from '../lib/constants'
 import { parseGoogleHours } from '../lib/hours.utils'
 import { BUSINESS_STATUS, SOURCE } from '../lib/constants'
+
+export const GOOGLE_MAPS_PHOTO_URL =
+  'https://maps.googleapis.com/maps/api/place/photo'
 
 /**
  * Adapter for transforming Google Places API data to our unified format

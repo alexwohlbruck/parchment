@@ -1,3 +1,8 @@
+import {
+  IntegrationConfig,
+  Integration as IntegrationInterface,
+} from '../services/integrations/integration.interface'
+
 export enum IntegrationCapabilityId {
   ROUTING = 'routing',
   GEOCODING = 'geocoding',
@@ -9,6 +14,7 @@ export enum IntegrationCapabilityId {
 export enum IntegrationId {
   GOOGLE_MAPS = 'google-maps',
   PELIAS = 'pelias',
+  OVERPASS = 'overpass',
   GRAPHHOPPER = 'graphhopper',
   YELP = 'yelp',
   OPENTABLE = 'opentable',
@@ -17,6 +23,15 @@ export enum IntegrationId {
   NOMINATIM = 'nominatim',
   TRIPADVISOR = 'tripadvisor',
   GEOAPIFY = 'geoapify',
+}
+
+export type CachedIntegration = {
+  userId: string | null
+  id: string // db random generated id
+  integrationId: IntegrationId // unique readable id for the integration
+  integration: IntegrationInterface
+  capabilities: IntegrationCapability[]
+  config: IntegrationConfig
 }
 
 export type IntegrationCapability = {

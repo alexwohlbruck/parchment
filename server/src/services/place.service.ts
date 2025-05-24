@@ -7,20 +7,19 @@ import type {
   SourceReference,
 } from '../types/unified-place.types'
 import { getPlaceType } from '../lib/place.utils'
-import { searchGooglePlace, searchGooglePlaces } from './external-api.service'
-import { GOOGLE_PLACES_API_URL } from '../lib/constants'
-import { deduplicateAutocompletePlaces, mergePlaceData } from './merge.service'
-import { fetchPlaceFromOverpass, searchOverpass } from './osm.service'
-import { fetchWikidataImage, fetchWikidataBrandLogo } from './wikidata.service'
+import { deduplicatePlacesResults, mergePlaces } from './merge.service'
+import { fetchPlaceFromOverpass } from './overpass.service'
 import { googleAdapter } from '../adapters/google-adapter'
-import { API_CONFIG, SOURCE } from '../lib/constants'
+import { Source, SOURCE } from '../lib/constants'
 import { osmAdapter } from '../adapters/osm-adapter'
-import axios from 'axios'
 import type { Bookmark } from '../types/library.types'
 import { findBookmarkByExternalIds } from './library/bookmarks.service'
 import * as turf from '@turf/turf'
 import { integrationManager } from './integrations'
-import { IntegrationCapabilityId } from '../types/integration.types'
+import {
+  IntegrationCapabilityId,
+  IntegrationId,
+} from '../types/integration.types'
 
 // TODO: Replace with unified place
 // New type for search results
@@ -53,382 +52,6 @@ interface PlaceCandidate {
   googlePlace?: GooglePlaceDetails
   similarity: number
   distance: number
-}
-
-/**
- * Generates a base unified place object from an OSM place
- */
-function createBaseUnifiedPlace(
-  place: Place,
-  name: string,
-  placeType: string,
-): UnifiedPlace {
-  return {
-    id: place.id,
-    externalIds: { [SOURCE.OSM]: place.id.toString() },
-    name: name,
-    placeType: placeType,
-    geometry: createGeometry(place),
-    photos: [],
-    address: null,
-    contactInfo: {
-      phone: null,
-      email: null,
-      website: null,
-      socials: {},
-    },
-    openingHours: null,
-    amenities: {},
-    sources: [],
-    lastUpdated: new Date().toISOString(),
-    createdAt: new Date().toISOString(),
-  }
-}
-
-function createGeometry(place: Place): PlaceGeometry {
-  return {
-    type: place.type === 'node' ? 'point' : 'polygon',
-    center: {
-      lat: place.center!.lat,
-      lng: place.center!.lon,
-    },
-    ...(place.bounds && {
-      bounds: {
-        minLat: place.bounds.minlat,
-        minLng: place.bounds.minlon,
-        maxLat: place.bounds.maxlat,
-        maxLng: place.bounds.maxlon,
-      },
-    }),
-    ...(place.geometry && {
-      nodes: place.geometry.map((node) => ({
-        lat: node.lat,
-        lng: node.lon,
-      })),
-    }),
-  }
-}
-
-async function fetchExternalData(
-  name: string,
-  center: { lat: number; lon: number },
-  place: Place,
-) {
-  const promises: Promise<any>[] = []
-
-  if (API_CONFIG[SOURCE.GOOGLE]) {
-    promises.push(searchGooglePlace(name, center.lat, center.lon, place))
-  }
-
-  if (API_CONFIG[SOURCE.WIKIDATA]) {
-    const wikidataId = place.tags?.wikidata || place.tags?.['brand:wikidata']
-    promises.push(
-      Promise.all([
-        fetchWikidataImage(wikidataId),
-        fetchWikidataBrandLogo(wikidataId),
-      ]),
-    )
-  }
-
-  return Promise.all(promises)
-}
-
-export const getPlaceDetails = async (
-  id: string,
-  userId: string | null,
-): Promise<UnifiedPlace | null> => {
-  try {
-    const place = await fetchPlaceFromOverpass(id)
-
-    if (!place) {
-      console.error('Could not fetch place from Overpass')
-      return null
-    }
-
-    console.log('Raw place data:', JSON.stringify(place, null, 2))
-
-    if (!place.center) {
-      console.error('Place data missing center coordinates:', place)
-      return null
-    }
-
-    const name = place.tags?.name || place.tags?.['brand:name'] || ''
-    const placeType = getPlaceType(place.tags || {})
-
-    console.log(`Creating base unified place from OSM: ${name}`)
-    const unifiedPlace = createBaseUnifiedPlace(place, name, placeType)
-
-    // Add OSM data first
-    console.log('Adding OSM data')
-    mergePlaceData(unifiedPlace, osmAdapter, place)
-
-    // Then fetch and add external data
-    const externalData = await fetchExternalData(name, place.center, place)
-    let currentIndex = 0
-
-    // Add Google data if enabled (OSM will still have priority)
-    if (API_CONFIG[SOURCE.GOOGLE]) {
-      const googleData = externalData[currentIndex] as GooglePlaceDetails | null
-      if (googleData) {
-        console.log(`Adding Google data: ${googleData.name}`)
-        mergePlaceData(unifiedPlace, googleAdapter, googleData)
-      } else {
-        console.log('No Google data found')
-      }
-      currentIndex++
-    }
-
-    // Add Wikidata
-    if (API_CONFIG[SOURCE.WIKIDATA]) {
-      const [image, logo] = externalData[currentIndex] as [
-        string | null,
-        string | null,
-      ]
-
-      if (image) {
-        console.log('Adding Wikidata image')
-        unifiedPlace.photos.push({
-          url: image,
-          sourceId: SOURCE.WIKIDATA,
-          isPrimary: true,
-        })
-      }
-
-      if (logo) {
-        console.log('Adding Wikidata logo')
-        unifiedPlace.photos.push({
-          url: logo,
-          sourceId: SOURCE.WIKIDATA,
-          isLogo: true,
-        })
-      }
-    }
-
-    // Find associated bookmark
-    if (userId && unifiedPlace.externalIds) {
-      const bookmarkInfo = await findBookmarkByExternalIds(
-        unifiedPlace.externalIds,
-        userId,
-      )
-      if (bookmarkInfo) {
-        unifiedPlace.bookmark = bookmarkInfo.bookmark
-        unifiedPlace.collectionIds = bookmarkInfo.collectionIds
-      }
-    }
-
-    return unifiedPlace
-  } catch (error) {
-    console.error('Error getting place details:', error)
-    return null
-  }
-}
-
-// Export calculateNameSimilarity for use in merge.service.ts
-/**
- * Calculates similarity between two place names
- *
- * This function is a critical part of place deduplication. It determines how
- * similar two place names are, accounting for:
- * - Business name variations and suffixes (LLC, Inc, etc.)
- * - Building/property type standardization (apartment/apartments, condo/condominiums)
- * - Directional abbreviations (N, S, E, W)
- * - Common words and articles to ignore
- * - Name structure and word order
- *
- * The algorithm returns a score from 0 to 1, where:
- * - 1.0 = Perfect match
- * - 0.9+ = Very strong match (likely the same place)
- * - 0.8+ = Strong match (probably the same place)
- * - 0.7+ = Moderate match (possibly the same place, needs proximity check)
- * - <0.7 = Weak match (likely different places)
- *
- * This is used alongside geographic proximity to identify the same real-world
- * place across different data providers, each with their own naming conventions.
- */
-export function calculateNameSimilarity(name1: string, name2: string): number {
-  if (!name1 || !name2) return 0
-
-  const normalizeForComparison = (name: string): string => {
-    // Normalize case and whitespace
-    let normalized = name.toLowerCase().trim()
-
-    // Remove punctuation
-    normalized = normalized.replace(/[^\w\s]/g, '')
-
-    // Common business/residential suffixes to remove for comparison
-    const businessSuffixes = [
-      'inc',
-      'incorporated',
-      'llc',
-      'ltd',
-      'limited',
-      'corp',
-      'corporation',
-      'co',
-      'company',
-      'enterprises',
-      'holdings',
-      'group',
-    ]
-
-    // Building/property type words - don't remove as they're important for matching similar buildings
-    const buildingTypes = [
-      'apartments',
-      'apartment',
-      'condominiums',
-      'condominium',
-      'condo',
-      'condos',
-      'residence',
-      'residences',
-      'tower',
-      'towers',
-      'plaza',
-      'square',
-      'building',
-      'center',
-      'centre',
-      'complex',
-      'park',
-      'house',
-      'homes',
-      'villas',
-      'suites',
-    ]
-
-    // Direction abbreviations
-    const directionMap: Record<string, string> = {
-      n: 'north',
-      s: 'south',
-      e: 'east',
-      w: 'west',
-      ne: 'northeast',
-      nw: 'northwest',
-      se: 'southeast',
-      sw: 'southwest',
-    }
-
-    // Expand direction abbreviations
-    for (const [abbr, full] of Object.entries(directionMap)) {
-      const abbrPattern = new RegExp(`\\b${abbr}\\b`, 'g')
-      normalized = normalized.replace(abbrPattern, full)
-    }
-
-    // Split into words
-    let words = normalized.split(/\s+/)
-
-    // Filter out business suffixes but keep building type words
-    words = words.filter((word) => !businessSuffixes.includes(word))
-
-    // Special treatment for building types (preserve them but standardize)
-    let standardizedBuildingType = ''
-    for (const word of words) {
-      if (buildingTypes.includes(word)) {
-        // If it's "condo", "condos", or "condominium", standardize to "condominiums"
-        if (['condo', 'condos', 'condominium'].includes(word)) {
-          standardizedBuildingType = 'condominiums'
-        }
-        // If it's "apartment" or similar, standardize to "apartments"
-        else if (['apartment', 'residence'].includes(word)) {
-          standardizedBuildingType = 'apartments'
-        } else {
-          standardizedBuildingType = word
-        }
-      }
-    }
-
-    // Final string without building type (we'll add standardized version back later if found)
-    normalized = words.filter((word) => !buildingTypes.includes(word)).join(' ')
-
-    // Add back standardized building type if we found one
-    if (standardizedBuildingType) {
-      normalized += ' ' + standardizedBuildingType
-    }
-
-    return normalized.trim()
-  }
-
-  // Normalize both names
-  const normalized1 = normalizeForComparison(name1)
-  const normalized2 = normalizeForComparison(name2)
-
-  // If names are exactly the same after normalization
-  if (normalized1 === normalized2) {
-    return 1
-  }
-
-  // Check if the first significant words are completely different
-  const words1 = normalized1.split(/\s+/)
-  const words2 = normalized2.split(/\s+/)
-
-  // Get the first significant word from each name (skip short words like "the", "at", etc.)
-  const getFirstSignificantWord = (words: string[]): string => {
-    for (const word of words) {
-      if (
-        word.length > 2 &&
-        !['the', 'and', 'for', 'of', 'at', 'in', 'on', 'by'].includes(word)
-      ) {
-        return word
-      }
-    }
-    return words[0] || ''
-  }
-
-  const firstWord1 = getFirstSignificantWord(words1)
-  const firstWord2 = getFirstSignificantWord(words2)
-
-  // If the first significant words are completely different and not building types,
-  // this is likely a mismatch of completely different places
-  const buildingTypes = [
-    'apartments',
-    'condominiums',
-    'towers',
-    'plaza',
-    'square',
-    'complex',
-    'residence',
-  ]
-  if (
-    firstWord1 !== firstWord2 &&
-    !buildingTypes.includes(firstWord1) &&
-    !buildingTypes.includes(firstWord2) &&
-    firstWord1.length > 3 &&
-    firstWord2.length > 3
-  ) {
-    return 0.2
-  }
-
-  // If one is a substring of the other, it's likely a match
-  if (normalized1.includes(normalized2) || normalized2.includes(normalized1)) {
-    // Calculate how much of the longer string is covered
-    const coverage =
-      Math.min(normalized1.length, normalized2.length) /
-      Math.max(normalized1.length, normalized2.length)
-
-    // Higher similarity for more complete coverage
-    const similarityScore = 0.7 + coverage * 0.3
-    return similarityScore
-  }
-
-  // Calculate how many words match
-  const commonWords = words1.filter((word) => words2.includes(word))
-  if (commonWords.length === 0) {
-    return 0
-  }
-
-  // Calculate similarity based on common words
-  const overallSimilarity =
-    (commonWords.length * 2) / (words1.length + words2.length)
-
-  // Boost score if the first significant words (likely the most important part of the name) match
-  const firstWordsMatch = firstWord1 === firstWord2 && firstWord1.length > 3
-
-  let finalScore = overallSimilarity
-  if (firstWordsMatch) {
-    finalScore = Math.min(1, overallSimilarity + 0.2) // Boost but cap at 1.0
-  }
-
-  return finalScore
 }
 
 // Create a simplified search result from a unified place
@@ -747,8 +370,9 @@ export const searchPlaces = async (
           }
 
           // Get the integration that provided this result
-          const sourceIntegration = integrationManager.getIntegrationBySourceId(
+          const sourceIntegration = integrationManager.getIntegrationForSource(
             result.source,
+            IntegrationCapabilityId.PLACE_INFO,
           )
 
           // Create UnifiedPlace object from result data
@@ -839,8 +463,9 @@ export const searchPlaces = async (
           }
 
           // Get the integration that provided this result
-          const sourceIntegration = integrationManager.getIntegrationBySourceId(
+          const sourceIntegration = integrationManager.getIntegrationForSource(
             result.source,
+            IntegrationCapabilityId.GEOCODING,
           )
 
           // Create UnifiedPlace object from result data
@@ -868,7 +493,7 @@ export const searchPlaces = async (
 
     // Step 2: Deduplicate places
     console.log(`Deduplicating ${allPlaces.length} places...`)
-    const dedupedPlaces = deduplicateAutocompletePlaces(allPlaces, coordinates)
+    const dedupedPlaces = deduplicatePlacesResults(allPlaces)
     console.log(`After deduplication: ${dedupedPlaces.length} unique places`)
 
     // Step 3: Add bookmark information if user ID is provided
@@ -881,10 +506,16 @@ export const searchPlaces = async (
 
     // Step 5: Calculate distances and sort results
     if (coordinates) {
+      // Create the from point once outside the sort function
+      const fromPoint = turf.point([coordinates.lng, coordinates.lat])
+
+      // First calculate distances for each result
       results.forEach((result) => {
-        // TODO: Replace with turf.js distance
-        const distance = calculateDistance(coordinates, result.geometry.center)
-        result.distance = distance
+        const toPoint = turf.point([
+          result.geometry.center.lng,
+          result.geometry.center.lat,
+        ])
+        result.distance = turf.distance(fromPoint, toPoint, { units: 'meters' })
       })
 
       // Sort by distance
@@ -946,21 +577,6 @@ async function addBookmarkInfo(
   }
 }
 
-// TODO: Remove
-/**
- * Calculate distance between two points in meters
- */
-function calculateDistance(point1: any, point2: any): number {
-  try {
-    const from = turf.point([point1.lng, point1.lat])
-    const to = turf.point([point2.lng, point2.lat])
-    return turf.distance(from, to, { units: 'meters' })
-  } catch (error) {
-    console.error('Error calculating distance:', error)
-    return Infinity
-  }
-}
-
 export const getPlaceAutocomplete = async (
   query: string,
   coordinates?: { lat: number; lng: number },
@@ -978,15 +594,24 @@ export const getPlaceAutocomplete = async (
     radius,
   )
 
-  const deduped = deduplicateAutocompletePlaces(
-    autocompleteResults,
-    coordinates,
-  )
+  const deduped = deduplicatePlacesResults(autocompleteResults)
 
   if (coordinates) {
+    // Create the from point once outside the sort function
+    const fromPoint = turf.point([coordinates.lng, coordinates.lat])
+
     deduped.sort((a, b) => {
-      const distanceA = calculateDistance(coordinates, a.geometry.center)
-      const distanceB = calculateDistance(coordinates, b.geometry.center)
+      // Calculate distances directly in the sort function
+      const distanceA = turf.distance(
+        fromPoint,
+        turf.point([a.geometry.center.lng, a.geometry.center.lat]),
+        { units: 'meters' },
+      )
+      const distanceB = turf.distance(
+        fromPoint,
+        turf.point([b.geometry.center.lng, b.geometry.center.lat]),
+        { units: 'meters' },
+      )
       return distanceA - distanceB
     })
   }
@@ -1051,453 +676,463 @@ async function fetchAutocompleteResults(
   return results.flat()
 }
 
-// Get a place's details by its provider ID
-export const getPlaceDetailsByProviderId = async (
-  provider: string,
-  id: string,
-  userId: string | null,
-): Promise<UnifiedPlace | null> => {
-  try {
-    console.log(
-      `Getting place details by provider ID - Provider: "${provider}", ID: "${id}"`,
-    )
+//////////////////////////////////////////////////
 
-    // Factory pattern - dispatch to the appropriate handler based on provider
-    switch (provider) {
-      case SOURCE.GOOGLE:
-        return getPlaceDetailsByGoogleId(id, userId)
-      case SOURCE.PELIAS:
-        return getPlaceDetailsByPeliasId(id, userId)
-      // Add more provider cases as needed
-      default:
-        console.error(`Unsupported provider: ${provider}`)
-        return null
-    }
-  } catch (error) {
-    console.error(`Error getting place details by ${provider} ID:`, error)
-    return null
-  }
-}
-
-// TODO: Remove this
-// Google ID-specific implementation
-async function getPlaceDetailsByGoogleId(
-  googleId: string,
-  userId: string | null,
+/**
+ * Look up a place by ID on a given provider
+ *
+ * @param provider The provider ID (e.g., 'google-maps', 'pelias', 'nominatim')
+ * @param placeId The provider-specific ID for the place
+ * @returns Provider-specific place data or null if not found
+ */
+export async function lookupPlaceById(
+  source: Source,
+  placeId: string,
 ): Promise<UnifiedPlace | null> {
   try {
-    console.log(`Inside getPlaceDetailsByGoogleId with ID: "${googleId}"`)
-
-    // Log the entire route that would be returned by the getPlaceRoute function
-    console.log(
-      `This ID would create a route to: provider=google, placeId=${googleId}`,
+    // Get a compatible integration for this source
+    const integration = integrationManager.getIntegrationForSource(
+      source,
+      IntegrationCapabilityId.PLACE_INFO,
     )
 
-    // Fetch place details from Google
-    const googlePlace = await fetchGooglePlaceById(googleId)
+    if (!integration) return null
 
-    if (!googlePlace) {
-      console.log(`fetchGooglePlaceById returned null for ID: "${googleId}"`)
-      return null
-    }
+    const { integrationId } = integration
 
-    console.log(`Successfully fetched Google place: "${googlePlace.name}"`)
+    // Get place details from the integration
+    const placeData = await integrationManager.getPlaceDetails(
+      integrationId,
+      placeId,
+    )
 
-    // Create a unified place from Google data
-    const unifiedPlace: UnifiedPlace = {
-      id: `google/${googleId}`,
-      externalIds: { [SOURCE.GOOGLE]: googleId },
-      name: googlePlace.name,
-      placeType: googlePlace.types[0] || 'unknown',
-      geometry: {
-        type: 'point',
-        center: {
-          lat: googlePlace.geometry?.location.lat || 0,
-          lng: googlePlace.geometry?.location.lng || 0,
-        },
-      },
-      photos: [],
-      address: googlePlace.formatted_address
-        ? {
-            formatted: googlePlace.formatted_address,
-          }
-        : null,
-      contactInfo: {
-        phone: null,
-        email: null,
-        website: null,
-        socials: {},
-      },
-      openingHours: null,
-      amenities: {},
-      sources: [],
-      lastUpdated: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-    }
-
-    // First, add Google data
-    console.log(`Adding Google data for: ${googlePlace.name}`)
-    mergePlaceData(unifiedPlace, googleAdapter, googlePlace)
-
-    // Then try to find and merge OSM data to ensure OSM takes priority
-    if (googlePlace.geometry?.location) {
-      const { lat, lng } = googlePlace.geometry.location
-      console.log(
-        `Looking for matching OSM places near: lat=${lat}, lng=${lng}`,
-      )
-
-      const osmPlaces = await searchOverpass(googlePlace.name, lat, lng, 300)
-
-      if (osmPlaces.length > 0) {
-        console.log(
-          `Found ${
-            osmPlaces.length
-          } potential OSM matches, using the first one: ${
-            osmPlaces[0].tags?.name || 'unnamed'
-          }`,
-        )
-
-        // Since we're adding OSM data after Google, and OSM has higher priority,
-        // fields that exist in both will use the OSM values due to priority system
-        mergePlaceData(unifiedPlace, osmAdapter, osmPlaces[0])
-
-        // Update the ID to use the OSM ID if available
-        if (osmPlaces[0].type && osmPlaces[0].id) {
-          const oldId = unifiedPlace.id
-          unifiedPlace.id = `${osmPlaces[0].type}/${osmPlaces[0].id}`
-          unifiedPlace.externalIds[SOURCE.OSM] = osmPlaces[0].id.toString()
-          console.log(
-            `Updated place ID from ${oldId} to ${unifiedPlace.id} based on OSM data`,
-          )
-        }
-      } else {
-        console.log(`No matching OSM places found. Using Google data only.`)
-      }
-    }
-
-    // Find associated bookmark
-    if (userId && unifiedPlace.externalIds) {
-      const bookmarkInfo = await findBookmarkByExternalIds(
-        unifiedPlace.externalIds,
-        userId,
-      )
-      if (bookmarkInfo) {
-        unifiedPlace.bookmark = bookmarkInfo.bookmark
-        unifiedPlace.collectionIds = bookmarkInfo.collectionIds
-      }
-    }
+    const unifiedPlace = integration!.integration.createUnifiedPlace(
+      placeData,
+      `${integrationId}/${placeId}`,
+    )
 
     return unifiedPlace
   } catch (error) {
-    console.error('Error getting place details by Google ID:', error)
     return null
   }
 }
 
-// TODO: Remove this
-// Pelias ID-specific implementation
-async function getPlaceDetailsByPeliasId(
-  peliasId: string,
-  userId: string | null,
-): Promise<UnifiedPlace | null> {
-  try {
-    console.log(`Getting place details by Pelias ID: "${peliasId}"`)
-
-    // Pelias IDs should be in OSM format (way/123456, node/123456, relation/123456)
-    // If the ID starts with "way/", "node/", or "relation/", use it directly
-    // Otherwise, try to parse it from the OpenStreetMap ID format
-
-    let osmId = peliasId
-
-    // Check if we need to extract the OSM ID from a Pelias format (which might include source prefix)
-    if (peliasId.includes(':')) {
-      const parts = peliasId.split(':')
-      if (parts.length > 1) {
-        // Format could be "openstreetmap:venue:way/123456"
-        const lastPart = parts[parts.length - 1]
-        if (lastPart.includes('/')) {
-          osmId = lastPart
-        }
-      }
-    }
-
-    // Once we have the OSM ID, use our existing getPlaceDetails function
-    console.log(`Using OSM ID for lookup: "${osmId}"`)
-    return getPlaceDetails(osmId, userId)
-  } catch (error) {
-    console.error('Error getting place details by Pelias ID:', error)
-    return null
-  }
-}
-
-// TODO: Review this function
-export const getPlaceDetailsByNameAndLocation = async (
+/**
+ * Look up a place by name/coordinates on all available providers
+ *
+ * @param name The name of the place
+ * @param coordinates The coordinates of the place
+ * @param options Optional parameters including radius and source blacklist
+ * @returns Array of UnifiedPlace objects from all providers
+ */
+export async function lookupPlacesByNameAndLocation(
   name: string,
   coordinates: { lat: number; lng: number },
-  userId: string | null,
-  radius: number = 500,
-): Promise<UnifiedPlace | null> => {
+  options?: {
+    radius?: number
+    sourceBlacklist?: Source[]
+  },
+): Promise<UnifiedPlace[]> {
   try {
-    const promises: Promise<any>[] = []
+    const { radius = 500, sourceBlacklist = [] } = options || {}
 
-    promises.push(
-      searchOverpass(name, coordinates.lat, coordinates.lng, radius),
-    )
+    // Get integrations that support geocoding (for searching places by name/location)
+    const geocodingIntegrations = integrationManager
+      .getIntegrationsByCapability(IntegrationCapabilityId.GEOCODING)
+      .filter((integration) => {
+        // Filter out integrations whose sources are in the blacklist
+        return !integration.integration.sources.some((source) =>
+          sourceBlacklist.includes(source),
+        )
+      })
 
-    if (API_CONFIG[SOURCE.GOOGLE]) {
-      promises.push(
-        searchGooglePlaces(name, coordinates.lat, coordinates.lng, radius),
-      )
+    if (geocodingIntegrations.length === 0) {
+      return []
     }
 
-    const results = await Promise.all(promises)
+    console.log(`Found ${geocodingIntegrations.length} geocoding integrations`)
 
-    const osmPlaces = results[0] || []
-    let googlePlaces: GooglePlaceDetails[] = []
+    // Collect search results from all integrations
+    const searchPromises = geocodingIntegrations.map(async (integration) => {
+      try {
+        if (!integration.integration.searchPlaces) {
+          console.log(
+            `Integration ${integration.integrationId} doesn't implement searchPlaces`,
+          )
+          return []
+        }
 
-    if (API_CONFIG[SOURCE.GOOGLE]) {
-      googlePlaces = results[1] || []
-    }
+        // Call the integration's searchPlaces method
+        const results = await integration.integration.searchPlaces(
+          name,
+          coordinates.lat,
+          coordinates.lng,
+          radius,
+        )
 
-    // Match and bucket results
-    const candidates = matchPlaceCandidates(
-      osmPlaces[0],
-      googlePlaces,
-      coordinates,
-    )
+        if (!results || results.length === 0) {
+          return []
+        }
 
-    if (candidates.length === 0) {
-      return null
-    }
+        console.log(
+          `Got ${results.length} results from ${integration.integrationId}`,
+        )
 
-    const bestCandidate = candidates[0]
+        // Transform each result to a UnifiedPlace
+        const unifiedPlaces = results.map((result) =>
+          integration.integration.createUnifiedPlace(
+            result,
+            `${integration.integrationId}/${result.id || 'unknown'}`,
+          ),
+        )
 
-    let unifiedPlace: UnifiedPlace
+        const sorted = unifiedPlaces.sort((a, b) => {
+          const fromPoint = turf.point([coordinates.lng, coordinates.lat])
+          const distanceA = turf.distance(
+            fromPoint,
+            turf.point([a.geometry.center.lng, a.geometry.center.lat]),
+          )
+          const distanceB = turf.distance(
+            fromPoint,
+            turf.point([b.geometry.center.lng, b.geometry.center.lat]),
+          )
+          return distanceA - distanceB
+        })
 
-    // Prioritize OSM data - if we have an OSM place, start with that
-    if (bestCandidate.osmPlace) {
-      const osmPlace = bestCandidate.osmPlace
-      const placeName =
-        osmPlace.tags?.name || osmPlace.tags?.['brand:name'] || name
-      const placeType = getPlaceType(osmPlace.tags || {})
-
-      unifiedPlace = createBaseUnifiedPlace(osmPlace, placeName, placeType)
-
-      // First add OSM data
-      mergePlaceData(unifiedPlace, osmAdapter, osmPlace)
-
-      // Then add Google data (OSM fields will be preserved due to priority)
-      if (bestCandidate.googlePlace) {
-        mergePlaceData(unifiedPlace, googleAdapter, bestCandidate.googlePlace)
+        return sorted
+      } catch (error) {
+        console.error(
+          `Error searching places with ${integration.integrationId}:`,
+          error,
+        )
+        return []
       }
-    }
-    // If no OSM data, fall back to Google
-    else if (bestCandidate.googlePlace) {
-      const googlePlace = bestCandidate.googlePlace
+    })
 
-      unifiedPlace = {
-        id: `google/${googlePlace.place_id}`,
-        externalIds: { [SOURCE.GOOGLE]: googlePlace.place_id },
-        name: googlePlace.name,
-        placeType: googlePlace.types[0] || 'unknown',
-        geometry: {
-          type: 'point',
-          center: {
-            lat: googlePlace.geometry?.location.lat || 0,
-            lng: googlePlace.geometry?.location.lng || 0,
-          },
-        },
-        photos: [],
-        address: null,
-        contactInfo: {
-          phone: null,
-          email: null,
-          website: null,
-          socials: {},
-        },
-        openingHours: null,
-        amenities: {},
-        sources: [],
-        lastUpdated: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-      }
+    // Wait for all search operations to complete
+    const searchResults = await Promise.all(searchPromises)
+    const allResults = searchResults.flat()
 
-      mergePlaceData(unifiedPlace, googleAdapter, googlePlace)
-    } else {
-      return null
-    }
+    console.log(`Found ${allResults.length} total results from all providers`)
 
-    // Find associated bookmark
-    if (userId && unifiedPlace.externalIds) {
-      const bookmarkInfo = await findBookmarkByExternalIds(
-        unifiedPlace.externalIds,
-        userId,
-      )
-      if (bookmarkInfo) {
-        unifiedPlace.bookmark = bookmarkInfo.bookmark
-        unifiedPlace.collectionIds = bookmarkInfo.collectionIds
-      }
-    }
-
-    return unifiedPlace
+    return allResults
   } catch (error) {
-    console.error('Error getting place details by name and location:', error)
+    console.error('Error looking up places by name and coordinates:', error)
+    return []
+  }
+}
+
+/**
+ * Look up a place by name/coordinates
+ * Uses lookupPlacesByNameAndCoordinates and fetches the best result
+ *
+ * @param name The name of the place
+ * @param coordinates The coordinates of the place
+ * @param options Optional parameters including userId, radius and source blacklist
+ * @returns A deduplicated UnifiedPlace object
+ */
+export async function lookupPlaceByNameAndLocation(
+  name: string,
+  coordinates: { lat: number; lng: number },
+  options?: {
+    userId?: string
+    radius?: number
+    sourceBlacklist?: Source[]
+  },
+): Promise<UnifiedPlace | null> {
+  try {
+    const { userId, radius = 500, sourceBlacklist = [] } = options || {}
+
+    // Get all places matching the name and coordinates from all providers
+    const places = await lookupPlacesByNameAndLocation(name, coordinates, {
+      radius,
+      sourceBlacklist,
+    })
+
+    if (places.length === 0) {
+      return null
+    }
+
+    const dedupedPlaces = deduplicatePlacesResults(places)
+
+    if (userId && dedupedPlaces.length > 0) {
+      await addBookmarkInfo(dedupedPlaces, userId)
+    }
+
+    return dedupedPlaces[0] || null
+  } catch (error) {
+    console.error('Error getting place by name and coordinates:', error)
     return null
   }
 }
 
-// TODO: Review this function
-async function fetchGooglePlaceById(
-  placeId: string,
-): Promise<GooglePlaceDetails | null> {
+/**
+ * Look up a place by ID and enrich it with data from other sources
+ *
+ * @param source The source ID (e.g., SOURCE.GOOGLE, SOURCE.OSM)
+ * @param id The ID for the place in that source
+ * @param options Optional parameters including userId
+ * @returns A merged UnifiedPlace object with consolidated data from multiple sources
+ */
+export async function lookupAndMergePlaceById(
+  source: Source,
+  id: string,
+  options?: {
+    userId?: string
+  },
+): Promise<UnifiedPlace | null> {
   try {
-    // Debug information about the ID
-    console.log(`Fetching Google place by ID: ${placeId}`)
-    console.log(`Raw placeId provided: "${placeId}"`)
+    const { userId } = options || {}
 
-    // Clean up the Place ID
-    let cleanPlaceId = placeId
+    // First, get the place from the primary source
+    let place = await lookupPlaceById(source, id)
+    if (!place) return null
 
-    // 1. Strip the 'google/' prefix if it exists
-    if (cleanPlaceId.startsWith('google/')) {
-      cleanPlaceId = cleanPlaceId.substring(7)
-      console.log(`Stripped 'google/' prefix, using ID: "${cleanPlaceId}"`)
-    }
+    // If place has name and location, try to find it in other sources
+    if (place.name && place.geometry?.center) {
+      const { lat, lng } = place.geometry.center
 
-    // 2. Handle potential double-prefixing (e.g., "google/google/ChIJ...")
-    if (cleanPlaceId.startsWith('google/')) {
-      cleanPlaceId = cleanPlaceId.substring(7)
-      console.log(
-        `Found another 'google/' prefix, now using ID: "${cleanPlaceId}"`,
+      const thirdPartyPlace = await lookupPlaceByNameAndLocation(
+        place.name,
+        { lat, lng },
+        {
+          radius: 500,
+          sourceBlacklist: [source], // Exclude the original source
+        },
       )
+
+      // Merge the place data from other providers with the primary source
+      if (thirdPartyPlace) {
+        place = mergePlaces(place, thirdPartyPlace)
+      }
     }
 
-    console.log(`Final cleaned place ID: "${cleanPlaceId}"`)
-    console.log(
-      `Using Google Maps API key: ${
-        process.env.GOOGLE_MAPS_API_KEY ? 'Key is set' : 'Key is missing!'
-      }`,
-    )
-    console.log(
-      `API key first few chars: ${
-        process.env.GOOGLE_MAPS_API_KEY
-          ? process.env.GOOGLE_MAPS_API_KEY.substring(0, 5) + '...'
-          : 'missing'
-      }`,
-    )
-
-    // Use the GET endpoint instead of searchText
-    console.log(`Making request to get details for place ID: ${cleanPlaceId}`)
-    const endpoint = `${GOOGLE_PLACES_API_URL}/${cleanPlaceId}`
-    console.log(`Request URL: ${endpoint}`)
-
-    const response = await axios.get(endpoint, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': process.env.GOOGLE_MAPS_API_KEY,
-        'X-Goog-FieldMask':
-          'id,displayName,formattedAddress,internationalPhoneNumber,websiteUri,types,photos,rating,userRatingCount,googleMapsUri,priceLevel,businessStatus,editorialSummary,location,dineIn,takeout,delivery,curbsidePickup,servesBreakfast,servesLunch,servesDinner,servesBeer,servesVegetarianFood,servesCocktails,servesCoffee,outdoorSeating,liveMusic,goodForChildren,goodForGroups,restroom,regularOpeningHours,utcOffsetMinutes',
-      },
-    })
-
-    console.log('Google Places API response status:', response.status)
-    console.log(
-      'Google Places API response data structure:',
-      Object.keys(response.data),
-    )
-
-    if (!response.data || Object.keys(response.data).length === 0) {
-      console.error('No place details returned for the given Google Place ID')
-      console.error(`Attempted to find place with ID: ${cleanPlaceId}`)
-      return null
-    }
-
-    console.log(
-      'Complete Google Places API response:',
-      JSON.stringify(response.data, null, 2),
-    )
-
-    // Transform the response data into our GooglePlaceDetails format
-    const transformedPlace = {
-      place_id: response.data.id,
-      name: response.data.displayName?.text || '',
-      formatted_address: response.data.formattedAddress || '',
-      formatted_phone_number: response.data.internationalPhoneNumber || '',
-      website: response.data.websiteUri || '',
-      types: response.data.types || [],
-      photos:
-        response.data.photos?.map(
-          (photo: { name: string; heightPx?: number; widthPx?: number }) => ({
-            photo_reference: photo.name,
-            height: photo.heightPx || 0,
-            width: photo.widthPx || 0,
-            html_attributions: [],
-          }),
-        ) || [],
-      rating: response.data.rating || 0,
-      user_ratings_total: response.data.userRatingCount || 0,
-      google_maps_uri: response.data.googleMapsUri || '',
-      price_level: response.data.priceLevel || '',
-      business_status: response.data.businessStatus || '',
-      editorial_summary: response.data.editorialSummary
-        ? {
-            language: response.data.editorialSummary.languageCode || undefined,
-            overview:
-              response.data.editorialSummary.text ||
-              response.data.editorialSummary.overview ||
-              '',
-          }
-        : undefined,
-      geometry: response.data.location
-        ? {
-            location: {
-              lat: response.data.location.latitude,
-              lng: response.data.location.longitude,
-            },
-          }
-        : undefined,
-      opening_hours: response.data.regularOpeningHours
-        ? {
-            open_now: response.data.regularOpeningHours.openNow || false,
-            periods: response.data.regularOpeningHours.periods || [],
-            weekday_text:
-              response.data.regularOpeningHours.weekdayDescriptions || [],
-          }
-        : undefined,
-      dine_in: response.data.dineIn || false,
-      takeout: response.data.takeout || false,
-      delivery: response.data.delivery || false,
-      curbside_pickup: response.data.curbsidePickup || false,
-      serves_breakfast: response.data.servesBreakfast || false,
-      serves_lunch: response.data.servesLunch || false,
-      serves_dinner: response.data.servesDinner || false,
-      serves_beer: response.data.servesBeer || false,
-      serves_vegetarian: response.data.servesVegetarianFood || false,
-      serves_cocktails: response.data.servesCocktails || false,
-      serves_coffee: response.data.servesCoffee || false,
-      outdoor_seating: response.data.outdoorSeating || false,
-      live_music: response.data.liveMusic || false,
-      good_for_children: response.data.goodForChildren || false,
-      good_for_groups: response.data.goodForGroups || false,
-      restroom: response.data.restroom || false,
-      utc_offset: response.data.utcOffsetMinutes || 0,
-    }
-
-    console.log(
-      'Transformed place details:',
-      JSON.stringify(transformedPlace, null, 2),
-    )
-
-    return transformedPlace
-  } catch (error: any) {
-    console.error('Error fetching Google place by ID:', error.message || error)
-    if (axios.isAxiosError(error) && error.response) {
-      console.error('Error response status:', error.response.status)
-      console.error(
-        'Error response data:',
-        JSON.stringify(error.response.data, null, 2),
+    // Add bookmark information if user ID is provided
+    if (userId && place) {
+      const bookmarkInfo = await findBookmarkByExternalIds(
+        place.externalIds,
+        userId,
       )
+      if (bookmarkInfo) {
+        place.bookmark = bookmarkInfo.bookmark
+        place.collectionIds = bookmarkInfo.collectionIds
+      }
     }
+
+    return place
+  } catch (error) {
+    console.error(
+      `Error looking up and merging place data (${source}/${id}):`,
+      error,
+    )
     return null
   }
+}
+
+// TODO: This already exists in the merge service. Fix this duplicate code
+/**
+ * Calculates similarity between two place names
+ *
+ * This function is a critical part of place deduplication. It determines how
+ * similar two place names are, accounting for:
+ * - Business name variations and suffixes (LLC, Inc, etc.)
+ * - Building/property type standardization (apartment/apartments, condo/condominiums)
+ * - Directional abbreviations (N, S, E, W)
+ * - Common words and articles to ignore
+ * - Name structure and word order
+ *
+ * The algorithm returns a score from 0 to 1, where:
+ * - 1.0 = Perfect match
+ * - 0.9+ = Very strong match (likely the same place)
+ * - 0.8+ = Strong match (probably the same place)
+ * - 0.7+ = Moderate match (possibly the same place, needs proximity check)
+ * - <0.7 = Weak match (likely different places)
+ *
+ * This is used alongside geographic proximity to identify the same real-world
+ * place across different data providers, each with their own naming conventions.
+ */
+export function calculateNameSimilarity(name1: string, name2: string): number {
+  if (!name1 || !name2) return 0
+
+  const normalizeForComparison = (name: string): string => {
+    // Normalize case and whitespace
+    let normalized = name.toLowerCase().trim()
+
+    // Remove punctuation
+    normalized = normalized.replace(/[^\w\s]/g, '')
+
+    // Common business/residential suffixes to remove for comparison
+    const businessSuffixes = [
+      'inc',
+      'incorporated',
+      'llc',
+      'ltd',
+      'limited',
+      'corp',
+      'corporation',
+      'co',
+      'company',
+      'enterprises',
+      'holdings',
+      'group',
+    ]
+
+    // Building/property type words - don't remove as they're important for matching similar buildings
+    const buildingTypes = [
+      'apartments',
+      'apartment',
+      'condominiums',
+      'condominium',
+      'condo',
+      'condos',
+      'residence',
+      'residences',
+      'tower',
+      'towers',
+      'plaza',
+      'square',
+      'building',
+      'center',
+      'centre',
+      'complex',
+      'park',
+      'house',
+      'homes',
+      'villas',
+      'suites',
+    ]
+
+    // Direction abbreviations
+    const directionMap: Record<string, string> = {
+      n: 'north',
+      s: 'south',
+      e: 'east',
+      w: 'west',
+      ne: 'northeast',
+      nw: 'northwest',
+      se: 'southeast',
+      sw: 'southwest',
+    }
+
+    // Expand direction abbreviations
+    for (const [abbr, full] of Object.entries(directionMap)) {
+      const abbrPattern = new RegExp(`\\b${abbr}\\b`, 'g')
+      normalized = normalized.replace(abbrPattern, full)
+    }
+
+    // Split into words
+    let words = normalized.split(/\s+/)
+
+    // Filter out business suffixes but keep building type words
+    words = words.filter((word) => !businessSuffixes.includes(word))
+
+    // Special treatment for building types (preserve them but standardize)
+    let standardizedBuildingType = ''
+    for (const word of words) {
+      if (buildingTypes.includes(word)) {
+        // If it's "condo", "condos", or "condominium", standardize to "condominiums"
+        if (['condo', 'condos', 'condominium'].includes(word)) {
+          standardizedBuildingType = 'condominiums'
+        }
+        // If it's "apartment" or similar, standardize to "apartments"
+        else if (['apartment', 'residence'].includes(word)) {
+          standardizedBuildingType = 'apartments'
+        } else {
+          standardizedBuildingType = word
+        }
+      }
+    }
+
+    // Final string without building type (we'll add standardized version back later if found)
+    normalized = words.filter((word) => !buildingTypes.includes(word)).join(' ')
+
+    // Add back standardized building type if we found one
+    if (standardizedBuildingType) {
+      normalized += ' ' + standardizedBuildingType
+    }
+
+    return normalized.trim()
+  }
+
+  // Normalize both names
+  const normalized1 = normalizeForComparison(name1)
+  const normalized2 = normalizeForComparison(name2)
+
+  // If names are exactly the same after normalization
+  if (normalized1 === normalized2) {
+    return 1
+  }
+
+  // Check if the first significant words are completely different
+  const words1 = normalized1.split(/\s+/)
+  const words2 = normalized2.split(/\s+/)
+
+  // Get the first significant word from each name (skip short words like "the", "at", etc.)
+  const getFirstSignificantWord = (words: string[]): string => {
+    for (const word of words) {
+      if (
+        word.length > 2 &&
+        !['the', 'and', 'for', 'of', 'at', 'in', 'on', 'by'].includes(word)
+      ) {
+        return word
+      }
+    }
+    return words[0] || ''
+  }
+
+  const firstWord1 = getFirstSignificantWord(words1)
+  const firstWord2 = getFirstSignificantWord(words2)
+
+  // If the first significant words are completely different and not building types,
+  // this is likely a mismatch of completely different places
+  const buildingTypes = [
+    'apartments',
+    'condominiums',
+    'towers',
+    'plaza',
+    'square',
+    'complex',
+    'residence',
+  ]
+  if (
+    firstWord1 !== firstWord2 &&
+    !buildingTypes.includes(firstWord1) &&
+    !buildingTypes.includes(firstWord2) &&
+    firstWord1.length > 3 &&
+    firstWord2.length > 3
+  ) {
+    return 0.2
+  }
+
+  // If one is a substring of the other, it's likely a match
+  if (normalized1.includes(normalized2) || normalized2.includes(normalized1)) {
+    // Calculate how much of the longer string is covered
+    const coverage =
+      Math.min(normalized1.length, normalized2.length) /
+      Math.max(normalized1.length, normalized2.length)
+
+    // Higher similarity for more complete coverage
+    const similarityScore = 0.7 + coverage * 0.3
+    return similarityScore
+  }
+
+  // Calculate how many words match
+  const commonWords = words1.filter((word) => words2.includes(word))
+  if (commonWords.length === 0) {
+    return 0
+  }
+
+  // Calculate similarity based on common words
+  const overallSimilarity =
+    (commonWords.length * 2) / (words1.length + words2.length)
+
+  // Boost score if the first significant words (likely the most important part of the name) match
+  const firstWordsMatch = firstWord1 === firstWord2 && firstWord1.length > 3
+
+  let finalScore = overallSimilarity
+  if (firstWordsMatch) {
+    finalScore = Math.min(1, overallSimilarity + 0.2) // Boost but cap at 1.0
+  }
+
+  return finalScore
 }

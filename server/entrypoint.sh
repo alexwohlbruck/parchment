@@ -6,4 +6,4 @@ bun run migrate
 
 # Start the application
 echo "Starting the application..."
-exec bun run start
+exec "$@"

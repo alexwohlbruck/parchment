@@ -20,13 +20,11 @@ const availableIntegrations: IntegrationDefinition[] = [
     name: 'Google Maps',
     description: 'Comprehensive mapping and location services',
     color: '#4285F4',
-    capabilities: [
-      IntegrationCapabilityId.ROUTING,
-      IntegrationCapabilityId.GEOCODING,
-      IntegrationCapabilityId.PLACE_INFO,
-      IntegrationCapabilityId.IMAGERY,
-      IntegrationCapabilityId.AUTOCOMPLETE,
-    ],
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.GOOGLE_MAPS,
+      )
+    },
     paid: true,
     cloud: true,
     configSchema: 'googleMapsSchema',
@@ -36,20 +34,37 @@ const availableIntegrations: IntegrationDefinition[] = [
     name: 'Pelias',
     description: 'Open-source geocoding and search',
     color: '#7EBC6F',
-    capabilities: [
-      IntegrationCapabilityId.GEOCODING,
-      IntegrationCapabilityId.AUTOCOMPLETE,
-    ],
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(IntegrationId.PELIAS)
+    },
     paid: false,
     cloud: false,
     configSchema: 'peliasSchema',
+  },
+  {
+    id: IntegrationId.OVERPASS,
+    name: 'Overpass API',
+    description: 'OpenStreetMap data filtering and retrieval',
+    color: '#7EBC6F',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.OVERPASS,
+      )
+    },
+    paid: false,
+    cloud: false,
+    configSchema: 'overpassSchema',
   },
   {
     id: IntegrationId.GRAPHHOPPER,
     name: 'GraphHopper',
     description: 'Fast and efficient routing engine',
     color: '#2E7D32',
-    capabilities: [IntegrationCapabilityId.ROUTING],
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.GRAPHHOPPER,
+      )
+    },
     paid: false,
     cloud: false,
     configSchema: 'apiKeySchema',
@@ -59,7 +74,9 @@ const availableIntegrations: IntegrationDefinition[] = [
     name: 'Yelp',
     description: 'Local business reviews and ratings',
     color: '#D32323',
-    capabilities: [IntegrationCapabilityId.PLACE_INFO],
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(IntegrationId.YELP)
+    },
     paid: true,
     cloud: true,
     configSchema: 'oauthConfigSchema',
@@ -69,7 +86,11 @@ const availableIntegrations: IntegrationDefinition[] = [
     name: 'OpenTable',
     description: 'Restaurant discovery and reservations',
     color: '#222222',
-    capabilities: [IntegrationCapabilityId.PLACE_INFO],
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.OPENTABLE,
+      )
+    },
     paid: true,
     cloud: true,
     configSchema: 'apiKeySchema',
@@ -79,7 +100,11 @@ const availableIntegrations: IntegrationDefinition[] = [
     name: 'Foursquare',
     description: 'Location-based social network',
     color: '#F94877',
-    capabilities: [IntegrationCapabilityId.PLACE_INFO],
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.FOURSQUARE,
+      )
+    },
     paid: true,
     cloud: true,
     configSchema: 'oauthConfigSchema',
@@ -89,7 +114,11 @@ const availableIntegrations: IntegrationDefinition[] = [
     name: 'Mapillary',
     description: 'Street-level imagery platform',
     color: '#2B2B2B',
-    capabilities: [IntegrationCapabilityId.IMAGERY],
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.MAPILLARY,
+      )
+    },
     paid: false,
     cloud: true,
     configSchema: 'apiKeySchema',
@@ -99,10 +128,11 @@ const availableIntegrations: IntegrationDefinition[] = [
     name: 'Nominatim',
     description: 'Open-source geocoding and reverse geocoding',
     color: '#7EBC6F',
-    capabilities: [
-      IntegrationCapabilityId.GEOCODING,
-      IntegrationCapabilityId.AUTOCOMPLETE,
-    ],
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.NOMINATIM,
+      )
+    },
     paid: false,
     cloud: false,
     configSchema: 'nominatimSchema',
@@ -112,7 +142,11 @@ const availableIntegrations: IntegrationDefinition[] = [
     name: 'TripAdvisor',
     description: 'Travel reviews and recommendations',
     color: '#34E0A1',
-    capabilities: [IntegrationCapabilityId.PLACE_INFO],
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.TRIPADVISOR,
+      )
+    },
     paid: true,
     cloud: true,
     configSchema: 'apiKeySchema',
@@ -122,11 +156,11 @@ const availableIntegrations: IntegrationDefinition[] = [
     name: 'Geoapify',
     description: 'Geocoding, routing, and place data',
     color: '#FF5A5F',
-    capabilities: [
-      IntegrationCapabilityId.GEOCODING,
-      IntegrationCapabilityId.ROUTING,
-      IntegrationCapabilityId.PLACE_INFO,
-    ],
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.GEOAPIFY,
+      )
+    },
     paid: true,
     cloud: true,
     configSchema: 'apiKeySchema',

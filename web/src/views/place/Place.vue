@@ -10,19 +10,16 @@ import { AppRoute } from '@/router'
 
 const route = useRoute()
 const router = useRouter()
-const {
-  currentPlace,
-  loading,
-  fetchPlaceDetails,
-  fetchPlaceByOsmId,
-  clearPlace,
-} = usePlaceService()
+const { currentPlace, loading, fetchPlaceDetails, clearPlace } =
+  usePlaceService()
 const { flyTo, addMarker, removeAllMarkers } = useMapService()
 
 async function loadPlace() {
   clearPlace()
 
   const { type, id, provider, placeId, name, lat, lng } = route.params
+
+  console.log(route.params)
 
   // Handle URL correction for nested routes
   // If we receive route parameters in incorrect positions, redirect to the correct route
@@ -62,7 +59,7 @@ async function loadPlace() {
     typeof id === 'string' &&
     !['provider', 'location'].includes(type)
   ) {
-    const place = await fetchPlaceByOsmId(id, type as any)
+    const place = await fetchPlaceDetails(`${type}/${id}`)
     handlePlaceResult(place)
     return
   }

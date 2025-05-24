@@ -13,7 +13,7 @@ export interface SourceReference {
 
 export interface AttributedValue<T> {
   value: T
-  sourceId: string
+  sourceId: SourceId
   timestamp?: string
   updatedBy?: string
 }
@@ -89,18 +89,27 @@ export interface ContactInfo {
   socials?: Record<string, string> // platform -> URL
 }
 
-export interface UnifiedPlace {
+/**
+ * A place object with attributed values for all fields
+ * This consistently tracks the source of each piece of data
+ */
+export interface Place {
   id: string // A unique identifier
   externalIds: Record<SourceId, string> // Source -> external ID mapping
 
-  name: string
-  description?: string
-  placeType: string
+  // Basic attributes as AttributedValues - these will always have a value
+  name: AttributedValue<string>
+  description: AttributedValue<string> | null
+  placeType: AttributedValue<string>
 
-  geometry: PlaceGeometry
-  photos: PlacePhoto[]
+  // Geographical attributes
+  geometry: AttributedValue<PlaceGeometry>
+  photos: AttributedValue<PlacePhoto>[]
 
-  address: Address | null
+  // Address information
+  address: AttributedValue<Address> | null
+
+  // Contact information
   contactInfo: {
     phone: AttributedValue<string> | null
     email: AttributedValue<string> | null
@@ -108,9 +117,11 @@ export interface UnifiedPlace {
     socials: Record<string, AttributedValue<string>>
   }
 
-  openingHours: OpeningHours | null
+  // Operating hours
+  openingHours: AttributedValue<OpeningHours> | null
 
-  amenities: Record<string, string | boolean | number>
+  // Features and ratings
+  amenities: Record<string, AttributedValue<string | boolean | number>>
   ratings?: {
     rating: AttributedValue<number>
     reviewCount: AttributedValue<number>
@@ -123,9 +134,28 @@ export interface UnifiedPlace {
   lastUpdated: string // ISO date string
   createdAt: string // ISO date string
 
-  // Add bookmark and collection information
+  // User-specific data
   bookmark?: Bookmark
   collectionIds?: string[]
+}
+
+/**
+ * Creates an AttributedValue from a plain value
+ * @param value The value to wrap
+ * @param sourceId The source ID to attribute the value to
+ * @param timestamp Optional timestamp
+ * @returns An AttributedValue containing the value
+ */
+export function createAttributedValue<T>(
+  value: T,
+  sourceId: SourceId,
+  timestamp?: string,
+): AttributedValue<T> {
+  return {
+    value,
+    sourceId,
+    timestamp: timestamp || new Date().toISOString(),
+  }
 }
 
 export function selectBestValue<T>(values: AttributedValue<T>[]): T | null {

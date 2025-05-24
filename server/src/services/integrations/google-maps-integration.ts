@@ -25,6 +25,7 @@ export class GoogleMapsIntegration extends BaseIntegration {
     IntegrationCapabilityId.IMAGERY,
     IntegrationCapabilityId.AUTOCOMPLETE,
   ]
+  readonly sources = [SOURCE.GOOGLE]
 
   private adapter: GoogleAdapter
 
@@ -310,6 +311,121 @@ export class GoogleMapsIntegration extends BaseIntegration {
     } catch (error) {
       console.error('Error fetching Google autocomplete suggestions:', error)
       return []
+    }
+  }
+
+  /**
+   * Get place details by Google place ID
+   * @param placeId The Google place ID
+   * @returns Google place data or null if not found
+   */
+  async getPlaceDetails(placeId: string): Promise<any | null> {
+    this.ensureInitialized()
+
+    try {
+      console.log(`Fetching Google place by ID: ${placeId}`)
+
+      // Clean up the Place ID by removing any prefixes
+      let cleanPlaceId = placeId
+
+      // Strip the 'google/' prefix if it exists
+      if (cleanPlaceId.startsWith('google/')) {
+        cleanPlaceId = cleanPlaceId.substring(7)
+      }
+
+      // Handle potential double-prefixing (e.g., "google/google/ChIJ...")
+      if (cleanPlaceId.startsWith('google/')) {
+        cleanPlaceId = cleanPlaceId.substring(7)
+      }
+
+      console.log(`Making request to get details for place ID: ${cleanPlaceId}`)
+      const endpoint = `${GOOGLE_PLACES_API_URL}/${cleanPlaceId}`
+
+      const response = await axios.get(endpoint, {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': this.config.apiKey,
+          'X-Goog-FieldMask':
+            'id,displayName,formattedAddress,internationalPhoneNumber,websiteUri,types,photos,rating,userRatingCount,googleMapsUri,priceLevel,businessStatus,editorialSummary,location,dineIn,takeout,delivery,curbsidePickup,servesBreakfast,servesLunch,servesDinner,servesBeer,servesVegetarianFood,servesCocktails,servesCoffee,outdoorSeating,liveMusic,goodForChildren,goodForGroups,restroom,regularOpeningHours,utcOffsetMinutes',
+        },
+      })
+
+      if (!response.data || Object.keys(response.data).length === 0) {
+        console.error('No place details returned for the given Google Place ID')
+        return null
+      }
+
+      // Transform the response data into our format
+      const transformedPlace = {
+        place_id: response.data.id,
+        name: response.data.displayName?.text || '',
+        formatted_address: response.data.formattedAddress || '',
+        formatted_phone_number: response.data.internationalPhoneNumber || '',
+        website: response.data.websiteUri || '',
+        types: response.data.types || [],
+        photos:
+          response.data.photos?.map(
+            (photo: { name: string; heightPx?: number; widthPx?: number }) => ({
+              photo_reference: photo.name,
+              height: photo.heightPx || 0,
+              width: photo.widthPx || 0,
+              html_attributions: [],
+            }),
+          ) || [],
+        rating: response.data.rating || 0,
+        user_ratings_total: response.data.userRatingCount || 0,
+        google_maps_uri: response.data.googleMapsUri || '',
+        price_level: response.data.priceLevel || '',
+        business_status: response.data.businessStatus || '',
+        editorial_summary: response.data.editorialSummary
+          ? {
+              language:
+                response.data.editorialSummary.languageCode || undefined,
+              overview:
+                response.data.editorialSummary.text ||
+                response.data.editorialSummary.overview ||
+                '',
+            }
+          : undefined,
+        geometry: response.data.location
+          ? {
+              location: {
+                lat: response.data.location.latitude,
+                lng: response.data.location.longitude,
+              },
+            }
+          : undefined,
+        opening_hours: response.data.regularOpeningHours
+          ? {
+              open_now: response.data.regularOpeningHours.openNow || false,
+              periods: response.data.regularOpeningHours.periods || [],
+              weekday_text:
+                response.data.regularOpeningHours.weekdayDescriptions || [],
+            }
+          : undefined,
+        dine_in: response.data.dineIn || false,
+        takeout: response.data.takeout || false,
+        delivery: response.data.delivery || false,
+        curbside_pickup: response.data.curbsidePickup || false,
+        serves_breakfast: response.data.servesBreakfast || false,
+        serves_lunch: response.data.servesLunch || false,
+        serves_dinner: response.data.servesDinner || false,
+        serves_beer: response.data.servesBeer || false,
+        serves_vegetarian: response.data.servesVegetarianFood || false,
+        serves_cocktails: response.data.servesCocktails || false,
+        serves_coffee: response.data.servesCoffee || false,
+        outdoor_seating: response.data.outdoorSeating || false,
+        live_music: response.data.liveMusic || false,
+        good_for_children: response.data.goodForChildren || false,
+        good_for_groups: response.data.goodForGroups || false,
+        restroom: response.data.restroom || false,
+        utc_offset: response.data.utcOffsetMinutes || 0,
+      }
+
+      return transformedPlace
+    } catch (error) {
+      console.error('Error fetching Google place by ID:', error)
+      return null
     }
   }
 }

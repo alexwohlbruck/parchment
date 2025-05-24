@@ -12,7 +12,7 @@ import type {
   PlacePhoto,
   SourceReference,
 } from '../../types/unified-place.types'
-import { getTimestamp } from '../merge.service'
+import { Source } from '../../lib/constants'
 
 /**
  * Abstract base class for integrations with common implementations
@@ -27,6 +27,11 @@ export abstract class BaseIntegration implements Integration {
    * The capabilities this integration provides
    */
   abstract readonly capabilities: IntegrationCapabilityId[]
+
+  /**
+   * The data sources this integration can access
+   */
+  abstract readonly sources: Source[]
 
   /**
    * The current configuration for this integration
@@ -89,41 +94,7 @@ export abstract class BaseIntegration implements Integration {
    * @param id Optional ID for the place (defaults to provider's ID or random)
    * @returns A UnifiedPlace object
    */
-  // TODO: Use existing adapters for this
-  createUnifiedPlace(providerData: any, id?: string): UnifiedPlace {
-    // Generate an ID if none provided
-    const placeId =
-      id ||
-      `${this.integrationId}/${providerData.id || this.generateRandomId()}`
-
-    // Default implementation with minimal fields
-    return {
-      id: placeId,
-      externalIds: { [this.integrationId]: providerData.id || '' },
-      name: providerData.name || 'Unnamed Place',
-      placeType: providerData.type || providerData.category || 'unknown',
-      geometry: providerData.geometry || {
-        type: 'point',
-        center: {
-          lat: providerData.lat || providerData.latitude || 0,
-          lng: providerData.lng || providerData.longitude || 0,
-        },
-      },
-      photos: this.extractPhotos(providerData),
-      address: this.extractAddress(providerData),
-      contactInfo: {
-        phone: null,
-        email: null,
-        website: null,
-        socials: {},
-      },
-      openingHours: null,
-      amenities: {},
-      sources: [this.createSourceReference(providerData)],
-      lastUpdated: getTimestamp(),
-      createdAt: getTimestamp(),
-    }
-  }
+  abstract createUnifiedPlace(providerData: any, id?: string): UnifiedPlace
 
   /**
    * Extract photos from provider data
@@ -268,5 +239,18 @@ export abstract class BaseIntegration implements Integration {
   ): Promise<any[]> {
     console.warn(`getAutocomplete not implemented for ${this.integrationId}`)
     return []
+  }
+
+  /**
+   * Get place details by provider-specific ID
+   * This is a base implementation that returns null
+   * Integrations supporting the PLACE_INFO capability should override this
+   *
+   * @param id The provider-specific ID of the place
+   * @returns Provider-specific place data or null if not found
+   */
+  async getPlaceDetails(id: string): Promise<any | null> {
+    console.warn(`getPlaceDetails not implemented for ${this.integrationId}`)
+    return null
   }
 }

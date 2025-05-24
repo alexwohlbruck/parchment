@@ -501,6 +501,7 @@
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",
         "pelias": "Geocodificación y búsqueda de código abierto",
+        "overpass": "Filtrado y recuperación de datos OpenStreetMap",
         "graphhopper": "Motor de rutas rápido y eficiente",
         "yelp": "Reseñas y calificaciones de negocios locales",
         "opentable": "Descubrimiento y reservas de restaurantes",

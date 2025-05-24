@@ -73,19 +73,6 @@ function placeService() {
     }
   }
 
-  /**
-   * Legacy method for backward compatibility - uses the new lookup endpoint
-   */
-  async function fetchPlaceByOsmId(
-    osmId: string,
-    type: 'node' | 'way' | 'relation' | 'unknown',
-  ) {
-    if (type === 'unknown') return null
-
-    // Use the new method with OSM provider and properly formatted ID
-    return fetchPlaceDetails(`${type}/${osmId}`, 'osm')
-  }
-
   function clearPlace() {
     currentPlace.value = null
   }
@@ -115,9 +102,8 @@ function placeService() {
     currentPlace,
     loading,
     fetchPlaceDetails,
-    fetchPlaceByOsmId, // Legacy method
     clearPlace,
-    setBookmarkStatus, // Export the new function
+    setBookmarkStatus,
   }
 }
 

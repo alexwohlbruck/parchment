@@ -22,6 +22,7 @@ export class PeliasIntegration extends BaseIntegration {
     IntegrationCapabilityId.GEOCODING,
     IntegrationCapabilityId.AUTOCOMPLETE,
   ]
+  readonly sources = [SOURCE.OSM, SOURCE.OPENADDRESSES]
 
   private adapter: PeliasAdapter
 
@@ -349,6 +350,78 @@ export class PeliasIntegration extends BaseIntegration {
     } catch (error) {
       console.error('Error getting Pelias autocomplete suggestions:', error)
       return []
+    }
+  }
+
+  /**
+   * Get place details by Pelias ID
+   * @param id The place ID
+   * @returns Place details or null if not found
+   */
+  async getPlaceDetails(id: string): Promise<any | null> {
+    this.ensureInitialized()
+
+    try {
+      console.log(`Getting place details from Pelias for ID: ${id}`)
+
+      // Remove provider prefix if present
+      let osmId = id
+      if (id.startsWith('pelias/')) {
+        osmId = id.substring(7)
+      }
+
+      // Handle potential prefix like 'openstreetmap:venue:way/123456'
+      if (osmId.includes(':') && osmId.includes('/')) {
+        const parts = osmId.split(':')
+        // Get the last part which should contain the OSM ID
+        osmId = parts[parts.length - 1]
+      }
+
+      // Parse the OSM type and ID
+      let osmType: string = 'node'
+      let osmIdValue: string = osmId
+
+      if (osmId.includes('/')) {
+        const parts = osmId.split('/')
+        osmType = parts[0]
+        osmIdValue = parts[1]
+      }
+
+      console.log(`Parsed OSM ID: type=${osmType}, id=${osmIdValue}`)
+
+      // Build the query for Pelias
+      const apiUrl = `${this.config.host}/v1/place`
+
+      // Search parameters
+      const params: Record<string, any> = {
+        ids: `openstreetmap:${osmType}:${osmIdValue}`,
+      }
+
+      console.log(`Calling Pelias place API with params:`, params)
+
+      const response = await axios.get(apiUrl, {
+        params,
+        headers: {
+          'User-Agent': 'Parchment/1.0',
+        },
+      })
+
+      if (
+        !response.data ||
+        !response.data.features ||
+        response.data.features.length === 0
+      ) {
+        console.error('No results found from Pelias')
+        return null
+      }
+
+      console.log(
+        `Pelias lookup successful, got ${response.data.features.length} results`,
+      )
+      return response.data.features[0]
+    } catch (error) {
+      console.error('Error getting place details from Pelias:', error)
+      return null
     }
   }
 }

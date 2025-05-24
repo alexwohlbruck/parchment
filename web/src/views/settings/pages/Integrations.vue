@@ -3,7 +3,7 @@ import { useI18n } from 'vue-i18n'
 import { useAppService } from '@/services/app.service'
 import { ref, onMounted } from 'vue'
 import { useIntegrationService } from '@/services/integration.service'
-import { UiIntegration } from '@/types/integrations.types'
+import { overpassSchema, UiIntegration } from '@/types/integrations.types'
 import { ZodObject } from 'zod'
 import {
   apiKeySchema,
@@ -54,6 +54,7 @@ async function handleCardClick(integration: UiIntegration) {
       nominatimSchema,
       googleMapsSchema,
       peliasSchema,
+      overpassSchema,
     }
 
     // Get the actual schema based on the schema name or use apiKeySchema as fallback

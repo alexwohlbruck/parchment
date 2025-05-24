@@ -1,29 +1,28 @@
 import { Elysia, t, error } from 'elysia'
 import { getSession, requireAuth } from '../middleware/auth.middleware.js'
 import {
-  getPlaceDetails,
+  lookupPlaceByNameAndLocation,
   searchPlaces,
   getPlaceAutocomplete,
-  getPlaceDetailsByProviderId,
-  getPlaceDetailsByNameAndLocation,
+  lookupAndMergePlaceById,
 } from '../services/place.service'
-
+import { SOURCE, Source } from '../lib/constants.js'
+import { IntegrationCapabilityId } from '../types/integration.types.js'
+import { integrationManager } from '../services/integrations/index.js'
 const app = new Elysia({ prefix: '/places' }).use(getSession)
 
-const placeTypeSchema = t.Union([
-  t.Literal('node'),
-  t.Literal('way'),
-  t.Literal('relation'),
-])
-
-// Get place by provider+id, name+lat+lng, or id
+// Get place by looking up source+id or name+lat+lng
 app.get(
   '/lookup',
   async ({ query, user }) => {
     const { provider, id, name, lat, lng, radius = 500 } = query
+    const source = provider as Source // TODO: Rename query param to 'source' and update type
+
+    const isIdLookup = source && id
+    const isNameLocationLookup = name && lat && lng
 
     // Check for at least one valid lookup parameter
-    if (!((provider && id) || (name && lat && lng))) {
+    if (!isIdLookup && !isNameLocationLookup) {
       return error(400, {
         message: 'Please provide either provider+id, or name+lat+lng',
       })
@@ -31,48 +30,50 @@ app.get(
 
     let place = null
 
-    // Handle provider-specific ID lookup
-    if (provider && id) {
-      // Special handling for OSM
-      if (provider === 'osm') {
-        const [osmType, rawId] = id.includes('/') ? id.split('/') : [null, id]
+    try {
+      if (isIdLookup) {
+        // TODO: Move this logic to a helper function
+        // Special case for OSM provider: validate format
+        if (source === SOURCE.OSM) {
+          const [osmType, rawId] = id.includes('/') ? id.split('/') : [null, id]
 
-        if (!osmType || !['node', 'way', 'relation'].includes(osmType)) {
-          return error(400, {
-            message:
-              'Invalid OSM type. Format should be "type/id" where type is node, way, or relation.',
-          })
+          if (!osmType || !['node', 'way', 'relation'].includes(osmType)) {
+            return error(400, {
+              message:
+                'Invalid OSM type. Format should be "type/id" where type is node, way, or relation.',
+            })
+          }
         }
 
-        place = await getPlaceDetails(id, user?.id ?? null)
-      }
-      // Handle other providers through common interface
-      else {
-        place = await getPlaceDetailsByProviderId(
-          provider,
-          id,
-          user?.id ?? null,
-        )
-      }
-    }
-    // Handle name+location lookup
-    else if (name && lat && lng) {
-      const coordinates = { lat: parseFloat(lat), lng: parseFloat(lng) }
-      place = await getPlaceDetailsByNameAndLocation(
-        name,
-        coordinates,
-        user?.id ?? null,
-        parseInt(radius as string),
-      )
-    }
+        place = await lookupAndMergePlaceById(source, id, {
+          userId: user?.id,
+        })
+      } else if (isNameLocationLookup) {
+        const coordinates = {
+          lat: parseFloat(lat),
+          lng: parseFloat(lng),
+        }
 
-    if (!place) {
-      return error(404, {
-        message: 'Place not found with the provided parameters',
+        // Use the new method to get place by name and coordinates
+        place = await lookupPlaceByNameAndLocation(name, coordinates, {
+          userId: user?.id,
+          radius: parseInt(radius as string),
+        })
+      }
+
+      if (!place) {
+        return error(404, {
+          message: 'Place not found with the provided parameters',
+        })
+      }
+
+      return place
+    } catch (err) {
+      console.error('Error in place lookup:', err)
+      return error(500, {
+        message: 'Error retrieving place data',
       })
     }
-
-    return place
   },
   {
     query: t.Object({
@@ -82,26 +83,6 @@ app.get(
       lat: t.Optional(t.String()),
       lng: t.Optional(t.String()),
       radius: t.Optional(t.String()),
-    }),
-  },
-)
-
-// Get place details by id
-app.get(
-  '/:id',
-  async ({ params: { id }, user }) => {
-    const place = await getPlaceDetails(id, user?.id ?? null)
-
-    if (!place) {
-      return error(404, { message: `Place not found: ${id}` })
-    }
-
-    return place
-  },
-  {
-    params: t.Object({
-      type: placeTypeSchema,
-      id: t.String(),
     }),
   },
 )

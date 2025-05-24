@@ -3,15 +3,16 @@
  */
 export const SOURCE = {
   OSM: 'osm',
+  OPENADDRESSES: 'openaddresses',
   GOOGLE: 'google',
   WIKIDATA: 'wikidata',
   YELP: 'yelp',
   FOURSQUARE: 'foursquare',
   TRIPADVISOR: 'tripadvisor',
   OPENTABLE: 'opentable',
-  PELIAS: 'pelias',
-  NOMINATIM: 'nominatim',
 } as const
+// TODO: Fix types for source and integration ids
+export type Source = (typeof SOURCE)[keyof typeof SOURCE]
 
 /**
  * Data source priorities
@@ -20,6 +21,7 @@ export const SOURCE = {
 export const SOURCE_PRIORITIES = {
   // Primary sources
   [SOURCE.OSM]: 100, // OpenStreetMap
+  [SOURCE.OPENADDRESSES]: 90, // OpenAddresses
 
   // Secondary sources
   [SOURCE.GOOGLE]: 80, // Google Places
@@ -30,11 +32,9 @@ export const SOURCE_PRIORITIES = {
   [SOURCE.FOURSQUARE]: 40, // Foursquare
   [SOURCE.TRIPADVISOR]: 40, // TripAdvisor
   [SOURCE.OPENTABLE]: 30, // OpenTable
-  // TODO: Differentiate between "data sources" and "providers"
-  [SOURCE.PELIAS]: 70, // Pelias geocoder
-  [SOURCE.NOMINATIM]: 70, // Nominatim geocoder
 } as const
 
+// TODO: Remove this
 /**
  * Business status constants
  */
@@ -44,24 +44,11 @@ export const BUSINESS_STATUS = {
   CLOSED_PERMANENTLY: 'CLOSED_PERMANENTLY',
 } as const
 
-/**
- * API configuration
- */
-export const API_CONFIG = {
-  [SOURCE.OSM]: true, // Always enabled
-  [SOURCE.GOOGLE]: true, // Enabled, configured through integration manager
-  [SOURCE.WIKIDATA]: true, // Always enabled
-  [SOURCE.PELIAS]: false, // Always enabled, hosted locally
-  [SOURCE.NOMINATIM]: true, // Always enabled
-  [SOURCE.YELP]: false, // Not implemented yet
-  [SOURCE.FOURSQUARE]: false, // Not implemented yet
-} as const
-
+// TODO: Move these to integration files
 // Google API constants
 export const GOOGLE_MAPS_PHOTO_URL =
   'https://maps.googleapis.com/maps/api/place/photo'
 export const GOOGLE_PLACES_API_URL = 'https://places.googleapis.com/v1/places'
 export const DEFAULT_SEARCH_RADIUS = 500 // meters
-
 // Pelias constants
 export const PELIAS_API_URL = 'http://pelias_api:4000/v1/autocomplete'

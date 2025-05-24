@@ -17,4 +17,4 @@ RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
 
 # Hot-reload mode for development
-CMD ["bun", "run", "--hot", "--inspect=0.0.0.0:6499", "src/index.ts"]
+CMD ["bun", "run", "--hot", "--inspect=127.0.0.1:6499/debug", "src/index.ts"]

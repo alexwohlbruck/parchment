@@ -1,123 +1,124 @@
-export interface PlaceNode {
-  lat: number
-  lon: number
-}
+import { Bookmark } from './library.types'
 
-export interface PlaceCenter {
-  lat: number
-  lon: number
-}
+export type SourceId = (typeof SOURCE)[keyof typeof SOURCE] | string
 
-export interface PlaceBounds {
-  minlat: number
-  minlon: number
-  maxlat: number
-  maxlon: number
-}
-
-export interface GooglePlaceDetails {
-  place_id: string
+export interface SourceReference {
+  id: SourceId
   name: string
-  formatted_address: string
-  formatted_phone_number: string
-  website: string
-  types: string[]
-  photos: {
-    photo_reference: string
-    height: number
-    width: number
-    html_attributions: string[]
-  }[]
-  rating: number
-  user_ratings_total: number
-  opening_hours?: {
-    open_now?: boolean
-    periods?: {
-      open: { day: number; time: string }
-      close: { day: number; time: string }
-    }[]
-    weekday_text?: string[]
+  url: string
+  updated?: string // ISO date string
+  updatedBy?: string
+}
+
+export interface AttributedValue<T> {
+  value: T
+  sourceId: SourceId
+  timestamp?: string
+  updatedBy?: string
+}
+
+export interface Coordinates {
+  lat: number
+  lng: number
+}
+
+export interface PlaceGeometry {
+  type: 'point' | 'polygon' | 'multipolygon'
+  center: Coordinates
+  plusCode?: string
+  bounds?: {
+    minLat: number
+    minLng: number
+    maxLat: number
+    maxLng: number
   }
-  // Editorial summary with place description
-  editorial_summary?: {
-    language?: string
-    languageCode?: string
-    overview?: string
-    text?: string
-  }
-  // Location/geometry data
-  geometry?: {
-    location: {
-      lat: number
-      lng: number
-    }
-  }
-  // New fields
-  google_maps_uri: string
-  price_level: string
-  business_status: string
-  dine_in: boolean
-  takeout: boolean
-  delivery: boolean
-  curbside_pickup: boolean
-  serves_breakfast: boolean
-  serves_lunch: boolean
-  serves_dinner: boolean
-  serves_beer: boolean
-  serves_vegetarian: boolean
-  serves_cocktails: boolean
-  serves_coffee: boolean
-  outdoor_seating: boolean
-  live_music: boolean
-  good_for_children: boolean
-  good_for_groups: boolean
-  restroom: boolean
-  utc_offset: number
+  nodes?: Coordinates[] // For polygons/ways
+}
+
+export interface PlacePhoto {
+  url: string
+  sourceId: SourceId
+  width?: number
+  height?: number
+  alt?: string
+  isPrimary?: boolean
+  isCover?: boolean
+  isLogo?: boolean
+}
+
+export interface Address {
+  street1?: string
+  street2?: string
+  neighborhood?: string
+  locality?: string // City/town
+  region?: string // State/province
+  postalCode?: string
+  country?: string
+  countryCode?: string // ISO country code
+  formatted?: string // Full formatted address as a single string
+}
+
+export interface OpeningTime {
+  day: number // 0-6, starting Sunday
+  open: string // 24h format "HH:mm"
+  close: string // 24h format "HH:mm"
+}
+
+export interface OpeningHours {
+  regularHours: OpeningTime[] // Array of regular opening hours
+  isOpen24_7: boolean // True if the place is always open
+  isPermanentlyClosed: boolean // True if the place is permanently closed
+  isTemporarilyClosed: boolean // True if the place is temporarily closed
+  holidayHours?: Record<string, OpeningTime[]> // Key is ISO date
+  rawText?: string // Original text format from source
+  nextOpenDate?: string // ISO date string for when temporarily closed places will reopen
+}
+
+export interface Amenity {
+  key: string
+  value: string | boolean | number
+  displayName?: string
+}
+
+export interface ContactInfo {
+  phone?: string
+  formattedPhone?: string
+  email?: string
+  website?: string
+  socials?: Record<string, string> // platform -> URL
 }
 
 export interface Place {
-  id: string
-  type: 'node' | 'way' | 'relation'
-  tags?: Record<string, string>
-  lat?: number
-  lon?: number
-  center?: PlaceCenter
-  geometry?: PlaceNode[]
-  bounds?: PlaceBounds
-  version?: number
-  user?: string
-  timestamp?: string // ISO date string of when the OSM object was last updated
-  placeType?: string
-  image?: string | null
-  brandLogo?: string | null
-  // Extended data from external APIs
-  name?: string
-  rating?: number
-  reviewCount?: number
-  url?: string
-  photos?: string[]
-  hours?: {
-    isOpenNow: boolean
-    periods: Array<{
-      day: number
-      open: string
-      close: string
-    }>
-  }
-  categories?: string[]
-  address?: string
-  externalIds?: {
-    googlePlaces?: string
-  }
-}
+  id: string // A unique identifier
+  externalIds: Record<SourceId, string> // Source -> external ID mapping
 
-export interface AutocompletePrediction {
-  placeId: string // Will be formatted as "provider/id" for provider-specific places
-  description: string // Full description of the place
-  mainText: string // Primary text (place name)
-  secondaryText: string // Secondary text (usually address)
-  types: string[] // Place types
-  provider?: string // Data provider (e.g., 'google', 'pelias')
-  lat?: number // Optional latitude (when available)
-  lng?: number // Optional longitude (when available)
+  name: AttributedValue<string>
+  description: AttributedValue<string> | null
+  placeType: AttributedValue<string>
+  geometry: AttributedValue<PlaceGeometry>
+  photos: AttributedValue<PlacePhoto>[]
+  address: AttributedValue<Address> | null
+  contactInfo: {
+    phone: AttributedValue<string> | null
+    email: AttributedValue<string> | null
+    website: AttributedValue<string> | null
+    socials: Record<string, AttributedValue<string>>
+  }
+  openingHours: AttributedValue<OpeningHours> | null
+  amenities: Record<string, AttributedValue<string | boolean | number>>
+  ratings?: {
+    rating: AttributedValue<number>
+    reviewCount: AttributedValue<number>
+  }
+
+  // All sources that contributed data
+  sources: SourceReference[]
+
+  // Metadata
+  lastUpdated: string // ISO date string
+  createdAt: string // ISO date string
+
+  // User-specific data
+  bookmark?: Bookmark
+  collectionIds?: string[]
 }

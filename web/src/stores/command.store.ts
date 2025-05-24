@@ -19,7 +19,7 @@ import {
   SunMoonIcon,
   TerminalIcon,
 } from 'lucide-vue-next'
-import { UnifiedPlace } from '../types/unified-place.types'
+import { Place } from '../types/place.types'
 import { useDark, useToggle } from '@vueuse/core'
 import {
   allColors,
@@ -159,7 +159,7 @@ export const useCommandStore = defineStore('command', () => {
         hotkey: ['/'],
         icon: SearchIcon,
         keywords: t('palette.commands.search.keywords'),
-        action: (place: UnifiedPlace) => {
+        action: (place: Place) => {
           if (Object.keys(place.externalIds).includes('osm')) {
             const route = getPlaceRoute(place.externalIds.osm)
             router.push(route)

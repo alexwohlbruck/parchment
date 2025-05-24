@@ -2,13 +2,11 @@ import { Elysia, t, error } from 'elysia'
 import { getSession, requireAuth } from '../middleware/auth.middleware.js'
 import {
   lookupPlaceByNameAndLocation,
-  searchPlaces,
   getPlaceAutocomplete,
   lookupAndMergePlaceById,
+  lookupPlacesByNameAndLocation,
 } from '../services/place.service'
 import { SOURCE, Source } from '../lib/constants.js'
-import { IntegrationCapabilityId } from '../types/integration.types.js'
-import { integrationManager } from '../services/integrations/index.js'
 const app = new Elysia({ prefix: '/places' }).use(getSession)
 
 // Get place by looking up source+id or name+lat+lng
@@ -150,16 +148,16 @@ app.get(
       return error(400, { message: 'Search query is required' })
     }
 
-    // Convert coordinates to numbers if provided
-    const coordinates =
-      lat && lng ? { lat: parseFloat(lat), lng: parseFloat(lng) } : undefined
+    if (!lat || !lng) {
+      return error(400, { message: 'Latitude and longitude are required' })
+    }
 
-    const results = await searchPlaces(
-      q,
-      user?.id ?? null,
-      coordinates,
-      parseInt(radius as string),
-    )
+    const coordinates = { lat: parseFloat(lat), lng: parseFloat(lng) }
+
+    const results = await lookupPlacesByNameAndLocation(q, coordinates, {
+      radius: parseInt(radius as string),
+      userId: user?.id,
+    })
 
     return {
       query: q,

@@ -1,5 +1,5 @@
 import { Place } from '@/types/map.types'
-import { OpeningTime } from '@/types/unified-place.types'
+import { OpeningTime } from '@/types/place.types'
 
 // Client-specific implementation of utility functions
 export function getPlaceType(tags: Record<string, string | undefined>): string {

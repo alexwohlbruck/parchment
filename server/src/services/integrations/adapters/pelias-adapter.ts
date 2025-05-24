@@ -1,14 +1,15 @@
 import type {
-  UnifiedPlace,
+  Place,
   PlaceGeometry,
   Address,
   AttributedValue,
   OpeningHours,
-} from '../../../types/unified-place.types'
+} from '../../../types/place.types'
 import { getPlaceType } from '../../../lib/place.utils'
-import { getTimestamp } from '../../../services/merge.service'
 import { SOURCE } from '../../../lib/constants'
 import { parseOsmHours } from '../../../lib/hours.utils'
+
+// TODO: Check all SOURCE.PELIAS and SOURCE.OSM references. Idk what to do with these yet. Pelias can use various sources.
 
 /**
  * Interface for Pelias Feature response object
@@ -59,7 +60,7 @@ export class PeliasAdapter {
   /**
    * Transforms Pelias API data to our unified place format
    */
-  adaptPlace(feature: PeliasFeature, id?: string): UnifiedPlace {
+  adaptPlace(feature: PeliasFeature, id?: string): Place {
     try {
       const props = feature.properties
       const osmId = props.source_id
@@ -111,7 +112,7 @@ export class PeliasAdapter {
       }
 
       // Create unified place
-      const unifiedPlace: UnifiedPlace = {
+      const unifiedPlace: Place = {
         id: placeId,
         externalIds,
         name: props.name || 'Unnamed Place',
@@ -129,8 +130,8 @@ export class PeliasAdapter {
             url: osmId ? `https://www.openstreetmap.org/${osmId}` : '',
           },
         ],
-        lastUpdated: getTimestamp(),
-        createdAt: getTimestamp(),
+        lastUpdated: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       }
 
       return unifiedPlace
@@ -167,8 +168,8 @@ export class PeliasAdapter {
             url: '',
           },
         ],
-        lastUpdated: getTimestamp(),
-        createdAt: getTimestamp(),
+        lastUpdated: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       }
     }
   }
@@ -208,27 +209,27 @@ export class PeliasAdapter {
     website: AttributedValue<string> | null
     socials: Record<string, AttributedValue<string>>
   } {
-    const timestamp = getTimestamp()
+    const timestamp = new Date().toISOString()
 
     return {
       phone: osmData?.phone
         ? {
             value: osmData.phone,
-            sourceId: SOURCE.PELIAS,
+            sourceId: SOURCE.OSM,
             timestamp,
           }
         : null,
       email: osmData?.email
         ? {
             value: osmData.email,
-            sourceId: SOURCE.PELIAS,
+            sourceId: SOURCE.OSM,
             timestamp,
           }
         : null,
       website: osmData?.website
         ? {
             value: osmData.website,
-            sourceId: SOURCE.PELIAS,
+            sourceId: SOURCE.OSM,
             timestamp,
           }
         : null,

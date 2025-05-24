@@ -4,7 +4,7 @@ import {
   IntegrationCapabilityId,
   IntegrationId,
 } from '../../types/integration.types'
-import { UnifiedPlace } from '../../types/unified-place.types'
+import { Place } from '../../types/place.types'
 import { Source } from '../../lib/constants'
 
 export interface IntegrationTestResult {
@@ -56,12 +56,12 @@ export interface Integration {
   validateConfig(config: IntegrationConfig): boolean
 
   /**
-   * Creates a UnifiedPlace from provider-specific place data
+   * Creates a Place from provider-specific place data
    * @param providerData The provider-specific place data
    * @param id Optional ID for the place
-   * @returns A UnifiedPlace object
+   * @returns A Place object
    */
-  createUnifiedPlace(providerData: any, id?: string): UnifiedPlace
+  createUnifiedPlace(providerData: any, id?: string): Place
 
   /**
    * Search for places matching a query

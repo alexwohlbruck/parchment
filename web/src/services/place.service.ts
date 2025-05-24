@@ -2,11 +2,11 @@ import { ref } from 'vue'
 import { createSharedComposable } from '@vueuse/core'
 import { useAppService } from '@/services/app.service'
 import { api } from '@/lib/api'
-import type { UnifiedPlace } from '@/types/unified-place.types'
+import type { Place } from '@/types/place.types'
 import type { Bookmark } from '@/types/library.types'
 
 function placeService() {
-  const currentPlace = ref<UnifiedPlace | null>(null)
+  const currentPlace = ref<Place | null>(null)
   const loading = ref(false)
   const { toast } = useAppService()
 
@@ -57,7 +57,7 @@ function placeService() {
         )
       }
 
-      const response = await api.get<UnifiedPlace>('/places/lookup', {
+      const response = await api.get<Place>('/places/lookup', {
         params: queryParams,
       })
 

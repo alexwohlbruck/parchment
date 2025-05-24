@@ -8,10 +8,10 @@ import {
   IntegrationTestResult,
 } from './integration.interface'
 import type {
-  UnifiedPlace,
+  Place,
   PlacePhoto,
   SourceReference,
-} from '../../types/unified-place.types'
+} from '../../types/place.types'
 import { Source } from '../../lib/constants'
 
 /**
@@ -87,14 +87,14 @@ export abstract class BaseIntegration implements Integration {
   }
 
   /**
-   * Creates a UnifiedPlace from provider-specific place data
+   * Creates a Place from provider-specific place data
    * This is a base implementation that can be overridden by specific integrations
    *
    * @param providerData The provider-specific place data
    * @param id Optional ID for the place (defaults to provider's ID or random)
-   * @returns A UnifiedPlace object
+   * @returns A Place object
    */
-  abstract createUnifiedPlace(providerData: any, id?: string): UnifiedPlace
+  abstract createUnifiedPlace(providerData: any, id?: string): Place
 
   /**
    * Extract photos from provider data

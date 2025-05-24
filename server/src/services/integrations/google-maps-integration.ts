@@ -10,8 +10,7 @@ import {
 } from './integration.interface'
 import { GOOGLE_PLACES_API_URL, SOURCE } from '../../lib/constants'
 import { GoogleAdapter } from './adapters/google-adapter'
-import { UnifiedPlace } from '../../types/unified-place.types'
-import { getTimestamp } from '../../services/merge.service'
+import { Place } from '../../types/place.types'
 
 /**
  * Google Maps integration
@@ -35,12 +34,12 @@ export class GoogleMapsIntegration extends BaseIntegration {
   }
 
   /**
-   * Creates a UnifiedPlace from Google place data
+   * Creates a Place from Google place data
    * @param providerData The Google place data
    * @param id Optional ID for the place
-   * @returns A UnifiedPlace object
+   * @returns A Place object
    */
-  createUnifiedPlace(providerData: any, id?: string): UnifiedPlace {
+  createUnifiedPlace(providerData: any, id?: string): Place {
     try {
       // Check if this is an autocomplete prediction (transformed by adaptAutocompletePrediction)
       if (
@@ -91,15 +90,15 @@ export class GoogleMapsIntegration extends BaseIntegration {
               url: '',
             },
           ],
-          lastUpdated: getTimestamp(),
-          createdAt: getTimestamp(),
+          lastUpdated: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         }
       }
 
       // Otherwise, it's a regular Google place result
       return this.adapter.adaptPlace(providerData, id)
     } catch (error) {
-      console.error('Error creating UnifiedPlace from Google data:', error)
+      console.error('Error creating Place from Google data:', error)
 
       // Return minimal valid place data
       return {
@@ -128,8 +127,8 @@ export class GoogleMapsIntegration extends BaseIntegration {
             url: '',
           },
         ],
-        lastUpdated: getTimestamp(),
-        createdAt: getTimestamp(),
+        lastUpdated: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       }
     }
   }

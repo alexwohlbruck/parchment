@@ -1,18 +1,77 @@
-import type { GooglePlaceDetails } from '../../../types/place.types'
 import type {
-  UnifiedPlace,
+  Place,
   PlacePhoto,
   AttributedValue,
   Address,
   OpeningHours,
-} from '../../../types/unified-place.types'
+} from '../../../types/place.types'
 import {
   GOOGLE_MAPS_PHOTO_URL,
   BUSINESS_STATUS,
   SOURCE,
 } from '../../../lib/constants'
 import { parseGoogleHours } from '../../../lib/hours.utils'
-import { getTimestamp } from '../../../services/merge.service'
+
+// TODO: Move this type def
+export interface GooglePlaceDetails {
+  place_id: string
+  name: string
+  formatted_address: string
+  formatted_phone_number: string
+  website: string
+  types: string[]
+  photos: {
+    photo_reference: string
+    height: number
+    width: number
+    html_attributions: string[]
+  }[]
+  rating: number
+  user_ratings_total: number
+  opening_hours?: {
+    open_now?: boolean
+    periods?: {
+      open: { day: number; time: string }
+      close: { day: number; time: string }
+    }[]
+    weekday_text?: string[]
+  }
+  // Editorial summary with place description
+  editorial_summary?: {
+    language?: string
+    languageCode?: string
+    overview?: string
+    text?: string
+  }
+  // Location/geometry data
+  geometry?: {
+    location: {
+      lat: number
+      lng: number
+    }
+  }
+  // New fields
+  google_maps_uri: string
+  price_level: string
+  business_status: string
+  dine_in: boolean
+  takeout: boolean
+  delivery: boolean
+  curbside_pickup: boolean
+  serves_breakfast: boolean
+  serves_lunch: boolean
+  serves_dinner: boolean
+  serves_beer: boolean
+  serves_vegetarian: boolean
+  serves_cocktails: boolean
+  serves_coffee: boolean
+  outdoor_seating: boolean
+  live_music: boolean
+  good_for_children: boolean
+  good_for_groups: boolean
+  restroom: boolean
+  utc_offset: number
+}
 
 // Access environment variables - define missing type
 declare const process: {
@@ -29,10 +88,10 @@ export class GoogleAdapter {
   /**
    * Transforms Google Places API data to our unified place format
    */
-  adaptPlace(data: GooglePlaceDetails, id?: string): UnifiedPlace {
+  adaptPlace(data: GooglePlaceDetails, id?: string): Place {
     try {
       // Create a base unified place
-      const unifiedPlace: UnifiedPlace = {
+      const unifiedPlace: Place = {
         id: id || `${SOURCE.GOOGLE}/${data.place_id}`,
         externalIds: { [SOURCE.GOOGLE]: data.place_id },
         name: data.name || 'Unnamed Place',
@@ -75,8 +134,8 @@ export class GoogleAdapter {
             url: data.google_maps_uri || '',
           },
         ],
-        lastUpdated: getTimestamp(),
-        createdAt: getTimestamp(),
+        lastUpdated: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       }
 
       return unifiedPlace
@@ -110,8 +169,8 @@ export class GoogleAdapter {
             url: '',
           },
         ],
-        lastUpdated: getTimestamp(),
-        createdAt: getTimestamp(),
+        lastUpdated: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       }
     }
   }

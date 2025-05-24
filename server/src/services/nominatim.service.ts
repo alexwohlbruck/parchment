@@ -156,35 +156,6 @@ export const searchNominatim = async (
 }
 
 /**
- * Get autocomplete predictions from Nominatim
- * @param query Search query
- * @param lat Optional latitude for location bias
- * @param lon Optional longitude for location bias
- * @param radius Search radius in meters
- * @returns Array of autocomplete predictions
- */
-export const getNominatimAutocomplete = async (
-  query: string,
-  lat?: number,
-  lon?: number,
-  radius: number = 10000,
-  nominatimUrl: string = NOMINATIM_API_URL,
-): Promise<AutocompletePrediction[]> => {
-  try {
-    // Use the searchNominatim function to get place results
-    const places = await searchNominatim(query, lat, lon, radius, nominatimUrl)
-
-    // Convert places to autocomplete prediction format
-    return places.map((place) =>
-      transformPlaceForAutocomplete(place, 'nominatim'),
-    )
-  } catch (error) {
-    console.error('Error getting Nominatim autocomplete predictions:', error)
-    return []
-  }
-}
-
-/**
  * Get place details by OSM ID using Nominatim
  * @param osmId The OSM ID in format type/id (e.g., node/123456)
  * @returns Place details or null if not found

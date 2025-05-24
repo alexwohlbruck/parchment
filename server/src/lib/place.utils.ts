@@ -1,4 +1,4 @@
-import { OpeningTime } from '../types/unified-place.types'
+import { OpeningTime } from '../types/place.types'
 
 /**
  * Get a human-readable place type from OSM tags

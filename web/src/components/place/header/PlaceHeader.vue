@@ -2,20 +2,20 @@
 import { computed, ref } from 'vue'
 import { StarIcon, XIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
-import type { UnifiedPlace } from '@/types/unified-place.types'
-import { getLogoPhoto } from '@/types/unified-place.types'
+import type { Place } from '@/types/place.types'
+import { getLogoPhoto } from '@/types/place.types'
 
 const props = defineProps<{
-  place: UnifiedPlace
+  place: Place
 }>()
 
-const placeType = computed(() => props.place?.placeType || 'Place')
+const placeType = computed(() => props.place?.placeType.value || 'Place')
 const rating = computed(() => props.place?.ratings?.rating?.value || null)
 const reviewCount = computed(
   () => props.place?.ratings?.reviewCount?.value || 0,
 )
 const brandLogo = computed(() => getLogoPhoto(props.place)?.url)
-const description = computed(() => props.place?.description || null)
+const description = computed(() => props.place?.description?.value || null)
 
 const logoLoading = ref(false)
 const logoError = ref(false)
@@ -53,7 +53,7 @@ const emit = defineEmits<{
             <img
               v-show="brandLogoLoaded"
               :src="brandLogo"
-              :alt="place.name + ' logo'"
+              :alt="place.name.value + ' logo'"
               class="w-full h-full object-contain bg-white"
               @load="$emit('logoLoaded')"
               @error="$emit('logoError')"
@@ -68,7 +68,7 @@ const emit = defineEmits<{
 
       <div class="flex-1">
         <h1 class="text-2xl font-semibold line-clamp-2">
-          {{ place.name }}
+          {{ place.name.value }}
         </h1>
         <div class="text-sm text-muted-foreground">
           {{ placeType }}

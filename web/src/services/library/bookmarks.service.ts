@@ -3,7 +3,7 @@ import { toast } from 'vue-sonner'
 import { useI18n } from 'vue-i18n'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useCollectionsStore } from '@/stores/library/collections.store'
-import type { UnifiedPlace } from '@/types/unified-place.types'
+import type { Place } from '@/types/place.types'
 import type { CreateBookmarkParams, Bookmark } from '@/types/library.types'
 import { ref } from 'vue'
 import { api } from '@/lib/api'
@@ -16,7 +16,7 @@ export const useBookmarksService = createSharedComposable(() => {
   const { t } = useI18n()
   const isSaving = ref(false)
 
-  async function createBookmark(place: UnifiedPlace, collectionIds?: string[]) {
+  async function createBookmark(place: Place, collectionIds?: string[]) {
     if (!place.externalIds?.osm) {
       toast.error(t('services.bookmarks.saveErrorNoOsmId'))
       return null

@@ -8,12 +8,7 @@ import {
   IntegrationConfig,
   IntegrationTestResult,
 } from './integration.interface'
-import {
-  UnifiedPlace,
-  PlaceGeometry,
-  OpeningHours,
-} from '../../types/unified-place.types'
-import { getTimestamp } from '../../services/merge.service'
+import { Place, PlaceGeometry, OpeningHours } from '../../types/place.types'
 import { SOURCE } from '../../lib/constants'
 
 /**
@@ -310,9 +305,9 @@ export class NominatimIntegration extends BaseIntegration {
    * Create a unified place object from Nominatim place data
    * @param nominatimPlace Nominatim place data
    * @param placeId Place ID string
-   * @returns UnifiedPlace object
+   * @returns Place object
    */
-  createUnifiedPlace(nominatimPlace: any, placeId: string): UnifiedPlace {
+  createUnifiedPlace(nominatimPlace: any, placeId: string): Place {
     if (!nominatimPlace) {
       throw new Error('Nominatim place data is null or undefined')
     }
@@ -450,7 +445,7 @@ export class NominatimIntegration extends BaseIntegration {
       }
     }
 
-    const unifiedPlace: UnifiedPlace = {
+    const unifiedPlace: Place = {
       id,
       externalIds,
       name,

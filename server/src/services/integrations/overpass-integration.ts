@@ -8,11 +8,7 @@ import {
   IntegrationConfig,
   IntegrationTestResult,
 } from './integration.interface'
-import {
-  UnifiedPlace,
-  PlaceGeometry,
-  AttributedValue,
-} from '../../types/unified-place.types'
+import { Place, PlaceGeometry, AttributedValue } from '../../types/place.types'
 import { SOURCE } from '../../lib/constants'
 import { getPlaceType } from '../../lib/place.utils'
 import { parseOpeningHoursForUnifiedFormat } from '../../lib/place.utils'
@@ -502,9 +498,9 @@ export class OverpassIntegration extends BaseIntegration {
    * Create a unified place object from OSM place data
    * @param osmPlace OSM place data
    * @param id Optional ID string
-   * @returns UnifiedPlace object
+   * @returns Place object
    */
-  createUnifiedPlace(osmPlace: any, id?: string): UnifiedPlace {
+  createUnifiedPlace(osmPlace: any, id?: string): Place {
     if (!osmPlace) {
       throw new Error('OSM place data is null or undefined')
     }
@@ -593,7 +589,7 @@ export class OverpassIntegration extends BaseIntegration {
     const amenities = this.extractAmenities(osmPlace.tags || {})
 
     // Create the unified place object
-    const unifiedPlace: UnifiedPlace = {
+    const unifiedPlace: Place = {
       id: placeId,
       externalIds,
       name,

@@ -20,6 +20,7 @@
     "@simplewebauthn/server": "^10.0.0",
     "@simplewebauthn/types": "^10.0.0",
     "@turf/turf": "^7.2.0",
+    "@types/lodash": "^4.17.17",
     "@types/nodemailer": "^6.4.15",
     "axios": "^1.8.4",
     "dotenv": "^16.4.7",

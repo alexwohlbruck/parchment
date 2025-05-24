@@ -8,10 +8,11 @@ import {
   IntegrationConfig,
   IntegrationTestResult,
 } from './integration.interface'
-import { UnifiedPlace, Address } from '../../types/unified-place.types'
-import { getTimestamp } from '../../services/merge.service'
+import { Place, Address } from '../../types/place.types'
 import { SOURCE } from '../../lib/constants'
 import { PeliasAdapter, PeliasFeature } from './adapters/pelias-adapter'
+
+// TODO: Check all SOURCE.PELIAS and SOURCE.OSM references. Idk what to do with these yet. Pelias can use various sources.
 
 /**
  * Pelias integration
@@ -31,17 +32,18 @@ export class PeliasIntegration extends BaseIntegration {
     this.adapter = new PeliasAdapter()
   }
 
+  // TODO: Always use adapter for this. Rename to adaptPlace. Apply to all integrations.
   /**
-   * Creates a UnifiedPlace from Pelias data
+   * Creates a Place from Pelias data
    * @param providerData The Pelias data
    * @param id Optional ID for the place
-   * @returns A UnifiedPlace object
+   * @returns A Place object
    */
-  createUnifiedPlace(providerData: any, id?: string): UnifiedPlace {
+  createUnifiedPlace(providerData: any, id?: string): Place {
     // If this is an autocomplete result (already transformed by adaptAutocompletePrediction)
     if (
       providerData &&
-      providerData.source === SOURCE.PELIAS &&
+      providerData.source === SOURCE.OSM &&
       typeof providerData.geometry?.lat !== 'undefined' &&
       typeof providerData.geometry?.lng !== 'undefined'
     ) {
@@ -110,7 +112,7 @@ export class PeliasIntegration extends BaseIntegration {
         ? providerData.id
         : providerData.id?.split('/')[1] || 'unknown'
 
-      // Create a UnifiedPlace from an autocomplete prediction
+      // Create a Place from an autocomplete prediction
       return {
         id: providerData.id || `${SOURCE.PELIAS}/unknown`,
         externalIds: {
@@ -142,8 +144,8 @@ export class PeliasIntegration extends BaseIntegration {
             url: '',
           },
         ],
-        lastUpdated: getTimestamp(),
-        createdAt: getTimestamp(),
+        lastUpdated: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       }
     }
 

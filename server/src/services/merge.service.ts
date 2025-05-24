@@ -1,15 +1,7 @@
-import type { AttributedValue } from '../types/unified-place.types'
+import type { AttributedValue } from '../types/place.types'
 import { SOURCE, SOURCE_PRIORITIES } from '../lib/constants'
 import * as turf from '@turf/turf'
-import type {
-  Place,
-  Address,
-  PlacePhoto,
-  SourceReference,
-  createAttributedValue,
-} from '../types/unified-place.types'
-import { googleAdapter } from '../adapters/google-adapter'
-import type { PlaceDataAdapter } from '../types/adapter.types'
+import type { Place } from '../types/place.types'
 import { Feature, Point } from 'geojson'
 import { cloneDeep } from 'lodash'
 
@@ -59,485 +51,12 @@ function calculateNameSimilarity(name1: string, name2: string): number {
   return (commonWords.length * 2) / (words1.length + words2.length)
 }
 
-// TODO: Overhaul this function
-/**
- * Merge place data from different sources
- */
-export function mergePlaceData(
-  unifiedPlace: Place,
-  adapter: PlaceDataAdapter,
-  data: any,
-) {
-  if (!data) return
-
-  try {
-    console.log(
-      `[DEBUG:MERGE_DATA] Merging data from ${adapter.sourceName} into unified place: ${unifiedPlace.name}`,
-    )
-
-    const transformed = adapter.transform(data)
-    console.log(
-      `[DEBUG:MERGE_DATA] Transformed data fields: ${Object.keys(
-        transformed,
-      ).join(', ')}`,
-    )
-
-    // Use the timestamp from the source data if available (for OSM)
-    // otherwise use the current timestamp
-    const timestamp =
-      adapter.sourceId === SOURCE.OSM && data.timestamp
-        ? data.timestamp
-        : new Date().toISOString()
-
-    // Add source ID to externalIds if it exists
-    if (adapter.sourceId === SOURCE.GOOGLE && 'place_id' in data) {
-      console.log(
-        `[DEBUG:MERGE_DATA] Adding Google place_id to externalIds: ${data.place_id}`,
-      )
-      unifiedPlace.externalIds[adapter.sourceId] = data.place_id
-    } else if (adapter.sourceId === SOURCE.OSM && 'id' in data) {
-      console.log(`[DEBUG:MERGE_DATA] Adding OSM id to externalIds: ${data.id}`)
-      unifiedPlace.externalIds[adapter.sourceId] = data.id.toString()
-    }
-
-    // Name - create attributed values and use selectBestValue to properly respect source priorities
-    if (transformed.name) {
-      console.log(
-        `[DEBUG:MERGE_DATA] Processing name: ${transformed.name.value} (source: ${transformed.name.sourceId})`,
-      )
-
-      const existingName = unifiedPlace.name
-        ? {
-            value: unifiedPlace.name,
-            sourceId:
-              unifiedPlace.sources.length > 0
-                ? unifiedPlace.sources[0].id
-                : 'unknown',
-            timestamp,
-          }
-        : null
-
-      // Only compare if we have an existing name
-      if (existingName) {
-        console.log(
-          `[DEBUG:MERGE_DATA] Comparing with existing name: ${existingName.value} (source: ${existingName.sourceId})`,
-        )
-        const selectedName = selectBestValue([existingName, transformed.name])
-        console.log(
-          `[DEBUG:MERGE_DATA] Selected name: ${selectedName} (chosen over: ${
-            selectedName === existingName.value
-              ? transformed.name.value
-              : existingName.value
-          })`,
-        )
-        unifiedPlace.name = selectedName || unifiedPlace.name || ''
-      } else {
-        console.log(
-          `[DEBUG:MERGE_DATA] No existing name, using: ${transformed.name.value}`,
-        )
-        unifiedPlace.name = transformed.name.value
-      }
-    }
-
-    // Description - respect source priorities
-    if (transformed.description) {
-      console.log(
-        `[DEBUG:MERGE_DATA] Processing description from ${transformed.description.sourceId}`,
-      )
-
-      const existingDescription = unifiedPlace.description
-        ? {
-            value: unifiedPlace.description,
-            sourceId:
-              unifiedPlace.sources.length > 0
-                ? unifiedPlace.sources[0].id
-                : 'unknown',
-            timestamp,
-          }
-        : null
-
-      if (existingDescription) {
-        console.log(
-          `[DEBUG:MERGE_DATA] Comparing with existing description (source: ${existingDescription.sourceId})`,
-        )
-        const selectedDescription = selectBestValue([
-          existingDescription,
-          transformed.description,
-        ])
-        unifiedPlace.description =
-          selectedDescription || unifiedPlace.description || ''
-      } else {
-        console.log(`[DEBUG:MERGE_DATA] No existing description, using new one`)
-        unifiedPlace.description = transformed.description.value
-      }
-    }
-
-    // Address - respect source priorities
-    if (transformed.address) {
-      console.log(
-        `[DEBUG:MERGE_DATA] Processing address from ${transformed.address.sourceId}`,
-      )
-      console.log(
-        `[DEBUG:MERGE_DATA] Address value: ${
-          transformed.address.value?.formatted || 'No formatted address'
-        }`,
-      )
-
-      const existingAddress = unifiedPlace.address?.formatted
-        ? {
-            value: unifiedPlace.address,
-            sourceId:
-              unifiedPlace.sources.length > 0
-                ? unifiedPlace.sources[0].id
-                : 'unknown',
-            timestamp,
-          }
-        : null
-
-      if (existingAddress) {
-        console.log(
-          `[DEBUG:MERGE_DATA] Comparing with existing address: ${existingAddress.value.formatted} (source: ${existingAddress.sourceId})`,
-        )
-        const selectedAddress = selectBestValue([
-          existingAddress,
-          transformed.address,
-        ])
-        console.log(
-          `[DEBUG:MERGE_DATA] Selected address from: ${
-            selectedAddress === existingAddress.value.formatted
-              ? existingAddress.sourceId
-              : transformed.address.sourceId
-          }`,
-        )
-        unifiedPlace.address = selectedAddress || unifiedPlace.address || null
-      } else {
-        console.log(`[DEBUG:MERGE_DATA] No existing address, using new one`)
-        unifiedPlace.address = transformed.address.value
-      }
-    }
-
-    // Contact Info - respect source priorities for each field
-    if (transformed.contactInfo) {
-      const { phone, email, website, socials } = transformed.contactInfo
-
-      // Handle phone number with source priority
-      if (phone) {
-        const existingPhone = unifiedPlace.contactInfo.phone
-          ? { ...unifiedPlace.contactInfo.phone }
-          : null
-
-        if (existingPhone) {
-          unifiedPlace.contactInfo.phone =
-            selectBestValue([existingPhone, phone]) === phone.value
-              ? phone
-              : existingPhone
-        } else {
-          unifiedPlace.contactInfo.phone = phone
-        }
-      }
-
-      // Handle email with source priority
-      if (email) {
-        const existingEmail = unifiedPlace.contactInfo.email
-          ? { ...unifiedPlace.contactInfo.email }
-          : null
-
-        if (existingEmail) {
-          unifiedPlace.contactInfo.email =
-            selectBestValue([existingEmail, email]) === email.value
-              ? email
-              : existingEmail
-        } else {
-          unifiedPlace.contactInfo.email = email
-        }
-      }
-
-      // Handle website with source priority
-      if (website) {
-        const existingWebsite = unifiedPlace.contactInfo.website
-          ? { ...unifiedPlace.contactInfo.website }
-          : null
-
-        if (existingWebsite) {
-          unifiedPlace.contactInfo.website =
-            selectBestValue([existingWebsite, website]) === website.value
-              ? website
-              : existingWebsite
-        } else {
-          unifiedPlace.contactInfo.website = website
-        }
-      }
-
-      // Handle social media links with source priority
-      if (socials && Object.keys(socials).length > 0) {
-        // Merge social media links
-        Object.entries(socials).forEach(([platform, value]) => {
-          const existingSocial = unifiedPlace.contactInfo.socials[platform]
-            ? { ...unifiedPlace.contactInfo.socials[platform] }
-            : null
-
-          if (existingSocial) {
-            unifiedPlace.contactInfo.socials[platform] =
-              selectBestValue([existingSocial, value]) === value.value
-                ? value
-                : existingSocial
-          } else {
-            unifiedPlace.contactInfo.socials[platform] = value
-          }
-        })
-      }
-    }
-
-    // Opening Hours - respect source priorities
-    if (transformed.openingHours) {
-      const existingHours = unifiedPlace.openingHours
-        ? {
-            value: unifiedPlace.openingHours,
-            sourceId:
-              unifiedPlace.sources.length > 0
-                ? unifiedPlace.sources[0].id
-                : 'unknown',
-            timestamp,
-          }
-        : null
-
-      if (existingHours) {
-        const selectedHours = selectBestValue([
-          existingHours,
-          transformed.openingHours,
-        ])
-        unifiedPlace.openingHours =
-          selectedHours || unifiedPlace.openingHours || null
-      } else {
-        unifiedPlace.openingHours = transformed.openingHours.value
-      }
-    }
-
-    // Photos - just append, no priority handling
-    if (transformed.photos && transformed.photos.length > 0) {
-      unifiedPlace.photos.push(...transformed.photos)
-    }
-
-    // Ratings - respect source priorities
-    if (transformed.ratings) {
-      if (unifiedPlace.ratings) {
-        // Handle rating score
-        if (transformed.ratings.rating) {
-          const existingRating = unifiedPlace.ratings.rating
-            ? { ...unifiedPlace.ratings.rating }
-            : null
-
-          if (existingRating) {
-            unifiedPlace.ratings.rating =
-              selectBestValue([existingRating, transformed.ratings.rating]) ===
-              transformed.ratings.rating.value
-                ? transformed.ratings.rating
-                : existingRating
-          } else {
-            unifiedPlace.ratings.rating = transformed.ratings.rating
-          }
-        }
-
-        // Handle review count
-        if (transformed.ratings.reviewCount) {
-          const existingReviewCount = unifiedPlace.ratings.reviewCount
-            ? { ...unifiedPlace.ratings.reviewCount }
-            : null
-
-          if (existingReviewCount) {
-            unifiedPlace.ratings.reviewCount =
-              selectBestValue([
-                existingReviewCount,
-                transformed.ratings.reviewCount,
-              ]) === transformed.ratings.reviewCount.value
-                ? transformed.ratings.reviewCount
-                : existingReviewCount
-          } else {
-            unifiedPlace.ratings.reviewCount = transformed.ratings.reviewCount
-          }
-        }
-      } else {
-        // If no existing ratings, use the new ones
-        unifiedPlace.ratings = transformed.ratings
-      }
-    }
-
-    // Amenities - respect source priorities
-    if (
-      transformed.amenities &&
-      Object.keys(transformed.amenities).length > 0
-    ) {
-      Object.entries(transformed.amenities).forEach(([key, values]) => {
-        if (!values || !values.length) return
-
-        const value = values[0]
-        if (!value || value.value === undefined) return
-
-        const existingAmenity =
-          unifiedPlace.amenities[key] !== undefined
-            ? {
-                value: unifiedPlace.amenities[key],
-                sourceId:
-                  unifiedPlace.sources.length > 0
-                    ? unifiedPlace.sources[0].id
-                    : 'unknown',
-                timestamp,
-              }
-            : null
-
-        if (existingAmenity) {
-          const selectedValue = selectBestValue([existingAmenity, value])
-          if (selectedValue !== null) {
-            unifiedPlace.amenities[key] = selectedValue
-          }
-        } else if (value.value !== undefined) {
-          unifiedPlace.amenities[key] = value.value
-        }
-      })
-    }
-
-    // Add source reference with the correct timestamp
-    console.log(
-      `[DEBUG:MERGE_DATA] Adding source reference: ${adapter.sourceId}`,
-    )
-    unifiedPlace.sources.push({
-      id: adapter.sourceId,
-      name: adapter.sourceName,
-      url: adapter.sourceUrl(data),
-      updated:
-        adapter.sourceId === SOURCE.OSM && data.timestamp
-          ? data.timestamp
-          : undefined,
-      updatedBy:
-        adapter.sourceId === SOURCE.OSM && 'user' in data
-          ? data.user
-          : undefined,
-    })
-
-    // Update lastUpdated timestamp only if this is from OSM or there is no lastUpdated yet
-    if (adapter.sourceId === SOURCE.OSM || !unifiedPlace.lastUpdated) {
-      console.log(
-        `[DEBUG:MERGE_DATA] Updating lastUpdated timestamp to: ${timestamp}`,
-      )
-      unifiedPlace.lastUpdated = timestamp
-    }
-
-    console.log(
-      `[DEBUG:MERGE_DATA] Finished merging data from ${adapter.sourceName}`,
-    )
-  } catch (error) {
-    console.error(
-      `[DEBUG:MERGE_DATA] Error merging data from ${adapter.sourceName}:`,
-      error,
-    )
-  }
-}
-
 /**
  * Gets the priority of a data source
  * Higher value = higher priority
  */
 export function getSourcePriority(sourceId: string): number {
   return SOURCE_PRIORITIES[sourceId as keyof typeof SOURCE_PRIORITIES] || 0
-}
-
-/**
- * Registers a new data source with a priority
- * Can be used to dynamically add new sources or change priorities
- */
-export function registerSourcePriority(
-  sourceId: string,
-  priority: number,
-): void {
-  ;(SOURCE_PRIORITIES as Record<string, number>)[sourceId] = priority
-}
-
-/**
- * Merges a new attributed value with existing values based on source priority
- * Higher priority sources replace lower priority ones
- * Equal priority sources are added to the list
- */
-export function mergeAttributedValues<T>(
-  existing: AttributedValue<T>[],
-  newValue: AttributedValue<T>,
-): AttributedValue<T>[] {
-  if (!existing || existing.length === 0) {
-    return [newValue]
-  }
-
-  const existingPriority = getSourcePriority(existing[0]?.sourceId || '')
-  const newPriority = getSourcePriority(newValue.sourceId)
-
-  if (newPriority > existingPriority) {
-    return [newValue]
-  }
-
-  if (newPriority < existingPriority) {
-    return existing
-  }
-
-  return [...existing, newValue]
-}
-
-/**
- * Selects the best value from a list of attributed values based on source priority
- */
-export function selectBestValue<T>(values: AttributedValue<T>[]): T | null {
-  if (!values || values.length === 0) return null
-  if (values.length === 1) return values[0].value
-
-  console.log(
-    `[DEBUG:SELECT] Selecting best value from ${values.length} options:`,
-  )
-  values.forEach((value, index) => {
-    const priority = getSourcePriority(value.sourceId)
-    console.log(
-      `[DEBUG:SELECT] Option ${index + 1}: source=${
-        value.sourceId
-      }, priority=${priority}, value=${
-        typeof value.value === 'object' ? 'Object' : value.value
-      }`,
-    )
-  })
-
-  const sortedValues = values.sort((a, b) => {
-    const priorityA = getSourcePriority(a.sourceId)
-    const priorityB = getSourcePriority(b.sourceId)
-    return priorityB - priorityA
-  })
-
-  console.log(
-    `[DEBUG:SELECT] Selected value from source: ${
-      sortedValues[0].sourceId
-    } (priority: ${getSourcePriority(sortedValues[0].sourceId)})`,
-  )
-  return sortedValues[0].value
-}
-
-/**
- * Merges records of attributed values, respecting source priorities
- */
-export function mergeAttributedRecords<T>(
-  existing: Record<string, AttributedValue<T>[]> | undefined,
-  newRecord: Record<string, AttributedValue<T>[]>,
-): Record<string, AttributedValue<T>[]> {
-  const result: Record<string, AttributedValue<T>[]> = { ...(existing || {}) }
-
-  Object.entries(newRecord).forEach(([key, values]) => {
-    if (!values || values.length === 0) return
-
-    if (!result[key]) {
-      result[key] = [...values]
-      return
-    }
-
-    // Merge each new value into the existing array
-    values.forEach((value) => {
-      result[key] = mergeAttributedValues(result[key], value)
-    })
-  })
-
-  return result
 }
 
 /**
@@ -568,6 +87,7 @@ export function normalizeName(name: string): string {
     .replace(/\s+/g, ' ')
 }
 
+// TODO: We should not rely on english text for any data processing. This has to work for any language.
 export function normalizeAddress(address: string): string {
   return address
     .toLowerCase()
@@ -666,32 +186,7 @@ export function arePointsClose(
   return distanceMeters < maxDistanceMeters
 }
 
-export function mergePlaceWithAdapter(
-  primaryPlace: Place,
-  secondaryPlace: Place,
-  providerId: string,
-): void {
-  // Preserve external IDs from both sources
-  if (secondaryPlace.externalIds) {
-    Object.entries(secondaryPlace.externalIds).forEach(
-      ([idSource, idValue]) => {
-        primaryPlace.externalIds[idSource] = idValue
-      },
-    )
-  }
-
-  // Find the appropriate adapter for this provider
-  let adapter: PlaceDataAdapter
-  if (providerId === SOURCE.GOOGLE) {
-    adapter = googleAdapter
-  } else {
-    return
-  }
-
-  // Perform the merge
-  mergePlaceData(primaryPlace, adapter, secondaryPlace)
-}
-
+// TODO: Review this function and simplify
 /**
  * Looks for duplicate places from results across providers and merges them
  */
@@ -720,7 +215,7 @@ export function deduplicatePlacesResults(places: Place[]): Place[] {
   ]
 
   osmOpenAddressesResults.forEach((place) => {
-    const nameKey = normalizeName(place.name)
+    const nameKey = normalizeName(place.name.value)
     const point = createTurfPoint(place)
     finalResults.push(place)
     nameToPlaceMap[place.id] = { place, nameKey, point }
@@ -732,7 +227,7 @@ export function deduplicatePlacesResults(places: Place[]): Place[] {
     if (providerId === SOURCE.OSM || providerId === SOURCE.OPENADDRESSES) return
 
     providerPlaces.forEach((place) => {
-      const normalizedName = normalizeName(place.name)
+      const normalizedName = normalizeName(place.name.value)
       const placePoint = createTurfPoint(place)
 
       let matchFound = false
@@ -749,8 +244,8 @@ export function deduplicatePlacesResults(places: Place[]): Place[] {
         // Check for name similarity
         const isSimilarName = nameKey === normalizedName
         const nameSimilarity = calculateNameSimilarity(
-          place.name,
-          existingPlace.name,
+          place.name.value,
+          existingPlace.name.value,
         )
 
         let isMatch = false
@@ -773,7 +268,7 @@ export function deduplicatePlacesResults(places: Place[]): Place[] {
             arePointsClose(placePoint, existingPoint, 150))
 
         if (shouldMerge) {
-          mergePlaceWithAdapter(existingPlace, place, providerId)
+          mergePlaces(existingPlace, place)
           matchFound = true
           break
         }
@@ -838,61 +333,6 @@ function mergeAttributedRecord<T>(
   }
 
   return result
-}
-
-/**
- * Merges arrays of AttributedValues with optional deduplication
- * @param target The target array
- * @param source The source array to merge from
- * @param getKey Optional function to extract a key for deduplication
- * @returns The merged array
- */
-function mergeAttributedArray<T>(
-  target: AttributedValue<T>[],
-  source: AttributedValue<T>[],
-  getKey?: (item: T) => any,
-): AttributedValue<T>[] {
-  if (!source.length) return target
-  if (!target.length) return cloneDeep(source)
-
-  const result = [...target]
-
-  // If we have a deduplication key function, use it to avoid duplicates
-  if (getKey) {
-    const existingKeys = new Set(target.map((item) => getKey(item.value)))
-
-    for (const item of source) {
-      const key = getKey(item.value)
-      if (!existingKeys.has(key)) {
-        result.push(cloneDeep(item))
-        existingKeys.add(key)
-      }
-    }
-    return result
-  }
-
-  // Without a deduplication key, just append everything
-  return [...target, ...cloneDeep(source)]
-}
-
-/**
- * Merge field values based on source priority or presence.
- * This is for non-AttributedValue fields currently in the Place.
- * Will be deprecated as we move to AttributedValue consistently.
- */
-function mergeBySourcePriority<T>(
-  target: Place,
-  source: Place,
-  field: keyof Place,
-  getValue: (place: Place) => T | null | undefined,
-): T | null | undefined {
-  const sourceValue = getValue(source)
-  if (!sourceValue) return getValue(target)
-
-  const targetValue = getValue(target)
-  if (!targetValue) return sourceValue
-
-  return hasHigherPriority(target, source) ? sourceValue : targetValue
 }
 
 /**

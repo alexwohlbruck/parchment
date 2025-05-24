@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { TransitionExpand } from '@morev/vue-transitions'
-import type { UnifiedPlace } from '@/types/unified-place.types'
+import type { Place } from '@/types/place.types'
 
 defineProps<{
-  place: UnifiedPlace
+  place: Place
 }>()
 
 const emit = defineEmits<{
@@ -26,7 +26,7 @@ const emit = defineEmits<{
           :style="{ width: 'auto' }"
         >
           <div
-            v-if="!photo.url"
+            v-if="!photo.value.url"
             class="absolute inset-0 bg-muted/50 animate-pulse"
           >
             <div
@@ -34,14 +34,14 @@ const emit = defineEmits<{
             />
           </div>
           <img
-            :src="photo.url"
-            :alt="place.name"
+            :src="photo.value.url"
+            :alt="place.name.value"
             class="h-full w-auto object-cover"
             @load="$emit('imageLoaded')"
             @error="$emit('imageError')"
           />
           <div
-            v-if="!photo.url"
+            v-if="!photo.value.url"
             class="absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground"
           >
             Failed to load image

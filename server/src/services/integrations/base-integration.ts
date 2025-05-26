@@ -85,20 +85,10 @@ export abstract class BaseIntegration implements Integration {
   protected ensureInitialized(): void {
     if (!this.initialized) {
       throw new Error(
-        `${this.integrationId} integration has not been initialized`,
+        `Integration ${this.integrationId} has not been initialized. Call initialize() first.`,
       )
     }
   }
-
-  /**
-   * Creates a Place from provider-specific place data
-   * This is a base implementation that can be overridden by specific integrations
-   *
-   * @param providerData The provider-specific place data
-   * @param id Optional ID for the place (defaults to provider's ID or random)
-   * @returns A Place object
-   */
-  abstract createUnifiedPlace(providerData: any, id?: string): Place
 
   /**
    * Extract photos from provider data

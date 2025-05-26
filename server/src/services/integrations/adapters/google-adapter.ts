@@ -66,7 +66,6 @@ export interface GooglePlaceDetails {
   live_music?: boolean
   good_for_children?: boolean
   good_for_groups?: boolean
-  restroom?: boolean
   utc_offset?: number
 }
 
@@ -81,24 +80,6 @@ export class GoogleAdapter {
    */
   setApiKey(apiKey: string): void {
     this.apiKey = apiKey
-  }
-
-  /**
-   * Legacy method for backward compatibility
-   * Transforms Google Places API data to our unified place format
-   * Handles both place details and autocomplete predictions
-   */
-  adaptPlace(data: any, id?: string): Place {
-    // Check if this is an autocomplete prediction
-    const isAutocompletePrediction =
-      data.place_id && data.description && !data.formatted_address
-
-    if (isAutocompletePrediction) {
-      return this.autocomplete.adaptPrediction(data, id)
-    }
-
-    // Handle as regular place details
-    return this.placeInfo.adaptPlaceDetails(data as GooglePlaceDetails, id)
   }
 
   // Capability-specific adapters
@@ -399,7 +380,6 @@ export class GoogleAdapter {
       live_music: data.live_music,
       good_for_children: data.good_for_children,
       good_for_groups: data.good_for_groups,
-      restroom: data.restroom,
     }
 
     Object.entries(booleanAmenities).forEach(([key, value]) => {

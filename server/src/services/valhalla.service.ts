@@ -9,6 +9,8 @@ export const valhallaApi = axios.create({
   withCredentials: true,
 })
 
+// TODO: Create integration for Valhalla routing, remove this file
+
 export const getRoute = async (
   payload: ValhallaRouteRequest,
 ): Promise<ValhallaRouteResponse> => {

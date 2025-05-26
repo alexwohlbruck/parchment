@@ -37,23 +37,7 @@ export class GoogleMapsIntegration implements Integration {
         lng?: number,
         radius?: number,
       ): Promise<Place[]> => {
-        console.log('Google getAutocomplete called with:', {
-          query,
-          lat,
-          lng,
-          radius,
-        })
-        console.log('Google config:', {
-          hasApiKey: !!this.config.apiKey,
-        })
-
-        if (!this.config.apiKey) {
-          console.log('No Google API key found in config')
-          return []
-        }
-
-        if (!lat || !lng) {
-          console.log('Missing lat/lng for Google autocomplete')
+        if (!this.config.apiKey || !lat || !lng) {
           return []
         }
 
@@ -62,40 +46,21 @@ export class GoogleMapsIntegration implements Integration {
         }
 
         try {
-          console.log('Making Google API request...')
           const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
             query,
           )}&location=${lat},${lng}&radius=${radius}&key=${this.config.apiKey}`
 
-          console.log(
-            'Request URL (without API key):',
-            url.replace(this.config.apiKey, '[API_KEY]'),
-          )
-
           const response = await fetch(url)
           const data = await response.json()
 
-          console.log('Google API response status:', data.status)
-          console.log(
-            'Google API predictions count:',
-            data.predictions?.length || 0,
-          )
-
           if (data.status !== 'OK') {
-            console.error(
-              'Google Places API error:',
-              data.status,
-              data.error_message,
-            )
             return []
           }
 
           if (!data.predictions || data.predictions.length === 0) {
-            console.log('No predictions returned from Google API')
             return []
           }
 
-          console.log('Processing Google predictions...')
           const enrichedPredictions = await Promise.all(
             data.predictions.map(async (prediction: any) => {
               try {
@@ -105,24 +70,17 @@ export class GoogleMapsIntegration implements Integration {
                 )
                 return { ...prediction, details: placeDetails }
               } catch (error) {
-                console.warn(
-                  `Could not fetch details for place ${prediction.place_id}, using prediction only:`,
-                  error instanceof Error ? error.message : String(error),
-                )
                 return prediction
               }
             }),
           )
 
-          console.log('Converting predictions to Place objects...')
           const places = enrichedPredictions.map((prediction) =>
             this.adapter.autocomplete.adaptPrediction(prediction),
           )
 
-          console.log('Returning', places.length, 'Google places')
           return places
         } catch (error) {
-          console.error('Error in Google autocomplete:', error)
           return []
         }
       },
@@ -137,7 +95,7 @@ export class GoogleMapsIntegration implements Integration {
           url.searchParams.set('key', this.config.apiKey)
           url.searchParams.set(
             'fields',
-            'place_id,name,formatted_address,formatted_phone_number,website,types,photos,rating,user_ratings_total,opening_hours,editorial_summary,geometry,price_level,business_status,dine_in,takeout,delivery,curbside_pickup,serves_breakfast,serves_lunch,serves_dinner,serves_beer,serves_wine,restroom,utc_offset',
+            'place_id,name,formatted_address,formatted_phone_number,website,types,photos,rating,user_ratings_total,opening_hours,editorial_summary,geometry,price_level,business_status,dine_in,takeout,delivery,curbside_pickup,serves_breakfast,serves_lunch,serves_dinner,serves_beer,utc_offset',
           )
 
           console.log(
@@ -221,7 +179,6 @@ export class GoogleMapsIntegration implements Integration {
               live_music: false,
               good_for_children: false,
               good_for_groups: false,
-              restroom: false,
               utc_offset: 0,
             }),
           )
@@ -276,7 +233,6 @@ export class GoogleMapsIntegration implements Integration {
               live_music: false,
               good_for_children: false,
               good_for_groups: false,
-              restroom: false,
               utc_offset: 0,
             }),
           )
@@ -345,11 +301,7 @@ export class GoogleMapsIntegration implements Integration {
   }
 
   validateConfig(config: IntegrationConfig): boolean {
-    return Boolean(config && config.apiKey)
-  }
-
-  createUnifiedPlace(providerData: any, id?: string): Place {
-    return this.adapter.adaptPlace(providerData, id)
+    return !!config.apiKey
   }
 
   // Legacy methods for backward compatibility

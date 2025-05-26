@@ -489,7 +489,7 @@
       "capabilities": {
         "routing": "Routing",
         "geocoding": "Geocoding",
-        "place_info": "Place Info",
+        "placeInfo": "Place Info",
         "imagery": "Imagery",
         "autocomplete": "Autocomplete",
         "title": "Capabilities"

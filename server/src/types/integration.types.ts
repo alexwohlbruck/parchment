@@ -121,14 +121,6 @@ export interface Integration {
   validateConfig(config: IntegrationConfig): boolean
 
   /**
-   * Creates a Place from provider-specific place data
-   * @param providerData The provider-specific place data
-   * @param id Optional ID for the place
-   * @returns A Place object
-   */
-  createUnifiedPlace(providerData: any, id?: string): Place
-
-  /**
    * Search for places matching a query
    * @param query The search query
    * @param lat Optional latitude for location bias

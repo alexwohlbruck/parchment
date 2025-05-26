@@ -51,18 +51,6 @@ export class PeliasIntegration extends BaseIntegration {
     this.adapter = new PeliasAdapter()
   }
 
-  // TODO: Always use adapter for this. Rename to adaptPlace. Apply to all integrations.
-  /**
-   * Creates a Place from Pelias data
-   * @param providerData The Pelias data
-   * @param id Optional ID for the place
-   * @returns A Place object
-   */
-  createUnifiedPlace(providerData: any, id?: string): Place {
-    // Always use the adapter's adaptPlace method for consistency
-    return this.adapter.adaptPlace(providerData, id)
-  }
-
   /**
    * Tests the connection with the given configuration
    * @param config The configuration to test
@@ -173,7 +161,7 @@ export class PeliasIntegration extends BaseIntegration {
 
     // Use the adapter to transform each feature
     return features.map((feature: PeliasFeature) =>
-      this.adapter.adaptPlace(feature),
+      this.adapter.geocoding.adaptFeature(feature),
     )
   }
 
@@ -249,7 +237,7 @@ export class PeliasIntegration extends BaseIntegration {
       }
 
       const places = data.features.map((feature: any) => {
-        const place = this.adapter.adaptPlace(feature)
+        const place = this.adapter.geocoding.adaptFeature(feature)
         return place
       })
 

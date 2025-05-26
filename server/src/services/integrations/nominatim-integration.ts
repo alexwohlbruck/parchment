@@ -151,8 +151,13 @@ export class NominatimIntegration extends BaseIntegration {
     const apiUrl = this.buildApiUrl()
     const params: Record<string, any> = {
       q: query,
-      format: 'json',
-      limit: 10,
+      format: 'jsonv2',
+      addressdetails: '1',
+      extratags: '1',
+      namedetails: '1',
+      limit: '50',
+      dedupe: '1',
+      'accept-language': 'en', // TODO: i18n
       email: this.config.email,
     }
 
@@ -325,174 +330,5 @@ export class NominatimIntegration extends BaseIntegration {
       console.error('Error getting Nominatim autocomplete suggestions:', error)
       return []
     }
-  }
-
-  /**
-   * Create a unified place object from Nominatim place data
-   * @param nominatimPlace Nominatim place data
-   * @param placeId Place ID string
-   * @returns Place object
-   */
-  createUnifiedPlace(nominatimPlace: any, placeId: string): Place {
-    if (!nominatimPlace) {
-      throw new Error('Nominatim place data is null or undefined')
-    }
-
-    // Extract the ID (clean it if it has a prefix)
-    let id = placeId
-    if (!id.includes('/')) {
-      // If no OSM type is included, we need to use the osm_type and osm_id
-      if (nominatimPlace.osm_type && nominatimPlace.osm_id) {
-        const osmType = nominatimPlace.osm_type.toLowerCase()
-        id = `${osmType}/${nominatimPlace.osm_id}`
-      }
-    }
-
-    // Create external IDs object
-    const externalIds: Record<string, string> = {
-      nominatim: id,
-    }
-
-    // Add OSM ID if available
-    if (nominatimPlace.osm_type && nominatimPlace.osm_id) {
-      const osmType = nominatimPlace.osm_type.toLowerCase()
-      externalIds[SOURCE.OSM] = `${osmType}/${nominatimPlace.osm_id}`
-    }
-
-    // Extract place name - try different possible fields
-    const name =
-      nominatimPlace.namedetails?.name ||
-      nominatimPlace.name ||
-      nominatimPlace.display_name ||
-      'Unknown place'
-
-    // Determine place type
-    let placeType = 'unknown'
-    if (nominatimPlace.type && nominatimPlace.category) {
-      placeType = `${nominatimPlace.category}/${nominatimPlace.type}`
-    } else if (nominatimPlace.type) {
-      placeType = nominatimPlace.type
-    } else if (nominatimPlace.category) {
-      placeType = nominatimPlace.category
-    }
-
-    // Create geometry object
-    const geometry: PlaceGeometry = {
-      type: 'point' as const,
-      center: {
-        lat: parseFloat(nominatimPlace.lat) || 0,
-        lng: parseFloat(nominatimPlace.lon) || 0,
-      },
-    }
-
-    // Create address object
-    const address = nominatimPlace.address
-      ? {
-          formatted: nominatimPlace.display_name || null,
-          street:
-            nominatimPlace.address.road ||
-            nominatimPlace.address.street ||
-            null,
-          houseNumber: nominatimPlace.address.house_number || null,
-          neighborhood:
-            nominatimPlace.address.neighbourhood ||
-            nominatimPlace.address.suburb ||
-            null,
-          locality:
-            nominatimPlace.address.city ||
-            nominatimPlace.address.town ||
-            nominatimPlace.address.village ||
-            nominatimPlace.address.hamlet ||
-            null,
-          region:
-            nominatimPlace.address.state ||
-            nominatimPlace.address.county ||
-            null,
-          postalCode: nominatimPlace.address.postcode || null,
-          country: nominatimPlace.address.country || null,
-          countryCode: nominatimPlace.address.country_code
-            ? nominatimPlace.address.country_code.toUpperCase()
-            : null,
-        }
-      : null
-
-    // Get website and phone from extratags
-    const website =
-      nominatimPlace.extratags?.website ||
-      nominatimPlace.extratags?.['contact:website'] ||
-      null
-
-    const phone =
-      nominatimPlace.extratags?.phone ||
-      nominatimPlace.extratags?.['contact:phone'] ||
-      null
-
-    // Create contact info object
-    const contactInfo = {
-      phone: phone,
-      email: nominatimPlace.extratags?.['contact:email'] || null,
-      website: website,
-      socials: {},
-    }
-
-    // Extract opening hours if available
-    let openingHours: OpeningHours | null = null
-    if (nominatimPlace.extratags?.opening_hours) {
-      openingHours = {
-        regularHours: [],
-        isOpen24_7: nominatimPlace.extratags.opening_hours.includes('24/7'),
-        isPermanentlyClosed: false,
-        isTemporarilyClosed: false,
-        holidayHours: {},
-        rawText: nominatimPlace.extratags.opening_hours,
-      }
-    }
-
-    // Extract amenities from extratags
-    const amenities: Record<string, boolean> = {}
-    if (nominatimPlace.extratags) {
-      const amenityFlags = [
-        'wheelchair',
-        'toilets',
-        'internet_access',
-        'outdoor_seating',
-        'smoking',
-        'takeaway',
-        'delivery',
-        'drive_through',
-        'reservation',
-      ]
-
-      for (const flag of amenityFlags) {
-        if (nominatimPlace.extratags[flag]) {
-          // Convert 'yes'/'no' to boolean
-          amenities[flag] = nominatimPlace.extratags[flag] === 'yes'
-        }
-      }
-    }
-
-    const unifiedPlace: Place = {
-      id,
-      externalIds,
-      name,
-      placeType,
-      geometry,
-      address,
-      contactInfo,
-      openingHours,
-      amenities,
-      photos: [],
-      sources: [
-        {
-          id: this.integrationId,
-          name: this.getDisplayName(),
-          url: '',
-        },
-      ],
-      lastUpdated: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-    }
-
-    return unifiedPlace
   }
 }

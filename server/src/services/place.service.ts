@@ -128,9 +128,9 @@ async function fetchAutocompleteResults(
 }
 
 /**
- * Look up a place by ID on a given provider
+ * Look up a place by ID from a given source
  *
- * @param provider The provider ID (e.g., 'google-maps', 'pelias', 'nominatim')
+ * @param source The source ID (e.g., SOURCE.GOOGLE, SOURCE.OSM)
  * @param placeId The provider-specific ID for the place
  * @returns Provider-specific place data or null if not found
  */
@@ -139,7 +139,6 @@ export async function lookupPlaceById(
   placeId: string,
 ): Promise<Place | null> {
   try {
-    // Get a compatible integration for this source
     const integration = integrationManager.getIntegrationForSource(
       source,
       IntegrationCapabilityId.PLACE_INFO,
@@ -147,20 +146,11 @@ export async function lookupPlaceById(
 
     if (!integration) return null
 
-    const { integrationId } = integration
-
-    // Get place details from the integration
-    const placeData = await integrationManager.getPlaceDetails(
-      integrationId,
-      placeId,
+    return (
+      (await integration!.integration.capabilities.placeInfo?.getPlaceInfo(
+        placeId,
+      )) ?? null
     )
-
-    const unifiedPlace = integration!.integration.createUnifiedPlace(
-      placeData,
-      `${integrationId}/${placeId}`,
-    )
-
-    return unifiedPlace
   } catch (error) {
     return null
   }
@@ -178,13 +168,18 @@ export async function lookupPlacesByNameAndLocation(
   name: string,
   coordinates: { lat: number; lng: number },
   options?: {
+    autocomplete?: boolean
     radius?: number
     sourceBlacklist?: Source[]
     userId?: User['id']
   },
 ): Promise<Place[]> {
   try {
-    const { radius = 500, sourceBlacklist = [] } = options || {}
+    const {
+      radius = 500,
+      sourceBlacklist = [],
+      autocomplete = false,
+    } = options || {}
 
     // Get integrations that support geocoding (for searching places by name/location)
     const geocodingIntegrations = integrationManager
@@ -200,67 +195,48 @@ export async function lookupPlacesByNameAndLocation(
       return []
     }
 
-    // Collect search results from all integrations
     const searchPromises = geocodingIntegrations.map(async (integration) => {
-      try {
-        if (!integration.integration.searchPlaces) {
-          return []
-        }
-
-        // Call the integration's searchPlaces method
-        const results = await integration.integration.searchPlaces(
+      if (autocomplete) {
+        return integration.integration.capabilities.autocomplete?.getAutocomplete(
           name,
           coordinates.lat,
           coordinates.lng,
           radius,
         )
-
-        if (!results || results.length === 0) {
-          return []
-        }
-
-        // Transform each result to a Place
-        const unifiedPlaces = results.map((result) =>
-          integration.integration.createUnifiedPlace(
-            result,
-            `${integration.integrationId}/${result.id || 'unknown'}`,
-          ),
-        )
-
-        const sorted = unifiedPlaces.sort((a, b) => {
-          const fromPoint = turf.point([coordinates.lng, coordinates.lat])
-          const distanceA = turf.distance(
-            fromPoint,
-            turf.point([
-              a.geometry.value.center.lng,
-              a.geometry.value.center.lat,
-            ]),
-          )
-          const distanceB = turf.distance(
-            fromPoint,
-            turf.point([
-              b.geometry.value.center.lng,
-              b.geometry.value.center.lat,
-            ]),
-          )
-          return distanceA - distanceB
-        })
-
-        return sorted
-      } catch (error) {
-        console.error(
-          `Error searching places with ${integration.integrationId}:`,
-          error,
-        )
-        return []
+      } else {
+        // TODO: Full search
+        // return integration.integration.capabilities.search?.searchPlaces(
+        //   name,
+        //   coordinates.lat,
+        //   coordinates.lng,
+        //   radius,
+        // )
       }
     })
 
-    // Wait for all search operations to complete
-    const searchResults = await Promise.all(searchPromises)
-    const allResults = searchResults.flat()
-
-    return allResults
+    return (await Promise.all(searchPromises))
+      .flat()
+      .filter((result): result is Place => result !== null)
+      .sort((a, b) => {
+        // Sort by distance from coordinates
+        const distanceA = turf.distance(
+          turf.point([coordinates.lng, coordinates.lat]),
+          turf.point([
+            a.geometry.value.center.lng,
+            a.geometry.value.center.lat,
+          ]),
+          { units: 'meters' },
+        )
+        const distanceB = turf.distance(
+          turf.point([coordinates.lng, coordinates.lat]),
+          turf.point([
+            b.geometry.value.center.lng,
+            b.geometry.value.center.lat,
+          ]),
+          { units: 'meters' },
+        )
+        return distanceA - distanceB
+      })
   } catch (error) {
     console.error('Error looking up places by name and coordinates:', error)
     return []

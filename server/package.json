@@ -27,6 +27,7 @@
     "drizzle-kit": "^0.31.0",
     "drizzle-orm": "^0.43.1",
     "elysia": "^1.2.25",
+    "fuzzball": "^2.2.2",
     "geojson": "^0.5.0",
     "lodash": "^4.17.21",
     "lucia": "^3.2.2",

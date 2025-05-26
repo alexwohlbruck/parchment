@@ -102,7 +102,7 @@ function formatDate(dateString: string) {
                 {{ key }}
               </TableCell>
               <TableCell class="break-all">
-                {{ value }}
+                {{ value.value }}
               </TableCell>
             </TableRow>
           </TableBody>

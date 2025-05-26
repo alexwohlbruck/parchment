@@ -66,8 +66,27 @@ export class PeliasAdapter {
       const osmId = props.source_id
       const osmData = props.addendum?.osm || {}
 
-      // Generate ID
-      const placeId = id || osmId || `${SOURCE.PELIAS}/${props.id || props.gid}`
+      // Determine the actual source from Pelias response
+      // TODO: Add more source checks, pelias also has sources such as WhosOnFirst, OpenCage, etc.
+      const actualSource =
+        props.source === 'openaddresses' ? SOURCE.OPENADDRESSES : SOURCE.OSM
+
+      // Create external IDs mapping
+      const externalIds: Record<string, string> = {}
+
+      // Add the original provider ID to external IDs
+      if (osmId && props.source === 'openstreetmap') {
+        externalIds[SOURCE.OSM] = osmId
+      } else if (props.source === 'openaddresses') {
+        externalIds[SOURCE.OPENADDRESSES] = props.gid || props.id
+      } else {
+        // Default case - use the actual source
+        externalIds[actualSource] = props.gid || props.id
+      }
+
+      // Generate primary ID using source/providerId format
+      const primaryId =
+        id || `${actualSource}/${osmId || props.gid || props.id}`
 
       // Determine place type
       let placeType = props.layer || 'unknown'
@@ -101,32 +120,43 @@ export class PeliasAdapter {
       // Create address
       const address = this.extractAddress(props)
 
-      // Create external IDs
-      const externalIds: Record<string, string> = {
-        [SOURCE.PELIAS]: props.gid || props.id,
-      }
-
-      // Add OSM ID if available
-      if (osmId && props.source === 'openstreetmap') {
-        externalIds[SOURCE.OSM] = osmId
-      }
-
       // Create unified place
       const unifiedPlace: Place = {
-        id: placeId,
+        id: primaryId,
         externalIds,
-        name: props.name || 'Unnamed Place',
-        placeType,
-        geometry,
+        name: {
+          value: props.name || 'Unnamed Place',
+          sourceId: actualSource,
+        },
+        description: null,
+        placeType: {
+          value: placeType,
+          sourceId: actualSource,
+        },
+        geometry: {
+          value: geometry,
+          sourceId: actualSource,
+        },
         photos: [],
-        address,
+        address: address
+          ? {
+              value: address,
+              sourceId: actualSource,
+            }
+          : null,
         contactInfo: this.extractContactInfo(osmData),
-        openingHours: this.extractOpeningHours(osmData),
+        openingHours: this.extractOpeningHours(osmData)
+          ? {
+              value: this.extractOpeningHours(osmData)!,
+              sourceId: actualSource,
+            }
+          : null,
         amenities: this.extractAmenities(props, osmData),
         sources: [
           {
-            id: SOURCE.PELIAS,
-            name: 'Pelias',
+            id: actualSource,
+            name:
+              actualSource === SOURCE.OSM ? 'OpenStreetMap' : 'OpenAddresses',
             url: osmId ? `https://www.openstreetmap.org/${osmId}` : '',
           },
         ],
@@ -138,18 +168,34 @@ export class PeliasAdapter {
     } catch (error) {
       console.error('Error adapting Pelias data:', error)
 
+      // Determine the actual source for error case
+      const actualSource =
+        feature.properties?.source === 'openaddresses'
+          ? SOURCE.OPENADDRESSES
+          : SOURCE.OSM
+
       // Return minimal valid place data
       return {
-        id: id || `${SOURCE.PELIAS}/${feature.properties?.gid || 'unknown'}`,
-        externalIds: { [SOURCE.PELIAS]: feature.properties?.gid || 'unknown' },
-        name: feature.properties?.name || 'Unnamed Place',
-        placeType: 'unknown',
+        id: id || `${actualSource}/${feature.properties?.gid || 'unknown'}`,
+        externalIds: { [actualSource]: feature.properties?.gid || 'unknown' },
+        name: {
+          value: feature.properties?.name || 'Unnamed Place',
+          sourceId: actualSource,
+        },
+        description: null,
+        placeType: {
+          value: 'unknown',
+          sourceId: actualSource,
+        },
         geometry: {
-          type: 'point',
-          center: {
-            lat: feature.geometry?.coordinates?.[1] || 0,
-            lng: feature.geometry?.coordinates?.[0] || 0,
+          value: {
+            type: 'point',
+            center: {
+              lat: feature.geometry?.coordinates?.[1] || 0,
+              lng: feature.geometry?.coordinates?.[0] || 0,
+            },
           },
+          sourceId: actualSource,
         },
         photos: [],
         address: null,
@@ -163,8 +209,9 @@ export class PeliasAdapter {
         amenities: {},
         sources: [
           {
-            id: SOURCE.PELIAS,
-            name: 'Pelias',
+            id: actualSource,
+            name:
+              actualSource === SOURCE.OSM ? 'OpenStreetMap' : 'OpenAddresses',
             url: '',
           },
         ],
@@ -193,8 +240,27 @@ export class PeliasAdapter {
     address.countryCode = props.country_code || undefined
     address.neighborhood = props.neighbourhood || undefined
 
-    // Use the label as formatted address if available
-    address.formatted = props.label || undefined
+    // Only use the label as formatted address if we don't have street-level data
+    // The label often includes the place name which contaminates the address
+    if (address.street1) {
+      // Build our own formatted address from components to avoid place name contamination
+      const parts = []
+      if (address.street1) parts.push(address.street1)
+      if (address.locality) parts.push(address.locality)
+      if (address.region && address.postalCode) {
+        parts.push(`${address.region} ${address.postalCode}`)
+      } else if (address.region) {
+        parts.push(address.region)
+      } else if (address.postalCode) {
+        parts.push(address.postalCode)
+      }
+      if (address.country) parts.push(address.country)
+
+      address.formatted = parts.join(', ')
+    } else {
+      // Only use label if we have no street data (fallback)
+      address.formatted = props.label || undefined
+    }
 
     // Return null if no address components found
     return Object.keys(address).length > 0 ? address : null
@@ -284,133 +350,5 @@ export class PeliasAdapter {
     }
 
     return amenities
-  }
-
-  /**
-   * Adapt a Pelias feature for autocomplete results
-   */
-  adaptAutocompletePrediction(feature: PeliasFeature): any {
-    try {
-      console.log(
-        'Adapting Pelias feature for autocomplete:',
-        JSON.stringify(feature, null, 2).substring(0, 500) + '...',
-      )
-
-      if (!feature || !feature.properties) {
-        console.error('Invalid feature structure:', feature)
-        throw new Error('Invalid feature structure')
-      }
-
-      const props = feature.properties
-
-      if (!feature.geometry || !feature.geometry.coordinates) {
-        console.error('Missing geometry in feature:', feature)
-        throw new Error('Missing geometry in feature')
-      }
-
-      // Create a properly formatted address
-      let formattedAddress: string | null = null
-
-      // Determine state abbreviation (use region_a if available, otherwise keep full name)
-      const stateAbbr = props.region_a || props.region
-
-      // Check if we have a street address
-      const hasStreetAddress =
-        !!(props.housenumber && props.street) || !!props.street
-
-      if (hasStreetAddress) {
-        // Format with street address: "415 Hawthorne Lane, Charlotte, NC, 28204"
-        const streetPart =
-          props.housenumber && props.street
-            ? `${props.housenumber} ${props.street}`
-            : props.street
-
-        formattedAddress = `${streetPart}, ${props.locality || ''}, ${
-          stateAbbr || ''
-        }`
-
-        if (props.postalcode) {
-          formattedAddress += `, ${props.postalcode}`
-        }
-      } else if (props.neighbourhood) {
-        // Format with neighborhood: "First Ward, Charlotte, NC, 28204"
-        formattedAddress = `${props.neighbourhood}, ${props.locality || ''}, ${
-          stateAbbr || ''
-        }`
-
-        if (props.postalcode) {
-          formattedAddress += `, ${props.postalcode}`
-        }
-      } else if (props.locality) {
-        // Fall back to just city and state if no neighborhood
-        formattedAddress = `${props.locality}, ${stateAbbr || ''}`
-
-        if (props.postalcode) {
-          formattedAddress += `, ${props.postalcode}`
-        }
-      }
-
-      // Clean up extra commas and spaces from empty fields
-      formattedAddress =
-        formattedAddress
-          ?.replace(/,\s*,/g, ',')
-          ?.replace(/,\s*$/g, '')
-          ?.trim() || null
-
-      // Determine if the source_id is an OSM ID (typically starts with "way/", "node/", or "relation/")
-      const isOsmId =
-        props.source === 'openstreetmap' &&
-        (props.source_id?.startsWith('way/') ||
-          props.source_id?.startsWith('node/') ||
-          props.source_id?.startsWith('relation/'))
-
-      // TODO: I would like to keep pelias as the provider name, but osm as the "source" name
-      // For OSM IDs, we want to use the full ID (way/123, node/456, etc.)
-      // For non-OSM IDs, we can use the Pelias ID format
-      const id = isOsmId
-        ? `osm/${props.source_id}`
-        : `${SOURCE.PELIAS}/${props.gid || props.id}`
-
-      return {
-        id: id,
-        name: props.name,
-        description: formattedAddress || props.label, // Use the formatted address for description if available
-        types: [props.layer],
-        source: SOURCE.PELIAS,
-        geometry: {
-          lat: feature.geometry.coordinates[1],
-          lng: feature.geometry.coordinates[0],
-        },
-        // Add more address details to help with structuring the final address
-        addressDetails: {
-          housenumber: props.housenumber,
-          street: props.street,
-          locality: props.locality,
-          region: props.region,
-          region_a: props.region_a,
-          country: props.country,
-          postalcode: props.postalcode,
-          neighbourhood: props.neighbourhood,
-          formatted: formattedAddress,
-        },
-      }
-    } catch (error) {
-      console.error('Error processing Pelias autocomplete item:', error)
-      // Return a more complete fallback object with better debugging info
-      return {
-        id: `${SOURCE.PELIAS}/unknown`,
-        name: feature?.properties?.name || 'Unknown',
-        description: null,
-        source: SOURCE.PELIAS,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        feature: feature
-          ? JSON.stringify(feature).substring(0, 200) + '...'
-          : 'null',
-        geometry: {
-          lat: feature?.geometry?.coordinates?.[1] || 0,
-          lng: feature?.geometry?.coordinates?.[0] || 0,
-        },
-      }
-    }
   }
 }

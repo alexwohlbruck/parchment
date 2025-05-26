@@ -50,98 +50,230 @@ export interface GooglePlaceDetails {
       lng: number
     }
   }
-  // New fields
-  google_maps_uri: string
-  price_level: string
-  business_status: string
-  dine_in: boolean
-  takeout: boolean
-  delivery: boolean
-  curbside_pickup: boolean
-  serves_breakfast: boolean
-  serves_lunch: boolean
-  serves_dinner: boolean
-  serves_beer: boolean
-  serves_vegetarian: boolean
-  serves_cocktails: boolean
-  serves_coffee: boolean
-  outdoor_seating: boolean
-  live_music: boolean
-  good_for_children: boolean
-  good_for_groups: boolean
-  restroom: boolean
-  utc_offset: number
-}
-
-// Access environment variables - define missing type
-declare const process: {
-  env: {
-    GOOGLE_MAPS_API_KEY: string
-    [key: string]: string | undefined
-  }
+  google_maps_uri?: string
+  price_level?: string
+  business_status?: string
+  dine_in?: boolean
+  takeout?: boolean
+  delivery?: boolean
+  curbside_pickup?: boolean
+  serves_breakfast?: boolean
+  serves_lunch?: boolean
+  serves_dinner?: boolean
+  serves_beer?: boolean
+  serves_cocktails?: boolean
+  outdoor_seating?: boolean
+  live_music?: boolean
+  good_for_children?: boolean
+  good_for_groups?: boolean
+  restroom?: boolean
+  utc_offset?: number
 }
 
 /**
  * Adapter for transforming Google Maps API data to unified formats
  */
 export class GoogleAdapter {
+  private apiKey: string = ''
+
   /**
-   * Transforms Google Places API data to our unified place format
+   * Set the API key for this adapter instance
    */
-  adaptPlace(data: GooglePlaceDetails, id?: string): Place {
-    return {
-      id: id || `${SOURCE.GOOGLE}/${data.place_id}`,
-      externalIds: { [SOURCE.GOOGLE]: data.place_id },
-      name: {
-        value: data.name || 'Unnamed Place',
-        sourceId: SOURCE.GOOGLE,
-      },
-      placeType: {
-        value: data.types?.[0] || 'unknown',
-        sourceId: SOURCE.GOOGLE,
-      },
-      geometry: {
-        value: {
-          type: 'point',
-          center: {
-            lat: data.geometry?.location?.lat || 0,
-            lng: data.geometry?.location?.lng || 0,
-          },
-        },
-        sourceId: SOURCE.GOOGLE,
-      },
-      photos: this.extractPhotos(data),
-      address: this.extractAddress(data),
-      contactInfo: {
-        phone: data.formatted_phone_number
-          ? {
-              value: data.formatted_phone_number,
-              sourceId: SOURCE.GOOGLE,
-            }
-          : null,
-        email: null,
-        website: data.website
-          ? {
-              value: data.website,
-              sourceId: SOURCE.GOOGLE,
-            }
-          : null,
-        socials: {},
-      },
-      openingHours: this.extractOpeningHours(data),
-      amenities: this.extractAmenities(data),
-      ratings: this.extractRatings(data),
-      description: this.extractDescription(data) || null,
-      sources: [
-        {
-          id: SOURCE.GOOGLE,
-          name: 'Google',
-          url: data.google_maps_uri || '',
-        },
-      ],
-      lastUpdated: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
+  setApiKey(apiKey: string): void {
+    this.apiKey = apiKey
+  }
+
+  /**
+   * Legacy method for backward compatibility
+   * Transforms Google Places API data to our unified place format
+   * Handles both place details and autocomplete predictions
+   */
+  adaptPlace(data: any, id?: string): Place {
+    // Check if this is an autocomplete prediction
+    const isAutocompletePrediction =
+      data.place_id && data.description && !data.formatted_address
+
+    if (isAutocompletePrediction) {
+      return this.autocomplete.adaptPrediction(data, id)
     }
+
+    // Handle as regular place details
+    return this.placeInfo.adaptPlaceDetails(data as GooglePlaceDetails, id)
+  }
+
+  // Capability-specific adapters
+  autocomplete = {
+    adaptPrediction: (prediction: any, id?: string): Place => {
+      // Extract the place name (removing it from the description to create a better formatted address)
+      const placeName =
+        prediction.structured_formatting?.main_text ||
+        prediction.description?.split(',')[0] ||
+        'Unknown Place'
+
+      // Determine the best address to use
+      let formattedAddress = ''
+
+      // First priority: Use enriched place details' formatted_address if available
+      if (prediction.details?.formatted_address) {
+        formattedAddress = prediction.details.formatted_address
+      }
+      // Second priority: Extract address components from the description
+      else {
+        const descriptionParts =
+          prediction.description
+            ?.split(',')
+            .map((part: string) => part.trim()) || []
+
+        // Remove the place name from the description since it's already in the name field
+        if (descriptionParts.length > 0) {
+          descriptionParts.shift() // Remove the first part (place name)
+        }
+
+        // Create a cleaner formatted address without the place name
+        formattedAddress = descriptionParts.join(', ')
+      }
+
+      // For autocomplete predictions, we don't have actual coordinates by default
+      // Set to 0,0 to indicate unknown coordinates
+      let lat = 0
+      let lng = 0
+
+      // Check if we have enriched place details with geometry data
+      if (prediction.details?.geometry?.value?.center) {
+        lat = prediction.details.geometry.value.center.lat
+        lng = prediction.details.geometry.value.center.lng
+      }
+      // Check if we have minimal place details with direct geometry
+      else if (prediction.details?.geometry?.location) {
+        lat = prediction.details.geometry.location.lat
+        lng = prediction.details.geometry.location.lng
+      }
+      // Fallback: check if geometry data is directly on the prediction
+      else if (prediction.geometry?.location) {
+        lat = prediction.geometry.location.lat
+        lng = prediction.geometry.location.lng
+      }
+
+      // Use the new ID format: source/providerId
+      const primaryId = id || `${SOURCE.GOOGLE}/${prediction.place_id}`
+
+      const place = {
+        id: primaryId,
+        externalIds: {
+          [SOURCE.GOOGLE]: prediction.place_id,
+        },
+        name: {
+          value: placeName,
+          sourceId: SOURCE.GOOGLE,
+        },
+        description: null,
+        placeType: {
+          value: prediction.types?.[0] || 'establishment',
+          sourceId: SOURCE.GOOGLE,
+        },
+        geometry: {
+          value: {
+            type: 'point' as const,
+            center: { lat, lng },
+          },
+          sourceId: SOURCE.GOOGLE,
+        },
+        photos: [],
+        address: formattedAddress
+          ? {
+              value: { formatted: formattedAddress },
+              sourceId: SOURCE.GOOGLE,
+            }
+          : null,
+        contactInfo: {
+          phone: null,
+          email: null,
+          website: null,
+          socials: {},
+        },
+        openingHours: null,
+        amenities: prediction.types
+          ? prediction.types.reduce((acc: any, type: string) => {
+              acc[`type:${type}`] = type
+              return acc
+            }, {})
+          : {},
+        sources: [
+          {
+            id: SOURCE.GOOGLE,
+            name: 'Google',
+            url: '',
+          },
+        ],
+        lastUpdated: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      }
+
+      return place
+    },
+  }
+
+  placeInfo = {
+    adaptPlaceDetails: (data: GooglePlaceDetails, id?: string): Place => {
+      // Use the new ID format: source/providerId
+      const primaryId = id || `${SOURCE.GOOGLE}/${data.place_id}`
+
+      return {
+        id: primaryId,
+        externalIds: {
+          [SOURCE.GOOGLE]: data.place_id,
+        },
+        name: {
+          value: data.name || 'Unnamed Place',
+          sourceId: SOURCE.GOOGLE,
+        },
+        placeType: {
+          value: data.types?.[0] || 'unknown',
+          sourceId: SOURCE.GOOGLE,
+        },
+        geometry: {
+          value: {
+            type: 'point' as const,
+            center: {
+              lat: data.geometry?.location?.lat || 0,
+              lng: data.geometry?.location?.lng || 0,
+            },
+          },
+          sourceId: SOURCE.GOOGLE,
+        },
+        photos: this.extractPhotos(data),
+        address: this.extractAddress(data),
+        contactInfo: {
+          phone: data.formatted_phone_number
+            ? {
+                value: data.formatted_phone_number,
+                sourceId: SOURCE.GOOGLE,
+              }
+            : null,
+          email: null,
+          website: data.website
+            ? {
+                value: data.website,
+                sourceId: SOURCE.GOOGLE,
+              }
+            : null,
+          socials: {},
+        },
+        openingHours: this.extractOpeningHours(data),
+        amenities: this.extractAmenities(data),
+        ratings: this.extractRatings(data),
+        description: this.extractDescription(data) || null,
+        sources: [
+          {
+            id: SOURCE.GOOGLE,
+            name: 'Google',
+            url: data.google_maps_uri || '',
+          },
+        ],
+        lastUpdated: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      }
+    },
   }
 
   /**
@@ -162,7 +294,7 @@ export class GoogleAdapter {
         const photoId = p.photo_reference.split('/').pop()
         if (!photoId) return
 
-        const url = `${GOOGLE_MAPS_PHOTO_URL}?maxwidth=800&photo_reference=${photoId}&key=${process.env.GOOGLE_MAPS_API_KEY}`
+        const url = `${GOOGLE_MAPS_PHOTO_URL}?maxwidth=800&photo_reference=${photoId}&key=${this.apiKey}`
         photos.push({
           value: {
             url,
@@ -262,9 +394,7 @@ export class GoogleAdapter {
       serves_lunch: data.serves_lunch,
       serves_dinner: data.serves_dinner,
       serves_beer: data.serves_beer,
-      serves_vegetarian: data.serves_vegetarian,
-      serves_cocktails: data.serves_cocktails,
-      serves_coffee: data.serves_coffee,
+      serves_cocktails: data.serves_cocktails ?? false,
       outdoor_seating: data.outdoor_seating,
       live_music: data.live_music,
       good_for_children: data.good_for_children,
@@ -317,97 +447,6 @@ export class GoogleAdapter {
       value:
         data.editorial_summary?.overview || data.editorial_summary?.text || '',
       sourceId: SOURCE.GOOGLE,
-    }
-  }
-
-  // TODO: Remove this and user regular adapter function
-  /**
-   * Transform autocomplete predictions to a standard format
-   */
-  adaptAutocompletePrediction(prediction: any): any {
-    try {
-      if (!prediction) {
-        throw new Error('Invalid prediction data')
-      }
-
-      // Use a fallback place_id if not provided
-      if (!prediction.place_id) {
-        console.warn('Google prediction missing place_id:', prediction)
-      }
-
-      // Extract the place name (removing it from the description to create a better formatted address)
-      const placeName =
-        prediction.structured_formatting?.main_text ||
-        prediction.description?.split(',')[0] ||
-        'Unknown Place'
-
-      // Extract address components from the description
-      // Format: "[Place Name], [Street], [City], [State/Province], [Country]"
-      const descriptionParts =
-        prediction.description?.split(',').map((part: string) => part.trim()) ||
-        []
-
-      // Remove the place name from the description since it's already in the name field
-      // This helps avoid redundancy in address formatting
-      if (descriptionParts.length > 0) {
-        descriptionParts.shift() // Remove the first part (place name)
-      }
-
-      // Create a cleaner formatted address without the place name
-      const formattedAddress = descriptionParts.join(', ')
-
-      // Try to determine location from the prediction data
-      // Google Places API doesn't include coordinate data in autocomplete predictions
-      // But we'll extract a location bias from the request to help with deduplication
-      let lat = prediction.structured_formatting?.location?.lat || 0
-      let lng = prediction.structured_formatting?.location?.lng || 0
-
-      // If we have a location from the structured_formatting, use it
-      if (prediction.lat !== undefined && prediction.lng !== undefined) {
-        lat = prediction.lat
-        lng = prediction.lng
-      }
-
-      return {
-        id:
-          prediction.place_id ||
-          `${SOURCE.GOOGLE}/place_${Math.floor(Math.random() * 1000000)}`,
-        name: placeName,
-        description: formattedAddress,
-        types: prediction.types || ['establishment'],
-        source: SOURCE.GOOGLE,
-        placeId: prediction.place_id,
-        geometry: {
-          lat: lat,
-          lng: lng,
-        },
-        // Provide structured address data similar to Pelias
-        addressDetails: {
-          formatted: formattedAddress,
-          // We don't have detailed address components from Google autocomplete
-          // but we'll provide what we have for consistency with Pelias
-          street: descriptionParts[0] || null,
-          locality: descriptionParts[1] || null,
-          region: descriptionParts[2] || null,
-          country: descriptionParts[3] || null,
-        },
-      }
-    } catch (error) {
-      console.error('Error adapting Google autocomplete prediction:', error)
-      return {
-        id: `${SOURCE.GOOGLE}/unknown_${Math.floor(Math.random() * 1000000)}`,
-        name:
-          prediction?.structured_formatting?.main_text ||
-          prediction?.description?.split(',')[0] ||
-          'Unknown Place',
-        description: prediction?.description || 'No description available',
-        types: ['unknown'],
-        source: SOURCE.GOOGLE,
-        geometry: {
-          lat: 0,
-          lng: 0,
-        },
-      }
     }
   }
 

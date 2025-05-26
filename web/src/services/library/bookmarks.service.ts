@@ -27,8 +27,8 @@ export const useBookmarksService = createSharedComposable(() => {
     try {
       const params: CreateBookmarkParams & { collectionIds?: string[] } = {
         externalIds: place.externalIds,
-        name: place.name,
-        address: place.address?.formatted,
+        name: place.name.value,
+        address: place.address?.value.formatted,
         collectionIds,
       }
 
@@ -36,7 +36,9 @@ export const useBookmarksService = createSharedComposable(() => {
       const bookmark = response.data
 
       bookmarksStore.addBookmark(bookmark)
-      toast.success(t('services.bookmarks.saveSuccess', { name: place.name }))
+      toast.success(
+        t('services.bookmarks.saveSuccess', { name: place.name.value }),
+      )
 
       return bookmark
     } catch (error) {

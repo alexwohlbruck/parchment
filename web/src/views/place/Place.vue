@@ -93,7 +93,7 @@ async function loadPlace() {
 function handlePlaceResult(place: any) {
   // Add marker when place loads
   if (place && place.geometry) {
-    const { lat, lng } = place.geometry.center
+    const { lat, lng } = place.geometry.value.center
 
     if (lat && lng) {
       removeAllMarkers()

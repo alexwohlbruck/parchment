@@ -4,6 +4,7 @@ import {
   IntegrationTestResult,
   IntegrationCapabilityId,
   IntegrationId,
+  IntegrationCapabilities,
 } from '../../types/integration.types'
 import type {
   Place,
@@ -22,9 +23,14 @@ export abstract class BaseIntegration implements Integration {
   abstract readonly integrationId: IntegrationId
 
   /**
-   * The capabilities this integration provides
+   * The capability IDs this integration provides
    */
-  abstract readonly capabilities: IntegrationCapabilityId[]
+  abstract readonly capabilityIds: IntegrationCapabilityId[]
+
+  /**
+   * The capability implementations this integration provides
+   */
+  abstract readonly capabilities: IntegrationCapabilities
 
   /**
    * The data sources this integration can access

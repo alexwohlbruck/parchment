@@ -1,142 +1,294 @@
-import axios from 'axios'
-import {
-  IntegrationDefinition,
+import type {
+  Integration,
+  AutocompleteCapability,
+  PlaceInfoCapability,
+  GeocodingCapability,
   IntegrationConfig,
   IntegrationTestResult,
+} from '../../types/integration.types'
+import {
   IntegrationCapabilityId,
   IntegrationId,
 } from '../../types/integration.types'
-import { BaseIntegration } from './base-integration'
-import { GOOGLE_PLACES_API_URL, SOURCE } from '../../lib/constants'
+import type { Place } from '../../types/place.types'
 import { GoogleAdapter } from './adapters/google-adapter'
-import { Place } from '../../types/place.types'
+import { SOURCE } from '../../lib/constants'
 
-/**
- * Google Maps integration
- */
-export class GoogleMapsIntegration extends BaseIntegration {
+export class GoogleMapsIntegration implements Integration {
+  private adapter = new GoogleAdapter()
+  private baseUrl = 'https://maps.googleapis.com/maps/api'
+  private config: IntegrationConfig = {}
+
+  // Integration metadata
   readonly integrationId = IntegrationId.GOOGLE_MAPS
-  readonly capabilities = [
-    IntegrationCapabilityId.ROUTING,
-    IntegrationCapabilityId.GEOCODING,
-    IntegrationCapabilityId.PLACE_INFO,
-    IntegrationCapabilityId.IMAGERY,
+  readonly capabilityIds: IntegrationCapabilityId[] = [
     IntegrationCapabilityId.AUTOCOMPLETE,
+    IntegrationCapabilityId.PLACE_INFO,
+    IntegrationCapabilityId.GEOCODING,
   ]
   readonly sources = [SOURCE.GOOGLE]
 
-  private adapter: GoogleAdapter
+  // Capability implementations
+  readonly capabilities = {
+    autocomplete: {
+      getAutocomplete: async (
+        query: string,
+        lat?: number,
+        lng?: number,
+        radius?: number,
+      ): Promise<Place[]> => {
+        console.log('Google getAutocomplete called with:', {
+          query,
+          lat,
+          lng,
+          radius,
+        })
+        console.log('Google config:', {
+          hasApiKey: !!this.config.apiKey,
+        })
 
-  constructor() {
-    super()
-    this.adapter = new GoogleAdapter()
-  }
-
-  /**
-   * Creates a Place from Google place data
-   * @param providerData The Google place data
-   * @param id Optional ID for the place
-   * @returns A Place object
-   */
-  createUnifiedPlace(providerData: any, id?: string): Place {
-    try {
-      // Check if this is an autocomplete prediction (transformed by adaptAutocompletePrediction)
-      if (
-        providerData &&
-        providerData.source === SOURCE.GOOGLE &&
-        providerData.placeId
-      ) {
-        // This is an autocomplete prediction
-        return {
-          id:
-            id || providerData.id || `${SOURCE.GOOGLE}/${providerData.placeId}`,
-          externalIds: {
-            [SOURCE.GOOGLE]:
-              providerData.placeId ||
-              providerData.id?.replace(`${SOURCE.GOOGLE}/`, '') ||
-              'unknown',
-          },
-          name: providerData.name || 'Unnamed Place',
-          placeType: (providerData.types && providerData.types[0]) || 'unknown',
-          geometry: {
-            type: 'point',
-            center: {
-              lat: providerData.geometry?.lat || 0,
-              lng: providerData.geometry?.lng || 0,
-            },
-          },
-          photos: [],
-          address: providerData.description
-            ? { formatted: providerData.description }
-            : null,
-          contactInfo: {
-            phone: null,
-            email: null,
-            website: null,
-            socials: {},
-          },
-          openingHours: null,
-          amenities: providerData.types
-            ? providerData.types.reduce((acc: any, type: string) => {
-                acc[`type:${type}`] = type
-                return acc
-              }, {})
-            : {},
-          sources: [
-            {
-              id: SOURCE.GOOGLE,
-              name: 'Google',
-              url: '',
-            },
-          ],
-          lastUpdated: new Date().toISOString(),
-          createdAt: new Date().toISOString(),
+        if (!this.config.apiKey) {
+          console.log('No Google API key found in config')
+          return []
         }
-      }
 
-      // Otherwise, it's a regular Google place result
-      return this.adapter.adaptPlace(providerData, id)
-    } catch (error) {
-      console.error('Error creating Place from Google data:', error)
+        if (!lat || !lng) {
+          console.log('Missing lat/lng for Google autocomplete')
+          return []
+        }
 
-      // Return minimal valid place data
-      return {
-        id: id || `${SOURCE.GOOGLE}/${providerData?.place_id || 'unknown'}`,
-        externalIds: { [SOURCE.GOOGLE]: providerData?.place_id || 'unknown' },
-        name: providerData?.name || 'Unnamed Place',
-        placeType: 'unknown',
-        geometry: {
-          type: 'point',
-          center: { lat: 0, lng: 0 },
-        },
-        photos: [],
-        address: null,
-        contactInfo: {
-          phone: null,
-          email: null,
-          website: null,
-          socials: {},
-        },
-        openingHours: null,
-        amenities: {},
-        sources: [
-          {
-            id: SOURCE.GOOGLE,
-            name: 'Google',
-            url: '',
-          },
-        ],
-        lastUpdated: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-      }
-    }
+        if (!radius) {
+          radius = 50000 // Default 50km radius
+        }
+
+        try {
+          console.log('Making Google API request...')
+          const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
+            query,
+          )}&location=${lat},${lng}&radius=${radius}&key=${this.config.apiKey}`
+
+          console.log(
+            'Request URL (without API key):',
+            url.replace(this.config.apiKey, '[API_KEY]'),
+          )
+
+          const response = await fetch(url)
+          const data = await response.json()
+
+          console.log('Google API response status:', data.status)
+          console.log(
+            'Google API predictions count:',
+            data.predictions?.length || 0,
+          )
+
+          if (data.status !== 'OK') {
+            console.error(
+              'Google Places API error:',
+              data.status,
+              data.error_message,
+            )
+            return []
+          }
+
+          if (!data.predictions || data.predictions.length === 0) {
+            console.log('No predictions returned from Google API')
+            return []
+          }
+
+          console.log('Processing Google predictions...')
+          const enrichedPredictions = await Promise.all(
+            data.predictions.map(async (prediction: any) => {
+              try {
+                // Try to get basic place details with minimal fields for coordinates
+                const placeDetails = await this.getPlaceDetailsMinimal(
+                  prediction.place_id,
+                )
+                return { ...prediction, details: placeDetails }
+              } catch (error) {
+                console.warn(
+                  `Could not fetch details for place ${prediction.place_id}, using prediction only:`,
+                  error instanceof Error ? error.message : String(error),
+                )
+                return prediction
+              }
+            }),
+          )
+
+          console.log('Converting predictions to Place objects...')
+          const places = enrichedPredictions.map((prediction) =>
+            this.adapter.autocomplete.adaptPrediction(prediction),
+          )
+
+          console.log('Returning', places.length, 'Google places')
+          return places
+        } catch (error) {
+          console.error('Error in Google autocomplete:', error)
+          return []
+        }
+      },
+    } as AutocompleteCapability,
+
+    placeInfo: {
+      getPlaceInfo: async (placeId: string): Promise<Place | null> => {
+        try {
+          console.log('Fetching place details for:', placeId)
+          const url = new URL(`${this.baseUrl}/place/details/json`)
+          url.searchParams.set('place_id', placeId)
+          url.searchParams.set('key', this.config.apiKey)
+          url.searchParams.set(
+            'fields',
+            'place_id,name,formatted_address,formatted_phone_number,website,types,photos,rating,user_ratings_total,opening_hours,editorial_summary,geometry,price_level,business_status,dine_in,takeout,delivery,curbside_pickup,serves_breakfast,serves_lunch,serves_dinner,serves_beer,serves_wine,restroom,utc_offset',
+          )
+
+          console.log(
+            'Place Details URL:',
+            url.toString().replace(this.config.apiKey, '[API_KEY]'),
+          )
+          const response = await fetch(url.toString())
+          if (!response.ok) {
+            console.error(`Google Place Details HTTP error: ${response.status}`)
+            throw new Error(`Google API error: ${response.status}`)
+          }
+
+          const data = await response.json()
+          console.log('Place Details API response status:', data.status)
+          if (data.status !== 'OK') {
+            if (data.status === 'INVALID_REQUEST') {
+              console.warn(`Invalid place ID: ${placeId}`)
+              console.warn('Full API response:', JSON.stringify(data, null, 2))
+              return null
+            }
+            throw new Error(`Google API error: ${data.status}`)
+          }
+
+          console.log(
+            'Place details found for:',
+            placeId,
+            'with geometry:',
+            !!data.result?.geometry,
+          )
+          return this.adapter.placeInfo.adaptPlaceDetails(data.result)
+        } catch (error) {
+          console.error('Google place details error:', error)
+          return null
+        }
+      },
+    } as PlaceInfoCapability,
+
+    geocoding: {
+      geocode: async (address: string): Promise<Place[]> => {
+        try {
+          const url = new URL(`${this.baseUrl}/geocode/json`)
+          url.searchParams.set('address', address)
+          url.searchParams.set('key', this.config.apiKey)
+
+          const response = await fetch(url.toString())
+          if (!response.ok) {
+            throw new Error(`Google API error: ${response.status}`)
+          }
+
+          const data = await response.json()
+          if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+            throw new Error(`Google API error: ${data.status}`)
+          }
+
+          return data.results.map((result: any) =>
+            this.adapter.placeInfo.adaptPlaceDetails({
+              place_id: result.place_id || '',
+              name: result.formatted_address || '',
+              formatted_address: result.formatted_address || '',
+              formatted_phone_number: '',
+              website: '',
+              types: result.types || [],
+              photos: [],
+              rating: 0,
+              user_ratings_total: 0,
+              opening_hours: undefined,
+              editorial_summary: undefined,
+              geometry: result.geometry,
+              google_maps_uri: '',
+              price_level: '',
+              business_status: '',
+              dine_in: false,
+              takeout: false,
+              delivery: false,
+              curbside_pickup: false,
+              serves_breakfast: false,
+              serves_lunch: false,
+              serves_dinner: false,
+              serves_beer: false,
+              outdoor_seating: false,
+              live_music: false,
+              good_for_children: false,
+              good_for_groups: false,
+              restroom: false,
+              utc_offset: 0,
+            }),
+          )
+        } catch (error) {
+          console.error('Google geocoding error:', error)
+          return []
+        }
+      },
+
+      reverseGeocode: async (lat: number, lng: number): Promise<Place[]> => {
+        try {
+          const url = new URL(`${this.baseUrl}/geocode/json`)
+          url.searchParams.set('latlng', `${lat},${lng}`)
+          url.searchParams.set('key', this.config.apiKey)
+
+          const response = await fetch(url.toString())
+          if (!response.ok) {
+            throw new Error(`Google API error: ${response.status}`)
+          }
+
+          const data = await response.json()
+          if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+            throw new Error(`Google API error: ${data.status}`)
+          }
+
+          return data.results.map((result: any) =>
+            this.adapter.placeInfo.adaptPlaceDetails({
+              place_id: result.place_id || '',
+              name: result.formatted_address || '',
+              formatted_address: result.formatted_address || '',
+              formatted_phone_number: '',
+              website: '',
+              types: result.types || [],
+              photos: [],
+              rating: 0,
+              user_ratings_total: 0,
+              opening_hours: undefined,
+              editorial_summary: undefined,
+              geometry: result.geometry,
+              google_maps_uri: '',
+              price_level: '',
+              business_status: '',
+              dine_in: false,
+              takeout: false,
+              delivery: false,
+              curbside_pickup: false,
+              serves_breakfast: false,
+              serves_lunch: false,
+              serves_dinner: false,
+              serves_beer: false,
+              outdoor_seating: false,
+              live_music: false,
+              good_for_children: false,
+              good_for_groups: false,
+              restroom: false,
+              utc_offset: 0,
+            }),
+          )
+        } catch (error) {
+          console.error('Google reverse geocoding error:', error)
+          return []
+        }
+      },
+    } as GeocodingCapability,
   }
 
-  /**
-   * Tests the connection with the given configuration
-   * @param config The configuration to test
-   * @returns A test result indicating success or failure
-   */
+  // Integration interface methods
   async testConnection(
     config: IntegrationConfig,
   ): Promise<IntegrationTestResult> {
@@ -148,33 +300,26 @@ export class GoogleMapsIntegration extends BaseIntegration {
     }
 
     try {
-      // Test a simple Places API request to validate the API key
-      const testPayload = {
-        textQuery: 'Test Query',
-        languageCode: 'en',
+      // Test a simple autocomplete request to validate the API key
+      const url = new URL(`${this.baseUrl}/place/autocomplete/json`)
+      url.searchParams.set('input', 'test')
+      url.searchParams.set('key', config.apiKey)
+
+      const response = await fetch(url.toString())
+      if (!response.ok) {
+        throw new Error(`Google API error: ${response.status}`)
       }
 
-      await axios.post(`${GOOGLE_PLACES_API_URL}:searchText`, testPayload, {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Goog-Api-Key': config.apiKey,
-          'X-Goog-FieldMask': 'places.id',
-        },
-      })
-
-      return { success: true }
-    } catch (error: any) {
-      // Check if the error is related to invalid API key
-      if (
-        axios.isAxiosError(error) &&
-        (error.response?.status === 400 || error.response?.status === 403)
-      ) {
+      const data = await response.json()
+      if (data.status === 'REQUEST_DENIED') {
         return {
           success: false,
           message: 'Invalid API Key or insufficient permissions',
         }
       }
 
+      return { success: true }
+    } catch (error: any) {
       console.error('Error testing Google Maps API:', error)
       return {
         success: false,
@@ -183,246 +328,85 @@ export class GoogleMapsIntegration extends BaseIntegration {
     }
   }
 
-  /**
-   * Validates that the configuration has all required fields
-   * @param config The configuration to validate
-   * @returns True if the configuration is valid, false otherwise
-   */
+  initialize(config: IntegrationConfig): void {
+    console.log(
+      'Google Maps Integration - initialize called with config:',
+      JSON.stringify(config, null, 2),
+    )
+    this.config = config
+
+    // Set the API key on the adapter for photo URLs
+    if (config.apiKey) {
+      console.log('Setting API key on adapter:', config.apiKey)
+      this.adapter.setApiKey(config.apiKey)
+    } else {
+      console.log('No API key found in config')
+    }
+  }
+
   validateConfig(config: IntegrationConfig): boolean {
     return Boolean(config && config.apiKey)
   }
 
-  /**
-   * Search for places matching a query
-   * @param query The search query
-   * @param lat Optional latitude for location bias
-   * @param lng Optional longitude for location bias
-   * @param radius Optional radius in meters for location bias
-   * @returns Array of place results
-   */
-  async searchPlaces(
-    query: string,
-    lat?: number,
-    lng?: number,
-    radius: number = 10000,
-  ) {
-    this.ensureInitialized()
-
-    const requestPayload: any = {
-      textQuery: query,
-      languageCode: 'en',
-      maxResultCount: 10,
-    }
-
-    // Add location bias if coordinates are provided
-    if (lat !== undefined && lng !== undefined) {
-      requestPayload.locationBias = {
-        circle: {
-          center: {
-            latitude: lat,
-            longitude: lng,
-          },
-          radius: radius,
-        },
-      }
-    }
-
-    const response = await axios.post(
-      `${GOOGLE_PLACES_API_URL}:searchText`,
-      requestPayload,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Goog-Api-Key': this.config.apiKey,
-          'X-Goog-FieldMask':
-            'places.id,places.displayName,places.formattedAddress,places.location,places.types',
-        },
-      },
-    )
-
-    // Use the adapter to transform each result
-    return (response.data.places || []).map((place: any) =>
-      this.adapter.adaptPlace(place),
-    )
+  createUnifiedPlace(providerData: any, id?: string): Place {
+    return this.adapter.adaptPlace(providerData, id)
   }
 
-  /**
-   * Get autocomplete suggestions for a query
-   * @param query The search query
-   * @param lat Optional latitude for location bias
-   * @param lng Optional longitude for location bias
-   * @param radius Optional radius in meters for location bias
-   * @returns Array of autocomplete suggestions
-   */
+  // Legacy methods for backward compatibility
   async getAutocomplete(
     query: string,
     lat?: number,
     lng?: number,
-    radius: number = 10000,
-  ) {
-    this.ensureInitialized()
+    radius?: number,
+  ): Promise<Place[]> {
+    return this.capabilities.autocomplete!.getAutocomplete(
+      query,
+      lat,
+      lng,
+      radius,
+    )
+  }
 
-    try {
-      // Use Places Autocomplete API from legacy API instead of the new Places API v1
-      const legacyApiUrl =
-        'https://maps.googleapis.com/maps/api/place/autocomplete/json'
+  async getPlaceDetails(placeId: string): Promise<Place | null> {
+    return this.capabilities.placeInfo!.getPlaceInfo(placeId)
+  }
 
-      const params: any = {
-        input: query,
-        key: this.config.apiKey,
-        language: 'en',
-        types: 'establishment',
-      }
+  async geocode(address: string): Promise<Place[]> {
+    return this.capabilities.geocoding!.geocode(address)
+  }
 
-      // Add location bias if coordinates are provided
-      if (lat !== undefined && lng !== undefined) {
-        params.location = `${lat},${lng}`
-        params.radius = radius
-      }
-
-      console.log(`Calling Google Places Autocomplete API with params:`, {
-        ...params,
-        key: 'API_KEY_HIDDEN',
-      })
-
-      const response = await axios.get(legacyApiUrl, { params })
-
-      console.log(
-        `Received ${
-          response.data.predictions?.length || 0
-        } results from Google Places Autocomplete API`,
-      )
-
-      // Use the adapter to transform each prediction
-      // Pass the location bias to the adapter to help with deduplication
-      return (response.data.predictions || []).map((prediction: any) => {
-        // Enhance prediction with location bias info
-        const enhancedPrediction = {
-          ...prediction,
-          // Pass the location bias - this isn't perfect but helps with deduplication
-          // Later we can consider using the Place Details API to get exact coordinates
-          lat: lat,
-          lng: lng,
-        }
-        return this.adapter.adaptAutocompletePrediction(enhancedPrediction)
-      })
-    } catch (error) {
-      console.error('Error fetching Google autocomplete suggestions:', error)
-      return []
-    }
+  async reverseGeocode(lat: number, lng: number): Promise<Place[]> {
+    return this.capabilities.geocoding!.reverseGeocode(lat, lng)
   }
 
   /**
-   * Get place details by Google place ID
-   * @param placeId The Google place ID
-   * @returns Google place data or null if not found
+   * Fetch minimal place details with only essential fields for coordinates
+   * This is used during autocomplete enrichment to avoid field restriction errors
    */
-  async getPlaceDetails(placeId: string): Promise<any | null> {
-    this.ensureInitialized()
-
+  private async getPlaceDetailsMinimal(placeId: string): Promise<any | null> {
     try {
-      console.log(`Fetching Google place by ID: ${placeId}`)
+      const url = new URL(`${this.baseUrl}/place/details/json`)
+      url.searchParams.set('place_id', placeId)
+      url.searchParams.set('key', this.config.apiKey)
+      // Use only the most basic fields to avoid enterprise restrictions
+      url.searchParams.set(
+        'fields',
+        'place_id,name,geometry,formatted_address,types',
+      )
 
-      // Clean up the Place ID by removing any prefixes
-      let cleanPlaceId = placeId
-
-      // Strip the 'google/' prefix if it exists
-      if (cleanPlaceId.startsWith('google/')) {
-        cleanPlaceId = cleanPlaceId.substring(7)
+      const response = await fetch(url.toString())
+      if (!response.ok) {
+        throw new Error(`HTTP error: ${response.status}`)
       }
 
-      // Handle potential double-prefixing (e.g., "google/google/ChIJ...")
-      if (cleanPlaceId.startsWith('google/')) {
-        cleanPlaceId = cleanPlaceId.substring(7)
+      const data = await response.json()
+      if (data.status !== 'OK') {
+        throw new Error(`API error: ${data.status}`)
       }
 
-      console.log(`Making request to get details for place ID: ${cleanPlaceId}`)
-      const endpoint = `${GOOGLE_PLACES_API_URL}/${cleanPlaceId}`
-
-      const response = await axios.get(endpoint, {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Goog-Api-Key': this.config.apiKey,
-          'X-Goog-FieldMask':
-            'id,displayName,formattedAddress,internationalPhoneNumber,websiteUri,types,photos,rating,userRatingCount,googleMapsUri,priceLevel,businessStatus,editorialSummary,location,dineIn,takeout,delivery,curbsidePickup,servesBreakfast,servesLunch,servesDinner,servesBeer,servesVegetarianFood,servesCocktails,servesCoffee,outdoorSeating,liveMusic,goodForChildren,goodForGroups,restroom,regularOpeningHours,utcOffsetMinutes',
-        },
-      })
-
-      if (!response.data || Object.keys(response.data).length === 0) {
-        console.error('No place details returned for the given Google Place ID')
-        return null
-      }
-
-      // Transform the response data into our format
-      const transformedPlace = {
-        place_id: response.data.id,
-        name: response.data.displayName?.text || '',
-        formatted_address: response.data.formattedAddress || '',
-        formatted_phone_number: response.data.internationalPhoneNumber || '',
-        website: response.data.websiteUri || '',
-        types: response.data.types || [],
-        photos:
-          response.data.photos?.map(
-            (photo: { name: string; heightPx?: number; widthPx?: number }) => ({
-              photo_reference: photo.name,
-              height: photo.heightPx || 0,
-              width: photo.widthPx || 0,
-              html_attributions: [],
-            }),
-          ) || [],
-        rating: response.data.rating || 0,
-        user_ratings_total: response.data.userRatingCount || 0,
-        google_maps_uri: response.data.googleMapsUri || '',
-        price_level: response.data.priceLevel || '',
-        business_status: response.data.businessStatus || '',
-        editorial_summary: response.data.editorialSummary
-          ? {
-              language:
-                response.data.editorialSummary.languageCode || undefined,
-              overview:
-                response.data.editorialSummary.text ||
-                response.data.editorialSummary.overview ||
-                '',
-            }
-          : undefined,
-        geometry: response.data.location
-          ? {
-              location: {
-                lat: response.data.location.latitude,
-                lng: response.data.location.longitude,
-              },
-            }
-          : undefined,
-        opening_hours: response.data.regularOpeningHours
-          ? {
-              open_now: response.data.regularOpeningHours.openNow || false,
-              periods: response.data.regularOpeningHours.periods || [],
-              weekday_text:
-                response.data.regularOpeningHours.weekdayDescriptions || [],
-            }
-          : undefined,
-        dine_in: response.data.dineIn || false,
-        takeout: response.data.takeout || false,
-        delivery: response.data.delivery || false,
-        curbside_pickup: response.data.curbsidePickup || false,
-        serves_breakfast: response.data.servesBreakfast || false,
-        serves_lunch: response.data.servesLunch || false,
-        serves_dinner: response.data.servesDinner || false,
-        serves_beer: response.data.servesBeer || false,
-        serves_vegetarian: response.data.servesVegetarianFood || false,
-        serves_cocktails: response.data.servesCocktails || false,
-        serves_coffee: response.data.servesCoffee || false,
-        outdoor_seating: response.data.outdoorSeating || false,
-        live_music: response.data.liveMusic || false,
-        good_for_children: response.data.goodForChildren || false,
-        good_for_groups: response.data.goodForGroups || false,
-        restroom: response.data.restroom || false,
-        utc_offset: response.data.utcOffsetMinutes || 0,
-      }
-
-      return transformedPlace
+      return data.result
     } catch (error) {
-      console.error('Error fetching Google place by ID:', error)
+      console.warn('Minimal place details fetch failed:', error)
       return null
     }
   }

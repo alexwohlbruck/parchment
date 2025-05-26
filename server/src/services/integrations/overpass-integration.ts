@@ -17,7 +17,12 @@ import { parseOpeningHoursForUnifiedFormat } from '../../lib/place.utils'
  */
 export class OverpassIntegration extends BaseIntegration {
   readonly integrationId = IntegrationId.OVERPASS
-  readonly capabilities = [IntegrationCapabilityId.PLACE_INFO]
+  readonly capabilityIds = [IntegrationCapabilityId.PLACE_INFO]
+  readonly capabilities = {
+    placeInfo: {
+      getPlaceInfo: this.getPlaceDetails.bind(this),
+    },
+  }
   readonly sources = [SOURCE.OSM]
 
   protected config: {

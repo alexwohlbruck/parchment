@@ -159,20 +159,9 @@ export const useCommandStore = defineStore('command', () => {
         hotkey: ['/'],
         icon: SearchIcon,
         keywords: t('palette.commands.search.keywords'),
-        action: (place: Place) => {
-          if (Object.keys(place.externalIds).includes('osm')) {
-            const route = getPlaceRoute(place.externalIds.osm)
-            router.push(route)
-          } else {
-            const [provider, placeId] = Object.entries(place.externalIds)[0]
-            router.push({
-              name: AppRoute.PLACE_PROVIDER,
-              params: {
-                provider,
-                placeId,
-              },
-            })
-          }
+        action: (placeId: string) => {
+          const route = getPlaceRoute(placeId)
+          router.push(route)
         },
         arguments: [
           {
@@ -218,10 +207,12 @@ export const useCommandStore = defineStore('command', () => {
                 console.log(suggestions)
 
                 return suggestions.map(place => ({
-                  value: place,
-                  name: place.name,
+                  value: place.id,
+                  name: place.name.value,
                   description:
-                    place.address?.street1 || place.address?.formatted || '',
+                    place.address?.value.street1 ||
+                    place.address?.value.formatted ||
+                    '',
                   icon: MapPinIcon,
                 }))
               } catch (error) {

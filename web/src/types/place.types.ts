@@ -28,23 +28,22 @@ export type {
   AttributedValue,
 }
 
+// TODO: Move out of types
 export function getPrimaryPhoto(place: Place): PlacePhoto | null {
   const primaryPhoto = place.photos.find(photo => photo.value.isPrimary)
   return primaryPhoto ? primaryPhoto.value : null
 }
 
+// TODO: Move out of types
 export function getLogoPhoto(place: Place): PlacePhoto | null {
   const logoPhoto = place.photos.find(photo => photo.value.isLogo)
   return logoPhoto ? logoPhoto.value : null
 }
 
+// TODO: Move out of types
 export function getSourceById(
   place: Place,
   sourceId: SourceId,
 ): SourceReference | null {
   return place.sources.find(source => source.id === sourceId) || null
-}
-
-export function getFormattedAddress(place: Place): string | null {
-  return place.address?.value.formatted || null
 }

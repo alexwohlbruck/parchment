@@ -91,10 +91,6 @@ app.get(
   async ({ query }) => {
     const { q, lat, lng, radius = 10000 } = query
 
-    console.log(
-      `Autocomplete request: q="${q}", lat=${lat}, lng=${lng}, radius=${radius}`,
-    )
-
     if (!q) {
       return error(400, { message: 'Search query is required' })
     }
@@ -112,15 +108,6 @@ app.get(
       q,
       coordinates,
       parseInt(radius as string),
-    )
-
-    console.log(`Returning ${places.length} places for autocomplete`)
-    console.log(
-      `Sources breakdown: ${places.reduce((acc, place) => {
-        const source = place.sources[0]?.id || 'unknown'
-        acc[source] = (acc[source] || 0) + 1
-        return acc
-      }, {} as Record<string, number>)}`,
     )
 
     return {

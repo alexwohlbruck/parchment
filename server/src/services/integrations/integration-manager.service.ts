@@ -7,6 +7,7 @@ import {
   IntegrationId,
   IntegrationCapability,
   IntegrationResponse,
+  Integration,
 } from '../../types/integration.types'
 import { IntegrationRegistry } from './integration-registry'
 import { Source, SOURCE, SOURCE_PRIORITIES } from '../../lib/constants'
@@ -68,10 +69,7 @@ export class IntegrationManagerService {
 
     try {
       // Clone the integration to ensure each integration has its own instance
-      const integrationInstance = Object.create(
-        Object.getPrototypeOf(integrationImpl),
-        Object.getOwnPropertyDescriptors(integrationImpl),
-      )
+      const integrationInstance = this.cloneIntegration(integrationImpl)
 
       // Initialize the integration with the user's configuration
       integrationInstance.initialize(integrationData.config)
@@ -277,20 +275,17 @@ export class IntegrationManagerService {
   getIntegrationsByCapability(
     capabilityId: IntegrationCapabilityId,
   ): CachedIntegration[] {
-    // For system-wide use, get all integrations from all users that have this capability
     const result: CachedIntegration[] = []
 
-    // Iterate through all cache entries directly
-    this.integrationsCache.forEach((cachedIntegration) => {
-      // Check if integration has the requested capability
-      if (
-        cachedIntegration.capabilities.some(
-          (cap: IntegrationCapability) => cap.id === capabilityId && cap.active,
-        )
-      ) {
+    for (const [cacheKey, cachedIntegration] of this.integrationsCache) {
+      const hasCapability = cachedIntegration.capabilities.some(
+        (cap) => cap.id === capabilityId && cap.active,
+      )
+
+      if (hasCapability) {
         result.push(cachedIntegration)
       }
-    })
+    }
 
     return result
   }
@@ -359,6 +354,15 @@ export class IntegrationManagerService {
       console.warn(`Integration with ID ${integrationId} not found`)
       return []
     }
-    return integration.capabilities
+    return integration.capabilityIds
+  }
+
+  private cloneIntegration(integration: Integration): Integration {
+    // Create a new instance using the constructor
+    const IntegrationClass = integration.constructor as new () => Integration
+    const clonedIntegration = new IntegrationClass()
+
+    // Don't initialize here - let the caller handle initialization with the correct config
+    return clonedIntegration
   }
 }

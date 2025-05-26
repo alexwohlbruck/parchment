@@ -15,10 +15,37 @@ import { SOURCE } from '../../lib/constants'
  */
 export class NominatimIntegration extends BaseIntegration {
   readonly integrationId = IntegrationId.NOMINATIM
-  readonly capabilities = [
+  readonly capabilityIds = [
     IntegrationCapabilityId.GEOCODING,
     IntegrationCapabilityId.AUTOCOMPLETE,
   ]
+  readonly capabilities = {
+    geocoding: {
+      geocode: this.searchPlaces.bind(this),
+      reverseGeocode: async (lat: number, lng: number) => {
+        // Implement reverse geocoding using Nominatim's reverse endpoint
+        const apiUrl = `${
+          this.config.host.endsWith('/')
+            ? this.config.host.slice(0, -1)
+            : this.config.host
+        }/reverse`
+
+        const params: Record<string, any> = {
+          lat,
+          lon: lng,
+          format: 'json',
+          addressdetails: 1,
+          email: this.config.email,
+        }
+
+        const response = await axios.get(apiUrl, { params })
+        return response.data ? [response.data] : []
+      },
+    },
+    autocomplete: {
+      getAutocomplete: this.getAutocomplete.bind(this),
+    },
+  }
   readonly sources = [SOURCE.OSM]
 
   protected config: {

@@ -4,7 +4,7 @@ import { Source } from '../lib/constants'
 export enum IntegrationCapabilityId {
   ROUTING = 'routing',
   GEOCODING = 'geocoding',
-  PLACE_INFO = 'place_info',
+  PLACE_INFO = 'placeInfo',
   IMAGERY = 'imagery',
   AUTOCOMPLETE = 'autocomplete',
 }
@@ -21,6 +21,49 @@ export enum IntegrationId {
   NOMINATIM = 'nominatim',
   TRIPADVISOR = 'tripadvisor',
   GEOAPIFY = 'geoapify',
+}
+
+// Capability interfaces
+export interface AutocompleteCapability {
+  getAutocomplete(
+    query: string,
+    lat?: number,
+    lng?: number,
+    radius?: number,
+  ): Promise<Place[]>
+}
+
+export interface PlaceInfoCapability {
+  getPlaceInfo(id: string): Promise<Place | null>
+}
+
+// TODO: Return types
+export interface GeocodingCapability {
+  geocode(query: string, lat?: number, lng?: number): Promise<any[]>
+  reverseGeocode(lat: number, lng: number): Promise<any[]>
+}
+
+// TODO: Return types
+export interface RoutingCapability {
+  getRoute(
+    from: { lat: number; lng: number },
+    to: { lat: number; lng: number },
+    options?: any,
+  ): Promise<any>
+}
+
+// TODO: Return types
+export interface ImageryCapability {
+  getImagery(lat: number, lng: number, options?: any): Promise<any[]>
+}
+
+// Integration capabilities container
+export interface IntegrationCapabilities {
+  autocomplete?: AutocompleteCapability
+  placeInfo?: PlaceInfoCapability
+  geocoding?: GeocodingCapability
+  routing?: RoutingCapability
+  imagery?: ImageryCapability
 }
 
 // Integration interfaces
@@ -43,9 +86,14 @@ export interface Integration {
   readonly integrationId: IntegrationId
 
   /**
-   * The capabilities this integration provides
+   * The capability IDs this integration provides
    */
-  readonly capabilities: IntegrationCapabilityId[]
+  readonly capabilityIds: IntegrationCapabilityId[]
+
+  /**
+   * The capability implementations this integration provides
+   */
+  readonly capabilities: IntegrationCapabilities
 
   /**
    * The data sources this integration can access
@@ -101,14 +149,14 @@ export interface Integration {
    * @param lat Optional latitude for location bias
    * @param lng Optional longitude for location bias
    * @param radius Optional radius in meters for location bias
-   * @returns Array of autocomplete suggestions
+   * @returns Array of Place objects
    */
   getAutocomplete?(
     query: string,
     lat?: number,
     lng?: number,
     radius?: number,
-  ): Promise<any[]>
+  ): Promise<Place[]>
 
   /**
    * Get place details by provider-specific ID

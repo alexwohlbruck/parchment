@@ -178,24 +178,33 @@ export async function initializeIntegrations() {
 }
 
 // Helper functions
-function parseIntegrationData(
-  integrationRecord: IntegrationRecord,
+export function parseIntegrationData(
+  record: IntegrationRecord,
 ): IntegrationResponse {
-  const parsedConfig = JSON.parse(integrationRecord.config as string)
-  const parsedCapabilities = JSON.parse(
-    integrationRecord.capabilities as string,
-  ) as IntegrationCapability[]
+  let config: Record<string, any>
 
-  // Remove capabilities from config if they exist there
-  if (parsedConfig.capabilities) {
-    delete parsedConfig.capabilities
+  try {
+    config = JSON.parse(record.config)
+  } catch (error) {
+    console.error('Failed to parse integration config:', error)
+    config = {}
+  }
+
+  const cleanedConfig = cleanConfig(config)
+
+  let capabilities: IntegrationCapability[]
+  try {
+    capabilities = JSON.parse(record.capabilities)
+  } catch (error) {
+    console.error('Failed to parse integration capabilities:', error)
+    capabilities = []
   }
 
   return {
-    id: integrationRecord.id,
-    integrationId: integrationRecord.integrationId as IntegrationId,
-    capabilities: parsedCapabilities,
-    config: parsedConfig,
+    id: record.id,
+    integrationId: record.integrationId as IntegrationId,
+    capabilities,
+    config: cleanedConfig,
   }
 }
 

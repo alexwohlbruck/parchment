@@ -198,17 +198,25 @@ export class PeliasIntegration extends BaseIntegration {
     }
 
     try {
-      const url = new URL(`${this.buildApiUrl()}/autocomplete`)
+      // Build the correct autocomplete URL
+      const host = this.config.host.endsWith('/')
+        ? this.config.host.slice(0, -1)
+        : this.config.host
+      const url = new URL(`${host}/v1/autocomplete`)
+
       url.searchParams.set('text', text)
 
       if (lat !== undefined && lng !== undefined) {
         url.searchParams.set('focus.point.lat', lat.toString())
         url.searchParams.set('focus.point.lon', lng.toString())
-      }
 
-      if (radius !== undefined) {
-        const radiusKm = radius / 1000
-        url.searchParams.set('boundary.circle.radius', radiusKm.toString())
+        // Set boundary circle if radius is also provided
+        if (radius !== undefined) {
+          const radiusKm = radius / 1000
+          url.searchParams.set('boundary.circle.lat', lat.toString())
+          url.searchParams.set('boundary.circle.lon', lng.toString())
+          url.searchParams.set('boundary.circle.radius', radiusKm.toString())
+        }
       }
 
       // Exclude address layer for performance

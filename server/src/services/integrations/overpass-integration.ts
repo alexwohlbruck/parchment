@@ -1,13 +1,12 @@
 import axios from 'axios'
 import {
+  IntegrationDefinition,
+  IntegrationConfig,
+  IntegrationTestResult,
   IntegrationCapabilityId,
   IntegrationId,
 } from '../../types/integration.types'
 import { BaseIntegration } from './base-integration'
-import {
-  IntegrationConfig,
-  IntegrationTestResult,
-} from './integration.interface'
 import { Place, PlaceGeometry, AttributedValue } from '../../types/place.types'
 import { SOURCE } from '../../lib/constants'
 import { getPlaceType } from '../../lib/place.utils'

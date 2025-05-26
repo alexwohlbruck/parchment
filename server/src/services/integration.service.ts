@@ -1,7 +1,7 @@
 import { db } from '../db'
 import { eq, and, isNull, or } from 'drizzle-orm'
 import { generateId } from '../util'
-import { integrations } from '../schema/integrations.schema'
+import { integrations, IntegrationRecord } from '../schema/integrations.schema'
 import {
   IntegrationCapability,
   IntegrationCapabilityId,
@@ -178,7 +178,9 @@ export async function initializeIntegrations() {
 }
 
 // Helper functions
-function parseIntegrationData(integrationRecord: any): IntegrationResponse {
+function parseIntegrationData(
+  integrationRecord: IntegrationRecord,
+): IntegrationResponse {
   const parsedConfig = JSON.parse(integrationRecord.config as string)
   const parsedCapabilities = JSON.parse(
     integrationRecord.capabilities as string,

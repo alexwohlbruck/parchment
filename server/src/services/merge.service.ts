@@ -1,9 +1,9 @@
-import type { AttributedValue } from '../types/place.types'
-import { SOURCE, SOURCE_PRIORITIES } from '../lib/constants'
+import type { AttributedValue, SourceId } from '../types/place.types'
+import { Source, SOURCE, SOURCE_PRIORITIES } from '../lib/constants'
 import * as turf from '@turf/turf'
 import type { Place } from '../types/place.types'
 import { Feature, Point } from 'geojson'
-import { cloneDeep } from 'lodash'
+import { cloneDeep, groupBy } from 'lodash'
 
 type TurfPoint = Feature<Point>
 
@@ -57,26 +57,6 @@ function calculateNameSimilarity(name1: string, name2: string): number {
  */
 export function getSourcePriority(sourceId: string): number {
   return SOURCE_PRIORITIES[sourceId as keyof typeof SOURCE_PRIORITIES] || 0
-}
-
-/**
- * Groups places by their provider
- * Used to deduplicate places across providers
- */
-export function groupPlacesByProvider(
-  places: Place[],
-): Record<string, Place[]> {
-  const placesByProvider: Record<string, Place[]> = {}
-
-  places.forEach((place) => {
-    const providerId = place.sources[0]?.id || 'unknown'
-    if (!placesByProvider[providerId]) {
-      placesByProvider[providerId] = []
-    }
-    placesByProvider[providerId].push(place)
-  })
-
-  return placesByProvider
 }
 
 export function normalizeName(name: string): string {
@@ -193,16 +173,15 @@ export function arePointsClose(
 export function deduplicatePlacesResults(places: Place[]): Place[] {
   if (!places.length) return []
 
-  // Group places by provider
-  const placesByProvider = groupPlacesByProvider(places)
+  const placesBySource = groupBy(places, (place) => place.sources[0]!.id)
 
-  // If we only have one provider, return all places from that provider
-  if (Object.keys(placesByProvider).length === 1) {
+  // If we only have one data source, no work is needed
+  if (Object.keys(placesBySource).length === 1) {
     return places
   }
 
   // First priority: Add all OSM/OpenAddresses results as base places
-  const finalResults: Place[] = []
+  const deduplicatedPlaces: Place[] = []
   const nameToPlaceMap: Record<
     string,
     { place: Place; nameKey: string; point?: TurfPoint }
@@ -210,19 +189,19 @@ export function deduplicatePlacesResults(places: Place[]): Place[] {
 
   // Add OSM and OpenAddresses results first
   const osmOpenAddressesResults = [
-    ...(placesByProvider[SOURCE.OSM] || []),
-    ...(placesByProvider[SOURCE.OPENADDRESSES] || []),
+    ...(placesBySource[SOURCE.OSM] || []),
+    ...(placesBySource[SOURCE.OPENADDRESSES] || []),
   ]
 
   osmOpenAddressesResults.forEach((place) => {
     const nameKey = normalizeName(place.name.value)
     const point = createTurfPoint(place)
-    finalResults.push(place)
+    deduplicatedPlaces.push(place)
     nameToPlaceMap[place.id] = { place, nameKey, point }
   })
 
   // Process other providers
-  Object.entries(placesByProvider).forEach(([providerId, providerPlaces]) => {
+  Object.entries(placesBySource).forEach(([providerId, providerPlaces]) => {
     // Skip OSM/OpenAddresses as we already processed them
     if (providerId === SOURCE.OSM || providerId === SOURCE.OPENADDRESSES) return
 
@@ -276,7 +255,7 @@ export function deduplicatePlacesResults(places: Place[]): Place[] {
 
       // If no match found, add as a new place
       if (!matchFound) {
-        finalResults.push(place)
+        deduplicatedPlaces.push(place)
         nameToPlaceMap[place.id] = {
           place,
           nameKey: normalizedName,
@@ -286,7 +265,7 @@ export function deduplicatePlacesResults(places: Place[]): Place[] {
     })
   })
 
-  return finalResults
+  return deduplicatedPlaces
 }
 
 /**
@@ -499,16 +478,6 @@ function getPlaceSourcePriority(place: Place): number {
   return Math.max(
     ...place.sources.map((source) => getSourcePriority(source.id)),
   )
-}
-
-/**
- * Determines if the source of place2 has higher priority than place1
- */
-function hasHigherPriority(place1: Place, place2: Place): boolean {
-  const priority1 = getPlaceSourcePriority(place1)
-  const priority2 = getPlaceSourcePriority(place2)
-
-  return priority2 > priority1
 }
 
 /**

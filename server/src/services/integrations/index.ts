@@ -4,7 +4,6 @@ import { IntegrationManagerService } from './integration-manager.service'
 export const integrationManager = new IntegrationManagerService()
 
 // Re-export types and interfaces
-export * from './integration.interface'
-export * from './base-integration'
-export * from './integration-registry'
 export * from './integration-manager.service'
+export * from './integration-registry'
+export * from '../../types/integration.types'

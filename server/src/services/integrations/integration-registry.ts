@@ -2,7 +2,7 @@ import {
   IntegrationId,
   IntegrationCapabilityId,
 } from '../../types/integration.types'
-import { Integration } from './integration.interface'
+import { Integration } from '../../types/integration.types'
 import { GoogleMapsIntegration } from './google-maps-integration'
 import { PeliasIntegration } from './pelias-integration'
 import { NominatimIntegration } from './nominatim-integration'

@@ -89,99 +89,70 @@ export class GoogleAdapter {
    * Transforms Google Places API data to our unified place format
    */
   adaptPlace(data: GooglePlaceDetails, id?: string): Place {
-    try {
-      // Create a base unified place
-      const unifiedPlace: Place = {
-        id: id || `${SOURCE.GOOGLE}/${data.place_id}`,
-        externalIds: { [SOURCE.GOOGLE]: data.place_id },
-        name: data.name || 'Unnamed Place',
-        placeType: data.types?.[0] || 'unknown',
-        geometry: {
+    return {
+      id: id || `${SOURCE.GOOGLE}/${data.place_id}`,
+      externalIds: { [SOURCE.GOOGLE]: data.place_id },
+      name: {
+        value: data.name || 'Unnamed Place',
+        sourceId: SOURCE.GOOGLE,
+      },
+      placeType: {
+        value: data.types?.[0] || 'unknown',
+        sourceId: SOURCE.GOOGLE,
+      },
+      geometry: {
+        value: {
           type: 'point',
           center: {
             lat: data.geometry?.location?.lat || 0,
             lng: data.geometry?.location?.lng || 0,
           },
         },
-        photos: this.extractPhotos(data),
-        address: this.extractAddress(data),
-        contactInfo: {
-          phone: data.formatted_phone_number
-            ? {
-                value: data.formatted_phone_number,
-                sourceId: SOURCE.GOOGLE,
-              }
-            : null,
-          email: null,
-          website: data.website
-            ? {
-                value: data.website,
-                sourceId: SOURCE.GOOGLE,
-              }
-            : null,
-          socials: {},
-        },
-        openingHours: this.extractOpeningHours(data)
-          ? this.extractOpeningHours(data)?.value || null
+        sourceId: SOURCE.GOOGLE,
+      },
+      photos: this.extractPhotos(data),
+      address: this.extractAddress(data),
+      contactInfo: {
+        phone: data.formatted_phone_number
+          ? {
+              value: data.formatted_phone_number,
+              sourceId: SOURCE.GOOGLE,
+            }
           : null,
-        amenities: this.extractAmenities(data),
-        ratings: this.extractRatings(data),
-        description: this.extractDescription(data)?.value,
-        sources: [
-          {
-            id: SOURCE.GOOGLE,
-            name: 'Google',
-            url: data.google_maps_uri || '',
-          },
-        ],
-        lastUpdated: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-      }
-
-      return unifiedPlace
-    } catch (error) {
-      console.error('Error adapting Google place data:', error)
-
-      // Return minimal valid place data
-      return {
-        id: id || `${SOURCE.GOOGLE}/${data.place_id || 'unknown'}`,
-        externalIds: { [SOURCE.GOOGLE]: data.place_id || 'unknown' },
-        name: data.name || 'Unnamed Place',
-        placeType: 'unknown',
-        geometry: {
-          type: 'point',
-          center: { lat: 0, lng: 0 },
+        email: null,
+        website: data.website
+          ? {
+              value: data.website,
+              sourceId: SOURCE.GOOGLE,
+            }
+          : null,
+        socials: {},
+      },
+      openingHours: this.extractOpeningHours(data),
+      amenities: this.extractAmenities(data),
+      ratings: this.extractRatings(data),
+      description: this.extractDescription(data) || null,
+      sources: [
+        {
+          id: SOURCE.GOOGLE,
+          name: 'Google',
+          url: data.google_maps_uri || '',
         },
-        photos: [],
-        address: null,
-        contactInfo: {
-          phone: null,
-          email: null,
-          website: null,
-          socials: {},
-        },
-        openingHours: null,
-        amenities: {},
-        sources: [
-          {
-            id: SOURCE.GOOGLE,
-            name: 'Google',
-            url: '',
-          },
-        ],
-        lastUpdated: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-      }
+      ],
+      lastUpdated: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
     }
   }
 
   /**
    * Extract photos from Google place data
    */
-  private extractPhotos(data: GooglePlaceDetails): PlacePhoto[] {
+  private extractPhotos(
+    data: GooglePlaceDetails,
+  ): AttributedValue<PlacePhoto>[] {
     if (!data.photos?.length) return []
 
-    const photos: PlacePhoto[] = []
+    const photos: AttributedValue<PlacePhoto>[] = []
 
     try {
       data.photos.forEach((p, index) => {
@@ -193,11 +164,14 @@ export class GoogleAdapter {
 
         const url = `${GOOGLE_MAPS_PHOTO_URL}?maxwidth=800&photo_reference=${photoId}&key=${process.env.GOOGLE_MAPS_API_KEY}`
         photos.push({
-          url,
+          value: {
+            url,
+            sourceId: SOURCE.GOOGLE,
+            isPrimary: index === 0, // Only mark the first photo as primary
+            width: p.width,
+            height: p.height,
+          },
           sourceId: SOURCE.GOOGLE,
-          isPrimary: index === 0, // Only mark the first photo as primary
-          width: p.width,
-          height: p.height,
         })
       })
     } catch (error) {
@@ -210,38 +184,16 @@ export class GoogleAdapter {
   /**
    * Extract address from Google place data
    */
-  private extractAddress(data: GooglePlaceDetails): Address | null {
+  private extractAddress(
+    data: GooglePlaceDetails,
+  ): AttributedValue<Address> | null {
     if (!data.formatted_address) return null
 
     return {
-      formatted: data.formatted_address,
-    }
-  }
-
-  /**
-   * Extract contact info from Google place data
-   */
-  private extractContactInfo(data: GooglePlaceDetails): {
-    phone: AttributedValue<string> | null
-    email: AttributedValue<string> | null
-    website: AttributedValue<string> | null
-    socials: Record<string, AttributedValue<string>>
-  } {
-    return {
-      phone: data.formatted_phone_number
-        ? {
-            value: data.formatted_phone_number,
-            sourceId: SOURCE.GOOGLE,
-          }
-        : null,
-      email: null, // Google doesn't provide email
-      website: data.website
-        ? {
-            value: data.website,
-            sourceId: SOURCE.GOOGLE,
-          }
-        : null,
-      socials: {}, // Google doesn't provide social media links
+      value: {
+        formatted: data.formatted_address,
+      },
+      sourceId: SOURCE.GOOGLE,
     }
   }
 
@@ -368,6 +320,7 @@ export class GoogleAdapter {
     }
   }
 
+  // TODO: Remove this and user regular adapter function
   /**
    * Transform autocomplete predictions to a standard format
    */

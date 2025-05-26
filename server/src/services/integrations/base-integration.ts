@@ -1,12 +1,10 @@
 import {
-  IntegrationCapabilityId,
-  IntegrationId,
-} from '../../types/integration.types'
-import {
   Integration,
   IntegrationConfig,
   IntegrationTestResult,
-} from './integration.interface'
+  IntegrationCapabilityId,
+  IntegrationId,
+} from '../../types/integration.types'
 import type {
   Place,
   PlacePhoto,

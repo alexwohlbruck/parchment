@@ -1,13 +1,12 @@
 import axios from 'axios'
 import {
+  IntegrationDefinition,
+  IntegrationConfig,
+  IntegrationTestResult,
   IntegrationCapabilityId,
   IntegrationId,
 } from '../../types/integration.types'
 import { BaseIntegration } from './base-integration'
-import {
-  IntegrationConfig,
-  IntegrationTestResult,
-} from './integration.interface'
 import { GOOGLE_PLACES_API_URL, SOURCE } from '../../lib/constants'
 import { GoogleAdapter } from './adapters/google-adapter'
 import { Place } from '../../types/place.types'

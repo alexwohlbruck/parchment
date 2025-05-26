@@ -1,16 +1,14 @@
 import {
+  IntegrationDefinition,
+  IntegrationConfig,
+  IntegrationTestResult,
+  CachedIntegration,
+  IntegrationCapabilityId,
   IntegrationId,
   IntegrationCapability,
   IntegrationResponse,
-  IntegrationCapabilityId,
-  CachedIntegration,
 } from '../../types/integration.types'
 import { IntegrationRegistry } from './integration-registry'
-import {
-  Integration as IntegrationInterface,
-  IntegrationConfig,
-  IntegrationTestResult,
-} from './integration.interface'
 import { Source, SOURCE, SOURCE_PRIORITIES } from '../../lib/constants'
 
 /**

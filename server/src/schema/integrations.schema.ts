@@ -11,4 +11,4 @@ export const integrations = pgTable('integrations', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
-export type Integration = typeof integrations.$inferSelect
+export type IntegrationRecord = typeof integrations.$inferSelect

@@ -20,18 +20,18 @@ export type Source = (typeof SOURCE)[keyof typeof SOURCE]
  */
 export const SOURCE_PRIORITIES = {
   // Primary sources
-  [SOURCE.OSM]: 100, // OpenStreetMap
-  [SOURCE.OPENADDRESSES]: 90, // OpenAddresses
+  [SOURCE.OSM]: 100,
+  [SOURCE.OPENADDRESSES]: 90,
 
   // Secondary sources
-  [SOURCE.GOOGLE]: 80, // Google Places
-  [SOURCE.WIKIDATA]: 60, // Wikidata
+  [SOURCE.GOOGLE]: 80,
+  [SOURCE.WIKIDATA]: 60,
 
   // Tertiary sources
-  [SOURCE.YELP]: 50, // Yelp
-  [SOURCE.FOURSQUARE]: 40, // Foursquare
-  [SOURCE.TRIPADVISOR]: 40, // TripAdvisor
-  [SOURCE.OPENTABLE]: 30, // OpenTable
+  [SOURCE.YELP]: 50,
+  [SOURCE.FOURSQUARE]: 40,
+  [SOURCE.TRIPADVISOR]: 40,
+  [SOURCE.OPENTABLE]: 30,
 } as const
 
 // TODO: Remove this

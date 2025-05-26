@@ -57,10 +57,160 @@ export interface PeliasFeature {
  * Adapter for transforming Pelias API data to unified formats
  */
 export class PeliasAdapter {
+  // Capability-specific adapters
+  autocomplete = {
+    adaptFeature: (feature: PeliasFeature, id?: string): Place => {
+      return this.adaptFeature(feature, id)
+    },
+  }
+
+  placeInfo = {
+    adaptFeature: (feature: PeliasFeature, id?: string): Place => {
+      return this.adaptFeature(feature, id)
+    },
+  }
+
+  geocoding = {
+    adaptFeature: (feature: PeliasFeature, id?: string): Place => {
+      return this.adaptFeature(feature, id)
+    },
+  }
+
   /**
-   * Transforms Pelias API data to our unified place format
+   * Extract address from Pelias properties
    */
-  adaptPlace(feature: PeliasFeature, id?: string): Place {
+  private extractAddress(props: PeliasFeature['properties']): Address | null {
+    const address: Address = {}
+
+    if (props.housenumber || props.street) {
+      address.street1 = [props.housenumber, props.street]
+        .filter(Boolean)
+        .join(' ')
+    }
+
+    address.locality = props.locality || undefined
+    address.region = props.region || undefined
+    address.postalCode = props.postalcode || undefined
+    address.country = props.country || undefined
+    address.countryCode = props.country_code || undefined
+    address.neighborhood = props.neighbourhood || undefined
+
+    // Only use the label as formatted address if we don't have street-level data
+    // The label often includes the place name which contaminates the address
+    if (address.street1) {
+      // Build our own formatted address from components to avoid place name contamination
+      const parts = []
+      if (address.street1) parts.push(address.street1)
+      if (address.locality) parts.push(address.locality)
+      if (address.region && address.postalCode) {
+        parts.push(`${address.region} ${address.postalCode}`)
+      } else if (address.region) {
+        parts.push(address.region)
+      } else if (address.postalCode) {
+        parts.push(address.postalCode)
+      }
+      if (address.country) parts.push(address.country)
+
+      address.formatted = parts.join(', ')
+    } else {
+      // Only use label if we have no street data (fallback)
+      address.formatted = props.label || undefined
+    }
+
+    // Return null if no address components found
+    return Object.keys(address).length > 0 ? address : null
+  }
+
+  /**
+   * Extract contact info from OSM data
+   */
+  private extractContactInfo(osmData: Record<string, string>): {
+    phone: AttributedValue<string> | null
+    email: AttributedValue<string> | null
+    website: AttributedValue<string> | null
+    socials: Record<string, AttributedValue<string>>
+  } {
+    const timestamp = new Date().toISOString()
+
+    return {
+      phone: osmData?.phone
+        ? {
+            value: osmData.phone,
+            sourceId: SOURCE.OSM,
+            timestamp,
+          }
+        : null,
+      email: osmData?.email
+        ? {
+            value: osmData.email,
+            sourceId: SOURCE.OSM,
+            timestamp,
+          }
+        : null,
+      website: osmData?.website
+        ? {
+            value: osmData.website,
+            sourceId: SOURCE.OSM,
+            timestamp,
+          }
+        : null,
+      socials: {}, // Pelias doesn't provide social media data
+    }
+  }
+
+  /**
+   * Extract opening hours from OSM data
+   */
+  private extractOpeningHours(
+    osmData: Record<string, string>,
+  ): OpeningHours | null {
+    if (!osmData?.opening_hours) return null
+
+    try {
+      // Use the OSM hours parser
+      return parseOsmHours({
+        opening_hours: osmData.opening_hours,
+      })
+    } catch (error) {
+      console.error('Error processing Pelias opening hours:', error)
+      return null
+    }
+  }
+
+  /**
+   * Extract amenities from Pelias properties and OSM data
+   */
+  private extractAmenities(
+    props: PeliasFeature['properties'],
+    osmData: Record<string, string>,
+  ): Record<string, any> {
+    const amenities: Record<string, any> = {}
+
+    // Add place type as amenity
+    if (props.layer) {
+      amenities[`type:${props.layer}`] = props.layer
+    }
+
+    // Add OSM amenities if available
+    if (osmData) {
+      for (const [key, value] of Object.entries(osmData)) {
+        // Skip undefined values and already processed fields
+        if (
+          value &&
+          !['website', 'phone', 'email', 'opening_hours'].includes(key)
+        ) {
+          amenities[key] = value
+        }
+      }
+    }
+
+    return amenities
+  }
+
+  /**
+   * Core method to transform Pelias API data to unified place format
+   */
+  private adaptFeature(feature: PeliasFeature, id?: string): Place {
     try {
       const props = feature.properties
       const osmId = props.source_id
@@ -219,136 +369,5 @@ export class PeliasAdapter {
         createdAt: new Date().toISOString(),
       }
     }
-  }
-
-  /**
-   * Extract address from Pelias properties
-   */
-  private extractAddress(props: PeliasFeature['properties']): Address | null {
-    const address: Address = {}
-
-    if (props.housenumber || props.street) {
-      address.street1 = [props.housenumber, props.street]
-        .filter(Boolean)
-        .join(' ')
-    }
-
-    address.locality = props.locality || undefined
-    address.region = props.region || undefined
-    address.postalCode = props.postalcode || undefined
-    address.country = props.country || undefined
-    address.countryCode = props.country_code || undefined
-    address.neighborhood = props.neighbourhood || undefined
-
-    // Only use the label as formatted address if we don't have street-level data
-    // The label often includes the place name which contaminates the address
-    if (address.street1) {
-      // Build our own formatted address from components to avoid place name contamination
-      const parts = []
-      if (address.street1) parts.push(address.street1)
-      if (address.locality) parts.push(address.locality)
-      if (address.region && address.postalCode) {
-        parts.push(`${address.region} ${address.postalCode}`)
-      } else if (address.region) {
-        parts.push(address.region)
-      } else if (address.postalCode) {
-        parts.push(address.postalCode)
-      }
-      if (address.country) parts.push(address.country)
-
-      address.formatted = parts.join(', ')
-    } else {
-      // Only use label if we have no street data (fallback)
-      address.formatted = props.label || undefined
-    }
-
-    // Return null if no address components found
-    return Object.keys(address).length > 0 ? address : null
-  }
-
-  /**
-   * Extract contact info from OSM data
-   */
-  private extractContactInfo(osmData: Record<string, string>): {
-    phone: AttributedValue<string> | null
-    email: AttributedValue<string> | null
-    website: AttributedValue<string> | null
-    socials: Record<string, AttributedValue<string>>
-  } {
-    const timestamp = new Date().toISOString()
-
-    return {
-      phone: osmData?.phone
-        ? {
-            value: osmData.phone,
-            sourceId: SOURCE.OSM,
-            timestamp,
-          }
-        : null,
-      email: osmData?.email
-        ? {
-            value: osmData.email,
-            sourceId: SOURCE.OSM,
-            timestamp,
-          }
-        : null,
-      website: osmData?.website
-        ? {
-            value: osmData.website,
-            sourceId: SOURCE.OSM,
-            timestamp,
-          }
-        : null,
-      socials: {}, // Pelias doesn't provide social media data
-    }
-  }
-
-  /**
-   * Extract opening hours from OSM data
-   */
-  private extractOpeningHours(
-    osmData: Record<string, string>,
-  ): OpeningHours | null {
-    if (!osmData?.opening_hours) return null
-
-    try {
-      // Use the OSM hours parser
-      return parseOsmHours({
-        opening_hours: osmData.opening_hours,
-      })
-    } catch (error) {
-      console.error('Error processing Pelias opening hours:', error)
-      return null
-    }
-  }
-
-  /**
-   * Extract amenities from Pelias properties and OSM data
-   */
-  private extractAmenities(
-    props: PeliasFeature['properties'],
-    osmData: Record<string, string>,
-  ): Record<string, any> {
-    const amenities: Record<string, any> = {}
-
-    // Add place type as amenity
-    if (props.layer) {
-      amenities[`type:${props.layer}`] = props.layer
-    }
-
-    // Add OSM amenities if available
-    if (osmData) {
-      for (const [key, value] of Object.entries(osmData)) {
-        // Skip undefined values and already processed fields
-        if (
-          value &&
-          !['website', 'phone', 'email', 'opening_hours'].includes(key)
-        ) {
-          amenities[key] = value
-        }
-      }
-    }
-
-    return amenities
   }
 }

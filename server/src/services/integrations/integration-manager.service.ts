@@ -309,39 +309,6 @@ export class IntegrationManagerService {
   }
 
   /**
-   * Get place details from an integration
-   *
-   * @param integrationId The integration ID to use
-   * @param placeId The place ID to look up
-   * @returns Place details or null if not found
-   */
-  async getPlaceDetails(
-    integrationId: IntegrationId,
-    placeId: string,
-  ): Promise<any | null> {
-    const integration = this.getIntegrationById(integrationId)
-
-    if (!integration) {
-      console.error(`No integration found with ID: ${integrationId}`)
-      return null
-    }
-
-    if (!integration.integration.getPlaceDetails) {
-      console.error(
-        `Integration ${integrationId} does not support getPlaceDetails`,
-      )
-      return null
-    }
-
-    try {
-      return await integration.integration.getPlaceDetails(placeId)
-    } catch (error) {
-      console.error(`Error getting place details from ${integrationId}:`, error)
-      return null
-    }
-  }
-
-  /**
    * Gets the capabilities supported by an integration
    * @param integrationId The integration ID
    * @returns Array of capability IDs supported by the integration

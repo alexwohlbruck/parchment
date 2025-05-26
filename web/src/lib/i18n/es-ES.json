@@ -493,7 +493,7 @@
       "capabilities": {
         "routing": "Rutas",
         "geocoding": "Geocodificación",
-        "place_info": "Información de Lugares",
+        "placeInfo": "Información de Lugares",
         "imagery": "Imágenes",
         "autocomplete": "Autocompletar",
         "title": "Capacidades"

@@ -275,7 +275,7 @@ export class GoogleAdapter {
         const photoId = p.photo_reference.split('/').pop()
         if (!photoId) return
 
-        const url = `${GOOGLE_MAPS_PHOTO_URL}?maxwidth=800&photo_reference=${photoId}&key=${this.apiKey}`
+        const url = `${GOOGLE_MAPS_PHOTO_URL}?maxwidth=200&photo_reference=${photoId}&key=${this.apiKey}`
         photos.push({
           value: {
             url,

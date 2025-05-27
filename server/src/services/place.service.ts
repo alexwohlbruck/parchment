@@ -8,6 +8,7 @@ import { IntegrationCapabilityId } from '../types/integration.types'
 import { User } from '../schema/users.schema'
 import * as fuzz from 'fuzzball'
 
+// TODO: Move this to more relevant file (merge service?)
 /**
  * Add bookmark information to places
  */
@@ -28,95 +29,6 @@ async function addBookmarkInfo(places: Place[], userId: string): Promise<void> {
   } catch (error) {
     console.error('Error adding bookmark information:', error)
   }
-}
-
-export const getPlaceAutocomplete = async (
-  query: string,
-  coordinates?: { lat: number; lng: number },
-  radius: number = 10000,
-): Promise<Place[]> => {
-  // Require at least 2 characters for autocomplete
-  if (!query || query.length < 2) {
-    return []
-  }
-
-  const autocompleteResults = await fetchAutocompleteResults(
-    query,
-    coordinates?.lat,
-    coordinates?.lng,
-    radius,
-  )
-
-  const deduped = mergePlacesCollection(autocompleteResults)
-
-  if (coordinates) {
-    // Create the from point once outside the sort function
-    const fromPoint = turf.point([coordinates.lng, coordinates.lat])
-
-    deduped.sort((a, b) => {
-      // Calculate distances directly in the sort function
-      const distanceA = turf.distance(
-        fromPoint,
-        turf.point([a.geometry.value.center.lng, a.geometry.value.center.lat]),
-        { units: 'meters' },
-      )
-      const distanceB = turf.distance(
-        fromPoint,
-        turf.point([b.geometry.value.center.lng, b.geometry.value.center.lat]),
-        { units: 'meters' },
-      )
-      return distanceA - distanceB
-    })
-  }
-  return deduped
-}
-
-/**
- * Fetch autocomplete suggestions from all configured integrations
- * @param query The search query
- * @param lat Optional latitude for location bias
- * @param lng Optional longitude for location bias
- * @param radius Optional radius in meters for location bias
- * @returns Array of autocomplete results with source information
- */
-async function fetchAutocompleteResults(
-  query: string,
-  lat?: number,
-  lng?: number,
-  radius?: number,
-): Promise<Place[]> {
-  const activeIntegrations = integrationManager.getIntegrationsByCapability(
-    IntegrationCapabilityId.AUTOCOMPLETE,
-  )
-
-  if (activeIntegrations.length === 0) {
-    return []
-  }
-
-  const results = await Promise.all(
-    activeIntegrations.map(async (cachedIntegration) => {
-      try {
-        const places =
-          await cachedIntegration.integration.capabilities.autocomplete?.getAutocomplete(
-            query,
-            lat,
-            lng,
-            radius,
-          )
-
-        return places
-      } catch (error) {
-        console.error(
-          `Error getting autocomplete from ${cachedIntegration.integration.integrationId}:`,
-          error,
-        )
-        return []
-      }
-    }),
-  )
-
-  const flatResults = results.flat()
-  return flatResults.filter((result): result is Place => result !== null)
 }
 
 /**
@@ -174,8 +86,7 @@ export async function lookupPlacesByNameAndLocation(
       autocomplete = false,
     } = options || {}
 
-    // Get integrations that support geocoding (for searching places by name/location)
-    const geocodingIntegrations = integrationManager
+    const integrations = integrationManager
       .getIntegrationsByCapability(
         autocomplete
           ? IntegrationCapabilityId.AUTOCOMPLETE
@@ -188,11 +99,12 @@ export async function lookupPlacesByNameAndLocation(
         )
       })
 
-    if (geocodingIntegrations.length === 0) {
+    if (integrations.length === 0) {
+      // TODO: Return useful error to client
       return []
     }
 
-    const searchPromises = geocodingIntegrations.map(async (integration) => {
+    const searchPromises = integrations.map(async (integration) => {
       if (autocomplete) {
         return integration.integration.capabilities.autocomplete?.getAutocomplete(
           name,
@@ -211,29 +123,24 @@ export async function lookupPlacesByNameAndLocation(
       }
     })
 
-    return (await Promise.all(searchPromises))
+    const results = (await Promise.all(searchPromises))
       .flat()
-      .filter((result): result is Place => result !== null)
-      .sort((a, b) => {
-        // Sort by distance from coordinates
-        const distanceA = turf.distance(
-          turf.point([coordinates.lng, coordinates.lat]),
-          turf.point([
-            a.geometry.value.center.lng,
-            a.geometry.value.center.lat,
-          ]),
-          { units: 'meters' },
-        )
-        const distanceB = turf.distance(
-          turf.point([coordinates.lng, coordinates.lat]),
-          turf.point([
-            b.geometry.value.center.lng,
-            b.geometry.value.center.lat,
-          ]),
-          { units: 'meters' },
-        )
-        return distanceA - distanceB
-      })
+      .filter((result): result is Place => result !== null) // TODO: Shouldn't need this
+
+    return mergePlacesCollection(results).sort((a, b) => {
+      // Sort by distance from coordinates
+      const distanceA = turf.distance(
+        turf.point([coordinates.lng, coordinates.lat]),
+        turf.point([a.geometry.value.center.lng, a.geometry.value.center.lat]),
+        { units: 'meters' },
+      )
+      const distanceB = turf.distance(
+        turf.point([coordinates.lng, coordinates.lat]),
+        turf.point([b.geometry.value.center.lng, b.geometry.value.center.lat]),
+        { units: 'meters' },
+      )
+      return distanceA - distanceB
+    })
   } catch (error) {
     console.error('Error looking up places by name and coordinates:', error)
     return []
@@ -278,14 +185,12 @@ export async function lookupPlaceByNameAndLocation(
       return null
     }
 
-    const dedupedPlaces = mergePlacesCollection(places)
-
-    if (userId && dedupedPlaces.length > 0) {
+    if (userId && places.length > 0) {
       // TODO: Where else do we need to add bookmark info?
-      await addBookmarkInfo(dedupedPlaces, userId)
+      await addBookmarkInfo(places, userId)
     }
 
-    return dedupedPlaces[0] || null
+    return places[0] || null
   } catch (error) {
     console.error('Error getting place by name and coordinates:', error)
     return null

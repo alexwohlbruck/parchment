@@ -2,7 +2,6 @@ import { Elysia, t, error } from 'elysia'
 import { getSession, requireAuth } from '../middleware/auth.middleware.js'
 import {
   lookupPlaceByNameAndLocation,
-  getPlaceAutocomplete,
   lookupEnrichedPlaceById,
   lookupPlacesByNameAndLocation,
 } from '../services/place.service'

@@ -95,20 +95,9 @@ export function getAddressString(place: Place): string | null {
   return null
 }
 
-export function createTurfPoint(place: Place): Feature<Point> | null {
-  const { lat, lng } = place.geometry.value.center || {}
-  if (!lat || !lng || (lat === 0 && lng === 0)) return null
+export function createTurfPoint(place: Place): Feature<Point> {
+  const { lat, lng } = place.geometry.value.center
   return turf.point([lng, lat])
-}
-
-export function arePointsClose(
-  point1: Feature<Point> | null,
-  point2: Feature<Point> | null,
-  maxDistanceMeters: number = 100,
-): boolean {
-  if (!point1 || !point2) return false
-  const distanceMeters = turf.distance(point1, point2) * 1000
-  return distanceMeters < maxDistanceMeters
 }
 
 /**
@@ -199,29 +188,52 @@ function mergeAttributedRecord<T>(
 }
 
 /**
- * Determines if two places should be merged based on name similarity and location
+ * Determines if two places should be merged based on name similarity, address matching, and location
+ * Uses a continuous inverse square function for distance weighting
  */
 function shouldMergePlaces(place1: Place, place2: Place): boolean {
   const nameSimilarity = calculateTextSimilarity(
     place1.name.value,
     place2.name.value,
   )
+
   const point1 = createTurfPoint(place1)
   const point2 = createTurfPoint(place2)
+  const distanceMeters = turf.distance(point1, point2, { units: 'meters' })
 
-  // High name similarity + close proximity
-  if (nameSimilarity > 0.85 && arePointsClose(point1, point2, 150)) return true
+  // Distance weight using inverse square function
+  const distanceWeight = 1 / (1 + Math.pow(distanceMeters / 100, 2))
 
-  // Very close places with decent name similarity
-  if (nameSimilarity > 0.8 && arePointsClose(point1, point2, 50)) return true
+  // Early rejection based on distance-weighted name similarity
+  const minNameSimilarity = 0.2 + 0.4 * distanceWeight // Range: 0.2 to 0.6
+  if (nameSimilarity < minNameSimilarity) return false
 
-  // Extremely close places with basic name similarity
-  if (nameSimilarity > 0.7 && arePointsClose(point1, point2, 10)) return true
+  // Weighted name similarity and threshold
+  const nameThreshold = 0.5 + 0.3 * (1 - distanceWeight)
+  const weightedNameSimilarity = nameSimilarity * (1 + distanceWeight)
 
-  // Address-based matching for same names
-  if (nameSimilarity > 0.7 && doAddressesMatch(place1, place2)) return true
+  // Address matching
+  // TODO: We should rework this to use the raw address data over formatted strings. Not doing this yet because not all sources provide raw address data
+  const address1 = getAddressString(place1)
+  const address2 = getAddressString(place2)
+  const hasAddresses = address1 && address2
 
-  return false
+  if (hasAddresses) {
+    const addressMatch = doAddressesMatch(place1, place2)
+    // Reject if addresses are known and different, weighted by distance
+    if (!addressMatch && distanceWeight > 0.5) return false
+
+    // Calculate final score with address bonus
+    const mergeScore =
+      weightedNameSimilarity * 0.6 +
+      distanceWeight * 0.3 +
+      (addressMatch ? 0.2 : 0)
+    return mergeScore > 0.8
+  }
+
+  // Score without address consideration
+  const mergeScore = weightedNameSimilarity * 0.7 + distanceWeight * 0.3
+  return mergeScore > 0.8
 }
 
 /**

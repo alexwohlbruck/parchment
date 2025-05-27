@@ -150,6 +150,7 @@ async function deleteIntegration(integration: UiIntegration) {
 <template>
   <div class="flex flex-col gap-4">
     <div v-if="isLoading" class="flex justify-center items-center py-10">
+      <!-- TODO: Replace with lucide icon loader -->
       <div
         class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"
       ></div>

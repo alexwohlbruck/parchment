@@ -1,6 +1,6 @@
 import axios from 'axios'
 import {
-  IntegrationConfig,
+  NominatimConfig,
   IntegrationTestResult,
   IntegrationCapabilityId,
   IntegrationId,
@@ -11,7 +11,7 @@ import { SOURCE } from '../../lib/constants'
 /**
  * Nominatim integration
  */
-export class NominatimIntegration implements Integration {
+export class NominatimIntegration implements Integration<NominatimConfig> {
   private initialized = false
 
   readonly integrationId = IntegrationId.NOMINATIM
@@ -48,10 +48,7 @@ export class NominatimIntegration implements Integration {
   }
   readonly sources = [SOURCE.OSM]
 
-  protected config: {
-    host: string
-    email?: string
-  } = {
+  protected config: NominatimConfig = {
     host: 'https://nominatim.openstreetmap.org',
   }
 
@@ -59,7 +56,7 @@ export class NominatimIntegration implements Integration {
    * Initialize the integration with configuration
    * @param config Configuration for the integration
    */
-  initialize(config: IntegrationConfig): void {
+  initialize(config: NominatimConfig): void {
     if (!this.validateConfig(config)) {
       throw new Error('Invalid configuration: Host is required')
     }
@@ -90,7 +87,7 @@ export class NominatimIntegration implements Integration {
    * @returns A test result indicating success or failure
    */
   async testConnection(
-    config: IntegrationConfig,
+    config: NominatimConfig,
   ): Promise<IntegrationTestResult> {
     if (!this.validateConfig(config)) {
       return {
@@ -128,7 +125,7 @@ export class NominatimIntegration implements Integration {
    * @param config The configuration to validate
    * @returns True if the configuration is valid, false otherwise
    */
-  validateConfig(config: IntegrationConfig): boolean {
+  validateConfig(config: NominatimConfig): boolean {
     return Boolean(config && config.host)
   }
 
@@ -137,7 +134,7 @@ export class NominatimIntegration implements Integration {
    * @param config The configuration to use
    * @returns The complete API URL
    */
-  private buildApiUrl(config: IntegrationConfig = this.config): string {
+  private buildApiUrl(config: NominatimConfig = this.config): string {
     const host = config.host.endsWith('/')
       ? config.host.slice(0, -1)
       : config.host

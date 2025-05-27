@@ -295,11 +295,12 @@ export class IntegrationManagerService {
   getIntegrationCapabilities(
     integrationId: IntegrationId,
   ): IntegrationCapabilityId[] {
-    const integration = this.getIntegrationById(integrationId)
+    const integration = this.registry.getIntegration(integrationId)
     if (!integration) {
+      console.warn(`Integration with ID ${integrationId} not found`)
       return []
     }
-    return integration.capabilities.map((cap) => cap.id)
+    return integration.capabilityIds
   }
 
   private cloneIntegration(integration: Integration): Integration {

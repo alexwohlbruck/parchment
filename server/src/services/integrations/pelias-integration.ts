@@ -1,7 +1,7 @@
 import axios from 'axios'
 import {
   IntegrationDefinition,
-  IntegrationConfig,
+  PeliasConfig,
   IntegrationTestResult,
   IntegrationCapabilityId,
   IntegrationId,
@@ -16,9 +16,9 @@ import { PeliasAdapter, PeliasFeature } from './adapters/pelias-adapter'
 /**
  * Pelias integration
  */
-export class PeliasIntegration implements Integration {
+export class PeliasIntegration implements Integration<PeliasConfig> {
   private initialized = false
-  protected config: IntegrationConfig = {}
+  protected config: PeliasConfig = { host: '' }
 
   readonly integrationId = IntegrationId.PELIAS
   readonly capabilityIds = [
@@ -57,7 +57,7 @@ export class PeliasIntegration implements Integration {
    * Initialize the integration with configuration
    * @param config Configuration for the integration
    */
-  initialize(config: IntegrationConfig): void {
+  initialize(config: PeliasConfig): void {
     if (!this.validateConfig(config)) {
       throw new Error('Invalid configuration: Host is required')
     }
@@ -83,9 +83,7 @@ export class PeliasIntegration implements Integration {
    * @param config The configuration to test
    * @returns A test result indicating success or failure
    */
-  async testConnection(
-    config: IntegrationConfig,
-  ): Promise<IntegrationTestResult> {
+  async testConnection(config: PeliasConfig): Promise<IntegrationTestResult> {
     if (!this.validateConfig(config)) {
       return {
         success: false,
@@ -125,7 +123,7 @@ export class PeliasIntegration implements Integration {
    * @param config The configuration to validate
    * @returns True if the configuration is valid, false otherwise
    */
-  validateConfig(config: IntegrationConfig): boolean {
+  validateConfig(config: PeliasConfig): boolean {
     const isValid = !!(config.host && typeof config.host === 'string')
     return isValid
   }
@@ -135,7 +133,7 @@ export class PeliasIntegration implements Integration {
    * @param config The configuration to use
    * @returns The complete API URL
    */
-  private buildApiUrl(config: IntegrationConfig = this.config): string {
+  private buildApiUrl(config: PeliasConfig = this.config): string {
     const host = config.host.endsWith('/')
       ? config.host.slice(0, -1)
       : config.host

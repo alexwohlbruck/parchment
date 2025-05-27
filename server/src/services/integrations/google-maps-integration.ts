@@ -5,6 +5,7 @@ import type {
   GeocodingCapability,
   IntegrationConfig,
   IntegrationTestResult,
+  SearchCapability,
 } from '../../types/integration.types'
 import {
   IntegrationCapabilityId,
@@ -27,11 +28,16 @@ export class GoogleMapsIntegration implements Integration {
   // TODO: capabilityIds and capabilities are redundant, we should find a way to automatically generate the capability list
   readonly sources = [SOURCE.GOOGLE]
   readonly capabilityIds: IntegrationCapabilityId[] = [
+    IntegrationCapabilityId.SEARCH,
     IntegrationCapabilityId.AUTOCOMPLETE,
     IntegrationCapabilityId.PLACE_INFO,
     IntegrationCapabilityId.GEOCODING,
   ]
   readonly capabilities = {
+    search: {
+      searchPlaces: this.searchPlaces.bind(this),
+    } as SearchCapability,
+
     autocomplete: {
       getAutocomplete: this.getAutocomplete.bind(this),
     } as AutocompleteCapability,
@@ -118,15 +124,15 @@ export class GoogleMapsIntegration implements Integration {
     query: string,
     lat?: number,
     lng?: number,
-    radius?: number,
+    options?: {
+      radius?: number
+      limit?: number
+    },
   ): Promise<Place[]> {
     if (!this.config.apiKey || !lat || !lng) {
       return []
     }
-
-    if (!radius) {
-      radius = 50000 // Default 50km radius
-    }
+    const { radius = 50000 } = options || {}
 
     try {
       const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
@@ -349,6 +355,96 @@ export class GoogleMapsIntegration implements Integration {
       )
     } catch (error) {
       console.error('Google reverse geocoding error:', error)
+      return []
+    }
+  }
+
+  /**
+   * Search for places using Google Places API Text Search
+   * @param query Search query string
+   * @param lat Optional latitude for location bias
+   * @param lng Optional longitude for location bias
+   * @param options Optional search options
+   * @returns Array of place results
+   */
+  private async searchPlaces(
+    query: string,
+    lat?: number,
+    lng?: number,
+    options?: {
+      radius?: number
+      limit?: number
+    },
+  ): Promise<Place[]> {
+    if (!this.config.apiKey) {
+      console.error('Google Maps API key not configured')
+      return []
+    }
+
+    try {
+      console.log(`Searching Google Places for: "${query}"`)
+
+      const url = new URL(`${this.baseUrl}/place/textsearch/json`)
+      url.searchParams.set('query', query)
+      url.searchParams.set('key', this.config.apiKey)
+
+      // Add location bias if coordinates are provided
+      if (lat && lng) {
+        const radius = options?.radius || 50000 // Default 50km radius
+        url.searchParams.set('location', `${lat},${lng}`)
+        url.searchParams.set('radius', radius.toString())
+      }
+
+      // Set page size limit if provided
+      if (options?.limit) {
+        // Google Places API doesn't have a direct limit parameter, but we can control this in post-processing
+        // The API returns up to 20 results per request by default
+      }
+
+      console.log(
+        'Google Places Text Search URL:',
+        url.toString().replace(this.config.apiKey, '[API_KEY]'),
+      )
+
+      const response = await fetch(url.toString())
+      if (!response.ok) {
+        console.error(
+          `Google Places Text Search HTTP error: ${response.status}`,
+        )
+        throw new Error(`Google API error: ${response.status}`)
+      }
+
+      const data = await response.json()
+      console.log('Google Places Text Search API response status:', data.status)
+
+      if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+        console.error('Google Places Text Search API error:', data.status)
+        if (data.error_message) {
+          console.error('Error message:', data.error_message)
+        }
+        return []
+      }
+
+      if (!data.results || data.results.length === 0) {
+        console.log('No places found for query:', query)
+        return []
+      }
+
+      console.log(`Found ${data.results.length} places for query: "${query}"`)
+
+      // Convert results to Place objects using the adapter
+      let places = data.results.map((result: any) =>
+        this.adapter.placeInfo.adaptPlaceDetails(result),
+      )
+
+      // Apply limit if specified
+      if (options?.limit && places.length > options.limit) {
+        places = places.slice(0, options.limit)
+      }
+
+      return places
+    } catch (error) {
+      console.error('Google Places Text Search error:', error)
       return []
     }
   }

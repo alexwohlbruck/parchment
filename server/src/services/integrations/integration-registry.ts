@@ -1,7 +1,4 @@
-import {
-  IntegrationId,
-  IntegrationCapabilityId,
-} from '../../types/integration.types'
+import { IntegrationId } from '../../types/integration.types'
 import { Integration } from '../../types/integration.types'
 import { GoogleMapsIntegration } from './google-maps-integration'
 import { PeliasIntegration } from './pelias-integration'
@@ -43,26 +40,5 @@ export class IntegrationRegistry {
    */
   getIntegration(integrationId: IntegrationId): Integration | undefined {
     return this.integrations.get(integrationId)
-  }
-
-  /**
-   * Get all registered integrations
-   * @returns Array of all registered integrations
-   */
-  getAllIntegrations(): Integration[] {
-    return Array.from(this.integrations.values())
-  }
-
-  /**
-   * Get all integrations that support a specific capability
-   * @param capability The capability to filter by
-   * @returns Array of integrations that support the capability
-   */
-  getIntegrationsByCapability(
-    capability: IntegrationCapabilityId,
-  ): Integration[] {
-    return this.getAllIntegrations().filter((integration) =>
-      integration.capabilities.includes(capability),
-    )
   }
 }

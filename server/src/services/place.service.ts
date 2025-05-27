@@ -110,16 +110,15 @@ export async function lookupPlacesByNameAndLocation(
           name,
           coordinates.lat,
           coordinates.lng,
-          radius,
+          { radius },
         )
       } else {
-        // TODO: Full search
-        // return integration.integration.capabilities.search?.searchPlaces(
-        //   name,
-        //   coordinates.lat,
-        //   coordinates.lng,
-        //   radius,
-        // )
+        return integration.integration.capabilities.search?.searchPlaces(
+          name,
+          coordinates.lat,
+          coordinates.lng,
+          { radius },
+        )
       }
     })
 
@@ -210,17 +209,15 @@ export async function lookupEnrichedPlaceById(
   id: string,
   options?: {
     userId?: User['id']
-    autocomplete?: boolean
   },
 ): Promise<Place | null> {
   try {
-    const { userId, autocomplete = false } = options || {}
+    const { userId } = options || {}
 
-    // First, get the place from the primary source
     let place = await lookupPlaceById(source, id)
     if (!place) return null
 
-    // If place has name and location, try to find it in other sources
+    // If place has name and location, look it up from other sources and merge in
     if (place.name && place.geometry.value.center) {
       const { lat, lng } = place.geometry.value.center
 
@@ -230,11 +227,9 @@ export async function lookupEnrichedPlaceById(
         {
           radius: 500,
           sourceBlacklist: [source], // Exclude the original source
-          autocomplete,
         },
       )
 
-      // Merge the place data from other providers with the primary source
       if (thirdPartyPlace) {
         place = mergePlaces(place, thirdPartyPlace)
       }

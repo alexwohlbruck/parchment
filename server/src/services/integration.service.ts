@@ -229,6 +229,8 @@ function cleanConfig(config: Record<string, any>): Record<string, any> {
 export async function getConfiguredIntegrations(
   userId: string | null,
 ): Promise<IntegrationResponse[]> {
+  // TODO: When initializing system integrations, we need to check for any capabilities that have been added or removed during development. If an existing integration gains a capability in an update, it will not reflect in the db, we need to run migration.
+
   let userIntegrations
 
   if (userId === null) {

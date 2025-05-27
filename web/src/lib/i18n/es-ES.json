@@ -491,11 +491,12 @@
         "available": "disponible"
       },
       "capabilities": {
+        "search": "Buscar",
+        "autocomplete": "Autocompletar",
         "routing": "Rutas",
         "geocoding": "Geocodificación",
         "placeInfo": "Información de Lugares",
         "imagery": "Imágenes",
-        "autocomplete": "Autocompletar",
         "title": "Capacidades"
       },
       "descriptions": {

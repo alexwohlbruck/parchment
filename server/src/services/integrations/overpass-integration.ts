@@ -1,72 +1,46 @@
 import axios from 'axios'
-import {
+import type {
+  Integration,
+  PlaceInfoCapability,
   IntegrationConfig,
   IntegrationTestResult,
+  SearchCapability,
+} from '../../types/integration.types'
+import {
   IntegrationCapabilityId,
   IntegrationId,
-  Integration,
 } from '../../types/integration.types'
-import { Place } from '../../types/place.types'
-import { SOURCE } from '../../lib/constants'
+import type { Place } from '../../types/place.types'
 import { OverpassAdapter } from './adapters/overpass-adapter'
+import { SOURCE } from '../../lib/constants'
+
+// TODO: Remove overpass integration
+// TODO: Overpass is designed for OSM editors to edit the map, not for backend search
 
 /**
  * Overpass API integration for OpenStreetMap data
  */
 export class OverpassIntegration implements Integration {
   private adapter = new OverpassAdapter()
-  private initialized = false
+  private config: IntegrationConfig = {}
 
-  // TODO: Create shared types for each integration config
-  protected config: {
-    host: string
-  } = {
-    host: 'https://overpass-api.de/api/interpreter',
-    // host: 'https://overpass.kumi.systems/api/interpreter', // Alternative host
-  }
-
+  // Integration metadata
   readonly integrationId = IntegrationId.OVERPASS
   readonly sources = [SOURCE.OSM]
-  readonly capabilityIds = [IntegrationCapabilityId.PLACE_INFO]
+  readonly capabilityIds: IntegrationCapabilityId[] = [
+    IntegrationCapabilityId.SEARCH,
+    IntegrationCapabilityId.PLACE_INFO,
+  ]
   readonly capabilities = {
+    search: {
+      searchPlaces: this.searchPlaces.bind(this),
+    } as SearchCapability,
     placeInfo: {
-      getPlaceInfo: this.getPlaceDetails.bind(this),
-    },
+      getPlaceInfo: this.getPlaceInfo.bind(this),
+    } as PlaceInfoCapability,
   }
 
-  /**
-   * Initialize the integration with configuration
-   * @param config Configuration for the integration
-   */
-  initialize(config: IntegrationConfig): void {
-    if (!this.validateConfig(config)) {
-      throw new Error('Invalid configuration: Host is required')
-    }
-
-    this.config = {
-      host: config.host,
-    }
-
-    this.initialized = true
-  }
-
-  /**
-   * Ensures the integration has been initialized before performing operations
-   * @throws Error if the integration has not been initialized
-   */
-  private ensureInitialized(): void {
-    if (!this.initialized) {
-      throw new Error(
-        `Integration ${this.integrationId} has not been initialized. Call initialize() first.`,
-      )
-    }
-  }
-
-  /**
-   * Tests the connection with the given configuration
-   * @param config The configuration to test
-   * @returns A test result indicating success or failure
-   */
+  // Integration interface methods
   async testConnection(
     config: IntegrationConfig,
   ): Promise<IntegrationTestResult> {
@@ -110,13 +84,67 @@ export class OverpassIntegration implements Integration {
     }
   }
 
-  /**
-   * Validates that the configuration has all required fields
-   * @param config The configuration to validate
-   * @returns True if the configuration is valid, false otherwise
-   */
+  initialize(config: IntegrationConfig): void {
+    console.log(
+      'Overpass Integration - initialize called with config:',
+      JSON.stringify(config, null, 2),
+    )
+    this.config = config
+  }
+
   validateConfig(config: IntegrationConfig): boolean {
     return Boolean(config && config.host)
+  }
+
+  /**
+   * Get place details by OSM ID
+   * @param id The OSM ID in format type/id (e.g., node/123456)
+   * @returns Place details or null if not found
+   */
+  private async getPlaceInfo(id: string): Promise<Place | null> {
+    if (!this.config.host) {
+      console.error('Overpass integration not properly configured')
+      return null
+    }
+
+    try {
+      console.log(`Getting place details from Overpass for ID: ${id}`)
+
+      // Remove provider prefix if present
+      if (id.startsWith('osm/')) {
+        id = id.substring(id.indexOf('/') + 1)
+      }
+
+      const query = this.buildPlaceQuery(id)
+
+      const response = await axios.post(
+        this.config.host,
+        new URLSearchParams({ data: query }),
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        },
+      )
+
+      if (!response.data.elements || response.data.elements.length === 0) {
+        console.error('No place found with ID:', id)
+        return null
+      }
+
+      // The first element should be our place
+      const place = response.data.elements[0]
+      const center = this.calculatePlaceCenter(place)
+      if (center) {
+        place.center = center
+      }
+
+      // Use the adapter to convert to standardized Place format
+      return this.adapter.placeInfo.adaptPlaceDetails(place)
+    } catch (error) {
+      console.error('Error fetching place from Overpass:', error)
+      return null
+    }
   }
 
   /**
@@ -223,54 +251,6 @@ export class OverpassIntegration implements Integration {
   }
 
   /**
-   * Get place details by OSM ID
-   * @param id The OSM ID in format type/id (e.g., node/123456)
-   * @returns Place details or null if not found
-   */
-  async getPlaceDetails(id: string): Promise<Place | null> {
-    this.ensureInitialized()
-
-    try {
-      console.log(`Getting place details from Overpass for ID: ${id}`)
-
-      // Remove provider prefix if present
-      if (id.startsWith('osm/')) {
-        id = id.substring(id.indexOf('/') + 1)
-      }
-
-      const query = this.buildPlaceQuery(id)
-
-      const response = await axios.post(
-        this.config.host,
-        new URLSearchParams({ data: query }),
-        {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-        },
-      )
-
-      if (!response.data.elements || response.data.elements.length === 0) {
-        console.error('No place found with ID:', id)
-        return null
-      }
-
-      // The first element should be our place
-      const place = response.data.elements[0]
-      const center = this.calculatePlaceCenter(place)
-      if (center) {
-        place.center = center
-      }
-
-      // Use the adapter to convert to standardized Place format
-      return this.adapter.placeInfo.adaptPlaceDetails(place)
-    } catch (error) {
-      console.error('Error fetching place from Overpass:', error)
-      return null
-    }
-  }
-
-  /**
    * Search for places matching a query
    * @param query The search query
    * @param lat Optional latitude for location bias
@@ -284,7 +264,10 @@ export class OverpassIntegration implements Integration {
     lng?: number,
     radius?: number,
   ): Promise<any[]> {
-    this.ensureInitialized()
+    if (!this.config.host) {
+      console.error('Overpass integration not properly configured')
+      return []
+    }
 
     try {
       console.log(`Searching Overpass for "${query}"`)

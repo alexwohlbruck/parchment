@@ -204,13 +204,18 @@ export class PeliasIntegration implements Integration {
     text: string,
     lat?: number,
     lng?: number,
-    radius?: number,
+    options?: {
+      radius?: number
+      limit?: number
+    },
   ): Promise<Place[]> {
     this.ensureInitialized()
 
     if (!text || text.length < 2) {
       return []
     }
+
+    const { radius = 50000 } = options || {}
 
     try {
       // Build the correct autocomplete URL

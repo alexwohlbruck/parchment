@@ -93,7 +93,7 @@ export enum SourceType {
   RASTER_DEM = 'raster-dem',
 }
 
-export type Source = {
+export type TileSource = {
   id: string
   type: SourceType
   url?: string
@@ -137,7 +137,7 @@ export enum MaplibreLayerType {
 export type MapboxLayerConfiguration = {
   id: string
   type: MapboxLayerType
-  source: string | Source
+  source: string | TileSource
   slot?: string
   // Allow any additional properties for layer-specific configuration
   [key: string]: any
@@ -146,7 +146,7 @@ export type MapboxLayerConfiguration = {
 export type MaplibreLayerConfiguration = {
   id: string
   type: MaplibreLayerType
-  source: string | Source
+  source: string | TileSource
   // Allow any additional properties for layer-specific configuration
   [key: string]: any
 }

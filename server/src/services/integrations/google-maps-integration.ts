@@ -14,6 +14,8 @@ import type { Place } from '../../types/place.types'
 import { GoogleAdapter } from './adapters/google-adapter'
 import { SOURCE } from '../../lib/constants'
 
+// TODO: Use official Google Maps API for requests
+
 export class GoogleMapsIntegration implements Integration {
   private adapter = new GoogleAdapter()
   private baseUrl = 'https://maps.googleapis.com/maps/api'
@@ -21,226 +23,26 @@ export class GoogleMapsIntegration implements Integration {
 
   // Integration metadata
   readonly integrationId = IntegrationId.GOOGLE_MAPS
+
+  // TODO: capabilityIds and capabilities are redundant, we should find a way to automatically generate the capability list
+  readonly sources = [SOURCE.GOOGLE]
   readonly capabilityIds: IntegrationCapabilityId[] = [
     IntegrationCapabilityId.AUTOCOMPLETE,
     IntegrationCapabilityId.PLACE_INFO,
     IntegrationCapabilityId.GEOCODING,
   ]
-  readonly sources = [SOURCE.GOOGLE]
-
-  // Capability implementations
   readonly capabilities = {
     autocomplete: {
-      getAutocomplete: async (
-        query: string,
-        lat?: number,
-        lng?: number,
-        radius?: number,
-      ): Promise<Place[]> => {
-        if (!this.config.apiKey || !lat || !lng) {
-          return []
-        }
-
-        if (!radius) {
-          radius = 50000 // Default 50km radius
-        }
-
-        try {
-          const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
-            query,
-          )}&location=${lat},${lng}&radius=${radius}&key=${this.config.apiKey}`
-
-          const response = await fetch(url)
-          const data = await response.json()
-
-          if (data.status !== 'OK') {
-            return []
-          }
-
-          if (!data.predictions || data.predictions.length === 0) {
-            return []
-          }
-
-          const enrichedPredictions = await Promise.all(
-            data.predictions.map(async (prediction: any) => {
-              try {
-                // Try to get basic place details with minimal fields for coordinates
-                const placeDetails = await this.getPlaceDetailsMinimal(
-                  prediction.place_id,
-                )
-                return { ...prediction, details: placeDetails }
-              } catch (error) {
-                return prediction
-              }
-            }),
-          )
-
-          const places = enrichedPredictions.map((prediction) =>
-            this.adapter.autocomplete.adaptPrediction(prediction),
-          )
-
-          return places
-        } catch (error) {
-          return []
-        }
-      },
+      getAutocomplete: this.getAutocomplete.bind(this),
     } as AutocompleteCapability,
 
     placeInfo: {
-      getPlaceInfo: async (placeId: string): Promise<Place | null> => {
-        try {
-          console.log('Fetching place details for:', placeId)
-          const url = new URL(`${this.baseUrl}/place/details/json`)
-          url.searchParams.set('place_id', placeId)
-          url.searchParams.set('key', this.config.apiKey)
-          url.searchParams.set(
-            'fields',
-            'place_id,name,formatted_address,formatted_phone_number,website,types,photos,rating,user_ratings_total,opening_hours,editorial_summary,geometry,price_level,business_status,dine_in,takeout,delivery,curbside_pickup,serves_breakfast,serves_lunch,serves_dinner,serves_beer,utc_offset',
-          )
-
-          console.log(
-            'Place Details URL:',
-            url.toString().replace(this.config.apiKey, '[API_KEY]'),
-          )
-          const response = await fetch(url.toString())
-          if (!response.ok) {
-            console.error(`Google Place Details HTTP error: ${response.status}`)
-            throw new Error(`Google API error: ${response.status}`)
-          }
-
-          const data = await response.json()
-          console.log('Place Details API response status:', data.status)
-          if (data.status !== 'OK') {
-            if (data.status === 'INVALID_REQUEST') {
-              console.warn(`Invalid place ID: ${placeId}`)
-              console.warn('Full API response:', JSON.stringify(data, null, 2))
-              return null
-            }
-            throw new Error(`Google API error: ${data.status}`)
-          }
-
-          console.log(
-            'Place details found for:',
-            placeId,
-            'with geometry:',
-            !!data.result?.geometry,
-          )
-          return this.adapter.placeInfo.adaptPlaceDetails(data.result)
-        } catch (error) {
-          console.error('Google place details error:', error)
-          return null
-        }
-      },
+      getPlaceInfo: this.getPlaceInfo.bind(this),
     } as PlaceInfoCapability,
 
     geocoding: {
-      geocode: async (address: string): Promise<Place[]> => {
-        try {
-          const url = new URL(`${this.baseUrl}/geocode/json`)
-          url.searchParams.set('address', address)
-          url.searchParams.set('key', this.config.apiKey)
-
-          const response = await fetch(url.toString())
-          if (!response.ok) {
-            throw new Error(`Google API error: ${response.status}`)
-          }
-
-          const data = await response.json()
-          if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-            throw new Error(`Google API error: ${data.status}`)
-          }
-
-          return data.results.map((result: any) =>
-            this.adapter.placeInfo.adaptPlaceDetails({
-              place_id: result.place_id || '',
-              name: result.formatted_address || '',
-              formatted_address: result.formatted_address || '',
-              formatted_phone_number: '',
-              website: '',
-              types: result.types || [],
-              photos: [],
-              rating: 0,
-              user_ratings_total: 0,
-              opening_hours: undefined,
-              editorial_summary: undefined,
-              geometry: result.geometry,
-              google_maps_uri: '',
-              price_level: '',
-              business_status: '',
-              dine_in: false,
-              takeout: false,
-              delivery: false,
-              curbside_pickup: false,
-              serves_breakfast: false,
-              serves_lunch: false,
-              serves_dinner: false,
-              serves_beer: false,
-              outdoor_seating: false,
-              live_music: false,
-              good_for_children: false,
-              good_for_groups: false,
-              utc_offset: 0,
-            }),
-          )
-        } catch (error) {
-          console.error('Google geocoding error:', error)
-          return []
-        }
-      },
-
-      reverseGeocode: async (lat: number, lng: number): Promise<Place[]> => {
-        try {
-          const url = new URL(`${this.baseUrl}/geocode/json`)
-          url.searchParams.set('latlng', `${lat},${lng}`)
-          url.searchParams.set('key', this.config.apiKey)
-
-          const response = await fetch(url.toString())
-          if (!response.ok) {
-            throw new Error(`Google API error: ${response.status}`)
-          }
-
-          const data = await response.json()
-          if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-            throw new Error(`Google API error: ${data.status}`)
-          }
-
-          return data.results.map((result: any) =>
-            this.adapter.placeInfo.adaptPlaceDetails({
-              place_id: result.place_id || '',
-              name: result.formatted_address || '',
-              formatted_address: result.formatted_address || '',
-              formatted_phone_number: '',
-              website: '',
-              types: result.types || [],
-              photos: [],
-              rating: 0,
-              user_ratings_total: 0,
-              opening_hours: undefined,
-              editorial_summary: undefined,
-              geometry: result.geometry,
-              google_maps_uri: '',
-              price_level: '',
-              business_status: '',
-              dine_in: false,
-              takeout: false,
-              delivery: false,
-              curbside_pickup: false,
-              serves_breakfast: false,
-              serves_lunch: false,
-              serves_dinner: false,
-              serves_beer: false,
-              outdoor_seating: false,
-              live_music: false,
-              good_for_children: false,
-              good_for_groups: false,
-              utc_offset: 0,
-            }),
-          )
-        } catch (error) {
-          console.error('Google reverse geocoding error:', error)
-          return []
-        }
-      },
+      geocode: this.geocode.bind(this),
+      reverseGeocode: this.reverseGeocode.bind(this),
     } as GeocodingCapability,
   }
 
@@ -304,62 +106,250 @@ export class GoogleMapsIntegration implements Integration {
     return !!config.apiKey
   }
 
-  // Legacy methods for backward compatibility
-  async getAutocomplete(
+  /**
+   * Get autocomplete suggestions for a query
+   * @param query Search query string
+   * @param lat Optional latitude for location bias
+   * @param lng Optional longitude for location bias
+   * @param radius Optional radius in meters for location bias
+   * @returns Array of place suggestions
+   */
+  private async getAutocomplete(
     query: string,
     lat?: number,
     lng?: number,
     radius?: number,
   ): Promise<Place[]> {
-    return this.capabilities.autocomplete!.getAutocomplete(
-      query,
-      lat,
-      lng,
-      radius,
-    )
-  }
+    if (!this.config.apiKey || !lat || !lng) {
+      return []
+    }
 
-  async getPlaceDetails(placeId: string): Promise<Place | null> {
-    return this.capabilities.placeInfo!.getPlaceInfo(placeId)
-  }
+    if (!radius) {
+      radius = 50000 // Default 50km radius
+    }
 
-  async geocode(address: string): Promise<Place[]> {
-    return this.capabilities.geocoding!.geocode(address)
-  }
+    try {
+      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
+        query,
+      )}&location=${lat},${lng}&radius=${radius}&key=${this.config.apiKey}`
 
-  async reverseGeocode(lat: number, lng: number): Promise<Place[]> {
-    return this.capabilities.geocoding!.reverseGeocode(lat, lng)
+      const response = await fetch(url)
+      const data = await response.json()
+
+      if (data.status !== 'OK') {
+        return []
+      }
+
+      if (!data.predictions || data.predictions.length === 0) {
+        return []
+      }
+
+      const enrichedPredictions = await Promise.all(
+        data.predictions.map(async (prediction: any) => {
+          try {
+            const url = new URL(`${this.baseUrl}/place/details/json`)
+
+            url.searchParams.set('place_id', prediction.place_id)
+            url.searchParams.set('key', this.config.apiKey)
+            url.searchParams.set(
+              'fields',
+              'place_id,name,geometry,formatted_address,types',
+            )
+
+            const response = await fetch(url.toString())
+            if (!response.ok) {
+              throw new Error(`HTTP error: ${response.status}`)
+            }
+
+            const data = await response.json()
+            if (data.status !== 'OK') {
+              throw new Error(`API error: ${data.status}`)
+            }
+
+            const placeDetails = data.result
+            return { ...prediction, details: placeDetails }
+          } catch (error) {
+            return prediction
+          }
+        }),
+      )
+
+      const places = enrichedPredictions.map((prediction) =>
+        this.adapter.autocomplete.adaptPrediction(prediction),
+      )
+
+      return places
+    } catch (error) {
+      return []
+    }
   }
 
   /**
-   * Fetch minimal place details with only essential fields for coordinates
-   * This is used during autocomplete enrichment to avoid field restriction errors
+   * Get place details by place ID
+   * @param placeId The Google Place ID
+   * @returns Place details or null if not found
    */
-  private async getPlaceDetailsMinimal(placeId: string): Promise<any | null> {
+  private async getPlaceInfo(placeId: string): Promise<Place | null> {
     try {
+      console.log('Fetching place details for:', placeId)
       const url = new URL(`${this.baseUrl}/place/details/json`)
       url.searchParams.set('place_id', placeId)
       url.searchParams.set('key', this.config.apiKey)
-      // Use only the most basic fields to avoid enterprise restrictions
       url.searchParams.set(
         'fields',
-        'place_id,name,geometry,formatted_address,types',
+        'place_id,name,formatted_address,formatted_phone_number,website,types,photos,rating,user_ratings_total,opening_hours,editorial_summary,geometry,price_level,business_status,dine_in,takeout,delivery,curbside_pickup,serves_breakfast,serves_lunch,serves_dinner,serves_beer,utc_offset',
       )
 
+      console.log(
+        'Place Details URL:',
+        url.toString().replace(this.config.apiKey, '[API_KEY]'),
+      )
       const response = await fetch(url.toString())
       if (!response.ok) {
-        throw new Error(`HTTP error: ${response.status}`)
+        console.error(`Google Place Details HTTP error: ${response.status}`)
+        throw new Error(`Google API error: ${response.status}`)
       }
 
       const data = await response.json()
+      console.log('Place Details API response status:', data.status)
       if (data.status !== 'OK') {
-        throw new Error(`API error: ${data.status}`)
+        if (data.status === 'INVALID_REQUEST') {
+          console.warn(`Invalid place ID: ${placeId}`)
+          console.warn('Full API response:', JSON.stringify(data, null, 2))
+          return null
+        }
+        throw new Error(`Google API error: ${data.status}`)
       }
 
-      return data.result
+      console.log(
+        'Place details found for:',
+        placeId,
+        'with geometry:',
+        !!data.result?.geometry,
+      )
+      return this.adapter.placeInfo.adaptPlaceDetails(data.result)
     } catch (error) {
-      console.warn('Minimal place details fetch failed:', error)
+      console.error('Google place details error:', error)
       return null
+    }
+  }
+
+  /**
+   * Geocode an address to coordinates
+   * @param address The address to geocode
+   * @returns Array of place results
+   */
+  private async geocode(address: string): Promise<Place[]> {
+    try {
+      const url = new URL(`${this.baseUrl}/geocode/json`)
+      url.searchParams.set('address', address)
+      url.searchParams.set('key', this.config.apiKey)
+
+      const response = await fetch(url.toString())
+      if (!response.ok) {
+        throw new Error(`Google API error: ${response.status}`)
+      }
+
+      const data = await response.json()
+      if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+        throw new Error(`Google API error: ${data.status}`)
+      }
+
+      return data.results.map((result: any) =>
+        this.adapter.placeInfo.adaptPlaceDetails({
+          place_id: result.place_id || '',
+          name: result.formatted_address || '',
+          formatted_address: result.formatted_address || '',
+          formatted_phone_number: '',
+          website: '',
+          types: result.types || [],
+          photos: [],
+          rating: 0,
+          user_ratings_total: 0,
+          opening_hours: undefined,
+          editorial_summary: undefined,
+          geometry: result.geometry,
+          google_maps_uri: '',
+          price_level: '',
+          business_status: '',
+          dine_in: false,
+          takeout: false,
+          delivery: false,
+          curbside_pickup: false,
+          serves_breakfast: false,
+          serves_lunch: false,
+          serves_dinner: false,
+          serves_beer: false,
+          outdoor_seating: false,
+          live_music: false,
+          good_for_children: false,
+          good_for_groups: false,
+          utc_offset: 0,
+        }),
+      )
+    } catch (error) {
+      console.error('Google geocoding error:', error)
+      return []
+    }
+  }
+
+  /**
+   * Reverse geocode coordinates to places
+   * @param lat Latitude
+   * @param lng Longitude
+   * @returns Array of place results
+   */
+  private async reverseGeocode(lat: number, lng: number): Promise<Place[]> {
+    try {
+      const url = new URL(`${this.baseUrl}/geocode/json`)
+      url.searchParams.set('latlng', `${lat},${lng}`)
+      url.searchParams.set('key', this.config.apiKey)
+
+      const response = await fetch(url.toString())
+      if (!response.ok) {
+        throw new Error(`Google API error: ${response.status}`)
+      }
+
+      const data = await response.json()
+      if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+        throw new Error(`Google API error: ${data.status}`)
+      }
+
+      return data.results.map((result: any) =>
+        this.adapter.placeInfo.adaptPlaceDetails({
+          place_id: result.place_id || '',
+          name: result.formatted_address || '',
+          formatted_address: result.formatted_address || '',
+          formatted_phone_number: '',
+          website: '',
+          types: result.types || [],
+          photos: [],
+          rating: 0,
+          user_ratings_total: 0,
+          opening_hours: undefined,
+          editorial_summary: undefined,
+          geometry: result.geometry,
+          google_maps_uri: '',
+          price_level: '',
+          business_status: '',
+          dine_in: false,
+          takeout: false,
+          delivery: false,
+          curbside_pickup: false,
+          serves_breakfast: false,
+          serves_lunch: false,
+          serves_dinner: false,
+          serves_beer: false,
+          outdoor_seating: false,
+          live_music: false,
+          good_for_children: false,
+          good_for_groups: false,
+          utc_offset: 0,
+        }),
+      )
+    } catch (error) {
+      console.error('Google reverse geocoding error:', error)
+      return []
     }
   }
 }

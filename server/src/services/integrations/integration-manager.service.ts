@@ -11,6 +11,7 @@ import {
 } from '../../types/integration.types'
 import { IntegrationRegistry } from './integration-registry'
 import { Source, SOURCE, SOURCE_PRIORITIES } from '../../lib/constants'
+import { initializeWithTest } from '../../lib/integration.utils'
 
 /**
  * Service for managing integrations and their configurations
@@ -52,10 +53,10 @@ export class IntegrationManagerService {
    * @param userId The user ID, or null for system-wide integrations
    * @param integrationData The integration to initialize
    */
-  initializeIntegration(
+  async initializeIntegration(
     userId: string | null,
     integrationData: IntegrationResponse,
-  ): void {
+  ): Promise<void> {
     const integrationImpl = this.registry.getIntegration(
       integrationData.integrationId,
     )
@@ -71,8 +72,8 @@ export class IntegrationManagerService {
       // Clone the integration to ensure each integration has its own instance
       const integrationInstance = this.cloneIntegration(integrationImpl)
 
-      // Initialize the integration with the user's configuration
-      integrationInstance.initialize(integrationData.config)
+      // Initialize the integration with connection testing
+      await initializeWithTest(integrationInstance, integrationData.config)
 
       // Cache the integration
       const cacheKey = userId

@@ -4,6 +4,7 @@ import { useAppService } from '@/services/app.service'
 import { api } from '@/lib/api'
 import type { Place } from '@/types/place.types'
 import type { Bookmark } from '@/types/library.types'
+import type { SourceId } from '@/types/place.types'
 
 function placeService() {
   const currentPlace = ref<Place | null>(null)
@@ -15,7 +16,7 @@ function placeService() {
    */
   async function fetchPlaceDetails(
     id: string,
-    provider: string = 'osm',
+    source: SourceId = 'osm', // TODO: Use constants defs from server code
     options?: {
       name?: string
       lat?: number
@@ -29,10 +30,10 @@ function placeService() {
       let queryParams: Record<string, string> = {}
 
       // Determine lookup method based on parameters
-      if (provider && id) {
-        // Provider-based lookup (OSM, Google, etc.)
+      if (source && id) {
+        // Source-based lookup (OSM, Google, etc.)
         queryParams = {
-          provider,
+          source,
           id,
         }
       } else if (
@@ -53,7 +54,7 @@ function placeService() {
         }
       } else {
         throw new Error(
-          'Invalid parameters. Provide either provider+id or name+lat+lng',
+          'Invalid parameters. Provide either source+id or name+lat+lng',
         )
       }
 

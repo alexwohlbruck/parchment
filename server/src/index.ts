@@ -39,4 +39,7 @@ console.log(
   `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`,
 )
 
-initializeIntegrations()
+// Initialize integrations asynchronously
+initializeIntegrations().catch((error) => {
+  console.error('Failed to initialize integrations:', error)
+})

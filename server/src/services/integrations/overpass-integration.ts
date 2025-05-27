@@ -1,41 +1,44 @@
 import axios from 'axios'
 import {
-  IntegrationDefinition,
   IntegrationConfig,
   IntegrationTestResult,
   IntegrationCapabilityId,
   IntegrationId,
+  Integration,
 } from '../../types/integration.types'
-import { BaseIntegration } from './base-integration'
-import { Place, PlaceGeometry, AttributedValue } from '../../types/place.types'
+import { Place } from '../../types/place.types'
 import { SOURCE } from '../../lib/constants'
-import { getPlaceType } from '../../lib/place.utils'
-import { parseOpeningHoursForUnifiedFormat } from '../../lib/place.utils'
+import { OverpassAdapter } from './adapters/overpass-adapter'
 
 /**
  * Overpass API integration for OpenStreetMap data
  */
-export class OverpassIntegration extends BaseIntegration {
+export class OverpassIntegration implements Integration {
+  private adapter = new OverpassAdapter()
+  private initialized = false
+
+  // TODO: Create shared types for each integration config
+  protected config: {
+    host: string
+  } = {
+    host: 'https://overpass-api.de/api/interpreter',
+    // host: 'https://overpass.kumi.systems/api/interpreter', // Alternative host
+  }
+
   readonly integrationId = IntegrationId.OVERPASS
+  readonly sources = [SOURCE.OSM]
   readonly capabilityIds = [IntegrationCapabilityId.PLACE_INFO]
   readonly capabilities = {
     placeInfo: {
       getPlaceInfo: this.getPlaceDetails.bind(this),
     },
   }
-  readonly sources = [SOURCE.OSM]
-
-  protected config: {
-    host: string
-  } = {
-    host: 'https://overpass.kumi.systems/api/interpreter',
-  }
 
   /**
    * Initialize the integration with configuration
    * @param config Configuration for the integration
    */
-  override initialize(config: IntegrationConfig): void {
+  initialize(config: IntegrationConfig): void {
     if (!this.validateConfig(config)) {
       throw new Error('Invalid configuration: Host is required')
     }
@@ -44,7 +47,19 @@ export class OverpassIntegration extends BaseIntegration {
       host: config.host,
     }
 
-    super.initialize(config)
+    this.initialized = true
+  }
+
+  /**
+   * Ensures the integration has been initialized before performing operations
+   * @throws Error if the integration has not been initialized
+   */
+  private ensureInitialized(): void {
+    if (!this.initialized) {
+      throw new Error(
+        `Integration ${this.integrationId} has not been initialized. Call initialize() first.`,
+      )
+    }
   }
 
   /**
@@ -212,19 +227,18 @@ export class OverpassIntegration extends BaseIntegration {
    * @param id The OSM ID in format type/id (e.g., node/123456)
    * @returns Place details or null if not found
    */
-  async getPlaceDetails(id: string): Promise<any | null> {
+  async getPlaceDetails(id: string): Promise<Place | null> {
     this.ensureInitialized()
 
     try {
       console.log(`Getting place details from Overpass for ID: ${id}`)
 
       // Remove provider prefix if present
-      let osmId = id
-      if (osmId.startsWith('overpass/') || osmId.startsWith('osm/')) {
-        osmId = osmId.substring(osmId.indexOf('/') + 1)
+      if (id.startsWith('osm/')) {
+        id = id.substring(id.indexOf('/') + 1)
       }
 
-      const query = this.buildPlaceQuery(osmId)
+      const query = this.buildPlaceQuery(id)
 
       const response = await axios.post(
         this.config.host,
@@ -248,7 +262,8 @@ export class OverpassIntegration extends BaseIntegration {
         place.center = center
       }
 
-      return place
+      // Use the adapter to convert to standardized Place format
+      return this.adapter.placeInfo.adaptPlaceDetails(place)
     } catch (error) {
       console.error('Error fetching place from Overpass:', error)
       return null
@@ -307,194 +322,5 @@ export class OverpassIntegration extends BaseIntegration {
       console.error('Error searching places with Overpass:', error)
       return []
     }
-  }
-
-  /**
-   * Extract address from OSM tags
-   * @param tags OSM tags object
-   * @returns Formatted address object
-   */
-  private extractOsmAddress(
-    tags: Record<string, string | undefined>,
-  ): { value: any; sourceId: string } | null {
-    if (!tags) return null
-
-    const street = tags['addr:street']
-    const houseNumber = tags['addr:housenumber']
-    const city = tags['addr:city']
-    const state = tags['addr:state']
-    const postcode = tags['addr:postcode']
-    const country = tags['addr:country']
-
-    // If we don't have any address components, return null
-    if (!street && !city && !postcode && !country) {
-      return null
-    }
-
-    // Build formatted address string
-    const parts = []
-    if (street && houseNumber) {
-      parts.push(`${houseNumber} ${street}`)
-    } else if (street) {
-      parts.push(street)
-    }
-
-    if (city) {
-      parts.push(city)
-    }
-
-    if (state && postcode) {
-      parts.push(`${state} ${postcode}`)
-    } else if (state) {
-      parts.push(state)
-    } else if (postcode) {
-      parts.push(postcode)
-    }
-
-    if (country) {
-      parts.push(country)
-    }
-
-    return {
-      value: {
-        street1:
-          street && houseNumber ? `${houseNumber} ${street}` : street || null,
-        street2: null,
-        neighborhood: tags['addr:suburb'] || null,
-        locality: city || tags['addr:town'] || tags['addr:village'] || null,
-        region: state || tags['addr:county'] || null,
-        postalCode: postcode || null,
-        country: country || null,
-        countryCode: tags['addr:country']
-          ? tags['addr:country'].toUpperCase()
-          : null,
-        formatted: parts.join(', '),
-      },
-      sourceId: SOURCE.OSM,
-    }
-  }
-
-  /**
-   * Extract contact information from OSM tags
-   * @param tags OSM tags object
-   * @returns Contact information
-   */
-  private extractContactInfo(tags: Record<string, string | undefined>) {
-    const contactInfo: Record<string, AttributedValue<string>> = {}
-
-    // Phone
-    if (tags.phone || tags['contact:phone']) {
-      contactInfo.phone = {
-        value: tags.phone || tags['contact:phone'] || '',
-        sourceId: SOURCE.OSM,
-      }
-    }
-
-    // Email
-    if (tags.email || tags['contact:email']) {
-      contactInfo.email = {
-        value: tags.email || tags['contact:email'] || '',
-        sourceId: SOURCE.OSM,
-      }
-    }
-
-    // Website
-    if (tags.website || tags['contact:website'] || tags.url) {
-      contactInfo.website = {
-        value: tags.website || tags['contact:website'] || tags.url || '',
-        sourceId: SOURCE.OSM,
-      }
-    }
-
-    const socials: Record<string, AttributedValue<string>> = {}
-
-    // Social media
-    const socialPlatforms = [
-      'facebook',
-      'instagram',
-      'twitter',
-      'linkedin',
-      'youtube',
-      'tiktok',
-    ]
-
-    for (const platform of socialPlatforms) {
-      const value = tags[platform] || tags[`contact:${platform}`]
-      if (value) {
-        socials[platform] = {
-          value,
-          sourceId: SOURCE.OSM,
-        }
-      }
-    }
-
-    return { contactInfo, socials }
-  }
-
-  /**
-   * Extract opening hours from OSM tags
-   * @param tags OSM tags object
-   * @returns Opening hours object
-   */
-  private extractOpeningHours(tags: Record<string, string | undefined>) {
-    if (!tags || !tags.opening_hours) return null
-
-    const openingHours = tags.opening_hours
-    const isOpen24_7 = openingHours.includes('24/7')
-
-    return {
-      value: {
-        regularHours: parseOpeningHoursForUnifiedFormat(openingHours) || [],
-        isOpen24_7,
-        isPermanentlyClosed: tags.disused === 'yes' || tags.abandoned === 'yes',
-        isTemporarilyClosed: tags.opening_hours === 'closed',
-        rawText: openingHours,
-      },
-      sourceId: SOURCE.OSM,
-    }
-  }
-
-  /**
-   * Extract amenities from OSM tags
-   * @param tags OSM tags object
-   * @returns Amenities object
-   */
-  private extractAmenities(tags: Record<string, string | undefined>) {
-    const amenities: Record<string, AttributedValue<boolean | string>[]> = {}
-
-    // Common amenity flags in OSM
-    const amenityFlags = [
-      'wheelchair',
-      'toilets',
-      'wifi',
-      'internet_access',
-      'outdoor_seating',
-      'smoking',
-      'takeaway',
-      'delivery',
-      'drive_through',
-      'reservation',
-      'air_conditioning',
-      'payment:credit_cards',
-      'payment:debit_cards',
-      'payment:cash',
-    ]
-
-    for (const flag of amenityFlags) {
-      const value = tags[flag]
-      if (value) {
-        // Convert 'yes'/'no' to boolean, otherwise keep as string
-        const boolValue =
-          value === 'yes' ? true : value === 'no' ? false : value
-        amenities[flag] = [
-          {
-            value: boolValue,
-            sourceId: SOURCE.OSM,
-          },
-        ]
-      }
-    }
-
-    return amenities
   }
 }

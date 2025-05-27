@@ -1,9 +1,4 @@
-import type {
-  Place,
-  AttributedValue,
-  SourceId,
-  PlacePhoto,
-} from '../types/place.types'
+import type { Place } from '../types/place.types'
 import { mergePlacesCollection, mergePlaces } from './merge.service'
 import { Source } from '../lib/constants'
 import { findBookmarkByExternalIds } from './library/bookmarks.service'
@@ -101,16 +96,13 @@ async function fetchAutocompleteResults(
   const results = await Promise.all(
     activeIntegrations.map(async (cachedIntegration) => {
       try {
-        if (!cachedIntegration.integration.getAutocomplete) {
-          return []
-        }
-
-        const places = await cachedIntegration.integration.getAutocomplete(
-          query,
-          lat,
-          lng,
-          radius,
-        )
+        const places =
+          await cachedIntegration.integration.capabilities.autocomplete?.getAutocomplete(
+            query,
+            lat,
+            lng,
+            radius,
+          )
 
         return places
       } catch (error) {
@@ -124,7 +116,7 @@ async function fetchAutocompleteResults(
   )
 
   const flatResults = results.flat()
-  return flatResults
+  return flatResults.filter((result): result is Place => result !== null)
 }
 
 /**
@@ -164,6 +156,7 @@ export async function lookupPlaceById(
  * @param options Optional parameters including radius and source blacklist
  * @returns Array of Place objects from all providers
  */
+// TODO: Full implementation for search results instead of autocomplete results
 export async function lookupPlacesByNameAndLocation(
   name: string,
   coordinates: { lat: number; lng: number },
@@ -183,7 +176,11 @@ export async function lookupPlacesByNameAndLocation(
 
     // Get integrations that support geocoding (for searching places by name/location)
     const geocodingIntegrations = integrationManager
-      .getIntegrationsByCapability(IntegrationCapabilityId.GEOCODING)
+      .getIntegrationsByCapability(
+        autocomplete
+          ? IntegrationCapabilityId.AUTOCOMPLETE
+          : IntegrationCapabilityId.SEARCH,
+      )
       .filter((integration) => {
         // Filter out integrations whose sources are in the blacklist
         return !integration.integration.sources.some((source) =>
@@ -256,18 +253,25 @@ export async function lookupPlaceByNameAndLocation(
   name: string,
   coordinates: { lat: number; lng: number },
   options?: {
+    autocomplete?: boolean
     userId?: User['id']
     radius?: number
     sourceBlacklist?: Source[]
   },
 ): Promise<Place | null> {
   try {
-    const { userId, radius = 500, sourceBlacklist = [] } = options || {}
+    const {
+      userId,
+      radius = 500,
+      sourceBlacklist = [],
+      autocomplete = false,
+    } = options || {}
 
     // Get all places matching the name and coordinates from all providers
     const places = await lookupPlacesByNameAndLocation(name, coordinates, {
       radius,
       sourceBlacklist,
+      autocomplete,
     })
 
     if (places.length === 0) {
@@ -296,15 +300,16 @@ export async function lookupPlaceByNameAndLocation(
  * @param options Optional parameters including userId
  * @returns A merged Place object with consolidated data from multiple sources
  */
-export async function lookupAndMergePlaceById(
+export async function lookupEnrichedPlaceById(
   source: Source,
   id: string,
   options?: {
     userId?: User['id']
+    autocomplete?: boolean
   },
 ): Promise<Place | null> {
   try {
-    const { userId } = options || {}
+    const { userId, autocomplete = false } = options || {}
 
     // First, get the place from the primary source
     let place = await lookupPlaceById(source, id)
@@ -320,6 +325,7 @@ export async function lookupAndMergePlaceById(
         {
           radius: 500,
           sourceBlacklist: [source], // Exclude the original source
+          autocomplete,
         },
       )
 

@@ -1,19 +1,19 @@
 import axios from 'axios'
 import {
-  IntegrationDefinition,
   IntegrationConfig,
   IntegrationTestResult,
   IntegrationCapabilityId,
   IntegrationId,
+  Integration,
 } from '../../types/integration.types'
-import { BaseIntegration } from './base-integration'
-import { Place, PlaceGeometry, OpeningHours } from '../../types/place.types'
 import { SOURCE } from '../../lib/constants'
 
 /**
  * Nominatim integration
  */
-export class NominatimIntegration extends BaseIntegration {
+export class NominatimIntegration implements Integration {
+  private initialized = false
+
   readonly integrationId = IntegrationId.NOMINATIM
   readonly capabilityIds = [
     IntegrationCapabilityId.GEOCODING,
@@ -59,7 +59,7 @@ export class NominatimIntegration extends BaseIntegration {
    * Initialize the integration with configuration
    * @param config Configuration for the integration
    */
-  override initialize(config: IntegrationConfig): void {
+  initialize(config: IntegrationConfig): void {
     if (!this.validateConfig(config)) {
       throw new Error('Invalid configuration: Host is required')
     }
@@ -69,7 +69,19 @@ export class NominatimIntegration extends BaseIntegration {
       email: config.email,
     }
 
-    super.initialize(config)
+    this.initialized = true
+  }
+
+  /**
+   * Ensures the integration has been initialized before performing operations
+   * @throws Error if the integration has not been initialized
+   */
+  private ensureInitialized(): void {
+    if (!this.initialized) {
+      throw new Error(
+        `Integration ${this.integrationId} has not been initialized. Call initialize() first.`,
+      )
+    }
   }
 
   /**

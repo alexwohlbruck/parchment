@@ -247,9 +247,12 @@ export async function getConfiguredIntegrations(
 
   const parsedIntegrations = userIntegrations.map(parseIntegrationData)
 
-  parsedIntegrations.forEach((integration) => {
-    integrationManager.initializeIntegration(userId, integration)
-  })
+  // Initialize all integrations in parallel
+  await Promise.all(
+    parsedIntegrations.map((integration) =>
+      integrationManager.initializeIntegration(userId, integration),
+    ),
+  )
 
   return parsedIntegrations
 }
@@ -303,7 +306,7 @@ export async function getIntegration(
   const integration = parseIntegrationData(result[0])
 
   // Initialize and cache the integration
-  integrationManager.initializeIntegration(userId, integration)
+  await integrationManager.initializeIntegration(userId, integration)
 
   return integration
 }
@@ -359,7 +362,7 @@ export async function createIntegration(
 
   const newIntegration = parseIntegrationData(result[0])
 
-  integrationManager.initializeIntegration(userId, newIntegration)
+  await integrationManager.initializeIntegration(userId, newIntegration)
 
   return newIntegration
 }
@@ -422,7 +425,7 @@ export async function updateIntegration(
     throw new Error('Failed to retrieve updated integration')
   }
 
-  integrationManager.initializeIntegration(userId, updatedIntegration)
+  await integrationManager.initializeIntegration(userId, updatedIntegration)
 
   return updatedIntegration
 }

@@ -46,7 +46,10 @@ function placeSearchService() {
     error.value = null
 
     try {
-      const params: Record<string, string | number> = { q: query }
+      const params: Record<string, string | number> = {
+        q: query,
+        autocomplete: 'true',
+      }
 
       if (lat !== undefined && lng !== undefined) {
         params.lat = lat.toString()

@@ -3,21 +3,20 @@ import { getSession, requireAuth } from '../middleware/auth.middleware.js'
 import {
   lookupPlaceByNameAndLocation,
   getPlaceAutocomplete,
-  lookupAndMergePlaceById,
+  lookupEnrichedPlaceById,
   lookupPlacesByNameAndLocation,
 } from '../services/place.service'
-import { SOURCE, Source } from '../lib/constants.js'
+import { SOURCE } from '../lib/constants.js'
 const app = new Elysia({ prefix: '/places' }).use(getSession)
 
 // Get place by looking up source+id or name+lat+lng
 app.get(
   '/lookup',
   async ({ query, user }) => {
-    const { provider, id, name, lat, lng, radius = 500 } = query
-    const source = provider as Source // TODO: Rename query param to 'source' and update type
+    const { source, id, name, lat, lng, radius = 500 } = query
 
-    const isIdLookup = source && id
-    const isNameLocationLookup = name && lat && lng
+    const isIdLookup = Boolean(source) && Boolean(id)
+    const isNameLocationLookup = Boolean(name) && Boolean(lat) && Boolean(lng)
 
     // Check for at least one valid lookup parameter
     if (!isIdLookup && !isNameLocationLookup) {
@@ -33,7 +32,9 @@ app.get(
         // TODO: Move this logic to a helper function
         // Special case for OSM provider: validate format
         if (source === SOURCE.OSM) {
-          const [osmType, rawId] = id.includes('/') ? id.split('/') : [null, id]
+          const [osmType, rawId] = id?.includes('/')
+            ? id.split('/')
+            : [null, id]
 
           if (!osmType || !['node', 'way', 'relation'].includes(osmType)) {
             return error(400, {
@@ -43,19 +44,19 @@ app.get(
           }
         }
 
-        place = await lookupAndMergePlaceById(source, id, {
+        place = await lookupEnrichedPlaceById(source!, id!, {
           userId: user?.id,
         })
       } else if (isNameLocationLookup) {
         const coordinates = {
-          lat: parseFloat(lat),
-          lng: parseFloat(lng),
+          lat: lat!,
+          lng: lng!,
         }
 
         // Use the new method to get place by name and coordinates
-        place = await lookupPlaceByNameAndLocation(name, coordinates, {
+        place = await lookupPlaceByNameAndLocation(name!, coordinates, {
           userId: user?.id,
-          radius: parseInt(radius as string),
+          radius: Math.round(radius),
         })
       }
 
@@ -75,12 +76,13 @@ app.get(
   },
   {
     query: t.Object({
-      provider: t.Optional(t.String()),
+      source: t.Optional(t.Enum(SOURCE)),
       id: t.Optional(t.String()),
       name: t.Optional(t.String()),
-      lat: t.Optional(t.String()),
-      lng: t.Optional(t.String()),
-      radius: t.Optional(t.String()),
+      lat: t.Optional(t.Number()),
+      lng: t.Optional(t.Number()),
+      radius: t.Optional(t.Number()),
+      autocomplete: t.Optional(t.Boolean()),
     }),
   },
 )
@@ -100,14 +102,13 @@ app.get(
       return error(400, { message: 'Query must be at least 2 characters' })
     }
 
-    // Convert coordinates to numbers if provided
-    const coordinates =
-      lat && lng ? { lat: parseFloat(lat), lng: parseFloat(lng) } : undefined
-
-    const places = await getPlaceAutocomplete(
+    const places = await lookupPlacesByNameAndLocation(
       q,
-      coordinates,
-      parseInt(radius as string),
+      { lat, lng },
+      {
+        radius: parseInt(radius as string),
+        autocomplete: true,
+      },
     )
 
     return {
@@ -118,8 +119,8 @@ app.get(
   {
     query: t.Object({
       q: t.String(),
-      lat: t.Optional(t.String()),
-      lng: t.Optional(t.String()),
+      lat: t.Number(),
+      lng: t.Number(),
       radius: t.Optional(t.String()),
     }),
   },

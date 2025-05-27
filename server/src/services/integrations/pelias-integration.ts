@@ -5,8 +5,8 @@ import {
   IntegrationTestResult,
   IntegrationCapabilityId,
   IntegrationId,
+  Integration,
 } from '../../types/integration.types'
-import { BaseIntegration } from './base-integration'
 import { Place, Address } from '../../types/place.types'
 import { SOURCE } from '../../lib/constants'
 import { PeliasAdapter, PeliasFeature } from './adapters/pelias-adapter'
@@ -16,7 +16,10 @@ import { PeliasAdapter, PeliasFeature } from './adapters/pelias-adapter'
 /**
  * Pelias integration
  */
-export class PeliasIntegration extends BaseIntegration {
+export class PeliasIntegration implements Integration {
+  private initialized = false
+  protected config: IntegrationConfig = {}
+
   readonly integrationId = IntegrationId.PELIAS
   readonly capabilityIds = [
     IntegrationCapabilityId.GEOCODING,
@@ -47,8 +50,32 @@ export class PeliasIntegration extends BaseIntegration {
   private adapter: PeliasAdapter
 
   constructor() {
-    super()
     this.adapter = new PeliasAdapter()
+  }
+
+  /**
+   * Initialize the integration with configuration
+   * @param config Configuration for the integration
+   */
+  initialize(config: IntegrationConfig): void {
+    if (!this.validateConfig(config)) {
+      throw new Error('Invalid configuration: Host is required')
+    }
+
+    this.config = { ...config }
+    this.initialized = true
+  }
+
+  /**
+   * Ensures the integration has been initialized before performing operations
+   * @throws Error if the integration has not been initialized
+   */
+  private ensureInitialized(): void {
+    if (!this.initialized) {
+      throw new Error(
+        `Integration ${this.integrationId} has not been initialized. Call initialize() first.`,
+      )
+    }
   }
 
   /**

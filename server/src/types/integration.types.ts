@@ -2,11 +2,12 @@ import { Place } from './place.types'
 import { Source } from '../lib/constants'
 
 export enum IntegrationCapabilityId {
-  ROUTING = 'routing',
+  SEARCH = 'search',
+  AUTOCOMPLETE = 'autocomplete',
   GEOCODING = 'geocoding',
   PLACE_INFO = 'placeInfo',
+  ROUTING = 'routing',
   IMAGERY = 'imagery',
-  AUTOCOMPLETE = 'autocomplete',
 }
 
 export enum IntegrationId {
@@ -119,36 +120,6 @@ export interface Integration {
    * @returns True if the configuration is valid, false otherwise
    */
   validateConfig(config: IntegrationConfig): boolean
-
-  /**
-   * Search for places matching a query
-   * @param query The search query
-   * @param lat Optional latitude for location bias
-   * @param lng Optional longitude for location bias
-   * @param radius Optional radius in meters for location bias
-   * @returns Array of place results
-   */
-  searchPlaces?(
-    query: string,
-    lat?: number,
-    lng?: number,
-    radius?: number,
-  ): Promise<any[]>
-
-  /**
-   * Get autocomplete suggestions for a query
-   * @param query The search query
-   * @param lat Optional latitude for location bias
-   * @param lng Optional longitude for location bias
-   * @param radius Optional radius in meters for location bias
-   * @returns Array of Place objects
-   */
-  getAutocomplete?(
-    query: string,
-    lat?: number,
-    lng?: number,
-    radius?: number,
-  ): Promise<Place[]>
 
   /**
    * Get place details by provider-specific ID

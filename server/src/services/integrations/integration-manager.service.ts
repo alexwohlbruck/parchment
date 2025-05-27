@@ -62,57 +62,41 @@ export class IntegrationManagerService {
     )
 
     if (!integrationImpl) {
-      console.error(
-        `Integration implementation for ${integrationData.integrationId} not found`,
-      )
       return
     }
 
-    try {
-      // Clone the integration to ensure each integration has its own instance
-      const integrationInstance = this.cloneIntegration(integrationImpl)
+    // Clone the integration to ensure each integration has its own instance
+    const integrationInstance = this.cloneIntegration(integrationImpl)
 
-      // Initialize the integration with connection testing
-      await initializeWithTest(integrationInstance, integrationData.config)
+    // Initialize the integration with connection testing
+    await initializeWithTest(integrationInstance, integrationData.config)
 
-      // Cache the integration
-      const cacheKey = userId
-        ? `${userId}:${integrationData.id}`
-        : `system:${integrationData.id}`
-      this.integrationsCache.set(cacheKey, {
-        userId,
-        id: integrationData.id,
-        integrationId: integrationData.integrationId,
-        integration: integrationInstance,
-        capabilities: integrationData.capabilities,
-        config: integrationData.config,
-      })
+    // Cache the integration
+    const cacheKey = userId
+      ? `${userId}:${integrationData.id}`
+      : `system:${integrationData.id}`
+    this.integrationsCache.set(cacheKey, {
+      userId,
+      id: integrationData.id,
+      integrationId: integrationData.integrationId,
+      integration: integrationInstance,
+      capabilities: integrationData.capabilities,
+      config: integrationData.config,
+    })
 
-      // Update the appropriate integrations cache
-      if (userId) {
-        // Update user's integrations cache
-        const userIntegrations = this.userIntegrationsCache.get(userId) || []
-        if (!userIntegrations.includes(cacheKey)) {
-          userIntegrations.push(cacheKey)
-          this.userIntegrationsCache.set(userId, userIntegrations)
-        }
-        console.log(
-          `Initialized and cached integration ${integrationData.id} for user ${userId}`,
-        )
-      } else {
-        // Update system integrations cache
-        if (!this.systemIntegrationsCache.includes(cacheKey)) {
-          this.systemIntegrationsCache.push(cacheKey)
-        }
-        console.log(
-          `Initialized and cached system-wide integration ${integrationData.integrationId}`,
-        )
+    // Update the appropriate integrations cache
+    if (userId) {
+      // Update user's integrations cache
+      const userIntegrations = this.userIntegrationsCache.get(userId) || []
+      if (!userIntegrations.includes(cacheKey)) {
+        userIntegrations.push(cacheKey)
+        this.userIntegrationsCache.set(userId, userIntegrations)
       }
-    } catch (error) {
-      console.error(
-        `Failed to initialize integration ${integrationData.integrationId}:`,
-        error,
-      )
+    } else {
+      // Update system integrations cache
+      if (!this.systemIntegrationsCache.includes(cacheKey)) {
+        this.systemIntegrationsCache.push(cacheKey)
+      }
     }
   }
 
@@ -226,15 +210,11 @@ export class IntegrationManagerService {
         (key) => key !== cacheKey,
       )
       this.userIntegrationsCache.set(userId, updatedIntegrations)
-      console.log(
-        `Removed integration ${integrationId} from cache for user ${userId}`,
-      )
     } else {
       // Update the system integrations cache
       this.systemIntegrationsCache = this.systemIntegrationsCache.filter(
         (key) => key !== cacheKey,
       )
-      console.log(`Removed system-wide integration ${integrationId} from cache`)
     }
   }
 
@@ -249,13 +229,11 @@ export class IntegrationManagerService {
         this.integrationsCache.delete(cacheKey)
       }
       this.userIntegrationsCache.delete(userId)
-      console.log(`Cleared all integrations from cache for user ${userId}`)
     } else {
       for (const cacheKey of this.systemIntegrationsCache) {
         this.integrationsCache.delete(cacheKey)
       }
       this.systemIntegrationsCache = []
-      console.log(`Cleared all system-wide integrations from cache`)
     }
   }
 
@@ -317,12 +295,11 @@ export class IntegrationManagerService {
   getIntegrationCapabilities(
     integrationId: IntegrationId,
   ): IntegrationCapabilityId[] {
-    const integration = this.registry.getIntegration(integrationId)
+    const integration = this.getIntegrationById(integrationId)
     if (!integration) {
-      console.warn(`Integration with ID ${integrationId} not found`)
       return []
     }
-    return integration.capabilityIds
+    return integration.capabilities.map((cap) => cap.id)
   }
 
   private cloneIntegration(integration: Integration): Integration {

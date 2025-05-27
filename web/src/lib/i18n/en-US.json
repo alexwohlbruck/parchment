@@ -487,11 +487,12 @@
         "available": "available"
       },
       "capabilities": {
+        "search": "Search",
+        "autocomplete": "Autocomplete",
         "routing": "Routing",
         "geocoding": "Geocoding",
         "placeInfo": "Place Info",
         "imagery": "Imagery",
-        "autocomplete": "Autocomplete",
         "title": "Capabilities"
       },
       "descriptions": {

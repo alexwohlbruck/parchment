@@ -266,14 +266,6 @@ onMounted(() => {
   }
 })
 
-// Make test button available based on form state
-const showTestButton = computed(() => {
-  if (props.isConfigured && !configForm.meta.value?.dirty) {
-    return false
-  }
-  return true
-})
-
 defineExpose({ submit })
 </script>
 
@@ -287,28 +279,26 @@ defineExpose({ submit })
       class="space-y-4"
     />
 
-    <TransitionExpand :duration="300">
-      <div v-if="showTestButton" class="mt-2">
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="block text-sm font-medium text-foreground">
-              {{ t('settings.integrations.test.title') }}
-            </div>
-            <p class="text-sm text-muted-foreground">
-              {{ t('settings.integrations.test.description') }}
-            </p>
+    <div class="mt-2">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="block text-sm font-medium text-foreground">
+            {{ t('settings.integrations.test.title') }}
           </div>
-          <Button
-            size="sm"
-            @click="testConnection"
-            :loading="isTesting"
-            :disabled="!isFormValid"
-          >
-            {{ t('settings.integrations.test.button') }}
-          </Button>
+          <p class="text-sm text-muted-foreground">
+            {{ t('settings.integrations.test.description') }}
+          </p>
         </div>
+        <Button
+          size="sm"
+          @click="testConnection"
+          :loading="isTesting"
+          :disabled="!isFormValid"
+        >
+          {{ t('settings.integrations.test.button') }}
+        </Button>
       </div>
-    </TransitionExpand>
+    </div>
 
     <div class="flex items-center justify-between">
       <div class="block text-sm font-medium text-foreground">

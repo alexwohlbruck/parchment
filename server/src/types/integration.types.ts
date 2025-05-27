@@ -25,12 +25,28 @@ export enum IntegrationId {
 }
 
 // Capability interfaces
+
+export interface SearchCapability {
+  searchPlaces(
+    query: string,
+    lat?: number,
+    lng?: number,
+    options?: {
+      radius?: number
+      limit?: number
+    },
+  ): Promise<Place[]>
+}
+
 export interface AutocompleteCapability {
   getAutocomplete(
     query: string,
     lat?: number,
     lng?: number,
-    radius?: number,
+    options?: {
+      radius?: number
+      limit?: number
+    },
   ): Promise<Place[]>
 }
 
@@ -60,6 +76,7 @@ export interface ImageryCapability {
 
 // Integration capabilities container
 export interface IntegrationCapabilities {
+  search?: SearchCapability
   autocomplete?: AutocompleteCapability
   placeInfo?: PlaceInfoCapability
   geocoding?: GeocodingCapability

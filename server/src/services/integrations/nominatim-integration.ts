@@ -298,9 +298,14 @@ export class NominatimIntegration implements Integration {
     query: string,
     lat?: number,
     lng?: number,
-    radius?: number,
+    options?: {
+      radius?: number
+      limit?: number
+    },
   ): Promise<any[]> {
     this.ensureInitialized()
+
+    const { radius = 50000 } = options || {}
 
     const apiUrl = this.buildApiUrl()
     const params: Record<string, any> = {

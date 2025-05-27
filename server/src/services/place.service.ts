@@ -6,7 +6,6 @@ import * as turf from '@turf/turf'
 import { integrationManager } from './integrations'
 import { IntegrationCapabilityId } from '../types/integration.types'
 import { User } from '../schema/users.schema'
-import * as fuzz from 'fuzzball'
 
 // TODO: Move this to more relevant file (merge service?)
 /**
@@ -255,41 +254,4 @@ export async function lookupEnrichedPlaceById(
     )
     return null
   }
-}
-
-/**
- * Calculates similarity between two place names using fuzzy string matching
- * Returns a score from 0 to 1, where 1 is a perfect match
- */
-export function calculateNameSimilarity(name1: string, name2: string): number {
-  if (!name1 || !name2) return 0
-
-  // Normalize names for comparison
-  const normalize = (name: string): string => {
-    return (
-      name
-        .toLowerCase()
-        .trim()
-        // Remove common business suffixes
-        .replace(
-          /\b(inc|incorporated|llc|ltd|limited|corp|corporation|co|company)\b/g,
-          '',
-        )
-        // Remove punctuation
-        .replace(/[^\w\s]/g, ' ')
-        // Normalize whitespace
-        .replace(/\s+/g, ' ')
-        .trim()
-    )
-  }
-
-  const normalized1 = normalize(name1)
-  const normalized2 = normalize(name2)
-
-  // Use fuzzball's token_set_ratio for best results with business names
-  // This handles word order differences and partial matches well
-  const similarity = fuzz.token_set_ratio(normalized1, normalized2)
-
-  // Convert from 0-100 scale to 0-1 scale
-  return similarity / 100
 }

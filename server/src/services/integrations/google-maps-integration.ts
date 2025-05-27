@@ -3,9 +3,9 @@ import type {
   AutocompleteCapability,
   PlaceInfoCapability,
   GeocodingCapability,
-  IntegrationConfig,
   IntegrationTestResult,
   SearchCapability,
+  GoogleMapsConfig,
 } from '../../types/integration.types'
 import {
   IntegrationCapabilityId,
@@ -17,10 +17,10 @@ import { SOURCE } from '../../lib/constants'
 
 // TODO: Use official Google Maps API for requests
 
-export class GoogleMapsIntegration implements Integration {
+export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
   private adapter = new GoogleAdapter()
+  private config: GoogleMapsConfig = { apiKey: '' }
   private baseUrl = 'https://maps.googleapis.com/maps/api'
-  private config: IntegrationConfig = {}
 
   // Integration metadata
   readonly integrationId = IntegrationId.GOOGLE_MAPS
@@ -54,7 +54,7 @@ export class GoogleMapsIntegration implements Integration {
 
   // Integration interface methods
   async testConnection(
-    config: IntegrationConfig,
+    config: GoogleMapsConfig,
   ): Promise<IntegrationTestResult> {
     if (!this.validateConfig(config)) {
       return {
@@ -92,7 +92,7 @@ export class GoogleMapsIntegration implements Integration {
     }
   }
 
-  initialize(config: IntegrationConfig): void {
+  initialize(config: GoogleMapsConfig): void {
     console.log(
       'Google Maps Integration - initialize called with config:',
       JSON.stringify(config, null, 2),
@@ -108,7 +108,7 @@ export class GoogleMapsIntegration implements Integration {
     }
   }
 
-  validateConfig(config: IntegrationConfig): boolean {
+  validateConfig(config: GoogleMapsConfig): boolean {
     return !!config.apiKey
   }
 

@@ -90,14 +90,102 @@ export interface IntegrationTestResult {
   message?: string
 }
 
-export interface IntegrationConfig {
-  [key: string]: any
+// Integration-specific config interfaces
+export interface GoogleMapsConfig {
+  apiKey: string
 }
+
+export interface PeliasConfig {
+  host: string
+  apiKey?: string
+}
+
+export interface NominatimConfig {
+  host: string
+  email?: string
+}
+
+export interface OverpassConfig {
+  host: string
+}
+
+export interface GraphHopperConfig {
+  apiKey: string
+  host?: string
+}
+
+export interface YelpConfig {
+  clientId: string
+  clientSecret: string
+}
+
+export interface OpenTableConfig {
+  apiKey: string
+}
+
+export interface FoursquareConfig {
+  clientId: string
+  clientSecret: string
+}
+
+export interface MapillaryConfig {
+  apiKey: string
+}
+
+export interface TripAdvisorConfig {
+  apiKey: string
+}
+
+export interface GeoapifyConfig {
+  apiKey: string
+}
+
+// Union type for all integration configs
+export type IntegrationConfig =
+  | GoogleMapsConfig
+  | PeliasConfig
+  | NominatimConfig
+  | OverpassConfig
+  | GraphHopperConfig
+  | YelpConfig
+  | OpenTableConfig
+  | FoursquareConfig
+  | MapillaryConfig
+  | TripAdvisorConfig
+  | GeoapifyConfig
+
+// Type helper to get config type for specific integration
+export type ConfigForIntegration<T extends IntegrationId> =
+  T extends IntegrationId.GOOGLE_MAPS
+    ? GoogleMapsConfig
+    : T extends IntegrationId.PELIAS
+    ? PeliasConfig
+    : T extends IntegrationId.NOMINATIM
+    ? NominatimConfig
+    : T extends IntegrationId.OVERPASS
+    ? OverpassConfig
+    : T extends IntegrationId.GRAPHHOPPER
+    ? GraphHopperConfig
+    : T extends IntegrationId.YELP
+    ? YelpConfig
+    : T extends IntegrationId.OPENTABLE
+    ? OpenTableConfig
+    : T extends IntegrationId.FOURSQUARE
+    ? FoursquareConfig
+    : T extends IntegrationId.MAPILLARY
+    ? MapillaryConfig
+    : T extends IntegrationId.TRIPADVISOR
+    ? TripAdvisorConfig
+    : T extends IntegrationId.GEOAPIFY
+    ? GeoapifyConfig
+    : never
 
 /**
  * Base interface that all integrations must implement
  */
-export interface Integration {
+export interface Integration<
+  TConfig extends IntegrationConfig = IntegrationConfig,
+> {
   /**
    * The integration ID that this integration implements
    */
@@ -123,27 +211,20 @@ export interface Integration {
    * @param config The configuration to test
    * @returns A test result indicating success or failure
    */
-  testConnection(config: IntegrationConfig): Promise<IntegrationTestResult>
+  testConnection(config: TConfig): Promise<IntegrationTestResult>
 
   /**
    * Initializes the integration with the given configuration
    * @param config The configuration to use
    */
-  initialize(config: IntegrationConfig): void
+  initialize(config: TConfig): void
 
   /**
    * Validates that the configuration has all required fields
    * @param config The configuration to validate
    * @returns True if the configuration is valid, false otherwise
    */
-  validateConfig(config: IntegrationConfig): boolean
-
-  /**
-   * Get place details by provider-specific ID
-   * @param id The provider-specific ID of the place
-   * @returns Provider-specific place data or null if not found
-   */
-  getPlaceDetails?(id: string): Promise<any | null>
+  validateConfig(config: TConfig): boolean
 }
 
 // Integration data types
@@ -178,18 +259,18 @@ export type IntegrationResponse = {
   id: string
   integrationId: IntegrationId
   capabilities: IntegrationCapability[]
-  config: Record<string, any>
+  config: IntegrationConfig
 }
 
 // Request to create a new integration
 export type CreateIntegrationRequest = {
   integrationId: IntegrationId
-  config: Record<string, any>
+  config: IntegrationConfig
 }
 
 // Request to update an integration
 export type UpdateIntegrationRequest = {
-  config?: Record<string, any>
+  config?: IntegrationConfig
   capabilities?: IntegrationCapability[]
 }
 
@@ -202,5 +283,5 @@ export type TestIntegrationResponse = {
 // Request to test an integration
 export type TestIntegrationRequest = {
   integrationId: IntegrationId
-  config: Record<string, any>
+  config: IntegrationConfig
 }

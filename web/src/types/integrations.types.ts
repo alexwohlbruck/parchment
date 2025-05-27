@@ -7,6 +7,7 @@ import { z } from 'zod'
 import {
   IntegrationCapabilityId,
   IntegrationCapability,
+  IntegrationConfig,
 } from '@server/types/integration.types'
 
 // TODO: i18n translate error messages
@@ -42,7 +43,6 @@ export const overpassSchema = z.object({
 
 export const googleMapsSchema = z.object({
   apiKey: z.string().min(1, 'API Key is required'),
-  // clientId: z.string().optional(),
 })
 
 export const peliasSchema = z.object({
@@ -63,6 +63,6 @@ export type UiIntegration = {
   paid: boolean
   cloud: boolean
   configSchema?: string | z.ZodObject<any>
-  config?: Record<string, any>
+  config?: IntegrationConfig
   enabled?: boolean
 }

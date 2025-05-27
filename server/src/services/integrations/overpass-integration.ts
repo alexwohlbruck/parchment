@@ -2,7 +2,7 @@ import axios from 'axios'
 import type {
   Integration,
   PlaceInfoCapability,
-  IntegrationConfig,
+  OverpassConfig,
   IntegrationTestResult,
   SearchCapability,
 } from '../../types/integration.types'
@@ -20,9 +20,9 @@ import { SOURCE } from '../../lib/constants'
 /**
  * Overpass API integration for OpenStreetMap data
  */
-export class OverpassIntegration implements Integration {
+export class OverpassIntegration implements Integration<OverpassConfig> {
   private adapter = new OverpassAdapter()
-  private config: IntegrationConfig = {}
+  private config: OverpassConfig = { host: '' }
 
   // Integration metadata
   readonly integrationId = IntegrationId.OVERPASS
@@ -41,9 +41,7 @@ export class OverpassIntegration implements Integration {
   }
 
   // Integration interface methods
-  async testConnection(
-    config: IntegrationConfig,
-  ): Promise<IntegrationTestResult> {
+  async testConnection(config: OverpassConfig): Promise<IntegrationTestResult> {
     if (!this.validateConfig(config)) {
       return {
         success: false,
@@ -84,7 +82,7 @@ export class OverpassIntegration implements Integration {
     }
   }
 
-  initialize(config: IntegrationConfig): void {
+  initialize(config: OverpassConfig): void {
     console.log(
       'Overpass Integration - initialize called with config:',
       JSON.stringify(config, null, 2),
@@ -92,7 +90,7 @@ export class OverpassIntegration implements Integration {
     this.config = config
   }
 
-  validateConfig(config: IntegrationConfig): boolean {
+  validateConfig(config: OverpassConfig): boolean {
     return Boolean(config && config.host)
   }
 

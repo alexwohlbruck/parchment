@@ -131,11 +131,12 @@ function handleBrandLogoError() {
           />
         </div>
 
-        <PlaceGallery
+        <!-- Temporary disabled, photos are costing a lot of API calls lmao -->
+        <!-- <PlaceGallery
           :place="place"
           @imageLoaded="handlePlaceImageLoad"
           @imageError="handlePlaceImageError"
-        />
+        /> -->
 
         <div class="px-4">
           <DetailsList :place="place" />

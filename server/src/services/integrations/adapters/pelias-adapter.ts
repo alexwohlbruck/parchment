@@ -79,6 +79,7 @@ export class PeliasAdapter {
   /**
    * Extract address from Pelias properties
    */
+  // TODO: OSM object without address info are defaulting to use the place name as address. Fix this.
   private extractAddress(props: PeliasFeature['properties']): Address | null {
     const address: Address = {}
 

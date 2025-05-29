@@ -14,6 +14,7 @@ import {
 import type { Place } from '../../types/place.types'
 import { GoogleAdapter } from './adapters/google-adapter'
 import { SOURCE } from '../../lib/constants'
+import qs from 'qs'
 
 // TODO: Use official Google Maps API for requests
 
@@ -132,12 +133,21 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
     if (!this.config.apiKey || !lat || !lng) {
       return []
     }
-    const { radius = 50000 } = options || {}
+    const { radius } = options || {}
 
     try {
-      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
-        query,
-      )}&location=${lat},${lng}&radius=${radius}&key=${this.config.apiKey}`
+      const params: Record<string, any> = {
+        input: query,
+        location: `${lat},${lng}`,
+        key: this.config.apiKey,
+      }
+
+      if (radius) {
+        params.radius = radius
+      }
+
+      const queryString = qs.stringify(params)
+      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?${queryString}`
 
       const response = await fetch(url)
       const data = await response.json()
@@ -153,16 +163,15 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
       const enrichedPredictions = await Promise.all(
         data.predictions.map(async (prediction: any) => {
           try {
-            const url = new URL(`${this.baseUrl}/place/details/json`)
+            const detailParams = {
+              place_id: prediction.place_id,
+              key: this.config.apiKey,
+              fields: 'place_id,name,geometry,formatted_address,types',
+            }
+            const detailQueryString = qs.stringify(detailParams)
+            const detailUrl = `${this.baseUrl}/place/details/json?${detailQueryString}`
 
-            url.searchParams.set('place_id', prediction.place_id)
-            url.searchParams.set('key', this.config.apiKey)
-            url.searchParams.set(
-              'fields',
-              'place_id,name,geometry,formatted_address,types',
-            )
-
-            const response = await fetch(url.toString())
+            const response = await fetch(detailUrl)
             if (!response.ok) {
               throw new Error(`HTTP error: ${response.status}`)
             }

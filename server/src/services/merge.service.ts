@@ -59,26 +59,123 @@ export function extractNumbers(text: string): string[] {
 }
 
 /**
- * Check if two addresses likely refer to the same location
+ * Improved address similarity that handles structured data and common variations
  */
-export function doAddressesMatch(place1: Place, place2: Place): boolean {
-  const address1 = getAddressString(place1)
-  const address2 = getAddressString(place2)
+export function calculateAddressSimilarity(
+  place1: Place,
+  place2: Place,
+): number | null {
+  const address1 = place1.address?.value
+  const address2 = place2.address?.value
 
-  if (!address1 || !address2) return false
+  if (!address1 || !address2) return null
 
-  // If both have numbers and none match, likely different places
+  // If we have structured address data, use it
+  if (address1.street1 && address2.street1) {
+    return calculateStructuredAddressSimilarity(address1, address2)
+  }
+
+  // Fall back to formatted address comparison
+  const formatted1 = getAddressString(place1)
+  const formatted2 = getAddressString(place2)
+
+  if (!formatted1 || !formatted2) return null
+
+  return calculateFormattedAddressSimilarity(formatted1, formatted2)
+}
+
+/**
+ * Compare structured address components
+ */
+function calculateStructuredAddressSimilarity(
+  address1: any,
+  address2: any,
+): number {
+  let totalWeight = 0
+  let matchedWeight = 0
+
+  // Extract and compare house numbers (most important)
+  const numbers1 = extractNumbers(address1.street1 || '')
+  const numbers2 = extractNumbers(address2.street1 || '')
+
+  if (numbers1.length > 0 && numbers2.length > 0) {
+    totalWeight += 0.4 // House number is 40% of the score
+    const hasCommonNumber = numbers1.some((num1) => numbers2.includes(num1))
+    if (hasCommonNumber) matchedWeight += 0.4
+  }
+
+  // Compare street names (normalize common abbreviations)
+  const street1 = normalizeStreetName(address1.street1 || '')
+  const street2 = normalizeStreetName(address2.street1 || '')
+
+  if (street1 && street2) {
+    totalWeight += 0.4 // Street name is 40% of the score
+    const streetSimilarity = calculateTextSimilarity(street1, street2)
+    matchedWeight += 0.4 * streetSimilarity
+  }
+
+  // Compare postal codes (if available)
+  if (address1.postalCode && address2.postalCode) {
+    totalWeight += 0.2 // Postal code is 20% of the score
+    if (address1.postalCode === address2.postalCode) {
+      matchedWeight += 0.2
+    }
+  }
+
+  return totalWeight > 0 ? matchedWeight / totalWeight : 0
+}
+
+/**
+ * Normalize street names by handling common abbreviations
+ */
+function normalizeStreetName(street: string): string {
+  return (
+    normalizeText(street)
+      // Normalize directional abbreviations
+      .replace(/\b(n|north)\b/g, 'north')
+      .replace(/\b(s|south)\b/g, 'south')
+      .replace(/\b(e|east)\b/g, 'east')
+      .replace(/\b(w|west)\b/g, 'west')
+      .replace(/\b(ne|northeast)\b/g, 'northeast')
+      .replace(/\b(nw|northwest)\b/g, 'northwest')
+      .replace(/\b(se|southeast)\b/g, 'southeast')
+      .replace(/\b(sw|southwest)\b/g, 'southwest')
+      // Normalize street type abbreviations
+      .replace(/\b(st|street)\b/g, 'street')
+      .replace(/\b(ave|avenue)\b/g, 'avenue')
+      .replace(/\b(rd|road)\b/g, 'road')
+      .replace(/\b(dr|drive)\b/g, 'drive')
+      .replace(/\b(ln|lane)\b/g, 'lane')
+      .replace(/\b(ct|court)\b/g, 'court')
+      .replace(/\b(pl|place)\b/g, 'place')
+      .replace(/\b(blvd|boulevard)\b/g, 'boulevard')
+      // Remove unit/apartment info for comparison
+      .replace(/\b(unit|apt|apartment|suite|ste)\s+\w+/g, '')
+      .trim()
+  )
+}
+
+/**
+ * Compare formatted address strings with better normalization
+ */
+function calculateFormattedAddressSimilarity(
+  address1: string,
+  address2: string,
+): number {
+  // Extract and compare house numbers first
   const numbers1 = extractNumbers(address1)
   const numbers2 = extractNumbers(address2)
 
   if (numbers1.length > 0 && numbers2.length > 0) {
     const hasCommonNumber = numbers1.some((num1) => numbers2.includes(num1))
-    if (!hasCommonNumber) return false
+    if (!hasCommonNumber) return 0 // Different house numbers = different places
   }
 
-  // Use fuzzy matching for address comparison
-  const similarity = calculateTextSimilarity(address1, address2)
-  return similarity >= 0.8 // 80% similarity threshold
+  // Normalize both addresses
+  const normalized1 = normalizeStreetName(address1)
+  const normalized2 = normalizeStreetName(address2)
+
+  return calculateTextSimilarity(normalized1, normalized2)
 }
 
 export function getAddressString(place: Place): string | null {
@@ -188,52 +285,60 @@ function mergeAttributedRecord<T>(
 }
 
 /**
- * Determines if two places should be merged based on name similarity, address matching, and location
- * Uses a continuous inverse square function for distance weighting
+ * Determines if two places should be merged based on name, address, and distance similarity
  */
 function shouldMergePlaces(place1: Place, place2: Place): boolean {
-  const nameSimilarity = calculateTextSimilarity(
-    place1.name.value,
-    place2.name.value,
-  )
-
   const point1 = createTurfPoint(place1)
   const point2 = createTurfPoint(place2)
   const distanceMeters = turf.distance(point1, point2, { units: 'meters' })
 
+  // Hard distance cutoff - never merge places more than 500m apart
+  if (distanceMeters > 500) return false
+
   // Distance weight using inverse square function
-  const distanceWeight = 1 / (1 + Math.pow(distanceMeters / 100, 2))
+  const distanceSimilarity = 1 / (1 + Math.pow(distanceMeters / 100, 2))
 
-  // Early rejection based on distance-weighted name similarity
-  const minNameSimilarity = 0.2 + 0.4 * distanceWeight // Range: 0.2 to 0.6
-  if (nameSimilarity < minNameSimilarity) return false
+  const nameSimilarity = calculateTextSimilarity(
+    place1.name.value,
+    place2.name.value,
+  )
+  const addressSimilarity = calculateAddressSimilarity(place1, place2)
 
-  // Weighted name similarity and threshold
-  const nameThreshold = 0.5 + 0.3 * (1 - distanceWeight)
-  const weightedNameSimilarity = nameSimilarity * (1 + distanceWeight)
+  // Distance-based name similarity threshold
+  // At 0m: 30%, at 100m: 65%, at 500m: 95%
+  const requiredNameSimilarity = 0.3 + 0.65 * (1 - distanceSimilarity)
 
-  // Address matching
-  // TODO: We should rework this to use the raw address data over formatted strings. Not doing this yet because not all sources provide raw address data
-  const address1 = getAddressString(place1)
-  const address2 = getAddressString(place2)
-  const hasAddresses = address1 && address2
+  // Early rejection if name similarity is too low
+  if (nameSimilarity < requiredNameSimilarity) return false
 
-  if (hasAddresses) {
-    const addressMatch = doAddressesMatch(place1, place2)
-    // Reject if addresses are known and different, weighted by distance
-    if (!addressMatch && distanceWeight > 0.5) return false
-
-    // Calculate final score with address bonus
-    const mergeScore =
-      weightedNameSimilarity * 0.6 +
-      distanceWeight * 0.3 +
-      (addressMatch ? 0.2 : 0)
-    return mergeScore > 0.8
+  // For very close places with addresses, require address match
+  if (
+    distanceSimilarity > 0.5 &&
+    addressSimilarity !== null &&
+    addressSimilarity < 0.7
+  ) {
+    return false
   }
 
-  // Score without address consideration
-  const mergeScore = weightedNameSimilarity * 0.7 + distanceWeight * 0.3
-  return mergeScore > 0.8
+  // Calculate weighted merge score
+  let mergeScore: number
+
+  if (addressSimilarity !== null) {
+    // With addresses: name 50%, distance 25%, address 25%
+    mergeScore =
+      nameSimilarity * 0.5 +
+      distanceSimilarity * 0.25 +
+      addressSimilarity * 0.25
+  } else {
+    // Without addresses: name 70%, distance 30%
+    mergeScore = nameSimilarity * 0.7 + distanceSimilarity * 0.3
+  }
+
+  // Distance-based merge score threshold
+  // At 0m: 40%, at 100m: 67.5%, at 500m: 95%
+  const requiredMergeScore = 0.4 + 0.55 * (1 - distanceSimilarity)
+
+  return mergeScore >= requiredMergeScore
 }
 
 /**
@@ -344,6 +449,7 @@ export function mergePlaces(
   return result
 }
 
+// TODO: This can be optimized to never merge places from the same source
 /**
  * Merges and deduplicates places from multiple sources
  */

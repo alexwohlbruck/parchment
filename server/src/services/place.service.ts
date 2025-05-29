@@ -109,14 +109,12 @@ export async function lookupPlacesByNameAndLocation(
           name,
           coordinates.lat,
           coordinates.lng,
-          { radius },
         )
       } else {
         return integration.integration.capabilities.search?.searchPlaces(
           name,
           coordinates.lat,
           coordinates.lng,
-          { radius },
         )
       }
     })

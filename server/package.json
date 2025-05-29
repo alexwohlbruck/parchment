@@ -41,6 +41,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.15.21",
+    "@types/qs": "^6.14.0",
     "bun-types": "latest"
   },
   "module": "src/index.js"

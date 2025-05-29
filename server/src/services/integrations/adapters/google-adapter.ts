@@ -14,59 +14,65 @@ import { parseGoogleHours } from '../../../lib/hours.utils'
 
 // TODO: Move this type def
 export interface GooglePlaceDetails {
-  place_id: string
-  name: string
-  formatted_address: string
-  formatted_phone_number: string
-  website: string
-  types: string[]
-  photos: {
-    photo_reference: string
-    height: number
-    width: number
-    html_attributions: string[]
-  }[]
-  rating: number
-  user_ratings_total: number
-  opening_hours?: {
-    open_now?: boolean
-    periods?: {
-      open: { day: number; time: string }
-      close: { day: number; time: string }
+  id: string
+  displayName?: {
+    text: string
+    languageCode?: string
+  }
+  formattedAddress?: string
+  internationalPhoneNumber?: string
+  websiteUri?: string
+  types?: string[]
+  photos?: {
+    name: string
+    widthPx: number
+    heightPx: number
+    authorAttributions: {
+      displayName: string
+      uri: string
+      photoUri: string
     }[]
-    weekday_text?: string[]
+  }[]
+  rating?: number
+  userRatingCount?: number
+  regularOpeningHours?: {
+    openNow?: boolean
+    periods?: {
+      open: { day: number; hour: number; minute: number }
+      close: { day: number; hour: number; minute: number }
+    }[]
+    weekdayDescriptions?: string[]
   }
   // Editorial summary with place description
-  editorial_summary?: {
-    language?: string
-    languageCode?: string
-    overview?: string
+  editorialSummary?: {
     text?: string
+    languageCode?: string
   }
   // Location/geometry data
-  geometry?: {
-    location: {
-      lat: number
-      lng: number
-    }
+  location?: {
+    latitude: number
+    longitude: number
   }
-  google_maps_uri?: string
-  price_level?: string
-  business_status?: string
-  dine_in?: boolean
+  googleMapsUri?: string
+  priceLevel?: string
+  businessStatus?: string
+  dineIn?: boolean
   takeout?: boolean
   delivery?: boolean
-  curbside_pickup?: boolean
-  serves_breakfast?: boolean
-  serves_lunch?: boolean
-  serves_dinner?: boolean
-  serves_beer?: boolean
-  serves_cocktails?: boolean
-  outdoor_seating?: boolean
-  live_music?: boolean
-  good_for_children?: boolean
-  good_for_groups?: boolean
-  utc_offset?: number
+  curbsidePickup?: boolean
+  servesBreakfast?: boolean
+  servesLunch?: boolean
+  servesDinner?: boolean
+  servesBeer?: boolean
+  servesVegetarianFood?: boolean
+  servesCocktails?: boolean
+  servesCoffee?: boolean
+  outdoorSeating?: boolean
+  liveMusic?: boolean
+  goodForChildren?: boolean
+  goodForGroups?: boolean
+  restroom?: boolean
+  utcOffsetMinutes?: number
 }
 
 /**
@@ -87,23 +93,22 @@ export class GoogleAdapter {
     adaptPrediction: (prediction: any, id?: string): Place => {
       // Extract the place name (removing it from the description to create a better formatted address)
       const placeName =
-        prediction.structured_formatting?.main_text ||
-        prediction.description?.split(',')[0] ||
+        prediction.structuredFormat?.mainText?.text ||
+        prediction.text?.text?.split(',')[0] ||
         'Unknown Place'
 
       // Determine the best address to use
       let formattedAddress = ''
 
       // First priority: Use enriched place details' formatted_address if available
-      if (prediction.details?.formatted_address) {
-        formattedAddress = prediction.details.formatted_address
+      if (prediction.details?.formattedAddress) {
+        formattedAddress = prediction.details.formattedAddress
       }
       // Second priority: Extract address components from the description
-      else {
+      else if (prediction.text?.text) {
         const descriptionParts =
-          prediction.description
-            ?.split(',')
-            .map((part: string) => part.trim()) || []
+          prediction.text.text?.split(',').map((part: string) => part.trim()) ||
+          []
 
         // Remove the place name from the description since it's already in the name field
         if (descriptionParts.length > 0) {
@@ -119,29 +124,19 @@ export class GoogleAdapter {
       let lat = 0
       let lng = 0
 
-      // Check if we have enriched place details with geometry data
-      if (prediction.details?.geometry?.value?.center) {
-        lat = prediction.details.geometry.value.center.lat
-        lng = prediction.details.geometry.value.center.lng
-      }
-      // Check if we have minimal place details with direct geometry
-      else if (prediction.details?.geometry?.location) {
-        lat = prediction.details.geometry.location.lat
-        lng = prediction.details.geometry.location.lng
-      }
-      // Fallback: check if geometry data is directly on the prediction
-      else if (prediction.geometry?.location) {
-        lat = prediction.geometry.location.lat
-        lng = prediction.geometry.location.lng
+      // Check if we have enriched place details with location data
+      if (prediction.details?.location) {
+        lat = prediction.details.location.latitude
+        lng = prediction.details.location.longitude
       }
 
       // Use the new ID format: source/providerId
-      const primaryId = id || `${SOURCE.GOOGLE}/${prediction.place_id}`
+      const primaryId = id || `${SOURCE.GOOGLE}/${prediction.placeId}`
 
       const place = {
         id: primaryId,
         externalIds: {
-          [SOURCE.GOOGLE]: prediction.place_id,
+          [SOURCE.GOOGLE]: prediction.placeId,
         },
         name: {
           value: placeName,
@@ -196,16 +191,23 @@ export class GoogleAdapter {
 
   placeInfo = {
     adaptPlaceDetails: (data: GooglePlaceDetails, id?: string): Place => {
+      console.log('data', data)
       // Use the new ID format: source/providerId
-      const primaryId = id || `${SOURCE.GOOGLE}/${data.place_id}`
+      const primaryId = id || `${SOURCE.GOOGLE}/${data.id}`
+
+      // Generate Google Maps URL if not provided
+      let googleMapsUrl = data.googleMapsUri || ''
+      if (!googleMapsUrl && data.id) {
+        googleMapsUrl = `https://maps.google.com/?place_id=${data.id}`
+      }
 
       return {
         id: primaryId,
         externalIds: {
-          [SOURCE.GOOGLE]: data.place_id,
+          [SOURCE.GOOGLE]: data.id,
         },
         name: {
-          value: data.name || 'Unnamed Place',
+          value: data.displayName?.text || 'Unnamed Place',
           sourceId: SOURCE.GOOGLE,
         },
         placeType: {
@@ -216,8 +218,8 @@ export class GoogleAdapter {
           value: {
             type: 'point' as const,
             center: {
-              lat: data.geometry?.location?.lat || 0,
-              lng: data.geometry?.location?.lng || 0,
+              lat: data.location?.latitude || 0,
+              lng: data.location?.longitude || 0,
             },
           },
           sourceId: SOURCE.GOOGLE,
@@ -225,16 +227,16 @@ export class GoogleAdapter {
         photos: this.extractPhotos(data),
         address: this.extractAddress(data),
         contactInfo: {
-          phone: data.formatted_phone_number
+          phone: data.internationalPhoneNumber
             ? {
-                value: data.formatted_phone_number,
+                value: data.internationalPhoneNumber,
                 sourceId: SOURCE.GOOGLE,
               }
             : null,
           email: null,
-          website: data.website
+          website: data.websiteUri
             ? {
-                value: data.website,
+                value: data.websiteUri,
                 sourceId: SOURCE.GOOGLE,
               }
             : null,
@@ -248,7 +250,7 @@ export class GoogleAdapter {
           {
             id: SOURCE.GOOGLE,
             name: 'Google',
-            url: data.google_maps_uri || '',
+            url: googleMapsUrl,
           },
         ],
         lastUpdated: new Date().toISOString(),
@@ -270,9 +272,9 @@ export class GoogleAdapter {
     try {
       data.photos.forEach((p, index) => {
         // Skip photos with missing data
-        if (!p.photo_reference) return
+        if (!p.name) return
 
-        const photoId = p.photo_reference.split('/').pop()
+        const photoId = p.name.split('/').pop()
         if (!photoId) return
 
         const url = `${GOOGLE_MAPS_PHOTO_URL}?maxwidth=200&photo_reference=${photoId}&key=${this.apiKey}`
@@ -281,8 +283,8 @@ export class GoogleAdapter {
             url,
             sourceId: SOURCE.GOOGLE,
             isPrimary: index === 0, // Only mark the first photo as primary
-            width: p.width,
-            height: p.height,
+            width: p.widthPx,
+            height: p.heightPx,
           },
           sourceId: SOURCE.GOOGLE,
         })
@@ -300,11 +302,11 @@ export class GoogleAdapter {
   private extractAddress(
     data: GooglePlaceDetails,
   ): AttributedValue<Address> | null {
-    if (!data.formatted_address) return null
+    if (!data.formattedAddress) return null
 
     return {
       value: {
-        formatted: data.formatted_address,
+        formatted: data.formattedAddress,
       },
       sourceId: SOURCE.GOOGLE,
     }
@@ -316,19 +318,19 @@ export class GoogleAdapter {
   private extractOpeningHours(
     data: GooglePlaceDetails,
   ): AttributedValue<OpeningHours> | null {
-    if (!data.opening_hours?.weekday_text) return null
+    if (!data.regularOpeningHours?.weekdayDescriptions) return null
 
     try {
-      const hoursText = data.opening_hours.weekday_text.join('; ')
+      const hoursText = data.regularOpeningHours.weekdayDescriptions.join('; ')
       const regularHours = parseGoogleHours(hoursText)
 
       const openingHours: OpeningHours = {
         regularHours,
         isOpen24_7: false,
         isPermanentlyClosed:
-          data.business_status === BUSINESS_STATUS.CLOSED_PERMANENTLY,
+          data.businessStatus === BUSINESS_STATUS.CLOSED_PERMANENTLY,
         isTemporarilyClosed:
-          data.business_status === BUSINESS_STATUS.CLOSED_TEMPORARILY,
+          data.businessStatus === BUSINESS_STATUS.CLOSED_TEMPORARILY,
         rawText: hoursText,
       }
 
@@ -357,29 +359,37 @@ export class GoogleAdapter {
     }
 
     // Add scalar amenities
-    if (data.price_level) {
-      amenities.price_level = String(data.price_level)
+    if (data.priceLevel) {
+      amenities.price_level = String(data.priceLevel)
     }
 
-    if (data.business_status) {
-      amenities.business_status = data.business_status
+    if (data.businessStatus) {
+      amenities.business_status = data.businessStatus
+    }
+
+    // Add UTC offset information
+    if (data.utcOffsetMinutes !== undefined) {
+      amenities.utc_offset_minutes = String(data.utcOffsetMinutes)
     }
 
     // Add boolean amenities
     const booleanAmenities: Record<string, boolean | undefined> = {
-      dine_in: data.dine_in,
+      dine_in: data.dineIn,
       takeout: data.takeout,
       delivery: data.delivery,
-      curbside_pickup: data.curbside_pickup,
-      serves_breakfast: data.serves_breakfast,
-      serves_lunch: data.serves_lunch,
-      serves_dinner: data.serves_dinner,
-      serves_beer: data.serves_beer,
-      serves_cocktails: data.serves_cocktails ?? false,
-      outdoor_seating: data.outdoor_seating,
-      live_music: data.live_music,
-      good_for_children: data.good_for_children,
-      good_for_groups: data.good_for_groups,
+      curbside_pickup: data.curbsidePickup,
+      serves_breakfast: data.servesBreakfast,
+      serves_lunch: data.servesLunch,
+      serves_dinner: data.servesDinner,
+      serves_beer: data.servesBeer,
+      serves_cocktails: data.servesCocktails,
+      serves_vegetarian_food: data.servesVegetarianFood,
+      serves_coffee: data.servesCoffee,
+      outdoor_seating: data.outdoorSeating,
+      live_music: data.liveMusic,
+      good_for_children: data.goodForChildren,
+      good_for_groups: data.goodForGroups,
+      restroom: data.restroom,
     }
 
     Object.entries(booleanAmenities).forEach(([key, value]) => {
@@ -408,7 +418,7 @@ export class GoogleAdapter {
         sourceId: SOURCE.GOOGLE,
       },
       reviewCount: {
-        value: data.user_ratings_total || 0,
+        value: data.userRatingCount || 0,
         sourceId: SOURCE.GOOGLE,
       },
     }
@@ -420,12 +430,10 @@ export class GoogleAdapter {
   private extractDescription(
     data: GooglePlaceDetails,
   ): AttributedValue<string> | undefined {
-    if (!data.editorial_summary?.overview && !data.editorial_summary?.text)
-      return undefined
+    if (!data.editorialSummary?.text) return undefined
 
     return {
-      value:
-        data.editorial_summary?.overview || data.editorial_summary?.text || '',
+      value: data.editorialSummary.text,
       sourceId: SOURCE.GOOGLE,
     }
   }

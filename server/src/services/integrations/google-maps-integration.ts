@@ -14,14 +14,13 @@ import {
 import type { Place } from '../../types/place.types'
 import { GoogleAdapter } from './adapters/google-adapter'
 import { SOURCE } from '../../lib/constants'
-import qs from 'qs'
 
-// TODO: Use official Google Maps API for requests
+// TODO: Use official Google client SDK for requests
 
 export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
   private adapter = new GoogleAdapter()
   private config: GoogleMapsConfig = { apiKey: '' }
-  private baseUrl = 'https://maps.googleapis.com/maps/api'
+  private baseUrl = 'https://places.googleapis.com/v1'
 
   // Integration metadata
   readonly integrationId = IntegrationId.GOOGLE_MAPS
@@ -66,20 +65,31 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
 
     try {
       // Test a simple autocomplete request to validate the API key
-      const url = new URL(`${this.baseUrl}/place/autocomplete/json`)
-      url.searchParams.set('input', 'test')
-      url.searchParams.set('key', config.apiKey)
+      const url = `${this.baseUrl}/places:autocomplete`
+      const requestBody = {
+        input: 'test',
+      }
 
-      const response = await fetch(url.toString())
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': config.apiKey,
+          'X-Goog-FieldMask': 'suggestions.placePrediction.placeId',
+        },
+        body: JSON.stringify(requestBody),
+      })
+
       if (!response.ok) {
         throw new Error(`Google API error: ${response.status}`)
       }
 
       const data = await response.json()
-      if (data.status === 'REQUEST_DENIED') {
+      if (data.error) {
         return {
           success: false,
-          message: 'Invalid API Key or insufficient permissions',
+          message:
+            data.error.message || 'Invalid API Key or insufficient permissions',
         }
       }
 
@@ -136,52 +146,50 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
     const { radius } = options || {}
 
     try {
-      const params: Record<string, any> = {
+      const url = `${this.baseUrl}/places:autocomplete`
+      const requestBody: any = {
         input: query,
-        location: `${lat},${lng}`,
-        key: this.config.apiKey,
+        locationBias: {
+          circle: {
+            center: {
+              latitude: lat,
+              longitude: lng,
+            },
+            radius: radius || 50000,
+          },
+        },
       }
 
-      if (radius) {
-        params.radius = radius
-      }
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': this.config.apiKey,
+          'X-Goog-FieldMask':
+            'suggestions.placePrediction.placeId,suggestions.placePrediction.text,suggestions.placePrediction.structuredFormat,suggestions.placePrediction.types',
+        },
+        body: JSON.stringify(requestBody),
+      })
 
-      const queryString = qs.stringify(params)
-      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?${queryString}`
-
-      const response = await fetch(url)
       const data = await response.json()
 
-      if (data.status !== 'OK') {
+      if (!response.ok || data.error) {
         return []
       }
 
-      if (!data.predictions || data.predictions.length === 0) {
+      if (!data.suggestions || data.suggestions.length === 0) {
         return []
       }
+
+      // Filter for place predictions only
+      const placePredictions = data.suggestions
+        .filter((suggestion: any) => suggestion.placePrediction)
+        .map((suggestion: any) => suggestion.placePrediction)
 
       const enrichedPredictions = await Promise.all(
-        data.predictions.map(async (prediction: any) => {
+        placePredictions.map(async (prediction: any) => {
           try {
-            const detailParams = {
-              place_id: prediction.place_id,
-              key: this.config.apiKey,
-              fields: 'place_id,name,geometry,formatted_address,types',
-            }
-            const detailQueryString = qs.stringify(detailParams)
-            const detailUrl = `${this.baseUrl}/place/details/json?${detailQueryString}`
-
-            const response = await fetch(detailUrl)
-            if (!response.ok) {
-              throw new Error(`HTTP error: ${response.status}`)
-            }
-
-            const data = await response.json()
-            if (data.status !== 'OK') {
-              throw new Error(`API error: ${data.status}`)
-            }
-
-            const placeDetails = data.result
+            const placeDetails = await this.getPlaceInfo(prediction.placeId)
             return { ...prediction, details: placeDetails }
           } catch (error) {
             return prediction
@@ -207,42 +215,45 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
   private async getPlaceInfo(placeId: string): Promise<Place | null> {
     try {
       console.log('Fetching place details for:', placeId)
-      const url = new URL(`${this.baseUrl}/place/details/json`)
-      url.searchParams.set('place_id', placeId)
-      url.searchParams.set('key', this.config.apiKey)
-      url.searchParams.set(
-        'fields',
-        'place_id,name,formatted_address,formatted_phone_number,website,types,photos,rating,user_ratings_total,opening_hours,editorial_summary,geometry,price_level,business_status,dine_in,takeout,delivery,curbside_pickup,serves_breakfast,serves_lunch,serves_dinner,serves_beer,utc_offset',
-      )
+      const url = `${this.baseUrl}/places/${placeId}`
+
+      const fieldMask =
+        'id,displayName,formattedAddress,internationalPhoneNumber,websiteUri,types,photos,rating,userRatingCount,googleMapsUri,priceLevel,businessStatus,editorialSummary,location,dineIn,takeout,delivery,curbsidePickup,servesBreakfast,servesLunch,servesDinner,servesBeer,servesVegetarianFood,servesCocktails,servesCoffee,outdoorSeating,liveMusic,goodForChildren,goodForGroups,restroom,regularOpeningHours,utcOffsetMinutes'
 
       console.log(
         'Place Details URL:',
-        url.toString().replace(this.config.apiKey, '[API_KEY]'),
+        url.replace(this.config.apiKey, '[API_KEY]'),
       )
-      const response = await fetch(url.toString())
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'X-Goog-Api-Key': this.config.apiKey,
+          'X-Goog-FieldMask': fieldMask,
+        },
+      })
+
       if (!response.ok) {
         console.error(`Google Place Details HTTP error: ${response.status}`)
+        if (response.status === 404) {
+          console.warn(`Place not found: ${placeId}`)
+          return null
+        }
         throw new Error(`Google API error: ${response.status}`)
       }
 
       const data = await response.json()
-      console.log('Place Details API response status:', data.status)
-      if (data.status !== 'OK') {
-        if (data.status === 'INVALID_REQUEST') {
-          console.warn(`Invalid place ID: ${placeId}`)
-          console.warn('Full API response:', JSON.stringify(data, null, 2))
-          return null
-        }
-        throw new Error(`Google API error: ${data.status}`)
+      if (data.error) {
+        console.error('Google Place Details API error:', data.error)
+        return null
       }
 
       console.log(
         'Place details found for:',
         placeId,
-        'with geometry:',
-        !!data.result?.geometry,
+        'with location:',
+        !!data.location,
       )
-      return this.adapter.placeInfo.adaptPlaceDetails(data.result)
+      return this.adapter.placeInfo.adaptPlaceDetails(data)
     } catch (error) {
       console.error('Google place details error:', error)
       return null
@@ -256,11 +267,17 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
    */
   private async geocode(address: string): Promise<Place[]> {
     try {
-      const url = new URL(`${this.baseUrl}/geocode/json`)
-      url.searchParams.set('address', address)
-      url.searchParams.set('key', this.config.apiKey)
+      // Use the legacy Geocoding API as the new Places API doesn't have direct geocoding
+      const url = `https://maps.googleapis.com/maps/api/geocode/json`
+      const params = {
+        address: address,
+        key: this.config.apiKey,
+      }
 
-      const response = await fetch(url.toString())
+      const queryString = new URLSearchParams(params).toString()
+      const fullUrl = `${url}?${queryString}`
+
+      const response = await fetch(fullUrl)
       if (!response.ok) {
         throw new Error(`Google API error: ${response.status}`)
       }
@@ -272,34 +289,43 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
 
       return data.results.map((result: any) =>
         this.adapter.placeInfo.adaptPlaceDetails({
-          place_id: result.place_id || '',
-          name: result.formatted_address || '',
-          formatted_address: result.formatted_address || '',
-          formatted_phone_number: '',
-          website: '',
+          id: result.place_id || '',
+          displayName: { text: result.formatted_address || '' },
+          formattedAddress: result.formatted_address || '',
+          internationalPhoneNumber: '',
+          websiteUri: '',
           types: result.types || [],
           photos: [],
           rating: 0,
-          user_ratings_total: 0,
-          opening_hours: undefined,
-          editorial_summary: undefined,
-          geometry: result.geometry,
-          google_maps_uri: '',
-          price_level: '',
-          business_status: '',
-          dine_in: false,
+          userRatingCount: 0,
+          regularOpeningHours: undefined,
+          editorialSummary: undefined,
+          location: result.geometry?.location
+            ? {
+                latitude: result.geometry.location.lat,
+                longitude: result.geometry.location.lng,
+              }
+            : undefined,
+          googleMapsUri: '',
+          priceLevel: '',
+          businessStatus: '',
+          dineIn: false,
           takeout: false,
           delivery: false,
-          curbside_pickup: false,
-          serves_breakfast: false,
-          serves_lunch: false,
-          serves_dinner: false,
-          serves_beer: false,
-          outdoor_seating: false,
-          live_music: false,
-          good_for_children: false,
-          good_for_groups: false,
-          utc_offset: 0,
+          curbsidePickup: false,
+          servesBreakfast: false,
+          servesLunch: false,
+          servesDinner: false,
+          servesBeer: false,
+          servesVegetarianFood: false,
+          servesCocktails: false,
+          servesCoffee: false,
+          outdoorSeating: false,
+          liveMusic: false,
+          goodForChildren: false,
+          goodForGroups: false,
+          restroom: false,
+          utcOffsetMinutes: 0,
         }),
       )
     } catch (error) {
@@ -316,11 +342,17 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
    */
   private async reverseGeocode(lat: number, lng: number): Promise<Place[]> {
     try {
-      const url = new URL(`${this.baseUrl}/geocode/json`)
-      url.searchParams.set('latlng', `${lat},${lng}`)
-      url.searchParams.set('key', this.config.apiKey)
+      // Use the legacy Geocoding API as the new Places API doesn't have direct reverse geocoding
+      const url = `https://maps.googleapis.com/maps/api/geocode/json`
+      const params = {
+        latlng: `${lat},${lng}`,
+        key: this.config.apiKey,
+      }
 
-      const response = await fetch(url.toString())
+      const queryString = new URLSearchParams(params).toString()
+      const fullUrl = `${url}?${queryString}`
+
+      const response = await fetch(fullUrl)
       if (!response.ok) {
         throw new Error(`Google API error: ${response.status}`)
       }
@@ -332,34 +364,43 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
 
       return data.results.map((result: any) =>
         this.adapter.placeInfo.adaptPlaceDetails({
-          place_id: result.place_id || '',
-          name: result.formatted_address || '',
-          formatted_address: result.formatted_address || '',
-          formatted_phone_number: '',
-          website: '',
+          id: result.place_id || '',
+          displayName: { text: result.formatted_address || '' },
+          formattedAddress: result.formatted_address || '',
+          internationalPhoneNumber: '',
+          websiteUri: '',
           types: result.types || [],
           photos: [],
           rating: 0,
-          user_ratings_total: 0,
-          opening_hours: undefined,
-          editorial_summary: undefined,
-          geometry: result.geometry,
-          google_maps_uri: '',
-          price_level: '',
-          business_status: '',
-          dine_in: false,
+          userRatingCount: 0,
+          regularOpeningHours: undefined,
+          editorialSummary: undefined,
+          location: result.geometry?.location
+            ? {
+                latitude: result.geometry.location.lat,
+                longitude: result.geometry.location.lng,
+              }
+            : undefined,
+          googleMapsUri: '',
+          priceLevel: '',
+          businessStatus: '',
+          dineIn: false,
           takeout: false,
           delivery: false,
-          curbside_pickup: false,
-          serves_breakfast: false,
-          serves_lunch: false,
-          serves_dinner: false,
-          serves_beer: false,
-          outdoor_seating: false,
-          live_music: false,
-          good_for_children: false,
-          good_for_groups: false,
-          utc_offset: 0,
+          curbsidePickup: false,
+          servesBreakfast: false,
+          servesLunch: false,
+          servesDinner: false,
+          servesBeer: false,
+          servesVegetarianFood: false,
+          servesCocktails: false,
+          servesCoffee: false,
+          outdoorSeating: false,
+          liveMusic: false,
+          goodForChildren: false,
+          goodForGroups: false,
+          restroom: false,
+          utcOffsetMinutes: 0,
         }),
       )
     } catch (error) {
@@ -393,29 +434,44 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
     try {
       console.log(`Searching Google Places for: "${query}"`)
 
-      const url = new URL(`${this.baseUrl}/place/textsearch/json`)
-      url.searchParams.set('query', query)
-      url.searchParams.set('key', this.config.apiKey)
+      const url = `${this.baseUrl}/places:searchText`
+      const requestBody: any = {
+        textQuery: query,
+        maxResultCount: options?.limit || 20,
+      }
 
       // Add location bias if coordinates are provided
       if (lat && lng) {
         const radius = options?.radius || 50000 // Default 50km radius
-        url.searchParams.set('location', `${lat},${lng}`)
-        url.searchParams.set('radius', radius.toString())
+        requestBody.locationBias = {
+          circle: {
+            center: {
+              latitude: lat,
+              longitude: lng,
+            },
+            radius: radius,
+          },
+        }
       }
 
-      // Set page size limit if provided
-      if (options?.limit) {
-        // Google Places API doesn't have a direct limit parameter, but we can control this in post-processing
-        // The API returns up to 20 results per request by default
-      }
+      const fieldMask =
+        'places.id,places.displayName,places.formattedAddress,places.internationalPhoneNumber,places.websiteUri,places.types,places.photos,places.rating,places.userRatingCount,places.googleMapsUri,places.priceLevel,places.businessStatus,places.editorialSummary,places.location,places.dineIn,places.takeout,places.delivery,places.curbsidePickup,places.servesBreakfast,places.servesLunch,places.servesDinner,places.servesBeer,places.servesVegetarianFood,places.servesCocktails,places.servesCoffee,places.outdoorSeating,places.liveMusic,places.goodForChildren,places.goodForGroups,places.restroom,places.regularOpeningHours,places.utcOffsetMinutes'
 
       console.log(
         'Google Places Text Search URL:',
-        url.toString().replace(this.config.apiKey, '[API_KEY]'),
+        url.replace(this.config.apiKey, '[API_KEY]'),
       )
 
-      const response = await fetch(url.toString())
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': this.config.apiKey,
+          'X-Goog-FieldMask': fieldMask,
+        },
+        body: JSON.stringify(requestBody),
+      })
+
       if (!response.ok) {
         console.error(
           `Google Places Text Search HTTP error: ${response.status}`,
@@ -424,32 +480,22 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
       }
 
       const data = await response.json()
-      console.log('Google Places Text Search API response status:', data.status)
-
-      if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-        console.error('Google Places Text Search API error:', data.status)
-        if (data.error_message) {
-          console.error('Error message:', data.error_message)
-        }
+      if (data.error) {
+        console.error('Google Places Text Search API error:', data.error)
         return []
       }
 
-      if (!data.results || data.results.length === 0) {
+      if (!data.places || data.places.length === 0) {
         console.log('No places found for query:', query)
         return []
       }
 
-      console.log(`Found ${data.results.length} places for query: "${query}"`)
+      console.log(`Found ${data.places.length} places for query: "${query}"`)
 
       // Convert results to Place objects using the adapter
-      let places = data.results.map((result: any) =>
+      const places = data.places.map((result: any) =>
         this.adapter.placeInfo.adaptPlaceDetails(result),
       )
-
-      // Apply limit if specified
-      if (options?.limit && places.length > options.limit) {
-        places = places.slice(0, options.limit)
-      }
 
       return places
     } catch (error) {

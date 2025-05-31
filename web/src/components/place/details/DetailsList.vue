@@ -16,19 +16,19 @@ import {
 } from 'lucide-vue-next'
 import DetailItem from './DetailItem.vue'
 import PlaceHours from './PlaceHours.vue'
-import type { UnifiedPlace } from '@/types/unified-place.types'
+import type { Place } from '@/types/place.types'
 import { computed } from 'vue'
 import { getWifiStatus, parseCuisines } from '@/lib/place.utils'
 import { SOURCE } from '@/lib/constants'
 import { encode } from 'pluscodes'
 
 const props = defineProps<{
-  place: UnifiedPlace
+  place: Place
 }>()
 
 const cuisines = computed(() => {
   if (!props.place) return null
-  const amenity = props.place.amenities?.cuisine?.[0]?.value as string
+  const amenity = props.place.amenities?.cuisine?.value as string
   return amenity ? parseCuisines(amenity) : null
 })
 
@@ -40,7 +40,7 @@ const osmUrl = computed(() => {
 
 const coordinates = computed(() => {
   if (!props.place?.geometry) return null
-  return props.place.geometry.center
+  return props.place.geometry.value.center
 })
 
 const phoneValue = computed(() => props.place?.contactInfo.phone?.value)
@@ -49,19 +49,19 @@ const emailValue = computed(() => props.place?.contactInfo.email?.value)
 
 const wifiStatus = computed(() => {
   if (!props.place) return null
-  const wifiAmenity = props.place.amenities?.['internet_access']?.[0]
+  const wifiAmenity = props.place.amenities?.['internet_access']
     ?.value as string
   if (!wifiAmenity) return null
 
   const wifiTags = {
     internet_access: wifiAmenity,
-    'internet_access:ssid': props.place.amenities?.['internet_access:ssid']?.[0]
+    'internet_access:ssid': props.place.amenities?.['internet_access:ssid']
       ?.value as string,
-    'internet_access:fee': props.place.amenities?.['internet_access:fee']?.[0]
+    'internet_access:fee': props.place.amenities?.['internet_access:fee']
       ?.value as string,
     'internet_access:password': props.place.amenities?.[
       'internet_access:password'
-    ]?.[0]?.value as string,
+    ]?.value as string,
   }
 
   return getWifiStatus(wifiTags)
@@ -69,17 +69,21 @@ const wifiStatus = computed(() => {
 
 const outdoorSeating = computed(() => {
   if (!props.place) return false
-  const seating = props.place.amenities?.['outdoor_seating']?.[0]?.value
+  const seating = props.place.amenities?.['outdoor_seating']?.value
   return seating === 'yes' || seating === true
 })
 
 const wheelchairAccess = computed(
-  () => props.place?.amenities.wheelchair || null,
+  () => props.place?.amenities.wheelchair?.value || null,
 )
-const smokingStatus = computed(() => props.place?.amenities.smoking || null)
-const restroomAccess = computed(() => props.place?.amenities.toilets || null)
+const smokingStatus = computed(
+  () => props.place?.amenities.smoking?.value || null,
+)
+const restroomAccess = computed(
+  () => props.place?.amenities.toilets?.value || null,
+)
 const wheelchairRestroomAccess = computed(
-  () => props.place?.amenities['toilets:wheelchair'] || null,
+  () => props.place?.amenities['toilets:wheelchair']?.value || null,
 )
 
 function formatCoordinates(lat: number, lng: number) {
@@ -117,7 +121,7 @@ const plusCode = computed(() => {
     <!-- Hours -->
     <PlaceHours
       v-if="place.openingHours"
-      :hours="place.openingHours"
+      :hours="place.openingHours.value"
       :osmUrl="osmUrl"
     />
 
@@ -125,15 +129,17 @@ const plusCode = computed(() => {
     <DetailItem
       v-if="place.address"
       :icon="MapPinIcon"
-      :value="place.address.street1 || ''"
+      :value="place.address.value.street1 || ''"
       :description="
-        place.address.locality
-          ? `${place.address.locality}${
-              place.address.region ? `, ${place.address.region}` : ''
-            } ${place.address.postalCode || ''}`
+        place.address.value.locality
+          ? `${place.address.value.locality}${
+              place.address.value.region
+                ? `, ${place.address.value.region}`
+                : ''
+            } ${place.address.value.postalCode || ''}`
           : ''
       "
-      :copyValue="place.address.formatted || ''"
+      :copyValue="place.address.value.formatted || ''"
       :osmUrl="osmUrl"
       :coordinates="coordinates"
       label="Address"

@@ -36,6 +36,7 @@ export interface PromptDialogOptions extends BaseDialogOptions {
 
 export interface AutoFormDialogOptions extends BaseDialogOptions {
   schema: ZodObject<any>
+  initialValues?: Record<string, any>
 }
 
 export interface TemplateDialogOptions extends BaseDialogOptions {}

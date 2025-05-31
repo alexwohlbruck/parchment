@@ -1,10 +1,10 @@
 import { pgTable, text, timestamp, pgEnum, boolean } from 'drizzle-orm/pg-core'
-import { users } from './user.schema'
+import { users } from './users.schema'
 import { sql } from 'drizzle-orm'
 
 export const tokenType = pgEnum('token_type', ['otp', 'token'])
 
-export const tokens = pgTable('token', {
+export const tokens = pgTable('tokens', {
   id: text('id').primaryKey(),
   userId: text('user_id')
     .notNull()

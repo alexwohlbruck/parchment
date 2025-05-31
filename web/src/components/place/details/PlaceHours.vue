@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { ClockIcon } from 'lucide-vue-next'
 import DetailItem from './DetailItem.vue'
-import type { OpeningHours } from '@/types/unified-place.types'
+import type { OpeningHours } from '@/types/place.types'
 
 const props = defineProps<{
   hours: OpeningHours

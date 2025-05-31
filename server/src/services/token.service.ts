@@ -3,8 +3,8 @@ import { encodeHex } from 'oslo/encoding'
 import { eq, and } from 'drizzle-orm'
 import { db } from '../db'
 import { generateId } from '../util'
-import { NewToken, Token, tokens } from '../schema/token.schema'
-import { User } from '../schema/user.schema'
+import { NewToken, Token, tokens } from '../schema/tokens.schema'
+import { User } from '../schema/users.schema'
 
 export async function createServerToken(
   type: Token['type'],

@@ -14,6 +14,7 @@ import Library from '@/views/library/Library.vue'
 import Collection from '@/views/library/Collection.vue'
 import NotFound from '@/views/NotFound.vue'
 import Collections from '@/views/library/Collections.vue'
+import Integrations from '@/views/settings/pages/Integrations.vue'
 
 import { useAuthStore } from '@/stores/auth.store'
 
@@ -37,6 +38,7 @@ export enum AppRoute {
   APPEARANCE = 'appearance',
   MAP_SETTINGS = 'mapSettings',
   USERS = 'users',
+  INTEGRATIONS = 'integrations',
   NOT_FOUND = 'not-found',
 }
 
@@ -159,6 +161,11 @@ const router = createRouter({
           path: '/settings/users',
           name: AppRoute.USERS,
           component: Users,
+        },
+        {
+          path: '/settings/integrations',
+          name: AppRoute.INTEGRATIONS,
+          component: Integrations,
         },
       ],
     },

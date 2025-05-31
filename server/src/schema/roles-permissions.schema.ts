@@ -1,9 +1,9 @@
 import { pgTable, primaryKey, text } from 'drizzle-orm/pg-core'
-import { roles } from './role.schema'
-import { permissions } from './permission.schema'
+import { roles } from './roles.schema'
+import { permissions } from './permissions.schema'
 
 export const roleToPermissions = pgTable(
-  'role_permission',
+  'roles_permissions',
   {
     roleId: text('role_id')
       .notNull()

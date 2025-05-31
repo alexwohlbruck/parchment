@@ -26,6 +26,7 @@ services:
   # Parchment backend server DB
   server-db:
     container_name: server-db
+    network_mode: ${NETWORK_MODE:-default} # Host mode only in development
     image: postgres:latest
     environment:
       POSTGRES_DB: parchment
@@ -39,18 +40,20 @@ services:
   # Parchment backend (Elysia)
   server:
     container_name: parchment-server
+    network_mode: ${NETWORK_MODE:-default} # Host mode only in development
     build:
       context: .
       dockerfile: server/${DOCKERFILE:-Dockerfile.prod}
     environment:
       NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: ${DB_URL:-postgresql://server_user:server_password@localhost:5432/parchment}
       LOCAL_ROUTING_ENGINE: 'graphhopper'
       EXTERNAL_ROUTING_ENGINE_URL: 'https://api.openrouteservice.org/v2/directions/driving-car'
       EXTERNAL_ROUTING_API_KEY: 'your-external-api-key'
       STANDARD_RESPONSE_FORMAT: 'true'
     ports:
       - '5000:5000' # Expose backend to host
-      - '${BUN_DEBUG_PORT}:6499' # Bun debugger
+      - '6499:6499' # Bun debugger
     depends_on:
       - server-db
     #   - pelias-api
@@ -66,10 +69,10 @@ services:
     container_name: parchment-web
     build:
       context: .
-      dockerfile: web/${DOCKERFILE:-Dockerfile.prod}
+      dockerfile: web/Dockerfile.dev
     environment:
       - VITE_SERVER_ORIGIN=${VITE_SERVER_ORIGIN:-http://localhost:5000}
-      - VITE_PORT=${VITE_PORT}
+      - VITE_PORT=${VITE_PORT:-5173}
     ports:
       - '5173:${VITE_PORT:-5173}'
     volumes:

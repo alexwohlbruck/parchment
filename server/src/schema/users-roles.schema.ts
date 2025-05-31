@@ -1,10 +1,10 @@
 import { pgTable, primaryKey, text } from 'drizzle-orm/pg-core'
-import { users } from './user.schema'
-import { roles } from './role.schema'
+import { users } from './users.schema'
+import { roles } from './roles.schema'
 import { relations } from 'drizzle-orm'
 
 export const usersToRoles = pgTable(
-  'user_role',
+  'users_roles',
   {
     userId: text('user_id')
       .notNull()

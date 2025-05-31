@@ -50,6 +50,41 @@
       "when": 1746111700992,
       "tag": "0006_striped_sprite",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1747283940118,
+      "tag": "0007_minor_colleen_wing",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1747853571688,
+      "tag": "0008_glamorous_landau",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1747853840801,
+      "tag": "0009_nifty_chronomancer",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1747855627492,
+      "tag": "0010_small_meggan",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1747855769485,
+      "tag": "0011_lame_molten_man",
+      "breakpoints": true
     }
   ]
 }

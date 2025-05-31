@@ -5,8 +5,8 @@ import { Spinner } from '@/components/ui/spinner'
 import { AppRoute } from '@/router'
 import { LngLat } from 'mapbox-gl'
 import { useDirectionsService } from '@/services/directions.service'
-import { getPrimaryPhoto, getLogoPhoto } from '@/types/unified-place.types'
-import type { UnifiedPlace } from '@/types/unified-place.types'
+import { getPrimaryPhoto, getLogoPhoto } from '@/types/place.types'
+import type { Place } from '@/types/place.types'
 import { useAppService } from '@/services/app.service'
 
 import PlaceHeader from './header/PlaceHeader.vue'
@@ -16,7 +16,7 @@ import PlaceSources from './sources/PlaceSources.vue'
 import DetailsList from './details/DetailsList.vue'
 
 const props = defineProps<{
-  place: UnifiedPlace | null
+  place: Place | null
   loading: boolean
 }>()
 
@@ -51,14 +51,14 @@ watch(
 
 const coordinates = computed(() => {
   if (!props.place?.geometry) return null
-  return props.place.geometry.center
+  return props.place.geometry.value.center
 })
 
 function sharePlace() {
   const url = window.location.href
   if (navigator.share) {
     try {
-      const name = props.place?.name || ''
+      const name = props.place?.name.value || ''
       navigator.share({
         url,
         title: name,
@@ -131,11 +131,12 @@ function handleBrandLogoError() {
           />
         </div>
 
-        <PlaceGallery
+        <!-- Temporary disabled, photos are costing a lot of API calls lmao -->
+        <!-- <PlaceGallery
           :place="place"
           @imageLoaded="handlePlaceImageLoad"
           @imageError="handlePlaceImageError"
-        />
+        /> -->
 
         <div class="px-4">
           <DetailsList :place="place" />

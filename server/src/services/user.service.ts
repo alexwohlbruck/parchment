@@ -1,6 +1,6 @@
 import { SQL, eq, sql } from 'drizzle-orm'
 import { db } from '../db'
-import { users } from '../schema/user.schema'
+import { users } from '../schema/users.schema'
 import { AnyPgColumn } from 'drizzle-orm/pg-core'
 
 function lower(email: AnyPgColumn): SQL {

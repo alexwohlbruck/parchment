@@ -38,10 +38,14 @@ done
 if $IS_PROD; then
   export DOCKERFILE=Dockerfile.prod
   export NODE_ENV=production
+  export NETWORK_MODE=default
+  export DB_URL=postgresql://server_user:server_password@server-db/parchment
   echo "Running in production mode."
 else
   export DOCKERFILE=Dockerfile.dev
   export NODE_ENV=development
+  export NETWORK_MODE=host
+  export DB_URL=postgresql://server_user:server_password@localhost:5432/parchment
   echo "Running in development mode."
 fi
 
@@ -83,3 +87,4 @@ if $IS_SEED; then
 fi
 
 echo "✅ App started! Frontend: http://localhost:$VITE_PORT"
+

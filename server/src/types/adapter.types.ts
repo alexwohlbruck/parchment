@@ -3,7 +3,7 @@ import type {
   Address,
   OpeningHours,
   PlacePhoto,
-} from './unified-place.types'
+} from './place.types'
 
 export interface PlaceDataAdapter {
   sourceId: string

@@ -12,7 +12,9 @@ import {
   place as placeController,
   proxy as proxyController,
   library as libraryController,
+  integrations as integrationsController,
 } from './controllers'
+import { initializeIntegrations } from './services/integration.service'
 
 const app = new Elysia()
 
@@ -25,6 +27,7 @@ app.use(directionsController)
 app.use(placeController)
 app.use(proxyController)
 app.use(libraryController)
+app.use(integrationsController)
 
 app.onError(({ code }) => {
   if (code === 'NOT_FOUND') return 'Route not found :(' // TODO: i18n, proper error
@@ -35,3 +38,8 @@ app.listen(process.env.PORT || 5000)
 console.log(
   `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`,
 )
+
+// Initialize integrations asynchronously
+initializeIntegrations().catch((error) => {
+  console.error('Failed to initialize integrations:', error)
+})

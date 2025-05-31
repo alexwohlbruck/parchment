@@ -12,7 +12,6 @@ function setAuthHeader(token: string | null) {
   } else {
     delete api.defaults.headers.common['Authorization']
   }
-  console.log(api)
 }
 
 function authService() {

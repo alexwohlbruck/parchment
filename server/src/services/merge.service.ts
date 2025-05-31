@@ -1,358 +1,10 @@
-import type { AttributedValue } from '../types/unified-place.types'
-import { SOURCE, SOURCE_PRIORITIES } from '../lib/constants'
+import type { AttributedValue, SourceId } from '../types/place.types'
+import { Source, SOURCE, SOURCE_PRIORITIES } from '../lib/constants'
 import * as turf from '@turf/turf'
-import type { UnifiedPlace } from '../types/unified-place.types'
-import { googleAdapter } from '../adapters/google-adapter'
-import type { PlaceDataAdapter } from '../types/adapter.types'
-import { Feature, Point } from 'geojson'
-
-type TurfPoint = Feature<Point>
-
-/**
- * Calculate the similarity between two place names
- */
-function calculateNameSimilarity(name1: string, name2: string): number {
-  if (!name1 || !name2) return 0
-
-  // Simple normalization for comparison
-  const normalize = (name: string): string => {
-    return name
-      .toLowerCase()
-      .trim()
-      .replace(/[^\w\s]/g, '')
-      .replace(/\s+/g, ' ')
-  }
-
-  const normalized1 = normalize(name1)
-  const normalized2 = normalize(name2)
-
-  // Exact match
-  if (normalized1 === normalized2) {
-    return 1
-  }
-
-  // Substring match
-  if (normalized1.includes(normalized2) || normalized2.includes(normalized1)) {
-    const coverage =
-      Math.min(normalized1.length, normalized2.length) /
-      Math.max(normalized1.length, normalized2.length)
-    return 0.7 + coverage * 0.3
-  }
-
-  // Word matching
-  const words1 = normalized1.split(' ')
-  const words2 = normalized2.split(' ')
-  const commonWords = words1.filter((word) => words2.includes(word))
-
-  if (commonWords.length === 0) {
-    return 0
-  }
-
-  return (commonWords.length * 2) / (words1.length + words2.length)
-}
-
-/**
- * Merge place data from different sources
- */
-
-export function mergePlaceData(
-  unifiedPlace: UnifiedPlace,
-  adapter: PlaceDataAdapter,
-  data: any,
-) {
-  if (!data) return
-
-  try {
-    const transformed = adapter.transform(data)
-
-    // Use the timestamp from the source data if available (for OSM)
-    // otherwise use the current timestamp
-    const timestamp =
-      adapter.sourceId === SOURCE.OSM && data.timestamp
-        ? data.timestamp
-        : getTimestamp()
-
-    // Add source ID to externalIds if it exists
-    if (adapter.sourceId === SOURCE.GOOGLE && 'place_id' in data) {
-      unifiedPlace.externalIds[adapter.sourceId] = data.place_id
-    } else if (adapter.sourceId === SOURCE.OSM && 'id' in data) {
-      unifiedPlace.externalIds[adapter.sourceId] = data.id.toString()
-    }
-
-    // Name - create attributed values and use selectBestValue to properly respect source priorities
-    if (transformed.name) {
-      const existingName = unifiedPlace.name
-        ? {
-            value: unifiedPlace.name,
-            sourceId:
-              unifiedPlace.sources.length > 0
-                ? unifiedPlace.sources[0].id
-                : 'unknown',
-            timestamp,
-          }
-        : null
-
-      // Only compare if we have an existing name
-      if (existingName) {
-        const selectedName = selectBestValue([existingName, transformed.name])
-        unifiedPlace.name = selectedName || unifiedPlace.name || ''
-      } else {
-        unifiedPlace.name = transformed.name.value
-      }
-    }
-
-    // Description - respect source priorities
-    if (transformed.description) {
-      const existingDescription = unifiedPlace.description
-        ? {
-            value: unifiedPlace.description,
-            sourceId:
-              unifiedPlace.sources.length > 0
-                ? unifiedPlace.sources[0].id
-                : 'unknown',
-            timestamp,
-          }
-        : null
-
-      if (existingDescription) {
-        const selectedDescription = selectBestValue([
-          existingDescription,
-          transformed.description,
-        ])
-        unifiedPlace.description =
-          selectedDescription || unifiedPlace.description || ''
-      } else {
-        unifiedPlace.description = transformed.description.value
-      }
-    }
-
-    // Address - respect source priorities
-    if (transformed.address) {
-      const existingAddress = unifiedPlace.address?.formatted
-        ? {
-            value: unifiedPlace.address,
-            sourceId:
-              unifiedPlace.sources.length > 0
-                ? unifiedPlace.sources[0].id
-                : 'unknown',
-            timestamp,
-          }
-        : null
-
-      if (existingAddress) {
-        const selectedAddress = selectBestValue([
-          existingAddress,
-          transformed.address,
-        ])
-        unifiedPlace.address = selectedAddress || unifiedPlace.address || null
-      } else {
-        unifiedPlace.address = transformed.address.value
-      }
-    }
-
-    // Contact Info - respect source priorities for each field
-    if (transformed.contactInfo) {
-      const { phone, email, website, socials } = transformed.contactInfo
-
-      // Handle phone number with source priority
-      if (phone) {
-        const existingPhone = unifiedPlace.contactInfo.phone
-          ? { ...unifiedPlace.contactInfo.phone }
-          : null
-
-        if (existingPhone) {
-          unifiedPlace.contactInfo.phone =
-            selectBestValue([existingPhone, phone]) === phone.value
-              ? phone
-              : existingPhone
-        } else {
-          unifiedPlace.contactInfo.phone = phone
-        }
-      }
-
-      // Handle email with source priority
-      if (email) {
-        const existingEmail = unifiedPlace.contactInfo.email
-          ? { ...unifiedPlace.contactInfo.email }
-          : null
-
-        if (existingEmail) {
-          unifiedPlace.contactInfo.email =
-            selectBestValue([existingEmail, email]) === email.value
-              ? email
-              : existingEmail
-        } else {
-          unifiedPlace.contactInfo.email = email
-        }
-      }
-
-      // Handle website with source priority
-      if (website) {
-        const existingWebsite = unifiedPlace.contactInfo.website
-          ? { ...unifiedPlace.contactInfo.website }
-          : null
-
-        if (existingWebsite) {
-          unifiedPlace.contactInfo.website =
-            selectBestValue([existingWebsite, website]) === website.value
-              ? website
-              : existingWebsite
-        } else {
-          unifiedPlace.contactInfo.website = website
-        }
-      }
-
-      // Handle social media links with source priority
-      if (socials && Object.keys(socials).length > 0) {
-        // Merge social media links
-        Object.entries(socials).forEach(([platform, value]) => {
-          const existingSocial = unifiedPlace.contactInfo.socials[platform]
-            ? { ...unifiedPlace.contactInfo.socials[platform] }
-            : null
-
-          if (existingSocial) {
-            unifiedPlace.contactInfo.socials[platform] =
-              selectBestValue([existingSocial, value]) === value.value
-                ? value
-                : existingSocial
-          } else {
-            unifiedPlace.contactInfo.socials[platform] = value
-          }
-        })
-      }
-    }
-
-    // Opening Hours - respect source priorities
-    if (transformed.openingHours) {
-      const existingHours = unifiedPlace.openingHours
-        ? {
-            value: unifiedPlace.openingHours,
-            sourceId:
-              unifiedPlace.sources.length > 0
-                ? unifiedPlace.sources[0].id
-                : 'unknown',
-            timestamp,
-          }
-        : null
-
-      if (existingHours) {
-        const selectedHours = selectBestValue([
-          existingHours,
-          transformed.openingHours,
-        ])
-        unifiedPlace.openingHours =
-          selectedHours || unifiedPlace.openingHours || null
-      } else {
-        unifiedPlace.openingHours = transformed.openingHours.value
-      }
-    }
-
-    // Photos - just append, no priority handling
-    if (transformed.photos && transformed.photos.length > 0) {
-      unifiedPlace.photos.push(...transformed.photos)
-    }
-
-    // Ratings - respect source priorities
-    if (transformed.ratings) {
-      if (unifiedPlace.ratings) {
-        // Handle rating score
-        if (transformed.ratings.rating) {
-          const existingRating = unifiedPlace.ratings.rating
-            ? { ...unifiedPlace.ratings.rating }
-            : null
-
-          if (existingRating) {
-            unifiedPlace.ratings.rating =
-              selectBestValue([existingRating, transformed.ratings.rating]) ===
-              transformed.ratings.rating.value
-                ? transformed.ratings.rating
-                : existingRating
-          } else {
-            unifiedPlace.ratings.rating = transformed.ratings.rating
-          }
-        }
-
-        // Handle review count
-        if (transformed.ratings.reviewCount) {
-          const existingReviewCount = unifiedPlace.ratings.reviewCount
-            ? { ...unifiedPlace.ratings.reviewCount }
-            : null
-
-          if (existingReviewCount) {
-            unifiedPlace.ratings.reviewCount =
-              selectBestValue([
-                existingReviewCount,
-                transformed.ratings.reviewCount,
-              ]) === transformed.ratings.reviewCount.value
-                ? transformed.ratings.reviewCount
-                : existingReviewCount
-          } else {
-            unifiedPlace.ratings.reviewCount = transformed.ratings.reviewCount
-          }
-        }
-      } else {
-        // If no existing ratings, use the new ones
-        unifiedPlace.ratings = transformed.ratings
-      }
-    }
-
-    // Amenities - respect source priorities
-    if (
-      transformed.amenities &&
-      Object.keys(transformed.amenities).length > 0
-    ) {
-      Object.entries(transformed.amenities).forEach(([key, values]) => {
-        if (!values || !values.length) return
-
-        const value = values[0]
-        if (!value || value.value === undefined) return
-
-        const existingAmenity =
-          unifiedPlace.amenities[key] !== undefined
-            ? {
-                value: unifiedPlace.amenities[key],
-                sourceId:
-                  unifiedPlace.sources.length > 0
-                    ? unifiedPlace.sources[0].id
-                    : 'unknown',
-                timestamp,
-              }
-            : null
-
-        if (existingAmenity) {
-          const selectedValue = selectBestValue([existingAmenity, value])
-          if (selectedValue !== null) {
-            unifiedPlace.amenities[key] = selectedValue
-          }
-        } else if (value.value !== undefined) {
-          unifiedPlace.amenities[key] = value.value
-        }
-      })
-    }
-
-    // Add source reference with the correct timestamp
-    unifiedPlace.sources.push({
-      id: adapter.sourceId,
-      name: adapter.sourceName,
-      url: adapter.sourceUrl(data),
-      updated:
-        adapter.sourceId === SOURCE.OSM && data.timestamp
-          ? data.timestamp
-          : undefined,
-      updatedBy:
-        adapter.sourceId === SOURCE.OSM && 'user' in data
-          ? data.user
-          : undefined,
-    })
-
-    // Update lastUpdated timestamp only if this is from OSM or there is no lastUpdated yet
-    if (adapter.sourceId === SOURCE.OSM || !unifiedPlace.lastUpdated) {
-      unifiedPlace.lastUpdated = timestamp
-    }
-  } catch (error) {
-    console.error(`Error merging data from ${adapter.sourceName}:`, error)
-  }
-}
+import type { Place } from '../types/place.types'
+import { cloneDeep, groupBy } from 'lodash'
+import * as fuzz from 'fuzzball'
+import type { Feature, Point } from 'geojson'
 
 /**
  * Gets the priority of a data source
@@ -363,342 +15,443 @@ export function getSourcePriority(sourceId: string): number {
 }
 
 /**
- * Registers a new data source with a priority
- * Can be used to dynamically add new sources or change priorities
+ * Normalize text for comparison (names, addresses, etc.)
+ * Works globally for any language
  */
-export function registerSourcePriority(
-  sourceId: string,
-  priority: number,
-): void {
-  ;(SOURCE_PRIORITIES as Record<string, number>)[sourceId] = priority
+export function normalizeText(text: string): string {
+  return (
+    text
+      .toLowerCase()
+      .trim()
+      // Remove common business suffixes (English)
+      .replace(
+        /\b(inc|incorporated|llc|ltd|limited|corp|corporation|co|company)\b/g,
+        '',
+      )
+      // Remove punctuation but keep unicode letters and numbers
+      .replace(/[^\w\s\u00C0-\u017F\u0100-\u024F\u1E00-\u1EFF]/g, ' ')
+      // Normalize whitespace
+      .replace(/\s+/g, ' ')
+      .trim()
+  )
 }
 
 /**
- * Merges a new attributed value with existing values based on source priority
- * Higher priority sources replace lower priority ones
- * Equal priority sources are added to the list
+ * Calculate similarity between two texts using fuzzy matching
+ * Returns a score from 0 to 1, where 1 is a perfect match
  */
-export function mergeAttributedValues<T>(
-  existing: AttributedValue<T>[],
-  newValue: AttributedValue<T>,
-): AttributedValue<T>[] {
-  if (!existing || existing.length === 0) {
-    return [newValue]
-  }
+export function calculateTextSimilarity(text1: string, text2: string): number {
+  if (!text1 || !text2) return 0
 
-  const existingPriority = getSourcePriority(existing[0]?.sourceId || '')
-  const newPriority = getSourcePriority(newValue.sourceId)
+  const normalized1 = normalizeText(text1)
+  const normalized2 = normalizeText(text2)
 
-  if (newPriority > existingPriority) {
-    return [newValue]
-  }
-
-  if (newPriority < existingPriority) {
-    return existing
-  }
-
-  return [...existing, newValue]
+  // Use fuzzball's token_set_ratio for best results
+  const similarity = fuzz.token_set_ratio(normalized1, normalized2)
+  return similarity / 100 // Convert from 0-100 to 0-1 scale
 }
 
 /**
- * Selects the best value from a list of attributed values based on source priority
+ * Extract numeric patterns from text (house numbers, postal codes, etc.)
  */
-export function selectBestValue<T>(values: AttributedValue<T>[]): T | null {
-  if (!values || values.length === 0) return null
-  if (values.length === 1) return values[0].value
-
-  return values.sort((a, b) => {
-    const priorityA = getSourcePriority(a.sourceId)
-    const priorityB = getSourcePriority(b.sourceId)
-    return priorityB - priorityA
-  })[0].value
+export function extractNumbers(text: string): string[] {
+  return (text.match(/\b\d+[a-zA-Z]?\b/g) || []).map((num) => num.toLowerCase())
 }
 
 /**
- * Merges records of attributed values, respecting source priorities
+ * Improved address similarity that handles structured data, formatted addresses, and missing data
+ * Returns 0 if either place has no address data (as requested)
+ * Focuses on street name and number only - simple and fast
  */
-export function mergeAttributedRecords<T>(
-  existing: Record<string, AttributedValue<T>[]> | undefined,
-  newRecord: Record<string, AttributedValue<T>[]>,
-): Record<string, AttributedValue<T>[]> {
-  const result: Record<string, AttributedValue<T>[]> = { ...(existing || {}) }
+export function calculateAddressSimilarity(
+  place1: Place,
+  place2: Place,
+): number {
+  const address1 = place1.address?.value
+  const address2 = place2.address?.value
 
-  Object.entries(newRecord).forEach(([key, values]) => {
-    if (!values || values.length === 0) return
+  // Return 0% match if either place has no address data
+  if (!address1 || !address2) return 0
 
-    if (!result[key]) {
-      result[key] = [...values]
-      return
+  // Get street strings from both addresses
+  const street1 = getStreetString(address1)
+  const street2 = getStreetString(address2)
+
+  // If we can't extract street info from either, return 0
+  if (!street1 || !street2) return 0
+
+  // Extract and compare house numbers first
+  const numbers1 = extractNumbers(street1)
+  const numbers2 = extractNumbers(street2)
+
+  // If both have house numbers but they don't match, different places
+  if (numbers1.length > 0 && numbers2.length > 0) {
+    const hasCommonNumber = numbers1.some((num1) => numbers2.includes(num1))
+    if (!hasCommonNumber) return 0
+  }
+
+  // Compare normalized street names
+  const normalized1 = normalizeStreetName(street1)
+  const normalized2 = normalizeStreetName(street2)
+
+  return calculateTextSimilarity(normalized1, normalized2)
+}
+
+/**
+ * Extract street information from any address format
+ */
+function getStreetString(address: any): string | null {
+  // Structured address - use street1 directly
+  if (address.street1) {
+    return address.street1
+  }
+
+  // Formatted address - extract the first part (usually the street)
+  if (address.formatted) {
+    const parts = address.formatted.split(',').map((p: string) => p.trim())
+    return parts[0] || null
+  }
+
+  return null
+}
+
+/**
+ * Normalize street names by handling common abbreviations
+ */
+function normalizeStreetName(street: string): string {
+  return (
+    normalizeText(street)
+      // Normalize directional abbreviations
+      .replace(/\b(n|north)\b/g, 'north')
+      .replace(/\b(s|south)\b/g, 'south')
+      .replace(/\b(e|east)\b/g, 'east')
+      .replace(/\b(w|west)\b/g, 'west')
+      .replace(/\b(ne|northeast)\b/g, 'northeast')
+      .replace(/\b(nw|northwest)\b/g, 'northwest')
+      .replace(/\b(se|southeast)\b/g, 'southeast')
+      .replace(/\b(sw|southwest)\b/g, 'southwest')
+      // Normalize street type abbreviations
+      .replace(/\b(st|street)\b/g, 'street')
+      .replace(/\b(ave|avenue)\b/g, 'avenue')
+      .replace(/\b(rd|road)\b/g, 'road')
+      .replace(/\b(dr|drive)\b/g, 'drive')
+      .replace(/\b(ln|lane)\b/g, 'lane')
+      .replace(/\b(ct|court)\b/g, 'court')
+      .replace(/\b(pl|place)\b/g, 'place')
+      .replace(/\b(blvd|boulevard)\b/g, 'boulevard')
+      // Remove unit/apartment info for comparison
+      .replace(/\b(unit|apt|apartment|suite|ste)\s+\w+/g, '')
+      .trim()
+  )
+}
+
+export function getAddressString(place: Place): string | null {
+  if (place.address?.value.formatted) {
+    return place.address.value.formatted
+  }
+  if (place.address?.value.street1) {
+    let addressStr = place.address.value.street1
+    if (place.address.value.locality) {
+      addressStr += ' ' + place.address.value.locality
+    }
+    return addressStr
+  }
+  return null
+}
+
+export function createTurfPoint(place: Place): Feature<Point> {
+  const { lat, lng } = place.geometry.value.center
+  return turf.point([lng, lat])
+}
+
+/**
+ * Smart address merging that prioritizes quality over source priority
+ */
+function mergeAddressValue(
+  target: AttributedValue<any> | null,
+  source: AttributedValue<any> | null,
+): AttributedValue<any> | null {
+  if (!source) return target
+  if (!target) return cloneDeep(source)
+
+  // Helper to check if address has street-level data (house numbers)
+  const hasStreetData = (address: any): boolean => {
+    if (!address?.value) return false
+
+    // OSM format: street1 contains house number + street name
+    if (address.value.street1) {
+      return extractNumbers(address.value.street1).length > 0
     }
 
-    // Merge each new value into the existing array
-    values.forEach((value) => {
-      result[key] = mergeAttributedValues(result[key], value)
-    })
-  })
+    // Formatted address with numbers
+    if (address.value.formatted) {
+      return extractNumbers(address.value.formatted).length > 0
+    }
+
+    return false
+  }
+
+  const targetHasStreetData = hasStreetData(target)
+  const sourceHasStreetData = hasStreetData(source)
+
+  // If target has street data and source doesn't, keep target
+  if (targetHasStreetData && !sourceHasStreetData) {
+    return target
+  }
+
+  // If source has street data and target doesn't, use source
+  if (sourceHasStreetData && !targetHasStreetData) {
+    return cloneDeep(source)
+  }
+
+  // If both have street data, use source priority
+  const targetPriority = getSourcePriority(target.sourceId)
+  const sourcePriority = getSourcePriority(source.sourceId)
+
+  return sourcePriority > targetPriority ? cloneDeep(source) : target
+}
+
+/**
+ * Generic function to merge AttributedValue instances based on source priority
+ */
+function mergeAttributedValue<T>(
+  target: AttributedValue<T> | null,
+  source: AttributedValue<T> | null,
+): AttributedValue<T> | null {
+  if (!source) return target
+  if (!target) return cloneDeep(source)
+
+  const targetPriority = getSourcePriority(target.sourceId)
+  const sourcePriority = getSourcePriority(source.sourceId)
+
+  return sourcePriority > targetPriority ? cloneDeep(source) : target
+}
+
+/**
+ * Merges records of attributed values
+ */
+function mergeAttributedRecord<T>(
+  target: Record<string, AttributedValue<T>> | null,
+  source: Record<string, AttributedValue<T>> | null,
+): Record<string, AttributedValue<T>> {
+  if (!source) return target || {}
+  if (!target) return cloneDeep(source)
+
+  const result = { ...target }
+
+  for (const [key, sourceValue] of Object.entries(source)) {
+    if (!result[key]) {
+      result[key] = cloneDeep(sourceValue)
+      continue
+    }
+
+    result[key] = mergeAttributedValue(result[key], sourceValue) || result[key]
+  }
 
   return result
 }
 
 /**
- * Standard ISO date string format for consistency across the application
+ * Determines if two places should be merged based on name, address, and distance similarity
  */
-export function getTimestamp(): string {
-  return new Date().toISOString()
-}
+function shouldMergePlaces(place1: Place, place2: Place): boolean {
+  const point1 = createTurfPoint(place1)
+  const point2 = createTurfPoint(place2)
+  const distanceMeters = turf.distance(point1, point2, { units: 'meters' })
 
-/**
- * Groups places by their provider
- * Used to deduplicate places across providers
- */
-export function groupPlacesByProvider(
-  places: UnifiedPlace[],
-): Record<string, UnifiedPlace[]> {
-  const placesByProvider: Record<string, UnifiedPlace[]> = {}
+  // Hard distance cutoff - never merge places more than 500m apart
+  if (distanceMeters > 500) return false
 
-  places.forEach((place) => {
-    const providerId = place.sources[0]?.id || 'unknown'
-    if (!placesByProvider[providerId]) {
-      placesByProvider[providerId] = []
-    }
-    placesByProvider[providerId].push(place)
-  })
+  // Distance weight using inverse square function
+  const distanceSimilarity = 1 / (1 + Math.pow(distanceMeters / 100, 2))
 
-  return placesByProvider
-}
+  const nameSimilarity = calculateTextSimilarity(
+    place1.name.value,
+    place2.name.value,
+  )
+  const addressSimilarity = calculateAddressSimilarity(place1, place2)
 
-export function normalizeName(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s]/g, '')
-    .replace(/\s+/g, ' ')
-}
+  // Distance-based name similarity threshold
+  // At 0m: 30%, at 100m: 65%, at 500m: 95%
+  const requiredNameSimilarity = 0.3 + 0.65 * (1 - distanceSimilarity)
 
-export function normalizeAddress(address: string): string {
-  return address
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, ' ')
-    .replace(/,/g, '')
-    .replace(/\bstreet\b/g, 'st')
-    .replace(/\blane\b/g, 'ln')
-    .replace(/\bavenue\b/g, 'ave')
-    .replace(/\bboulevard\b/g, 'blvd')
-    .replace(/\broad\b/g, 'rd')
-    .replace(/\bunit\b/g, '')
-    .replace(/\bsuite\b/g, '')
-    .replace(/\bapt\b/g, '')
-    .replace(/\bnorth\b/g, 'n')
-    .replace(/\bsouth\b/g, 's')
-    .replace(/\beast\b/g, 'e')
-    .replace(/\bwest\b/g, 'w')
-    .replace(/\b(nc|north carolina)\b/g, '')
-    .replace(/\busa\b/g, '')
-    .replace(/[^\w\s]/g, '')
-    .replace(/\d{5}(\-\d{4})?/g, '')
-    .trim()
-}
+  // Early rejection if name similarity is too low
+  if (nameSimilarity < requiredNameSimilarity) return false
 
-export function getAddressString(place: UnifiedPlace): string | null {
-  if (place.address?.formatted) {
-    return place.address.formatted
-  }
-  if (place.address?.street1) {
-    let addressStr = place.address.street1
-    if (place.address.locality) addressStr += ' ' + place.address.locality
-    return addressStr
-  }
-  if (place.description && place.description.includes(',')) {
-    const parts = place.description.split(',')
-    if (parts.length > 1) {
-      return parts.slice(1).join(',').trim()
-    }
-  }
-  return null
-}
-
-export function getStreetNumber(address: string): string | null {
-  const match = address.match(/^\d+/)
-  return match ? match[0] : null
-}
-
-export function createTurfPoint(place: UnifiedPlace): TurfPoint | undefined {
+  // For very close places with addresses, require address match
   if (
-    place.geometry.center &&
-    place.geometry.center.lat !== 0 &&
-    place.geometry.center.lng !== 0
+    distanceSimilarity > 0.5 &&
+    addressSimilarity > 0 && // Has address data
+    addressSimilarity < 0.7
   ) {
-    return turf.point([place.geometry.center.lng, place.geometry.center.lat])
-  }
-  return undefined
-}
-
-export function doAddressesMatch(
-  place1: UnifiedPlace,
-  place2: UnifiedPlace,
-): boolean {
-  const address1 = getAddressString(place1)
-  const address2 = getAddressString(place2)
-
-  if (!address1 || !address2) return false
-
-  const streetNumber1 = getStreetNumber(address1)
-  const streetNumber2 = getStreetNumber(address2)
-
-  // If both have street numbers and they don't match, not the same place
-  if (streetNumber1 && streetNumber2 && streetNumber1 !== streetNumber2) {
     return false
   }
 
-  const normalizedAddr1 = normalizeAddress(address1)
-  const normalizedAddr2 = normalizeAddress(address2)
+  // Calculate weighted merge score
+  let mergeScore: number
 
-  return (
-    normalizedAddr1.includes(normalizedAddr2) ||
-    normalizedAddr2.includes(normalizedAddr1) ||
-    (!!streetNumber1 && !!streetNumber2 && streetNumber1 === streetNumber2)
-  )
-}
-
-export function arePointsClose(
-  point1: TurfPoint | undefined,
-  point2: TurfPoint | undefined,
-  maxDistanceMeters: number = 100,
-): boolean {
-  if (!point1 || !point2) return false
-
-  const distanceMeters = turf.distance(point1, point2) * 1000
-  return distanceMeters < maxDistanceMeters
-}
-
-export function mergePlaceWithAdapter(
-  primaryPlace: UnifiedPlace,
-  secondaryPlace: UnifiedPlace,
-  providerId: string,
-): void {
-  // Preserve external IDs from both sources
-  if (secondaryPlace.externalIds) {
-    Object.entries(secondaryPlace.externalIds).forEach(
-      ([idSource, idValue]) => {
-        primaryPlace.externalIds[idSource] = idValue
-      },
-    )
-  }
-
-  // Find the appropriate adapter for this provider
-  let adapter: PlaceDataAdapter
-  if (providerId === SOURCE.GOOGLE) {
-    adapter = googleAdapter
+  if (addressSimilarity > 0) {
+    // With addresses: name 50%, distance 25%, address 25%
+    mergeScore =
+      nameSimilarity * 0.5 +
+      distanceSimilarity * 0.25 +
+      addressSimilarity * 0.25
   } else {
-    console.log(`No adapter found for provider ${providerId}, skipping merge`)
-    return
+    // Without addresses: name 70%, distance 30%
+    mergeScore = nameSimilarity * 0.7 + distanceSimilarity * 0.3
   }
 
-  mergePlaceData(primaryPlace, adapter, secondaryPlace)
+  // Distance-based merge score threshold
+  // At 0m: 40%, at 100m: 67.5%, at 500m: 95%
+  const requiredMergeScore = 0.4 + 0.55 * (1 - distanceSimilarity)
+
+  return mergeScore >= requiredMergeScore
 }
 
 /**
- * Looks for duplicate places across providers and merges them
+ * Merges multiple Place objects into one, prioritizing data based on source priorities
  */
-export function deduplicateAutocompletePlaces(
-  places: UnifiedPlace[],
-  coordinates?: { lat: number; lng: number },
-): UnifiedPlace[] {
-  if (!places.length) return []
+export function mergePlaces(
+  primaryPlace: Place,
+  ...additionalPlaces: (Place | null)[]
+): Place {
+  const validPlaces = additionalPlaces.filter((p): p is Place => p !== null)
+  if (validPlaces.length === 0) return cloneDeep(primaryPlace)
 
-  console.log(
-    `Deduplicating ${places.length} autocomplete places across providers`,
-  )
+  const result = cloneDeep(primaryPlace)
 
-  // Group places by provider
-  const placesByProvider = groupPlacesByProvider(places)
+  for (const place of validPlaces) {
+    // Merge external IDs
+    Object.assign(result.externalIds, place.externalIds)
 
-  // First priority: Add all OSM/Pelias results as base places
-  const finalResults: UnifiedPlace[] = []
-  const nameToPlaceMap: Record<
-    string,
-    { place: UnifiedPlace; nameKey: string; point?: TurfPoint }
-  > = {}
+    // Merge attributed values
+    result.name = mergeAttributedValue(result.name, place.name) || result.name
+    result.description = mergeAttributedValue(
+      result.description,
+      place.description,
+    )
+    result.placeType =
+      mergeAttributedValue(result.placeType, place.placeType) ||
+      result.placeType
+    result.geometry =
+      mergeAttributedValue(result.geometry, place.geometry) || result.geometry
 
-  // Add OSM and Pelias results first
-  const osmPeliasResults = [
-    ...(placesByProvider[SOURCE.OSM] || []),
-    ...(placesByProvider[SOURCE.PELIAS] || []),
-  ]
+    // Merge address with special logic
+    if (place.address) {
+      result.address = mergeAddressValue(result.address, place.address)
+    }
 
-  osmPeliasResults.forEach((place) => {
-    const nameKey = normalizeName(place.name)
-    const point = createTurfPoint(place)
-    finalResults.push(place)
-    nameToPlaceMap[place.id] = { place, nameKey, point }
-  })
+    // Merge contact info
+    if (place.contactInfo.phone) {
+      result.contactInfo.phone = mergeAttributedValue(
+        result.contactInfo.phone,
+        place.contactInfo.phone,
+      )
+    }
+    if (place.contactInfo.email) {
+      result.contactInfo.email = mergeAttributedValue(
+        result.contactInfo.email,
+        place.contactInfo.email,
+      )
+    }
+    if (place.contactInfo.website) {
+      result.contactInfo.website = mergeAttributedValue(
+        result.contactInfo.website,
+        place.contactInfo.website,
+      )
+    }
+    result.contactInfo.socials = mergeAttributedRecord(
+      result.contactInfo.socials,
+      place.contactInfo.socials,
+    )
 
-  // Process other providers
-  Object.entries(placesByProvider).forEach(([providerId, providerPlaces]) => {
-    // Skip OSM/Pelias as we already processed them
-    if (providerId === SOURCE.OSM || providerId === SOURCE.PELIAS) return
+    // Merge other fields
+    result.openingHours = mergeAttributedValue(
+      result.openingHours,
+      place.openingHours,
+    )
+    result.amenities = mergeAttributedRecord(result.amenities, place.amenities)
 
-    providerPlaces.forEach((place) => {
-      const normalizedName = normalizeName(place.name)
-      const placePoint = createTurfPoint(place)
-
-      let matchFound = false
-
-      // Compare with existing places
-      for (const {
-        place: existingPlace,
-        nameKey,
-        point: existingPoint,
-      } of Object.values(nameToPlaceMap)) {
-        // Skip if provider is the same
-        if (existingPlace.sources[0]?.id === place.sources[0]?.id) continue
-
-        // Check for name similarity
-        const isSimilarName = nameKey === normalizedName
-        let isMatch = false
-
-        // If names are similar, check addresses
-        if (isSimilarName) {
-          isMatch = doAddressesMatch(place, existingPlace)
+    // Merge ratings
+    if (place.ratings) {
+      if (!result.ratings) {
+        result.ratings = cloneDeep(place.ratings)
+      } else {
+        if (place.ratings.rating) {
+          result.ratings.rating =
+            mergeAttributedValue(result.ratings.rating, place.ratings.rating) ||
+            result.ratings.rating
         }
-
-        // If name matches but address doesn't, check geographic proximity
-        if (isSimilarName && !isMatch) {
-          isMatch = arePointsClose(placePoint, existingPoint)
-        }
-
-        // Final check: high name similarity + geographic proximity
-        const shouldMerge =
-          (isSimilarName && isMatch) ||
-          (calculateNameSimilarity(place.name, existingPlace.name) > 0.85 &&
-            arePointsClose(placePoint, existingPoint, 150))
-
-        if (shouldMerge) {
-          console.log(
-            `Merging duplicate ${providerId} place: ${place.name} into existing place`,
-          )
-          mergePlaceWithAdapter(existingPlace, place, providerId)
-          matchFound = true
-          break
+        if (place.ratings.reviewCount) {
+          result.ratings.reviewCount =
+            mergeAttributedValue(
+              result.ratings.reviewCount,
+              place.ratings.reviewCount,
+            ) || result.ratings.reviewCount
         }
       }
+    }
 
-      // If no match found, add as a new place
-      if (!matchFound) {
-        console.log(`No match found for ${place.name}, adding as new place`)
-        finalResults.push(place)
-        nameToPlaceMap[place.id] = {
-          place,
-          nameKey: normalizedName,
-          point: placePoint,
+    // Merge photos without duplicates
+    if (place.photos.length > 0) {
+      const existingUrls = new Set(
+        result.photos.map((photo) => photo.value.url),
+      )
+      for (const photo of place.photos) {
+        if (!existingUrls.has(photo.value.url)) {
+          result.photos.push(cloneDeep(photo))
         }
       }
+    }
+
+    // Merge sources
+    const existingSourceIds = new Set(result.sources.map((src) => src.id))
+    for (const source of place.sources) {
+      if (!existingSourceIds.has(source.id)) {
+        result.sources.push(cloneDeep(source))
+      }
+    }
+  }
+
+  return result
+}
+
+// TODO: This can be optimized to never merge places from the same source
+/**
+ * Merges and deduplicates places from multiple sources
+ */
+export function mergePlacesCollection(places: Place[]): Place[] {
+  if (places.length <= 1) return places
+
+  const groups: Place[][] = []
+
+  for (const place of places) {
+    let merged = false
+
+    for (const group of groups) {
+      if (shouldMergePlaces(place, group[0])) {
+        group.push(place)
+        merged = true
+        break
+      }
+    }
+
+    if (!merged) {
+      groups.push([place])
+    }
+  }
+
+  return groups.map((group) => {
+    if (group.length === 1) return group[0]
+
+    // Sort by source priority (highest first)
+    const sortedGroup = group.sort((a, b) => {
+      const aPriority = getSourcePriority(a.sources[0]?.id || '')
+      const bPriority = getSourcePriority(b.sources[0]?.id || '')
+      return bPriority - aPriority
     })
-  })
 
-  console.log(
-    `Returned ${finalResults.length} deduplicated places (original: ${places.length})`,
-  )
-  return finalResults
+    const [primary, ...additional] = sortedGroup
+    return mergePlaces(primary, ...additional)
+  })
 }

@@ -1,6 +1,6 @@
 // Import the types from the server
 import type {
-  UnifiedPlace,
+  Place,
   PlaceGeometry,
   Address,
   OpeningHours,
@@ -11,11 +11,11 @@ import type {
   OpeningTime,
   Amenity,
   AttributedValue,
-} from '@server/types/unified-place.types'
+} from '@server/types/place.types'
 
 // Re-export for use in client code
 export type {
-  UnifiedPlace,
+  Place,
   PlaceGeometry,
   Address,
   OpeningHours,
@@ -28,21 +28,22 @@ export type {
   AttributedValue,
 }
 
-export function getPrimaryPhoto(place: UnifiedPlace): PlacePhoto | null {
-  return place.photos.find(photo => photo.isPrimary) || null
+// TODO: Move out of types
+export function getPrimaryPhoto(place: Place): PlacePhoto | null {
+  const primaryPhoto = place.photos.find(photo => photo.value.isPrimary)
+  return primaryPhoto ? primaryPhoto.value : null
 }
 
-export function getLogoPhoto(place: UnifiedPlace): PlacePhoto | null {
-  return place.photos.find(photo => photo.isLogo) || null
+// TODO: Move out of types
+export function getLogoPhoto(place: Place): PlacePhoto | null {
+  const logoPhoto = place.photos.find(photo => photo.value.isLogo)
+  return logoPhoto ? logoPhoto.value : null
 }
 
+// TODO: Move out of types
 export function getSourceById(
-  place: UnifiedPlace,
+  place: Place,
   sourceId: SourceId,
 ): SourceReference | null {
   return place.sources.find(source => source.id === sourceId) || null
-}
-
-export function getFormattedAddress(place: UnifiedPlace): string | null {
-  return place.address?.formatted || null
 }

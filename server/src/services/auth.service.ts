@@ -7,16 +7,16 @@ import {
 } from '@simplewebauthn/server'
 import { db } from '../db'
 import { appName, origins } from '../config'
-import { User } from '../schema/user.schema'
-import { Passkey, passkeys } from '../schema/passkey.schema'
-import { usersToRoles } from '../schema/user-role.schema'
-import { Permission, permissions } from '../schema/permission.schema'
+import { User } from '../schema/users.schema'
+import { Passkey, passkeys } from '../schema/passkeys.schema'
+import { usersToRoles } from '../schema/users-roles.schema'
+import { Permission, permissions } from '../schema/permissions.schema'
 import { PermissionRule } from '../types/auth.types'
-import { roleToPermissions } from '../schema/role-permission.schema'
+import { roleToPermissions } from '../schema/roles-permissions.schema'
 import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
-import { sessions } from '../schema/session.schema'
+import { sessions } from '../schema/sessions.schema'
 import { sendMail } from './mailer.service'
-import { roles } from '../schema/role.schema'
+import { roles } from '../schema/roles.schema'
 
 // Webauthn relaying party information
 export const rpName = appName
@@ -146,7 +146,7 @@ export async function getPermissions(userId: User['id']) {
     )
     .innerJoin(permissions, eq(roleToPermissions.permissionId, permissions.id))
 
-  return result.map(({ permission }) => permission.id)
+  return result.map(({ permissions }) => permissions.id)
 }
 
 export function hasPermission(

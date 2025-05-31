@@ -1,4 +1,4 @@
-import type { OpeningHours, OpeningTime } from '../types/unified-place.types'
+import type { OpeningHours, OpeningTime } from '../types/place.types'
 
 const DAYS = [
   'Sunday',

@@ -1,7 +1,7 @@
 import { pgTable, text, timestamp, boolean, bigint } from 'drizzle-orm/pg-core'
-import { users } from './user.schema'
+import { users } from './users.schema'
 
-export const passkeys = pgTable('passkey', {
+export const passkeys = pgTable('passkeys', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   publicKey: text('public_key').notNull(),

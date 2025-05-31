@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import {
-  Source,
   Layer,
   MapboxLayerType,
   SourceType,

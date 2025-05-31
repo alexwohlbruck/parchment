@@ -186,7 +186,7 @@ export class PeliasIntegration implements Integration<PeliasConfig> {
 
     // Use the adapter to transform each feature
     return features.map((feature: PeliasFeature) =>
-      this.adapter.geocoding.adaptFeature(feature),
+      this.adapter.geocoding.adaptPlaceDetails(feature),
     )
   }
 
@@ -267,7 +267,7 @@ export class PeliasIntegration implements Integration<PeliasConfig> {
       }
 
       const places = data.features.map((feature: any) => {
-        const place = this.adapter.geocoding.adaptFeature(feature)
+        const place = this.adapter.autocomplete.adaptPlaceDetails(feature)
         return place
       })
 

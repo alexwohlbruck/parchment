@@ -57,29 +57,27 @@ export interface PeliasFeature {
  * Adapter for transforming Pelias API data to unified formats
  */
 export class PeliasAdapter {
-  // Capability-specific adapters
   autocomplete = {
-    adaptFeature: (feature: PeliasFeature, id?: string): Place => {
-      return this.adaptFeature(feature, id)
+    adaptPlaceDetails: (feature: PeliasFeature, id?: string): Place => {
+      return this.adaptPlaceDetails(feature, id)
     },
   }
 
   placeInfo = {
-    adaptFeature: (feature: PeliasFeature, id?: string): Place => {
-      return this.adaptFeature(feature, id)
+    adaptPlaceDetails: (feature: PeliasFeature, id?: string): Place => {
+      return this.adaptPlaceDetails(feature, id)
     },
   }
 
   geocoding = {
-    adaptFeature: (feature: PeliasFeature, id?: string): Place => {
-      return this.adaptFeature(feature, id)
+    adaptPlaceDetails: (feature: PeliasFeature, id?: string): Place => {
+      return this.adaptPlaceDetails(feature, id)
     },
   }
 
   /**
    * Extract address from Pelias properties
    */
-  // TODO: OSM object without address info are defaulting to use the place name as address. Fix this.
   private extractAddress(props: PeliasFeature['properties']): Address | null {
     const address: Address = {}
 
@@ -96,27 +94,25 @@ export class PeliasAdapter {
     address.countryCode = props.country_code || undefined
     address.neighborhood = props.neighbourhood || undefined
 
-    // Only use the label as formatted address if we don't have street-level data
-    // The label often includes the place name which contaminates the address
-    if (address.street1) {
-      // Build our own formatted address from components to avoid place name contamination
-      const parts = []
-      if (address.street1) parts.push(address.street1)
-      if (address.locality) parts.push(address.locality)
-      if (address.region && address.postalCode) {
-        parts.push(`${address.region} ${address.postalCode}`)
-      } else if (address.region) {
-        parts.push(address.region)
-      } else if (address.postalCode) {
-        parts.push(address.postalCode)
-      }
-      if (address.country) parts.push(address.country)
+    // TODO: We may want server-side formatted address, but for now we will return raw address object for pelias
+    // // Only use the label as formatted address if we don't have street-level data
+    // // The label often includes the place name which contaminates the address
+    // if (address.street1) {
+    //   // Build our own formatted address from components to avoid place name contamination
+    //   const parts = []
+    //   if (address.street1) parts.push(address.street1)
+    //   if (address.locality) parts.push(address.locality)
+    //   if (address.region && address.postalCode) {
+    //     parts.push(`${address.region} ${address.postalCode}`)
+    //   } else if (address.region) {
+    //     parts.push(address.region)
+    //   } else if (address.postalCode) {
+    //     parts.push(address.postalCode)
+    //   }
+    //   if (address.country) parts.push(address.country)
 
-      address.formatted = parts.join(', ')
-    } else {
-      // Only use label if we have no street data (fallback)
-      address.formatted = props.label || undefined
-    }
+    //   address.formatted = parts.join(', ')
+    // }
 
     // Return null if no address components found
     return Object.keys(address).length > 0 ? address : null
@@ -211,7 +207,7 @@ export class PeliasAdapter {
   /**
    * Core method to transform Pelias API data to unified place format
    */
-  private adaptFeature(feature: PeliasFeature, id?: string): Place {
+  private adaptPlaceDetails(feature: PeliasFeature, id?: string): Place {
     try {
       const props = feature.properties
       const osmId = props.source_id

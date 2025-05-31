@@ -29,7 +29,6 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
   readonly sources = [SOURCE.GOOGLE]
   readonly capabilityIds: IntegrationCapabilityId[] = [
     IntegrationCapabilityId.SEARCH,
-    IntegrationCapabilityId.AUTOCOMPLETE,
     IntegrationCapabilityId.PLACE_INFO,
     IntegrationCapabilityId.GEOCODING,
   ]
@@ -37,10 +36,6 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
     search: {
       searchPlaces: this.searchPlaces.bind(this),
     } as SearchCapability,
-
-    autocomplete: {
-      getAutocomplete: this.getAutocomplete.bind(this),
-    } as AutocompleteCapability,
 
     placeInfo: {
       getPlaceInfo: this.getPlaceInfo.bind(this),
@@ -124,90 +119,6 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
   }
 
   /**
-   * Get autocomplete suggestions for a query
-   * @param query Search query string
-   * @param lat Optional latitude for location bias
-   * @param lng Optional longitude for location bias
-   * @param radius Optional radius in meters for location bias
-   * @returns Array of place suggestions
-   */
-  private async getAutocomplete(
-    query: string,
-    lat?: number,
-    lng?: number,
-    options?: {
-      radius?: number
-      limit?: number
-    },
-  ): Promise<Place[]> {
-    if (!this.config.apiKey || !lat || !lng) {
-      return []
-    }
-    const { radius } = options || {}
-
-    try {
-      const url = `${this.baseUrl}/places:autocomplete`
-      const requestBody: any = {
-        input: query,
-        locationBias: {
-          circle: {
-            center: {
-              latitude: lat,
-              longitude: lng,
-            },
-            radius: radius || 50000,
-          },
-        },
-      }
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Goog-Api-Key': this.config.apiKey,
-          'X-Goog-FieldMask':
-            'suggestions.placePrediction.placeId,suggestions.placePrediction.text,suggestions.placePrediction.structuredFormat,suggestions.placePrediction.types',
-        },
-        body: JSON.stringify(requestBody),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok || data.error) {
-        return []
-      }
-
-      if (!data.suggestions || data.suggestions.length === 0) {
-        return []
-      }
-
-      // Filter for place predictions only
-      const placePredictions = data.suggestions
-        .filter((suggestion: any) => suggestion.placePrediction)
-        .map((suggestion: any) => suggestion.placePrediction)
-
-      const enrichedPredictions = await Promise.all(
-        placePredictions.map(async (prediction: any) => {
-          try {
-            const placeDetails = await this.getPlaceInfo(prediction.placeId)
-            return { ...prediction, details: placeDetails }
-          } catch (error) {
-            return prediction
-          }
-        }),
-      )
-
-      const places = enrichedPredictions.map((prediction) =>
-        this.adapter.autocomplete.adaptPrediction(prediction),
-      )
-
-      return places
-    } catch (error) {
-      return []
-    }
-  }
-
-  /**
    * Get place details by place ID
    * @param placeId The Google Place ID
    * @returns Place details or null if not found
@@ -218,7 +129,7 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
       const url = `${this.baseUrl}/places/${placeId}`
 
       const fieldMask =
-        'id,displayName,formattedAddress,internationalPhoneNumber,websiteUri,types,photos,rating,userRatingCount,googleMapsUri,priceLevel,businessStatus,editorialSummary,location,dineIn,takeout,delivery,curbsidePickup,servesBreakfast,servesLunch,servesDinner,servesBeer,servesVegetarianFood,servesCocktails,servesCoffee,outdoorSeating,liveMusic,goodForChildren,goodForGroups,restroom,regularOpeningHours,utcOffsetMinutes'
+        'id,displayName,formattedAddress,addressComponents,internationalPhoneNumber,websiteUri,types,photos,rating,userRatingCount,googleMapsUri,priceLevel,businessStatus,editorialSummary,location,dineIn,takeout,delivery,curbsidePickup,servesBreakfast,servesLunch,servesDinner,servesBeer,servesVegetarianFood,servesCocktails,servesCoffee,outdoorSeating,liveMusic,goodForChildren,goodForGroups,restroom,regularOpeningHours,utcOffsetMinutes'
 
       console.log(
         'Place Details URL:',

@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { Command, CommandArgumentOption } from '@/types/command.types'
 import { Locale } from '@/lib/i18n'
 import { AppRoute } from '@/router'
-import { getPlaceRoute } from '@/lib/place-utils'
+import { getPlaceRoute } from '@/lib/place.utils'
 import {
   ChevronsRightIcon,
   CogIcon,
@@ -34,6 +34,7 @@ import { useAuthService } from '@/services/auth.service'
 import { MapEngine, MapProjection } from '@/types/map.types'
 import { usePlaceSearchService } from '@/services/place-search.service'
 import { useCommandService } from '@/services/command.service'
+import { formatAddress } from '@/lib/place.utils'
 
 export enum CommandName {
   OPEN_PALETTE = 'openPalette',
@@ -48,40 +49,6 @@ export enum CommandName {
   UPDATE_LANGUAGE = 'updateLanguage',
   SIGN_OUT = 'signOut',
 }
-
-// For testing purposes - to be removed once real search is implemented
-const places = [
-  {
-    name: 'Viva Chicken',
-    address: '1617 Elizabeth Ave, Charlotte, NC 28204',
-    type: 'restaurant',
-    distance: '0.2 mi',
-  },
-  {
-    name: "The Workman's Friend",
-    address: '1531 Central Ave, Charlotte, NC 28205',
-    type: 'bar',
-    distance: '0.3 mi',
-  },
-  {
-    name: 'The Diamond',
-    address: '1901 Commonwealth Ave, Charlotte, NC 28205',
-    type: 'bar',
-    distance: '0.4 mi',
-  },
-  {
-    name: 'Sabor Latin Street Grill',
-    address: '415 Hawthorne Ln, Charlotte, NC 28204',
-    type: 'restaurant',
-    distance: '0.5 mi',
-  },
-  {
-    name: 'The Pizza Peel Plaza Midwood',
-    address: '1600 Central Ave, Charlotte, NC 28205',
-    type: 'restaurant',
-    distance: '0.6 mi',
-  },
-]
 
 // TODO: Move command options to separate file
 
@@ -209,10 +176,7 @@ export const useCommandStore = defineStore('command', () => {
                 return suggestions.map(place => ({
                   value: place.id,
                   name: place.name.value,
-                  description:
-                    place.address?.value.street1 ||
-                    place.address?.value.formatted ||
-                    '',
+                  description: formatAddress(place),
                   icon: MapPinIcon,
                 }))
               } catch (error) {

@@ -20,6 +20,11 @@ export interface GooglePlaceDetails {
     languageCode?: string
   }
   formattedAddress?: string
+  addressComponents?: {
+    longText: string
+    shortText: string
+    types: string[]
+  }[]
   internationalPhoneNumber?: string
   websiteUri?: string
   types?: string[]
@@ -75,6 +80,14 @@ export interface GooglePlaceDetails {
   utcOffsetMinutes?: number
 }
 
+export interface AutocompletePrediction {
+  placeId: string
+  description: string
+  mainText: string
+  secondaryText: string
+  types: string[]
+}
+
 /**
  * Adapter for transforming Google Maps API data to unified formats
  */
@@ -90,56 +103,24 @@ export class GoogleAdapter {
 
   // Capability-specific adapters
   autocomplete = {
-    adaptPrediction: (prediction: any, id?: string): Place => {
-      // Extract the place name (removing it from the description to create a better formatted address)
-      const placeName =
-        prediction.structuredFormat?.mainText?.text ||
-        prediction.text?.text?.split(',')[0] ||
-        'Unknown Place'
-
-      // Determine the best address to use
-      let formattedAddress = ''
-
-      // First priority: Use enriched place details' formatted_address if available
-      if (prediction.details?.formattedAddress) {
-        formattedAddress = prediction.details.formattedAddress
-      }
-      // Second priority: Extract address components from the description
-      else if (prediction.text?.text) {
-        const descriptionParts =
-          prediction.text.text?.split(',').map((part: string) => part.trim()) ||
-          []
-
-        // Remove the place name from the description since it's already in the name field
-        if (descriptionParts.length > 0) {
-          descriptionParts.shift() // Remove the first part (place name)
-        }
-
-        // Create a cleaner formatted address without the place name
-        formattedAddress = descriptionParts.join(', ')
-      }
-
-      // For autocomplete predictions, we don't have actual coordinates by default
-      // Set to 0,0 to indicate unknown coordinates
-      let lat = 0
-      let lng = 0
-
-      // Check if we have enriched place details with location data
-      if (prediction.details?.location) {
-        lat = prediction.details.location.latitude
-        lng = prediction.details.location.longitude
-      }
-
+    adaptPrediction: (
+      prediction: AutocompletePrediction,
+      id?: string,
+    ): Place => {
       // Use the new ID format: source/providerId
       const primaryId = id || `${SOURCE.GOOGLE}/${prediction.placeId}`
 
-      const place = {
+      // For autocomplete predictions, we don't have actual coordinates
+      const lat = 0
+      const lng = 0
+
+      return {
         id: primaryId,
         externalIds: {
           [SOURCE.GOOGLE]: prediction.placeId,
         },
         name: {
-          value: placeName,
+          value: prediction.mainText,
           sourceId: SOURCE.GOOGLE,
         },
         description: null,
@@ -155,9 +136,9 @@ export class GoogleAdapter {
           sourceId: SOURCE.GOOGLE,
         },
         photos: [],
-        address: formattedAddress
+        address: prediction.secondaryText
           ? {
-              value: { formatted: formattedAddress },
+              value: { formatted: prediction.secondaryText },
               sourceId: SOURCE.GOOGLE,
             }
           : null,
@@ -184,8 +165,6 @@ export class GoogleAdapter {
         lastUpdated: new Date().toISOString(),
         createdAt: new Date().toISOString(),
       }
-
-      return place
     },
   }
 
@@ -302,14 +281,80 @@ export class GoogleAdapter {
   private extractAddress(
     data: GooglePlaceDetails,
   ): AttributedValue<Address> | null {
-    if (!data.formattedAddress) return null
+    if (!data.formattedAddress && !data.addressComponents) return null
+
+    const address: Address = {
+      formatted: data.formattedAddress,
+    }
+
+    if (data.addressComponents) {
+      for (const component of data.addressComponents) {
+        const types = component.types
+        const longText = component.longText
+        const shortText = component.shortText
+
+        if (types.includes('street_number')) {
+          address.street1 =
+            longText + (address.street1 ? ' ' + address.street1 : '')
+        } else if (types.includes('route')) {
+          address.street1 =
+            (address.street1 ? address.street1 + ' ' : '') + longText
+        } else if (types.includes('subpremise')) {
+          address.street2 = longText
+        } else if (types.includes('neighborhood')) {
+          address.neighborhood = longText
+        } else if (types.includes('locality')) {
+          address.locality = longText
+        } else if (types.includes('administrative_area_level_1')) {
+          address.region = longText
+        } else if (types.includes('postal_code')) {
+          address.postalCode = longText
+        } else if (types.includes('country')) {
+          address.country = longText
+          address.countryCode = shortText
+        }
+      }
+    }
 
     return {
-      value: {
-        formatted: data.formattedAddress,
-      },
+      value: address,
       sourceId: SOURCE.GOOGLE,
     }
+  }
+
+  /**
+   * Extract address from autocomplete prediction data
+   */
+  private extractAddressFromPrediction(
+    prediction: any,
+    fallbackFormatted: string,
+  ): AttributedValue<Address> | null {
+    // Check if we have addressComponents directly in the prediction
+    if (prediction.addressComponents) {
+      return this.extractAddress({
+        formattedAddress: fallbackFormatted,
+        addressComponents: prediction.addressComponents,
+      } as GooglePlaceDetails)
+    }
+
+    // Check if we have enriched place details with address components
+    if (prediction.details?.addressComponents) {
+      return this.extractAddress({
+        formattedAddress:
+          prediction.details.formattedAddress || fallbackFormatted,
+        addressComponents: prediction.details.addressComponents,
+      } as GooglePlaceDetails)
+    }
+
+    // Fallback to formatted address only
+    if (fallbackFormatted) {
+      return {
+        value: { formatted: fallbackFormatted },
+        sourceId: SOURCE.GOOGLE,
+      }
+    }
+
+    return null
   }
 
   /**

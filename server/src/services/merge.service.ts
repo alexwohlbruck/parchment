@@ -59,70 +59,60 @@ export function extractNumbers(text: string): string[] {
 }
 
 /**
- * Improved address similarity that handles structured data and common variations
+ * Improved address similarity that handles structured data, formatted addresses, and missing data
+ * Returns 0 if either place has no address data (as requested)
+ * Focuses on street name and number only - simple and fast
  */
 export function calculateAddressSimilarity(
   place1: Place,
   place2: Place,
-): number | null {
+): number {
   const address1 = place1.address?.value
   const address2 = place2.address?.value
 
-  if (!address1 || !address2) return null
+  // Return 0% match if either place has no address data
+  if (!address1 || !address2) return 0
 
-  // If we have structured address data, use it
-  if (address1.street1 && address2.street1) {
-    return calculateStructuredAddressSimilarity(address1, address2)
+  // Get street strings from both addresses
+  const street1 = getStreetString(address1)
+  const street2 = getStreetString(address2)
+
+  // If we can't extract street info from either, return 0
+  if (!street1 || !street2) return 0
+
+  // Extract and compare house numbers first
+  const numbers1 = extractNumbers(street1)
+  const numbers2 = extractNumbers(street2)
+
+  // If both have house numbers but they don't match, different places
+  if (numbers1.length > 0 && numbers2.length > 0) {
+    const hasCommonNumber = numbers1.some((num1) => numbers2.includes(num1))
+    if (!hasCommonNumber) return 0
   }
 
-  // Fall back to formatted address comparison
-  const formatted1 = getAddressString(place1)
-  const formatted2 = getAddressString(place2)
+  // Compare normalized street names
+  const normalized1 = normalizeStreetName(street1)
+  const normalized2 = normalizeStreetName(street2)
 
-  if (!formatted1 || !formatted2) return null
-
-  return calculateFormattedAddressSimilarity(formatted1, formatted2)
+  return calculateTextSimilarity(normalized1, normalized2)
 }
 
 /**
- * Compare structured address components
+ * Extract street information from any address format
  */
-function calculateStructuredAddressSimilarity(
-  address1: any,
-  address2: any,
-): number {
-  let totalWeight = 0
-  let matchedWeight = 0
-
-  // Extract and compare house numbers (most important)
-  const numbers1 = extractNumbers(address1.street1 || '')
-  const numbers2 = extractNumbers(address2.street1 || '')
-
-  if (numbers1.length > 0 && numbers2.length > 0) {
-    totalWeight += 0.4 // House number is 40% of the score
-    const hasCommonNumber = numbers1.some((num1) => numbers2.includes(num1))
-    if (hasCommonNumber) matchedWeight += 0.4
+function getStreetString(address: any): string | null {
+  // Structured address - use street1 directly
+  if (address.street1) {
+    return address.street1
   }
 
-  // Compare street names (normalize common abbreviations)
-  const street1 = normalizeStreetName(address1.street1 || '')
-  const street2 = normalizeStreetName(address2.street1 || '')
-
-  if (street1 && street2) {
-    totalWeight += 0.4 // Street name is 40% of the score
-    const streetSimilarity = calculateTextSimilarity(street1, street2)
-    matchedWeight += 0.4 * streetSimilarity
+  // Formatted address - extract the first part (usually the street)
+  if (address.formatted) {
+    const parts = address.formatted.split(',').map((p: string) => p.trim())
+    return parts[0] || null
   }
 
-  // Compare postal codes (if available)
-  if (address1.postalCode && address2.postalCode) {
-    totalWeight += 0.2 // Postal code is 20% of the score
-    if (address1.postalCode === address2.postalCode) {
-      matchedWeight += 0.2
-    }
-  }
-
-  return totalWeight > 0 ? matchedWeight / totalWeight : 0
+  return null
 }
 
 /**
@@ -153,29 +143,6 @@ function normalizeStreetName(street: string): string {
       .replace(/\b(unit|apt|apartment|suite|ste)\s+\w+/g, '')
       .trim()
   )
-}
-
-/**
- * Compare formatted address strings with better normalization
- */
-function calculateFormattedAddressSimilarity(
-  address1: string,
-  address2: string,
-): number {
-  // Extract and compare house numbers first
-  const numbers1 = extractNumbers(address1)
-  const numbers2 = extractNumbers(address2)
-
-  if (numbers1.length > 0 && numbers2.length > 0) {
-    const hasCommonNumber = numbers1.some((num1) => numbers2.includes(num1))
-    if (!hasCommonNumber) return 0 // Different house numbers = different places
-  }
-
-  // Normalize both addresses
-  const normalized1 = normalizeStreetName(address1)
-  const normalized2 = normalizeStreetName(address2)
-
-  return calculateTextSimilarity(normalized1, normalized2)
 }
 
 export function getAddressString(place: Place): string | null {
@@ -314,7 +281,7 @@ function shouldMergePlaces(place1: Place, place2: Place): boolean {
   // For very close places with addresses, require address match
   if (
     distanceSimilarity > 0.5 &&
-    addressSimilarity !== null &&
+    addressSimilarity > 0 && // Has address data
     addressSimilarity < 0.7
   ) {
     return false
@@ -323,7 +290,7 @@ function shouldMergePlaces(place1: Place, place2: Place): boolean {
   // Calculate weighted merge score
   let mergeScore: number
 
-  if (addressSimilarity !== null) {
+  if (addressSimilarity > 0) {
     // With addresses: name 50%, distance 25%, address 25%
     mergeScore =
       nameSimilarity * 0.5 +

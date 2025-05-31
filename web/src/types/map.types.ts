@@ -200,33 +200,6 @@ export type Pegman = {
   visible?: boolean
 }
 
-export type Place = {
-  id: number
-  type: 'node' | 'way' | 'relation'
-  tags: Record<string, string | undefined>
-  lat?: number
-  lon?: number
-  version: number
-  user: string
-  center?: {
-    lat: number
-    lon: number
-  }
-  geometry?: Array<{
-    lat: number
-    lon: number
-  }>
-  bounds?: {
-    minlat: number
-    minlon: number
-    maxlat: number
-    maxlon: number
-  }
-  placeType?: string
-  image?: string | null
-  brandLogo?: string | null
-}
-
 export const MarkerIds = {
   SELECTED_POI: 'selected-poi',
 } as const

@@ -47,10 +47,6 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV:-development}
       DATABASE_URL: ${DB_URL:-postgresql://server_user:server_password@localhost:5432/parchment}
-      LOCAL_ROUTING_ENGINE: 'graphhopper'
-      EXTERNAL_ROUTING_ENGINE_URL: 'https://api.openrouteservice.org/v2/directions/driving-car'
-      EXTERNAL_ROUTING_API_KEY: 'your-external-api-key'
-      STANDARD_RESPONSE_FORMAT: 'true'
     ports:
       - '5000:5000' # Expose backend to host
       - '6499:6499' # Bun debugger

@@ -143,18 +143,14 @@ update_cargo_toml() {
 build_and_push_docker() {
     local version=$1
     echo "Building Docker images..."
-    docker build -f web/Dockerfile.prod -t alexwohlbruck/parchment-web:$version .
-    docker build -f server/Dockerfile.prod -t alexwohlbruck/parchment-server:$version .
     
-    echo "Tagging latest..."
-    docker tag alexwohlbruck/parchment-web:$version alexwohlbruck/parchment-web:latest
-    docker tag alexwohlbruck/parchment-server:$version alexwohlbruck/parchment-server:latest
+    # Build multi-platform images (ARM64 + AMD64)
+    docker buildx build --platform linux/amd64,linux/arm64 -f web/Dockerfile.prod -t alexwohlbruck/parchment-web:$version --push .
+    docker buildx build --platform linux/amd64,linux/arm64 -f server/Dockerfile.prod -t alexwohlbruck/parchment-server:$version --push .
     
-    echo "Pushing Docker images..."
-    docker push alexwohlbruck/parchment-web:$version
-    docker push alexwohlbruck/parchment-server:$version
-    docker push alexwohlbruck/parchment-web:latest
-    docker push alexwohlbruck/parchment-server:latest
+    echo "Tagging and pushing latest..."
+    docker buildx build --platform linux/amd64,linux/arm64 -f web/Dockerfile.prod -t alexwohlbruck/parchment-web:latest --push .
+    docker buildx build --platform linux/amd64,linux/arm64 -f server/Dockerfile.prod -t alexwohlbruck/parchment-server:latest --push .
 }
 
 # Function to build Tauri app

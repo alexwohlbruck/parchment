@@ -1,6 +1,6 @@
 {
   "name": "parchment",
-  "version": "1.0.50",
+  "version": "0.0.2",
   "scripts": {
     "dev": "bun --watch --inspect src/index.ts",
     "build": "bun build ./src/index.ts --outdir ./dist --target bun",

@@ -79,18 +79,12 @@ if (originalRoleAssignments.length) {
 
 // Insert initial user if none exist
 const users = await db.select().from(usersSchema).limit(1)
-if (users.length === 0 && process.argv.length === 6) {
-  const firstName = process.argv[2]
-  const lastName = process.argv[3]
-  const email = process.argv[4]
-  const picture = process.argv[5]
-
-  if (!firstName || !lastName || !email || !picture) {
-    console.error(
-      'Please provide firstName, lastName, email and picture as command line arguments',
-    )
-    process.exit(1)
-  }
+if (users.length === 0) {
+  // Use default values or command line arguments
+  const firstName = process.argv[2] || 'Alex'
+  const lastName = process.argv[3] || 'Wohlbruck'
+  const email = process.argv[4] || 'alexwohlbruck@gmail.com'
+  const picture = process.argv[5] || 'https://github.com/alexwohlbruck.png'
 
   const [user] = await db
     .insert(usersSchema)
@@ -115,4 +109,4 @@ if (users.length === 0 && process.argv.length === 6) {
 
 console.log('Seed finished')
 
-await connection.close()
+await connection.end()

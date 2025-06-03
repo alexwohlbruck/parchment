@@ -1,5 +1,4 @@
-import 'dotenv/config'
-import { migrate } from 'drizzle-orm/neon-http/migrator'
+import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import { db, connection } from './db'
 
 await migrate(db, { migrationsFolder: 'drizzle' })

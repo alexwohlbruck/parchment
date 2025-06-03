@@ -2,13 +2,14 @@
   "name": "parchment",
   "version": "0.0.2",
   "scripts": {
-    "dev": "bun --watch --inspect src/index.ts",
-    "build": "bun build ./src/index.ts --outdir ./dist --target bun",
-    "start": "NODE_ENV=production bun src/index.ts",
+    "build": "bun build ./src/index.ts ./src/migrate.ts ./src/seed/seed.ts --outdir ./dist --target bun",
+    "start": "bun dist/index.js",
     "test": "bun test",
     "generate": "drizzle-kit generate",
-    "migrate": "bun generate; bun src/migrate.ts",
-    "seed": "bun src/seed/seed.ts",
+    "migrate:dev": "bun run generate && bun src/migrate.ts",
+    "migrate:prod": "bun dist/migrate.js",
+    "seed:dev": "bun src/seed/seed.ts",
+    "seed:prod": "bun dist/seed/seed.js",
     "studio": "drizzle-kit studio"
   },
   "dependencies": {
@@ -23,7 +24,6 @@
     "@types/lodash": "^4.17.17",
     "@types/nodemailer": "^6.4.15",
     "axios": "^1.8.4",
-    "dotenv": "^16.4.7",
     "drizzle-kit": "^0.31.0",
     "drizzle-orm": "^0.43.1",
     "elysia": "^1.2.25",

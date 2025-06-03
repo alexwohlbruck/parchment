@@ -23,6 +23,9 @@ RUN bun install --production
 # Copy build output from builder stage
 COPY --from=builder /app/server/dist ./dist
 
+# Copy drizzle migrations folder (pre-generated)
+COPY --from=builder /app/server/drizzle ./drizzle
+
 # Set production environment variable
 ENV NODE_ENV=production
 

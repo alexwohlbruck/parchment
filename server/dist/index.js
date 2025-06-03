@@ -50040,9 +50040,11 @@ function drizzle(...params) {
 
 // src/db.ts
 var dotenv = __toESM(require_main(), 1);
-dotenv.config({
-  path: ".env.local"
-});
+if (true) {
+  dotenv.config({
+    path: ".env.local"
+  });
+}
 var dbUrl = process.env.DATABASE_URL;
 var connection2 = src_default(dbUrl);
 var db = drizzle(connection2);
@@ -64266,7 +64268,6 @@ var BUSINESS_STATUS = {
   CLOSED_PERMANENTLY: "CLOSED_PERMANENTLY"
 };
 var GOOGLE_MAPS_PHOTO_URL = "https://maps.googleapis.com/maps/api/place/photo";
-var GOOGLE_PLACES_API_URL = "https://places.googleapis.com/v1/places";
 
 // node_modules/@turf/helpers/dist/esm/index.js
 var earthRadius = 6371008.8;
@@ -64365,150 +64366,1803 @@ function distance(from, to, options = {}) {
 }
 // src/services/merge.service.ts
 var import_lodash = __toESM(require_lodash(), 1);
-function calculateNameSimilarity(name1, name2) {
-  if (!name1 || !name2)
-    return 0;
-  const normalize2 = (name3) => {
-    return name3.toLowerCase().trim().replace(/[^\w\s]/g, "").replace(/\s+/g, " ");
-  };
-  const normalized1 = normalize2(name1);
-  const normalized2 = normalize2(name2);
-  if (normalized1 === normalized2) {
-    return 1;
+
+// node_modules/fuzzball/dist/esm/fuzzball.esm.min.js
+var e;
+var t2 = typeof globalThis != "undefined" ? globalThis : typeof window != "undefined" ? window : typeof global != "undefined" ? global : typeof self != "undefined" ? self : {};
+var r2 = { exports: {} };
+var n2 = Math.floor;
+var o2 = Math.max;
+var a13 = Math.min;
+var _calculateRatio = function(e2, t3) {
+  return t3 ? 2 * e2 / t3 : 1;
+};
+var _arrayCmp = function(e2, t3) {
+  var r3, n3, o3, i, s, c2;
+  for (s = [e2.length, t3.length], r3 = i = 0, c2 = a13(n3 = s[0], o3 = s[1]);0 <= c2 ? i < c2 : i > c2; r3 = 0 <= c2 ? ++i : --i) {
+    if (e2[r3] < t3[r3])
+      return -1;
+    if (e2[r3] > t3[r3])
+      return 1;
   }
-  if (normalized1.includes(normalized2) || normalized2.includes(normalized1)) {
-    const coverage = Math.min(normalized1.length, normalized2.length) / Math.max(normalized1.length, normalized2.length);
-    return 0.7 + coverage * 0.3;
+  return n3 - o3;
+};
+var _has = function(e2, t3) {
+  return Object.prototype.hasOwnProperty.call(e2, t3);
+};
+var i = function() {
+  function SequenceMatcher(e2, t3, r3, n3) {
+    this.isjunk = e2, t3 == null && (t3 = ""), r3 == null && (r3 = ""), this.autojunk = n3 == null || n3, this.a = this.b = null, this.setSeqs(t3, r3);
   }
-  const words1 = normalized1.split(" ");
-  const words2 = normalized2.split(" ");
-  const commonWords = words1.filter((word) => words2.includes(word));
-  if (commonWords.length === 0) {
-    return 0;
+  return SequenceMatcher.prototype.setSeqs = function(e2, t3) {
+    return this.setSeq1(e2), this.setSeq2(t3);
+  }, SequenceMatcher.prototype.setSeq1 = function(e2) {
+    if (e2 !== this.a)
+      return this.a = e2, this.matchingBlocks = this.opcodes = null;
+  }, SequenceMatcher.prototype.setSeq2 = function(e2) {
+    if (e2 !== this.b)
+      return this.b = e2, this.matchingBlocks = this.opcodes = null, this.fullbcount = null, this._chainB();
+  }, SequenceMatcher.prototype._chainB = function() {
+    var e2, t3, r3, o3, a14, i2, s, c2, u, l2, f, p, h, v;
+    for (e2 = this.b, this.b2j = t3 = {}, o3 = l2 = 0, p = e2.length;l2 < p; o3 = ++l2)
+      r3 = e2[o3], (_has(t3, r3) ? t3[r3] : t3[r3] = []).push(o3);
+    if (i2 = {}, a14 = this.isjunk)
+      for (f = 0, h = (v = Object.keys(t3)).length;f < h; f++)
+        a14(r3 = v[f]) && (i2[r3] = true, delete t3[r3]);
+    if (u = {}, s = e2.length, this.autojunk && s >= 200)
+      for (r3 in c2 = n2(s / 100) + 1, t3)
+        t3[r3].length > c2 && (u[r3] = true, delete t3[r3]);
+    return this.isbjunk = function(e3) {
+      return _has(i2, e3);
+    }, this.isbpopular = function(e3) {
+      return _has(u, e3);
+    };
+  }, SequenceMatcher.prototype.findLongestMatch = function(e2, t3, r3, n3) {
+    var o3, a14, i2, s, c2, u, l2, f, p, h, v, _2, d, y, g, m2, b2, k2, j, $2, w;
+    for (o3 = (m2 = [this.a, this.b, this.b2j, this.isbjunk])[0], a14 = m2[1], i2 = m2[2], f = m2[3], s = (b2 = [e2, r3, 0])[0], c2 = b2[1], u = b2[2], h = {}, l2 = d = e2;e2 <= t3 ? d < t3 : d > t3; l2 = e2 <= t3 ? ++d : --d) {
+      for (_2 = {}, y = 0, g = (k2 = _has(i2, o3[l2]) ? i2[o3[l2]] : []).length;y < g; y++)
+        if (!((p = k2[y]) < r3)) {
+          if (p >= n3)
+            break;
+          (v = _2[p] = (h[p - 1] || 0) + 1) > u && (s = (j = [l2 - v + 1, p - v + 1, v])[0], c2 = j[1], u = j[2]);
+        }
+      h = _2;
+    }
+    for (;s > e2 && c2 > r3 && !f(a14[c2 - 1]) && o3[s - 1] === a14[c2 - 1]; )
+      s = ($2 = [s - 1, c2 - 1, u + 1])[0], c2 = $2[1], u = $2[2];
+    for (;s + u < t3 && c2 + u < n3 && !f(a14[c2 + u]) && o3[s + u] === a14[c2 + u]; )
+      u++;
+    for (;s > e2 && c2 > r3 && f(a14[c2 - 1]) && o3[s - 1] === a14[c2 - 1]; )
+      s = (w = [s - 1, c2 - 1, u + 1])[0], c2 = w[1], u = w[2];
+    for (;s + u < t3 && c2 + u < n3 && f(a14[c2 + u]) && o3[s + u] === a14[c2 + u]; )
+      u++;
+    return [s, c2, u];
+  }, SequenceMatcher.prototype.getMatchingBlocks = function() {
+    var e2, t3, r3, n3, o3, a14, i2, s, c2, u, l2, f, p, h, v, _2, d, y, g, m2, b2, k2, j, $2, w, O;
+    if (this.matchingBlocks)
+      return this.matchingBlocks;
+    for (y = [[0, h = (k2 = [this.a.length, this.b.length])[0], 0, v = k2[1]]], _2 = [];y.length; )
+      t3 = (j = y.pop())[0], e2 = j[1], n3 = j[2], r3 = j[3], o3 = ($2 = g = this.findLongestMatch(t3, e2, n3, r3))[0], s = $2[1], (l2 = $2[2]) && (_2.push(g), t3 < o3 && n3 < s && y.push([t3, o3, n3, s]), o3 + l2 < e2 && s + l2 < r3 && y.push([o3 + l2, e2, s + l2, r3]));
+    for (_2.sort(_arrayCmp), a14 = c2 = f = 0, d = [], m2 = 0, b2 = _2.length;m2 < b2; m2++)
+      i2 = (w = _2[m2])[0], u = w[1], p = w[2], a14 + f === i2 && c2 + f === u ? f += p : (f && d.push([a14, c2, f]), a14 = (O = [i2, u, p])[0], c2 = O[1], f = O[2]);
+    return f && d.push([a14, c2, f]), d.push([h, v, 0]), this.matchingBlocks = d;
+  }, SequenceMatcher.prototype.getOpcodes = function() {
+    var e2, t3, r3, n3, o3, a14, i2, s, c2, u, l2, f;
+    if (this.opcodes)
+      return this.opcodes;
+    for (n3 = o3 = 0, this.opcodes = t3 = [], s = 0, c2 = (u = this.getMatchingBlocks()).length;s < c2; s++)
+      e2 = (l2 = u[s])[0], r3 = l2[1], a14 = l2[2], i2 = "", n3 < e2 && o3 < r3 ? i2 = "replace" : n3 < e2 ? i2 = "delete" : o3 < r3 && (i2 = "insert"), i2 && t3.push([i2, n3, e2, o3, r3]), n3 = (f = [e2 + a14, r3 + a14])[0], o3 = f[1], a14 && t3.push(["equal", e2, n3, r3, o3]);
+    return t3;
+  }, SequenceMatcher.prototype.getGroupedOpcodes = function(e2) {
+    var t3, r3, n3, i2, s, c2, u, l2, f, p, h, v, _2, d, y;
+    for (e2 == null && (e2 = 3), (t3 = this.getOpcodes()).length || (t3 = [["equal", 0, 1, 0, 1]]), t3[0][0] === "equal" && (f = (v = t3[0])[0], i2 = v[1], s = v[2], c2 = v[3], u = v[4], t3[0] = [f, o2(i2, s - e2), s, o2(c2, u - e2), u]), t3[t3.length - 1][0] === "equal" && (f = (_2 = t3[t3.length - 1])[0], i2 = _2[1], s = _2[2], c2 = _2[3], u = _2[4], t3[t3.length - 1] = [f, i2, a13(s, i2 + e2), c2, a13(u, c2 + e2)]), l2 = e2 + e2, n3 = [], r3 = [], p = 0, h = t3.length;p < h; p++)
+      f = (d = t3[p])[0], i2 = d[1], s = d[2], c2 = d[3], u = d[4], f === "equal" && s - i2 > l2 && (r3.push([f, i2, a13(s, i2 + e2), c2, a13(u, c2 + e2)]), n3.push(r3), r3 = [], i2 = (y = [o2(i2, s - e2), o2(c2, u - e2)])[0], c2 = y[1]), r3.push([f, i2, s, c2, u]);
+    return !r3.length || r3.length === 1 && r3[0][0] === "equal" || n3.push(r3), n3;
+  }, SequenceMatcher.prototype.ratio = function() {
+    var e2, t3, r3, n3;
+    for (e2 = 0, t3 = 0, r3 = (n3 = this.getMatchingBlocks()).length;t3 < r3; t3++)
+      e2 += n3[t3][2];
+    return _calculateRatio(e2, this.a.length + this.b.length);
+  }, SequenceMatcher.prototype.quickRatio = function() {
+    var e2, t3, r3, n3, o3, a14, i2, s, c2, u, l2;
+    if (!this.fullbcount)
+      for (this.fullbcount = r3 = {}, a14 = 0, s = (u = this.b).length;a14 < s; a14++)
+        r3[t3 = u[a14]] = (r3[t3] || 0) + 1;
+    for (r3 = this.fullbcount, e2 = {}, n3 = 0, i2 = 0, c2 = (l2 = this.a).length;i2 < c2; i2++)
+      t3 = l2[i2], o3 = _has(e2, t3) ? e2[t3] : r3[t3] || 0, e2[t3] = o3 - 1, o3 > 0 && n3++;
+    return _calculateRatio(n3, this.a.length + this.b.length);
+  }, SequenceMatcher.prototype.realQuickRatio = function() {
+    var e2, t3, r3;
+    return r3 = [this.a.length, this.b.length], _calculateRatio(a13(e2 = r3[0], t3 = r3[1]), e2 + t3);
+  }, SequenceMatcher;
+}();
+var s = { exports: {} };
+e = s, function() {
+  var t3, r3, n3, o3, a14, i2, s2, c2, u, l2, f, p, h, v, _2;
+  n3 = Math.floor, l2 = Math.min, r3 = function(e2, t4) {
+    return e2 < t4 ? -1 : e2 > t4 ? 1 : 0;
+  }, u = function(e2, t4, o4, a15, i3) {
+    var s3;
+    if (o4 == null && (o4 = 0), i3 == null && (i3 = r3), o4 < 0)
+      throw new Error("lo must be non-negative");
+    for (a15 == null && (a15 = e2.length);o4 < a15; )
+      i3(t4, e2[s3 = n3((o4 + a15) / 2)]) < 0 ? a15 = s3 : o4 = s3 + 1;
+    return [].splice.apply(e2, [o4, o4 - o4].concat(t4)), t4;
+  }, i2 = function(e2, t4, n4) {
+    return n4 == null && (n4 = r3), e2.push(t4), v(e2, 0, e2.length - 1, n4);
+  }, a14 = function(e2, t4) {
+    var n4, o4;
+    return t4 == null && (t4 = r3), n4 = e2.pop(), e2.length ? (o4 = e2[0], e2[0] = n4, _2(e2, 0, t4)) : o4 = n4, o4;
+  }, c2 = function(e2, t4, n4) {
+    var o4;
+    return n4 == null && (n4 = r3), o4 = e2[0], e2[0] = t4, _2(e2, 0, n4), o4;
+  }, s2 = function(e2, t4, n4) {
+    var o4;
+    return n4 == null && (n4 = r3), e2.length && n4(e2[0], t4) < 0 && (t4 = (o4 = [e2[0], t4])[0], e2[0] = o4[1], _2(e2, 0, n4)), t4;
+  }, o3 = function(e2, t4) {
+    var o4, a15, i3, s3, c3, u2;
+    for (t4 == null && (t4 = r3), c3 = [], a15 = 0, i3 = (s3 = function() {
+      u2 = [];
+      for (var t5 = 0, r4 = n3(e2.length / 2);0 <= r4 ? t5 < r4 : t5 > r4; 0 <= r4 ? t5++ : t5--)
+        u2.push(t5);
+      return u2;
+    }.apply(this).reverse()).length;a15 < i3; a15++)
+      o4 = s3[a15], c3.push(_2(e2, o4, t4));
+    return c3;
+  }, h = function(e2, t4, n4) {
+    var o4;
+    if (n4 == null && (n4 = r3), (o4 = e2.indexOf(t4)) !== -1)
+      return v(e2, 0, o4, n4), _2(e2, o4, n4);
+  }, f = function(e2, t4, n4) {
+    var a15, i3, c3, u2, l3;
+    if (n4 == null && (n4 = r3), !(i3 = e2.slice(0, t4)).length)
+      return i3;
+    for (o3(i3, n4), c3 = 0, u2 = (l3 = e2.slice(t4)).length;c3 < u2; c3++)
+      a15 = l3[c3], s2(i3, a15, n4);
+    return i3.sort(n4).reverse();
+  }, p = function(e2, t4, n4) {
+    var i3, s3, c3, f2, p2, h2, v2, _3, d;
+    if (n4 == null && (n4 = r3), 10 * t4 <= e2.length) {
+      if (!(c3 = e2.slice(0, t4).sort(n4)).length)
+        return c3;
+      for (s3 = c3[c3.length - 1], f2 = 0, h2 = (v2 = e2.slice(t4)).length;f2 < h2; f2++)
+        n4(i3 = v2[f2], s3) < 0 && (u(c3, i3, 0, null, n4), c3.pop(), s3 = c3[c3.length - 1]);
+      return c3;
+    }
+    for (o3(e2, n4), d = [], p2 = 0, _3 = l2(t4, e2.length);0 <= _3 ? p2 < _3 : p2 > _3; 0 <= _3 ? ++p2 : --p2)
+      d.push(a14(e2, n4));
+    return d;
+  }, v = function(e2, t4, n4, o4) {
+    var a15, i3, s3;
+    for (o4 == null && (o4 = r3), a15 = e2[n4];n4 > t4 && o4(a15, i3 = e2[s3 = n4 - 1 >> 1]) < 0; )
+      e2[n4] = i3, n4 = s3;
+    return e2[n4] = a15;
+  }, _2 = function(e2, t4, n4) {
+    var o4, a15, i3, s3, c3;
+    for (n4 == null && (n4 = r3), a15 = e2.length, c3 = t4, i3 = e2[t4], o4 = 2 * t4 + 1;o4 < a15; )
+      (s3 = o4 + 1) < a15 && !(n4(e2[o4], e2[s3]) < 0) && (o4 = s3), e2[t4] = e2[o4], o4 = 2 * (t4 = o4) + 1;
+    return e2[t4] = i3, v(e2, c3, t4, n4);
+  }, t3 = function() {
+    function Heap(e2) {
+      this.cmp = e2 != null ? e2 : r3, this.nodes = [];
+    }
+    return Heap.push = i2, Heap.pop = a14, Heap.replace = c2, Heap.pushpop = s2, Heap.heapify = o3, Heap.updateItem = h, Heap.nlargest = f, Heap.nsmallest = p, Heap.prototype.push = function(e2) {
+      return i2(this.nodes, e2, this.cmp);
+    }, Heap.prototype.pop = function() {
+      return a14(this.nodes, this.cmp);
+    }, Heap.prototype.peek = function() {
+      return this.nodes[0];
+    }, Heap.prototype.contains = function(e2) {
+      return this.nodes.indexOf(e2) !== -1;
+    }, Heap.prototype.replace = function(e2) {
+      return c2(this.nodes, e2, this.cmp);
+    }, Heap.prototype.pushpop = function(e2) {
+      return s2(this.nodes, e2, this.cmp);
+    }, Heap.prototype.heapify = function() {
+      return o3(this.nodes, this.cmp);
+    }, Heap.prototype.updateItem = function(e2) {
+      return h(this.nodes, e2, this.cmp);
+    }, Heap.prototype.clear = function() {
+      return this.nodes = [];
+    }, Heap.prototype.empty = function() {
+      return this.nodes.length === 0;
+    }, Heap.prototype.size = function() {
+      return this.nodes.length;
+    }, Heap.prototype.clone = function() {
+      var e2;
+      return (e2 = new Heap).nodes = this.nodes.slice(0), e2;
+    }, Heap.prototype.toArray = function() {
+      return this.nodes.slice(0);
+    }, Heap.prototype.insert = Heap.prototype.push, Heap.prototype.top = Heap.prototype.peek, Heap.prototype.front = Heap.prototype.peek, Heap.prototype.has = Heap.prototype.contains, Heap.prototype.copy = Heap.prototype.clone, Heap;
+  }(), e.exports = t3;
+}.call(t2);
+var c2 = s.exports;
+var u = function arrayMap$2(e2, t3) {
+  for (var r3 = -1, n3 = e2 == null ? 0 : e2.length, o3 = Array(n3);++r3 < n3; )
+    o3[r3] = t3(e2[r3], r3, e2);
+  return o3;
+};
+var l2 = Array.isArray;
+var f = typeof t2 == "object" && t2 && t2.Object === Object && t2;
+var p = f;
+var h = typeof self == "object" && self && self.Object === Object && self;
+var v = p || h || Function("return this")();
+var _2 = v.Symbol;
+var d = _2;
+var y = Object.prototype;
+var g = y.hasOwnProperty;
+var m2 = y.toString;
+var b2 = d ? d.toStringTag : undefined;
+var k2 = function getRawTag$1(e2) {
+  var t3 = g.call(e2, b2), r3 = e2[b2];
+  try {
+    e2[b2] = undefined;
+    var n3 = true;
+  } catch (e3) {}
+  var o3 = m2.call(e2);
+  return n3 && (t3 ? e2[b2] = r3 : delete e2[b2]), o3;
+};
+var j = Object.prototype.toString;
+var $2 = k2;
+var w = function objectToString$1(e2) {
+  return j.call(e2);
+};
+var O = _2 ? _2.toStringTag : undefined;
+var S = function baseGetTag$5(e2) {
+  return e2 == null ? e2 === undefined ? "[object Undefined]" : "[object Null]" : O && (O in Object(e2)) ? $2(e2) : w(e2);
+};
+var C = function isObjectLike$5(e2) {
+  return e2 != null && typeof e2 == "object";
+};
+var z = S;
+var A = C;
+var x = function isSymbol$4(e2) {
+  return typeof e2 == "symbol" || A(e2) && z(e2) == "[object Symbol]";
+};
+var M = l2;
+var I = x;
+var E = /\.|\[(?:[^[\]]*|(["'])(?:(?!\1)[^\\]|\\.)*?\1)\]/;
+var P = /^\w*$/;
+var q = function isKey$3(e2, t3) {
+  if (M(e2))
+    return false;
+  var r3 = typeof e2;
+  return !(r3 != "number" && r3 != "symbol" && r3 != "boolean" && e2 != null && !I(e2)) || (P.test(e2) || !E.test(e2) || t3 != null && (e2 in Object(t3)));
+};
+var H = function isObject$3(e2) {
+  var t3 = typeof e2;
+  return e2 != null && (t3 == "object" || t3 == "function");
+};
+var L = S;
+var R = H;
+var T2;
+var B = function isFunction$2(e2) {
+  if (!R(e2))
+    return false;
+  var t3 = L(e2);
+  return t3 == "[object Function]" || t3 == "[object GeneratorFunction]" || t3 == "[object AsyncFunction]" || t3 == "[object Proxy]";
+};
+var W = v["__core-js_shared__"];
+var F = (T2 = /[^.]+$/.exec(W && W.keys && W.keys.IE_PROTO || "")) ? "Symbol(src)_1." + T2 : "";
+var D = function isMasked$1(e2) {
+  return !!F && F in e2;
+};
+var N = Function.prototype.toString;
+var U = function toSource$2(e2) {
+  if (e2 != null) {
+    try {
+      return N.call(e2);
+    } catch (e3) {}
+    try {
+      return e2 + "";
+    } catch (e3) {}
   }
-  return commonWords.length * 2 / (words1.length + words2.length);
+  return "";
+};
+var G = B;
+var K2 = D;
+var Q = H;
+var V = U;
+var Z = /^\[object .+?Constructor\]$/;
+var J = Function.prototype;
+var X = Object.prototype;
+var Y2 = J.toString;
+var ee = X.hasOwnProperty;
+var te = RegExp("^" + Y2.call(ee).replace(/[\\^$.*+?()[\]{}|]/g, "\\$&").replace(/hasOwnProperty|(function).*?(?=\\\()| for .+?(?=\\\])/g, "$1.*?") + "$");
+var re = function baseIsNative$1(e2) {
+  return !(!Q(e2) || K2(e2)) && (G(e2) ? te : Z).test(V(e2));
+};
+var ne2 = function getValue$1(e2, t3) {
+  return e2 == null ? undefined : e2[t3];
+};
+var oe = function getNative$6(e2, t3) {
+  var r3 = ne2(e2, t3);
+  return re(r3) ? r3 : undefined;
+};
+var ae = oe(Object, "create");
+var ie = ae;
+var se = function hashClear$1() {
+  this.__data__ = ie ? ie(null) : {}, this.size = 0;
+};
+var ce = function hashDelete$1(e2) {
+  var t3 = this.has(e2) && delete this.__data__[e2];
+  return this.size -= t3 ? 1 : 0, t3;
+};
+var ue = ae;
+var le = Object.prototype.hasOwnProperty;
+var fe = function hashGet$1(e2) {
+  var t3 = this.__data__;
+  if (ue) {
+    var r3 = t3[e2];
+    return r3 === "__lodash_hash_undefined__" ? undefined : r3;
+  }
+  return le.call(t3, e2) ? t3[e2] : undefined;
+};
+var pe = ae;
+var he = Object.prototype.hasOwnProperty;
+var ve = ae;
+var _e = se;
+var de = ce;
+var ye = fe;
+var ge = function hashHas$1(e2) {
+  var t3 = this.__data__;
+  return pe ? t3[e2] !== undefined : he.call(t3, e2);
+};
+var me = function hashSet$1(e2, t3) {
+  var r3 = this.__data__;
+  return this.size += this.has(e2) ? 0 : 1, r3[e2] = ve && t3 === undefined ? "__lodash_hash_undefined__" : t3, this;
+};
+function Hash$1(e2) {
+  var t3 = -1, r3 = e2 == null ? 0 : e2.length;
+  for (this.clear();++t3 < r3; ) {
+    var n3 = e2[t3];
+    this.set(n3[0], n3[1]);
+  }
 }
+Hash$1.prototype.clear = _e, Hash$1.prototype.delete = de, Hash$1.prototype.get = ye, Hash$1.prototype.has = ge, Hash$1.prototype.set = me;
+var be = Hash$1;
+var ke = function listCacheClear$1() {
+  this.__data__ = [], this.size = 0;
+};
+var je = function eq$2(e2, t3) {
+  return e2 === t3 || e2 != e2 && t3 != t3;
+};
+var $e = je;
+var we = function assocIndexOf$4(e2, t3) {
+  for (var r3 = e2.length;r3--; )
+    if ($e(e2[r3][0], t3))
+      return r3;
+  return -1;
+};
+var Oe = we;
+var Se = Array.prototype.splice;
+var Ce = we;
+var ze = we;
+var Ae = we;
+var xe = ke;
+var Me = function listCacheDelete$1(e2) {
+  var t3 = this.__data__, r3 = Oe(t3, e2);
+  return !(r3 < 0) && (r3 == t3.length - 1 ? t3.pop() : Se.call(t3, r3, 1), --this.size, true);
+};
+var Ie = function listCacheGet$1(e2) {
+  var t3 = this.__data__, r3 = Ce(t3, e2);
+  return r3 < 0 ? undefined : t3[r3][1];
+};
+var Ee = function listCacheHas$1(e2) {
+  return ze(this.__data__, e2) > -1;
+};
+var Pe = function listCacheSet$1(e2, t3) {
+  var r3 = this.__data__, n3 = Ae(r3, e2);
+  return n3 < 0 ? (++this.size, r3.push([e2, t3])) : r3[n3][1] = t3, this;
+};
+function ListCache$4(e2) {
+  var t3 = -1, r3 = e2 == null ? 0 : e2.length;
+  for (this.clear();++t3 < r3; ) {
+    var n3 = e2[t3];
+    this.set(n3[0], n3[1]);
+  }
+}
+ListCache$4.prototype.clear = xe, ListCache$4.prototype.delete = Me, ListCache$4.prototype.get = Ie, ListCache$4.prototype.has = Ee, ListCache$4.prototype.set = Pe;
+var qe = ListCache$4;
+var He = oe(v, "Map");
+var Le = be;
+var Re = qe;
+var Te = He;
+var Be = function isKeyable$1(e2) {
+  var t3 = typeof e2;
+  return t3 == "string" || t3 == "number" || t3 == "symbol" || t3 == "boolean" ? e2 !== "__proto__" : e2 === null;
+};
+var We = function getMapData$4(e2, t3) {
+  var r3 = e2.__data__;
+  return Be(t3) ? r3[typeof t3 == "string" ? "string" : "hash"] : r3.map;
+};
+var Fe = We;
+var De = We;
+var Ne = We;
+var Ue = We;
+var Ge = function mapCacheClear$1() {
+  this.size = 0, this.__data__ = { hash: new Le, map: new (Te || Re), string: new Le };
+};
+var Ke = function mapCacheDelete$1(e2) {
+  var t3 = Fe(this, e2).delete(e2);
+  return this.size -= t3 ? 1 : 0, t3;
+};
+var Qe = function mapCacheGet$1(e2) {
+  return De(this, e2).get(e2);
+};
+var Ve = function mapCacheHas$1(e2) {
+  return Ne(this, e2).has(e2);
+};
+var Ze = function mapCacheSet$1(e2, t3) {
+  var r3 = Ue(this, e2), n3 = r3.size;
+  return r3.set(e2, t3), this.size += r3.size == n3 ? 0 : 1, this;
+};
+function MapCache$3(e2) {
+  var t3 = -1, r3 = e2 == null ? 0 : e2.length;
+  for (this.clear();++t3 < r3; ) {
+    var n3 = e2[t3];
+    this.set(n3[0], n3[1]);
+  }
+}
+MapCache$3.prototype.clear = Ge, MapCache$3.prototype.delete = Ke, MapCache$3.prototype.get = Qe, MapCache$3.prototype.has = Ve, MapCache$3.prototype.set = Ze;
+var Je = MapCache$3;
+var Xe = Je;
+function memoize$1(e2, t3) {
+  if (typeof e2 != "function" || t3 != null && typeof t3 != "function")
+    throw new TypeError("Expected a function");
+  var memoized = function() {
+    var r3 = arguments, n3 = t3 ? t3.apply(this, r3) : r3[0], o3 = memoized.cache;
+    if (o3.has(n3))
+      return o3.get(n3);
+    var a14 = e2.apply(this, r3);
+    return memoized.cache = o3.set(n3, a14) || o3, a14;
+  };
+  return memoized.cache = new (memoize$1.Cache || Xe), memoized;
+}
+memoize$1.Cache = Xe;
+var Ye = memoize$1;
+var et = /[^.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\\]|\\.)*?)\2)\]|(?=(?:\.|\[\])(?:\.|\[\]|$))/g;
+var tt = /\\(\\)?/g;
+var rt = function memoizeCapped$1(e2) {
+  var t3 = Ye(e2, function(e3) {
+    return r3.size === 500 && r3.clear(), e3;
+  }), r3 = t3.cache;
+  return t3;
+}(function(e2) {
+  var t3 = [];
+  return e2.charCodeAt(0) === 46 && t3.push(""), e2.replace(et, function(e3, r3, n3, o3) {
+    t3.push(n3 ? o3.replace(tt, "$1") : r3 || e3);
+  }), t3;
+});
+var nt = u;
+var ot = l2;
+var at = x;
+var it = _2 ? _2.prototype : undefined;
+var st = it ? it.toString : undefined;
+var ct = function baseToString$1(e2) {
+  if (typeof e2 == "string")
+    return e2;
+  if (ot(e2))
+    return nt(e2, baseToString$1) + "";
+  if (at(e2))
+    return st ? st.call(e2) : "";
+  var t3 = e2 + "";
+  return t3 == "0" && 1 / e2 == -Infinity ? "-0" : t3;
+};
+var ut = ct;
+var lt2 = l2;
+var ft = q;
+var pt = rt;
+var ht = function toString$1(e2) {
+  return e2 == null ? "" : ut(e2);
+};
+var vt = function castPath$2(e2, t3) {
+  return lt2(e2) ? e2 : ft(e2, t3) ? [e2] : pt(ht(e2));
+};
+var _t = x;
+var dt = function toKey$4(e2) {
+  if (typeof e2 == "string" || _t(e2))
+    return e2;
+  var t3 = e2 + "";
+  return t3 == "0" && 1 / e2 == -Infinity ? "-0" : t3;
+};
+var yt = vt;
+var gt2 = dt;
+var mt = function baseGet$3(e2, t3) {
+  for (var r3 = 0, n3 = (t3 = yt(t3, e2)).length;e2 != null && r3 < n3; )
+    e2 = e2[gt2(t3[r3++])];
+  return r3 && r3 == n3 ? e2 : undefined;
+};
+var bt = qe;
+var kt = qe;
+var jt = He;
+var $t = Je;
+var wt = qe;
+var Ot = function stackClear$1() {
+  this.__data__ = new bt, this.size = 0;
+};
+var St = function stackDelete$1(e2) {
+  var t3 = this.__data__, r3 = t3.delete(e2);
+  return this.size = t3.size, r3;
+};
+var Ct = function stackGet$1(e2) {
+  return this.__data__.get(e2);
+};
+var zt = function stackHas$1(e2) {
+  return this.__data__.has(e2);
+};
+var At = function stackSet$1(e2, t3) {
+  var r3 = this.__data__;
+  if (r3 instanceof kt) {
+    var n3 = r3.__data__;
+    if (!jt || n3.length < 199)
+      return n3.push([e2, t3]), this.size = ++r3.size, this;
+    r3 = this.__data__ = new $t(n3);
+  }
+  return r3.set(e2, t3), this.size = r3.size, this;
+};
+function Stack$2(e2) {
+  var t3 = this.__data__ = new wt(e2);
+  this.size = t3.size;
+}
+Stack$2.prototype.clear = Ot, Stack$2.prototype.delete = St, Stack$2.prototype.get = Ct, Stack$2.prototype.has = zt, Stack$2.prototype.set = At;
+var xt = Stack$2;
+var Mt = Je;
+var It = function setCacheAdd$1(e2) {
+  return this.__data__.set(e2, "__lodash_hash_undefined__"), this;
+};
+var Et = function setCacheHas$1(e2) {
+  return this.__data__.has(e2);
+};
+function SetCache$1(e2) {
+  var t3 = -1, r3 = e2 == null ? 0 : e2.length;
+  for (this.__data__ = new Mt;++t3 < r3; )
+    this.add(e2[t3]);
+}
+SetCache$1.prototype.add = SetCache$1.prototype.push = It, SetCache$1.prototype.has = Et;
+var Pt = SetCache$1;
+var qt = function arraySome$1(e2, t3) {
+  for (var r3 = -1, n3 = e2 == null ? 0 : e2.length;++r3 < n3; )
+    if (t3(e2[r3], r3, e2))
+      return true;
+  return false;
+};
+var Ht = function cacheHas$1(e2, t3) {
+  return e2.has(t3);
+};
+var Lt = function equalArrays$2(e2, t3, r3, n3, o3, a14) {
+  var i2 = 1 & r3, s2 = e2.length, c3 = t3.length;
+  if (s2 != c3 && !(i2 && c3 > s2))
+    return false;
+  var u2 = a14.get(e2), l3 = a14.get(t3);
+  if (u2 && l3)
+    return u2 == t3 && l3 == e2;
+  var f2 = -1, p2 = true, h2 = 2 & r3 ? new Pt : undefined;
+  for (a14.set(e2, t3), a14.set(t3, e2);++f2 < s2; ) {
+    var v2 = e2[f2], _3 = t3[f2];
+    if (n3)
+      var d2 = i2 ? n3(_3, v2, f2, t3, e2, a14) : n3(v2, _3, f2, e2, t3, a14);
+    if (d2 !== undefined) {
+      if (d2)
+        continue;
+      p2 = false;
+      break;
+    }
+    if (h2) {
+      if (!qt(t3, function(e3, t4) {
+        if (!Ht(h2, t4) && (v2 === e3 || o3(v2, e3, r3, n3, a14)))
+          return h2.push(t4);
+      })) {
+        p2 = false;
+        break;
+      }
+    } else if (v2 !== _3 && !o3(v2, _3, r3, n3, a14)) {
+      p2 = false;
+      break;
+    }
+  }
+  return a14.delete(e2), a14.delete(t3), p2;
+};
+var Rt = v.Uint8Array;
+var Tt = je;
+var Bt = Lt;
+var Wt = function mapToArray$1(e2) {
+  var t3 = -1, r3 = Array(e2.size);
+  return e2.forEach(function(e3, n3) {
+    r3[++t3] = [n3, e3];
+  }), r3;
+};
+var Ft = function setToArray$1(e2) {
+  var t3 = -1, r3 = Array(e2.size);
+  return e2.forEach(function(e3) {
+    r3[++t3] = e3;
+  }), r3;
+};
+var Dt = _2 ? _2.prototype : undefined;
+var Nt = Dt ? Dt.valueOf : undefined;
+var Ut = function equalByTag$1(e2, t3, r3, n3, o3, a14, i2) {
+  switch (r3) {
+    case "[object DataView]":
+      if (e2.byteLength != t3.byteLength || e2.byteOffset != t3.byteOffset)
+        return false;
+      e2 = e2.buffer, t3 = t3.buffer;
+    case "[object ArrayBuffer]":
+      return !(e2.byteLength != t3.byteLength || !a14(new Rt(e2), new Rt(t3)));
+    case "[object Boolean]":
+    case "[object Date]":
+    case "[object Number]":
+      return Tt(+e2, +t3);
+    case "[object Error]":
+      return e2.name == t3.name && e2.message == t3.message;
+    case "[object RegExp]":
+    case "[object String]":
+      return e2 == t3 + "";
+    case "[object Map]":
+      var s2 = Wt;
+    case "[object Set]":
+      var c3 = 1 & n3;
+      if (s2 || (s2 = Ft), e2.size != t3.size && !c3)
+        return false;
+      var u2 = i2.get(e2);
+      if (u2)
+        return u2 == t3;
+      n3 |= 2, i2.set(e2, t3);
+      var l3 = Bt(s2(e2), s2(t3), n3, o3, a14, i2);
+      return i2.delete(e2), l3;
+    case "[object Symbol]":
+      if (Nt)
+        return Nt.call(e2) == Nt.call(t3);
+  }
+  return false;
+};
+var Gt = function arrayPush$1(e2, t3) {
+  for (var r3 = -1, n3 = t3.length, o3 = e2.length;++r3 < n3; )
+    e2[o3 + r3] = t3[r3];
+  return e2;
+};
+var Kt = l2;
+var Qt = function baseGetAllKeys$1(e2, t3, r3) {
+  var n3 = t3(e2);
+  return Kt(e2) ? n3 : Gt(n3, r3(e2));
+};
+var Vt = function arrayFilter$1(e2, t3) {
+  for (var r3 = -1, n3 = e2 == null ? 0 : e2.length, o3 = 0, a14 = [];++r3 < n3; ) {
+    var i2 = e2[r3];
+    t3(i2, r3, e2) && (a14[o3++] = i2);
+  }
+  return a14;
+};
+var Zt = function stubArray$1() {
+  return [];
+};
+var Jt = Object.prototype.propertyIsEnumerable;
+var Xt = Object.getOwnPropertySymbols;
+var Yt = Xt ? function(e2) {
+  return e2 == null ? [] : (e2 = Object(e2), Vt(Xt(e2), function(t3) {
+    return Jt.call(e2, t3);
+  }));
+} : Zt;
+var er = function baseTimes$1(e2, t3) {
+  for (var r3 = -1, n3 = Array(e2);++r3 < e2; )
+    n3[r3] = t3(r3);
+  return n3;
+};
+var tr = S;
+var rr = C;
+var nr = function baseIsArguments$1(e2) {
+  return rr(e2) && tr(e2) == "[object Arguments]";
+};
+var or2 = C;
+var ar = Object.prototype;
+var ir = ar.hasOwnProperty;
+var sr = ar.propertyIsEnumerable;
+var cr = nr(function() {
+  return arguments;
+}()) ? nr : function(e2) {
+  return or2(e2) && ir.call(e2, "callee") && !sr.call(e2, "callee");
+};
+var ur = { exports: {} };
+var lr = function stubFalse() {
+  return false;
+};
+(function(e2, t3) {
+  var r3 = v, n3 = lr, o3 = t3 && !t3.nodeType && t3, a14 = o3 && e2 && !e2.nodeType && e2, i2 = a14 && a14.exports === o3 ? r3.Buffer : undefined, s2 = (i2 ? i2.isBuffer : undefined) || n3;
+  e2.exports = s2;
+})(ur, ur.exports);
+var fr = /^(?:0|[1-9]\d*)$/;
+var pr = function isIndex$2(e2, t3) {
+  var r3 = typeof e2;
+  return !!(t3 = t3 == null ? 9007199254740991 : t3) && (r3 == "number" || r3 != "symbol" && fr.test(e2)) && e2 > -1 && e2 % 1 == 0 && e2 < t3;
+};
+var hr = function isLength$3(e2) {
+  return typeof e2 == "number" && e2 > -1 && e2 % 1 == 0 && e2 <= 9007199254740991;
+};
+var vr = S;
+var _r = hr;
+var dr = C;
+var yr = {};
+yr["[object Float32Array]"] = yr["[object Float64Array]"] = yr["[object Int8Array]"] = yr["[object Int16Array]"] = yr["[object Int32Array]"] = yr["[object Uint8Array]"] = yr["[object Uint8ClampedArray]"] = yr["[object Uint16Array]"] = yr["[object Uint32Array]"] = true, yr["[object Arguments]"] = yr["[object Array]"] = yr["[object ArrayBuffer]"] = yr["[object Boolean]"] = yr["[object DataView]"] = yr["[object Date]"] = yr["[object Error]"] = yr["[object Function]"] = yr["[object Map]"] = yr["[object Number]"] = yr["[object Object]"] = yr["[object RegExp]"] = yr["[object Set]"] = yr["[object String]"] = yr["[object WeakMap]"] = false;
+var gr = function baseIsTypedArray$1(e2) {
+  return dr(e2) && _r(e2.length) && !!yr[vr(e2)];
+};
+var mr = function baseUnary$2(e2) {
+  return function(t3) {
+    return e2(t3);
+  };
+};
+var br = { exports: {} };
+(function(e2, t3) {
+  var r3 = f, n3 = t3 && !t3.nodeType && t3, o3 = n3 && e2 && !e2.nodeType && e2, a14 = o3 && o3.exports === n3 && r3.process, i2 = function() {
+    try {
+      var e3 = o3 && o3.require && o3.require("util").types;
+      return e3 || a14 && a14.binding && a14.binding("util");
+    } catch (e4) {}
+  }();
+  e2.exports = i2;
+})(br, br.exports);
+var kr = gr;
+var jr = mr;
+var $r = br.exports;
+var wr = $r && $r.isTypedArray;
+var Or2 = wr ? jr(wr) : kr;
+var Sr = er;
+var Cr = cr;
+var zr = l2;
+var Ar = ur.exports;
+var xr = pr;
+var Mr = Or2;
+var Ir = Object.prototype.hasOwnProperty;
+var Er = function arrayLikeKeys$1(e2, t3) {
+  var r3 = zr(e2), n3 = !r3 && Cr(e2), o3 = !r3 && !n3 && Ar(e2), a14 = !r3 && !n3 && !o3 && Mr(e2), i2 = r3 || n3 || o3 || a14, s2 = i2 ? Sr(e2.length, String) : [], c3 = s2.length;
+  for (var u2 in e2)
+    !t3 && !Ir.call(e2, u2) || i2 && (u2 == "length" || o3 && (u2 == "offset" || u2 == "parent") || a14 && (u2 == "buffer" || u2 == "byteLength" || u2 == "byteOffset") || xr(u2, c3)) || s2.push(u2);
+  return s2;
+};
+var Pr = Object.prototype;
+var qr = function isPrototype$1(e2) {
+  var t3 = e2 && e2.constructor;
+  return e2 === (typeof t3 == "function" && t3.prototype || Pr);
+};
+var Hr = function overArg$1(e2, t3) {
+  return function(r3) {
+    return e2(t3(r3));
+  };
+}(Object.keys, Object);
+var Lr = qr;
+var Rr = Hr;
+var Tr = Object.prototype.hasOwnProperty;
+var Br = B;
+var Wr = hr;
+var Fr = function isArrayLike$3(e2) {
+  return e2 != null && Wr(e2.length) && !Br(e2);
+};
+var Dr = Er;
+var Nr = function baseKeys$1(e2) {
+  if (!Lr(e2))
+    return Rr(e2);
+  var t3 = [];
+  for (var r3 in Object(e2))
+    Tr.call(e2, r3) && r3 != "constructor" && t3.push(r3);
+  return t3;
+};
+var Ur = Fr;
+var Gr = function keys$3(e2) {
+  return Ur(e2) ? Dr(e2) : Nr(e2);
+};
+var Kr = Qt;
+var Qr = Yt;
+var Vr = Gr;
+var Zr = function getAllKeys$1(e2) {
+  return Kr(e2, Vr, Qr);
+};
+var Jr = Object.prototype.hasOwnProperty;
+var Xr = function equalObjects$1(e2, t3, r3, n3, o3, a14) {
+  var i2 = 1 & r3, s2 = Zr(e2), c3 = s2.length;
+  if (c3 != Zr(t3).length && !i2)
+    return false;
+  for (var u2 = c3;u2--; ) {
+    var l3 = s2[u2];
+    if (!(i2 ? l3 in t3 : Jr.call(t3, l3)))
+      return false;
+  }
+  var f2 = a14.get(e2), p2 = a14.get(t3);
+  if (f2 && p2)
+    return f2 == t3 && p2 == e2;
+  var h2 = true;
+  a14.set(e2, t3), a14.set(t3, e2);
+  for (var v2 = i2;++u2 < c3; ) {
+    var _3 = e2[l3 = s2[u2]], d2 = t3[l3];
+    if (n3)
+      var y2 = i2 ? n3(d2, _3, l3, t3, e2, a14) : n3(_3, d2, l3, e2, t3, a14);
+    if (!(y2 === undefined ? _3 === d2 || o3(_3, d2, r3, n3, a14) : y2)) {
+      h2 = false;
+      break;
+    }
+    v2 || (v2 = l3 == "constructor");
+  }
+  if (h2 && !v2) {
+    var g2 = e2.constructor, m3 = t3.constructor;
+    g2 == m3 || !("constructor" in e2) || !("constructor" in t3) || typeof g2 == "function" && g2 instanceof g2 && typeof m3 == "function" && m3 instanceof m3 || (h2 = false);
+  }
+  return a14.delete(e2), a14.delete(t3), h2;
+};
+var Yr = oe(v, "DataView");
+var en = He;
+var tn = oe(v, "Promise");
+var rn = oe(v, "Set");
+var nn = oe(v, "WeakMap");
+var on = S;
+var an = U;
+var sn = an(Yr);
+var cn = an(en);
+var un = an(tn);
+var ln = an(rn);
+var fn = an(nn);
+var pn = on;
+(Yr && pn(new Yr(new ArrayBuffer(1))) != "[object DataView]" || en && pn(new en) != "[object Map]" || tn && pn(tn.resolve()) != "[object Promise]" || rn && pn(new rn) != "[object Set]" || nn && pn(new nn) != "[object WeakMap]") && (pn = function(e2) {
+  var t3 = on(e2), r3 = t3 == "[object Object]" ? e2.constructor : undefined, n3 = r3 ? an(r3) : "";
+  if (n3)
+    switch (n3) {
+      case sn:
+        return "[object DataView]";
+      case cn:
+        return "[object Map]";
+      case un:
+        return "[object Promise]";
+      case ln:
+        return "[object Set]";
+      case fn:
+        return "[object WeakMap]";
+    }
+  return t3;
+});
+var hn = xt;
+var vn = Lt;
+var _n = Ut;
+var dn = Xr;
+var yn = pn;
+var gn = l2;
+var mn = ur.exports;
+var bn = Or2;
+var kn = "[object Object]";
+var jn = Object.prototype.hasOwnProperty;
+var $n = function baseIsEqualDeep$1(e2, t3, r3, n3, o3, a14) {
+  var i2 = gn(e2), s2 = gn(t3), c3 = i2 ? "[object Array]" : yn(e2), u2 = s2 ? "[object Array]" : yn(t3), l3 = (c3 = c3 == "[object Arguments]" ? kn : c3) == kn, f2 = (u2 = u2 == "[object Arguments]" ? kn : u2) == kn, p2 = c3 == u2;
+  if (p2 && mn(e2)) {
+    if (!mn(t3))
+      return false;
+    i2 = true, l3 = false;
+  }
+  if (p2 && !l3)
+    return a14 || (a14 = new hn), i2 || bn(e2) ? vn(e2, t3, r3, n3, o3, a14) : _n(e2, t3, c3, r3, n3, o3, a14);
+  if (!(1 & r3)) {
+    var h2 = l3 && jn.call(e2, "__wrapped__"), v2 = f2 && jn.call(t3, "__wrapped__");
+    if (h2 || v2) {
+      var _3 = h2 ? e2.value() : e2, d2 = v2 ? t3.value() : t3;
+      return a14 || (a14 = new hn), o3(_3, d2, r3, n3, a14);
+    }
+  }
+  return !!p2 && (a14 || (a14 = new hn), dn(e2, t3, r3, n3, o3, a14));
+};
+var wn = C;
+var On = function baseIsEqual$2(e2, t3, r3, n3, o3) {
+  return e2 === t3 || (e2 == null || t3 == null || !wn(e2) && !wn(t3) ? e2 != e2 && t3 != t3 : $n(e2, t3, r3, n3, baseIsEqual$2, o3));
+};
+var Sn = xt;
+var Cn = On;
+var zn = H;
+var An = function isStrictComparable$2(e2) {
+  return e2 == e2 && !zn(e2);
+};
+var xn = An;
+var Mn = Gr;
+var In = function matchesStrictComparable$2(e2, t3) {
+  return function(r3) {
+    return r3 != null && (r3[e2] === t3 && (t3 !== undefined || (e2 in Object(r3))));
+  };
+};
+var En = function baseIsMatch$1(e2, t3, r3, n3) {
+  var o3 = r3.length, a14 = o3, i2 = !n3;
+  if (e2 == null)
+    return !a14;
+  for (e2 = Object(e2);o3--; ) {
+    var s2 = r3[o3];
+    if (i2 && s2[2] ? s2[1] !== e2[s2[0]] : !(s2[0] in e2))
+      return false;
+  }
+  for (;++o3 < a14; ) {
+    var c3 = (s2 = r3[o3])[0], u2 = e2[c3], l3 = s2[1];
+    if (i2 && s2[2]) {
+      if (u2 === undefined && !(c3 in e2))
+        return false;
+    } else {
+      var f2 = new Sn;
+      if (n3)
+        var p2 = n3(u2, l3, c3, e2, t3, f2);
+      if (!(p2 === undefined ? Cn(l3, u2, 3, n3, f2) : p2))
+        return false;
+    }
+  }
+  return true;
+};
+var Pn = function getMatchData$1(e2) {
+  for (var t3 = Mn(e2), r3 = t3.length;r3--; ) {
+    var n3 = t3[r3], o3 = e2[n3];
+    t3[r3] = [n3, o3, xn(o3)];
+  }
+  return t3;
+};
+var qn = In;
+var Hn = mt;
+var Ln = vt;
+var Rn = cr;
+var Tn = l2;
+var Bn = pr;
+var Wn = hr;
+var Fn = dt;
+var Dn = function baseHasIn$1(e2, t3) {
+  return e2 != null && t3 in Object(e2);
+};
+var Nn = function hasPath$1(e2, t3, r3) {
+  for (var n3 = -1, o3 = (t3 = Ln(t3, e2)).length, a14 = false;++n3 < o3; ) {
+    var i2 = Fn(t3[n3]);
+    if (!(a14 = e2 != null && r3(e2, i2)))
+      break;
+    e2 = e2[i2];
+  }
+  return a14 || ++n3 != o3 ? a14 : !!(o3 = e2 == null ? 0 : e2.length) && Wn(o3) && Bn(i2, o3) && (Tn(e2) || Rn(e2));
+};
+var Un = On;
+var Gn = function get$1(e2, t3, r3) {
+  var n3 = e2 == null ? undefined : Hn(e2, t3);
+  return n3 === undefined ? r3 : n3;
+};
+var Kn = function hasIn$1(e2, t3) {
+  return e2 != null && Nn(e2, t3, Dn);
+};
+var Qn = q;
+var Vn = An;
+var Zn = In;
+var Jn = dt;
+var Xn = function identity$2(e2) {
+  return e2;
+};
+var Yn = mt;
+var eo = function baseProperty$1(e2) {
+  return function(t3) {
+    return t3 == null ? undefined : t3[e2];
+  };
+};
+var to = function basePropertyDeep$1(e2) {
+  return function(t3) {
+    return Yn(t3, e2);
+  };
+};
+var ro = q;
+var no = dt;
+var oo = function baseMatches$1(e2) {
+  var t3 = Pn(e2);
+  return t3.length == 1 && t3[0][2] ? qn(t3[0][0], t3[0][1]) : function(r3) {
+    return r3 === e2 || En(r3, e2, t3);
+  };
+};
+var ao = function baseMatchesProperty$1(e2, t3) {
+  return Qn(e2) && Vn(t3) ? Zn(Jn(e2), t3) : function(r3) {
+    var n3 = Gn(r3, e2);
+    return n3 === undefined && n3 === t3 ? Kn(r3, e2) : Un(t3, n3, 3);
+  };
+};
+var io = Xn;
+var so = l2;
+var co = function property$1(e2) {
+  return ro(e2) ? eo(no(e2)) : to(e2);
+};
+var uo = function baseIteratee$1(e2) {
+  return typeof e2 == "function" ? e2 : e2 == null ? io : typeof e2 == "object" ? so(e2) ? ao(e2[0], e2[1]) : oo(e2) : co(e2);
+};
+var lo = function createBaseFor$1(e2) {
+  return function(t3, r3, n3) {
+    for (var o3 = -1, a14 = Object(t3), i2 = n3(t3), s2 = i2.length;s2--; ) {
+      var c3 = i2[e2 ? s2 : ++o3];
+      if (r3(a14[c3], c3, a14) === false)
+        break;
+    }
+    return t3;
+  };
+}();
+var fo = Gr;
+var po = Fr;
+var ho = function createBaseEach$1(e2, t3) {
+  return function(r3, n3) {
+    if (r3 == null)
+      return r3;
+    if (!po(r3))
+      return e2(r3, n3);
+    for (var o3 = r3.length, a14 = t3 ? o3 : -1, i2 = Object(r3);(t3 ? a14-- : ++a14 < o3) && n3(i2[a14], a14, i2) !== false; )
+      ;
+    return r3;
+  };
+}(function baseForOwn$1(e2, t3) {
+  return e2 && lo(e2, t3, fo);
+});
+var vo = Fr;
+var _o = x;
+var yo = function compareAscending$1(e2, t3) {
+  if (e2 !== t3) {
+    var r3 = e2 !== undefined, n3 = e2 === null, o3 = e2 == e2, a14 = _o(e2), i2 = t3 !== undefined, s2 = t3 === null, c3 = t3 == t3, u2 = _o(t3);
+    if (!s2 && !u2 && !a14 && e2 > t3 || a14 && i2 && c3 && !s2 && !u2 || n3 && i2 && c3 || !r3 && c3 || !o3)
+      return 1;
+    if (!n3 && !a14 && !u2 && e2 < t3 || u2 && r3 && o3 && !n3 && !a14 || s2 && r3 && o3 || !i2 && o3 || !c3)
+      return -1;
+  }
+  return 0;
+};
+var go = u;
+var mo = mt;
+var bo = uo;
+var ko = function baseMap$1(e2, t3) {
+  var r3 = -1, n3 = vo(e2) ? Array(e2.length) : [];
+  return ho(e2, function(e3, o3, a14) {
+    n3[++r3] = t3(e3, o3, a14);
+  }), n3;
+};
+var jo = function baseSortBy$1(e2, t3) {
+  var r3 = e2.length;
+  for (e2.sort(t3);r3--; )
+    e2[r3] = e2[r3].value;
+  return e2;
+};
+var $o = mr;
+var wo = function compareMultiple$1(e2, t3, r3) {
+  for (var n3 = -1, o3 = e2.criteria, a14 = t3.criteria, i2 = o3.length, s2 = r3.length;++n3 < i2; ) {
+    var c3 = yo(o3[n3], a14[n3]);
+    if (c3)
+      return n3 >= s2 ? c3 : c3 * (r3[n3] == "desc" ? -1 : 1);
+  }
+  return e2.index - t3.index;
+};
+var Oo = Xn;
+var So = l2;
+var Co = function baseOrderBy$1(e2, t3, r3) {
+  t3 = t3.length ? go(t3, function(e3) {
+    return So(e3) ? function(t4) {
+      return mo(t4, e3.length === 1 ? e3[0] : e3);
+    } : e3;
+  }) : [Oo];
+  var n3 = -1;
+  t3 = go(t3, $o(bo));
+  var o3 = ko(e2, function(e3, r4, o4) {
+    return { criteria: go(t3, function(t4) {
+      return t4(e3);
+    }), index: ++n3, value: e3 };
+  });
+  return jo(o3, function(e3, t4) {
+    return wo(e3, t4, r3);
+  });
+};
+var zo = l2;
+var Ao = function orderBy(e2, t3, r3, n3) {
+  return e2 == null ? [] : (zo(t3) || (t3 = t3 == null ? [] : [t3]), zo(r3 = n3 ? undefined : r3) || (r3 = r3 == null ? [] : [r3]), Co(e2, t3, r3));
+};
+var xo;
+var Mo = { _intersect: function _intersect(e2, t3) {
+  if (!e2 || !t3 || e2.length === 0 || t3.length === 0)
+    return [];
+  if (e2.length < 100 && t3.length < 100)
+    return e2.filter((e3) => t3.includes(e3));
+  const r3 = new Set(t3);
+  return e2.filter((e3) => r3.has(e3));
+}, _intersectWith: function _intersectWith(e2, t3, r3) {
+  return e2 && t3 && e2.length !== 0 && t3.length !== 0 ? e2.filter((e3) => t3.some((t4) => r3(e3, t4))) : [];
+}, _difference: function _difference(e2, t3) {
+  if (!e2)
+    return [];
+  if (!t3 || t3.length === 0)
+    return e2.slice();
+  if (e2.length < 100 && t3.length < 100)
+    return e2.filter((e3) => !t3.includes(e3));
+  const r3 = new Set(t3);
+  return e2.filter((e3) => !r3.has(e3));
+}, _differenceWith: function _differenceWith(e2, t3, r3) {
+  return e2 ? t3 && t3.length !== 0 ? e2.filter((e3) => !t3.some((t4) => r3(e3, t4))) : e2.slice() : [];
+}, _uniq: function _uniq(e2) {
+  return e2 && e2.length !== 0 ? e2.length === 1 ? e2.slice() : [...new Set(e2)] : [];
+}, _uniqWith: function _uniqWith(e2, t3) {
+  if (!e2 || e2.length === 0)
+    return [];
+  if (e2.length === 1)
+    return e2.slice();
+  const r3 = [];
+  e:
+    for (let n3 = 0;n3 < e2.length; n3++) {
+      const o3 = e2[n3];
+      for (let e3 = 0;e3 < r3.length; e3++)
+        if (t3(o3, r3[e3]))
+          continue e;
+      r3.push(o3);
+    }
+  return r3;
+}, _partialRight: function _partialRight(e2) {
+  const t3 = Array.prototype.slice.call(arguments, 1);
+  return function() {
+    const r3 = Array.prototype.slice.call(arguments);
+    return e2.apply(this, r3.concat(t3));
+  };
+}, _forEach: function _forEach(e2, t3) {
+  if (e2)
+    if (Array.isArray(e2))
+      for (let r3 = 0;r3 < e2.length; r3++)
+        t3(e2[r3], r3);
+    else {
+      const r3 = Object.keys(e2);
+      for (let n3 = 0;n3 < r3.length; n3++)
+        t3(e2[r3[n3]], r3[n3]);
+    }
+}, _isArray: Array.isArray };
+try {
+  xo = typeof Intl != "undefined" && Intl.Collator !== undefined ? Intl.Collator("generic", { sensitivity: "base" }) : null;
+} catch (e2) {
+  typeof console !== undefined && console.warn("Collator could not be initialized and wouldn't be used");
+}
+var Io;
+var Eo = function leven(e2, t3, r3) {
+  var n3 = [], o3 = [], a14 = r3 && xo && r3.useCollator, i2 = 1;
+  if (r3 && r3.subcost && typeof r3.subcost == "number" && (i2 = r3.subcost), e2 === t3)
+    return 0;
+  var s2, c3, u2, l3, f2 = Array.from(e2), p2 = Array.from(t3), h2 = f2.length, v2 = p2.length;
+  if (h2 === 0)
+    return v2;
+  if (v2 === 0)
+    return h2;
+  for (var _3 = 0, d2 = 0;_3 < h2; )
+    o3[_3] = f2[_3].codePointAt(0), n3[_3] = ++_3;
+  if (a14)
+    for (;d2 < v2; )
+      for (s2 = p2[d2].codePointAt(0), u2 = d2++, c3 = d2, _3 = 0;_3 < h2; _3++)
+        l3 = xo.compare(String.fromCodePoint(s2), String.fromCodePoint(o3[_3])) === 0 ? u2 : u2 + i2, u2 = n3[_3], c3 = n3[_3] = u2 > c3 ? l3 > c3 ? c3 + 1 : l3 : l3 > u2 ? u2 + 1 : l3;
+  else
+    for (;d2 < v2; )
+      for (s2 = p2[d2].codePointAt(0), u2 = d2++, c3 = d2, _3 = 0;_3 < h2; _3++)
+        l3 = s2 === o3[_3] ? u2 : u2 + i2, u2 = n3[_3], c3 = n3[_3] = u2 > c3 ? l3 > c3 ? c3 + 1 : l3 : l3 > u2 ? u2 + 1 : l3;
+  return c3;
+};
+try {
+  Io = typeof Intl != "undefined" && Intl.Collator !== undefined ? Intl.Collator("generic", { sensitivity: "base" }) : null;
+} catch (e2) {
+  typeof console !== undefined && console.warn("Collator could not be initialized and wouldn't be used");
+}
+var Po;
+var qo = function leven2(e2, t3, r3, n3) {
+  var o3 = [], a14 = [], i2 = r3 && Io && r3.useCollator, s2 = 1;
+  if (r3 && r3.subcost && typeof r3.subcost == "number" && (s2 = r3.subcost), e2 === t3)
+    return 0;
+  var c3 = e2.length, u2 = t3.length;
+  if (c3 === 0)
+    return u2;
+  if (u2 === 0)
+    return c3;
+  if (r3 && r3.wildcards && typeof r3.wildcards == "string" && r3.wildcards.length > 0) {
+    var l3, f2, p2, h2, v2, _3;
+    if (r3.full_process === false && r3.processed !== true) {
+      f2 = (l3 = r3.wildcards[0]).charCodeAt(0);
+      var d2 = "[" + function escapeRegExp(e3) {
+        return e3.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      }(r3.wildcards) + "]";
+      if ((e2 = e2.replace(new RegExp(d2, "g"), l3)) === (t3 = t3.replace(new RegExp(d2, "g"), l3)))
+        return 0;
+    } else
+      f2 = (l3 = r3.wildcards[0].toLowerCase()).charCodeAt(0);
+    for (var y2 = 0, g2 = 0;y2 < c3; )
+      a14[y2] = e2.charCodeAt(y2), o3[y2] = ++y2;
+    if (i2)
+      for (;g2 < u2; )
+        for (p2 = t3.charCodeAt(g2), v2 = g2++, h2 = g2, y2 = 0;y2 < c3; y2++)
+          _3 = Io.compare(String.fromCharCode(p2), String.fromCharCode(a14[y2])) === 0 || p2 === f2 || a14[y2] === f2 ? v2 : v2 + s2, v2 = o3[y2], h2 = o3[y2] = v2 > h2 ? _3 > h2 ? h2 + 1 : _3 : _3 > v2 ? v2 + 1 : _3;
+    else
+      for (;g2 < u2; )
+        for (p2 = t3.charCodeAt(g2), v2 = g2++, h2 = g2, y2 = 0;y2 < c3; y2++)
+          _3 = p2 === a14[y2] || p2 === f2 || a14[y2] === f2 ? v2 : v2 + s2, v2 = o3[y2], h2 = o3[y2] = v2 > h2 ? _3 > h2 ? h2 + 1 : _3 : _3 > v2 ? v2 + 1 : _3;
+    return h2;
+  }
+  return n3(e2, t3, r3);
+};
+try {
+  Po = typeof Intl != "undefined" && Intl.Collator !== undefined ? Intl.Collator("generic", { sensitivity: "base" }) : null;
+} catch (e2) {
+  typeof console !== undefined && console.warn("Collator could not be initialized and wouldn't be used");
+}
+var Ho = function leven3(e2, t3, r3) {
+  var n3 = [], o3 = [], a14 = r3 && Po && r3.useCollator, i2 = 1;
+  if (r3 && r3.subcost && typeof r3.subcost == "number" && (i2 = r3.subcost), e2 === t3)
+    return 0;
+  var s2, c3, u2, l3, f2 = e2.length, p2 = t3.length;
+  if (f2 === 0)
+    return p2;
+  if (p2 === 0)
+    return f2;
+  for (var h2 = 0, v2 = 0;h2 < f2; )
+    o3[h2] = e2.charCodeAt(h2), n3[h2] = ++h2;
+  if (a14)
+    for (;v2 < p2; )
+      for (s2 = t3.charCodeAt(v2), u2 = v2++, c3 = v2, h2 = 0;h2 < f2; h2++)
+        l3 = Po.compare(String.fromCharCode(s2), String.fromCharCode(o3[h2])) === 0 ? u2 : u2 + i2, u2 = n3[h2], c3 = n3[h2] = u2 > c3 ? l3 > c3 ? c3 + 1 : l3 : l3 > u2 ? u2 + 1 : l3;
+  else
+    for (;v2 < p2; )
+      for (s2 = t3.charCodeAt(v2), u2 = v2++, c3 = v2, h2 = 0;h2 < f2; h2++)
+        l3 = s2 === o3[h2] ? u2 : u2 + i2, u2 = n3[h2], c3 = n3[h2] = u2 > c3 ? l3 > c3 ? c3 + 1 : l3 : l3 > u2 ? u2 + 1 : l3;
+  return c3;
+};
+(function(e2, t3) {
+  if (!e2.setImmediate) {
+    var r3, n3 = 1, o3 = {}, a14 = false, i2 = e2.document, s2 = Object.getPrototypeOf && Object.getPrototypeOf(e2);
+    s2 = s2 && s2.setTimeout ? s2 : e2, {}.toString.call(e2.process) === "[object process]" ? function installNextTickImplementation() {
+      r3 = function(e3) {
+        process.nextTick(function() {
+          runIfPresent(e3);
+        });
+      };
+    }() : !function canUsePostMessage() {
+      if (e2.postMessage && !e2.importScripts) {
+        var t4 = true, r4 = e2.onmessage;
+        return e2.onmessage = function() {
+          t4 = false;
+        }, e2.postMessage("", "*"), e2.onmessage = r4, t4;
+      }
+    }() ? e2.MessageChannel ? function installMessageChannelImplementation() {
+      var e3 = new MessageChannel;
+      e3.port1.onmessage = function(e4) {
+        runIfPresent(e4.data);
+      }, r3 = function(t4) {
+        e3.port2.postMessage(t4);
+      };
+    }() : i2 && ("onreadystatechange" in i2.createElement("script")) ? function installReadyStateChangeImplementation() {
+      var e3 = i2.documentElement;
+      r3 = function(t4) {
+        var r4 = i2.createElement("script");
+        r4.onreadystatechange = function() {
+          runIfPresent(t4), r4.onreadystatechange = null, e3.removeChild(r4), r4 = null;
+        }, e3.appendChild(r4);
+      };
+    }() : function installSetTimeoutImplementation() {
+      r3 = function(e3) {
+        setTimeout(runIfPresent, 0, e3);
+      };
+    }() : function installPostMessageImplementation() {
+      var t4 = "setImmediate$" + Math.random() + "$", onGlobalMessage = function(r4) {
+        r4.source === e2 && typeof r4.data == "string" && r4.data.indexOf(t4) === 0 && runIfPresent(+r4.data.slice(t4.length));
+      };
+      e2.addEventListener ? e2.addEventListener("message", onGlobalMessage, false) : e2.attachEvent("onmessage", onGlobalMessage), r3 = function(r4) {
+        e2.postMessage(t4 + r4, "*");
+      };
+    }(), s2.setImmediate = function setImmediate(e3) {
+      typeof e3 != "function" && (e3 = new Function("" + e3));
+      for (var t4 = new Array(arguments.length - 1), a15 = 0;a15 < t4.length; a15++)
+        t4[a15] = arguments[a15 + 1];
+      var i3 = { callback: e3, args: t4 };
+      return o3[n3] = i3, r3(n3), n3++;
+    }, s2.clearImmediate = clearImmediate2;
+  }
+  function clearImmediate2(e3) {
+    delete o3[e3];
+  }
+  function runIfPresent(e3) {
+    if (a14)
+      setTimeout(runIfPresent, 0, e3);
+    else {
+      var t4 = o3[e3];
+      if (t4) {
+        a14 = true;
+        try {
+          (function run(e4) {
+            var { callback: t5, args: r4 } = e4;
+            switch (r4.length) {
+              case 0:
+                t5();
+                break;
+              case 1:
+                t5(r4[0]);
+                break;
+              case 2:
+                t5(r4[0], r4[1]);
+                break;
+              case 3:
+                t5(r4[0], r4[1], r4[2]);
+                break;
+              default:
+                t5.apply(undefined, r4);
+            }
+          })(t4);
+        } finally {
+          clearImmediate2(e3), a14 = false;
+        }
+      }
+    }
+  }
+})(typeof self == "undefined" ? t2 : self);
+var Lo = { exports: {} };
+(function(e2) {
+  e2.exports = function(t3, r3, n3, o3) {
+    return (e2 = {}).dedupe = function dedupe(e3, a14) {
+      var i2, s2 = t3(a14);
+      if (!r3(e3) && typeof e3 != "object")
+        throw new Error("contains_dupes must be an array or object");
+      if (Object.keys(e3).length === 0)
+        return typeof console !== undefined && console.warn("contains_dupes is empty"), [];
+      s2.limit && (typeof console !== undefined && console.warn("options.limit will be ignored in dedupe"), s2.limit = 0), s2.cutoff && typeof s2.cutoff == "number" || (typeof console !== undefined && console.warn("Using default cutoff of 70"), s2.cutoff = 70), s2.scorer || (s2.scorer = n3, typeof console !== undefined && console.log("Using default scorer 'ratio' for dedupe")), i2 = s2.processor && typeof s2.processor == "function" ? s2.processor : function(e4) {
+        return e4;
+      };
+      var c3 = {};
+      for (var u2 in e3) {
+        var l3 = i2(e3[u2]);
+        if (typeof l3 != "string" && l3 instanceof String == false)
+          throw new Error("Each processed item in dedupe must be a string.");
+        var f2 = o3(l3, e3, s2);
+        s2.returnObjects ? (f2.length === 1 || (f2 = f2.sort(function(e4, t4) {
+          var r4 = i2(e4.choice), n4 = i2(t4.choice), o4 = r4.length, a15 = n4.length;
+          return o4 === a15 ? r4 < n4 ? -1 : 1 : a15 - o4;
+        })), s2.keepmap ? c3[i2(f2[0].choice)] = { item: f2[0].choice, key: f2[0].key, matches: f2 } : c3[i2(f2[0].choice)] = { item: f2[0].choice, key: f2[0].key }) : (f2.length === 1 || (f2 = f2.sort(function(e4, t4) {
+          var r4 = i2(e4[0]), n4 = i2(t4[0]), o4 = r4.length, a15 = n4.length;
+          return o4 === a15 ? r4 < n4 ? -1 : 1 : a15 - o4;
+        })), s2.keepmap ? c3[i2(f2[0][0])] = [f2[0][0], f2[0][2], f2] : c3[i2(f2[0][0])] = [f2[0][0], f2[0][2]]);
+      }
+      var p2 = [];
+      for (var h2 in c3)
+        p2.push(c3[h2]);
+      return p2;
+    }, e2;
+  };
+})(Lo), function() {
+  var e2 = i, t3 = c2, n3 = Ao, o3 = Mo._intersect, a14 = Mo._intersectWith, s2 = Mo._difference, u2 = Mo._differenceWith, l3 = Mo._partialRight, f2 = Mo._forEach, p2 = Mo._isArray, h2 = Eo, v2 = qo, _3 = Ho, d2 = function(e3, t4, r3) {
+    var n4 = {}, o4 = qo, a15 = Ho;
+    function escapeRegExp(e4) {
+      return e4.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+    function validate(e4) {
+      return (typeof e4 == "string" || e4 instanceof String) && e4.length > 0;
+    }
+    n4.validate = validate, n4.process_and_sort = function process_and_sort(e4) {
+      return validate(e4) ? e4.match(/\S+/g).sort().join(" ").trim() : "";
+    }, n4.tokenize = function unique_tokens(n5, i3) {
+      if (i3 && i3.wildcards && t4 && r3) {
+        var s3 = r3(o4, i3, a15);
+        return t4(n5.match(/\S+/g), function(e4, t5) {
+          return s3(e4, t5) === 0;
+        });
+      }
+      return e3(n5.match(/\S+/g));
+    };
+    const i2 = /[^\p{L}\p{N}]/gu;
+    return n4.full_process = function full_process(e4, t5) {
+      if (!(e4 instanceof String) && typeof e4 != "string")
+        return "";
+      var r4;
+      if (t5 && typeof t5 == "object" && t5.wildcards && typeof t5.wildcards == "string" && t5.wildcards.length > 0) {
+        var n5 = t5.wildcards.toLowerCase();
+        if (e4 = e4.toLowerCase(), t5.force_ascii) {
+          var o5 = "[^\x00 -\x7F|" + escapeRegExp(n5) + "]";
+          e4 = e4.replace(new RegExp(o5, "g"), "");
+          var a16 = "[" + escapeRegExp(n5) + "]", s3 = n5[0];
+          e4 = e4.replace(new RegExp(a16, "g"), s3);
+          var c3 = "[^A-Za-z0-9" + escapeRegExp(n5) + "]";
+          r4 = (e4 = (e4 = e4.replace(new RegExp(c3, "g"), " ")).replace(/_/g, " ")).trim();
+        } else {
+          var u3 = "[^\\p{L}\\p{N}|" + escapeRegExp(n5) + "]";
+          e4 = e4.replace(new RegExp(u3, "gu"), " "), a16 = "[" + escapeRegExp(n5) + "]", s3 = n5[0], r4 = (e4 = e4.replace(new RegExp(a16, "g"), s3)).trim();
+        }
+      } else
+        r4 = t5 && (t5.force_ascii || t5 === true) ? (e4 = e4.replace(/[^\x00-\x7F]/g, "")).replace(/\W|_/g, " ").toLowerCase().trim() : e4.replace(i2, " ").toLowerCase().trim();
+      return t5 && t5.collapseWhitespace && (r4 = r4.replace(/\s+/g, " ")), r4;
+    }, n4.clone_and_set_option_defaults = function(e4) {
+      if (e4 && e4.isAClone)
+        return e4;
+      var t5 = { isAClone: true };
+      if (e4) {
+        var r4, n5 = Object.keys(e4);
+        for (r4 = 0;r4 < n5.length; r4++)
+          t5[n5[r4]] = e4[n5[r4]];
+      }
+      return t5.full_process !== false && (t5.full_process = true), t5.force_ascii !== true && (t5.force_ascii = false), t5.normalize !== false && t5.astral === true && (t5.normalize = true), t5.collapseWhitespace !== false && (t5.collapseWhitespace = true), t5;
+    }, n4.isCustomFunc = function(e4) {
+      return typeof e4 != "function" || e4.name !== "token_set_ratio" && e4.name !== "partial_token_set_ratio" && e4.name !== "token_sort_ratio" && e4.name !== "partial_token_sort_ratio" && e4.name !== "QRatio" && e4.name !== "WRatio" && e4.name !== "distance" && e4.name !== "partial_ratio";
+    }, n4;
+  }(Mo._uniq, Mo._uniqWith, l3), y2 = d2.validate, g2 = d2.process_and_sort, m3 = d2.tokenize, b3 = d2.full_process, k3 = d2.clone_and_set_option_defaults, j2 = d2.isCustomFunc, $3 = Lo.exports(k3, p2, QRatio, extract).dedupe;
+  function QRatio(e3, t4, r3) {
+    var n4 = k3(r3);
+    return e3 = n4.normalize ? e3.normalize() : e3, t4 = n4.normalize ? t4.normalize() : t4, e3 = n4.full_process ? b3(e3, n4) : e3, t4 = n4.full_process ? b3(t4, n4) : t4, y2(e3) && y2(t4) ? _ratio(e3, t4, n4) : 0;
+  }
+  function token_set_ratio(e3, t4, r3) {
+    var n4 = k3(r3);
+    return e3 = n4.normalize ? e3.normalize() : e3, t4 = n4.normalize ? t4.normalize() : t4, e3 = n4.full_process ? b3(e3, n4) : e3, t4 = n4.full_process ? b3(t4, n4) : t4, y2(e3) && y2(t4) ? _token_set(e3, t4, n4) : 0;
+  }
+  function partial_token_set_ratio(e3, t4, r3) {
+    var n4 = k3(r3);
+    return e3 = n4.normalize ? e3.normalize() : e3, t4 = n4.normalize ? t4.normalize() : t4, e3 = n4.full_process ? b3(e3, n4) : e3, t4 = n4.full_process ? b3(t4, n4) : t4, y2(e3) && y2(t4) ? (n4.partial = true, _token_set(e3, t4, n4)) : 0;
+  }
+  function token_sort_ratio(e3, t4, r3) {
+    var n4 = k3(r3);
+    return e3 = n4.normalize ? e3.normalize() : e3, t4 = n4.normalize ? t4.normalize() : t4, e3 = n4.full_process ? b3(e3, n4) : e3, t4 = n4.full_process ? b3(t4, n4) : t4, y2(e3) && y2(t4) ? (n4.proc_sorted || (e3 = g2(e3), t4 = g2(t4)), _ratio(e3, t4, n4)) : 0;
+  }
+  function partial_token_sort_ratio(e3, t4, r3) {
+    var n4 = k3(r3);
+    return e3 = n4.normalize ? e3.normalize() : e3, t4 = n4.normalize ? t4.normalize() : t4, e3 = n4.full_process ? b3(e3, n4) : e3, t4 = n4.full_process ? b3(t4, n4) : t4, y2(e3) && y2(t4) ? (n4.partial = true, n4.proc_sorted || (e3 = g2(e3), t4 = g2(t4)), _partial_ratio(e3, t4, n4)) : 0;
+  }
+  function extract(e3, r3, n4) {
+    var o4, a15 = k3(n4);
+    if (p2(r3))
+      o4 = r3.length;
+    else {
+      if (!(r3 instanceof Object))
+        throw new Error("Invalid choices");
+      o4 = Object.keys(r3).length;
+    }
+    if (!r3 || o4 === 0)
+      return typeof console !== undefined && console.warn("No choices"), [];
+    if (a15.processor && typeof a15.processor != "function")
+      throw new Error("Invalid Processor");
+    if (a15.processor || (a15.processor = function(e4) {
+      return e4;
+    }), a15.scorer && typeof a15.scorer != "function")
+      throw new Error("Invalid Scorer");
+    a15.scorer || (a15.scorer = QRatio);
+    var i2 = j2(a15.scorer);
+    a15.cutoff && typeof a15.cutoff == "number" || (a15.cutoff = -1);
+    var pre_processor = function(e4, t4) {
+      return e4;
+    };
+    a15.full_process && (pre_processor = b3, i2 || (a15.processed = true));
+    var s3 = false;
+    i2 || (a15.astral && a15.normalize && (a15.normalize = false, String.prototype.normalize ? (s3 = true, e3 = e3.normalize()) : typeof console !== undefined && console.warn("Normalization not supported in your environment")), e3 = pre_processor(e3, a15), a15.full_process = false, e3.length === 0 && typeof console !== undefined && console.warn("Processed query is empty string"));
+    var c3, u3, l4, h3, v3 = [], _4 = false, d3 = false, y3 = false;
+    if (a15.scorer.name === "token_sort_ratio" || a15.scorer.name === "partial_token_sort_ratio") {
+      var $4 = g2(e3);
+      d3 = true;
+    } else if (a15.scorer.name === "token_set_ratio" || a15.scorer.name === "partial_token_set_ratio") {
+      var w3 = m3(e3, a15);
+      y3 = true;
+    }
+    return a15.returnObjects ? (l4 = function(e4, t4) {
+      return e4.score - t4.score;
+    }, h3 = function(e4, t4) {
+      return t4.score - e4.score;
+    }) : (l4 = function(e4, t4) {
+      return e4[1] - t4[1];
+    }, h3 = function(e4, t4) {
+      return t4[1] - e4[1];
+    }), f2(r3, function(t4, r4) {
+      a15.tokens = undefined, a15.proc_sorted = false, d3 ? (a15.proc_sorted = true, t4 && t4.proc_sorted ? u3 = t4.proc_sorted : (u3 = pre_processor(s3 ? a15.processor(t4).normalize() : a15.processor(t4), a15), u3 = g2(u3)), c3 = a15.scorer($4, u3, a15)) : y3 ? (u3 = "x", t4 && t4.tokens ? (a15.tokens = [w3, t4.tokens], a15.trySimple && (u3 = pre_processor(a15.processor(t4), a15))) : (u3 = pre_processor(s3 ? a15.processor(t4).normalize() : a15.processor(t4), a15), a15.tokens = [w3, m3(u3, a15)]), c3 = a15.scorer(e3, u3, a15)) : i2 ? (u3 = a15.processor(t4), c3 = a15.scorer(e3, u3, a15)) : (typeof (u3 = pre_processor(s3 ? a15.processor(t4).normalize() : a15.processor(t4), a15)) == "string" && u3.length !== 0 || (_4 = true), c3 = a15.scorer(e3, u3, a15)), c3 > a15.cutoff && (a15.returnObjects ? v3.push({ choice: t4, score: c3, key: r4 }) : v3.push([t4, c3, r4]));
+    }), _4 && typeof console !== undefined && console.log("One or more choices were empty. (post-processing if applied)"), a15.limit && typeof a15.limit == "number" && a15.limit > 0 && a15.limit < o4 && !a15.unsorted ? v3 = t3.nlargest(v3, a15.limit, l4) : a15.unsorted || (v3 = v3.sort(h3)), v3;
+  }
+  function extractAsync(e3, r3, n4, o4) {
+    var a15, i2, s3 = k3(n4);
+    typeof n4.abortController == "object" && (a15 = n4.abortController), typeof n4.cancelToken == "object" && (i2 = n4.cancelToken);
+    var c3 = 256;
+    typeof s3.asyncLoopOffset == "number" && (c3 = s3.asyncLoopOffset < 1 ? 1 : s3.asyncLoopOffset);
+    var u3, l4 = false;
+    if (r3 && r3.length && p2(r3))
+      u3 = r3.length, l4 = true;
+    else {
+      if (!(r3 instanceof Object))
+        return void o4(new Error("Invalid choices"));
+      u3 = Object.keys(r3).length;
+    }
+    if (!r3 || u3 === 0)
+      return typeof console !== undefined && console.warn("No choices"), void o4(null, []);
+    if (s3.processor && typeof s3.processor != "function")
+      o4(new Error("Invalid Processor"));
+    else if (s3.processor || (s3.processor = function(e4) {
+      return e4;
+    }), s3.scorer && typeof s3.scorer != "function")
+      o4(new Error("Invalid Scorer"));
+    else {
+      s3.scorer || (s3.scorer = QRatio);
+      var f3 = j2(s3.scorer);
+      s3.cutoff && typeof s3.cutoff == "number" || (s3.cutoff = -1);
+      var pre_processor = function(e4, t4) {
+        return e4;
+      };
+      s3.full_process && (pre_processor = b3, f3 || (s3.processed = true));
+      var h3 = false;
+      f3 || (s3.astral && s3.normalize && (s3.normalize = false, String.prototype.normalize ? (h3 = true, e3 = e3.normalize()) : typeof console !== undefined && console.warn("Normalization not supported in your environment")), e3 = pre_processor(e3, s3), s3.full_process = false, e3.length === 0 && typeof console !== undefined && console.warn("Processed query is empty string"));
+      var v3, _4, d3, y3, $4, w3 = [], O3 = false, S3 = false, C2 = false;
+      if (s3.scorer.name === "token_sort_ratio" || s3.scorer.name === "partial_token_sort_ratio") {
+        var z2 = g2(e3);
+        S3 = true;
+      } else if (s3.scorer.name === "token_set_ratio" || s3.scorer.name === "partial_token_set_ratio") {
+        var A2 = m3(e3, s3);
+        C2 = true;
+      }
+      s3.returnObjects ? (y3 = function(e4, t4) {
+        return e4.score - t4.score;
+      }, $4 = function(e4, t4) {
+        return t4.score - e4.score;
+      }) : (y3 = function(e4, t4) {
+        return e4[1] - t4[1];
+      }, $4 = function(e4, t4) {
+        return t4[1] - e4[1];
+      });
+      var x2 = Object.keys(r3);
+      l4 ? searchLoop(0) : searchLoop(x2[0], 0);
+    }
+    function searchLoop(n5, p3) {
+      (l4 || r3.hasOwnProperty(n5)) && (s3.tokens = undefined, s3.proc_sorted = false, S3 ? (s3.proc_sorted = true, r3[n5] && r3[n5].proc_sorted ? _4 = r3[n5].proc_sorted : (_4 = pre_processor(h3 ? s3.processor(r3[n5]).normalize() : s3.processor(r3[n5]), s3), _4 = g2(_4)), d3 = s3.scorer(z2, _4, s3)) : C2 ? (_4 = "x", r3[n5] && r3[n5].tokens ? (s3.tokens = [A2, r3[n5].tokens], s3.trySimple && (_4 = pre_processor(s3.processor(r3[n5]), s3))) : (_4 = pre_processor(h3 ? s3.processor(r3[n5]).normalize() : s3.processor(r3[n5]), s3), s3.tokens = [A2, m3(_4, s3)]), d3 = s3.scorer(e3, _4, s3)) : f3 ? (_4 = s3.processor(r3[n5]), d3 = s3.scorer(e3, _4, s3)) : (typeof (_4 = pre_processor(h3 ? s3.processor(r3[n5]).normalize() : s3.processor(r3[n5]), s3)) == "string" && _4.length !== 0 || (O3 = true), d3 = s3.scorer(e3, _4, s3)), v3 = l4 ? parseInt(n5) : n5, d3 > s3.cutoff && (s3.returnObjects ? w3.push({ choice: r3[n5], score: d3, key: v3 }) : w3.push([r3[n5], d3, v3]))), a15 && a15.signal.aborted === true ? o4(new Error("aborted")) : i2 && i2.canceled === true ? o4(new Error("canceled")) : l4 && n5 < r3.length - 1 ? n5 % c3 == 0 ? setImmediate(function() {
+        searchLoop(n5 + 1);
+      }) : searchLoop(n5 + 1) : p3 < x2.length - 1 ? p3 % c3 == 0 ? setImmediate(function() {
+        searchLoop(x2[p3 + 1], p3 + 1);
+      }) : searchLoop(x2[p3 + 1], p3 + 1) : (O3 && typeof console !== undefined && console.log("One or more choices were empty. (post-processing if applied)"), s3.limit && typeof s3.limit == "number" && s3.limit > 0 && s3.limit < u3 && !s3.unsorted ? w3 = t3.nlargest(w3, s3.limit, y3) : s3.unsorted || (w3 = w3.sort($4)), o4(null, w3));
+    }
+  }
+  var w2 = "%*SuperUniqueWildcardKey*%";
+  function _getCharacterCounts(e3, t4) {
+    var r3 = e3;
+    if (t4.astral)
+      var n4 = Array.from(r3);
+    else
+      n4 = r3.split("");
+    var o4 = {};
+    if (t4.wildcards)
+      for (var a15 = 0;a15 < n4.length; a15++) {
+        var i2 = n4[a15];
+        t4.wildcards.indexOf(i2) > -1 ? o4[w2] ? o4[w2] += 1 : o4[w2] = 1 : o4[i2] ? o4[i2] += 1 : o4[i2] = 1;
+      }
+    else
+      for (a15 = 0;a15 < n4.length; a15++) {
+        o4[i2 = n4[a15]] ? o4[i2] += 1 : o4[i2] = 1;
+      }
+    return o4;
+  }
+  function _token_similarity_sort(e3, t4, r3) {
+    for (var a15 = t4, i2 = e3.reduce(function(e4, t5) {
+      return e4[t5] = _getCharacterCounts(t5, r3), e4;
+    }, {}), s3 = a15.reduce(function(e4, t5) {
+      return e4[t5] = _getCharacterCounts(t5, r3), e4;
+    }, {}), c3 = [], u3 = 0;a15.length && u3 < e3.length; ) {
+      var l4 = n3(a15, function(t5) {
+        return r4 = i2[e3[u3]], n4 = s3[t5], a16 = Object.keys(r4), c4 = Object.keys(n4), l5 = o3(a16, c4).map(function(e4) {
+          return r4[e4] * n4[e4];
+        }).reduce(function(e4, t6) {
+          return e4 + t6;
+        }, 0), f3 = a16.map(function(e4) {
+          return Math.pow(r4[e4], 2);
+        }).reduce(function(e4, t6) {
+          return e4 + t6;
+        }, 0), p3 = c4.map(function(e4) {
+          return Math.pow(n4[e4], 2);
+        }).reduce(function(e4, t6) {
+          return e4 + t6;
+        }, 0), l5 / (Math.sqrt(f3) * Math.sqrt(p3));
+        var r4, n4, a16, c4, l5, f3, p3;
+      }, "desc")[0];
+      c3.push(l4), u3++, a15 = a15.filter(function(e4) {
+        return e4 !== l4;
+      });
+    }
+    return c3.concat(a15);
+  }
+  function _order_token_lists(e3, t4, r3, n4) {
+    var o4 = t4, a15 = n4;
+    if (t4.length > n4.length)
+      o4 = n4, a15 = t4;
+    else if (t4.length === n4.length) {
+      if (e3.length > r3.length)
+        o4 = n4, a15 = t4;
+      else
+        [e3, r3].sort()[0] === r3 && (o4 = n4, a15 = t4);
+    }
+    return [o4, a15];
+  }
+  function _token_similarity_sort_ratio(e3, t4, r3) {
+    if (r3.tokens)
+      n4 = r3.tokens[0], o4 = r3.tokens[1];
+    else
+      var n4 = m3(e3, r3), o4 = m3(t4, r3);
+    var a15 = _order_token_lists(e3, n4.sort(), t4, o4.sort()), i2 = a15[0];
+    const s3 = _token_similarity_sort(i2, a15[1], r3);
+    return r3.partial ? _partial_ratio(i2.join(" "), s3.join(" "), r3) : _ratio(i2.join(" "), s3.join(" "), r3);
+  }
+  function _token_set(e3, t4, r3) {
+    if (r3.tokens)
+      n4 = r3.tokens[0], i2 = r3.tokens[1];
+    else
+      var n4 = m3(e3, r3), i2 = m3(t4, r3);
+    if (r3.wildcards)
+      var c3 = l3(v2, r3, _3), wildCompare = function(e4, t5) {
+        return c3(e4, t5) === 0;
+      }, f3 = a14(n4, i2, wildCompare), p3 = u2(n4, i2, wildCompare), h3 = u2(i2, n4, wildCompare);
+    else
+      f3 = o3(n4, i2), p3 = s2(n4, i2), h3 = s2(i2, n4);
+    var d3 = f3.sort().join(" "), y3 = p3.sort(), g3 = h3.sort();
+    if (r3.sortBySimilarity)
+      var b4 = _order_token_lists(e3, y3, t4, g3), k4 = b4[0], j3 = b4[1], $4 = k4.join(" "), w3 = _token_similarity_sort(k4, j3, r3).join(" ");
+    else
+      $4 = y3.join(" "), w3 = g3.join(" ");
+    var O3 = d3 + " " + $4, S3 = d3 + " " + w3;
+    d3 = d3.trim(), O3 = O3.trim(), S3 = S3.trim();
+    var C2 = _ratio;
+    if (r3.partial && (C2 = _partial_ratio, d3.length > 0))
+      return 100;
+    var z2 = [C2(d3, O3, r3), C2(d3, S3, r3), C2(O3, S3, r3)];
+    return r3.trySimple && z2.push(C2(e3, t4, r3)), Math.max.apply(null, z2);
+  }
+  function _ratio(t4, r3, n4) {
+    if (!y2(t4))
+      return 0;
+    if (!y2(r3))
+      return 0;
+    if (n4.ratio_alg && n4.ratio_alg === "difflib") {
+      var o4 = new e2(null, t4, r3).ratio();
+      return Math.round(100 * o4);
+    }
+    var a15, i2;
+    return n4.subcost === undefined && (n4.subcost = 2), n4.astral ? (a15 = h2(t4, r3, n4), i2 = Array.from(t4).length + Array.from(r3).length) : n4.wildcards ? (a15 = v2(t4, r3, n4, _3), i2 = t4.length + r3.length) : (a15 = _3(t4, r3, n4), i2 = t4.length + r3.length), Math.round((i2 - a15) / i2 * 100);
+  }
+  function _partial_ratio(t4, r3, n4) {
+    if (!y2(t4))
+      return 0;
+    if (!y2(r3))
+      return 0;
+    if (t4.length <= r3.length)
+      var o4 = t4, a15 = r3;
+    else
+      o4 = r3, a15 = t4;
+    for (var i2 = new e2(null, o4, a15).getMatchingBlocks(), s3 = [], c3 = 0;c3 < i2.length; c3++) {
+      var u3 = i2[c3][1] - i2[c3][0] > 0 ? i2[c3][1] - i2[c3][0] : 0, l4 = u3 + o4.length, f3 = _ratio(o4, a15.substring(u3, l4), n4);
+      if (f3 > 99.5)
+        return 100;
+      s3.push(f3);
+    }
+    return Math.max.apply(null, s3);
+  }
+  Object.keys || (Object.keys = function() {
+    var e3 = Object.prototype.hasOwnProperty, t4 = !{ toString: null }.propertyIsEnumerable("toString"), r3 = ["toString", "toLocaleString", "valueOf", "hasOwnProperty", "isPrototypeOf", "propertyIsEnumerable", "constructor"], n4 = r3.length;
+    return function(o4) {
+      if (typeof o4 != "object" && (typeof o4 != "function" || o4 === null))
+        throw new TypeError("Object.keys called on non-object");
+      var a15, i2, s3 = [];
+      for (a15 in o4)
+        e3.call(o4, a15) && s3.push(a15);
+      if (t4)
+        for (i2 = 0;i2 < n4; i2++)
+          e3.call(o4, r3[i2]) && s3.push(r3[i2]);
+      return s3;
+    };
+  }());
+  var O2 = undefined;
+  typeof Promise != "undefined" && (O2 = function(e3, t4, r3) {
+    return new Promise(function(n4, o4) {
+      extractAsync(e3, t4, r3, function(e4, t5) {
+        e4 ? o4(e4) : n4(t5);
+      });
+    });
+  });
+  var S2 = { distance: function distance(e3, t4, r3) {
+    var n4 = k3(r3);
+    return e3 = n4.normalize ? e3.normalize() : e3, t4 = n4.normalize ? t4.normalize() : t4, e3 = n4.full_process ? b3(e3, n4) : e3, t4 = n4.full_process ? b3(t4, n4) : t4, n4.subcost === undefined && (n4.subcost = 1), n4.astral ? h2(e3, t4, n4) : v2(e3, t4, n4, _3);
+  }, ratio: QRatio, partial_ratio: function partial_ratio(e3, t4, r3) {
+    var n4 = k3(r3);
+    return e3 = n4.normalize ? e3.normalize() : e3, t4 = n4.normalize ? t4.normalize() : t4, e3 = n4.full_process ? b3(e3, n4) : e3, t4 = n4.full_process ? b3(t4, n4) : t4, y2(e3) && y2(t4) ? _partial_ratio(e3, t4, n4) : 0;
+  }, token_set_ratio, token_sort_ratio, partial_token_set_ratio, partial_token_sort_ratio, token_similarity_sort_ratio: function token_similarity_sort_ratio(e3, t4, r3) {
+    var n4 = k3(r3);
+    return e3 = n4.normalize ? e3.normalize() : e3, t4 = n4.normalize ? t4.normalize() : t4, e3 = n4.full_process ? b3(e3, n4) : e3, t4 = n4.full_process ? b3(t4, n4) : t4, y2(e3) && y2(t4) ? _token_similarity_sort_ratio(e3, t4, n4) : 0;
+  }, partial_token_similarity_sort_ratio: function partial_token_similarity_sort_ratio(e3, t4, r3) {
+    var n4 = k3(r3);
+    return e3 = n4.normalize ? e3.normalize() : e3, t4 = n4.normalize ? t4.normalize() : t4, e3 = n4.full_process ? b3(e3, n4) : e3, t4 = n4.full_process ? b3(t4, n4) : t4, y2(e3) && y2(t4) ? (n4.partial = true, _token_similarity_sort_ratio(e3, t4, n4)) : 0;
+  }, WRatio: function WRatio(e3, t4, r3) {
+    var n4 = k3(r3);
+    if (e3 = n4.normalize ? e3.normalize() : e3, t4 = n4.normalize ? t4.normalize() : t4, e3 = n4.full_process ? b3(e3, n4) : e3, t4 = n4.full_process ? b3(t4, n4) : t4, n4.full_process = false, !y2(e3))
+      return 0;
+    if (!y2(t4))
+      return 0;
+    var o4 = true, a15 = 0.95, i2 = 0.9, s3 = _ratio(e3, t4, n4), c3 = Math.max(e3.length, t4.length) / Math.min(e3.length, t4.length);
+    if (c3 < 1.5 && (o4 = false), c3 > 8 && (i2 = 0.6), o4) {
+      var u3 = _partial_ratio(e3, t4, n4) * i2, l4 = partial_token_sort_ratio(e3, t4, n4) * a15 * i2, f3 = partial_token_set_ratio(e3, t4, n4) * a15 * i2;
+      return Math.round(Math.max(s3, u3, l4, f3));
+    }
+    var p3 = token_sort_ratio(e3, t4, n4) * a15, h3 = token_set_ratio(e3, t4, n4) * a15;
+    return Math.round(Math.max(s3, p3, h3));
+  }, full_process: b3, extract, extractAsync, extractAsPromised: O2, process_and_sort: g2, unique_tokens: m3, dedupe: $3 };
+  r2.exports = S2;
+}();
+var Ro = r2.exports;
+var To = Ro.distance;
+var Bo = Ro.ratio;
+var Wo = Ro.partial_ratio;
+var Fo = Ro.token_set_ratio;
+var Do = Ro.token_sort_ratio;
+var No = Ro.partial_token_set_ratio;
+var Uo = Ro.partial_token_sort_ratio;
+var Go = Ro.token_similarity_sort_ratio;
+var Ko = Ro.partial_token_similarity_sort_ratio;
+var Qo = Ro.WRatio;
+var Vo = Ro.full_process;
+var Zo = Ro.extract;
+var Jo = Ro.extractAsync;
+var Xo = Ro.extractAsPromised;
+var Yo = Ro.process_and_sort;
+var ea = Ro.unique_tokens;
+var ta = Ro.dedupe;
+
+// src/services/merge.service.ts
 function getSourcePriority(sourceId) {
   return SOURCE_PRIORITIES[sourceId] || 0;
 }
-function normalizeName(name2) {
-  return name2.toLowerCase().trim().replace(/[^\w\s]/g, "").replace(/\s+/g, " ");
+function normalizeText(text2) {
+  return text2.toLowerCase().trim().replace(/\b(inc|incorporated|llc|ltd|limited|corp|corporation|co|company)\b/g, "").replace(/[^\w\s\u00C0-\u017F\u0100-\u024F\u1E00-\u1EFF]/g, " ").replace(/\s+/g, " ").trim();
 }
-function normalizeAddress(address) {
-  return address.toLowerCase().trim().replace(/\s+/g, " ").replace(/,/g, "").replace(/\bstreet\b/g, "st").replace(/\blane\b/g, "ln").replace(/\bavenue\b/g, "ave").replace(/\bboulevard\b/g, "blvd").replace(/\broad\b/g, "rd").replace(/\bunit\b/g, "").replace(/\bsuite\b/g, "").replace(/\bapt\b/g, "").replace(/\bnorth\b/g, "n").replace(/\bsouth\b/g, "s").replace(/\beast\b/g, "e").replace(/\bwest\b/g, "w").replace(/\b(nc|north carolina)\b/g, "").replace(/\busa\b/g, "").replace(/[^\w\s]/g, "").replace(/\d{5}(\-\d{4})?/g, "").trim();
+function calculateTextSimilarity(text1, text2) {
+  if (!text1 || !text2)
+    return 0;
+  const normalized1 = normalizeText(text1);
+  const normalized2 = normalizeText(text2);
+  const similarity = Fo(normalized1, normalized2);
+  return similarity / 100;
 }
-function getAddressString(place) {
-  if (place.address?.value.formatted) {
-    return place.address.value.formatted;
+function extractNumbers(text2) {
+  return (text2.match(/\b\d+[a-zA-Z]?\b/g) || []).map((num) => num.toLowerCase());
+}
+function calculateAddressSimilarity(place1, place2) {
+  const address1 = place1.address?.value;
+  const address2 = place2.address?.value;
+  if (!address1 || !address2)
+    return 0;
+  const street1 = getStreetString(address1);
+  const street2 = getStreetString(address2);
+  if (!street1 || !street2)
+    return 0;
+  const numbers1 = extractNumbers(street1);
+  const numbers2 = extractNumbers(street2);
+  if (numbers1.length > 0 && numbers2.length > 0) {
+    const hasCommonNumber = numbers1.some((num1) => numbers2.includes(num1));
+    if (!hasCommonNumber)
+      return 0;
   }
-  if (place.address?.value.street1) {
-    let addressStr = place.address.value.street1;
-    if (place.address.value.locality)
-      addressStr += " " + place.address.value.locality;
-    return addressStr;
+  const normalized1 = normalizeStreetName(street1);
+  const normalized2 = normalizeStreetName(street2);
+  return calculateTextSimilarity(normalized1, normalized2);
+}
+function getStreetString(address) {
+  if (address.street1) {
+    return address.street1;
   }
-  if (place.description?.value && place.description.value.includes(",")) {
-    const parts = place.description.value.split(",");
-    if (parts.length > 1) {
-      return parts.slice(1).join(",").trim();
-    }
+  if (address.formatted) {
+    const parts = address.formatted.split(",").map((p2) => p2.trim());
+    return parts[0] || null;
   }
   return null;
 }
-function getStreetNumber(address) {
-  const match = address.match(/^\d+/);
-  return match ? match[0] : null;
+function normalizeStreetName(street) {
+  return normalizeText(street).replace(/\b(n|north)\b/g, "north").replace(/\b(s|south)\b/g, "south").replace(/\b(e|east)\b/g, "east").replace(/\b(w|west)\b/g, "west").replace(/\b(ne|northeast)\b/g, "northeast").replace(/\b(nw|northwest)\b/g, "northwest").replace(/\b(se|southeast)\b/g, "southeast").replace(/\b(sw|southwest)\b/g, "southwest").replace(/\b(st|street)\b/g, "street").replace(/\b(ave|avenue)\b/g, "avenue").replace(/\b(rd|road)\b/g, "road").replace(/\b(dr|drive)\b/g, "drive").replace(/\b(ln|lane)\b/g, "lane").replace(/\b(ct|court)\b/g, "court").replace(/\b(pl|place)\b/g, "place").replace(/\b(blvd|boulevard)\b/g, "boulevard").replace(/\b(unit|apt|apartment|suite|ste)\s+\w+/g, "").trim();
 }
 function createTurfPoint(place) {
-  if (place.geometry.value.center && place.geometry.value.center.lat !== 0 && place.geometry.value.center.lng !== 0) {
-    return point2([
-      place.geometry.value.center.lng,
-      place.geometry.value.center.lat
-    ]);
-  }
-  return;
+  const { lat, lng } = place.geometry.value.center;
+  return point2([lng, lat]);
 }
-function doAddressesMatch(place1, place2) {
-  const address1 = getAddressString(place1);
-  const address2 = getAddressString(place2);
-  if (!address1 || !address2)
+function mergeAddressValue(target, source) {
+  if (!source)
+    return target;
+  if (!target)
+    return import_lodash.cloneDeep(source);
+  const hasStreetData = (address) => {
+    if (!address?.value)
+      return false;
+    if (address.value.street1) {
+      return extractNumbers(address.value.street1).length > 0;
+    }
+    if (address.value.formatted) {
+      return extractNumbers(address.value.formatted).length > 0;
+    }
     return false;
-  const streetNumber1 = getStreetNumber(address1);
-  const streetNumber2 = getStreetNumber(address2);
-  if (streetNumber1 && streetNumber2 && streetNumber1 !== streetNumber2) {
-    return false;
+  };
+  const targetHasStreetData = hasStreetData(target);
+  const sourceHasStreetData = hasStreetData(source);
+  if (targetHasStreetData && !sourceHasStreetData) {
+    return target;
   }
-  const normalizedAddr1 = normalizeAddress(address1);
-  const normalizedAddr2 = normalizeAddress(address2);
-  return normalizedAddr1.includes(normalizedAddr2) || normalizedAddr2.includes(normalizedAddr1) || !!streetNumber1 && !!streetNumber2 && streetNumber1 === streetNumber2;
-}
-function arePointsClose(point1, point22, maxDistanceMeters = 100) {
-  if (!point1 || !point22)
-    return false;
-  const distanceMeters = distance(point1, point22) * 1000;
-  return distanceMeters < maxDistanceMeters;
-}
-function deduplicatePlacesResults(places) {
-  if (!places.length)
-    return [];
-  const placesBySource = import_lodash.groupBy(places, (place) => place.sources[0].id);
-  if (Object.keys(placesBySource).length === 1) {
-    return places;
+  if (sourceHasStreetData && !targetHasStreetData) {
+    return import_lodash.cloneDeep(source);
   }
-  const deduplicatedPlaces = [];
-  const nameToPlaceMap = {};
-  const osmOpenAddressesResults = [
-    ...placesBySource[SOURCE.OSM] || [],
-    ...placesBySource[SOURCE.OPENADDRESSES] || []
-  ];
-  osmOpenAddressesResults.forEach((place) => {
-    const nameKey = normalizeName(place.name.value);
-    const point3 = createTurfPoint(place);
-    deduplicatedPlaces.push(place);
-    nameToPlaceMap[place.id] = { place, nameKey, point: point3 };
-  });
-  Object.entries(placesBySource).forEach(([providerId, providerPlaces]) => {
-    if (providerId === SOURCE.OSM || providerId === SOURCE.OPENADDRESSES)
-      return;
-    providerPlaces.forEach((place) => {
-      const normalizedName = normalizeName(place.name.value);
-      const placePoint = createTurfPoint(place);
-      let matchFound = false;
-      for (const {
-        place: existingPlace,
-        nameKey,
-        point: existingPoint
-      } of Object.values(nameToPlaceMap)) {
-        if (existingPlace.sources[0]?.id === place.sources[0]?.id)
-          continue;
-        const isSimilarName = nameKey === normalizedName;
-        const nameSimilarity = calculateNameSimilarity(place.name.value, existingPlace.name.value);
-        let isMatch = false;
-        if (isSimilarName) {
-          isMatch = doAddressesMatch(place, existingPlace);
-        }
-        if (isSimilarName && !isMatch && placePoint && existingPoint) {
-          const distance2 = distance(placePoint, existingPoint) * 1000;
-          isMatch = distance2 < 100;
-        }
-        const shouldMerge = isSimilarName && isMatch || nameSimilarity > 0.85 && arePointsClose(placePoint, existingPoint, 150);
-        if (shouldMerge) {
-          mergePlaces(existingPlace, place);
-          matchFound = true;
-          break;
-        }
-      }
-      if (!matchFound) {
-        deduplicatedPlaces.push(place);
-        nameToPlaceMap[place.id] = {
-          place,
-          nameKey: normalizedName,
-          point: placePoint
-        };
-      }
-    });
-  });
-  return deduplicatedPlaces;
+  const targetPriority = getSourcePriority(target.sourceId);
+  const sourcePriority = getSourcePriority(source.sourceId);
+  return sourcePriority > targetPriority ? import_lodash.cloneDeep(source) : target;
 }
 function mergeAttributedValue(target, source) {
   if (!source)
@@ -64534,36 +66188,43 @@ function mergeAttributedRecord(target, source) {
   }
   return result;
 }
+function shouldMergePlaces(place1, place2) {
+  const point1 = createTurfPoint(place1);
+  const point22 = createTurfPoint(place2);
+  const distanceMeters = distance(point1, point22, { units: "meters" });
+  if (distanceMeters > 500)
+    return false;
+  const distanceSimilarity = 1 / (1 + Math.pow(distanceMeters / 100, 2));
+  const nameSimilarity = calculateTextSimilarity(place1.name.value, place2.name.value);
+  const addressSimilarity = calculateAddressSimilarity(place1, place2);
+  const requiredNameSimilarity = 0.3 + 0.65 * (1 - distanceSimilarity);
+  if (nameSimilarity < requiredNameSimilarity)
+    return false;
+  if (distanceSimilarity > 0.5 && addressSimilarity > 0 && addressSimilarity < 0.7) {
+    return false;
+  }
+  let mergeScore;
+  if (addressSimilarity > 0) {
+    mergeScore = nameSimilarity * 0.5 + distanceSimilarity * 0.25 + addressSimilarity * 0.25;
+  } else {
+    mergeScore = nameSimilarity * 0.7 + distanceSimilarity * 0.3;
+  }
+  const requiredMergeScore = 0.4 + 0.55 * (1 - distanceSimilarity);
+  return mergeScore >= requiredMergeScore;
+}
 function mergePlaces(primaryPlace, ...additionalPlaces) {
-  const validPlaces = additionalPlaces.filter((p) => p !== null);
+  const validPlaces = additionalPlaces.filter((p2) => p2 !== null);
   if (validPlaces.length === 0)
     return import_lodash.cloneDeep(primaryPlace);
   const result = import_lodash.cloneDeep(primaryPlace);
   for (const place of validPlaces) {
-    Object.entries(place.externalIds).forEach(([sourceId, id]) => {
-      result.externalIds[sourceId] = id;
-    });
+    Object.assign(result.externalIds, place.externalIds);
     result.name = mergeAttributedValue(result.name, place.name) || result.name;
-    if (place.description) {
-      result.description = mergeAttributedValue(result.description, place.description);
-    }
+    result.description = mergeAttributedValue(result.description, place.description);
     result.placeType = mergeAttributedValue(result.placeType, place.placeType) || result.placeType;
-    const primaryGeometryType = result.geometry.value.type;
-    const placeGeometryType = place.geometry.value.type;
-    if (primaryGeometryType === "point" && placeGeometryType !== "point" || mergeAttributedValue(result.geometry, place.geometry) === place.geometry) {
-      result.geometry = import_lodash.cloneDeep(place.geometry);
-    }
-    if (place.photos.length > 0) {
-      const existingUrls = new Set(result.photos.map((photo) => photo.value.url));
-      for (const photo of place.photos) {
-        if (!existingUrls.has(photo.value.url)) {
-          result.photos.push(import_lodash.cloneDeep(photo));
-          existingUrls.add(photo.value.url);
-        }
-      }
-    }
+    result.geometry = mergeAttributedValue(result.geometry, place.geometry) || result.geometry;
     if (place.address) {
-      result.address = mergeAttributedValue(result.address, place.address);
+      result.address = mergeAddressValue(result.address, place.address);
     }
     if (place.contactInfo.phone) {
       result.contactInfo.phone = mergeAttributedValue(result.contactInfo.phone, place.contactInfo.phone);
@@ -64574,38 +66235,66 @@ function mergePlaces(primaryPlace, ...additionalPlaces) {
     if (place.contactInfo.website) {
       result.contactInfo.website = mergeAttributedValue(result.contactInfo.website, place.contactInfo.website);
     }
-    if (place.contactInfo.socials) {
-      result.contactInfo.socials = mergeAttributedRecord(result.contactInfo.socials, place.contactInfo.socials);
-    }
-    if (place.openingHours) {
-      result.openingHours = mergeAttributedValue(result.openingHours, place.openingHours);
-    }
-    if (place.amenities) {
-      result.amenities = mergeAttributedRecord(result.amenities, place.amenities);
-    }
+    result.contactInfo.socials = mergeAttributedRecord(result.contactInfo.socials, place.contactInfo.socials);
+    result.openingHours = mergeAttributedValue(result.openingHours, place.openingHours);
+    result.amenities = mergeAttributedRecord(result.amenities, place.amenities);
     if (place.ratings) {
       if (!result.ratings) {
         result.ratings = import_lodash.cloneDeep(place.ratings);
       } else {
         if (place.ratings.rating) {
-          result.ratings.rating = mergeAttributedValue(result.ratings?.rating || null, place.ratings.rating) || result.ratings.rating;
+          result.ratings.rating = mergeAttributedValue(result.ratings.rating, place.ratings.rating) || result.ratings.rating;
         }
         if (place.ratings.reviewCount) {
-          result.ratings.reviewCount = mergeAttributedValue(result.ratings?.reviewCount || null, place.ratings.reviewCount) || result.ratings.reviewCount;
+          result.ratings.reviewCount = mergeAttributedValue(result.ratings.reviewCount, place.ratings.reviewCount) || result.ratings.reviewCount;
         }
       }
     }
-    if (place.sources && place.sources.length > 0) {
-      const existingSourceIds = new Set(result.sources.map((src) => src.id));
-      for (const source of place.sources) {
-        if (!existingSourceIds.has(source.id)) {
-          result.sources.push(import_lodash.cloneDeep(source));
-          existingSourceIds.add(source.id);
+    if (place.photos.length > 0) {
+      const existingUrls = new Set(result.photos.map((photo) => photo.value.url));
+      for (const photo of place.photos) {
+        if (!existingUrls.has(photo.value.url)) {
+          result.photos.push(import_lodash.cloneDeep(photo));
         }
+      }
+    }
+    const existingSourceIds = new Set(result.sources.map((src) => src.id));
+    for (const source of place.sources) {
+      if (!existingSourceIds.has(source.id)) {
+        result.sources.push(import_lodash.cloneDeep(source));
       }
     }
   }
   return result;
+}
+function mergePlacesCollection(places) {
+  if (places.length <= 1)
+    return places;
+  const groups = [];
+  for (const place of places) {
+    let merged = false;
+    for (const group of groups) {
+      if (shouldMergePlaces(place, group[0])) {
+        group.push(place);
+        merged = true;
+        break;
+      }
+    }
+    if (!merged) {
+      groups.push([place]);
+    }
+  }
+  return groups.map((group) => {
+    if (group.length === 1)
+      return group[0];
+    const sortedGroup = group.sort((a14, b3) => {
+      const aPriority = getSourcePriority(a14.sources[0]?.id || "");
+      const bPriority = getSourcePriority(b3.sources[0]?.id || "");
+      return bPriority - aPriority;
+    });
+    const [primary, ...additional] = sortedGroup;
+    return mergePlaces(primary, ...additional);
+  });
 }
 
 // src/schema/library.schema.ts
@@ -64637,8 +66326,8 @@ var bookmarksCollections = pgTable("bookmarks_collections", {
   bookmarkId: text("bookmark_id").notNull().references(() => bookmarks.id, { onDelete: "cascade" }),
   collectionId: text("collection_id").notNull().references(() => collections.id, { onDelete: "cascade" }),
   addedAt: timestamp("added_at").defaultNow().notNull()
-}, (t2) => ({
-  pk: primaryKey({ columns: [t2.bookmarkId, t2.collectionId] })
+}, (t3) => ({
+  pk: primaryKey({ columns: [t3.bookmarkId, t3.collectionId] })
 }));
 
 // src/services/library/collections.service.ts
@@ -64684,7 +66373,7 @@ async function createCollection(params) {
   return inserted;
 }
 async function updateCollection(id, userId, updates) {
-  const { userId: _2, id: __, ...validUpdates } = updates;
+  const { userId: _3, id: __, ...validUpdates } = updates;
   const [updatedCollection] = await db.update(collections).set({
     ...validUpdates,
     updatedAt: new Date
@@ -64759,7 +66448,7 @@ async function createBookmark(params, collectionIds, userId) {
   return bookmark;
 }
 async function updateBookmarkInternal(id, userId, updates) {
-  const { externalIds, userId: _2, id: __, ...validUpdates } = updates;
+  const { externalIds, userId: _3, id: __, ...validUpdates } = updates;
   const [updated] = await db.update(bookmarks).set({
     ...validUpdates,
     updatedAt: new Date
@@ -64871,93 +66560,6 @@ var IntegrationId;
   IntegrationId2["GEOAPIFY"] = "geoapify";
 })(IntegrationId ||= {});
 
-// src/services/integrations/base-integration.ts
-class BaseIntegration {
-  config = {};
-  initialized = false;
-  initialize(config2) {
-    if (!this.validateConfig(config2)) {
-      throw new Error(`Invalid configuration for ${this.integrationId} integration`);
-    }
-    this.config = { ...config2 };
-    this.initialized = true;
-  }
-  ensureInitialized() {
-    if (!this.initialized) {
-      throw new Error(`${this.integrationId} integration has not been initialized`);
-    }
-  }
-  extractPhotos(providerData) {
-    if (!providerData.photos) {
-      return [];
-    }
-    if (Array.isArray(providerData.photos)) {
-      return providerData.photos.map((photo) => ({
-        url: photo.url || photo.photo_reference || "",
-        sourceId: this.integrationId,
-        isPrimary: true
-      }));
-    }
-    if (providerData.photo || providerData.image) {
-      const photoUrl = providerData.photo || providerData.image;
-      return [
-        {
-          url: photoUrl,
-          sourceId: this.integrationId,
-          isPrimary: true
-        }
-      ];
-    }
-    return [];
-  }
-  extractAddress(providerData) {
-    if (!providerData.address) {
-      return providerData.formatted_address ? { formatted: providerData.formatted_address } : null;
-    }
-    if (typeof providerData.address === "string") {
-      return {
-        formatted: providerData.address
-      };
-    }
-    return {
-      formatted: providerData.address.formatted || "",
-      street1: providerData.address.street || providerData.address.street1,
-      street2: providerData.address.street2,
-      neighborhood: providerData.address.neighborhood,
-      locality: providerData.address.city || providerData.address.locality,
-      region: providerData.address.state || providerData.address.region,
-      postalCode: providerData.address.postalCode || providerData.address.zipCode,
-      country: providerData.address.country,
-      countryCode: providerData.address.countryCode
-    };
-  }
-  createSourceReference(providerData) {
-    return {
-      id: this.integrationId,
-      name: this.getDisplayName(),
-      url: providerData.url || ""
-    };
-  }
-  getDisplayName() {
-    return this.integrationId.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
-  }
-  generateRandomId() {
-    return Math.random().toString(36).substring(2, 15);
-  }
-  async searchPlaces(query, lat, lng, radius) {
-    console.warn(`searchPlaces not implemented for ${this.integrationId}`);
-    return [];
-  }
-  async getAutocomplete(query, lat, lng, radius) {
-    console.warn(`getAutocomplete not implemented for ${this.integrationId}`);
-    return [];
-  }
-  async getPlaceDetails(id) {
-    console.warn(`getPlaceDetails not implemented for ${this.integrationId}`);
-    return null;
-  }
-}
-
 // src/lib/hours.utils.ts
 var DAYS2 = [
   "Sunday",
@@ -64976,7 +66578,7 @@ function parseTimeString(timeStr) {
   const match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
   if (!match)
     return "00:00";
-  let [_2, hours, minutes, meridiem] = match;
+  let [_3, hours, minutes, meridiem] = match;
   let hoursNum = parseInt(hours);
   if (meridiem?.toUpperCase() === "PM" && hoursNum < 12) {
     hoursNum += 12;
@@ -64997,14 +66599,14 @@ function parseGoogleHours(rawText) {
     const times = dayHours.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)?)\s*[\u2013-]\s*(\d{1,2}:\d{2}\s*(?:AM|PM)?)/i);
     if (!times)
       return;
-    const [_2, openTime, closeTime] = times;
+    const [_3, openTime, closeTime] = times;
     hours.push({
       day: DAYS2.indexOf(day),
       open: parseTimeString(openTime),
       close: parseTimeString(closeTime)
     });
   });
-  return hours.sort((a13, b2) => a13.day - b2.day);
+  return hours.sort((a14, b3) => a14.day - b3.day);
 }
 function parseOsmHours(tags) {
   const openingHours = {
@@ -65039,7 +66641,7 @@ function parseOsmHours(tags) {
     };
     let match;
     while ((match = dayRangeRegex.exec(tags.opening_hours)) !== null) {
-      const [_2, startDay, endDay, openTime, closeTime] = match;
+      const [_3, startDay, endDay, openTime, closeTime] = match;
       const start = dayMap[startDay];
       const end = endDay ? dayMap[endDay] : start;
       for (let day = start;day <= (end >= start ? end : 6); day++) {
@@ -65059,83 +66661,151 @@ function parseOsmHours(tags) {
         }
       }
     }
-    openingHours.regularHours.sort((a13, b2) => a13.day - b2.day);
+    openingHours.regularHours.sort((a14, b3) => a14.day - b3.day);
   }
   return openingHours;
 }
 
 // src/services/integrations/adapters/google-adapter.ts
 class GoogleAdapter {
-  adaptPlace(data, id) {
-    return {
-      id: id || `${SOURCE.GOOGLE}/${data.place_id}`,
-      externalIds: { [SOURCE.GOOGLE]: data.place_id },
-      name: {
-        value: data.name || "Unnamed Place",
-        sourceId: SOURCE.GOOGLE
-      },
-      placeType: {
-        value: data.types?.[0] || "unknown",
-        sourceId: SOURCE.GOOGLE
-      },
-      geometry: {
-        value: {
-          type: "point",
-          center: {
-            lat: data.geometry?.location?.lat || 0,
-            lng: data.geometry?.location?.lng || 0
-          }
-        },
-        sourceId: SOURCE.GOOGLE
-      },
-      photos: this.extractPhotos(data),
-      address: this.extractAddress(data),
-      contactInfo: {
-        phone: data.formatted_phone_number ? {
-          value: data.formatted_phone_number,
-          sourceId: SOURCE.GOOGLE
-        } : null,
-        email: null,
-        website: data.website ? {
-          value: data.website,
-          sourceId: SOURCE.GOOGLE
-        } : null,
-        socials: {}
-      },
-      openingHours: this.extractOpeningHours(data),
-      amenities: this.extractAmenities(data),
-      ratings: this.extractRatings(data),
-      description: this.extractDescription(data) || null,
-      sources: [
-        {
-          id: SOURCE.GOOGLE,
-          name: "Google",
-          url: data.google_maps_uri || ""
-        }
-      ],
-      lastUpdated: new Date().toISOString(),
-      createdAt: new Date().toISOString()
-    };
+  apiKey = "";
+  setApiKey(apiKey) {
+    this.apiKey = apiKey;
   }
+  autocomplete = {
+    adaptPrediction: (prediction, id) => {
+      const primaryId = id || `${SOURCE.GOOGLE}/${prediction.placeId}`;
+      const lat = 0;
+      const lng = 0;
+      return {
+        id: primaryId,
+        externalIds: {
+          [SOURCE.GOOGLE]: prediction.placeId
+        },
+        name: {
+          value: prediction.mainText,
+          sourceId: SOURCE.GOOGLE
+        },
+        description: null,
+        placeType: {
+          value: prediction.types?.[0] || "establishment",
+          sourceId: SOURCE.GOOGLE
+        },
+        geometry: {
+          value: {
+            type: "point",
+            center: { lat, lng }
+          },
+          sourceId: SOURCE.GOOGLE
+        },
+        photos: [],
+        address: prediction.secondaryText ? {
+          value: { formatted: prediction.secondaryText },
+          sourceId: SOURCE.GOOGLE
+        } : null,
+        contactInfo: {
+          phone: null,
+          email: null,
+          website: null,
+          socials: {}
+        },
+        openingHours: null,
+        amenities: prediction.types ? prediction.types.reduce((acc, type2) => {
+          acc[`type:${type2}`] = type2;
+          return acc;
+        }, {}) : {},
+        sources: [
+          {
+            id: SOURCE.GOOGLE,
+            name: "Google",
+            url: ""
+          }
+        ],
+        lastUpdated: new Date().toISOString(),
+        createdAt: new Date().toISOString()
+      };
+    }
+  };
+  placeInfo = {
+    adaptPlaceDetails: (data, id) => {
+      console.log("data", data);
+      const primaryId = id || `${SOURCE.GOOGLE}/${data.id}`;
+      let googleMapsUrl = data.googleMapsUri || "";
+      if (!googleMapsUrl && data.id) {
+        googleMapsUrl = `https://maps.google.com/?place_id=${data.id}`;
+      }
+      return {
+        id: primaryId,
+        externalIds: {
+          [SOURCE.GOOGLE]: data.id
+        },
+        name: {
+          value: data.displayName?.text || "Unnamed Place",
+          sourceId: SOURCE.GOOGLE
+        },
+        placeType: {
+          value: data.types?.[0] || "unknown",
+          sourceId: SOURCE.GOOGLE
+        },
+        geometry: {
+          value: {
+            type: "point",
+            center: {
+              lat: data.location?.latitude || 0,
+              lng: data.location?.longitude || 0
+            }
+          },
+          sourceId: SOURCE.GOOGLE
+        },
+        photos: this.extractPhotos(data),
+        address: this.extractAddress(data),
+        contactInfo: {
+          phone: data.internationalPhoneNumber ? {
+            value: data.internationalPhoneNumber,
+            sourceId: SOURCE.GOOGLE
+          } : null,
+          email: null,
+          website: data.websiteUri ? {
+            value: data.websiteUri,
+            sourceId: SOURCE.GOOGLE
+          } : null,
+          socials: {}
+        },
+        openingHours: this.extractOpeningHours(data),
+        amenities: this.extractAmenities(data),
+        ratings: this.extractRatings(data),
+        description: this.extractDescription(data) || null,
+        sources: [
+          {
+            id: SOURCE.GOOGLE,
+            name: "Google",
+            url: googleMapsUrl
+          }
+        ],
+        lastUpdated: new Date().toISOString(),
+        createdAt: new Date().toISOString()
+      };
+    }
+  };
   extractPhotos(data) {
     if (!data.photos?.length)
       return [];
     const photos = [];
     try {
-      data.photos.forEach((p, index) => {
-        if (!p.photo_reference)
+      data.photos.forEach((p2, index) => {
+        if (!p2.name)
           return;
-        const photoId = p.photo_reference.split("/").pop();
+        const photoId = p2.name.split("/").pop();
         if (!photoId)
           return;
-        const url2 = `${GOOGLE_MAPS_PHOTO_URL}?maxwidth=800&photo_reference=${photoId}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+        const url2 = `${GOOGLE_MAPS_PHOTO_URL}?maxwidth=200&photo_reference=${photoId}&key=${this.apiKey}`;
         photos.push({
           value: {
             url: url2,
             sourceId: SOURCE.GOOGLE,
             isPrimary: index === 0,
-            width: p.width,
-            height: p.height
+            width: p2.widthPx,
+            height: p2.heightPx
           },
           sourceId: SOURCE.GOOGLE
         });
@@ -65146,26 +66816,73 @@ class GoogleAdapter {
     return photos;
   }
   extractAddress(data) {
-    if (!data.formatted_address)
+    if (!data.formattedAddress && !data.addressComponents)
       return null;
+    const address = {
+      formatted: data.formattedAddress
+    };
+    if (data.addressComponents) {
+      for (const component of data.addressComponents) {
+        const types4 = component.types;
+        const longText = component.longText;
+        const shortText = component.shortText;
+        if (types4.includes("street_number")) {
+          address.street1 = longText + (address.street1 ? " " + address.street1 : "");
+        } else if (types4.includes("route")) {
+          address.street1 = (address.street1 ? address.street1 + " " : "") + longText;
+        } else if (types4.includes("subpremise")) {
+          address.street2 = longText;
+        } else if (types4.includes("neighborhood")) {
+          address.neighborhood = longText;
+        } else if (types4.includes("locality")) {
+          address.locality = longText;
+        } else if (types4.includes("administrative_area_level_1")) {
+          address.region = longText;
+        } else if (types4.includes("postal_code")) {
+          address.postalCode = longText;
+        } else if (types4.includes("country")) {
+          address.country = longText;
+          address.countryCode = shortText;
+        }
+      }
+    }
     return {
-      value: {
-        formatted: data.formatted_address
-      },
+      value: address,
       sourceId: SOURCE.GOOGLE
     };
   }
+  extractAddressFromPrediction(prediction, fallbackFormatted) {
+    if (prediction.addressComponents) {
+      return this.extractAddress({
+        formattedAddress: fallbackFormatted,
+        addressComponents: prediction.addressComponents
+      });
+    }
+    if (prediction.details?.addressComponents) {
+      return this.extractAddress({
+        formattedAddress: prediction.details.formattedAddress || fallbackFormatted,
+        addressComponents: prediction.details.addressComponents
+      });
+    }
+    if (fallbackFormatted) {
+      return {
+        value: { formatted: fallbackFormatted },
+        sourceId: SOURCE.GOOGLE
+      };
+    }
+    return null;
+  }
   extractOpeningHours(data) {
-    if (!data.opening_hours?.weekday_text)
+    if (!data.regularOpeningHours?.weekdayDescriptions)
       return null;
     try {
-      const hoursText = data.opening_hours.weekday_text.join("; ");
+      const hoursText = data.regularOpeningHours.weekdayDescriptions.join("; ");
       const regularHours = parseGoogleHours(hoursText);
       const openingHours = {
         regularHours,
         isOpen24_7: false,
-        isPermanentlyClosed: data.business_status === BUSINESS_STATUS.CLOSED_PERMANENTLY,
-        isTemporarilyClosed: data.business_status === BUSINESS_STATUS.CLOSED_TEMPORARILY,
+        isPermanentlyClosed: data.businessStatus === BUSINESS_STATUS.CLOSED_PERMANENTLY,
+        isTemporarilyClosed: data.businessStatus === BUSINESS_STATUS.CLOSED_TEMPORARILY,
         rawText: hoursText
       };
       return {
@@ -65185,28 +66902,31 @@ class GoogleAdapter {
         amenities[key] = type2;
       });
     }
-    if (data.price_level) {
-      amenities.price_level = String(data.price_level);
+    if (data.priceLevel) {
+      amenities.price_level = String(data.priceLevel);
     }
-    if (data.business_status) {
-      amenities.business_status = data.business_status;
+    if (data.businessStatus) {
+      amenities.business_status = data.businessStatus;
+    }
+    if (data.utcOffsetMinutes !== undefined) {
+      amenities.utc_offset_minutes = String(data.utcOffsetMinutes);
     }
     const booleanAmenities = {
-      dine_in: data.dine_in,
+      dine_in: data.dineIn,
       takeout: data.takeout,
       delivery: data.delivery,
-      curbside_pickup: data.curbside_pickup,
-      serves_breakfast: data.serves_breakfast,
-      serves_lunch: data.serves_lunch,
-      serves_dinner: data.serves_dinner,
-      serves_beer: data.serves_beer,
-      serves_vegetarian: data.serves_vegetarian,
-      serves_cocktails: data.serves_cocktails,
-      serves_coffee: data.serves_coffee,
-      outdoor_seating: data.outdoor_seating,
-      live_music: data.live_music,
-      good_for_children: data.good_for_children,
-      good_for_groups: data.good_for_groups,
+      curbside_pickup: data.curbsidePickup,
+      serves_breakfast: data.servesBreakfast,
+      serves_lunch: data.servesLunch,
+      serves_dinner: data.servesDinner,
+      serves_beer: data.servesBeer,
+      serves_cocktails: data.servesCocktails,
+      serves_vegetarian_food: data.servesVegetarianFood,
+      serves_coffee: data.servesCoffee,
+      outdoor_seating: data.outdoorSeating,
+      live_music: data.liveMusic,
+      good_for_children: data.goodForChildren,
+      good_for_groups: data.goodForGroups,
       restroom: data.restroom
     };
     Object.entries(booleanAmenities).forEach(([key, value]) => {
@@ -65225,166 +66945,45 @@ class GoogleAdapter {
         sourceId: SOURCE.GOOGLE
       },
       reviewCount: {
-        value: data.user_ratings_total || 0,
+        value: data.userRatingCount || 0,
         sourceId: SOURCE.GOOGLE
       }
     };
   }
   extractDescription(data) {
-    if (!data.editorial_summary?.overview && !data.editorial_summary?.text)
+    if (!data.editorialSummary?.text)
       return;
     return {
-      value: data.editorial_summary?.overview || data.editorial_summary?.text || "",
+      value: data.editorialSummary.text,
       sourceId: SOURCE.GOOGLE
     };
-  }
-  adaptAutocompletePrediction(prediction) {
-    try {
-      if (!prediction) {
-        throw new Error("Invalid prediction data");
-      }
-      if (!prediction.place_id) {
-        console.warn("Google prediction missing place_id:", prediction);
-      }
-      const placeName = prediction.structured_formatting?.main_text || prediction.description?.split(",")[0] || "Unknown Place";
-      const descriptionParts = prediction.description?.split(",").map((part) => part.trim()) || [];
-      if (descriptionParts.length > 0) {
-        descriptionParts.shift();
-      }
-      const formattedAddress = descriptionParts.join(", ");
-      let lat = prediction.structured_formatting?.location?.lat || 0;
-      let lng = prediction.structured_formatting?.location?.lng || 0;
-      if (prediction.lat !== undefined && prediction.lng !== undefined) {
-        lat = prediction.lat;
-        lng = prediction.lng;
-      }
-      return {
-        id: prediction.place_id || `${SOURCE.GOOGLE}/place_${Math.floor(Math.random() * 1e6)}`,
-        name: placeName,
-        description: formattedAddress,
-        types: prediction.types || ["establishment"],
-        source: SOURCE.GOOGLE,
-        placeId: prediction.place_id,
-        geometry: {
-          lat,
-          lng
-        },
-        addressDetails: {
-          formatted: formattedAddress,
-          street: descriptionParts[0] || null,
-          locality: descriptionParts[1] || null,
-          region: descriptionParts[2] || null,
-          country: descriptionParts[3] || null
-        }
-      };
-    } catch (error2) {
-      console.error("Error adapting Google autocomplete prediction:", error2);
-      return {
-        id: `${SOURCE.GOOGLE}/unknown_${Math.floor(Math.random() * 1e6)}`,
-        name: prediction?.structured_formatting?.main_text || prediction?.description?.split(",")[0] || "Unknown Place",
-        description: prediction?.description || "No description available",
-        types: ["unknown"],
-        source: SOURCE.GOOGLE,
-        geometry: {
-          lat: 0,
-          lng: 0
-        }
-      };
-    }
   }
 }
 
 // src/services/integrations/google-maps-integration.ts
-class GoogleMapsIntegration extends BaseIntegration {
+class GoogleMapsIntegration {
+  adapter = new GoogleAdapter;
+  config = { apiKey: "" };
+  baseUrl = "https://places.googleapis.com/v1";
   integrationId = "google-maps" /* GOOGLE_MAPS */;
-  capabilities = [
-    "routing" /* ROUTING */,
-    "geocoding" /* GEOCODING */,
-    "place_info" /* PLACE_INFO */,
-    "imagery" /* IMAGERY */,
-    "autocomplete" /* AUTOCOMPLETE */
-  ];
   sources = [SOURCE.GOOGLE];
-  adapter;
-  constructor() {
-    super();
-    this.adapter = new GoogleAdapter;
-  }
-  createUnifiedPlace(providerData, id) {
-    try {
-      if (providerData && providerData.source === SOURCE.GOOGLE && providerData.placeId) {
-        return {
-          id: id || providerData.id || `${SOURCE.GOOGLE}/${providerData.placeId}`,
-          externalIds: {
-            [SOURCE.GOOGLE]: providerData.placeId || providerData.id?.replace(`${SOURCE.GOOGLE}/`, "") || "unknown"
-          },
-          name: providerData.name || "Unnamed Place",
-          placeType: providerData.types && providerData.types[0] || "unknown",
-          geometry: {
-            type: "point",
-            center: {
-              lat: providerData.geometry?.lat || 0,
-              lng: providerData.geometry?.lng || 0
-            }
-          },
-          photos: [],
-          address: providerData.description ? { formatted: providerData.description } : null,
-          contactInfo: {
-            phone: null,
-            email: null,
-            website: null,
-            socials: {}
-          },
-          openingHours: null,
-          amenities: providerData.types ? providerData.types.reduce((acc, type2) => {
-            acc[`type:${type2}`] = type2;
-            return acc;
-          }, {}) : {},
-          sources: [
-            {
-              id: SOURCE.GOOGLE,
-              name: "Google",
-              url: ""
-            }
-          ],
-          lastUpdated: new Date().toISOString(),
-          createdAt: new Date().toISOString()
-        };
-      }
-      return this.adapter.adaptPlace(providerData, id);
-    } catch (error2) {
-      console.error("Error creating Place from Google data:", error2);
-      return {
-        id: id || `${SOURCE.GOOGLE}/${providerData?.place_id || "unknown"}`,
-        externalIds: { [SOURCE.GOOGLE]: providerData?.place_id || "unknown" },
-        name: providerData?.name || "Unnamed Place",
-        placeType: "unknown",
-        geometry: {
-          type: "point",
-          center: { lat: 0, lng: 0 }
-        },
-        photos: [],
-        address: null,
-        contactInfo: {
-          phone: null,
-          email: null,
-          website: null,
-          socials: {}
-        },
-        openingHours: null,
-        amenities: {},
-        sources: [
-          {
-            id: SOURCE.GOOGLE,
-            name: "Google",
-            url: ""
-          }
-        ],
-        lastUpdated: new Date().toISOString(),
-        createdAt: new Date().toISOString()
-      };
+  capabilityIds = [
+    "search" /* SEARCH */,
+    "placeInfo" /* PLACE_INFO */,
+    "geocoding" /* GEOCODING */
+  ];
+  capabilities = {
+    search: {
+      searchPlaces: this.searchPlaces.bind(this)
+    },
+    placeInfo: {
+      getPlaceInfo: this.getPlaceInfo.bind(this)
+    },
+    geocoding: {
+      geocode: this.geocode.bind(this),
+      reverseGeocode: this.reverseGeocode.bind(this)
     }
-  }
+  };
   async testConnection(config2) {
     if (!this.validateConfig(config2)) {
       return {
@@ -65393,25 +66992,31 @@ class GoogleMapsIntegration extends BaseIntegration {
       };
     }
     try {
-      const testPayload = {
-        textQuery: "Test Query",
-        languageCode: "en"
+      const url2 = `${this.baseUrl}/places:autocomplete`;
+      const requestBody = {
+        input: "test"
       };
-      await axios_default.post(`${GOOGLE_PLACES_API_URL}:searchText`, testPayload, {
+      const response = await fetch(url2, {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Goog-Api-Key": config2.apiKey,
-          "X-Goog-FieldMask": "places.id"
-        }
+          "X-Goog-FieldMask": "suggestions.placePrediction.placeId"
+        },
+        body: JSON.stringify(requestBody)
       });
-      return { success: true };
-    } catch (error2) {
-      if (axios_default.isAxiosError(error2) && (error2.response?.status === 400 || error2.response?.status === 403)) {
+      if (!response.ok) {
+        throw new Error(`Google API error: ${response.status}`);
+      }
+      const data = await response.json();
+      if (data.error) {
         return {
           success: false,
-          message: "Invalid API Key or insufficient permissions"
+          message: data.error.message || "Invalid API Key or insufficient permissions"
         };
       }
+      return { success: true };
+    } catch (error2) {
       console.error("Error testing Google Maps API:", error2);
       return {
         success: false,
@@ -65419,148 +67024,224 @@ class GoogleMapsIntegration extends BaseIntegration {
       };
     }
   }
-  validateConfig(config2) {
-    return Boolean(config2 && config2.apiKey);
-  }
-  async searchPlaces(query, lat, lng, radius = 1e4) {
-    this.ensureInitialized();
-    const requestPayload = {
-      textQuery: query,
-      languageCode: "en",
-      maxResultCount: 10
-    };
-    if (lat !== undefined && lng !== undefined) {
-      requestPayload.locationBias = {
-        circle: {
-          center: {
-            latitude: lat,
-            longitude: lng
-          },
-          radius
-        }
-      };
+  initialize(config2) {
+    console.log("Google Maps Integration - initialize called with config:", JSON.stringify(config2, null, 2));
+    this.config = config2;
+    if (config2.apiKey) {
+      console.log("Setting API key on adapter:", config2.apiKey);
+      this.adapter.setApiKey(config2.apiKey);
+    } else {
+      console.log("No API key found in config");
     }
-    const response = await axios_default.post(`${GOOGLE_PLACES_API_URL}:searchText`, requestPayload, {
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": this.config.apiKey,
-        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.types"
-      }
-    });
-    return (response.data.places || []).map((place) => this.adapter.adaptPlace(place));
   }
-  async getAutocomplete(query, lat, lng, radius = 1e4) {
-    this.ensureInitialized();
+  validateConfig(config2) {
+    return !!config2.apiKey;
+  }
+  async getPlaceInfo(placeId) {
     try {
-      const legacyApiUrl = "https://maps.googleapis.com/maps/api/place/autocomplete/json";
-      const params = {
-        input: query,
-        key: this.config.apiKey,
-        language: "en",
-        types: "establishment"
-      };
-      if (lat !== undefined && lng !== undefined) {
-        params.location = `${lat},${lng}`;
-        params.radius = radius;
+      console.log("Fetching place details for:", placeId);
+      const url2 = `${this.baseUrl}/places/${placeId}`;
+      const fieldMask = "id,displayName,formattedAddress,addressComponents,internationalPhoneNumber,websiteUri,types,photos,rating,userRatingCount,googleMapsUri,priceLevel,businessStatus,editorialSummary,location,dineIn,takeout,delivery,curbsidePickup,servesBreakfast,servesLunch,servesDinner,servesBeer,servesVegetarianFood,servesCocktails,servesCoffee,outdoorSeating,liveMusic,goodForChildren,goodForGroups,restroom,regularOpeningHours,utcOffsetMinutes";
+      console.log("Place Details URL:", url2.replace(this.config.apiKey, "[API_KEY]"));
+      const response = await fetch(url2, {
+        method: "GET",
+        headers: {
+          "X-Goog-Api-Key": this.config.apiKey,
+          "X-Goog-FieldMask": fieldMask
+        }
+      });
+      if (!response.ok) {
+        console.error(`Google Place Details HTTP error: ${response.status}`);
+        if (response.status === 404) {
+          console.warn(`Place not found: ${placeId}`);
+          return null;
+        }
+        throw new Error(`Google API error: ${response.status}`);
       }
-      console.log(`Calling Google Places Autocomplete API with params:`, {
-        ...params,
-        key: "API_KEY_HIDDEN"
-      });
-      const response = await axios_default.get(legacyApiUrl, { params });
-      console.log(`Received ${response.data.predictions?.length || 0} results from Google Places Autocomplete API`);
-      return (response.data.predictions || []).map((prediction) => {
-        const enhancedPrediction = {
-          ...prediction,
-          lat,
-          lng
-        };
-        return this.adapter.adaptAutocompletePrediction(enhancedPrediction);
-      });
+      const data = await response.json();
+      if (data.error) {
+        console.error("Google Place Details API error:", data.error);
+        return null;
+      }
+      console.log("Place details found for:", placeId, "with location:", !!data.location);
+      return this.adapter.placeInfo.adaptPlaceDetails(data);
     } catch (error2) {
-      console.error("Error fetching Google autocomplete suggestions:", error2);
+      console.error("Google place details error:", error2);
+      return null;
+    }
+  }
+  async geocode(address) {
+    try {
+      const url2 = `https://maps.googleapis.com/maps/api/geocode/json`;
+      const params = {
+        address,
+        key: this.config.apiKey
+      };
+      const queryString = new URLSearchParams(params).toString();
+      const fullUrl = `${url2}?${queryString}`;
+      const response = await fetch(fullUrl);
+      if (!response.ok) {
+        throw new Error(`Google API error: ${response.status}`);
+      }
+      const data = await response.json();
+      if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+        throw new Error(`Google API error: ${data.status}`);
+      }
+      return data.results.map((result) => this.adapter.placeInfo.adaptPlaceDetails({
+        id: result.place_id || "",
+        displayName: { text: result.formatted_address || "" },
+        formattedAddress: result.formatted_address || "",
+        internationalPhoneNumber: "",
+        websiteUri: "",
+        types: result.types || [],
+        photos: [],
+        rating: 0,
+        userRatingCount: 0,
+        regularOpeningHours: undefined,
+        editorialSummary: undefined,
+        location: result.geometry?.location ? {
+          latitude: result.geometry.location.lat,
+          longitude: result.geometry.location.lng
+        } : undefined,
+        googleMapsUri: "",
+        priceLevel: "",
+        businessStatus: "",
+        dineIn: false,
+        takeout: false,
+        delivery: false,
+        curbsidePickup: false,
+        servesBreakfast: false,
+        servesLunch: false,
+        servesDinner: false,
+        servesBeer: false,
+        servesVegetarianFood: false,
+        servesCocktails: false,
+        servesCoffee: false,
+        outdoorSeating: false,
+        liveMusic: false,
+        goodForChildren: false,
+        goodForGroups: false,
+        restroom: false,
+        utcOffsetMinutes: 0
+      }));
+    } catch (error2) {
+      console.error("Google geocoding error:", error2);
       return [];
     }
   }
-  async getPlaceDetails(placeId) {
-    this.ensureInitialized();
+  async reverseGeocode(lat, lng) {
     try {
-      console.log(`Fetching Google place by ID: ${placeId}`);
-      let cleanPlaceId = placeId;
-      if (cleanPlaceId.startsWith("google/")) {
-        cleanPlaceId = cleanPlaceId.substring(7);
+      const url2 = `https://maps.googleapis.com/maps/api/geocode/json`;
+      const params = {
+        latlng: `${lat},${lng}`,
+        key: this.config.apiKey
+      };
+      const queryString = new URLSearchParams(params).toString();
+      const fullUrl = `${url2}?${queryString}`;
+      const response = await fetch(fullUrl);
+      if (!response.ok) {
+        throw new Error(`Google API error: ${response.status}`);
       }
-      if (cleanPlaceId.startsWith("google/")) {
-        cleanPlaceId = cleanPlaceId.substring(7);
+      const data = await response.json();
+      if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+        throw new Error(`Google API error: ${data.status}`);
       }
-      console.log(`Making request to get details for place ID: ${cleanPlaceId}`);
-      const endpoint = `${GOOGLE_PLACES_API_URL}/${cleanPlaceId}`;
-      const response = await axios_default.get(endpoint, {
+      return data.results.map((result) => this.adapter.placeInfo.adaptPlaceDetails({
+        id: result.place_id || "",
+        displayName: { text: result.formatted_address || "" },
+        formattedAddress: result.formatted_address || "",
+        internationalPhoneNumber: "",
+        websiteUri: "",
+        types: result.types || [],
+        photos: [],
+        rating: 0,
+        userRatingCount: 0,
+        regularOpeningHours: undefined,
+        editorialSummary: undefined,
+        location: result.geometry?.location ? {
+          latitude: result.geometry.location.lat,
+          longitude: result.geometry.location.lng
+        } : undefined,
+        googleMapsUri: "",
+        priceLevel: "",
+        businessStatus: "",
+        dineIn: false,
+        takeout: false,
+        delivery: false,
+        curbsidePickup: false,
+        servesBreakfast: false,
+        servesLunch: false,
+        servesDinner: false,
+        servesBeer: false,
+        servesVegetarianFood: false,
+        servesCocktails: false,
+        servesCoffee: false,
+        outdoorSeating: false,
+        liveMusic: false,
+        goodForChildren: false,
+        goodForGroups: false,
+        restroom: false,
+        utcOffsetMinutes: 0
+      }));
+    } catch (error2) {
+      console.error("Google reverse geocoding error:", error2);
+      return [];
+    }
+  }
+  async searchPlaces(query, lat, lng, options) {
+    if (!this.config.apiKey) {
+      console.error("Google Maps API key not configured");
+      return [];
+    }
+    try {
+      console.log(`Searching Google Places for: "${query}"`);
+      const url2 = `${this.baseUrl}/places:searchText`;
+      const requestBody = {
+        textQuery: query,
+        maxResultCount: options?.limit || 20
+      };
+      if (lat && lng) {
+        const radius = options?.radius || 50000;
+        requestBody.locationBias = {
+          circle: {
+            center: {
+              latitude: lat,
+              longitude: lng
+            },
+            radius
+          }
+        };
+      }
+      const fieldMask = "places.id,places.displayName,places.formattedAddress,places.internationalPhoneNumber,places.websiteUri,places.types,places.photos,places.rating,places.userRatingCount,places.googleMapsUri,places.priceLevel,places.businessStatus,places.editorialSummary,places.location,places.dineIn,places.takeout,places.delivery,places.curbsidePickup,places.servesBreakfast,places.servesLunch,places.servesDinner,places.servesBeer,places.servesVegetarianFood,places.servesCocktails,places.servesCoffee,places.outdoorSeating,places.liveMusic,places.goodForChildren,places.goodForGroups,places.restroom,places.regularOpeningHours,places.utcOffsetMinutes";
+      console.log("Google Places Text Search URL:", url2.replace(this.config.apiKey, "[API_KEY]"));
+      const response = await fetch(url2, {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Goog-Api-Key": this.config.apiKey,
-          "X-Goog-FieldMask": "id,displayName,formattedAddress,internationalPhoneNumber,websiteUri,types,photos,rating,userRatingCount,googleMapsUri,priceLevel,businessStatus,editorialSummary,location,dineIn,takeout,delivery,curbsidePickup,servesBreakfast,servesLunch,servesDinner,servesBeer,servesVegetarianFood,servesCocktails,servesCoffee,outdoorSeating,liveMusic,goodForChildren,goodForGroups,restroom,regularOpeningHours,utcOffsetMinutes"
-        }
+          "X-Goog-FieldMask": fieldMask
+        },
+        body: JSON.stringify(requestBody)
       });
-      if (!response.data || Object.keys(response.data).length === 0) {
-        console.error("No place details returned for the given Google Place ID");
-        return null;
+      if (!response.ok) {
+        console.error(`Google Places Text Search HTTP error: ${response.status}`);
+        throw new Error(`Google API error: ${response.status}`);
       }
-      const transformedPlace = {
-        place_id: response.data.id,
-        name: response.data.displayName?.text || "",
-        formatted_address: response.data.formattedAddress || "",
-        formatted_phone_number: response.data.internationalPhoneNumber || "",
-        website: response.data.websiteUri || "",
-        types: response.data.types || [],
-        photos: response.data.photos?.map((photo) => ({
-          photo_reference: photo.name,
-          height: photo.heightPx || 0,
-          width: photo.widthPx || 0,
-          html_attributions: []
-        })) || [],
-        rating: response.data.rating || 0,
-        user_ratings_total: response.data.userRatingCount || 0,
-        google_maps_uri: response.data.googleMapsUri || "",
-        price_level: response.data.priceLevel || "",
-        business_status: response.data.businessStatus || "",
-        editorial_summary: response.data.editorialSummary ? {
-          language: response.data.editorialSummary.languageCode || undefined,
-          overview: response.data.editorialSummary.text || response.data.editorialSummary.overview || ""
-        } : undefined,
-        geometry: response.data.location ? {
-          location: {
-            lat: response.data.location.latitude,
-            lng: response.data.location.longitude
-          }
-        } : undefined,
-        opening_hours: response.data.regularOpeningHours ? {
-          open_now: response.data.regularOpeningHours.openNow || false,
-          periods: response.data.regularOpeningHours.periods || [],
-          weekday_text: response.data.regularOpeningHours.weekdayDescriptions || []
-        } : undefined,
-        dine_in: response.data.dineIn || false,
-        takeout: response.data.takeout || false,
-        delivery: response.data.delivery || false,
-        curbside_pickup: response.data.curbsidePickup || false,
-        serves_breakfast: response.data.servesBreakfast || false,
-        serves_lunch: response.data.servesLunch || false,
-        serves_dinner: response.data.servesDinner || false,
-        serves_beer: response.data.servesBeer || false,
-        serves_vegetarian: response.data.servesVegetarianFood || false,
-        serves_cocktails: response.data.servesCocktails || false,
-        serves_coffee: response.data.servesCoffee || false,
-        outdoor_seating: response.data.outdoorSeating || false,
-        live_music: response.data.liveMusic || false,
-        good_for_children: response.data.goodForChildren || false,
-        good_for_groups: response.data.goodForGroups || false,
-        restroom: response.data.restroom || false,
-        utc_offset: response.data.utcOffsetMinutes || 0
-      };
-      return transformedPlace;
+      const data = await response.json();
+      if (data.error) {
+        console.error("Google Places Text Search API error:", data.error);
+        return [];
+      }
+      if (!data.places || data.places.length === 0) {
+        console.log("No places found for query:", query);
+        return [];
+      }
+      console.log(`Found ${data.places.length} places for query: "${query}"`);
+      const places = data.places.map((result) => this.adapter.placeInfo.adaptPlaceDetails(result));
+      return places;
     } catch (error2) {
-      console.error("Error fetching Google place by ID:", error2);
-      return null;
+      console.error("Google Places Text Search error:", error2);
+      return [];
     }
   }
 }
@@ -65735,7 +67416,7 @@ function parseOpeningHoursForUnifiedFormat(hoursString) {
       return null;
     const days = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
     const result = [];
-    const patterns = hoursString.split(";").map((p) => p.trim());
+    const patterns = hoursString.split(";").map((p2) => p2.trim());
     for (const pattern of patterns) {
       const [dayPart, timePart] = pattern.split(" ", 2);
       if (!dayPart || !timePart)
@@ -65751,8 +67432,8 @@ function parseOpeningHoursForUnifiedFormat(hoursString) {
             const startIdx = days.indexOf(start);
             const endIdx = days.indexOf(end);
             if (startIdx !== -1 && endIdx !== -1) {
-              for (let i = startIdx;i <= endIdx; i++) {
-                daysToApply.push(i);
+              for (let i2 = startIdx;i2 <= endIdx; i2++) {
+                daysToApply.push(i2);
               }
             }
           } else {
@@ -65791,98 +67472,21 @@ function parseOpeningHoursForUnifiedFormat(hoursString) {
 
 // src/services/integrations/adapters/pelias-adapter.ts
 class PeliasAdapter {
-  adaptPlace(feature2, id) {
-    try {
-      const props = feature2.properties;
-      const osmId = props.source_id;
-      const osmData = props.addendum?.osm || {};
-      const placeId = id || osmId || `${SOURCE.PELIAS}/${props.id || props.gid}`;
-      let placeType = props.layer || "unknown";
-      if (props.addendum?.osm) {
-        placeType = getPlaceType(props.addendum.osm);
-      }
-      const lng = feature2.geometry.coordinates[0];
-      const lat = feature2.geometry.coordinates[1];
-      const geometry2 = {
-        type: "point",
-        center: {
-          lat,
-          lng
-        }
-      };
-      if (feature2.bbox) {
-        geometry2.bounds = {
-          minLat: feature2.bbox[1],
-          minLng: feature2.bbox[0],
-          maxLat: feature2.bbox[3],
-          maxLng: feature2.bbox[2]
-        };
-      }
-      const address = this.extractAddress(props);
-      const externalIds = {
-        [SOURCE.PELIAS]: props.gid || props.id
-      };
-      if (osmId && props.source === "openstreetmap") {
-        externalIds[SOURCE.OSM] = osmId;
-      }
-      const unifiedPlace = {
-        id: placeId,
-        externalIds,
-        name: props.name || "Unnamed Place",
-        placeType,
-        geometry: geometry2,
-        photos: [],
-        address,
-        contactInfo: this.extractContactInfo(osmData),
-        openingHours: this.extractOpeningHours(osmData),
-        amenities: this.extractAmenities(props, osmData),
-        sources: [
-          {
-            id: SOURCE.PELIAS,
-            name: "Pelias",
-            url: osmId ? `https://www.openstreetmap.org/${osmId}` : ""
-          }
-        ],
-        lastUpdated: new Date().toISOString(),
-        createdAt: new Date().toISOString()
-      };
-      return unifiedPlace;
-    } catch (error2) {
-      console.error("Error adapting Pelias data:", error2);
-      return {
-        id: id || `${SOURCE.PELIAS}/${feature2.properties?.gid || "unknown"}`,
-        externalIds: { [SOURCE.PELIAS]: feature2.properties?.gid || "unknown" },
-        name: feature2.properties?.name || "Unnamed Place",
-        placeType: "unknown",
-        geometry: {
-          type: "point",
-          center: {
-            lat: feature2.geometry?.coordinates?.[1] || 0,
-            lng: feature2.geometry?.coordinates?.[0] || 0
-          }
-        },
-        photos: [],
-        address: null,
-        contactInfo: {
-          phone: null,
-          email: null,
-          website: null,
-          socials: {}
-        },
-        openingHours: null,
-        amenities: {},
-        sources: [
-          {
-            id: SOURCE.PELIAS,
-            name: "Pelias",
-            url: ""
-          }
-        ],
-        lastUpdated: new Date().toISOString(),
-        createdAt: new Date().toISOString()
-      };
+  autocomplete = {
+    adaptPlaceDetails: (feature2, id) => {
+      return this.adaptPlaceDetails(feature2, id);
     }
-  }
+  };
+  placeInfo = {
+    adaptPlaceDetails: (feature2, id) => {
+      return this.adaptPlaceDetails(feature2, id);
+    }
+  };
+  geocoding = {
+    adaptPlaceDetails: (feature2, id) => {
+      return this.adaptPlaceDetails(feature2, id);
+    }
+  };
   extractAddress(props) {
     const address = {};
     if (props.housenumber || props.street) {
@@ -65894,7 +67498,6 @@ class PeliasAdapter {
     address.country = props.country || undefined;
     address.countryCode = props.country_code || undefined;
     address.neighborhood = props.neighbourhood || undefined;
-    address.formatted = props.label || undefined;
     return Object.keys(address).length > 0 ? address : null;
   }
   extractContactInfo(osmData) {
@@ -65944,146 +67547,108 @@ class PeliasAdapter {
     }
     return amenities;
   }
-  adaptAutocompletePrediction(feature2) {
+  adaptPlaceDetails(feature2, id) {
     try {
-      console.log("Adapting Pelias feature for autocomplete:", JSON.stringify(feature2, null, 2).substring(0, 500) + "...");
-      if (!feature2 || !feature2.properties) {
-        console.error("Invalid feature structure:", feature2);
-        throw new Error("Invalid feature structure");
-      }
       const props = feature2.properties;
-      if (!feature2.geometry || !feature2.geometry.coordinates) {
-        console.error("Missing geometry in feature:", feature2);
-        throw new Error("Missing geometry in feature");
+      const osmId = props.source_id;
+      const osmData = props.addendum?.osm || {};
+      const actualSource = props.source === "openaddresses" ? SOURCE.OPENADDRESSES : SOURCE.OSM;
+      const externalIds = {};
+      if (osmId && props.source === "openstreetmap") {
+        externalIds[SOURCE.OSM] = osmId;
+      } else if (props.source === "openaddresses") {
+        externalIds[SOURCE.OPENADDRESSES] = props.gid || props.id;
+      } else {
+        externalIds[actualSource] = props.gid || props.id;
       }
-      let formattedAddress = null;
-      const stateAbbr = props.region_a || props.region;
-      const hasStreetAddress = !!(props.housenumber && props.street) || !!props.street;
-      if (hasStreetAddress) {
-        const streetPart = props.housenumber && props.street ? `${props.housenumber} ${props.street}` : props.street;
-        formattedAddress = `${streetPart}, ${props.locality || ""}, ${stateAbbr || ""}`;
-        if (props.postalcode) {
-          formattedAddress += `, ${props.postalcode}`;
-        }
-      } else if (props.neighbourhood) {
-        formattedAddress = `${props.neighbourhood}, ${props.locality || ""}, ${stateAbbr || ""}`;
-        if (props.postalcode) {
-          formattedAddress += `, ${props.postalcode}`;
-        }
-      } else if (props.locality) {
-        formattedAddress = `${props.locality}, ${stateAbbr || ""}`;
-        if (props.postalcode) {
-          formattedAddress += `, ${props.postalcode}`;
-        }
+      const primaryId = id || `${actualSource}/${osmId || props.gid || props.id}`;
+      let placeType = props.layer || "unknown";
+      if (props.addendum?.osm) {
+        placeType = getPlaceType(props.addendum.osm);
       }
-      formattedAddress = formattedAddress?.replace(/,\s*,/g, ",")?.replace(/,\s*$/g, "")?.trim() || null;
-      const isOsmId = props.source === "openstreetmap" && (props.source_id?.startsWith("way/") || props.source_id?.startsWith("node/") || props.source_id?.startsWith("relation/"));
-      const id = isOsmId ? `osm/${props.source_id}` : `${SOURCE.PELIAS}/${props.gid || props.id}`;
-      return {
-        id,
-        name: props.name,
-        description: formattedAddress || props.label,
-        types: [props.layer],
-        source: SOURCE.PELIAS,
-        geometry: {
-          lat: feature2.geometry.coordinates[1],
-          lng: feature2.geometry.coordinates[0]
-        },
-        addressDetails: {
-          housenumber: props.housenumber,
-          street: props.street,
-          locality: props.locality,
-          region: props.region,
-          region_a: props.region_a,
-          country: props.country,
-          postalcode: props.postalcode,
-          neighbourhood: props.neighbourhood,
-          formatted: formattedAddress
+      const lng = feature2.geometry.coordinates[0];
+      const lat = feature2.geometry.coordinates[1];
+      const geometry2 = {
+        type: "point",
+        center: {
+          lat,
+          lng
         }
       };
-    } catch (error2) {
-      console.error("Error processing Pelias autocomplete item:", error2);
-      return {
-        id: `${SOURCE.PELIAS}/unknown`,
-        name: feature2?.properties?.name || "Unknown",
+      if (feature2.bbox) {
+        geometry2.bounds = {
+          minLat: feature2.bbox[1],
+          minLng: feature2.bbox[0],
+          maxLat: feature2.bbox[3],
+          maxLng: feature2.bbox[2]
+        };
+      }
+      const address = this.extractAddress(props);
+      const unifiedPlace = {
+        id: primaryId,
+        externalIds,
+        name: {
+          value: props.name || "Unnamed Place",
+          sourceId: actualSource
+        },
         description: null,
-        source: SOURCE.PELIAS,
-        error: error2 instanceof Error ? error2.message : "Unknown error",
-        feature: feature2 ? JSON.stringify(feature2).substring(0, 200) + "..." : "null",
-        geometry: {
-          lat: feature2?.geometry?.coordinates?.[1] || 0,
-          lng: feature2?.geometry?.coordinates?.[0] || 0
-        }
-      };
-    }
-  }
-}
-
-// src/services/integrations/pelias-integration.ts
-class PeliasIntegration extends BaseIntegration {
-  integrationId = "pelias" /* PELIAS */;
-  capabilities = [
-    "geocoding" /* GEOCODING */,
-    "autocomplete" /* AUTOCOMPLETE */
-  ];
-  sources = [SOURCE.OSM, SOURCE.OPENADDRESSES];
-  adapter;
-  constructor() {
-    super();
-    this.adapter = new PeliasAdapter;
-  }
-  createUnifiedPlace(providerData, id) {
-    if (providerData && providerData.source === SOURCE.OSM && typeof providerData.geometry?.lat !== "undefined" && typeof providerData.geometry?.lng !== "undefined") {
-      let address = null;
-      if (providerData.addressDetails) {
-        const details = providerData.addressDetails;
-        address = {};
-        if (details.formatted) {
-          address.formatted = details.formatted;
-        }
-        if (details.housenumber && details.street) {
-          address.street1 = `${details.housenumber} ${details.street}`;
-        } else if (details.street) {
-          address.street1 = details.street;
-        }
-        if (details.neighbourhood) {
-          address.neighborhood = details.neighbourhood;
-        }
-        if (details.locality) {
-          address.locality = details.locality;
-        }
-        if (details.region) {
-          address.region = details.region;
-        }
-        if (details.country) {
-          address.country = details.country;
-        }
-        if (details.postalcode) {
-          address.postalCode = details.postalcode;
-        }
-        if (Object.keys(address).length === 0 || Object.keys(address).length === 1 && !address.formatted) {
-          address = null;
-        }
-      }
-      const isOsmId = providerData.id && (providerData.id.includes("way/") || providerData.id.includes("node/") || providerData.id.includes("relation/"));
-      const sourceIdForExternalId = isOsmId ? SOURCE.OSM : SOURCE.PELIAS;
-      const externalIdValue = isOsmId ? providerData.id : providerData.id?.split("/")[1] || "unknown";
-      return {
-        id: providerData.id || `${SOURCE.PELIAS}/unknown`,
-        externalIds: {
-          [sourceIdForExternalId]: externalIdValue
+        placeType: {
+          value: placeType,
+          sourceId: actualSource
         },
-        name: providerData.name || "Unnamed Place",
-        placeType: providerData.types && providerData.types[0] || "unknown",
         geometry: {
-          type: "point",
-          center: {
-            lat: providerData.geometry.lat,
-            lng: providerData.geometry.lng
-          }
+          value: geometry2,
+          sourceId: actualSource
         },
         photos: [],
-        address,
+        address: address ? {
+          value: address,
+          sourceId: actualSource
+        } : null,
+        contactInfo: this.extractContactInfo(osmData),
+        openingHours: this.extractOpeningHours(osmData) ? {
+          value: this.extractOpeningHours(osmData),
+          sourceId: actualSource
+        } : null,
+        amenities: this.extractAmenities(props, osmData),
+        sources: [
+          {
+            id: actualSource,
+            name: actualSource === SOURCE.OSM ? "OpenStreetMap" : "OpenAddresses",
+            url: osmId ? `https://www.openstreetmap.org/${osmId}` : ""
+          }
+        ],
+        lastUpdated: new Date().toISOString(),
+        createdAt: new Date().toISOString()
+      };
+      return unifiedPlace;
+    } catch (error2) {
+      console.error("Error adapting Pelias data:", error2);
+      const actualSource = feature2.properties?.source === "openaddresses" ? SOURCE.OPENADDRESSES : SOURCE.OSM;
+      return {
+        id: id || `${actualSource}/${feature2.properties?.gid || "unknown"}`,
+        externalIds: { [actualSource]: feature2.properties?.gid || "unknown" },
+        name: {
+          value: feature2.properties?.name || "Unnamed Place",
+          sourceId: actualSource
+        },
+        description: null,
+        placeType: {
+          value: "unknown",
+          sourceId: actualSource
+        },
+        geometry: {
+          value: {
+            type: "point",
+            center: {
+              lat: feature2.geometry?.coordinates?.[1] || 0,
+              lng: feature2.geometry?.coordinates?.[0] || 0
+            }
+          },
+          sourceId: actualSource
+        },
+        photos: [],
+        address: null,
         contactInfo: {
           phone: null,
           email: null,
@@ -66094,8 +67659,8 @@ class PeliasIntegration extends BaseIntegration {
         amenities: {},
         sources: [
           {
-            id: SOURCE.PELIAS,
-            name: "Pelias",
+            id: actualSource,
+            name: actualSource === SOURCE.OSM ? "OpenStreetMap" : "OpenAddresses",
             url: ""
           }
         ],
@@ -66103,7 +67668,52 @@ class PeliasIntegration extends BaseIntegration {
         createdAt: new Date().toISOString()
       };
     }
-    return this.adapter.adaptPlace(providerData, id);
+  }
+}
+
+// src/services/integrations/pelias-integration.ts
+class PeliasIntegration {
+  initialized = false;
+  config = { host: "" };
+  integrationId = "pelias" /* PELIAS */;
+  capabilityIds = [
+    "geocoding" /* GEOCODING */,
+    "autocomplete" /* AUTOCOMPLETE */
+  ];
+  capabilities = {
+    geocoding: {
+      geocode: this.searchPlaces.bind(this),
+      reverseGeocode: async (lat, lng) => {
+        const url2 = `${this.config.host}/v1/reverse`;
+        const params = {
+          "point.lat": lat,
+          "point.lon": lng,
+          size: 1
+        };
+        const response = await axios_default.get(url2, { params });
+        return response.data?.features || [];
+      }
+    },
+    autocomplete: {
+      getAutocomplete: this.getAutocomplete.bind(this)
+    }
+  };
+  sources = [SOURCE.OSM, SOURCE.OPENADDRESSES];
+  adapter;
+  constructor() {
+    this.adapter = new PeliasAdapter;
+  }
+  initialize(config2) {
+    if (!this.validateConfig(config2)) {
+      throw new Error("Invalid configuration: Host is required");
+    }
+    this.config = { ...config2 };
+    this.initialized = true;
+  }
+  ensureInitialized() {
+    if (!this.initialized) {
+      throw new Error(`Integration ${this.integrationId} has not been initialized. Call initialize() first.`);
+    }
   }
   async testConnection(config2) {
     if (!this.validateConfig(config2)) {
@@ -66132,7 +67742,8 @@ class PeliasIntegration extends BaseIntegration {
     }
   }
   validateConfig(config2) {
-    return Boolean(config2 && config2.host);
+    const isValid = !!(config2.host && typeof config2.host === "string");
+    return isValid;
   }
   buildApiUrl(config2 = this.config) {
     const host = config2.host.endsWith("/") ? config2.host.slice(0, -1) : config2.host;
@@ -66159,53 +67770,58 @@ class PeliasIntegration extends BaseIntegration {
     }
     const response = await axios_default.get(apiUrl, { params });
     const features = response.data.features || [];
-    return features.map((feature2) => this.adapter.adaptPlace(feature2));
+    return features.map((feature2) => this.adapter.geocoding.adaptPlaceDetails(feature2));
   }
-  async getAutocomplete(query, lat, lng, radius) {
+  async getAutocomplete(text2, lat, lng, options) {
     this.ensureInitialized();
-    const host = this.config.host.endsWith("/") ? this.config.host.slice(0, -1) : this.config.host;
-    const apiUrl = `${host}/v1/autocomplete`;
-    const params = {
-      text: query,
-      size: 10
-    };
-    if (this.config.apiKey) {
-      params["api_key"] = this.config.apiKey;
+    if (!text2 || text2.length < 2) {
+      return [];
     }
-    if (lat !== undefined && lng !== undefined) {
-      params["focus.point.lat"] = lat;
-      params["focus.point.lon"] = lng;
-      if (radius) {
-        params["boundary.circle.lat"] = lat;
-        params["boundary.circle.lon"] = lng;
-        params["boundary.circle.radius"] = radius / 1000;
-      }
-    }
+    const { radius = 50000 } = options || {};
     try {
-      console.log(`Calling Pelias autocomplete API with params:`, params);
-      const response = await axios_default.get(apiUrl, { params });
-      console.log(`Pelias raw response structure:`, Object.keys(response.data).length ? Object.keys(response.data) : "Empty response");
-      if (response.data.features && response.data.features.length > 0) {
-        console.log("First feature sample:", JSON.stringify(response.data.features[0], null, 2));
-      } else {
-        console.log("No features returned from Pelias");
+      const host = this.config.host.endsWith("/") ? this.config.host.slice(0, -1) : this.config.host;
+      const url2 = new URL(`${host}/v1/autocomplete`);
+      url2.searchParams.set("text", text2);
+      if (lat !== undefined && lng !== undefined) {
+        url2.searchParams.set("focus.point.lat", lat.toString());
+        url2.searchParams.set("focus.point.lon", lng.toString());
+        if (radius !== undefined) {
+          const radiusKm = radius / 1000;
+          url2.searchParams.set("boundary.circle.lat", lat.toString());
+          url2.searchParams.set("boundary.circle.lon", lng.toString());
+          url2.searchParams.set("boundary.circle.radius", radiusKm.toString());
+        }
       }
-      console.log(`Received ${response.data.features?.length || 0} results from Pelias autocomplete`);
-      const transformed = (response.data.features || []).map((feature2) => {
-        const result = this.adapter.adaptAutocompletePrediction(feature2);
-        console.log("Transformed feature:", JSON.stringify(result, null, 2));
-        return result;
+      url2.searchParams.set("layers", "venue,address");
+      const response = await fetch(url2.toString());
+      if (!response.ok) {
+        console.error("Pelias autocomplete error:", response.status, response.statusText);
+        return [];
+      }
+      const data = await response.json();
+      if (data.geocoding?.warnings) {
+        console.warn("Pelias warnings:", data.geocoding.warnings);
+      }
+      if (data.geocoding?.errors) {
+        console.error("Pelias errors:", data.geocoding.errors);
+        return [];
+      }
+      if (!data.features || data.features.length === 0) {
+        return [];
+      }
+      const places = data.features.map((feature2) => {
+        const place = this.adapter.autocomplete.adaptPlaceDetails(feature2);
+        return place;
       });
-      return transformed;
+      return places;
     } catch (error2) {
-      console.error("Error getting Pelias autocomplete suggestions:", error2);
+      console.error("Pelias autocomplete error:", error2);
       return [];
     }
   }
   async getPlaceDetails(id) {
     this.ensureInitialized();
     try {
-      console.log(`Getting place details from Pelias for ID: ${id}`);
       let osmId = id;
       if (id.startsWith("pelias/")) {
         osmId = id.substring(7);
@@ -66221,12 +67837,10 @@ class PeliasIntegration extends BaseIntegration {
         osmType = parts[0];
         osmIdValue = parts[1];
       }
-      console.log(`Parsed OSM ID: type=${osmType}, id=${osmIdValue}`);
       const apiUrl = `${this.config.host}/v1/place`;
       const params = {
         ids: `openstreetmap:${osmType}:${osmIdValue}`
       };
-      console.log(`Calling Pelias place API with params:`, params);
       const response = await axios_default.get(apiUrl, {
         params,
         headers: {
@@ -66234,10 +67848,8 @@ class PeliasIntegration extends BaseIntegration {
         }
       });
       if (!response.data || !response.data.features || response.data.features.length === 0) {
-        console.error("No results found from Pelias");
         return null;
       }
-      console.log(`Pelias lookup successful, got ${response.data.features.length} results`);
       return response.data.features[0];
     } catch (error2) {
       console.error("Error getting place details from Pelias:", error2);
@@ -66247,12 +67859,33 @@ class PeliasIntegration extends BaseIntegration {
 }
 
 // src/services/integrations/nominatim-integration.ts
-class NominatimIntegration extends BaseIntegration {
+class NominatimIntegration {
+  initialized = false;
   integrationId = "nominatim" /* NOMINATIM */;
-  capabilities = [
+  capabilityIds = [
     "geocoding" /* GEOCODING */,
     "autocomplete" /* AUTOCOMPLETE */
   ];
+  capabilities = {
+    geocoding: {
+      geocode: this.searchPlaces.bind(this),
+      reverseGeocode: async (lat, lng) => {
+        const apiUrl = `${this.config.host.endsWith("/") ? this.config.host.slice(0, -1) : this.config.host}/reverse`;
+        const params = {
+          lat,
+          lon: lng,
+          format: "json",
+          addressdetails: 1,
+          email: this.config.email
+        };
+        const response = await axios_default.get(apiUrl, { params });
+        return response.data ? [response.data] : [];
+      }
+    },
+    autocomplete: {
+      getAutocomplete: this.getAutocomplete.bind(this)
+    }
+  };
   sources = [SOURCE.OSM];
   config = {
     host: "https://nominatim.openstreetmap.org"
@@ -66265,7 +67898,12 @@ class NominatimIntegration extends BaseIntegration {
       host: config2.host,
       email: config2.email
     };
-    super.initialize(config2);
+    this.initialized = true;
+  }
+  ensureInitialized() {
+    if (!this.initialized) {
+      throw new Error(`Integration ${this.integrationId} has not been initialized. Call initialize() first.`);
+    }
   }
   async testConnection(config2) {
     if (!this.validateConfig(config2)) {
@@ -66304,8 +67942,13 @@ class NominatimIntegration extends BaseIntegration {
     const apiUrl = this.buildApiUrl();
     const params = {
       q: query,
-      format: "json",
-      limit: 10,
+      format: "jsonv2",
+      addressdetails: "1",
+      extratags: "1",
+      namedetails: "1",
+      limit: "50",
+      dedupe: "1",
+      "accept-language": "en",
       email: this.config.email
     };
     if (lat !== undefined && lng !== undefined) {
@@ -66372,8 +68015,9 @@ class NominatimIntegration extends BaseIntegration {
       return null;
     }
   }
-  async getAutocomplete(query, lat, lng, radius) {
+  async getAutocomplete(query, lat, lng, options) {
     this.ensureInitialized();
+    const { radius = 50000 } = options || {};
     const apiUrl = this.buildApiUrl();
     const params = {
       q: query,
@@ -66404,131 +68048,266 @@ class NominatimIntegration extends BaseIntegration {
       return [];
     }
   }
-  createUnifiedPlace(nominatimPlace, placeId) {
-    if (!nominatimPlace) {
-      throw new Error("Nominatim place data is null or undefined");
-    }
-    let id = placeId;
-    if (!id.includes("/")) {
-      if (nominatimPlace.osm_type && nominatimPlace.osm_id) {
-        const osmType = nominatimPlace.osm_type.toLowerCase();
-        id = `${osmType}/${nominatimPlace.osm_id}`;
-      }
-    }
-    const externalIds = {
-      nominatim: id
-    };
-    if (nominatimPlace.osm_type && nominatimPlace.osm_id) {
-      const osmType = nominatimPlace.osm_type.toLowerCase();
-      externalIds[SOURCE.OSM] = `${osmType}/${nominatimPlace.osm_id}`;
-    }
-    const name2 = nominatimPlace.namedetails?.name || nominatimPlace.name || nominatimPlace.display_name || "Unknown place";
-    let placeType = "unknown";
-    if (nominatimPlace.type && nominatimPlace.category) {
-      placeType = `${nominatimPlace.category}/${nominatimPlace.type}`;
-    } else if (nominatimPlace.type) {
-      placeType = nominatimPlace.type;
-    } else if (nominatimPlace.category) {
-      placeType = nominatimPlace.category;
-    }
-    const geometry2 = {
-      type: "point",
-      center: {
-        lat: parseFloat(nominatimPlace.lat) || 0,
-        lng: parseFloat(nominatimPlace.lon) || 0
-      }
-    };
-    const address = nominatimPlace.address ? {
-      formatted: nominatimPlace.display_name || null,
-      street: nominatimPlace.address.road || nominatimPlace.address.street || null,
-      houseNumber: nominatimPlace.address.house_number || null,
-      neighborhood: nominatimPlace.address.neighbourhood || nominatimPlace.address.suburb || null,
-      locality: nominatimPlace.address.city || nominatimPlace.address.town || nominatimPlace.address.village || nominatimPlace.address.hamlet || null,
-      region: nominatimPlace.address.state || nominatimPlace.address.county || null,
-      postalCode: nominatimPlace.address.postcode || null,
-      country: nominatimPlace.address.country || null,
-      countryCode: nominatimPlace.address.country_code ? nominatimPlace.address.country_code.toUpperCase() : null
-    } : null;
-    const website = nominatimPlace.extratags?.website || nominatimPlace.extratags?.["contact:website"] || null;
-    const phone = nominatimPlace.extratags?.phone || nominatimPlace.extratags?.["contact:phone"] || null;
-    const contactInfo = {
-      phone,
-      email: nominatimPlace.extratags?.["contact:email"] || null,
-      website,
-      socials: {}
-    };
-    let openingHours = null;
-    if (nominatimPlace.extratags?.opening_hours) {
-      openingHours = {
-        regularHours: [],
-        isOpen24_7: nominatimPlace.extratags.opening_hours.includes("24/7"),
-        isPermanentlyClosed: false,
-        isTemporarilyClosed: false,
-        holidayHours: {},
-        rawText: nominatimPlace.extratags.opening_hours
+}
+
+// src/services/integrations/adapters/overpass-adapter.ts
+class OverpassAdapter {
+  placeInfo = {
+    adaptPlaceDetails: (data, id) => {
+      const osmId = `${data.type}/${data.id}`;
+      const primaryId = id || `${SOURCE.OSM}/${osmId}`;
+      const center = this.calculatePlaceCenter(data);
+      return {
+        id: primaryId,
+        externalIds: {
+          [SOURCE.OSM]: osmId
+        },
+        name: {
+          value: this.extractName(data.tags) || "Unnamed Place",
+          sourceId: SOURCE.OSM
+        },
+        placeType: {
+          value: getPlaceType(data.tags || {}) || "unknown",
+          sourceId: SOURCE.OSM
+        },
+        geometry: {
+          value: {
+            type: "point",
+            center: center || { lat: 0, lng: 0 }
+          },
+          sourceId: SOURCE.OSM
+        },
+        photos: [],
+        address: this.extractOsmAddress(data.tags),
+        contactInfo: this.extractContactInfo(data.tags),
+        openingHours: this.extractOpeningHours(data.tags),
+        amenities: this.extractAmenities(data.tags),
+        description: this.extractDescription(data.tags),
+        sources: [
+          {
+            id: SOURCE.OSM,
+            name: "OpenStreetMap",
+            url: `https://www.openstreetmap.org/${data.type}/${data.id}`
+          }
+        ],
+        lastUpdated: new Date().toISOString(),
+        createdAt: new Date().toISOString()
       };
     }
-    const amenities = {};
-    if (nominatimPlace.extratags) {
-      const amenityFlags = [
-        "wheelchair",
-        "toilets",
-        "internet_access",
-        "outdoor_seating",
-        "smoking",
-        "takeaway",
-        "delivery",
-        "drive_through",
-        "reservation"
-      ];
-      for (const flag of amenityFlags) {
-        if (nominatimPlace.extratags[flag]) {
-          amenities[flag] = nominatimPlace.extratags[flag] === "yes";
-        }
+  };
+  extractName(tags) {
+    if (!tags)
+      return null;
+    return tags.name || tags["name:en"] || tags.brand || tags["brand:name"] || tags.operator || tags.ref || null;
+  }
+  extractDescription(tags) {
+    if (!tags)
+      return null;
+    const description = tags.description || tags["description:en"] || tags.note || tags.comment || null;
+    if (!description)
+      return null;
+    return {
+      value: description,
+      sourceId: SOURCE.OSM
+    };
+  }
+  calculatePlaceCenter(place) {
+    if (place.center) {
+      return { lat: place.center.lat, lng: place.center.lon };
+    }
+    if (place.type === "node" && place.lat && place.lon) {
+      return { lat: place.lat, lng: place.lon };
+    }
+    if (place.geometry && place.geometry.length > 0) {
+      let sumLat = 0;
+      let sumLon = 0;
+      const nodes = place.geometry;
+      for (const node of nodes) {
+        sumLat += node.lat;
+        sumLon += node.lon;
+      }
+      return {
+        lat: sumLat / nodes.length,
+        lng: sumLon / nodes.length
+      };
+    }
+    if (place.bounds) {
+      return {
+        lat: (place.bounds.minlat + place.bounds.maxlat) / 2,
+        lng: (place.bounds.minlon + place.bounds.maxlon) / 2
+      };
+    }
+    return null;
+  }
+  extractOsmAddress(tags) {
+    if (!tags)
+      return null;
+    const street = tags["addr:street"];
+    const houseNumber = tags["addr:housenumber"];
+    const city = tags["addr:city"];
+    const state = tags["addr:state"];
+    const postcode = tags["addr:postcode"];
+    const country = tags["addr:country"];
+    if (!street && !city && !postcode && !country) {
+      return null;
+    }
+    const parts = [];
+    if (street && houseNumber) {
+      parts.push(`${houseNumber} ${street}`);
+    } else if (street) {
+      parts.push(street);
+    }
+    if (city) {
+      parts.push(city);
+    }
+    if (state && postcode) {
+      parts.push(`${state} ${postcode}`);
+    } else if (state) {
+      parts.push(state);
+    } else if (postcode) {
+      parts.push(postcode);
+    }
+    if (country) {
+      parts.push(country);
+    }
+    return {
+      value: {
+        street1: street && houseNumber ? `${houseNumber} ${street}` : street || undefined,
+        street2: undefined,
+        neighborhood: tags["addr:suburb"] || undefined,
+        locality: city || tags["addr:town"] || tags["addr:village"] || undefined,
+        region: state || tags["addr:county"] || undefined,
+        postalCode: postcode || undefined,
+        country: country || undefined,
+        countryCode: tags["addr:country"] ? tags["addr:country"].toUpperCase() : undefined,
+        formatted: parts.join(", ")
+      },
+      sourceId: SOURCE.OSM
+    };
+  }
+  extractContactInfo(tags) {
+    const contactInfo = {
+      phone: null,
+      email: null,
+      website: null,
+      socials: {}
+    };
+    if (!tags)
+      return contactInfo;
+    if (tags.phone || tags["contact:phone"]) {
+      contactInfo.phone = {
+        value: tags.phone || tags["contact:phone"] || "",
+        sourceId: SOURCE.OSM
+      };
+    }
+    if (tags.email || tags["contact:email"]) {
+      contactInfo.email = {
+        value: tags.email || tags["contact:email"] || "",
+        sourceId: SOURCE.OSM
+      };
+    }
+    if (tags.website || tags["contact:website"] || tags.url) {
+      contactInfo.website = {
+        value: tags.website || tags["contact:website"] || tags.url || "",
+        sourceId: SOURCE.OSM
+      };
+    }
+    const socialPlatforms = [
+      "facebook",
+      "instagram",
+      "twitter",
+      "linkedin",
+      "youtube",
+      "tiktok"
+    ];
+    for (const platform of socialPlatforms) {
+      const value = tags[platform] || tags[`contact:${platform}`];
+      if (value) {
+        contactInfo.socials[platform] = {
+          value,
+          sourceId: SOURCE.OSM
+        };
       }
     }
-    const unifiedPlace = {
-      id,
-      externalIds,
-      name: name2,
-      placeType,
-      geometry: geometry2,
-      address,
-      contactInfo,
-      openingHours,
-      amenities,
-      photos: [],
-      sources: [
-        {
-          id: this.integrationId,
-          name: this.getDisplayName(),
-          url: ""
-        }
-      ],
-      lastUpdated: new Date().toISOString(),
-      createdAt: new Date().toISOString()
+    return contactInfo;
+  }
+  extractOpeningHours(tags) {
+    if (!tags || !tags.opening_hours)
+      return null;
+    const openingHours = tags.opening_hours;
+    const isOpen24_7 = openingHours.includes("24/7");
+    return {
+      value: {
+        regularHours: parseOpeningHoursForUnifiedFormat(openingHours) || [],
+        isOpen24_7,
+        isPermanentlyClosed: tags.disused === "yes" || tags.abandoned === "yes",
+        isTemporarilyClosed: tags.opening_hours === "closed",
+        rawText: openingHours
+      },
+      sourceId: SOURCE.OSM
     };
-    return unifiedPlace;
+  }
+  extractAmenities(tags) {
+    const amenities = {};
+    if (!tags)
+      return amenities;
+    if (tags.amenity) {
+      amenities[`type:${tags.amenity}`] = tags.amenity;
+    }
+    if (tags.shop) {
+      amenities[`type:${tags.shop}`] = tags.shop;
+    }
+    if (tags.tourism) {
+      amenities[`type:${tags.tourism}`] = tags.tourism;
+    }
+    if (tags.leisure) {
+      amenities[`type:${tags.leisure}`] = tags.leisure;
+    }
+    const amenityFlags = [
+      "wheelchair",
+      "toilets",
+      "wifi",
+      "internet_access",
+      "outdoor_seating",
+      "smoking",
+      "takeaway",
+      "delivery",
+      "drive_through",
+      "reservation",
+      "air_conditioning",
+      "payment:credit_cards",
+      "payment:debit_cards",
+      "payment:cash"
+    ];
+    for (const flag of amenityFlags) {
+      const value = tags[flag];
+      if (value) {
+        const boolValue = value === "yes" ? true : value === "no" ? false : value;
+        amenities[flag] = String(boolValue);
+      }
+    }
+    return amenities;
   }
 }
 
 // src/services/integrations/overpass-integration.ts
-class OverpassIntegration extends BaseIntegration {
+class OverpassIntegration {
+  adapter = new OverpassAdapter;
+  config = { host: "" };
   integrationId = "overpass" /* OVERPASS */;
-  capabilities = ["place_info" /* PLACE_INFO */];
   sources = [SOURCE.OSM];
-  config = {
-    host: "https://overpass.kumi.systems/api/interpreter"
-  };
-  initialize(config2) {
-    if (!this.validateConfig(config2)) {
-      throw new Error("Invalid configuration: Host is required");
+  capabilityIds = [
+    "search" /* SEARCH */,
+    "placeInfo" /* PLACE_INFO */
+  ];
+  capabilities = {
+    search: {
+      searchPlaces: this.searchPlaces.bind(this)
+    },
+    placeInfo: {
+      getPlaceInfo: this.getPlaceInfo.bind(this)
     }
-    this.config = {
-      host: config2.host
-    };
-    super.initialize(config2);
-  }
+  };
   async testConnection(config2) {
     if (!this.validateConfig(config2)) {
       return {
@@ -66559,8 +68338,43 @@ class OverpassIntegration extends BaseIntegration {
       };
     }
   }
+  initialize(config2) {
+    console.log("Overpass Integration - initialize called with config:", JSON.stringify(config2, null, 2));
+    this.config = config2;
+  }
   validateConfig(config2) {
     return Boolean(config2 && config2.host);
+  }
+  async getPlaceInfo(id) {
+    if (!this.config.host) {
+      console.error("Overpass integration not properly configured");
+      return null;
+    }
+    try {
+      console.log(`Getting place details from Overpass for ID: ${id}`);
+      if (id.startsWith("osm/")) {
+        id = id.substring(id.indexOf("/") + 1);
+      }
+      const query = this.buildPlaceQuery(id);
+      const response = await axios_default.post(this.config.host, new URLSearchParams({ data: query }), {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      });
+      if (!response.data.elements || response.data.elements.length === 0) {
+        console.error("No place found with ID:", id);
+        return null;
+      }
+      const place = response.data.elements[0];
+      const center = this.calculatePlaceCenter(place);
+      if (center) {
+        place.center = center;
+      }
+      return this.adapter.placeInfo.adaptPlaceDetails(place);
+    } catch (error2) {
+      console.error("Error fetching place from Overpass:", error2);
+      return null;
+    }
   }
   buildPlaceQuery(id) {
     const [type2, rawId] = id.includes("/") ? id.split("/") : [null, id];
@@ -66622,37 +68436,11 @@ class OverpassIntegration extends BaseIntegration {
     }
     return null;
   }
-  async getPlaceDetails(id) {
-    this.ensureInitialized();
-    try {
-      console.log(`Getting place details from Overpass for ID: ${id}`);
-      let osmId = id;
-      if (osmId.startsWith("overpass/") || osmId.startsWith("osm/")) {
-        osmId = osmId.substring(osmId.indexOf("/") + 1);
-      }
-      const query = this.buildPlaceQuery(osmId);
-      const response = await axios_default.post(this.config.host, new URLSearchParams({ data: query }), {
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded"
-        }
-      });
-      if (!response.data.elements || response.data.elements.length === 0) {
-        console.error("No place found with ID:", id);
-        return null;
-      }
-      const place = response.data.elements[0];
-      const center = this.calculatePlaceCenter(place);
-      if (center) {
-        place.center = center;
-      }
-      return place;
-    } catch (error2) {
-      console.error("Error fetching place from Overpass:", error2);
-      return null;
-    }
-  }
   async searchPlaces(query, lat, lng, radius) {
-    this.ensureInitialized();
+    if (!this.config.host) {
+      console.error("Overpass integration not properly configured");
+      return [];
+    }
     try {
       console.log(`Searching Overpass for "${query}"`);
       const overpassQuery = this.buildSearchQuery(query, lat, lng, radius);
@@ -66679,227 +68467,6 @@ class OverpassIntegration extends BaseIntegration {
       return [];
     }
   }
-  extractOsmAddress(tags) {
-    if (!tags)
-      return null;
-    const street = tags["addr:street"];
-    const houseNumber = tags["addr:housenumber"];
-    const city = tags["addr:city"];
-    const state = tags["addr:state"];
-    const postcode = tags["addr:postcode"];
-    const country = tags["addr:country"];
-    if (!street && !city && !postcode && !country) {
-      return null;
-    }
-    const parts = [];
-    if (street && houseNumber) {
-      parts.push(`${houseNumber} ${street}`);
-    } else if (street) {
-      parts.push(street);
-    }
-    if (city) {
-      parts.push(city);
-    }
-    if (state && postcode) {
-      parts.push(`${state} ${postcode}`);
-    } else if (state) {
-      parts.push(state);
-    } else if (postcode) {
-      parts.push(postcode);
-    }
-    if (country) {
-      parts.push(country);
-    }
-    return {
-      value: {
-        street1: street && houseNumber ? `${houseNumber} ${street}` : street || null,
-        street2: null,
-        neighborhood: tags["addr:suburb"] || null,
-        locality: city || tags["addr:town"] || tags["addr:village"] || null,
-        region: state || tags["addr:county"] || null,
-        postalCode: postcode || null,
-        country: country || null,
-        countryCode: tags["addr:country"] ? tags["addr:country"].toUpperCase() : null,
-        formatted: parts.join(", ")
-      },
-      sourceId: SOURCE.OSM
-    };
-  }
-  extractContactInfo(tags) {
-    const contactInfo = {};
-    if (tags.phone || tags["contact:phone"]) {
-      contactInfo.phone = {
-        value: tags.phone || tags["contact:phone"] || "",
-        sourceId: SOURCE.OSM
-      };
-    }
-    if (tags.email || tags["contact:email"]) {
-      contactInfo.email = {
-        value: tags.email || tags["contact:email"] || "",
-        sourceId: SOURCE.OSM
-      };
-    }
-    if (tags.website || tags["contact:website"] || tags.url) {
-      contactInfo.website = {
-        value: tags.website || tags["contact:website"] || tags.url || "",
-        sourceId: SOURCE.OSM
-      };
-    }
-    const socials = {};
-    const socialPlatforms = [
-      "facebook",
-      "instagram",
-      "twitter",
-      "linkedin",
-      "youtube",
-      "tiktok"
-    ];
-    for (const platform of socialPlatforms) {
-      const value = tags[platform] || tags[`contact:${platform}`];
-      if (value) {
-        socials[platform] = {
-          value,
-          sourceId: SOURCE.OSM
-        };
-      }
-    }
-    return { contactInfo, socials };
-  }
-  extractOpeningHours(tags) {
-    if (!tags || !tags.opening_hours)
-      return null;
-    const openingHours = tags.opening_hours;
-    const isOpen24_7 = openingHours.includes("24/7");
-    return {
-      value: {
-        regularHours: parseOpeningHoursForUnifiedFormat(openingHours) || [],
-        isOpen24_7,
-        isPermanentlyClosed: tags.disused === "yes" || tags.abandoned === "yes",
-        isTemporarilyClosed: tags.opening_hours === "closed",
-        rawText: openingHours
-      },
-      sourceId: SOURCE.OSM
-    };
-  }
-  extractAmenities(tags) {
-    const amenities = {};
-    const amenityFlags = [
-      "wheelchair",
-      "toilets",
-      "wifi",
-      "internet_access",
-      "outdoor_seating",
-      "smoking",
-      "takeaway",
-      "delivery",
-      "drive_through",
-      "reservation",
-      "air_conditioning",
-      "payment:credit_cards",
-      "payment:debit_cards",
-      "payment:cash"
-    ];
-    for (const flag of amenityFlags) {
-      const value = tags[flag];
-      if (value) {
-        const boolValue = value === "yes" ? true : value === "no" ? false : value;
-        amenities[flag] = [
-          {
-            value: boolValue,
-            sourceId: SOURCE.OSM
-          }
-        ];
-      }
-    }
-    return amenities;
-  }
-  createUnifiedPlace(osmPlace, id) {
-    if (!osmPlace) {
-      throw new Error("OSM place data is null or undefined");
-    }
-    const placeId = id || `${this.integrationId}/${osmPlace.id || this.generateRandomId()}`;
-    let osmId = osmPlace.id ? `${osmPlace.type}/${osmPlace.id}` : null;
-    const externalIds = {};
-    if (osmId) {
-      externalIds[SOURCE.OSM] = osmId;
-    }
-    externalIds[SOURCE.OVERPASS] = placeId;
-    const name2 = osmPlace.tags?.name || osmPlace.tags?.["brand:name"] || "Unknown place";
-    const placeType = getPlaceType(osmPlace.tags || {});
-    let geometry2;
-    if (osmPlace.center) {
-      geometry2 = {
-        type: osmPlace.type === "node" ? "point" : "polygon",
-        center: {
-          lat: osmPlace.center.lat,
-          lng: osmPlace.center.lon
-        }
-      };
-    } else if (osmPlace.lat && osmPlace.lon) {
-      geometry2 = {
-        type: "point",
-        center: {
-          lat: osmPlace.lat,
-          lng: osmPlace.lon
-        }
-      };
-    } else {
-      geometry2 = {
-        type: "point",
-        center: {
-          lat: 0,
-          lng: 0
-        }
-      };
-    }
-    if (osmPlace.bounds) {
-      geometry2.bounds = {
-        minLat: osmPlace.bounds.minlat,
-        minLng: osmPlace.bounds.minlon,
-        maxLat: osmPlace.bounds.maxlat,
-        maxLng: osmPlace.bounds.maxlon
-      };
-    }
-    if (osmPlace.geometry && Array.isArray(osmPlace.geometry)) {
-      geometry2.nodes = osmPlace.geometry.map((node) => ({
-        lat: node.lat,
-        lng: node.lon
-      }));
-    }
-    const address = this.extractOsmAddress(osmPlace.tags || {});
-    const { contactInfo, socials } = this.extractContactInfo(osmPlace.tags || {});
-    const openingHours = this.extractOpeningHours(osmPlace.tags || {});
-    const amenities = this.extractAmenities(osmPlace.tags || {});
-    const unifiedPlace = {
-      id: placeId,
-      externalIds,
-      name: name2,
-      placeType,
-      geometry: geometry2,
-      photos: [],
-      address: address ? address.value : null,
-      contactInfo: {
-        phone: contactInfo.phone || null,
-        email: contactInfo.email || null,
-        website: contactInfo.website || null,
-        socials: socials || {}
-      },
-      openingHours: openingHours ? openingHours.value : null,
-      amenities: {},
-      sources: [
-        {
-          id: SOURCE.OSM,
-          name: "OpenStreetMap",
-          url: `https://www.openstreetmap.org/${osmPlace.type}/${osmPlace.id}`,
-          updated: osmPlace.timestamp,
-          updatedBy: osmPlace.user
-        }
-      ],
-      lastUpdated: osmPlace.timestamp || new Date().toISOString(),
-      createdAt: new Date().toISOString()
-    };
-    return unifiedPlace;
-  }
 }
 
 // src/services/integrations/integration-registry.ts
@@ -66920,12 +68487,18 @@ class IntegrationRegistry {
   getIntegration(integrationId) {
     return this.integrations.get(integrationId);
   }
-  getAllIntegrations() {
-    return Array.from(this.integrations.values());
+}
+
+// src/lib/integration.utils.ts
+async function initializeWithTest(integration, config2) {
+  if (!integration.validateConfig(config2)) {
+    throw new Error(`Invalid configuration for ${integration.integrationId} integration`);
   }
-  getIntegrationsByCapability(capability) {
-    return this.getAllIntegrations().filter((integration) => integration.capabilities.includes(capability));
+  const testResult = await integration.testConnection(config2);
+  if (!testResult.success) {
+    throw new Error(`Connection test failed for ${integration.integrationId}: ${testResult.message}`);
   }
+  integration.initialize(config2);
 }
 
 // src/services/integrations/integration-manager.service.ts
@@ -66947,39 +68520,32 @@ class IntegrationManagerService {
     }
     return integration.testConnection(config2);
   }
-  initializeIntegration(userId, integrationData) {
+  async initializeIntegration(userId, integrationData) {
     const integrationImpl = this.registry.getIntegration(integrationData.integrationId);
     if (!integrationImpl) {
-      console.error(`Integration implementation for ${integrationData.integrationId} not found`);
       return;
     }
-    try {
-      const integrationInstance = Object.create(Object.getPrototypeOf(integrationImpl), Object.getOwnPropertyDescriptors(integrationImpl));
-      integrationInstance.initialize(integrationData.config);
-      const cacheKey = userId ? `${userId}:${integrationData.id}` : `system:${integrationData.id}`;
-      this.integrationsCache.set(cacheKey, {
-        userId,
-        id: integrationData.id,
-        integrationId: integrationData.integrationId,
-        integration: integrationInstance,
-        capabilities: integrationData.capabilities,
-        config: integrationData.config
-      });
-      if (userId) {
-        const userIntegrations = this.userIntegrationsCache.get(userId) || [];
-        if (!userIntegrations.includes(cacheKey)) {
-          userIntegrations.push(cacheKey);
-          this.userIntegrationsCache.set(userId, userIntegrations);
-        }
-        console.log(`Initialized and cached integration ${integrationData.id} for user ${userId}`);
-      } else {
-        if (!this.systemIntegrationsCache.includes(cacheKey)) {
-          this.systemIntegrationsCache.push(cacheKey);
-        }
-        console.log(`Initialized and cached system-wide integration ${integrationData.integrationId}`);
+    const integrationInstance = this.cloneIntegration(integrationImpl);
+    await initializeWithTest(integrationInstance, integrationData.config);
+    const cacheKey = userId ? `${userId}:${integrationData.id}` : `system:${integrationData.id}`;
+    this.integrationsCache.set(cacheKey, {
+      userId,
+      id: integrationData.id,
+      integrationId: integrationData.integrationId,
+      integration: integrationInstance,
+      capabilities: integrationData.capabilities,
+      config: integrationData.config
+    });
+    if (userId) {
+      const userIntegrations = this.userIntegrationsCache.get(userId) || [];
+      if (!userIntegrations.includes(cacheKey)) {
+        userIntegrations.push(cacheKey);
+        this.userIntegrationsCache.set(userId, userIntegrations);
       }
-    } catch (error2) {
-      console.error(`Failed to initialize integration ${integrationData.integrationId}:`, error2);
+    } else {
+      if (!this.systemIntegrationsCache.includes(cacheKey)) {
+        this.systemIntegrationsCache.push(cacheKey);
+      }
     }
   }
   getIntegration(userId, integrationId) {
@@ -67015,10 +68581,8 @@ class IntegrationManagerService {
       const userIntegrations = this.userIntegrationsCache.get(userId) || [];
       const updatedIntegrations = userIntegrations.filter((key) => key !== cacheKey);
       this.userIntegrationsCache.set(userId, updatedIntegrations);
-      console.log(`Removed integration ${integrationId} from cache for user ${userId}`);
     } else {
       this.systemIntegrationsCache = this.systemIntegrationsCache.filter((key) => key !== cacheKey);
-      console.log(`Removed system-wide integration ${integrationId} from cache`);
     }
   }
   clearUserIntegrations(userId) {
@@ -67028,13 +68592,11 @@ class IntegrationManagerService {
         this.integrationsCache.delete(cacheKey);
       }
       this.userIntegrationsCache.delete(userId);
-      console.log(`Cleared all integrations from cache for user ${userId}`);
     } else {
       for (const cacheKey of this.systemIntegrationsCache) {
         this.integrationsCache.delete(cacheKey);
       }
       this.systemIntegrationsCache = [];
-      console.log(`Cleared all system-wide integrations from cache`);
     }
   }
   getIntegrationRegistry() {
@@ -67042,11 +68604,12 @@ class IntegrationManagerService {
   }
   getIntegrationsByCapability(capabilityId) {
     const result = [];
-    this.integrationsCache.forEach((cachedIntegration) => {
-      if (cachedIntegration.capabilities.some((cap) => cap.id === capabilityId && cap.active)) {
+    for (const [cacheKey, cachedIntegration] of this.integrationsCache) {
+      const hasCapability = cachedIntegration.capabilities.some((cap) => cap.id === capabilityId && cap.active);
+      if (hasCapability) {
         result.push(cachedIntegration);
       }
-    });
+    }
     return result;
   }
   getIntegrationById(id) {
@@ -67058,30 +68621,18 @@ class IntegrationManagerService {
     });
     return result;
   }
-  async getPlaceDetails(integrationId, placeId) {
-    const integration = this.getIntegrationById(integrationId);
-    if (!integration) {
-      console.error(`No integration found with ID: ${integrationId}`);
-      return null;
-    }
-    if (!integration.integration.getPlaceDetails) {
-      console.error(`Integration ${integrationId} does not support getPlaceDetails`);
-      return null;
-    }
-    try {
-      return await integration.integration.getPlaceDetails(placeId);
-    } catch (error2) {
-      console.error(`Error getting place details from ${integrationId}:`, error2);
-      return null;
-    }
-  }
   getIntegrationCapabilities(integrationId) {
     const integration = this.registry.getIntegration(integrationId);
     if (!integration) {
       console.warn(`Integration with ID ${integrationId} not found`);
       return [];
     }
-    return integration.capabilities;
+    return integration.capabilityIds;
+  }
+  cloneIntegration(integration) {
+    const IntegrationClass = integration.constructor;
+    const clonedIntegration = new IntegrationClass;
+    return clonedIntegration;
   }
 }
 
@@ -67104,101 +68655,42 @@ async function addBookmarkInfo(places, userId) {
     console.error("Error adding bookmark information:", error2);
   }
 }
-var getPlaceAutocomplete = async (query, coordinates, radius = 1e4) => {
-  if (!query || query.length < 2) {
-    return [];
-  }
-  const autocompleteResults = await fetchAutocompleteResults(query, coordinates?.lat, coordinates?.lng, radius);
-  const deduped = deduplicatePlacesResults(autocompleteResults);
-  if (coordinates) {
-    const fromPoint = point2([coordinates.lng, coordinates.lat]);
-    deduped.sort((a13, b2) => {
-      const distanceA = distance(fromPoint, point2([a13.geometry.value.center.lng, a13.geometry.value.center.lat]), { units: "meters" });
-      const distanceB = distance(fromPoint, point2([b2.geometry.value.center.lng, b2.geometry.value.center.lat]), { units: "meters" });
-      return distanceA - distanceB;
-    });
-  }
-  return deduped;
-};
-async function fetchAutocompleteResults(query, lat, lng, radius) {
-  const activeIntegrations = integrationManager.getIntegrationsByCapability("autocomplete" /* AUTOCOMPLETE */);
-  if (activeIntegrations.length === 0) {
-    return [];
-  }
-  const results = await Promise.all(activeIntegrations.map(async (cachedIntegration) => {
-    try {
-      if (!cachedIntegration.integration.getAutocomplete) {
-        return [];
-      }
-      const predictions = await cachedIntegration.integration.getAutocomplete(query, lat, lng, radius);
-      console.log(`Got ${predictions.length} predictions from ${cachedIntegration.integration.integrationId}`);
-      return predictions.map((prediction) => {
-        return cachedIntegration.integration.createUnifiedPlace(prediction);
-      });
-    } catch (error2) {
-      console.error(`Error getting autocomplete from ${cachedIntegration.integration.integrationId}:`, error2);
-      return [];
-    }
-  }));
-  return results.flat();
-}
 async function lookupPlaceById(source, placeId) {
   try {
-    const integration2 = integrationManager.getIntegrationForSource(source, "place_info" /* PLACE_INFO */);
+    const integration2 = integrationManager.getIntegrationForSource(source, "placeInfo" /* PLACE_INFO */);
     if (!integration2)
       return null;
-    const { integrationId } = integration2;
-    const placeData = await integrationManager.getPlaceDetails(integrationId, placeId);
-    const unifiedPlace = integration2.integration.createUnifiedPlace(placeData, `${integrationId}/${placeId}`);
-    return unifiedPlace;
+    return await integration2.integration.capabilities.placeInfo?.getPlaceInfo(placeId) ?? null;
   } catch (error2) {
     return null;
   }
 }
 async function lookupPlacesByNameAndLocation(name2, coordinates, options) {
   try {
-    const { radius = 500, sourceBlacklist = [] } = options || {};
-    const geocodingIntegrations = integrationManager.getIntegrationsByCapability("geocoding" /* GEOCODING */).filter((integration2) => {
+    const {
+      radius = 500,
+      sourceBlacklist = [],
+      autocomplete = false
+    } = options || {};
+    const integrations = integrationManager.getIntegrationsByCapability(autocomplete ? "autocomplete" /* AUTOCOMPLETE */ : "search" /* SEARCH */).filter((integration2) => {
       return !integration2.integration.sources.some((source) => sourceBlacklist.includes(source));
     });
-    if (geocodingIntegrations.length === 0) {
+    if (integrations.length === 0) {
       return [];
     }
-    console.log(`Found ${geocodingIntegrations.length} geocoding integrations`);
-    const searchPromises = geocodingIntegrations.map(async (integration2) => {
-      try {
-        if (!integration2.integration.searchPlaces) {
-          console.log(`Integration ${integration2.integrationId} doesn't implement searchPlaces`);
-          return [];
-        }
-        const results = await integration2.integration.searchPlaces(name2, coordinates.lat, coordinates.lng, radius);
-        if (!results || results.length === 0) {
-          return [];
-        }
-        console.log(`Got ${results.length} results from ${integration2.integrationId}`);
-        const unifiedPlaces = results.map((result) => integration2.integration.createUnifiedPlace(result, `${integration2.integrationId}/${result.id || "unknown"}`));
-        const sorted = unifiedPlaces.sort((a13, b2) => {
-          const fromPoint = point2([coordinates.lng, coordinates.lat]);
-          const distanceA = distance(fromPoint, point2([
-            a13.geometry.value.center.lng,
-            a13.geometry.value.center.lat
-          ]));
-          const distanceB = distance(fromPoint, point2([
-            b2.geometry.value.center.lng,
-            b2.geometry.value.center.lat
-          ]));
-          return distanceA - distanceB;
-        });
-        return sorted;
-      } catch (error2) {
-        console.error(`Error searching places with ${integration2.integrationId}:`, error2);
-        return [];
+    const searchPromises = integrations.map(async (integration2) => {
+      if (autocomplete) {
+        return integration2.integration.capabilities.autocomplete?.getAutocomplete(name2, coordinates.lat, coordinates.lng);
+      } else {
+        return integration2.integration.capabilities.search?.searchPlaces(name2, coordinates.lat, coordinates.lng);
       }
     });
-    const searchResults = await Promise.all(searchPromises);
-    const allResults = searchResults.flat();
-    console.log(`Found ${allResults.length} total results from all providers`);
-    return allResults;
+    const results = (await Promise.all(searchPromises)).flat().filter((result) => result !== null);
+    return mergePlacesCollection(results).sort((a14, b3) => {
+      const distanceA = distance(point2([coordinates.lng, coordinates.lat]), point2([a14.geometry.value.center.lng, a14.geometry.value.center.lat]), { units: "meters" });
+      const distanceB = distance(point2([coordinates.lng, coordinates.lat]), point2([b3.geometry.value.center.lng, b3.geometry.value.center.lat]), { units: "meters" });
+      return distanceA - distanceB;
+    });
   } catch (error2) {
     console.error("Error looking up places by name and coordinates:", error2);
     return [];
@@ -67206,25 +68698,30 @@ async function lookupPlacesByNameAndLocation(name2, coordinates, options) {
 }
 async function lookupPlaceByNameAndLocation(name2, coordinates, options) {
   try {
-    const { userId, radius = 500, sourceBlacklist = [] } = options || {};
+    const {
+      userId,
+      radius = 500,
+      sourceBlacklist = [],
+      autocomplete = false
+    } = options || {};
     const places = await lookupPlacesByNameAndLocation(name2, coordinates, {
       radius,
-      sourceBlacklist
+      sourceBlacklist,
+      autocomplete
     });
     if (places.length === 0) {
       return null;
     }
-    const dedupedPlaces = deduplicatePlacesResults(places);
-    if (userId && dedupedPlaces.length > 0) {
-      await addBookmarkInfo(dedupedPlaces, userId);
+    if (userId && places.length > 0) {
+      await addBookmarkInfo(places, userId);
     }
-    return dedupedPlaces[0] || null;
+    return places[0] || null;
   } catch (error2) {
     console.error("Error getting place by name and coordinates:", error2);
     return null;
   }
 }
-async function lookupAndMergePlaceById(source, id, options) {
+async function lookupEnrichedPlaceById(source, id, options) {
   try {
     const { userId } = options || {};
     let place = await lookupPlaceById(source, id);
@@ -67257,10 +68754,9 @@ async function lookupAndMergePlaceById(source, id, options) {
 // src/controllers/place.controller.ts
 var app4 = new Elysia({ prefix: "/places" }).use(getSession);
 app4.get("/lookup", async ({ query, user }) => {
-  const { provider, id, name: name2, lat, lng, radius = 500 } = query;
-  const source = provider;
-  const isIdLookup = source && id;
-  const isNameLocationLookup = name2 && lat && lng;
+  const { source, id, name: name2, lat, lng, radius = 500 } = query;
+  const isIdLookup = Boolean(source) && Boolean(id);
+  const isNameLocationLookup = Boolean(name2) && Boolean(lat) && Boolean(lng);
   if (!isIdLookup && !isNameLocationLookup) {
     return error(400, {
       message: "Please provide either provider+id, or name+lat+lng"
@@ -67270,24 +68766,24 @@ app4.get("/lookup", async ({ query, user }) => {
   try {
     if (isIdLookup) {
       if (source === SOURCE.OSM) {
-        const [osmType, rawId] = id.includes("/") ? id.split("/") : [null, id];
+        const [osmType, rawId] = id?.includes("/") ? id.split("/") : [null, id];
         if (!osmType || !["node", "way", "relation"].includes(osmType)) {
           return error(400, {
             message: 'Invalid OSM type. Format should be "type/id" where type is node, way, or relation.'
           });
         }
       }
-      place = await lookupAndMergePlaceById(source, id, {
+      place = await lookupEnrichedPlaceById(source, id, {
         userId: user?.id
       });
     } else if (isNameLocationLookup) {
       const coordinates = {
-        lat: parseFloat(lat),
-        lng: parseFloat(lng)
+        lat,
+        lng
       };
       place = await lookupPlaceByNameAndLocation(name2, coordinates, {
         userId: user?.id,
-        radius: parseInt(radius)
+        radius: Math.round(radius)
       });
     }
     if (!place) {
@@ -67304,58 +68800,54 @@ app4.get("/lookup", async ({ query, user }) => {
   }
 }, {
   query: t.Object({
-    provider: t.Optional(t.String()),
+    source: t.Optional(t.Enum(SOURCE)),
     id: t.Optional(t.String()),
     name: t.Optional(t.String()),
-    lat: t.Optional(t.String()),
-    lng: t.Optional(t.String()),
-    radius: t.Optional(t.String())
+    lat: t.Optional(t.Number()),
+    lng: t.Optional(t.Number()),
+    radius: t.Optional(t.Number()),
+    autocomplete: t.Optional(t.Boolean())
   })
 });
 app4.get("/autocomplete", async ({ query }) => {
-  const { q, lat, lng, radius = 1e4 } = query;
-  console.log(`Autocomplete request: q="${q}", lat=${lat}, lng=${lng}, radius=${radius}`);
-  if (!q) {
+  const { q: q2, lat, lng, radius = 1e4 } = query;
+  if (!q2) {
     return error(400, { message: "Search query is required" });
   }
-  if (q.length < 2) {
+  if (q2.length < 2) {
     return error(400, { message: "Query must be at least 2 characters" });
   }
-  const coordinates = lat && lng ? { lat: parseFloat(lat), lng: parseFloat(lng) } : undefined;
-  const places = await getPlaceAutocomplete(q, coordinates, parseInt(radius));
-  console.log(`Returning ${places.length} places for autocomplete`);
-  console.log(`Sources breakdown: ${places.reduce((acc, place) => {
-    const source = place.sources[0]?.id || "unknown";
-    acc[source] = (acc[source] || 0) + 1;
-    return acc;
-  }, {})}`);
+  const places = await lookupPlacesByNameAndLocation(q2, { lat, lng }, {
+    radius: parseInt(radius),
+    autocomplete: true
+  });
   return {
-    query: q,
+    query: q2,
     places
   };
 }, {
   query: t.Object({
     q: t.String(),
-    lat: t.Optional(t.String()),
-    lng: t.Optional(t.String()),
+    lat: t.Number(),
+    lng: t.Number(),
     radius: t.Optional(t.String())
   })
 });
 app4.get("/search", async ({ query, user }) => {
-  const { q, lat, lng, radius = 1000 } = query;
-  if (!q) {
+  const { q: q2, lat, lng, radius = 1000 } = query;
+  if (!q2) {
     return error(400, { message: "Search query is required" });
   }
   if (!lat || !lng) {
     return error(400, { message: "Latitude and longitude are required" });
   }
   const coordinates = { lat: parseFloat(lat), lng: parseFloat(lng) };
-  const results = await lookupPlacesByNameAndLocation(q, coordinates, {
+  const results = await lookupPlacesByNameAndLocation(q2, coordinates, {
     radius: parseInt(radius),
     userId: user?.id
   });
   return {
-    query: q,
+    query: q2,
     results
   };
 }, {
@@ -67370,9 +68862,9 @@ var place_controller_default = app4;
 // src/controllers/proxy.controller.ts
 var app5 = new Elysia({ prefix: "/proxy" });
 app5.get("/loom/:service/geo/:z/:x/:y", async ({ params }) => {
-  const { service, z, x, y } = params;
+  const { service, z: z2, x: x2, y: y2 } = params;
   try {
-    const targetUrl = `https://loom.cs.uni-freiburg.de/tiles/${service}/geo/${z}/${x}/${y}.mvt`;
+    const targetUrl = `https://loom.cs.uni-freiburg.de/tiles/${service}/geo/${z2}/${x2}/${y2}.mvt`;
     const response = await fetch(targetUrl);
     if (!response.ok) {
       throw new Error(`Failed to fetch from Loom: ${response.status} ${response.statusText}`);
@@ -67712,17 +69204,27 @@ async function initializeIntegrations() {
     await getConfiguredIntegrations(user.id);
   }
 }
-function parseIntegrationData(integrationRecord) {
-  const parsedConfig = JSON.parse(integrationRecord.config);
-  const parsedCapabilities = JSON.parse(integrationRecord.capabilities);
-  if (parsedConfig.capabilities) {
-    delete parsedConfig.capabilities;
+function parseIntegrationData(record) {
+  let config2;
+  try {
+    config2 = JSON.parse(record.config);
+  } catch (error2) {
+    console.error("Failed to parse integration config:", error2);
+    config2 = {};
+  }
+  const cleanedConfig = cleanConfig(config2);
+  let capabilities;
+  try {
+    capabilities = JSON.parse(record.capabilities);
+  } catch (error2) {
+    console.error("Failed to parse integration capabilities:", error2);
+    capabilities = [];
   }
   return {
-    id: integrationRecord.id,
-    integrationId: integrationRecord.integrationId,
-    capabilities: parsedCapabilities,
-    config: parsedConfig
+    id: record.id,
+    integrationId: record.integrationId,
+    capabilities,
+    config: cleanedConfig
   };
 }
 function cleanConfig(config2) {
@@ -67744,14 +69246,12 @@ async function getConfiguredIntegrations(userId) {
     userIntegrations = await db.select().from(integrations).where(eq(integrations.userId, userId));
   }
   const parsedIntegrations = userIntegrations.map(parseIntegrationData);
-  parsedIntegrations.forEach((integration2) => {
-    integrationManager.initializeIntegration(userId, integration2);
-  });
+  await Promise.all(parsedIntegrations.map((integration2) => integrationManager.initializeIntegration(userId, integration2)));
   return parsedIntegrations;
 }
 async function getAvailableIntegrationsForUser(userId) {
   const userIntegrations = await db.select().from(integrations).where(or(eq(integrations.userId, userId), isNull(integrations.userId)));
-  const configuredIds = new Set(userIntegrations.map((i) => i.integrationId));
+  const configuredIds = new Set(userIntegrations.map((i2) => i2.integrationId));
   return availableIntegrations.filter((integration2) => !configuredIds.has(integration2.id));
 }
 async function getIntegration(id, userId) {
@@ -67768,7 +69268,7 @@ async function getIntegration(id, userId) {
     return null;
   }
   const integration2 = parseIntegrationData(result[0]);
-  integrationManager.initializeIntegration(userId, integration2);
+  await integrationManager.initializeIntegration(userId, integration2);
   return integration2;
 }
 async function createIntegration(userId, integrationId, config2, customCapabilities) {
@@ -67798,7 +69298,7 @@ async function createIntegration(userId, integrationId, config2, customCapabilit
   }
   const result = await db.insert(integrations).values(values2).returning();
   const newIntegration = parseIntegrationData(result[0]);
-  integrationManager.initializeIntegration(userId, newIntegration);
+  await integrationManager.initializeIntegration(userId, newIntegration);
   return newIntegration;
 }
 async function updateIntegration(id, userId, updates) {
@@ -67833,7 +69333,7 @@ async function updateIntegration(id, userId, updates) {
   if (!updatedIntegration) {
     throw new Error("Failed to retrieve updated integration");
   }
-  integrationManager.initializeIntegration(userId, updatedIntegration);
+  await integrationManager.initializeIntegration(userId, updatedIntegration);
   return updatedIntegration;
 }
 async function deleteIntegration(id, userId) {
@@ -68010,6 +69510,13 @@ app7.onError(({ code }) => {
   if (code === "NOT_FOUND")
     return "Route not found :(";
 });
-app7.listen(process.env.PORT || 5000);
+var hostname2 = "0.0.0.0";
+var port = process.env.PORT || 5000;
+app7.listen({
+  hostname: hostname2,
+  port
+});
 console.log(`\uD83E\uDD8A Elysia is running at ${app7.server?.hostname}:${app7.server?.port}`);
-initializeIntegrations();
+initializeIntegrations().catch((error2) => {
+  console.error("Failed to initialize integrations:", error2);
+});

@@ -14,10 +14,11 @@ import {
 } from 'lucide-vue-next'
 import { MapEngine } from '@/types/map.types'
 import colors from 'tailwindcss/colors'
+import { useServerUrl } from '@/lib/api'
 
 const mapboxAccessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 const mapillaryAccessToken = import.meta.env.VITE_MAPILLARY_ACCESS_TOKEN
-const serverOrigin = import.meta.env.VITE_SERVER_ORIGIN
+const serverUrl = useServerUrl()
 
 const mapillaryOverview: Layer = {
   name: 'Mapillary Overview',
@@ -208,7 +209,7 @@ const loomLightRail: Layer = {
     source: {
       id: 'loom-light-rail',
       type: SourceType.VECTOR,
-      tiles: [`${serverOrigin}/proxy/loom/subway-lightrail/geo/{z}/{x}/{y}`],
+      tiles: [`${serverUrl.value}/proxy/loom/subway-lightrail/geo/{z}/{x}/{y}`],
       maxzoom: 17,
     },
     'source-layer': 'lines',
@@ -240,7 +241,7 @@ const loomTram: Layer = {
     source: {
       id: 'loom-tram',
       type: SourceType.VECTOR,
-      tiles: [`${serverOrigin}/proxy/loom/tram/geo/{z}/{x}/{y}`],
+      tiles: [`${serverUrl.value}/proxy/loom/tram/geo/{z}/{x}/{y}`],
       maxzoom: 17,
     },
     'source-layer': 'lines',
@@ -272,7 +273,7 @@ const loomRailCommuter: Layer = {
     source: {
       id: 'loom-rail-commuter',
       type: SourceType.VECTOR,
-      tiles: [`${serverOrigin}/proxy/loom/rail-commuter/geo/{z}/{x}/{y}`],
+      tiles: [`${serverUrl.value}/proxy/loom/rail-commuter/geo/{z}/{x}/{y}`],
       maxzoom: 17,
     },
     'source-layer': 'lines',
@@ -304,7 +305,7 @@ const loomRail: Layer = {
     source: {
       id: 'loom-rail',
       type: SourceType.VECTOR,
-      tiles: [`${serverOrigin}/proxy/loom/rail/geo/{z}/{x}/{y}`],
+      tiles: [`${serverUrl.value}/proxy/loom/rail/geo/{z}/{x}/{y}`],
       maxzoom: 17,
     },
     'source-layer': 'lines',

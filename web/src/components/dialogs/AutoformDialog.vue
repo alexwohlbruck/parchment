@@ -15,8 +15,15 @@ import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 
-const { title, description, continueText, cancelText, schema, initialValues } =
-  defineProps<AutoFormDialogOptions>()
+const {
+  title,
+  description,
+  continueText,
+  cancelText,
+  schema,
+  initialValues,
+  fieldConfig,
+} = defineProps<AutoFormDialogOptions>()
 
 const emit = defineEmits<{
   (e: 'submit', payload: Record<string, any> | null): void
@@ -39,6 +46,7 @@ function onSubmit(values: Record<string, any>) {
         <AutoForm
           :schema="schema"
           :initial-values="initialValues"
+          :field-config="fieldConfig"
           @submit="onSubmit"
           class="space-y-3"
         >

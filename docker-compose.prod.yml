@@ -2,14 +2,10 @@ volumes:
   server-db:
   server-data:
 
-networks:
-  default:
-    driver: bridge
-
 services:
   # Parchment backend server DB
-  server-db:
-    container_name: server-db
+  parchment-db:
+    container_name: parchment-db
     image: postgres:latest
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
@@ -22,12 +18,12 @@ services:
     restart: unless-stopped
 
   # Parchment backend (Elysia)
-  server:
+  parchment-server:
     container_name: parchment-server
     image: alexwohlbruck/parchment-server:latest
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@server-db:5432/${POSTGRES_DB}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@parchment-db:5432/${POSTGRES_DB}
       SERVER_ORIGIN: ${SERVER_ORIGIN}
       CLIENT_ORIGIN: ${CLIENT_ORIGIN}
       GMAIL_EMAIL: ${GMAIL_EMAIL}
@@ -38,11 +34,11 @@ services:
     volumes:
       - server-data:/app/data
     depends_on:
-      - server-db
+      - parchment-db
     restart: unless-stopped
 
   # Web frontend (Vue)
-  web:
+  parchment-web:
     container_name: parchment-web
     image: alexwohlbruck/parchment-web:latest
     environment:
@@ -55,5 +51,5 @@ services:
     ports:
       - '5173:5173'
     depends_on:
-      - server
+      - parchment-server
     restart: unless-stopped

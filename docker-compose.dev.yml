@@ -23,8 +23,8 @@ services:
   #     - '5433:5432'
 
   # Parchment backend server DB
-  server-db:
-    container_name: server-db
+  parchment-db:
+    container_name: parchment-db
     image: postgres:latest
     network_mode: host
     environment:
@@ -37,7 +37,7 @@ services:
       - '5432:5432'
 
   # Parchment backend (Elysia)
-  server:
+  parchment-server:
     container_name: parchment-server
     build:
       context: .
@@ -52,13 +52,13 @@ services:
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
       APP_TESTER_EMAIL: ${APP_TESTER_EMAIL}
     depends_on:
-      - server-db
+      - parchment-db
     volumes:
       - ./server:/app/server
       - /app/server/node_modules
 
   # Web frontend (Vue)
-  web:
+  parchment-web:
     container_name: parchment-web
     build:
       context: .
@@ -78,4 +78,4 @@ services:
       - /app/web/node_modules
       - ./server/src/types:/app/server/src/types
     depends_on:
-      - server
+      - parchment-server

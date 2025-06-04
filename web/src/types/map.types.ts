@@ -93,7 +93,7 @@ export enum SourceType {
   RASTER_DEM = 'raster-dem',
 }
 
-export type Source = {
+export type TileSource = {
   id: string
   type: SourceType
   url?: string
@@ -137,7 +137,7 @@ export enum MaplibreLayerType {
 export type MapboxLayerConfiguration = {
   id: string
   type: MapboxLayerType
-  source: string | Source
+  source: string | TileSource
   slot?: string
   // Allow any additional properties for layer-specific configuration
   [key: string]: any
@@ -146,7 +146,7 @@ export type MapboxLayerConfiguration = {
 export type MaplibreLayerConfiguration = {
   id: string
   type: MaplibreLayerType
-  source: string | Source
+  source: string | TileSource
   // Allow any additional properties for layer-specific configuration
   [key: string]: any
 }
@@ -198,33 +198,6 @@ export type Pegman = {
   position: LngLat
   fov: number
   visible?: boolean
-}
-
-export type Place = {
-  id: number
-  type: 'node' | 'way' | 'relation'
-  tags: Record<string, string | undefined>
-  lat?: number
-  lon?: number
-  version: number
-  user: string
-  center?: {
-    lat: number
-    lon: number
-  }
-  geometry?: Array<{
-    lat: number
-    lon: number
-  }>
-  bounds?: {
-    minlat: number
-    minlon: number
-    maxlat: number
-    maxlon: number
-  }
-  placeType?: string
-  image?: string | null
-  brandLogo?: string | null
 }
 
 export const MarkerIds = {

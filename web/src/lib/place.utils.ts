@@ -1,5 +1,71 @@
-import { Place } from '@/types/map.types'
-import { OpeningTime } from '@/types/unified-place.types'
+import { Place } from '@/types/place.types'
+import { OpeningTime } from '@/types/place.types'
+import { RouteLocationRaw } from 'vue-router'
+import { AppRoute } from '@/router'
+
+/**
+ * Parse a place ID string and returns the appropriate route object
+ *
+ * @param placeId The place ID string (e.g., "osm/node/123456", "google/abc123", "location/name/lat/lng")
+ * @returns A route object that can be used with router.push()
+ */
+export function getPlaceRoute(placeId: string): RouteLocationRaw {
+  console.log(`getPlaceRoute called with placeId: "${placeId}"`)
+
+  // OSM format: "osm/node/123456789"
+  if (placeId.startsWith('osm/')) {
+    const parts = placeId.substring(4).split('/')
+    if (parts.length >= 2) {
+      console.log(`Parsed as OSM route: type=${parts[0]}, id=${parts[1]}`)
+      return {
+        name: AppRoute.PLACE,
+        params: {
+          type: parts[0],
+          id: parts[1],
+        },
+      }
+    }
+  }
+  // Location format: "location/name/lat/lng"
+  else if (placeId.startsWith('location/')) {
+    const parts = placeId.substring(9).split('/')
+    if (parts.length >= 3) {
+      console.log(
+        `Parsed as location route: name=${parts[0]}, lat=${parts[1]}, lng=${parts[2]}`,
+      )
+      return {
+        name: AppRoute.PLACE_LOCATION,
+        params: {
+          name: parts[0],
+          lat: parts[1],
+          lng: parts[2],
+        },
+      }
+    }
+  }
+  // Generic provider format: "provider/id"
+  else if (placeId.includes('/')) {
+    const [provider, id] = placeId.split('/')
+    console.log(`Parsed as provider route: provider=${provider}, placeId=${id}`)
+    return {
+      name: AppRoute.PLACE_PROVIDER,
+      params: {
+        provider,
+        placeId: id,
+      },
+    }
+  }
+
+  // Fallback for unknown formats - assume it's a Google Place ID
+  console.log(`No prefix detected, assuming Google Place ID: "${placeId}"`)
+  return {
+    name: AppRoute.PLACE_PROVIDER,
+    params: {
+      provider: 'google',
+      placeId,
+    },
+  }
+}
 
 // Client-specific implementation of utility functions
 export function getPlaceType(tags: Record<string, string | undefined>): string {
@@ -134,20 +200,42 @@ export function getPlaceType(tags: Record<string, string | undefined>): string {
   return tags.name ? 'Place' : 'Unnamed Place'
 }
 
-export function formatAddress(
-  tags: Record<string, string | undefined>,
-): string {
-  if (!tags) return ''
+export function formatAddress(place: Place): string {
+  if (!place.address) return ''
 
-  const parts = [
-    `${tags['addr:housenumber'] || ''} ${tags['addr:street'] || ''}`.trim(),
-    `${tags['addr:city'] || ''}${
-      tags['addr:city'] && tags['addr:state'] ? ',' : ''
-    } ${tags['addr:state'] || ''} ${tags['addr:postcode'] || ''}`.trim(),
-    tags['addr:country'],
-  ].filter(Boolean)
+  const address = place.address.value
+  const { street1, street2, locality, postalCode, neighborhood, region } =
+    address
 
-  return parts.join('\n')
+  const parts: string[] = []
+
+  // Add street address if available
+  const streetParts = [street1, street2].filter(Boolean)
+  const hasStreetAddress = streetParts.length > 0
+  if (hasStreetAddress) {
+    parts.push(streetParts.join(' '))
+  }
+
+  // Add neighborhood and locality
+  if (neighborhood && locality) {
+    parts.push(`${neighborhood}, ${locality}`)
+  } else if (neighborhood) {
+    parts.push(neighborhood)
+    if (locality) parts.push(locality)
+  } else if (locality) {
+    parts.push(locality)
+  }
+
+  // Add postal code if we don't have a street address
+  if (postalCode && !hasStreetAddress) {
+    parts.push(postalCode)
+  }
+  // Or add region if we don't have street address or postal code
+  else if (region && !hasStreetAddress && !postalCode) {
+    parts.push(region)
+  }
+
+  return parts.join(', ')
 }
 
 export function parseCuisines(cuisine: string | undefined): string[] | null {
@@ -250,12 +338,7 @@ export function getRestroomAccess(
   }
 }
 
-export function parseOpeningHours(hoursStr: string) {
-  // Client-side implementation for opening hours parsing
-  // Simplified version for now
-  return hoursStr
-}
-
+// TODO: Unused
 export function isPlaceOpen(openingTimes: OpeningTime[]): {
   isOpen: boolean
   nextChange?: string
@@ -351,53 +434,4 @@ export function isPlaceOpen(openingTimes: OpeningTime[]): {
   }
 
   return { isOpen: false }
-}
-
-// These functions are now handled server-side, but keeping stubs here
-// for backward compatibility
-export async function fetchWikidataImage(
-  wikidataId: string,
-): Promise<string | null> {
-  console.warn('fetchWikidataImage is deprecated - use server-side API instead')
-  return null
-}
-
-export async function fetchWikidataBrandLogo(
-  wikidataId: string,
-): Promise<string | null> {
-  console.warn(
-    'fetchWikidataBrandLogo is deprecated - use server-side API instead',
-  )
-  return null
-}
-
-// This function may still be used by some components
-export function calculatePlaceCenter(
-  place: Place,
-): { lat: number; lon: number } | null {
-  // For nodes, use direct coordinates
-  if (place.type === 'node' && place.lat && place.lon) {
-    return { lat: place.lat, lon: place.lon }
-  }
-
-  // For ways/relations, try bounds first
-  if (place.bounds) {
-    return {
-      lat: (place.bounds.minlat + place.bounds.maxlat) / 2,
-      lon: (place.bounds.minlon + place.bounds.maxlon) / 2,
-    }
-  }
-
-  // Fall back to geometry centroid
-  if (place.geometry?.length) {
-    const sumLat = place.geometry.reduce((sum, point) => sum + point.lat, 0)
-    const sumLon = place.geometry.reduce((sum, point) => sum + point.lon, 0)
-    const count = place.geometry.length
-    return {
-      lat: sumLat / count,
-      lon: sumLon / count,
-    }
-  }
-
-  return null
 }

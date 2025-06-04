@@ -1,14 +1,29 @@
 # Build stage
 FROM oven/bun:latest AS builder
+WORKDIR /app
+
+# First, copy and install server dependencies (needed for shared types)
+COPY server/package.json server/bun.lockb ./server/
+WORKDIR /app/server
+RUN bun install
+
+# Copy server source code
+COPY server/src ./src
+
+# Now switch to web and install web dependencies
 WORKDIR /app/web
 COPY web/package.json web/bun.lockb* ./
 RUN bun install
+
+# Copy web source code
 COPY web/. ./
-COPY server/src /app/server/src
-RUN bun run build
+COPY server/src ../server/src
+
+# Build without TypeScript checking (TypeScript checking should be done in development)
+# This is necessary because vue-tsc has issues with module resolution in Docker environments
+RUN bunx vite build
 
 # Production stage
-# TODO: Use bun or nginx for this instead?
 FROM node:18 AS production
 WORKDIR /app
 RUN npm install -g http-server
@@ -16,4 +31,4 @@ COPY --from=builder /app/web/dist /app/dist
 ENV VITE_PORT=5173
 EXPOSE ${VITE_PORT}
 
-CMD http-server /app/dist -p ${VITE_PORT} --host 0.0.0.0
+CMD http-server /app/dist -p ${VITE_PORT} --host 0.0.0.0 --spa

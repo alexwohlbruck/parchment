@@ -12,9 +12,6 @@ import MobileNav from '@/components/navigation/MobileNavigation.vue'
 import DialogView from '@/views/DialogView.vue'
 import HotkeysMenu from '@/components/HotkeysMenu.vue'
 import { Toaster } from '@/components/ui/sonner'
-import { Spinner } from '@/components/ui/spinner'
-import { AlertDialog, AlertDialogContent } from '@/components/ui/alert-dialog'
-import { P } from '@/components/ui/typography'
 import { TransitionSlide } from '@morev/vue-transitions'
 
 const route = useRoute()

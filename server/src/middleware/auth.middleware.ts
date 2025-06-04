@@ -1,19 +1,11 @@
 import { Elysia, t } from 'elysia'
 import { verifyRequestOrigin } from 'lucia'
 import type { User, Session } from 'lucia'
-import { db } from '../db'
 import { lucia } from '../lucia'
 import { origins } from '../config'
 import { fetchUser } from '../services/user.service'
-import { usersToRoles, usersToRolesRelations } from '../schema/user-role.schema'
-import {
-  Permission,
-  permissions as permissionsSchema,
-} from '../schema/permission.schema'
 import { getPermissions, hasPermission } from '../services/auth.service'
 import { PermissionRule } from '../types/auth.types'
-import { sessions } from '../schema/session.schema'
-import { eq } from 'drizzle-orm'
 
 /**
  * Extract session ID from either cookie or bearer token

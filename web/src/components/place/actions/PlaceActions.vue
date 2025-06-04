@@ -10,7 +10,7 @@ import {
 } from 'lucide-vue-next'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
-import type { UnifiedPlace } from '@/types/unified-place.types'
+import type { Place } from '@/types/place.types'
 import type { Collection } from '@/types/library.types'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { usePlaceService } from '@/services/place.service'
@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/popover'
 
 const props = defineProps<{
-  place: UnifiedPlace
+  place: Place
 }>()
 
 const collectionsService = useCollectionsService()

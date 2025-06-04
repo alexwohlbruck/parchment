@@ -1,0 +1,48 @@
+# Parchment Maps License
+
+Parchment Maps is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
+
+## What this means:
+
+### You are free to:
+- ✅ **Self-host** for personal use, family, and friends
+- ✅ **Access all features** when self-hosting
+- ✅ **Modify and distribute** the source code
+- ✅ **Use for educational purposes**
+- ✅ **Use for internal business operations**
+
+### You must:
+- 📋 **Provide source code** to users of your modified version
+- 📋 **Use the same license** (AGPL-3.0) for derivative works
+- 📋 **Include copyright notices** and license text
+- 📋 **Share modifications** if you provide the software as a network service
+
+### You cannot:
+- ❌ **Sell subscriptions** or access to the application
+- ❌ **Offer as a commercial hosted service** without sharing your source code
+- ❌ **Remove or modify** license notices
+- ❌ **Use under a different license** without permission
+
+---
+
+## GNU AFFERO GENERAL PUBLIC LICENSE
+Version 3, 19 November 2007
+
+Copyright (C) 2024 Alex Wohlbruck
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+---
+
+For the complete AGPL-3.0 license text, visit: https://www.gnu.org/licenses/agpl-3.0.html 

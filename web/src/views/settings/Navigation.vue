@@ -6,6 +6,7 @@ import { TransitionFade } from '@morev/vue-transitions'
 import { H3 } from '@/components/ui/typography'
 import { Separator } from '@/components/ui/separator'
 import Button from '@/components/ui/button/Button.vue'
+import { useI18n } from 'vue-i18n'
 
 import { Icon } from '@/types/app.types'
 import {
@@ -15,6 +16,7 @@ import {
   MapIcon,
   ActivityIcon,
   Contact2Icon,
+  BlocksIcon,
 } from 'lucide-vue-next'
 import { PermissionRule } from '@/types/auth.types'
 import { PermissionId as Permission } from '@/types/auth.types'
@@ -23,6 +25,7 @@ import { computed } from 'vue'
 const router = useRouter()
 const authService = useAuthService()
 const { isMobileScreen } = useResponsive()
+const { t } = useI18n()
 
 const pages: {
   id: string
@@ -51,6 +54,12 @@ const pages: {
     id: 'mapSettings',
     to: '/settings/map',
     icon: MapIcon,
+  },
+  {
+    id: 'integrations',
+    to: '/settings/integrations',
+    icon: BlocksIcon,
+    // permissions: Permission.INTEGRATIONS_READ,
   },
   {
     id: 'users',
@@ -83,7 +92,7 @@ const allowedPages = computed(() => {
 <template>
   <div class="flex flex-col w-full md:w-48 gap-4">
     <div>
-      <H3 class="ml-2">{{ $t('settings.title') }}</H3>
+      <H3 class="ml-2">{{ t('settings.title') }}</H3>
     </div>
 
     <!-- Grid layout for small devices -->
@@ -111,7 +120,7 @@ const allowedPages = computed(() => {
           <transition-expand axis="x" :duration="50" easing="ease-out">
             <div class="flex flex-1 gap-1 text-nowrap">
               <div class="flex-1">
-                {{ $t(`settings.${page.id}.title`) }}
+                {{ t(`settings.${page.id}.title`) }}
               </div>
             </div>
           </transition-expand>
@@ -141,7 +150,7 @@ const allowedPages = computed(() => {
           <transition-expand axis="x" :duration="50" easing="ease-out">
             <div class="flex flex-1 gap-1 text-nowrap">
               <div class="flex-1">
-                {{ $t(`settings.${page.id}.title`) }}
+                {{ t(`settings.${page.id}.title`) }}
               </div>
             </div>
           </transition-expand>

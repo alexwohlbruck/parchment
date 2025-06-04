@@ -1,69 +1,87 @@
 #!/bin/bash
 
-# TODO: Add --headless option which only starts up the server/db without web client
-# TODO: Update port flag to set external port for client/server, not internal
-# TODO: Auto run seed script with onboarding flow
+# Simple script to run Parchment in development or production mode
 
-IS_PROD=false
-IS_MIGRATE=false
-IS_SEED=false
-VITE_PORT=5173
+show_usage() {
+    echo "Usage: $0 [dev|prod] [options]"
+    echo ""
+    echo "Modes:"
+    echo "  dev   - Development mode with hot-reload and debugging"
+    echo "  prod  - Production mode using published Docker images"
+    echo ""
+    echo "Options:"
+    echo "  --build  - Force rebuild of images (dev mode only)"
+    echo "  --down   - Stop and remove containers"
+    echo ""
+    echo "Examples:"
+    echo "  $0 dev           # Start development environment"
+    echo "  $0 dev --build   # Start development with rebuild"
+    echo "  $0 prod          # Start production environment"
+    echo "  $0 dev --down    # Stop development environment"
+    exit 1
+}
 
+# Check if Docker network exists, create if not
+if ! docker network ls | grep -q parchment-network; then
+    echo "Creating parchment-network..."
+    docker network create parchment-network
+fi
+
+MODE=""
+BUILD_FLAG=""
+DOWN_FLAG=""
+
+# Parse arguments
 for arg in "$@"; do
-  case $arg in
-    --prod)
-      IS_PROD=true
-      ;;
-    --migrate)
-      IS_MIGRATE=true
-      ;;
-    --seed)
-      IS_SEED=true
-      ;;
-    --port=*)
-      VITE_PORT="${arg#*=}"
-      ;;
-    *)
-      echo "Unknown argument: $arg"
-      echo "Usage: $0 [--prod] [--migrate] [--seed] [--port=XXXX]"
-      exit 1
-      ;;
-  esac
+    case $arg in
+        dev|prod)
+            MODE=$arg
+            ;;
+        --build)
+            BUILD_FLAG="--build"
+            ;;
+        --down)
+            DOWN_FLAG="--down"
+            ;;
+        *)
+            echo "Unknown argument: $arg"
+            show_usage
+            ;;
+    esac
 done
 
-if $IS_PROD; then
-  export DOCKERFILE=Dockerfile.prod
-  export NODE_ENV=production
-  echo "Running in production mode."
-else
-  export DOCKERFILE=Dockerfile.dev
-  export NODE_ENV=development
-  echo "Running in development mode."
+# Show usage if no mode provided
+if [ -z "$MODE" ]; then
+    show_usage
 fi
 
-export VITE_PORT
-export BUN_DEBUG_PORT=6499
-
-docker-compose up --build web -d
-
-echo "Waiting for postgres to start..."
-while ! docker exec server-db pg_isready -q; do
-  sleep 1
-done
-
-# Run migrations, seed DB
-if $IS_MIGRATE || $IS_SEED; then
-  echo "Running migrations..."
-  docker exec parchment-server bun run migrate
+# Set compose file based on mode
+if [ "$MODE" = "dev" ]; then
+    COMPOSE_FILE="docker-compose.dev.yml"
+    echo "🚀 Starting Parchment in development mode..."
+elif [ "$MODE" = "prod" ]; then
+    COMPOSE_FILE="docker-compose.prod.yml"
+    echo "🚀 Starting Parchment in production mode..."
+    if [ -n "$BUILD_FLAG" ]; then
+        echo "⚠️  Build flag ignored in production mode (uses published images)"
+        BUILD_FLAG=""
+    fi
 fi
 
-if $IS_SEED; then
-  echo "Seeding the database..."
-  read -p "Enter first name: " firstName
-  read -p "Enter last name: " lastName
-  read -p "Enter email: " email
-  read -p "Enter picture URL: " picture
-  docker exec parchment-server bun src/seed/seed.ts "$firstName" "$lastName" "$email" "$picture"
+# Handle down flag
+if [ -n "$DOWN_FLAG" ]; then
+    echo "🛑 Stopping Parchment services..."
+    docker-compose -f "$COMPOSE_FILE" down
+    exit 0
 fi
 
-echo "App started, running on http://localhost:$VITE_PORT"
+# Start services
+echo "📦 Using compose file: $COMPOSE_FILE"
+docker-compose -f "$COMPOSE_FILE" up $BUILD_FLAG -d
+
+echo ""
+echo "✅ Parchment started successfully!"
+echo "🌐 Frontend: http://localhost:5173"
+echo "🔧 Backend API: http://localhost:5000"
+echo ""
+echo "To stop the services, run: $0 $MODE --down" 

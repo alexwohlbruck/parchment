@@ -1,24 +1,35 @@
 import { ref } from 'vue'
 import { createSharedComposable } from '@vueuse/core'
 import { api } from '@/lib/api'
-
-export interface AutocompletePrediction {
-  placeId: string // Will be formatted as "provider/id" for provider-specific places
-  description: string // Full description of the place
-  mainText: string // Primary text (place name)
-  secondaryText: string // Secondary text (usually address)
-  types: string[] // Place types
-  provider?: string // Added to keep track of the data provider
-}
+import type { Place } from '@/types/place.types'
 
 interface AutocompleteResponse {
   query: string
-  suggestions: AutocompletePrediction[]
+  places: Place[]
 }
+
+// TODO: Use this to dynamically update search radius based on geometry
+// We need to use a small radius for point nodes, but larger radius for areas eg. university campuses or parks
+// function calculateSearchRadius(place: OsmPlace): number {
+//   // For points (nodes), use default radius
+//   if (place.type === 'node' || !place.bounds) {
+//     return DEFAULT_SEARCH_RADIUS
+//   }
+
+//   // For areas (ways/relations), calculate the diagonal distance of the bounding box
+//   // Calculate the area's diagonal distance using the southwest and northeast corners
+//   const sw = turf.point([place.bounds.minlon, place.bounds.minlat])
+//   const ne = turf.point([place.bounds.maxlon, place.bounds.maxlat])
+//   const diagonalDistance = turf.distance(sw, ne, { units: 'meters' })
+
+//   // Use half the diagonal distance plus the default radius as search radius
+//   // This ensures we cover the entire area plus a buffer
+//   return diagonalDistance / 2 + DEFAULT_SEARCH_RADIUS
+// }
 
 function placeSearchService() {
   const loading = ref(false)
-  const suggestions = ref<AutocompletePrediction[]>([])
+  const suggestions = ref<Place[]>([])
   const error = ref<string | null>(null)
 
   async function getAutocomplete(
@@ -26,7 +37,7 @@ function placeSearchService() {
     lat?: number,
     lng?: number,
     radius: number = 10000,
-  ): Promise<AutocompletePrediction[]> {
+  ): Promise<Place[]> {
     if (!query || query.length < 2) {
       return []
     }
@@ -35,7 +46,10 @@ function placeSearchService() {
     error.value = null
 
     try {
-      const params: Record<string, string | number> = { q: query }
+      const params: Record<string, string | number> = {
+        q: query,
+        autocomplete: 'true',
+      }
 
       if (lat !== undefined && lng !== undefined) {
         params.lat = lat.toString()
@@ -51,26 +65,8 @@ function placeSearchService() {
         { params },
       )
 
-      // Process the suggestions to ensure they have the correct format
-      const processedSuggestions = response.data.suggestions.map(suggestion => {
-        // If placeId doesn't already include a provider prefix,
-        // it's likely a Google place ID and should be prefixed with "google/"
-        if (!suggestion.placeId.includes('/')) {
-          suggestion.placeId = `google/${suggestion.placeId}`
-          suggestion.provider = 'google'
-        } else {
-          // Extract provider from placeId if it exists (e.g., "osm/node/123456")
-          const parts = suggestion.placeId.split('/')
-          if (parts.length > 1) {
-            suggestion.provider = parts[0]
-          }
-        }
-
-        return suggestion
-      })
-
-      suggestions.value = processedSuggestions
-      return processedSuggestions
+      suggestions.value = response.data.places // Updated to use places
+      return response.data.places // Updated to use places
     } catch (err) {
       console.error('Error fetching place autocomplete:', err)
       error.value =
@@ -81,7 +77,6 @@ function placeSearchService() {
     }
   }
 
-  // Add a function to create a location-based placeId
   function createLocationPlaceId(
     name: string,
     lat: number,

@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { H5, H6 } from '@/components/ui/typography'
+import { H5 } from '@/components/ui/typography'
 import Caption from '@/components/ui/typography/Caption.vue'
 import { Card } from '@/components/ui/card'
-import { useI18n } from 'vue-i18n'
 
 interface Props {
   title?: string

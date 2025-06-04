@@ -1,0 +1,81 @@
+volumes:
+  server-db:
+  server:
+  osm-data:
+
+networks:
+  default:
+    external: true
+    name: parchment-network
+
+services:
+  # # OSM imported data DB
+  # osm-db:
+  #   container_name: osm-data
+  #   image: postgis/postgis:latest
+  #   environment:
+  #     POSTGRES_DB: osm_data
+  #     POSTGRES_USER: osm_user
+  #     POSTGRES_PASSWORD: osm_password
+  #   volumes:
+  #     - osm-db:/var/lib/postgresql/data
+  #   ports:
+  #     - '5433:5432'
+
+  # Parchment backend server DB
+  parchment-db:
+    container_name: parchment-db
+    image: postgres:latest
+    network_mode: host
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - server-db:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+
+  # Parchment backend (Elysia)
+  parchment-server:
+    container_name: parchment-server
+    build:
+      context: .
+      dockerfile: server/Dockerfile.dev
+    network_mode: host
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}
+      SERVER_ORIGIN: ${SERVER_ORIGIN}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN}
+      GMAIL_EMAIL: ${GMAIL_EMAIL}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
+      APP_TESTER_EMAIL: ${APP_TESTER_EMAIL}
+    depends_on:
+      - parchment-db
+    volumes:
+      - ./server:/app/server
+      - /app/server/node_modules
+
+  # Web frontend (Vue)
+  parchment-web:
+    container_name: parchment-web
+    build:
+      context: .
+      dockerfile: web/Dockerfile.dev
+    network_mode: host
+    environment:
+      VITE_SERVER_ORIGIN: ${SERVER_ORIGIN}
+      VITE_PORT: ${VITE_PORT}
+      VITE_MAPBOX_ACCESS_TOKEN: ${MAPBOX_ACCESS_TOKEN}
+      VITE_TRANSITLAND_API_KEY: ${TRANSITLAND_API_KEY}
+      VITE_MAPTILER_API_KEY: ${MAPTILER_API_KEY}
+      VITE_MAPILLARY_ACCESS_TOKEN: ${MAPILLARY_ACCESS_TOKEN}
+    ports:
+      - '5173:5173'
+    volumes:
+      - ./web:/app/web
+      - /app/web/node_modules
+      - ./server/src/types:/app/server/src/types
+    depends_on:
+      - parchment-server

@@ -25,7 +25,9 @@
     "type": "Type",
     "none": "None",
     "optional": "Optional",
-    "default": "Default"
+    "default": "Default",
+    "enabled": "Enabled",
+    "all": "All"
   },
   "palette": {
     "placeholder": {
@@ -450,6 +452,61 @@
         "title": "Layers",
         "new": "New layer",
         "description": "Choose layers to display in the layer selector"
+      }
+    },
+    "integrations": {
+      "title": "Integrations",
+      "description": "Manage your configured external service connections",
+      "available": "Available Integrations",
+      "noConfigured": "No configured integrations",
+      "noAvailable": "No available integrations",
+      "configure": "Configure {name}",
+      "edit": "Edit {name}",
+      "success": "Success",
+      "error": "Error",
+      "created": "{name} integration successfully created",
+      "updated": "{name} integration successfully updated",
+      "enabled": "{name} integration successfully enabled",
+      "disabled": "{name} integration successfully disabled",
+      "delete": {
+        "title": "Delete Integration",
+        "description": "Are you sure you want to delete the {name} integration?",
+        "success": "{name} integration successfully deleted"
+      },
+      "test": {
+        "title": "Test Connection",
+        "description": "You must test your connection before saving",
+        "button": "Test Connection",
+        "success": "Connection successful",
+        "failure": "Connection failed",
+        "error": "Error testing connection"
+      },
+      "status": {
+        "active": "active",
+        "inactive": "inactive",
+        "available": "available"
+      },
+      "capabilities": {
+        "search": "Search",
+        "autocomplete": "Autocomplete",
+        "routing": "Routing",
+        "geocoding": "Geocoding",
+        "placeInfo": "Place Info",
+        "imagery": "Imagery",
+        "title": "Capabilities"
+      },
+      "descriptions": {
+        "google-maps": "Comprehensive mapping and location services",
+        "pelias": "Open-source geocoding and search",
+        "overpass": "OpenStreetMap data filtering and retrieval",
+        "graphhopper": "Fast and efficient routing engine",
+        "yelp": "Local business reviews and ratings",
+        "opentable": "Restaurant discovery and reservations",
+        "foursquare": "Location-based social network",
+        "mapillary": "Street-level imagery platform",
+        "nominatim": "Open-source geocoding and reverse geocoding",
+        "tripadvisor": "Travel reviews and recommendations",
+        "geoapify": "Geocoding, routing, and place data"
       }
     },
     "users": {

@@ -3,10 +3,10 @@ import { ref } from 'vue'
 import { ChevronDownIcon, ExternalLinkIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
-import type { UnifiedPlace } from '@/types/unified-place.types'
+import type { Place } from '@/types/place.types'
 
 defineProps<{
-  place: UnifiedPlace
+  place: Place
 }>()
 
 const showTags = ref(false)
@@ -102,7 +102,7 @@ function formatDate(dateString: string) {
                 {{ key }}
               </TableCell>
               <TableCell class="break-all">
-                {{ value }}
+                {{ value.value }}
               </TableCell>
             </TableRow>
           </TableBody>

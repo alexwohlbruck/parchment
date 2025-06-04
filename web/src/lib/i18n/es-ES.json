@@ -25,7 +25,9 @@
     "type": "Tipo",
     "none": "Ninguno",
     "optional": "Opcional",
-    "default": "Predeterminado"
+    "default": "Predeterminado",
+    "enabled": "Habilitado",
+    "all": "Todos"
   },
   "palette": {
     "general": {
@@ -370,7 +372,7 @@
     "title": "Personas"
   },
   "settings": {
-    "title": "Ajustes",
+    "title": "Configuración",
     "description": "Administra la configuración de tu cuenta y el comportamiento de la aplicación",
     "account": {
       "title": "Cuenta",
@@ -403,7 +405,7 @@
             "slate": "Pizarra",
             "stone": "Piedra",
             "gray": "Gris",
-            "neutral": "Neutro",
+            "neutral": "Neutral",
             "yellow": "Amarillo",
             "violet": "Violeta"
           }
@@ -427,7 +429,7 @@
           "day": "Día",
           "night": "Noche",
           "dawn": "Amanecer",
-          "dusk": "Anochecer"
+          "dusk": "Atardecer"
         }
       }
     },
@@ -438,7 +440,7 @@
         "3dTerrain": "Terreno 3D",
         "3dBuildings": "Edificios 3D",
         "poiLabels": "Etiquetas de POI",
-        "roadLabels": "Etiquetas de calles",
+        "roadLabels": "Etiquetas de carreteras",
         "transitLabels": "Etiquetas de tránsito",
         "placeLabels": "Etiquetas de lugares"
       },
@@ -453,11 +455,66 @@
       "layers": {
         "title": "Capas",
         "new": "Nueva capa",
-        "description": "Elige las capas que se mostrarán en el selector de capas"
+        "description": "Elige las capas para mostrar en el selector de capas"
+      }
+    },
+    "integrations": {
+      "title": "Integraciones",
+      "description": "Gestionar tus conexiones a servicios externos",
+      "available": "Integraciones Disponibles",
+      "noConfigured": "No hay integraciones configuradas",
+      "noAvailable": "No hay integraciones disponibles",
+      "configure": "Configurar {name}",
+      "edit": "Editar {name}",
+      "success": "Éxito",
+      "error": "Error",
+      "created": "Integración {name} creada exitosamente",
+      "updated": "Integración {name} actualizada exitosamente",
+      "enabled": "Integración {name} habilitada exitosamente",
+      "disabled": "Integración {name} deshabilitada exitosamente",
+      "delete": {
+        "title": "Eliminar Integración",
+        "description": "¿Estás seguro que quieres eliminar la integración {name}?",
+        "success": "Integración {name} eliminada exitosamente"
+      },
+      "test": {
+        "title": "Probar Conexión",
+        "description": "Debes probar tu conexión antes de guardar",
+        "button": "Probar Conexión",
+        "success": "Conexión exitosa",
+        "failure": "Conexión fallida",
+        "error": "Error al probar la conexión"
+      },
+      "status": {
+        "active": "activa",
+        "inactive": "inactiva",
+        "available": "disponible"
+      },
+      "capabilities": {
+        "search": "Buscar",
+        "autocomplete": "Autocompletar",
+        "routing": "Rutas",
+        "geocoding": "Geocodificación",
+        "placeInfo": "Información de Lugares",
+        "imagery": "Imágenes",
+        "title": "Capacidades"
+      },
+      "descriptions": {
+        "google-maps": "Servicios completos de mapas y ubicación",
+        "pelias": "Geocodificación y búsqueda de código abierto",
+        "overpass": "Filtrado y recuperación de datos OpenStreetMap",
+        "graphhopper": "Motor de rutas rápido y eficiente",
+        "yelp": "Reseñas y calificaciones de negocios locales",
+        "opentable": "Descubrimiento y reservas de restaurantes",
+        "foursquare": "Red social basada en la ubicación",
+        "mapillary": "Plataforma de imágenes a nivel de calle",
+        "nominatim": "Geocodificación de código abierto",
+        "tripadvisor": "Reseñas y recomendaciones de viajes",
+        "geoapify": "Geocodificación, rutas e información de lugares"
       }
     },
     "users": {
-      "title": "Usuarios y roles",
+      "title": "Usuarios y Roles",
       "users": {
         "title": "Usuarios"
       },

@@ -1,29 +1,24 @@
 import { Elysia, t, error } from 'elysia'
-import { getSession } from '../middleware/auth.middleware.js'
+import { getSession, requireAuth } from '../middleware/auth.middleware.js'
 import {
-  getPlaceDetails,
-  searchPlaces,
-  getPlaceAutocomplete,
-  getPlaceDetailsByProviderId,
-  getPlaceDetailsByNameAndLocation,
+  lookupPlaceByNameAndLocation,
+  lookupEnrichedPlaceById,
+  lookupPlacesByNameAndLocation,
 } from '../services/place.service'
-
+import { SOURCE } from '../lib/constants.js'
 const app = new Elysia({ prefix: '/places' }).use(getSession)
 
-const placeTypeSchema = t.Union([
-  t.Literal('node'),
-  t.Literal('way'),
-  t.Literal('relation'),
-])
-
-// Add universal lookup endpoint
+// Get place by looking up source+id or name+lat+lng
 app.get(
   '/lookup',
   async ({ query, user }) => {
-    const { provider, id, name, lat, lng, radius = 500 } = query
+    const { source, id, name, lat, lng, radius = 500 } = query
+
+    const isIdLookup = Boolean(source) && Boolean(id)
+    const isNameLocationLookup = Boolean(name) && Boolean(lat) && Boolean(lng)
 
     // Check for at least one valid lookup parameter
-    if (!((provider && id) || (name && lat && lng))) {
+    if (!isIdLookup && !isNameLocationLookup) {
       return error(400, {
         message: 'Please provide either provider+id, or name+lat+lng',
       })
@@ -31,117 +26,67 @@ app.get(
 
     let place = null
 
-    // Handle provider-specific ID lookup
-    if (provider && id) {
-      // Special handling for OSM
-      if (provider === 'osm') {
-        const [osmType, rawId] = id.includes('/') ? id.split('/') : [null, id]
+    try {
+      if (isIdLookup) {
+        // TODO: Move this logic to a helper function
+        // Special case for OSM provider: validate format
+        if (source === SOURCE.OSM) {
+          const [osmType, rawId] = id?.includes('/')
+            ? id.split('/')
+            : [null, id]
 
-        if (!osmType || !['node', 'way', 'relation'].includes(osmType)) {
-          return error(400, {
-            message:
-              'Invalid OSM type. Format should be "type/id" where type is node, way, or relation.',
-          })
+          if (!osmType || !['node', 'way', 'relation'].includes(osmType)) {
+            return error(400, {
+              message:
+                'Invalid OSM type. Format should be "type/id" where type is node, way, or relation.',
+            })
+          }
         }
 
-        place = await getPlaceDetails(id, user?.id ?? null)
-      }
-      // Handle other providers through common interface
-      else {
-        place = await getPlaceDetailsByProviderId(
-          provider,
-          id,
-          user?.id ?? null,
-        )
-      }
-    }
-    // Handle name+location lookup
-    else if (name && lat && lng) {
-      const coordinates = { lat: parseFloat(lat), lng: parseFloat(lng) }
-      place = await getPlaceDetailsByNameAndLocation(
-        name,
-        coordinates,
-        user?.id ?? null,
-        parseInt(radius as string),
-      )
-    }
+        place = await lookupEnrichedPlaceById(source!, id!, {
+          userId: user?.id,
+        })
+      } else if (isNameLocationLookup) {
+        const coordinates = {
+          lat: lat!,
+          lng: lng!,
+        }
 
-    if (!place) {
-      return error(404, {
-        message: 'Place not found with the provided parameters',
+        // Use the new method to get place by name and coordinates
+        place = await lookupPlaceByNameAndLocation(name!, coordinates, {
+          userId: user?.id,
+          radius: Math.round(radius),
+        })
+      }
+
+      if (!place) {
+        return error(404, {
+          message: 'Place not found with the provided parameters',
+        })
+      }
+
+      return place
+    } catch (err) {
+      console.error('Error in place lookup:', err)
+      return error(500, {
+        message: 'Error retrieving place data',
       })
     }
-
-    return place
   },
   {
     query: t.Object({
-      provider: t.Optional(t.String()),
+      source: t.Optional(t.Enum(SOURCE)),
       id: t.Optional(t.String()),
       name: t.Optional(t.String()),
-      lat: t.Optional(t.String()),
-      lng: t.Optional(t.String()),
-      radius: t.Optional(t.String()),
+      lat: t.Optional(t.Number()),
+      lng: t.Optional(t.Number()),
+      radius: t.Optional(t.Number()),
+      autocomplete: t.Optional(t.Boolean()),
     }),
   },
 )
 
-app.get(
-  '/:id',
-  async ({ params: { id }, user }) => {
-    const place = await getPlaceDetails(id, user?.id ?? null)
-
-    if (!place) {
-      return error(404, { message: `Place not found: ${id}` })
-    }
-
-    return place
-  },
-  {
-    params: t.Object({
-      type: placeTypeSchema,
-      id: t.String(),
-    }),
-  },
-)
-
-// Add search endpoint
-app.get(
-  '/search',
-  async ({ query, user }) => {
-    const { q, lat, lng, radius = 1000 } = query
-
-    if (!q) {
-      return error(400, { message: 'Search query is required' })
-    }
-
-    // Convert coordinates to numbers if provided
-    const coordinates =
-      lat && lng ? { lat: parseFloat(lat), lng: parseFloat(lng) } : undefined
-
-    const results = await searchPlaces(
-      q,
-      user?.id ?? null,
-      coordinates,
-      parseInt(radius as string),
-    )
-
-    return {
-      query: q,
-      results,
-    }
-  },
-  {
-    query: t.Object({
-      q: t.String(),
-      lat: t.Optional(t.String()),
-      lng: t.Optional(t.String()),
-      radius: t.Optional(t.String()),
-    }),
-  },
-)
-
-// Add autocomplete endpoint for faster search suggestions
+// Autocomplete search for fast suggestions
 app.get(
   '/autocomplete',
   async ({ query }) => {
@@ -156,19 +101,54 @@ app.get(
       return error(400, { message: 'Query must be at least 2 characters' })
     }
 
-    // Convert coordinates to numbers if provided
-    const coordinates =
-      lat && lng ? { lat: parseFloat(lat), lng: parseFloat(lng) } : undefined
-
-    const suggestions = await getPlaceAutocomplete(
+    const places = await lookupPlacesByNameAndLocation(
       q,
-      coordinates,
-      parseInt(radius as string),
+      { lat, lng },
+      {
+        radius: parseInt(radius as string),
+        autocomplete: true,
+      },
     )
 
     return {
       query: q,
-      suggestions,
+      places,
+    }
+  },
+  {
+    query: t.Object({
+      q: t.String(),
+      lat: t.Number(),
+      lng: t.Number(),
+      radius: t.Optional(t.String()),
+    }),
+  },
+)
+
+// Search for places by name
+app.get(
+  '/search',
+  async ({ query, user }) => {
+    const { q, lat, lng, radius = 1000 } = query
+
+    if (!q) {
+      return error(400, { message: 'Search query is required' })
+    }
+
+    if (!lat || !lng) {
+      return error(400, { message: 'Latitude and longitude are required' })
+    }
+
+    const coordinates = { lat: parseFloat(lat), lng: parseFloat(lng) }
+
+    const results = await lookupPlacesByNameAndLocation(q, coordinates, {
+      radius: parseInt(radius as string),
+      userId: user?.id,
+    })
+
+    return {
+      query: q,
+      results,
     }
   },
   {

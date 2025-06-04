@@ -42,8 +42,6 @@ services:
     container_name: parchment-web
     image: alexwohlbruck/parchment-web:latest
     environment:
-      VITE_SERVER_ORIGIN: ${SERVER_ORIGIN}
-      VITE_PORT: ${VITE_PORT}
       VITE_MAPBOX_ACCESS_TOKEN: ${MAPBOX_ACCESS_TOKEN}
       VITE_TRANSITLAND_API_KEY: ${TRANSITLAND_API_KEY}
       VITE_MAPTILER_API_KEY: ${MAPTILER_API_KEY}

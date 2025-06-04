@@ -4,6 +4,7 @@ import * as z from 'zod'
 import { useForm, useIsFormValid } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import { useAuthService } from '@/services/auth.service'
+import { api } from '@/lib/api'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -20,8 +21,9 @@ import {
   PinInputSeparator,
 } from '@/components/ui/pin-input'
 
-const { email } = defineProps<{
+const { email, serverUrl } = defineProps<{
   email: string
+  serverUrl?: string
 }>()
 
 const input = ref<InstanceType<typeof PinInput>>()
@@ -64,7 +66,20 @@ const handleComplete = (e: string[]) => {
 }
 
 async function signIn(otp: string) {
-  await authService.signIn(email, otp)
+  // Store the original base URL
+  const originalBaseURL = api.defaults.baseURL
+
+  try {
+    // Set custom server URL if provided
+    if (serverUrl && serverUrl !== 'https://api.parchment.app') {
+      api.defaults.baseURL = serverUrl
+    }
+
+    await authService.signIn(email, otp)
+  } finally {
+    // Always restore the original base URL
+    api.defaults.baseURL = originalBaseURL
+  }
 }
 </script>
 

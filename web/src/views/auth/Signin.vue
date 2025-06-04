@@ -11,10 +11,18 @@ enum SigninStep {
 }
 const step = ref<SigninStep>(SigninStep.email)
 const email = ref('')
+const serverUrl = ref('')
 
-function beginOtp(_email: string) {
+function beginOtp({
+  email: _email,
+  serverUrl: _serverUrl,
+}: {
+  email: string
+  serverUrl: string
+}) {
   step.value = SigninStep.otp
   email.value = _email
+  serverUrl.value = _serverUrl
 }
 </script>
 
@@ -42,14 +50,18 @@ function beginOtp(_email: string) {
           <H2>Sign in</H2>
 
           <template v-if="step === SigninStep.email">
-            <div class="w-60 flex flex-col gap-2">
-              <SigninForm @submit="({ email }) => beginOtp(email)" />
+            <div class="w-64 flex flex-col gap-2">
+              <SigninForm @submit="beginOtp" />
             </div>
           </template>
 
           <template v-if="step === SigninStep.otp">
             <div class="w-96 flex flex-col gap-2">
-              <Otp :email="email" @cancel="step = SigninStep.email" />
+              <Otp
+                :email="email"
+                :server-url="serverUrl"
+                @cancel="step = SigninStep.email"
+              />
             </div>
           </template>
         </div>

@@ -36,9 +36,6 @@ GMAIL_EMAIL=your_email@gmail.com
 GMAIL_APP_PASSWORD=your_gmail_app_password
 APP_TESTER_EMAIL=your_test_email@gmail.com
 
-# Frontend configuration
-VITE_PORT=5173
-
 # API Keys (get these from respective providers)
 MAPBOX_ACCESS_TOKEN=your_mapbox_token
 TRANSITLAND_API_KEY=your_transitland_key

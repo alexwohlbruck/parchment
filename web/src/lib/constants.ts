@@ -1,3 +1,5 @@
+export const DEFAULT_SERVER_URL = 'https://api.parchment.app'
+
 export const MarkerIds = {
   SELECTED_POI: 'selected-poi',
 } as const

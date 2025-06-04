@@ -31,4 +31,4 @@ COPY --from=builder /app/web/dist /app/dist
 ENV VITE_PORT=5173
 EXPOSE ${VITE_PORT}
 
-CMD http-server /app/dist -p ${VITE_PORT} --host 0.0.0.0
+CMD http-server /app/dist -p ${VITE_PORT} --host 0.0.0.0 --spa

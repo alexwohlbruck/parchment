@@ -123,29 +123,63 @@ Geocoding services will be available at:
 
 ## 🚢 Production Deployment
 
-### Docker Compose (Recommended)
-1. Copy the production compose file to your server:
+### Standalone Installation
 ```bash
+# Download and start
 curl -o docker-compose.prod.yml https://raw.githubusercontent.com/alexwohlbruck/parchment/main/docker-compose.prod.yml
-```
-
-2. Create your `.env` file with production values
-
-3. Start the services:
-```bash
+curl -o .env https://raw.githubusercontent.com/alexwohlbruck/parchment/main/.env.example
+# Edit .env with your settings
 docker-compose -f docker-compose.prod.yml up -d
 ```
 
-### Data Persistence
-Production uses Docker volumes for data persistence:
-- **`server-db`**: PostgreSQL database data
-- **`server-data`**: Application logs, uploads, cache, and configuration
+### Homelab Integration
 
-### Environment Variables
-All configuration is handled through environment variables defined in `.env`:
-- Database credentials are automatically used to build `DATABASE_URL`
-- API keys and service URLs are passed to containers
-- No hardcoded configuration in Docker images
+For existing Docker setups, use includes to keep everything organized:
+
+```
+your-homelab/
+├── docker-compose.yml          # Your main compose file
+├── .env                        # Environment variables
+└── parchment/
+    └── docker-compose.yml      # Parchment services
+```
+
+**Setup:**
+```bash
+# Download Parchment
+mkdir -p parchment
+curl -o parchment/docker-compose.yml https://raw.githubusercontent.com/alexwohlbruck/parchment/main/docker-compose.prod.yml
+
+# Download .env template and add Parchment config
+curl -o parchment/.env.example https://raw.githubusercontent.com/alexwohlbruck/parchment/main/.env.example
+# Copy Parchment variables from parchment/.env.example to your root .env file
+
+# Add to your main docker-compose.yml
+include:
+  - parchment/docker-compose.yml
+
+# Start everything
+docker-compose up -d
+```
+
+**Custom Networks (for reverse proxies):**
+
+Create `docker-compose.override.yml`:
+```yaml
+services:
+  server:
+    networks:
+      - default
+      - your_proxy_network
+  web:
+    networks:
+      - default  
+      - your_proxy_network
+
+networks:
+  your_proxy_network:
+    external: true
+```
 
 ## 📱 Mobile & Desktop Apps
 

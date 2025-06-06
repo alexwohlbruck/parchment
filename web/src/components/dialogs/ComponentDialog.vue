@@ -6,29 +6,32 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogClose,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { ComponentDialogOptions } from '@/types/app.types'
 import { cn } from '@/lib/utils'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 
-const props = defineProps<ComponentDialogOptions>()
+interface Props extends ComponentDialogOptions {
+  loading?: boolean
+}
+
+const props = defineProps<Props>()
 const emit = defineEmits(['submit'])
 const isValid = ref(true)
 const componentRef = ref()
-const isLoading = ref(false)
 const isOpen = ref(true)
 
+watch(isOpen, value => {
+  if (!value) {
+    emit('submit', false)
+  }
+})
+
 async function submit() {
-  isLoading.value = true
-  try {
-    const result = await componentRef.value?.submit?.()
+  const result = await componentRef.value?.submit?.()
+  if (result) {
     emit('submit', result)
-    return result
-  } finally {
-    isLoading.value = false
-    isOpen.value = false
   }
 }
 </script>
@@ -60,6 +63,7 @@ async function submit() {
           class="flex-1 sm:flex-none"
           variant="outline"
           @click="isOpen = false"
+          :disabled="props.loading"
         >
           {{ props.cancelText || $t('general.cancel') }}
         </Button>
@@ -67,8 +71,8 @@ async function submit() {
           class="!mt-0 flex-1 sm:flex-none"
           @click="submit"
           :variant="props.destructive ? 'destructive' : 'default'"
-          :disabled="!isValid"
-          :loading="isLoading"
+          :disabled="!isValid || props.loading"
+          :loading="props.loading"
         >
           {{ props.continueText || $t('general.continue') }}
         </Button>

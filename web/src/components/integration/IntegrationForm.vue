@@ -2,7 +2,10 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useIntegrationService } from '@/services/integration.service'
-import { UiIntegration } from '@/types/integrations.types'
+import {
+  IntegrationDefinition,
+  IntegrationResponse,
+} from '@/types/integrations.types'
 import { ZodObject } from 'zod'
 import { AutoForm } from '@/components/ui/auto-form'
 import { Button } from '@/components/ui/button'
@@ -15,7 +18,8 @@ import * as z from 'zod'
 import { TransitionExpand } from '@morev/vue-transitions'
 
 const props = defineProps<{
-  integration: UiIntegration
+  integration: IntegrationDefinition
+  config?: IntegrationResponse
   schema: ZodObject<any>
   isConfigured: boolean
 }>()
@@ -52,14 +56,14 @@ const combinedSchema = toTypedSchema(
 const { values, meta, setFieldValue, resetForm } = useForm<FormValues>({
   validationSchema: combinedSchema,
   initialValues: {
-    config: props.isConfigured ? { ...props.integration.config } : {},
+    config: props.isConfigured ? { ...props.config?.config } : {},
     capabilities:
       props.integration.capabilities?.map(capId => ({
         id: capId,
         active:
-          props.isConfigured && props.integration.capabilityRecords
-            ? props.integration.capabilityRecords.find(cap => cap.id === capId)
-                ?.active ?? false
+          props.isConfigured && props.config?.capabilities
+            ? props.config.capabilities.find(cap => cap.id === capId)?.active ??
+              false
             : false,
       })) ?? [],
   },
@@ -67,7 +71,7 @@ const { values, meta, setFieldValue, resetForm } = useForm<FormValues>({
 
 const configForm = useForm({
   validationSchema: toTypedSchema(props.schema),
-  initialValues: props.isConfigured ? { ...props.integration.config } : {},
+  initialValues: props.isConfigured ? { ...props.config?.config } : {},
 })
 
 const isConnectionTested = ref(props.isConfigured)
@@ -77,14 +81,14 @@ const testResult = ref<{ success: boolean; message?: string } | null>(
 )
 
 const wasInitiallyActive = computed(
-  () => props.isConfigured && props.integration.enabled,
+  () =>
+    props.isConfigured && props.config?.capabilities?.some(cap => cap.active),
 )
 
 const hasConfigChanges = computed(() => {
   if (!props.isConfigured) return configForm.meta.value?.dirty
   return (
-    JSON.stringify(props.integration.config) !==
-    JSON.stringify(configForm.values)
+    JSON.stringify(props.config?.config) !== JSON.stringify(configForm.values)
   )
 })
 
@@ -106,11 +110,10 @@ const isEnabledToggleDisabled = computed(() => {
 
 const allCapabilitiesEnabled = computed({
   get: () => {
-    if (!props.integration.capabilities?.length) return false
     return values.capabilities.some(cap => cap.active)
   },
   set: (enabled: boolean) => {
-    if (props.integration.capabilities) {
+    if (values.capabilities) {
       const newCapabilities = values.capabilities.map(cap => ({
         ...cap,
         active: enabled,
@@ -237,8 +240,8 @@ watch(
 watch(
   () => props.integration,
   newIntegration => {
-    if (props.isConfigured && newIntegration.config) {
-      configForm.resetForm({ values: { ...newIntegration.config } })
+    if (props.isConfigured && props.config) {
+      configForm.resetForm({ values: { ...props.config.config } })
     }
   },
   { deep: true },
@@ -254,8 +257,8 @@ watch(
 )
 
 onMounted(() => {
-  if (props.isConfigured && props.integration.config) {
-    configForm.resetForm({ values: { ...props.integration.config } })
+  if (props.isConfigured && props.config) {
+    configForm.resetForm({ values: { ...props.config.config } })
     isConnectionTested.value = true
     testResult.value = { success: true }
 

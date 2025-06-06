@@ -9,6 +9,7 @@ import { Permission } from '../types/auth.types'
 export const permissions: {
   id: Permission
   name: string
+  description?: string
 }[] = [
   {
     id: Permission.USERS_READ,
@@ -29,5 +30,21 @@ export const permissions: {
   {
     id: Permission.SYSTEM_READ,
     name: 'Read system status data',
+  },
+  {
+    id: Permission.INTEGRATIONS_READ,
+    name: 'View integrations',
+  },
+  {
+    id: Permission.INTEGRATIONS_WRITE_USER,
+    name: 'Write User Integrations',
+    description:
+      'Create, update, and delete user-scoped integration configurations',
+  },
+  {
+    id: Permission.INTEGRATIONS_WRITE_SYSTEM,
+    name: 'Write System Integrations',
+    description:
+      'Create, update, and delete system-wide integration configurations',
   },
 ]

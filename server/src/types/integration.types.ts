@@ -8,6 +8,7 @@ export enum IntegrationCapabilityId {
   PLACE_INFO = 'placeInfo',
   ROUTING = 'routing',
   IMAGERY = 'imagery',
+  MAP_ENGINE = 'mapEngine',
 }
 
 export enum IntegrationId {
@@ -22,6 +23,7 @@ export enum IntegrationId {
   NOMINATIM = 'nominatim',
   TRIPADVISOR = 'tripadvisor',
   GEOAPIFY = 'geoapify',
+  MAPBOX = 'mapbox',
 }
 
 // Capability interfaces
@@ -74,6 +76,9 @@ export interface ImageryCapability {
   getImagery(lat: number, lng: number, options?: any): Promise<any[]>
 }
 
+// TODO: Return types
+export interface MapEngineCapability {} // No methods needed for now
+
 // Integration capabilities container
 export interface IntegrationCapabilities {
   search?: SearchCapability
@@ -82,6 +87,7 @@ export interface IntegrationCapabilities {
   geocoding?: GeocodingCapability
   routing?: RoutingCapability
   imagery?: ImageryCapability
+  mapEngine?: MapEngineCapability
 }
 
 // Integration interfaces
@@ -140,6 +146,10 @@ export interface GeoapifyConfig {
   apiKey: string
 }
 
+export interface MapboxConfig {
+  accessToken: string
+}
+
 // Union type for all integration configs
 export type IntegrationConfig =
   | GoogleMapsConfig
@@ -153,6 +163,7 @@ export type IntegrationConfig =
   | MapillaryConfig
   | TripAdvisorConfig
   | GeoapifyConfig
+  | MapboxConfig
 
 // Type helper to get config type for specific integration
 export type ConfigForIntegration<T extends IntegrationId> =
@@ -178,6 +189,8 @@ export type ConfigForIntegration<T extends IntegrationId> =
     ? TripAdvisorConfig
     : T extends IntegrationId.GEOAPIFY
     ? GeoapifyConfig
+    : T extends IntegrationId.MAPBOX
+    ? MapboxConfig
     : never
 
 /**
@@ -204,7 +217,7 @@ export interface Integration<
   /**
    * The data sources this integration can access
    */
-  readonly sources: Source[]
+  readonly sources?: Source[]
 
   /**
    * Tests the connection with the given configuration
@@ -252,7 +265,16 @@ export type IntegrationDefinition = {
   paid: boolean
   cloud: boolean
   configSchema: string // Reference to schema name used on the client
+  public?: boolean // Mark the integration as public/client-facing, keys will be exposed to all users
+  scope: IntegrationScope[] // Defines where this integration can be configured
 }
+
+export enum IntegrationScope {
+  SYSTEM = 'system',
+  USER = 'user',
+}
+
+// TODO: Create inferred types from schema defs
 
 // Response shape for client
 export type IntegrationResponse = {

@@ -485,11 +485,6 @@
         "failure": "Conexión fallida",
         "error": "Error al probar la conexión"
       },
-      "status": {
-        "active": "activa",
-        "inactive": "inactiva",
-        "available": "disponible"
-      },
       "capabilities": {
         "search": "Buscar",
         "autocomplete": "Autocompletar",

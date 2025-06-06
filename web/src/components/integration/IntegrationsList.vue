@@ -1,29 +1,45 @@
 <script setup lang="ts">
-import { UiIntegration } from '@/types/integrations.types'
+import {
+  IntegrationDefinition,
+  IntegrationResponse,
+} from '@/types/integrations.types'
 import { SettingsSection } from '@/components/settings'
 import IntegrationTile from '@/components/integration/IntegrationTile.vue'
+import { useIntegrationsStore } from '@/stores/integrations.store'
+import { useAuthService } from '@/services/auth.service'
+import { PermissionId } from '@/types/auth.types'
+import { computed } from 'vue'
 
-// Define props
+const integrationsStore = useIntegrationsStore()
+const authService = useAuthService()
+
 const props = defineProps<{
   title: string
   description?: string
-  integrations: UiIntegration[]
+  integrations: (IntegrationDefinition & {
+    configuration?: IntegrationResponse[]
+  })[]
   emptyMessage: string
+  configured?: boolean
 }>()
 
-// Define emits
-const emit = defineEmits<{
-  (e: 'integrationClick', integration: UiIntegration): void
-  (e: 'integrationDelete', integration: UiIntegration): void
-}>()
-
-function handleIntegrationClick(integration: UiIntegration) {
-  emit('integrationClick', integration)
-}
-
-function handleIntegrationDelete(integration: UiIntegration) {
-  emit('integrationDelete', integration)
-}
+const integrations = computed<
+  {
+    integration: IntegrationDefinition
+    config?: IntegrationResponse
+  }[]
+>(() => {
+  return props.integrations
+    .map(integration =>
+      props.configured
+        ? (integration.configuration || []).map(config => ({
+            integration,
+            config,
+          }))
+        : [{ integration }],
+    )
+    .flat()
+})
 </script>
 
 <template>
@@ -43,10 +59,12 @@ function handleIntegrationDelete(integration: UiIntegration) {
     <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       <IntegrationTile
         v-for="integration in integrations"
-        :key="integration.id"
-        :integration="integration"
-        @click="handleIntegrationClick"
-        @delete="handleIntegrationDelete"
+        :key="integration.config?.id || integration.integration.id"
+        :integration="integration.integration"
+        :configuration="integration.config"
+        :disabled="
+          !authService.hasPermission(PermissionId.INTEGRATIONS_WRITE_SYSTEM)
+        "
       />
     </div>
   </SettingsSection>

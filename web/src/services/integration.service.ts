@@ -83,7 +83,7 @@ export function useIntegrationService() {
   }
 
   async function toggleIntegrationEnabled(id: string, enabled: boolean) {
-    const integration = store.configuredIntegrations.find(i => i.id === id)
+    const integration = store.integrationConfigurations.find(i => i.id === id)
     if (!integration) return
 
     const updatedCapabilities = integration.capabilities.map(cap => ({
@@ -102,7 +102,7 @@ export function useIntegrationService() {
     capabilityId: IntegrationCapabilityId,
     active: boolean,
   ) {
-    const integration = store.configuredIntegrations.find(i => i.id === id)
+    const integration = store.integrationConfigurations.find(i => i.id === id)
     if (!integration) return
 
     const updatedCapabilities = integration.capabilities.map(cap =>

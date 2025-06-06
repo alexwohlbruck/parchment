@@ -2,6 +2,7 @@
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useI18n } from 'vue-i18n'
+import { cn } from '@/lib/utils'
 import { CloudIcon, HardDriveIcon, Trash2Icon, UserIcon } from 'lucide-vue-next'
 import {
   Integration,
@@ -153,6 +154,14 @@ function isCapabilityEnabled(capability: string): boolean {
   return false
 }
 
+const isIntegrationEnabled = computed(() => {
+  if (!props.configuration) return true
+
+  if (props.integration.capabilities.length === 0) return true
+
+  return props.integration.capabilities.some(isCapabilityEnabled)
+})
+
 const icon = computed(() => {
   return integrationsStore.getIcon(props.integration.id)
 })
@@ -160,7 +169,11 @@ const icon = computed(() => {
 
 <template>
   <Card
-    class="p-4 hover:bg-muted/50 transition-colors cursor-pointer relative"
+    :class="
+      cn('p-4 hover:bg-muted/50 transition-colors cursor-pointer relative', {
+        grayscale: !isIntegrationEnabled,
+      })
+    "
     @click="handleClick"
   >
     <div class="flex flex-col gap-3">

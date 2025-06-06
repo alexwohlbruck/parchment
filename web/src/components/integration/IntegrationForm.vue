@@ -241,7 +241,7 @@ watch(
   () => props.integration,
   newIntegration => {
     if (props.isConfigured && props.config) {
-      configForm.resetForm({ values: { ...props.config } })
+      configForm.resetForm({ values: { ...props.config.config } })
     }
   },
   { deep: true },
@@ -258,7 +258,7 @@ watch(
 
 onMounted(() => {
   if (props.isConfigured && props.config) {
-    configForm.resetForm({ values: { ...props.config } })
+    configForm.resetForm({ values: { ...props.config.config } })
     isConnectionTested.value = true
     testResult.value = { success: true }
 

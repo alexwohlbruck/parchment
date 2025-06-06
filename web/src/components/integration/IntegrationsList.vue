@@ -16,38 +16,12 @@ const authService = useAuthService()
 const props = defineProps<{
   title: string
   description?: string
-  integrations: IntegrationDefinition[]
+  integrations: (IntegrationDefinition & {
+    configuration?: IntegrationResponse[]
+  })[]
   emptyMessage: string
   configured?: boolean
 }>()
-
-// Define emits
-const emit = defineEmits<{
-  (
-    e: 'integrationClick',
-    integration: IntegrationDefinition,
-    config?: IntegrationResponse,
-  ): void
-  (
-    e: 'integrationDelete',
-    integration: IntegrationDefinition,
-    config?: IntegrationResponse,
-  ): void
-}>()
-
-function handleIntegrationClick(
-  integration: IntegrationDefinition,
-  config?: IntegrationResponse,
-) {
-  emit('integrationClick', integration, config)
-}
-
-function handleIntegrationDelete(
-  integration: IntegrationDefinition,
-  config?: IntegrationResponse,
-) {
-  emit('integrationDelete', integration, config)
-}
 
 const integrations = computed<
   {
@@ -58,13 +32,11 @@ const integrations = computed<
   return props.integrations
     .map(integration =>
       props.configured
-        ? integrationsStore
-            .getConfigurationsForIntegration(integration.id)
-            .map(config => ({
-              integration,
-              config,
-            }))
-        : { integration },
+        ? (integration.configuration || []).map(config => ({
+            integration,
+            config,
+          }))
+        : [{ integration }],
     )
     .flat()
 })
@@ -93,8 +65,6 @@ const integrations = computed<
         :disabled="
           !authService.hasPermission(PermissionId.INTEGRATIONS_WRITE_SYSTEM)
         "
-        @click="handleIntegrationClick"
-        @delete="handleIntegrationDelete"
       />
     </div>
   </SettingsSection>

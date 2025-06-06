@@ -12,9 +12,16 @@ import {
 } from '@/types/integrations.types'
 import { computed } from 'vue'
 import { useIntegrationsStore } from '@/stores/integrations.store'
+import { useAppService } from '@/services/app.service'
+import { useIntegrationService } from '@/services/integration.service'
+import { configSchemas } from '@/types/integrations.types'
+import IntegrationForm from '@/components/integration/IntegrationForm.vue'
 
 const { t } = useI18n()
 const integrationsStore = useIntegrationsStore()
+const appService = useAppService()
+const { toast } = appService
+const integrationService = useIntegrationService()
 
 const props = defineProps<{
   integration: IntegrationDefinition
@@ -39,16 +46,92 @@ function getInitial(name: string): string {
   return name[0].toUpperCase()
 }
 
-function handleClick() {
+async function handleClick() {
   if (props.disabled) return
-  emit('click', props.integration, props.configuration)
+
+  const integration = props.integration
+  const config = props.configuration
+  const isConfigured = !!config
+  const formSchema = configSchemas[integration.configSchema]
+
+  // Show our custom IntegrationForm component in a dialog
+  const result = await appService.componentDialog({
+    component: IntegrationForm,
+    props: {
+      integration,
+      schema: formSchema,
+      isConfigured,
+      config,
+    },
+    title: isConfigured
+      ? t('settings.integrations.edit', { name: integration.name })
+      : t('settings.integrations.configure', { name: integration.name }),
+    description: t(`settings.integrations.descriptions.${integration.id}`),
+    continueText: t('general.save'),
+    cancelText: t('general.cancel'),
+  })
+
+  if (result) {
+    if (isConfigured) {
+      // Update existing integration
+      await integrationService.updateIntegration(config.id, {
+        config: result.config,
+        capabilities: result.capabilities,
+      })
+    } else {
+      // Create new integration with capabilities separated from config
+      await integrationService.createIntegration(
+        integration.id,
+        result.config,
+        result.capabilities,
+      )
+    }
+
+    const successMessage = isConfigured
+      ? t('settings.integrations.updated', { name: integration.name })
+      : t('settings.integrations.created', { name: integration.name })
+
+    toast.success(t('settings.integrations.success'), {
+      description: successMessage,
+    })
+  }
 }
 
-function handleDelete(event: Event) {
+async function handleDelete(event: Event) {
   if (props.disabled) return
   // Stop event propagation to prevent the card click handler from firing
   event.stopPropagation()
-  emit('delete', props.integration, props.configuration)
+  const integration = props.integration
+  const config = props.configuration
+
+  if (!config) return
+
+  const confirmed = await appService.confirm({
+    title: t('settings.integrations.delete.title'),
+    description: t('settings.integrations.delete.description', {
+      name: integration.name,
+      config: config?.id,
+    }),
+    continueText: t('general.delete'),
+    cancelText: t('general.cancel'),
+    destructive: true,
+  })
+
+  if (confirmed) {
+    try {
+      await integrationService.deleteIntegration(config.id)
+
+      toast.success(t('settings.integrations.success'), {
+        description: t('settings.integrations.delete.success', {
+          name: integration.name,
+          config: config?.id,
+        }),
+      })
+    } catch (error) {
+      console.error('Failed to delete integration:', error)
+      // Error toast will be handled by axios interceptor
+    }
+  }
 }
 
 function isCapabilityEnabled(capability: string): boolean {

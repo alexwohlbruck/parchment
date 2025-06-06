@@ -3,7 +3,7 @@ import { h, onMounted, ref } from 'vue'
 import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
 import { ColumnDef } from '@tanstack/vue-table'
-import { PermissionId, Role } from '@/types/auth.types'
+import { Permission, Role } from '@/types/auth.types'
 import { useI18n } from 'vue-i18n'
 
 import { useUserService } from '@/services/user.service'
@@ -16,9 +16,9 @@ const { t } = useI18n()
 dayjs.extend(localizedFormat)
 
 const userService = useUserService()
-const permissions = ref<PermissionId[]>([])
+const permissions = ref<Permission[]>([])
 
-const columns: ColumnDef<PermissionId>[] = [
+const columns: ColumnDef<Permission>[] = [
   {
     header: 'ID',
     cell: ({ row }) => h(Code, {}, row.original.id),

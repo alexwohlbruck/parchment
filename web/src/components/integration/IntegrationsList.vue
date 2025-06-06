@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
   IntegrationDefinition,
-  IntegrationResponse,
+  IntegrationRecord,
 } from '@/types/integrations.types'
 import { SettingsSection } from '@/components/settings'
 import IntegrationTile from '@/components/integration/IntegrationTile.vue'
@@ -17,7 +17,7 @@ const props = defineProps<{
   title: string
   description?: string
   integrations: (IntegrationDefinition & {
-    configuration?: IntegrationResponse[]
+    configuration?: IntegrationRecord[]
   })[]
   emptyMessage: string
   configured?: boolean
@@ -26,7 +26,7 @@ const props = defineProps<{
 const integrations = computed<
   {
     integration: IntegrationDefinition
-    config?: IntegrationResponse
+    config?: IntegrationRecord
   }[]
 >(() => {
   return props.integrations

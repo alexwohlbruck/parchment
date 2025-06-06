@@ -4,13 +4,11 @@ import { generateId } from '../util'
 import { integrations, IntegrationRecord } from '../schema/integrations.schema'
 import {
   IntegrationCapability,
-  IntegrationCapabilityId,
   IntegrationConfig,
   IntegrationDefinition,
   IntegrationId,
-  IntegrationResponse,
   IntegrationScope,
-  TestIntegrationResponse,
+  IntegrationTestResult,
 } from '../types/integration.types'
 import { integrationManager } from './integrations'
 import { users } from '../schema/users.schema'
@@ -198,7 +196,7 @@ export async function initializeIntegrations() {
   await getConfiguredIntegrations()
 
   const allUsers = await db.select().from(users)
-  const promises: { userId: string; integrations: IntegrationResponse[] }[] = []
+  const promises: { userId: string; integrations: IntegrationRecord[] }[] = []
 
   for (const user of allUsers) {
     promises.push({
@@ -221,7 +219,7 @@ export async function initializeIntegrations() {
 // Helper functions
 export function parseIntegrationData(
   record: IntegrationRecord,
-): IntegrationResponse {
+): IntegrationRecord {
   let config: Record<string, any>
 
   try {
@@ -269,7 +267,7 @@ function cleanConfig(config: Record<string, any>): Record<string, any> {
 // Service functions
 export async function getConfiguredIntegrations(
   userId?: string,
-): Promise<IntegrationResponse[]> {
+): Promise<IntegrationRecord[]> {
   // TODO: When initializing system integrations, we need to check for any capabilities that have been added or removed during development. If an existing integration gains a capability in an update, it will not reflect in the db, we need to run migration.
 
   let userIntegrations
@@ -321,7 +319,7 @@ export async function getPublicIntegrations(): Promise<any[]> {
 export async function getIntegration(
   id: string,
   userId?: string,
-): Promise<IntegrationResponse | null> {
+): Promise<IntegrationRecord | null> {
   let result
 
   if (userId) {
@@ -356,7 +354,7 @@ export async function createIntegration(
   integrationId: IntegrationId,
   config: Record<string, any>,
   customCapabilities?: IntegrationCapability[],
-): Promise<IntegrationResponse> {
+): Promise<IntegrationRecord> {
   const integrationDef = availableIntegrations.find(
     (integration) => integration.id === integrationId,
   )
@@ -414,7 +412,7 @@ export async function updateIntegration(
     config?: Record<string, any>
     capabilities?: IntegrationCapability[]
   },
-): Promise<IntegrationResponse> {
+): Promise<IntegrationRecord> {
   const currentIntegration = await getIntegration(id, userId)
 
   if (!currentIntegration) {
@@ -499,7 +497,7 @@ export async function deleteIntegration(
 export async function testIntegrationConfig(
   integrationId: IntegrationId,
   config: Record<string, any>,
-): Promise<TestIntegrationResponse> {
+): Promise<IntegrationTestResult> {
   return integrationManager.testIntegration(integrationId, config)
 }
 

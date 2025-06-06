@@ -1,11 +1,11 @@
-import { Permission } from '../types/auth.types'
+import { PermissionId } from '../types/auth.types'
 
 // TODO: Derive from db schema
 export type Role = {
   id: string
   name: string
   description: string
-  permissions: Permission[] | '*'
+  permissions: PermissionId[] | '*'
 }
 
 /**
@@ -18,7 +18,7 @@ const user: Role = {
   id: 'user',
   name: 'User',
   description: 'A user that can view and browse the map',
-  permissions: [Permission.INTEGRATIONS_READ],
+  permissions: [PermissionId.INTEGRATIONS_READ],
 }
 
 const alpha: Role = {
@@ -27,9 +27,9 @@ const alpha: Role = {
   description:
     'A privileged user that is able to read all data in the app, but has limited write permissions',
   permissions: [
-    Permission.INTEGRATIONS_READ,
-    Permission.INTEGRATIONS_WRITE_USER,
-    Permission.SYSTEM_READ,
+    PermissionId.INTEGRATIONS_READ,
+    PermissionId.INTEGRATIONS_WRITE_USER,
+    PermissionId.SYSTEM_READ,
     // Permission.USERS_READ,
     // Permission.ROLES_READ,
     // Permission.PERMISSIONS_READ,

@@ -1,4 +1,6 @@
-export enum Permission {
+export type { Permission, NewPermission } from '../schema/permissions.schema'
+
+export enum PermissionId {
   USERS_READ = 'users:read',
   USERS_CREATE = 'users:create',
   ROLES_READ = 'roles:read',
@@ -10,8 +12,8 @@ export enum Permission {
 }
 
 export type PermissionRule =
-  | Permission
+  | PermissionId
   | {
-      all?: Permission | Permission[]
-      any?: Permission[]
+      all?: PermissionId | PermissionId[]
+      any?: PermissionId[]
     }

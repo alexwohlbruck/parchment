@@ -4,7 +4,7 @@ import { useStorage } from '@vueuse/core'
 import {
   IntegrationId,
   type IntegrationDefinition,
-  type IntegrationResponse,
+  type IntegrationRecord,
 } from '@server/types/integration.types'
 import { api } from '@/lib/api'
 import {
@@ -38,7 +38,7 @@ const getIcon = (integrationId: string) => {
 }
 
 export const useIntegrationsStore = defineStore('integrations', () => {
-  const integrationConfigurations = useStorage<IntegrationResponse[]>(
+  const integrationConfigurations = useStorage<IntegrationRecord[]>(
     'configured-integrations',
     [],
   )
@@ -89,7 +89,7 @@ export const useIntegrationsStore = defineStore('integrations', () => {
   async function fetchConfiguredIntegrations() {
     isLoading.value = true
     try {
-      const response = await api.get<IntegrationResponse[]>(
+      const response = await api.get<IntegrationRecord[]>(
         '/integrations/configured',
       )
       integrationConfigurations.value = response.data

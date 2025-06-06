@@ -15,16 +15,16 @@ import {
   IntegrationCapabilityId,
   IntegrationCapability,
   IntegrationScope,
-  IntegrationResponse,
+  IntegrationRecord,
 } from '../types/integration.types'
 import { requireAuth } from '../middleware/auth.middleware'
-import { Permission } from '../types/auth.types'
+import { PermissionId } from '../types/auth.types'
 import { hasPermission, getPermissions } from '../services/auth.service'
 
 // Helper function to sanitize integration configs by removing sensitive data
 function sanitizeIntegrationConfig(
-  integration: IntegrationResponse,
-): IntegrationResponse {
+  integration: IntegrationRecord,
+): IntegrationRecord {
   return {
     ...integration,
     config: {} as any, // Remove all config data for users without system read permissions
@@ -40,10 +40,10 @@ app.use(requireAuth)
 app.get('/available', async ({ user }) => {
   // Check if user has basic read permission for integrations
   const userPermissions = await getPermissions(user.id)
-  const canRead = hasPermission(userPermissions, Permission.INTEGRATIONS_READ)
+  const canRead = hasPermission(userPermissions, PermissionId.INTEGRATIONS_READ)
   const canWriteSystem = hasPermission(
     userPermissions,
-    Permission.INTEGRATIONS_WRITE_SYSTEM,
+    PermissionId.INTEGRATIONS_WRITE_SYSTEM,
   )
 
   if (!canRead) {
@@ -90,14 +90,14 @@ app.get('/available', async ({ user }) => {
 app.get('/configured', async ({ user }) => {
   // Check if user has basic read permission for integrations
   const userPermissions = await getPermissions(user.id)
-  const canRead = hasPermission(userPermissions, Permission.INTEGRATIONS_READ)
+  const canRead = hasPermission(userPermissions, PermissionId.INTEGRATIONS_READ)
   const canWriteUser = hasPermission(
     userPermissions,
-    Permission.INTEGRATIONS_WRITE_USER,
+    PermissionId.INTEGRATIONS_WRITE_USER,
   )
   const canWriteSystem = hasPermission(
     userPermissions,
-    Permission.INTEGRATIONS_WRITE_SYSTEM,
+    PermissionId.INTEGRATIONS_WRITE_SYSTEM,
   )
 
   if (!canRead) {
@@ -136,14 +136,17 @@ app.get(
   '/:id',
   async ({ params: { id }, user }) => {
     const userPermissions = await getPermissions(user.id)
-    const canRead = hasPermission(userPermissions, Permission.INTEGRATIONS_READ)
+    const canRead = hasPermission(
+      userPermissions,
+      PermissionId.INTEGRATIONS_READ,
+    )
     const canWriteUser = hasPermission(
       userPermissions,
-      Permission.INTEGRATIONS_WRITE_USER,
+      PermissionId.INTEGRATIONS_WRITE_USER,
     )
     const canWriteSystem = hasPermission(
       userPermissions,
-      Permission.INTEGRATIONS_WRITE_SYSTEM,
+      PermissionId.INTEGRATIONS_WRITE_SYSTEM,
     )
 
     if (!canRead) {
@@ -190,11 +193,11 @@ app.post(
     const userPermissions = await getPermissions(user.id)
     const canWriteUser = hasPermission(
       userPermissions,
-      Permission.INTEGRATIONS_WRITE_USER,
+      PermissionId.INTEGRATIONS_WRITE_USER,
     )
     const canWriteSystem = hasPermission(
       userPermissions,
-      Permission.INTEGRATIONS_WRITE_SYSTEM,
+      PermissionId.INTEGRATIONS_WRITE_SYSTEM,
     )
 
     const { integrationId, config, capabilities, isSystemWide } = body
@@ -284,11 +287,11 @@ app.put(
     const userPermissions = await getPermissions(user.id)
     const canWriteUser = hasPermission(
       userPermissions,
-      Permission.INTEGRATIONS_WRITE_USER,
+      PermissionId.INTEGRATIONS_WRITE_USER,
     )
     const canWriteSystem = hasPermission(
       userPermissions,
-      Permission.INTEGRATIONS_WRITE_SYSTEM,
+      PermissionId.INTEGRATIONS_WRITE_SYSTEM,
     )
 
     // At least one of config or capabilities must be provided
@@ -373,11 +376,11 @@ app.delete(
     const userPermissions = await getPermissions(user.id)
     const canWriteUser = hasPermission(
       userPermissions,
-      Permission.INTEGRATIONS_WRITE_USER,
+      PermissionId.INTEGRATIONS_WRITE_USER,
     )
     const canWriteSystem = hasPermission(
       userPermissions,
-      Permission.INTEGRATIONS_WRITE_SYSTEM,
+      PermissionId.INTEGRATIONS_WRITE_SYSTEM,
     )
 
     try {
@@ -437,11 +440,11 @@ app.post(
     const userPermissions = await getPermissions(user.id)
     const canWriteUser = hasPermission(
       userPermissions,
-      Permission.INTEGRATIONS_WRITE_USER,
+      PermissionId.INTEGRATIONS_WRITE_USER,
     )
     const canWriteSystem = hasPermission(
       userPermissions,
-      Permission.INTEGRATIONS_WRITE_SYSTEM,
+      PermissionId.INTEGRATIONS_WRITE_SYSTEM,
     )
 
     const { integrationId, config } = body

@@ -1,9 +1,6 @@
 import { Place } from './place.types'
 import { Source } from '../lib/constants'
-import {
-  IntegrationId,
-  IntegrationCapabilityId,
-} from '../schema/integrations.schema'
+import { IntegrationId, IntegrationCapabilityId } from './integration.enums'
 import type { IntegrationRecord } from '../schema/integrations.schema'
 
 export { IntegrationId, IntegrationCapabilityId, IntegrationRecord }

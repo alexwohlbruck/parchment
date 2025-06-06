@@ -1,16 +1,14 @@
 import {
-  IntegrationDefinition,
   IntegrationConfig,
   IntegrationTestResult,
-  CachedIntegration,
+  IntegrationRecord,
   IntegrationCapabilityId,
   IntegrationId,
-  IntegrationCapability,
-  IntegrationResponse,
+  IntegrationRecord,
   Integration,
 } from '../../types/integration.types'
 import { IntegrationRegistry } from './integration-registry'
-import { Source, SOURCE, SOURCE_PRIORITIES } from '../../lib/constants'
+import { Source } from '../../lib/constants'
 import { initializeWithTest } from '../../lib/integration.utils'
 
 /**
@@ -18,7 +16,7 @@ import { initializeWithTest } from '../../lib/integration.utils'
  */
 export class IntegrationManagerService {
   private registry: IntegrationRegistry
-  private integrationsCache: Map<string, CachedIntegration> = new Map()
+  private integrationsCache: Map<string, IntegrationRecord> = new Map()
   private userIntegrationsCache: Map<string, string[]> = new Map()
   private systemIntegrationsCache: string[] = []
 
@@ -55,7 +53,7 @@ export class IntegrationManagerService {
    */
   async initializeIntegration(
     userId: string | undefined,
-    integrationData: IntegrationResponse,
+    integrationData: IntegrationRecord,
   ): Promise<void> {
     const integrationImpl = this.registry.getIntegration(
       integrationData.integrationId,
@@ -109,7 +107,7 @@ export class IntegrationManagerService {
   getIntegration(
     userId: string | undefined,
     integrationId: string,
-  ): CachedIntegration | undefined {
+  ): IntegrationRecord | undefined {
     const cacheKey = userId
       ? `${userId}:${integrationId}`
       : `system:${integrationId}`
@@ -134,7 +132,7 @@ export class IntegrationManagerService {
   getConfiguredIntegrationForSource(
     sourceId: Source,
     capabilityId: IntegrationCapabilityId,
-  ): CachedIntegration | undefined {
+  ): IntegrationRecord | undefined {
     const integrations =
       this.getConfiguredIntegrationsByCapability(capabilityId)
 
@@ -151,26 +149,26 @@ export class IntegrationManagerService {
    * @param userId The user ID, or undefined to get only system-wide integrations
    * @returns Array of cached integrations (system-wide only if userId is undefined, both user-specific and system-wide if userId provided)
    */
-  getConfiguredIntegrations(userId?: string): CachedIntegration[] {
+  getConfiguredIntegrations(userId?: string): IntegrationRecord[] {
     if (!userId) {
       // Return only system-wide integrations
       return this.systemIntegrationsCache
         .map((cacheKey) => this.integrationsCache.get(cacheKey))
         .filter(
           (integration) => integration !== undefined,
-        ) as CachedIntegration[]
+        ) as IntegrationRecord[]
     }
 
     // Get user-specific integrations
     const userIntegrations = this.userIntegrationsCache.get(userId) || []
     const userSpecificIntegrations = userIntegrations
       .map((cacheKey) => this.integrationsCache.get(cacheKey))
-      .filter((integration) => integration !== undefined) as CachedIntegration[]
+      .filter((integration) => integration !== undefined) as IntegrationRecord[]
 
     // Get system-wide integrations
     const systemIntegrations = this.systemIntegrationsCache
       .map((cacheKey) => this.integrationsCache.get(cacheKey))
-      .filter((integration) => integration !== undefined) as CachedIntegration[]
+      .filter((integration) => integration !== undefined) as IntegrationRecord[]
 
     // Return both user-specific and system-wide integrations
     return [...userSpecificIntegrations, ...systemIntegrations]
@@ -237,8 +235,8 @@ export class IntegrationManagerService {
    */
   getConfiguredIntegrationsByCapability(
     capabilityId: IntegrationCapabilityId,
-  ): CachedIntegration[] {
-    const result: CachedIntegration[] = []
+  ): IntegrationRecord[] {
+    const result: IntegrationRecord[] = []
 
     for (const [cacheKey, cachedIntegration] of this.integrationsCache) {
       const hasCapability = cachedIntegration.capabilities.some(

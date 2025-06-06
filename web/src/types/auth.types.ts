@@ -1,18 +1,10 @@
-import { Permission as PermissionId } from '@server/types/auth.types'
-
-export { PermissionId }
+export * from '@server/types/auth.types'
+import type { PermissionId } from '@server/types/auth.types'
 
 export type Role = {
   id: string
   name: string
   description: string
-  createdAt: string
-  updatedAt: string
-}
-
-export type Permission = {
-  id: string
-  name: string
   createdAt: string
   updatedAt: string
 }

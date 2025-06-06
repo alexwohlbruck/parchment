@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import type {
   IntegrationCapability,
-  IntegrationResponse,
+  IntegrationRecord,
 } from '@server/types/integration.types'
 import {
   IntegrationCapabilityId,
@@ -54,7 +54,7 @@ export function useIntegrationService() {
     return response.data
   }
 
-  async function deleteIntegration(id: IntegrationResponse['id']) {
+  async function deleteIntegration(id: IntegrationRecord['id']) {
     isLoading.value = true
     error.value = null
 

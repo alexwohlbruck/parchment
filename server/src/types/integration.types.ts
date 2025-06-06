@@ -1,30 +1,12 @@
 import { Place } from './place.types'
 import { Source } from '../lib/constants'
+import {
+  IntegrationId,
+  IntegrationCapabilityId,
+} from '../schema/integrations.schema'
+import type { IntegrationRecord } from '../schema/integrations.schema'
 
-export enum IntegrationCapabilityId {
-  SEARCH = 'search',
-  AUTOCOMPLETE = 'autocomplete',
-  GEOCODING = 'geocoding',
-  PLACE_INFO = 'placeInfo',
-  ROUTING = 'routing',
-  IMAGERY = 'imagery',
-  MAP_ENGINE = 'mapEngine',
-}
-
-export enum IntegrationId {
-  GOOGLE_MAPS = 'google-maps',
-  PELIAS = 'pelias',
-  OVERPASS = 'overpass',
-  GRAPHHOPPER = 'graphhopper',
-  YELP = 'yelp',
-  OPENTABLE = 'opentable',
-  FOURSQUARE = 'foursquare',
-  MAPILLARY = 'mapillary',
-  NOMINATIM = 'nominatim',
-  TRIPADVISOR = 'tripadvisor',
-  GEOAPIFY = 'geoapify',
-  MAPBOX = 'mapbox',
-}
+export { IntegrationId, IntegrationCapabilityId, IntegrationRecord }
 
 // Capability interfaces
 
@@ -76,7 +58,6 @@ export interface ImageryCapability {
   getImagery(lat: number, lng: number, options?: any): Promise<any[]>
 }
 
-// TODO: Return types
 export interface MapEngineCapability {} // No methods needed for now
 
 // Integration capabilities container
@@ -90,115 +71,10 @@ export interface IntegrationCapabilities {
   mapEngine?: MapEngineCapability
 }
 
-// Integration interfaces
-export interface IntegrationTestResult {
-  success: boolean
-  message?: string
-}
-
-// Integration-specific config interfaces
-export interface GoogleMapsConfig {
-  apiKey: string
-}
-
-export interface PeliasConfig {
-  host: string
-  apiKey?: string
-}
-
-export interface NominatimConfig {
-  host: string
-  email?: string
-}
-
-export interface OverpassConfig {
-  host: string
-}
-
-export interface GraphHopperConfig {
-  apiKey: string
-  host?: string
-}
-
-export interface YelpConfig {
-  clientId: string
-  clientSecret: string
-}
-
-export interface OpenTableConfig {
-  apiKey: string
-}
-
-export interface FoursquareConfig {
-  clientId: string
-  clientSecret: string
-}
-
-export interface MapillaryConfig {
-  apiKey: string
-}
-
-export interface TripAdvisorConfig {
-  apiKey: string
-}
-
-export interface GeoapifyConfig {
-  apiKey: string
-}
-
-export interface MapboxConfig {
-  accessToken: string
-}
-
-// Union type for all integration configs
-export type IntegrationConfig =
-  | GoogleMapsConfig
-  | PeliasConfig
-  | NominatimConfig
-  | OverpassConfig
-  | GraphHopperConfig
-  | YelpConfig
-  | OpenTableConfig
-  | FoursquareConfig
-  | MapillaryConfig
-  | TripAdvisorConfig
-  | GeoapifyConfig
-  | MapboxConfig
-
-// Type helper to get config type for specific integration
-export type ConfigForIntegration<T extends IntegrationId> =
-  T extends IntegrationId.GOOGLE_MAPS
-    ? GoogleMapsConfig
-    : T extends IntegrationId.PELIAS
-    ? PeliasConfig
-    : T extends IntegrationId.NOMINATIM
-    ? NominatimConfig
-    : T extends IntegrationId.OVERPASS
-    ? OverpassConfig
-    : T extends IntegrationId.GRAPHHOPPER
-    ? GraphHopperConfig
-    : T extends IntegrationId.YELP
-    ? YelpConfig
-    : T extends IntegrationId.OPENTABLE
-    ? OpenTableConfig
-    : T extends IntegrationId.FOURSQUARE
-    ? FoursquareConfig
-    : T extends IntegrationId.MAPILLARY
-    ? MapillaryConfig
-    : T extends IntegrationId.TRIPADVISOR
-    ? TripAdvisorConfig
-    : T extends IntegrationId.GEOAPIFY
-    ? GeoapifyConfig
-    : T extends IntegrationId.MAPBOX
-    ? MapboxConfig
-    : never
-
 /**
  * Base interface that all integrations must implement
  */
-export interface Integration<
-  TConfig extends IntegrationConfig = IntegrationConfig,
-> {
+export interface Integration {
   /**
    * The integration ID that this integration implements
    */
@@ -224,30 +100,22 @@ export interface Integration<
    * @param config The configuration to test
    * @returns A test result indicating success or failure
    */
-  testConnection(config: TConfig): Promise<IntegrationTestResult>
+  testConnection(
+    config: IntegrationRecord['config'],
+  ): Promise<IntegrationTestResult>
 
   /**
    * Initializes the integration with the given configuration
    * @param config The configuration to use
    */
-  initialize(config: TConfig): void
+  initialize(config: IntegrationRecord['config']): void
 
   /**
    * Validates that the configuration has all required fields
    * @param config The configuration to validate
    * @returns True if the configuration is valid, false otherwise
    */
-  validateConfig(config: TConfig): boolean
-}
-
-// Integration data types
-export type CachedIntegration = {
-  userId: string | null
-  id: string // db random generated id
-  integrationId: IntegrationId // unique readable id for the integration
-  integration: Integration
-  capabilities: IntegrationCapability[]
-  config: IntegrationConfig
+  validateConfig(config: IntegrationRecord['config']): boolean
 }
 
 export type IntegrationCapability = {
@@ -274,36 +142,7 @@ export enum IntegrationScope {
   USER = 'user',
 }
 
-// TODO: Create inferred types from schema defs
-
-// Response shape for client
-export type IntegrationResponse = {
-  id: string
-  integrationId: IntegrationId
-  capabilities: IntegrationCapability[]
-  config: IntegrationConfig
-}
-
-// Request to create a new integration
-export type CreateIntegrationRequest = {
-  integrationId: IntegrationId
-  config: IntegrationConfig
-}
-
-// Request to update an integration
-export type UpdateIntegrationRequest = {
-  config?: IntegrationConfig
-  capabilities?: IntegrationCapability[]
-}
-
-// Response for testing an integration
-export type TestIntegrationResponse = {
+export type IntegrationTestResult = {
   success: boolean
   message?: string
-}
-
-// Request to test an integration
-export type TestIntegrationRequest = {
-  integrationId: IntegrationId
-  config: IntegrationConfig
 }

@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useIntegrationService } from '@/services/integration.service'
 import {
   IntegrationDefinition,
-  IntegrationResponse,
+  IntegrationRecord,
 } from '@/types/integrations.types'
 import { ZodObject } from 'zod'
 import { AutoForm } from '@/components/ui/auto-form'
@@ -19,7 +19,7 @@ import { TransitionExpand } from '@morev/vue-transitions'
 
 const props = defineProps<{
   integration: IntegrationDefinition
-  config?: IntegrationResponse
+  config?: IntegrationRecord
   schema: ZodObject<any>
   isConfigured: boolean
 }>()

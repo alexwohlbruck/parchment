@@ -8,7 +8,7 @@ import {
   Integration,
   IntegrationDefinition,
   IntegrationId,
-  IntegrationResponse,
+  IntegrationRecord,
   IntegrationScope,
 } from '@/types/integrations.types'
 import { computed } from 'vue'
@@ -26,7 +26,7 @@ const integrationService = useIntegrationService()
 
 const props = defineProps<{
   integration: IntegrationDefinition
-  configuration?: IntegrationResponse
+  configuration?: IntegrationRecord
   disabled?: boolean
 }>()
 
@@ -34,12 +34,12 @@ const emit = defineEmits<{
   (
     e: 'click',
     integration: IntegrationDefinition,
-    config?: IntegrationResponse,
+    config?: IntegrationRecord,
   ): void
   (
     e: 'delete',
     integration: IntegrationDefinition,
-    config?: IntegrationResponse,
+    config?: IntegrationRecord,
   ): void
 }>()
 

@@ -1,4 +1,4 @@
-import { Permission } from '../types/auth.types'
+import { PermissionId } from '../types/auth.types'
 
 /**
  * User permission definitions
@@ -7,42 +7,42 @@ import { Permission } from '../types/auth.types'
  * If you update any permission IDs, change them in ./roles.ts as well
  */
 export const permissions: {
-  id: Permission
+  id: PermissionId
   name: string
   description?: string
 }[] = [
   {
-    id: Permission.USERS_READ,
+    id: PermissionId.USERS_READ,
     name: 'View all users',
   },
   {
-    id: Permission.USERS_CREATE,
+    id: PermissionId.USERS_CREATE,
     name: 'Invite new user',
   },
   {
-    id: Permission.ROLES_READ,
+    id: PermissionId.ROLES_READ,
     name: 'Read user roles',
   },
   {
-    id: Permission.PERMISSIONS_READ,
+    id: PermissionId.PERMISSIONS_READ,
     name: 'Read user permissions',
   },
   {
-    id: Permission.SYSTEM_READ,
+    id: PermissionId.SYSTEM_READ,
     name: 'Read system status data',
   },
   {
-    id: Permission.INTEGRATIONS_READ,
+    id: PermissionId.INTEGRATIONS_READ,
     name: 'View integrations',
   },
   {
-    id: Permission.INTEGRATIONS_WRITE_USER,
+    id: PermissionId.INTEGRATIONS_WRITE_USER,
     name: 'Write User Integrations',
     description:
       'Create, update, and delete user-scoped integration configurations',
   },
   {
-    id: Permission.INTEGRATIONS_WRITE_SYSTEM,
+    id: PermissionId.INTEGRATIONS_WRITE_SYSTEM,
     name: 'Write System Integrations',
     description:
       'Create, update, and delete system-wide integration configurations',

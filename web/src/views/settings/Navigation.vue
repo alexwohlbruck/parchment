@@ -19,7 +19,7 @@ import {
   BlocksIcon,
 } from 'lucide-vue-next'
 import { PermissionRule } from '@/types/auth.types'
-import { PermissionId as Permission } from '@/types/auth.types'
+import { PermissionId } from '@/types/auth.types'
 import { computed } from 'vue'
 
 const router = useRouter()
@@ -59,7 +59,7 @@ const pages: {
     id: 'integrations',
     to: '/settings/integrations',
     icon: BlocksIcon,
-    // permissions: Permission.INTEGRATIONS_READ,
+    permissions: PermissionId.INTEGRATIONS_READ,
   },
   {
     id: 'users',
@@ -67,9 +67,9 @@ const pages: {
     icon: Contact2Icon,
     permissions: {
       any: [
-        Permission.USERS_READ,
-        Permission.ROLES_READ,
-        Permission.PERMISSIONS_READ,
+        PermissionId.USERS_READ,
+        PermissionId.ROLES_READ,
+        PermissionId.PERMISSIONS_READ,
       ],
     }, // TODO: Global permissions list
   },
@@ -78,7 +78,7 @@ const pages: {
     to: '/settings/system',
     icon: ActivityIcon,
     disabled: true,
-    permissions: Permission.SYSTEM_READ, // TODO: Global permissions list
+    permissions: PermissionId.SYSTEM_READ, // TODO: Global permissions list
   },
 ]
 

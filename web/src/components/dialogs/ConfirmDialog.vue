@@ -1,49 +1,64 @@
 <script setup lang="ts">
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogClose,
-} from '@/components/ui/dialog'
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialogOptions } from '@/types/app.types'
+import { ref, watch } from 'vue'
 
-const { title, description, destructive, continueText, cancelText } =
-  defineProps<ConfirmDialogOptions>()
+interface Props extends ConfirmDialogOptions {
+  loading?: boolean
+}
+
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   (e: 'submit', payload: boolean): void
 }>()
+
+const isOpen = ref(true)
+
+watch(isOpen, value => {
+  if (!value) {
+    emit('submit', false)
+  }
+})
 </script>
 
 <template>
-  <Dialog defaultOpen>
-    <DialogContent>
-      <DialogHeader v-if="title || description">
-        <DialogTitle v-if="title">{{ title }}</DialogTitle>
-        <DialogDescription v-if="description">
-          {{ description }}
-        </DialogDescription>
-      </DialogHeader>
+  <AlertDialog :open="isOpen" @update:open="isOpen = $event">
+    <AlertDialogContent>
+      <AlertDialogHeader v-if="props.title || props.description">
+        <AlertDialogTitle v-if="props.title">{{
+          props.title
+        }}</AlertDialogTitle>
+        <AlertDialogDescription v-if="props.description">
+          {{ props.description }}
+        </AlertDialogDescription>
+      </AlertDialogHeader>
 
-      <DialogFooter>
-        <DialogClose as-child>
-          <Button @click="emit('submit', false)" variant="outline">
-            {{ cancelText || $t('general.cancel') }}
-          </Button>
-        </DialogClose>
-        <DialogClose as-child>
-          <Button
-            @click="emit('submit', true)"
-            :variant="destructive ? 'destructive' : 'default'"
-          >
-            {{ continueText || $t('general.continue') }}
-          </Button>
-        </DialogClose>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+      <AlertDialogFooter>
+        <Button
+          @click="isOpen = false"
+          variant="outline"
+          :disabled="props.loading"
+        >
+          {{ props.cancelText || $t('general.cancel') }}
+        </Button>
+        <Button
+          @click="emit('submit', true)"
+          :variant="props.destructive ? 'destructive' : 'default'"
+          :loading="props.loading"
+          :disabled="props.loading"
+        >
+          {{ props.continueText || $t('general.continue') }}
+        </Button>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
 </template>

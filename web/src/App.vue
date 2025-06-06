@@ -45,6 +45,7 @@ onMounted(() => {
       :is="dialog.component"
       v-bind="dialog.props"
       @submit="async e => dialog.onSubmit(await e)"
+      :loading="dialog.loading"
     />
   </div>
 

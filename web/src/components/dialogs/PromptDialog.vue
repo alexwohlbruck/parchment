@@ -13,7 +13,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogClose,
 } from '@/components/ui/dialog'
 import {
   FormControl,
@@ -22,9 +21,12 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { ref, watch } from 'vue'
 
-const { title, description, inputProps, label, continueText, cancelText } =
-  defineProps<PromptDialogOptions>()
+interface Props extends PromptDialogOptions {
+  loading?: boolean
+}
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   (e: 'submit', payload: string | null): void
@@ -39,7 +41,7 @@ const formSchema = toTypedSchema(
 const form = useForm({
   validationSchema: formSchema,
   initialValues: {
-    promptInput: '',
+    promptInput: props.defaultValue || '',
   },
 })
 
@@ -49,29 +51,33 @@ const onSubmit = form.handleSubmit(({ promptInput }) => {
   emit('submit', promptInput)
 })
 
-function onCancel() {
-  emit('submit', null)
-}
+const isOpen = ref(true)
+watch(isOpen, value => {
+  if (!value) {
+    emit('submit', null)
+  }
+})
 </script>
 
 <template>
-  <Dialog defaultOpen>
+  <Dialog :open="isOpen" @update:open="isOpen = $event">
     <DialogContent>
-      <DialogHeader v-if="title || description">
-        <DialogTitle v-if="title">{{ title }}</DialogTitle>
-        <DialogDescription v-if="description">
-          {{ description }}
+      <DialogHeader v-if="props.title || props.description">
+        <DialogTitle v-if="props.title">{{ props.title }}</DialogTitle>
+        <DialogDescription v-if="props.description">
+          {{ props.description }}
         </DialogDescription>
       </DialogHeader>
 
       <form id="prompt" @submit="onSubmit">
         <FormField v-slot="{ componentField }" name="promptInput">
           <FormItem>
-            <FormLabel v-if="label">{{ label }}</FormLabel>
+            <FormLabel v-if="props.label">{{ props.label }}</FormLabel>
             <FormControl>
               <Input
                 id="prompt-input"
-                v-bind="{ ...componentField, ...inputProps }"
+                v-bind="{ ...componentField, ...props.inputProps }"
+                :disabled="props.loading"
               />
             </FormControl>
             <FormMessage />
@@ -80,16 +86,21 @@ function onCancel() {
       </form>
 
       <DialogFooter>
-        <DialogClose as-child>
-          <Button @click="onCancel" variant="outline">
-            {{ cancelText || $t('general.cancel') }}
-          </Button>
-        </DialogClose>
-        <DialogClose as-child>
-          <Button form="prompt" type="submit" :disabled="!isFormValid">
-            {{ continueText || $t('general.continue') }}
-          </Button>
-        </DialogClose>
+        <Button
+          @click="isOpen = false"
+          variant="outline"
+          :disabled="props.loading"
+        >
+          {{ props.cancelText || $t('general.cancel') }}
+        </Button>
+        <Button
+          form="prompt"
+          type="submit"
+          :disabled="!isFormValid || props.loading"
+          :loading="props.loading"
+        >
+          {{ props.continueText || $t('general.continue') }}
+        </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>

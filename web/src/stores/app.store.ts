@@ -201,7 +201,8 @@ export const useAppStore = defineStore('app', () => {
       id: number
       component: Component
       props: any
-      onSubmit: Function
+      onSubmit: (payload: any) => void
+      loading?: boolean
     }[]
   >([])
 
@@ -219,23 +220,60 @@ export const useAppStore = defineStore('app', () => {
         [DialogType.Template]: ConfirmDialog, // TODO
       }
 
-      if (type === DialogType.Component) {
+      if (
+        type === DialogType.Component &&
+        (options as import('@/types/app.types').ComponentDialogOptions)
+          .component
+      ) {
         const componentOptions =
           options as import('@/types/app.types').ComponentDialogOptions
-        if (componentOptions.component) {
-          componentOptions.component = markRaw(componentOptions.component)
-        }
+        componentOptions.component = markRaw(componentOptions.component)
       }
 
-      dialogs.value.push({
+      const newDialog: {
+        id: number
+        component: Component
+        props: any
+        onSubmit: (payload: any) => void
+        loading?: boolean
+      } = {
         id,
         component: markRaw(dialogTypesMap[type]),
         props: options,
-        onSubmit: (payload: any) => {
-          if (payload) resolve(payload)
-          setTimeout(() => removeDialog(id), 1000) // Wait for close animation
+        onSubmit: async (payload: any) => {
+          // If payload is falsy, it's a cancel action.
+          if (!payload) {
+            resolve(false)
+            removeDialog(id)
+            return
+          }
+
+          // If there's an onContinue handler, execute it.
+          if (options.onContinue) {
+            const dialog = dialogs.value.find(d => d.id === id)
+            if (dialog) {
+              dialog.loading = true
+            }
+
+            try {
+              const result = await options.onContinue(payload)
+              resolve(result)
+            } catch (e) {
+              console.error('Dialog submission failed', e)
+              resolve(false)
+            } finally {
+              removeDialog(id)
+            }
+          } else {
+            // Otherwise, just resolve with the payload.
+            resolve(payload)
+            removeDialog(id)
+          }
         },
-      })
+        loading: false,
+      }
+
+      dialogs.value.push(newDialog)
     })
   }
 

@@ -42,7 +42,7 @@ export async function lookupPlaceById(
   placeId: string,
 ): Promise<Place | null> {
   try {
-    const integration = integrationManager.getIntegrationForSource(
+    const integration = integrationManager.getConfiguredIntegrationForSource(
       source,
       IntegrationCapabilityId.PLACE_INFO,
     )
@@ -86,14 +86,14 @@ export async function lookupPlacesByNameAndLocation(
     } = options || {}
 
     const integrations = integrationManager
-      .getIntegrationsByCapability(
+      .getConfiguredIntegrationsByCapability(
         autocomplete
           ? IntegrationCapabilityId.AUTOCOMPLETE
           : IntegrationCapabilityId.SEARCH,
       )
       .filter((integration) => {
         // Filter out integrations whose sources are in the blacklist
-        return !integration.integration.sources.some((source) =>
+        return !integration.integration.sources?.some((source) =>
           sourceBlacklist.includes(source),
         )
       })

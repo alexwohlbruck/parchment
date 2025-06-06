@@ -5,9 +5,11 @@ import { integrations, IntegrationRecord } from '../schema/integrations.schema'
 import {
   IntegrationCapability,
   IntegrationCapabilityId,
+  IntegrationConfig,
   IntegrationDefinition,
   IntegrationId,
   IntegrationResponse,
+  IntegrationScope,
   TestIntegrationResponse,
 } from '../types/integration.types'
 import { integrationManager } from './integrations'
@@ -15,6 +17,20 @@ import { users } from '../schema/users.schema'
 
 // Available integration definitions
 const availableIntegrations: IntegrationDefinition[] = [
+  {
+    id: IntegrationId.MAPBOX,
+    name: 'Mapbox',
+    description: 'Interactive maps, geocoding, and navigation',
+    color: '#4264FB',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(IntegrationId.MAPBOX)
+    },
+    paid: true,
+    cloud: true,
+    configSchema: 'mapboxSchema',
+    public: true,
+    scope: [IntegrationScope.SYSTEM],
+  },
   {
     id: IntegrationId.GOOGLE_MAPS,
     name: 'Google Maps',
@@ -28,6 +44,7 @@ const availableIntegrations: IntegrationDefinition[] = [
     paid: true,
     cloud: true,
     configSchema: 'googleMapsSchema',
+    scope: [IntegrationScope.SYSTEM],
   },
   {
     id: IntegrationId.PELIAS,
@@ -40,6 +57,7 @@ const availableIntegrations: IntegrationDefinition[] = [
     paid: false,
     cloud: false,
     configSchema: 'peliasSchema',
+    scope: [IntegrationScope.SYSTEM],
   },
   {
     id: IntegrationId.OVERPASS,
@@ -54,74 +72,7 @@ const availableIntegrations: IntegrationDefinition[] = [
     paid: false,
     cloud: false,
     configSchema: 'overpassSchema',
-  },
-  {
-    id: IntegrationId.GRAPHHOPPER,
-    name: 'GraphHopper',
-    description: 'Fast and efficient routing engine',
-    color: '#2E7D32',
-    get capabilities() {
-      return integrationManager.getIntegrationCapabilities(
-        IntegrationId.GRAPHHOPPER,
-      )
-    },
-    paid: false,
-    cloud: false,
-    configSchema: 'apiKeySchema',
-  },
-  {
-    id: IntegrationId.YELP,
-    name: 'Yelp',
-    description: 'Local business reviews and ratings',
-    color: '#D32323',
-    get capabilities() {
-      return integrationManager.getIntegrationCapabilities(IntegrationId.YELP)
-    },
-    paid: true,
-    cloud: true,
-    configSchema: 'oauthConfigSchema',
-  },
-  {
-    id: IntegrationId.OPENTABLE,
-    name: 'OpenTable',
-    description: 'Restaurant discovery and reservations',
-    color: '#222222',
-    get capabilities() {
-      return integrationManager.getIntegrationCapabilities(
-        IntegrationId.OPENTABLE,
-      )
-    },
-    paid: true,
-    cloud: true,
-    configSchema: 'apiKeySchema',
-  },
-  {
-    id: IntegrationId.FOURSQUARE,
-    name: 'Foursquare',
-    description: 'Location-based social network',
-    color: '#F94877',
-    get capabilities() {
-      return integrationManager.getIntegrationCapabilities(
-        IntegrationId.FOURSQUARE,
-      )
-    },
-    paid: true,
-    cloud: true,
-    configSchema: 'oauthConfigSchema',
-  },
-  {
-    id: IntegrationId.MAPILLARY,
-    name: 'Mapillary',
-    description: 'Street-level imagery platform',
-    color: '#2B2B2B',
-    get capabilities() {
-      return integrationManager.getIntegrationCapabilities(
-        IntegrationId.MAPILLARY,
-      )
-    },
-    paid: false,
-    cloud: true,
-    configSchema: 'apiKeySchema',
+    scope: [IntegrationScope.SYSTEM],
   },
   {
     id: IntegrationId.NOMINATIM,
@@ -136,44 +87,134 @@ const availableIntegrations: IntegrationDefinition[] = [
     paid: false,
     cloud: false,
     configSchema: 'nominatimSchema',
+    scope: [IntegrationScope.SYSTEM],
   },
-  {
-    id: IntegrationId.TRIPADVISOR,
-    name: 'TripAdvisor',
-    description: 'Travel reviews and recommendations',
-    color: '#34E0A1',
-    get capabilities() {
-      return integrationManager.getIntegrationCapabilities(
-        IntegrationId.TRIPADVISOR,
-      )
-    },
-    paid: true,
-    cloud: true,
-    configSchema: 'apiKeySchema',
-  },
-  {
-    id: IntegrationId.GEOAPIFY,
-    name: 'Geoapify',
-    description: 'Geocoding, routing, and place data',
-    color: '#FF5A5F',
-    get capabilities() {
-      return integrationManager.getIntegrationCapabilities(
-        IntegrationId.GEOAPIFY,
-      )
-    },
-    paid: true,
-    cloud: true,
-    configSchema: 'apiKeySchema',
-  },
+  // {
+  //   id: IntegrationId.GRAPHHOPPER,
+  //   name: 'GraphHopper',
+  //   description: 'Fast and efficient routing engine',
+  //   color: '#2E7D32',
+  //   get capabilities() {
+  //     return integrationManager.getIntegrationCapabilities(
+  //       IntegrationId.GRAPHHOPPER,
+  //     )
+  //   },
+  //   paid: false,
+  //   cloud: false,
+  //   configSchema: 'apiKeySchema',
+  //   scope: [IntegrationScope.SYSTEM],
+  // },
+  // {
+  //   id: IntegrationId.YELP,
+  //   name: 'Yelp',
+  //   description: 'Local business reviews and ratings',
+  //   color: '#D32323',
+  //   get capabilities() {
+  //     return integrationManager.getIntegrationCapabilities(IntegrationId.YELP)
+  //   },
+  //   paid: true,
+  //   cloud: true,
+  //   configSchema: 'oauthConfigSchema',
+  //   scope: [IntegrationScope.SYSTEM],
+  // },
+  // {
+  //   id: IntegrationId.OPENTABLE,
+  //   name: 'OpenTable',
+  //   description: 'Restaurant discovery and reservations',
+  //   color: '#222222',
+  //   get capabilities() {
+  //     return integrationManager.getIntegrationCapabilities(
+  //       IntegrationId.OPENTABLE,
+  //     )
+  //   },
+  //   paid: true,
+  //   cloud: true,
+  //   configSchema: 'apiKeySchema',
+  //   scope: [IntegrationScope.SYSTEM],
+  // },
+  // {
+  //   id: IntegrationId.FOURSQUARE,
+  //   name: 'Foursquare',
+  //   description: 'Location-based social network',
+  //   color: '#F94877',
+  //   get capabilities() {
+  //     return integrationManager.getIntegrationCapabilities(
+  //       IntegrationId.FOURSQUARE,
+  //     )
+  //   },
+  //   paid: true,
+  //   cloud: true,
+  //   configSchema: 'oauthConfigSchema',
+  //   scope: [IntegrationScope.SYSTEM],
+  // },
+  // {
+  //   id: IntegrationId.MAPILLARY,
+  //   name: 'Mapillary',
+  //   description: 'Street-level imagery platform',
+  //   color: '#2B2B2B',
+  //   get capabilities() {
+  //     return integrationManager.getIntegrationCapabilities(
+  //       IntegrationId.MAPILLARY,
+  //     )
+  //   },
+  //   paid: false,
+  //   cloud: true,
+  //   configSchema: 'apiKeySchema',
+  //   scope: [IntegrationScope.SYSTEM],
+  // },
+  // {
+  //   id: IntegrationId.TRIPADVISOR,
+  //   name: 'TripAdvisor',
+  //   description: 'Travel reviews and recommendations',
+  //   color: '#34E0A1',
+  //   get capabilities() {
+  //     return integrationManager.getIntegrationCapabilities(
+  //       IntegrationId.TRIPADVISOR,
+  //     )
+  //   },
+  //   paid: true,
+  //   cloud: true,
+  //   configSchema: 'apiKeySchema',
+  //   scope: [IntegrationScope.SYSTEM],
+  // },
+  // {
+  //   id: IntegrationId.GEOAPIFY,
+  //   name: 'Geoapify',
+  //   description: 'Geocoding, routing, and place data',
+  //   color: '#FF5A5F',
+  //   get capabilities() {
+  //     return integrationManager.getIntegrationCapabilities(
+  //       IntegrationId.GEOAPIFY,
+  //     )
+  //   },
+  //   paid: true,
+  //   cloud: true,
+  //   configSchema: 'apiKeySchema',
+  //   scope: [IntegrationScope.SYSTEM],
+  // },
 ]
 
 export async function initializeIntegrations() {
-  await getConfiguredIntegrations(null)
+  await getConfiguredIntegrations()
 
   const allUsers = await db.select().from(users)
+  const promises: { userId: string; integrations: IntegrationResponse[] }[] = []
 
   for (const user of allUsers) {
-    await getConfiguredIntegrations(user.id)
+    promises.push({
+      userId: user.id,
+      integrations: await getConfiguredIntegrations(user.id),
+    })
+  }
+
+  const results = await Promise.all(promises)
+
+  for (const result of results) {
+    await Promise.all(
+      result.integrations.map((integration) =>
+        integrationManager.initializeIntegration(result.userId, integration),
+      ),
+    )
   }
 }
 
@@ -227,13 +268,13 @@ function cleanConfig(config: Record<string, any>): Record<string, any> {
 
 // Service functions
 export async function getConfiguredIntegrations(
-  userId: string | null,
+  userId?: string,
 ): Promise<IntegrationResponse[]> {
   // TODO: When initializing system integrations, we need to check for any capabilities that have been added or removed during development. If an existing integration gains a capability in an update, it will not reflect in the db, we need to run migration.
 
   let userIntegrations
 
-  if (userId === null) {
+  if (!userId) {
     // Get system-wide integrations (where userId is null)
     userIntegrations = await db
       .select()
@@ -247,37 +288,39 @@ export async function getConfiguredIntegrations(
       .where(eq(integrations.userId, userId))
   }
 
-  const parsedIntegrations = userIntegrations.map(parseIntegrationData)
-
-  // Initialize all integrations in parallel
-  await Promise.all(
-    parsedIntegrations.map((integration) =>
-      integrationManager.initializeIntegration(userId, integration),
-    ),
-  )
-
-  return parsedIntegrations
+  return userIntegrations.map(parseIntegrationData)
 }
 
-export async function getAvailableIntegrationsForUser(
-  userId: string,
-): Promise<IntegrationDefinition[]> {
-  // Get both system-wide and user-specific integrations
-  const userIntegrations = await db
-    .select()
-    .from(integrations)
-    .where(or(eq(integrations.userId, userId), isNull(integrations.userId)))
+export async function getAvailableIntegrations(): Promise<
+  IntegrationDefinition[]
+> {
+  return availableIntegrations
+}
 
-  const configuredIds = new Set(userIntegrations.map((i) => i.integrationId))
+export async function getPublicIntegrations(): Promise<any[]> {
+  // Get system-wide integrations only (public integrations are typically system-wide)
+  const systemIntegrations = await getConfiguredIntegrations()
 
-  return availableIntegrations.filter(
-    (integration) => !configuredIds.has(integration.id),
-  )
+  // Filter to only include public integrations
+  const publicIntegrations = systemIntegrations.filter((integration) => {
+    const definition = availableIntegrations.find(
+      (def) => def.id === integration.integrationId,
+    )
+    return definition?.public === true
+  })
+
+  // Return integrations with their config exposed (since they're public)
+  return publicIntegrations.map((integration) => ({
+    id: integration.id,
+    integrationId: integration.integrationId,
+    config: integration.config,
+    capabilities: integration.capabilities, // Include capabilities for client-side filtering
+  }))
 }
 
 export async function getIntegration(
   id: string,
-  userId: string | null,
+  userId?: string,
 ): Promise<IntegrationResponse | null> {
   let result
 
@@ -305,16 +348,11 @@ export async function getIntegration(
     return null
   }
 
-  const integration = parseIntegrationData(result[0])
-
-  // Initialize and cache the integration
-  await integrationManager.initializeIntegration(userId, integration)
-
-  return integration
+  return parseIntegrationData(result[0])
 }
 
 export async function createIntegration(
-  userId: string | null,
+  userId: string | undefined,
   integrationId: IntegrationId,
   config: Record<string, any>,
   customCapabilities?: IntegrationCapability[],
@@ -329,7 +367,7 @@ export async function createIntegration(
 
   const testResult = await integrationManager.testIntegration(
     integrationId,
-    config,
+    config as IntegrationConfig,
   )
 
   if (!testResult.success) {
@@ -356,7 +394,7 @@ export async function createIntegration(
     updatedAt: new Date(),
   }
 
-  if (userId !== null) {
+  if (userId) {
     values.userId = userId
   }
 
@@ -371,7 +409,7 @@ export async function createIntegration(
 
 export async function updateIntegration(
   id: string,
-  userId: string | null,
+  userId: string | undefined,
   updates: {
     config?: Record<string, any>
     capabilities?: IntegrationCapability[]
@@ -411,7 +449,7 @@ export async function updateIntegration(
   }
 
   let whereCondition
-  if (userId !== null) {
+  if (userId) {
     whereCondition = and(
       eq(integrations.id, id),
       eq(integrations.userId, userId),
@@ -434,11 +472,11 @@ export async function updateIntegration(
 
 export async function deleteIntegration(
   id: string,
-  userId: string | null,
+  userId?: string,
 ): Promise<void> {
   // Build the where condition based on userId
   let whereCondition
-  if (userId !== null) {
+  if (userId) {
     whereCondition = and(
       eq(integrations.id, id),
       eq(integrations.userId, userId),
@@ -469,8 +507,4 @@ export function getIntegrationDefinition(
   integrationId: IntegrationId,
 ): IntegrationDefinition | undefined {
   return availableIntegrations.find((i) => i.id === integrationId)
-}
-
-export function getAvailableIntegrations(): IntegrationDefinition[] {
-  return availableIntegrations
 }

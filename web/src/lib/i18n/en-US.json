@@ -481,11 +481,6 @@
         "failure": "Connection failed",
         "error": "Error testing connection"
       },
-      "status": {
-        "active": "active",
-        "inactive": "inactive",
-        "available": "available"
-      },
       "capabilities": {
         "search": "Search",
         "autocomplete": "Autocomplete",
@@ -493,6 +488,7 @@
         "geocoding": "Geocoding",
         "placeInfo": "Place Info",
         "imagery": "Imagery",
+        "mapEngine": "Map Engine",
         "title": "Capabilities"
       },
       "descriptions": {
@@ -506,7 +502,8 @@
         "mapillary": "Street-level imagery platform",
         "nominatim": "Open-source geocoding and reverse geocoding",
         "tripadvisor": "Travel reviews and recommendations",
-        "geoapify": "Geocoding, routing, and place data"
+        "geoapify": "Geocoding, routing, and place data",
+        "mapbox": "Interactive maps, geocoding, and navigation"
       }
     },
     "users": {

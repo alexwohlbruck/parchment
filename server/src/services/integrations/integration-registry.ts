@@ -4,6 +4,7 @@ import { GoogleMapsIntegration } from './google-maps-integration'
 import { PeliasIntegration } from './pelias-integration'
 import { NominatimIntegration } from './nominatim-integration'
 import { OverpassIntegration } from './overpass-integration'
+import { MapboxIntegration } from './mapbox-integration'
 
 /**
  * Registry for all integrations
@@ -23,6 +24,7 @@ export class IntegrationRegistry {
     this.registerIntegration(new PeliasIntegration())
     this.registerIntegration(new NominatimIntegration())
     this.registerIntegration(new OverpassIntegration())
+    this.registerIntegration(new MapboxIntegration())
   }
 
   /**

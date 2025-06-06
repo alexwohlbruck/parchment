@@ -1,30 +1,9 @@
 import { pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 import { users } from './users.schema'
-
-export enum IntegrationId {
-  GOOGLE_MAPS = 'google-maps',
-  PELIAS = 'pelias',
-  OVERPASS = 'overpass',
-  GRAPHHOPPER = 'graphhopper',
-  YELP = 'yelp',
-  OPENTABLE = 'opentable',
-  FOURSQUARE = 'foursquare',
-  MAPILLARY = 'mapillary',
-  NOMINATIM = 'nominatim',
-  TRIPADVISOR = 'tripadvisor',
-  GEOAPIFY = 'geoapify',
-  MAPBOX = 'mapbox',
-}
-
-export enum IntegrationCapabilityId {
-  SEARCH = 'search',
-  AUTOCOMPLETE = 'autocomplete',
-  GEOCODING = 'geocoding',
-  PLACE_INFO = 'placeInfo',
-  ROUTING = 'routing',
-  IMAGERY = 'imagery',
-  MAP_ENGINE = 'mapEngine',
-}
+import {
+  IntegrationId,
+  IntegrationCapabilityId,
+} from '../types/integration.enums'
 
 export const integrations = pgTable('integrations', {
   id: text('id').primaryKey(),

@@ -55,7 +55,7 @@ async function handleClick() {
   const formSchema = configSchemas[integration.configSchema]
 
   // Show our custom IntegrationForm component in a dialog
-  const result = await appService.componentDialog({
+  const dialogResult = await appService.componentDialog({
     component: IntegrationForm,
     props: {
       integration,
@@ -69,24 +69,34 @@ async function handleClick() {
     description: t(`settings.integrations.descriptions.${integration.id}`),
     continueText: t('general.save'),
     cancelText: t('general.cancel'),
+    onContinue: async formData => {
+      // formData is the 'result' from before
+      if (!formData) return false
+      try {
+        if (isConfigured) {
+          // Update existing integration
+          await integrationService.updateIntegration(config.id, {
+            config: formData.config,
+            capabilities: formData.capabilities,
+          })
+        } else {
+          // Create new integration with capabilities separated from config
+          await integrationService.createIntegration(
+            integration.id,
+            formData.config,
+            formData.capabilities,
+          )
+        }
+        return true // Indicate success
+      } catch (error) {
+        console.error('Failed to save integration:', error)
+        // The error toast is likely handled by an interceptor, but we can show one here too if needed.
+        return false // Indicate failure
+      }
+    },
   })
 
-  if (result) {
-    if (isConfigured) {
-      // Update existing integration
-      await integrationService.updateIntegration(config.id, {
-        config: result.config,
-        capabilities: result.capabilities,
-      })
-    } else {
-      // Create new integration with capabilities separated from config
-      await integrationService.createIntegration(
-        integration.id,
-        result.config,
-        result.capabilities,
-      )
-    }
-
+  if (dialogResult) {
     const successMessage = isConfigured
       ? t('settings.integrations.updated', { name: integration.name })
       : t('settings.integrations.created', { name: integration.name })
@@ -115,23 +125,22 @@ async function handleDelete(event: Event) {
     continueText: t('general.delete'),
     cancelText: t('general.cancel'),
     destructive: true,
+    onContinue: async () => {
+      try {
+        await integrationService.deleteIntegration(config.id)
+        toast.success(t('settings.integrations.success'), {
+          description: t('settings.integrations.delete.success', {
+            name: integration.name,
+            config: config?.id,
+          }),
+        })
+        return true
+      } catch (error) {
+        console.error('Failed to delete integration:', error)
+        return false
+      }
+    },
   })
-
-  if (confirmed) {
-    try {
-      await integrationService.deleteIntegration(config.id)
-
-      toast.success(t('settings.integrations.success'), {
-        description: t('settings.integrations.delete.success', {
-          name: integration.name,
-          config: config?.id,
-        }),
-      })
-    } catch (error) {
-      console.error('Failed to delete integration:', error)
-      // Error toast will be handled by axios interceptor
-    }
-  }
 }
 
 function isCapabilityEnabled(capability: string): boolean {

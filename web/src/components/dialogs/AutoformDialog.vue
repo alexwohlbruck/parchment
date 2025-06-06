@@ -6,28 +6,31 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogClose,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { AutoForm } from '@/components/ui/auto-form'
 import { AutoFormDialogOptions } from '@/types/app.types'
 import { useI18n } from 'vue-i18n'
+import { ref, watch } from 'vue'
 
 const { t } = useI18n()
 
-const {
-  title,
-  description,
-  continueText,
-  cancelText,
-  schema,
-  initialValues,
-  fieldConfig,
-} = defineProps<AutoFormDialogOptions>()
+interface Props extends AutoFormDialogOptions {
+  loading?: boolean
+}
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   (e: 'submit', payload: Record<string, any> | null): void
 }>()
+
+const isOpen = ref(true)
+
+watch(isOpen, value => {
+  if (!value) {
+    emit('submit', null)
+  }
+})
 
 function onSubmit(values: Record<string, any>) {
   emit('submit', values)
@@ -35,35 +38,39 @@ function onSubmit(values: Record<string, any>) {
 </script>
 
 <template>
-  <Dialog defaultOpen>
+  <Dialog :open="isOpen" @update:open="isOpen = $event">
     <DialogContent>
-      <DialogHeader v-if="title || description">
-        <DialogTitle v-if="title">{{ title }}</DialogTitle>
-        <DialogDescription v-if="description">
-          {{ description }}
+      <DialogHeader v-if="props.title || props.description">
+        <DialogTitle v-if="props.title">{{ props.title }}</DialogTitle>
+        <DialogDescription v-if="props.description">
+          {{ props.description }}
         </DialogDescription>
-
-        <AutoForm
-          :schema="schema"
-          :initial-values="initialValues"
-          :field-config="fieldConfig"
-          @submit="onSubmit"
-          class="space-y-3"
-        >
-          <DialogFooter>
-            <DialogClose as-child>
-              <Button @click.prevent="emit('submit', null)" variant="outline">
-                {{ cancelText || t('general.cancel') }}
-              </Button>
-            </DialogClose>
-            <DialogClose as-child>
-              <Button type="submit">
-                {{ continueText || t('general.continue') }}
-              </Button>
-            </DialogClose>
-          </DialogFooter>
-        </AutoForm>
       </DialogHeader>
+
+      <AutoForm
+        :schema="props.schema"
+        :initial-values="props.initialValues"
+        :field-config="props.fieldConfig"
+        @submit="onSubmit"
+        class="space-y-3"
+      >
+        <DialogFooter>
+          <Button
+            @click.prevent="isOpen = false"
+            variant="outline"
+            :disabled="props.loading"
+          >
+            {{ props.cancelText || t('general.cancel') }}
+          </Button>
+          <Button
+            type="submit"
+            :loading="props.loading"
+            :disabled="props.loading"
+          >
+            {{ props.continueText || t('general.continue') }}
+          </Button>
+        </DialogFooter>
+      </AutoForm>
     </DialogContent>
   </Dialog>
 </template>

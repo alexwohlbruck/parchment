@@ -50,11 +50,11 @@ export class IntegrationManagerService {
 
   /**
    * Initializes and caches an integration
-   * @param userId The user ID, or null for system-wide integrations
+   * @param userId The user ID, or undefined for system-wide integrations
    * @param integrationData The integration to initialize
    */
   async initializeIntegration(
-    userId: string | null,
+    userId: string | undefined,
     integrationData: IntegrationResponse,
   ): Promise<void> {
     const integrationImpl = this.registry.getIntegration(
@@ -76,7 +76,7 @@ export class IntegrationManagerService {
       ? `${userId}:${integrationData.id}`
       : `system:${integrationData.id}`
     this.integrationsCache.set(cacheKey, {
-      userId,
+      userId: userId ?? null,
       id: integrationData.id,
       integrationId: integrationData.integrationId,
       integration: integrationInstance,
@@ -102,12 +102,12 @@ export class IntegrationManagerService {
 
   /**
    * Gets a cached integration by its ID
-   * @param userId The user ID, or null for system-wide integrations
+   * @param userId The user ID, or undefined for system-wide integrations
    * @param integrationId The integration ID
    * @returns The cached integration, or undefined if not found
    */
   getIntegration(
-    userId: string | null,
+    userId: string | undefined,
     integrationId: string,
   ): CachedIntegration | undefined {
     const cacheKey = userId
@@ -115,7 +115,7 @@ export class IntegrationManagerService {
       : `system:${integrationId}`
     const userSpecificIntegration = this.integrationsCache.get(cacheKey)
 
-    if (userSpecificIntegration || userId === null) {
+    if (userSpecificIntegration || !userId) {
       return userSpecificIntegration
     }
 
@@ -126,19 +126,20 @@ export class IntegrationManagerService {
   }
 
   /**
-   * Gets a cached integration that supports a specific data source and capability
+   * Gets a configured integration that supports a specific data source and capability
    * @param sourceId The source ID (e.g., SOURCE.GOOGLE, SOURCE.OSM)
    * @param capabilityId The capability ID that the integration must support
    * @returns The best matching cached integration, or undefined if not found
    */
-  getIntegrationForSource(
+  getConfiguredIntegrationForSource(
     sourceId: Source,
     capabilityId: IntegrationCapabilityId,
   ): CachedIntegration | undefined {
-    const integrations = this.getIntegrationsByCapability(capabilityId)
+    const integrations =
+      this.getConfiguredIntegrationsByCapability(capabilityId)
 
     const compatibleIntegrations = integrations.filter((integration) =>
-      integration.integration.sources.includes(sourceId),
+      integration.integration.sources?.includes(sourceId),
     )
 
     // Return the first compatible integration
@@ -146,12 +147,12 @@ export class IntegrationManagerService {
   }
 
   /**
-   * Gets all integrations for a user, including system-wide integrations
-   * @param userId The user ID, or null to get only system-wide integrations
-   * @returns Array of all cached integrations for the user
+   * Gets configured integrations, optionally for a specific user
+   * @param userId The user ID, or undefined to get only system-wide integrations
+   * @returns Array of cached integrations (system-wide only if userId is undefined, both user-specific and system-wide if userId provided)
    */
-  getUserIntegrations(userId: string | null): CachedIntegration[] {
-    if (userId === null) {
+  getConfiguredIntegrations(userId?: string): CachedIntegration[] {
+    if (!userId) {
       // Return only system-wide integrations
       return this.systemIntegrationsCache
         .map((cacheKey) => this.integrationsCache.get(cacheKey))
@@ -176,28 +177,11 @@ export class IntegrationManagerService {
   }
 
   /**
-   * Gets integrations for a user that support a specific capability
-   * @param userId The user ID, or null to get only system-wide integrations
-   * @param capabilityId The capability ID
-   * @returns Array of cached integrations that support the capability
-   */
-  getUserIntegrationsByCapability(
-    userId: string | null,
-    capabilityId: string,
-  ): CachedIntegration[] {
-    return this.getUserIntegrations(userId).filter((integration) =>
-      integration.capabilities.some(
-        (cap) => cap.id === capabilityId && cap.active,
-      ),
-    )
-  }
-
-  /**
    * Removes an integration from the cache
-   * @param userId The user ID, or null for system-wide integrations
+   * @param userId The user ID, or undefined for system-wide integrations
    * @param integrationId The integration ID
    */
-  removeIntegration(userId: string | null, integrationId: string): void {
+  removeIntegration(userId: string | undefined, integrationId: string): void {
     const cacheKey = userId
       ? `${userId}:${integrationId}`
       : `system:${integrationId}`
@@ -220,9 +204,9 @@ export class IntegrationManagerService {
 
   /**
    * Clears all cached integrations for a user
-   * @param userId The user ID, or null to clear system-wide integrations
+   * @param userId The user ID, or undefined to clear system-wide integrations
    */
-  clearUserIntegrations(userId: string | null): void {
+  clearUserIntegrations(userId?: string): void {
     if (userId) {
       const userIntegrations = this.userIntegrationsCache.get(userId) || []
       for (const cacheKey of userIntegrations) {
@@ -246,12 +230,12 @@ export class IntegrationManagerService {
   }
 
   /**
-   * Get all integrations with a specific capability, regardless of user
+   * Get all configured integrations with a specific capability, regardless of user
    *
    * @param capabilityId The capability to filter by
    * @returns Array of cached integrations with the specified capability
    */
-  getIntegrationsByCapability(
+  getConfiguredIntegrationsByCapability(
     capabilityId: IntegrationCapabilityId,
   ): CachedIntegration[] {
     const result: CachedIntegration[] = []
@@ -265,24 +249,6 @@ export class IntegrationManagerService {
         result.push(cachedIntegration)
       }
     }
-
-    return result
-  }
-
-  /**
-   * Get an integration by its source ID (IntegrationId)
-   *
-   * @param sourceId The integration ID to look for
-   * @returns The first cached integration with the specified source ID, or undefined if not found
-   */
-  getIntegrationById(id: IntegrationId): CachedIntegration | undefined {
-    let result: CachedIntegration | undefined
-
-    this.integrationsCache.forEach((cachedIntegration) => {
-      if (cachedIntegration.integrationId === id && !result) {
-        result = cachedIntegration
-      }
-    })
 
     return result
   }

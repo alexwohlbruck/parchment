@@ -21,26 +21,39 @@ export interface BaseDialogOptions {
 
 export interface ComponentDialogOptions extends BaseDialogOptions {
   component: Component
-  props?: any
+  props?: Record<string, any>
   destructive?: boolean
+  onContinue?: (payload?: any) => Promise<any>
 }
 
 export interface ConfirmDialogOptions extends BaseDialogOptions {
   destructive?: boolean
+  onContinue?: (payload?: any) => Promise<any>
 }
 
 export interface PromptDialogOptions extends BaseDialogOptions {
   label?: string
   inputProps?: object
+  continueText?: string
+  cancelText?: string
+  defaultValue?: string
+  onContinue?: (payload?: any) => Promise<any>
 }
 
 export interface AutoFormDialogOptions extends BaseDialogOptions {
   schema: ZodObject<any>
   initialValues?: Record<string, any>
   fieldConfig?: Record<string, any>
+  continueText?: string
+  cancelText?: string
+  defaultValue?: string
+  onContinue?: (payload?: any) => Promise<any>
 }
 
-export interface TemplateDialogOptions extends BaseDialogOptions {}
+export interface TemplateDialogOptions extends BaseDialogOptions {
+  template: string
+  onContinue?: (payload?: any) => Promise<any>
+}
 
 export type DialogOptions =
   | ComponentDialogOptions

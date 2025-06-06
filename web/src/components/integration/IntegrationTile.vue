@@ -2,62 +2,160 @@
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useI18n } from 'vue-i18n'
-import { Cloud, Trash2 } from 'lucide-vue-next'
-import { UiIntegration } from '@/types/integrations.types'
+import { CloudIcon, HardDriveIcon, Trash2Icon, UserIcon } from 'lucide-vue-next'
+import {
+  Integration,
+  IntegrationDefinition,
+  IntegrationId,
+  IntegrationResponse,
+  IntegrationScope,
+} from '@/types/integrations.types'
+import { computed } from 'vue'
+import { useIntegrationsStore } from '@/stores/integrations.store'
+import { useAppService } from '@/services/app.service'
+import { useIntegrationService } from '@/services/integration.service'
+import { configSchemas } from '@/types/integrations.types'
+import IntegrationForm from '@/components/integration/IntegrationForm.vue'
 
 const { t } = useI18n()
+const integrationsStore = useIntegrationsStore()
+const appService = useAppService()
+const { toast } = appService
+const integrationService = useIntegrationService()
 
 const props = defineProps<{
-  integration: UiIntegration
+  integration: IntegrationDefinition
+  configuration?: IntegrationResponse
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{
-  (e: 'click', integration: UiIntegration): void
-  (e: 'delete', integration: UiIntegration): void
+  (
+    e: 'click',
+    integration: IntegrationDefinition,
+    config?: IntegrationResponse,
+  ): void
+  (
+    e: 'delete',
+    integration: IntegrationDefinition,
+    config?: IntegrationResponse,
+  ): void
 }>()
 
 function getInitial(name: string): string {
   return name[0].toUpperCase()
 }
 
-function getStatusColors(status: string) {
-  switch (status) {
-    case 'active':
-      return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-    case 'inactive':
-      return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
-    case 'available':
-      return 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
-    default:
-      return 'bg-muted text-muted-foreground'
+async function handleClick() {
+  if (props.disabled) return
+
+  const integration = props.integration
+  const config = props.configuration
+  const isConfigured = !!config
+  const formSchema = configSchemas[integration.configSchema]
+
+  // Show our custom IntegrationForm component in a dialog
+  const dialogResult = await appService.componentDialog({
+    component: IntegrationForm,
+    props: {
+      integration,
+      schema: formSchema,
+      isConfigured,
+      config,
+    },
+    title: isConfigured
+      ? t('settings.integrations.edit', { name: integration.name })
+      : t('settings.integrations.configure', { name: integration.name }),
+    description: t(`settings.integrations.descriptions.${integration.id}`),
+    continueText: t('general.save'),
+    cancelText: t('general.cancel'),
+    onContinue: async formData => {
+      // formData is the 'result' from before
+      if (!formData) return false
+      try {
+        if (isConfigured) {
+          // Update existing integration
+          await integrationService.updateIntegration(config.id, {
+            config: formData.config,
+            capabilities: formData.capabilities,
+          })
+        } else {
+          // Create new integration with capabilities separated from config
+          await integrationService.createIntegration(
+            integration.id,
+            formData.config,
+            formData.capabilities,
+          )
+        }
+        return true // Indicate success
+      } catch (error) {
+        console.error('Failed to save integration:', error)
+        // The error toast is likely handled by an interceptor, but we can show one here too if needed.
+        return false // Indicate failure
+      }
+    },
+  })
+
+  if (dialogResult) {
+    const successMessage = isConfigured
+      ? t('settings.integrations.updated', { name: integration.name })
+      : t('settings.integrations.created', { name: integration.name })
+
+    toast.success(t('settings.integrations.success'), {
+      description: successMessage,
+    })
   }
 }
 
-function handleClick() {
-  emit('click', props.integration)
-}
-
-function handleDelete(event: Event) {
+async function handleDelete(event: Event) {
+  if (props.disabled) return
   // Stop event propagation to prevent the card click handler from firing
   event.stopPropagation()
-  emit('delete', props.integration)
+  const integration = props.integration
+  const config = props.configuration
+
+  if (!config) return
+
+  const confirmed = await appService.confirm({
+    title: t('settings.integrations.delete.title'),
+    description: t('settings.integrations.delete.description', {
+      name: integration.name,
+      config: config?.id,
+    }),
+    continueText: t('general.delete'),
+    cancelText: t('general.cancel'),
+    destructive: true,
+    onContinue: async () => {
+      try {
+        await integrationService.deleteIntegration(config.id)
+        toast.success(t('settings.integrations.success'), {
+          description: t('settings.integrations.delete.success', {
+            name: integration.name,
+            config: config?.id,
+          }),
+        })
+        return true
+      } catch (error) {
+        console.error('Failed to delete integration:', error)
+        return false
+      }
+    },
+  })
 }
 
 function isCapabilityEnabled(capability: string): boolean {
-  // For active integrations with capability records, check if the capability is active
-  if (
-    props.integration.status === 'active' &&
-    props.integration.capabilityRecords
-  ) {
-    const capabilityRecord = props.integration.capabilityRecords.find(
-      cap => cap.id === capability,
+  if (props.configuration?.capabilities) {
+    return props.configuration.capabilities.some(
+      cap => cap.id === capability && cap.active,
     )
-    return capabilityRecord?.active || false
   }
 
-  // For non-active integrations, always return false
   return false
 }
+
+const icon = computed(() => {
+  return integrationsStore.getIcon(props.integration.id)
+})
 </script>
 
 <template>
@@ -72,11 +170,11 @@ function isCapabilityEnabled(capability: string): boolean {
           :style="{ backgroundColor: integration.color }"
         >
           <svg
-            v-if="integration.icon"
+            v-if="icon"
             class="size-7 text-white"
             viewBox="0 0 24 24"
             fill="currentColor"
-            v-html="integration.icon.svg"
+            v-html="icon.svg"
           />
           <span v-else class="text-white font-medium text-lg">
             {{ getInitial(integration.name) }}
@@ -91,25 +189,31 @@ function isCapabilityEnabled(capability: string): boolean {
           </span>
           <span
             v-if="integration.cloud"
-            class="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 font-semibold flex items-center gap-0.5"
+            class="text-[10px] p-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 font-semibold flex items-center gap-0.5"
           >
-            <Cloud class="size-3" />
+            <CloudIcon class="size-3" />
           </span>
           <span
-            v-if="integration.status"
-            class="text-[10px] px-1.5 py-0.5 rounded-full font-semibold uppercase"
-            :class="getStatusColors(integration.status)"
+            v-if="integration.scope"
+            class="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-100 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 font-semibold flex items-center gap-0.5"
           >
-            {{ t(`settings.integrations.status.${integration.status}`) }}
+            <UserIcon
+              v-if="integration.scope.includes(IntegrationScope.USER)"
+              class="size-3"
+            />
+            <HardDriveIcon
+              v-if="integration.scope.includes(IntegrationScope.SYSTEM)"
+              class="size-3"
+            />
           </span>
           <Button
-            v-if="integration.status === 'active'"
+            v-if="configuration && !disabled"
             variant="outline"
             size="icon"
             class="ml-1 size-6 text-red-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-950"
             @click="handleDelete"
           >
-            <Trash2 class="size-3" />
+            <Trash2Icon class="size-3" />
           </Button>
         </div>
       </div>
@@ -119,7 +223,7 @@ function isCapabilityEnabled(capability: string): boolean {
           {{
             t(
               `settings.integrations.descriptions.${
-                integration.integrationId || integration.id
+                configuration?.integrationId || integration.id
               }`,
             )
           }}

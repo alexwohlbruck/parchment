@@ -6,53 +6,175 @@ import {
   deleteIntegration,
   testIntegrationConfig,
   getConfiguredIntegrations,
-  getAvailableIntegrationsForUser,
   getAvailableIntegrations,
+  getPublicIntegrations,
+  getIntegrationDefinition,
 } from '../services/integration.service'
 import {
   IntegrationId,
   IntegrationCapabilityId,
   IntegrationCapability,
+  IntegrationScope,
+  IntegrationResponse,
 } from '../types/integration.types'
 import { requireAuth } from '../middleware/auth.middleware'
+import { Permission } from '../types/auth.types'
+import { hasPermission, getPermissions } from '../services/auth.service'
 
-const app = new Elysia({ prefix: '/integrations' }).use(requireAuth)
+// Helper function to sanitize integration configs by removing sensitive data
+function sanitizeIntegrationConfig(
+  integration: IntegrationResponse,
+): IntegrationResponse {
+  return {
+    ...integration,
+    config: {} as any, // Remove all config data for users without system read permissions
+  }
+}
+
+const app = new Elysia({ prefix: '/integrations' })
+
+// All endpoints require auth
+app.use(requireAuth)
 
 // Get all available integrations (metadata only)
-app.get('/available', async () => {
-  return getAvailableIntegrations()
-})
+app.get('/available', async ({ user }) => {
+  // Check if user has basic read permission for integrations
+  const userPermissions = await getPermissions(user.id)
+  const canRead = hasPermission(userPermissions, Permission.INTEGRATIONS_READ)
+  const canWriteSystem = hasPermission(
+    userPermissions,
+    Permission.INTEGRATIONS_WRITE_SYSTEM,
+  )
 
-// Get all available integrations for a user (excludes already configured ones)
-app.get('/available/user', async ({ user }) => {
-  return await getAvailableIntegrationsForUser(user.id)
+  if (!canRead) {
+    return error(403, {
+      message: 'Insufficient permissions to view integrations',
+    })
+  }
+
+  const allAvailableIntegrations = await getAvailableIntegrations()
+
+  // Get configured integrations to check what's already set up
+  const configuredIntegrations = await getConfiguredIntegrations()
+  const configuredIntegrationIds = new Set(
+    configuredIntegrations.map((integration) => integration.integrationId),
+  )
+
+  // Filter integrations based on user permissions and scope
+  const filteredIntegrations = allAvailableIntegrations.filter(
+    (integration) => {
+      // If integration has SYSTEM scope
+      if (integration.scope.includes(IntegrationScope.SYSTEM)) {
+        // If it's already configured, show to users with read permissions
+        if (configuredIntegrationIds.has(integration.id)) {
+          return canRead
+        }
+        // If not configured, only show to users with write permissions
+        return canWriteSystem
+      }
+
+      // If integration has USER scope, user just needs read permissions
+      if (integration.scope.includes(IntegrationScope.USER)) {
+        return canRead
+      }
+
+      return false
+    },
+  )
+
+  return filteredIntegrations
 })
 
 // Get user's configured integrations (user-specific ones plus system-wide ones)
+// Configs are sanitized unless user has appropriate write permissions
 app.get('/configured', async ({ user }) => {
-  const userIntegrations = await getConfiguredIntegrations(user.id)
-  const systemIntegrations = await getConfiguredIntegrations(null)
+  // Check if user has basic read permission for integrations
+  const userPermissions = await getPermissions(user.id)
+  const canRead = hasPermission(userPermissions, Permission.INTEGRATIONS_READ)
+  const canWriteUser = hasPermission(
+    userPermissions,
+    Permission.INTEGRATIONS_WRITE_USER,
+  )
+  const canWriteSystem = hasPermission(
+    userPermissions,
+    Permission.INTEGRATIONS_WRITE_SYSTEM,
+  )
 
-  return [...userIntegrations, ...systemIntegrations]
+  if (!canRead) {
+    return error(403, {
+      message: 'Insufficient permissions to view integrations',
+    })
+  }
+
+  // Get user-specific integrations
+  const userIntegrations = await getConfiguredIntegrations(user.id)
+
+  // Get system-wide integrations
+  const systemIntegrations = await getConfiguredIntegrations()
+
+  // Combine all integrations
+  const allIntegrations = [...userIntegrations, ...systemIntegrations]
+
+  // Sanitize configs based on user permissions and integration scope
+  return allIntegrations.map((integration) => {
+    const definition = getIntegrationDefinition(integration.integrationId)
+    if (!definition) return sanitizeIntegrationConfig(integration)
+
+    // Check if user can see full config based on integration scope
+    const canSeeFullConfig =
+      (definition.scope.includes(IntegrationScope.USER) && canWriteUser) ||
+      (definition.scope.includes(IntegrationScope.SYSTEM) && canWriteSystem)
+
+    return canSeeFullConfig
+      ? integration
+      : sanitizeIntegrationConfig(integration)
+  })
 })
 
 // Get a specific integration
 app.get(
   '/:id',
   async ({ params: { id }, user }) => {
+    const userPermissions = await getPermissions(user.id)
+    const canRead = hasPermission(userPermissions, Permission.INTEGRATIONS_READ)
+    const canWriteUser = hasPermission(
+      userPermissions,
+      Permission.INTEGRATIONS_WRITE_USER,
+    )
+    const canWriteSystem = hasPermission(
+      userPermissions,
+      Permission.INTEGRATIONS_WRITE_SYSTEM,
+    )
+
+    if (!canRead) {
+      return error(403, {
+        message: 'Insufficient permissions to view integration',
+      })
+    }
+
     // First try user-specific integration
     let integration = await getIntegration(id, user.id)
 
     // If not found, try system-wide integration
     if (!integration) {
-      integration = await getIntegration(id, null)
+      integration = await getIntegration(id)
     }
 
     if (!integration) {
       return error(404, { message: 'Integration not found' })
     }
 
-    return integration
+    // Check if user can see full config based on integration scope
+    const definition = getIntegrationDefinition(integration.integrationId)
+    if (!definition) return sanitizeIntegrationConfig(integration)
+
+    const canSeeFullConfig =
+      (definition.scope.includes(IntegrationScope.USER) && canWriteUser) ||
+      (definition.scope.includes(IntegrationScope.SYSTEM) && canWriteSystem)
+
+    return canSeeFullConfig
+      ? integration
+      : sanitizeIntegrationConfig(integration)
   },
   {
     params: t.Object({
@@ -65,6 +187,16 @@ app.get(
 app.post(
   '/',
   async ({ body, user }) => {
+    const userPermissions = await getPermissions(user.id)
+    const canWriteUser = hasPermission(
+      userPermissions,
+      Permission.INTEGRATIONS_WRITE_USER,
+    )
+    const canWriteSystem = hasPermission(
+      userPermissions,
+      Permission.INTEGRATIONS_WRITE_SYSTEM,
+    )
+
     const { integrationId, config, capabilities, isSystemWide } = body
 
     // Verify the integration ID is valid
@@ -75,6 +207,29 @@ app.post(
       return error(400, { message: 'Invalid integration ID' })
     }
 
+    // Get integration definition to check scope
+    const definition = getIntegrationDefinition(integrationId as IntegrationId)
+    if (!definition) {
+      return error(400, { message: 'Integration definition not found' })
+    }
+
+    // Check permissions based on integration scope
+    if (definition.scope.includes(IntegrationScope.SYSTEM)) {
+      if (!canWriteSystem) {
+        return error(403, {
+          message: 'Insufficient permissions to create system integrations',
+        })
+      }
+    } else if (definition.scope.includes(IntegrationScope.USER)) {
+      if (!canWriteUser) {
+        return error(403, {
+          message: 'Insufficient permissions to create user integrations',
+        })
+      }
+    } else {
+      return error(400, { message: 'Invalid integration scope' })
+    }
+
     try {
       const processedCapabilities = capabilities
         ? capabilities.map((cap) => ({
@@ -83,9 +238,13 @@ app.post(
           }))
         : undefined
 
-      // For system-wide integrations, userId is null
-      let userId: string | null = isSystemWide ? null : user.id
-      userId = null // TODO: When we add user-specific integrations, allow this to be set to user.id
+      // Determine userId based on scope and permissions
+      let userId: string | undefined
+      if (definition.scope.includes(IntegrationScope.SYSTEM)) {
+        userId = undefined // System-wide
+      } else {
+        userId = user.id // User-specific
+      }
 
       const integration = await createIntegration(
         userId,
@@ -122,6 +281,16 @@ app.post(
 app.put(
   '/:id',
   async ({ params: { id }, body, user }) => {
+    const userPermissions = await getPermissions(user.id)
+    const canWriteUser = hasPermission(
+      userPermissions,
+      Permission.INTEGRATIONS_WRITE_USER,
+    )
+    const canWriteSystem = hasPermission(
+      userPermissions,
+      Permission.INTEGRATIONS_WRITE_SYSTEM,
+    )
+
     // At least one of config or capabilities must be provided
     if (!body.config && !body.capabilities) {
       return error(400, { message: 'No updates provided' })
@@ -129,14 +298,36 @@ app.put(
 
     try {
       // First, check if this is a system-wide integration
-      const systemIntegration = await getIntegration(id, null)
+      const systemIntegration = await getIntegration(id)
       const userIntegration = await getIntegration(id, user.id)
 
       if (!systemIntegration && !userIntegration) {
         return error(404, { message: 'Integration not found' })
       }
 
-      const userId: string | null = systemIntegration ? null : user.id
+      const integration = systemIntegration || userIntegration
+      const definition = getIntegrationDefinition(integration!.integrationId)
+
+      if (!definition) {
+        return error(400, { message: 'Integration definition not found' })
+      }
+
+      // Check permissions based on integration scope
+      if (definition.scope.includes(IntegrationScope.SYSTEM)) {
+        if (!canWriteSystem) {
+          return error(403, {
+            message: 'Insufficient permissions to update system integrations',
+          })
+        }
+      } else if (definition.scope.includes(IntegrationScope.USER)) {
+        if (!canWriteUser) {
+          return error(403, {
+            message: 'Insufficient permissions to update user integrations',
+          })
+        }
+      }
+
+      const userId: string | undefined = systemIntegration ? undefined : user.id
 
       // Convert capabilities array if provided
       const updates = {
@@ -149,8 +340,8 @@ app.put(
           : undefined,
       }
 
-      const integration = await updateIntegration(id, userId, updates)
-      return integration
+      const updatedIntegration = await updateIntegration(id, userId, updates)
+      return updatedIntegration
     } catch (err: any) {
       return error(400, {
         message: err.message || 'Failed to update integration',
@@ -179,16 +370,48 @@ app.put(
 app.delete(
   '/:id',
   async ({ params: { id }, user, set }) => {
+    const userPermissions = await getPermissions(user.id)
+    const canWriteUser = hasPermission(
+      userPermissions,
+      Permission.INTEGRATIONS_WRITE_USER,
+    )
+    const canWriteSystem = hasPermission(
+      userPermissions,
+      Permission.INTEGRATIONS_WRITE_SYSTEM,
+    )
+
     try {
       // First, check if this is a system-wide integration
-      const systemIntegration = await getIntegration(id, null)
+      const systemIntegration = await getIntegration(id)
       const userIntegration = await getIntegration(id, user.id)
 
       if (!systemIntegration && !userIntegration) {
         return error(404, { message: 'Integration not found' })
       }
 
-      const userId: string | null = systemIntegration ? null : user.id
+      const integration = systemIntegration || userIntegration
+      const definition = getIntegrationDefinition(integration!.integrationId)
+
+      if (!definition) {
+        return error(400, { message: 'Integration definition not found' })
+      }
+
+      // Check permissions based on integration scope
+      if (definition.scope.includes(IntegrationScope.SYSTEM)) {
+        if (!canWriteSystem) {
+          return error(403, {
+            message: 'Insufficient permissions to delete system integrations',
+          })
+        }
+      } else if (definition.scope.includes(IntegrationScope.USER)) {
+        if (!canWriteUser) {
+          return error(403, {
+            message: 'Insufficient permissions to delete user integrations',
+          })
+        }
+      }
+
+      const userId: string | undefined = systemIntegration ? undefined : user.id
 
       await deleteIntegration(id, userId)
 
@@ -210,7 +433,17 @@ app.delete(
 // Test an integration configuration
 app.post(
   '/test',
-  async ({ body }) => {
+  async ({ body, user }) => {
+    const userPermissions = await getPermissions(user.id)
+    const canWriteUser = hasPermission(
+      userPermissions,
+      Permission.INTEGRATIONS_WRITE_USER,
+    )
+    const canWriteSystem = hasPermission(
+      userPermissions,
+      Permission.INTEGRATIONS_WRITE_SYSTEM,
+    )
+
     const { integrationId, config } = body
 
     // Verify the integration ID is valid
@@ -219,6 +452,29 @@ app.post(
     )
     if (!validId) {
       return error(400, { message: 'Invalid integration ID' })
+    }
+
+    // Get integration definition to check scope
+    const definition = getIntegrationDefinition(integrationId as IntegrationId)
+    if (!definition) {
+      return error(400, { message: 'Integration definition not found' })
+    }
+
+    // Check permissions based on integration scope
+    if (definition.scope.includes(IntegrationScope.SYSTEM)) {
+      if (!canWriteSystem) {
+        return error(403, {
+          message: 'Insufficient permissions to test system integrations',
+        })
+      }
+    } else if (definition.scope.includes(IntegrationScope.USER)) {
+      if (!canWriteUser) {
+        return error(403, {
+          message: 'Insufficient permissions to test user integrations',
+        })
+      }
+    } else {
+      return error(400, { message: 'Invalid integration scope' })
     }
 
     try {

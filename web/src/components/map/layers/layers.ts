@@ -16,7 +16,6 @@ import { MapEngine } from '@/types/map.types'
 import colors from 'tailwindcss/colors'
 import { useServerUrl } from '@/lib/api'
 
-const mapboxAccessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 const mapillaryAccessToken = import.meta.env.VITE_MAPILLARY_ACCESS_TOKEN
 const serverUrl = useServerUrl()
 

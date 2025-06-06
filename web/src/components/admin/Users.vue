@@ -4,7 +4,7 @@ import dayjs from 'dayjs'
 import { z } from 'zod'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
 import { ColumnDef } from '@tanstack/vue-table'
-import { PermissionId as Permission, User } from '@/types/auth.types'
+import { PermissionId, User } from '@/types/auth.types'
 import { useI18n } from 'vue-i18n'
 import { useUserService } from '@/services/user.service'
 import { useAppService } from '@/services/app.service'
@@ -116,7 +116,7 @@ onMounted(getUsers)
   <SettingsSection :title="$t('settings.users.users.title')" :frame="false">
     <template v-slot:actions>
       <Button
-        v-if="authService.hasPermission(Permission.USERS_CREATE)"
+        v-if="authService.hasPermission(PermissionId.USERS_CREATE)"
         @click="inviteUser()"
         variant="outline"
         :icon="PlusIcon"

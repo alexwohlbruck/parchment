@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, useTemplateRef, watch } from 'vue'
 import { useMapStore } from '../../stores/map.store'
+import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useMapService } from '@/services/map.service'
 import { MapStrategy } from './map-providers/map.strategy'
+import { MapEngine } from '@/types/map.types'
 
 import ContextMenu from '@/components/map/ContextMenu.vue'
+import MapLoading from '@/components/map/MapLoading.vue'
+import MapboxFallback from '@/components/map/MapboxFallback.vue'
 
 const mapService = useMapService()
 const mapStore = useMapStore()
+const integrationsStore = useIntegrationsStore()
 
 const mapContainer = useTemplateRef<HTMLElement>('mapContainer')
 let mapStrategy: MapStrategy
@@ -20,11 +25,53 @@ const mapControlsVisibility = computed(() =>
   props.pipSwapped ? 'hidden' : 'visible',
 )
 
+// Computed properties for map state
+const isLoadingIntegrations = computed(() => {
+  return !integrationsStore.integrationsReady
+})
+
+const shouldShowMapboxFallback = computed(() => {
+  // Only show fallback if integrations are ready, we're using Mapbox, and Mapbox is available but not configured
+  return (
+    integrationsStore.integrationsReady &&
+    mapStore.mapEngine === MapEngine.MAPBOX &&
+    integrationsStore.isMapboxAvailableButNotConfigured
+  )
+})
+
+const canInitializeMapContainer = computed(() => {
+  // We can initialize the map container as soon as integrations are ready
+  return integrationsStore.integrationsReady
+})
+
+const shouldShowMap = computed(() => {
+  // Show the map if integrations are ready and we're not showing the Mapbox fallback
+  return integrationsStore.integrationsReady && !shouldShowMapboxFallback.value
+})
+
 onMounted(() => {
-  if (!mapContainer.value) {
-    throw new Error('Map container element not found')
+  // Set the map container reference immediately when component mounts
+  if (mapContainer.value) {
+    mapService.setMapContainer(mapContainer.value)
   }
-  mapStrategy = mapService.initializeMap(mapContainer.value, mapStore.mapEngine)
+
+  // Watch for integrations to be ready and then initialize map
+  watch(
+    [() => canInitializeMapContainer.value],
+    ([canInit]) => {
+      if (canInit && mapContainer.value && !mapStrategy) {
+        const result = mapService.initializeMap(
+          mapContainer.value,
+          mapStore.mapEngine,
+        )
+        // Only set mapStrategy if initialization was successful
+        if (result) {
+          mapStrategy = result
+        }
+      }
+    },
+    { immediate: true },
+  )
 })
 
 onUnmounted(() => {
@@ -52,9 +99,17 @@ watch(
 </script>
 
 <template>
-  <div ref="mapContainer" class="w-full h-full"></div>
+  <!-- Always render the map container, but conditionally show content -->
+  <div ref="mapContainer" class="w-full h-full">
+    <!-- Show loading state while integrations are loading -->
+    <MapLoading v-if="isLoadingIntegrations" />
 
-  <ContextMenu />
+    <!-- Show Mapbox fallback if Mapbox is selected but not configured -->
+    <MapboxFallback v-else-if="shouldShowMapboxFallback" />
+  </div>
+
+  <!-- Context menu is always available -->
+  <ContextMenu v-if="shouldShowMap" />
 </template>
 
 <style>

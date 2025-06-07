@@ -5,6 +5,7 @@ import { useAppStore } from '@/stores/app.store'
 import { useThemeStore } from '@/stores/settings/theme.store'
 import { useCommandService } from '@/services/command.service'
 import { useAuthService } from '@/services/auth.service'
+import { useIntegrationService } from '@/services/integration.service'
 import { useResponsive } from '@/lib/utils'
 
 import DesktopNav from '@/components/navigation/DesktopNavigation.vue'
@@ -18,6 +19,7 @@ const route = useRoute()
 const themeStore = useThemeStore()
 const commandService = useCommandService()
 const authService = useAuthService()
+const integrationService = useIntegrationService()
 const appStore = useAppStore()
 const { isMobileScreen } = useResponsive()
 
@@ -30,6 +32,8 @@ const isFloatingLayout = computed(() => route.meta?.layout === 'floating')
 onMounted(() => {
   // TODO: Use maplibre if not authed or not on paid plan
   authService.getAuthenticatedUser()
+  integrationService.fetchAvailableIntegrations()
+  integrationService.fetchConfiguredIntegrations()
   commandService.bindAllHotkeysToCommands()
   themeStore.initAccentColor()
 })

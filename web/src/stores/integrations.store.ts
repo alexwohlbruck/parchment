@@ -39,13 +39,17 @@ const getIcon = (integrationId: string) => {
 
 export const useIntegrationsStore = defineStore('integrations', () => {
   const integrationConfigurations = useStorage<IntegrationRecord[]>(
-    'configured-integrations',
+    'integration-configurations',
     [],
   )
   const availableIntegrations = useStorage<IntegrationDefinition[]>(
     'available-integrations',
     [],
   )
+
+  // Loading states
+  const isLoadingAvailable = ref(false)
+  const isLoadingConfigured = ref(false)
 
   const configuredIntegrations = computed(() => {
     return availableIntegrations.value.map(integration => ({
@@ -65,50 +69,64 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     )
   })
 
+  // Get the Mapbox access token from configured integrations
+  const mapboxAccessToken = computed(() => {
+    const mapboxConfig = integrationConfigurations.value.find(
+      config => config.integrationId === IntegrationId.MAPBOX,
+    )
+    return mapboxConfig?.config?.accessToken as string | undefined
+  })
+
+  // Generic function to get integration config by ID
+  function getIntegrationConfig(integrationId: IntegrationId) {
+    const config = integrationConfigurations.value.find(
+      config => config.integrationId === integrationId,
+    )
+    return config?.config
+  }
+
+  // Generic function to get specific config value by integration and key
+  function getIntegrationConfigValue(
+    integrationId: IntegrationId,
+    key: string,
+  ) {
+    const config = getIntegrationConfig(integrationId)
+    return config?.[key]
+  }
+
+  // Check if integrations are ready (both requests completed)
+  const integrationsReady = computed(() => {
+    return !isLoadingAvailable.value && !isLoadingConfigured.value
+  })
+
+  // Check if Mapbox is available but not configured
+  const isMapboxAvailableButNotConfigured = computed(() => {
+    const isMapboxAvailable = availableIntegrations.value.some(
+      integration => integration.id === IntegrationId.MAPBOX,
+    )
+    const isMapboxConfigured = !!mapboxAccessToken.value
+    return integrationsReady.value && isMapboxAvailable && !isMapboxConfigured
+  })
+
   function getConfigurationsForIntegration(integrationId: string) {
     return integrationConfigurations.value.filter(
       config => config.integrationId === integrationId,
     )
   }
 
-  const isLoading = ref(false)
-
-  async function fetchAvailableIntegrations() {
-    isLoading.value = true
-    try {
-      const response = await api.get<IntegrationDefinition[]>(
-        '/integrations/available',
-      )
-      availableIntegrations.value = response.data
-      return response.data
-    } finally {
-      isLoading.value = false
-    }
-  }
-
-  async function fetchConfiguredIntegrations() {
-    isLoading.value = true
-    try {
-      const response = await api.get<IntegrationRecord[]>(
-        '/integrations/configured',
-      )
-      integrationConfigurations.value = response.data
-      return response.data
-    } finally {
-      isLoading.value = false
-    }
-  }
-
   return {
-    isLoading,
     getIcon,
     integrationConfigurations,
     unconfiguredIntegrations,
     availableIntegrations,
     configuredIntegrations,
-    // integrations,
     getConfigurationsForIntegration,
-    fetchAvailableIntegrations,
-    fetchConfiguredIntegrations,
+    mapboxAccessToken,
+    integrationsReady,
+    isMapboxAvailableButNotConfigured,
+    isLoadingAvailable,
+    isLoadingConfigured,
+    getIntegrationConfig,
+    getIntegrationConfigValue,
   }
 })

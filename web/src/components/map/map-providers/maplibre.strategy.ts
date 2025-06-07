@@ -52,8 +52,8 @@ export class MaplibreStrategy extends MapStrategy {
   mapInstance: Map
   geolocateControl: GeolocateControl
 
-  constructor(container, options: MapOptions) {
-    super(container, options)
+  constructor(container, options: MapOptions, accessToken?: string) {
+    super(container, options, accessToken)
 
     const { center, zoom, bearing, pitch } = options.camera || {}
 

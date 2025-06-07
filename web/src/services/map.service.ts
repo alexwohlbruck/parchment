@@ -14,6 +14,8 @@ import {
 import { useMapStore } from '../stores/map.store'
 import { useAppStore } from '../stores/app.store'
 import { useDirectionsStore } from '@/stores/directions.store'
+import { useIntegrationsStore } from '@/stores/integrations.store'
+import { IntegrationId } from '@server/types/integration.types'
 import { createSharedComposable, useDark } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { MapboxStrategy } from '@/components/map/map-providers/mapbox.strategy'
@@ -30,6 +32,7 @@ function mapService() {
   const mapStore = useMapStore()
   const appStore = useAppStore()
   const directionsStore = useDirectionsStore()
+  const integrationsStore = useIntegrationsStore()
   const { enabledLayers } = storeToRefs(mapStore)
   const router = useRouter()
   let mapStrategy: MapStrategy
@@ -38,6 +41,7 @@ function mapService() {
   function getMapStrategy(
     container: string | HTMLElement,
     mapEngine: MapEngine,
+    accessToken?: string,
   ) {
     const { mapOptions, mapCamera } = mapStore
 
@@ -49,15 +53,57 @@ function mapService() {
 
     switch (mapEngine) {
       case MapEngine.MAPBOX:
-        return new MapboxStrategy(container, options)
+        return new MapboxStrategy(container, options, accessToken)
       case MapEngine.MAPLIBRE:
-        return new MaplibreStrategy(container, options)
+        return new MaplibreStrategy(container, options, accessToken)
+    }
+  }
+
+  function setMapContainer(container: HTMLElement) {
+    mapContainer = container
+  }
+
+  function getMapEngineCredentials(mapEngine: MapEngine) {
+    switch (mapEngine) {
+      case MapEngine.MAPBOX:
+        return integrationsStore.getIntegrationConfigValue(
+          IntegrationId.MAPBOX,
+          'accessToken',
+        )
+      case MapEngine.MAPLIBRE:
+        // MapLibre doesn't need credentials, but could be extended for API keys
+        return undefined
+      default:
+        return undefined
+    }
+  }
+
+  function canInitializeMapEngine(mapEngine: MapEngine): boolean {
+    switch (mapEngine) {
+      case MapEngine.MAPBOX:
+        return !!getMapEngineCredentials(mapEngine)
+      case MapEngine.MAPLIBRE:
+        return true // MapLibre always works
+      default:
+        return false
     }
   }
 
   function initializeMap(container: HTMLElement, mapEngine: MapEngine) {
     mapContainer = container as HTMLElement
-    mapStrategy = getMapStrategy(container, mapEngine)
+
+    // Check if we can initialize this map engine
+    if (!canInitializeMapEngine(mapEngine)) {
+      console.warn(
+        `Cannot initialize ${mapEngine}: missing credentials or unsupported engine`,
+      )
+      return null
+    }
+
+    // Get credentials for the map engine
+    const accessToken = getMapEngineCredentials(mapEngine)
+
+    mapStrategy = getMapStrategy(container, mapEngine, accessToken)
     mapStore.setMapStrategy(mapStrategy)
 
     mapEventBus.on('load', () => {
@@ -173,7 +219,26 @@ function mapService() {
   function setMapEngine(mapEngine: MapEngine) {
     destroy()
     mapStore.setMapEngine(mapEngine)
-    mapStrategy = initializeMap(mapContainer, mapEngine)
+
+    // Only initialize map if we have a container
+    if (!mapContainer) {
+      console.warn('Cannot switch map engine: map container not initialized')
+      return
+    }
+
+    // Check if we can initialize this map engine
+    if (!canInitializeMapEngine(mapEngine)) {
+      console.warn(
+        `Cannot switch to ${mapEngine}: missing credentials or unsupported engine`,
+      )
+      return
+    }
+
+    // Get credentials for the map engine
+    const accessToken = getMapEngineCredentials(mapEngine)
+
+    mapStrategy = getMapStrategy(mapContainer, mapEngine, accessToken)
+    mapStore.setMapStrategy(mapStrategy)
   }
 
   function setMapProjection(projection: MapProjection) {
@@ -254,18 +319,18 @@ function mapService() {
   )
 
   function resize() {
-    mapStrategy.resize()
+    mapStrategy?.resize()
   }
 
   watch(dark, newDark => {
-    mapStrategy.setMapTheme(newDark ? MapTheme.DARK : MapTheme.LIGHT)
+    mapStrategy?.setMapTheme(newDark ? MapTheme.DARK : MapTheme.LIGHT)
   })
 
   watch(
     () => mapStore.pegman,
     (pegman, oldPegman) => {
       if (pegman) {
-        mapStrategy.setPegman(pegman)
+        mapStrategy?.setPegman(pegman)
       }
     },
   )
@@ -274,7 +339,7 @@ function mapService() {
     () => router.currentRoute.value.name,
     (routeName, oldRouteName) => {
       if (oldRouteName === AppRoute.STREET && routeName !== AppRoute.STREET) {
-        mapStrategy.removePegman()
+        mapStrategy?.removePegman()
       }
     },
   )
@@ -282,7 +347,7 @@ function mapService() {
   watch(
     () => mapStore.mapOptions.basemap,
     basemap => {
-      mapStrategy.setBasemap(basemap)
+      mapStrategy?.setBasemap(basemap)
     },
   )
 
@@ -290,9 +355,9 @@ function mapService() {
     () => directionsStore.directions,
     directions => {
       if (directions) {
-        mapStrategy.setDirections(directions)
+        mapStrategy?.setDirections(directions)
       } else {
-        mapStrategy.unsetDirections()
+        mapStrategy?.unsetDirections()
       }
     },
   )
@@ -326,7 +391,7 @@ function mapService() {
     mapEventBus.off('load')
     mapEventBus.off('style.load')
     mapEventBus.off('move')
-    mapStrategy.destroy() // Remove map instance
+    mapStrategy?.destroy() // Remove map instance
   }
 
   /**
@@ -385,12 +450,13 @@ function mapService() {
     setPegman: mapStore.setPegman,
     clearPegman: mapStore.clearPegman,
     addMarker: (id: MarkerId, lngLat: LngLat) =>
-      mapStrategy.addMarker(id, lngLat),
-    removeAllMarkers: () => mapStrategy.removeAllMarkers(),
+      mapStrategy?.addMarker(id, lngLat),
+    removeAllMarkers: () => mapStrategy?.removeAllMarkers(),
     zoomIn,
     zoomOut,
     resetNorth,
     locate: () => mapStrategy?.locate(),
+    setMapContainer,
   }
 }
 

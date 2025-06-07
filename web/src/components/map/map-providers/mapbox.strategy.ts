@@ -73,8 +73,8 @@ export class MapboxStrategy extends MapStrategy {
   mapInstance: Map
   geolocateControl: GeolocateControl
 
-  constructor(container, options: MapOptions) {
-    super(container, options)
+  constructor(container, options: MapOptions, accessToken?: string) {
+    super(container, options, accessToken)
 
     const { center, zoom, bearing, pitch } = options.camera || {}
 
@@ -83,7 +83,7 @@ export class MapboxStrategy extends MapStrategy {
       (localStorage.getItem('projection') as Projection['name']) || 'globe'
 
     this.mapInstance = new Map({
-      accessToken: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
+      accessToken: accessToken || import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
       container,
       style: basemapUrls.standard, //standardStyle as any,
       center: center as LngLatLike,

@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import type {
   IntegrationCapability,
   IntegrationRecord,
+  IntegrationDefinition,
 } from '@server/types/integration.types'
 import {
   IntegrationCapabilityId,
@@ -34,7 +35,7 @@ export function useIntegrationService() {
 
     const response = await api.post('/integrations', requestData)
 
-    await store.fetchConfiguredIntegrations()
+    await fetchConfiguredIntegrations()
     return response.data
   }
 
@@ -50,7 +51,7 @@ export function useIntegrationService() {
 
     const response = await api.put(`/integrations/${id}`, updates)
 
-    await store.fetchConfiguredIntegrations()
+    await fetchConfiguredIntegrations()
     return response.data
   }
 
@@ -60,7 +61,7 @@ export function useIntegrationService() {
 
     await api.delete(`/integrations/${id}`)
 
-    await store.fetchConfiguredIntegrations()
+    await fetchConfiguredIntegrations()
     isLoading.value = false
 
     return true
@@ -115,6 +116,32 @@ export function useIntegrationService() {
     return result
   }
 
+  async function fetchAvailableIntegrations() {
+    store.isLoadingAvailable = true
+    try {
+      const response = await api.get<IntegrationDefinition[]>(
+        '/integrations/available',
+      )
+      store.availableIntegrations = response.data
+      return response.data
+    } finally {
+      store.isLoadingAvailable = false
+    }
+  }
+
+  async function fetchConfiguredIntegrations() {
+    store.isLoadingConfigured = true
+    try {
+      const response = await api.get<IntegrationRecord[]>(
+        '/integrations/configured',
+      )
+      store.integrationConfigurations = response.data
+      return response.data
+    } finally {
+      store.isLoadingConfigured = false
+    }
+  }
+
   return {
     isLoading,
     error,
@@ -124,5 +151,7 @@ export function useIntegrationService() {
     testIntegrationConfig,
     toggleIntegrationEnabled,
     toggleCapability,
+    fetchAvailableIntegrations,
+    fetchConfiguredIntegrations,
   }
 }

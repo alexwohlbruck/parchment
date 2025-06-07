@@ -22,11 +22,13 @@ export class MapStrategy {
   mapInstance: any
   container: HTMLElement
   options: MapOptions
+  accessToken?: string
   markers: Map<string, any> = new Map() // Track active markers
 
-  constructor(container, options: MapOptions) {
+  constructor(container, options: MapOptions, accessToken?: string) {
     this.container = container
     this.options = { ...defaultOptions, ...options }
+    this.accessToken = accessToken
   }
 
   resize() {}

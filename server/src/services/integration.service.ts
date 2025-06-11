@@ -4,7 +4,6 @@ import { generateId } from '../util'
 import { integrations, IntegrationRecord } from '../schema/integrations.schema'
 import {
   IntegrationCapability,
-  IntegrationConfig,
   IntegrationDefinition,
   IntegrationId,
   IntegrationScope,
@@ -85,6 +84,21 @@ const availableIntegrations: IntegrationDefinition[] = [
     paid: false,
     cloud: false,
     configSchema: 'nominatimSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
+    id: IntegrationId.VALHALLA,
+    name: 'Valhalla',
+    description: 'Open-source routing engine for multimodal navigation',
+    color: '#1976D2',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.VALHALLA,
+      )
+    },
+    paid: false,
+    cloud: false,
+    configSchema: 'valhallaSchema',
     scope: [IntegrationScope.SYSTEM],
   },
   // {
@@ -193,26 +207,63 @@ const availableIntegrations: IntegrationDefinition[] = [
 ]
 
 export async function initializeIntegrations() {
-  await getConfiguredIntegrations()
+  console.log('Initializing integrations on server startup...')
 
-  const allUsers = await db.select().from(users)
-  const promises: { userId: string; integrations: IntegrationRecord[] }[] = []
+  try {
+    // Get system-wide integrations first (where userId is null)
+    const systemIntegrations = await getConfiguredIntegrations()
+    console.log(`Found ${systemIntegrations.length} system integrations`)
 
-  for (const user of allUsers) {
-    promises.push({
-      userId: user.id,
-      integrations: await getConfiguredIntegrations(user.id),
-    })
-  }
+    // Initialize system integrations
+    for (const integration of systemIntegrations) {
+      try {
+        console.log(
+          `Initializing system integration: ${integration.integrationId}`,
+        )
+        await integrationManager.initializeIntegration(undefined, integration)
+      } catch (error) {
+        console.error(
+          `Failed to initialize system integration ${integration.integrationId}:`,
+          error,
+        )
+      }
+    }
 
-  const results = await Promise.all(promises)
+    // Get all users
+    const allUsers = await db.select().from(users)
+    console.log(`Found ${allUsers.length} users`)
 
-  for (const result of results) {
-    await Promise.all(
-      result.integrations.map((integration) =>
-        integrationManager.initializeIntegration(result.userId, integration),
-      ),
-    )
+    // Get user-specific integrations for each user
+    for (const user of allUsers) {
+      try {
+        const userIntegrations = await getConfiguredIntegrations(user.id)
+        console.log(
+          `Found ${userIntegrations.length} integrations for user ${user.id}`,
+        )
+
+        // Initialize each user integration
+        for (const integration of userIntegrations) {
+          try {
+            console.log(
+              `Initializing user integration: ${integration.integrationId} for user ${user.id}`,
+            )
+            await integrationManager.initializeIntegration(user.id, integration)
+          } catch (error) {
+            console.error(
+              `Failed to initialize integration ${integration.integrationId} for user ${user.id}:`,
+              error,
+            )
+          }
+        }
+      } catch (error) {
+        console.error(`Failed to get integrations for user ${user.id}:`, error)
+      }
+    }
+
+    console.log('Integration initialization completed')
+  } catch (error) {
+    console.error('Failed to initialize integrations:', error)
+    throw error
   }
 }
 
@@ -223,7 +274,7 @@ export function parseIntegrationData(
   let config: Record<string, any>
 
   try {
-    config = JSON.parse(record.config)
+    config = JSON.parse(record.config as any)
   } catch (error) {
     console.error('Failed to parse integration config:', error)
     config = {}
@@ -233,7 +284,7 @@ export function parseIntegrationData(
 
   let capabilities: IntegrationCapability[]
   try {
-    capabilities = JSON.parse(record.capabilities)
+    capabilities = JSON.parse(record.capabilities as any)
   } catch (error) {
     console.error('Failed to parse integration capabilities:', error)
     capabilities = []
@@ -241,9 +292,12 @@ export function parseIntegrationData(
 
   return {
     id: record.id,
+    userId: record.userId,
     integrationId: record.integrationId as IntegrationId,
     capabilities,
     config: cleanedConfig,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
   }
 }
 
@@ -365,7 +419,7 @@ export async function createIntegration(
 
   const testResult = await integrationManager.testIntegration(
     integrationId,
-    config as IntegrationConfig,
+    config,
   )
 
   if (!testResult.success) {

@@ -1,8 +1,8 @@
 import axios from 'axios'
 import type {
   Integration,
+  IntegrationConfig,
   PlaceInfoCapability,
-  OverpassConfig,
   IntegrationTestResult,
   SearchCapability,
 } from '../../types/integration.types'
@@ -16,6 +16,10 @@ import { SOURCE } from '../../lib/constants'
 
 // TODO: Remove overpass integration
 // TODO: Overpass is designed for OSM editors to edit the map, not for backend search
+
+export interface OverpassConfig extends IntegrationConfig {
+  host: string
+}
 
 /**
  * Overpass API integration for OpenStreetMap data

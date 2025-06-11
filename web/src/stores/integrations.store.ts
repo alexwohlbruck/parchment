@@ -31,6 +31,7 @@ const iconMap: Record<string, any> = {
   [IntegrationId.OPENTABLE]: null,
   [IntegrationId.GEOAPIFY]: null,
   [IntegrationId.MAPBOX]: siMapbox,
+  [IntegrationId.VALHALLA]: siOpenstreetmap,
 }
 
 const getIcon = (integrationId: string) => {

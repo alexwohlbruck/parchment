@@ -483,7 +483,8 @@
         "button": "Probar Conexión",
         "success": "Conexión exitosa",
         "failure": "Conexión fallida",
-        "error": "Error al probar la conexión"
+        "error": "Error al probar la conexión",
+        "validation_error": "Por favor corrige los errores de validación antes de probar"
       },
       "capabilities": {
         "search": "Buscar",
@@ -505,7 +506,8 @@
         "mapillary": "Plataforma de imágenes a nivel de calle",
         "nominatim": "Geocodificación de código abierto",
         "tripadvisor": "Reseñas y recomendaciones de viajes",
-        "geoapify": "Geocodificación, rutas e información de lugares"
+        "geoapify": "Geocodificación, rutas e información de lugares",
+        "valhalla": "Motor de rutas de código abierto para navegación multimodal"
       }
     },
     "users": {

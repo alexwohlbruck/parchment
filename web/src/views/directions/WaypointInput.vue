@@ -70,7 +70,11 @@ function getWaypointName(waypoint: Waypoint) {
         <GripHorizontalIcon class="size-4 cursor-move handle" />
         <Input
           :placeholder="
-            index == 0 ? $t('directions.from') : $t('directions.to')
+            index == 0
+              ? $t('directions.from')
+              : index == waypoints.length - 1
+              ? $t('directions.to')
+              : $t('directions.stop', { number: index })
           "
           :model-value="getWaypointName(element)"
         />

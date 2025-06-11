@@ -1,11 +1,15 @@
 import {
-  MapboxConfig,
+  IntegrationConfig,
   IntegrationTestResult,
   IntegrationCapabilityId,
   IntegrationId,
   Integration,
   MapEngineCapability,
 } from '../../types/integration.types'
+
+export interface MapboxConfig extends IntegrationConfig {
+  accessToken: string
+}
 
 /**
  * Mapbox integration for map rendering and tiles

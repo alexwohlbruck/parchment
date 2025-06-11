@@ -5,6 +5,7 @@ import { PeliasIntegration } from './pelias-integration'
 import { NominatimIntegration } from './nominatim-integration'
 import { OverpassIntegration } from './overpass-integration'
 import { MapboxIntegration } from './mapbox-integration'
+import { ValhallaIntegration } from './valhalla-integration'
 
 /**
  * Registry for all integrations
@@ -25,6 +26,7 @@ export class IntegrationRegistry {
     this.registerIntegration(new NominatimIntegration())
     this.registerIntegration(new OverpassIntegration())
     this.registerIntegration(new MapboxIntegration())
+    this.registerIntegration(new ValhallaIntegration())
   }
 
   /**

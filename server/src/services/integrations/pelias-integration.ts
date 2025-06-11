@@ -1,7 +1,7 @@
 import axios from 'axios'
 import {
+  IntegrationConfig,
   IntegrationDefinition,
-  PeliasConfig,
   IntegrationTestResult,
   IntegrationCapabilityId,
   IntegrationId,
@@ -12,6 +12,10 @@ import { SOURCE } from '../../lib/constants'
 import { PeliasAdapter, PeliasFeature } from './adapters/pelias-adapter'
 
 // TODO: Check all SOURCE.PELIAS and SOURCE.OSM references. Idk what to do with these yet. Pelias can use various sources.
+
+export interface PeliasConfig extends IntegrationConfig {
+  host: string
+}
 
 /**
  * Pelias integration

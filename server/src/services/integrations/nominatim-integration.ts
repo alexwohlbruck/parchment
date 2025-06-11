@@ -1,12 +1,18 @@
 import axios from 'axios'
 import {
-  NominatimConfig,
+  IntegrationConfig,
   IntegrationTestResult,
   IntegrationCapabilityId,
   IntegrationId,
   Integration,
 } from '../../types/integration.types'
 import { SOURCE } from '../../lib/constants'
+
+// TODO: Is email an optional field?
+export interface NominatimConfig extends IntegrationConfig {
+  host: string
+  // email?: string
+}
 
 /**
  * Nominatim integration
@@ -35,7 +41,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
           lon: lng,
           format: 'json',
           addressdetails: 1,
-          email: this.config.email,
+          // email: this.config.email,
         }
 
         const response = await axios.get(apiUrl, { params })
@@ -63,7 +69,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
 
     this.config = {
       host: config.host,
-      email: config.email,
+      // email: config.email,
     }
 
     this.initialized = true
@@ -105,7 +111,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
         q: 'test',
         format: 'json',
         limit: 1,
-        email: config.email,
+        // email: config.email,
       }
 
       await axios.get(apiUrl, { params })
@@ -167,7 +173,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
       limit: '50',
       dedupe: '1',
       'accept-language': 'en', // TODO: i18n
-      email: this.config.email,
+      // email: this.config.email,
     }
 
     // Add location bias if coordinates are provided
@@ -250,9 +256,9 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
         'accept-language': 'en',
       }
 
-      if (this.config.email) {
-        params.email = this.config.email
-      }
+      // if (this.config.email) {
+      //   params.email = this.config.email
+      // }
 
       console.log(`Calling Nominatim lookup API with params:`, params)
 
@@ -309,7 +315,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
       q: query,
       format: 'json',
       limit: 10,
-      email: this.config.email,
+      // email: this.config.email,
       addressdetails: 1,
       extratags: 1,
       namedetails: 1,

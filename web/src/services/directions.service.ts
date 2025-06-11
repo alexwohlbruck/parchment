@@ -54,14 +54,22 @@ function directionsService() {
   }
 
   function removeWaypoint(index: number) {
-    if (index >= MIN_LOCATIONS - 1) {
-      directionsStore.removeWaypoint(index)
-    } else {
+    // Only prevent removal if we would have fewer than minimum locations
+    if (waypoints.value.length <= MIN_LOCATIONS) {
+      // If we're at minimum waypoints, clear the waypoint instead of removing it
       directionsStore.setWaypoint(index, {
         ...waypoints.value[index],
         lngLat: null,
       })
+    } else {
+      // We have more than minimum waypoints, safe to remove
+      directionsStore.removeWaypoint(index)
     }
+  }
+
+  function addWaypoint(waypoint?: Waypoint) {
+    const newWaypoint = waypoint || createBlankWaypoint()
+    directionsStore.setWaypoint(waypoints.value.length, newWaypoint)
   }
 
   async function directionsFrom(waypoint: Waypoint) {
@@ -87,6 +95,7 @@ function directionsService() {
     setWaypoint,
     setWaypoints,
     removeWaypoint,
+    addWaypoint,
     directionsFrom,
     directionsTo,
   }

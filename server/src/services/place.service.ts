@@ -42,17 +42,20 @@ export async function lookupPlaceById(
   placeId: string,
 ): Promise<Place | null> {
   try {
-    const integration = integrationManager.getConfiguredIntegrationForSource(
-      source,
-      IntegrationCapabilityId.PLACE_INFO,
-    )
+    const integrationRecord =
+      integrationManager.getConfiguredIntegrationForSource(
+        source,
+        IntegrationCapabilityId.PLACE_INFO,
+      )
 
+    if (!integrationRecord) return null
+
+    const integration =
+      integrationManager.getCachedIntegrationInstance(integrationRecord)
     if (!integration) return null
 
     return (
-      (await integration!.integration.capabilities.placeInfo?.getPlaceInfo(
-        placeId,
-      )) ?? null
+      (await integration.capabilities.placeInfo?.getPlaceInfo(placeId)) ?? null
     )
   } catch (error) {
     return null
@@ -85,33 +88,40 @@ export async function lookupPlacesByNameAndLocation(
       autocomplete = false,
     } = options || {}
 
-    const integrations = integrationManager
+    const integrationRecords = integrationManager
       .getConfiguredIntegrationsByCapability(
         autocomplete
           ? IntegrationCapabilityId.AUTOCOMPLETE
           : IntegrationCapabilityId.SEARCH,
       )
-      .filter((integration) => {
+      .filter((integrationRecord) => {
+        // Get the cached integration instance to check sources
+        const integration =
+          integrationManager.getCachedIntegrationInstance(integrationRecord)
         // Filter out integrations whose sources are in the blacklist
-        return !integration.integration.sources?.some((source) =>
+        return !integration?.sources?.some((source: Source) =>
           sourceBlacklist.includes(source),
         )
       })
 
-    if (integrations.length === 0) {
+    if (integrationRecords.length === 0) {
       // TODO: Return useful error to client
       return []
     }
 
-    const searchPromises = integrations.map(async (integration) => {
+    const searchPromises = integrationRecords.map(async (integrationRecord) => {
+      const integration =
+        integrationManager.getCachedIntegrationInstance(integrationRecord)
+      if (!integration) return null
+
       if (autocomplete) {
-        return integration.integration.capabilities.autocomplete?.getAutocomplete(
+        return integration.capabilities.autocomplete?.getAutocomplete(
           name,
           coordinates.lat,
           coordinates.lng,
         )
       } else {
-        return integration.integration.capabilities.search?.searchPlaces(
+        return integration.capabilities.search?.searchPlaces(
           name,
           coordinates.lat,
           coordinates.lng,
@@ -121,7 +131,9 @@ export async function lookupPlacesByNameAndLocation(
 
     const results = (await Promise.all(searchPromises))
       .flat()
-      .filter((result): result is Place => result !== null) // TODO: Shouldn't need this
+      .filter(
+        (result): result is Place => result !== null && result !== undefined,
+      )
 
     return mergePlacesCollection(results).sort((a, b) => {
       // Sort by distance from coordinates

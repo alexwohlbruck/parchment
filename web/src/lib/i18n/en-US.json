@@ -479,7 +479,8 @@
         "button": "Test Connection",
         "success": "Connection successful",
         "failure": "Connection failed",
-        "error": "Error testing connection"
+        "error": "Error testing connection",
+        "validation_error": "Please fix validation errors before testing"
       },
       "capabilities": {
         "search": "Search",
@@ -503,7 +504,8 @@
         "nominatim": "Open-source geocoding and reverse geocoding",
         "tripadvisor": "Travel reviews and recommendations",
         "geoapify": "Geocoding, routing, and place data",
-        "mapbox": "Interactive maps, geocoding, and navigation"
+        "mapbox": "Interactive maps, geocoding, and navigation",
+        "valhalla": "Open-source routing engine for multimodal navigation"
       }
     },
     "users": {

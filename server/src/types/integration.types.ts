@@ -2,6 +2,7 @@ import { Place } from './place.types'
 import { Source } from '../lib/constants'
 import { IntegrationId, IntegrationCapabilityId } from './integration.enums'
 import type { IntegrationRecord } from '../schema/integrations.schema'
+import type { UnifiedRoute } from './routing.types'
 
 export { IntegrationId, IntegrationCapabilityId, IntegrationRecord }
 
@@ -41,13 +42,11 @@ export interface GeocodingCapability {
   reverseGeocode(lat: number, lng: number): Promise<any[]>
 }
 
-// TODO: Return types
 export interface RoutingCapability {
   getRoute(
-    from: { lat: number; lng: number },
-    to: { lat: number; lng: number },
+    waypoints: Array<{ lat: number; lng: number }>,
     options?: any,
-  ): Promise<any>
+  ): Promise<UnifiedRoute>
 }
 
 // TODO: Return types
@@ -71,7 +70,7 @@ export interface IntegrationCapabilities {
 /**
  * Base interface that all integrations must implement
  */
-export interface Integration {
+export interface Integration<Config extends Record<string, any>> {
   /**
    * The integration ID that this integration implements
    */
@@ -97,22 +96,20 @@ export interface Integration {
    * @param config The configuration to test
    * @returns A test result indicating success or failure
    */
-  testConnection(
-    config: IntegrationRecord['config'],
-  ): Promise<IntegrationTestResult>
+  testConnection(config: Config): Promise<IntegrationTestResult>
 
   /**
    * Initializes the integration with the given configuration
    * @param config The configuration to use
    */
-  initialize(config: IntegrationRecord['config']): void
+  initialize(config: Config): void
 
   /**
    * Validates that the configuration has all required fields
    * @param config The configuration to validate
    * @returns True if the configuration is valid, false otherwise
    */
-  validateConfig(config: IntegrationRecord['config']): boolean
+  validateConfig(config: Config): boolean
 }
 
 export type IntegrationCapability = {
@@ -142,4 +139,8 @@ export enum IntegrationScope {
 export type IntegrationTestResult = {
   success: boolean
   message?: string
+}
+
+export interface IntegrationConfig {
+  [key: string]: any
 }

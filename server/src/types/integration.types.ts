@@ -2,7 +2,12 @@ import { Place } from './place.types'
 import { Source } from '../lib/constants'
 import { IntegrationId, IntegrationCapabilityId } from './integration.enums'
 import type { IntegrationRecord } from '../schema/integrations.schema'
-import type { UnifiedRoute } from './routing.types'
+import {
+  RouteRequest,
+  MatrixRequest,
+  MatrixResponse,
+  UnifiedRoute,
+} from './unified-routing.types'
 
 export { IntegrationId, IntegrationCapabilityId, IntegrationRecord }
 
@@ -43,10 +48,8 @@ export interface GeocodingCapability {
 }
 
 export interface RoutingCapability {
-  getRoute(
-    waypoints: Array<{ lat: number; lng: number }>,
-    options?: any,
-  ): Promise<UnifiedRoute>
+  getRoute(request: RouteRequest): Promise<UnifiedRoute>
+  getMatrix?(request: MatrixRequest): Promise<MatrixResponse>
 }
 
 // TODO: Return types

@@ -1,82 +1,63 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import dayjs from 'dayjs'
-import { FootprintsIcon, TrainIcon, BikeIcon } from 'lucide-vue-next'
-import Trip from './Trip.vue'
+import {
+  FootprintsIcon,
+  TrainIcon,
+  BikeIcon,
+  CarFrontIcon,
+} from 'lucide-vue-next'
+import type { TripsResponse, TripOption } from '@/types/directions.types'
+import { useDirectionsStore } from '@/stores/directions.store'
+import { storeToRefs } from 'pinia'
 
-interface TripLeg {
-  mode: 'walk' | 'train' | 'bike'
-  duration: number // in minutes
-  startTime: Date
+interface Props {
+  trips: TripsResponse
 }
 
-interface Trip {
-  legs: TripLeg[]
-}
+const props = defineProps<Props>()
 
-// Hardcoded sample data
-const now = new Date()
-const trips: Trip[] = [
-  {
-    legs: [
-      {
-        mode: 'walk',
-        duration: 5,
-        startTime: dayjs(now).add(4, 'minute').toDate(),
-      },
-      {
-        mode: 'train',
-        duration: 10,
-        startTime: dayjs(now).add(9, 'minute').toDate(),
-      },
-      {
-        mode: 'walk',
-        duration: 6,
-        startTime: dayjs(now).add(19, 'minute').toDate(),
-      },
-    ],
-  },
-  {
-    legs: [{ mode: 'bike', duration: 15, startTime: now }],
-  },
-  {
-    legs: [{ mode: 'walk', duration: 54, startTime: now }],
-  },
-]
+const directionsStore = useDirectionsStore()
+const { visibleTripIds } = storeToRefs(directionsStore)
 
 const pixelsPerMinute = 10
 const legGapPixels = 3
 const modeColors = {
-  walk: 'bg-blue-300 dark:bg-blue-500',
-  train: 'bg-indigo-300 dark:bg-indigo-500',
-  bike: 'bg-green-300 dark:bg-green-500',
-  bus: 'bg-violet-300 dark:bg-violet-500',
-}
-const modeIcons = {
-  walk: FootprintsIcon,
-  train: TrainIcon,
-  bike: BikeIcon,
+  walking: 'bg-blue-300 dark:bg-blue-500',
+  driving: 'bg-red-300 dark:bg-red-500',
+  cycling: 'bg-green-300 dark:bg-green-500',
+  transit: 'bg-indigo-300 dark:bg-indigo-500',
+  motorcycle: 'bg-orange-300 dark:bg-orange-500',
+  truck: 'bg-gray-300 dark:bg-gray-500',
 }
 
-// Sort trips by arrival time
+const modeIcons = {
+  walking: FootprintsIcon,
+  driving: CarFrontIcon,
+  cycling: BikeIcon,
+  transit: TrainIcon,
+  motorcycle: CarFrontIcon,
+  truck: CarFrontIcon,
+}
+
+// Sort trips by recommended first, then by duration
 const sortedTrips = computed(() => {
-  return [...trips].sort((a, b) => {
-    const aEnd = getTripEndTime(a)
-    const bEnd = getTripEndTime(b)
-    return aEnd.getTime() - bEnd.getTime()
+  return [...props.trips.trips].sort((a, b) => {
+    if (a.isRecommended && !b.isRecommended) return -1
+    if (!a.isRecommended && b.isRecommended) return 1
+    return a.summary.totalDuration - b.summary.totalDuration
   })
 })
 
-// Calculate the latest end time among all trips
-const endTime = computed(() => {
-  return Math.max(...trips.map(trip => getTripEndTime(trip).getTime()))
-})
+// Use the timeline bounds from the API response
+const earliestStart = computed(() => new Date(props.trips.earliestStart))
+const latestEnd = computed(() => new Date(props.trips.latestEnd))
 
 // Generate time labels for the header (15-minute intervals)
 const timeLabels = computed(() => {
   const labels: string[] = []
-  let currentTime = dayjs(now).startOf('hour')
-  const end = dayjs(endTime.value)
+  let currentTime = dayjs(earliestStart.value).startOf('hour')
+  const end = dayjs(latestEnd.value).add(1, 'hour').startOf('hour')
 
   while (currentTime.isBefore(end)) {
     labels.push(currentTime.format('H:mm'))
@@ -85,22 +66,46 @@ const timeLabels = computed(() => {
   return labels
 })
 
-function getRelativeTime(date: Date) {
-  const minutes = dayjs(date).diff(now, 'minute')
-  if (minutes <= 0) return 'Now'
-  return `In ${minutes} min`
+function formatDuration(seconds: number) {
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  return `${hours}h ${remainingMinutes}m`
 }
 
-function getTripDuration(trip: Trip) {
-  return trip.legs.reduce((acc, leg) => acc + leg.duration, 0)
+function formatDistance(meters: number) {
+  if (meters < 1000) return `${Math.round(meters)} m`
+  return `${(meters / 1000).toFixed(1)} km`
 }
 
-function getTripEndTime(trip: Trip): Date {
-  const lastLeg = trip.legs[trip.legs.length - 1]
-  return dayjs(lastLeg.startTime).add(lastLeg.duration, 'minute').toDate()
+function getTripCost(trip: TripOption) {
+  return trip.cost?.total?.amount || 0
 }
 
-// Add these new reactive variables
+function formatCost(amount: number, currency: string = 'USD') {
+  if (amount === 0) return 'Free'
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
+  }).format(amount)
+}
+
+function getDisplayTime(date: Date, isFirstSegment: boolean = false) {
+  // Only show "Now" for the first segment if it starts immediately (within 2 minutes)
+  if (isFirstSegment) {
+    const now = new Date()
+    const diffMinutes = dayjs(date).diff(now, 'minute')
+
+    if (Math.abs(diffMinutes) <= 2) {
+      return 'Now'
+    }
+  }
+
+  return dayjs(date).format('H:mm')
+}
+
+// Add these new reactive variables for scroll handling
 const containerRef = ref<HTMLElement | null>(null)
 const isScrolledToEnd = ref(false)
 const isScrolledToStart = ref(true)
@@ -127,9 +132,9 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="relative overflow-x-hidden max-h-[24rem]">
+  <div class="relative overflow-x-hidden max-h-[32rem]">
     <!-- Time labels -->
-    <div class="flex relative mb-2">
+    <div class="flex relative mb-3">
       <div
         v-for="time in timeLabels"
         :key="time"
@@ -137,10 +142,10 @@ onUnmounted(() => {
         :style="{
           left: `${
             dayjs(
-              dayjs(now)
+              dayjs(earliestStart)
                 .startOf('hour')
                 .add(timeLabels.indexOf(time) * 15, 'minute'),
-            ).diff(now, 'minute') * pixelsPerMinute
+            ).diff(earliestStart, 'minute') * pixelsPerMinute
           }px`,
         }"
       >
@@ -149,50 +154,111 @@ onUnmounted(() => {
     </div>
 
     <!-- Grid lines -->
-    <div class="absolute inset-0 flex pointer-events-none">
+    <div class="absolute inset-0 flex pointer-events-none px-4">
       <div v-for="time in timeLabels" :key="time" class="flex-shrink-0">
         <div
-          class="absolute top-0 h-full border-l border-border/75"
+          class="absolute top-0 h-full border-l border-border/50"
           :style="{
             left: `${
               dayjs(
-                dayjs(now)
+                dayjs(earliestStart)
                   .startOf('hour')
                   .add(timeLabels.indexOf(time) * 15, 'minute'),
-              ).diff(now, 'minute') * pixelsPerMinute
+              ).diff(earliestStart, 'minute') * pixelsPerMinute
             }px`,
           }"
         />
       </div>
     </div>
 
-    <div class="relative overflow-auto max-h-[24rem]" ref="containerRef">
+    <div class="relative overflow-auto max-h-[32rem]" ref="containerRef">
       <!-- Timeline content -->
-      <div class="relative flex flex-col pt-1 pb-3">
-        <div v-for="(trip, tripIndex) in sortedTrips" :key="tripIndex">
-          <Trip :trip="trip" :now="now" :pixels-per-minute="pixelsPerMinute" />
+      <div class="relative flex flex-col pt-2 pb-4 space-y-5 px-4">
+        <div
+          v-for="(trip, tripIndex) in sortedTrips"
+          :key="trip.id || tripIndex"
+          class="relative flex items-start min-h-[3.5rem] group"
+        >
+          <!-- Trip info sidebar -->
+          <div class="flex-shrink-0 w-20 pr-4 text-right">
+            <div class="text-sm font-medium text-foreground mb-0.5">
+              {{ formatDuration(trip.summary.totalDuration) }}
+            </div>
+            <div class="text-xs text-muted-foreground">
+              {{ formatDistance(trip.summary.totalDistance) }}
+            </div>
+          </div>
+
+          <!-- Timeline section -->
+          <div class="relative flex-1 min-h-[3rem]">
+            <!-- Segments bar -->
+            <div class="relative h-6 mb-3">
+              <div
+                v-for="(segment, segmentIndex) in trip.segments"
+                :key="segment.id"
+                class="absolute rounded-lg transition-all duration-200 flex items-center justify-center shadow-sm h-8"
+                :class="[
+                  modeColors[segment.mode] || 'bg-gray-300 dark:bg-gray-500',
+                  trip.isRecommended
+                    ? 'ring-2 ring-primary ring-opacity-40'
+                    : '',
+                  'group-hover:shadow-md group-hover:scale-[1.02]',
+                ]"
+                :style="{
+                  left: `${
+                    dayjs(segment.startTime).diff(earliestStart, 'minute') *
+                    pixelsPerMinute
+                  }px`,
+                  width: `${(segment.duration / 60) * pixelsPerMinute}px`,
+                }"
+              >
+                <!-- Mode icon inside segment -->
+                <component
+                  :is="modeIcons[segment.mode]"
+                  class="size-5 text-white drop-shadow-sm"
+                  v-if="(segment.duration / 60) * pixelsPerMinute > 20"
+                />
+              </div>
+            </div>
+
+            <!-- Timestamps below the bar -->
+            <div class="relative h-5">
+              <div
+                v-for="(segment, segmentIndex) in trip.segments"
+                :key="`${segment.id}-times`"
+                class="absolute text-[10px] text-muted-foreground tracking-tight"
+                :style="{
+                  left: `${
+                    dayjs(segment.startTime).diff(earliestStart, 'minute') *
+                    pixelsPerMinute
+                  }px`,
+                  width: `${(segment.duration / 60) * pixelsPerMinute}px`,
+                }"
+              >
+                <!-- Start time -->
+                <span class="absolute left-0">
+                  {{ getDisplayTime(segment.startTime, segmentIndex === 0) }}
+                </span>
+                <!-- End time (only show if segment is wide enough to avoid overlap) -->
+                <span
+                  class="absolute right-0"
+                  v-if="(segment.duration / 60) * pixelsPerMinute > 35"
+                >
+                  {{ getDisplayTime(segment.endTime, false) }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- No trips message -->
+        <div
+          v-if="sortedTrips.length === 0"
+          class="text-center py-8 text-muted-foreground"
+        >
+          <p class="text-sm">No trips available</p>
         </div>
       </div>
     </div>
-
-    <!-- Left scrim -->
-    <div
-      class="absolute left-0 top-0 bottom-0 w-12 pointer-events-none bg-gradient-to-r from-background to-transparent transition-opacity duration-120"
-      :class="{ 'opacity-0': isScrolledToStart }"
-      :style="{
-        left: `var(--removed-scroll-width, 0px)`,
-        position: 'absolute',
-      }"
-    ></div>
-
-    <!-- Right scrim (existing) -->
-    <div
-      class="absolute right-0 top-0 bottom-0 w-20 pointer-events-none bg-gradient-to-l from-background to-transparent transition-opacity duration-200"
-      :class="{ 'opacity-0': isScrolledToEnd }"
-      :style="{
-        right: `var(--removed-scroll-width, 0px)`,
-        position: 'absolute',
-      }"
-    ></div>
   </div>
 </template>

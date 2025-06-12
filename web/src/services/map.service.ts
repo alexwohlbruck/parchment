@@ -362,6 +362,51 @@ function mapService() {
     },
   )
 
+  // Watch for trip changes
+  watch(
+    () => directionsStore.trips,
+    trips => {
+      if (trips && directionsStore.visibleTripIds.size > 0) {
+        mapStrategy?.setTrips(trips, directionsStore.visibleTripIds)
+      } else {
+        mapStrategy?.unsetTrips()
+      }
+    },
+  )
+
+  // Watch for trip visibility changes
+  watch(
+    () => directionsStore.visibleTripIds,
+    (newVisibleIds, oldVisibleIds) => {
+      if (!directionsStore.trips) return
+
+      // For efficiency, just update visibility instead of recreating all trips
+      if (oldVisibleIds && mapStrategy) {
+        // Find trips that changed visibility
+        const changedTrips = new Set([...newVisibleIds, ...oldVisibleIds])
+        for (const tripId of changedTrips) {
+          const isVisible = newVisibleIds.has(tripId)
+          const wasVisible = oldVisibleIds.has(tripId)
+
+          if (isVisible !== wasVisible) {
+            mapStrategy.updateTripVisibility(tripId, isVisible)
+          }
+        }
+      }
+
+      // If this is a major change or first load, recreate all trips
+      if (
+        !oldVisibleIds ||
+        Math.abs(newVisibleIds.size - oldVisibleIds.size) > 1
+      ) {
+        if (directionsStore.trips) {
+          mapStrategy?.setTrips(directionsStore.trips, newVisibleIds)
+        }
+      }
+    },
+    { deep: true },
+  )
+
   function toggleLayer(layerId: Layer['configuration']['id'], state?: boolean) {
     mapStore.toggleLayer(layerId, state)
   }

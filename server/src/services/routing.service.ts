@@ -1,7 +1,13 @@
 import { IntegrationCapabilityId } from '../types/integration.types'
 import { integrationManager } from './integrations'
 import type { Location } from '../types/valhalla.types'
-import type { UnifiedRoute } from '../types/routing.types'
+import {
+  RouteRequest,
+  UnifiedRoute,
+  TravelMode,
+  WaypointType,
+  RouteWaypoint,
+} from '../types/unified-routing.types'
 
 export class RoutingService {
   /**
@@ -26,37 +32,53 @@ export class RoutingService {
       throw new Error('No routing integrations configured')
     }
 
-    // TODO: Allow user to specify which integration to use
     // Use the first available routing integration
-    // based on the request characteristics (e.g., region, routing type, etc.)
     const routingIntegrationRecord = routingIntegrations[0]
 
-    // Get the initialized integration instance from the cache
+    // Get the cached integration instance
     const integrationInstance = integrationManager.getCachedIntegrationInstance(
       routingIntegrationRecord,
     )
 
     if (!integrationInstance || !integrationInstance.capabilities.routing) {
-      throw new Error('Routing capability not available')
+      throw new Error(
+        `Routing integration ${routingIntegrationRecord.integrationId} not available or not initialized`,
+      )
     }
 
-    // Convert all locations to the format expected by the integration
-    const waypoints = locations.map((location) => ({
-      lat: location.value[0], // Frontend sends [lat, lng]
-      lng: location.value[1],
+    // Convert locations to unified waypoints format
+    const waypoints: RouteWaypoint[] = locations.map((location, index) => ({
+      id: `waypoint-${index}`,
+      coordinate: {
+        lat: location.value[0], // Frontend sends [lat, lng]
+        lng: location.value[1],
+      },
+      type:
+        index === 0 || index === locations.length - 1
+          ? WaypointType.STOP
+          : WaypointType.VIA,
     }))
+
+    // Convert costing to travel mode
+    const mode = this.mapCostingToTravelMode(costing)
+
+    // Build unified route request
+    const request: RouteRequest = {
+      waypoints,
+      mode,
+      includeInstructions: true,
+      includeGeometry: true,
+      preferences: {
+        optimize: 'time',
+        ...options,
+      },
+    }
 
     console.log('Routing waypoints:', waypoints)
 
     try {
-      const routeOptions = {
-        costing,
-        ...options,
-      }
-
       const result = await integrationInstance.capabilities.routing.getRoute(
-        waypoints,
-        routeOptions,
+        request,
       )
 
       // The result is now already in unified format
@@ -68,6 +90,34 @@ export class RoutingService {
           error instanceof Error ? error.message : 'Unknown error'
         }`,
       )
+    }
+  }
+
+  /**
+   * Map legacy costing parameter to unified travel mode
+   */
+  private mapCostingToTravelMode(costing: string): TravelMode {
+    switch (costing.toLowerCase()) {
+      case 'auto':
+      case 'car':
+      case 'driving':
+        return TravelMode.DRIVING
+      case 'bicycle':
+      case 'cycling':
+      case 'bike':
+        return TravelMode.CYCLING
+      case 'pedestrian':
+      case 'walking':
+      case 'foot':
+        return TravelMode.WALKING
+      case 'motorcycle':
+        return TravelMode.MOTORCYCLE
+      case 'truck':
+        return TravelMode.TRUCK
+      case 'transit':
+        return TravelMode.TRANSIT
+      default:
+        return TravelMode.DRIVING
     }
   }
 

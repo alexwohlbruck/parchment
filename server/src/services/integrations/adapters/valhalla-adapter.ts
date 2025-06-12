@@ -25,6 +25,60 @@ export class ValhallaAdapter {
   }
 
   /**
+   * Decode Valhalla polyline to coordinates
+   * Based on https://valhalla.github.io/valhalla/decoding
+   */
+  private decodePolyline(
+    encoded: string,
+    precision: number = 6,
+  ): Array<{ lat: number; lng: number }> {
+    if (!encoded) return []
+
+    let index = 0
+    let lat = 0
+    let lng = 0
+    const coordinates: Array<{ lat: number; lng: number }> = []
+    let shift = 0
+    let result = 0
+    let byte: number | null = null
+    const factor = Math.pow(10, precision)
+
+    while (index < encoded.length) {
+      byte = null
+      shift = 0
+      result = 0
+
+      do {
+        byte = encoded.charCodeAt(index++) - 63
+        result |= (byte & 0x1f) << shift
+        shift += 5
+      } while (byte >= 0x20)
+
+      const latitude_change = result & 1 ? ~(result >> 1) : result >> 1
+
+      shift = result = 0
+
+      do {
+        byte = encoded.charCodeAt(index++) - 63
+        result |= (byte & 0x1f) << shift
+        shift += 5
+      } while (byte >= 0x20)
+
+      const longitude_change = result & 1 ? ~(result >> 1) : result >> 1
+
+      lat += latitude_change
+      lng += longitude_change
+
+      coordinates.push({
+        lat: lat / factor,
+        lng: lng / factor,
+      })
+    }
+
+    return coordinates
+  }
+
+  /**
    * Convert Valhalla route response to unified format
    */
   private adaptRouteResponse(
@@ -60,6 +114,7 @@ export class ValhallaAdapter {
       shape: leg.shape,
       distance: leg.summary.length * 1000, // Convert km to meters
       time: leg.summary.time,
+      geometry: this.decodePolyline(leg.shape), // Decode the polyline geometry
       summary: {
         length: leg.summary.length * 1000, // Convert km to meters
         time: leg.summary.time,

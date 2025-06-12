@@ -14,6 +14,7 @@ import {
   ShuffleIcon,
   TrainFrontIcon,
   TrainIcon,
+  LoaderIcon,
 } from 'lucide-vue-next'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { storeToRefs } from 'pinia'
@@ -25,7 +26,7 @@ dayjs.extend(duration)
 
 const directionsService = useDirectionsService()
 
-const { waypoints, directions, selectedMode } = storeToRefs(
+const { waypoints, trips, selectedMode, isLoading } = storeToRefs(
   useDirectionsStore(),
 )
 
@@ -33,22 +34,27 @@ const modes = [
   {
     type: 'multi',
     icon: ShuffleIcon,
+    label: 'All modes',
   },
   {
     type: 'pedestrian',
     icon: FootprintsIcon,
+    label: 'Walking',
   },
   {
     type: 'bicycle',
     icon: BikeIcon,
+    label: 'Cycling',
   },
   {
     type: 'transit',
     icon: TrainIcon,
+    label: 'Transit',
   },
   {
     type: 'auto',
     icon: CarFrontIcon,
+    label: 'Driving',
   },
 ]
 
@@ -76,6 +82,7 @@ watch(
           :key="i"
           :value="mode.type"
           class="flex-grow"
+          :title="mode.label"
         >
           <component :is="mode.icon" class="size-5" />
         </TabsTrigger>
@@ -87,6 +94,23 @@ watch(
       @update:modelValue="directionsService.setWaypoints"
     />
 
-    <TripsList v-if="directions" />
+    <!-- Loading state -->
+    <div v-if="isLoading" class="flex items-center justify-center py-8">
+      <LoaderIcon class="size-6 animate-spin text-muted-foreground" />
+      <span class="ml-2 text-sm text-muted-foreground"
+        >Planning your trip...</span
+      >
+    </div>
+
+    <!-- Trips results -->
+    <TripsList v-else-if="trips" :trips="trips" />
+
+    <!-- No results -->
+    <div
+      v-else-if="!isLoading && waypoints.some(wp => wp.lngLat)"
+      class="text-center py-8 text-muted-foreground"
+    >
+      <p class="text-sm">No routes found</p>
+    </div>
   </div>
 </template>

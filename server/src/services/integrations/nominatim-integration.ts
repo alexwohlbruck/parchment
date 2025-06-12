@@ -21,10 +21,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
   private initialized = false
 
   readonly integrationId = IntegrationId.NOMINATIM
-  readonly capabilityIds = [
-    IntegrationCapabilityId.GEOCODING,
-    IntegrationCapabilityId.AUTOCOMPLETE,
-  ]
+  readonly capabilityIds = [IntegrationCapabilityId.GEOCODING]
   readonly capabilities = {
     geocoding: {
       geocode: this.searchPlaces.bind(this),
@@ -47,9 +44,6 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
         const response = await axios.get(apiUrl, { params })
         return response.data ? [response.data] : []
       },
-    },
-    autocomplete: {
-      getAutocomplete: this.getAutocomplete.bind(this),
     },
   }
   readonly sources = [SOURCE.OSM]
@@ -286,69 +280,6 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
     } catch (error) {
       console.error('Error getting place details from Nominatim:', error)
       return null
-    }
-  }
-
-  /**
-   * Get autocomplete suggestions for a query
-   * @param query The search query
-   * @param lat Optional latitude for location bias
-   * @param lng Optional longitude for location bias
-   * @param radius Optional radius in meters for location bias
-   * @returns Array of autocomplete suggestions
-   */
-  async getAutocomplete(
-    query: string,
-    lat?: number,
-    lng?: number,
-    options?: {
-      radius?: number
-      limit?: number
-    },
-  ): Promise<any[]> {
-    this.ensureInitialized()
-
-    const { radius = 50000 } = options || {}
-
-    const apiUrl = this.buildApiUrl()
-    const params: Record<string, any> = {
-      q: query,
-      format: 'json',
-      limit: 10,
-      // email: this.config.email,
-      addressdetails: 1,
-      extratags: 1,
-      namedetails: 1,
-      'accept-language': 'en',
-    }
-
-    // Add location bias if coordinates are provided
-    if (lat !== undefined && lng !== undefined) {
-      params['viewbox'] = this.createViewbox(
-        lat,
-        lng,
-        radius ? radius / 1000 : 10,
-      )
-      params['bounded'] = 1
-    }
-
-    try {
-      console.log(`Calling Nominatim autocomplete API with params:`, params)
-      const response = await axios.get(apiUrl, {
-        params,
-        headers: {
-          'User-Agent': 'Parchment/1.0',
-        },
-      })
-      console.log(
-        `Received ${
-          response.data?.length || 0
-        } results from Nominatim autocomplete`,
-      )
-      return response.data || []
-    } catch (error) {
-      console.error('Error getting Nominatim autocomplete suggestions:', error)
-      return []
     }
   }
 }

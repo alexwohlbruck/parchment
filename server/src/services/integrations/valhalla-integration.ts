@@ -6,12 +6,24 @@ import {
   Integration,
   RoutingCapability,
 } from '../../types/integration.types'
-import type { UnifiedRoute } from '../../types/routing.types'
+import {
+  RouteRequest,
+  UnifiedRoute,
+  TravelMode,
+  WaypointType,
+  RouteWaypoint,
+  Route,
+  RouteLeg,
+  RouteInstruction,
+  RouteSummary,
+} from '../../types/unified-routing.types'
+import type {
+  ValhallaConfig,
+  ValhallaResponse,
+  ValhallaLeg,
+  ValhallaManeuver,
+} from '../../types/valhalla.types'
 import { ValhallaAdapter } from './adapters/valhalla-adapter'
-
-export interface ValhallaConfig extends IntegrationConfig {
-  host: string
-}
 
 /**
  * Valhalla integration for routing
@@ -119,18 +131,14 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
   }
 
   /**
-   * Get route between multiple waypoints
-   * @param waypoints Array of waypoint coordinates
-   * @param options Optional routing parameters
+   * Get route using unified request format
+   * @param request Unified route request
    * @returns Route information in unified format
    */
-  private async getRoute(
-    waypoints: Array<{ lat: number; lng: number }>,
-    options?: any,
-  ): Promise<UnifiedRoute> {
+  private async getRoute(request: RouteRequest): Promise<UnifiedRoute> {
     this.ensureInitialized()
 
-    if (waypoints.length < 2) {
+    if (request.waypoints.length < 2) {
       throw new Error('At least 2 waypoints are required for routing')
     }
 
@@ -141,21 +149,25 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
       const url = `${host}/route`
 
       const requestBody = {
-        locations: waypoints.map((waypoint) => ({
-          lat: waypoint.lat,
-          lon: waypoint.lng,
+        locations: request.waypoints.map((waypoint) => ({
+          lat: waypoint.coordinate.lat,
+          lon: waypoint.coordinate.lng,
+          type: this.mapWaypointType(waypoint.type),
+          heading: waypoint.heading,
         })),
-        costing: options?.costing || 'auto',
+        costing: this.mapTravelModeToCosting(request.mode),
+        costing_options: this.buildCostingOptions(request),
         directions_options: {
           units: 'kilometers',
-          language: 'en-US',
+          narrative: request.includeInstructions ?? true,
+          format: 'json',
         },
-        ...options,
       }
 
+      console.log('Valhalla request URL:', url)
       console.log(
-        `Valhalla routing request: ${waypoints.length} waypoints`,
-        waypoints,
+        'Valhalla request body:',
+        JSON.stringify(requestBody, null, 2),
       )
 
       const response = await fetch(url, {
@@ -167,16 +179,336 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
       })
 
       if (!response.ok) {
-        throw new Error(`Valhalla routing error: ${response.status}`)
+        const errorText = await response.text()
+        console.error('Valhalla error response:', response.status, errorText)
+        throw new Error(
+          `Valhalla routing error: ${response.status} - ${errorText}`,
+        )
       }
 
-      const data = await response.json()
-
-      // Use the adapter to convert raw Valhalla response to unified format
-      return this.adapter.routing.adaptRouteResponse(data, url)
+      const data: ValhallaResponse = await response.json()
+      return this.mapValhallaToUnified(data, request)
     } catch (error) {
-      console.error('Valhalla routing error:', error)
-      throw error
+      throw new Error(
+        `Valhalla routing error: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`,
+      )
     }
+  }
+
+  /**
+   * Map travel mode to Valhalla costing model
+   */
+  private mapTravelModeToCosting(mode: TravelMode): string {
+    switch (mode) {
+      case TravelMode.DRIVING:
+        return 'auto'
+      case TravelMode.CYCLING:
+        return 'bicycle'
+      case TravelMode.WALKING:
+        return 'pedestrian'
+      case TravelMode.MOTORCYCLE:
+        return 'motorcycle'
+      default:
+        throw new Error(`Unsupported travel mode for Valhalla: ${mode}`)
+    }
+  }
+
+  /**
+   * Map waypoint type to Valhalla location type
+   */
+  private mapWaypointType(type: WaypointType): string {
+    switch (type) {
+      case WaypointType.STOP:
+        return 'break'
+      case WaypointType.VIA:
+        return 'through'
+      case WaypointType.TRANSFER:
+        return 'break'
+      case WaypointType.HAZARD:
+        return 'break' // Hazards handled via avoidance, not location type
+      default:
+        return 'break'
+    }
+  }
+
+  /**
+   * Build costing options from request preferences
+   */
+  private buildCostingOptions(request: RouteRequest): any {
+    if (!request.preferences && !request.vehicle) {
+      return undefined
+    }
+
+    const options: any = {}
+    const preferences = request.preferences
+    const vehicle = request.vehicle
+
+    if (request.mode === TravelMode.DRIVING) {
+      options.auto = {
+        use_tolls: preferences?.avoidTolls ? 0 : 1,
+        use_highways: preferences?.avoidHighways ? 0 : 1,
+        use_ferry: preferences?.avoidFerries ? 0 : 1,
+      }
+
+      if (vehicle) {
+        if (vehicle.height) options.auto.height = vehicle.height
+        if (vehicle.width) options.auto.width = vehicle.width
+        if (vehicle.weight) options.auto.weight = vehicle.weight
+      }
+    } else if (request.mode === TravelMode.CYCLING) {
+      options.bicycle = {
+        use_ferry: preferences?.avoidFerries ? 0 : 1,
+      }
+
+      if (preferences?.providerOptions?.cyclingSpeed) {
+        options.bicycle.cycling_speed = preferences.providerOptions.cyclingSpeed
+      }
+    } else if (request.mode === TravelMode.WALKING) {
+      options.pedestrian = {}
+
+      if (preferences?.providerOptions?.walkingSpeed) {
+        options.pedestrian.walking_speed =
+          preferences.providerOptions.walkingSpeed
+      }
+    }
+
+    return Object.keys(options).length > 0 ? options : undefined
+  }
+
+  /**
+   * Map Valhalla response to unified format
+   */
+  private mapValhallaToUnified(
+    data: ValhallaResponse,
+    request: RouteRequest,
+  ): UnifiedRoute {
+    const route: Route = {
+      id: `valhalla-${Date.now()}`,
+      summary: this.buildRouteSummary(data.trip.summary, request),
+      legs: data.trip.legs.map((leg, index) =>
+        this.buildRouteLeg(leg, request, index),
+      ),
+      geometry: this.decodePolyline(data.trip.shape),
+      boundingBox: [
+        data.trip.summary.min_lon,
+        data.trip.summary.min_lat,
+        data.trip.summary.max_lon,
+        data.trip.summary.max_lat,
+      ],
+      provider: 'valhalla',
+      createdAt: new Date(),
+    }
+
+    return {
+      routes: [route],
+      metadata: {
+        provider: 'valhalla',
+        requestId: request.requestId,
+        processingTime: 0, // Valhalla doesn't provide this
+        attribution: ['© Valhalla routing engine'],
+      },
+    }
+  }
+
+  /**
+   * Build route summary from Valhalla data
+   */
+  private buildRouteSummary(summary: any, request: RouteRequest): RouteSummary {
+    return {
+      totalDistance: summary.length * 1000, // Convert km to meters
+      totalDuration: summary.time,
+      hasTolls: summary.has_toll,
+      hasHighways: summary.has_highway,
+      hasFerries: summary.has_ferry,
+      departureTime: request.departureTime,
+      arrivalTime: request.departureTime
+        ? new Date(request.departureTime.getTime() + summary.time * 1000)
+        : undefined,
+    }
+  }
+
+  /**
+   * Build route leg from Valhalla leg data
+   */
+  private buildRouteLeg(
+    leg: ValhallaLeg,
+    request: RouteRequest,
+    legIndex: number,
+  ): RouteLeg {
+    const startWaypoint = request.waypoints[legIndex]
+    const endWaypoint = request.waypoints[legIndex + 1]
+
+    return {
+      startWaypoint,
+      endWaypoint,
+      mode: request.mode,
+      distance: leg.summary.length * 1000, // Convert km to meters
+      duration: leg.summary.time,
+      geometry: this.decodePolyline(leg.shape),
+      instructions: leg.maneuvers.map((maneuver) =>
+        this.buildRouteInstruction(maneuver),
+      ),
+      hasTolls: leg.summary.has_toll,
+      hasHighways: leg.summary.has_highway,
+      hasFerries: leg.summary.has_ferry,
+    }
+  }
+
+  /**
+   * Build route instruction from Valhalla maneuver
+   */
+  private buildRouteInstruction(maneuver: ValhallaManeuver): RouteInstruction {
+    return {
+      type: this.mapManeuverType(maneuver.type),
+      text: maneuver.instruction,
+      coordinate: {
+        lat: 0, // Valhalla doesn't provide lat/lng in maneuvers
+        lng: 0, // Would need to decode from shape
+      },
+      distance: maneuver.length * 1000, // Convert km to meters
+      duration: maneuver.time,
+      streetName: maneuver.street_names?.[0],
+      modifier: this.mapManeuverModifier(maneuver.type),
+      exitNumber: maneuver.sign?.exit_number
+        ? parseInt(maneuver.sign.exit_number)
+        : undefined,
+    }
+  }
+
+  /**
+   * Map Valhalla maneuver type to unified instruction type
+   */
+  private mapManeuverType(type: number): string {
+    // Valhalla maneuver type mappings
+    switch (type) {
+      case 1:
+        return 'start'
+      case 2:
+      case 3:
+      case 4:
+      case 5:
+      case 6:
+        return 'turn'
+      case 7:
+      case 8:
+        return 'continue'
+      case 9:
+      case 10:
+        return 'merge'
+      case 11:
+      case 12:
+      case 13:
+      case 14:
+      case 15:
+      case 16:
+      case 17:
+      case 18:
+      case 19:
+      case 20:
+      case 21:
+      case 22:
+      case 23:
+      case 24:
+      case 25:
+      case 26:
+        return 'roundabout'
+      case 27:
+        return 'ramp'
+      case 4:
+        return 'destination'
+      default:
+        return 'continue'
+    }
+  }
+
+  /**
+   * Map Valhalla maneuver type to turn modifier
+   */
+  private mapManeuverModifier(
+    type: number,
+  ):
+    | 'left'
+    | 'right'
+    | 'straight'
+    | 'slight-left'
+    | 'slight-right'
+    | 'u-turn'
+    | undefined {
+    switch (type) {
+      case 2:
+        return 'straight'
+      case 3:
+        return 'slight-right'
+      case 4:
+        return 'right'
+      case 5:
+        return 'right' // sharp-right -> right
+      case 6:
+        return 'u-turn'
+      case 7:
+        return 'left' // sharp-left -> left
+      case 8:
+        return 'left'
+      case 9:
+        return 'slight-left'
+      default:
+        return undefined
+    }
+  }
+
+  /**
+   * Decode Valhalla polyline to coordinates
+   * Based on https://valhalla.github.io/valhalla/decoding
+   */
+  private decodePolyline(
+    encoded: string,
+    precision: number = 6,
+  ): Array<{ lat: number; lng: number }> {
+    if (!encoded) return []
+
+    let index = 0
+    let lat = 0
+    let lng = 0
+    const coordinates: Array<{ lat: number; lng: number }> = []
+    let shift = 0
+    let result = 0
+    let byte: number | null = null
+    const factor = Math.pow(10, precision)
+
+    while (index < encoded.length) {
+      byte = null
+      shift = 0
+      result = 0
+
+      do {
+        byte = encoded.charCodeAt(index++) - 63
+        result |= (byte & 0x1f) << shift
+        shift += 5
+      } while (byte >= 0x20)
+
+      const latitude_change = result & 1 ? ~(result >> 1) : result >> 1
+
+      shift = result = 0
+
+      do {
+        byte = encoded.charCodeAt(index++) - 63
+        result |= (byte & 0x1f) << shift
+        shift += 5
+      } while (byte >= 0x20)
+
+      const longitude_change = result & 1 ? ~(result >> 1) : result >> 1
+
+      lat += latitude_change
+      lng += longitude_change
+
+      coordinates.push({
+        lat: lat / factor,
+        lng: lng / factor,
+      })
+    }
+
+    return coordinates
   }
 }

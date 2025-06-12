@@ -9,7 +9,11 @@ export type Directions = {
     summary: {
       length: number
       time: number
+      has_toll?: boolean
+      has_highway?: boolean
+      has_ferry?: boolean
     }
+    maneuvers: ValhallaManeuver[]
   }>
   locations: Array<{
     lat: number
@@ -34,6 +38,38 @@ export type Directions = {
     time: number
   }
   units: string
+  shape: string
+}
+
+export type ValhallaConfig = {
+  host: string
+}
+
+export type ValhallaResponse = {
+  trip: Directions
+}
+
+export type ValhallaLeg = {
+  shape: string
+  summary: {
+    length: number
+    time: number
+    has_toll?: boolean
+    has_highway?: boolean
+    has_ferry?: boolean
+  }
+  maneuvers: ValhallaManeuver[]
+}
+
+export type ValhallaManeuver = {
+  type: number
+  instruction: string
+  length: number
+  time: number
+  street_names?: string[]
+  sign?: {
+    exit_number?: string
+  }
 }
 
 export type ValhallaRouteRequest = {

@@ -9,7 +9,7 @@ import {
   LngLat,
 } from '@/types/map.types'
 import { Locale } from '@/lib/i18n'
-import { Directions } from '@/types/directions.types'
+import { Directions, TripsResponse } from '@/types/directions.types'
 import { LngLatLike } from 'mapbox-gl' // TODO: This is specific to mapbox, make generic
 
 const defaultOptions: MapOptions = {
@@ -100,4 +100,9 @@ export class MapStrategy {
     this.markers.forEach(marker => marker.remove())
     this.markers.clear()
   }
+
+  // Trip visualization methods
+  setTrips(trips: TripsResponse, visibleTripIds: Set<string>) {}
+  unsetTrips() {}
+  updateTripVisibility(tripId: string, visible: boolean) {}
 }

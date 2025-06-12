@@ -4,8 +4,22 @@ import { api } from '@/lib/api'
 import { createSharedComposable } from '@vueuse/core'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { Waypoint } from '@/types/map.types'
+import type { TripsRequest, TravelMode } from '@/types/directions.types'
+import { WaypointType } from '@/types/directions.types'
 
 const MIN_LOCATIONS = 2
+
+// Available vehicle modes that users can select (walking is implicit via includeWalking)
+const AVAILABLE_VEHICLES = ['car', 'bike']
+
+// Map frontend mode selection to available vehicles
+const MODE_TO_VEHICLES = {
+  multi: ['car', 'bike'], // Multi-modal shows all vehicle options (walking is implicit)
+  auto: ['car'],
+  bicycle: ['bike'],
+  pedestrian: [], // Pedestrian mode only uses walking (implicit)
+  transit: [], // Transit fallback to walking for now (implicit)
+}
 
 function directionsService() {
   const directionsStore = useDirectionsStore()
@@ -15,18 +29,49 @@ function directionsService() {
     const filteredWaypoints = waypoints.value.filter(wp => wp.lngLat != null)
 
     if (filteredWaypoints.length < MIN_LOCATIONS) {
+      directionsStore.unsetTrips()
       return
     }
 
-    const { data: directions } = await api.post('/directions', {
-      locations: filteredWaypoints.map(location => ({
-        type: 'coordinates',
-        value: [location.lngLat!.lat, location.lngLat!.lng],
-      })),
-      costing: selectedMode.value,
-    })
+    directionsStore.setLoading(true)
 
-    directionsStore.setDirections(directions)
+    try {
+      // Determine which vehicles to show based on selected mode
+      const availableVehicles =
+        MODE_TO_VEHICLES[selectedMode.value as keyof typeof MODE_TO_VEHICLES] ||
+        AVAILABLE_VEHICLES
+
+      // Build trips request
+      const tripsRequest: TripsRequest = {
+        waypoints: filteredWaypoints.map((waypoint, index) => ({
+          id: `waypoint-${index}`,
+          coordinate: {
+            lat: waypoint.lngLat!.lat,
+            lng: waypoint.lngLat!.lng,
+          },
+          type:
+            index === 0 || index === filteredWaypoints.length - 1
+              ? WaypointType.STOP
+              : WaypointType.VIA,
+          name: (waypoint as any).name,
+        })),
+        availableVehicles,
+        maxOptions: 3,
+        includeWalking: true,
+        preferences: {
+          optimize: 'time',
+          alternatives: true,
+        },
+      }
+
+      const { data: trips } = await api.post('/directions/trips', tripsRequest)
+      directionsStore.setTrips(trips)
+    } catch (error) {
+      console.error('Error getting trips:', error)
+      directionsStore.unsetTrips()
+    } finally {
+      directionsStore.setLoading(false)
+    }
   }
 
   function createBlankWaypoint() {
@@ -84,9 +129,13 @@ function directionsService() {
     getDirections()
   })
 
-  watch(waypoints, () => {
-    getDirections()
-  })
+  watch(
+    waypoints,
+    () => {
+      getDirections()
+    },
+    { deep: true },
+  )
 
   return {
     getDirections,

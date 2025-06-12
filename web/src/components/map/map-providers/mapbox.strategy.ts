@@ -28,7 +28,7 @@ import {
 } from '@/types/map.types'
 import standardStyle from '@/components/map/styles/standard.json'
 
-import { Directions } from '@/types/directions.types'
+import { Directions, TripsResponse } from '@/types/directions.types'
 import { decodeShape } from '@/lib/utils'
 import colors from 'tailwindcss/colors'
 import { mapEventBus } from '@/lib/eventBus'
@@ -535,5 +535,235 @@ export class MapboxStrategy extends MapStrategy {
       .addTo(this.mapInstance)
 
     this.markers.set(id, marker)
+  }
+
+  // Trip visualization methods
+  setTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
+    this.unsetTrips()
+
+    // Color mapping for different travel modes
+    const modeColors = {
+      walking: { line: colors.blue[500], case: colors.blue[700] },
+      driving: { line: colors.red[500], case: colors.red[700] },
+      cycling: { line: colors.green[500], case: colors.green[700] },
+      transit: { line: colors.indigo[500], case: colors.indigo[700] },
+      motorcycle: { line: colors.orange[500], case: colors.orange[700] },
+      truck: { line: colors.gray[600], case: colors.gray[800] },
+    }
+
+    trips.trips.forEach((trip, tripIndex) => {
+      if (!visibleTripIds.has(trip.id)) return
+
+      // Get color for this trip mode
+      const colorScheme = modeColors[trip.mode] || modeColors.driving
+
+      // Extract all coordinates from trip segments
+      const allCoordinates: [number, number][] = []
+      trip.segments.forEach(segment => {
+        if (segment.geometry) {
+          segment.geometry.forEach(coord => {
+            allCoordinates.push([coord.lng, coord.lat])
+          })
+        }
+      })
+
+      if (allCoordinates.length === 0) return
+
+      // Create source for this trip
+      const sourceId = `trip-${trip.id}`
+      this.mapInstance.addSource(sourceId, {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          properties: {
+            tripId: trip.id,
+            mode: trip.mode,
+            vehicleType: trip.vehicleType,
+          },
+          geometry: {
+            type: 'LineString',
+            coordinates: allCoordinates,
+          },
+        },
+      })
+
+      // Add route case (outer line)
+      this.mapInstance.addLayer({
+        id: `trip-case-${trip.id}`,
+        type: 'line',
+        source: sourceId,
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round',
+        },
+        paint: {
+          'line-color': colorScheme.case,
+          'line-width': 8,
+          'line-opacity': 0.8,
+          'line-emissive-strength': 1,
+        },
+        slot: 'middle',
+      })
+
+      // Add route line (inner line)
+      this.mapInstance.addLayer({
+        id: `trip-line-${trip.id}`,
+        type: 'line',
+        source: sourceId,
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round',
+        },
+        paint: {
+          'line-color': colorScheme.line,
+          'line-width': 5,
+          'line-opacity': 0.9,
+          'line-emissive-strength': 1,
+        },
+        slot: 'middle',
+      })
+    })
+
+    // Add waypoint markers
+    if (trips.request.waypoints.length > 0) {
+      trips.request.waypoints.forEach((waypoint, index) => {
+        const sourceId = `trip-waypoint-${index}`
+        this.mapInstance.addSource(sourceId, {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'Point',
+              coordinates: [waypoint.coordinate.lng, waypoint.coordinate.lat],
+            },
+          },
+        })
+
+        // Add waypoint circle with updated colors
+        this.mapInstance.addLayer({
+          id: `trip-waypoint-${index}`,
+          type: 'circle',
+          source: sourceId,
+          paint: {
+            'circle-radius': 8,
+            'circle-color':
+              index === 0
+                ? colors.blue[400] // Light blue for origin
+                : index === trips.request.waypoints.length - 1
+                ? colors.blue[600] // Mid blue for destination
+                : colors.blue[500], // Blue for intermediate waypoints
+            'circle-opacity': index === 0 ? 0.7 : 1, // Lighter opacity for origin
+            'circle-stroke-width': 2,
+            'circle-stroke-color': colors.white,
+            'circle-emissive-strength': 1,
+          },
+          slot: 'middle',
+        })
+
+        // Add waypoint label (numbers for all stops except origin)
+        if (index > 0) {
+          this.mapInstance.addLayer({
+            id: `trip-waypoint-label-${index}`,
+            type: 'symbol',
+            source: sourceId,
+            layout: {
+              'text-field': index.toString(), // Numbers for all waypoints except origin (1, 2, 3...)
+              'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+              'text-size': 12,
+              'text-anchor': 'center',
+            },
+            paint: {
+              'text-color': colors.white,
+            },
+            slot: 'middle',
+          })
+        }
+      })
+    }
+
+    // Fit map to show all visible trips
+    this.fitMapToTrips(trips, visibleTripIds)
+  }
+
+  unsetTrips() {
+    const style = this.mapInstance.getStyle()
+    if (!style) return
+
+    // Remove all trip-related layers and sources
+    const mapLayers = style.layers
+    const layerIds = mapLayers.map(layer => layer.id)
+
+    layerIds.forEach(id => {
+      if (id.startsWith('trip-')) {
+        this.mapInstance.removeLayer(id)
+      }
+    })
+
+    // Remove trip sources
+    const sources = Object.keys(this.mapInstance.getStyle()?.sources || {})
+    sources.forEach(source => {
+      if (source.startsWith('trip-')) {
+        this.mapInstance.removeSource(source)
+      }
+    })
+  }
+
+  updateTripVisibility(tripId: string, visible: boolean) {
+    // Update layer visibility
+    const caseLayerId = `trip-case-${tripId}`
+    const lineLayerId = `trip-line-${tripId}`
+
+    if (this.mapInstance.getLayer(caseLayerId)) {
+      this.mapInstance.setLayoutProperty(
+        caseLayerId,
+        'visibility',
+        visible ? 'visible' : 'none',
+      )
+    }
+
+    if (this.mapInstance.getLayer(lineLayerId)) {
+      this.mapInstance.setLayoutProperty(
+        lineLayerId,
+        'visibility',
+        visible ? 'visible' : 'none',
+      )
+    }
+  }
+
+  private fitMapToTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
+    // Collect all coordinates from visible trips
+    const allCoordinates: [number, number][] = []
+
+    trips.trips.forEach(trip => {
+      if (!visibleTripIds.has(trip.id)) return
+
+      trip.segments.forEach(segment => {
+        if (segment.geometry) {
+          segment.geometry.forEach(coord => {
+            allCoordinates.push([coord.lng, coord.lat])
+          })
+        }
+      })
+    })
+
+    // Add waypoint coordinates
+    trips.request.waypoints.forEach(waypoint => {
+      allCoordinates.push([waypoint.coordinate.lng, waypoint.coordinate.lat])
+    })
+
+    if (allCoordinates.length === 0) return
+
+    // Create bounds from all coordinates
+    const bounds = allCoordinates.reduce((bounds, coord) => {
+      return bounds.extend(coord as LngLatLike)
+    }, new LngLatBounds(allCoordinates[0] as LngLatLike, allCoordinates[0] as LngLatLike))
+
+    // Fit the map to show all trips with padding
+    this.mapInstance.fitBounds(bounds, {
+      padding: Math.min(window.innerWidth * 0.15, 300),
+      duration: 400,
+      easing: t => t * (2 - t),
+    })
   }
 }

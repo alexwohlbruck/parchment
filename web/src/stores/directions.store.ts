@@ -16,9 +16,7 @@ export const useDirectionsStore = defineStore('directions', () => {
   ]) // List of locations to get directions for
   const selectedMode = ref('pedestrian')
   const isLoading = ref(false)
-
-  // Track which trips are visible on the map
-  const visibleTripIds = ref<Set<string>>(new Set())
+  const selectedTripId = ref<string | null>(null) // Track which trip is currently shown on map
 
   function setDirections(directions_: Directions) {
     directions.value = directions_
@@ -26,9 +24,12 @@ export const useDirectionsStore = defineStore('directions', () => {
 
   function setTrips(trips_: TripsResponse) {
     trips.value = trips_
-    // When new trips are loaded, show all by default
-    if (trips_) {
-      visibleTripIds.value = new Set(trips_.trips.map(trip => trip.id))
+
+    // Automatically select the first trip (recommended or first in list)
+    if (trips_.trips.length > 0) {
+      const firstTrip =
+        trips_.trips.find(trip => trip.isRecommended) || trips_.trips[0]
+      setSelectedTripId(firstTrip.id)
     }
   }
 
@@ -38,7 +39,11 @@ export const useDirectionsStore = defineStore('directions', () => {
 
   function unsetTrips() {
     trips.value = null
-    visibleTripIds.value.clear()
+    selectedTripId.value = null
+  }
+
+  function setSelectedTripId(tripId: string | null) {
+    selectedTripId.value = tripId
   }
 
   function setWaypoint(index: number, waypoint: Waypoint) {
@@ -61,55 +66,21 @@ export const useDirectionsStore = defineStore('directions', () => {
     isLoading.value = loading
   }
 
-  function toggleTripVisibility(tripId: string) {
-    if (visibleTripIds.value.has(tripId)) {
-      visibleTripIds.value.delete(tripId)
-    } else {
-      visibleTripIds.value.add(tripId)
-    }
-    // Create a new Set to trigger reactivity
-    visibleTripIds.value = new Set(visibleTripIds.value)
-  }
-
-  function setTripVisibility(tripId: string, visible: boolean) {
-    if (visible) {
-      visibleTripIds.value.add(tripId)
-    } else {
-      visibleTripIds.value.delete(tripId)
-    }
-    // Create a new Set to trigger reactivity
-    visibleTripIds.value = new Set(visibleTripIds.value)
-  }
-
-  function showAllTrips() {
-    if (trips.value) {
-      visibleTripIds.value = new Set(trips.value.trips.map(trip => trip.id))
-    }
-  }
-
-  function hideAllTrips() {
-    visibleTripIds.value.clear()
-    visibleTripIds.value = new Set()
-  }
-
   return {
     directions,
     trips,
     waypoints,
     selectedMode,
     isLoading,
-    visibleTripIds,
+    selectedTripId,
     setDirections,
     setTrips,
     unsetDirections,
     unsetTrips,
+    setSelectedTripId,
     setWaypoint,
     setWaypoints,
     removeWaypoint,
     setLoading,
-    toggleTripVisibility,
-    setTripVisibility,
-    showAllTrips,
-    hideAllTrips,
   }
 })

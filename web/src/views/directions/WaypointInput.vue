@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import draggable from 'vuedraggable'
 import { computed, ref, watch } from 'vue'
-import { XIcon, PlusIcon, GripHorizontalIcon } from 'lucide-vue-next'
+import { XIcon, PlusIcon } from 'lucide-vue-next'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Waypoint } from '@/types/map.types'
 import { useDirectionsService } from '@/services/directions.service'
+import { TransitionSlide } from '@morev/vue-transitions'
+import WaypointIcon from './WaypointIcon.vue'
 
 const directionsService = useDirectionsService()
 
@@ -65,16 +67,14 @@ function getWaypointName(waypoint: Waypoint) {
   >
     <template #item="{ element, index }">
       <div
-        class="relative w-full max-w-sm items-center flex gap-2 locations-list-item"
+        class="relative w-full max-w-sm items-center flex gap-2 locations-list-item group"
       >
-        <GripHorizontalIcon class="size-4 cursor-move handle" />
+        <!-- Waypoint circle with icons/numbers -->
+        <WaypointIcon :index="index" :total-waypoints="waypoints.length" />
+
         <Input
           :placeholder="
-            index == 0
-              ? $t('directions.from')
-              : index == waypoints.length - 1
-              ? $t('directions.to')
-              : $t('directions.stop', { number: index })
+            index == 0 ? $t('directions.from') : $t('directions.to')
           "
           :model-value="getWaypointName(element)"
         />
@@ -91,7 +91,7 @@ function getWaypointName(waypoint: Waypoint) {
     </template>
   </draggable>
 
-  <Button variant="secondary" :icon="PlusIcon" @click="addWaypoint()">
+  <Button variant="outline" :icon="PlusIcon" @click="addWaypoint()">
     {{ $t('directions.addStop') }}
   </Button>
 </template>

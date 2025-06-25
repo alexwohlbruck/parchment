@@ -365,6 +365,25 @@ export interface TripsRequest {
   requestId?: string
 }
 
+export interface SingleTripRequest {
+  waypoints: RouteWaypoint[]
+  mode: TravelMode
+  vehicleType?: 'car' | 'bike' | 'scooter' | 'motorcycle' | 'truck' | 'walking'
+
+  // User vehicles
+  userVehicles?: VehicleConfig[]
+
+  // Timing preferences
+  departureTime?: Date
+  arrivalTime?: Date
+
+  // Routing preferences
+  preferences?: RoutingPreferences
+
+  // Request metadata
+  requestId?: string
+}
+
 export interface TripsResponse {
   request: TripsRequest
   trips: TripOption[]

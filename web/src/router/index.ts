@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Signin from '@/views/auth/Signin.vue'
 import Map from '@/views/Map.vue'
 import Directions from '@/views/directions/Directions.vue'
+import TripDetail from '@/views/directions/TripDetail.vue'
 import Place from '@/views/place/Place.vue'
 import Settings from '@/views/settings/Settings.vue'
 import Account from '@/views/settings/pages/Account.vue'
@@ -26,6 +27,7 @@ export enum AppRoute {
   PLACE_LOCATION = 'place-location',
   STREET = 'street',
   DIRECTIONS = 'directions',
+  TRIP = 'trip',
   LIBRARY = 'library',
   LIBRARY_COLLECTIONS = 'library-collections',
   LIBRARY_ROUTES = 'library-routes',
@@ -69,6 +71,12 @@ const router = createRouter({
           path: '/directions',
           name: AppRoute.DIRECTIONS,
           component: Directions,
+        },
+        {
+          path: '/trip/:id',
+          name: AppRoute.TRIP,
+          component: TripDetail,
+          props: true,
         },
         {
           path: '/place/:type/:id',

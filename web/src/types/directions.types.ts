@@ -9,8 +9,8 @@ export type {
   TripsResponse,
   TripOption,
   TimelineSegment,
-  TravelMode,
   RouteWaypoint,
+  RoutingPreferences,
 } from '@server/types/unified-routing.types'
 
-export { WaypointType } from '@server/types/unified-routing.types'
+export { WaypointType, TravelMode } from '@server/types/unified-routing.types'

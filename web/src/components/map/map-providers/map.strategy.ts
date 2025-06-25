@@ -7,10 +7,11 @@ import {
   MapTheme,
   Pegman,
   LngLat,
+  Waypoint,
 } from '@/types/map.types'
-import { Locale } from '@/lib/i18n'
 import { Directions, TripsResponse } from '@/types/directions.types'
-import { LngLatLike } from 'mapbox-gl' // TODO: This is specific to mapbox, make generic
+import { Component } from 'vue'
+import { destroyVueMarkerElement } from '@/lib/vue-marker.utils'
 
 const defaultOptions: MapOptions = {
   projection: 'mercator',
@@ -48,6 +49,7 @@ export class MapStrategy {
   setMap3dBuildings(value: boolean) {}
   setMapTheme(theme: MapTheme) {}
   setBasemap(basemap: Basemap) {}
+  addSource(sourceId: string, source: any) {}
   removeSource(sourceId: string) {}
   addLayer(layer: Layer, overwrite: boolean = false) {}
   removeLayer(layerId: Layer['configuration']['id']) {}
@@ -88,21 +90,82 @@ export class MapStrategy {
     this.removeMarker(id) // Remove existing marker if any
   }
 
+  addVueMarker(
+    id: string,
+    lngLat: LngLat,
+    component: Component,
+    props: Record<string, any> = {},
+  ) {
+    this.removeMarker(id) // Remove existing marker if any
+    // This method should be overridden by specific implementations
+  }
+
   removeMarker(id: string) {
     const marker = this.markers.get(id)
     if (marker) {
+      // Clean up Vue app if it exists
+      if (marker.getElement) {
+        const element = marker.getElement()
+        destroyVueMarkerElement(element)
+      }
       marker.remove()
       this.markers.delete(id)
     }
   }
 
   removeAllMarkers() {
-    this.markers.forEach(marker => marker.remove())
+    this.markers.forEach(marker => {
+      // Clean up Vue app if it exists
+      if (marker.getElement) {
+        const element = marker.getElement()
+        destroyVueMarkerElement(element)
+      }
+      marker.remove()
+    })
     this.markers.clear()
   }
 
   // Trip visualization methods
   setTrips(trips: TripsResponse, visibleTripIds: Set<string>) {}
   unsetTrips() {}
-  updateTripVisibility(tripId: string, visible: boolean) {}
+
+  // Waypoint marker methods (separate from trip routes)
+  setWaypointMarkers(waypoints: Waypoint[]) {
+    // Remove existing waypoint markers
+    this.clearWaypointMarkers()
+
+    // Add new waypoint markers for all waypoints with coordinates
+    waypoints.forEach((waypoint, index) => {
+      if (waypoint.lngLat) {
+        this.addVueMarker(
+          `waypoint-${index}`,
+          waypoint.lngLat,
+          // This should be imported by implementations
+          null as any, // WaypointMapIcon will be imported by implementations
+          {
+            index,
+            totalWaypoints: waypoints.length,
+            type:
+              index === 0
+                ? 'origin'
+                : index === waypoints.length - 1
+                ? 'destination'
+                : 'waypoint',
+          },
+        )
+      }
+    })
+  }
+
+  clearWaypointMarkers() {
+    // Remove waypoint markers
+    const waypointMarkerIds = Array.from(this.markers.keys()).filter(id =>
+      id.startsWith('waypoint-'),
+    )
+    waypointMarkerIds.forEach(id => this.removeMarker(id))
+  }
+
+  unsetWaypointMarkers() {
+    this.clearWaypointMarkers()
+  }
 }

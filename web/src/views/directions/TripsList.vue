@@ -1,44 +1,21 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import dayjs from 'dayjs'
-import {
-  FootprintsIcon,
-  TrainIcon,
-  BikeIcon,
-  CarFrontIcon,
-} from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
 import type { TripsResponse, TripOption } from '@/types/directions.types'
 import { useDirectionsStore } from '@/stores/directions.store'
-import { storeToRefs } from 'pinia'
+import TripItem from './TripItem.vue'
 
 interface Props {
   trips: TripsResponse
 }
 
 const props = defineProps<Props>()
+const router = useRouter()
 
 const directionsStore = useDirectionsStore()
-const { visibleTripIds } = storeToRefs(directionsStore)
 
 const pixelsPerMinute = 10
-const legGapPixels = 3
-const modeColors = {
-  walking: 'bg-blue-300 dark:bg-blue-500',
-  driving: 'bg-red-300 dark:bg-red-500',
-  cycling: 'bg-green-300 dark:bg-green-500',
-  transit: 'bg-indigo-300 dark:bg-indigo-500',
-  motorcycle: 'bg-orange-300 dark:bg-orange-500',
-  truck: 'bg-gray-300 dark:bg-gray-500',
-}
-
-const modeIcons = {
-  walking: FootprintsIcon,
-  driving: CarFrontIcon,
-  cycling: BikeIcon,
-  transit: TrainIcon,
-  motorcycle: CarFrontIcon,
-  truck: CarFrontIcon,
-}
 
 // Sort trips by recommended first, then by duration
 const sortedTrips = computed(() => {
@@ -66,43 +43,41 @@ const timeLabels = computed(() => {
   return labels
 })
 
-function formatDuration(seconds: number) {
-  const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return `${minutes} min`
-  const hours = Math.floor(minutes / 60)
-  const remainingMinutes = minutes % 60
-  return `${hours}h ${remainingMinutes}m`
-}
+function navigateToTripDetail(trip: TripOption) {
+  // Encode the trip request waypoints so the trip can be reconstructed
+  const waypointsParam = props.trips.request.waypoints
+    .map(
+      wp => `${wp.coordinate.lat.toFixed(6)},${wp.coordinate.lng.toFixed(6)}`,
+    )
+    .join(';')
 
-function formatDistance(meters: number) {
-  if (meters < 1000) return `${Math.round(meters)} m`
-  return `${(meters / 1000).toFixed(1)} km`
-}
-
-function getTripCost(trip: TripOption) {
-  return trip.cost?.total?.amount || 0
-}
-
-function formatCost(amount: number, currency: string = 'USD') {
-  if (amount === 0) return 'Free'
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-  }).format(amount)
-}
-
-function getDisplayTime(date: Date, isFirstSegment: boolean = false) {
-  // Only show "Now" for the first segment if it starts immediately (within 2 minutes)
-  if (isFirstSegment) {
-    const now = new Date()
-    const diffMinutes = dayjs(date).diff(now, 'minute')
-
-    if (Math.abs(diffMinutes) <= 2) {
-      return 'Now'
-    }
-  }
-
-  return dayjs(date).format('H:mm')
+  // Navigate to trip detail view with the specific trip ID and reconstruction data
+  router.push({
+    name: 'trip',
+    params: {
+      id: trip.id,
+    },
+    query: {
+      // Include trip context
+      mode: trip.mode,
+      vehicle: trip.vehicleType,
+      // Include waypoints for reconstruction
+      waypoints: waypointsParam,
+      // Include other relevant parameters
+      ...(props.trips.request.departureTime && {
+        departure: props.trips.request.departureTime.toISOString(),
+      }),
+      ...(props.trips.request.preferences?.avoidTolls && {
+        avoid_tolls: 'true',
+      }),
+      ...(props.trips.request.preferences?.avoidHighways && {
+        avoid_highways: 'true',
+      }),
+      ...(props.trips.request.preferences?.avoidFerries && {
+        avoid_ferries: 'true',
+      }),
+    },
+  })
 }
 
 // Add these new reactive variables for scroll handling
@@ -132,124 +107,60 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="relative overflow-x-hidden max-h-[32rem]">
-    <!-- Time labels -->
-    <div class="flex relative mb-3">
-      <div
-        v-for="time in timeLabels"
-        :key="time"
-        class="flex-shrink-0 text-xs text-muted-foreground absolute ml-2"
-        :style="{
-          left: `${
-            dayjs(
-              dayjs(earliestStart)
-                .startOf('hour')
-                .add(timeLabels.indexOf(time) * 15, 'minute'),
-            ).diff(earliestStart, 'minute') * pixelsPerMinute
-          }px`,
-        }"
-      >
-        {{ time }}
-      </div>
-    </div>
-
-    <!-- Grid lines -->
-    <div class="absolute inset-0 flex pointer-events-none px-4">
-      <div v-for="time in timeLabels" :key="time" class="flex-shrink-0">
-        <div
-          class="absolute top-0 h-full border-l border-border/50"
-          :style="{
-            left: `${
-              dayjs(
-                dayjs(earliestStart)
-                  .startOf('hour')
-                  .add(timeLabels.indexOf(time) * 15, 'minute'),
-              ).diff(earliestStart, 'minute') * pixelsPerMinute
-            }px`,
-          }"
-        />
-      </div>
-    </div>
-
-    <div class="relative overflow-auto max-h-[32rem]" ref="containerRef">
-      <!-- Timeline content -->
-      <div class="relative flex flex-col pt-2 pb-4 space-y-5 px-4">
-        <div
-          v-for="(trip, tripIndex) in sortedTrips"
-          :key="trip.id || tripIndex"
-          class="relative flex items-start min-h-[3.5rem] group"
-        >
-          <!-- Trip info sidebar -->
-          <div class="flex-shrink-0 w-20 pr-4 text-right">
-            <div class="text-sm font-medium text-foreground mb-0.5">
-              {{ formatDuration(trip.summary.totalDuration) }}
-            </div>
-            <div class="text-xs text-muted-foreground">
-              {{ formatDistance(trip.summary.totalDistance) }}
-            </div>
-          </div>
-
-          <!-- Timeline section -->
-          <div class="relative flex-1 min-h-[3rem]">
-            <!-- Segments bar -->
-            <div class="relative h-6 mb-3">
-              <div
-                v-for="(segment, segmentIndex) in trip.segments"
-                :key="segment.id"
-                class="absolute rounded-lg transition-all duration-200 flex items-center justify-center shadow-sm h-8"
-                :class="[
-                  modeColors[segment.mode] || 'bg-gray-300 dark:bg-gray-500',
-                  trip.isRecommended
-                    ? 'ring-2 ring-primary ring-opacity-40'
-                    : '',
-                  'group-hover:shadow-md group-hover:scale-[1.02]',
-                ]"
-                :style="{
-                  left: `${
-                    dayjs(segment.startTime).diff(earliestStart, 'minute') *
-                    pixelsPerMinute
-                  }px`,
-                  width: `${(segment.duration / 60) * pixelsPerMinute}px`,
-                }"
-              >
-                <!-- Mode icon inside segment -->
-                <component
-                  :is="modeIcons[segment.mode]"
-                  class="size-5 text-white drop-shadow-sm"
-                  v-if="(segment.duration / 60) * pixelsPerMinute > 20"
-                />
-              </div>
-            </div>
-
-            <!-- Timestamps below the bar -->
-            <div class="relative h-5">
-              <div
-                v-for="(segment, segmentIndex) in trip.segments"
-                :key="`${segment.id}-times`"
-                class="absolute text-[10px] text-muted-foreground tracking-tight"
-                :style="{
-                  left: `${
-                    dayjs(segment.startTime).diff(earliestStart, 'minute') *
-                    pixelsPerMinute
-                  }px`,
-                  width: `${(segment.duration / 60) * pixelsPerMinute}px`,
-                }"
-              >
-                <!-- Start time -->
-                <span class="absolute left-0">
-                  {{ getDisplayTime(segment.startTime, segmentIndex === 0) }}
-                </span>
-                <!-- End time (only show if segment is wide enough to avoid overlap) -->
-                <span
-                  class="absolute right-0"
-                  v-if="(segment.duration / 60) * pixelsPerMinute > 35"
-                >
-                  {{ getDisplayTime(segment.endTime, false) }}
-                </span>
-              </div>
-            </div>
+  <div class="flex flex-col h-full">
+    <!-- Scrollable container that fills remaining height -->
+    <div class="flex-1 relative overflow-auto" ref="containerRef">
+      <!-- Time labels - positioned inside scrollable container -->
+      <div class="sticky top-0 z-10 pb-6 px-4 pt-2">
+        <div class="flex relative">
+          <div
+            v-for="time in timeLabels"
+            :key="time"
+            class="flex-shrink-0 text-xs text-muted-foreground absolute ml-2"
+            :style="{
+              left: `${
+                dayjs(
+                  dayjs(earliestStart)
+                    .startOf('hour')
+                    .add(timeLabels.indexOf(time) * 15, 'minute'),
+                ).diff(earliestStart, 'minute') * pixelsPerMinute
+              }px`,
+            }"
+          >
+            {{ time }}
           </div>
         </div>
+      </div>
+
+      <!-- Grid lines -->
+      <div class="absolute inset-0 flex pointer-events-none px-4 top-6">
+        <div v-for="time in timeLabels" :key="time" class="flex-shrink-0">
+          <div
+            class="absolute top-0 h-full border-l border-border/50"
+            :style="{
+              left: `${
+                dayjs(
+                  dayjs(earliestStart)
+                    .startOf('hour')
+                    .add(timeLabels.indexOf(time) * 15, 'minute'),
+                ).diff(earliestStart, 'minute') * pixelsPerMinute
+              }px`,
+            }"
+          />
+        </div>
+      </div>
+
+      <!-- Timeline content -->
+      <div class="relative flex flex-col space-y-4 px-4 pb-4">
+        <TripItem
+          v-for="(trip, tripIndex) in sortedTrips"
+          :key="trip.id || tripIndex"
+          :trip="trip"
+          :trip-request="trips.request"
+          :earliest-start="earliestStart"
+          :pixels-per-minute="pixelsPerMinute"
+          @click="navigateToTripDetail"
+        />
 
         <!-- No trips message -->
         <div

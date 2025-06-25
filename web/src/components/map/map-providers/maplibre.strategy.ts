@@ -1,6 +1,6 @@
 import { MapStrategy } from './map.strategy'
 import {
-  Map,
+  Map as MaplibreMap,
   NavigationControl,
   GeolocateControl,
   AttributionControl,
@@ -23,6 +23,7 @@ import {
   MapillaryImage,
   MapProjection,
   LngLat,
+  Waypoint,
 } from '@/types/map.types'
 
 import { Directions, TripsResponse } from '@/types/directions.types'
@@ -32,6 +33,11 @@ import { mapEventBus } from '@/lib/eventBus'
 import { mapboxLayerToMaplibreLayer } from '@/lib/map.utils'
 import { useMapStore } from '@/stores/map.store'
 import { createPegmanLayers, updatePegmanData } from '@/lib/pegman.utils'
+import { LayerGroup, TripGroup } from '@/lib/layer-group'
+import { Component } from 'vue'
+import { createVueMarkerElement } from '@/lib/vue-marker.utils'
+import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
+import { useAppStore } from '@/stores/app.store'
 
 const basemapUrls = {
   light: `https://api.maptiler.com/maps/streets-v2/style.json?key=${
@@ -49,15 +55,16 @@ const basemapUrls = {
 }
 
 export class MaplibreStrategy extends MapStrategy {
-  mapInstance: Map
+  mapInstance: MaplibreMap
   geolocateControl: GeolocateControl
+  layerGroups: Map<string, LayerGroup> = new Map()
 
   constructor(container, options: MapOptions, accessToken?: string) {
     super(container, options, accessToken)
 
     const { center, zoom, bearing, pitch } = options.camera || {}
 
-    this.mapInstance = new Map({
+    this.mapInstance = new MaplibreMap({
       container,
       style: this.getBasemapFromTheme(),
       center: center as LngLatLike,
@@ -203,34 +210,23 @@ export class MaplibreStrategy extends MapStrategy {
       })
     })
 
-    // Add markers for each stop
+    // Add Vue component markers for each stop instead of circle layers
     directions.locations.forEach((location, index) => {
-      this.mapInstance.addSource(`stop-${index}`, {
-        type: 'geojson',
-        data: {
-          type: 'Feature',
-          properties: {},
-          geometry: {
-            type: 'Point',
-            coordinates: [location.lon, location.lat],
-          },
+      this.addVueMarker(
+        `route-stop-${index}`,
+        { lat: location.lat, lng: location.lon },
+        WaypointMapIcon,
+        {
+          index,
+          totalWaypoints: directions.locations.length,
+          type:
+            index === 0
+              ? 'origin'
+              : index === directions.locations.length - 1
+              ? 'destination'
+              : 'waypoint',
         },
-      })
-
-      // Add a larger background circle
-      this.mapInstance.addLayer({
-        id: `stop-background-${index}`,
-        type: 'circle',
-        source: `stop-${index}`,
-        paint: {
-          'circle-radius': 7,
-          'circle-color': colors.gray[50],
-          'circle-opacity': 1,
-          'circle-stroke-width': 1,
-          'circle-stroke-color': colors.gray[600],
-          'circle-blur': 0.3,
-        },
-      })
+      )
     })
 
     // Get all route coordinates
@@ -261,9 +257,9 @@ export class MaplibreStrategy extends MapStrategy {
     const mapLayers = style.layers
     const ids = mapLayers.map(layer => layer.id)
 
-    // Remove route and stop layers
+    // Remove route layers
     ids.forEach(id => {
-      if (id.startsWith('route-') || id.startsWith('stop-')) {
+      if (id.startsWith('route-')) {
         this.mapInstance.removeLayer(id)
       }
     })
@@ -271,10 +267,16 @@ export class MaplibreStrategy extends MapStrategy {
     // Remove route sources
     const sources = Object.keys(this.mapInstance.getStyle()?.sources || {})
     sources.forEach(source => {
-      if (source.startsWith('route-') || source.startsWith('stop-')) {
+      if (source.startsWith('route-')) {
         this.mapInstance.removeSource(source)
       }
     })
+
+    // Remove route stop markers
+    const markersToRemove = Array.from(this.markers.keys()).filter(id =>
+      id.startsWith('route-stop-'),
+    )
+    markersToRemove.forEach(id => this.removeMarker(id))
   }
 
   setPegman(pegman: Pegman) {
@@ -407,7 +409,27 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   removeSource(sourceId: string) {
-    this.mapInstance.removeSource(sourceId)
+    try {
+      if (this.mapInstance.getSource(sourceId)) {
+        this.mapInstance.removeSource(sourceId)
+      }
+    } catch (error) {
+      console.warn(`Failed to remove source ${sourceId}:`, error)
+    }
+  }
+
+  addSource(sourceId: string, source: any) {
+    try {
+      // Remove existing source if it exists to prevent conflicts
+      if (this.mapInstance.getSource(sourceId)) {
+        this.mapInstance.removeSource(sourceId)
+      }
+      this.mapInstance.addSource(sourceId, source)
+      console.log(`Added source: ${sourceId}`)
+    } catch (error) {
+      console.error(`Failed to add source ${sourceId}:`, error)
+      throw error
+    }
   }
 
   addLayer(layer: Layer, overwrite: boolean = false) {
@@ -449,7 +471,13 @@ export class MaplibreStrategy extends MapStrategy {
 
   // TODO: Use maplibre Layer['configuration']['id']
   removeLayer(layerId: string) {
-    this.mapInstance.removeLayer(layerId)
+    try {
+      if (this.mapInstance.getLayer(layerId)) {
+        this.mapInstance.removeLayer(layerId)
+      }
+    } catch (error) {
+      console.warn(`Failed to remove layer ${layerId}:`, error)
+    }
   }
 
   // TODO: Use maplibre Layer['configuration']['id']
@@ -485,237 +513,147 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   addMarker(id: string, lngLat: LngLat) {
-    super.addMarker(id, lngLat)
+    this.removeMarker(id) // Remove existing marker if any
+    const marker = new Marker({ color: '#2563eb' })
+      .setLngLat(lngLat as LngLatLike)
+      .addTo(this.mapInstance)
+    this.markers.set(id, marker)
+  }
+
+  addVueMarker(
+    id: string,
+    lngLat: LngLat,
+    component: Component,
+    props: Record<string, any> = {},
+  ) {
+    super.addVueMarker(id, lngLat, component, props)
+
+    const element = createVueMarkerElement(component, props)
 
     const marker = new Marker({
-      color: 'hsl(var(--primary))', // Use CSS variable from shadcn theme
+      element: element,
     })
-      .setLngLat(lngLat)
+      .setLngLat(lngLat as LngLatLike)
       .addTo(this.mapInstance)
 
     this.markers.set(id, marker)
   }
 
-  // Trip visualization methods
-  setTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
-    this.unsetTrips()
+  setWaypointMarkers(waypoints: Waypoint[]) {
+    // Remove existing waypoint markers
+    this.clearWaypointMarkers()
 
-    // Color mapping for different travel modes
-    const modeColors = {
-      walking: { line: colors.blue[500], case: colors.blue[700] },
-      driving: { line: colors.red[500], case: colors.red[700] },
-      cycling: { line: colors.green[500], case: colors.green[700] },
-      transit: { line: colors.indigo[500], case: colors.indigo[700] },
-      motorcycle: { line: colors.orange[500], case: colors.orange[700] },
-      truck: { line: colors.gray[600], case: colors.gray[800] },
+    // Add new waypoint markers for all waypoints with coordinates
+    waypoints.forEach((waypoint, index) => {
+      if (waypoint.lngLat) {
+        this.addVueMarker(
+          `waypoint-${index}`,
+          waypoint.lngLat,
+          WaypointMapIcon,
+          {
+            index,
+            totalWaypoints: waypoints.length,
+            type:
+              index === 0
+                ? 'origin'
+                : index === waypoints.length - 1
+                ? 'destination'
+                : 'waypoint',
+          },
+        )
+      }
+    })
+  }
+
+  setTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
+    console.log(
+      `Setting trips: visible=${Array.from(visibleTripIds).join(', ')}`,
+    )
+
+    // ALWAYS destroy ALL existing trip groups to ensure complete cleanup
+    for (const groupId of this.layerGroups.keys()) {
+      if (groupId.startsWith('trip-')) {
+        console.log(`Destroying existing trip group: ${groupId}`)
+        this.layerGroups.get(groupId)?.destroy()
+        this.layerGroups.delete(groupId)
+      }
     }
 
-    trips.trips.forEach((trip, tripIndex) => {
-      if (!visibleTripIds.has(trip.id)) return
-
-      // Get color for this trip mode
-      const colorScheme = modeColors[trip.mode] || modeColors.driving
-
-      // Extract all coordinates from trip segments
-      const allCoordinates: [number, number][] = []
-      trip.segments.forEach(segment => {
-        if (segment.geometry) {
-          segment.geometry.forEach(coord => {
-            allCoordinates.push([coord.lng, coord.lat])
-          })
-        }
-      })
-
-      if (allCoordinates.length === 0) return
-
-      // Create source for this trip
-      const sourceId = `trip-${trip.id}`
-      this.mapInstance.addSource(sourceId, {
-        type: 'geojson',
-        data: {
-          type: 'Feature',
-          properties: {
-            tripId: trip.id,
-            mode: trip.mode,
-            vehicleType: trip.vehicleType,
-          },
-          geometry: {
-            type: 'LineString',
-            coordinates: allCoordinates,
-          },
-        },
-      })
-
-      // Add route case (outer line)
-      this.mapInstance.addLayer({
-        id: `trip-case-${trip.id}`,
-        type: 'line',
-        source: sourceId,
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round',
-        },
-        paint: {
-          'line-color': colorScheme.case,
-          'line-width': 8,
-          'line-opacity': 0.8,
-        },
-      })
-
-      // Add route line (inner line)
-      this.mapInstance.addLayer({
-        id: `trip-line-${trip.id}`,
-        type: 'line',
-        source: sourceId,
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round',
-        },
-        paint: {
-          'line-color': colorScheme.line,
-          'line-width': 5,
-          'line-opacity': 0.9,
-        },
-      })
+    // Create fresh trip groups for visible trips
+    trips.trips.forEach(trip => {
+      if (visibleTripIds.has(trip.id)) {
+        const groupId = `trip-${trip.id}`
+        console.log(`Creating new trip group: ${groupId}`)
+        const tripGroup = new TripGroup(this, trip)
+        this.layerGroups.set(groupId, tripGroup)
+      }
     })
 
-    // Add waypoint markers
-    if (trips.request.waypoints.length > 0) {
-      trips.request.waypoints.forEach((waypoint, index) => {
-        const sourceId = `trip-waypoint-${index}`
-        this.mapInstance.addSource(sourceId, {
-          type: 'geojson',
-          data: {
-            type: 'Feature',
-            properties: {},
-            geometry: {
-              type: 'Point',
-              coordinates: [waypoint.coordinate.lng, waypoint.coordinate.lat],
-            },
-          },
-        })
-
-        // Add waypoint circle with updated colors
-        this.mapInstance.addLayer({
-          id: `trip-waypoint-${index}`,
-          type: 'circle',
-          source: sourceId,
-          paint: {
-            'circle-radius': 8,
-            'circle-color':
-              index === 0
-                ? colors.blue[400] // Light blue for origin
-                : index === trips.request.waypoints.length - 1
-                ? colors.blue[600] // Mid blue for destination
-                : colors.blue[500], // Blue for intermediate waypoints
-            'circle-opacity': index === 0 ? 0.7 : 1, // Lighter opacity for origin
-            'circle-stroke-width': 2,
-            'circle-stroke-color': colors.white,
-          },
-        })
-
-        // Add waypoint label (numbers for all stops except origin)
-        if (index > 0) {
-          this.mapInstance.addLayer({
-            id: `trip-waypoint-label-${index}`,
-            type: 'symbol',
-            source: sourceId,
-            layout: {
-              'text-field': index.toString(), // Numbers for all waypoints except origin (1, 2, 3...)
-              'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
-              'text-size': 12,
-              'text-anchor': 'center',
-            },
-            paint: {
-              'text-color': colors.white,
-            },
-          })
-        }
-      })
+    // Only fit map to trips if there are visible trips
+    if (visibleTripIds.size > 0) {
+      this.fitMapToTrips(trips, visibleTripIds)
     }
-
-    // Fit map to show all visible trips
-    this.fitMapToTrips(trips, visibleTripIds)
   }
 
   unsetTrips() {
-    const style = this.mapInstance.getStyle()
-    if (!style) return
-
-    // Remove all trip-related layers and sources
-    const mapLayers = style.layers
-    const layerIds = mapLayers.map(layer => layer.id)
-
-    layerIds.forEach(id => {
-      if (id.startsWith('trip-')) {
-        this.mapInstance.removeLayer(id)
+    for (const groupId of this.layerGroups.keys()) {
+      if (groupId.startsWith('trip-')) {
+        this.layerGroups.get(groupId)?.destroy()
+        this.layerGroups.delete(groupId)
       }
-    })
-
-    // Remove trip sources
-    const sources = Object.keys(this.mapInstance.getStyle()?.sources || {})
-    sources.forEach(source => {
-      if (source.startsWith('trip-')) {
-        this.mapInstance.removeSource(source)
-      }
-    })
-  }
-
-  updateTripVisibility(tripId: string, visible: boolean) {
-    // Update layer visibility
-    const caseLayerId = `trip-case-${tripId}`
-    const lineLayerId = `trip-line-${tripId}`
-
-    if (this.mapInstance.getLayer(caseLayerId)) {
-      this.mapInstance.setLayoutProperty(
-        caseLayerId,
-        'visibility',
-        visible ? 'visible' : 'none',
-      )
-    }
-
-    if (this.mapInstance.getLayer(lineLayerId)) {
-      this.mapInstance.setLayoutProperty(
-        lineLayerId,
-        'visibility',
-        visible ? 'visible' : 'none',
-      )
     }
   }
 
   private fitMapToTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
-    // Collect all coordinates from visible trips
-    const allCoordinates: [number, number][] = []
+    const visibleTrips = trips.trips.filter(trip => visibleTripIds.has(trip.id))
+    if (visibleTrips.length === 0) return
 
-    trips.trips.forEach(trip => {
-      if (!visibleTripIds.has(trip.id)) return
+    const bounds = new LngLatBounds()
 
+    visibleTrips.forEach(trip => {
       trip.segments.forEach(segment => {
         if (segment.geometry) {
           segment.geometry.forEach(coord => {
-            allCoordinates.push([coord.lng, coord.lat])
+            bounds.extend([coord.lng, coord.lat])
           })
         }
       })
     })
 
-    // Add waypoint coordinates
-    trips.request.waypoints.forEach(waypoint => {
-      allCoordinates.push([waypoint.coordinate.lng, waypoint.coordinate.lat])
-    })
+    if (!bounds.isEmpty()) {
+      // Get the visible map area from app store to calculate proper padding
+      const appStore = useAppStore()
+      const visibleArea = appStore.visibleMapArea
 
-    if (allCoordinates.length === 0) return
+      // Calculate padding based on the visible map area
+      // This ensures the trip routes are centered within the unobstructed area
+      const mapWidth = this.container.clientWidth
+      const mapHeight = this.container.clientHeight
 
-    // Create bounds from all coordinates
-    const bounds = allCoordinates.reduce((bounds, coord) => {
-      return bounds.extend(coord as LngLatLike)
-    }, new LngLatBounds(allCoordinates[0] as LngLatLike, allCoordinates[0] as LngLatLike))
+      let padding:
+        | number
+        | { left: number; top: number; right: number; bottom: number } = 200 // Increased default padding
 
-    // Fit the map to show all trips with padding
-    this.mapInstance.fitBounds(bounds, {
-      padding: Math.min(window.innerWidth * 0.15, 300),
-      duration: 400,
-      easing: t => t * (2 - t),
-    })
+      if (mapWidth && mapHeight && visibleArea) {
+        // Calculate padding values to center content in the visible area with generous margins
+        padding = {
+          left: Math.max(150, visibleArea.x + 50),
+          top: Math.max(150, visibleArea.y + 50),
+          right: Math.max(
+            150,
+            mapWidth - (visibleArea.x + visibleArea.width) + 50,
+          ),
+          bottom: Math.max(
+            150,
+            mapHeight - (visibleArea.y + visibleArea.height) + 50,
+          ),
+        }
+      }
+
+      this.mapInstance.fitBounds(bounds, {
+        padding,
+        duration: 1000,
+      })
+    }
   }
 }

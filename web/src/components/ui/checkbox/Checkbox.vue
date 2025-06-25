@@ -1,10 +1,6 @@
 <script setup lang="ts">
-import type { CheckboxRootEmits, CheckboxRootProps } from 'radix-vue'
-import {
-  CheckboxIndicator,
-  CheckboxRoot,
-  useForwardPropsEmits,
-} from 'radix-vue'
+import type { CheckboxRootEmits, CheckboxRootProps } from 'reka-ui'
+import { CheckboxIndicator, CheckboxRoot, useForwardPropsEmits } from 'reka-ui'
 import { Check } from 'lucide-vue-next'
 import { cn } from '@/lib/utils'
 

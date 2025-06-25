@@ -220,7 +220,7 @@ function getDisplayName(serverUrl: string): string {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
-              class="min-w-[10rem] w-[var(--radix-dropdown-menu-trigger-width)]"
+              class="min-w-[10rem] w-[var(--reka-dropdown-menu-trigger-width)]"
             >
               <DropdownMenuItem
                 v-for="server in savedServers"

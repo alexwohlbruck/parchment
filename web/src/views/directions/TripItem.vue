@@ -169,7 +169,7 @@ function navigateToTripDetail() {
 
 <template>
   <div
-    class="relative flex items-start min-h-[4rem] group"
+    class="relative flex items-start min-h-16 group"
     :class="{
       'cursor-pointer hover:bg-accent/50 rounded-lg p-2 -m-2 transition-colors':
         isClickable,
@@ -178,7 +178,7 @@ function navigateToTripDetail() {
     @mouseenter="handleMouseEnter"
   >
     <!-- Trip info sidebar -->
-    <div class="flex-shrink-0 pr-4 text-right">
+    <div class="shrink-0 pr-4 text-right">
       <div class="text-sm font-medium text-foreground mb-0.5">
         {{ formatDuration(trip.summary.totalDuration) }}
       </div>
@@ -192,13 +192,13 @@ function navigateToTripDetail() {
     </div>
 
     <!-- Timeline section -->
-    <div class="relative flex-1 min-h-[3rem]">
+    <div class="relative flex-1 min-h-12">
       <!-- Segments bar -->
       <div class="relative h-8 mb-3">
         <div
           v-for="(segment, segmentIndex) in trip.segments"
           :key="segment.id"
-          class="absolute rounded-full transition-all duration-200 flex items-center shadow-sm h-8 group/segment overflow-hidden"
+          class="absolute rounded-full transition-all duration-200 flex items-center shadow-xs h-8 group/segment overflow-hidden"
           :class="[
             getTravelModeCssClass(segment.mode),
             'group-hover:shadow-md group-hover:scale-[1.02]',
@@ -219,11 +219,11 @@ function navigateToTripDetail() {
         >
           <!-- Icon circle on the left -->
           <div
-            class="flex-shrink-0 w-6 h-6 bg-black/20 rounded-full flex items-center justify-center ml-1"
+            class="shrink-0 w-6 h-6 bg-black/20 rounded-full flex items-center justify-center ml-1"
           >
             <component
               :is="modeIcons[segment.mode]"
-              class="size-3 text-white drop-shadow-sm"
+              class="size-3 text-white drop-shadow-xs"
             />
           </div>
 

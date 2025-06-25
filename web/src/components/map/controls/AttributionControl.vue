@@ -109,7 +109,7 @@ const socialLinks = [
 
     <!-- Attribution dialog -->
     <Dialog v-model:open="showDialog">
-      <DialogContent class="max-w-[25rem]">
+      <DialogContent class="max-w-100">
         <DialogHeader>
           <DialogTitle>Parchment is powered by:</DialogTitle>
         </DialogHeader>

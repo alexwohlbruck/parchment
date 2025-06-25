@@ -23,7 +23,7 @@ const goHome = () => {
       <div class="flex flex-col gap-1">
         <H1 class="font-bold">{{ t('notFound.title') }}</H1>
         <H3 class="font-semibold">{{ t('notFound.subtitle') }}</H3>
-        <Span class="text-muted-foreground !mt-0">
+        <Span class="text-muted-foreground mt-0!">
           {{ t('notFound.message') }}
         </Span>
       </div>

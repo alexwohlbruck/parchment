@@ -20,7 +20,7 @@ defineProps<{
   <div class="flex gap-3 items-center group min-w-0">
     <component
       :is="icon"
-      class="size-4 flex-shrink-0"
+      class="size-4 shrink-0"
       :class="color || 'text-muted-foreground'"
     />
     <div class="flex flex-col flex-1 min-w-0">
@@ -51,7 +51,7 @@ defineProps<{
     </div>
     <div
       v-if="copyValue || osmUrl"
-      class="flex opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+      class="flex opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
     >
       <CopyButton
         v-if="copyValue"

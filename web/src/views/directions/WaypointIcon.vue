@@ -19,7 +19,7 @@ const showNumber = computed(() => props.totalWaypoints > 2 && props.index > 0)
 </script>
 
 <template>
-  <div class="relative size-6 flex-shrink-0 cursor-move handle">
+  <div class="relative size-6 shrink-0 cursor-move handle">
     <!-- Default state: icons for from/to or numbered circle -->
     <div
       class="absolute inset-0 size-6 border-2 border-white rounded-full flex items-center justify-center transition-opacity duration-200 group-hover:opacity-0"

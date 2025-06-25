@@ -106,7 +106,7 @@ const plusCode = computed(() => {
   <div class="flex flex-col gap-4">
     <!-- Cuisines -->
     <div v-if="cuisines && cuisines.length > 0" class="flex gap-3 items-center">
-      <UtensilsCrossedIcon class="size-4 text-muted-foreground flex-shrink-0" />
+      <UtensilsCrossedIcon class="size-4 text-muted-foreground shrink-0" />
       <div class="flex flex-wrap gap-1">
         <span
           v-for="cuisine in cuisines"

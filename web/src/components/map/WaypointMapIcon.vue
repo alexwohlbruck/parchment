@@ -22,7 +22,7 @@ const showNumber = computed(
 </script>
 
 <template>
-  <div class="relative size-8 flex-shrink-0">
+  <div class="relative size-8 shrink-0">
     <!-- Map marker circle -->
     <div
       class="absolute inset-0 size-6 border-2 border-white rounded-full flex items-center justify-center shadow-lg"

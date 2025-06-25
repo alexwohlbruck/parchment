@@ -64,7 +64,7 @@ const iconSizeClass = computed(() => {
 
 <template>
   <div
-    class="rounded-md flex items-center justify-center flex-shrink-0"
+    class="rounded-md flex items-center justify-center shrink-0"
     :class="[containerSizeClass, props.plain ? '' : colorClasses]"
   >
     <component :is="iconComponent as any" :class="iconSizeClass" />

@@ -4,7 +4,7 @@ import {
   type ContextMenuRadioGroupEmits,
   type ContextMenuRadioGroupProps,
   useForwardPropsEmits,
-} from 'radix-vue'
+} from 'reka-ui'
 
 const props = defineProps<ContextMenuRadioGroupProps>()
 const emits = defineEmits<ContextMenuRadioGroupEmits>()

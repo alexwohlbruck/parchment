@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ComboboxInput, type ComboboxInputProps } from 'radix-vue'
+import { ComboboxInput, type ComboboxInputProps } from 'reka-ui'
 import { cn } from '@/lib/utils'
 import { computed, ref } from 'vue'
 

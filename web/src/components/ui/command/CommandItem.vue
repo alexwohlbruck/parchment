@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { ComboboxItemEmits, ComboboxItemProps } from 'radix-vue'
-import { ComboboxItem, useEmitAsProps } from 'radix-vue'
+import type { ComboboxItemEmits, ComboboxItemProps } from 'reka-ui'
+import { ComboboxItem, useEmitAsProps } from 'reka-ui'
 import { cn } from '@/lib/utils'
 
 const props = defineProps<ComboboxItemProps>()

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { ComboboxSeparatorProps } from 'radix-vue'
-import { ComboboxSeparator } from 'radix-vue'
+import type { ComboboxSeparatorProps } from 'reka-ui'
+import { ComboboxSeparator } from 'reka-ui'
 import { cn } from '@/lib/utils'
 
 const props = defineProps<ComboboxSeparatorProps>()

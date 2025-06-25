@@ -48,6 +48,7 @@
     "pinia-orm": "^1.10.2",
     "pluscodes": "^2.6.0",
     "radix-vue": "^1.9.12",
+    "reka-ui": "^2.3.1",
     "simple-icons": "^14.12.2",
     "tailwind-merge": "^2.3.0",
     "tailwindcss-animate": "^1.0.7",

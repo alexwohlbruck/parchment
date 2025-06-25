@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { useAttrs } from 'vue'
-import { Label, type LabelProps } from 'radix-vue'
+import { Label, type LabelProps } from 'reka-ui'
 import { useFormField } from './useFormField'
 import { cn } from '@/lib/utils'
 

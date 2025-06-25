@@ -72,7 +72,7 @@ useMapListener('click', data => {
             v-for="(mode, i) in modes"
             :key="i"
             :value="mode.type"
-            class="flex-grow"
+            class="grow"
             :title="mode.label"
           >
             <component :is="mode.icon" class="size-5" />

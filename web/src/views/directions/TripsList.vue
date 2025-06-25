@@ -116,7 +116,7 @@ onUnmounted(() => {
           <div
             v-for="time in timeLabels"
             :key="time"
-            class="flex-shrink-0 text-xs text-muted-foreground absolute ml-2"
+            class="shrink-0 text-xs text-muted-foreground absolute ml-2"
             :style="{
               left: `${
                 dayjs(
@@ -134,7 +134,7 @@ onUnmounted(() => {
 
       <!-- Grid lines -->
       <div class="absolute inset-0 flex pointer-events-none px-4 top-6">
-        <div v-for="time in timeLabels" :key="time" class="flex-shrink-0">
+        <div v-for="time in timeLabels" :key="time" class="shrink-0">
           <div
             class="absolute top-0 h-full border-l border-border/50"
             :style="{

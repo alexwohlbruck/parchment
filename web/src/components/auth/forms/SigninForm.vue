@@ -200,7 +200,7 @@ function getDisplayName(serverUrl: string): string {
             <DropdownMenuTrigger as-child>
               <Button
                 variant="outline"
-                class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-inset focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap [&>span]:truncate [&>span]:min-w-0"
+                class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-hidden focus:ring-inset focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap [&>span]:truncate [&>span]:min-w-0"
               >
                 <span class="truncate min-w-0">{{
                   getDisplayName(selectedServer)
@@ -220,12 +220,12 @@ function getDisplayName(serverUrl: string): string {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
-              class="min-w-[10rem] w-[var(--reka-dropdown-menu-trigger-width)]"
+              class="min-w-40 w-(--reka-dropdown-menu-trigger-width)"
             >
               <DropdownMenuItem
                 v-for="server in savedServers"
                 :key="server"
-                class="relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 justify-between group"
+                class="relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-hidden transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 justify-between group"
                 @click="handleServerSelection(server)"
               >
                 <span
@@ -258,7 +258,7 @@ function getDisplayName(serverUrl: string): string {
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                class="relative flex cursor-default select-none items-center rounded-sm gap-2 px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 text-muted-foreground"
+                class="relative flex cursor-default select-none items-center rounded-sm gap-2 px-2 py-1.5 text-sm outline-hidden transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 text-muted-foreground"
                 @click="handleServerSelection('add-custom')"
               >
                 <PlusIcon class="size-4" />

@@ -196,7 +196,7 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
                   <!-- Segment Icon -->
                   <div
                     :class="[
-                      'flex items-center justify-center size-8 rounded-full text-white flex-shrink-0',
+                      'flex items-center justify-center size-8 rounded-full text-white shrink-0',
                       modeColors[segment.mode] || 'bg-gray-500',
                     ]"
                   >
@@ -237,7 +237,7 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
                         class="flex items-center text-sm hover:bg-muted/50 rounded-lg p-2 pl-0 transition-colors"
                       >
                         <div
-                          class="flex-shrink-0 w-6 h-6 mr-2 rounded-full flex items-center justify-center text-xs font-medium"
+                          class="shrink-0 w-6 h-6 mr-2 rounded-full flex items-center justify-center text-xs font-medium"
                         >
                           {{ instrIndex + 1 }}
                         </div>

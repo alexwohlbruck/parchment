@@ -15,6 +15,7 @@ import {
 import { MapEngine } from '@/types/map.types'
 import colors from 'tailwindcss/colors'
 import { useServerUrl } from '@/lib/api'
+import { oklchToHex } from '@/lib/travel-mode-colors'
 
 const mapillaryAccessToken = import.meta.env.VITE_MAPILLARY_ACCESS_TOKEN
 const serverUrl = useServerUrl()
@@ -39,10 +40,10 @@ const mapillaryOverview: Layer = {
     },
     'source-layer': 'images',
     paint: {
-      'circle-color': colors.blue[500],
+      'circle-color': oklchToHex(colors.blue[500]),
       'circle-radius': 4,
       'circle-opacity': 1,
-      'circle-stroke-color': colors.blue[800],
+      'circle-stroke-color': oklchToHex(colors.blue[800]),
       'circle-stroke-width': 1.5,
       'circle-stroke-opacity': 0.7,
       'circle-emissive-strength': 1,
@@ -71,7 +72,7 @@ const mapillarySequence: Layer = {
     },
     'source-layer': 'sequence',
     paint: {
-      'line-color': colors.blue[500],
+      'line-color': oklchToHex(colors.blue[500]),
       'line-opacity': [
         'interpolate',
         ['linear'],
@@ -114,7 +115,7 @@ const mapillaryImage: Layer = {
     },
     'source-layer': 'image',
     paint: {
-      'circle-color': colors.blue[500],
+      'circle-color': oklchToHex(colors.blue[500]),
       'circle-radius': [
         'interpolate',
         ['linear'],
@@ -127,7 +128,7 @@ const mapillaryImage: Layer = {
         6,
       ],
       'circle-opacity': 1,
-      'circle-stroke-color': colors.blue[800],
+      'circle-stroke-color': oklchToHex(colors.blue[800]),
       'circle-stroke-width': [
         'interpolate',
         ['linear'],
@@ -584,9 +585,9 @@ const hillshade: Layer = {
       url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
     },
     paint: {
-      'hillshade-shadow-color': colors.slate[900],
-      'hillshade-highlight-color': colors.amber[100],
-      'hillshade-accent-color': colors.amber[300],
+      'hillshade-shadow-color': oklchToHex(colors.slate[900]),
+      'hillshade-highlight-color': oklchToHex(colors.amber[100]),
+      'hillshade-accent-color': oklchToHex(colors.amber[300]),
       'hillshade-illumination-direction': 315,
       'hillshade-exaggeration': 1,
     },
@@ -610,7 +611,7 @@ const contours: Layer = {
     },
     'source-layer': 'contour',
     paint: {
-      'line-color': colors.slate[700],
+      'line-color': oklchToHex(colors.slate[700]),
       'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.5, 16, 1],
       'line-opacity': ['interpolate', ['linear'], ['zoom'], 11, 0.5, 16, 0.8],
     },
@@ -637,8 +638,8 @@ const contourLabels: Layer = {
     },
     'source-layer': 'contour',
     paint: {
-      'text-color': colors.slate[700],
-      'text-halo-color': colors.white,
+      'text-color': oklchToHex(colors.slate[700]),
+      'text-halo-color': oklchToHex(colors.white),
       'text-halo-width': 1,
     },
     layout: {

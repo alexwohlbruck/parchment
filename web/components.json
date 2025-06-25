@@ -2,12 +2,10 @@
   "style": "default",
   "typescript": true,
   "tailwind": {
-    "config": "tailwind.config.js",
-    "css": "src/assets/index.css",
+    "css": "src/style.css",
     "baseColor": "zinc",
     "cssVariables": true
   },
-  "framework": "vite",
   "aliases": {
     "components": "@/components",
     "utils": "@/lib/utils",

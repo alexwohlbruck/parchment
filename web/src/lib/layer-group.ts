@@ -170,6 +170,7 @@ export class TripGroup extends LayerGroup {
         id: caseLayerId,
         type: 'line',
         source: sourceId,
+        slot: 'middle',
         layout: {
           'line-join': 'round',
           'line-cap': 'round',
@@ -194,6 +195,7 @@ export class TripGroup extends LayerGroup {
         id: layerId,
         type: 'line',
         source: sourceId,
+        slot: 'middle',
         layout: {
           'line-join': 'round',
           'line-cap': 'round',

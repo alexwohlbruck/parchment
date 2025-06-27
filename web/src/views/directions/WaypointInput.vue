@@ -13,6 +13,7 @@ import { useMapCamera } from '@/composables/useMapCamera'
 import { cn } from '@/lib/utils'
 import { useDebounceFn } from '@vueuse/core'
 import { Spinner } from '@/components/ui/spinner'
+import { formatAddress } from '@/lib/place.utils'
 
 const placeSearchService = usePlaceSearchService()
 const mapCamera = useMapCamera()
@@ -156,7 +157,7 @@ defineExpose({
         <!-- Waypoint circle with icons/numbers -->
         <WaypointIcon :index="index" :total-waypoints="waypoints.length" />
 
-        <Combobox class="flex-1">
+        <Combobox class="flex-1" ignore-filter>
           <ComboboxAnchor>
             <ComboboxInput
               :placeholder="
@@ -186,7 +187,12 @@ defineExpose({
                 :value="place"
                 @select="selectPlace(index, place)"
               >
-                {{ place.name.value }}
+                <div class="flex flex-col">
+                  <span>{{ place.name.value }}</span>
+                  <span v-if="place.address" class="text-sm text-muted-foreground">
+                    {{ formatAddress(place) }}
+                  </span>
+                </div>
 
                 <ComboboxItemIndicator>
                   <Check :class="cn('ml-auto h-4 w-4')" />

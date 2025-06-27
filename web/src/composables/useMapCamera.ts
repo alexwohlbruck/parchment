@@ -1,10 +1,11 @@
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useMapStore } from '@/stores/map.store'
 import type { MapCamera } from '@/types/map.types'
 
 export function useMapCamera() {
   const mapStore = useMapStore()
-  const camera = ref<MapCamera>(mapStore.mapCamera)
+  const { mapCamera: camera } = storeToRefs(mapStore)
 
   function onCameraMove(newCamera: MapCamera) {
     camera.value = newCamera

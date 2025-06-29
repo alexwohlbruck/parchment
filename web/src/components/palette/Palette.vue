@@ -313,7 +313,7 @@ const filterFunction = computed(() => {
         </CommandList>
 
         <!-- Command selected, display arguments -->
-        <CommandList v-if="activeArgument">
+        <CommandList v-if="activeArgument && query.length">
           <CommandGroup :heading="activeArgument.name">
             <div v-if="loadingOptions" class="py-6 text-center">
               <LoaderIcon class="mx-auto h-4 w-4 animate-spin opacity-50" />
@@ -322,6 +322,8 @@ const filterFunction = computed(() => {
               </p>
             </div>
             <CommandEmpty v-else-if="argumentOptions.length === 0">
+              <!-- TODO: Get this to show when no search results are found -->
+              <!-- TODO: i18n -->
               No results found.
             </CommandEmpty>
             <CommandItem

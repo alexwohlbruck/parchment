@@ -77,6 +77,7 @@ function handleDirectionsClick() {
 
   const waypoint = {
     lngLat: new LngLat(coordinates.value.lng, coordinates.value.lat),
+    place: props.place,
   }
 
   directionsService.directionsTo(waypoint)

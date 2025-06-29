@@ -104,7 +104,7 @@ function directionsService() {
               : index === filteredWaypoints.length - 1
               ? 'destination'
               : 'via',
-          label: (waypoint as any).name,
+          label: waypoint.place?.name?.value,
         })),
         availableVehicles: availableVehicles.map(vehicleType => ({
           id: `${vehicleType}-${Date.now()}`,
@@ -154,7 +154,7 @@ function directionsService() {
               index === 0 || index === filteredWaypoints.length - 1
                 ? WaypointType.STOP
                 : WaypointType.VIA,
-            name: (waypoint as any).name,
+            name: waypoint.place?.name?.value,
           })),
           availableVehicles: availableVehicles,
           maxOptions: 3,

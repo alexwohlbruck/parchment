@@ -226,9 +226,20 @@
     "title": "Direcciones",
     "directionsFromHere": "Direcciones desde aquí",
     "directionsToHere": "Direcciones a aquí",
+    "directionsTo": "Direcciones a",
+    "directionsFrom": "Direcciones desde",
     "to": "A",
     "from": "Desde",
     "addStop": "Añadir parada"
+  },
+  "place": {
+    "actions": {
+      "directionsFrom": "Direcciones desde aquí",
+      "directionsTo": "Direcciones",
+      "share": "Compartir",
+      "save": "Guardar lugar",
+      "manageCollections": "Gestionar colecciones"
+    }
   },
   "library": {
     "title": "biblioteca",

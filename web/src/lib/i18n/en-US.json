@@ -225,9 +225,20 @@
     "title": "Directions",
     "directionsFromHere": "Directions from here",
     "directionsToHere": "Directions to here",
+    "directionsTo": "Directions to",
+    "directionsFrom": "Directions from",
     "to": "To",
     "from": "From",
     "addStop": "Add stop"
+  },
+  "place": {
+    "actions": {
+      "directionsFrom": "Directions from here",
+      "directionsTo": "Directions",
+      "share": "Share",
+      "save": "Save place",
+      "manageCollections": "Manage collections"
+    }
   },
   "library": {
     "title": "library",

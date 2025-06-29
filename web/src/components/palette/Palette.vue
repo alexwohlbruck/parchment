@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { onClickOutside, useMagicKeys } from '@vueuse/core'
+import { onClickOutside, useMagicKeys, useDebounceFn } from '@vueuse/core'
 import { useCommandService } from '@/services/command.service'
 import { CommandName, useCommandStore } from '@/stores/command.store'
 import {
@@ -176,35 +176,21 @@ watch(activeArgument, async newArg => {
   }
 })
 
-// Add a timer reference for manual debouncing
-let searchTimer: number | null = null
+// Create a debounced function for loading search options
+const debouncedLoadOptions = useDebounceFn(async () => {
+  // Load options if we're in search mode
+  if (activeCommand.value?.id === CommandName.SEARCH && activeArgument.value) {
+    await loadArgumentOptions()
+  }
+}, 300)
 
-// Create a function that uses setTimeout for debouncing
-function debouncedSearch(newQuery: string) {
+// Watch query and handle search
+watch(query, newQuery => {
   // First update the search query in the command service immediately
   updateSearchQuery(newQuery)
 
-  // Clear any pending timer
-  if (searchTimer) {
-    clearTimeout(searchTimer)
-  }
-
-  // Set a new timer to load search options after delay
-  searchTimer = window.setTimeout(async () => {
-    // Then load options if we're in search mode
-    if (
-      activeCommand.value?.id === CommandName.SEARCH &&
-      activeArgument.value
-    ) {
-      await loadArgumentOptions()
-    }
-    searchTimer = null
-  }, 300)
-}
-
-// Watch query and call the debounced handler
-watch(query, newQuery => {
-  debouncedSearch(newQuery)
+  // Then trigger debounced loading of search options
+  debouncedLoadOptions()
 })
 
 // If a command is executed that needs arguments, open the palette
@@ -256,12 +242,12 @@ const filterFunction = computed(() => {
     <Command
       class="shadow-md bg-background"
       ref="commandPalette"
-      v-model:searchTerm="query"
       :open="commandOpen"
       :filter-function="filterFunction"
     >
       <CommandInput
         ref="input"
+        v-model="query"
         :placeholder="placeholder"
         @focus="inputFocused($event)"
         @keydown.backspace="onBackspace()"
@@ -375,3 +361,4 @@ const filterFunction = computed(() => {
     </Command>
   </div>
 </template>
+@/components/ui/command-backup

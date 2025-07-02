@@ -16,6 +16,9 @@ RUN bun run build
 FROM oven/bun:latest
 WORKDIR /app/server
 
+# Install PostgreSQL client for database operations
+RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/*
+
 # Copy package files and install only production dependencies
 COPY server/package.json server/bun.lockb ./
 RUN bun install --production

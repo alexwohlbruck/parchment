@@ -78,8 +78,10 @@ The application will be available at:
 
 ### Database Management
 The database is automatically initialized with:
-- Required permissions and roles
-- Default admin user
+- **PostGIS Extension**: Spatial data support for bookmarks and location features
+- **Spatial Indexes**: GIST indexes for optimal location queries  
+- **Required permissions and roles**
+- **Default admin user**
 
 To seed with a custom user:
 ```bash
@@ -176,6 +178,18 @@ services:
 networks:
   your_proxy_network:
     external: true
+```
+
+### Troubleshooting
+
+If you encounter database issues:
+
+```bash
+# Check PostGIS is enabled
+docker exec -it parchment-db psql -U server_user -d parchment -h localhost -c "SELECT PostGIS_Version();"
+
+# Check spatial index exists
+docker exec -it parchment-db psql -U server_user -d parchment -h localhost -c "\d bookmarks"
 ```
 
 ## 📱 Mobile & Desktop Apps

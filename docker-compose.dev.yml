@@ -25,7 +25,7 @@ services:
   # Parchment backend server DB
   parchment-db:
     container_name: parchment-db
-    image: postgres:latest
+    image: kartoza/postgis:latest
     network_mode: host
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
@@ -33,6 +33,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - server-db:/var/lib/postgresql/data
+      - ./server/scripts/init-postgis.sh:/docker-entrypoint-initdb.d/init-postgis.sh
     ports:
       - '5432:5432'
 

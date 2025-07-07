@@ -341,6 +341,7 @@
     "bookmarks": {
       "fetchError": "Failed to fetch bookmarks",
       "saveErrorNoOsmId": "Cannot bookmark place without an OSM ID",
+      "saveErrorNoCoordinates": "Cannot bookmark place without coordinates",
       "saveSuccess": "Bookmarked {name}",
       "saveError": "Failed to save bookmark",
       "updateSuccess": "Bookmark updated",

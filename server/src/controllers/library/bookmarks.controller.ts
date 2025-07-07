@@ -36,6 +36,8 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
         externalIds: t.Record(t.String(), t.String()),
         name: t.String(),
         address: t.Optional(t.String()),
+        lat: t.Number(),
+        lng: t.Number(),
         icon: t.Optional(t.String()),
         iconColor: t.Optional(t.String()),
         presetType: t.Optional(
@@ -82,6 +84,8 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
         t.Object({
           name: t.String(),
           address: t.Optional(t.String()),
+          lat: t.Number(),
+          lng: t.Number(),
           icon: t.String(),
           iconColor: t.String(),
           presetType: t.Union([

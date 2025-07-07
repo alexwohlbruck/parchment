@@ -10,6 +10,7 @@ import {
   proxy as proxyController,
   library as libraryController,
   integrations as integrationsController,
+  search as searchController,
 } from './controllers'
 import { initializeIntegrations } from './services/integration.service'
 
@@ -25,6 +26,7 @@ app.use(placeController)
 app.use(proxyController)
 app.use(libraryController)
 app.use(integrationsController)
+app.use(searchController)
 
 app.onError(({ code }) => {
   if (code === 'NOT_FOUND') return 'Route not found :(' // TODO: i18n, proper error

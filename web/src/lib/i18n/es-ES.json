@@ -342,8 +342,9 @@
     "bookmarks": {
       "fetchError": "Error al obtener marcadores",
       "saveErrorNoOsmId": "No se puede guardar el lugar sin un ID de OSM.",
+      "saveErrorNoCoordinates": "No se puede guardar el lugar sin coordenadas",
       "saveErrorNoCollectionId": "El marcador debe pertenecer al menos a una colección.",
-      "saveSuccess": "Marcado {name}",
+      "saveSuccess": "Marcador guardado {name}",
       "saveError": "Error al guardar marcador",
       "updateSuccess": "Marcador actualizado",
       "updateError": "Error al actualizar marcador",

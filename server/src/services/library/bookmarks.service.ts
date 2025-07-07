@@ -4,7 +4,7 @@ import {
   collections,
   bookmarksCollections,
 } from '../../schema/library.schema'
-import { and, eq, desc, inArray, count } from 'drizzle-orm'
+import { and, eq, desc, inArray, count, sql } from 'drizzle-orm'
 import {
   CreateBookmarkParams,
   NewBookmark,
@@ -14,14 +14,23 @@ import {
 } from '../../types/library.types'
 import { generateId } from '../../util'
 import { getDefaultCollection } from './collections.service'
+import {
+  createSelectFieldsWithGeometry,
+  createPointFromCoordinates,
+} from '../../util/geometry-conversion'
+import { createBookmarkSearchCondition } from '../../util/text-search.util'
+
+// Automatically generate select fields with geometry conversion - no manual field listing needed!
+const bookmarkSelectFields = createSelectFieldsWithGeometry(bookmarks)
+const bookmarkReturningFields = bookmarkSelectFields
 
 export async function getBookmarkById(id: string, userId: string) {
-  return (
-    await db
-      .select()
-      .from(bookmarks)
-      .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)))
-  )[0]
+  const result = await db
+    .select(bookmarkSelectFields)
+    .from(bookmarks)
+    .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)))
+
+  return result[0]
 }
 
 /**
@@ -30,19 +39,22 @@ export async function getBookmarkById(id: string, userId: string) {
 async function createBookmarkInternal(
   params: CreateBookmarkParams,
 ): Promise<Bookmark> {
-  const newPlace: NewBookmark = {
-    id: generateId(),
-    externalIds: params.externalIds,
-    name: params.name,
-    address: params.address,
-    icon: params.icon || 'map-pin',
-    iconColor: params.iconColor || '#F43F5E',
-    presetType: params.presetType,
-    userId: params.userId,
-  }
+  const [inserted] = await db
+    .insert(bookmarks)
+    .values({
+      id: generateId(),
+      externalIds: params.externalIds,
+      name: params.name,
+      address: params.address,
+      geometry: createPointFromCoordinates(params.lat, params.lng),
+      icon: params.icon || 'map-pin',
+      iconColor: params.iconColor || '#F43F5E',
+      presetType: params.presetType,
+      userId: params.userId,
+    })
+    .returning(bookmarkReturningFields)
 
-  const [inserted] = await db.insert(bookmarks).values(newPlace).returning()
-  return inserted
+  return inserted as Bookmark
 }
 
 /**
@@ -101,18 +113,21 @@ async function updateBookmarkInternal(
   userId: string,
   updates: Partial<Bookmark>,
 ): Promise<Bookmark | undefined> {
-  const { externalIds, userId: _, id: __, ...validUpdates } = updates
+  const { externalIds, userId: _, id: __, lat, lng, ...validUpdates } = updates
+
+  // If lat/lng are provided, convert to geometry
+  const updateData: any = { ...validUpdates, updatedAt: new Date() }
+  if (lat !== undefined && lng !== undefined) {
+    updateData.geometry = createPointFromCoordinates(lat, lng)
+  }
 
   const [updated] = await db
     .update(bookmarks)
-    .set({
-      ...validUpdates,
-      updatedAt: new Date(),
-    })
+    .set(updateData)
     .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)))
-    .returning()
+    .returning(bookmarkReturningFields)
 
-  return updated
+  return updated as Bookmark
 }
 
 /**
@@ -311,7 +326,7 @@ export async function findBookmarkByExternalIds(
   // This is tricky with jsonb, might need a more specific query if performance is an issue
   // For now, fetching all and filtering in code is simpler but less efficient
   const userBookmarks = await db
-    .select()
+    .select(bookmarkSelectFields)
     .from(bookmarks)
     .where(eq(bookmarks.userId, userId))
 
@@ -335,7 +350,44 @@ export async function findBookmarkByExternalIds(
   const collectionIds = collectionLinks.map((link) => link.collectionId)
 
   return {
-    bookmark: foundBookmark,
+    bookmark: foundBookmark as Bookmark,
     collectionIds,
   }
+}
+
+/**
+ * Search bookmarks for the given user and query
+ */
+export async function searchBookmarks(
+  userId: string,
+  query: string,
+): Promise<Bookmark[]> {
+  if (!query || query.length === 0) {
+    // 0 characters: return all bookmarks (preset and non-preset)
+    const allBookmarks = await db
+      .select(bookmarkSelectFields)
+      .from(bookmarks)
+      .where(eq(bookmarks.userId, userId))
+
+    return allBookmarks.map((bookmark) => bookmark as Bookmark)
+  }
+
+  // Use PostgreSQL native text search with pg_trgm
+  const searchCondition = createBookmarkSearchCondition(
+    bookmarks.name,
+    bookmarks.address,
+    bookmarks.presetType,
+    query,
+  )
+
+  if (!searchCondition) {
+    return []
+  }
+
+  const searchResults = await db
+    .select(bookmarkSelectFields)
+    .from(bookmarks)
+    .where(and(eq(bookmarks.userId, userId), searchCondition))
+
+  return searchResults.map((bookmark) => bookmark as Bookmark)
 }

@@ -40,7 +40,7 @@ const colorClasses = computed(() => {
 const containerSizeClass = computed(() => {
   switch (props.size) {
     case 'sm':
-      return 'size-6'
+      return 'size-8'
     case 'lg':
       return 'size-12'
     case 'md':

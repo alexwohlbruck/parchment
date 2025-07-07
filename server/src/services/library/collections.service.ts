@@ -1,6 +1,6 @@
 import { db } from '../../db'
 import { collections, bookmarksCollections } from '../../schema/library.schema'
-import { and, eq, count } from 'drizzle-orm'
+import { and, eq, count, sql } from 'drizzle-orm'
 import {
   CreateCollectionParams,
   NewCollection,
@@ -12,6 +12,10 @@ import { getBookmarkById } from './bookmarks.service'
 import { bookmarks as bookmarksSchema } from '../../schema/library.schema'
 import { inArray } from 'drizzle-orm'
 import { unbookmark } from './bookmarks.service'
+import { createSelectFieldsWithGeometry } from '../../util/geometry-conversion'
+
+// Automatically generate bookmark select fields - no manual field listing needed!
+const bookmarkSelectFields = createSelectFieldsWithGeometry(bookmarksSchema)
 
 export async function getCollections(userId: string) {
   await ensureDefaultCollection(userId)
@@ -152,7 +156,7 @@ export async function getBookmarksInCollection(
   const bookmarkIds = bookmarkLinks.map((link) => link.bookmarkId)
 
   const bookmarks = await db
-    .select()
+    .select(bookmarkSelectFields)
     .from(bookmarksSchema)
     .where(
       and(

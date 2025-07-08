@@ -182,7 +182,7 @@ defineExpose({
     <FormField name="isDefault" v-slot="{ field }">
       <FormItem class="flex flex-row items-start space-x-3 space-y-0">
         <FormControl>
-          <Checkbox :checked="field.value" disabled />
+          <Checkbox :model-value="field.value" disabled />
         </FormControl>
         <div class="space-y-1 leading-none">
           <FormLabel>{{ t('library.form.isDefault') }}</FormLabel>

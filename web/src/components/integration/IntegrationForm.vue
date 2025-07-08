@@ -309,8 +309,8 @@ defineExpose({ submit })
       </div>
       <Switch
         id="capability-all"
-        :checked="allCapabilitiesEnabled"
-        @update:checked="enabled => (allCapabilitiesEnabled = enabled)"
+        :model-value="allCapabilitiesEnabled"
+        @update:model-value="enabled => (allCapabilitiesEnabled = enabled)"
         :disabled="isEnabledToggleDisabled"
       />
     </div>
@@ -336,9 +336,9 @@ defineExpose({ submit })
             </div>
             <Switch
               :id="`capability-${capability.id}`"
-              :checked="capability.active"
-              @update:checked="
-                checked => toggleCapability(capability.id, checked)
+              :model-value="capability.active"
+              @update:model-value="
+                enabled => toggleCapability(capability.id, enabled)
               "
               :disabled="isEnabledToggleDisabled"
             />
@@ -348,3 +348,4 @@ defineExpose({ submit })
     </TransitionExpand>
   </div>
 </template>
+@/components/ui/switch_old

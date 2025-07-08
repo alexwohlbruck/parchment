@@ -137,7 +137,10 @@ const basemap = computed(() => {
         :title="$t('settings.mapSettings.configuration.3dTerrain')"
         :icon="MountainSnowIcon"
       >
-        <Switch :checked="map3dTerrain" @click="mapService.toggle3dTerrain()" />
+        <Switch
+          :model-value="map3dTerrain"
+          @update:model-value="mapService.toggle3dTerrain()"
+        />
       </SettingsItem>
 
       <SettingsItem
@@ -145,8 +148,8 @@ const basemap = computed(() => {
         :icon="Building2Icon"
       >
         <Switch
-          :checked="map3dBuildings"
-          @click="mapService.toggle3dBuildings()"
+          :model-value="map3dBuildings"
+          @update:model-value="mapService.toggle3dBuildings()"
         />
       </SettingsItem>
 
@@ -154,7 +157,10 @@ const basemap = computed(() => {
         :title="$t('settings.mapSettings.configuration.poiLabels')"
         :icon="InfoIcon"
       >
-        <Switch :checked="mapPoiLabels" @click="mapService.togglePoiLabels()" />
+        <Switch
+          :model-value="mapPoiLabels"
+          @update:model-value="mapService.togglePoiLabels()"
+        />
       </SettingsItem>
 
       <SettingsItem
@@ -162,8 +168,8 @@ const basemap = computed(() => {
         :icon="MilestoneIcon"
       >
         <Switch
-          :checked="mapRoadLabels"
-          @click="mapService.toggleRoadLabels()"
+          :model-value="mapRoadLabels"
+          @update:model-value="mapService.toggleRoadLabels()"
         />
       </SettingsItem>
 
@@ -172,8 +178,8 @@ const basemap = computed(() => {
         :icon="TrainIcon"
       >
         <Switch
-          :checked="mapTransitLabels"
-          @click="mapService.toggleTransitLabels()"
+          :model-value="mapTransitLabels"
+          @update:model-value="mapService.toggleTransitLabels()"
         />
       </SettingsItem>
 
@@ -182,8 +188,8 @@ const basemap = computed(() => {
         :icon="MapPinIcon"
       >
         <Switch
-          :checked="mapPlaceLabels"
-          @click="mapService.togglePlaceLabels()"
+          :model-value="mapPlaceLabels"
+          @update:model-value="mapService.togglePlaceLabels()"
         />
       </SettingsItem>
     </SettingsSection>
@@ -230,3 +236,4 @@ const basemap = computed(() => {
     </SettingsSection>
   </div>
 </template>
+@/components/ui/switch_old

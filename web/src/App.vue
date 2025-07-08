@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app.store'
+import { useAuthStore } from '@/stores/auth.store'
 import { useThemeStore } from '@/stores/settings/theme.store'
 import { useCommandService } from '@/services/command.service'
 import { useAuthService } from '@/services/auth.service'
@@ -28,14 +29,17 @@ const navMini = ref(true)
 const viewRef = ref()
 
 const isFloatingLayout = computed(() => route.meta?.layout === 'floating')
+const authStore = useAuthStore()
 
-onMounted(() => {
+onMounted(async () => {
   // TODO: Use maplibre if not authed or not on paid plan
-  authService.getAuthenticatedUser()
-  integrationService.fetchAvailableIntegrations()
-  integrationService.fetchConfiguredIntegrations()
   commandService.bindAllHotkeysToCommands()
   themeStore.initAccentColor()
+  await authService.getAuthenticatedUser()
+  if (authStore.me) {
+    await integrationService.fetchAvailableIntegrations()
+    await integrationService.fetchConfiguredIntegrations()
+  }
 })
 </script>
 

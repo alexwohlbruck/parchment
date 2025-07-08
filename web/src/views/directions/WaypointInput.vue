@@ -44,21 +44,17 @@ const waypoints = computed({
   },
 })
 
-// Separate text inputs from waypoint data
 const inputTexts = ref<string[]>([])
 
-// Initialize input texts when waypoints change
 watch(() => waypoints.value, (newWaypoints) => {
-  // Sync array length
   inputTexts.value.length = newWaypoints.length
   
-  // Fill empty slots and update texts for waypoints with places
   newWaypoints.forEach((waypoint, index) => {
     if (!inputTexts.value[index]) {
-      inputTexts.value[index] = waypoint.place ? getWaypointName(waypoint) : ''
+      inputTexts.value[index] = getWaypointName(waypoint)
     }
   })
-}, { immediate: true })
+}, { immediate: true, deep: true })
 
 function clearWaypoint(index: number) {
   // Clear the input text

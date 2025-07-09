@@ -147,9 +147,11 @@
   "messages": {
     "coordinatesCopied": "Coordenadas copiadas al portapapeles",
     "invitationSent": "Invitación enviada a {email}",
-    "unknownError": "Ha ocurrido un error desconocido",
+    "unknownError": "Ocurrió un error desconocido",
     "plusCodeCopied": "Código Plus copiado al portapapeles",
-    "plusCodeError": "Error al generar el Código Plus"
+    "plusCodeError": "Error al generar el Código Plus",
+    "networkError": "Error de red",
+    "networkErrorDescription": "Intenta conectarte a un servidor {appName} diferente"
   },
   "map": {
     "title": "Mapa",

@@ -655,6 +655,34 @@ const contourLabels: Layer = {
   },
 }
 
+const nearmapImagery: Layer = {
+  name: 'Nearmap Imagery',
+  icon: MapIcon,
+  enabled: true,
+  visible: false,
+  type: LayerType.CUSTOM,
+  engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+  configuration: {
+    id: 'nearmap-imagery',
+    type: MapboxLayerType.RASTER,
+    slot: 'bottom',
+    source: {
+      id: 'nearmap-imagery',
+      type: SourceType.RASTER,
+      tiles: [
+        'https://api.nearmap.com/tiles/v3/Vert/{z}/{x}/{y}.img?apikey=YWI4OGY1YjUtZWNkZC00YzJkLWFjZWUtNmQ1YmExYTRlM2I1&until=2024-11-13',
+      ],
+      tileSize: 256,
+      attribution: '<a href="https://www.nearmap.com/">© Nearmap</a>',
+    },
+    paint: {
+      'raster-opacity': 1,
+      'raster-fade-duration': 0,
+      'raster-emissive-strength': 1,
+    },
+  },
+}
+
 export const layers: Layer[] = [
   mapillaryOverview,
   mapillarySequence,
@@ -674,4 +702,5 @@ export const layers: Layer[] = [
   hillshade,
   contours,
   contourLabels,
+  nearmapImagery,
 ] as Layer[]

@@ -21,6 +21,9 @@
     "@morev/vue-transitions"
   ],
   "dependencies": {
+    "@deck.gl/core": "^9.1.13",
+    "@deck.gl/geo-layers": "^9.1.13",
+    "@deck.gl/mapbox": "^9.1.13",
     "@internationalized/date": "^3.5.4",
     "@mdi/js": "^7.4.47",
     "@morev/vue-transitions": "^3.0.2",

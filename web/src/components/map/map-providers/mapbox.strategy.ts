@@ -43,6 +43,10 @@ import { createVueMarkerElement } from '@/lib/vue-marker.utils'
 import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
 import { useAppStore } from '@/stores/app.store'
 
+// Import deck.gl modules directly
+import { Deck } from '@deck.gl/core'
+import { Tile3DLayer } from '@deck.gl/geo-layers'
+
 const basemapUrls: {
   [key in Basemap]: string
 } = {
@@ -50,6 +54,7 @@ const basemapUrls: {
   standard: 'mapbox://styles/mapbox/standard',
   hybrid: 'mapbox://styles/mapbox/satellite-streets-v11',
   satellite: 'mapbox://styles/mapbox/satellite-v9',
+  'google-3d': 'mapbox://styles/mapbox/satellite-v9', // Base style for 3D tiles overlay
 }
 
 declare module 'mapbox-gl' {
@@ -79,6 +84,7 @@ export class MapboxStrategy extends MapStrategy {
   mapInstance: MapboxMap
   geolocateControl: GeolocateControl
   layerGroups: Map<string, LayerGroup> = new Map()
+  deckOverlay: any = null // Deck.gl overlay for 3D tiles
 
   constructor(container, options: MapOptions, accessToken?: string) {
     super(container, options, accessToken)
@@ -441,9 +447,116 @@ export class MapboxStrategy extends MapStrategy {
     this.mapInstance.setConfigProperty('basemap', 'lightPreset', lightPreset)
   }
 
+  async initializeGoogle3DTiles() {
+    try {
+      // Create a canvas element for deck.gl overlay first
+      const deckCanvas = document.createElement('canvas')
+      deckCanvas.id = 'deck-canvas'
+      deckCanvas.style.position = 'absolute'
+      deckCanvas.style.top = '0'
+      deckCanvas.style.left = '0'
+      deckCanvas.style.pointerEvents = 'none'
+      deckCanvas.style.zIndex = '1'
+      deckCanvas.style.width = '100%'
+      deckCanvas.style.height = '100%'
+      
+      this.container.style.position = 'relative'
+      this.container.appendChild(deckCanvas)
+
+      const deckOverlay = new Deck({
+        canvas: deckCanvas, // Use the actual canvas element, not ID
+        width: this.container.clientWidth,
+        height: this.container.clientHeight,
+        controller: false, // Let Mapbox handle controls
+        initialViewState: {
+          longitude: this.mapInstance.getCenter().lng,
+          latitude: this.mapInstance.getCenter().lat,
+          zoom: this.mapInstance.getZoom(),
+          bearing: this.mapInstance.getBearing(),
+          pitch: this.mapInstance.getPitch(),
+        },
+        layers: [
+          new Tile3DLayer({
+            id: 'google-3d-tiles',
+            data: 'https://tile.googleapis.com/v1/3dtiles/root.json',
+            loadOptions: {
+              fetch: {
+                headers: {
+                  'X-GOOG-API-KEY': import.meta.env.VITE_GOOGLE_3D_API_KEY,
+                },
+              },
+            },
+            onTilesetLoad: (tileset: any) => {
+              console.log('Google 3D Tileset loaded:', tileset)
+            },
+            onTileLoad: (tile: any) => {
+              console.log('Google 3D Tile loaded:', tile)
+            },
+            onTileError: (tile: any, url: string, message: string) => {
+              console.error('Google 3D Tile error:', { tile, url, message })
+            },
+          }),
+        ],
+      })
+
+      // Sync deck.gl view with Mapbox
+      const syncViewState = () => {
+        if (this.deckOverlay) {
+          this.deckOverlay.setProps({
+            viewState: {
+              longitude: this.mapInstance.getCenter().lng,
+              latitude: this.mapInstance.getCenter().lat,
+              zoom: this.mapInstance.getZoom(),
+              bearing: this.mapInstance.getBearing(),
+              pitch: this.mapInstance.getPitch(),
+            },
+          })
+        }
+      }
+
+      this.mapInstance.on('move', syncViewState)
+      this.mapInstance.on('resize', () => {
+        if (this.deckOverlay) {
+          this.deckOverlay.setProps({
+            width: this.container.clientWidth,
+            height: this.container.clientHeight,
+          })
+        }
+      })
+
+      this.deckOverlay = deckOverlay
+      console.log('Google 3D Tiles initialized successfully')
+    } catch (error) {
+      console.error('Failed to initialize Google 3D Tiles:', error)
+    }
+  }
+
+  cleanupGoogle3DTiles() {
+    if (this.deckOverlay) {
+      this.deckOverlay.finalize()
+      this.deckOverlay = null
+    }
+    
+    const deckCanvas = document.getElementById('deck-canvas')
+    if (deckCanvas) {
+      deckCanvas.remove()
+    }
+  }
+
   setBasemap(basemap: Basemap) {
     const url = basemapUrls[basemap]
     this.mapInstance.setStyle(url)
+    
+    // Handle Google 3D tiles
+    if (basemap === 'google-3d') {
+      // Initialize 3D tiles after style loads
+      this.mapInstance.once('style.load', () => {
+        this.initializeGoogle3DTiles()
+      })
+    } else {
+      // Clean up 3D tiles if switching away from google-3d
+      this.cleanupGoogle3DTiles()
+    }
   }
 
   removeSource(sourceId: string) {
@@ -548,6 +661,7 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   destroy() {
+    this.cleanupGoogle3DTiles()
     this.mapInstance?.remove()
   }
 

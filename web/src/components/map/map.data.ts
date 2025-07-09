@@ -1,6 +1,6 @@
 import { Icon } from '@/types/app.types'
 import { Basemap } from '@/types/map.types'
-import { Globe2Icon, BlendIcon, SatelliteIcon } from 'lucide-vue-next'
+import { Globe2Icon, BlendIcon, SatelliteIcon, Building } from 'lucide-vue-next'
 
 /**
  * TODO:
@@ -29,5 +29,10 @@ export const basemaps: {
     name: 'Aerial',
     icon: SatelliteIcon,
     url: 'mapbox://styles/mapbox/satellite-v9',
+  },
+  'google-3d': {
+    name: 'Google 3D',
+    icon: Building,
+    url: 'mapbox://styles/mapbox/satellite-v9', // Base satellite style for 3D tiles
   },
 }

@@ -7,7 +7,7 @@ import { Place } from '@/types/place.types'
 // TODO: Use types from official libs
 // import { LayerSpecification, VectorSourceSpecification } from 'mapbox-gl'
 
-export type Basemap = 'standard' | 'satellite' | 'hybrid'
+export type Basemap = 'standard' | 'satellite' | 'hybrid' | 'google-3d'
 
 export enum MapEngine {
   MAPBOX = 'mapbox',

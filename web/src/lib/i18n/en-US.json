@@ -148,7 +148,9 @@
     "invitationSent": "Invitation sent to {email}",
     "unknownError": "An unknown error occurred",
     "plusCodeCopied": "Plus Code copied to clipboard",
-    "plusCodeError": "Error generating Plus Code"
+    "plusCodeError": "Error generating Plus Code",
+    "networkError": "Network error",
+    "networkErrorDescription": "Try connecting to a different {appName} server"
   },
   "map": {
     "title": "Map",

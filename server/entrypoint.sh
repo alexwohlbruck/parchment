@@ -4,7 +4,23 @@
 if [ "$NODE_ENV" = "production" ]; then
     echo "Production mode detected - using compiled JavaScript"
     
-    # Run pre-generated migrations only
+    # Wait for database to be ready using pg_isready
+    echo "Waiting for database to be ready..."
+    DB_HOST=${DATABASE_HOST:-localhost}
+    DB_PORT=${DATABASE_PORT:-5432}
+    
+    # Wait for database to be ready with timeout
+    for i in {1..30}; do
+        if pg_isready -h $DB_HOST -p $DB_PORT >/dev/null 2>&1; then
+            echo "Database is ready!"
+            break
+        else
+            echo "Database not ready yet, waiting... ($i/30)"
+            sleep 2
+        fi
+    done
+    
+    # Run pre-generated migrations (includes spatial indexes)
     echo "Running migrations..."
     bun run migrate:prod
     
@@ -14,7 +30,23 @@ if [ "$NODE_ENV" = "production" ]; then
 else
     echo "Development mode detected - using TypeScript"
     
-    # Run migrations (check if it is necessary to run them, to avoid rerunning)
+    # Wait for database to be ready using pg_isready
+    echo "Waiting for database to be ready..."
+    DB_HOST=${DATABASE_HOST:-localhost}
+    DB_PORT=${DATABASE_PORT:-5432}
+    
+    # Wait for database to be ready with timeout
+    for i in {1..30}; do
+        if pg_isready -h $DB_HOST -p $DB_PORT >/dev/null 2>&1; then
+            echo "Database is ready!"
+            break
+        else
+            echo "Database not ready yet, waiting... ($i/30)"
+            sleep 2
+        fi
+    done
+    
+    # Run migrations (includes spatial indexes)
     echo "Running migrations..."
     bun run migrate:dev
     

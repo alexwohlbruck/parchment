@@ -1,3 +1,6 @@
+export const APP_NAME = 'Parchment Maps'
+export const APP_NAME_SHORT = 'Parchment'
+
 export const DEFAULT_SERVER_URL = 'https://api.parchment.app'
 
 export const MarkerIds = {

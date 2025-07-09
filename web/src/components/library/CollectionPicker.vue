@@ -234,7 +234,7 @@ function openCreateCollectionDialog() {
         >
           <div class="relative mr-0.5">
             <div
-              class="size-7 rounded-sm flex items-center justify-center flex-shrink-0"
+              class="size-7 rounded-sm flex items-center justify-center shrink-0"
               :class="getThemeColorClasses(collection.iconColor as ThemeColor)"
             >
               <ItemIcon
@@ -252,7 +252,7 @@ function openCreateCollectionDialog() {
             </div>
           </div>
 
-          <span class="flex-grow min-w-0 text-left">
+          <span class="grow min-w-0 text-left">
             {{ getDisplayName(collection) }}
           </span>
           <CheckIcon

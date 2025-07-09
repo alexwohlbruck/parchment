@@ -1,5 +1,6 @@
 import type {
   Integration,
+  IntegrationConfig,
   AutocompleteCapability,
   PlaceInfoCapability,
   GeocodingCapability,
@@ -16,6 +17,10 @@ import { GoogleAdapter } from './adapters/google-adapter'
 import { SOURCE } from '../../lib/constants'
 
 // TODO: Use official Google client SDK for requests
+
+export interface GoogleMapsConfig extends IntegrationConfig {
+  apiKey: string
+}
 
 export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
   private adapter = new GoogleAdapter()

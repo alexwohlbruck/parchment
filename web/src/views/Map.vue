@@ -100,7 +100,7 @@ defineExpose({
           v-if="navTransitionComplete && !isMobileScreen"
           class="pointer-events-auto"
         >
-          <Palette class="h-fit w-[25rem]" />
+          <Palette class="h-fit w-100" />
         </div>
       </transition-slide>
     </div>
@@ -126,7 +126,7 @@ defineExpose({
           class="pointer-events-auto flex flex-col gap-2 items-start"
         >
           <!-- Palette placeholder -->
-          <div class="h-11 w-[25rem]" v-if="!isMobileScreen"></div>
+          <div class="h-11 w-100" v-if="!isMobileScreen"></div>
 
           <ScaleControl />
         </div>
@@ -180,7 +180,7 @@ defineExpose({
     <template v-if="isMobileScreen">
       <BottomSheet
         v-if="!route.meta.dialog && isMapSubview"
-        class="absolute bg-background z-30 top-0 left-0 w-full md:w-[26rem] h-full rounded-t-md shadow-lg justify-center"
+        class="absolute bg-background z-30 top-0 left-0 w-full md:w-104 h-full rounded-t-md shadow-lg justify-center"
         @close="closeSheet"
       >
         <router-view />

@@ -312,7 +312,7 @@ defineExpose({
         <FormItem>
           <SettingsItem :title="$t('layers.meta.fields.enabled')">
             <FormControl>
-              <Switch :checked="value" @update:checked="handleChange" />
+              <Switch :model-value="value" @update:model-value="handleChange" />
             </FormControl>
           </SettingsItem>
         </FormItem>
@@ -379,8 +379,8 @@ defineExpose({
             <div class="flex flex-col gap-2">
               <div class="flex items-center space-x-2">
                 <Checkbox
-                  :checked="value.includes(MapEngine.MAPBOX)"
-                  @update:checked="
+                  :model-value="value.includes(MapEngine.MAPBOX)"
+                  @update:model-value="
                     checked => {
                       const newValue = checked
                         ? [...value, MapEngine.MAPBOX]
@@ -393,8 +393,8 @@ defineExpose({
               </div>
               <div class="flex items-center space-x-2">
                 <Checkbox
-                  :checked="value.includes(MapEngine.MAPLIBRE)"
-                  @update:checked="
+                  :model-value="value.includes(MapEngine.MAPLIBRE)"
+                  @update:model-value="
                     checked => {
                       const newValue = checked
                         ? [...value, MapEngine.MAPLIBRE]
@@ -599,3 +599,4 @@ defineExpose({
     </SettingsSection>
   </form>
 </template>
+@/components/ui/switch_old

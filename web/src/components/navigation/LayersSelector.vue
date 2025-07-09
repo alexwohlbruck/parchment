@@ -15,9 +15,9 @@ const { enabledLayers } = storeToRefs(mapStore)
 
 function toggleLayerVisibility(
   layerId: Layer['configuration']['id'],
-  pressed: boolean,
+  visible: boolean,
 ) {
-  mapService.toggleLayerVisibility(layerId, pressed)
+  mapService.toggleLayerVisibility(layerId, visible)
 }
 
 const layers = computed(() => {
@@ -58,8 +58,8 @@ const layers = computed(() => {
         variant="outline"
         :aria-label="layer.name"
         :default-value="layer.visible || false"
-        @update:pressed="
-          pressed => toggleLayerVisibility(layer.configuration.id, pressed)
+        @update:model-value="
+          visible => toggleLayerVisibility(layer.configuration.id, visible)
         "
         class="flex gap-2"
       >

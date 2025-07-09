@@ -97,7 +97,6 @@ async function signIn(otp: string) {
             placeholder="○"
             class="flex gap-2 items-center mt-1"
             otp
-            type="number"
             :name="componentField.name"
             @complete="handleComplete"
             @update:model-value="

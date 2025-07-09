@@ -10,6 +10,7 @@ export const SOURCE = {
   FOURSQUARE: 'foursquare',
   TRIPADVISOR: 'tripadvisor',
   OPENTABLE: 'opentable',
+  VALHALLA: 'valhalla',
 } as const
 // TODO: Fix types for source and integration ids
 export type Source = (typeof SOURCE)[keyof typeof SOURCE]
@@ -32,6 +33,7 @@ export const SOURCE_PRIORITIES = {
   [SOURCE.FOURSQUARE]: 40,
   [SOURCE.TRIPADVISOR]: 40,
   [SOURCE.OPENTABLE]: 30,
+  [SOURCE.VALHALLA]: 70, // Routing provider - high priority for routing data
 } as const
 
 // TODO: Remove this

@@ -13,6 +13,7 @@ import {
   UsersRoundIcon,
   SettingsIcon,
   LibraryIcon,
+  MilestoneIcon,
 } from 'lucide-vue-next'
 
 useObstructingComponent(undefined, 'mobileNav')
@@ -30,9 +31,9 @@ const routeModel = computed({
 const items = computed(() => {
   return [
     {
-      label: t('map.title'),
-      icon: MapIcon,
-      to: '/',
+      label: t('directions.title'),
+      icon: MilestoneIcon,
+      to: '/directions',
     },
     {
       label: capitalize(t('library.title')),

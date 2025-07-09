@@ -120,7 +120,7 @@ async function editBookmark() {
   >
     <CardContent class="p-2 flex items-center gap-3">
       <div
-        class="size-10 rounded-md flex items-center justify-center flex-shrink-0"
+        class="size-10 rounded-md flex items-center justify-center shrink-0"
         :class="colorClasses"
       >
         <ItemIcon
@@ -130,7 +130,7 @@ async function editBookmark() {
         />
       </div>
 
-      <div class="flex-grow min-w-0">
+      <div class="grow min-w-0">
         <div class="flex items-center justify-between">
           <div class="flex flex-col justify-center">
             <h3 class="font-semibold text-sm">{{ bookmark.name }}</h3>

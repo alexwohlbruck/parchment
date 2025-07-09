@@ -25,8 +25,18 @@ import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { watch } from 'vue'
 import { AppRoute } from '@/router'
 import { useRouter } from 'vue-router'
+import { ref } from 'vue'
+import { Component } from 'vue'
 
 const dark = useDark()
+
+// TODO: Move to constants file
+// Constants for map padding behavior
+const MAP_PADDING_CONFIG = {
+  CHANGE_THRESHOLD: 5, // pixels
+  TRANSITION_DELAY: 150, // ms - delay for UI transitions
+  INIT_DELAY: 100, // ms - delay for map initialization
+} as const
 
 function mapService() {
   const mapStore = useMapStore()
@@ -37,6 +47,15 @@ function mapService() {
   const router = useRouter()
   let mapStrategy: MapStrategy
   let mapContainer: HTMLElement
+
+  // Track map loading state and queued operations
+  const isMapReady = ref(false)
+  const queuedTrips = ref<{ trips: any; visibleTripIds: Set<string> } | null>(
+    null,
+  )
+
+  // Debounced padding update to prevent excessive calls
+  let paddingUpdateTimeout: NodeJS.Timeout | null = null
 
   function getMapStrategy(
     container: string | HTMLElement,
@@ -107,11 +126,49 @@ function mapService() {
     mapStore.setMapStrategy(mapStrategy)
 
     mapEventBus.on('load', () => {
+      console.log('Map loaded, setting isMapReady to true')
+      isMapReady.value = true
       mapStore.initializeLayers(enabledLayers.value)
+
+      // Show waypoint markers immediately when map loads
+      const waypoints = directionsStore.waypoints
+      if (waypoints && waypoints.length > 0) {
+        console.log('Map loaded, showing initial waypoint markers')
+        mapStrategy?.setWaypointMarkers(waypoints)
+      }
+
+      // Process any queued trips
+      if (queuedTrips.value) {
+        console.log('Processing queued trips after map load')
+        mapStrategy?.setTrips(
+          queuedTrips.value.trips,
+          queuedTrips.value.visibleTripIds,
+        )
+        queuedTrips.value = null
+      }
     })
 
     mapEventBus.on('style.load', () => {
+      console.log('Map style loaded, setting isMapReady to true')
+      isMapReady.value = true
       mapStore.initializeLayers(enabledLayers.value)
+
+      // Show waypoint markers immediately when style loads
+      const waypoints = directionsStore.waypoints
+      if (waypoints && waypoints.length > 0) {
+        console.log('Map style loaded, showing initial waypoint markers')
+        mapStrategy?.setWaypointMarkers(waypoints)
+      }
+
+      // Process any queued trips
+      if (queuedTrips.value) {
+        console.log('Processing queued trips after style load')
+        mapStrategy?.setTrips(
+          queuedTrips.value.trips,
+          queuedTrips.value.visibleTripIds,
+        )
+        queuedTrips.value = null
+      }
     })
 
     mapEventBus.on('move', data => {
@@ -157,51 +214,108 @@ function mapService() {
     return mapStrategy
   }
 
+  /**
+   * Calculate padding values based on visible map area
+   * Extracted utility function to avoid code duplication
+   */
+  function calculateMapPadding(): {
+    padding: MapCamera['padding']
+    isFullyVisible: boolean
+  } | null {
+    if (!mapContainer) {
+      return null
+    }
+
+    const visibleArea = appStore.visibleMapArea
+    const mapWidth = mapContainer.clientWidth
+    const mapHeight = mapContainer.clientHeight
+
+    // Check if we have valid dimensions
+    if (!mapWidth || !mapHeight) {
+      return null
+    }
+
+    // Check if the full map is visible
+    const isFullyVisible =
+      visibleArea.width === mapWidth && visibleArea.height === mapHeight
+
+    if (isFullyVisible) {
+      return {
+        padding: { top: 0, bottom: 0, left: 0, right: 0 },
+        isFullyVisible: true,
+      }
+    }
+
+    // Calculate padding values
+    const padding = {
+      left: Math.max(0, visibleArea.x),
+      top: Math.max(0, visibleArea.y),
+      right: Math.max(0, mapWidth - (visibleArea.x + visibleArea.width)),
+      bottom: Math.max(0, mapHeight - (visibleArea.y + visibleArea.height)),
+    }
+
+    return { padding, isFullyVisible: false }
+  }
+
+  /**
+   * Check if two padding objects are significantly different
+   */
+  function hasPaddingChanged(
+    oldPadding: MapCamera['padding'],
+    newPadding: MapCamera['padding'],
+  ): boolean {
+    if (!oldPadding || !newPadding) return true
+
+    const threshold = MAP_PADDING_CONFIG.CHANGE_THRESHOLD
+    return (
+      Math.abs((oldPadding.left || 0) - (newPadding.left || 0)) > threshold ||
+      Math.abs((oldPadding.top || 0) - (newPadding.top || 0)) > threshold ||
+      Math.abs((oldPadding.right || 0) - (newPadding.right || 0)) > threshold ||
+      Math.abs((oldPadding.bottom || 0) - (newPadding.bottom || 0)) > threshold
+    )
+  }
+
+  /**
+   * Debounced update of map padding
+   */
+  function debouncedUpdateMapPadding(
+    delay: number = MAP_PADDING_CONFIG.TRANSITION_DELAY,
+  ) {
+    if (paddingUpdateTimeout) {
+      clearTimeout(paddingUpdateTimeout)
+    }
+
+    paddingUpdateTimeout = setTimeout(() => {
+      updateMapPadding()
+      paddingUpdateTimeout = null
+    }, delay)
+  }
+
   // Helper function to adjust camera center based on visible map area
+  // Note: This is used for manual camera operations (flyTo/jumpTo)
+  // Automatic padding adjustment is handled by the visibleMapArea watcher
   function adjustCameraForVisibleCenter(
     camera: Partial<MapCamera>,
   ): Partial<MapCamera> {
     const adjustedCamera = { ...camera }
 
-    try {
-      const visibleArea = appStore.visibleMapArea
-      const mapWidth = mapContainer.clientWidth
-      const mapHeight = mapContainer.clientHeight
+    // If padding is already provided in the camera object, use it as-is
+    if (camera.padding) {
+      return adjustedCamera
+    }
 
-      // If we're showing the full map or if we don't have a valid map container yet
-      if (
-        !mapStrategy ||
-        !mapWidth ||
-        !mapHeight ||
-        (visibleArea.width === mapWidth && visibleArea.height === mapHeight)
-      ) {
+    try {
+      const paddingResult = calculateMapPadding()
+
+      if (!paddingResult || !mapStrategy) {
         return adjustedCamera
       }
 
-      // Calculate padding values based on the differences between
-      // the map container edges and the visible area edges
-      const paddingLeft = Math.max(0, visibleArea.x)
-      const paddingTop = Math.max(0, visibleArea.y)
-      const paddingRight = Math.max(
-        0,
-        mapWidth - (visibleArea.x + visibleArea.width),
-      )
-      const paddingBottom = Math.max(
-        0,
-        mapHeight - (visibleArea.y + visibleArea.height),
-      )
-
-      // Set padding instead of offset
-      adjustedCamera.padding = {
-        left: paddingLeft,
-        top: paddingTop,
-        right: paddingRight,
-        bottom: paddingBottom,
-      }
-
+      // Set padding to ensure the camera operation respects the visible area
+      adjustedCamera.padding = paddingResult.padding
       return adjustedCamera
     } catch (error) {
-      console.warn('Error adjusting camera for visible map area', error)
+      console.warn('Error adjusting camera for visible map area:', error)
       return camera
     }
   }
@@ -218,6 +332,8 @@ function mapService() {
 
   function setMapEngine(mapEngine: MapEngine) {
     destroy()
+    isMapReady.value = false // Reset map ready state
+    queuedTrips.value = null // Clear any queued trips
     mapStore.setMapEngine(mapEngine)
 
     // Only initialize map if we have a container
@@ -322,6 +438,100 @@ function mapService() {
     mapStrategy?.resize()
   }
 
+  /**
+   * Update map padding to keep orbit point centered in unobstructed area
+   * Uses easeTo with padding to smoothly adjust the map's effective viewport
+   */
+  function updateMapPadding() {
+    if (!mapStrategy || !mapContainer) {
+      console.warn('Cannot update map padding: map not ready')
+      return
+    }
+
+    try {
+      const paddingResult = calculateMapPadding()
+
+      if (!paddingResult) {
+        console.warn('Cannot calculate map padding: invalid dimensions')
+        return
+      }
+
+      // Apply the padding using flyTo for smooth transition
+      mapStrategy.flyTo({
+        padding: paddingResult.padding,
+      })
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Updated map padding:', {
+          padding: paddingResult.padding,
+          isFullyVisible: paddingResult.isFullyVisible,
+          visibleArea: appStore.visibleMapArea,
+          mapDimensions: {
+            width: mapContainer.clientWidth,
+            height: mapContainer.clientHeight,
+          },
+        })
+      }
+    } catch (error) {
+      console.error('Error updating map padding:', error)
+    }
+  }
+
+  // Watch for changes in the visible map area and automatically adjust padding
+  watch(
+    () => appStore.visibleMapArea,
+    (newVisibleArea, oldVisibleArea) => {
+      // Only update if the map is ready and we have valid areas
+      if (
+        !isMapReady.value ||
+        !mapStrategy ||
+        !newVisibleArea ||
+        !oldVisibleArea
+      ) {
+        return
+      }
+
+      // Calculate old and new padding to check for significant changes
+      const oldPaddingResult = calculateMapPadding()
+      if (!oldPaddingResult) return
+
+      // Use a more sophisticated change detection based on actual padding values
+      const hasSignificantChange =
+        Math.abs(newVisibleArea.x - oldVisibleArea.x) >
+          MAP_PADDING_CONFIG.CHANGE_THRESHOLD ||
+        Math.abs(newVisibleArea.y - oldVisibleArea.y) >
+          MAP_PADDING_CONFIG.CHANGE_THRESHOLD ||
+        Math.abs(newVisibleArea.width - oldVisibleArea.width) >
+          MAP_PADDING_CONFIG.CHANGE_THRESHOLD ||
+        Math.abs(newVisibleArea.height - oldVisibleArea.height) >
+          MAP_PADDING_CONFIG.CHANGE_THRESHOLD
+
+      if (hasSignificantChange) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log(
+            'Visible area changed significantly, updating map padding:',
+            {
+              old: oldVisibleArea,
+              new: newVisibleArea,
+            },
+          )
+        }
+
+        // Use debounced update to prevent excessive calls during animations
+        debouncedUpdateMapPadding()
+      }
+    },
+    { deep: true },
+  )
+
+  // Also update padding when map becomes ready
+  watch(isMapReady, ready => {
+    if (ready) {
+      // Use init delay to ensure map is fully initialized
+      debouncedUpdateMapPadding(MAP_PADDING_CONFIG.INIT_DELAY)
+    }
+  })
+
   watch(dark, newDark => {
     mapStrategy?.setMapTheme(newDark ? MapTheme.DARK : MapTheme.LIGHT)
   })
@@ -362,6 +572,76 @@ function mapService() {
     },
   )
 
+  // Watch for trip changes
+  watch(
+    () => directionsStore.trips,
+    trips => {
+      console.log(
+        'Trips changed in map service:',
+        !!trips,
+        'isMapReady:',
+        isMapReady.value,
+      )
+
+      if (trips) {
+        // Show the first trip by default (recommended or first in list)
+        const firstTrip =
+          trips.trips.find(trip => trip.isRecommended) || trips.trips[0]
+        const defaultTripIds = firstTrip
+          ? new Set([firstTrip.id])
+          : new Set<string>()
+
+        if (isMapReady.value && mapStrategy) {
+          console.log('Map is ready, showing first trip and waypoints')
+          mapStrategy.setTrips(trips, defaultTripIds)
+        } else {
+          console.log('Map not ready, queuing first trip and waypoints')
+          queuedTrips.value = { trips, visibleTripIds: defaultTripIds }
+        }
+      } else {
+        console.log('Trips cleared, unsetting trips')
+        if (mapStrategy) {
+          mapStrategy.unsetTrips()
+        }
+        queuedTrips.value = null
+      }
+    },
+  )
+
+  // Watch for waypoint changes and always show waypoint markers
+  watch(
+    () => directionsStore.waypoints,
+    waypoints => {
+      console.log('Waypoints changed in map service:', waypoints.length)
+
+      if (isMapReady.value && mapStrategy) {
+        console.log('Map is ready, updating waypoint markers')
+        mapStrategy.setWaypointMarkers(waypoints)
+      }
+      // Note: We don't queue waypoint markers since they're managed separately
+    },
+    { deep: true },
+  )
+
+  // Watch for selected trip changes
+  watch(
+    () => directionsStore.selectedTripId,
+    (selectedTripId, oldSelectedTripId) => {
+      const trips = directionsStore.trips
+      if (!trips || !selectedTripId) return
+
+      console.log('Selected trip changed:', selectedTripId)
+
+      const visibleTripIds = new Set([selectedTripId])
+
+      if (isMapReady.value && mapStrategy) {
+        mapStrategy.setTrips(trips, visibleTripIds)
+      } else {
+        queuedTrips.value = { trips, visibleTripIds }
+      }
+    },
+  )
+
   function toggleLayer(layerId: Layer['configuration']['id'], state?: boolean) {
     mapStore.toggleLayer(layerId, state)
   }
@@ -386,12 +666,106 @@ function mapService() {
   }
 
   function destroy() {
+    // Reset state
+    isMapReady.value = false
+    queuedTrips.value = null
+
+    // Clear any pending padding updates
+    if (paddingUpdateTimeout) {
+      clearTimeout(paddingUpdateTimeout)
+      paddingUpdateTimeout = null
+    }
+
     // Remove event listeners
     // TODO: Automatically remove all listeners without explicitly naming them
     mapEventBus.off('load')
     mapEventBus.off('style.load')
     mapEventBus.off('move')
     mapStrategy?.destroy() // Remove map instance
+  }
+
+  /**
+   * Set which trips are visible on the map
+   */
+  function setVisibleTrips(tripIds: string[]) {
+    const trips = directionsStore.trips
+    if (!trips) {
+      return
+    }
+
+    const visibleTripIds = new Set(tripIds)
+
+    if (isMapReady.value && mapStrategy) {
+      mapStrategy.setTrips(trips, visibleTripIds)
+    } else {
+      queuedTrips.value = { trips, visibleTripIds }
+    }
+  }
+
+  /**
+   * Show all trips on the map
+   */
+  function showAllTrips() {
+    const trips = directionsStore.trips
+    if (!trips) return
+
+    const allTripIds = new Set(trips.trips.map(trip => trip.id))
+
+    if (isMapReady.value && mapStrategy) {
+      console.log('Showing all trips')
+      mapStrategy.setTrips(trips, allTripIds)
+    } else {
+      console.log('Map not ready, queuing all trips')
+      queuedTrips.value = { trips, visibleTripIds: allTripIds }
+    }
+  }
+
+  /**
+   * Show only waypoint markers without any trip routes
+   */
+  function showOnlyWaypoints() {
+    const trips = directionsStore.trips
+    if (!trips) return
+
+    // Pass empty set to hide all trip routes but keep waypoints
+    const noTripIds = new Set<string>()
+
+    if (isMapReady.value && mapStrategy) {
+      console.log('Showing only waypoints')
+      mapStrategy.setTrips(trips, noTripIds)
+      // Reset selected trip to null when showing only waypoints
+      directionsStore.setSelectedTripId(null)
+    } else {
+      console.log('Map not ready, queuing waypoints only')
+      queuedTrips.value = { trips, visibleTripIds: noTripIds }
+    }
+  }
+
+  /**
+   * Show specific trip on hover
+   */
+  function showTripOnHover(tripId: string) {
+    const trips = directionsStore.trips
+    if (!trips) return
+
+    console.log('Showing trip on hover:', tripId)
+
+    // Update selected trip in store
+    directionsStore.setSelectedTripId(tripId)
+  }
+
+  /**
+   * Show the default trip (first/recommended)
+   */
+  function showDefaultTrip() {
+    const trips = directionsStore.trips
+    if (!trips || trips.trips.length === 0) return
+
+    const firstTrip =
+      trips.trips.find(trip => trip.isRecommended) || trips.trips[0]
+    if (firstTrip) {
+      directionsStore.setSelectedTripId(firstTrip.id)
+    }
   }
 
   /**
@@ -430,6 +804,7 @@ function mapService() {
   return {
     initializeMap,
     resize,
+    updateMapPadding,
     toggleLayer,
     toggleLayerVisibility,
     toggleStreetViewLayers,
@@ -451,12 +826,23 @@ function mapService() {
     clearPegman: mapStore.clearPegman,
     addMarker: (id: MarkerId, lngLat: LngLat) =>
       mapStrategy?.addMarker(id, lngLat),
+    addVueMarker: (
+      id: string,
+      lngLat: LngLat,
+      component: Component,
+      props: Record<string, any> = {},
+    ) => mapStrategy?.addVueMarker(id, lngLat, component, props),
     removeAllMarkers: () => mapStrategy?.removeAllMarkers(),
     zoomIn,
     zoomOut,
     resetNorth,
     locate: () => mapStrategy?.locate(),
     setMapContainer,
+    setVisibleTrips,
+    showAllTrips,
+    showOnlyWaypoints,
+    showTripOnHover,
+    showDefaultTrip,
   }
 }
 

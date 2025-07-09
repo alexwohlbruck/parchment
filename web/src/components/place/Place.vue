@@ -77,9 +77,22 @@ function handleDirectionsClick() {
 
   const waypoint = {
     lngLat: new LngLat(coordinates.value.lng, coordinates.value.lat),
+    place: props.place,
   }
 
   directionsService.directionsTo(waypoint)
+  router.push({ name: AppRoute.DIRECTIONS })
+}
+
+function handleDirectionsFromClick() {
+  if (!coordinates.value) return
+
+  const waypoint = {
+    lngLat: new LngLat(coordinates.value.lng, coordinates.value.lat),
+    place: props.place,
+  }
+
+  directionsService.directionsFrom(waypoint)
   router.push({ name: AppRoute.DIRECTIONS })
 }
 
@@ -127,6 +140,7 @@ function handleBrandLogoError() {
             class="mt-4"
             :place="place"
             @directions="handleDirectionsClick"
+            @directionsFrom="handleDirectionsFromClick"
             @share="sharePlace"
           />
         </div>

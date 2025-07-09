@@ -3,7 +3,6 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Command, CommandArgumentOption } from '@/types/command.types'
 import { Locale } from '@/lib/i18n'
-import { AppRoute } from '@/router'
 import { getPlaceRoute } from '@/lib/place.utils'
 import {
   ChevronsRightIcon,
@@ -19,7 +18,7 @@ import {
   SunMoonIcon,
   TerminalIcon,
 } from 'lucide-vue-next'
-import { Place } from '../types/place.types'
+import * as LucideIcons from 'lucide-vue-next'
 import { useDark, useToggle } from '@vueuse/core'
 import {
   allColors,
@@ -32,9 +31,10 @@ import { useMapService } from '@/services/map.service'
 import { useI18n } from 'vue-i18n'
 import { useAuthService } from '@/services/auth.service'
 import { MapEngine, MapProjection } from '@/types/map.types'
-import { usePlaceSearchService } from '@/services/place-search.service'
+import { usePlaceSearchService } from '@/services/search.service'
 import { useCommandService } from '@/services/command.service'
 import { formatAddress } from '@/lib/place.utils'
+import { Icon } from '@/types/app.types'
 
 export enum CommandName {
   OPEN_PALETTE = 'openPalette',
@@ -51,6 +51,23 @@ export enum CommandName {
 }
 
 // TODO: Move command options to separate file
+
+/**
+ * Convert icon string name to Vue component
+ */
+function getIconComponent(iconName?: string): Icon {
+  if (!iconName) return MapPinIcon
+
+  const fullName = iconName.endsWith('Icon') ? iconName : `${iconName}Icon`
+
+  const isValidIcon =
+    fullName !== 'icons' &&
+    typeof LucideIcons[fullName as keyof typeof LucideIcons] === 'function'
+
+  return isValidIcon
+    ? (LucideIcons[fullName as keyof typeof LucideIcons] as Icon)
+    : MapPinIcon
+}
 
 export const useCommandStore = defineStore('command', () => {
   const isDark = useDark()
@@ -140,10 +157,6 @@ export const useCommandStore = defineStore('command', () => {
               const { currentSearchQuery } = useCommandService()
               const searchText = currentSearchQuery.value
 
-              if (!searchText || searchText.length < 2) {
-                return []
-              }
-
               try {
                 const mapStore = useMapStore()
                 const center = mapStore.mapCamera.center
@@ -161,23 +174,18 @@ export const useCommandStore = defineStore('command', () => {
                   lat = center.lat || 0
                 }
 
-                const suggestions = await placeSearchService.getAutocomplete(
-                  searchText,
-                  lat,
-                  lng,
-                )
+                const searchResults =
+                  await placeSearchService.getAutocompleteSuggestions({
+                    query: searchText,
+                    lat,
+                    lng,
+                  })
 
-                if (suggestions.length === 0) {
-                  return []
-                }
-
-                console.log(suggestions)
-
-                return suggestions.map(place => ({
-                  value: place.id,
-                  name: place.name.value,
-                  description: formatAddress(place),
-                  icon: MapPinIcon,
+                return searchResults.map(result => ({
+                  value: result.id,
+                  name: result.title,
+                  description: result.description,
+                  icon: getIconComponent(result.icon),
                 }))
               } catch (error) {
                 console.error('Error loading place suggestions:', error)

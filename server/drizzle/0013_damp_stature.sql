@@ -1,0 +1,1 @@
+CREATE INDEX "idx_bookmarks_geometry" ON "bookmarks" USING gist ("geometry");

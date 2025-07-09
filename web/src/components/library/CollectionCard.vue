@@ -53,7 +53,7 @@ function goToCollection() {
       </div>
 
       <!-- Content -->
-      <div class="flex-grow min-w-0">
+      <div class="grow min-w-0">
         <div class="flex items-center justify-between">
           <div class="flex flex-col justify-center">
             <div class="flex items-center gap-2">

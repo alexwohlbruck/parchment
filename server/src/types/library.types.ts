@@ -4,7 +4,12 @@ import {
   bookmarksCollections,
 } from '../schema/library.schema'
 
-export type Bookmark = typeof bookmarks.$inferSelect
+// For API responses, we want to expose lat/lng instead of raw geometry
+export type Bookmark = Omit<typeof bookmarks.$inferSelect, 'geometry'> & {
+  lat: number
+  lng: number
+}
+
 export type NewBookmark = typeof bookmarks.$inferInsert
 export type Collection = typeof collections.$inferSelect
 export type NewCollection = typeof collections.$inferInsert
@@ -15,6 +20,8 @@ export type CreateBookmarkParams = {
   externalIds: Record<string, string> // Must include at least 'osm' key
   name: string
   address?: string
+  lat: number
+  lng: number
   icon?: string
   iconColor?: string
   presetType?: 'home' | 'work' | 'school'

@@ -6,7 +6,7 @@ import {
   AlertDialogOverlay,
   AlertDialogPortal,
   useEmitAsProps,
-} from 'radix-vue'
+} from 'reka-ui'
 import { cn } from '@/lib/utils'
 
 const props = defineProps<AlertDialogContentProps & { class?: string }>()
@@ -18,7 +18,7 @@ const emitsAsProps = useEmitAsProps(emits)
 <template>
   <AlertDialogPortal>
     <AlertDialogOverlay
-      class="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+      class="fixed inset-0 z-50 bg-background/80 backdrop-blur-xs data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
     />
     <AlertDialogContent
       v-bind="{ ...props, ...emitsAsProps }"

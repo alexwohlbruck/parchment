@@ -4,7 +4,6 @@ import {
   IntegrationRecord,
   IntegrationCapabilityId,
   IntegrationId,
-  IntegrationRecord,
   Integration,
 } from '../../types/integration.types'
 import { IntegrationRegistry } from './integration-registry'
@@ -12,11 +11,18 @@ import { Source } from '../../lib/constants'
 import { initializeWithTest } from '../../lib/integration.utils'
 
 /**
+ * Cached integration that combines database record with integration instance
+ */
+interface CachedIntegration extends IntegrationRecord {
+  integration: Integration<IntegrationConfig>
+}
+
+/**
  * Service for managing integrations and their configurations
  */
 export class IntegrationManagerService {
   private registry: IntegrationRegistry
-  private integrationsCache: Map<string, IntegrationRecord> = new Map()
+  private integrationsCache: Map<string, CachedIntegration> = new Map()
   private userIntegrationsCache: Map<string, string[]> = new Map()
   private systemIntegrationsCache: string[] = []
 
@@ -63,23 +69,17 @@ export class IntegrationManagerService {
       return
     }
 
-    // Clone the integration to ensure each integration has its own instance
     const integrationInstance = this.cloneIntegration(integrationImpl)
 
-    // Initialize the integration with connection testing
     await initializeWithTest(integrationInstance, integrationData.config)
 
-    // Cache the integration
     const cacheKey = userId
       ? `${userId}:${integrationData.id}`
       : `system:${integrationData.id}`
+
     this.integrationsCache.set(cacheKey, {
-      userId: userId ?? null,
-      id: integrationData.id,
-      integrationId: integrationData.integrationId,
+      ...integrationData,
       integration: integrationInstance,
-      capabilities: integrationData.capabilities,
-      config: integrationData.config,
     })
 
     // Update the appropriate integrations cache
@@ -113,14 +113,22 @@ export class IntegrationManagerService {
       : `system:${integrationId}`
     const userSpecificIntegration = this.integrationsCache.get(cacheKey)
 
-    if (userSpecificIntegration || !userId) {
-      return userSpecificIntegration
+    if (userSpecificIntegration) {
+      return this.extractIntegrationRecord(userSpecificIntegration)
+    }
+
+    if (!userId) {
+      return undefined
     }
 
     // If we didn't find a user-specific integration and userId is provided,
     // also check for a system-wide integration
     const systemCacheKey = `system:${integrationId}`
-    return this.integrationsCache.get(systemCacheKey)
+    const systemIntegration = this.integrationsCache.get(systemCacheKey)
+
+    return systemIntegration
+      ? this.extractIntegrationRecord(systemIntegration)
+      : undefined
   }
 
   /**
@@ -137,7 +145,9 @@ export class IntegrationManagerService {
       this.getConfiguredIntegrationsByCapability(capabilityId)
 
     const compatibleIntegrations = integrations.filter((integration) =>
-      integration.integration.sources?.includes(sourceId),
+      this.integrationsCache
+        .get(this.getCacheKey(integration))
+        ?.integration.sources?.includes(sourceId),
     )
 
     // Return the first compatible integration
@@ -154,21 +164,28 @@ export class IntegrationManagerService {
       // Return only system-wide integrations
       return this.systemIntegrationsCache
         .map((cacheKey) => this.integrationsCache.get(cacheKey))
-        .filter(
-          (integration) => integration !== undefined,
-        ) as IntegrationRecord[]
+        .filter((integration) => integration !== undefined)
+        .map((cachedIntegration) =>
+          this.extractIntegrationRecord(cachedIntegration!),
+        )
     }
 
     // Get user-specific integrations
     const userIntegrations = this.userIntegrationsCache.get(userId) || []
     const userSpecificIntegrations = userIntegrations
       .map((cacheKey) => this.integrationsCache.get(cacheKey))
-      .filter((integration) => integration !== undefined) as IntegrationRecord[]
+      .filter((integration) => integration !== undefined)
+      .map((cachedIntegration) =>
+        this.extractIntegrationRecord(cachedIntegration!),
+      )
 
     // Get system-wide integrations
     const systemIntegrations = this.systemIntegrationsCache
       .map((cacheKey) => this.integrationsCache.get(cacheKey))
-      .filter((integration) => integration !== undefined) as IntegrationRecord[]
+      .filter((integration) => integration !== undefined)
+      .map((cachedIntegration) =>
+        this.extractIntegrationRecord(cachedIntegration!),
+      )
 
     // Return both user-specific and system-wide integrations
     return [...userSpecificIntegrations, ...systemIntegrations]
@@ -244,7 +261,7 @@ export class IntegrationManagerService {
       )
 
       if (hasCapability) {
-        result.push(cachedIntegration)
+        result.push(this.extractIntegrationRecord(cachedIntegration))
       }
     }
 
@@ -267,9 +284,37 @@ export class IntegrationManagerService {
     return integration.capabilityIds
   }
 
-  private cloneIntegration(integration: Integration): Integration {
+  /**
+   * Get the cached integration instance for a given integration record
+   * @param integration The integration record
+   * @returns The cached integration instance, or undefined if not found
+   */
+  getCachedIntegrationInstance(
+    integration: IntegrationRecord,
+  ): Integration<IntegrationConfig> | undefined {
+    const cacheKey = this.getCacheKey(integration)
+    return this.integrationsCache.get(cacheKey)?.integration
+  }
+
+  private getCacheKey(integration: IntegrationRecord): string {
+    return integration.userId
+      ? `${integration.userId}:${integration.id}`
+      : `system:${integration.id}`
+  }
+
+  private extractIntegrationRecord(
+    cachedIntegration: CachedIntegration,
+  ): IntegrationRecord {
+    const { integration, ...integrationRecord } = cachedIntegration
+    return integrationRecord
+  }
+
+  private cloneIntegration(
+    integration: Integration<IntegrationConfig>,
+  ): Integration<IntegrationConfig> {
     // Create a new instance using the constructor
-    const IntegrationClass = integration.constructor as new () => Integration
+    const IntegrationClass =
+      integration.constructor as new () => Integration<IntegrationConfig>
     const clonedIntegration = new IntegrationClass()
 
     // Don't initialize here - let the caller handle initialization with the correct config

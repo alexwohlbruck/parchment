@@ -51,8 +51,9 @@ const columns: ColumnDef<Layer>[] = [
     header: t('layers.meta.fields.enabled'),
     cell: ({ row }) =>
       h(Switch, {
-        checked: row.original.enabled,
-        onClick: () => mapService.toggleLayer(row.original.configuration.id),
+        modelValue: row.original.enabled,
+        'onUpdate:modelValue': () =>
+          mapService.toggleLayer(row.original.configuration.id),
       }),
   },
   {
@@ -71,3 +72,4 @@ const columns: ColumnDef<Layer>[] = [
 <template>
   <DataTable :columns="columns" :data="layers" />
 </template>
+@/components/ui/switch_old

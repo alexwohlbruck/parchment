@@ -39,7 +39,7 @@ const columns: ColumnDef<Passkey>[] = [
     id: 'delete',
     cell: ({ row }) =>
       h(Button, {
-        variant: 'outline',
+        variant: 'outline-solid',
         size: 'icon',
         icon: Trash2Icon,
         class: 'text-destructive',

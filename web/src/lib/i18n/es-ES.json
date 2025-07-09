@@ -147,9 +147,11 @@
   "messages": {
     "coordinatesCopied": "Coordenadas copiadas al portapapeles",
     "invitationSent": "Invitación enviada a {email}",
-    "unknownError": "Ha ocurrido un error desconocido",
+    "unknownError": "Ocurrió un error desconocido",
     "plusCodeCopied": "Código Plus copiado al portapapeles",
-    "plusCodeError": "Error al generar el Código Plus"
+    "plusCodeError": "Error al generar el Código Plus",
+    "networkError": "Error de red",
+    "networkErrorDescription": "Intenta conectarte a un servidor {appName} diferente"
   },
   "map": {
     "title": "Mapa",
@@ -226,9 +228,20 @@
     "title": "Direcciones",
     "directionsFromHere": "Direcciones desde aquí",
     "directionsToHere": "Direcciones a aquí",
+    "directionsTo": "Direcciones a",
+    "directionsFrom": "Direcciones desde",
     "to": "A",
     "from": "Desde",
     "addStop": "Añadir parada"
+  },
+  "place": {
+    "actions": {
+      "directionsFrom": "Direcciones desde aquí",
+      "directionsTo": "Direcciones",
+      "share": "Compartir",
+      "save": "Guardar lugar",
+      "manageCollections": "Gestionar colecciones"
+    }
   },
   "library": {
     "title": "biblioteca",
@@ -331,8 +344,9 @@
     "bookmarks": {
       "fetchError": "Error al obtener marcadores",
       "saveErrorNoOsmId": "No se puede guardar el lugar sin un ID de OSM.",
+      "saveErrorNoCoordinates": "No se puede guardar el lugar sin coordenadas",
       "saveErrorNoCollectionId": "El marcador debe pertenecer al menos a una colección.",
-      "saveSuccess": "Marcado {name}",
+      "saveSuccess": "Marcador guardado {name}",
       "saveError": "Error al guardar marcador",
       "updateSuccess": "Marcador actualizado",
       "updateError": "Error al actualizar marcador",
@@ -483,7 +497,8 @@
         "button": "Probar Conexión",
         "success": "Conexión exitosa",
         "failure": "Conexión fallida",
-        "error": "Error al probar la conexión"
+        "error": "Error al probar la conexión",
+        "validation_error": "Por favor corrige los errores de validación antes de probar"
       },
       "capabilities": {
         "search": "Buscar",
@@ -505,7 +520,8 @@
         "mapillary": "Plataforma de imágenes a nivel de calle",
         "nominatim": "Geocodificación de código abierto",
         "tripadvisor": "Reseñas y recomendaciones de viajes",
-        "geoapify": "Geocodificación, rutas e información de lugares"
+        "geoapify": "Geocodificación, rutas e información de lugares",
+        "valhalla": "Motor de rutas de código abierto para navegación multimodal"
       }
     },
     "users": {

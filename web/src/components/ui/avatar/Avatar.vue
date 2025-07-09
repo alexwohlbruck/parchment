@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AvatarRoot } from 'radix-vue'
+import { AvatarRoot } from 'reka-ui'
 import { avatarVariant } from '.'
 import { cn } from '@/lib/utils'
 

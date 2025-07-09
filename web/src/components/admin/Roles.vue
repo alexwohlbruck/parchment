@@ -37,7 +37,7 @@ const columns: ColumnDef<Role>[] = [
     cell: ({ row }) =>
       h(Button, {
         disabled: true, // TODO: User delete
-        variant: 'outline',
+        variant: 'outline-solid',
         size: 'icon',
         icon: Trash2Icon,
         class: 'text-destructive',

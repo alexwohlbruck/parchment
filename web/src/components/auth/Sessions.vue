@@ -85,14 +85,14 @@ const columns: ColumnDef<Session>[] = [
     id: 'currentSession',
     cell: ({ row }) =>
       row.original.id === currentSessionId.value
-        ? h(Badge, { class: 'chip', variant: 'outline' }, 'Current')
+        ? h(Badge, { class: 'chip', variant: 'outline-solid' }, 'Current')
         : '',
   },
   {
     id: 'delete',
     cell: ({ row }) =>
       h(Button, {
-        variant: 'outline',
+        variant: 'outline-solid',
         size: 'icon',
         icon: Trash2Icon,
         class: 'text-destructive',

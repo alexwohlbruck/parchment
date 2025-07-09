@@ -129,7 +129,7 @@ function handleColorSelect(color: ThemeColor) {
           </div>
 
           <!-- Icons grid -->
-          <div class="max-h-[16rem] overflow-y-auto grid grid-cols-5 gap-1 p-1">
+          <div class="max-h-64 overflow-y-auto grid grid-cols-5 gap-1 p-1">
             <Button
               v-for="(icon, i) in filteredIconComponents"
               :key="icon.name"

@@ -34,14 +34,14 @@ const emit = defineEmits<{
       <!-- Brand Logo -->
       <div
         v-if="logoLoading || brandLogo || logoError"
-        class="size-12 rounded-lg overflow-hidden border border-border shadow flex-shrink-0 mr-2"
+        class="size-12 rounded-lg overflow-hidden border border-border shadow-sm shrink-0 mr-2"
       >
         <div
           v-if="logoLoading"
           class="w-full h-full bg-muted/50 animate-pulse relative overflow-hidden"
         >
           <div
-            class="absolute inset-0 -translate-x-full animate-[shimmer_1s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent"
+            class="absolute inset-0 -translate-x-full animate-[shimmer_1s_infinite] bg-linear-to-r from-transparent via-white/10 to-transparent"
           />
         </div>
         <div v-if="brandLogo" class="w-full h-full">

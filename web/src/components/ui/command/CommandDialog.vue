@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { useEmitAsProps } from 'radix-vue'
-import type { DialogRootEmits, DialogRootProps } from 'radix-vue'
+import { useEmitAsProps } from 'reka-ui'
+import type { DialogRootEmits, DialogRootProps } from 'reka-ui'
 import Command from './Command.vue'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 
@@ -21,3 +21,4 @@ const emitsAsProps = useEmitAsProps(emits)
     </DialogContent>
   </Dialog>
 </template>
+@/components/ui/dialog-backup

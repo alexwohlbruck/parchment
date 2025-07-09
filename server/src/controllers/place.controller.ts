@@ -3,14 +3,13 @@ import { getSession, requireAuth } from '../middleware/auth.middleware.js'
 import {
   lookupPlaceByNameAndLocation,
   lookupEnrichedPlaceById,
-  lookupPlacesByNameAndLocation,
 } from '../services/place.service'
 import { SOURCE } from '../lib/constants.js'
 const app = new Elysia({ prefix: '/places' }).use(getSession)
 
 // Get place by looking up source+id or name+lat+lng
 app.get(
-  '/lookup',
+  '/details',
   async ({ query, user }) => {
     const { source, id, name, lat, lng, radius = 500 } = query
 
@@ -81,82 +80,6 @@ app.get(
       lat: t.Optional(t.Number()),
       lng: t.Optional(t.Number()),
       radius: t.Optional(t.Number()),
-      autocomplete: t.Optional(t.Boolean()),
-    }),
-  },
-)
-
-// Autocomplete search for fast suggestions
-app.get(
-  '/autocomplete',
-  async ({ query }) => {
-    const { q, lat, lng, radius = 10000 } = query
-
-    if (!q) {
-      return error(400, { message: 'Search query is required' })
-    }
-
-    // Require at least 2 characters for autocomplete
-    if (q.length < 2) {
-      return error(400, { message: 'Query must be at least 2 characters' })
-    }
-
-    const places = await lookupPlacesByNameAndLocation(
-      q,
-      { lat, lng },
-      {
-        radius: parseInt(radius as string),
-        autocomplete: true,
-      },
-    )
-
-    return {
-      query: q,
-      places,
-    }
-  },
-  {
-    query: t.Object({
-      q: t.String(),
-      lat: t.Number(),
-      lng: t.Number(),
-      radius: t.Optional(t.String()),
-    }),
-  },
-)
-
-// Search for places by name
-app.get(
-  '/search',
-  async ({ query, user }) => {
-    const { q, lat, lng, radius = 1000 } = query
-
-    if (!q) {
-      return error(400, { message: 'Search query is required' })
-    }
-
-    if (!lat || !lng) {
-      return error(400, { message: 'Latitude and longitude are required' })
-    }
-
-    const coordinates = { lat: parseFloat(lat), lng: parseFloat(lng) }
-
-    const results = await lookupPlacesByNameAndLocation(q, coordinates, {
-      radius: parseInt(radius as string),
-      userId: user?.id,
-    })
-
-    return {
-      query: q,
-      results,
-    }
-  },
-  {
-    query: t.Object({
-      q: t.String(),
-      lat: t.Optional(t.String()),
-      lng: t.Optional(t.String()),
-      radius: t.Optional(t.String()),
     }),
   },
 )

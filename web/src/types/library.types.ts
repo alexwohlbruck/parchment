@@ -3,6 +3,8 @@ export interface Bookmark {
   externalIds: Record<string, string>
   name: string
   address?: string
+  lat: number
+  lng: number
   icon: string
   iconColor: string
   presetType?: 'home' | 'work' | 'school'
@@ -39,6 +41,8 @@ export interface CreateBookmarkParams {
   externalIds: Record<string, string>
   name: string
   address?: string
+  lat: number
+  lng: number
   icon?: string
   iconColor?: string
   presetType?: 'home' | 'work' | 'school'

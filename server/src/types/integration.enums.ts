@@ -11,6 +11,7 @@ export enum IntegrationId {
   TRIPADVISOR = 'tripadvisor',
   GEOAPIFY = 'geoapify',
   MAPBOX = 'mapbox',
+  VALHALLA = 'valhalla',
 }
 
 export enum IntegrationCapabilityId {

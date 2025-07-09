@@ -24,9 +24,9 @@ const legGapPixels = 3
 
 const modeColors = {
   walk: 'bg-blue-300 dark:bg-blue-500',
-  train: 'bg-indigo-300 dark:bg-indigo-500',
+  train: 'bg-gray-300 dark:bg-gray-500',
   bike: 'bg-green-300 dark:bg-green-500',
-  bus: 'bg-violet-300 dark:bg-violet-500',
+  bus: 'bg-gray-300 dark:bg-gray-500',
 }
 
 const modeIcons = {

@@ -2,7 +2,7 @@
 import { Loader2Icon } from 'lucide-vue-next'
 import { spinnerVariants } from '.'
 import { VariantProps } from 'class-variance-authority'
-import { PrimitiveProps } from 'radix-vue'
+import { PrimitiveProps } from 'reka-ui'
 import { cn } from '@/lib/utils'
 
 interface SpinnerVariantProps extends VariantProps<typeof spinnerVariants> {}

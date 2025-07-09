@@ -58,7 +58,7 @@ function placeService() {
         )
       }
 
-      const response = await api.get<Place>('/places/lookup', {
+      const response = await api.get<Place>('/places/details', {
         params: queryParams,
       })
 

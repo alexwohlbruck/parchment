@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import {
   NavigationIcon,
@@ -7,6 +8,8 @@ import {
   BookmarkIcon,
   Check,
   FolderPlusIcon,
+  ArrowUpFromDotIcon,
+  ArrowDownToDotIcon,
 } from 'lucide-vue-next'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
@@ -31,6 +34,7 @@ const collectionsService = useCollectionsService()
 const bookmarksService = useBookmarksService()
 const bookmarksStore = useBookmarksStore()
 const { setBookmarkStatus } = usePlaceService()
+const { t } = useI18n()
 const defaultCollection = ref<Collection | null>(null)
 
 onMounted(async () => {
@@ -63,17 +67,29 @@ async function createBookmark() {
 <template>
   <div class="flex gap-2">
     <Button class="flex-1" @click="$emit('directions')">
-      <NavigationIcon class="mr-2 h-4 w-4" />
-      Directions
+      <ArrowDownToDotIcon class="mr-2 size-4 -rotate-90" />
+      {{ t('directions.directionsTo') }}
     </Button>
-    <Button variant="outline" class="flex-1" @click="$emit('share')">
-      <ShareIcon class="mr-2 h-4 w-4" />
-      Share
+    <Button class="flex-1" variant="outline" @click="$emit('directionsFrom')">
+      <ArrowUpFromDotIcon class="mr-2 size-4 rotate-90" />
+      {{ t('directions.directionsFrom') }}
+    </Button>
+    <Button
+      size="icon"
+      variant="outline"
+      @click="$emit('share')"
+      :title="t('place.actions.share')"
+    >
+      <ShareIcon class="size-4" />
     </Button>
     <Popover v-if="isSaved && bookmarkId">
       <PopoverTrigger as-child>
-        <Button size="icon" variant="outline" title="Manage collections">
-          <FolderPlusIcon class="h-4 w-4" />
+        <Button
+          size="icon"
+          variant="outline"
+          :title="t('place.actions.manageCollections')"
+        >
+          <FolderPlusIcon class="size-4" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" class="w-auto px-0 py-1 min-w-[240px]">
@@ -88,7 +104,7 @@ async function createBookmark() {
       size="icon"
       variant="outline"
       @click="createBookmark()"
-      title="Save place"
+      :title="t('place.actions.save')"
     >
       <ItemIcon
         v-if="defaultCollection"

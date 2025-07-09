@@ -55,6 +55,12 @@ async function handleClick() {
   const isConfigured = !!config
   const formSchema = configSchemas[integration.configSchema]
 
+  if (!formSchema) {
+    console.error(`Schema not found for ${integration.configSchema}`)
+    toast.error(`Configuration schema not found for ${integration.name}`)
+    return
+  }
+
   // Show our custom IntegrationForm component in a dialog
   const dialogResult = await appService.componentDialog({
     component: IntegrationForm,

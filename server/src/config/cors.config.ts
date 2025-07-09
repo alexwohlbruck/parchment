@@ -1,5 +1,5 @@
 import { cors, HTTPMethod } from '@elysiajs/cors'
-import { clientHostname } from './origins.config'
+import { clientHostname, clientOrigin } from './origins.config'
 
 type CORSConfig = Parameters<typeof cors>[0]
 
@@ -14,7 +14,12 @@ const allowedMethods: HTTPMethod[] = [
 ]
 
 const corsConfig: CORSConfig = {
-  origin: [clientHostname, 'tauri://localhost', 'http://tauri.localhost'],
+  origin: [
+    clientOrigin!,
+    clientHostname,
+    'tauri://localhost',
+    'http://tauri.localhost',
+  ],
   credentials: true,
   allowedHeaders: [
     'Content-Type',

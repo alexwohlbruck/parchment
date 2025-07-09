@@ -2,6 +2,7 @@ import { LngLatLike, Map as MapboxMap, LngLat as MapboxLngLat } from 'mapbox-gl'
 import { Map as MaplibreMap } from 'maplibre-gl'
 import { Icon } from '@/types/app.types'
 import { Image, PointOfView } from 'mapillary-js'
+import { Place } from '@/types/place.types'
 
 // TODO: Use types from official libs
 // import { LayerSpecification, VectorSourceSpecification } from 'mapbox-gl'
@@ -36,7 +37,7 @@ export type MapOptions = {
 }
 
 export type MapCamera = {
-  center: LngLatLike // TODO: Use custom LngLatLike
+  center: LngLatLike // TODO: Use standard LngLat
   zoom: number
   bearing: number
   pitch: number
@@ -55,8 +56,10 @@ export type LngLat = {
   lat: number
 }
 
+// TODO: Use optional fields
 export type Waypoint = {
   lngLat: LngLat | null
+  place?: Place | null
 }
 
 export type MapillaryImage = Image // TODO: Use custom type

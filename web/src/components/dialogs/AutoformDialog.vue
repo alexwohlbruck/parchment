@@ -48,29 +48,31 @@ function onSubmit(values: Record<string, any>) {
       </DialogHeader>
 
       <AutoForm
+        id="autoform"
         :schema="props.schema"
         :initial-values="props.initialValues"
         :field-config="props.fieldConfig"
         @submit="onSubmit"
         class="space-y-3"
-      >
-        <DialogFooter>
-          <Button
-            @click.prevent="isOpen = false"
-            variant="outline"
-            :disabled="props.loading"
-          >
-            {{ props.cancelText || t('general.cancel') }}
-          </Button>
-          <Button
-            type="submit"
-            :loading="props.loading"
-            :disabled="props.loading"
-          >
-            {{ props.continueText || t('general.continue') }}
-          </Button>
-        </DialogFooter>
-      </AutoForm>
+      />
+
+      <DialogFooter>
+        <Button
+          @click.prevent="isOpen = false"
+          variant="outline"
+          :disabled="props.loading"
+        >
+          {{ props.cancelText || t('general.cancel') }}
+        </Button>
+        <Button
+          form="autoform"
+          type="submit"
+          :loading="props.loading"
+          :disabled="props.loading"
+        >
+          {{ props.continueText || t('general.continue') }}
+        </Button>
+      </DialogFooter>
     </DialogContent>
   </Dialog>
 </template>

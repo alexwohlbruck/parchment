@@ -30,7 +30,7 @@ const emit = defineEmits<{
             class="absolute inset-0 bg-muted/50 animate-pulse"
           >
             <div
-              class="absolute inset-0 -translate-x-full animate-[shimmer_1s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent"
+              class="absolute inset-0 -translate-x-full animate-[shimmer_1s_infinite] bg-linear-to-r from-transparent via-white/10 to-transparent"
             />
           </div>
           <img

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { ComboboxItemEmits, ComboboxItemProps } from 'radix-vue'
-import { ComboboxItem, useEmitAsProps } from 'radix-vue'
+import type { ComboboxItemEmits, ComboboxItemProps } from 'reka-ui'
+import { ComboboxItem, useEmitAsProps } from 'reka-ui'
 import { cn } from '@/lib/utils'
 
 const props = defineProps<ComboboxItemProps>()
@@ -14,7 +14,7 @@ const emitsAsProps = useEmitAsProps(emits)
     v-bind="{ ...props, ...emitsAsProps }"
     :class="
       cn(
-        'relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+        'relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-hidden data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50',
         $attrs.class ?? '',
       )
     "

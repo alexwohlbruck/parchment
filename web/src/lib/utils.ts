@@ -2,15 +2,11 @@ import { computed } from 'vue'
 import { useWindowSize } from '@vueuse/core'
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import resolveConfig from 'tailwindcss/resolveConfig'
-import tailwindConfig from '../../tailwind.config.js'
 import * as LucideIcons from 'lucide-vue-next'
 import type { LucideIcon } from 'lucide-vue-next'
 import fuzzysort from 'fuzzysort'
 
 // import { camelize, getCurrentInstance, toHandlerKey } from 'vue'
-
-const tailwind = resolveConfig(tailwindConfig)
 
 // Define type for shadcn UI colors
 export type ThemeColor =
@@ -28,7 +24,14 @@ export type ThemeColor =
   | 'violet'
 
 export function getBreakpoints() {
-  return tailwind.theme.screens
+  // Default Tailwind CSS breakpoints - hardcoded since v4 doesn't provide runtime config access
+  return {
+    sm: '640px',
+    md: '768px',
+    lg: '1024px',
+    xl: '1280px',
+    '2xl': '1536px',
+  }
 }
 
 // TODO: Move to composables directory

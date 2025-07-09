@@ -1,0 +1,1 @@
+ALTER TABLE "bookmarks" ADD COLUMN "geometry" geometry(POINT, 4326) NOT NULL;

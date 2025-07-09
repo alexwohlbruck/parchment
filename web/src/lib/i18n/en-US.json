@@ -148,7 +148,9 @@
     "invitationSent": "Invitation sent to {email}",
     "unknownError": "An unknown error occurred",
     "plusCodeCopied": "Plus Code copied to clipboard",
-    "plusCodeError": "Error generating Plus Code"
+    "plusCodeError": "Error generating Plus Code",
+    "networkError": "Network error",
+    "networkErrorDescription": "Try connecting to a different {appName} server"
   },
   "map": {
     "title": "Map",
@@ -225,9 +227,20 @@
     "title": "Directions",
     "directionsFromHere": "Directions from here",
     "directionsToHere": "Directions to here",
+    "directionsTo": "Directions to",
+    "directionsFrom": "Directions from",
     "to": "To",
     "from": "From",
     "addStop": "Add stop"
+  },
+  "place": {
+    "actions": {
+      "directionsFrom": "Directions from here",
+      "directionsTo": "Directions",
+      "share": "Share",
+      "save": "Save place",
+      "manageCollections": "Manage collections"
+    }
   },
   "library": {
     "title": "library",
@@ -330,6 +343,7 @@
     "bookmarks": {
       "fetchError": "Failed to fetch bookmarks",
       "saveErrorNoOsmId": "Cannot bookmark place without an OSM ID",
+      "saveErrorNoCoordinates": "Cannot bookmark place without coordinates",
       "saveSuccess": "Bookmarked {name}",
       "saveError": "Failed to save bookmark",
       "updateSuccess": "Bookmark updated",
@@ -479,7 +493,8 @@
         "button": "Test Connection",
         "success": "Connection successful",
         "failure": "Connection failed",
-        "error": "Error testing connection"
+        "error": "Error testing connection",
+        "validation_error": "Please fix validation errors before testing"
       },
       "capabilities": {
         "search": "Search",
@@ -503,7 +518,8 @@
         "nominatim": "Open-source geocoding and reverse geocoding",
         "tripadvisor": "Travel reviews and recommendations",
         "geoapify": "Geocoding, routing, and place data",
-        "mapbox": "Interactive maps, geocoding, and navigation"
+        "mapbox": "Interactive maps, geocoding, and navigation",
+        "valhalla": "Open-source routing engine for multimodal navigation"
       }
     },
     "users": {

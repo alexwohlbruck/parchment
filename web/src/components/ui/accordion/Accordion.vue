@@ -4,7 +4,7 @@ import {
   type AccordionRootEmits,
   type AccordionRootProps,
   useForwardPropsEmits,
-} from 'radix-vue'
+} from 'reka-ui'
 
 const props = defineProps<AccordionRootProps>()
 const emits = defineEmits<AccordionRootEmits>()

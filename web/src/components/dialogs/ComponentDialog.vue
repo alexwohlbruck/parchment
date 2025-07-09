@@ -68,7 +68,7 @@ async function submit() {
           {{ props.cancelText || $t('general.cancel') }}
         </Button>
         <Button
-          class="!mt-0 flex-1 sm:flex-none"
+          class="mt-0! flex-1 sm:flex-none"
           @click="submit"
           :variant="props.destructive ? 'destructive' : 'default'"
           :disabled="!isValid || props.loading"
@@ -80,3 +80,4 @@ async function submit() {
     </DialogContent>
   </Dialog>
 </template>
+@/components/ui/dialog-backup

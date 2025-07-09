@@ -50,4 +50,8 @@ export const configSchemas: Record<
   mapboxSchema: z.object({
     accessToken: z.string().min(1, 'Access token is required'),
   }),
+
+  valhallaSchema: z.object({
+    host: z.string().url('Please enter a valid URL'),
+  }),
 }

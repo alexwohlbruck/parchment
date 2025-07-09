@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ComboboxInput, type ComboboxInputProps } from 'radix-vue'
+import { ComboboxInput, type ComboboxInputProps } from 'reka-ui'
 import { cn } from '@/lib/utils'
 import { computed, ref } from 'vue'
 
@@ -32,7 +32,7 @@ export default {
       :autofocus="false"
       :class="
         cn(
-          'flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50',
+          'flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50',
           $attrs.class ?? '',
         )
       "

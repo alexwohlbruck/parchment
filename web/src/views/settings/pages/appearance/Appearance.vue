@@ -45,9 +45,7 @@ const updateRadius = (value: number[] | undefined) => {
 }
 
 // Function to handle theme color selection
-const handleColorChange = (value: string) => {
-  // The setAccentColor function expects a value from allColors
-  // This cast is safe since we're only passing values from allColors in the UI
+const handleColorChange = (value: any) => {
   setAccentColor(value as (typeof allColors)[number])
 }
 </script>

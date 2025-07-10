@@ -33,7 +33,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - server-db:/var/lib/postgresql/data
-      - ./server/scripts/init-postgis.sh:/docker-entrypoint-initdb.d/init-postgis.sh
     ports:
       - '5432:5432'
 

@@ -56,7 +56,7 @@ const columns: ColumnDef<User>[] = [
         },
         [
           row.original.roles?.map(role =>
-            h(Badge, { variant: 'outline-solid' }, [role.name]),
+            h(Badge, { variant: 'outline' }, [role.name]),
           ),
         ],
       ),
@@ -75,7 +75,7 @@ const columns: ColumnDef<User>[] = [
     cell: ({ row }) =>
       h(Button, {
         disabled: true, // TODO: User delete
-        variant: 'outline-solid',
+        variant: 'outline',
         size: 'icon',
         icon: Trash2Icon,
         class: 'text-destructive',

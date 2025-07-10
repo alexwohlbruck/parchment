@@ -145,11 +145,16 @@ build_and_push_docker() {
     echo "Building Docker images..."
     
     # Build multi-platform images (ARM64 + AMD64)
+    echo "Building web image $version..."
     docker buildx build --platform linux/amd64,linux/arm64 -f web/Dockerfile.prod -t alexwohlbruck/parchment-web:$version --push .
+
+    echo "Building server image $version..."
     docker buildx build --platform linux/amd64,linux/arm64 -f server/Dockerfile.prod -t alexwohlbruck/parchment-server:$version --push .
     
-    echo "Tagging and pushing latest..."
+    echo "Building web image latest..."
     docker buildx build --platform linux/amd64,linux/arm64 -f web/Dockerfile.prod -t alexwohlbruck/parchment-web:latest --push .
+
+    echo "Building server image latest..."
     docker buildx build --platform linux/amd64,linux/arm64 -f server/Dockerfile.prod -t alexwohlbruck/parchment-server:latest --push .
 }
 

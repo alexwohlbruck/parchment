@@ -149,8 +149,7 @@
       "network": {
         "title": "Error de red",
         "description": "Intenta conectarte a un servidor {appName} diferente"
-      },
-      "validation": "Error de {type}"
+      }
     },
     "coordinatesCopied": "Coordenadas copiadas al portapapeles",
     "invitationSent": "Invitación enviada a {email}",

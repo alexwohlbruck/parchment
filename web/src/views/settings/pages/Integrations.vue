@@ -2,20 +2,22 @@
 import { useI18n } from 'vue-i18n'
 import { onMounted } from 'vue'
 import IntegrationsList from '@/components/integration/IntegrationsList.vue'
-import { useIntegrationsStore } from '@/stores/integrations.store'
 import { LoaderCircleIcon } from 'lucide-vue-next'
+import { useIntegrationsStore } from '@/stores/integrations.store'
+import { useIntegrationService } from '@/services/integration.service'
 
 const { t } = useI18n()
 const integrationStore = useIntegrationsStore()
+const integrationService = useIntegrationService()
 
 // Fetch integrations when component is mounted
 onMounted(async () => {
   try {
     // First fetch available integrations (metadata)
-    await integrationStore.fetchAvailableIntegrations()
+    await integrationService.fetchAvailableIntegrations()
 
     // Then fetch configured integrations
-    await integrationStore.fetchConfiguredIntegrations()
+    await integrationService.fetchConfiguredIntegrations()
   } catch (error) {
     console.error('Failed to load integrations:', error)
   }
@@ -25,7 +27,10 @@ onMounted(async () => {
 <template>
   <div class="flex flex-col gap-4">
     <div
-      v-if="integrationStore.isLoading"
+      v-if="
+        integrationStore.isLoadingAvailable ||
+        integrationStore.isLoadingConfigured
+      "
       class="flex justify-center items-center py-10"
     >
       <LoaderCircleIcon class="animate-spin h-8 w-8 text-primary" />

@@ -148,7 +148,8 @@
       "network": {
         "title": "Network error",
         "description": "Try connecting to a different {appName} server"
-      }
+      },
+      "validation": "{type} error"
     },
     "coordinatesCopied": "Coordinates copied to clipboard",
     "invitationSent": "Invitation sent to {email}",

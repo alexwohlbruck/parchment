@@ -4,7 +4,9 @@ import { useI18n } from 'vue-i18n'
 import { toast } from 'vue-sonner'
 import { useStorage } from '@vueuse/core'
 import { watchEffect } from 'vue'
-import { DEFAULT_SERVER_URL } from '@/lib/constants'
+import { DEFAULT_SERVER_URL, APP_NAME_SHORT } from '@/lib/constants'
+import router, { AppRoute } from '@/router'
+import { i18n } from '@/lib/i18n'
 
 export const isTauri = !!window.isTauri
 
@@ -38,12 +40,24 @@ function getErrorMessage(error: AxiosError): {
   title: string
   description?: string
 } {
-  const { response } = error
+  const { response, request, code } = error
   const data = response?.data as any
+
+  if (!response && (request || code === 'ERR_NETWORK')) {
+    return {
+      title: (i18n.global as any).t('messages.error.network.title'),
+      description: (i18n.global as any).t(
+        'messages.error.network.description',
+        {
+          appName: APP_NAME_SHORT,
+        },
+      ),
+    }
+  }
 
   if (data?.errors) {
     return {
-      title: `${capitalize(data.type)} error`, // TODO: i18n
+      title: (i18n.global as any).t('messages.unknownError'),
       description: `${data.message} on ${data.on}: ${data.property}`,
     }
   }
@@ -66,11 +80,8 @@ function getErrorMessage(error: AxiosError): {
     }
   }
 
-  // TODO: How to get i18n in interceptor?
-  // const { t } = useI18n()
-
   return {
-    title: 'An unknown error occurred', //t('messages.unknownError'),
+    title: (i18n.global as any).t('messages.unknownError'),
   }
 }
 
@@ -80,7 +91,17 @@ api.interceptors.response.use(
   },
   error => {
     const { title, description } = getErrorMessage(error)
+
+    if (error.response?.status === 401) {
+      if (error.request.responseURL.includes('/auth/sessions/current')) {
+        return
+      } else {
+        router.push({ name: AppRoute.SIGNIN })
+      }
+    }
+
     toast.error(title, { description })
+
     return Promise.reject(error)
   },
 )

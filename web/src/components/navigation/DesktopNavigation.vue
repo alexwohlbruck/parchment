@@ -23,6 +23,7 @@ import {
   SettingsIcon,
   PanelLeftIcon,
   LibraryIcon,
+  MessageSquareQuoteIcon,
 } from 'lucide-vue-next'
 
 useObstructingComponent(undefined, 'desktopNav')
@@ -78,12 +79,6 @@ const items = computed(() => {
           to: '/offline',
         },
         {
-          label: t('customMaps.title'),
-          // hotkey: ['c'],
-          icon: MapPinnedIcon,
-          to: '/custom',
-        },
-        {
           label: t('people.title'),
           // hotkey: ['l'],
           icon: UsersRoundIcon,
@@ -101,6 +96,16 @@ const items = computed(() => {
           icon: PanelLeftIcon,
           onClick: () => {
             mini.value = !mini.value
+          },
+        },
+        {
+          label: t('feedback.title'),
+          icon: MessageSquareQuoteIcon,
+          onClick: () => {
+            window.open(
+              'https://github.com/alexwohlbruck/parchment/issues',
+              '_blank',
+            )
           },
         },
         {

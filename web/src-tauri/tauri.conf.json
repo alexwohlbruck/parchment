@@ -37,7 +37,7 @@
       "developmentTeam": "app.parchment"
     },
     "android": {
-      "versionCode": 2
+      "versionCode": 3
     }
   }
 }

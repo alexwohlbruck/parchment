@@ -387,6 +387,9 @@
   "people": {
     "title": "People"
   },
+  "feedback": {
+    "title": "Feedback"
+  },
   "settings": {
     "title": "Settings",
     "account": {

@@ -390,6 +390,9 @@
   "people": {
     "title": "Personas"
   },
+  "feedback": {
+    "title": "Feedback"
+  },
   "settings": {
     "title": "Configuración",
     "description": "Administra la configuración de tu cuenta y el comportamiento de la aplicación",

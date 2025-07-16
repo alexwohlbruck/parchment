@@ -28,6 +28,7 @@ export enum AppRoute {
   STREET = 'street',
   DIRECTIONS = 'directions',
   TRIP = 'trip',
+  SEARCH_RESULTS = 'search-results',
   LIBRARY = 'library',
   LIBRARY_COLLECTIONS = 'library-collections',
   LIBRARY_ROUTES = 'library-routes',
@@ -71,6 +72,12 @@ const router = createRouter({
           path: '/directions',
           name: AppRoute.DIRECTIONS,
           component: Directions,
+        },
+        {
+          path: '/search',
+          name: AppRoute.SEARCH_RESULTS,
+          component: () => import('@/views/search/SearchResults.vue'),
+          props: route => ({ query: route.query.q }),
         },
         {
           path: '/trip/:id',

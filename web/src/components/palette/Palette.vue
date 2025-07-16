@@ -244,6 +244,7 @@ const filterFunction = computed(() => {
       ref="commandPalette"
       :open="commandOpen"
       :filter-function="filterFunction"
+      :ignore-filter="activeCommand?.id === CommandName.SEARCH"
     >
       <CommandInput
         ref="input"

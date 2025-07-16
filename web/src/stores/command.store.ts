@@ -35,6 +35,7 @@ import { usePlaceSearchService } from '@/services/search.service'
 import { useCommandService } from '@/services/command.service'
 import { formatAddress } from '@/lib/place.utils'
 import { Icon } from '@/types/app.types'
+import { AppRoute } from '@/router'
 
 export enum CommandName {
   OPEN_PALETTE = 'openPalette',
@@ -144,6 +145,17 @@ export const useCommandStore = defineStore('command', () => {
         icon: SearchIcon,
         keywords: t('palette.commands.search.keywords'),
         action: (placeId: string) => {
+          // Handle "More results" option
+          if (placeId === 'search-more-results') {
+            const { currentSearchQuery } = useCommandService()
+            router.push({
+              name: AppRoute.SEARCH_RESULTS,
+              query: { q: currentSearchQuery.value },
+            })
+            return
+          }
+
+          // Handle regular place selection
           const route = getPlaceRoute(placeId)
           router.push(route)
         },
@@ -181,12 +193,19 @@ export const useCommandStore = defineStore('command', () => {
                     lng,
                   })
 
-                return searchResults.map(result => ({
-                  value: result.id,
-                  name: result.title,
-                  description: result.description,
-                  icon: getIconComponent(result.icon),
-                }))
+                return [
+                  {
+                    value: 'search-more-results',
+                    name: `Search "${searchText}"`,
+                    icon: SearchIcon,
+                  },
+                  ...searchResults.map(result => ({
+                    value: result.id,
+                    name: result.title,
+                    description: result.description,
+                    icon: getIconComponent(result.icon),
+                  })),
+                ]
               } catch (error) {
                 console.error('Error loading place suggestions:', error)
                 return []

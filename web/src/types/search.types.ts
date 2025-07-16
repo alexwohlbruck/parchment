@@ -27,6 +27,18 @@ export interface SearchResult {
       lat: number
       lng: number
       placeType?: string
+      // Rich metadata for full search results
+      ratings?: {
+        rating?: number
+        reviewCount?: number
+      }
+      openingHours?: any // OpeningHours type
+      contactInfo?: {
+        phone?: string
+        website?: string
+        email?: string
+      }
+      amenities?: Record<string, any>
     }
     // Current location metadata
     currentLocation?: {

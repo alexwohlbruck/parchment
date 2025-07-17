@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import dayjs from 'dayjs'
 import duration from 'dayjs/plugin/duration'
+import { onUnmounted } from 'vue'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapListener } from '@/composables/useMapListener'
@@ -60,6 +61,10 @@ useMapListener('click', data => {
   directionsService.fillWaypoint({
     lngLat: data.lngLat,
   })
+})
+
+onUnmounted(() => {
+  directionsService.clearWaypoints()
 })
 </script>
 

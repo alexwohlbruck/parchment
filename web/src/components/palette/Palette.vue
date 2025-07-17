@@ -29,6 +29,7 @@ import {
 } from 'lucide-vue-next'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { fuzzyFilter, noFilter } from '@/lib/utils'
+import { TransitionSlide } from '@morev/vue-transitions'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -277,18 +278,29 @@ const filterFunction = computed(() => {
           </template>
         </template>
         <template v-slot:postfix>
-          <template v-if="!showResults">
-            <div class="flex gap-1">
-              <Kbd commandId="search"></Kbd>
-              <Kbd commandId="openPalette"></Kbd>
-            </div>
-          </template>
-          <span class="w-4" v-if="showResults || isDrawerOpen">
-            <XIcon
-              class="size-4 cursor-pointer opacity-50 hover:opacity-100"
-              @click="resetOrClose()"
-            />
-          </span>
+          <div class="relative w-24 h-6 flex items-center justify-end">
+            <transition-slide :duration="200" :offset="['100%', 0]">
+              <div
+                v-if="!showResults"
+                class="absolute flex gap-1 transition-all duration-200"
+                :class="showResults || isDrawerOpen ? 'right-6' : 'right-0'"
+              >
+                <Kbd commandId="search"></Kbd>
+                <Kbd commandId="openPalette"></Kbd>
+              </div>
+            </transition-slide>
+            <transition-slide :duration="200" :offset="['100%', 0]">
+              <div
+                v-if="showResults || isDrawerOpen"
+                class="absolute right-0 w-4"
+              >
+                <XIcon
+                  class="size-4 cursor-pointer opacity-50 hover:opacity-100"
+                  @click="resetOrClose()"
+                />
+              </div>
+            </transition-slide>
+          </div>
         </template>
       </CommandInput>
 

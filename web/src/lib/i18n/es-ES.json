@@ -394,6 +394,12 @@
     "minimize": "Minimizar",
     "maximize": "Maximizar"
   },
+  "attribution": {
+    "poweredBy": "Desarrollado por",
+    "contribute": "Contribuir",
+    "improveThisMap": "Mejorar este mapa",
+    "madeWith": "Hecho con ❤️ por"
+  },
   "feedback": {
     "title": "Feedback"
   },

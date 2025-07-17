@@ -391,6 +391,12 @@
     "minimize": "Minimize",
     "maximize": "Maximize"
   },
+  "attribution": {
+    "poweredBy": "Powered by",
+    "contribute": "Contribute",
+    "improveThisMap": "Improve this map",
+    "madeWith": "Made with ❤️ by"
+  },
   "feedback": {
     "title": "Feedback"
   },

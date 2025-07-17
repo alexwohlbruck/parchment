@@ -8,20 +8,26 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import mapboxLogo from '@/assets/img/mapbox-logo.svg'
+import ParchmentLogo from '@/assets/parchment.svg'
 import { useMapCamera } from '@/composables/useMapCamera'
 import Separator from '@/components/ui/separator/Separator.vue'
 import {
   siGithub,
   siX,
   siThreads,
+  siInstagram,
   siMapbox,
   siOpenstreetmap,
 } from 'simple-icons'
 import BrandIcon from '@/components/ui/brand-icon/BrandIcon.vue'
 import { useMapStore } from '@/stores/map.store'
 import { MapEngine } from '@/types/map.types'
+import { H5, H6, P, Caption } from '@/components/ui/typography'
+import { APP_NAME, APP_VERSION } from '@/lib/constants'
 
+const { t } = useI18n()
 const mapStore = useMapStore()
 const showDialog = ref(false)
 const { camera } = useMapCamera()
@@ -81,6 +87,12 @@ const socialLinks = [
     icon: siThreads,
     color: `#${siThreads.hex}`,
   },
+  {
+    text: 'Instagram',
+    url: 'https://www.instagram.com/parchmentmaps?ref=parchment',
+    icon: siInstagram,
+    color: `#${siInstagram.hex}`,
+  },
 ]
 </script>
 
@@ -109,23 +121,40 @@ const socialLinks = [
 
     <!-- Attribution dialog -->
     <Dialog v-model:open="showDialog">
-      <DialogContent class="max-w-100">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>Parchment is powered by:</DialogTitle>
+          <div class="flex flex-col items-center">
+            <img
+              :src="ParchmentLogo"
+              :alt="APP_NAME"
+              class="size-24"
+              style="filter: drop-shadow(0 1px 0.5px rgba(0, 0, 0, 0.1))"
+            />
+            <div class="text-center">
+              <DialogTitle class="text-xl font-bold">
+                {{ APP_NAME }}
+              </DialogTitle>
+              <Caption class="text-sm">v{{ APP_VERSION }}</Caption>
+            </div>
+          </div>
         </DialogHeader>
 
         <div class="flex flex-col gap-4">
-          <div class="flex flex-wrap flex-col gap-x-2 gap-y-1">
-            <template v-for="(link, index) in attributionLinks" :key="index">
-              <a
-                :href="link.url"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="text-primary hover:underline"
-              >
-                {{ link.text }}
-              </a>
-            </template>
+          <div class="flex flex-col gap-2">
+            <H5>{{ t('attribution.poweredBy') }}:</H5>
+
+            <div class="flex flex-wrap flex-col gap-x-2 gap-y-1">
+              <template v-for="(link, index) in attributionLinks" :key="index">
+                <a
+                  :href="link.url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-primary hover:underline text-sm"
+                >
+                  {{ link.text }}
+                </a>
+              </template>
+            </div>
           </div>
 
           <Separator class="w-full" />
@@ -143,7 +172,7 @@ const socialLinks = [
                   class="size-4 mr-2"
                   use-theme-color
                 />
-                Contribute
+                {{ t('attribution.contribute') }}
               </Button>
             </a>
 
@@ -160,7 +189,7 @@ const socialLinks = [
                   class="size-4 mr-2"
                   use-theme-color
                 />
-                Improve this map
+                {{ t('attribution.improveThisMap') }}
               </Button>
             </a>
           </div>
@@ -183,7 +212,7 @@ const socialLinks = [
           </div>
 
           <div class="text-xs font-medium text-center mt-2">
-            Made with ❤️ by
+            {{ t('attribution.madeWith') }}
             <a
               href="https://alex.wohlbruck.com"
               target="_blank"

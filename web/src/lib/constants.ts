@@ -1,5 +1,8 @@
+import packageJson from '../../package.json'
+
 export const APP_NAME = 'Parchment Maps'
 export const APP_NAME_SHORT = 'Parchment'
+export const APP_VERSION = packageJson.version
 
 export const DEFAULT_SERVER_URL = 'https://api.parchment.app'
 

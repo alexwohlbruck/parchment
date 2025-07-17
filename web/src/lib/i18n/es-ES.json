@@ -390,6 +390,10 @@
   "people": {
     "title": "Personas"
   },
+  "navigation": {
+    "minimize": "Minimizar",
+    "maximize": "Maximizar"
+  },
   "feedback": {
     "title": "Feedback"
   },

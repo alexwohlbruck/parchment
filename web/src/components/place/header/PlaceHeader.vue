@@ -4,10 +4,13 @@ import { StarIcon, XIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import type { Place } from '@/types/place.types'
 import { getLogoPhoto } from '@/types/place.types'
+import { useResponsive } from '@/lib/utils'
 
 const props = defineProps<{
   place: Place
 }>()
+
+const { isMobileScreen } = useResponsive()
 
 const placeType = computed(() => props.place?.placeType.value || 'Place')
 const rating = computed(() => props.place?.ratings?.rating?.value || null)
@@ -92,7 +95,13 @@ const emit = defineEmits<{
           </span>
         </div>
       </div>
-      <Button variant="ghost" size="icon" @click="$emit('close')">
+      <Button
+        v-if="isMobileScreen"
+        variant="secondary"
+        size="icon"
+        class="size-7 rounded-full"
+        @click="$emit('close')"
+      >
         <XIcon class="size-4" />
       </Button>
     </div>

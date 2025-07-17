@@ -65,11 +65,21 @@ bindCommandToFunction(CommandName.OPEN_PALETTE, focusInput)
 
 const filteredCommands = computed(() => {
   // Don't include the openPalette command in the results, we are already looking at the search palette
-  return commandStore.commands.filter(
+  const availableCommands = commandStore.commands.filter(
     command =>
       command.id != CommandName.OPEN_PALETTE &&
       commandStore.commandIsAvailable(command),
   )
+
+  return filterFunction.value
+    ? filterFunction.value(availableCommands, query.value)
+    : availableCommands
+})
+
+const filteredArgumentOptions = computed(() => {
+  return filterFunction.value
+    ? filterFunction.value(argumentOptions.value, query.value)
+    : argumentOptions.value
 })
 
 function openPalette(withSearch = false) {
@@ -235,18 +245,21 @@ const icon = computed(() => {
     : SearchIcon
 })
 
+const isSearch = computed(() => {
+  return activeCommand.value?.id === CommandName.SEARCH
+})
+
 const filterFunction = computed(() => {
-  switch (activeCommand.value?.id) {
-    case CommandName.SEARCH:
-      // Don't filter for autocomplete search, backend will handle this
-      return noFilter
-    default:
-      // Use fuzzy search for commands with name, description, and keywords as searchable fields
-      return (items: any[], query: string) =>
-        fuzzyFilter(items, query, {
-          keys: ['name', 'description', 'keywords'],
-          preserveOrder: false, // Sort by relevance for better command search results
-        })
+  if (isSearch.value) {
+    // Don't filter for autocomplete search, backend will handle this
+    return noFilter
+  } else {
+    // Use fuzzy search for commands with name, description, and keywords as searchable fields
+    return (items: any[], query: string) =>
+      fuzzyFilter(items, query, {
+        keys: ['name', 'description', 'keywords'],
+        preserveOrder: false, // Sort by relevance for better command search results
+      })
   }
 })
 </script>
@@ -257,7 +270,7 @@ const filterFunction = computed(() => {
       class="shadow-md bg-background"
       ref="commandPalette"
       :open="commandOpen"
-      :filter-function="filterFunction"
+      :ignore-filter="true"
     >
       <CommandInput
         ref="input"
@@ -338,7 +351,7 @@ const filterFunction = computed(() => {
         </CommandList>
 
         <!-- Command selected, display arguments -->
-        <CommandList v-if="activeArgument && query.length">
+        <CommandList v-if="activeArgument && (!isSearch || query.length)">
           <CommandGroup :heading="activeArgument.name">
             <div v-if="loadingOptions" class="py-6 text-center">
               <LoaderIcon class="mx-auto h-4 w-4 animate-spin opacity-50" />
@@ -353,7 +366,7 @@ const filterFunction = computed(() => {
             </CommandEmpty>
             <CommandItem
               v-else
-              v-for="argumentOption in argumentOptions"
+              v-for="argumentOption in filteredArgumentOptions"
               :key="argumentOption.value"
               :value="argumentOption"
               class="flex gap-2"
@@ -388,4 +401,3 @@ const filterFunction = computed(() => {
     </Command>
   </div>
 </template>
-@/components/ui/command-backup

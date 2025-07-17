@@ -2,8 +2,10 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onClickOutside, useMagicKeys, useDebounceFn } from '@vueuse/core'
+import { useRoute, useRouter } from 'vue-router'
 import { useCommandService } from '@/services/command.service'
 import { CommandName, useCommandStore } from '@/stores/command.store'
+import { AppRoute } from '@/router'
 import {
   ArgumentType,
   CommandArgumentOption,
@@ -29,7 +31,9 @@ import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { fuzzyFilter, noFilter } from '@/lib/utils'
 
 const { t } = useI18n()
+const route = useRoute()
 const commandStore = useCommandStore()
+const router = useRouter()
 const {
   bindCommandToFunction,
   activeCommand,
@@ -43,6 +47,9 @@ const {
 const query = ref('')
 const commandOpen = ref(true)
 const showResults = ref(false)
+const isDrawerOpen = computed(() => {
+  return route.name !== AppRoute.MAP && route.matched.length > 1 // Detect is child of the main map route
+})
 
 // For async argument options
 const argumentOptions = ref<CommandArgumentOption[]>([])
@@ -83,11 +90,17 @@ function closePalette() {
   showResults.value = false
 }
 
+function closeDrawer() {
+  router.push({ name: AppRoute.MAP })
+}
+
 function resetOrClose() {
   if (activeArgument.value) {
     resetCommand()
   } else if (showResults.value) {
     closePalette()
+  } else if (isDrawerOpen.value) {
+    closeDrawer()
   }
 }
 
@@ -270,7 +283,7 @@ const filterFunction = computed(() => {
               <Kbd commandId="openPalette"></Kbd>
             </div>
           </template>
-          <span class="w-4" v-else>
+          <span class="w-4" v-if="showResults || isDrawerOpen">
             <XIcon
               class="size-4 cursor-pointer opacity-50 hover:opacity-100"
               @click="resetOrClose()"

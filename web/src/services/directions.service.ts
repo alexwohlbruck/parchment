@@ -271,6 +271,13 @@ function directionsService() {
     directionsStore.setWaypoints(waypoints)
   }
 
+  function clearWaypoints() {
+    directionsStore.setWaypoints([
+      { lngLat: null },
+      { lngLat: null },
+    ] as Waypoint[])
+  }
+
   function removeWaypoint(index: number) {
     // Only prevent removal if we would have fewer than minimum locations
     if (waypoints.value.length <= MIN_LOCATIONS) {
@@ -313,6 +320,7 @@ function directionsService() {
     fillWaypoint,
     setWaypoint,
     setWaypoints,
+    clearWaypoints,
     removeWaypoint,
     addWaypoint,
     directionsFrom,

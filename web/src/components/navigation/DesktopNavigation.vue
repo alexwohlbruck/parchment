@@ -139,16 +139,21 @@ const items = computed(() => {
         )
       "
     >
-      <h2 class="px-[.95rem] text-lg font-bold flex items-center gap-3">
-        <img
-          :src="ParchmentLogo"
-          alt="Parchment"
-          class="w-5 h-11 scale-150"
-          style="filter: drop-shadow(0 1px 0.5px rgba(0, 0, 0, 0.1))"
-        />
-        <transition-expand axis="x" :duration="50" easing="ease-out">
-          <span v-if="!mini" class="text-nowrap text-base"> Parchment </span>
-        </transition-expand>
+      <h2 class="px-[.95rem] text-lg font-bold">
+        <router-link
+          to="/"
+          class="flex items-center gap-3 hover:opacity-85 dark:hover:opacity-90 transition-opacity cursor-pointer"
+        >
+          <img
+            :src="ParchmentLogo"
+            alt="Parchment"
+            class="w-5 h-11 scale-150"
+            style="filter: drop-shadow(0 1px 0.5px rgba(0, 0, 0, 0.1))"
+          />
+          <transition-expand axis="x" :duration="50" easing="ease-out">
+            <span v-if="!mini" class="text-nowrap text-base"> Parchment </span>
+          </transition-expand>
+        </router-link>
       </h2>
 
       <template v-for="(item, i) in items" :key="i">

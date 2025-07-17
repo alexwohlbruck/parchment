@@ -387,6 +387,10 @@
   "people": {
     "title": "People"
   },
+  "navigation": {
+    "minimize": "Minimize",
+    "maximize": "Maximize"
+  },
   "feedback": {
     "title": "Feedback"
   },

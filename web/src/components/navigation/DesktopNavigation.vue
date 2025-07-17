@@ -11,6 +11,12 @@ import { capitalize } from '@/filters/text.filters'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import ParchmentLogo from '@/assets/parchment.svg'
 import {
@@ -93,7 +99,9 @@ const items = computed(() => {
     {
       items: [
         {
-          label: 'Minimize',
+          label: mini.value
+            ? t('navigation.maximize')
+            : t('navigation.minimize'),
           icon: PanelLeftIcon,
           onClick: () => {
             mini.value = !mini.value
@@ -150,48 +158,75 @@ const items = computed(() => {
           <div class="flex flex-col px-1">
             <template v-for="subitem in item.items">
               <!-- v-if="subitem.to && (subitem.condition ?? true)" -->
-              <Button
-                v-if="subitem.onClick"
-                variant="ghost"
-                class="w-full flex px-3 justify-center gap-3 hover:bg-primary/5 hover:text-primary"
-                @click="subitem.onClick"
-              >
-                <component :is="subitem.icon" class="size-5" />
-                <transition-expand axis="x" :duration="50" easing="ease-out">
-                  <div v-if="!mini" class="flex flex-1 gap-1 text-nowrap">
-                    <div>
-                      {{ subitem.label }}
-                    </div>
-                  </div>
-                </transition-expand>
-              </Button>
+              <TooltipProvider v-if="subitem.onClick" :disabled="!mini">
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <Button
+                      variant="ghost"
+                      class="w-full flex px-3 justify-center gap-3 hover:bg-primary/5 hover:text-primary"
+                      @click="subitem.onClick"
+                    >
+                      <component :is="subitem.icon" class="size-5" />
+                      <transition-expand
+                        axis="x"
+                        :duration="50"
+                        easing="ease-out"
+                      >
+                        <div v-if="!mini" class="flex flex-1 gap-1 text-nowrap">
+                          <div>
+                            {{ subitem.label }}
+                          </div>
+                        </div>
+                      </transition-expand>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" v-if="mini">
+                    <p>{{ subitem.label }}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
-              <Button
-                v-if="subitem.to"
-                variant="ghost"
-                class="w-full flex px-3 justify-center gap-3 hover:bg-primary/5 hover:text-primary"
-                as-child
-                :to="subitem.to"
-                :class="
-                  router.currentRoute.value.path === subitem.to
-                    ? 'bg-primary/5 text-primary'
-                    : ''
-                "
-              >
-                <router-link :to="subitem.to">
-                  <component :is="subitem.icon" class="size-5" />
+              <TooltipProvider v-if="subitem.to" :disabled="!mini">
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <Button
+                      variant="ghost"
+                      class="w-full flex px-3 justify-center gap-3 hover:bg-primary/5 hover:text-primary"
+                      as-child
+                      :to="subitem.to"
+                      :class="
+                        router.currentRoute.value.path === subitem.to
+                          ? 'bg-primary/5 text-primary'
+                          : ''
+                      "
+                    >
+                      <router-link :to="subitem.to">
+                        <component :is="subitem.icon" class="size-5" />
 
-                  <transition-expand axis="x" :duration="50" easing="ease-out">
-                    <div v-if="!mini" class="flex flex-1 gap-1 text-nowrap">
-                      <div class="flex-1">
-                        {{ subitem.label }}
-                      </div>
+                        <transition-expand
+                          axis="x"
+                          :duration="50"
+                          easing="ease-out"
+                        >
+                          <div
+                            v-if="!mini"
+                            class="flex flex-1 gap-1 text-nowrap"
+                          >
+                            <div class="flex-1">
+                              {{ subitem.label }}
+                            </div>
 
-                      <!-- <Kbd v-if="subitem.hotkey" :hotkey="subitem.hotkey"></Kbd> -->
-                    </div>
-                  </transition-expand>
-                </router-link>
-              </Button>
+                            <!-- <Kbd v-if="subitem.hotkey" :hotkey="subitem.hotkey"></Kbd> -->
+                          </div>
+                        </transition-expand>
+                      </router-link>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" v-if="mini">
+                    <p>{{ subitem.label }}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </template>
           </div>
         </div>

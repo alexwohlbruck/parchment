@@ -265,4 +265,3 @@ const items = computed(() => {
     </div>
   </div>
 </template>
-@/stores/auth

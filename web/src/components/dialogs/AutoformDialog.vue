@@ -56,7 +56,7 @@ function onSubmit(values: Record<string, any>) {
         class="space-y-3"
       />
 
-      <DialogFooter>
+      <DialogFooter class="flex flex-col sm:flex-row gap-2">
         <Button
           @click.prevent="isOpen = false"
           variant="outline"

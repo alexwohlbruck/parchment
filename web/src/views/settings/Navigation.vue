@@ -88,7 +88,7 @@ const allowedPages = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full md:w-48 gap-4">
+  <div class="flex flex-col w-full md:w-48 gap-4 pt-6 px-4 md:pr-0">
     <div>
       <H3 class="ml-2">{{ t('settings.title') }}</H3>
     </div>
@@ -112,15 +112,13 @@ const allowedPages = computed(() => {
         "
         :disabled="page.disabled"
       >
-        <router-link :to="page.to">
+        <router-link :to="page.to" class="p-2">
           <component :is="page.icon" class="size-6" />
 
           <transition-expand axis="x" :duration="50" easing="ease-out">
-            <div class="flex flex-1 gap-1 text-nowrap">
-              <div class="flex-1">
-                {{ t(`settings.${page.id}.title`) }}
-              </div>
-            </div>
+            <span class="text-wrap text-center leading-tight">
+              {{ t(`settings.${page.id}.title`) }}
+            </span>
           </transition-expand>
         </router-link>
       </Button>

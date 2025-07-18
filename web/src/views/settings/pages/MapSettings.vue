@@ -236,4 +236,3 @@ const basemap = computed(() => {
     </SettingsSection>
   </div>
 </template>
-@/components/ui/switch_old

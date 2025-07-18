@@ -6,6 +6,7 @@ import { PencilIcon } from 'lucide-vue-next'
 import { useMapStore } from '@/stores/map.store'
 import { useMapService } from '@/services/map.service'
 import { useAppService } from '@/services/app.service'
+import { useResponsive } from '@/lib/utils'
 import { type Layer } from '@/types/map.types'
 import { ColumnDef } from '@tanstack/vue-table'
 import LayerConfiguration from './layers/LayerConfiguration.vue'
@@ -18,6 +19,7 @@ const mapService = useMapService()
 const mapStore = useMapStore()
 const { layers } = storeToRefs(mapStore)
 const { t } = useI18n()
+const { isTabletScreen } = useResponsive()
 
 function openLayerConfigDialog(layerId?: Layer['configuration']['id']) {
   appService.componentDialog({
@@ -29,34 +31,41 @@ function openLayerConfigDialog(layerId?: Layer['configuration']['id']) {
   })
 }
 
-const columns: ColumnDef<Layer>[] = [
-  {
-    id: 'name',
-    header: t('layers.meta.fields.name'),
-    cell: ({ row }) => {
-      return h('div', { class: 'flex items-center gap-2' }, [
-        row.original.icon ? h(row.original.icon, { class: 'size-4' }) : null,
-        row.original.name,
-      ])
+const columns = computed<ColumnDef<Layer>[]>(() => {
+  const baseColumns: ColumnDef<Layer>[] = [
+    {
+      id: 'name',
+      header: t('layers.meta.fields.name'),
+      cell: ({ row }) => {
+        return h('div', { class: 'flex items-center gap-2' }, [
+          row.original.icon ? h(row.original.icon, { class: 'size-4' }) : null,
+          row.original.name,
+        ])
+      },
     },
-  },
-  {
-    id: 'type',
-    header: t('layers.meta.fields.type.title'),
-    cell: ({ row }) =>
-      t(`layers.meta.fields.type.values.${row.original.configuration.type}`),
-  },
-  {
-    id: 'enabled',
-    header: t('layers.meta.fields.enabled'),
-    cell: ({ row }) =>
-      h(Switch, {
-        modelValue: row.original.enabled,
-        'onUpdate:modelValue': () =>
-          mapService.toggleLayer(row.original.configuration.id),
-      }),
-  },
-  {
+    {
+      id: 'type',
+      header: t('layers.meta.fields.type.title'),
+      cell: ({ row }) =>
+        t(`layers.meta.fields.type.values.${row.original.configuration.type}`),
+    },
+  ]
+
+  // Only include enabled column on non-mobile devices
+  if (!isTabletScreen.value) {
+    baseColumns.push({
+      id: 'enabled',
+      header: t('layers.meta.fields.enabled'),
+      cell: ({ row }) =>
+        h(Switch, {
+          modelValue: row.original.enabled,
+          'onUpdate:modelValue': () =>
+            mapService.toggleLayer(row.original.configuration.id),
+        }),
+    })
+  }
+
+  baseColumns.push({
     id: 'actions',
     cell: ({ row }) =>
       h(Button, {
@@ -65,11 +74,12 @@ const columns: ColumnDef<Layer>[] = [
         onClick: () => openLayerConfigDialog(row.original.configuration.id),
         icon: PencilIcon,
       }),
-  },
-]
+  })
+
+  return baseColumns
+})
 </script>
 
 <template>
   <DataTable :columns="columns" :data="layers" />
 </template>
-@/components/ui/switch_old

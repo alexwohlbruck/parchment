@@ -49,4 +49,3 @@ const booleanComponent = computed(() =>
     </FormItem>
   </FormField>
 </template>
-@/components/ui/switch_old

@@ -348,4 +348,3 @@ defineExpose({ submit })
     </TransitionExpand>
   </div>
 </template>
-@/components/ui/switch_old

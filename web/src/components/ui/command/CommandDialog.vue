@@ -21,4 +21,3 @@ const emitsAsProps = useEmitAsProps(emits)
     </DialogContent>
   </Dialog>
 </template>
-@/components/ui/dialog-backup

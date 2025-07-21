@@ -320,9 +320,6 @@ const filterFunction = computed(() => {
       <template v-if="showResults">
         <!-- Top-level commands list -->
         <CommandList v-if="!activeArgument">
-          <!-- TODO: i18n -->
-          <CommandEmpty>No results found.</CommandEmpty>
-
           <CommandGroup heading="Commands">
             <CommandItem
               v-for="command in filteredCommands"
@@ -348,6 +345,9 @@ const filterFunction = computed(() => {
               ></Kbd>
             </CommandItem>
           </CommandGroup>
+
+          <!-- TODO: i18n -->
+          <CommandEmpty>No matching commands.</CommandEmpty>
         </CommandList>
 
         <!-- Command selected, display arguments -->

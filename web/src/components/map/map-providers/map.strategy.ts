@@ -2,7 +2,7 @@ import {
   Basemap,
   Layer,
   MapCamera,
-  MapOptions,
+  MapSettings,
   MapProjection,
   MapTheme,
   Pegman,
@@ -13,22 +13,16 @@ import { Directions, TripsResponse } from '@/types/directions.types'
 import { Component } from 'vue'
 import { destroyVueMarkerElement } from '@/lib/vue-marker.utils'
 
-const defaultOptions: MapOptions = {
-  projection: 'mercator',
-  theme: MapTheme.LIGHT,
-  basemap: 'standard',
-}
-
 export class MapStrategy {
   mapInstance: any
   container: HTMLElement
-  options: MapOptions
+  options: MapSettings
   accessToken?: string
   markers: Map<string, any> = new Map() // Track active markers
 
-  constructor(container, options: MapOptions, accessToken?: string) {
+  constructor(container, options: MapSettings, accessToken?: string) {
     this.container = container
-    this.options = { ...defaultOptions, ...options }
+    this.options = options
     this.accessToken = accessToken
   }
 
@@ -46,7 +40,7 @@ export class MapStrategy {
   setPlaceLabels(value: boolean) {}
   setMapProjection(projection: MapProjection) {}
   setMap3dTerrain(value: boolean) {}
-  setMap3dBuildings(value: boolean) {}
+  setMap3dObjects(value: boolean) {}
   setMapTheme(theme: MapTheme) {}
   setBasemap(basemap: Basemap) {}
   addSource(sourceId: string, source: any) {}

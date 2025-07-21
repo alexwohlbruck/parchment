@@ -16,7 +16,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import {
   Basemap,
   MapTheme,
-  MapOptions,
+  MapSettings,
   Layer,
   MapCamera,
   Pegman,
@@ -59,7 +59,7 @@ export class MaplibreStrategy extends MapStrategy {
   geolocateControl: GeolocateControl
   layerGroups: Map<string, LayerGroup> = new Map()
 
-  constructor(container, options: MapOptions, accessToken?: string) {
+  constructor(container, options: MapSettings, accessToken?: string) {
     super(container, options, accessToken)
 
     const { center, zoom, bearing, pitch } = options.camera || {}
@@ -384,7 +384,7 @@ export class MaplibreStrategy extends MapStrategy {
     // TODO:
   }
 
-  setMap3dBuildings(value: boolean) {
+  setMap3dObjects(value: boolean) {
     // TODO:
   }
 

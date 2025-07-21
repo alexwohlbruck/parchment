@@ -29,11 +29,18 @@ export enum MapTheme {
   DARK = 'dark',
 }
 
-export type MapOptions = {
-  projection: string
+export interface MapSettings {
   theme: MapTheme
+  engine: MapEngine
   basemap: Basemap
   camera?: MapCamera
+  projection: MapProjection
+  terrain3d: boolean
+  objects3d: boolean
+  poiLabels: boolean
+  roadLabels: boolean
+  transitLabels: boolean
+  placeLabels: boolean
 }
 
 export type MapCamera = {

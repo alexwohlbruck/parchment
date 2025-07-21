@@ -466,7 +466,7 @@
       "configuration": {
         "title": "Map configuration",
         "3dTerrain": "3D terrain",
-        "3dBuildings": "3D buildings",
+        "3dObjects": "3D objects",
         "poiLabels": "POI labels",
         "roadLabels": "Road labels",
         "transitLabels": "Transit labels",

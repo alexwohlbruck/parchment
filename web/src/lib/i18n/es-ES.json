@@ -470,7 +470,7 @@
       "configuration": {
         "title": "Configuración del mapa",
         "3dTerrain": "Terreno 3D",
-        "3dBuildings": "Edificios 3D",
+        "3dObjects": "Objetos 3D",
         "poiLabels": "Etiquetas de POI",
         "roadLabels": "Etiquetas de carreteras",
         "transitLabels": "Etiquetas de tránsito",

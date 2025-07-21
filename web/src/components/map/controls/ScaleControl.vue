@@ -2,10 +2,13 @@
 import { useMapCamera } from '@/composables/useMapCamera'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import type { LngLat } from '@/types/map.types'
+import { MapProjection } from '@/types/map.types'
 import { useMapService } from '@/services/map.service'
+import { useMapStore } from '@/stores/map.store'
 import { useResponsive } from '@/lib/utils'
 
 const mapService = useMapService()
+const mapStore = useMapStore()
 const { camera, onCameraMove } = useMapCamera()
 const { isMobileScreen, isMediumScreen } = useResponsive()
 const useMetric = ref(false) // TODO: Create user setting for this
@@ -182,7 +185,8 @@ function toggleUnits() {
 
 const isLowZoom = computed(() => {
   const threshold = isMobileScreen.value ? 1.7 : isMediumScreen.value ? 2.5 : 3
-  return camera.value.zoom < threshold
+  const isGlobeProjection = mapStore.settings.projection === MapProjection.GLOBE
+  return isGlobeProjection && camera.value.zoom < threshold
 })
 </script>
 

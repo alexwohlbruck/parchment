@@ -136,6 +136,7 @@ const basemap = computed(() => {
       </SettingsItem>
 
       <SettingsItem
+        v-if="settings.engine === MapEngine.MAPBOX"
         :title="$t('settings.mapSettings.configuration.3dTerrain')"
         :icon="MountainSnowIcon"
       >

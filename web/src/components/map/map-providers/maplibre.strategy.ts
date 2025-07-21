@@ -303,6 +303,7 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   setPoiLabels(value: boolean) {
+    // TODO: Rework this
     const poiLayers = this.mapInstance.getStyle().layers.filter(layer => {
       return (
         layer.id.includes('poi') ||
@@ -321,6 +322,7 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   setRoadLabels(value: boolean) {
+    // TODO: Rework this
     const roadLabelLayers = this.mapInstance.getStyle().layers.filter(layer => {
       return (
         layer.id.includes('road-label') ||
@@ -339,6 +341,7 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   setTransitLabels(value: boolean) {
+    // TODO: Rework this
     const transitLayers = this.mapInstance.getStyle().layers.filter(layer => {
       return (
         layer.id.includes('transit') ||
@@ -359,6 +362,7 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   setPlaceLabels(value: boolean) {
+    // TODO: Rework this
     const placeLayers = this.mapInstance.getStyle().layers.filter(layer => {
       return (
         layer.id.includes('place-label') ||
@@ -378,14 +382,39 @@ export class MaplibreStrategy extends MapStrategy {
     })
   }
 
-  setMapProjection(projection: MapProjection) {}
-
   setMap3dTerrain(value: boolean) {
-    // TODO:
+    // TODO: Need to find a free 3D DEM source
   }
 
   setMap3dObjects(value: boolean) {
-    // TODO:
+    const buildingsLayerId = 'Building 3D'
+    const buildingsLayer = this.mapInstance.getLayer(buildingsLayerId)
+    if (!buildingsLayer) {
+      return
+    }
+    if (value) {
+      this.mapInstance.setPaintProperty(
+        buildingsLayerId,
+        'fill-extrusion-height',
+        ['get', 'render_height'],
+      )
+      this.mapInstance.setPaintProperty(
+        buildingsLayerId,
+        'fill-extrusion-base',
+        ['get', 'render_min_height'],
+      )
+    } else {
+      this.mapInstance.setPaintProperty(
+        buildingsLayerId,
+        'fill-extrusion-height',
+        0,
+      )
+      this.mapInstance.setPaintProperty(
+        buildingsLayerId,
+        'fill-extrusion-base',
+        0,
+      )
+    }
   }
 
   getBasemapFromTheme() {

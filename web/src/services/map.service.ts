@@ -127,20 +127,19 @@ function mapService() {
     mapStore.setMapStrategy(mapStrategy)
 
     mapEventBus.on('load', () => {
-      console.log('Map loaded, setting isMapReady to true')
       isMapReady.value = true
+
+      setConfigProperties()
       mapStore.initializeLayers(enabledLayers.value)
 
       // Show waypoint markers immediately when map loads
       const waypoints = directionsStore.waypoints
       if (waypoints && waypoints.length > 0) {
-        console.log('Map loaded, showing initial waypoint markers')
         mapStrategy?.setWaypointMarkers(waypoints)
       }
 
       // Process any queued trips
       if (queuedTrips.value) {
-        console.log('Processing queued trips after map load')
         mapStrategy?.setTrips(
           queuedTrips.value.trips,
           queuedTrips.value.visibleTripIds,
@@ -150,28 +149,24 @@ function mapService() {
     })
 
     mapEventBus.on('style.load', () => {
-      console.log('Map style loaded, setting isMapReady to true')
       isMapReady.value = true
+
       mapStore.initializeLayers(enabledLayers.value)
 
       // Show waypoint markers immediately when style loads
       const waypoints = directionsStore.waypoints
       if (waypoints && waypoints.length > 0) {
-        console.log('Map style loaded, showing initial waypoint markers')
         mapStrategy?.setWaypointMarkers(waypoints)
       }
 
       // Process any queued trips
       if (queuedTrips.value) {
-        console.log('Processing queued trips after style load')
         mapStrategy?.setTrips(
           queuedTrips.value.trips,
           queuedTrips.value.visibleTripIds,
         )
         queuedTrips.value = null
       }
-
-      setConfigProperties()
     })
 
     mapEventBus.on('move', data => {
@@ -472,33 +467,17 @@ function mapService() {
       return
     }
 
-    try {
-      const paddingResult = calculateMapPadding()
+    const paddingResult = calculateMapPadding()
 
-      if (!paddingResult) {
-        console.warn('Cannot calculate map padding: invalid dimensions')
-        return
-      }
-
-      // Apply the padding using flyTo for smooth transition
-      mapStrategy.flyTo({
-        padding: paddingResult.padding,
-      })
-
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Updated map padding:', {
-          padding: paddingResult.padding,
-          isFullyVisible: paddingResult.isFullyVisible,
-          visibleArea: appStore.visibleMapArea,
-          mapDimensions: {
-            width: mapContainer.clientWidth,
-            height: mapContainer.clientHeight,
-          },
-        })
-      }
-    } catch (error) {
-      console.error('Error updating map padding:', error)
+    if (!paddingResult) {
+      console.warn('Cannot calculate map padding: invalid dimensions')
+      return
     }
+
+    // Apply the padding using flyTo for smooth transition
+    mapStrategy.flyTo({
+      padding: paddingResult.padding,
+    })
   }
 
   // Watch for changes in the visible map area and automatically adjust padding
@@ -531,16 +510,6 @@ function mapService() {
           MAP_PADDING_CONFIG.CHANGE_THRESHOLD
 
       if (hasSignificantChange) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log(
-            'Visible area changed significantly, updating map padding:',
-            {
-              old: oldVisibleArea,
-              new: newVisibleArea,
-            },
-          )
-        }
-
         // Use debounced update to prevent excessive calls during animations
         debouncedUpdateMapPadding()
       }
@@ -600,13 +569,6 @@ function mapService() {
   watch(
     () => directionsStore.trips,
     trips => {
-      console.log(
-        'Trips changed in map service:',
-        !!trips,
-        'isMapReady:',
-        isMapReady.value,
-      )
-
       if (trips) {
         // Show the first trip by default (recommended or first in list)
         const firstTrip =
@@ -616,14 +578,11 @@ function mapService() {
           : new Set<string>()
 
         if (isMapReady.value && mapStrategy) {
-          console.log('Map is ready, showing first trip and waypoints')
           mapStrategy.setTrips(trips, defaultTripIds)
         } else {
-          console.log('Map not ready, queuing first trip and waypoints')
           queuedTrips.value = { trips, visibleTripIds: defaultTripIds }
         }
       } else {
-        console.log('Trips cleared, unsetting trips')
         if (mapStrategy) {
           mapStrategy.unsetTrips()
         }
@@ -636,10 +595,7 @@ function mapService() {
   watch(
     () => directionsStore.waypoints,
     waypoints => {
-      console.log('Waypoints changed in map service:', waypoints.length)
-
       if (isMapReady.value && mapStrategy) {
-        console.log('Map is ready, updating waypoint markers')
         mapStrategy.setWaypointMarkers(waypoints)
       }
       // Note: We don't queue waypoint markers since they're managed separately
@@ -653,8 +609,6 @@ function mapService() {
     (selectedTripId, oldSelectedTripId) => {
       const trips = directionsStore.trips
       if (!trips || !selectedTripId) return
-
-      console.log('Selected trip changed:', selectedTripId)
 
       const visibleTripIds = new Set([selectedTripId])
 
@@ -736,10 +690,8 @@ function mapService() {
     const allTripIds = new Set(trips.trips.map(trip => trip.id))
 
     if (isMapReady.value && mapStrategy) {
-      console.log('Showing all trips')
       mapStrategy.setTrips(trips, allTripIds)
     } else {
-      console.log('Map not ready, queuing all trips')
       queuedTrips.value = { trips, visibleTripIds: allTripIds }
     }
   }
@@ -755,12 +707,10 @@ function mapService() {
     const noTripIds = new Set<string>()
 
     if (isMapReady.value && mapStrategy) {
-      console.log('Showing only waypoints')
       mapStrategy.setTrips(trips, noTripIds)
       // Reset selected trip to null when showing only waypoints
       directionsStore.setSelectedTripId(null)
     } else {
-      console.log('Map not ready, queuing waypoints only')
       queuedTrips.value = { trips, visibleTripIds: noTripIds }
     }
   }
@@ -771,8 +721,6 @@ function mapService() {
   function showTripOnHover(tripId: string) {
     const trips = directionsStore.trips
     if (!trips) return
-
-    console.log('Showing trip on hover:', tripId)
 
     // Update selected trip in store
     directionsStore.setSelectedTripId(tripId)

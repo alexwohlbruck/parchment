@@ -4,7 +4,7 @@ import { defineStore } from 'pinia'
 import {
   Basemap,
   MapEngine,
-  MapOptions,
+  MapSettings,
   MapEvents,
   Layer,
   MapCamera,
@@ -18,51 +18,26 @@ import { useStorage } from '@vueuse/core'
 
 const emitter = mitt<MapEvents>()
 
+const defaultSettings: MapSettings = {
+  theme: MapTheme.LIGHT,
+  engine: MapEngine.MAPBOX,
+  projection: MapProjection.GLOBE,
+  basemap: 'standard',
+  terrain3d: false,
+  objects3d: true,
+  poiLabels: true,
+  roadLabels: true,
+  transitLabels: true,
+  placeLabels: true,
+}
+
 export const useMapStore = defineStore('map', () => {
   let mapStrategy: MapStrategy
   function setMapStrategy(map: MapStrategy) {
     mapStrategy = map
   }
 
-  const mapEngine = ref<MapEngine>(MapEngine.MAPBOX)
-  function setMapEngine(engine: MapEngine) {
-    mapEngine.value = engine
-  }
-
-  const mapProjection = ref<MapProjection>(MapProjection.GLOBE)
-  function setMapProjection(projection: MapProjection) {
-    mapProjection.value = projection
-  }
-
-  const map3dTerrain = ref<boolean>(false)
-  function setMap3dTerrain(value?: boolean) {
-    map3dTerrain.value = value ?? !map3dTerrain.value
-  }
-
-  const map3dBuildings = ref<boolean>(true)
-  function setMap3dBuildings(value?: boolean) {
-    map3dBuildings.value = value ?? !map3dBuildings.value
-  }
-
-  const mapPoiLabels = ref<boolean>(true)
-  function setMapPoiLabels(value?: boolean) {
-    mapPoiLabels.value = value ?? !mapPoiLabels.value
-  }
-
-  const mapRoadLabels = ref<boolean>(true)
-  function setMapRoadLabels(value?: boolean) {
-    mapRoadLabels.value = value ?? !mapRoadLabels.value
-  }
-
-  const mapTransitLabels = ref<boolean>(true)
-  function setMapTransitLabels(value?: boolean) {
-    mapTransitLabels.value = value ?? !mapTransitLabels.value
-  }
-
-  const mapPlaceLabels = ref<boolean>(true)
-  function setMapPlaceLabels(value?: boolean) {
-    mapPlaceLabels.value = value ?? !mapPlaceLabels.value
-  }
+  const settings = useStorage<MapSettings>('map', defaultSettings)
 
   const mapCamera = useStorage<MapCamera>('map-camera', {
     center: [-44.808291513887866, 21.851187958608364],
@@ -70,15 +45,10 @@ export const useMapStore = defineStore('map', () => {
     bearing: 0,
     pitch: 0,
   })
+
   function setMapCamera(camera: MapCamera) {
     mapCamera.value = camera
   }
-
-  const mapOptions = ref<MapOptions>({
-    projection: 'web-mercator',
-    theme: MapTheme.LIGHT,
-    basemap: 'standard',
-  })
 
   // Event methods
   function on<K extends keyof MapEvents>(
@@ -99,15 +69,11 @@ export const useMapStore = defineStore('map', () => {
     emitter.emit(event, data)
   }
 
-  function setBasemap(map: Basemap) {
-    mapOptions.value.basemap = map
-  }
-
   const layers = ref<Layer[]>(defaultLayers)
 
   const enabledLayers = computed(() =>
     layers.value.filter(
-      layer => layer.enabled && layer.engine.includes(mapEngine.value),
+      layer => layer.enabled && layer.engine.includes(settings.value.engine),
     ),
   )
 
@@ -191,29 +157,12 @@ export const useMapStore = defineStore('map', () => {
 
   return {
     setMapStrategy,
-    mapEngine,
-    setMapEngine,
-    mapProjection,
-    setMapProjection,
-    map3dTerrain,
-    setMap3dTerrain,
-    map3dBuildings,
-    setMap3dBuildings,
-    mapPoiLabels,
-    setMapPoiLabels,
-    mapRoadLabels,
-    setMapRoadLabels,
-    mapTransitLabels,
-    setMapTransitLabels,
-    mapPlaceLabels,
-    setMapPlaceLabels,
+    settings,
     mapCamera,
     setMapCamera,
     on,
     off,
     emit,
-    mapOptions,
-    setBasemap,
     layers,
     enabledLayers,
     initializeLayers,

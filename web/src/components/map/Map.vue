@@ -34,7 +34,7 @@ const shouldShowMapboxFallback = computed(() => {
   // Only show fallback if integrations are ready, we're using Mapbox, and Mapbox is available but not configured
   return (
     integrationsStore.integrationsReady &&
-    mapStore.mapEngine === MapEngine.MAPBOX &&
+    mapStore.settings.engine === MapEngine.MAPBOX &&
     integrationsStore.isMapboxAvailableButNotConfigured
   )
 })
@@ -62,7 +62,7 @@ onMounted(() => {
       if (canInit && mapContainer.value && !mapStrategy) {
         const result = mapService.initializeMap(
           mapContainer.value,
-          mapStore.mapEngine,
+          mapStore.settings.engine,
         )
         // Only set mapStrategy if initialization was successful
         if (result) {

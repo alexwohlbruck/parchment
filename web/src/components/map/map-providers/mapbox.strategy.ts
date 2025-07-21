@@ -18,7 +18,7 @@ import {
   Basemap,
   Layer,
   MapCamera,
-  MapOptions,
+  MapSettings,
   MapTheme,
   MapillaryImage,
   Pegman,
@@ -80,14 +80,12 @@ export class MapboxStrategy extends MapStrategy {
   geolocateControl: GeolocateControl
   layerGroups: Map<string, LayerGroup> = new Map()
 
-  constructor(container, options: MapOptions, accessToken?: string) {
+  constructor(container, options: MapSettings, accessToken?: string) {
     super(container, options, accessToken)
 
     const { center, zoom, bearing, pitch } = options.camera || {}
-
-    // TODO: Move to ref
-    const projection: Projection['name'] =
-      (localStorage.getItem('projection') as Projection['name']) || 'globe'
+    const { projection, roadLabels, transitLabels, placeLabels, poiLabels } =
+      options
 
     this.mapInstance = new MapboxMap({
       accessToken: accessToken || import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
@@ -134,6 +132,7 @@ export class MapboxStrategy extends MapStrategy {
     this.mapInstance.on('style.load', () => {
       mapEventBus.emit('style.load', this.mapInstance)
       this.setMapTheme(this.options.theme)
+      this.setConfigProperties(this.options)
     })
     this.mapInstance.on('move', () => {
       mapEventBus.emit('move', {
@@ -415,19 +414,23 @@ export class MapboxStrategy extends MapStrategy {
 
   setMap3dTerrain(value: boolean) {
     const existingTerrainSource = this.mapInstance.getSource('mapbox-dem')
-    if (!existingTerrainSource) {
+
+    if (value && !existingTerrainSource) {
       this.mapInstance.addSource('mapbox-dem', {
         type: 'raster-dem',
         url: 'mapbox://mapbox.terrain-rgb',
       })
+      this.mapInstance.setTerrain({
+        source: 'mapbox-dem',
+        exaggeration: value ? 1 : 0,
+      })
+    } else if (!value && existingTerrainSource) {
+      this.mapInstance.setTerrain()
+      this.mapInstance.removeSource('mapbox-dem')
     }
-    this.mapInstance.setTerrain({
-      source: 'mapbox-dem',
-      exaggeration: value ? 1 : 0,
-    })
   }
 
-  setMap3dBuildings(value: boolean) {
+  setMap3dObjects(value: boolean) {
     this.mapInstance.setConfigProperty('basemap', 'show3dObjects', value)
   }
 

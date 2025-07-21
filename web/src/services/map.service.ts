@@ -10,6 +10,7 @@ import {
   type MarkerId,
   type LngLat,
   LayerType,
+  MapSettings,
 } from '@/types/map.types'
 import { useMapStore } from '../stores/map.store'
 import { useAppStore } from '../stores/app.store'
@@ -43,7 +44,7 @@ function mapService() {
   const appStore = useAppStore()
   const directionsStore = useDirectionsStore()
   const integrationsStore = useIntegrationsStore()
-  const { enabledLayers } = storeToRefs(mapStore)
+  const { enabledLayers, settings } = storeToRefs(mapStore)
   const router = useRouter()
   let mapStrategy: MapStrategy
   let mapContainer: HTMLElement
@@ -62,10 +63,10 @@ function mapService() {
     mapEngine: MapEngine,
     accessToken?: string,
   ) {
-    const { mapOptions, mapCamera } = mapStore
+    const { settings, mapCamera } = mapStore
 
     const options = {
-      ...mapOptions,
+      ...settings,
       theme: dark.value ? MapTheme.DARK : MapTheme.LIGHT,
       camera: mapCamera,
     }
@@ -169,6 +170,8 @@ function mapService() {
         )
         queuedTrips.value = null
       }
+
+      setConfigProperties()
     })
 
     mapEventBus.on('move', data => {
@@ -212,6 +215,15 @@ function mapService() {
     })
 
     return mapStrategy
+  }
+
+  function setConfigProperties() {
+    mapStrategy?.setPoiLabels(mapStore.settings.poiLabels)
+    mapStrategy?.setRoadLabels(mapStore.settings.roadLabels)
+    mapStrategy?.setTransitLabels(mapStore.settings.transitLabels)
+    mapStrategy?.setPlaceLabels(mapStore.settings.placeLabels)
+    mapStrategy?.setMap3dObjects(mapStore.settings.objects3d)
+    mapStrategy?.setMap3dTerrain(mapStore.settings.terrain3d)
   }
 
   /**
@@ -334,7 +346,7 @@ function mapService() {
     destroy()
     isMapReady.value = false // Reset map ready state
     queuedTrips.value = null // Clear any queued trips
-    mapStore.setMapEngine(mapEngine)
+    mapStore.settings.engine = mapEngine
 
     // Only initialize map if we have a container
     if (!mapContainer) {
@@ -358,77 +370,89 @@ function mapService() {
   }
 
   function setMapProjection(projection: MapProjection) {
-    mapStore.setMapProjection(projection)
+    mapStore.settings.projection = projection
   }
 
   watch(
-    () => mapStore.mapProjection,
+    () => mapStore.settings.projection,
     projection => {
       mapStrategy?.setMapProjection(projection)
     },
   )
 
   function toggle3dTerrain(value?: boolean) {
-    mapStore.setMap3dTerrain(value)
+    const newValue = value ?? !mapStore.settings.terrain3d
+    mapStore.settings.terrain3d = newValue
+
+    // 3d objects must be enabled when terrain3d is enabled
+    if (newValue && !mapStore.settings.objects3d) {
+      toggle3dObjects(true)
+    }
+  }
+
+  function toggle3dObjects(value?: boolean) {
+    const newValue = value ?? !mapStore.settings.objects3d
+    mapStore.settings.objects3d = newValue
+
+    // 3d terrain must be disabled when objects3d is disabled
+    if (!newValue && mapStore.settings.terrain3d) {
+      toggle3dTerrain(false)
+    }
   }
 
   watch(
-    () => mapStore.map3dTerrain,
+    () => mapStore.settings.terrain3d,
     value => {
       mapStrategy?.setMap3dTerrain(value)
     },
   )
 
-  function toggle3dBuildings(value?: boolean) {
-    mapStore.setMap3dBuildings(value)
-  }
-
   watch(
-    () => mapStore.map3dBuildings,
+    () => mapStore.settings.objects3d,
     value => {
-      mapStrategy?.setMap3dBuildings(value)
+      mapStrategy?.setMap3dObjects(value)
     },
   )
 
   function togglePoiLabels(value?: boolean) {
-    mapStore.setMapPoiLabels(value)
+    mapStore.settings.poiLabels = value ?? !mapStore.settings.poiLabels
   }
 
   watch(
-    () => mapStore.mapPoiLabels,
+    () => mapStore.settings.poiLabels,
     value => {
       mapStrategy?.setPoiLabels(value)
     },
   )
 
   function toggleRoadLabels(value?: boolean) {
-    mapStore.setMapRoadLabels(value)
+    mapStore.settings.roadLabels = value ?? !mapStore.settings.roadLabels
   }
 
   watch(
-    () => mapStore.mapRoadLabels,
+    () => mapStore.settings.roadLabels,
     value => {
       mapStrategy?.setRoadLabels(value)
     },
   )
 
   function toggleTransitLabels(value?: boolean) {
-    mapStore.setMapTransitLabels(value)
+    mapStore.settings.transitLabels = value ?? !mapStore.settings.transitLabels
   }
 
   watch(
-    () => mapStore.mapTransitLabels,
+    () => mapStore.settings.transitLabels,
     value => {
       mapStrategy?.setTransitLabels(value)
     },
   )
 
   function togglePlaceLabels(value?: boolean) {
-    mapStore.setMapPlaceLabels(value)
+    mapStore.settings.placeLabels = value ?? !mapStore.settings.placeLabels
   }
 
   watch(
-    () => mapStore.mapPlaceLabels,
+    () => mapStore.settings.placeLabels,
     value => {
       mapStrategy?.setPlaceLabels(value)
     },
@@ -555,7 +579,7 @@ function mapService() {
   )
 
   watch(
-    () => mapStore.mapOptions.basemap,
+    () => mapStore.settings.basemap,
     basemap => {
       mapStrategy?.setBasemap(basemap)
     },
@@ -813,7 +837,7 @@ function mapService() {
     setMapEngine,
     setMapProjection,
     toggle3dTerrain,
-    toggle3dBuildings,
+    toggle3dObjects,
     togglePoiLabels,
     toggleRoadLabels,
     toggleTransitLabels,

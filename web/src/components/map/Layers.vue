@@ -2,7 +2,6 @@
 import { computed, h } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import { PencilIcon } from 'lucide-vue-next'
 import { useMapStore } from '@/stores/map.store'
 import { useMapService } from '@/services/map.service'
 import { useAppService } from '@/services/app.service'
@@ -10,7 +9,6 @@ import { type Layer } from '@/types/map.types'
 import { ColumnDef } from '@tanstack/vue-table'
 import LayerConfiguration from './layers/LayerConfiguration.vue'
 import DataTable from '@/components/table/DataTable.vue'
-import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 
 const appService = useAppService()
@@ -48,28 +46,36 @@ const columns: ColumnDef<Layer>[] = [
   },
   {
     id: 'enabled',
-    header: t('layers.meta.fields.enabled'),
+    header: () =>
+      h('div', { class: 'flex justify-end' }, t('layers.meta.fields.enabled')),
     cell: ({ row }) =>
-      h(Switch, {
-        modelValue: row.original.enabled,
-        'onUpdate:modelValue': () =>
-          mapService.toggleLayer(row.original.configuration.id),
-      }),
-  },
-  {
-    id: 'actions',
-    cell: ({ row }) =>
-      h(Button, {
-        variant: 'ghost',
-        size: 'icon',
-        onClick: () => openLayerConfigDialog(row.original.configuration.id),
-        icon: PencilIcon,
-      }),
+      h(
+        'span',
+        {
+          class: 'flex justify-end py-1',
+          onClick: (e: MouseEvent) => e.stopPropagation(),
+        },
+        [
+          h(Switch, {
+            modelValue: row.original.enabled,
+            'onUpdate:modelValue': () =>
+              mapService.toggleLayer(row.original.configuration.id),
+          }),
+        ],
+      ),
   },
 ]
+
+// Example row click handler
+function handleLayerRowClick(layer: Layer) {
+  openLayerConfigDialog(layer.configuration.id)
+}
 </script>
 
 <template>
-  <DataTable :columns="columns" :data="layers" />
+  <DataTable
+    :columns="columns"
+    :data="layers"
+    :onRowClick="handleLayerRowClick"
+  />
 </template>
-@/components/ui/switch_old

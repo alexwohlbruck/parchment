@@ -25,7 +25,7 @@ const translateY = ref(0)
 const currentSnapPoint = ref(0)
 const preventScroll = ref(false)
 
-useObstructingComponent(sheet)
+useObstructingComponent(sheet, 'bottom-sheet')
 const { height: windowHeight } = useWindowSize()
 const { height: sheetHeight } = useElementBounding(sheet)
 

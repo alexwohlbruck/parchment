@@ -599,4 +599,3 @@ defineExpose({
     </SettingsSection>
   </form>
 </template>
-@/components/ui/switch_old

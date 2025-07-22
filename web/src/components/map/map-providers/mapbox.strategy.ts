@@ -84,8 +84,7 @@ export class MapboxStrategy extends MapStrategy {
     super(container, options, accessToken)
 
     const { center, zoom, bearing, pitch } = options.camera || {}
-    const { projection, roadLabels, transitLabels, placeLabels, poiLabels } =
-      options
+    const { projection } = options
 
     this.mapInstance = new MapboxMap({
       accessToken: accessToken || import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,

@@ -30,14 +30,12 @@ const loading = computed(() => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col">
-    <EmptyState
-      v-if="showEmptyState"
-      :icon="FolderIcon"
-      entity-id="collections"
-      class="flex-1"
-    />
+  <EmptyState
+    v-if="showEmptyState"
+    :icon="FolderIcon"
+    entity-id="collections"
+    class="flex-1"
+  />
 
-    <Layers />
-  </div>
+  <Layers v-else />
 </template>

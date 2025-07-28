@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useMapStore } from '@/stores/map.store'
 import { useAppService } from '@/services/app.service'
 import { useDragAndDrop } from '@/composables/useDragAndDrop'
+import { useDragState } from '@/composables/useDragState'
 import type { LayerItem } from '@/types/map.types'
 import LayerConfiguration from './layers/LayerConfiguration.vue'
 import LayerGroupConfiguration from './layers/LayerGroupConfiguration.vue'
@@ -30,6 +31,7 @@ const appService = useAppService()
 const mapStore = useMapStore()
 const { layerItems } = storeToRefs(mapStore)
 const { t } = useI18n()
+const { isDragActive } = useDragState()
 
 // Drag and drop composable
 const {
@@ -112,27 +114,23 @@ function onMainChange(evt: any) {
   handleMainListChange(evt, draggableLayerItems.value)
 }
 
-// Prevent bottom sheet interaction during drag
-function preventBottomSheetGesture(event: Event) {
+// Prevent default touch behaviors on drag containers to improve touch responsiveness
+function preventDefaultTouch(event: TouchEvent) {
   if (isDragging.value) {
     event.preventDefault()
-    event.stopPropagation()
   }
 }
 
-// Add global event listeners to prevent bottom sheet interaction
+// Add global event listeners for touch improvements
 onMounted(() => {
-  document.addEventListener('touchstart', preventBottomSheetGesture, {
-    passive: false,
-  })
-  document.addEventListener('touchmove', preventBottomSheetGesture, {
+  // Improve touch handling for drag operations
+  document.addEventListener('touchmove', preventDefaultTouch, {
     passive: false,
   })
 })
 
 onUnmounted(() => {
-  document.removeEventListener('touchstart', preventBottomSheetGesture)
-  document.removeEventListener('touchmove', preventBottomSheetGesture)
+  document.removeEventListener('touchmove', preventDefaultTouch)
 })
 </script>
 
@@ -175,11 +173,11 @@ onUnmounted(() => {
         @move="onDragMove"
         @change="onMainChange"
         :item-key="getLayerItemKey"
-        class="space-y-2"
+        class="space-y-2 draggable-container"
         tag="div"
       >
         <template #item="{ element }">
-          <div :key="getLayerItemKey(element)" class="relative">
+          <div :key="getLayerItemKey(element)" class="relative draggable-item">
             <!-- Group Item -->
             <LayerGroupItem
               v-if="element.type === 'group'"
@@ -224,19 +222,26 @@ onUnmounted(() => {
 }
 
 .drag-chosen {
+  /* Remove transitions during drag to prevent lag */
+  transition: none !important;
+  border-color: rgba(59, 130, 246, 0.3);
 }
 
 .drag-active {
-  transform: rotate(10deg);
+  transform: rotate(2deg) scale(1.02);
+  /* Remove transitions during drag to prevent lag */
+  transition: none !important;
+  z-index: 1000;
 }
 
 /* Touch feedback improvements */
 @media (hover: none) and (pointer: coarse) {
   .drag-chosen {
+    border-color: rgba(59, 130, 246, 0.4);
   }
 
   .drag-active {
-    transform: rotate(2deg);
+    transform: rotate(1deg) scale(1.05);
   }
 }
 
@@ -245,10 +250,41 @@ onUnmounted(() => {
   min-height: 40px;
 }
 
-/* Smooth transitions */
-.drag-ghost,
-.drag-chosen,
-.drag-active {
-  transition: all 0.2s ease;
+/* Disable pointer events on drag elements to prevent conflicts */
+.drag-active * {
+  pointer-events: none;
+}
+
+/* Ensure dragged element follows cursor precisely */
+.sortable-fallback {
+  opacity: 0.8 !important;
+  cursor: grabbing !important;
+}
+
+/* Improve touch target sizes for mobile */
+@media (hover: none) and (pointer: coarse) {
+  .draggable-item {
+    min-height: 44px; /* Apple recommended minimum touch target */
+  }
+
+  /* Prevent text selection during drag */
+  .drag-active,
+  .drag-chosen {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* Improve scrolling behavior during drag */
+  .sortable-ghost {
+    opacity: 0.4;
+  }
+}
+
+/* Prevent scrolling issues on iOS */
+.draggable-container {
+  -webkit-overflow-scrolling: touch;
 }
 </style>

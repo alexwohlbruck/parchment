@@ -18,11 +18,13 @@ interface Props {
   layer: Layer
   showUngroupAction?: boolean
   compact?: boolean
+  groupId?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   showUngroupAction: false,
   compact: false,
+  groupId: null,
 })
 
 const emit = defineEmits<{
@@ -89,6 +91,7 @@ function toggleVisibility(visible: boolean) {
 
     <!-- Layer Visibility Toggle -->
     <Switch
+      v-if="!groupId"
       :model-value="layer.visible"
       @update:model-value="toggleVisibility"
       @click.stop

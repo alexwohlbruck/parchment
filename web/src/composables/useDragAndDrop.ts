@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { useMapStore } from '@/stores/map.store'
+import { useDragRegistration } from './useDragState'
 import type { Layer, LayerGroup, LayerItem } from '@/types/map.types'
 
 interface DragItem {
@@ -10,7 +11,7 @@ interface DragItem {
 
 export function useDragAndDrop() {
   const mapStore = useMapStore()
-  const isDragging = ref(false)
+  const { isDragging, startDrag, endDrag } = useDragRegistration('layers')
 
   // Convert LayerItem to DragItem for consistent drag operations
   function toDragItem(item: LayerItem): DragItem {
@@ -52,7 +53,12 @@ export function useDragAndDrop() {
     disabled: false,
     delay: 0,
     delayOnTouchStart: true,
-    touchStartThreshold: 0,
+    touchStartThreshold: 5,
+    forceFallback: true,
+    fallbackTolerance: 3,
+    fallbackOnBody: true,
+    swapThreshold: 0.65,
+    emptyInsertThreshold: 5,
   }))
 
   // Get draggable options for group lists
@@ -67,21 +73,26 @@ export function useDragAndDrop() {
     chosenClass: 'drag-chosen',
     dragClass: 'drag-active',
     disabled: false,
-    delay: 0,
+    delay: 100,
     delayOnTouchStart: true,
-    touchStartThreshold: 0,
+    touchStartThreshold: 5,
+    forceFallback: true,
+    fallbackTolerance: 3,
+    fallbackOnBody: true,
+    swapThreshold: 0.65,
+    emptyInsertThreshold: 5,
     sort: true,
   }))
 
   // Handle drag start
   function onDragStart() {
-    isDragging.value = true
+    startDrag()
     triggerHapticFeedback('start')
   }
 
   // Handle drag end
   function onDragEnd() {
-    isDragging.value = false
+    endDrag()
     triggerHapticFeedback('end')
   }
 

@@ -117,7 +117,7 @@ function onGroupLayersChange(evt: any) {
         <!-- Expand/Collapse Button -->
         <CollapsibleTrigger
           @click.stop="handleToggleExpanded"
-          class="flex items-center gap-2 flex-1 text-left hover:bg-accent/50 rounded px-2 py-1"
+          class="flex items-center gap-2 flex-1 text-left cursor-pointer"
         >
           <ChevronRightIcon
             v-if="!expanded"
@@ -128,7 +128,7 @@ function onGroupLayersChange(evt: any) {
           <!-- Group Icon & Name -->
           <component v-if="group.icon" :is="group.icon" class="size-4" />
           <FolderIcon v-else class="size-4" />
-          <span class="font-medium">{{ group.name }}</span>
+          <span class="text-sm font-medium">{{ group.name }}</span>
           <span class="text-xs text-muted-foreground ml-auto">
             ({{ group.layers.length }})
           </span>
@@ -172,7 +172,7 @@ function onGroupLayersChange(evt: any) {
 
       <!-- Group Layers -->
       <CollapsibleContent>
-        <div class="border-t">
+        <div class="border-t border-border">
           <draggable
             v-model="groupLayers"
             v-bind="groupDragOptions"
@@ -181,17 +181,20 @@ function onGroupLayersChange(evt: any) {
             @move="onDragMove"
             @change="onGroupLayersChange"
             :item-key="getLayerKey"
-            class="min-h-[40px]"
+            class="min-h-[40px] draggable-container"
             tag="div"
           >
             <template #item="{ element }">
-              <LayerItemComponent
-                :key="getLayerKey(element)"
-                :layer="element"
-                :compact="true"
-                :show-ungroup-action="true"
-                @ungroup="handleUngroupLayer"
-              />
+              <div class="draggable-item">
+                <LayerItemComponent
+                  :key="getLayerKey(element)"
+                  :layer="element"
+                  :group-id="group.id"
+                  :compact="true"
+                  :show-ungroup-action="true"
+                  @ungroup="handleUngroupLayer"
+                />
+              </div>
             </template>
           </draggable>
         </div>
@@ -199,3 +202,27 @@ function onGroupLayersChange(evt: any) {
     </Collapsible>
   </div>
 </template>
+
+<style scoped>
+/* Prevent scrolling issues on iOS */
+.draggable-container {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Improve touch target sizes for mobile */
+@media (hover: none) and (pointer: coarse) {
+  .draggable-item {
+    min-height: 44px; /* Apple recommended minimum touch target */
+  }
+
+  /* Prevent text selection during drag */
+  .drag-active,
+  .drag-chosen {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+}
+</style>

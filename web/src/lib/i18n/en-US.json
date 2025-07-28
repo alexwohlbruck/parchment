@@ -199,6 +199,29 @@
         }
       }
     },
+    "groups": {
+      "create": "Create Layer Group",
+      "edit": "Edit Layer Group",
+      "fields": {
+        "name": "Group Name",
+        "namePlaceholder": "Enter group name",
+        "visible": "Visible",
+        "icon": "Group Icon",
+        "iconPlaceholder": "Choose an icon"
+      }
+    },
+    "actions": {
+      "new": "New",
+      "newLayer": "New Layer",
+      "newGroup": "New Group",
+      "editLayer": "Edit Layer",
+      "editGroup": "Edit Group",
+      "deleteGroup": "Delete Group",
+      "ungroupLayer": "Ungroup Layer"
+    },
+    "empty": {
+      "message": "No layers configured"
+    },
     "configuration": {
       "title": "Layer Configuration",
       "fields": {

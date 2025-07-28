@@ -6,29 +6,52 @@ import { useMapStore } from '@/stores/map.store'
 import { useMapService } from '@/services/map.service'
 import { H5 } from '@/components/ui/typography'
 import { basemaps } from '../map/map.data'
-import { Basemap, Layer, LayerType } from '@/types/map.types'
+import { Basemap, LayerType } from '@/types/map.types'
 import { storeToRefs } from 'pinia'
+import { toRaw } from 'vue'
 
 const mapStore = useMapStore()
 const mapService = useMapService()
-const { enabledLayers } = storeToRefs(mapStore)
+const { layers, layerGroups } = storeToRefs(mapStore)
 
-function toggleLayerVisibility(
-  layerId: Layer['configuration']['id'],
-  visible: boolean,
-) {
+// Helper function to get layer ID from either structure
+function getLayerId(layer: any): string | undefined {
+  return layer?.configuration?.id || layer?.id
+}
+
+function toggleLayerVisibility(layerId: string, visible: boolean) {
   mapService.toggleLayerVisibility(layerId, visible)
 }
 
-const layers = computed(() => {
-  return enabledLayers.value.filter(
-    layer => layer.type !== LayerType.STREET_VIEW,
-  )
+function toggleLayerGroupVisibility(groupId: string, visible: boolean) {
+  mapStore.toggleLayerGroupVisibility(groupId, visible)
+}
+
+// Get ungrouped layers (not street view)
+const ungroupedLayers = computed(() => {
+  return layers.value.filter(layer => {
+    const raw = toRaw(layer)
+    return raw && !raw.groupId && raw.type !== LayerType.STREET_VIEW
+  })
+})
+
+// Get layer groups (filtered for non-street-view content)
+const filteredGroups = computed(() => {
+  return layerGroups.value.filter(group => {
+    // Only show groups that have non-street-view layers
+    const groupLayers = layers.value.filter(layer => {
+      const raw = toRaw(layer)
+      return raw && raw.groupId === group.id
+    })
+    return groupLayers.some(
+      layer => toRaw(layer)?.type !== LayerType.STREET_VIEW,
+    )
+  })
 })
 </script>
 
 <template>
-  <div class="flex flex-col gap-2">
+  <div class="flex flex-col gap-3">
     <H5>Base map</H5>
     <div class="flex gap-2 flex-wrap">
       <ToggleGroup
@@ -51,19 +74,39 @@ const layers = computed(() => {
     </div>
 
     <H5>Layers</H5>
-    <div class="flex gap-2 flex-wrap">
+    <div class="space-y-2">
+      <!-- Layer Groups -->
       <Toggle
-        v-for="(layer, i) in layers"
-        :key="i"
+        v-for="group in filteredGroups"
+        :key="group.id"
+        variant="outline"
+        :aria-label="group.name"
+        :default-value="group.visible || false"
+        @update:model-value="
+          visible => toggleLayerGroupVisibility(group.id, visible)
+        "
+        class="flex gap-2"
+      >
+        <component v-if="group.icon" :is="group.icon" class="size-5" />
+        <span>{{ group.name }}</span>
+        <span class="text-xs text-muted-foreground ml-auto">
+          ({{ layers.filter(l => toRaw(l)?.groupId === group.id).length }})
+        </span>
+      </Toggle>
+
+      <!-- Individual Ungrouped Layers -->
+      <Toggle
+        v-for="layer in ungroupedLayers"
+        :key="getLayerId(layer)"
         variant="outline"
         :aria-label="layer.name"
         :default-value="layer.visible || false"
         @update:model-value="
-          visible => toggleLayerVisibility(layer.configuration.id, visible)
+          visible => toggleLayerVisibility(getLayerId(layer), visible)
         "
         class="flex gap-2"
       >
-        <component :is="layer.icon" class="size-5" />
+        <component v-if="layer.icon" :is="layer.icon" class="size-5" />
         <span>{{ layer.name }}</span>
       </Toggle>
     </div>

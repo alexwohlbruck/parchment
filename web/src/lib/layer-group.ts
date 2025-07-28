@@ -13,9 +13,14 @@ import {
   getTravelModeCaseColor,
 } from './travel-mode-colors'
 
-export class LayerGroup {
+/**
+ * Base class for managing a collection of map layers as a group
+ * Used for dynamically created layers like trip visualization
+ * Renamed from LayerGroup to avoid conflicts with the LayerGroup interface
+ */
+export class MapLayerGroup {
   id: string
-  layers: Map<string, Layer> = new Map()
+  protected layers: Map<string, Layer> = new Map()
   protected map: MapStrategy
 
   constructor(map: MapStrategy, id?: string) {
@@ -23,49 +28,132 @@ export class LayerGroup {
     this.id = id || this._generateGroupId()
   }
 
-  addLayer(layer: Layer, overwrite = false) {
+  /**
+   * Add a layer to this group
+   */
+  addLayer(layer: Layer, overwrite = false): void {
     const layerId = layer.configuration.id
     if (this.layers.has(layerId) && !overwrite) {
-      console.warn(`Layer with id ${layerId} already exists in this group.`)
+      console.warn(
+        `Layer with id ${layerId} already exists in group ${this.id}.`,
+      )
       return
     }
-    this.map.addLayer(layer, overwrite)
-    this.layers.set(layerId, layer)
+
+    try {
+      this.map.addLayer(layer, overwrite)
+      this.layers.set(layerId, layer)
+    } catch (error) {
+      console.error(
+        `Failed to add layer ${layerId} to group ${this.id}:`,
+        error,
+      )
+    }
   }
 
-  removeLayer(layerId: string) {
+  /**
+   * Remove a layer from this group
+   */
+  removeLayer(layerId: string): void {
     if (this.layers.has(layerId)) {
-      this.map.removeLayer(layerId)
-      this.layers.delete(layerId)
-    }
-  }
-
-  toggle(visible: boolean) {
-    for (const layerId of this.layers.keys()) {
-      this.map.toggleLayerVisibility(layerId, visible)
-    }
-  }
-
-  destroy() {
-    for (const layerId of this.layers.keys()) {
-      this.removeLayer(layerId)
-    }
-    const sources = new Set(
-      Array.from(this.layers.values()).map(l => l.configuration.source),
-    )
-    for (const sourceId of sources) {
-      if (typeof sourceId === 'string') {
-        this.map.removeSource(sourceId)
+      try {
+        this.map.removeLayer(layerId)
+        this.layers.delete(layerId)
+      } catch (error) {
+        console.error(
+          `Failed to remove layer ${layerId} from group ${this.id}:`,
+          error,
+        )
       }
     }
   }
 
+  /**
+   * Toggle visibility of all layers in this group
+   */
+  toggleVisibility(visible: boolean): void {
+    for (const layerId of this.layers.keys()) {
+      try {
+        this.map.toggleLayerVisibility(layerId, visible)
+      } catch (error) {
+        console.error(
+          `Failed to toggle visibility for layer ${layerId}:`,
+          error,
+        )
+      }
+    }
+  }
+
+  /**
+   * Get all layer IDs in this group
+   */
+  getLayerIds(): string[] {
+    return Array.from(this.layers.keys())
+  }
+
+  /**
+   * Get all layers in this group
+   */
+  getLayers(): Layer[] {
+    return Array.from(this.layers.values())
+  }
+
+  /**
+   * Check if this group contains a layer
+   */
+  hasLayer(layerId: string): boolean {
+    return this.layers.has(layerId)
+  }
+
+  /**
+   * Get the number of layers in this group
+   */
+  size(): number {
+    return this.layers.size
+  }
+
+  /**
+   * Clean up all layers and sources in this group
+   */
+  destroy(): void {
+    console.log(
+      `Destroying MapLayerGroup ${this.id} with ${this.layers.size} layers`,
+    )
+
+    // Remove all layers
+    for (const layerId of this.layers.keys()) {
+      this.removeLayer(layerId)
+    }
+
+    // Clean up sources that are only used by this group
+    const sources = new Set(
+      Array.from(this.layers.values())
+        .map(l => l.configuration.source)
+        .filter((source): source is string => typeof source === 'string'),
+    )
+
+    for (const sourceId of sources) {
+      try {
+        this.map.removeSource(sourceId)
+      } catch (error) {
+        // Source might be used by other layers, so this is not necessarily an error
+        console.debug(`Could not remove source ${sourceId}:`, error)
+      }
+    }
+
+    this.layers.clear()
+  }
+
   private _generateGroupId(): string {
-    return `group-${Math.random().toString(36).substring(2, 9)}`
+    return `map-group-${Math.random().toString(36).substring(2, 9)}`
   }
 }
 
-export class TripGroup extends LayerGroup {
+/**
+ * Specialized layer group for trip visualization
+ * Extends MapLayerGroup with trip-specific functionality
+ */
+export class TripGroup extends MapLayerGroup {
   trip: Trip
   private sources: Set<string> = new Set() // Track all sources created by this group
 
@@ -79,7 +167,7 @@ export class TripGroup extends LayerGroup {
   /**
    * Clean up any existing layers or sources that might conflict
    */
-  private cleanupExistingResources() {
+  private cleanupExistingResources(): void {
     // Clean up any potential remnants with similar IDs
     const potentialLayerIds = [
       ...Array.from({ length: 10 }, (_, i) => `${this.id}-segment-layer-${i}`),
@@ -113,7 +201,10 @@ export class TripGroup extends LayerGroup {
     })
   }
 
-  build() {
+  /**
+   * Build all trip visualization layers
+   */
+  private build(): void {
     this.trip.segments.forEach((segment, segmentIndex) => {
       if (!segment.geometry) return
       this._addSegmentLayer(segment, segmentIndex)
@@ -130,7 +221,7 @@ export class TripGroup extends LayerGroup {
     // this._addOriginDestinationLayers()
   }
 
-  private _addSegmentLayer(segment: TripSegment, segmentIndex: number) {
+  private _addSegmentLayer(segment: TripSegment, segmentIndex: number): void {
     if (!segment.geometry) return
 
     const sourceId = `${this.id}-segment-${segmentIndex}`
@@ -166,6 +257,7 @@ export class TripGroup extends LayerGroup {
       enabled: true,
       visible: true,
       engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+      order: 0, // Add order property
       configuration: {
         id: caseLayerId,
         type: 'line',
@@ -191,6 +283,7 @@ export class TripGroup extends LayerGroup {
       enabled: true,
       visible: true,
       engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+      order: 1, // Add order property
       configuration: {
         id: layerId,
         type: 'line',
@@ -214,7 +307,7 @@ export class TripGroup extends LayerGroup {
     currentSegment: TripSegment,
     nextSegment: TripSegment,
     segmentIndex: number,
-  ) {
+  ): void {
     if (!currentSegment.geometry || !nextSegment.geometry) return
 
     const lastPoint =
@@ -256,6 +349,7 @@ export class TripGroup extends LayerGroup {
       enabled: true,
       visible: true,
       engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+      order: 0, // Add order property
       configuration: {
         id: caseLayerId,
         type: 'line',
@@ -281,6 +375,7 @@ export class TripGroup extends LayerGroup {
       enabled: true,
       visible: true,
       engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+      order: 1, // Add order property
       configuration: {
         id: layerId,
         type: 'line',
@@ -300,13 +395,16 @@ export class TripGroup extends LayerGroup {
     })
   }
 
-  private _addOriginDestinationLayers() {
+  private _addOriginDestinationLayers(): void {
     // This method is no longer used since waypoint markers are managed separately
     // by the map strategy to ensure they're always visible
     return
   }
 
-  destroy() {
+  /**
+   * Enhanced destroy method for trip groups
+   */
+  destroy(): void {
     console.log(
       `Destroying TripGroup ${this.id} with ${this.layers.size} layers and ${this.sources.size} sources`,
     )

@@ -1,5 +1,6 @@
 import {
   Layer,
+  LayerGroup,
   LayerType,
   MapboxLayerType,
   SourceType,
@@ -11,14 +12,19 @@ import {
   TrainIcon,
   PersonStandingIcon,
   MountainSnowIcon,
+  CameraIcon,
 } from 'lucide-vue-next'
 import { MapEngine } from '@/types/map.types'
 import colors from 'tailwindcss/colors'
-import { useServerUrl } from '@/lib/api'
 import { oklchToHex } from '@/lib/travel-mode-colors'
 
 const mapillaryAccessToken = import.meta.env.VITE_MAPILLARY_ACCESS_TOKEN
-const serverUrl = useServerUrl()
+
+// Helper function to get server URL when needed
+function getServerUrl() {
+  // Use a more direct approach to get the base URL
+  return window.location.origin
+}
 
 const mapillaryOverview: Layer = {
   name: 'Mapillary Overview',
@@ -209,7 +215,7 @@ const loomLightRail: Layer = {
     source: {
       id: 'loom-light-rail',
       type: SourceType.VECTOR,
-      tiles: [`${serverUrl.value}/proxy/loom/subway-lightrail/geo/{z}/{x}/{y}`],
+      tiles: [`${getServerUrl()}/proxy/loom/subway-lightrail/geo/{z}/{x}/{y}`],
       maxzoom: 17,
     },
     'source-layer': 'lines',
@@ -241,7 +247,7 @@ const loomTram: Layer = {
     source: {
       id: 'loom-tram',
       type: SourceType.VECTOR,
-      tiles: [`${serverUrl.value}/proxy/loom/tram/geo/{z}/{x}/{y}`],
+      tiles: [`${getServerUrl()}/proxy/loom/tram/geo/{z}/{x}/{y}`],
       maxzoom: 17,
     },
     'source-layer': 'lines',
@@ -273,7 +279,7 @@ const loomRailCommuter: Layer = {
     source: {
       id: 'loom-rail-commuter',
       type: SourceType.VECTOR,
-      tiles: [`${serverUrl.value}/proxy/loom/rail-commuter/geo/{z}/{x}/{y}`],
+      tiles: [`${getServerUrl()}/proxy/loom/rail-commuter/geo/{z}/{x}/{y}`],
       maxzoom: 17,
     },
     'source-layer': 'lines',
@@ -305,7 +311,7 @@ const loomRail: Layer = {
     source: {
       id: 'loom-rail',
       type: SourceType.VECTOR,
-      tiles: [`${serverUrl.value}/proxy/loom/rail/geo/{z}/{x}/{y}`],
+      tiles: [`${getServerUrl()}/proxy/loom/rail/geo/{z}/{x}/{y}`],
       maxzoom: 17,
     },
     'source-layer': 'lines',
@@ -655,7 +661,8 @@ const contourLabels: Layer = {
   },
 }
 
-export const layers: Layer[] = [
+// Export layers with order properties added
+const layerDefinitions = [
   mapillaryOverview,
   mapillarySequence,
   mapillaryImage,
@@ -674,4 +681,59 @@ export const layers: Layer[] = [
   hillshade,
   contours,
   contourLabels,
-] as Layer[]
+]
+
+export const layers: Layer[] = layerDefinitions.map((layer, index) => ({
+  ...layer,
+  order: index,
+})) as Layer[]
+
+// Default layer groups
+export const defaultLayerGroups: Omit<
+  LayerGroup,
+  'id' | 'createdAt' | 'updatedAt'
+>[] = [
+  {
+    name: 'Mapillary',
+    icon: CameraIcon,
+    enabled: true,
+    visible: false,
+    order: 0,
+    layerIds: ['mapillary-overview', 'mapillary-sequence', 'mapillary-image'],
+  },
+  {
+    name: 'Loom Transit',
+    icon: TrainIcon,
+    enabled: true,
+    visible: false,
+    order: 1,
+    layerIds: [
+      'loom-tram',
+      'loom-light-rail',
+      'loom-rail-commuter',
+      'loom-rail',
+    ],
+  },
+  {
+    name: 'Terrain',
+    icon: MountainSnowIcon,
+    enabled: true,
+    visible: false,
+    order: 2,
+    layerIds: ['hillshade', 'contours', 'contour-labels'],
+  },
+]
+
+// Layer group mapping for quick assignment
+export const layerGroupMapping: Record<string, string> = {
+  'mapillary-overview': 'Mapillary',
+  'mapillary-sequence': 'Mapillary',
+  'mapillary-image': 'Mapillary',
+  'loom-tram': 'Loom Transit',
+  'loom-light-rail': 'Loom Transit',
+  'loom-rail-commuter': 'Loom Transit',
+  'loom-rail': 'Loom Transit',
+  hillshade: 'Terrain',
+  contours: 'Terrain',
+  'contour-labels': 'Terrain',
+}

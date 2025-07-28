@@ -227,6 +227,18 @@
           "name": "Nombre de atribución"
         }
       }
+    },
+    "actions": {
+      "new": "Nuevo",
+      "newLayer": "Nueva Capa",
+      "newGroup": "Nuevo Grupo",
+      "editLayer": "Editar Capa",
+      "editGroup": "Editar Grupo",
+      "deleteGroup": "Eliminar Grupo",
+      "ungroupLayer": "Desagrupar Capa"
+    },
+    "empty": {
+      "message": "No hay capas configuradas"
     }
   },
   "directions": {

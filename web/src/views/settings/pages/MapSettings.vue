@@ -30,7 +30,6 @@ import {
   TrainIcon,
   MapPinIcon,
 } from 'lucide-vue-next'
-import LayerConfiguration from '@/components/map/layers/LayerConfiguration.vue'
 import Layers from '@/components/map/Layers.vue'
 
 const mapStore = useMapStore()
@@ -43,16 +42,6 @@ const { settings } = storeToRefs(mapStore)
 
 const engineCommand = commandStore.useCommand(CommandName.CHOOSE_MAP_ENGINE)
 const projectionCommand = commandStore.useCommand(CommandName.MAP_PROJECTION)
-
-function openLayerConfigDialog(layer: Layer) {
-  appService.componentDialog({
-    component: LayerConfiguration,
-    continueText: t('general.save'),
-    props: {
-      layer,
-    },
-  })
-}
 
 const basemap = computed(() => {
   return settings.value.engine === MapEngine.MAPBOX
@@ -213,19 +202,6 @@ const basemap = computed(() => {
     </SettingsSection> -->
 
     <!-- Layers configuration -->
-    <SettingsSection
-      :title="$t('settings.mapSettings.layers.title')"
-      :description="$t('settings.mapSettings.layers.description')"
-      :frame="false"
-    >
-      <template v-slot:actions>
-        <Button variant="outline" @click="openLayerConfigDialog">
-          <PlusIcon class="size-4 mr-2" />
-          {{ $t('settings.mapSettings.layers.new') }}
-        </Button>
-      </template>
-
-      <Layers />
-    </SettingsSection>
+    <Layers />
   </div>
 </template>

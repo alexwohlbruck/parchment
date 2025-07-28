@@ -58,7 +58,7 @@ async function submit() {
         />
       </div>
 
-      <DialogFooter class="flex flex-row gap-2 sm:gap-0">
+      <DialogFooter class="flex flex-row gap-2">
         <Button
           class="flex-1 sm:flex-none"
           variant="outline"

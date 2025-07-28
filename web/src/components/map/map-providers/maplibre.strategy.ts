@@ -33,7 +33,7 @@ import { mapEventBus } from '@/lib/eventBus'
 import { mapboxLayerToMaplibreLayer } from '@/lib/map.utils'
 import { useMapStore } from '@/stores/map.store'
 import { createPegmanLayers, updatePegmanData } from '@/lib/pegman.utils'
-import { LayerGroup, TripGroup } from '@/lib/layer-group'
+import { MapLayerGroup, TripGroup } from '@/lib/layer-group'
 import { Component } from 'vue'
 import { createVueMarkerElement } from '@/lib/vue-marker.utils'
 import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
@@ -57,7 +57,7 @@ const basemapUrls = {
 export class MaplibreStrategy extends MapStrategy {
   mapInstance: MaplibreMap
   geolocateControl: GeolocateControl
-  layerGroups: Map<string, LayerGroup> = new Map()
+  layerGroups: Map<string, MapLayerGroup> = new Map()
 
   constructor(container, options: MapSettings, accessToken?: string) {
     super(container, options, accessToken)
@@ -464,37 +464,49 @@ export class MaplibreStrategy extends MapStrategy {
   addLayer(layer: Layer, overwrite: boolean = false) {
     const { configuration }: any = mapboxLayerToMaplibreLayer(layer)
 
-    // Handle source if it exists in the configuration
-    if (typeof configuration.source === 'object') {
-      const sourceId = configuration.source.id
-      const existingSource = this.mapInstance.getSource(sourceId)
+    try {
+      // Handle source if it exists in the configuration
+      if (typeof configuration.source === 'object') {
+        const sourceId = configuration.source.id
+        const existingSource = this.mapInstance.getSource(sourceId)
 
-      if (existingSource) {
-        if (overwrite) {
-          this.mapInstance.removeSource(sourceId)
+        if (existingSource) {
+          if (overwrite) {
+            this.mapInstance.removeSource(sourceId)
+            this.mapInstance.addSource(sourceId, configuration.source)
+          }
+        } else {
           this.mapInstance.addSource(sourceId, configuration.source)
         }
-      } else {
-        this.mapInstance.addSource(sourceId, configuration.source)
+
+        // Update configuration to use source ID instead of source object
+        configuration.source = sourceId
       }
 
-      // Update configuration to use source ID instead of source object
-      configuration.source = sourceId
-    }
+      // Verify source exists before adding layer
+      if (typeof configuration.source === 'string') {
+        const sourceExists = this.mapInstance.getSource(configuration.source)
+        if (!sourceExists) {
+          return
+        }
+      }
 
-    // Handle layer
-    const existingLayer = this.mapInstance.getLayer(configuration.id)
-    if (existingLayer && overwrite) {
-      this.mapInstance.removeLayer(configuration.id)
-    }
-    if (!existingLayer || overwrite) {
-      this.mapInstance.addLayer({
-        ...configuration,
-        layout: {
-          ...configuration.layout,
-          visibility: layer.visible ? 'visible' : 'none',
-        },
-      })
+      // Handle layer
+      const existingLayer = this.mapInstance.getLayer(configuration.id)
+      if (existingLayer && overwrite) {
+        this.mapInstance.removeLayer(configuration.id)
+      }
+      if (!existingLayer || overwrite) {
+        this.mapInstance.addLayer({
+          ...configuration,
+          layout: {
+            ...configuration.layout,
+            visibility: layer.visible ? 'visible' : 'none',
+          },
+        })
+      }
+    } catch (error) {
+      // Silent error handling
     }
   }
 

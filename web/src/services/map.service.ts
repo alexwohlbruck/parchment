@@ -26,7 +26,7 @@ import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { watch } from 'vue'
 import { AppRoute } from '@/router'
 import { useRouter } from 'vue-router'
-import { ref } from 'vue'
+import { ref, toRaw } from 'vue'
 import { Component } from 'vue'
 
 const dark = useDark()
@@ -126,10 +126,11 @@ function mapService() {
     mapStrategy = getMapStrategy(container, mapEngine, accessToken)
     mapStore.setMapStrategy(mapStrategy)
 
-    mapEventBus.on('load', () => {
+    mapEventBus.on('load', async () => {
       isMapReady.value = true
 
       setConfigProperties()
+      await initializeDefaultLayerGroups()
       mapStore.initializeLayers(enabledLayers.value)
 
       // Show waypoint markers immediately when map loads
@@ -148,9 +149,10 @@ function mapService() {
       }
     })
 
-    mapEventBus.on('style.load', () => {
+    mapEventBus.on('style.load', async () => {
       isMapReady.value = true
 
+      await initializeDefaultLayerGroups()
       mapStore.initializeLayers(enabledLayers.value)
 
       // Show waypoint markers immediately when style loads
@@ -219,6 +221,122 @@ function mapService() {
     mapStrategy?.setPlaceLabels(mapStore.settings.placeLabels)
     mapStrategy?.setMap3dObjects(mapStore.settings.objects3d)
     mapStrategy?.setMap3dTerrain(mapStore.settings.terrain3d)
+  }
+
+  let isInitializingGroups = false
+
+  // Helper function to get layer ID from either structure
+  function getLayerId(layer: any): string | undefined {
+    return layer?.configuration?.id || layer?.id
+  }
+
+  async function initializeDefaultLayerGroups() {
+    if (isInitializingGroups) {
+      return
+    }
+
+    isInitializingGroups = true
+
+    try {
+      // Import the layer group definitions
+      const { defaultLayerGroups, layerGroupMapping } = await import(
+        '@/components/map/layers/layers'
+      )
+
+      // Create or find groups based on definitions
+      const createdGroups = new Map<string, any>()
+
+      for (const groupDef of defaultLayerGroups) {
+        let existingGroup = mapStore.layerGroups.find(
+          g => g?.name === groupDef.name,
+        )
+
+        if (!existingGroup) {
+          existingGroup = mapStore.addLayerGroup(groupDef)
+        }
+
+        if (existingGroup?.id) {
+          createdGroups.set(groupDef.name, existingGroup)
+        }
+      }
+
+      // Verify all groups are available
+      if (createdGroups.size !== defaultLayerGroups.length) {
+        throw new Error('Failed to create or find required layer groups')
+      }
+
+      // Create layer group ID mapping using the created groups
+      const layerGroupIdMap: Record<string, string> = {}
+      Object.entries(layerGroupMapping).forEach(([layerId, groupName]) => {
+        const group = createdGroups.get(groupName)
+        if (group?.id) {
+          layerGroupIdMap[layerId] = group.id
+        }
+      })
+
+      // Update layers with group assignments
+      mapStore.layers.forEach(layer => {
+        if (!layer) return
+
+        const layerId = getLayerId(layer)
+        if (!layerId) return
+
+        const groupId = layerGroupIdMap[layerId]
+        if (groupId && layer.groupId !== groupId) {
+          layer.groupId = groupId
+        }
+      })
+    } catch (error) {
+      // Silent error handling
+    } finally {
+      isInitializingGroups = false
+    }
+  }
+
+  // Utility function to force layer assignment (for debugging)
+  function forceLayerGroupAssignment() {
+    console.log('Forcing layer group assignment...')
+
+    // Find existing groups
+    const mapillaryGroup = mapStore.layerGroups.find(
+      g => g.name === 'Mapillary',
+    )
+    const loomGroup = mapStore.layerGroups.find(g => g.name === 'Loom Transit')
+    const terrainGroup = mapStore.layerGroups.find(g => g.name === 'Terrain')
+
+    if (!mapillaryGroup || !loomGroup || !terrainGroup) {
+      console.error('Some groups are missing, cannot assign layers')
+      return
+    }
+
+    const layerGroupMap = {
+      'mapillary-overview': mapillaryGroup.id,
+      'mapillary-sequence': mapillaryGroup.id,
+      'mapillary-image': mapillaryGroup.id,
+      'loom-tram': loomGroup.id,
+      'loom-light-rail': loomGroup.id,
+      'loom-rail-commuter': loomGroup.id,
+      'loom-rail': loomGroup.id,
+      hillshade: terrainGroup.id,
+      contours: terrainGroup.id,
+      'contour-labels': terrainGroup.id,
+    }
+
+    let assignedCount = 0
+    mapStore.layers.forEach(layer => {
+      const groupId = layerGroupMap[layer.configuration.id]
+      if (groupId) {
+        layer.groupId = groupId
+        assignedCount++
+        console.log(
+          `Force assigned layer ${layer.configuration.id} to group ${groupId}`,
+        )
+      }
+    })
+
+    console.log(
+      `Force assignment complete. Assigned ${assignedCount} layers to groups.`,
+    )
   }
 
   /**
@@ -815,6 +933,7 @@ function mapService() {
     showOnlyWaypoints,
     showTripOnHover,
     showDefaultTrip,
+    initializeDefaultLayerGroups,
   }
 }
 

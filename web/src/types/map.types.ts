@@ -166,6 +166,24 @@ export enum LayerType {
   STREET_VIEW = 'street-view',
 }
 
+// Layer Group Types
+export interface LayerGroup {
+  id: string
+  name: string
+  icon?: Icon
+  enabled: boolean
+  visible: boolean
+  order: number
+  layerIds: string[]
+  createdAt?: string
+  updatedAt?: string
+}
+
+// Unified item that can be either a group or a layer
+export type LayerItem =
+  | { type: 'group'; data: LayerGroup & { layers: Layer[] } }
+  | { type: 'layer'; data: Layer }
+
 // TODO: Make MapboxLayer extend Layer
 export type Layer = {
   name: string
@@ -175,6 +193,8 @@ export type Layer = {
   visible: boolean
   engine: MapEngine[]
   configuration: MapboxLayerConfiguration
+  groupId?: string // Reference to layer group
+  order?: number // Order within group or global order if ungrouped
 }
 
 export type MaplibreLayer = Layer & {

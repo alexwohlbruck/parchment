@@ -173,7 +173,7 @@
         "engine": "Compatible engines",
         "id": "Layer ID",
         "name": "Layer Name",
-        "enabled": "Enabled",
+        "showInLayerSelector": "Show in layer selector",
         "type": {
           "title": "Layer Type",
           "values": {

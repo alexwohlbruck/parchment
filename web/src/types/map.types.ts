@@ -171,7 +171,7 @@ export interface LayerGroup {
   id: string
   name: string
   icon?: Icon
-  enabled: boolean
+  showInLayerSelector: boolean
   visible: boolean
   order: number
   layerIds: string[]
@@ -189,7 +189,7 @@ export type Layer = {
   name: string
   icon?: Icon
   type: LayerType
-  enabled: boolean
+  showInLayerSelector: boolean
   visible: boolean
   engine: MapEngine[]
   configuration: MapboxLayerConfiguration

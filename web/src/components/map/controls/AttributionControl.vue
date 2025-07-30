@@ -44,7 +44,7 @@ const feedbackUrl = computed(() => {
 })
 
 const attributionLinks = computed(() => {
-  if (mapStore.mapEngine === MapEngine.MAPBOX) {
+  if (mapStore.settings.engine === MapEngine.MAPBOX) {
     return [
       {
         text: '© Mapbox',
@@ -110,7 +110,7 @@ const socialLinks = [
 
     <!-- Mapbox logo -->
     <a
-      v-if="mapStore.mapEngine === MapEngine.MAPBOX"
+      v-if="mapStore.settings.engine === MapEngine.MAPBOX"
       href="https://www.mapbox.com/"
       target="_blank"
       rel="noopener noreferrer"
@@ -177,7 +177,7 @@ const socialLinks = [
             </a>
 
             <a
-              v-if="mapStore.mapEngine === MapEngine.MAPBOX"
+              v-if="mapStore.settings.engine === MapEngine.MAPBOX"
               :href="feedbackUrl"
               target="_blank"
               rel="noopener noreferrer"

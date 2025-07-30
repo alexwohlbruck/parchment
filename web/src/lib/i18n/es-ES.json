@@ -174,7 +174,7 @@
         "engine": "Motores compatibles",
         "id": "ID de la capa",
         "name": "Nombre",
-        "enabled": "Habilitado",
+        "showInLayerSelector": "Mostrar en selector de capas",
         "type": {
           "title": "Tipo de capa",
           "values": {

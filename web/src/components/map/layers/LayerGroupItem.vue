@@ -76,11 +76,11 @@ const groupLayers = computed({
 })
 
 function getGroupVisibility(): boolean {
-  return props.group.visible
+  return props.group.showInLayerSelector
 }
 
 function updateGroupVisibility(visible: boolean) {
-  mapStore.toggleLayerGroupVisibility(props.group.id, visible)
+  mapStore.toggleLayerGroupEnabled(props.group.id, visible)
 }
 
 function openLayerGroupConfigDialog() {

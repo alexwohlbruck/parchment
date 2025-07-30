@@ -14,8 +14,7 @@ const mapStore = useMapStore()
 const mapService = useMapService()
 const { layers, layerGroups } = storeToRefs(mapStore)
 
-// Helper function to get layer ID from either structure
-function getLayerId(layer: any): string | undefined {
+function getLayerId(layer: any): string {
   return layer?.configuration?.id || layer?.id
 }
 
@@ -27,18 +26,24 @@ function toggleLayerGroupVisibility(groupId: string, visible: boolean) {
   mapStore.toggleLayerGroupVisibility(groupId, visible)
 }
 
-// Get ungrouped layers (not street view)
 const ungroupedLayers = computed(() => {
   return layers.value.filter(layer => {
     const raw = toRaw(layer)
-    return raw && !raw.groupId && raw.type !== LayerType.STREET_VIEW
+    return (
+      raw &&
+      !raw.groupId &&
+      raw.type !== LayerType.STREET_VIEW &&
+      raw.showInLayerSelector
+    )
   })
 })
 
-// Get layer groups (filtered for non-street-view content)
+// Get layer groups (filtered for non-street-view content and showInLayerSelector)
 const filteredGroups = computed(() => {
   return layerGroups.value.filter(group => {
-    // Only show groups that have non-street-view layers
+    // Only show groups that are enabled in the selector
+    if (!group.showInLayerSelector) return false
+
     const groupLayers = layers.value.filter(layer => {
       const raw = toRaw(layer)
       return raw && raw.groupId === group.id

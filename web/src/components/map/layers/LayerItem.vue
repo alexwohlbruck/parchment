@@ -24,7 +24,6 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   showUngroupAction: false,
   compact: false,
-  groupId: null,
 })
 
 const emit = defineEmits<{
@@ -52,8 +51,8 @@ function handleUngroup() {
   }
 }
 
-function toggleVisibility(visible: boolean) {
-  mapService.toggleLayerVisibility(props.layer.configuration?.id, visible)
+function toggleLayer(enabled: boolean) {
+  mapService.toggleLayer(props.layer.configuration?.id, enabled)
 }
 </script>
 
@@ -92,8 +91,8 @@ function toggleVisibility(visible: boolean) {
     <!-- Layer Visibility Toggle -->
     <Switch
       v-if="!groupId"
-      :model-value="layer.visible"
-      @update:model-value="toggleVisibility"
+      :model-value="layer.showInLayerSelector"
+      @update:model-value="toggleLayer"
       @click.stop
       @mousedown.stop
       :size="compact ? 'sm' : 'default'"

@@ -29,9 +29,11 @@ import draggable from 'vuedraggable'
 
 const appService = useAppService()
 const mapStore = useMapStore()
-const { layerItems } = storeToRefs(mapStore)
+const { denormalizedLayersGroups } = storeToRefs(mapStore)
 const { t } = useI18n()
 const { isDragActive } = useDragState()
+
+const isProd = import.meta.env.PROD
 
 // Drag and drop composable
 const {
@@ -49,7 +51,7 @@ const expandedGroups = ref(new Set<string>())
 
 // Computed property for the main draggable list
 const draggableLayerItems = computed({
-  get: () => layerItems.value || [],
+  get: () => denormalizedLayersGroups.value || [],
   set: (newItems: LayerItem[]) => {
     // Update order for all items based on their position in the array
     newItems.forEach((item, index) => {
@@ -98,14 +100,6 @@ function toggleGroup(groupId: string) {
   }
 }
 
-function createNewLayer() {
-  openLayerConfigDialog()
-}
-
-function createNewGroup() {
-  openLayerGroupConfigDialog()
-}
-
 function ungroupLayer(layerId: string) {
   mapStore.moveLayerToGroup(layerId, null)
 }
@@ -113,29 +107,11 @@ function ungroupLayer(layerId: string) {
 function onMainChange(evt: any) {
   handleMainListChange(evt, draggableLayerItems.value)
 }
-
-// Prevent default touch behaviors on drag containers to improve touch responsiveness
-function preventDefaultTouch(event: TouchEvent) {
-  if (isDragging.value) {
-    event.preventDefault()
-  }
-}
-
-// Add global event listeners for touch improvements
-onMounted(() => {
-  // Improve touch handling for drag operations
-  document.addEventListener('touchmove', preventDefaultTouch, {
-    passive: false,
-  })
-})
-
-onUnmounted(() => {
-  document.removeEventListener('touchmove', preventDefaultTouch)
-})
 </script>
 
 <template>
   <SettingsSection
+    class="h-full"
     :title="t('settings.mapSettings.layers.title')"
     :description="t('settings.mapSettings.layers.description')"
     :frame="false"
@@ -143,148 +119,81 @@ onUnmounted(() => {
     <template v-slot:actions>
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" :disabled="isProd">
             <PlusIcon class="size-4 mr-2" />
             {{ t('layers.actions.new') }}
             <ChevronDownIcon class="size-4 ml-2" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem @click="createNewLayer">
-            <LayersIcon class="size-4 mr-2" />
+          <DropdownMenuItem @click="openLayerConfigDialog">
+            <LayersIcon class="size-4" />
             {{ t('layers.actions.newLayer') }}
           </DropdownMenuItem>
-          <DropdownMenuItem @click="createNewGroup">
-            <FolderIcon class="size-4 mr-2" />
+          <DropdownMenuItem @click="openLayerGroupConfigDialog">
+            <FolderIcon class="size-4" />
             {{ t('layers.actions.newGroup') }}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </template>
 
-    <div class="space-y-2">
-      <!-- Main Draggable Container -->
-      <draggable
-        v-if="layerItems?.length > 0"
-        v-model="draggableLayerItems"
-        v-bind="mainDragOptions"
-        @start="onDragStart"
-        @end="onDragEnd"
-        @move="onDragMove"
-        @change="onMainChange"
-        :item-key="getLayerItemKey"
-        class="space-y-2 draggable-container"
-        tag="div"
-      >
-        <template #item="{ element }">
-          <div :key="getLayerItemKey(element)" class="relative draggable-item">
-            <!-- Group Item -->
-            <LayerGroupItem
-              v-if="element.type === 'group'"
-              :group="element.data"
-              :expanded="expandedGroups.has(element.data.id)"
-              @toggle-expanded="toggleGroup"
-              @ungroup-layer="ungroupLayer"
-            />
+    <!-- Main Draggable Container -->
+    <draggable
+      v-if="denormalizedLayersGroups?.length > 0"
+      v-model="draggableLayerItems"
+      v-bind="mainDragOptions"
+      @start="onDragStart"
+      @end="onDragEnd"
+      @move="onDragMove"
+      @change="onMainChange"
+      :item-key="getLayerItemKey"
+      class="space-y-1 draggable-container h-full"
+      tag="div"
+    >
+      <template #item="{ element }">
+        <div :key="getLayerItemKey(element)" class="relative draggable-item">
+          <!-- Group Item -->
+          <LayerGroupItem
+            v-if="element.type === 'group'"
+            :group="element.data"
+            :expanded="expandedGroups.has(element.data.id)"
+            @toggle-expanded="toggleGroup"
+            @ungroup-layer="ungroupLayer"
+          />
 
-            <!-- Individual Layer Item -->
-            <div
-              v-else-if="
-                element.type === 'layer' && element.data?.configuration
-              "
-              class="border border-border rounded-lg bg-background"
-            >
-              <LayerItemComponent
-                :layer="element.data"
-                @ungroup="ungroupLayer"
-              />
-            </div>
+          <!-- Individual Layer Item -->
+          <div
+            v-else-if="element.type === 'layer' && element.data?.configuration"
+            class="border border-border rounded-lg bg-background"
+          >
+            <LayerItemComponent :layer="element.data" @ungroup="ungroupLayer" />
           </div>
-        </template>
-      </draggable>
+        </div>
+      </template>
+    </draggable>
 
-      <!-- Empty State -->
-      <div
-        v-if="!layerItems?.length"
-        class="text-center py-8 text-muted-foreground"
-      >
-        <FolderIcon class="size-8 mx-auto mb-2 opacity-50" />
-        <p class="text-sm">{{ t('layers.empty.message') }}</p>
-      </div>
+    <!-- Empty State -->
+    <div
+      v-if="!denormalizedLayersGroups?.length"
+      class="text-center py-8 text-muted-foreground"
+    >
+      <FolderIcon class="size-8 mx-auto mb-2 opacity-50" />
+      <p class="text-sm">{{ t('layers.empty.message') }}</p>
     </div>
   </SettingsSection>
 </template>
 
 <style scoped>
-/* Vue-draggable styling */
 .drag-ghost {
   opacity: 0;
 }
 
 .drag-chosen {
-  /* Remove transitions during drag to prevent lag */
-  transition: none !important;
-  border-color: rgba(59, 130, 246, 0.3);
+  user-select: none;
 }
 
 .drag-active {
-  transform: rotate(2deg) scale(1.02);
-  /* Remove transitions during drag to prevent lag */
-  transition: none !important;
-  z-index: 1000;
-}
-
-/* Touch feedback improvements */
-@media (hover: none) and (pointer: coarse) {
-  .drag-chosen {
-    border-color: rgba(59, 130, 246, 0.4);
-  }
-
-  .drag-active {
-    transform: rotate(1deg) scale(1.05);
-  }
-}
-
-/* Improve minimum touch targets */
-.min-h-\[40px\] {
-  min-height: 40px;
-}
-
-/* Disable pointer events on drag elements to prevent conflicts */
-.drag-active * {
-  pointer-events: none;
-}
-
-/* Ensure dragged element follows cursor precisely */
-.sortable-fallback {
-  opacity: 0.8 !important;
-  cursor: grabbing !important;
-}
-
-/* Improve touch target sizes for mobile */
-@media (hover: none) and (pointer: coarse) {
-  .draggable-item {
-    min-height: 44px; /* Apple recommended minimum touch target */
-  }
-
-  /* Prevent text selection during drag */
-  .drag-active,
-  .drag-chosen {
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-    -webkit-touch-callout: none;
-  }
-
-  /* Improve scrolling behavior during drag */
-  .sortable-ghost {
-    opacity: 0.4;
-  }
-}
-
-/* Prevent scrolling issues on iOS */
-.draggable-container {
-  -webkit-overflow-scrolling: touch;
+  transform: rotate(1deg) scale(1.02);
 }
 </style>

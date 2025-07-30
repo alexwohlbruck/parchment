@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 import { useMapService } from '@/services/map.service'
 import { useAppService } from '@/services/app.service'
 import type { Layer } from '@/types/map.types'
+import * as LucideIcons from 'lucide-vue-next'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import {
@@ -33,6 +34,19 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const mapService = useMapService()
 const appService = useAppService()
+
+// Helper function to convert icon string name to Vue component
+function getIconComponent(iconName?: string) {
+  if (!iconName) return null
+
+  const fullName = iconName.endsWith('Icon') ? iconName : `${iconName}Icon`
+
+  const isValidIcon =
+    fullName !== 'icons' &&
+    typeof LucideIcons[fullName as keyof typeof LucideIcons] === 'function'
+
+  return isValidIcon ? LucideIcons[fullName as keyof typeof LucideIcons] : null
+}
 
 function openLayerConfigDialog() {
   appService.componentDialog({
@@ -70,8 +84,8 @@ function toggleLayer(enabled: boolean) {
       @click="openLayerConfigDialog"
     >
       <component
-        v-if="layer.icon"
-        :is="layer.icon"
+        v-if="getIconComponent(layer.icon)"
+        :is="getIconComponent(layer.icon)"
         :class="compact ? 'size-3' : 'size-4'"
       />
       <span :class="compact ? 'text-sm' : 'text-sm font-medium'">

@@ -79,7 +79,7 @@ watch(
           name: currentGroup.name,
           showInLayerSelector: currentGroup.showInLayerSelector,
           visible: currentGroup.visible,
-          icon: currentGroup.icon?.name || 'FolderIcon',
+          icon: currentGroup.icon,
           iconColor: 'blue', // Default since we don't store color in LayerGroup
         },
       })
@@ -95,7 +95,7 @@ const onSubmit = handleSubmit(values => {
       name: values.name,
       showInLayerSelector: values.showInLayerSelector,
       visible: values.visible,
-      icon: values.icon === 'FolderIcon' ? undefined : (values.icon as any),
+      icon: values.icon === 'FolderIcon' ? undefined : values.icon,
     })
   } else {
     // Create new group
@@ -103,7 +103,7 @@ const onSubmit = handleSubmit(values => {
       name: values.name,
       showInLayerSelector: values.showInLayerSelector,
       visible: values.visible,
-      icon: values.icon === 'FolderIcon' ? undefined : (values.icon as any),
+      icon: values.icon === 'FolderIcon' ? undefined : values.icon,
       order: mapStore.layerGroups.length,
       layerIds: [],
     })
@@ -173,7 +173,10 @@ defineExpose({
           <SettingsItem :title="t('layers.groups.fields.icon')">
             <FormControl>
               <IconPicker
-                :model-value="{ icon: value, color: values.iconColor as ThemeColor }"
+                :model-value="{ 
+                  icon: value, 
+                  color: values.iconColor as ThemeColor 
+                }"
                 @update:model-value="
                   newValue => {
                     handleChange(newValue.icon)

@@ -5,6 +5,7 @@ import { useMapStore } from '@/stores/map.store'
 import { useAppService } from '@/services/app.service'
 import type { LayerGroup, Layer } from '@/types/map.types'
 import { useDragAndDrop } from '@/composables/useDragAndDrop'
+import * as LucideIcons from 'lucide-vue-next'
 import LayerItemComponent from './LayerItem.vue'
 import LayerGroupConfiguration from './LayerGroupConfiguration.vue'
 import { Switch } from '@/components/ui/switch'
@@ -46,6 +47,20 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const mapStore = useMapStore()
 const appService = useAppService()
+
+// Helper function to convert icon string name to Vue component
+function getIconComponent(iconName?: string) {
+  if (!iconName) return null
+
+  const fullName = iconName.endsWith('Icon') ? iconName : `${iconName}Icon`
+
+  const isValidIcon =
+    fullName !== 'icons' &&
+    typeof LucideIcons[fullName as keyof typeof LucideIcons] === 'function'
+
+  return isValidIcon ? LucideIcons[fullName as keyof typeof LucideIcons] : null
+}
+
 const {
   groupDragOptions,
   onDragStart,
@@ -126,7 +141,11 @@ function onGroupLayersChange(evt: any) {
           <ChevronDownIcon v-else class="size-3 text-muted-foreground" />
 
           <!-- Group Icon & Name -->
-          <component v-if="group.icon" :is="group.icon" class="size-4" />
+          <component
+            v-if="getIconComponent(group.icon)"
+            :is="getIconComponent(group.icon)"
+            class="size-4"
+          />
           <FolderIcon v-else class="size-4" />
           <span class="text-sm font-medium">{{ group.name }}</span>
           <span class="text-xs text-muted-foreground ml-auto">

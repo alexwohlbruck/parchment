@@ -173,6 +173,8 @@
         "engine": "Compatible engines",
         "id": "Layer ID",
         "name": "Layer Name",
+        "icon": "Layer Icon",
+        "iconPlaceholder": "Choose an icon",
         "showInLayerSelector": "Show in layer selector",
         "type": {
           "title": "Layer Type",

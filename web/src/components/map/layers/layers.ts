@@ -28,6 +28,7 @@ function getServerUrl() {
 
 const mapillaryOverview: Layer = {
   name: 'Mapillary Overview',
+  icon: 'CameraIcon',
   showInLayerSelector: true,
   visible: false,
   type: LayerType.STREET_VIEW,
@@ -60,6 +61,7 @@ const mapillaryOverview: Layer = {
 
 const mapillarySequence: Layer = {
   name: 'Mapillary Sequences',
+  icon: 'CameraIcon',
   showInLayerSelector: true,
   visible: false,
   type: LayerType.STREET_VIEW,
@@ -104,6 +106,7 @@ const mapillarySequence: Layer = {
 
 const mapillaryImage: Layer = {
   name: 'Mapillary Images',
+  icon: 'CameraIcon',
   showInLayerSelector: true,
   visible: false,
   type: LayerType.STREET_VIEW,
@@ -155,7 +158,7 @@ const mapillaryImage: Layer = {
 
 const cyclOSM: Layer = {
   name: 'CyclOSM',
-  icon: BikeIcon,
+  icon: 'BikeIcon',
   showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
@@ -183,7 +186,7 @@ const cyclOSM: Layer = {
 
 const waymarkedTrails: Layer = {
   name: 'Waymarked Trails',
-  icon: BikeIcon,
+  icon: 'BikeIcon',
   showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
@@ -206,7 +209,7 @@ const waymarkedTrails: Layer = {
 // https://loom.cs.uni-freiburg.de/tiles/subway-lightrail/geo/13/2258/3240.mvt
 const loomLightRail: Layer = {
   name: 'Loom Light Rail',
-  icon: TrainIcon,
+  icon: 'TrainIcon',
   showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
@@ -239,7 +242,7 @@ const loomLightRail: Layer = {
 
 const loomTram: Layer = {
   name: 'Loom Tram',
-  icon: TrainIcon,
+  icon: 'TrainIcon',
   showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
@@ -272,7 +275,7 @@ const loomTram: Layer = {
 
 const loomRailCommuter: Layer = {
   name: 'Loom Rail (Commuter)',
-  icon: TrainIcon,
+  icon: 'TrainIcon',
   showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
@@ -305,7 +308,7 @@ const loomRailCommuter: Layer = {
 
 const loomRail: Layer = {
   name: 'Loom Rail (Long Distance)',
-  icon: TrainIcon,
+  icon: 'TrainIcon',
   showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
@@ -447,7 +450,7 @@ const loomRail: Layer = {
 const transitlandApiKey = import.meta.env.VITE_TRANSITLAND_API_KEY
 const transitLand: Layer = {
   name: 'Transitland',
-  icon: TrainIcon,
+  icon: 'TrainIcon',
   showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
@@ -536,7 +539,7 @@ const transitLand: Layer = {
 // mapbox://mapbox.mapbox-traffic-v1
 const traffic: Layer = {
   name: 'Mapbox traffic',
-  icon: CarFrontIcon,
+  icon: 'CarFrontIcon',
   showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
@@ -584,7 +587,7 @@ const traffic: Layer = {
 
 const hillshade: Layer = {
   name: 'Hillshade',
-  icon: MountainSnowIcon,
+  icon: 'MountainSnowIcon',
   showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
@@ -610,7 +613,7 @@ const hillshade: Layer = {
 
 const contours: Layer = {
   name: 'Contours',
-  icon: MountainSnowIcon,
+  icon: 'MountainSnowIcon',
   showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
@@ -638,7 +641,7 @@ const contours: Layer = {
 
 const contourLabels: Layer = {
   name: 'Contour Labels',
-  icon: MountainSnowIcon,
+  icon: 'MountainSnowIcon',
   showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
@@ -705,7 +708,7 @@ export const defaultLayerGroups: Omit<
 >[] = [
   {
     name: 'Mapillary',
-    icon: CameraIcon,
+    icon: 'CameraIcon',
     showInLayerSelector: true,
     visible: false,
     order: 0,
@@ -713,7 +716,7 @@ export const defaultLayerGroups: Omit<
   },
   {
     name: 'Loom Transit',
-    icon: TrainIcon,
+    icon: 'TrainIcon',
     showInLayerSelector: true,
     visible: false,
     order: 1,
@@ -726,7 +729,7 @@ export const defaultLayerGroups: Omit<
   },
   {
     name: 'Terrain',
-    icon: MountainSnowIcon,
+    icon: 'MountainSnowIcon',
     showInLayerSelector: true,
     visible: false,
     order: 2,

@@ -170,7 +170,7 @@ export enum LayerType {
 export interface LayerGroup {
   id: string
   name: string
-  icon?: Icon
+  icon?: string
   showInLayerSelector: boolean
   visible: boolean
   order: number
@@ -187,7 +187,7 @@ export type LayerItem =
 // TODO: Make MapboxLayer extend Layer
 export type Layer = {
   name: string
-  icon?: Icon
+  icon?: string
   type: LayerType
   showInLayerSelector: boolean
   visible: boolean

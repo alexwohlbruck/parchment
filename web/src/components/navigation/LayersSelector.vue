@@ -4,15 +4,29 @@ import { Toggle } from '@/components/ui/toggle'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useMapStore } from '@/stores/map.store'
 import { useMapService } from '@/services/map.service'
-import { H5 } from '@/components/ui/typography'
+import { H6 } from '@/components/ui/typography'
 import { basemaps } from '../map/map.data'
 import { Basemap, LayerType } from '@/types/map.types'
 import { storeToRefs } from 'pinia'
 import { toRaw } from 'vue'
+import * as LucideIcons from 'lucide-vue-next'
 
 const mapStore = useMapStore()
 const mapService = useMapService()
 const { layers, layerGroups } = storeToRefs(mapStore)
+
+// Helper function to convert icon string name to Vue component
+function getIconComponent(iconName?: string) {
+  if (!iconName) return null
+
+  const fullName = iconName.endsWith('Icon') ? iconName : `${iconName}Icon`
+
+  const isValidIcon =
+    fullName !== 'icons' &&
+    typeof LucideIcons[fullName as keyof typeof LucideIcons] === 'function'
+
+  return isValidIcon ? LucideIcons[fullName as keyof typeof LucideIcons] : null
+}
 
 function getLayerId(layer: any): string {
   return layer?.configuration?.id || layer?.id
@@ -53,67 +67,120 @@ const filteredGroups = computed(() => {
     )
   })
 })
+
+// Get layer count for each group
+function getGroupLayerCount(groupId: string): number {
+  return layers.value.filter(l => toRaw(l)?.groupId === groupId).length
+}
+
+// Combine all layers for unified grid
+const allLayers = computed(() => {
+  const groups = filteredGroups.value.map(group => ({
+    type: 'group' as const,
+    id: group.id,
+    name: group.name,
+    icon: group.icon,
+    visible: group.visible,
+    count: getGroupLayerCount(group.id),
+    toggleFn: (visible: boolean) =>
+      toggleLayerGroupVisibility(group.id, visible),
+  }))
+
+  const individual = ungroupedLayers.value.map(layer => ({
+    type: 'layer' as const,
+    id: getLayerId(layer),
+    name: layer.name,
+    icon: layer.icon,
+    visible: layer.visible,
+    toggleFn: (visible: boolean) =>
+      toggleLayerVisibility(getLayerId(layer), visible),
+  }))
+
+  return [...groups, ...individual]
+})
 </script>
 
 <template>
-  <div class="flex flex-col gap-3">
-    <H5>Base map</H5>
-    <div class="flex gap-2 flex-wrap">
-      <ToggleGroup
-        type="single"
-        :default-value="mapStore.settings.basemap"
-        @update:model-value="(basemap) => mapStore.setBasemap(basemap as Basemap)"
+  <div class="p-4 space-y-5 min-w-0">
+    <!-- Base Map Section -->
+    <div class="space-y-3">
+      <H6
+        class="text-xs font-bold text-muted-foreground uppercase tracking-wide"
       >
-        <ToggleGroupItem
-          v-for="[basemapId, basemap] in Object.entries(basemaps)"
-          :key="basemapId"
-          :value="basemapId"
-          aria-label="Toggle bold"
-          variant="outline"
-          class="flex gap-2"
+        Base map
+      </H6>
+      <div class="grid grid-cols-2 gap-2">
+        <ToggleGroup
+          type="single"
+          :default-value="mapStore.settings.basemap"
+          @update:model-value="(basemap) => mapStore.setBasemap(basemap as Basemap)"
+          class="contents"
         >
-          <component :is="basemap.icon" class="size-5" />
-          <span>{{ basemap.name }}</span>
-        </ToggleGroupItem>
-      </ToggleGroup>
+          <ToggleGroupItem
+            v-for="[basemapId, basemap] in Object.entries(basemaps)"
+            :key="basemapId"
+            :value="basemapId"
+            :aria-label="`Switch to ${basemap.name}`"
+            variant="outline"
+            class="flex flex-col items-center gap-2 p-3 h-16 justify-center text-center transition-all duration-200 hover:bg-accent/50 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm"
+          >
+            <component :is="basemap.icon" class="size-4 shrink-0" />
+            <span class="font-medium text-xs leading-tight">{{
+              basemap.name
+            }}</span>
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
     </div>
 
-    <H5>Layers</H5>
-    <div class="space-y-2">
-      <!-- Layer Groups -->
-      <Toggle
-        v-for="group in filteredGroups"
-        :key="group.id"
-        variant="outline"
-        :aria-label="group.name"
-        :default-value="group.visible || false"
-        @update:model-value="
-          visible => toggleLayerGroupVisibility(group.id, visible)
-        "
-        class="flex gap-2"
+    <!-- Layers Section -->
+    <div class="space-y-3">
+      <H6
+        class="text-xs font-bold text-muted-foreground uppercase tracking-wide"
       >
-        <component v-if="group.icon" :is="group.icon" class="size-5" />
-        <span>{{ group.name }}</span>
-        <span class="text-xs text-muted-foreground ml-auto">
-          ({{ layers.filter(l => toRaw(l)?.groupId === group.id).length }})
-        </span>
-      </Toggle>
+        Layers
+      </H6>
 
-      <!-- Individual Ungrouped Layers -->
-      <Toggle
-        v-for="layer in ungroupedLayers"
-        :key="getLayerId(layer)"
-        variant="outline"
-        :aria-label="layer.name"
-        :default-value="layer.visible || false"
-        @update:model-value="
-          visible => toggleLayerVisibility(getLayerId(layer), visible)
-        "
-        class="flex gap-2"
-      >
-        <component v-if="layer.icon" :is="layer.icon" class="size-5" />
-        <span>{{ layer.name }}</span>
-      </Toggle>
+      <div v-if="allLayers.length > 0" class="grid grid-cols-2 gap-2">
+        <Toggle
+          v-for="item in allLayers"
+          :key="item.id"
+          variant="outline"
+          :aria-label="`Toggle ${item.name} ${
+            item.type === 'group' ? 'group' : 'layer'
+          }`"
+          :default-value="item.visible || false"
+          @update:model-value="item.toggleFn"
+          class="flex flex-col items-center gap-2 p-3 h-16 justify-center text-center transition-all duration-200 hover:bg-accent/50 data-[state=on]:bg-primary/10 data-[state=on]:text-primary data-[state=on]:border-primary/50 group relative"
+        >
+          <!-- Group indicator badge -->
+          <div
+            v-if="item.type === 'group'"
+            class="absolute top-1 right-1 bg-muted text-muted-foreground text-xs px-1 py-0.5 rounded font-medium leading-none"
+          >
+            {{ item.count }}
+          </div>
+
+          <div class="flex flex-col items-center gap-1 min-w-0 w-full">
+            <component
+              v-if="getIconComponent(item.icon)"
+              :is="getIconComponent(item.icon)"
+              class="size-4 transition-colors group-data-[state=on]:text-primary"
+            />
+            <div class="font-medium text-xs leading-tight truncate w-full">
+              {{ item.name }}
+            </div>
+          </div>
+        </Toggle>
+      </div>
+
+      <!-- Empty State -->
+      <div v-else class="text-center py-8 text-muted-foreground">
+        <div class="text-sm">No layers available</div>
+        <div class="text-xs mt-1">
+          Enable layers in settings to see them here
+        </div>
+      </div>
     </div>
   </div>
 </template>

@@ -14,6 +14,9 @@ import { useMapStore } from '@/stores/map.store'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { IconPicker } from '@/components/ui/icon-picker'
+import { Label } from '@/components/ui/label'
+import * as LucideIcons from 'lucide-vue-next'
 import {
   Select,
   SelectTrigger,
@@ -30,6 +33,31 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { SettingsSection, SettingsItem } from '@/components/settings'
+
+// Helper functions to convert between icon component and string name
+function getIconStringFromComponent(iconComponent: any): string | null {
+  if (!iconComponent) return null
+
+  // Find the component name in LucideIcons
+  for (const [name, component] of Object.entries(LucideIcons)) {
+    if (component === iconComponent && name.endsWith('Icon')) {
+      return name
+    }
+  }
+  return null
+}
+
+function getIconComponentFromString(iconName: string): any {
+  if (!iconName) return null
+
+  const fullName = iconName.endsWith('Icon') ? iconName : `${iconName}Icon`
+
+  const isValidIcon =
+    fullName !== 'icons' &&
+    typeof LucideIcons[fullName as keyof typeof LucideIcons] === 'function'
+
+  return isValidIcon ? LucideIcons[fullName as keyof typeof LucideIcons] : null
+}
 
 const mapStore = useMapStore()
 
@@ -330,6 +358,30 @@ defineExpose({
                 />
               </FormControl>
             </div>
+          </SettingsItem>
+        </FormItem>
+      </FormField>
+
+      <FormField name="icon" v-slot="{ value, handleChange }">
+        <FormItem>
+          <SettingsItem :title="$t('layers.meta.fields.icon')">
+            <FormControl>
+              <IconPicker
+                :model-value="{
+                  icon: getIconStringFromComponent(value) || 'Layers3Icon',
+                  color: 'blue',
+                }"
+                @update:model-value="
+                  newValue => {
+                    const iconComponent = getIconComponentFromString(
+                      newValue.icon,
+                    )
+                    handleChange(iconComponent)
+                  }
+                "
+                :placeholder="$t('layers.meta.fields.iconPlaceholder')"
+              />
+            </FormControl>
           </SettingsItem>
         </FormItem>
       </FormField>

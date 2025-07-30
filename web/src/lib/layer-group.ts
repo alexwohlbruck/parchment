@@ -7,6 +7,7 @@ import {
 import { Layer, LayerType, MapEngine } from '@/types/map.types'
 import colors from 'tailwindcss/colors'
 import { FeatureCollection } from 'geojson'
+import { toRaw } from 'vue'
 import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
 import {
   getTravelModeColor,
@@ -41,7 +42,9 @@ export class MapLayerGroup {
     }
 
     try {
-      this.map.addLayer(layer, overwrite)
+      // Convert reactive proxy to plain object to avoid proxy issues
+      const plainLayer = toRaw(layer)
+      this.map.addLayer(plainLayer, overwrite)
       this.layers.set(layerId, layer)
     } catch (error) {
       console.error(
@@ -254,7 +257,7 @@ export class TripGroup extends MapLayerGroup {
     this.addLayer({
       name: `Trip ${this.trip.id} Segment ${segmentIndex} Case`,
       type: LayerType.CUSTOM,
-      enabled: true,
+      showInLayerSelector: true,
       visible: true,
       engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
       order: 0, // Add order property
@@ -280,7 +283,7 @@ export class TripGroup extends MapLayerGroup {
     this.addLayer({
       name: `Trip ${this.trip.id} Segment ${segmentIndex}`,
       type: LayerType.CUSTOM,
-      enabled: true,
+      showInLayerSelector: true,
       visible: true,
       engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
       order: 1, // Add order property
@@ -346,7 +349,7 @@ export class TripGroup extends MapLayerGroup {
     this.addLayer({
       name: `Trip ${this.trip.id} Connector ${segmentIndex} Case`,
       type: LayerType.CUSTOM,
-      enabled: true,
+      showInLayerSelector: true,
       visible: true,
       engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
       order: 0, // Add order property
@@ -372,7 +375,7 @@ export class TripGroup extends MapLayerGroup {
     this.addLayer({
       name: `Trip ${this.trip.id} Connector ${segmentIndex}`,
       type: LayerType.CUSTOM,
-      enabled: true,
+      showInLayerSelector: true,
       visible: true,
       engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
       order: 1, // Add order property

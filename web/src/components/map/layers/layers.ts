@@ -28,10 +28,11 @@ function getServerUrl() {
 
 const mapillaryOverview: Layer = {
   name: 'Mapillary Overview',
-  enabled: true,
+  showInLayerSelector: true,
   visible: false,
   type: LayerType.STREET_VIEW,
   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+  groupId: 'group-1',
   configuration: {
     id: 'mapillary-overview',
     type: MapboxLayerType.CIRCLE,
@@ -59,10 +60,11 @@ const mapillaryOverview: Layer = {
 
 const mapillarySequence: Layer = {
   name: 'Mapillary Sequences',
-  enabled: true,
+  showInLayerSelector: true,
   visible: false,
   type: LayerType.STREET_VIEW,
   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+  groupId: 'group-1',
   configuration: {
     id: 'mapillary-sequence',
     type: MapboxLayerType.LINE,
@@ -102,10 +104,11 @@ const mapillarySequence: Layer = {
 
 const mapillaryImage: Layer = {
   name: 'Mapillary Images',
-  enabled: true,
+  showInLayerSelector: true,
   visible: false,
   type: LayerType.STREET_VIEW,
   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+  groupId: 'group-1',
   configuration: {
     id: 'mapillary-image',
     type: MapboxLayerType.CIRCLE,
@@ -153,7 +156,7 @@ const mapillaryImage: Layer = {
 const cyclOSM: Layer = {
   name: 'CyclOSM',
   icon: BikeIcon,
-  enabled: true,
+  showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
@@ -181,7 +184,7 @@ const cyclOSM: Layer = {
 const waymarkedTrails: Layer = {
   name: 'Waymarked Trails',
   icon: BikeIcon,
-  enabled: true,
+  showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
@@ -204,10 +207,11 @@ const waymarkedTrails: Layer = {
 const loomLightRail: Layer = {
   name: 'Loom Light Rail',
   icon: TrainIcon,
-  enabled: true,
+  showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+  groupId: 'group-2',
   configuration: {
     id: 'loom-light-rail',
     type: MapboxLayerType.LINE,
@@ -236,10 +240,11 @@ const loomLightRail: Layer = {
 const loomTram: Layer = {
   name: 'Loom Tram',
   icon: TrainIcon,
-  enabled: true,
+  showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+  groupId: 'group-2',
   configuration: {
     id: 'loom-tram',
     type: MapboxLayerType.LINE,
@@ -268,10 +273,11 @@ const loomTram: Layer = {
 const loomRailCommuter: Layer = {
   name: 'Loom Rail (Commuter)',
   icon: TrainIcon,
-  enabled: true,
+  showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+  groupId: 'group-2',
   configuration: {
     id: 'loom-rail-commuter',
     type: MapboxLayerType.LINE,
@@ -300,10 +306,11 @@ const loomRailCommuter: Layer = {
 const loomRail: Layer = {
   name: 'Loom Rail (Long Distance)',
   icon: TrainIcon,
-  enabled: true,
+  showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+  groupId: 'group-2',
   configuration: {
     id: 'loom-rail',
     type: MapboxLayerType.LINE,
@@ -441,7 +448,7 @@ const transitlandApiKey = import.meta.env.VITE_TRANSITLAND_API_KEY
 const transitLand: Layer = {
   name: 'Transitland',
   icon: TrainIcon,
-  enabled: true,
+  showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
   engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
@@ -530,7 +537,7 @@ const transitLand: Layer = {
 const traffic: Layer = {
   name: 'Mapbox traffic',
   icon: CarFrontIcon,
-  enabled: true,
+  showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
   engine: [MapEngine.MAPBOX],
@@ -578,10 +585,11 @@ const traffic: Layer = {
 const hillshade: Layer = {
   name: 'Hillshade',
   icon: MountainSnowIcon,
-  enabled: true,
+  showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
   engine: [MapEngine.MAPBOX],
+  groupId: 'group-3',
   configuration: {
     id: 'hillshade',
     type: MapboxLayerType.HILLSHADE,
@@ -603,10 +611,11 @@ const hillshade: Layer = {
 const contours: Layer = {
   name: 'Contours',
   icon: MountainSnowIcon,
-  enabled: true,
+  showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
   engine: [MapEngine.MAPBOX],
+  groupId: 'group-3',
   configuration: {
     id: 'contours',
     type: MapboxLayerType.LINE,
@@ -630,10 +639,11 @@ const contours: Layer = {
 const contourLabels: Layer = {
   name: 'Contour Labels',
   icon: MountainSnowIcon,
-  enabled: true,
+  showInLayerSelector: true,
   visible: false,
   type: LayerType.CUSTOM,
   engine: [MapEngine.MAPBOX],
+  groupId: 'group-3',
   configuration: {
     id: 'contour-labels',
     type: MapboxLayerType.SYMBOL,
@@ -696,7 +706,7 @@ export const defaultLayerGroups: Omit<
   {
     name: 'Mapillary',
     icon: CameraIcon,
-    enabled: true,
+    showInLayerSelector: true,
     visible: false,
     order: 0,
     layerIds: ['mapillary-overview', 'mapillary-sequence', 'mapillary-image'],
@@ -704,7 +714,7 @@ export const defaultLayerGroups: Omit<
   {
     name: 'Loom Transit',
     icon: TrainIcon,
-    enabled: true,
+    showInLayerSelector: true,
     visible: false,
     order: 1,
     layerIds: [
@@ -717,23 +727,9 @@ export const defaultLayerGroups: Omit<
   {
     name: 'Terrain',
     icon: MountainSnowIcon,
-    enabled: true,
+    showInLayerSelector: true,
     visible: false,
     order: 2,
     layerIds: ['hillshade', 'contours', 'contour-labels'],
   },
 ]
-
-// Layer group mapping for quick assignment
-export const layerGroupMapping: Record<string, string> = {
-  'mapillary-overview': 'Mapillary',
-  'mapillary-sequence': 'Mapillary',
-  'mapillary-image': 'Mapillary',
-  'loom-tram': 'Loom Transit',
-  'loom-light-rail': 'Loom Transit',
-  'loom-rail-commuter': 'Loom Transit',
-  'loom-rail': 'Loom Transit',
-  hillshade: 'Terrain',
-  contours: 'Terrain',
-  'contour-labels': 'Terrain',
-}

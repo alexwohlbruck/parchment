@@ -178,7 +178,7 @@ const basemap = computed(() => {
 
     <SettingsSection :title="$t('settings.mapSettings.basemaps.title')">
       <template v-slot:actions>
-        <Button disabled variant="outline" @click="openLayerConfigDialog">
+        <Button disabled variant="outline">
           <PlusIcon class="size-4 mr-2" />
           {{ $t('settings.mapSettings.basemaps.new') }}
         </Button>

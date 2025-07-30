@@ -1,5 +1,6 @@
 import mitt from 'mitt'
 import { computed, ref, toRaw } from 'vue'
+import { defaultLayerGroups } from '@/components/map/layers/layers'
 
 // Helper function to get layer ID from either structure
 function getLayerId(layer: any): string | undefined {
@@ -57,6 +58,10 @@ export const useMapStore = defineStore('map', () => {
     mapCamera.value = camera
   }
 
+  function setBasemap(basemap: Basemap) {
+    settings.value.basemap = basemap
+  }
+
   // Event methods
   function on<K extends keyof MapEvents>(
     event: K,
@@ -82,18 +87,70 @@ export const useMapStore = defineStore('map', () => {
     order: index,
   }))
 
-  const layers = useStorage<Layer[]>('map-layers', layersWithOrder)
-  const layerGroups = useStorage<LayerGroup[]>('map-layer-groups', [])
+  // Custom storage implementation to preserve complex nested objects
+  const layersStorage = {
+    getItem: (key: string) => {
+      try {
+        const stored = localStorage.getItem(key)
+        if (!stored) return null
+
+        const parsed = JSON.parse(stored)
+
+        return JSON.stringify(
+          parsed.map((layer: any) => {
+            if (
+              layer.configuration?.source &&
+              typeof layer.configuration.source === 'string'
+            ) {
+              // If source is a string, we need to reconstruct it from the original layer definition
+              const originalLayer = layersWithOrder.find(
+                l => l.configuration.id === layer.configuration.id,
+              )
+              if (originalLayer) {
+                layer.configuration.source = originalLayer.configuration.source
+              }
+            }
+            return layer
+          }),
+        )
+      } catch (e) {
+        console.warn('Failed to parse layers from storage:', e)
+        return null
+      }
+    },
+    setItem: (key: string, value: string) => localStorage.setItem(key, value),
+    removeItem: (key: string) => localStorage.removeItem(key),
+  }
+
+  const layers = useStorage<Layer[]>(
+    'map-layers',
+    layersWithOrder,
+    layersStorage,
+  )
+
+  // Convert default layer groups to proper LayerGroup objects
+  const defaultLayerGroupsWithIds = defaultLayerGroups.map((group, index) => ({
+    ...group,
+    id: `group-${index + 1}`,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }))
+
+  const layerGroups = useStorage<LayerGroup[]>(
+    'map-layer-groups',
+    defaultLayerGroupsWithIds,
+  )
 
   const enabledLayers = computed(() =>
     layers.value.filter(
       layer =>
-        layer && layer.enabled && layer.engine?.includes(settings.value.engine),
+        layer &&
+        layer.showInLayerSelector &&
+        layer.engine?.includes(settings.value.engine),
     ),
   )
 
-  // Get layers organized as a unified list of groups and individual layers
-  const layerItems = computed((): LayerItem[] => {
+  const denormalizedLayersGroups = computed(() => {
     // Helper to safely get order
     const getOrder = (item: any): number => item?.order ?? 0
 
@@ -144,7 +201,9 @@ export const useMapStore = defineStore('map', () => {
   // Layer management functions
   function initializeLayers(layers_: Layer[]) {
     layers_.forEach(layer => {
-      mapStrategy?.addLayer(layer)
+      // Convert reactive proxy to plain object to avoid proxy issues
+      const plainLayer = toRaw(layer)
+      mapStrategy?.addLayer(plainLayer)
     })
   }
 
@@ -154,8 +213,9 @@ export const useMapStore = defineStore('map', () => {
       order: layer.order ?? layers.value.length,
     }
     layers.value.push(newLayer)
-    if (newLayer.enabled) {
-      mapStrategy?.addLayer(newLayer)
+    if (newLayer.showInLayerSelector) {
+      // Convert reactive proxy to plain object to avoid proxy issues
+      mapStrategy?.addLayer(toRaw(newLayer))
     }
   }
 
@@ -163,7 +223,7 @@ export const useMapStore = defineStore('map', () => {
     const index = layers.value.findIndex(layer => getLayerId(layer) === layerId)
     if (index !== -1) {
       const layer = layers.value[index]
-      if (layer.enabled) {
+      if (layer.showInLayerSelector) {
         mapStrategy?.removeLayer(layerId)
       }
       layers.value.splice(index, 1)
@@ -185,19 +245,24 @@ export const useMapStore = defineStore('map', () => {
       if (typeof layer.configuration?.source === 'object') {
         mapStrategy?.removeSource(layer.configuration.source.id)
       }
-      mapStrategy?.addLayer(layer)
+      // Convert reactive proxy to plain object to avoid proxy issues
+      mapStrategy?.addLayer(toRaw(layer))
     }
   }
 
   function toggleLayer(
     layerId: Layer['configuration']['id'],
-    enabled?: boolean,
+    showInLayerSelector?: boolean,
   ) {
     const layer = layers.value.find(layer => getLayerId(layer) === layerId)
     if (!layer) return
 
-    const newEnabled = enabled ?? !layer.enabled
-    const updatedLayer = { ...layer, enabled: newEnabled }
+    const newShowInLayerSelector =
+      showInLayerSelector ?? !layer.showInLayerSelector
+    const updatedLayer = {
+      ...layer,
+      showInLayerSelector: newShowInLayerSelector,
+    }
 
     updateLayer(updatedLayer)
   }
@@ -209,7 +274,7 @@ export const useMapStore = defineStore('map', () => {
     const layer = layers.value.find(layer => getLayerId(layer) === layerId)
     if (layer) {
       layer.visible = visible
-      if (layer.enabled) {
+      if (layer.showInLayerSelector) {
         mapStrategy?.toggleLayerVisibility(layerId, visible)
       }
     }
@@ -274,14 +339,14 @@ export const useMapStore = defineStore('map', () => {
     }
   }
 
-  function toggleLayerGroup(groupId: string, enabled?: boolean) {
+  function toggleLayerGroupEnabled(groupId: string, enabled?: boolean) {
     const group = layerGroups.value.find(g => g.id === groupId)
     if (!group) return
 
-    const newEnabled = enabled ?? !group.enabled
-    group.enabled = newEnabled
+    const newEnabled = enabled ?? !group.showInLayerSelector
+    group.showInLayerSelector = newEnabled
 
-    // Toggle all layers in the group
+    // Toggle all layers in the group - this will add/remove layers from Mapbox
     const groupLayers = layers.value.filter(layer => layer.groupId === groupId)
     groupLayers.forEach(layer => {
       const layerId = getLayerId(layer)
@@ -298,7 +363,7 @@ export const useMapStore = defineStore('map', () => {
     const newVisible = visible ?? !group.visible
     group.visible = newVisible
 
-    // Toggle visibility of all layers in the group
+    // Toggle visibility of all layers in the group - this only changes visibility, doesn't remove from Mapbox
     const groupLayers = layers.value.filter(layer => layer.groupId === groupId)
     groupLayers.forEach(layer => {
       const layerId = getLayerId(layer)
@@ -330,13 +395,14 @@ export const useMapStore = defineStore('map', () => {
     settings,
     mapCamera,
     setMapCamera,
+    setBasemap,
     on,
     off,
     emit,
     layers,
     layerGroups,
     enabledLayers,
-    layerItems,
+    denormalizedLayersGroups,
     initializeLayers,
     addLayer,
     removeLayer,
@@ -348,7 +414,7 @@ export const useMapStore = defineStore('map', () => {
     addLayerGroup,
     updateLayerGroup,
     removeLayerGroup,
-    toggleLayerGroup,
+    toggleLayerGroupEnabled,
     toggleLayerGroupVisibility,
     reorderLayerGroups,
     pegman,

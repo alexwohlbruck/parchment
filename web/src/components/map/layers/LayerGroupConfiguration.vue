@@ -41,7 +41,7 @@ const layerGroupSchema = computed(() => {
   return toTypedSchema(
     z.object({
       name: z.string().min(1, 'Name is required'),
-      enabled: z.boolean().default(true),
+      showInLayerSelector: z.boolean().default(true),
       visible: z.boolean().default(true),
       icon: z.string().default('FolderIcon'),
       iconColor: z.string().default('blue'),
@@ -51,7 +51,7 @@ const layerGroupSchema = computed(() => {
 
 interface LayerGroupFormValues {
   name: string
-  enabled: boolean
+  showInLayerSelector: boolean
   visible: boolean
   icon: string
   iconColor: string
@@ -62,7 +62,7 @@ const { handleSubmit, values, meta, setFieldValue, resetForm } =
     validationSchema: layerGroupSchema,
     initialValues: {
       name: '',
-      enabled: true,
+      showInLayerSelector: true,
       visible: true,
       icon: 'FolderIcon',
       iconColor: 'blue',
@@ -77,7 +77,7 @@ watch(
       resetForm({
         values: {
           name: currentGroup.name,
-          enabled: currentGroup.enabled,
+          showInLayerSelector: currentGroup.showInLayerSelector,
           visible: currentGroup.visible,
           icon: currentGroup.icon?.name || 'FolderIcon',
           iconColor: 'blue', // Default since we don't store color in LayerGroup
@@ -93,7 +93,7 @@ const onSubmit = handleSubmit(values => {
     // Update existing group
     mapStore.updateLayerGroup(props.groupId, {
       name: values.name,
-      enabled: values.enabled,
+      showInLayerSelector: values.showInLayerSelector,
       visible: values.visible,
       icon: values.icon === 'FolderIcon' ? undefined : (values.icon as any),
     })
@@ -101,7 +101,7 @@ const onSubmit = handleSubmit(values => {
     // Create new group
     mapStore.addLayerGroup({
       name: values.name,
-      enabled: values.enabled,
+      showInLayerSelector: values.showInLayerSelector,
       visible: values.visible,
       icon: values.icon === 'FolderIcon' ? undefined : (values.icon as any),
       order: mapStore.layerGroups.length,
@@ -131,9 +131,9 @@ defineExpose({
       :frame="false"
       :shadow="false"
     >
-      <FormField name="enabled" v-slot="{ value, handleChange }">
+      <FormField name="showInLayerSelector" v-slot="{ value, handleChange }">
         <FormItem>
-          <SettingsItem :title="t('layers.meta.fields.enabled')">
+          <SettingsItem :title="t('layers.meta.fields.showInLayerSelector')">
             <FormControl>
               <Switch :model-value="value" @update:model-value="handleChange" />
             </FormControl>

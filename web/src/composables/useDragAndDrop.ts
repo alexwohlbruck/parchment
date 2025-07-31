@@ -73,7 +73,7 @@ export function useDragAndDrop() {
     chosenClass: 'drag-chosen',
     dragClass: 'drag-active',
     disabled: false,
-    delay: 100,
+    delay: 0,
     delayOnTouchStart: true,
     touchStartThreshold: 5,
     forceFallback: true,

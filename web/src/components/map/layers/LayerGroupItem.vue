@@ -126,7 +126,9 @@ function onGroupLayersChange(evt: any) {
 </script>
 
 <template>
-  <div class="border border-border rounded-lg bg-background transition-colors">
+  <div
+    class="border border-border rounded-lg bg-background transition-colors select-none"
+  >
     <Collapsible :open="expanded">
       <div class="flex items-center p-2 rounded-t-lg">
         <!-- Expand/Collapse Button -->
@@ -223,25 +225,11 @@ function onGroupLayersChange(evt: any) {
 </template>
 
 <style scoped>
-/* Prevent scrolling issues on iOS */
 .draggable-container {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Improve touch target sizes for mobile */
-@media (hover: none) and (pointer: coarse) {
-  .draggable-item {
-    min-height: 44px; /* Apple recommended minimum touch target */
-  }
-
-  /* Prevent text selection during drag */
-  .drag-active,
-  .drag-chosen {
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-    -webkit-touch-callout: none;
-  }
+.drag-chosen {
+  user-select: none;
 }
 </style>

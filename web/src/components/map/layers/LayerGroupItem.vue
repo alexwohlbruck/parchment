@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useMapStore } from '@/stores/map.store'
+import { useLayersStore } from '@/stores/layers.store'
+import { useLayersService } from '@/services/layers.service'
 import { useAppService } from '@/services/app.service'
-import type { LayerGroup, Layer } from '@/types/map.types'
+import type { LayerGroupWithLayers, Layer } from '@/types/map.types'
 import { useDragAndDrop } from '@/composables/useDragAndDrop'
 import * as LucideIcons from 'lucide-vue-next'
 import LayerItemComponent from './LayerItem.vue'
@@ -31,9 +31,10 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import draggable from 'vuedraggable'
+import { useMapService } from '@/services/map.service'
 
 interface Props {
-  group: LayerGroup & { layers: Layer[] }
+  group: LayerGroupWithLayers
   expanded: boolean
 }
 
@@ -41,15 +42,16 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   toggleExpanded: [groupId: string]
-  ungroupLayer: [layerId: string]
 }>()
 
 const { t } = useI18n()
-const mapStore = useMapStore()
+const layersStore = useLayersStore()
+const layersService = useLayersService()
 const appService = useAppService()
+const mapService = useMapService()
 
 // Helper function to convert icon string name to Vue component
-function getIconComponent(iconName?: string) {
+function getIconComponent(iconName?: string | null) {
   if (!iconName) return null
 
   const fullName = iconName.endsWith('Icon') ? iconName : `${iconName}Icon`
@@ -61,41 +63,21 @@ function getIconComponent(iconName?: string) {
   return isValidIcon ? LucideIcons[fullName as keyof typeof LucideIcons] : null
 }
 
-const {
-  groupDragOptions,
-  onDragStart,
-  onDragEnd,
-  onDragMove,
-  handleGroupChange,
-  getLayerKey,
-  layerToDragItem,
-} = useDragAndDrop()
-
-// Get group layers as a writable ref for v-model
-const groupLayers = computed({
-  get: () => props.group.layers,
-  set: (newLayers: Layer[]) => {
-    // Update the order based on the new array position
-    newLayers.forEach((layer, index) => {
-      const layerId = layer.configuration?.id
-      if (layerId) {
-        const layerIndex = mapStore.layers.findIndex(
-          l => l.configuration?.id === layerId,
-        )
-        if (layerIndex !== -1) {
-          mapStore.layers[layerIndex].order = index
-        }
-      }
-    })
-  },
-})
+const { groupDragOptions, onDragStart, onDragEnd, onDragMove, getLayerKey } =
+  useDragAndDrop()
 
 function getGroupVisibility(): boolean {
   return props.group.showInLayerSelector
 }
 
-function updateGroupVisibility(visible: boolean) {
-  mapStore.toggleLayerGroupEnabled(props.group.id, visible)
+async function updateGroupVisibility(visible: boolean) {
+  await layersService.toggleLayerGroupVisibility(
+    props.group,
+    visible,
+    layersStore,
+    layersStore.layers,
+    mapService.mapStrategy,
+  )
 }
 
 function openLayerGroupConfigDialog() {
@@ -109,19 +91,29 @@ function openLayerGroupConfigDialog() {
 }
 
 function deleteGroup() {
-  mapStore.removeLayerGroup(props.group.id)
+  layersStore.removeLayerGroup(props.group.id)
 }
 
 function handleToggleExpanded() {
   emit('toggleExpanded', props.group.id)
 }
 
-function handleUngroupLayer(layerId: string) {
-  emit('ungroupLayer', layerId)
+// Simple drag handler for group layers
+async function handleGroupLayersChange(evt: any) {
+  if (evt.added) {
+    // Layer dropped into this group
+    const layerId = evt.added.element.id
+    const newIndex = evt.added.newIndex
+    await layersStore.handleLayerMove(layerId, props.group.id, newIndex)
+  } else if (!evt.added && !evt.removed) {
+    // Pure reorder within group
+    await layersStore.handleGroupReorder(props.group.id, props.group.layers)
+  }
 }
 
-function onGroupLayersChange(evt: any) {
-  handleGroupChange(props.group.id, evt, groupLayers.value)
+function handleUngroupLayer(layerId: string) {
+  // Move layer to ungrouped at the end
+  layersStore.handleLayerMove(layerId, null, 999) // Large number to put at end
 }
 </script>
 
@@ -195,12 +187,12 @@ function onGroupLayersChange(evt: any) {
       <CollapsibleContent>
         <div class="border-t border-border">
           <draggable
-            v-model="groupLayers"
+            v-model="group.layers"
             v-bind="groupDragOptions"
             @start="onDragStart"
             @end="onDragEnd"
             @move="onDragMove"
-            @change="onGroupLayersChange"
+            @change="handleGroupLayersChange"
             :item-key="getLayerKey"
             class="min-h-[40px] draggable-container"
             tag="div"

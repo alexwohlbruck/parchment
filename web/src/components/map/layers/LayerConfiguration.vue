@@ -10,7 +10,7 @@ import { computed, ref, defineEmits, watch } from 'vue'
 import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import * as z from 'zod'
-import { useMapStore } from '@/stores/map.store'
+import { useLayersStore } from '@/stores/layers.store'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
@@ -59,7 +59,7 @@ function getIconComponentFromString(iconName: string): any {
   return isValidIcon ? LucideIcons[fullName as keyof typeof LucideIcons] : null
 }
 
-const mapStore = useMapStore()
+const layersStore = useLayersStore()
 
 const props = defineProps<{
   layerId?: Layer['configuration']['id']
@@ -67,7 +67,7 @@ const props = defineProps<{
 
 const editing = computed(() => props.layerId)
 const layer = editing
-  ? mapStore.layers.find(layer => layer.configuration.id === props.layerId)
+  ? layersStore.layers.find(layer => layer.id === props.layerId)
   : null
 
 const emit = defineEmits<{
@@ -188,9 +188,13 @@ const { handleSubmit, errors, values, meta, setFieldValue, setFieldError } =
 
 const onSubmit = handleSubmit(values => {
   if (editing.value) {
-    mapStore.updateLayer(values as Layer)
+    layersStore.updateLayer(props.layerId!, values as Partial<Layer>)
   } else {
-    mapStore.addLayer(values as Layer)
+    layersStore.addLayer({
+      ...values,
+      order: layersStore.layers.length,
+      groupId: null,
+    } as Omit<Layer, 'id' | 'userId' | 'createdAt' | 'updatedAt'>)
   }
 })
 

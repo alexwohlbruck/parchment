@@ -23,7 +23,9 @@ import {
       :side-offset="12"
       class="w-[360px] max-w-[calc(100vw-3.75rem)] md:max-w-[400px] p-0 border-0 shadow-xl bg-background/95 backdrop-blur-sm"
     >
-      <div class="rounded-lg border bg-card text-card-foreground shadow-lg">
+      <div
+        class="rounded-lg border border-border bg-card text-card-foreground shadow-lg"
+      >
         <LayersSelector />
       </div>
     </HoverCardContent>

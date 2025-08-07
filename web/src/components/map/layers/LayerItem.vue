@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import { useLayersStore } from '@/stores/layers.store'
+import { useLayersService } from '@/services/layers.service'
 import { useMapService } from '@/services/map.service'
 import { useAppService } from '@/services/app.service'
 import type { Layer } from '@/types/map.types'
@@ -32,11 +34,13 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const layersStore = useLayersStore()
+const layersService = useLayersService()
 const mapService = useMapService()
 const appService = useAppService()
 
 // Helper function to convert icon string name to Vue component
-function getIconComponent(iconName?: string) {
+function getIconComponent(iconName?: string | null) {
   if (!iconName) return null
 
   const fullName = iconName.endsWith('Icon') ? iconName : `${iconName}Icon`
@@ -53,20 +57,26 @@ function openLayerConfigDialog() {
     component: LayerConfiguration,
     continueText: t('general.save'),
     props: {
-      layerId: props.layer.configuration?.id,
+      layerId: props.layer.id,
     },
   })
 }
 
 function handleUngroup() {
-  const layerId = props.layer.configuration?.id
+  const layerId = props.layer.id
   if (layerId) {
     emit('ungroup', layerId)
   }
 }
 
-function toggleLayer(enabled: boolean) {
-  mapService.toggleLayer(props.layer.configuration?.id, enabled)
+async function toggleLayer(enabled: boolean) {
+  await layersService.setLayerVisibility(
+    props.layer.configuration.id,
+    layersStore.layers,
+    layersStore,
+    mapService.mapStrategy,
+    enabled,
+  )
 }
 </script>
 
@@ -94,13 +104,13 @@ function toggleLayer(enabled: boolean) {
     </div>
 
     <!-- Layer Type -->
-    <span class="text-xs text-muted-foreground mr-3">
+    <!-- <span class="text-xs text-muted-foreground mr-3">
       {{
         layer?.configuration?.type
           ? t(`layers.meta.fields.type.values.${layer.configuration.type}`)
           : ''
       }}
-    </span>
+    </span> -->
 
     <!-- Layer Visibility Toggle -->
     <Switch

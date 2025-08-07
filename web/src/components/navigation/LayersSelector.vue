@@ -3,6 +3,8 @@ import { computed } from 'vue'
 import { Toggle } from '@/components/ui/toggle'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useMapStore } from '@/stores/map.store'
+import { useLayersStore } from '@/stores/layers.store'
+import { useLayersService } from '@/services/layers.service'
 import { useMapService } from '@/services/map.service'
 import { H6 } from '@/components/ui/typography'
 import { basemaps } from '../map/map.data'
@@ -11,12 +13,14 @@ import { storeToRefs } from 'pinia'
 import { toRaw } from 'vue'
 import * as LucideIcons from 'lucide-vue-next'
 
+const layersStore = useLayersStore()
+const layersService = useLayersService()
 const mapStore = useMapStore()
 const mapService = useMapService()
-const { layers, layerGroups } = storeToRefs(mapStore)
+const { layers, layerGroups } = storeToRefs(layersStore)
 
 // Helper function to convert icon string name to Vue component
-function getIconComponent(iconName?: string) {
+function getIconComponent(iconName?: string | null) {
   if (!iconName) return null
 
   const fullName = iconName.endsWith('Icon') ? iconName : `${iconName}Icon`
@@ -32,12 +36,27 @@ function getLayerId(layer: any): string {
   return layer?.configuration?.id || layer?.id
 }
 
-function toggleLayerVisibility(layerId: string, visible: boolean) {
-  mapService.toggleLayerVisibility(layerId, visible)
+async function toggleLayerVisibility(layerId: string, visible: boolean) {
+  await layersService.setLayerVisibility(
+    layerId,
+    layers.value,
+    layersStore,
+    mapService.mapStrategy,
+    visible,
+  )
 }
 
-function toggleLayerGroupVisibility(groupId: string, visible: boolean) {
-  mapStore.toggleLayerGroupVisibility(groupId, visible)
+async function toggleLayerGroupVisibility(groupId: string, visible: boolean) {
+  const group = layerGroups.value.find(g => g.id === groupId)
+  if (group) {
+    await layersService.toggleLayerGroupVisibility(
+      group,
+      visible,
+      layersStore,
+      layers.value,
+      mapService.mapStrategy,
+    )
+  }
 }
 
 const ungroupedLayers = computed(() => {

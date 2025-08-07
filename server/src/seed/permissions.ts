@@ -47,4 +47,19 @@ export const permissions: {
     description:
       'Create, update, and delete system-wide integration configurations',
   },
+  {
+    id: PermissionId.LAYERS_READ,
+    name: 'View map layers',
+    description: 'View and use map layers',
+  },
+  {
+    id: PermissionId.LAYERS_WRITE,
+    name: 'Manage map layers',
+    description: 'Create, update, and reorder map layers and layer groups',
+  },
+  {
+    id: PermissionId.LAYERS_DELETE,
+    name: 'Delete map layers',
+    description: 'Delete map layers and layer groups',
+  },
 ]

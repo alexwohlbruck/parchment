@@ -98,9 +98,12 @@ export type MapEvents = {
 }
 
 export enum SourceType {
-  RASTER = 'raster',
   VECTOR = 'vector',
+  RASTER = 'raster',
   RASTER_DEM = 'raster-dem',
+  GEOJSON = 'geojson',
+  IMAGE = 'image',
+  VIDEO = 'video',
 }
 
 export type TileSource = {
@@ -116,20 +119,16 @@ export type TileSource = {
 
 // TODO: Rename to MapboxLayerType
 export enum MapboxLayerType {
-  LINE = 'line',
   FILL = 'fill',
+  LINE = 'line',
   SYMBOL = 'symbol',
   CIRCLE = 'circle',
   HEATMAP = 'heatmap',
   FILL_EXTRUSION = 'fill-extrusion',
   RASTER = 'raster',
-  RASTER_PARTICLE = 'raster-particle',
   HILLSHADE = 'hillshade',
-  MODEL = 'model',
   BACKGROUND = 'background',
   SKY = 'sky',
-  SLOT = 'slot',
-  CLIP = 'clip',
 }
 
 export enum MaplibreLayerType {
@@ -163,42 +162,52 @@ export type MaplibreLayerConfiguration = {
 
 export enum LayerType {
   CUSTOM = 'custom',
-  STREET_VIEW = 'street-view',
+  STREET_VIEW = 'street_view',
 }
 
-// Layer Group Types
+export interface Layer {
+  id: string
+  name: string
+  type: LayerType
+  engine: MapEngine[]
+  showInLayerSelector: boolean
+  visible: boolean
+  icon: string | null
+  order: number
+  groupId: string | null
+  configuration: {
+    id: string
+    type: MapboxLayerType
+    source:
+      | string
+      | {
+          id: string
+          type: SourceType
+          [key: string]: any
+        }
+    slot?: string
+    [key: string]: any
+  }
+  userId: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface LayerGroup {
   id: string
   name: string
-  icon?: string
   showInLayerSelector: boolean
   visible: boolean
+  icon: string | null
   order: number
-  layerIds: string[]
-  createdAt?: string
-  updatedAt?: string
+  userId: string
+  createdAt: string
+  updatedAt: string
 }
 
-// Unified item that can be either a group or a layer
-export type LayerItem =
-  | { type: 'group'; data: LayerGroup & { layers: Layer[] } }
-  | { type: 'layer'; data: Layer }
-
-// TODO: Make MapboxLayer extend Layer
-export type Layer = {
-  name: string
-  icon?: string
-  type: LayerType
-  showInLayerSelector: boolean
-  visible: boolean
-  engine: MapEngine[]
-  configuration: MapboxLayerConfiguration
-  groupId?: string // Reference to layer group
-  order?: number // Order within group or global order if ungrouped
-}
-
-export type MaplibreLayer = Layer & {
-  configuration: MaplibreLayerConfiguration
+// Simplified type for groups with their layers
+export interface LayerGroupWithLayers extends LayerGroup {
+  layers: Layer[]
 }
 
 export enum StreetViewType {

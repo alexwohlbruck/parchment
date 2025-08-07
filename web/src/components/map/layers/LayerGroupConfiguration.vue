@@ -4,7 +4,7 @@ import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import * as z from 'zod'
 import { useI18n } from 'vue-i18n'
-import { useMapStore } from '@/stores/map.store'
+import { useLayersStore } from '@/stores/layers.store'
 import { type LayerGroup } from '@/types/map.types'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
@@ -20,8 +20,8 @@ import {
 import { type ThemeColor } from '@/lib/utils'
 import { FolderIcon } from 'lucide-vue-next'
 
-const mapStore = useMapStore()
 const { t } = useI18n()
+const layersStore = useLayersStore()
 
 const props = defineProps<{
   groupId?: string
@@ -34,7 +34,9 @@ const emit = defineEmits<{
 
 const editing = computed(() => !!props.groupId)
 const group = computed(() =>
-  props.groupId ? mapStore.layerGroups.find(g => g.id === props.groupId) : null,
+  props.groupId
+    ? layersStore.layerGroups.find(g => g.id === props.groupId)
+    : null,
 )
 
 const layerGroupSchema = computed(() => {
@@ -91,21 +93,20 @@ watch(
 const onSubmit = handleSubmit(values => {
   if (editing.value && props.groupId) {
     // Update existing group
-    mapStore.updateLayerGroup(props.groupId, {
+    layersStore.updateLayerGroup(props.groupId, {
       name: values.name,
       showInLayerSelector: values.showInLayerSelector,
       visible: values.visible,
-      icon: values.icon === 'FolderIcon' ? undefined : values.icon,
+      icon: values.icon === 'FolderIcon' ? null : values.icon,
     })
   } else {
     // Create new group
-    mapStore.addLayerGroup({
+    layersStore.addLayerGroup({
       name: values.name,
       showInLayerSelector: values.showInLayerSelector,
       visible: values.visible,
-      icon: values.icon === 'FolderIcon' ? undefined : values.icon,
-      order: mapStore.layerGroups.length,
-      layerIds: [],
+      icon: values.icon === 'FolderIcon' ? null : values.icon,
+      order: layersStore.layerGroups.length,
     })
   }
 })

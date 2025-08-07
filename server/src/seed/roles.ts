@@ -18,7 +18,11 @@ const user: Role = {
   id: 'user',
   name: 'User',
   description: 'A user that can view and browse the map',
-  permissions: [PermissionId.INTEGRATIONS_READ],
+  permissions: [
+    PermissionId.INTEGRATIONS_READ,
+    PermissionId.LAYERS_READ,
+    PermissionId.LAYERS_WRITE,
+  ],
 }
 
 const alpha: Role = {
@@ -30,6 +34,9 @@ const alpha: Role = {
     PermissionId.INTEGRATIONS_READ,
     PermissionId.INTEGRATIONS_WRITE_USER,
     PermissionId.SYSTEM_READ,
+    PermissionId.LAYERS_READ,
+    PermissionId.LAYERS_WRITE,
+    PermissionId.LAYERS_DELETE,
     // Permission.USERS_READ,
     // Permission.ROLES_READ,
     // Permission.PERMISSIONS_READ,

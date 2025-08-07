@@ -5,16 +5,28 @@ import { LayerType } from '@/types/map.types'
 import { Card } from '@/components/ui/card'
 import { Toggle } from '@/components/ui/toggle'
 import { PersonStandingIcon } from 'lucide-vue-next'
-import { useMapStore } from '@/stores/map.store'
+import { useLayersStore } from '@/stores/layers.store'
+import { useLayersService } from '@/services/layers.service'
 
 const mapService = useMapService()
-const mapStore = useMapStore()
+const layersStore = useLayersStore()
+const layersService = useLayersService()
 
 const isStreetViewLayerVisible = computed(() => {
-  return mapStore.layers.some(
+  return layersStore.layers.some(
     layer => layer.type === LayerType.STREET_VIEW && layer.visible,
   )
 })
+
+async function onToggle() {
+  const next = !isStreetViewLayerVisible.value
+  await layersService.toggleStreetViewLayers(
+    layersStore.layers,
+    layersStore,
+    mapService.mapStrategy,
+    next,
+  )
+}
 </script>
 
 <template>
@@ -23,7 +35,7 @@ const isStreetViewLayerVisible = computed(() => {
       variant="outline"
       size="icon"
       class="size-10"
-      @click="mapService.toggleStreetViewLayers()"
+      @click="onToggle"
       :default-value="isStreetViewLayerVisible"
     >
       <PersonStandingIcon class="size-6" />

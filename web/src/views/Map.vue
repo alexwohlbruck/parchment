@@ -20,12 +20,21 @@ import BottomSheet from '@/components/BottomSheet.vue'
 import LeftSheet from '@/components/LeftSheet.vue'
 import StreetViewPip from '@/components/map/StreetViewPip.vue'
 import { useMapService } from '@/services/map.service'
+import { useMapStore } from '@/stores/map.store'
+import { useLayersStore } from '@/stores/layers.store'
+import { storeToRefs } from 'pinia'
+import MapControls from '@/components/map/controls/MapControls.vue'
+import { useLayersService } from '@/services/layers.service'
 
 const route = useRoute()
 const router = useRouter()
 const { isMobileScreen } = useResponsive()
 const appStore = useAppStore()
 const mapService = useMapService()
+const mapStore = useMapStore()
+const layersStore = useLayersStore()
+const { layers } = storeToRefs(layersStore)
+const layersService = useLayersService()
 
 const isMapSubview = computed(() => {
   return route.matched.length > 1 && route.name !== AppRoute.MAP
@@ -45,7 +54,8 @@ function closeSheet() {
   router.push({ name: AppRoute.MAP })
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await layersStore.loadLayers()
   nextTick(() => {
     mountTeleports.value = true
   })
@@ -53,11 +63,16 @@ onMounted(() => {
 
 watch(
   () => route.name,
-  name => {
-    nextTick(() => {
+  async name => {
+    nextTick(async () => {
       streetView.value = name === AppRoute.STREET
       if (streetView.value) {
-        mapService.toggleStreetViewLayers(true)
+        await layersService.toggleStreetViewLayers(
+          layers.value,
+          layersStore,
+          mapService.mapStrategy,
+          true,
+        )
       }
     })
   },

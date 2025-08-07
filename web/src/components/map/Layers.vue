@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import { useMapStore } from '@/stores/map.store'
+import { useLayersStore } from '@/stores/layers.store'
 import { useAppService } from '@/services/app.service'
 import { useDragAndDrop } from '@/composables/useDragAndDrop'
 import { useDragState } from '@/composables/useDragState'
-import type { LayerItem } from '@/types/map.types'
+import type { Layer, LayerGroup } from '@/types/map.types'
 import LayerConfiguration from './layers/LayerConfiguration.vue'
 import LayerGroupConfiguration from './layers/LayerGroupConfiguration.vue'
 import LayerItemComponent from './layers/LayerItem.vue'
@@ -28,12 +28,27 @@ import {
 import draggable from 'vuedraggable'
 
 const appService = useAppService()
-const mapStore = useMapStore()
-const { denormalizedLayersGroups } = storeToRefs(mapStore)
+const layersStore = useLayersStore()
+const { mainReorderableItems, groupsWithLayers } = storeToRefs(layersStore)
 const { t } = useI18n()
 const { isDragActive } = useDragState()
 
 const isProd = import.meta.env.PROD
+
+// Track expanded groups
+const expandedGroups = ref(new Set<string>())
+
+// Local draggable array that syncs with the store but allows vuedraggable to modify it
+const draggableItems = ref<(Layer | LayerGroup)[]>([])
+
+// Sync with store data when it changes
+watch(
+  mainReorderableItems,
+  newItems => {
+    draggableItems.value = [...newItems]
+  },
+  { immediate: true, deep: true },
+) // Added deep: true to watch for property changes
 
 // Drag and drop composable
 const {
@@ -42,35 +57,8 @@ const {
   onDragStart,
   onDragEnd,
   onDragMove,
-  handleMainListChange,
-  getLayerItemKey,
+  getLayerKey,
 } = useDragAndDrop()
-
-// Track expanded groups
-const expandedGroups = ref(new Set<string>())
-
-// Computed property for the main draggable list
-const draggableLayerItems = computed({
-  get: () => denormalizedLayersGroups.value || [],
-  set: (newItems: LayerItem[]) => {
-    // Update order for all items based on their position in the array
-    newItems.forEach((item, index) => {
-      if (item.type === 'group') {
-        mapStore.updateLayerGroup(item.data.id, { order: index })
-      } else if (item.type === 'layer') {
-        const layerId = item.data.configuration?.id
-        if (layerId) {
-          const layerIndex = mapStore.layers.findIndex(
-            l => l.configuration?.id === layerId,
-          )
-          if (layerIndex !== -1) {
-            mapStore.layers[layerIndex].order = index
-          }
-        }
-      }
-    })
-  },
-})
 
 function openLayerConfigDialog(layerId?: string) {
   appService.componentDialog({
@@ -100,12 +88,44 @@ function toggleGroup(groupId: string) {
   }
 }
 
-function ungroupLayer(layerId: string) {
-  mapStore.moveLayerToGroup(layerId, null)
-}
+// Simple drag handlers
+async function handleMainChange(evt: any) {
+  console.log('=== Frontend handleMainChange ===')
+  console.log('Event:', evt)
 
-function onMainChange(evt: any) {
-  handleMainListChange(evt, draggableLayerItems.value)
+  if (evt.added) {
+    // Layer dropped from group to main list - handle via layer move
+    const layerId = evt.added.element.id
+    const newIndex = evt.added.newIndex
+    console.log('Added event - moving layer to main list:', layerId, newIndex)
+    await layersStore.handleLayerMove(layerId, null, newIndex)
+  } else if (evt.moved) {
+    // Item was reordered within the main list
+    const { element, newIndex } = evt.moved
+    console.log(
+      'Moved event - reordering within main list:',
+      element.id,
+      'to index',
+      newIndex,
+    )
+
+    // Use the current draggableItems array which has been updated by vuedraggable
+    console.log(
+      'Current draggableItems order:',
+      draggableItems.value.map((item, idx) => ({
+        id: item.id,
+        name: 'name' in item ? item.name : 'Unknown',
+        arrayIndex: idx,
+      })),
+    )
+
+    await layersStore.handleMainReorder(draggableItems.value)
+  } else if (!evt.added && !evt.removed && !evt.moved) {
+    // This should handle other reorder cases if any
+    console.log('General reorder event - using current draggableItems')
+    await layersStore.handleMainReorder(draggableItems.value)
+  }
+  console.log('=== End Frontend handleMainChange ===')
 }
 </script>
 
@@ -117,69 +137,78 @@ function onMainChange(evt: any) {
     :frame="false"
   >
     <template v-slot:actions>
-      <DropdownMenu>
-        <DropdownMenuTrigger as-child>
-          <Button variant="outline" size="sm" :disabled="isProd">
-            <PlusIcon class="size-4 mr-2" />
-            {{ t('layers.actions.new') }}
-            <ChevronDownIcon class="size-4 ml-2" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem @click="openLayerConfigDialog">
-            <LayersIcon class="size-4" />
-            {{ t('layers.actions.newLayer') }}
-          </DropdownMenuItem>
-          <DropdownMenuItem @click="openLayerGroupConfigDialog">
-            <FolderIcon class="size-4" />
-            {{ t('layers.actions.newGroup') }}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <div class="flex items-center gap-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button variant="outline" size="sm" :disabled="isProd">
+              <PlusIcon class="size-4 mr-2" />
+              {{ t('layers.actions.new') }}
+              <ChevronDownIcon class="size-4 ml-2" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem @click="openLayerConfigDialog">
+              <LayersIcon class="size-4" />
+              {{ t('layers.actions.newLayer') }}
+            </DropdownMenuItem>
+            <DropdownMenuItem @click="openLayerGroupConfigDialog">
+              <FolderIcon class="size-4" />
+              {{ t('layers.actions.newGroup') }}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </template>
 
-    <!-- Main Draggable Container -->
-    <draggable
-      v-if="denormalizedLayersGroups?.length > 0"
-      v-model="draggableLayerItems"
-      v-bind="mainDragOptions"
-      @start="onDragStart"
-      @end="onDragEnd"
-      @move="onDragMove"
-      @change="onMainChange"
-      :item-key="getLayerItemKey"
-      class="space-y-1 draggable-container h-full"
-      tag="div"
-    >
-      <template #item="{ element }">
-        <div :key="getLayerItemKey(element)" class="relative draggable-item">
-          <!-- Group Item -->
-          <LayerGroupItem
-            v-if="element.type === 'group'"
-            :group="element.data"
-            :expanded="expandedGroups.has(element.data.id)"
-            @toggle-expanded="toggleGroup"
-            @ungroup-layer="ungroupLayer"
-          />
-
-          <!-- Individual Layer Item -->
+    <div class="space-y-1 h-full">
+      <!-- Main Reorderable List (Ungrouped Layers + Groups) -->
+      <draggable
+        v-if="draggableItems?.length > 0"
+        v-model="draggableItems"
+        v-bind="mainDragOptions"
+        @start="onDragStart"
+        @end="onDragEnd"
+        @move="onDragMove"
+        @change="handleMainChange"
+        :item-key="
+          item => ('groupId' in item ? getLayerKey(item) : `group-${item.id}`)
+        "
+        class="space-y-1 draggable-container"
+        tag="div"
+      >
+        <template #item="{ element }">
           <div
-            v-else-if="element.type === 'layer' && element.data?.configuration"
-            class="border border-border rounded-lg bg-background"
+            :key="
+              'groupId' in element
+                ? getLayerKey(element)
+                : `group-${element.id}`
+            "
+            class="relative draggable-item"
           >
-            <LayerItemComponent :layer="element.data" @ungroup="ungroupLayer" />
-          </div>
-        </div>
-      </template>
-    </draggable>
+            <!-- Layer Group -->
+            <LayerGroupItem
+              v-if="!('groupId' in element)"
+              :group="groupsWithLayers.find(g => g.id === element.id)!"
+              :expanded="expandedGroups.has(element.id)"
+              @toggle-expanded="toggleGroup"
+            />
 
-    <!-- Empty State -->
-    <div
-      v-if="!denormalizedLayersGroups?.length"
-      class="text-center py-8 text-muted-foreground"
-    >
-      <FolderIcon class="size-8 mx-auto mb-2 opacity-50" />
-      <p class="text-sm">{{ t('layers.empty.message') }}</p>
+            <!-- Ungrouped Layer -->
+            <div v-else class="border border-border rounded-lg bg-background">
+              <LayerItemComponent :layer="element" />
+            </div>
+          </div>
+        </template>
+      </draggable>
+
+      <!-- Empty State -->
+      <div
+        v-if="!draggableItems?.length"
+        class="text-center py-8 text-muted-foreground"
+      >
+        <FolderIcon class="size-8 mx-auto mb-2 opacity-50" />
+        <p class="text-sm">{{ t('layers.empty.message') }}</p>
+      </div>
     </div>
   </SettingsSection>
 </template>

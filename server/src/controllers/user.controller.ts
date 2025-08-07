@@ -11,6 +11,7 @@ import { getRoles } from '../services/auth.service'
 import { sendMail } from '../services/mailer.service'
 import { permissions } from '../middleware/auth.middleware'
 import { PermissionId } from '../types/auth.types'
+import { populateDefaultLayers } from '../services/layers.service'
 
 const app = new Elysia({ prefix: '/users' })
 
@@ -83,6 +84,9 @@ app.use(permissions(PermissionId.USERS_CREATE)).post(
     })
 
     const roles = await getRoles(newUser.id)
+
+    // Populate default layers for new user
+    await populateDefaultLayers(newUser.id)
 
     await sendMail({
       to: newUser.email,

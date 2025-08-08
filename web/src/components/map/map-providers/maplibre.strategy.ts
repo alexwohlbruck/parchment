@@ -24,6 +24,7 @@ import {
   MapProjection,
   LngLat,
   Waypoint,
+  LayerType,
 } from '@/types/map.types'
 
 import { Directions, TripsResponse } from '@/types/directions.types'
@@ -34,10 +35,11 @@ import { mapboxLayerToMaplibreLayer } from '@/lib/map.utils'
 import { useMapStore } from '@/stores/map.store'
 import { createPegmanLayers, updatePegmanData } from '@/lib/pegman.utils'
 import { MapLayerGroup, TripGroup } from '@/lib/layer-group'
-import { Component } from 'vue'
+import { Component, watch } from 'vue'
 import { createVueMarkerElement } from '@/lib/vue-marker.utils'
 import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
 import { useAppStore } from '@/stores/app.store'
+import { useThemeStore } from '@/stores/theme.store'
 
 const basemapUrls = {
   light: `https://api.maptiler.com/maps/streets-v2/style.json?key=${
@@ -54,10 +56,128 @@ const basemapUrls = {
   }`,
 }
 
+function rgbToHex(rgb: string): string {
+  const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i)
+  if (!m) return '#04CB63'
+  const r = Number(m[1]).toString(16).padStart(2, '0')
+  const g = Number(m[2]).toString(16).padStart(2, '0')
+  const b = Number(m[3]).toString(16).padStart(2, '0')
+  return `#${r}${g}${b}`
+}
+function hexToHsl(hex: string) {
+  hex = hex.replace('#', '')
+  const bigint = parseInt(hex, 16)
+  const r = (bigint >> 16) & 255
+  const g = (bigint >> 8) & 255
+  const b = bigint & 255
+  const rP = r / 255
+  const gP = g / 255
+  const bP = b / 255
+  const max = Math.max(rP, gP, bP)
+  const min = Math.min(rP, gP, bP)
+  let h = 0
+  let s = 0
+  const l = (max + min) / 2
+  if (max !== min) {
+    const d = max - min
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    switch (max) {
+      case rP:
+        h = (gP - bP) / d + (gP < bP ? 6 : 0)
+        break
+      case gP:
+        h = (bP - rP) / d + 2
+        break
+      case bP:
+        h = (rP - gP) / d + 4
+        break
+    }
+    h /= 6
+  }
+  return { h: h * 360, s: s * 100, l: l * 100 }
+}
+function hslToHex(h: number, s: number, l: number) {
+  h /= 360
+  s /= 100
+  l /= 100
+  const hue2rgb = (p: number, q: number, t: number) => {
+    if (t < 0) t += 1
+    if (t > 1) t -= 1
+    if (t < 1 / 6) return p + (q - p) * 6 * t
+    if (t < 1 / 2) return q
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
+    return p
+  }
+  let r: number, g: number, b: number
+  if (s === 0) {
+    r = g = b = l
+  } else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+    const p = 2 * l - q
+    r = hue2rgb(p, q, h + 1 / 3)
+    g = hue2rgb(p, q, h)
+    b = hue2rgb(p, q, h - 1 / 3)
+  }
+  const toHex = (x: number) => {
+    const v = Math.round(x * 255)
+    return v.toString(16).padStart(2, '0')
+  }
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+}
+function adjustLightness(hex: string, delta: number) {
+  const { h, s, l } = hexToHsl(hex)
+  const newL = Math.max(0, Math.min(100, l + delta))
+  return hslToHex(h, s, newL)
+}
+function getPrimaryThemeHex(): string {
+  try {
+    const span = document.createElement('span')
+    span.style.position = 'absolute'
+    span.style.left = '-9999px'
+    span.className = 'text-primary'
+    document.body.appendChild(span)
+    const color = getComputedStyle(span).color
+    document.body.removeChild(span)
+    return rgbToHex(color)
+  } catch {
+    return '#04CB63'
+  }
+}
+
+function buildStreetViewPaint(configuration: any) {
+  const primary = getPrimaryThemeHex()
+  const fill = adjustLightness(primary, 8)
+  const stroke = adjustLightness(primary, -18)
+  const paint: any = { ...(configuration?.paint || {}) }
+  if (configuration.type === 'circle') {
+    paint['circle-color'] = fill
+    paint['circle-opacity'] = paint['circle-opacity'] ?? 0.85
+    paint['circle-stroke-color'] = stroke
+    paint['circle-stroke-width'] = paint['circle-stroke-width'] ?? 1.5
+    paint['circle-stroke-opacity'] = paint['circle-stroke-opacity'] ?? 0.9
+    paint['circle-emissive-strength'] = paint['circle-emissive-strength'] ?? 1
+  }
+  if (configuration.type === 'line') {
+    paint['line-color'] = stroke
+    paint['line-opacity'] = paint['line-opacity'] ?? 0.8
+    paint['line-emissive-strength'] = paint['line-emissive-strength'] ?? 1
+  }
+  return paint
+}
+
+function applyThemedStreetViewStyling(layer: Layer): Layer {
+  if (layer.type !== LayerType.STREET_VIEW) return layer
+  const cloned: Layer = JSON.parse(JSON.stringify(layer))
+  cloned.configuration.paint = buildStreetViewPaint(cloned.configuration)
+  return cloned
+}
+
 export class MaplibreStrategy extends MapStrategy {
   mapInstance: MaplibreMap
   geolocateControl: GeolocateControl
   layerGroups: Map<string, MapLayerGroup> = new Map()
+  private streetViewLayerIds: Set<string> = new Set()
+  private unwatchTheme?: () => void
 
   constructor(container, options: MapSettings, accessToken?: string) {
     super(container, options, accessToken)
@@ -86,6 +206,12 @@ export class MaplibreStrategy extends MapStrategy {
 
     this.addControls()
     this.configureEventListeners()
+
+    const theme = useThemeStore()
+    this.unwatchTheme = watch(
+      () => theme.accentColor,
+      () => this.updateStreetViewColors(),
+    )
   }
 
   addControls() {
@@ -462,10 +588,11 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   addLayer(layer: Layer, overwrite: boolean = false) {
-    const { configuration }: any = mapboxLayerToMaplibreLayer(layer)
+    const { configuration }: any = mapboxLayerToMaplibreLayer(
+      applyThemedStreetViewStyling(layer),
+    )
 
     try {
-      // Handle source if it exists in the configuration
       if (typeof configuration.source === 'object') {
         const sourceId = configuration.source.id
         const existingSource = this.mapInstance.getSource(sourceId)
@@ -473,17 +600,14 @@ export class MaplibreStrategy extends MapStrategy {
         if (existingSource) {
           if (overwrite) {
             this.mapInstance.removeSource(sourceId)
-            this.mapInstance.addSource(sourceId, configuration.source)
+            this.mapInstance.addSource(sourceId, configuration.source as any)
           }
         } else {
-          this.mapInstance.addSource(sourceId, configuration.source)
+          this.mapInstance.addSource(sourceId, configuration.source as any)
         }
-
-        // Update configuration to use source ID instead of source object
         configuration.source = sourceId
       }
 
-      // Verify source exists before adding layer
       if (typeof configuration.source === 'string') {
         const sourceExists = this.mapInstance.getSource(configuration.source)
         if (!sourceExists) {
@@ -491,19 +615,21 @@ export class MaplibreStrategy extends MapStrategy {
         }
       }
 
-      // Handle layer
       const existingLayer = this.mapInstance.getLayer(configuration.id)
       if (existingLayer && overwrite) {
         this.mapInstance.removeLayer(configuration.id)
       }
       if (!existingLayer || overwrite) {
         this.mapInstance.addLayer({
-          ...configuration,
+          ...(configuration as any),
           layout: {
             ...configuration.layout,
             visibility: layer.visible ? 'visible' : 'none',
           },
         })
+        if (layer.type === LayerType.STREET_VIEW) {
+          this.streetViewLayerIds.add(configuration.id)
+        }
       }
     } catch (error) {
       // Silent error handling
@@ -695,6 +821,46 @@ export class MaplibreStrategy extends MapStrategy {
         padding,
         duration: 1000,
       })
+    }
+  }
+
+  private updateStreetViewColors() {
+    for (const id of this.streetViewLayerIds) {
+      const layer = this.mapInstance.getLayer(id) as any
+      if (!layer) continue
+      const type = (layer as any).type
+      if (type === 'circle') {
+        const paint = buildStreetViewPaint({ type: 'circle' })
+        this.mapInstance.setPaintProperty(
+          id,
+          'circle-color',
+          paint['circle-color'],
+        )
+        this.mapInstance.setPaintProperty(
+          id,
+          'circle-stroke-color',
+          paint['circle-stroke-color'],
+        )
+        this.mapInstance.setPaintProperty(
+          id,
+          'circle-opacity',
+          paint['circle-opacity'],
+        )
+        this.mapInstance.setPaintProperty(
+          id,
+          'circle-stroke-opacity',
+          paint['circle-stroke-opacity'],
+        )
+      }
+      if (type === 'line') {
+        const paint = buildStreetViewPaint({ type: 'line' })
+        this.mapInstance.setPaintProperty(id, 'line-color', paint['line-color'])
+        this.mapInstance.setPaintProperty(
+          id,
+          'line-opacity',
+          paint['line-opacity'],
+        )
+      }
     }
   }
 }

@@ -12,6 +12,10 @@ const mapService = useMapService()
 const layersStore = useLayersStore()
 const layersService = useLayersService()
 
+const hasStreetViewLayers = computed(() =>
+  layersStore.layers.some(layer => layer.type === LayerType.STREET_VIEW),
+)
+
 const isStreetViewLayerVisible = computed(() => {
   return layersStore.layers.some(
     layer => layer.type === LayerType.STREET_VIEW && layer.visible,
@@ -30,7 +34,7 @@ async function onToggle() {
 </script>
 
 <template>
-  <Card class="border-none shadow-md rounded-md">
+  <Card v-if="hasStreetViewLayers" class="border-none shadow-md rounded-md">
     <Toggle
       variant="outline"
       size="icon"

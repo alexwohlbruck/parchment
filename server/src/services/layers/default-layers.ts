@@ -6,9 +6,6 @@ function getServerUrl() {
   return process.env.SERVER_ORIGIN
 }
 
-const mapillaryAccessToken = process.env.MAPILLARY_ACCESS_TOKEN
-const transitlandApiKey = process.env.TRANSITLAND_API_KEY
-
 export const defaultLayers: Omit<
   NewLayer,
   'id' | 'userId' | 'createdAt' | 'updatedAt'
@@ -29,17 +26,17 @@ export const defaultLayers: Omit<
         id: 'mapillary-overview',
         type: 'vector',
         tiles: [
-          `https://tiles.mapillary.com/maps/vtp/mly1_computed_public/2/{z}/{x}/{y}?access_token=${mapillaryAccessToken}`,
+          `${getServerUrl()}/proxy/mapillary/mly1_computed_public/2/{z}/{x}/{y}`,
         ],
         minzoom: 0,
         maxzoom: 5,
       },
       'source-layer': 'images',
       paint: {
-        'circle-color': '#3b82f6',
+        'circle-color': '#04CB63',
         'circle-radius': 4,
         'circle-opacity': 1,
-        'circle-stroke-color': '#1d4ed8',
+        'circle-stroke-color': '#04CB63',
         'circle-stroke-width': 1.5,
         'circle-stroke-opacity': 0.7,
         'circle-emissive-strength': 1,
@@ -63,14 +60,14 @@ export const defaultLayers: Omit<
         id: 'mapillary-sequence',
         type: 'vector',
         tiles: [
-          `https://tiles.mapillary.com/maps/vtp/mly1_computed_public/2/{z}/{x}/{y}?access_token=${mapillaryAccessToken}`,
+          `${getServerUrl()}/proxy/mapillary/mly1_computed_public/2/{z}/{x}/{y}`,
         ],
         minzoom: 6,
         maxzoom: 14,
       },
       'source-layer': 'sequence',
       paint: {
-        'line-color': '#3b82f6',
+        'line-color': '#04CB63',
         'line-opacity': [
           'interpolate',
           ['linear'],
@@ -108,14 +105,14 @@ export const defaultLayers: Omit<
         id: 'mapillary-image',
         type: 'vector',
         tiles: [
-          `https://tiles.mapillary.com/maps/vtp/mly1_computed_public/2/{z}/{x}/{y}?access_token=${mapillaryAccessToken}`,
+          `${getServerUrl()}/proxy/mapillary/mly1_computed_public/2/{z}/{x}/{y}`,
         ],
         minzoom: 6,
         maxzoom: 14,
       },
       'source-layer': 'image',
       paint: {
-        'circle-color': '#3b82f6',
+        'circle-color': '#04CB63',
         'circle-radius': [
           'interpolate',
           ['linear'],
@@ -128,7 +125,7 @@ export const defaultLayers: Omit<
           6,
         ],
         'circle-opacity': 1,
-        'circle-stroke-color': '#1d4ed8',
+        'circle-stroke-color': '#04CB63',
         'circle-stroke-width': [
           'interpolate',
           ['linear'],
@@ -343,9 +340,7 @@ export const defaultLayers: Omit<
       source: {
         id: 'transitland',
         type: 'vector',
-        tiles: [
-          `https://transit.land/api/v2/tiles/routes/tiles/{z}/{x}/{y}.pbf?apikey=${transitlandApiKey}`,
-        ],
+        tiles: [`${getServerUrl()}/proxy/transitland/routes/{z}/{x}/{y}`],
         maxzoom: 14,
       },
       'source-layer': 'routes',

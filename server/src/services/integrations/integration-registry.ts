@@ -6,12 +6,14 @@ import { NominatimIntegration } from './nominatim-integration'
 import { OverpassIntegration } from './overpass-integration'
 import { MapboxIntegration } from './mapbox-integration'
 import { ValhallaIntegration } from './valhalla-integration'
+import { MapillaryIntegration } from './mapillary-integration'
+import { TransitlandIntegration } from './transitland-integration'
 
 /**
  * Registry for all integrations
  */
 export class IntegrationRegistry {
-  private integrations: Map<IntegrationId, Integration> = new Map()
+  private integrations: Map<IntegrationId, Integration<any>> = new Map()
 
   constructor() {
     this.registerDefaultIntegrations()
@@ -27,13 +29,15 @@ export class IntegrationRegistry {
     this.registerIntegration(new OverpassIntegration())
     this.registerIntegration(new MapboxIntegration())
     this.registerIntegration(new ValhallaIntegration())
+    this.registerIntegration(new MapillaryIntegration())
+    this.registerIntegration(new TransitlandIntegration())
   }
 
   /**
    * Register a new integration
    * @param integration The integration to register
    */
-  registerIntegration(integration: Integration): void {
+  registerIntegration(integration: Integration<any>): void {
     this.integrations.set(integration.integrationId, integration)
   }
 
@@ -42,7 +46,7 @@ export class IntegrationRegistry {
    * @param integrationId The integration ID
    * @returns The integration instance, or undefined if not found
    */
-  getIntegration(integrationId: IntegrationId): Integration | undefined {
+  getIntegration(integrationId: IntegrationId): Integration<any> | undefined {
     return this.integrations.get(integrationId)
   }
 }

@@ -148,18 +148,6 @@ export function useLayersService() {
     }
   }
 
-  function toggleStreetViewLayers(
-    layers: Layer[],
-    visible: boolean,
-    mapStrategy?: MapStrategy,
-  ) {
-    layers.forEach(layer => {
-      if (layer.type === LayerType.STREET_VIEW) {
-        toggleLayerVisibility(layer.configuration.id, visible, mapStrategy)
-      }
-    })
-  }
-
   async function toggleStreetViewLayers(
     layers: Layer[],
     layersStore: any,

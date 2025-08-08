@@ -540,6 +540,7 @@
         "validation_error": "Please fix validation errors before testing"
       },
       "capabilities": {
+        "mapLayer": "Map Layer",
         "search": "Search",
         "autocomplete": "Autocomplete",
         "routing": "Routing",
@@ -547,7 +548,8 @@
         "placeInfo": "Place Info",
         "imagery": "Imagery",
         "mapEngine": "Map Engine",
-        "title": "Capabilities"
+        "title": "Capabilities",
+        "streetView": "Street View"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",
@@ -562,7 +564,8 @@
         "tripadvisor": "Travel reviews and recommendations",
         "geoapify": "Geocoding, routing, and place data",
         "mapbox": "Interactive maps, geocoding, and navigation",
-        "valhalla": "Open-source routing engine for multimodal navigation"
+        "valhalla": "Open-source routing engine for multimodal navigation",
+        "transitland": "Transit routes tiles and APIs"
       }
     },
     "users": {

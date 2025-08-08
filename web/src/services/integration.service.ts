@@ -10,11 +10,34 @@ import {
 } from '@server/types/integration.types'
 import { api } from '@/lib/api'
 import { useIntegrationsStore } from '@/stores/integrations.store'
+import { useLayersStore } from '@/stores/layers.store'
+
+function hasMapLayerCapability(
+  integration?:
+    | IntegrationRecord
+    | { capabilities?: { id: IntegrationCapabilityId; active: boolean }[] },
+) {
+  const caps = integration?.capabilities || []
+  return caps.some(c => c.id === IntegrationCapabilityId.MAP_LAYER)
+}
 
 export function useIntegrationService() {
   const store = useIntegrationsStore()
+  const layersStore = useLayersStore()
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+
+  async function refreshLayersIfNeeded(integrationId?: string) {
+    try {
+      // Reload layers if the integration involved can affect map layers
+      const justUpdated = store.integrationConfigurations.find(
+        i => i.integrationId === integrationId,
+      )
+      if (!integrationId || hasMapLayerCapability(justUpdated)) {
+        await layersStore.loadLayers()
+      }
+    } catch (e) {}
+  }
 
   async function createIntegration(
     integrationId: string,
@@ -36,6 +59,7 @@ export function useIntegrationService() {
     const response = await api.post('/integrations', requestData)
 
     await fetchConfiguredIntegrations()
+    await refreshLayersIfNeeded(integrationId)
     return response.data
   }
 
@@ -52,6 +76,8 @@ export function useIntegrationService() {
     const response = await api.put(`/integrations/${id}`, updates)
 
     await fetchConfiguredIntegrations()
+    const updated = store.integrationConfigurations.find(i => i.id === id)
+    await refreshLayersIfNeeded(updated?.integrationId)
     return response.data
   }
 
@@ -59,9 +85,12 @@ export function useIntegrationService() {
     isLoading.value = true
     error.value = null
 
+    const deleted = store.integrationConfigurations.find(i => i.id === id)
+
     await api.delete(`/integrations/${id}`)
 
     await fetchConfiguredIntegrations()
+    await refreshLayersIfNeeded(deleted?.integrationId)
     isLoading.value = false
 
     return true

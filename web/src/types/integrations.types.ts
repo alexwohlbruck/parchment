@@ -54,4 +54,12 @@ export const configSchemas: Record<
   valhallaSchema: z.object({
     host: z.string().url('Please enter a valid URL'),
   }),
+
+  mapillarySchema: z.object({
+    accessToken: z.string().min(1, 'Access token is required'),
+  }),
+
+  transitlandSchema: z.object({
+    apiKey: z.string().min(1, 'API Key is required'),
+  }),
 }

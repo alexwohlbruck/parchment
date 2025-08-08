@@ -531,13 +531,15 @@
         "validation_error": "Por favor corrige los errores de validación antes de probar"
       },
       "capabilities": {
+        "mapLayer": "Capa de mapa",
         "search": "Buscar",
         "autocomplete": "Autocompletar",
         "routing": "Rutas",
         "geocoding": "Geocodificación",
         "placeInfo": "Información de Lugares",
         "imagery": "Imágenes",
-        "title": "Capacidades"
+        "title": "Capacidades",
+        "streetView": "Vista de calle"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",
@@ -551,7 +553,8 @@
         "nominatim": "Geocodificación de código abierto",
         "tripadvisor": "Reseñas y recomendaciones de viajes",
         "geoapify": "Geocodificación, rutas e información de lugares",
-        "valhalla": "Motor de rutas de código abierto para navegación multimodal"
+        "valhalla": "Motor de rutas de código abierto para navegación multimodal",
+        "transitland": "Teselas y APIs de rutas de tránsito"
       }
     },
     "users": {

@@ -44,9 +44,7 @@ services:
     image: alexwohlbruck/parchment-web:latest
     environment:
       VITE_MAPBOX_ACCESS_TOKEN: ${MAPBOX_ACCESS_TOKEN}
-      VITE_TRANSITLAND_API_KEY: ${TRANSITLAND_API_KEY}
       VITE_MAPTILER_API_KEY: ${MAPTILER_API_KEY}
-      VITE_MAPILLARY_ACCESS_TOKEN: ${MAPILLARY_ACCESS_TOKEN}
     ports:
       - '5173:5173'
     depends_on:

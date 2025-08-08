@@ -36,6 +36,12 @@ const app = new Elysia({ prefix: '/integrations' })
 // All endpoints require auth
 app.use(requireAuth)
 
+// New: Public integrations for client (safe subset)
+app.get('/public', async () => {
+  const list = await getPublicIntegrations()
+  return list
+})
+
 // Get all available integrations (metadata only)
 app.get('/available', async ({ user }) => {
   // Check if user has basic read permission for integrations

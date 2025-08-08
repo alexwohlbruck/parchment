@@ -132,6 +132,31 @@ export function useLayersService() {
     toggleLayerVisibility(layerConfigId, newState, mapStrategy)
   }
 
+  // Show-in-selector toggles (do not affect map visibility)
+  async function setLayerShownInSelector(
+    layerConfigId: Layer['configuration']['id'],
+    layers: Layer[],
+    layersStore: any,
+    state?: boolean,
+  ) {
+    const layer = layers.find(l => l.configuration.id === layerConfigId)
+    if (!layer) return
+
+    const newState = state ?? !layer.showInLayerSelector
+    await layersStore.updateLayer(layer.id, { showInLayerSelector: newState })
+  }
+
+  async function setGroupShownInSelector(
+    group: LayerGroup,
+    layersStore: any,
+    state?: boolean,
+  ) {
+    const newState = state ?? !group.showInLayerSelector
+    await layersStore.updateLayerGroup(group.id, {
+      showInLayerSelector: newState,
+    })
+  }
+
   async function toggleLayerGroupVisibility(
     group: LayerGroup,
     visible: boolean,
@@ -216,5 +241,7 @@ export function useLayersService() {
     toggleStreetViewLayers,
     addLayerToMap,
     removeLayerFromMap,
+    setLayerShownInSelector,
+    setGroupShownInSelector,
   }
 }

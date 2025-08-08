@@ -80,13 +80,7 @@ function getGroupVisibility(): boolean {
 }
 
 async function updateGroupVisibility(visible: boolean) {
-  await layersService.toggleLayerGroupVisibility(
-    props.group,
-    visible,
-    layersStore,
-    layersStore.layers,
-    mapService.mapStrategy,
-  )
+  await layersService.setGroupShownInSelector(props.group, layersStore, visible)
 }
 
 function openLayerGroupConfigDialog() {

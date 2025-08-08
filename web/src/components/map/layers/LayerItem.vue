@@ -106,11 +106,10 @@ async function deleteLayer() {
 }
 
 async function toggleLayer(enabled: boolean) {
-  await layersService.setLayerVisibility(
+  await layersService.setLayerShownInSelector(
     props.layer.configuration.id,
     layersStore.layers,
     layersStore,
-    mapService.mapStrategy,
     enabled,
   )
 }

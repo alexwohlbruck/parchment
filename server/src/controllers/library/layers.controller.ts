@@ -101,6 +101,7 @@ app
     // Build a set of configuration ids the user already owns (to hide reserved defaults)
     const userOwnedConfigIds = new Set(
       userLayers
+        .filter((l) => !l.name?.startsWith('__tombstone__:'))
         .map((l) => (l as any)?.configuration?.id)
         .filter(Boolean) as string[],
     )
@@ -515,6 +516,23 @@ app
   .post('/layers/populate-custom-layers', async ({ user }) => {
     await layersService.populateDefaultLayers(user.id)
     return { success: true }
+  })
+
+app
+  .use(requireAuth)
+  .use(permissions(PermissionId.LAYERS_WRITE))
+  .post('/layers/restore-defaults', async ({ user }) => {
+    // Delete only tombstone rows used to hide reserved defaults for this user
+    const userLayers = await layersService.getLayers(user.id)
+    const tombstones = userLayers.filter((l) =>
+      l.name?.startsWith('__tombstone__:'),
+    )
+    let count = 0
+    for (const t of tombstones) {
+      await layersService.deleteLayer(t.id, user.id)
+      count++
+    }
+    return { success: true, restored: count }
   })
 
 export default app

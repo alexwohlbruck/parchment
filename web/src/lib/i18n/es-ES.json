@@ -235,10 +235,20 @@
       "editLayer": "Editar Capa",
       "editGroup": "Editar Grupo",
       "deleteGroup": "Eliminar Grupo",
-      "ungroupLayer": "Desagrupar Capa"
+      "deleteLayer": "Eliminar Capa",
+      "ungroupLayer": "Desagrupar Capa",
+      "restoreDefaults": "Restaurar predeterminados"
     },
     "empty": {
       "message": "No hay capas configuradas"
+    },
+    "restoreDefaults": {
+      "button": "Restaurar predeterminados",
+      "success": "Se restauraron {count} capas predeterminadas"
+    },
+    "badges": {
+      "default": "Predeterminado",
+      "custom": "Personalizado"
     }
   },
   "directions": {

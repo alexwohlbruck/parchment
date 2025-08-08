@@ -18,6 +18,8 @@ import {
   PlusIcon,
   FolderIcon,
   LayersIcon,
+  RotateCcwIcon,
+  MoreHorizontalIcon,
 } from 'lucide-vue-next'
 import {
   DropdownMenu,
@@ -26,9 +28,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import draggable from 'vuedraggable'
+import { useLayersService } from '@/services/layers.service'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 const appService = useAppService()
 const layersStore = useLayersStore()
+const layersService = useLayersService()
 const { mainReorderableItems, groupsWithLayers } = storeToRefs(layersStore)
 const { t } = useI18n()
 const { isDragActive } = useDragState()
@@ -78,6 +83,14 @@ function openLayerGroupConfigDialog(groupId?: string) {
       groupId,
     },
   })
+}
+
+async function restoreDefaults() {
+  const res = await layersService.restoreDefaultLayers()
+  await layersStore.loadLayers()
+  appService.toast.success(
+    t('layers.restoreDefaults.success', { count: res?.restored ?? 0 }),
+  )
 }
 
 function toggleGroup(groupId: string) {
@@ -130,87 +143,102 @@ async function handleMainChange(evt: any) {
 </script>
 
 <template>
-  <SettingsSection
-    class="h-full"
-    :title="t('settings.mapSettings.layers.title')"
-    :description="t('settings.mapSettings.layers.description')"
-    :frame="false"
-  >
-    <template v-slot:actions>
-      <div class="flex items-center gap-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger as-child>
-            <Button variant="outline" size="sm" :disabled="isProd">
-              <PlusIcon class="size-4 mr-2" />
-              {{ t('layers.actions.new') }}
-              <ChevronDownIcon class="size-4 ml-2" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem @click="openLayerConfigDialog">
-              <LayersIcon class="size-4" />
-              {{ t('layers.actions.newLayer') }}
-            </DropdownMenuItem>
-            <DropdownMenuItem @click="openLayerGroupConfigDialog">
-              <FolderIcon class="size-4" />
-              {{ t('layers.actions.newGroup') }}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </template>
+  <TooltipProvider>
+    <SettingsSection
+      class="h-full"
+      :title="t('settings.mapSettings.layers.title')"
+      :description="t('settings.mapSettings.layers.description')"
+      :frame="false"
+    >
+      <template v-slot:actions>
+        <div class="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button variant="outline" size="sm" :disabled="isProd">
+                <PlusIcon class="size-4 mr-2" />
+                {{ t('layers.actions.new') }}
+                <ChevronDownIcon class="size-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem @click="openLayerConfigDialog">
+                <LayersIcon class="size-4" />
+                {{ t('layers.actions.newLayer') }}
+              </DropdownMenuItem>
+              <DropdownMenuItem @click="openLayerGroupConfigDialog">
+                <FolderIcon class="size-4" />
+                {{ t('layers.actions.newGroup') }}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button variant="ghost" size="icon" class="size-8">
+                <MoreHorizontalIcon class="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem @click="restoreDefaults">
+                <RotateCcwIcon class="size-4 mr-2" />
+                {{ t('layers.actions.restoreDefaults') }}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </template>
 
-    <div class="space-y-1 h-full">
-      <!-- Main Reorderable List (Ungrouped Layers + Groups) -->
-      <draggable
-        v-if="draggableItems?.length > 0"
-        v-model="draggableItems"
-        v-bind="mainDragOptions"
-        @start="onDragStart"
-        @end="onDragEnd"
-        @move="onDragMove"
-        @change="handleMainChange"
-        :item-key="
-          item => ('groupId' in item ? getLayerKey(item) : `group-${item.id}`)
-        "
-        class="space-y-1 draggable-container"
-        tag="div"
-      >
-        <template #item="{ element }">
-          <div
-            :key="
-              'groupId' in element
-                ? getLayerKey(element)
-                : `group-${element.id}`
-            "
-            class="relative draggable-item"
-          >
-            <!-- Layer Group -->
-            <LayerGroupItem
-              v-if="!('groupId' in element)"
-              :group="groupsWithLayers.find(g => g.id === element.id)!"
-              :expanded="expandedGroups.has(element.id)"
-              @toggle-expanded="toggleGroup"
-            />
+      <div class="space-y-1 h-full">
+        <!-- Main Reorderable List (Ungrouped Layers + Groups) -->
+        <draggable
+          v-if="draggableItems?.length > 0"
+          v-model="draggableItems"
+          v-bind="mainDragOptions"
+          @start="onDragStart"
+          @end="onDragEnd"
+          @move="onDragMove"
+          @change="handleMainChange"
+          :item-key="
+            item => ('groupId' in item ? getLayerKey(item) : `group-${item.id}`)
+          "
+          class="space-y-1 draggable-container"
+          tag="div"
+        >
+          <template #item="{ element }">
+            <div
+              :key="
+                'groupId' in element
+                  ? getLayerKey(element)
+                  : `group-${element.id}`
+              "
+              class="relative draggable-item"
+            >
+              <!-- Layer Group -->
+              <LayerGroupItem
+                v-if="!('groupId' in element)"
+                :group="groupsWithLayers.find(g => g.id === element.id)!"
+                :expanded="expandedGroups.has(element.id)"
+                @toggle-expanded="toggleGroup"
+              />
 
-            <!-- Ungrouped Layer -->
-            <div v-else class="border border-border rounded-lg bg-background">
-              <LayerItemComponent :layer="element" />
+              <!-- Ungrouped Layer -->
+              <div v-else class="border border-border rounded-lg bg-background">
+                <LayerItemComponent :layer="element" />
+              </div>
             </div>
-          </div>
-        </template>
-      </draggable>
+          </template>
+        </draggable>
 
-      <!-- Empty State -->
-      <div
-        v-if="!draggableItems?.length"
-        class="text-center py-8 text-muted-foreground"
-      >
-        <FolderIcon class="size-8 mx-auto mb-2 opacity-50" />
-        <p class="text-sm">{{ t('layers.empty.message') }}</p>
+        <!-- Empty State -->
+        <div
+          v-if="!draggableItems?.length"
+          class="text-center py-8 text-muted-foreground"
+        >
+          <FolderIcon class="size-8 mx-auto mb-2 opacity-50" />
+          <p class="text-sm">{{ t('layers.empty.message') }}</p>
+        </div>
       </div>
-    </div>
-  </SettingsSection>
+    </SettingsSection>
+  </TooltipProvider>
 </template>
 
 <style scoped>

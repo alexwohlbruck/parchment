@@ -32,6 +32,11 @@ import {
 } from '@/components/ui/collapsible'
 import draggable from 'vuedraggable'
 import { useMapService } from '@/services/map.service'
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from '@/components/ui/tooltip'
 
 interface Props {
   group: LayerGroupWithLayers
@@ -49,6 +54,10 @@ const layersStore = useLayersStore()
 const layersService = useLayersService()
 const appService = useAppService()
 const mapService = useMapService()
+
+function isDefaultGroup(id: string, name: string): boolean {
+  return id?.startsWith('reserved:') || name === 'Mapillary'
+}
 
 // Helper function to convert icon string name to Vue component
 function getIconComponent(iconName?: string | null) {
@@ -142,9 +151,23 @@ function handleUngroupLayer(layerId: string) {
           />
           <FolderIcon v-else class="size-4" />
           <span class="text-sm font-medium">{{ group.name }}</span>
-          <span class="text-xs text-muted-foreground ml-auto">
-            ({{ group.layers.length }})
-          </span>
+          <div class="ml-auto flex items-center gap-2">
+            <span
+              class="inline-flex items-center justify-center h-5 w-6 rounded bg-muted text-muted-foreground text-xs tabular-nums"
+            >
+              {{ group.layers.length }}
+            </span>
+            <Tooltip v-if="!isDefaultGroup(group.id, group.name)">
+              <TooltipTrigger as-child>
+                <span
+                  class="inline-block w-1.5 h-1.5 rounded-full bg-primary align-middle"
+                />
+              </TooltipTrigger>
+              <TooltipContent>
+                <span>{{ t('layers.badges.custom') }}</span>
+              </TooltipContent>
+            </Tooltip>
+          </div>
         </CollapsibleTrigger>
 
         <!-- Group Visibility Toggle -->

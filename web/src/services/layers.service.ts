@@ -82,6 +82,14 @@ export function useLayersService() {
     return data
   }
 
+  async function restoreDefaultLayers(): Promise<{
+    success: boolean
+    restored: number
+  }> {
+    const { data } = await api.post('/library/layers/restore-defaults', {})
+    return data
+  }
+
   // Map integration functions
   function initializeLayers(layers: Layer[], mapStrategy?: MapStrategy) {
     if (!mapStrategy) return
@@ -199,6 +207,7 @@ export function useLayersService() {
     reorderLayers,
     moveLayer,
     moveLayerGroup,
+    restoreDefaultLayers,
 
     initializeLayers,
     setLayerVisibility,

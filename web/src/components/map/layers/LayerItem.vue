@@ -14,8 +14,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { MoreHorizontalIcon, PencilIcon, MoveIcon } from 'lucide-vue-next'
+import {
+  MoreHorizontalIcon,
+  PencilIcon,
+  MoveIcon,
+  TrashIcon,
+} from 'lucide-vue-next'
 import LayerConfiguration from './LayerConfiguration.vue'
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from '@/components/ui/tooltip'
 
 interface Props {
   layer: Layer
@@ -38,6 +48,22 @@ const layersStore = useLayersStore()
 const layersService = useLayersService()
 const mapService = useMapService()
 const appService = useAppService()
+
+// Determine if this layer belongs to system defaults
+const defaultConfigIds = new Set([
+  'mapillary-overview',
+  'mapillary-sequence',
+  'mapillary-image',
+  'transitland',
+])
+
+function isDefaultLayer(layer: Layer): boolean {
+  const idIsReserved =
+    typeof layer.id === 'string' && layer.id.startsWith('reserved:')
+  const cfgId = (layer as any)?.configuration?.id as string | undefined
+  const cfgIsDefault = !!cfgId && defaultConfigIds.has(cfgId)
+  return idIsReserved || cfgIsDefault
+}
 
 // Helper function to convert icon string name to Vue component
 function getIconComponent(iconName?: string | null) {
@@ -67,6 +93,16 @@ function handleUngroup() {
   if (layerId) {
     emit('ungroup', layerId)
   }
+}
+
+async function deleteLayer() {
+  const confirmed = await appService.confirm({
+    title: t('layers.actions.deleteLayer'),
+    description: t('library.confirmDelete', { name: props.layer.name }),
+    destructive: true,
+  })
+  if (!confirmed) return
+  await layersStore.removeLayer(props.layer.id)
 }
 
 async function toggleLayer(enabled: boolean) {
@@ -113,6 +149,16 @@ async function toggleLayer(enabled: boolean) {
     </span> -->
 
     <!-- Layer Visibility Toggle -->
+    <Tooltip v-if="!isDefaultLayer(layer)">
+      <TooltipTrigger as-child>
+        <span
+          class="mr-2 inline-block w-1.5 h-1.5 rounded-full bg-primary align-middle"
+        />
+      </TooltipTrigger>
+      <TooltipContent>
+        <span>{{ t('layers.badges.custom') }}</span>
+      </TooltipContent>
+    </Tooltip>
     <Switch
       v-if="!groupId"
       :model-value="layer.showInLayerSelector"
@@ -144,6 +190,10 @@ async function toggleLayer(enabled: boolean) {
         <DropdownMenuItem v-if="showUngroupAction" @click="handleUngroup">
           <MoveIcon class="size-3 mr-2" />
           {{ t('layers.actions.ungroupLayer') }}
+        </DropdownMenuItem>
+        <DropdownMenuItem class="text-destructive" @click="deleteLayer">
+          <TrashIcon class="size-3 mr-2" />
+          {{ t('layers.actions.deleteLayer') }}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

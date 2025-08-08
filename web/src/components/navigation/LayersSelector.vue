@@ -17,7 +17,7 @@ const layersStore = useLayersStore()
 const layersService = useLayersService()
 const mapStore = useMapStore()
 const mapService = useMapService()
-const { layers, layerGroups } = storeToRefs(layersStore)
+const { layers, layerGroups, mainReorderableItems } = storeToRefs(layersStore)
 
 // Helper function to convert icon string name to Vue component
 function getIconComponent(iconName?: string | null) {
@@ -92,30 +92,73 @@ function getGroupLayerCount(groupId: string): number {
   return layers.value.filter(l => toRaw(l)?.groupId === groupId).length
 }
 
-// Combine all layers for unified grid
+// Combine in the exact custom order from mainReorderableItems
 const allLayers = computed(() => {
-  const groups = filteredGroups.value.map(group => ({
-    type: 'group' as const,
-    id: group.id,
-    name: group.name,
-    icon: group.icon,
-    visible: group.visible,
-    count: getGroupLayerCount(group.id),
-    toggleFn: (visible: boolean) =>
-      toggleLayerGroupVisibility(group.id, visible),
-  }))
+  return mainReorderableItems.value
+    .map(item => {
+      // Item is a group
+      if (!('groupId' in item)) {
+        const group = layerGroups.value.find(g => g.id === item.id)
+        if (!group) return null
+        // Only include groups that should show and have at least one non-street-view layer
+        if (!group.showInLayerSelector) return null
+        const groupHasNonStreetLayer = layers.value.some(
+          l =>
+            toRaw(l)?.groupId === group.id &&
+            toRaw(l)?.type !== LayerType.STREET_VIEW,
+        )
+        if (!groupHasNonStreetLayer) return null
+        return {
+          type: 'group' as const,
+          id: group.id,
+          name: group.name,
+          icon: group.icon,
+          visible: group.visible,
+          count: getGroupLayerCount(group.id),
+          toggleFn: (visible: boolean) =>
+            toggleLayerGroupVisibility(group.id, visible),
+        }
+      }
 
-  const individual = ungroupedLayers.value.map(layer => ({
-    type: 'layer' as const,
-    id: getLayerId(layer),
-    name: layer.name,
-    icon: layer.icon,
-    visible: layer.visible,
-    toggleFn: (visible: boolean) =>
-      toggleLayerVisibility(getLayerId(layer), visible),
-  }))
-
-  return [...groups, ...individual]
+      // Item is a layer (ungrouped only appears in main list)
+      const raw = toRaw(item)
+      if (
+        raw &&
+        !raw.groupId &&
+        raw.type !== LayerType.STREET_VIEW &&
+        raw.showInLayerSelector
+      ) {
+        return {
+          type: 'layer' as const,
+          id: getLayerId(raw),
+          name: raw.name,
+          icon: raw.icon,
+          visible: raw.visible,
+          toggleFn: (visible: boolean) =>
+            toggleLayerVisibility(getLayerId(raw), visible),
+        }
+      }
+      return null
+    })
+    .filter(Boolean) as Array<
+    | {
+        type: 'group'
+        id: string
+        name: string
+        icon: any
+        visible: boolean
+        count: number
+        toggleFn: (v: boolean) => void
+      }
+    | {
+        type: 'layer'
+        id: string
+        name: string
+        icon: any
+        visible: boolean
+        toggleFn: (v: boolean) => void
+      }
+  >
 })
 </script>
 

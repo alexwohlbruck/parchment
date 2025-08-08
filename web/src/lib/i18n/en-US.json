@@ -219,7 +219,9 @@
       "editLayer": "Edit Layer",
       "editGroup": "Edit Group",
       "deleteGroup": "Delete Group",
-      "ungroupLayer": "Ungroup Layer"
+      "deleteLayer": "Delete Layer",
+      "ungroupLayer": "Ungroup Layer",
+      "restoreDefaults": "Restore defaults"
     },
     "empty": {
       "message": "No layers configured"
@@ -251,6 +253,14 @@
           "name": "Attribution Name"
         }
       }
+    },
+    "restoreDefaults": {
+      "button": "Restore defaults",
+      "success": "Restored {count} default layers"
+    },
+    "badges": {
+      "default": "Default",
+      "custom": "Custom"
     }
   },
   "directions": {

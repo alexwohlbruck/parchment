@@ -30,8 +30,10 @@ watch(isOpen, value => {
 
 async function submit() {
   const result = await componentRef.value?.submit?.()
-  if (result) {
-    emit('submit', result)
+  if (result !== false) {
+    // close before emitting so parent resolves and dialog disappears
+    isOpen.value = false
+    emit('submit', result ?? true)
   }
 }
 </script>

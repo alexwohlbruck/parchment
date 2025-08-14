@@ -196,9 +196,9 @@ const socialLinks = [
 
           <Separator class="w-full" />
 
-          <div class="flex gap-2">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <template v-for="(link, index) in socialLinks" :key="index">
-              <a :href="link.url" target="_blank" class="flex-1">
+              <a :href="link.url" target="_blank">
                 <Button variant="outline" class="w-full">
                   <BrandIcon
                     :icon="link.icon"

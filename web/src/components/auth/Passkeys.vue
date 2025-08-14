@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { h, onMounted, ref } from 'vue'
+import { h, onMounted, ref, computed } from 'vue'
 import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
 import { useI18n } from 'vue-i18n'
@@ -8,6 +8,7 @@ import { Passkey } from '@/types/auth.types'
 
 import { useAuthService } from '@/services/auth.service'
 import { useAppService } from '@/services/app.service'
+import { useResponsive } from '@/lib/utils'
 
 import { H4 } from '@/components/ui/typography'
 import DataTable from '@/components/table/DataTable.vue'
@@ -20,22 +21,30 @@ dayjs.extend(localizedFormat)
 const appService = useAppService()
 const authService = useAuthService()
 const { t } = useI18n()
+const { isTabletScreen } = useResponsive()
 const passkeys = ref<Passkey[]>([])
 
-const columns: ColumnDef<Passkey>[] = [
-  {
-    header: 'Name',
-    accessorKey: 'name',
-  },
-  {
-    header: 'Backed Up',
-    accessorFn: info => (info.backedUp ? t('general.yes') : t('general.no')),
-  },
-  {
-    header: 'Created',
-    accessorFn: info => dayjs(info.createdAt as string).format('LLL'),
-  },
-  {
+const columns = computed<ColumnDef<Passkey>[]>(() => {
+  const baseColumns: ColumnDef<Passkey>[] = [
+    {
+      header: 'Name',
+      accessorKey: 'name',
+    },
+    {
+      header: 'Backed Up',
+      accessorFn: info => (info.backedUp ? t('general.yes') : t('general.no')),
+    },
+  ]
+
+  // Only include created column on non-mobile devices
+  if (!isTabletScreen.value) {
+    baseColumns.push({
+      header: 'Created',
+      accessorFn: info => dayjs(info.createdAt as string).format('LLL'),
+    })
+  }
+
+  baseColumns.push({
     id: 'delete',
     cell: ({ row }) =>
       h(Button, {
@@ -46,8 +55,10 @@ const columns: ColumnDef<Passkey>[] = [
         description: 'Delete session',
         onClick: () => deletePasskey(row.original.id),
       }),
-  },
-]
+  })
+
+  return baseColumns
+})
 
 async function addPasskey() {
   const name = await appService.prompt({
@@ -63,7 +74,7 @@ async function addPasskey() {
   }
 }
 
-async function deletePasskey(passkeyId) {
+async function deletePasskey(passkeyId: string) {
   const confirmed = await appService.confirm({
     title: 'Delete this passkey?',
     description:

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { h, onMounted, ref } from 'vue'
+import { h, onMounted, ref, computed } from 'vue'
 import dayjs from 'dayjs'
 import { z } from 'zod'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
@@ -9,6 +9,7 @@ import { useI18n } from 'vue-i18n'
 import { useUserService } from '@/services/user.service'
 import { useAppService } from '@/services/app.service'
 import { useAuthService } from '@/services/auth.service'
+import { useResponsive } from '@/lib/utils'
 
 import { H4 } from '@/components/ui/typography'
 import DataTable from '@/components/table/DataTable.vue'
@@ -25,27 +26,41 @@ const { t } = useI18n()
 const appService = useAppService()
 const authService = useAuthService()
 const userService = useUserService()
+const { isTabletScreen } = useResponsive()
 const users = ref<User[]>([])
 
-const columns: ColumnDef<User>[] = [
-  {
-    id: 'delete',
-    cell: ({ row }) =>
-      h(Avatar, {}, [
-        h(AvatarImage, {
-          src: row.original.picture || '',
-        }),
-      ]),
-  },
-  {
+const columns = computed<ColumnDef<User>[]>(() => {
+  const baseColumns: ColumnDef<User>[] = []
+
+  // Avatar column (desktop only)
+  if (!isTabletScreen.value) {
+    baseColumns.push({
+      id: 'avatar',
+      cell: ({ row }) =>
+        h(Avatar, {}, [
+          h(AvatarImage, {
+            src: row.original.picture || '',
+          }),
+        ]),
+    })
+  }
+
+  // Name column (always visible)
+  baseColumns.push({
     header: 'Name',
     accessorFn: data => `${data.firstName} ${data.lastName}`,
-  },
-  {
-    header: 'Email',
-    accessorKey: 'email',
-  },
-  {
+  })
+
+  // Email column (desktop only)
+  if (!isTabletScreen.value) {
+    baseColumns.push({
+      header: 'Email',
+      accessorKey: 'email',
+    })
+  }
+
+  // Roles column (always visible)
+  baseColumns.push({
     id: 'roles',
     header: 'Roles',
     cell: ({ row }) =>
@@ -60,17 +75,23 @@ const columns: ColumnDef<User>[] = [
           ),
         ],
       ),
-  },
-  {
-    id: 'sessions',
-    header: 'Sessions',
-    accessorKey: 'sessionCount',
-    meta: {
-      headerClass: 'text-right',
-      cellClass: 'text-right',
-    },
-  },
-  {
+  })
+
+  // Sessions column (desktop only)
+  if (!isTabletScreen.value) {
+    baseColumns.push({
+      id: 'sessions',
+      header: 'Sessions',
+      accessorKey: 'sessionCount',
+      meta: {
+        headerClass: 'text-right',
+        cellClass: 'text-right',
+      },
+    })
+  }
+
+  // Delete column (always visible)
+  baseColumns.push({
     id: 'delete',
     cell: ({ row }) =>
       h(Button, {
@@ -81,8 +102,10 @@ const columns: ColumnDef<User>[] = [
         class: 'text-destructive',
         description: 'Delete user', // TODO: i18n
       }),
-  },
-]
+  })
+
+  return baseColumns
+})
 
 async function getUsers() {
   users.value = await userService.getUsers()

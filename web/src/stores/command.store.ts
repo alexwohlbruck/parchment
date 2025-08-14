@@ -20,11 +20,7 @@ import {
 } from 'lucide-vue-next'
 import * as LucideIcons from 'lucide-vue-next'
 import { useDark, useToggle } from '@vueuse/core'
-import {
-  allColors,
-  useThemeStore,
-  allRadii,
-} from '@/stores/settings/theme.store'
+import { allColors, useThemeStore, allRadii } from '@/stores/theme.store'
 import { useMapStore } from '@/stores/map.store'
 import { useMapService } from '@/services/map.service'
 
@@ -79,10 +75,11 @@ export const useCommandStore = defineStore('command', () => {
   const { t, locale } = useI18n()
   const placeSearchService = usePlaceSearchService()
 
-  const { mapEngine } = storeToRefs(useMapStore())
+  const mapStore = useMapStore()
+  const { settings } = storeToRefs(mapStore)
 
   function commandIsAvailable(command: Command) {
-    if (!command.engine || command.engine?.includes(mapEngine.value)) {
+    if (!command.engine || command.engine?.includes(settings.value.engine)) {
       return true
     }
 

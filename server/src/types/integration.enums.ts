@@ -12,6 +12,7 @@ export enum IntegrationId {
   GEOAPIFY = 'geoapify',
   MAPBOX = 'mapbox',
   VALHALLA = 'valhalla',
+  TRANSITLAND = 'transitland',
 }
 
 export enum IntegrationCapabilityId {
@@ -22,4 +23,6 @@ export enum IntegrationCapabilityId {
   ROUTING = 'routing',
   IMAGERY = 'imagery',
   MAP_ENGINE = 'mapEngine',
+  MAP_LAYER = 'mapLayer',
+  STREET_VIEW = 'streetView',
 }

@@ -101,109 +101,37 @@ const availableIntegrations: IntegrationDefinition[] = [
     configSchema: 'valhallaSchema',
     scope: [IntegrationScope.SYSTEM],
   },
-  // {
-  //   id: IntegrationId.GRAPHHOPPER,
-  //   name: 'GraphHopper',
-  //   description: 'Fast and efficient routing engine',
-  //   color: '#2E7D32',
-  //   get capabilities() {
-  //     return integrationManager.getIntegrationCapabilities(
-  //       IntegrationId.GRAPHHOPPER,
-  //     )
-  //   },
-  //   paid: false,
-  //   cloud: false,
-  //   configSchema: 'apiKeySchema',
-  //   scope: [IntegrationScope.SYSTEM],
-  // },
-  // {
-  //   id: IntegrationId.YELP,
-  //   name: 'Yelp',
-  //   description: 'Local business reviews and ratings',
-  //   color: '#D32323',
-  //   get capabilities() {
-  //     return integrationManager.getIntegrationCapabilities(IntegrationId.YELP)
-  //   },
-  //   paid: true,
-  //   cloud: true,
-  //   configSchema: 'oauthConfigSchema',
-  //   scope: [IntegrationScope.SYSTEM],
-  // },
-  // {
-  //   id: IntegrationId.OPENTABLE,
-  //   name: 'OpenTable',
-  //   description: 'Restaurant discovery and reservations',
-  //   color: '#222222',
-  //   get capabilities() {
-  //     return integrationManager.getIntegrationCapabilities(
-  //       IntegrationId.OPENTABLE,
-  //     )
-  //   },
-  //   paid: true,
-  //   cloud: true,
-  //   configSchema: 'apiKeySchema',
-  //   scope: [IntegrationScope.SYSTEM],
-  // },
-  // {
-  //   id: IntegrationId.FOURSQUARE,
-  //   name: 'Foursquare',
-  //   description: 'Location-based social network',
-  //   color: '#F94877',
-  //   get capabilities() {
-  //     return integrationManager.getIntegrationCapabilities(
-  //       IntegrationId.FOURSQUARE,
-  //     )
-  //   },
-  //   paid: true,
-  //   cloud: true,
-  //   configSchema: 'oauthConfigSchema',
-  //   scope: [IntegrationScope.SYSTEM],
-  // },
-  // {
-  //   id: IntegrationId.MAPILLARY,
-  //   name: 'Mapillary',
-  //   description: 'Street-level imagery platform',
-  //   color: '#2B2B2B',
-  //   get capabilities() {
-  //     return integrationManager.getIntegrationCapabilities(
-  //       IntegrationId.MAPILLARY,
-  //     )
-  //   },
-  //   paid: false,
-  //   cloud: true,
-  //   configSchema: 'apiKeySchema',
-  //   scope: [IntegrationScope.SYSTEM],
-  // },
-  // {
-  //   id: IntegrationId.TRIPADVISOR,
-  //   name: 'TripAdvisor',
-  //   description: 'Travel reviews and recommendations',
-  //   color: '#34E0A1',
-  //   get capabilities() {
-  //     return integrationManager.getIntegrationCapabilities(
-  //       IntegrationId.TRIPADVISOR,
-  //     )
-  //   },
-  //   paid: true,
-  //   cloud: true,
-  //   configSchema: 'apiKeySchema',
-  //   scope: [IntegrationScope.SYSTEM],
-  // },
-  // {
-  //   id: IntegrationId.GEOAPIFY,
-  //   name: 'Geoapify',
-  //   description: 'Geocoding, routing, and place data',
-  //   color: '#FF5A5F',
-  //   get capabilities() {
-  //     return integrationManager.getIntegrationCapabilities(
-  //       IntegrationId.GEOAPIFY,
-  //     )
-  //   },
-  //   paid: true,
-  //   cloud: true,
-  //   configSchema: 'apiKeySchema',
-  //   scope: [IntegrationScope.SYSTEM],
-  // },
+  {
+    id: IntegrationId.MAPILLARY,
+    name: 'Mapillary',
+    description: 'Street-level imagery platform',
+    color: '#2B2B2B',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.MAPILLARY,
+      )
+    },
+    paid: false,
+    cloud: true,
+    configSchema: 'mapillarySchema',
+    public: true,
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
+    id: IntegrationId.TRANSITLAND,
+    name: 'Transitland',
+    description: 'Transit routes tiles and APIs',
+    color: '#0EA5E9',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.TRANSITLAND,
+      )
+    },
+    paid: true,
+    cloud: true,
+    configSchema: 'transitlandSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
 ]
 
 export async function initializeIntegrations() {

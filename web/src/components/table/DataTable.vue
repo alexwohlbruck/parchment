@@ -13,6 +13,7 @@ import {
 const props = defineProps<{
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
+  onRowClick?: (row: TData) => void
 }>()
 
 const table = useVueTable({
@@ -24,6 +25,10 @@ const table = useVueTable({
   },
   getCoreRowModel: getCoreRowModel(),
 })
+
+function handleRowClick(event: MouseEvent, row: TData) {
+  props.onRowClick?.(row)
+}
 </script>
 
 <template>
@@ -54,6 +59,8 @@ const table = useVueTable({
             v-for="row in table.getRowModel().rows"
             :key="row.id"
             :data-state="row.getIsSelected() ? 'selected' : undefined"
+            :class="{ 'cursor-pointer hover:bg-muted/50': onRowClick }"
+            @click="handleRowClick($event, row.original)"
           >
             <!-- TODO: Remove any type -->
             <TableCell

@@ -92,16 +92,7 @@ export const useThemeStore = defineStore('theme', () => {
     document.documentElement.style.setProperty('--radius', `${radius}rem`)
   })
 
-  const test = ref(1)
-  function inc() {
-    console.log('test')
-    test.value++
-  }
-
   return {
-    test,
-    inc,
-
     config,
     isDark,
     toggleDark,

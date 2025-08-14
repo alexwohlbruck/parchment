@@ -174,7 +174,7 @@
         "engine": "Motores compatibles",
         "id": "ID de la capa",
         "name": "Nombre",
-        "enabled": "Habilitado",
+        "showInLayerSelector": "Mostrar en selector de capas",
         "type": {
           "title": "Tipo de capa",
           "values": {
@@ -227,6 +227,28 @@
           "name": "Nombre de atribución"
         }
       }
+    },
+    "actions": {
+      "new": "Nuevo",
+      "newLayer": "Nueva Capa",
+      "newGroup": "Nuevo Grupo",
+      "editLayer": "Editar Capa",
+      "editGroup": "Editar Grupo",
+      "deleteGroup": "Eliminar Grupo",
+      "deleteLayer": "Eliminar Capa",
+      "ungroupLayer": "Desagrupar Capa",
+      "restoreDefaults": "Restaurar predeterminados"
+    },
+    "empty": {
+      "message": "No hay capas configuradas"
+    },
+    "restoreDefaults": {
+      "button": "Restaurar predeterminados",
+      "success": "Se restauraron {count} capas predeterminadas"
+    },
+    "badges": {
+      "default": "Predeterminado",
+      "custom": "Personalizado"
     }
   },
   "directions": {
@@ -470,7 +492,7 @@
       "configuration": {
         "title": "Configuración del mapa",
         "3dTerrain": "Terreno 3D",
-        "3dBuildings": "Edificios 3D",
+        "3dObjects": "Objetos 3D",
         "poiLabels": "Etiquetas de POI",
         "roadLabels": "Etiquetas de carreteras",
         "transitLabels": "Etiquetas de tránsito",
@@ -519,13 +541,15 @@
         "validation_error": "Por favor corrige los errores de validación antes de probar"
       },
       "capabilities": {
+        "mapLayer": "Capa de mapa",
         "search": "Buscar",
         "autocomplete": "Autocompletar",
         "routing": "Rutas",
         "geocoding": "Geocodificación",
         "placeInfo": "Información de Lugares",
         "imagery": "Imágenes",
-        "title": "Capacidades"
+        "title": "Capacidades",
+        "streetView": "Vista de calle"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",
@@ -539,7 +563,8 @@
         "nominatim": "Geocodificación de código abierto",
         "tripadvisor": "Reseñas y recomendaciones de viajes",
         "geoapify": "Geocodificación, rutas e información de lugares",
-        "valhalla": "Motor de rutas de código abierto para navegación multimodal"
+        "valhalla": "Motor de rutas de código abierto para navegación multimodal",
+        "transitland": "Teselas y APIs de rutas de tránsito"
       }
     },
     "users": {

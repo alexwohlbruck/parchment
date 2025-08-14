@@ -9,6 +9,9 @@ export enum PermissionId {
   INTEGRATIONS_READ = 'integrations:read',
   INTEGRATIONS_WRITE_USER = 'integrations:write:user',
   INTEGRATIONS_WRITE_SYSTEM = 'integrations:write:system',
+  LAYERS_READ = 'layers:read',
+  LAYERS_WRITE = 'layers:write',
+  LAYERS_DELETE = 'layers:delete',
 }
 
 export type PermissionRule =

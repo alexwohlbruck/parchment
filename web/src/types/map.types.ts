@@ -29,11 +29,18 @@ export enum MapTheme {
   DARK = 'dark',
 }
 
-export type MapOptions = {
-  projection: string
+export interface MapSettings {
   theme: MapTheme
+  engine: MapEngine
   basemap: Basemap
   camera?: MapCamera
+  projection: MapProjection
+  terrain3d: boolean
+  objects3d: boolean
+  poiLabels: boolean
+  roadLabels: boolean
+  transitLabels: boolean
+  placeLabels: boolean
 }
 
 export type MapCamera = {
@@ -91,9 +98,12 @@ export type MapEvents = {
 }
 
 export enum SourceType {
-  RASTER = 'raster',
   VECTOR = 'vector',
+  RASTER = 'raster',
   RASTER_DEM = 'raster-dem',
+  GEOJSON = 'geojson',
+  IMAGE = 'image',
+  VIDEO = 'video',
 }
 
 export type TileSource = {
@@ -109,20 +119,16 @@ export type TileSource = {
 
 // TODO: Rename to MapboxLayerType
 export enum MapboxLayerType {
-  LINE = 'line',
   FILL = 'fill',
+  LINE = 'line',
   SYMBOL = 'symbol',
   CIRCLE = 'circle',
   HEATMAP = 'heatmap',
   FILL_EXTRUSION = 'fill-extrusion',
   RASTER = 'raster',
-  RASTER_PARTICLE = 'raster-particle',
   HILLSHADE = 'hillshade',
-  MODEL = 'model',
   BACKGROUND = 'background',
   SKY = 'sky',
-  SLOT = 'slot',
-  CLIP = 'clip',
 }
 
 export enum MaplibreLayerType {
@@ -156,22 +162,52 @@ export type MaplibreLayerConfiguration = {
 
 export enum LayerType {
   CUSTOM = 'custom',
-  STREET_VIEW = 'street-view',
+  STREET_VIEW = 'street_view',
 }
 
-// TODO: Make MapboxLayer extend Layer
-export type Layer = {
+export interface Layer {
+  id: string
   name: string
-  icon?: Icon
   type: LayerType
-  enabled: boolean
-  visible: boolean
   engine: MapEngine[]
-  configuration: MapboxLayerConfiguration
+  showInLayerSelector: boolean
+  visible: boolean
+  icon: string | null
+  order: number
+  groupId: string | null
+  configuration: {
+    id: string
+    type: MapboxLayerType
+    source:
+      | string
+      | {
+          id: string
+          type: SourceType
+          [key: string]: any
+        }
+    slot?: string
+    [key: string]: any
+  }
+  userId: string
+  createdAt: string
+  updatedAt: string
 }
 
-export type MaplibreLayer = Layer & {
-  configuration: MaplibreLayerConfiguration
+export interface LayerGroup {
+  id: string
+  name: string
+  showInLayerSelector: boolean
+  visible: boolean
+  icon: string | null
+  order: number
+  userId: string
+  createdAt: string
+  updatedAt: string
+}
+
+// Simplified type for groups with their layers
+export interface LayerGroupWithLayers extends LayerGroup {
+  layers: Layer[]
 }
 
 export enum StreetViewType {

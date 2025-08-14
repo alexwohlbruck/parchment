@@ -148,7 +148,7 @@ const items = computed(() => {
             :src="ParchmentLogo"
             alt="Parchment"
             class="w-5 h-11 scale-150"
-            style="filter: drop-shadow(0 1px 0.5px rgba(0, 0, 0, 0.1))"
+            style="filter: drop-shadow(0 0.75px 0.2px rgba(0, 0, 0, 0.2))"
           />
           <transition-expand axis="x" :duration="50" easing="ease-out">
             <span v-if="!mini" class="text-nowrap text-base"> Parchment </span>

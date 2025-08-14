@@ -11,6 +11,7 @@ import {
 import { useElementBounding, useWindowSize, useScroll } from '@vueuse/core'
 import { useObstructingComponent } from '@/composables/useObstructingComponent'
 import { useDragState } from '@/composables/useDragState'
+import { useHotkeys } from '@/composables/useHotkeys'
 
 const props = defineProps<{
   class?: HTMLAttributes['class']
@@ -92,6 +93,13 @@ const { set, stop: stopMotion } = useMotionControls(
   {},
   { push, motionValues, stop },
 )
+
+useHotkeys([
+  {
+    key: 'esc',
+    handler: () => emit('close'),
+  },
+])
 
 onMounted(() => {
   const hidden = snapPoints.value.find(

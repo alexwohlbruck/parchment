@@ -55,6 +55,9 @@ export function useResponsive() {
   const isMobileScreen = computed(
     () => isXSmallScreen.value || isSmallScreen.value,
   )
+  const isTabletScreen = computed(
+    () => isMobileScreen.value || isSmallScreen.value || isMediumScreen.value,
+  )
   const isDesktopScreen = computed(
     () => isMediumScreen.value || isLargeScreen.value,
   )
@@ -65,6 +68,7 @@ export function useResponsive() {
     isMediumScreen,
     isLargeScreen,
     isMobileScreen,
+    isTabletScreen,
     isDesktopScreen,
   }
 }

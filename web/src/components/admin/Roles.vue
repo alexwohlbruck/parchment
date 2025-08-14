@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { h, onMounted, ref } from 'vue'
+import { h, onMounted, ref, computed } from 'vue'
 import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
 import { ColumnDef } from '@tanstack/vue-table'
 import { Role } from '@/types/auth.types'
+import { useResponsive } from '@/lib/utils'
 
 import { useUserService } from '@/services/user.service'
 
@@ -17,22 +18,34 @@ import { SettingsSection } from '@/components/settings'
 dayjs.extend(localizedFormat)
 
 const userService = useUserService()
+const { isTabletScreen } = useResponsive()
 const roles = ref<Role[]>([])
 
-const columns: ColumnDef<Role>[] = [
-  {
+const columns = computed<ColumnDef<Role>[]>(() => {
+  const baseColumns: ColumnDef<Role>[] = []
+
+  // ID column (always visible)
+  baseColumns.push({
     header: 'ID',
     cell: ({ row }) => h(Code, {}, row.original.id),
-  },
-  {
+  })
+
+  // Name column (always visible)
+  baseColumns.push({
     header: 'Name',
     accessorKey: 'name',
-  },
-  {
-    header: 'Description',
-    accessorKey: 'description',
-  },
-  {
+  })
+
+  // Description column (desktop only)
+  if (!isTabletScreen.value) {
+    baseColumns.push({
+      header: 'Description',
+      accessorKey: 'description',
+    })
+  }
+
+  // Delete column (always visible)
+  baseColumns.push({
     id: 'delete',
     cell: ({ row }) =>
       h(Button, {
@@ -43,8 +56,10 @@ const columns: ColumnDef<Role>[] = [
         class: 'text-destructive',
         description: 'Delete user', // TODO: i18n
       }),
-  },
-]
+  })
+
+  return baseColumns
+})
 
 async function getRoles() {
   roles.value = await userService.getRoles()

@@ -85,7 +85,7 @@ watch(isOpen, value => {
         </FormField>
       </form>
 
-      <DialogFooter>
+      <DialogFooter class="flex flex-col sm:flex-row gap-2">
         <Button
           @click="isOpen = false"
           variant="outline"

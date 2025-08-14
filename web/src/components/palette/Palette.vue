@@ -5,6 +5,7 @@ import { onClickOutside, useMagicKeys, useDebounceFn } from '@vueuse/core'
 import { useRoute, useRouter } from 'vue-router'
 import { useCommandService } from '@/services/command.service'
 import { CommandName, useCommandStore } from '@/stores/command.store'
+import { useAppStore } from '@/stores/app.store'
 import { AppRoute } from '@/router'
 import {
   ArgumentType,
@@ -34,6 +35,7 @@ import { TransitionSlide } from '@morev/vue-transitions'
 const { t } = useI18n()
 const route = useRoute()
 const commandStore = useCommandStore()
+const appStore = useAppStore()
 const router = useRouter()
 const {
   bindCommandToFunction,
@@ -49,7 +51,7 @@ const query = ref('')
 const commandOpen = ref(true)
 const showResults = ref(false)
 const isDrawerOpen = computed(() => {
-  return route.name !== AppRoute.MAP && route.matched.length > 1 // Detect is child of the main map route
+  return appStore.obstructingComponentsMap.has('left-sheet')
 })
 
 // For async argument options
@@ -320,9 +322,6 @@ const filterFunction = computed(() => {
       <template v-if="showResults">
         <!-- Top-level commands list -->
         <CommandList v-if="!activeArgument">
-          <!-- TODO: i18n -->
-          <CommandEmpty>No results found.</CommandEmpty>
-
           <CommandGroup heading="Commands">
             <CommandItem
               v-for="command in filteredCommands"
@@ -348,6 +347,9 @@ const filterFunction = computed(() => {
               ></Kbd>
             </CommandItem>
           </CommandGroup>
+
+          <!-- TODO: i18n -->
+          <CommandEmpty>No matching commands.</CommandEmpty>
         </CommandList>
 
         <!-- Command selected, display arguments -->

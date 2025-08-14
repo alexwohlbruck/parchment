@@ -12,9 +12,10 @@ import Appearance from '@/views/settings/pages/appearance/Appearance.vue'
 import MapSettings from '@/views/settings/pages/MapSettings.vue'
 import Users from '@/views/settings/pages/Users.vue'
 import Library from '@/views/library/Library.vue'
-import Collection from '@/views/library/Collection.vue'
+import Collection from '@/views/library/collections/Collection.vue'
 import NotFound from '@/views/NotFound.vue'
-import Collections from '@/views/library/Collections.vue'
+import Collections from '@/views/library/collections/Collections.vue'
+import Layers from '@/views/library/layers/Layers.vue'
 import Integrations from '@/views/settings/pages/Integrations.vue'
 
 import { useAuthStore } from '@/stores/auth.store'
@@ -115,7 +116,7 @@ const router = createRouter({
             {
               path: 'layers',
               name: AppRoute.LIBRARY_LAYERS,
-              component: () => import('@/views/library/EmptyTab.vue'),
+              component: Layers,
             },
             {
               path: 'maps',

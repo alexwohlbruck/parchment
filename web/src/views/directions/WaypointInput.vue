@@ -6,7 +6,16 @@ import { Button } from '@/components/ui/button'
 import { Waypoint } from '@/types/map.types'
 import { useDirectionsService } from '@/services/directions.service'
 import WaypointIcon from './WaypointIcon.vue'
-import { Combobox, ComboboxInput, ComboboxList, ComboboxEmpty, ComboboxGroup, ComboboxItem, ComboboxItemIndicator, ComboboxAnchor } from '@/components/ui/combobox'
+import {
+  Combobox,
+  ComboboxInput,
+  ComboboxList,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxItem,
+  ComboboxItemIndicator,
+  ComboboxAnchor,
+} from '@/components/ui/combobox'
 import { Place } from '@/types/place.types'
 import { AutocompleteResult } from '@/types/search.types'
 import { usePlaceSearchService } from '@/services/search.service'
@@ -46,27 +55,31 @@ const waypoints = computed({
 
 const inputTexts = ref<string[]>([])
 
-watch(() => waypoints.value, (newWaypoints) => {
-  inputTexts.value.length = newWaypoints.length
-  
-  newWaypoints.forEach((waypoint, index) => {
-    if (!inputTexts.value[index]) {
-      inputTexts.value[index] = getWaypointName(waypoint)
-    }
-  })
-}, { immediate: true, deep: true })
+watch(
+  () => waypoints.value,
+  newWaypoints => {
+    inputTexts.value.length = newWaypoints.length
+
+    newWaypoints.forEach((waypoint, index) => {
+      if (!inputTexts.value[index]) {
+        inputTexts.value[index] = getWaypointName(waypoint)
+      }
+    })
+  },
+  { immediate: true, deep: true },
+)
 
 function clearWaypoint(index: number) {
   // Clear the input text
   inputTexts.value[index] = ''
-  
+
   if (waypoints.value.length > MIN_LOCATIONS) {
     const newWaypoints = [...waypoints.value]
     newWaypoints.splice(index, 1)
-    
+
     // Remove the corresponding input text
     inputTexts.value.splice(index, 1)
-    
+
     emit('update:modelValue', newWaypoints)
   } else {
     const newWaypoints = [...waypoints.value]
@@ -97,19 +110,19 @@ function getWaypointName(waypoint: Waypoint) {
 
 function selectPlace(index: number, place: Place, result?: AutocompleteResult) {
   const newWaypoints = [...waypoints.value]
-  
+
   // Create waypoint with place and coordinates - all place types follow the same pattern
   newWaypoints[index] = {
     ...newWaypoints[index],
     place: place,
     lngLat: {
       lat: place.geometry.value.center.lat,
-      lng: place.geometry.value.center.lng
-    }
+      lng: place.geometry.value.center.lng,
+    },
   }
-  
+
   emit('update:modelValue', newWaypoints)
-  
+
   // Update input text to show the selected place name
   inputTexts.value[index] = result ? result.title : getSearchResultName(place)
 }
@@ -121,7 +134,7 @@ const currentQuery = ref('')
 // Combined results with current location prepended if not already used and matches query
 const combinedResults = computed(() => {
   const results = [...autocompleteResults.value]
-  
+
   // Only add current location if it's not already used AND (query is empty OR fuzzy matches)
   if (!isCurrentLocationUsed.value) {
     const currentLocationResult = createCurrentLocationResult()
@@ -132,17 +145,21 @@ const combinedResults = computed(() => {
         results.unshift(currentLocationResult)
       } else {
         // Non-empty query - check if it fuzzy matches current location
-        const matches = fuzzyFilter([currentLocationResult], currentQuery.value, {
-          keys: ['title', 'description'],
-          threshold: -10000 // Lower threshold to be more permissive
-        })
+        const matches = fuzzyFilter(
+          [currentLocationResult],
+          currentQuery.value,
+          {
+            keys: ['title', 'description'],
+            threshold: -10000, // Lower threshold to be more permissive
+          },
+        )
         if (matches.length > 0) {
           results.unshift(currentLocationResult)
         }
       }
     }
   }
-  
+
   return results
 })
 
@@ -152,19 +169,20 @@ const getAutocomplete = useDebounceFn(async (index: number, value: string) => {
   try {
     const { camera } = mapCamera
     const center = camera.value.center
-    
+
     // Extract coordinates from various center formats
-    const [lng, lat] = Array.isArray(center) 
-      ? center 
+    const [lng, lat] = Array.isArray(center)
+      ? center
       : 'lng' in center
       ? [center.lng, center.lat]
       : [center.lon, center.lat]
-    
-    autocompleteResults.value = await placeSearchService.getAutocompleteSuggestions({
-      query: value,
-      lat,
-      lng,
-    })
+
+    autocompleteResults.value =
+      await placeSearchService.getAutocompleteSuggestions({
+        query: value,
+        lat,
+        lng,
+      })
   } finally {
     isLoading.value = false
   }
@@ -213,7 +231,7 @@ function autocompleteResultToPlace(result: AutocompleteResult): Place {
         id: result.id,
         name: result.title,
         icon: result.icon || 'map-pin',
-        iconColor: (result.color || 'rose'),
+        iconColor: result.color || 'rose',
       },
     } as Place
   }
@@ -246,7 +264,10 @@ const isCurrentLocationUsed = computed(() => {
     // 1. The waypoint has current location as its place
     // 2. The input text matches the current location name (user hasn't started editing)
     if (waypoint.place?.id === 'current-location') {
-      const currentLocationName = t('directions.currentLocation', 'Current Location')
+      const currentLocationName = t(
+        'directions.currentLocation',
+        'Current Location',
+      )
       const inputText = inputTexts.value[index] || ''
       return inputText === currentLocationName
     }
@@ -256,11 +277,13 @@ const isCurrentLocationUsed = computed(() => {
 
 // Create current location autocomplete result
 const createCurrentLocationResult = (): AutocompleteResult | null => {
-  if (!isGeolocationSupported.value || 
-      !coords.value.latitude || 
-      !coords.value.longitude ||
-      coords.value.latitude === Infinity ||
-      coords.value.longitude === Infinity) {
+  if (
+    !isGeolocationSupported.value ||
+    !coords.value.latitude ||
+    !coords.value.longitude ||
+    coords.value.latitude === Infinity ||
+    coords.value.longitude === Infinity
+  ) {
     return null
   }
 
@@ -268,7 +291,10 @@ const createCurrentLocationResult = (): AutocompleteResult | null => {
     id: 'current-location',
     type: 'current_location',
     title: t('directions.currentLocation', 'Current Location'),
-    description: t('directions.useCurrentLocation', 'Use your current location'),
+    description: t(
+      'directions.useCurrentLocation',
+      'Use your current location',
+    ),
     lat: coords.value.latitude,
     lng: coords.value.longitude,
   }
@@ -282,9 +308,8 @@ onMounted(() => {
 })
 
 defineExpose({
-  clearWaypoint
+  clearWaypoint,
 })
-
 </script>
 
 <template>
@@ -302,31 +327,45 @@ defineExpose({
         <!-- Waypoint circle with icons/numbers -->
         <WaypointIcon :index="index" :total-waypoints="waypoints.length" />
 
-        <Combobox class="flex-1" ignore-filter :reset-search-term-on-select="false" :reset-search-term-on-blur="false">
+        <Combobox
+          class="flex-1"
+          ignore-filter
+          :reset-search-term-on-select="false"
+          :reset-search-term-on-blur="false"
+        >
           <ComboboxAnchor>
             <ComboboxInput
               :placeholder="
                 index == 0 ? $t('directions.from') : $t('directions.to')
               "
               :model-value="inputTexts[index] || ''"
-              @update:model-value="(value) => {
-                inputTexts[index] = value
-                getAutocomplete(index, value)
-              }"
-              @focus="() => {
-                const currentValue = inputTexts[index] || ''
-                currentQuery = currentValue
-                getAutocomplete(index, currentValue)
-              }"
+              @update:model-value="
+                value => {
+                  inputTexts[index] = value
+                  getAutocomplete(index, value)
+                }
+              "
+              @focus="
+                () => {
+                  const currentValue = inputTexts[index] || ''
+                  currentQuery = currentValue
+                  getAutocomplete(index, currentValue)
+                }
+              "
             />
           </ComboboxAnchor>
 
           <ComboboxList>
-            <div v-if="isLoading && combinedResults.length === 0" class="flex items-center justify-center p-4">
+            <div
+              v-if="isLoading && combinedResults.length === 0"
+              class="flex items-center justify-center p-4"
+            >
               <Spinner class="h-4 w-4" />
             </div>
-            
-            <ComboboxEmpty v-else-if="!isLoading && combinedResults.length === 0">
+
+            <ComboboxEmpty
+              v-else-if="!isLoading && combinedResults.length === 0"
+            >
               No results found.
             </ComboboxEmpty>
 
@@ -335,19 +374,30 @@ defineExpose({
                 v-for="result in combinedResults"
                 :key="result.id"
                 :value="autocompleteResultToPlace(result)"
-                @select="selectPlace(index, autocompleteResultToPlace(result), result)"
+                @select="
+                  selectPlace(index, autocompleteResultToPlace(result), result)
+                "
               >
                 <div class="flex items-center gap-2 flex-1">
                   <!-- Single ItemIcon with computed icon and color -->
-                  <ItemIcon 
-                    :icon="result.type === 'current_location' ? 'Locate' : result.type === 'bookmark' ? (result.icon || 'MapPin') : 'MapPin'"
+                  <ItemIcon
+                    :icon="
+                      result.type === 'current_location'
+                        ? 'Locate'
+                        : result.type === 'bookmark'
+                        ? result.icon || 'MapPin'
+                        : 'MapPin'
+                    "
                     :color="(result.color as ThemeColor) || 'slate'"
                     size="sm"
                     class="size-4"
                   />
                   <div class="flex flex-col flex-1">
                     <span>{{ result.title }}</span>
-                    <span v-if="result.description" class="text-sm text-muted-foreground">
+                    <span
+                      v-if="result.description"
+                      class="text-sm text-muted-foreground"
+                    >
                       {{ result.description }}
                     </span>
                   </div>
@@ -360,7 +410,6 @@ defineExpose({
             </ComboboxGroup>
           </ComboboxList>
         </Combobox>
-
 
         <span class="absolute end-0 inset-y-0 flex items-center justify-center">
           <Button

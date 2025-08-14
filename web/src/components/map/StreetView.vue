@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { TransitionFade } from '@morev/vue-transitions'
 import { Loader2Icon } from 'lucide-vue-next'
 import { updatePegmanData } from '@/lib/pegman.utils'
+import { api } from '@/lib/api'
 
 let viewer: Viewer | null = null
 const container = ref()
@@ -22,6 +23,16 @@ const props = defineProps<{
 
 const router = useRouter()
 const route = useRoute()
+
+async function getMapillaryAccessToken(): Promise<string | undefined> {
+  try {
+    const { data } = await api.get('/integrations/public')
+    const mapillary = (data as any[]).find(i => i.integrationId === 'mapillary')
+    return mapillary?.config?.accessToken
+  } catch (e) {
+    return undefined
+  }
+}
 
 async function updatePegman(viewer: Viewer) {
   const pov = await viewer.getPointOfView()
@@ -39,11 +50,15 @@ async function updatePegman(viewer: Viewer) {
   })
 }
 
-onMounted(() => {
+onMounted(async () => {
   if (!container.value) return
 
+  const token =
+    (await getMapillaryAccessToken()) ||
+    import.meta.env.VITE_MAPILLARY_ACCESS_TOKEN
+
   const options: ViewerOptions = {
-    accessToken: import.meta.env.VITE_MAPILLARY_ACCESS_TOKEN,
+    accessToken: token,
     container: container.value,
     imageId: route.params.id as string,
     component: {

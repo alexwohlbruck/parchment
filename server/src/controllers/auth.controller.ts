@@ -32,6 +32,8 @@ import {
   AuthenticatorTransportFuture,
   RegistrationResponseJSON,
 } from '@simplewebauthn/server/script/deps'
+import { generateId } from '../util'
+import { populateDefaultLayers } from '../services/layers.service'
 
 const app = new Elysia({ prefix: '/auth' })
 
@@ -53,6 +55,7 @@ app.post(
       //     })
       //     .returning()
       // )[0]
+      // await populateDefaultLayers(userId)
     }
 
     const isAppTester = user.email === process.env.APP_TESTER_EMAIL

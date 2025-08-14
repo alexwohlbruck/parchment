@@ -12,11 +12,7 @@ import { Span } from '@/components/ui/typography'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { CheckIcon } from 'lucide-vue-next'
-import {
-  allRadii,
-  useThemeStore,
-  allColors,
-} from '@/stores/settings/theme.store'
+import { useThemeStore, allColors } from '@/stores/theme.store'
 import { colors } from '@/lib/registry/colors'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'

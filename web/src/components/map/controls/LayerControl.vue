@@ -10,7 +10,7 @@ import {
 </script>
 
 <template>
-  <HoverCard :openDelay="0" :closeDelay="0">
+  <HoverCard :openDelay="0" :closeDelay="100">
     <HoverCardTrigger as-child>
       <Button variant="outline" size="icon" class="size-10 shadow-md">
         <Layers3Icon class="size-5" />
@@ -20,10 +20,14 @@ import {
     <HoverCardContent
       side="left"
       align="end"
-      :side-offset="8"
-      class="w-fit fit-content max-w-[calc(100vw-3.75rem)] md:max-w-[50vw]"
+      :side-offset="12"
+      class="w-[360px] max-w-[calc(100vw-3.75rem)] md:max-w-[400px] p-0 border-0 shadow-xl bg-background/95 backdrop-blur-sm"
     >
-      <LayersSelector />
+      <div
+        class="rounded-lg border border-border bg-card text-card-foreground shadow-lg"
+      >
+        <LayersSelector />
+      </div>
     </HoverCardContent>
   </HoverCard>
 </template>

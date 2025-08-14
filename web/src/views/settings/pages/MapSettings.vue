@@ -30,7 +30,6 @@ import {
   TrainIcon,
   MapPinIcon,
 } from 'lucide-vue-next'
-import LayerConfiguration from '@/components/map/layers/LayerConfiguration.vue'
 import Layers from '@/components/map/Layers.vue'
 
 const mapStore = useMapStore()
@@ -39,31 +38,13 @@ const appService = useAppService()
 const mapService = useMapService()
 const { t } = useI18n()
 
-const {
-  mapEngine,
-  map3dTerrain,
-  map3dBuildings,
-  mapPoiLabels,
-  mapRoadLabels,
-  mapTransitLabels,
-  mapPlaceLabels,
-} = storeToRefs(mapStore)
+const { settings } = storeToRefs(mapStore)
 
 const engineCommand = commandStore.useCommand(CommandName.CHOOSE_MAP_ENGINE)
 const projectionCommand = commandStore.useCommand(CommandName.MAP_PROJECTION)
 
-function openLayerConfigDialog(layer: Layer) {
-  appService.componentDialog({
-    component: LayerConfiguration,
-    continueText: t('general.save'),
-    props: {
-      layer,
-    },
-  })
-}
-
 const basemap = computed(() => {
-  return mapStore.mapEngine === MapEngine.MAPBOX
+  return settings.value.engine === MapEngine.MAPBOX
     ? 'mapbox-standard'
     : 'maptiler'
 })
@@ -80,7 +61,7 @@ const basemap = computed(() => {
         :icon="engineCommand.icon"
       >
         <Select
-          v-model="mapEngine"
+          :model-value="settings.engine"
           @update:model-value="(value) => mapService.setMapEngine(value as MapEngine)"
         >
           <SelectTrigger class="w-fit">
@@ -109,7 +90,7 @@ const basemap = computed(() => {
         :icon="projectionCommand.icon"
       >
         <Select
-          :model-value="mapStore.mapProjection"
+          :model-value="settings.projection"
           @update:model-value="
             mapService.setMapProjection($event as MapProjection)
           "
@@ -134,22 +115,23 @@ const basemap = computed(() => {
       </SettingsItem>
 
       <SettingsItem
-        :title="$t('settings.mapSettings.configuration.3dTerrain')"
-        :icon="MountainSnowIcon"
+        :title="$t('settings.mapSettings.configuration.3dObjects')"
+        :icon="Building2Icon"
       >
         <Switch
-          :model-value="map3dTerrain"
-          @update:model-value="mapService.toggle3dTerrain()"
+          :model-value="settings.objects3d"
+          @update:model-value="mapService.toggle3dObjects()"
         />
       </SettingsItem>
 
       <SettingsItem
-        :title="$t('settings.mapSettings.configuration.3dBuildings')"
-        :icon="Building2Icon"
+        v-if="settings.engine === MapEngine.MAPBOX"
+        :title="$t('settings.mapSettings.configuration.3dTerrain')"
+        :icon="MountainSnowIcon"
       >
         <Switch
-          :model-value="map3dBuildings"
-          @update:model-value="mapService.toggle3dBuildings()"
+          :model-value="settings.terrain3d"
+          @update:model-value="mapService.toggle3dTerrain()"
         />
       </SettingsItem>
 
@@ -158,7 +140,7 @@ const basemap = computed(() => {
         :icon="InfoIcon"
       >
         <Switch
-          :model-value="mapPoiLabels"
+          :model-value="settings.poiLabels"
           @update:model-value="mapService.togglePoiLabels()"
         />
       </SettingsItem>
@@ -168,7 +150,7 @@ const basemap = computed(() => {
         :icon="MilestoneIcon"
       >
         <Switch
-          :model-value="mapRoadLabels"
+          :model-value="settings.roadLabels"
           @update:model-value="mapService.toggleRoadLabels()"
         />
       </SettingsItem>
@@ -178,7 +160,7 @@ const basemap = computed(() => {
         :icon="TrainIcon"
       >
         <Switch
-          :model-value="mapTransitLabels"
+          :model-value="settings.transitLabels"
           @update:model-value="mapService.toggleTransitLabels()"
         />
       </SettingsItem>
@@ -188,7 +170,7 @@ const basemap = computed(() => {
         :icon="MapPinIcon"
       >
         <Switch
-          :model-value="mapPlaceLabels"
+          :model-value="settings.placeLabels"
           @update:model-value="mapService.togglePlaceLabels()"
         />
       </SettingsItem>
@@ -196,7 +178,7 @@ const basemap = computed(() => {
 
     <SettingsSection :title="$t('settings.mapSettings.basemaps.title')">
       <template v-slot:actions>
-        <Button disabled variant="outline" @click="openLayerConfigDialog">
+        <Button disabled variant="outline">
           <PlusIcon class="size-4 mr-2" />
           {{ $t('settings.mapSettings.basemaps.new') }}
         </Button>
@@ -220,19 +202,6 @@ const basemap = computed(() => {
     </SettingsSection> -->
 
     <!-- Layers configuration -->
-    <SettingsSection
-      :title="$t('settings.mapSettings.layers.title')"
-      :description="$t('settings.mapSettings.layers.description')"
-      :frame="false"
-    >
-      <template v-slot:actions>
-        <Button variant="outline" @click="openLayerConfigDialog">
-          <PlusIcon class="size-4 mr-2" />
-          {{ $t('settings.mapSettings.layers.new') }}
-        </Button>
-      </template>
-
-      <Layers />
-    </SettingsSection>
+    <Layers />
   </div>
 </template>

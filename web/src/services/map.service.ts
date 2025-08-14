@@ -10,8 +10,11 @@ import {
   type MarkerId,
   type LngLat,
   LayerType,
+  MapSettings,
 } from '@/types/map.types'
 import { useMapStore } from '../stores/map.store'
+import { useLayersStore } from '@/stores/layers.store'
+import { useLayersService } from '@/services/layers.service'
 import { useAppStore } from '../stores/app.store'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
@@ -25,7 +28,7 @@ import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { watch } from 'vue'
 import { AppRoute } from '@/router'
 import { useRouter } from 'vue-router'
-import { ref } from 'vue'
+import { ref, toRaw } from 'vue'
 import { Component } from 'vue'
 
 const dark = useDark()
@@ -40,10 +43,13 @@ const MAP_PADDING_CONFIG = {
 
 function mapService() {
   const mapStore = useMapStore()
+  const layersStore = useLayersStore()
+  const layersService = useLayersService()
   const appStore = useAppStore()
   const directionsStore = useDirectionsStore()
   const integrationsStore = useIntegrationsStore()
-  const { enabledLayers } = storeToRefs(mapStore)
+  const { settings } = storeToRefs(mapStore)
+  const { layers } = storeToRefs(layersStore)
   const router = useRouter()
   let mapStrategy: MapStrategy
   let mapContainer: HTMLElement
@@ -55,17 +61,17 @@ function mapService() {
   )
 
   // Debounced padding update to prevent excessive calls
-  let paddingUpdateTimeout: NodeJS.Timeout | null = null
+  let paddingUpdateTimeout: ReturnType<typeof setTimeout> | null = null
 
   function getMapStrategy(
     container: string | HTMLElement,
     mapEngine: MapEngine,
     accessToken?: string,
   ) {
-    const { mapOptions, mapCamera } = mapStore
+    const { settings, mapCamera } = mapStore
 
     const options = {
-      ...mapOptions,
+      ...settings,
       theme: dark.value ? MapTheme.DARK : MapTheme.LIGHT,
       camera: mapCamera,
     }
@@ -125,50 +131,12 @@ function mapService() {
     mapStrategy = getMapStrategy(container, mapEngine, accessToken)
     mapStore.setMapStrategy(mapStrategy)
 
-    mapEventBus.on('load', () => {
-      console.log('Map loaded, setting isMapReady to true')
-      isMapReady.value = true
-      mapStore.initializeLayers(enabledLayers.value)
-
-      // Show waypoint markers immediately when map loads
-      const waypoints = directionsStore.waypoints
-      if (waypoints && waypoints.length > 0) {
-        console.log('Map loaded, showing initial waypoint markers')
-        mapStrategy?.setWaypointMarkers(waypoints)
-      }
-
-      // Process any queued trips
-      if (queuedTrips.value) {
-        console.log('Processing queued trips after map load')
-        mapStrategy?.setTrips(
-          queuedTrips.value.trips,
-          queuedTrips.value.visibleTripIds,
-        )
-        queuedTrips.value = null
-      }
+    mapEventBus.on('load', async () => {
+      onMapLoad()
     })
 
-    mapEventBus.on('style.load', () => {
-      console.log('Map style loaded, setting isMapReady to true')
-      isMapReady.value = true
-      mapStore.initializeLayers(enabledLayers.value)
-
-      // Show waypoint markers immediately when style loads
-      const waypoints = directionsStore.waypoints
-      if (waypoints && waypoints.length > 0) {
-        console.log('Map style loaded, showing initial waypoint markers')
-        mapStrategy?.setWaypointMarkers(waypoints)
-      }
-
-      // Process any queued trips
-      if (queuedTrips.value) {
-        console.log('Processing queued trips after style load')
-        mapStrategy?.setTrips(
-          queuedTrips.value.trips,
-          queuedTrips.value.visibleTripIds,
-        )
-        queuedTrips.value = null
-      }
+    mapEventBus.on('style.load', async () => {
+      onStyleLoad()
     })
 
     mapEventBus.on('move', data => {
@@ -213,6 +181,48 @@ function mapService() {
 
     return mapStrategy
   }
+
+  function onMapLoad() {
+    setConfigProperties()
+    layersService.initializeLayers(layers.value, mapStrategy)
+
+    // Show waypoint markers immediately when map loads
+    if (directionsStore.waypoints) {
+      mapStrategy?.setWaypointMarkers(directionsStore.waypoints)
+    }
+
+    // Show queued trips if any
+    if (queuedTrips.value) {
+      mapStrategy?.setTrips(
+        queuedTrips.value.trips,
+        queuedTrips.value.visibleTripIds,
+      )
+      queuedTrips.value = null
+    }
+
+    isMapReady.value = true
+  }
+
+  function onStyleLoad() {
+    setConfigProperties()
+    layersService.initializeLayers(layers.value, mapStrategy)
+
+    // Show waypoint markers immediately when style loads
+    if (directionsStore.waypoints) {
+      mapStrategy?.setWaypointMarkers(directionsStore.waypoints)
+    }
+  }
+
+  function setConfigProperties() {
+    mapStrategy?.setPoiLabels(mapStore.settings.poiLabels)
+    mapStrategy?.setRoadLabels(mapStore.settings.roadLabels)
+    mapStrategy?.setTransitLabels(mapStore.settings.transitLabels)
+    mapStrategy?.setPlaceLabels(mapStore.settings.placeLabels)
+    mapStrategy?.setMap3dObjects(mapStore.settings.objects3d)
+    mapStrategy?.setMap3dTerrain(mapStore.settings.terrain3d)
+  }
+
+  let isInitializingGroups = false
 
   /**
    * Calculate padding values based on visible map area
@@ -334,7 +344,7 @@ function mapService() {
     destroy()
     isMapReady.value = false // Reset map ready state
     queuedTrips.value = null // Clear any queued trips
-    mapStore.setMapEngine(mapEngine)
+    mapStore.settings.engine = mapEngine
 
     // Only initialize map if we have a container
     if (!mapContainer) {
@@ -358,77 +368,89 @@ function mapService() {
   }
 
   function setMapProjection(projection: MapProjection) {
-    mapStore.setMapProjection(projection)
+    mapStore.settings.projection = projection
   }
 
   watch(
-    () => mapStore.mapProjection,
+    () => mapStore.settings.projection,
     projection => {
       mapStrategy?.setMapProjection(projection)
     },
   )
 
   function toggle3dTerrain(value?: boolean) {
-    mapStore.setMap3dTerrain(value)
+    const newValue = value ?? !mapStore.settings.terrain3d
+    mapStore.settings.terrain3d = newValue
+
+    // 3d objects must be enabled when terrain3d is enabled
+    if (newValue && !mapStore.settings.objects3d) {
+      toggle3dObjects(true)
+    }
+  }
+
+  function toggle3dObjects(value?: boolean) {
+    const newValue = value ?? !mapStore.settings.objects3d
+    mapStore.settings.objects3d = newValue
+
+    // 3d terrain must be disabled when objects3d is disabled
+    if (!newValue && mapStore.settings.terrain3d) {
+      toggle3dTerrain(false)
+    }
   }
 
   watch(
-    () => mapStore.map3dTerrain,
+    () => mapStore.settings.terrain3d,
     value => {
       mapStrategy?.setMap3dTerrain(value)
     },
   )
 
-  function toggle3dBuildings(value?: boolean) {
-    mapStore.setMap3dBuildings(value)
-  }
-
   watch(
-    () => mapStore.map3dBuildings,
+    () => mapStore.settings.objects3d,
     value => {
-      mapStrategy?.setMap3dBuildings(value)
+      mapStrategy?.setMap3dObjects(value)
     },
   )
 
   function togglePoiLabels(value?: boolean) {
-    mapStore.setMapPoiLabels(value)
+    mapStore.settings.poiLabels = value ?? !mapStore.settings.poiLabels
   }
 
   watch(
-    () => mapStore.mapPoiLabels,
+    () => mapStore.settings.poiLabels,
     value => {
       mapStrategy?.setPoiLabels(value)
     },
   )
 
   function toggleRoadLabels(value?: boolean) {
-    mapStore.setMapRoadLabels(value)
+    mapStore.settings.roadLabels = value ?? !mapStore.settings.roadLabels
   }
 
   watch(
-    () => mapStore.mapRoadLabels,
+    () => mapStore.settings.roadLabels,
     value => {
       mapStrategy?.setRoadLabels(value)
     },
   )
 
   function toggleTransitLabels(value?: boolean) {
-    mapStore.setMapTransitLabels(value)
+    mapStore.settings.transitLabels = value ?? !mapStore.settings.transitLabels
   }
 
   watch(
-    () => mapStore.mapTransitLabels,
+    () => mapStore.settings.transitLabels,
     value => {
       mapStrategy?.setTransitLabels(value)
     },
   )
 
   function togglePlaceLabels(value?: boolean) {
-    mapStore.setMapPlaceLabels(value)
+    mapStore.settings.placeLabels = value ?? !mapStore.settings.placeLabels
   }
 
   watch(
-    () => mapStore.mapPlaceLabels,
+    () => mapStore.settings.placeLabels,
     value => {
       mapStrategy?.setPlaceLabels(value)
     },
@@ -448,33 +470,17 @@ function mapService() {
       return
     }
 
-    try {
-      const paddingResult = calculateMapPadding()
+    const paddingResult = calculateMapPadding()
 
-      if (!paddingResult) {
-        console.warn('Cannot calculate map padding: invalid dimensions')
-        return
-      }
-
-      // Apply the padding using flyTo for smooth transition
-      mapStrategy.flyTo({
-        padding: paddingResult.padding,
-      })
-
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Updated map padding:', {
-          padding: paddingResult.padding,
-          isFullyVisible: paddingResult.isFullyVisible,
-          visibleArea: appStore.visibleMapArea,
-          mapDimensions: {
-            width: mapContainer.clientWidth,
-            height: mapContainer.clientHeight,
-          },
-        })
-      }
-    } catch (error) {
-      console.error('Error updating map padding:', error)
+    if (!paddingResult) {
+      console.warn('Cannot calculate map padding: invalid dimensions')
+      return
     }
+
+    // Apply the padding using flyTo for smooth transition
+    mapStrategy.flyTo({
+      padding: paddingResult.padding,
+    })
   }
 
   // Watch for changes in the visible map area and automatically adjust padding
@@ -507,16 +513,6 @@ function mapService() {
           MAP_PADDING_CONFIG.CHANGE_THRESHOLD
 
       if (hasSignificantChange) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log(
-            'Visible area changed significantly, updating map padding:',
-            {
-              old: oldVisibleArea,
-              new: newVisibleArea,
-            },
-          )
-        }
-
         // Use debounced update to prevent excessive calls during animations
         debouncedUpdateMapPadding()
       }
@@ -555,7 +551,7 @@ function mapService() {
   )
 
   watch(
-    () => mapStore.mapOptions.basemap,
+    () => mapStore.settings.basemap,
     basemap => {
       mapStrategy?.setBasemap(basemap)
     },
@@ -576,13 +572,6 @@ function mapService() {
   watch(
     () => directionsStore.trips,
     trips => {
-      console.log(
-        'Trips changed in map service:',
-        !!trips,
-        'isMapReady:',
-        isMapReady.value,
-      )
-
       if (trips) {
         // Show the first trip by default (recommended or first in list)
         const firstTrip =
@@ -592,14 +581,11 @@ function mapService() {
           : new Set<string>()
 
         if (isMapReady.value && mapStrategy) {
-          console.log('Map is ready, showing first trip and waypoints')
           mapStrategy.setTrips(trips, defaultTripIds)
         } else {
-          console.log('Map not ready, queuing first trip and waypoints')
           queuedTrips.value = { trips, visibleTripIds: defaultTripIds }
         }
       } else {
-        console.log('Trips cleared, unsetting trips')
         if (mapStrategy) {
           mapStrategy.unsetTrips()
         }
@@ -612,10 +598,7 @@ function mapService() {
   watch(
     () => directionsStore.waypoints,
     waypoints => {
-      console.log('Waypoints changed in map service:', waypoints.length)
-
       if (isMapReady.value && mapStrategy) {
-        console.log('Map is ready, updating waypoint markers')
         mapStrategy.setWaypointMarkers(waypoints)
       }
       // Note: We don't queue waypoint markers since they're managed separately
@@ -630,8 +613,6 @@ function mapService() {
       const trips = directionsStore.trips
       if (!trips || !selectedTripId) return
 
-      console.log('Selected trip changed:', selectedTripId)
-
       const visibleTripIds = new Set([selectedTripId])
 
       if (isMapReady.value && mapStrategy) {
@@ -641,29 +622,6 @@ function mapService() {
       }
     },
   )
-
-  function toggleLayer(layerId: Layer['configuration']['id'], state?: boolean) {
-    mapStore.toggleLayer(layerId, state)
-  }
-
-  function toggleLayerVisibility(
-    layerId: Layer['configuration']['id'],
-    state?: boolean,
-  ) {
-    if (state === undefined) {
-      state = !mapStore.layers.find(layer => layer.configuration.id === layerId)
-        ?.visible
-    }
-    mapStore.toggleLayerVisibility(layerId, state)
-  }
-
-  function toggleStreetViewLayers(visible?: boolean) {
-    mapStore.layers.forEach(layer => {
-      if (layer.type === LayerType.STREET_VIEW) {
-        toggleLayerVisibility(layer.configuration.id, visible)
-      }
-    })
-  }
 
   function destroy() {
     // Reset state
@@ -709,13 +667,11 @@ function mapService() {
     const trips = directionsStore.trips
     if (!trips) return
 
-    const allTripIds = new Set(trips.trips.map(trip => trip.id))
+    const allTripIds = new Set<string>(trips.trips.map(trip => trip.id))
 
     if (isMapReady.value && mapStrategy) {
-      console.log('Showing all trips')
       mapStrategy.setTrips(trips, allTripIds)
     } else {
-      console.log('Map not ready, queuing all trips')
       queuedTrips.value = { trips, visibleTripIds: allTripIds }
     }
   }
@@ -731,12 +687,10 @@ function mapService() {
     const noTripIds = new Set<string>()
 
     if (isMapReady.value && mapStrategy) {
-      console.log('Showing only waypoints')
       mapStrategy.setTrips(trips, noTripIds)
       // Reset selected trip to null when showing only waypoints
       directionsStore.setSelectedTripId(null)
     } else {
-      console.log('Map not ready, queuing waypoints only')
       queuedTrips.value = { trips, visibleTripIds: noTripIds }
     }
   }
@@ -747,8 +701,6 @@ function mapService() {
   function showTripOnHover(tripId: string) {
     const trips = directionsStore.trips
     if (!trips) return
-
-    console.log('Showing trip on hover:', tripId)
 
     // Update selected trip in store
     directionsStore.setSelectedTripId(tripId)
@@ -805,15 +757,12 @@ function mapService() {
     initializeMap,
     resize,
     updateMapPadding,
-    toggleLayer,
-    toggleLayerVisibility,
-    toggleStreetViewLayers,
     flyTo,
     jumpTo,
     setMapEngine,
     setMapProjection,
     toggle3dTerrain,
-    toggle3dBuildings,
+    toggle3dObjects,
     togglePoiLabels,
     toggleRoadLabels,
     toggleTransitLabels,
@@ -843,6 +792,10 @@ function mapService() {
     showOnlyWaypoints,
     showTripOnHover,
     showDefaultTrip,
+    // Expose mapStrategy for layers service
+    get mapStrategy() {
+      return mapStrategy
+    },
   }
 }
 

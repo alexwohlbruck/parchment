@@ -10,6 +10,7 @@ import {
 } from '@vueuse/motion'
 import { useElementBounding, useWindowSize, useScroll } from '@vueuse/core'
 import { useObstructingComponent } from '@/composables/useObstructingComponent'
+import { useDragState } from '@/composables/useDragState'
 
 const props = defineProps<{
   class?: HTMLAttributes['class']
@@ -25,9 +26,10 @@ const translateY = ref(0)
 const currentSnapPoint = ref(0)
 const preventScroll = ref(false)
 
-useObstructingComponent(sheet)
+useObstructingComponent(sheet, 'bottom-sheet')
 const { height: windowHeight } = useWindowSize()
 const { height: sheetHeight } = useElementBounding(sheet)
+const { isDragActive } = useDragState()
 
 const { y: scrollY } = useScroll(scrollContainer)
 const isAtTop = computed(() => scrollY.value === 0)
@@ -122,6 +124,11 @@ const isFullyExpanded = computed(() => {
 useGesture(
   {
     onDragStart: ({ direction: [_directionX, _directionY] }) => {
+      // Disable bottom sheet gestures if any other drag operation is active
+      if (isDragActive.value) {
+        return
+      }
+
       const isDraggingDown = _directionY > 0
 
       if (isFullyExpanded.value) {
@@ -136,6 +143,11 @@ useGesture(
       stopMotion()
     },
     onDrag: ({ delta: [_deltaX, deltaY] }) => {
+      // Disable bottom sheet gestures if any other drag operation is active
+      if (isDragActive.value) {
+        return
+      }
+
       if (isFullyExpanded.value) {
         if (!isAtTop.value || deltaY < 0) {
           return
@@ -146,6 +158,11 @@ useGesture(
       set({ y: translateY.value })
     },
     onDragEnd: ({ velocity, direction }) => {
+      // Disable bottom sheet gestures if any other drag operation is active
+      if (isDragActive.value) {
+        return
+      }
+
       if (!isAtTop.value) {
         return
       }

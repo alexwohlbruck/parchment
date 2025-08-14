@@ -8,7 +8,7 @@ const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
-useObstructingComponent(sheet)
+useObstructingComponent(sheet, 'left-sheet')
 </script>
 
 <template>

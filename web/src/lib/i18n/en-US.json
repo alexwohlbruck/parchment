@@ -173,7 +173,9 @@
         "engine": "Compatible engines",
         "id": "Layer ID",
         "name": "Layer Name",
-        "enabled": "Enabled",
+        "icon": "Layer Icon",
+        "iconPlaceholder": "Choose an icon",
+        "showInLayerSelector": "Show in layer selector",
         "type": {
           "title": "Layer Type",
           "values": {
@@ -198,6 +200,31 @@
           "placeholder": "Enter custom Mapbox layer configuration"
         }
       }
+    },
+    "groups": {
+      "create": "Create Layer Group",
+      "edit": "Edit Layer Group",
+      "fields": {
+        "name": "Group Name",
+        "namePlaceholder": "Enter group name",
+        "visible": "Visible",
+        "icon": "Group Icon",
+        "iconPlaceholder": "Choose an icon"
+      }
+    },
+    "actions": {
+      "new": "New",
+      "newLayer": "New Layer",
+      "newGroup": "New Group",
+      "editLayer": "Edit Layer",
+      "editGroup": "Edit Group",
+      "deleteGroup": "Delete Group",
+      "deleteLayer": "Delete Layer",
+      "ungroupLayer": "Ungroup Layer",
+      "restoreDefaults": "Restore defaults"
+    },
+    "empty": {
+      "message": "No layers configured"
     },
     "configuration": {
       "title": "Layer Configuration",
@@ -226,6 +253,14 @@
           "name": "Attribution Name"
         }
       }
+    },
+    "restoreDefaults": {
+      "button": "Restore defaults",
+      "success": "Restored {count} default layers"
+    },
+    "badges": {
+      "default": "Default",
+      "custom": "Custom"
     }
   },
   "directions": {
@@ -466,7 +501,7 @@
       "configuration": {
         "title": "Map configuration",
         "3dTerrain": "3D terrain",
-        "3dBuildings": "3D buildings",
+        "3dObjects": "3D objects",
         "poiLabels": "POI labels",
         "roadLabels": "Road labels",
         "transitLabels": "Transit labels",
@@ -515,6 +550,7 @@
         "validation_error": "Please fix validation errors before testing"
       },
       "capabilities": {
+        "mapLayer": "Map Layer",
         "search": "Search",
         "autocomplete": "Autocomplete",
         "routing": "Routing",
@@ -522,7 +558,8 @@
         "placeInfo": "Place Info",
         "imagery": "Imagery",
         "mapEngine": "Map Engine",
-        "title": "Capabilities"
+        "title": "Capabilities",
+        "streetView": "Street View"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",
@@ -537,7 +574,8 @@
         "tripadvisor": "Travel reviews and recommendations",
         "geoapify": "Geocoding, routing, and place data",
         "mapbox": "Interactive maps, geocoding, and navigation",
-        "valhalla": "Open-source routing engine for multimodal navigation"
+        "valhalla": "Open-source routing engine for multimodal navigation",
+        "transitland": "Transit routes tiles and APIs"
       }
     },
     "users": {

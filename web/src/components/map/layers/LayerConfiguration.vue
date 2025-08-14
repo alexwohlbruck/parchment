@@ -10,10 +10,13 @@ import { computed, ref, defineEmits, watch } from 'vue'
 import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import * as z from 'zod'
-import { useMapStore } from '@/stores/map.store'
+import { useLayersStore } from '@/stores/layers.store'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { IconPicker } from '@/components/ui/icon-picker'
+import { Label } from '@/components/ui/label'
+import * as LucideIcons from 'lucide-vue-next'
 import {
   Select,
   SelectTrigger,
@@ -31,7 +34,32 @@ import {
 } from '@/components/ui/form'
 import { SettingsSection, SettingsItem } from '@/components/settings'
 
-const mapStore = useMapStore()
+// Helper functions to convert between icon component and string name
+function getIconStringFromComponent(iconComponent: any): string | null {
+  if (!iconComponent) return null
+
+  // Find the component name in LucideIcons
+  for (const [name, component] of Object.entries(LucideIcons)) {
+    if (component === iconComponent && name.endsWith('Icon')) {
+      return name
+    }
+  }
+  return null
+}
+
+function getIconComponentFromString(iconName: string): any {
+  if (!iconName) return null
+
+  const fullName = iconName.endsWith('Icon') ? iconName : `${iconName}Icon`
+
+  const isValidIcon =
+    fullName !== 'icons' &&
+    typeof LucideIcons[fullName as keyof typeof LucideIcons] === 'function'
+
+  return isValidIcon ? LucideIcons[fullName as keyof typeof LucideIcons] : null
+}
+
+const layersStore = useLayersStore()
 
 const props = defineProps<{
   layerId?: Layer['configuration']['id']
@@ -39,7 +67,7 @@ const props = defineProps<{
 
 const editing = computed(() => props.layerId)
 const layer = editing
-  ? mapStore.layers.find(layer => layer.configuration.id === props.layerId)
+  ? layersStore.layers.find(layer => layer.id === props.layerId)
   : null
 
 const emit = defineEmits<{
@@ -85,7 +113,7 @@ const layerSchema = computed(() => {
   return toTypedSchema(
     z.object({
       name: z.string().min(1, 'required').default(''),
-      enabled: z.boolean().default(true),
+      showInLayerSelector: z.boolean().default(true),
       // TODO: Add field for layer type
       type: z.nativeEnum(LayerType).default(LayerType.CUSTOM),
       visible: z.boolean().default(true),
@@ -160,9 +188,13 @@ const { handleSubmit, errors, values, meta, setFieldValue, setFieldError } =
 
 const onSubmit = handleSubmit(values => {
   if (editing.value) {
-    mapStore.updateLayer(values as Layer)
+    layersStore.updateLayer(props.layerId!, values as Partial<Layer>)
   } else {
-    mapStore.addLayer(values as Layer)
+    layersStore.addLayer({
+      ...values,
+      order: layersStore.layers.length,
+      groupId: null,
+    } as Omit<Layer, 'id' | 'userId' | 'createdAt' | 'updatedAt'>)
   }
 })
 
@@ -308,9 +340,9 @@ defineExpose({
       :frame="false"
       :shadow="false"
     >
-      <FormField name="enabled" v-slot="{ value, handleChange }">
+      <FormField name="showInLayerSelector" v-slot="{ value, handleChange }">
         <FormItem>
-          <SettingsItem :title="$t('layers.meta.fields.enabled')">
+          <SettingsItem :title="$t('layers.meta.fields.showInLayerSelector')">
             <FormControl>
               <Switch :model-value="value" @update:model-value="handleChange" />
             </FormControl>
@@ -330,6 +362,30 @@ defineExpose({
                 />
               </FormControl>
             </div>
+          </SettingsItem>
+        </FormItem>
+      </FormField>
+
+      <FormField name="icon" v-slot="{ value, handleChange }">
+        <FormItem>
+          <SettingsItem :title="$t('layers.meta.fields.icon')">
+            <FormControl>
+              <IconPicker
+                :model-value="{
+                  icon: getIconStringFromComponent(value) || 'Layers3Icon',
+                  color: 'blue',
+                }"
+                @update:model-value="
+                  newValue => {
+                    const iconComponent = getIconComponentFromString(
+                      newValue.icon,
+                    )
+                    handleChange(iconComponent)
+                  }
+                "
+                :placeholder="$t('layers.meta.fields.iconPlaceholder')"
+              />
+            </FormControl>
           </SettingsItem>
         </FormItem>
       </FormField>

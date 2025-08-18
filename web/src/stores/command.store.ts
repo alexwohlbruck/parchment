@@ -29,6 +29,8 @@ import { useAuthService } from '@/services/auth.service'
 import { MapEngine, MapProjection } from '@/types/map.types'
 import { usePlaceSearchService } from '@/services/search.service'
 import { useCommandService } from '@/services/command.service'
+import { useCategoryStore } from '@/stores/category.store'
+import { useCategoryService } from '@/services/category.service'
 import { formatAddress } from '@/lib/place.utils'
 import { Icon } from '@/types/app.types'
 
@@ -140,9 +142,54 @@ export const useCommandStore = defineStore('command', () => {
         hotkey: ['/'],
         icon: SearchIcon,
         keywords: t('palette.commands.search.keywords'),
-        action: (placeId: string) => {
-          const route = getPlaceRoute(placeId)
-          router.push(route)
+        action: async (itemId: string) => {
+          // Check if this is a category selection
+          if (itemId.startsWith('category:')) {
+            const categoryId = itemId.replace('category:', '')
+            const categoryService = useCategoryService()
+            const mapService = useMapService()
+
+            try {
+              const category = await categoryService.selectCategory(categoryId)
+              if (category) {
+                console.log('Selected category:', category)
+
+                // Get current map bounds for the Overpass query
+                const mapBounds = mapService.getBounds()
+                console.log('Map bounds:', mapBounds)
+
+                const overpassQuery = categoryService.getCurrentOverpassQuery(
+                  mapBounds || undefined,
+                )
+                console.log('Generated Overpass query:', overpassQuery)
+
+                // Execute the Overpass query and log results
+                try {
+                  const places = await categoryService.searchCurrentCategory(
+                    mapBounds || undefined,
+                  )
+                  console.log(
+                    `Found ${places.length} places for category "${category.name}":`,
+                    places,
+                  )
+
+                  // TODO: Navigate to search results view
+                  // For now, just log the results
+                } catch (searchError) {
+                  console.error(
+                    'Failed to execute category search:',
+                    searchError,
+                  )
+                }
+              }
+            } catch (error) {
+              console.error('Failed to select category:', error)
+            }
+          } else {
+            // Regular place navigation
+            const route = getPlaceRoute(itemId)
+            router.push(route)
+          }
         },
         arguments: [
           {
@@ -155,6 +202,30 @@ export const useCommandStore = defineStore('command', () => {
               const searchText = currentSearchQuery.value
 
               try {
+                const results: any[] = []
+
+                // First, search categories if we have a query and Overpass is available
+                if (searchText && searchText.length > 0) {
+                  const categoryStore = useCategoryStore()
+
+                  if (categoryStore.isOverpassAvailable) {
+                    const categories = categoryStore.searchCategories(
+                      searchText,
+                      5,
+                    ) // Limit categories to 5
+
+                    categories.forEach(category => {
+                      results.push({
+                        value: `category:${category.id}`,
+                        name: category.name,
+                        description: 'Category',
+                        icon: getIconComponent(category.icon || 'Tag'),
+                      })
+                    })
+                  }
+                }
+
+                // Then search places
                 const mapStore = useMapStore()
                 const center = mapStore.mapCamera.center
 
@@ -178,14 +249,21 @@ export const useCommandStore = defineStore('command', () => {
                     lng,
                   })
 
-                return searchResults.map(result => ({
-                  value: result.id,
-                  name: result.title,
-                  description: result.description,
-                  icon: getIconComponent(result.icon),
-                }))
+                // Add place results after categories (filter out category results to avoid duplicates)
+                searchResults
+                  .filter(result => result.type !== 'category')
+                  .forEach(result => {
+                    results.push({
+                      value: result.id,
+                      name: result.title,
+                      description: result.description,
+                      icon: getIconComponent(result.icon),
+                    })
+                  })
+
+                return results
               } catch (error) {
-                console.error('Error loading place suggestions:', error)
+                console.error('Error loading search suggestions:', error)
                 return []
               }
             },

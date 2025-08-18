@@ -13,6 +13,7 @@ import {
 import type { Place } from '../../types/place.types'
 import { OverpassAdapter } from './adapters/overpass-adapter'
 import { SOURCE } from '../../lib/constants'
+import { calculateOSMCenter } from '../../util/geometry-conversion'
 
 // TODO: Remove overpass integration
 // TODO: Overpass is designed for OSM editors to edit the map, not for backend search
@@ -136,9 +137,9 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
 
       // The first element should be our place
       const place = response.data.elements[0]
-      const center = this.calculatePlaceCenter(place)
+      const center = calculateOSMCenter(place)
       if (center) {
-        place.center = center
+        place.center = { lat: center.lat, lon: center.lng }
       }
 
       // Use the adapter to convert to standardized Place format
@@ -207,52 +208,6 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
   }
 
   /**
-   * Calculate the center point of a place
-   * @param place OSM place object
-   * @returns Center coordinates or null if not determinable
-   */
-  private calculatePlaceCenter(
-    place: any,
-  ): { lat: number; lon: number } | null {
-    // If the API provides a center, use it
-    if (place.center) {
-      return place.center
-    }
-
-    // For nodes, use their coordinates
-    if (place.type === 'node' && place.lat && place.lon) {
-      return { lat: place.lat, lon: place.lon }
-    }
-
-    // For ways and relations with geometry, calculate centroid
-    if (place.geometry && place.geometry.length > 0) {
-      let sumLat = 0
-      let sumLon = 0
-      const nodes = place.geometry
-
-      for (const node of nodes) {
-        sumLat += node.lat
-        sumLon += node.lon
-      }
-
-      return {
-        lat: sumLat / nodes.length,
-        lon: sumLon / nodes.length,
-      }
-    }
-
-    // For ways and relations with bounds but no geometry, use bounds center
-    if (place.bounds) {
-      return {
-        lat: (place.bounds.minlat + place.bounds.maxlat) / 2,
-        lon: (place.bounds.minlon + place.bounds.maxlon) / 2,
-      }
-    }
-
-    return null
-  }
-
-  /**
    * Search for places matching a query
    * @param query The search query
    * @param lat Optional latitude for location bias
@@ -292,11 +247,10 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
 
       // Process and return the elements
       const places = response.data.elements.map((element: any) => {
-        // Add center if not already present
         if (!element.center) {
-          const center = this.calculatePlaceCenter(element)
+          const center = calculateOSMCenter(element)
           if (center) {
-            element.center = center
+            element.center = { lat: center.lat, lon: center.lng }
           }
         }
         return element
@@ -306,6 +260,67 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
     } catch (error) {
       console.error('Error searching places with Overpass:', error)
       return []
+    }
+  }
+
+  /**
+   * Execute a raw Overpass query and return the results as Places
+   * @param query The raw Overpass QL query string
+   * @param maxResults Maximum number of results to return
+   * @returns Array of Place objects
+   */
+  async executeRawQuery(query: string, maxResults: number): Promise<Place[]> {
+    if (!this.config.host) {
+      throw new Error('Overpass integration host not configured')
+    }
+
+    console.log(`Executing Overpass query: ${query.substring(0, 100)}...`)
+
+    try {
+      const response = await axios.post(
+        this.config.host,
+        new URLSearchParams({ data: query }),
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          timeout: 30000,
+        },
+      )
+
+      if (!response.data?.elements) {
+        return []
+      }
+
+      const elements = response.data.elements.slice(0, maxResults)
+      console.log(`Overpass query returned ${elements.length} elements`)
+
+      const places: Place[] = []
+
+      for (const element of elements) {
+        try {
+          const center = calculateOSMCenter(element)
+          if (center) {
+            element.center = { lat: center.lat, lon: center.lng }
+          }
+
+          const place = this.adapter.placeInfo.adaptPlaceDetails(element)
+          if (place) {
+            places.push(place)
+          }
+        } catch (error) {
+          console.error('Error converting Overpass element to Place:', error)
+        }
+      }
+
+      return places
+    } catch (error) {
+      console.error('Error executing Overpass query:', error)
+      throw new Error(
+        `Failed to execute Overpass query: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`,
+      )
     }
   }
 }

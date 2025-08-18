@@ -796,6 +796,11 @@ function mapService() {
     get mapStrategy() {
       return mapStrategy
     },
+
+    // Get current map bounds
+    getBounds() {
+      return mapStrategy?.getBounds() || null
+    },
   }
 }
 

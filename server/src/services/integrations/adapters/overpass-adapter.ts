@@ -7,6 +7,7 @@ import type {
 import { SOURCE } from '../../../lib/constants'
 import { getPlaceType } from '../../../lib/place.utils'
 import { parseOpeningHoursForUnifiedFormat } from '../../../lib/place.utils'
+import { calculateOSMCenter } from '../../../util/geometry-conversion'
 
 // TODO: Move this type def to a shared types file
 export interface OverpassElement {
@@ -37,7 +38,7 @@ export class OverpassAdapter {
       const primaryId = id || `${SOURCE.OSM}/${osmId}`
 
       // Calculate center if not provided
-      const center = this.calculatePlaceCenter(data)
+      const center = calculateOSMCenter(data)
 
       return {
         id: primaryId,
@@ -121,52 +122,6 @@ export class OverpassAdapter {
       value: description,
       sourceId: SOURCE.OSM,
     }
-  }
-
-  /**
-   * Calculate the center point of a place
-   * @param place OSM place object
-   * @returns Center coordinates or null if not determinable
-   */
-  private calculatePlaceCenter(
-    place: OverpassElement,
-  ): { lat: number; lng: number } | null {
-    // If the API provides a center, use it
-    if (place.center) {
-      return { lat: place.center.lat, lng: place.center.lon }
-    }
-
-    // For nodes, use their coordinates
-    if (place.type === 'node' && place.lat && place.lon) {
-      return { lat: place.lat, lng: place.lon }
-    }
-
-    // For ways and relations with geometry, calculate centroid
-    if (place.geometry && place.geometry.length > 0) {
-      let sumLat = 0
-      let sumLon = 0
-      const nodes = place.geometry
-
-      for (const node of nodes) {
-        sumLat += node.lat
-        sumLon += node.lon
-      }
-
-      return {
-        lat: sumLat / nodes.length,
-        lng: sumLon / nodes.length,
-      }
-    }
-
-    // For ways and relations with bounds but no geometry, use bounds center
-    if (place.bounds) {
-      return {
-        lat: (place.bounds.minlat + place.bounds.maxlat) / 2,
-        lng: (place.bounds.minlon + place.bounds.maxlon) / 2,
-      }
-    }
-
-    return null
   }
 
   /**

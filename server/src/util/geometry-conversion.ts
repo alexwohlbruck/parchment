@@ -1,22 +1,12 @@
 import { sql, getTableColumns } from 'drizzle-orm'
 import type { Table } from 'drizzle-orm'
+import * as turf from '@turf/turf'
 
-/**
- * Generic function to convert PostGIS geometry fields to lat/lng coordinates
- * Works with any Drizzle table that has geometry columns
- *
- * @param table - The Drizzle table object
- * @param geometryFieldName - Name of the geometry field (default: 'geometry')
- * @returns Object with all table fields except geometry, plus lat/lng from geometry
- */
 export function withGeometryAsCoordinates<T extends Record<string, any>>(
   table: T,
   geometryFieldName: string = 'geometry',
 ) {
-  // Extract all fields except the geometry field
   const { [geometryFieldName]: geometryField, ...otherFields } = table
-
-  // Return all other fields plus lat/lng extracted from geometry
   return {
     ...otherFields,
     lat: sql<number>`ST_Y(${geometryField})`,
@@ -24,14 +14,6 @@ export function withGeometryAsCoordinates<T extends Record<string, any>>(
   }
 }
 
-/**
- * Create select/returning fields for any table with geometry, automatically converting geometry to lat/lng
- * Uses getTableColumns to automatically include all fields except geometry
- *
- * @param table - The Drizzle table object
- * @param geometryFieldName - Name of the geometry field (default: 'geometry')
- * @returns Select object with all table columns except geometry, plus lat/lng fields
- */
 export function createSelectFieldsWithGeometry(
   table: Table,
   geometryFieldName: string = 'geometry',
@@ -49,14 +31,53 @@ export function createSelectFieldsWithGeometry(
   }
 }
 
-/**
- * Helper to create a geometry Point from lat/lng coordinates
- * Useful for INSERT and UPDATE operations with PostGIS
- *
- * @param lat - Latitude coordinate
- * @param lng - Longitude coordinate
- * @returns SQL expression for creating a POINT geometry
- */
 export function createPointFromCoordinates(lat: number, lng: number) {
   return sql`ST_GeomFromText(${'POINT(' + lng + ' ' + lat + ')'}, 4326)`
+}
+
+export interface OSMElement {
+  type: 'node' | 'way' | 'relation'
+  id: number
+  lat?: number
+  lon?: number
+  tags?: Record<string, string>
+  geometry?: Array<{ lat: number; lon: number }>
+  bounds?: {
+    minlat: number
+    maxlat: number
+    minlon: number
+    maxlon: number
+  }
+  center?: { lat: number; lon: number }
+}
+
+export function calculateOSMCenter(
+  element: OSMElement,
+): { lat: number; lng: number } | null {
+  if (element.center) {
+    return { lat: element.center.lat, lng: element.center.lon }
+  }
+
+  if (element.type === 'node' && element.lat && element.lon) {
+    return { lat: element.lat, lng: element.lon }
+  }
+
+  if (element.geometry && element.geometry.length > 0) {
+    const coordinates = element.geometry.map((node) => [node.lon, node.lat])
+    const lineString = turf.lineString(coordinates)
+    const center = turf.centroid(lineString)
+    return {
+      lat: center.geometry.coordinates[1],
+      lng: center.geometry.coordinates[0],
+    }
+  }
+
+  if (element.bounds) {
+    return {
+      lat: (element.bounds.minlat + element.bounds.maxlat) / 2,
+      lng: (element.bounds.minlon + element.bounds.maxlon) / 2,
+    }
+  }
+
+  return null
 }

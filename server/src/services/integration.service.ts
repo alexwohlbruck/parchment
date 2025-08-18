@@ -141,6 +141,10 @@ export async function initializeIntegrations() {
     // Get system-wide integrations first (where userId is null)
     const systemIntegrations = await getConfiguredIntegrations()
     console.log(`Found ${systemIntegrations.length} system integrations`)
+    console.log(
+      'System integrations:',
+      systemIntegrations.map((i) => i.integrationId),
+    )
 
     // Initialize system integrations
     for (const integration of systemIntegrations) {

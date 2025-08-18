@@ -7,6 +7,7 @@ import { useThemeStore } from '@/stores/theme.store'
 import { useCommandService } from '@/services/command.service'
 import { useAuthService } from '@/services/auth.service'
 import { useIntegrationService } from '@/services/integration.service'
+import { useCategoryStore } from '@/stores/category.store'
 import { useResponsive } from '@/lib/utils'
 
 import DesktopNav from '@/components/navigation/DesktopNavigation.vue'
@@ -21,6 +22,7 @@ const themeStore = useThemeStore()
 const commandService = useCommandService()
 const authService = useAuthService()
 const integrationService = useIntegrationService()
+const categoryStore = useCategoryStore()
 const appStore = useAppStore()
 const { isMobileScreen } = useResponsive()
 
@@ -39,6 +41,10 @@ onMounted(async () => {
   if (authStore.me) {
     await integrationService.fetchAvailableIntegrations()
     await integrationService.fetchConfiguredIntegrations()
+    // Initialize categories for offline search if Overpass is available
+    if (categoryStore.isOverpassAvailable) {
+      categoryStore.init()
+    }
   }
 })
 </script>

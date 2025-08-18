@@ -80,6 +80,16 @@ export class MapStrategy {
   zoomOut() {}
   resetNorth() {}
 
+  getBounds(): {
+    north: number
+    south: number
+    east: number
+    west: number
+  } | null {
+    // This method should be overridden by specific implementations
+    return null
+  }
+
   addMarker(id: string, lngLat: LngLat) {
     this.removeMarker(id) // Remove existing marker if any
   }

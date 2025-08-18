@@ -1,6 +1,22 @@
+export interface CategoryResult {
+  id: string
+  type: 'category'
+  name: string
+  description?: string
+  icon?: string
+  color?: string
+  // OSM metadata for building Overpass queries
+  tags: Record<string, string>
+  addTags?: Record<string, string>
+  geometry: string[]
+  fields?: string[]
+  searchable: boolean
+  aliases?: string[]
+}
+
 export interface SearchResult {
   id: string
-  type: 'bookmark' | 'place' | 'current_location'
+  type: 'bookmark' | 'place' | 'current_location' | 'category'
   title: string
   description?: string
   icon?: string
@@ -30,20 +46,32 @@ export interface SearchResult {
       lat: number
       lng: number
     }
+    // Category metadata
+    category?: {
+      tags: Record<string, string>
+      addTags?: Record<string, string>
+      geometry: string[]
+    }
   }
 }
 
 // Lightweight autocomplete result with minimal data
 export interface AutocompleteResult {
   id: string
-  type: 'bookmark' | 'place' | 'current_location'
+  type: 'bookmark' | 'place' | 'current_location' | 'category'
   title: string
   description?: string
   icon?: string
   color?: string
-  // Minimal metadata - just coordinates for navigation
-  lat: number
-  lng: number
+  // Minimal metadata - just coordinates for navigation (optional for categories)
+  lat?: number
+  lng?: number
+  // Category metadata for OSM queries
+  category?: {
+    tags: Record<string, string>
+    addTags?: Record<string, string>
+    geometry: string[]
+  }
 }
 
 export interface SearchOptions {

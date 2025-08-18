@@ -4,19 +4,23 @@ import {
   SearchResponse,
   AutocompleteResult,
   AutocompleteResponse,
+  CategoryResult,
 } from '../types/search.types'
 import { Bookmark } from '../types/library.types'
 import { Place } from '../types/place.types'
+import type { SupportedLanguage } from '../lib/i18n'
 // Import existing services
 import { searchBookmarks as searchBookmarksService } from './library/bookmarks.service'
 import { lookupPlacesByNameAndLocation } from './place.service'
+import { searchCategories, getCategoryById } from './category.service'
 
 /**
  * Convert a full SearchResult to a lightweight AutocompleteResult
  */
 function convertToAutocompleteResult(result: SearchResult): AutocompleteResult {
   // Extract coordinates from metadata based on result type
-  let lat: number, lng: number
+  let lat: number | undefined, lng: number | undefined
+  let category: AutocompleteResult['category'] | undefined
 
   if (result.type === 'bookmark' && result.metadata.bookmark) {
     lat = result.metadata.bookmark.lat
@@ -24,8 +28,16 @@ function convertToAutocompleteResult(result: SearchResult): AutocompleteResult {
   } else if (result.type === 'place' && result.metadata.place) {
     lat = result.metadata.place.lat
     lng = result.metadata.place.lng
+  } else if (result.type === 'category' && result.metadata.category) {
+    // Categories don't have coordinates, but include category metadata
+    category = result.metadata.category
+  } else if (
+    result.type === 'current_location' &&
+    result.metadata.currentLocation
+  ) {
+    lat = result.metadata.currentLocation.lat
+    lng = result.metadata.currentLocation.lng
   } else {
-    // Fallback coordinates if none found
     lat = 0
     lng = 0
   }
@@ -39,6 +51,7 @@ function convertToAutocompleteResult(result: SearchResult): AutocompleteResult {
     color: result.color,
     lat,
     lng,
+    category,
   }
 }
 
@@ -112,6 +125,27 @@ function convertBookmarkToSearchResult(bookmark: Bookmark): SearchResult {
 }
 
 /**
+ * Convert a CategoryResult to a SearchResult
+ */
+function convertCategoryToSearchResult(category: CategoryResult): SearchResult {
+  return {
+    id: category.id,
+    type: 'category',
+    title: category.name,
+    description: category.description,
+    icon: category.icon,
+    color: category.color,
+    metadata: {
+      category: {
+        tags: category.tags,
+        addTags: category.addTags,
+        geometry: category.geometry,
+      },
+    },
+  }
+}
+
+/**
  * Convert a Place object to a SearchResult
  */
 function convertPlaceToSearchResult(place: Place): SearchResult {
@@ -168,6 +202,7 @@ function convertPlaceToSearchResult(place: Place): SearchResult {
 export async function search(
   userId: string,
   options: SearchOptions,
+  language: SupportedLanguage = 'en',
 ): Promise<SearchResponse | AutocompleteResponse> {
   const {
     query,
@@ -179,6 +214,17 @@ export async function search(
   } = options
 
   const allResults: SearchResult[] = []
+
+  // Search categories first (only for 1+ character queries) - these appear at the top
+  if (query && query.length > 0) {
+    const categories = searchCategories(
+      query,
+      language,
+      Math.min(10, maxResults),
+    )
+    const categoryResults = categories.map(convertCategoryToSearchResult)
+    allResults.push(...categoryResults)
+  }
 
   // Search bookmarks using bookmarks service
   const userBookmarks = await searchBookmarksService(userId, query)
@@ -224,4 +270,14 @@ export async function search(
     results: limitedResults,
     totalCount: allResults.length,
   } as SearchResponse
+}
+
+/**
+ * Get category details by ID
+ */
+export async function getCategoryDetails(
+  categoryId: string,
+  language: SupportedLanguage = 'en',
+): Promise<CategoryResult | null> {
+  return getCategoryById(categoryId, language)
 }

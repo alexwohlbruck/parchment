@@ -135,7 +135,9 @@ function openMapEditor(editor: 'id' | 'rapid' | 'josm') {
   }
 }
 
-function openExternalMap(service: 'osm' | 'google' | 'apple' | 'yandex') {
+function openExternalMap(
+  service: 'osm' | 'google' | 'apple' | 'yandex' | '2gis',
+) {
   if (!clickedLngLat.value) return
   switch (service) {
     case 'osm':
@@ -167,6 +169,12 @@ function openExternalMap(service: 'osm' | 'google' | 'apple' | 'yandex') {
         '_blank',
       )
       break
+    case '2gis':
+      window.open(
+        `https://2gis.ae/?m=${clickedLngLat.value.lng}%2C${clickedLngLat.value.lat}%2F${mapCamera.value.zoom}&immersive=on`,
+        '_blank',
+      )
+      break
   }
 }
 </script>
@@ -189,14 +197,14 @@ function openExternalMap(service: 'osm' | 'google' | 'apple' | 'yandex') {
           @click="directionsFrom()"
         >
           <ArrowUpFromDotIcon class="size-4 rotate-90" />
-          <span>{{ t('directions.directionsFromHere') }}</span>
+          <span>{{ t('directions.planRouteFromHere') }}</span>
         </DropdownMenuItem>
         <DropdownMenuItem
           v-if="!useMultistopDirections"
           @click="directionsTo()"
         >
           <ArrowDownToDotIcon class="size-4 -rotate-90" />
-          <span>{{ t('directions.directionsToHere') }}</span>
+          <span>{{ t('directions.directionsHere') }}</span>
         </DropdownMenuItem>
         <DropdownMenuItem v-if="useMultistopDirections" @click="fillWaypoint()">
           <PlusIcon class="size-4" />
@@ -261,6 +269,11 @@ function openExternalMap(service: 'osm' | 'google' | 'apple' | 'yandex') {
               <DropdownMenuItem @click="openExternalMap('yandex')">
                 <BrandIcon :icon="siYandexcloud" class="size-4" />
                 <span>Yandex Maps</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem @click="openExternalMap('2gis')">
+                <!-- TODO: Add 2GIS icon -->
+                <!-- <BrandIcon :icon="si2gis" class="size-4" /> -->
+                <span>2GIS</span>
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuPortal>

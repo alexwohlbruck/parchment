@@ -68,17 +68,17 @@ async function createBookmark() {
   <div class="flex gap-2">
     <Button class="flex-1" @click="$emit('directions')">
       <ArrowDownToDotIcon class="mr-2 size-4 -rotate-90" />
-      {{ t('directions.directionsTo') }}
+      {{ t('directions.directions') }}
     </Button>
     <Button class="flex-1" variant="outline" @click="$emit('directionsFrom')">
       <ArrowUpFromDotIcon class="mr-2 size-4 rotate-90" />
-      {{ t('directions.directionsFrom') }}
+      {{ t('directions.planRoute') }}
     </Button>
     <Button
       size="icon"
       variant="outline"
       @click="$emit('share')"
-      :title="t('place.actions.share')"
+      :title="t('general.share')"
     >
       <ShareIcon class="size-4" />
     </Button>
@@ -87,7 +87,7 @@ async function createBookmark() {
         <Button
           size="icon"
           variant="outline"
-          :title="t('place.actions.manageCollections')"
+          :title="t('library.entities.collections.manage')"
         >
           <FolderPlusIcon class="size-4" />
         </Button>
@@ -104,7 +104,7 @@ async function createBookmark() {
       size="icon"
       variant="outline"
       @click="createBookmark()"
-      :title="t('place.actions.save')"
+      :title="t('general.save')"
     >
       <ItemIcon
         v-if="defaultCollection"

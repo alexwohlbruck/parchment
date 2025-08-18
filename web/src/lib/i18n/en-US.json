@@ -8,6 +8,7 @@
     "confirm": "Confirm",
     "close": "Close",
     "save": "Save",
+    "share": "Share",
     "name": "Name",
     "edit": "Edit",
     "unsave": "Unsave",
@@ -265,22 +266,13 @@
   },
   "directions": {
     "title": "Directions",
-    "directionsFromHere": "Directions from here",
-    "directionsToHere": "Directions to here",
-    "directionsTo": "Directions to",
-    "directionsFrom": "Directions from",
+    "planRouteFromHere": "Plan route from here",
+    "directionsHere": "Directions here",
+    "directions": "Directions",
+    "planRoute": "Plan route",
     "to": "To",
     "from": "From",
     "addStop": "Add stop"
-  },
-  "place": {
-    "actions": {
-      "directionsFrom": "Directions from here",
-      "directionsTo": "Directions",
-      "share": "Share",
-      "save": "Save place",
-      "manageCollections": "Manage collections"
-    }
   },
   "library": {
     "title": "library",
@@ -321,7 +313,8 @@
           "singular": "collection",
           "plural": "collections"
         },
-        "default": "Bookmarks"
+        "default": "Bookmarks",
+        "manage": "Manage collections"
       },
       "routes": {
         "title": {

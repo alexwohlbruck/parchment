@@ -8,6 +8,7 @@
     "confirm": "Confirmar",
     "close": "Cerrar",
     "save": "Guardar",
+    "share": "Compartir",
     "name": "Nombre",
     "edit": "Editar",
     "unsave": "Desguardar",
@@ -253,22 +254,13 @@
   },
   "directions": {
     "title": "Direcciones",
-    "directionsFromHere": "Direcciones desde aquí",
-    "directionsToHere": "Direcciones a aquí",
-    "directionsTo": "Direcciones a",
-    "directionsFrom": "Direcciones desde",
+    "planRouteFromHere": "Planificar ruta desde aquí",
+    "directionsHere": "Direcciones a aquí",
+    "directions": "Direcciones",
+    "planRoute": "Planificar ruta",
     "to": "A",
     "from": "Desde",
     "addStop": "Añadir parada"
-  },
-  "place": {
-    "actions": {
-      "directionsFrom": "Direcciones desde aquí",
-      "directionsTo": "Direcciones",
-      "share": "Compartir",
-      "save": "Guardar lugar",
-      "manageCollections": "Gestionar colecciones"
-    }
   },
   "library": {
     "title": "biblioteca",
@@ -309,7 +301,8 @@
           "singular": "colección",
           "plural": "colecciones"
         },
-        "default": "Marcadores"
+        "default": "Marcadores",
+        "manage": "Gestionar colecciones"
       },
       "routes": {
         "title": {

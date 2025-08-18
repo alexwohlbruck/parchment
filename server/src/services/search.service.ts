@@ -191,6 +191,27 @@ function convertPlaceToSearchResult(place: Place): SearchResult {
         lat: place.geometry.value.center.lat,
         lng: place.geometry.value.center.lng,
         placeType: place.placeType?.value,
+        // TODO: Add rich metadata here
+        ratings: place.ratings
+          ? {
+              rating: place.ratings.rating?.value,
+              reviewCount: place.ratings.reviewCount?.value,
+            }
+          : undefined,
+        openingHours: place.openingHours?.value,
+        contactInfo: {
+          phone: place.contactInfo.phone?.value,
+          website: place.contactInfo.website?.value,
+          email: place.contactInfo.email?.value,
+        },
+        amenities: place.amenities
+          ? Object.fromEntries(
+              Object.entries(place.amenities).map(([key, value]) => [
+                key,
+                value.value,
+              ]),
+            )
+          : {},
       },
     },
   }
@@ -242,7 +263,7 @@ export async function search(
       { lat, lng },
       {
         radius,
-        autocomplete: true, // Use autocomplete capability for fast results
+        autocomplete: autocomplete, // Pass the correct autocomplete parameter
         userId, // This will add bookmark info to places
       },
     )

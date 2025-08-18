@@ -200,3 +200,242 @@ export function autocompleteResultToPlace(result: AutocompleteResult): Place {
     placeType: { value: 'place' },
   } as Place
 }
+
+/**
+ * Convert a SearchResult object to a Place object for rich display
+ */
+export function searchResultToPlace(result: any): Place {
+  // Check if this is a SearchResult with metadata
+  if (result.metadata) {
+    if (result.type === 'bookmark' && result.metadata.bookmark) {
+      const bookmark = result.metadata.bookmark
+      return {
+        id: result.id,
+        name: {
+          value: result.title,
+          sourceId: 'search',
+          timestamp: new Date().toISOString(),
+        },
+        description: result.description
+          ? {
+              value: result.description,
+              sourceId: 'search',
+              timestamp: new Date().toISOString(),
+            }
+          : null,
+        geometry: {
+          value: {
+            type: 'point',
+            center: {
+              lat: bookmark.lat,
+              lng: bookmark.lng,
+            },
+          },
+          sourceId: 'search',
+          timestamp: new Date().toISOString(),
+        },
+        photos: [],
+        externalIds: bookmark.externalIds || {},
+        address: bookmark.address
+          ? {
+              value: { formatted: bookmark.address },
+              sourceId: 'search',
+              timestamp: new Date().toISOString(),
+            }
+          : null,
+        placeType: {
+          value: 'bookmark',
+          sourceId: 'search',
+          timestamp: new Date().toISOString(),
+        },
+        bookmark: {
+          id: bookmark.id,
+          name: result.title,
+          icon: result.icon || 'map-pin',
+          iconColor: result.color || 'rose',
+          presetType: bookmark.presetType,
+          lat: bookmark.lat,
+          lng: bookmark.lng,
+          address: bookmark.address,
+          externalIds: bookmark.externalIds,
+          userId: 'search-user', // Add required userId field
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        contactInfo: {
+          phone: null,
+          email: null,
+          website: null,
+          socials: {},
+        },
+        openingHours: null,
+        ratings: undefined,
+        amenities: {},
+        sources: [],
+        lastUpdated: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      } as Place
+    }
+
+    if (result.type === 'current_location' && result.metadata.currentLocation) {
+      const location = result.metadata.currentLocation
+      return {
+        id: 'current-location',
+        name: {
+          value: result.title,
+          sourceId: 'search',
+          timestamp: new Date().toISOString(),
+        },
+        description: null,
+        geometry: {
+          value: {
+            type: 'point',
+            center: {
+              lat: location.lat,
+              lng: location.lng,
+            },
+          },
+          sourceId: 'search',
+          timestamp: new Date().toISOString(),
+        },
+        photos: [],
+        externalIds: {},
+        address: null,
+        placeType: {
+          value: 'current_location',
+          sourceId: 'search',
+          timestamp: new Date().toISOString(),
+        },
+        contactInfo: {
+          phone: null,
+          email: null,
+          website: null,
+          socials: {},
+        },
+        openingHours: null,
+        ratings: undefined,
+        amenities: {},
+        sources: [],
+        lastUpdated: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      } as Place
+    }
+
+    if (result.type === 'place' && result.metadata.place) {
+      const place = result.metadata.place
+      return {
+        id: result.id,
+        name: {
+          value: result.title,
+          sourceId: 'search',
+          timestamp: new Date().toISOString(),
+        },
+        description: result.description
+          ? {
+              value: result.description,
+              sourceId: 'search',
+              timestamp: new Date().toISOString(),
+            }
+          : null,
+        geometry: {
+          value: {
+            type: 'point',
+            center: {
+              lat: place.lat,
+              lng: place.lng,
+            },
+          },
+          sourceId: 'search',
+          timestamp: new Date().toISOString(),
+        },
+        photos: [],
+        externalIds: place.externalIds || {},
+        address: place.address
+          ? {
+              value: { formatted: place.address },
+              sourceId: 'search',
+              timestamp: new Date().toISOString(),
+            }
+          : result.description
+          ? {
+              value: { formatted: result.description },
+              sourceId: 'search',
+              timestamp: new Date().toISOString(),
+            }
+          : null,
+        placeType: {
+          value: place.placeType || 'place',
+          sourceId: 'search',
+          timestamp: new Date().toISOString(),
+        },
+        contactInfo: {
+          phone: place.contactInfo?.phone
+            ? {
+                value: place.contactInfo.phone,
+                sourceId: 'search',
+                timestamp: new Date().toISOString(),
+              }
+            : null,
+          email: place.contactInfo?.email
+            ? {
+                value: place.contactInfo.email,
+                sourceId: 'search',
+                timestamp: new Date().toISOString(),
+              }
+            : null,
+          website: place.contactInfo?.website
+            ? {
+                value: place.contactInfo.website,
+                sourceId: 'search',
+                timestamp: new Date().toISOString(),
+              }
+            : null,
+          socials: {},
+        },
+        openingHours: place.openingHours
+          ? {
+              value: place.openingHours,
+              sourceId: 'search',
+              timestamp: new Date().toISOString(),
+            }
+          : null,
+        ratings: place.ratings
+          ? {
+              rating: place.ratings.rating
+                ? {
+                    value: place.ratings.rating,
+                    sourceId: 'search',
+                    timestamp: new Date().toISOString(),
+                  }
+                : undefined,
+              reviewCount: place.ratings.reviewCount
+                ? {
+                    value: place.ratings.reviewCount,
+                    sourceId: 'search',
+                    timestamp: new Date().toISOString(),
+                  }
+                : undefined,
+            }
+          : undefined,
+        amenities: place.amenities
+          ? Object.fromEntries(
+              Object.entries(place.amenities).map(([key, value]) => [
+                key,
+                {
+                  value,
+                  sourceId: 'search',
+                  timestamp: new Date().toISOString(),
+                },
+              ]),
+            )
+          : {},
+        sources: [],
+        lastUpdated: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      } as Place
+    }
+  }
+
+  // Fallback to autocomplete conversion for simple results
+  return autocompleteResultToPlace(result)
+}

@@ -65,9 +65,8 @@ function placeSearchService() {
         params.maxResults = maxResults.toString()
       }
 
-      if (autocomplete) {
-        params.autocomplete = autocomplete.toString()
-      }
+      // Always pass autocomplete parameter explicitly
+      params.autocomplete = autocomplete.toString()
 
       const response = autocomplete
         ? await api.get<AutocompleteResponse>('/search', { params })

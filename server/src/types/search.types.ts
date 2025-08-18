@@ -14,6 +14,8 @@ export interface CategoryResult {
   aliases?: string[]
 }
 
+import { Place } from './place.types'
+
 export interface SearchResult {
   id: string
   type: 'bookmark' | 'place' | 'current_location' | 'category'
@@ -33,19 +35,7 @@ export interface SearchResult {
       externalIds: Record<string, string>
     }
     // Place metadata
-    place?: {
-      id: string
-      externalIds: Record<string, string>
-      address?: string
-      lat: number
-      lng: number
-      placeType?: string
-    }
-    // Current location metadata
-    currentLocation?: {
-      lat: number
-      lng: number
-    }
+    place?: Place
     // Category metadata
     category?: {
       tags: Record<string, string>

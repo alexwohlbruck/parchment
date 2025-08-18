@@ -62,6 +62,10 @@ async function createBookmark() {
     setBookmarkStatus(newBookmark, [defaultCollection.value.id])
   }
 }
+
+const hasOsmId = computed(() => {
+  return props.place.externalIds['osm'] // TODO: Use enum constant
+})
 </script>
 
 <template>
@@ -82,38 +86,40 @@ async function createBookmark() {
     >
       <ShareIcon class="size-4" />
     </Button>
-    <Popover v-if="isSaved && bookmarkId">
-      <PopoverTrigger as-child>
-        <Button
-          size="icon"
-          variant="outline"
-          :title="t('library.entities.collections.manage')"
-        >
-          <FolderPlusIcon class="size-4" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" class="w-auto px-0 py-1 min-w-[240px]">
-        <CollectionPicker
-          :bookmark="{ id: bookmarkId } as any"
-          @bookmark-deleted="setBookmarkStatus(null, null)"
+    <template v-if="hasOsmId">
+      <Popover v-if="isSaved && bookmarkId">
+        <PopoverTrigger as-child>
+          <Button
+            size="icon"
+            variant="outline"
+            :title="t('library.entities.collections.manage')"
+          >
+            <FolderPlusIcon class="size-4" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" class="w-auto px-0 py-1 min-w-[240px]">
+          <CollectionPicker
+            :bookmark="{ id: bookmarkId } as any"
+            @bookmark-deleted="setBookmarkStatus(null, null)"
+          />
+        </PopoverContent>
+      </Popover>
+      <Button
+        v-else
+        size="icon"
+        variant="outline"
+        @click="createBookmark()"
+        :title="t('general.save')"
+      >
+        <ItemIcon
+          v-if="defaultCollection"
+          :icon="defaultCollection.icon"
+          :color="defaultCollection.iconColor as ThemeColor"
+          size="sm"
+          plain
         />
-      </PopoverContent>
-    </Popover>
-    <Button
-      v-else
-      size="icon"
-      variant="outline"
-      @click="createBookmark()"
-      :title="t('general.save')"
-    >
-      <ItemIcon
-        v-if="defaultCollection"
-        :icon="defaultCollection.icon"
-        :color="defaultCollection.iconColor as ThemeColor"
-        size="sm"
-        plain
-      />
-      <BookmarkIcon v-else class="h-4 w-4" />
-    </Button>
+        <BookmarkIcon v-else class="h-4 w-4" />
+      </Button>
+    </template>
   </div>
 </template>

@@ -33,6 +33,7 @@ import { useCategoryStore } from '@/stores/category.store'
 import { useCategoryService } from '@/services/category.service'
 import { formatAddress } from '@/lib/place.utils'
 import { Icon } from '@/types/app.types'
+import { AppRoute } from '@/router'
 
 export enum CommandName {
   OPEN_PALETTE = 'openPalette',
@@ -143,6 +144,16 @@ export const useCommandStore = defineStore('command', () => {
         icon: SearchIcon,
         keywords: t('palette.commands.search.keywords'),
         action: async (itemId: string) => {
+          // More results button
+          if (itemId === 'search-more-results') {
+            const { currentSearchQuery } = useCommandService()
+            router.push({
+              name: AppRoute.SEARCH_RESULTS,
+              query: { q: currentSearchQuery.value },
+            })
+            return
+          }
+
           // Check if this is a category selection
           if (itemId.startsWith('category:')) {
             const categoryId = itemId.replace('category:', '')
@@ -261,7 +272,14 @@ export const useCommandStore = defineStore('command', () => {
                     })
                   })
 
-                return results
+                return [
+                  {
+                    value: 'search-more-results',
+                    name: `Search "${searchText}"`,
+                    icon: SearchIcon,
+                  },
+                  ...results,
+                ]
               } catch (error) {
                 console.error('Error loading search suggestions:', error)
                 return []

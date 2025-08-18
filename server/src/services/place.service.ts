@@ -1,4 +1,5 @@
 import type { Place } from '../types/place.types'
+import type { SupportedLanguage } from '../lib/i18n'
 import { mergePlacesCollection, mergePlaces } from './merge.service'
 import { Source } from '../lib/constants'
 import { findBookmarkByExternalIds } from './library/bookmarks.service'
@@ -161,7 +162,7 @@ export async function lookupPlacesByNameAndLocation(
  *
  * @param name The name of the place
  * @param coordinates The coordinates of the place
- * @param options Optional parameters including userId, radius and source blacklist
+ * @param options Optional parameters including userId, radius, language and source blacklist
  * @returns A deduplicated Place object
  */
 export async function lookupPlaceByNameAndLocation(
@@ -172,6 +173,7 @@ export async function lookupPlaceByNameAndLocation(
     userId?: User['id']
     radius?: number
     sourceBlacklist?: Source[]
+    language?: SupportedLanguage
   },
 ): Promise<Place | null> {
   try {
@@ -210,7 +212,7 @@ export async function lookupPlaceByNameAndLocation(
  *
  * @param source The source ID (e.g., SOURCE.GOOGLE, SOURCE.OSM)
  * @param id The ID for the place in that source
- * @param options Optional parameters including userId
+ * @param options Optional parameters including userId and language
  * @returns A merged Place object with consolidated data from multiple sources
  */
 export async function lookupEnrichedPlaceById(
@@ -218,6 +220,7 @@ export async function lookupEnrichedPlaceById(
   id: string,
   options?: {
     userId?: User['id']
+    language?: SupportedLanguage
   },
 ): Promise<Place | null> {
   try {

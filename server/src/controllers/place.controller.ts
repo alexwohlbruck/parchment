@@ -1,16 +1,19 @@
 import { Elysia, t, error } from 'elysia'
 import { getSession, requireAuth } from '../middleware/auth.middleware.js'
+import i18nMiddleware from '../middleware/i18n.middleware.js'
 import {
   lookupPlaceByNameAndLocation,
   lookupEnrichedPlaceById,
 } from '../services/place.service'
 import { SOURCE } from '../lib/constants.js'
-const app = new Elysia({ prefix: '/places' }).use(getSession)
+const app = new Elysia({ prefix: '/places' })
+  .use(getSession)
+  .use(i18nMiddleware)
 
 // Get place by looking up source+id or name+lat+lng
 app.get(
   '/details',
-  async ({ query, user }) => {
+  async ({ query, user, language }) => {
     const { source, id, name, lat, lng, radius = 500 } = query
 
     const isIdLookup = Boolean(source) && Boolean(id)
@@ -44,6 +47,7 @@ app.get(
 
         place = await lookupEnrichedPlaceById(source!, id!, {
           userId: user?.id,
+          language,
         })
       } else if (isNameLocationLookup) {
         const coordinates = {
@@ -55,6 +59,7 @@ app.get(
         place = await lookupPlaceByNameAndLocation(name!, coordinates, {
           userId: user?.id,
           radius: Math.round(radius),
+          language,
         })
       }
 
@@ -80,6 +85,7 @@ app.get(
       lat: t.Optional(t.Number()),
       lng: t.Optional(t.Number()),
       radius: t.Optional(t.Number()),
+      lang: t.Optional(t.String()),
     }),
   },
 )

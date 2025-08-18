@@ -13,6 +13,8 @@ import {
   search as searchController,
 } from './controllers'
 import { initializeIntegrations } from './services/integration.service'
+import { initI18n } from './lib/i18n'
+import { initializeOsmPresets } from './lib/osm-presets'
 
 const app = new Elysia()
 
@@ -46,7 +48,19 @@ console.log(
   `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`,
 )
 
-// Initialize integrations asynchronously
-initializeIntegrations().catch((error) => {
-  console.error('Failed to initialize integrations:', error)
-})
+// Initialize services asynchronously
+async function initialize() {
+  try {
+    await initI18n()
+    console.log('✅ i18n initialized')
+
+    initializeOsmPresets()
+
+    await initializeIntegrations()
+    console.log('✅ Integrations initialized')
+  } catch (error) {
+    console.error('❌ Failed to initialize services:', error)
+  }
+}
+
+initialize()

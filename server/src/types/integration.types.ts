@@ -52,6 +52,23 @@ export interface RoutingCapability {
   getMatrix?(request: MatrixRequest): Promise<MatrixResponse>
 }
 
+export interface MapBounds {
+  north: number
+  south: number
+  east: number
+  west: number
+}
+
+export interface SearchCategoryCapability {
+  searchByCategory(
+    presetId: string,
+    bounds: MapBounds,
+    options?: {
+      limit?: number
+    },
+  ): Promise<Place[]>
+}
+
 // TODO: Return types
 export interface ImageryCapability {
   getImagery(lat: number, lng: number, options?: any): Promise<any[]>
@@ -62,6 +79,7 @@ export interface MapEngineCapability {} // No methods needed for now
 // Integration capabilities container
 export interface IntegrationCapabilities {
   search?: SearchCapability
+  searchCategory?: SearchCategoryCapability
   autocomplete?: AutocompleteCapability
   placeInfo?: PlaceInfoCapability
   geocoding?: GeocodingCapability

@@ -1,8 +1,11 @@
 import { api } from '@/lib/api'
 import type { Layer, LayerGroup } from '@/types/map.types'
-import { LayerType } from '@/types/map.types'
+import { LayerType, MapEngine, MapboxLayerType } from '@/types/map.types'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { toRaw } from 'vue'
+import { cssHslToHex, adjustLightness } from '@/lib/utils'
+import type { Place } from '@/types/place.types'
+import SearchResultMapIcon from '@/components/map/SearchResultMapIcon.vue'
 
 export function useLayersService() {
   // Core CRUD operations
@@ -220,6 +223,276 @@ export function useLayersService() {
     mapStrategy.removeLayer(layerId)
   }
 
+  // Interactive Search Results Layer Management
+  interface SearchResultsLayerOptions {
+    layerId: string
+    sourceId: string
+    places: Place[]
+    hoveredPlaceId?: string | null
+    onPlaceClick?: (place: Place, event: any) => void
+    onPlaceHover?: (place: Place, event: any) => void
+    onPlaceLeave?: (place: Place, event: any) => void
+  }
+
+  function createInteractiveResultsLayer(
+    mapStrategy: MapStrategy,
+    options: SearchResultsLayerOptions,
+  ) {
+    const {
+      layerId,
+      sourceId,
+      places,
+      hoveredPlaceId = null,
+      onPlaceClick,
+      onPlaceHover,
+      onPlaceLeave,
+    } = options
+
+    const vueMarkers = new Map<string, any>()
+    const geoJSON = createResultsGeoJSON(places)
+
+    // Create or reset data source
+    try {
+      mapStrategy.addSource(sourceId, {
+        type: 'geojson',
+        data: geoJSON,
+      })
+    } catch (error) {
+      const source = mapStrategy.mapInstance.getSource(sourceId)
+      if (source) {
+        source.setData(geoJSON)
+      }
+    }
+
+    // Create text label layer
+    const labelLayerId = `${layerId}-labels`
+    const labelLayer: Layer = {
+      id: labelLayerId,
+      name: 'Search Results Labels',
+      type: LayerType.CUSTOM,
+      engine: [MapEngine.MAPBOX],
+      showInLayerSelector: false,
+      visible: true,
+      icon: null,
+      order: 1000,
+      groupId: null,
+      configuration: {
+        id: labelLayerId,
+        type: MapboxLayerType.SYMBOL,
+        source: sourceId,
+        minzoom: 6,
+        filter: ['has', 'name'],
+        layout: {
+          'symbol-z-elevate': true,
+          'text-size': 13,
+          'text-field': ['get', 'name'],
+          'text-font': [
+            ['concat', ['config', 'font'], ' Medium'],
+            'DIN Pro',
+            'Inter',
+            'Arial Unicode MS Bold',
+          ],
+          'text-padding': ['interpolate', ['linear'], ['zoom'], 16, 6, 17, 4],
+          'text-offset': [0, 1],
+          'text-anchor': 'top',
+          'text-allow-overlap': false,
+          'text-ignore-placement': false,
+          'symbol-sort-key': 1000,
+        },
+        paint: {
+          'text-halo-width': 2,
+          'text-halo-blur': 0,
+          'text-halo-color': [
+            'interpolate',
+            ['linear'],
+            ['measure-light', 'brightness'],
+            0.25,
+            'hsl(0, 0%, 5%)',
+            0.3,
+            'hsl(0, 0%, 100%)',
+          ],
+          'text-color': [
+            'interpolate',
+            ['linear'],
+            ['measure-light', 'brightness'],
+            0.25,
+            'hsl(0, 0%, 95%)',
+            0.3,
+            'hsl(0, 0%, 15%)',
+          ],
+        },
+      },
+      userId: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    mapStrategy.addLayer(labelLayer)
+
+    // Add interactive handlers for text labels
+    if (onPlaceClick || onPlaceHover || onPlaceLeave) {
+      addInteractiveLayerHandlers(mapStrategy, labelLayerId, places, {
+        onPlaceClick,
+        onPlaceHover,
+        onPlaceLeave,
+      })
+    }
+
+    const addVueMarkers = (placesToAdd: Place[], hoveredId?: string | null) => {
+      placesToAdd.forEach(place => {
+        if (!place.geometry?.value?.center) return
+
+        const { lat, lng } = place.geometry.value.center
+        const markerId = `search-result-${place.id}`
+
+        removeVueMarker(place.id)
+
+        const marker = mapStrategy.addVueMarker(
+          markerId,
+          { lat, lng },
+          SearchResultMapIcon,
+          {
+            place,
+            isHovered: hoveredId === place.id,
+            onClick: (clickPlace: Place, event: MouseEvent) =>
+              onPlaceClick?.(clickPlace, event),
+            onMouseenter: (hoverPlace: Place, event: MouseEvent) =>
+              onPlaceHover?.(hoverPlace, event),
+            onMouseleave: (leavePlace: Place, event: MouseEvent) =>
+              onPlaceLeave?.(leavePlace, event),
+          },
+        )
+
+        vueMarkers.set(place.id, marker)
+      })
+    }
+
+    const removeVueMarker = (placeId: string) => {
+      const markerId = `search-result-${placeId}`
+      mapStrategy.removeMarker(markerId)
+      vueMarkers.delete(placeId)
+    }
+
+    const removeAllVueMarkers = () => {
+      vueMarkers.forEach((marker, placeId) => {
+        const markerId = `search-result-${placeId}`
+        mapStrategy.removeMarker(markerId)
+      })
+      vueMarkers.clear()
+    }
+
+    addVueMarkers(places, hoveredPlaceId)
+
+    return {
+      layerId,
+      sourceId,
+      labelLayerId,
+      updateData: (newPlaces: Place[], newHoveredId?: string | null) => {
+        const newGeoJSON = createResultsGeoJSON(newPlaces)
+        const source = mapStrategy.mapInstance.getSource(sourceId)
+        if (source) {
+          source.setData(newGeoJSON)
+        }
+
+        removeAllVueMarkers()
+        if (newPlaces.length > 0) {
+          addVueMarkers(newPlaces, newHoveredId)
+        }
+      },
+      updateHoverState: (newHoveredId: string | null) => {
+        removeAllVueMarkers()
+        if (places.length > 0) {
+          addVueMarkers(places, newHoveredId)
+        }
+      },
+      remove: () => {
+        removeAllVueMarkers()
+        mapStrategy.removeLayer(labelLayerId)
+        mapStrategy.removeSource(sourceId)
+      },
+    }
+  }
+
+  function createResultsGeoJSON(places: Place[]) {
+    const features = places
+      .filter(place => place.geometry?.value?.center)
+      .map(place => {
+        const { lat, lng } = place.geometry.value.center
+        const hasName =
+          place.name.value && place.name.value !== place.placeType.value
+
+        return {
+          type: 'Feature' as const,
+          geometry: {
+            type: 'Point' as const,
+            coordinates: [lng, lat],
+          },
+          properties: {
+            id: place.id,
+            name: hasName ? place.name.value : null,
+            placeType: place.placeType.value,
+            hasLabel: hasName,
+            sizerank: 10,
+            class: 'place_like',
+          },
+        }
+      })
+
+    return {
+      type: 'FeatureCollection' as const,
+      features,
+    }
+  }
+
+  function addInteractiveLayerHandlers(
+    mapStrategy: MapStrategy,
+    layerId: string,
+    places: Place[],
+    handlers: {
+      onPlaceClick?: (place: Place, event: any) => void
+      onPlaceHover?: (place: Place, event: any) => void
+      onPlaceLeave?: (place: Place, event: any) => void
+    },
+  ) {
+    const { onPlaceClick, onPlaceHover, onPlaceLeave } = handlers
+
+    if (onPlaceClick) {
+      mapStrategy.mapInstance.on('click', layerId, (event: any) => {
+        const feature = event.features?.[0]
+        if (feature) {
+          const place = places.find(p => p.id === feature.properties.id)
+          if (place) {
+            onPlaceClick(place, event)
+          }
+        }
+      })
+    }
+
+    if (onPlaceHover) {
+      mapStrategy.mapInstance.on('mouseenter', layerId, (event: any) => {
+        const feature = event.features?.[0]
+        if (feature) {
+          const place = places.find(p => p.id === feature.properties.id)
+          if (place) {
+            onPlaceHover(place, event)
+          }
+        }
+      })
+    }
+
+    if (onPlaceLeave) {
+      mapStrategy.mapInstance.on('mouseleave', layerId, (event: any) => {
+        const feature = event.features?.[0]
+        if (feature) {
+          const place = places.find(p => p.id === feature.properties.id)
+          if (place) {
+            onPlaceLeave(place, event)
+          }
+        }
+      })
+    }
+  }
+
   return {
     getLayers,
     createLayer,
@@ -243,5 +516,6 @@ export function useLayersService() {
     removeLayerFromMap,
     setLayerShownInSelector,
     setGroupShownInSelector,
+    createInteractiveResultsLayer,
   }
 }

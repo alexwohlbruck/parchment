@@ -77,8 +77,13 @@ const router = createRouter({
         {
           path: '/search',
           name: AppRoute.SEARCH_RESULTS,
-          component: () => import('@/views/search/SearchResults.vue'),
-          props: route => ({ query: route.query.q }),
+          component: () => import('@/views/search/Search.vue'),
+          props: route => ({
+            query: route.query.q,
+            categoryId: route.query.categoryId,
+            categoryName: route.query.categoryName,
+            overpassQuery: route.query.overpassQuery,
+          }),
         },
         {
           path: '/trip/:id',

@@ -1,4 +1,4 @@
-import { Layer, MaplibreLayer } from '@/types/map.types'
+import { Layer, MaplibreLayerType } from '@/types/map.types'
 import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
 
@@ -28,7 +28,7 @@ const MAPBOX_LAYOUT_PROPERTIES = [
 ] as const
 
 // TODO: Fix any types
-export function mapboxLayerToMaplibreLayer(layer: Layer): MaplibreLayer {
+export function mapboxLayerToMaplibreLayer(layer: Layer): MaplibreLayerType {
   const { configuration } = { ...layer }
   const maplibreConfig: any = {
     ...configuration,

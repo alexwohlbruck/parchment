@@ -93,7 +93,7 @@ export interface Place {
   id: string // A unique identifier
   externalIds: Record<SourceId, string> // Source -> external ID mapping
 
-  name: AttributedValue<string>
+  name: AttributedValue<string | null>
   description: AttributedValue<string> | null
   placeType: AttributedValue<string>
   geometry: AttributedValue<PlaceGeometry>

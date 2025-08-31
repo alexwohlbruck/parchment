@@ -12,7 +12,23 @@ const props = defineProps<{
 
 const { isMobileScreen } = useResponsive()
 
-const placeType = computed(() => props.place?.placeType.value || 'Place')
+const placeName = computed(() => {
+  if (props.place?.name.value) {
+    return props.place.name.value
+  }
+  // If no name, use place type as name
+  const type = props.place?.placeType.value || 'Place'
+  return type.charAt(0).toUpperCase() + type.slice(1)
+})
+
+const placeType = computed(() => {
+  // If we're using place type as name, don't show it again as type
+  if (!props.place?.name.value) {
+    return null
+  }
+  return props.place?.placeType.value || 'Place'
+})
+
 const rating = computed(() => props.place?.ratings?.rating?.value || null)
 const reviewCount = computed(
   () => props.place?.ratings?.reviewCount?.value || 0,
@@ -71,9 +87,9 @@ const emit = defineEmits<{
 
       <div class="flex-1">
         <h1 class="text-2xl font-semibold line-clamp-2">
-          {{ place.name.value }}
+          {{ placeName }}
         </h1>
-        <div class="text-sm text-muted-foreground">
+        <div v-if="placeType" class="text-sm text-muted-foreground">
           {{ placeType }}
         </div>
         <div v-if="rating !== null" class="flex items-center gap-1 mt-1">

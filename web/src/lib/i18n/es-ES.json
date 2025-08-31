@@ -536,6 +536,7 @@
       "capabilities": {
         "mapLayer": "Capa de mapa",
         "search": "Buscar",
+        "searchCategory": "Buscar Categoría",
         "autocomplete": "Autocompletar",
         "routing": "Rutas",
         "geocoding": "Geocodificación",

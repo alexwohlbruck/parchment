@@ -17,6 +17,7 @@ export enum IntegrationId {
 
 export enum IntegrationCapabilityId {
   SEARCH = 'search',
+  SEARCH_CATEGORY = 'searchCategory',
   AUTOCOMPLETE = 'autocomplete',
   GEOCODING = 'geocoding',
   PLACE_INFO = 'placeInfo',

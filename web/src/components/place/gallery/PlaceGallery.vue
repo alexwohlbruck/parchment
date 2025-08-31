@@ -2,7 +2,7 @@
 import { TransitionExpand } from '@morev/vue-transitions'
 import type { Place } from '@/types/place.types'
 
-defineProps<{
+const { place } = defineProps<{
   place: Place
 }>()
 
@@ -35,7 +35,7 @@ const emit = defineEmits<{
           </div>
           <img
             :src="photo.value.url"
-            :alt="place.name.value"
+            :alt="place.name?.value || ''"
             class="h-full w-auto object-cover"
             @load="$emit('imageLoaded')"
             @error="$emit('imageError')"

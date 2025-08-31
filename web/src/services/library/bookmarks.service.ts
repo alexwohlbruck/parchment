@@ -34,7 +34,7 @@ export const useBookmarksService = createSharedComposable(() => {
     try {
       const params: CreateBookmarkParams & { collectionIds?: string[] } = {
         externalIds: place.externalIds,
-        name: place.name.value,
+        name: place.name.value || '',
         address: place.address?.value.formatted,
         lat: geometry.center.lat,
         lng: geometry.center.lng,

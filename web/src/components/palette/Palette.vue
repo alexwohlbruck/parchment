@@ -149,8 +149,8 @@ function onBackspace() {
   }
 }
 
-function onCommandSelected(command: TCommand) {
-  executeCommand(command)
+async function onCommandSelected(command: TCommand) {
+  await executeCommand(command)
   if (command.arguments) {
     clearInput()
   } else {
@@ -158,9 +158,9 @@ function onCommandSelected(command: TCommand) {
   }
 }
 
-function onArgumentSelected(value: ArgumentType) {
+async function onArgumentSelected(value: ArgumentType) {
   if (activeCommand.value) {
-    executeCommand(activeCommand.value, value)
+    await executeCommand(activeCommand.value, value)
   }
 
   // If we have no more arguments left, close the palette

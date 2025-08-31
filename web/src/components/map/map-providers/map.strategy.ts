@@ -12,6 +12,7 @@ import {
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { Component } from 'vue'
 import { destroyVueMarkerElement } from '@/lib/vue-marker.utils'
+import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
 
 export class MapStrategy {
   mapInstance: any
@@ -90,24 +91,18 @@ export class MapStrategy {
     return null
   }
 
-  addMarker(id: string, lngLat: LngLat) {
-    this.removeMarker(id) // Remove existing marker if any
-  }
+  addMarker(id: string, lngLat: LngLat) {}
 
   addVueMarker(
     id: string,
     lngLat: LngLat,
     component: Component,
     props: Record<string, any> = {},
-  ) {
-    this.removeMarker(id) // Remove existing marker if any
-    // This method should be overridden by specific implementations
-  }
+  ) {}
 
   removeMarker(id: string) {
     const marker = this.markers.get(id)
     if (marker) {
-      // Clean up Vue app if it exists
       if (marker.getElement) {
         const element = marker.getElement()
         destroyVueMarkerElement(element)
@@ -119,7 +114,6 @@ export class MapStrategy {
 
   removeAllMarkers() {
     this.markers.forEach(marker => {
-      // Clean up Vue app if it exists
       if (marker.getElement) {
         const element = marker.getElement()
         destroyVueMarkerElement(element)
@@ -144,8 +138,7 @@ export class MapStrategy {
         this.addVueMarker(
           `waypoint-${index}`,
           waypoint.lngLat,
-          // This should be imported by implementations
-          null as any, // WaypointMapIcon will be imported by implementations
+          WaypointMapIcon,
           {
             index,
             totalWaypoints: waypoints.length,

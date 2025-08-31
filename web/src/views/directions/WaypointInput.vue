@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/combobox'
 import { Place } from '@/types/place.types'
 import { AutocompleteResult } from '@/types/search.types'
-import { usePlaceSearchService } from '@/services/search.service'
+import { useSearchService } from '@/services/search.service'
 import { useMapCamera } from '@/composables/useMapCamera'
 import { cn } from '@/lib/utils'
 import { useDebounceFn } from '@vueuse/core'
@@ -29,7 +29,7 @@ import { useI18n } from 'vue-i18n'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { type ThemeColor, fuzzyFilter } from '@/lib/utils'
 
-const placeSearchService = usePlaceSearchService()
+const searchService = useSearchService()
 const mapCamera = useMapCamera()
 const { coords, isSupported: isGeolocationSupported, resume } = useGeolocation()
 const { t } = useI18n()
@@ -178,7 +178,7 @@ const getAutocomplete = useDebounceFn(async (index: number, value: string) => {
       : [center.lon, center.lat]
 
     autocompleteResults.value =
-      await placeSearchService.getAutocompleteSuggestions({
+      await searchService.getAutocompleteSuggestions({
         query: value,
         lat,
         lng,

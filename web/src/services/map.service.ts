@@ -801,6 +801,16 @@ function mapService() {
     getBounds() {
       return mapStrategy?.getBounds() || null
     },
+
+    // Get current map center
+    getCenter() {
+      return mapStrategy?.mapInstance?.getCenter() || null
+    },
+
+    // Get current map zoom level
+    getZoom() {
+      return mapStrategy?.mapInstance?.getZoom() || null
+    },
   }
 }
 

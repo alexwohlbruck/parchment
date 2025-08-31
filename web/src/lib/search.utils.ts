@@ -4,6 +4,7 @@ import { Component } from 'vue'
 import { Place } from '@/types/place.types'
 import { SearchResultType, AutocompleteResult } from '@/types/search.types'
 import { formatAddress } from '@/lib/place.utils'
+import { AppRoute } from '@/router'
 
 /**
  * Get the appropriate icon for a search result
@@ -32,6 +33,25 @@ export function getSearchResultIcon(place: Place): Component {
 }
 
 /**
+ * Get the icon name as a string for use with ItemIcon component
+ */
+export function getSearchResultIconName(place: Place): string {
+  // Handle current location
+  if (place.id === 'current-location') {
+    return 'Locate'
+  }
+
+  // Handle bookmarks - use the stored icon from the database
+  if (place.placeType.value === 'bookmark' && place.bookmark?.icon) {
+    const iconName = place.bookmark.icon
+    // Remove 'Icon' suffix if present for ItemIcon component
+    return iconName.endsWith('Icon') ? iconName.slice(0, -4) : iconName
+  }
+
+  return 'MapPin'
+}
+
+/**
  * Get the display name for a search result
  */
 export function getSearchResultName(place: Place): string {
@@ -42,7 +62,15 @@ export function getSearchResultName(place: Place): string {
 
   // Handle current location
   if (place.id === 'current-location') {
-    return place.name.value
+    return place.name.value || 'Current Location'
+  }
+
+  // If no name, use place type as fallback
+  if (!place.name.value) {
+    return (
+      place.placeType.value.charAt(0).toUpperCase() +
+      place.placeType.value.slice(1)
+    )
   }
 
   // Default to place name for regular places
@@ -199,6 +227,28 @@ export function autocompleteResultToPlace(result: AutocompleteResult): Place {
       : null,
     placeType: { value: 'place' },
   } as Place
+}
+
+/**
+ * Create a route for search results
+ */
+export function createSearchResultsRoute(options: {
+  query?: string
+  categoryId?: string
+  categoryName?: string
+  overpassQuery?: string
+}) {
+  const routeQuery: Record<string, string> = {}
+
+  if (options.query) routeQuery.q = options.query
+  if (options.categoryId) routeQuery.categoryId = options.categoryId
+  if (options.categoryName) routeQuery.categoryName = options.categoryName
+  if (options.overpassQuery) routeQuery.overpassQuery = options.overpassQuery
+
+  return {
+    name: AppRoute.SEARCH_RESULTS,
+    query: routeQuery,
+  }
 }
 
 /**

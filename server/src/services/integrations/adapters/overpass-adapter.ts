@@ -46,7 +46,7 @@ export class OverpassAdapter {
           [SOURCE.OSM]: osmId,
         },
         name: {
-          value: this.extractName(data.tags) || 'Unnamed Place',
+          value: this.extractName(data.tags),
           sourceId: SOURCE.OSM,
         },
         placeType: {

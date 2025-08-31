@@ -97,7 +97,7 @@ const onSubmit = handleSubmit(values => {
       name: values.name,
       showInLayerSelector: values.showInLayerSelector,
       visible: values.visible,
-      icon: values.icon === 'FolderIcon' ? null : values.icon,
+      icon: values.icon === 'FolderIcon' ? undefined : values.icon,
     })
   } else {
     // Create new group
@@ -105,7 +105,7 @@ const onSubmit = handleSubmit(values => {
       name: values.name,
       showInLayerSelector: values.showInLayerSelector,
       visible: values.visible,
-      icon: values.icon === 'FolderIcon' ? null : values.icon,
+      icon: values.icon === 'FolderIcon' ? undefined : values.icon,
       order: layersStore.layerGroups.length,
     })
   }

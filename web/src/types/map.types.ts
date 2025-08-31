@@ -63,6 +63,13 @@ export type LngLat = {
   lat: number
 }
 
+export type MapBounds = {
+  north: number
+  south: number
+  east: number
+  west: number
+}
+
 // TODO: Use optional fields
 export type Waypoint = {
   lngLat: LngLat | null
@@ -172,7 +179,7 @@ export interface Layer {
   engine: MapEngine[]
   showInLayerSelector: boolean
   visible: boolean
-  icon: string | null
+  icon?: string | null
   order: number
   groupId: string | null
   configuration: {
@@ -188,9 +195,9 @@ export interface Layer {
     slot?: string
     [key: string]: any
   }
-  userId: string
-  createdAt: string
-  updatedAt: string
+  userId?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface LayerGroup {
@@ -198,7 +205,7 @@ export interface LayerGroup {
   name: string
   showInLayerSelector: boolean
   visible: boolean
-  icon: string | null
+  icon?: string
   order: number
   userId: string
   createdAt: string

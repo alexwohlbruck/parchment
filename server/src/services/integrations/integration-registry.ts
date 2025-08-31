@@ -8,6 +8,7 @@ import { MapboxIntegration } from './mapbox-integration'
 import { ValhallaIntegration } from './valhalla-integration'
 import { MapillaryIntegration } from './mapillary-integration'
 import { TransitlandIntegration } from './transitland-integration'
+import { GeoapifyIntegration } from './geoapify-integration'
 
 /**
  * Registry for all integrations
@@ -31,6 +32,7 @@ export class IntegrationRegistry {
     this.registerIntegration(new ValhallaIntegration())
     this.registerIntegration(new MapillaryIntegration())
     this.registerIntegration(new TransitlandIntegration())
+    this.registerIntegration(new GeoapifyIntegration())
   }
 
   /**

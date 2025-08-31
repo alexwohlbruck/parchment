@@ -7,9 +7,8 @@ import {
   IntegrationCapabilityId,
   IntegrationId,
 } from '../types/integration.types'
-import type { Place } from '../types/place.types'
-import { calculateOSMCenter } from '../util/geometry-conversion'
 import { OverpassIntegration } from '../services/integrations/overpass-integration'
+import { categoryService } from '../services/category.service'
 
 const searchRouter = new Elysia({ prefix: '/search' })
   .use(requireAuth)
@@ -50,55 +49,6 @@ const searchRouter = new Elysia({ prefix: '/search' })
         radius: t.Optional(t.Union([t.String(), t.Number()])),
         maxResults: t.Optional(t.Union([t.String(), t.Number()])),
         autocomplete: t.Optional(t.Union([t.String(), t.Boolean()])),
-      }),
-    },
-  )
-
-  .get(
-    '/categories',
-    async ({ language, query }) => {
-      const { loadCategories } = await import('../services/category.service')
-
-      const { maxResults = 1000 } = query
-
-      const categories = loadCategories(language)
-      const limitedCategories = categories.slice(
-        0,
-        parseInt(maxResults.toString()),
-      )
-
-      return {
-        categories: limitedCategories,
-        totalCount: categories.length,
-        language,
-      }
-    },
-    {
-      query: t.Object({
-        maxResults: t.Optional(t.Union([t.String(), t.Number()])),
-      }),
-    },
-  )
-
-  .get(
-    '/categories/:categoryId',
-    async ({ params, language }) => {
-      const { categoryId } = params
-
-      const category = await searchService.getCategoryDetails(
-        categoryId,
-        language,
-      )
-
-      if (!category) {
-        return { error: 'Category not found' }
-      }
-
-      return category
-    },
-    {
-      params: t.Object({
-        categoryId: t.String(),
       }),
     },
   )
@@ -144,7 +94,6 @@ const searchRouter = new Elysia({ prefix: '/search' })
           executedAt: new Date().toISOString(),
         }
       } catch (err) {
-        console.error('Error executing Overpass query:', err)
         return error(500, {
           message:
             err instanceof Error
@@ -157,6 +106,108 @@ const searchRouter = new Elysia({ prefix: '/search' })
       body: t.Object({
         query: t.String({ minLength: 1 }),
         maxResults: t.Optional(t.Number({ minimum: 1, maximum: 1000 })),
+      }),
+    },
+  )
+
+  // TODO: Remove client-side category cache. Return category suggestions in search endpoint
+  .post(
+    '/category',
+    async ({ body, user, language }) => {
+      const { presetId, bounds, maxResults = 100 } = body
+
+      try {
+        const results = await searchService.searchByCategory(presetId, {
+          bounds,
+          limit: maxResults,
+        })
+
+        return {
+          presetId,
+          results,
+          totalCount: results.length,
+          executedAt: new Date().toISOString(),
+        }
+      } catch (err) {
+        console.error('Error executing category search:', err)
+        return error(500, {
+          // TODO: Deprecated error function
+          message:
+            err instanceof Error
+              ? err.message
+              : 'Failed to execute category search', // TODO: i18n
+        })
+      }
+    },
+    {
+      body: t.Object({
+        presetId: t.String({ minLength: 1 }),
+        bounds: t.Object({
+          north: t.Number(),
+          south: t.Number(),
+          east: t.Number(),
+          west: t.Number(),
+        }),
+        maxResults: t.Optional(t.Number({ minimum: 1, maximum: 1000 })),
+      }),
+    },
+  )
+
+  // Categories endpoint for loading OSM presets
+  .get(
+    '/categories',
+    async ({ query, language }) => {
+      const { maxResults = 1000 } = query
+
+      try {
+        const categories = categoryService.loadCategories(language)
+        const limitedCategories = categories.slice(
+          0,
+          parseInt(maxResults.toString()),
+        )
+
+        return {
+          categories: limitedCategories,
+          totalCount: categories.length,
+        }
+      } catch (err) {
+        console.error('Error loading categories:', err)
+        return error(500, {
+          message: 'Failed to load categories',
+        })
+      }
+    },
+    {
+      query: t.Object({
+        maxResults: t.Optional(t.Union([t.String(), t.Number()])),
+      }),
+    },
+  )
+
+  // Get a specific category by ID
+  .get(
+    '/categories/:categoryId',
+    async ({ params: { categoryId }, language }) => {
+      try {
+        const category = categoryService.getCategoryById(categoryId, language)
+
+        if (!category) {
+          return error(404, {
+            message: 'Category not found',
+          })
+        }
+
+        return category
+      } catch (err) {
+        console.error('Error getting category:', err)
+        return error(500, {
+          message: 'Failed to get category',
+        })
+      }
+    },
+    {
+      params: t.Object({
+        categoryId: t.String(),
       }),
     },
   )

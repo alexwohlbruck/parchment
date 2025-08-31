@@ -13,6 +13,7 @@ export const toggleVariants = cva(
       },
       size: {
         default: 'h-10 px-3',
+        xs: 'h-8 px-2.5',
         sm: 'h-9 px-2.5',
         lg: 'h-11 px-5',
         xl: 'h-20 px-10',

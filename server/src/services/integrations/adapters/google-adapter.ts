@@ -186,7 +186,7 @@ export class GoogleAdapter {
           [SOURCE.GOOGLE]: data.id,
         },
         name: {
-          value: data.displayName?.text || 'Unnamed Place',
+          value: data.displayName?.text || null,
           sourceId: SOURCE.GOOGLE,
         },
         placeType: {

@@ -5,6 +5,8 @@ import type {
   PlaceInfoCapability,
   IntegrationTestResult,
   SearchCapability,
+  SearchCategoryCapability,
+  MapBounds,
 } from '../../types/integration.types'
 import {
   IntegrationCapabilityId,
@@ -33,13 +35,13 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
   readonly integrationId = IntegrationId.OVERPASS
   readonly sources = [SOURCE.OSM]
   readonly capabilityIds: IntegrationCapabilityId[] = [
-    IntegrationCapabilityId.SEARCH,
+    IntegrationCapabilityId.SEARCH_CATEGORY,
     IntegrationCapabilityId.PLACE_INFO,
   ]
   readonly capabilities = {
-    search: {
-      searchPlaces: this.searchPlaces.bind(this),
-    } as SearchCapability,
+    searchCategory: {
+      searchByCategory: this.searchByCategory.bind(this),
+    } as SearchCategoryCapability,
     placeInfo: {
       getPlaceInfo: this.getPlaceInfo.bind(this),
     } as PlaceInfoCapability,
@@ -322,5 +324,98 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
         }`,
       )
     }
+  }
+
+  async searchByCategory(
+    presetId: string,
+    bounds?: MapBounds,
+    options?: { limit?: number },
+  ): Promise<Place[]> {
+    if (!this.config.host) {
+      console.error('Overpass integration not properly configured')
+      return []
+    }
+
+    const tags = this.mapPresetToOsmTags(presetId)
+    if (!tags) {
+      return []
+    }
+
+    try {
+      const query = this.buildCategoryQuery(tags, bounds, options?.limit)
+      const response = await axios.post(
+        this.config.host,
+        new URLSearchParams({ data: query }),
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          timeout: 30000,
+        },
+      )
+
+      if (!response.data?.elements) {
+        return []
+      }
+
+      const elements = response.data.elements.slice(0, options?.limit || 100)
+      const places: Place[] = []
+
+      for (const element of elements) {
+        try {
+          const center = calculateOSMCenter(element)
+          if (center) {
+            element.center = { lat: center.lat, lon: center.lng }
+          }
+
+          const place = this.adapter.placeInfo.adaptPlaceDetails(element)
+          if (place) {
+            places.push(place)
+          }
+        } catch (error) {
+          console.error('Error converting Overpass element to Place:', error)
+        }
+      }
+
+      return places
+    } catch (error) {
+      console.error('Error executing Overpass category query:', error)
+      return []
+    }
+  }
+
+  private mapPresetToOsmTags(presetId: string): Record<string, string> | null {
+    // Convert preset ID to OSM tags
+    // This will be expanded with proper mapping using OSM tagging schema
+    const [key, value] = presetId.split('/')
+    if (!key || !value) {
+      return null
+    }
+
+    return { [key]: value }
+  }
+
+  private buildCategoryQuery(
+    tags: Record<string, string>,
+    bounds: MapBounds,
+    maxResults = 100,
+  ): string {
+    const tagFilters = Object.entries(tags)
+      .map(([key, value]) => `["${key}"="${value}"]`)
+      .join('')
+
+    let locationFilter = ''
+
+    locationFilter = `(${bounds.south},${bounds.west},${bounds.north},${bounds.east})`
+
+    return `[out:json][timeout:90];
+      (
+        node${tagFilters}${locationFilter};
+        way${tagFilters}${locationFilter};
+        relation${tagFilters}${locationFilter};
+      );
+      out body geom ${maxResults};
+      >;
+      out body meta qt;`.trim()
   }
 }

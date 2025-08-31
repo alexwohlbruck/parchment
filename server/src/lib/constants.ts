@@ -1,3 +1,5 @@
+import { IntegrationId } from '../types/integration.types'
+
 /**
  * Data source name constants
  */
@@ -34,6 +36,16 @@ export const SOURCE_PRIORITIES = {
   [SOURCE.TRIPADVISOR]: 40,
   [SOURCE.OPENTABLE]: 30,
   [SOURCE.VALHALLA]: 70, // Routing provider - high priority for routing data
+} as const
+
+/**
+ * Integration priorities for category search
+ * Higher value = higher priority
+ */
+export const INTEGRATION_PRIORITIES: Partial<Record<IntegrationId, number>> = {
+  // [IntegrationId.PELIAS]: 100, // Fastest, self-hosted, good category coverage. Pelias not configured yet
+  [IntegrationId.GEOAPIFY]: 80, // Fast, paid, extensive categories but limited
+  [IntegrationId.OVERPASS]: 60, // Slowest, free, supports any OSM tags (fallback)
 } as const
 
 // TODO: Remove this

@@ -4,7 +4,7 @@ import { api } from '@/lib/api'
 import { createSharedComposable } from '@vueuse/core'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { Waypoint } from '@/types/map.types'
-import { WaypointType } from '@/types/directions.types'
+import { TripsResponse, WaypointType } from '@/types/directions.types'
 
 const MIN_LOCATIONS = 2
 
@@ -142,7 +142,7 @@ function directionsService() {
       }
 
       // Transform the multimodal response to match the expected trips format
-      const transformedResponse = {
+      const transformedResponse: TripsResponse = {
         request: {
           waypoints: filteredWaypoints.map((waypoint, index) => ({
             id: `waypoint-${index}`,
@@ -154,7 +154,7 @@ function directionsService() {
               index === 0 || index === filteredWaypoints.length - 1
                 ? WaypointType.STOP
                 : WaypointType.VIA,
-            name: waypoint.place?.name?.value,
+            name: waypoint.place?.name?.value || '',
           })),
           availableVehicles: availableVehicles,
           maxOptions: 3,

@@ -545,6 +545,7 @@
       "capabilities": {
         "mapLayer": "Map Layer",
         "search": "Search",
+        "searchCategory": "Search Category",
         "autocomplete": "Autocomplete",
         "routing": "Routing",
         "geocoding": "Geocoding",

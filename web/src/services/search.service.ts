@@ -11,6 +11,7 @@ import {
 import type { Place } from '@/types/place.types'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { IntegrationId } from '@server/types/integration.types'
+import { MapBounds } from '@/types/map.types'
 
 interface AdvancedSearchResponse {
   query: string
@@ -19,12 +20,19 @@ interface AdvancedSearchResponse {
   executedAt: string
 }
 
-interface AdvancedSearchMethods {
-  availableMethods: string[]
-  overpassAvailable: boolean
+interface CategorySearchOptions {
+  bounds?: MapBounds
+  maxResults?: number
 }
 
-function placeSearchService() {
+interface CategorySearchResponse {
+  presetId: string
+  results: Place[]
+  totalCount: number
+  executedAt: string
+}
+
+function searchService() {
   const loading = ref(false)
   const suggestions = ref<SearchResult[] | AutocompleteResult[]>([])
   const error = ref<string | null>(null)
@@ -65,7 +73,6 @@ function placeSearchService() {
         params.maxResults = maxResults.toString()
       }
 
-      // Always pass autocomplete parameter explicitly
       params.autocomplete = autocomplete.toString()
 
       const response = autocomplete
@@ -89,6 +96,34 @@ function placeSearchService() {
   ): Promise<AutocompleteResult[]> {
     const results = await search({ ...options, autocomplete: true })
     return results as AutocompleteResult[]
+  }
+
+  async function searchByCategory(
+    presetId: string,
+    options: CategorySearchOptions = {},
+  ): Promise<Place[]> {
+    loading.value = true
+    error.value = null
+
+    try {
+      const response = await api.post<CategorySearchResponse>(
+        '/search/category',
+        {
+          presetId,
+          bounds: options.bounds,
+          maxResults: options.maxResults || 100,
+        },
+      )
+
+      return response.data.results
+    } catch (err) {
+      console.error('Error in category search:', err)
+      error.value =
+        err instanceof Error ? err.message : 'Failed to execute category search'
+      throw err
+    } finally {
+      loading.value = false
+    }
   }
 
   function isAdvancedSearchAvailable(): boolean {
@@ -151,10 +186,11 @@ function placeSearchService() {
     lastAdvancedResults,
     getAutocompleteSuggestions,
     search,
+    searchByCategory,
     isAdvancedSearchAvailable,
     executeOverpassQuery,
     clearAdvancedResults,
   }
 }
 
-export const usePlaceSearchService = createSharedComposable(placeSearchService)
+export const useSearchService = createSharedComposable(searchService)

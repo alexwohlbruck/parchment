@@ -41,10 +41,8 @@ onMounted(async () => {
   if (authStore.me) {
     await integrationService.fetchAvailableIntegrations()
     await integrationService.fetchConfiguredIntegrations()
-    // Initialize categories for offline search if Overpass is available
-    if (categoryStore.isOverpassAvailable) {
-      categoryStore.init()
-    }
+    // Initialize categories for offline search
+    categoryStore.init()
   }
 })
 </script>

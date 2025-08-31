@@ -27,10 +27,10 @@ import { useMapService } from '@/services/map.service'
 import { useI18n } from 'vue-i18n'
 import { useAuthService } from '@/services/auth.service'
 import { MapEngine, MapProjection } from '@/types/map.types'
-import { usePlaceSearchService } from '@/services/search.service'
+import { useSearchService } from '@/services/search.service'
 import { useCommandService } from '@/services/command.service'
 import { useCategoryStore } from '@/stores/category.store'
-import { useCategoryService } from '@/services/category.service'
+
 import { formatAddress } from '@/lib/place.utils'
 import { Icon } from '@/types/app.types'
 import { AppRoute } from '@/router'
@@ -76,7 +76,7 @@ export const useCommandStore = defineStore('command', () => {
   const authService = useAuthService()
   const mapService = useMapService()
   const { t, locale } = useI18n()
-  const placeSearchService = usePlaceSearchService()
+  const placeSearchService = useSearchService()
 
   const mapStore = useMapStore()
   const { settings } = storeToRefs(mapStore)
@@ -144,7 +144,6 @@ export const useCommandStore = defineStore('command', () => {
         icon: SearchIcon,
         keywords: t('palette.commands.search.keywords'),
         action: async (itemId: string) => {
-          // More results button
           if (itemId === 'search-more-results') {
             const { currentSearchQuery } = useCommandService()
             router.push({
@@ -154,47 +153,19 @@ export const useCommandStore = defineStore('command', () => {
             return
           }
 
-          // Check if this is a category selection
           if (itemId.startsWith('category:')) {
             const categoryId = itemId.replace('category:', '')
-            const categoryService = useCategoryService()
-            const mapService = useMapService()
+            const categoryStore = useCategoryStore()
 
-            try {
-              const category = await categoryService.selectCategory(categoryId)
-              if (category) {
-                console.log('Selected category:', category)
-
-                // Get current map bounds for the Overpass query
-                const mapBounds = mapService.getBounds()
-                console.log('Map bounds:', mapBounds)
-
-                const overpassQuery = categoryService.getCurrentOverpassQuery(
-                  mapBounds || undefined,
-                )
-                console.log('Generated Overpass query:', overpassQuery)
-
-                // Execute the Overpass query and log results
-                try {
-                  const places = await categoryService.searchCurrentCategory(
-                    mapBounds || undefined,
-                  )
-                  console.log(
-                    `Found ${places.length} places for category "${category.name}":`,
-                    places,
-                  )
-
-                  // TODO: Navigate to search results view
-                  // For now, just log the results
-                } catch (searchError) {
-                  console.error(
-                    'Failed to execute category search:',
-                    searchError,
-                  )
-                }
-              }
-            } catch (error) {
-              console.error('Failed to select category:', error)
+            const category = categoryStore.getCategoryById(categoryId)
+            if (category) {
+              await router.push({
+                name: AppRoute.SEARCH_RESULTS,
+                query: {
+                  categoryId: category.id,
+                  categoryName: category.name,
+                },
+              })
             }
           } else {
             // Regular place navigation

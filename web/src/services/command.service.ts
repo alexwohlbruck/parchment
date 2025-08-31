@@ -18,7 +18,7 @@ const argumentsList = ref<ArgumentType[]>([])
 function commandService() {
   const commandStore = useCommandStore()
 
-  function executeCommand(command: TCommand, ...args: ArgumentType[]) {
+  async function executeCommand(command: TCommand, ...args: ArgumentType[]) {
     if (!command.action) return
 
     activeCommand.value = command
@@ -30,8 +30,13 @@ function commandService() {
       : true
 
     if (argsFilled) {
-      command.action(...argumentsList.value)
-      reset()
+      try {
+        await command.action(...argumentsList.value)
+      } catch (error) {
+        console.error('Error executing command:', error)
+      } finally {
+        reset()
+      }
     }
   }
 

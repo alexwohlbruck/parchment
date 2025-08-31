@@ -9,12 +9,14 @@ const props = withDefaults(
     icon?: string
     color?: ThemeColor
     size?: 'sm' | 'md' | 'lg'
+    variant?: 'solid' | 'ghost'
     plain?: boolean
   }>(),
   {
     icon: 'Folder',
     color: 'blue',
     size: 'md',
+    variant: 'solid',
     plain: false,
   },
 )
@@ -34,7 +36,21 @@ const iconComponent = computed(() => {
 })
 
 const colorClasses = computed(() => {
-  return getThemeColorClasses(props.color as ThemeColor)
+  if (props.plain) return ''
+
+  const baseClasses = getThemeColorClasses(props.color as ThemeColor)
+
+  if (props.variant === 'ghost') {
+    if (props.color === 'primary') {
+      return 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary'
+    }
+
+    return baseClasses
+      .replace(/bg-(\w+)-200/g, 'bg-$1-100')
+      .replace(/dark:bg-(\w+)-800/g, 'dark:bg-$1-900')
+  }
+
+  return baseClasses
 })
 
 const containerSizeClass = computed(() => {
@@ -65,7 +81,7 @@ const iconSizeClass = computed(() => {
 <template>
   <div
     class="rounded-md flex items-center justify-center shrink-0"
-    :class="[containerSizeClass, props.plain ? '' : colorClasses]"
+    :class="[containerSizeClass, colorClasses]"
   >
     <component :is="iconComponent as any" :class="iconSizeClass" />
   </div>

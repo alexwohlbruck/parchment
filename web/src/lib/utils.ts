@@ -22,6 +22,7 @@ export type ThemeColor =
   | 'neutral'
   | 'yellow'
   | 'violet'
+  | 'primary'
 
 export function getBreakpoints() {
   // Default Tailwind CSS breakpoints - hardcoded since v4 doesn't provide runtime config access
@@ -101,6 +102,7 @@ export function getThemeColorClasses(color: ThemeColor): string {
       'bg-yellow-200 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200',
     violet:
       'bg-violet-200 text-violet-800 dark:bg-violet-800 dark:text-violet-200',
+    primary: 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary',
   }
 
   return colorClasses[color]
@@ -223,4 +225,116 @@ export function decodeShape(str, precision = 6) {
   }
 
   return coordinates
+}
+
+// Color conversion utilities
+export function rgbToHex(rgb: string): string {
+  const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i)
+  if (!m) return '#04CB63'
+  const r = Number(m[1]).toString(16).padStart(2, '0')
+  const g = Number(m[2]).toString(16).padStart(2, '0')
+  const b = Number(m[3]).toString(16).padStart(2, '0')
+  return `#${r}${g}${b}`
+}
+
+export function hexToHsl(hex: string) {
+  hex = hex.replace('#', '')
+  const bigint = parseInt(hex, 16)
+  const r = (bigint >> 16) & 255
+  const g = (bigint >> 8) & 255
+  const b = bigint & 255
+  const rP = r / 255
+  const gP = g / 255
+  const bP = b / 255
+  const max = Math.max(rP, gP, bP)
+  const min = Math.min(rP, gP, bP)
+  let h = 0
+  let s = 0
+  const l = (max + min) / 2
+  if (max !== min) {
+    const d = max - min
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    switch (max) {
+      case rP:
+        h = (gP - bP) / d + (gP < bP ? 6 : 0)
+        break
+      case gP:
+        h = (bP - rP) / d + 2
+        break
+      case bP:
+        h = (rP - gP) / d + 4
+        break
+    }
+    h /= 6
+  }
+  return { h: h * 360, s: s * 100, l: l * 100 }
+}
+
+export function hslToHex(h: number, s: number, l: number) {
+  h /= 360
+  s /= 100
+  l /= 100
+  const hue2rgb = (p: number, q: number, t: number) => {
+    if (t < 0) t += 1
+    if (t > 1) t -= 1
+    if (t < 1 / 6) return p + (q - p) * 6 * t
+    if (t < 1 / 2) return q
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
+    return p
+  }
+  let r: number, g: number, b: number
+  if (s === 0) {
+    r = g = b = l
+  } else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+    const p = 2 * l - q
+    r = hue2rgb(p, q, h + 1 / 3)
+    g = hue2rgb(p, q, h)
+    b = hue2rgb(p, q, h - 1 / 3)
+  }
+  const toHex = (x: number) => {
+    const v = Math.round(x * 255)
+    return v.toString(16).padStart(2, '0')
+  }
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+}
+
+export function adjustLightness(hex: string, delta: number) {
+  const { h, s, l } = hexToHsl(hex)
+  const newL = Math.max(0, Math.min(100, l + delta))
+  return hslToHex(h, s, newL)
+}
+
+export function getPrimaryThemeHex(): string {
+  try {
+    const span = document.createElement('span')
+    span.style.position = 'absolute'
+    span.style.left = '-9999px'
+    span.className = 'text-primary'
+    document.body.appendChild(span)
+    const color = getComputedStyle(span).color
+    document.body.removeChild(span)
+    return rgbToHex(color)
+  } catch {
+    return '#04CB63'
+  }
+}
+
+export function cssHslToHex(cssHsl: string): string {
+  // Handle CSS HSL format like "hsl(var(--primary))"
+  if (cssHsl.includes('var(--primary)')) {
+    return getPrimaryThemeHex()
+  }
+
+  // Handle standard HSL format like "hsl(120, 50%, 50%)"
+  const hslMatch = cssHsl.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/)
+  if (hslMatch) {
+    const h = parseInt(hslMatch[1])
+    const s = parseInt(hslMatch[2])
+    const l = parseInt(hslMatch[3])
+    return hslToHex(h, s, l)
+  }
+
+  // Return default if parsing fails
+  return '#04CB63'
 }

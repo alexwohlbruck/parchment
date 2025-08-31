@@ -255,6 +255,8 @@ export class TripGroup extends MapLayerGroup {
 
     // Add the case layer (border) first
     this.addLayer({
+      id: caseLayerId,
+      groupId: this.id,
       name: `Trip ${this.trip.id} Segment ${segmentIndex} Case`,
       type: LayerType.CUSTOM,
       showInLayerSelector: true,
@@ -281,6 +283,8 @@ export class TripGroup extends MapLayerGroup {
 
     // Add the main layer on top
     this.addLayer({
+      id: layerId,
+      groupId: this.id,
       name: `Trip ${this.trip.id} Segment ${segmentIndex}`,
       type: LayerType.CUSTOM,
       showInLayerSelector: true,
@@ -347,6 +351,8 @@ export class TripGroup extends MapLayerGroup {
 
     // Add the case layer (border) first
     this.addLayer({
+      id: caseLayerId,
+      groupId: this.id,
       name: `Trip ${this.trip.id} Connector ${segmentIndex} Case`,
       type: LayerType.CUSTOM,
       showInLayerSelector: true,
@@ -373,6 +379,8 @@ export class TripGroup extends MapLayerGroup {
 
     // Add the main layer on top
     this.addLayer({
+      id: layerId,
+      groupId: this.id,
       name: `Trip ${this.trip.id} Connector ${segmentIndex}`,
       type: LayerType.CUSTOM,
       showInLayerSelector: true,

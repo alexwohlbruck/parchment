@@ -4,7 +4,6 @@ import {
   SearchResponse,
   AutocompleteResult,
   AutocompleteResponse,
-  CategoryResult,
 } from '../types/search.types'
 import { Bookmark } from '../types/library.types'
 import { Place } from '../types/place.types'
@@ -12,7 +11,35 @@ import type { SupportedLanguage } from '../lib/i18n'
 // Import existing services
 import { searchBookmarks as searchBookmarksService } from './library/bookmarks.service'
 import { lookupPlacesByNameAndLocation } from './place.service'
-import { searchCategories, getCategoryById } from './category.service'
+import { categoryService } from './category.service'
+import {
+  IntegrationCapabilityId,
+  IntegrationId,
+  MapBounds,
+} from '../types/integration.types'
+import { integrationManager } from './integrations'
+import { INTEGRATION_PRIORITIES } from '../lib/constants'
+
+/**
+ * Convert a CategoryResult/preset to a SearchResult
+ */
+function convertPresetToSearchResult(preset: any): SearchResult {
+  return {
+    id: preset.id,
+    type: 'category',
+    title: preset.name,
+    description:
+      preset.description || `Search for ${preset.name.toLowerCase()}`,
+    icon: preset.icon,
+    metadata: {
+      category: {
+        tags: preset.tags,
+        addTags: preset.addTags,
+        geometry: preset.geometry,
+      },
+    },
+  }
+}
 
 /**
  * Convert a full SearchResult to a lightweight AutocompleteResult
@@ -26,20 +53,11 @@ function convertToAutocompleteResult(result: SearchResult): AutocompleteResult {
     lat = result.metadata.bookmark.lat
     lng = result.metadata.bookmark.lng
   } else if (result.type === 'place' && result.metadata.place) {
-    lat = result.metadata.place.lat
-    lng = result.metadata.place.lng
+    lat = result.metadata.place.geometry.value.center.lat
+    lng = result.metadata.place.geometry.value.center.lng
   } else if (result.type === 'category' && result.metadata.category) {
     // Categories don't have coordinates, but include category metadata
     category = result.metadata.category
-  } else if (
-    result.type === 'current_location' &&
-    result.metadata.currentLocation
-  ) {
-    lat = result.metadata.currentLocation.lat
-    lng = result.metadata.currentLocation.lng
-  } else {
-    lat = 0
-    lng = 0
   }
 
   return {
@@ -125,27 +143,6 @@ function convertBookmarkToSearchResult(bookmark: Bookmark): SearchResult {
 }
 
 /**
- * Convert a CategoryResult to a SearchResult
- */
-function convertCategoryToSearchResult(category: CategoryResult): SearchResult {
-  return {
-    id: category.id,
-    type: 'category',
-    title: category.name,
-    description: category.description,
-    icon: category.icon,
-    color: category.color,
-    metadata: {
-      category: {
-        tags: category.tags,
-        addTags: category.addTags,
-        geometry: category.geometry,
-      },
-    },
-  }
-}
-
-/**
  * Convert a Place object to a SearchResult
  */
 function convertPlaceToSearchResult(place: Place): SearchResult {
@@ -180,39 +177,11 @@ function convertPlaceToSearchResult(place: Place): SearchResult {
   return {
     id: place.id,
     type: 'place',
-    title: place.name.value,
+    title: place.name?.value || 'Unknown Place',
     description: description,
     icon: 'MapPin',
     metadata: {
-      place: {
-        id: place.id,
-        externalIds: place.externalIds,
-        address: place.address?.value?.formatted || description,
-        lat: place.geometry.value.center.lat,
-        lng: place.geometry.value.center.lng,
-        placeType: place.placeType?.value,
-        // TODO: Add rich metadata here
-        ratings: place.ratings
-          ? {
-              rating: place.ratings.rating?.value,
-              reviewCount: place.ratings.reviewCount?.value,
-            }
-          : undefined,
-        openingHours: place.openingHours?.value,
-        contactInfo: {
-          phone: place.contactInfo.phone?.value,
-          website: place.contactInfo.website?.value,
-          email: place.contactInfo.email?.value,
-        },
-        amenities: place.amenities
-          ? Object.fromEntries(
-              Object.entries(place.amenities).map(([key, value]) => [
-                key,
-                value.value,
-              ]),
-            )
-          : {},
-      },
+      place: place,
     },
   }
 }
@@ -236,15 +205,17 @@ export async function search(
 
   const allResults: SearchResult[] = []
 
-  // Search categories first (only for 1+ character queries) - these appear at the top
+  // Search presets/categories first (only for 1+ character queries) - these appear at the top
   if (query && query.length > 0) {
-    const categories = searchCategories(
+    const presets = categoryService.searchCategories(
       query,
       language,
       Math.min(10, maxResults),
     )
-    const categoryResults = categories.map(convertCategoryToSearchResult)
-    allResults.push(...categoryResults)
+    const presetResults = presets.map((preset) =>
+      convertPresetToSearchResult(preset),
+    )
+    allResults.push(...presetResults)
   }
 
   // Search bookmarks using bookmarks service
@@ -263,8 +234,8 @@ export async function search(
       { lat, lng },
       {
         radius,
-        autocomplete: autocomplete, // Pass the correct autocomplete parameter
-        userId, // This will add bookmark info to places
+        autocomplete,
+        userId,
       },
     )
 
@@ -296,9 +267,57 @@ export async function search(
 /**
  * Get category details by ID
  */
-export async function getCategoryDetails(
-  categoryId: string,
-  language: SupportedLanguage = 'en',
-): Promise<CategoryResult | null> {
-  return getCategoryById(categoryId, language)
+
+export interface CategorySearchOptions {
+  bounds: MapBounds
+  limit?: number
+}
+
+/**
+ * Search by category/preset using available integrations
+ */
+export async function searchByCategory(
+  presetId: string,
+  options: CategorySearchOptions,
+): Promise<Place[]> {
+  if (!presetId) {
+    return []
+  }
+
+  const integrationRecords = integrationManager
+    .getConfiguredIntegrationsByCapability(
+      IntegrationCapabilityId.SEARCH_CATEGORY,
+    )
+    .sort((a, b) => {
+      const priorityA = INTEGRATION_PRIORITIES[a.integrationId] ?? 0
+      const priorityB = INTEGRATION_PRIORITIES[b.integrationId] ?? 0
+      return priorityB - priorityA
+    })
+
+  const preferredIntegration = integrationRecords[0]
+
+  if (!preferredIntegration) {
+    return [] // TODO: Return useful error to client
+  }
+
+  const integration =
+    integrationManager.getCachedIntegrationInstance(preferredIntegration)
+
+  if (!integration) {
+    // TODO: Would this ever happen?
+    return [] // TODO: Return useful error to client
+  }
+
+  const searchCapability = integration.capabilities.searchCategory
+
+  // TODO: This should never happen
+  if (!searchCapability?.searchByCategory) {
+    throw new Error(
+      `Integration ${integration.integrationId} does not support category search`,
+    )
+  }
+
+  return await searchCapability.searchByCategory(presetId, options.bounds, {
+    limit: options.limit,
+  })
 }

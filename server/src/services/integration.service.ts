@@ -132,6 +132,21 @@ const availableIntegrations: IntegrationDefinition[] = [
     configSchema: 'transitlandSchema',
     scope: [IntegrationScope.SYSTEM],
   },
+  {
+    id: IntegrationId.GEOAPIFY,
+    name: 'Geoapify',
+    description: 'Places and location services',
+    color: '#FF6B35',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.GEOAPIFY,
+      )
+    },
+    paid: true,
+    cloud: true,
+    configSchema: 'geoapifySchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
 ]
 
 export async function initializeIntegrations() {

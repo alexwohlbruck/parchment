@@ -62,4 +62,8 @@ export const configSchemas: Record<
   transitlandSchema: z.object({
     apiKey: z.string().min(1, 'API Key is required'),
   }),
+
+  geoapifySchema: z.object({
+    apiKey: z.string().min(1, 'API Key is required'),
+  }),
 }

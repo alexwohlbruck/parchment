@@ -237,6 +237,7 @@ export class PeliasAdapter {
 
       // Determine place type
       let placeType = props.layer || 'unknown'
+
       if (props.addendum?.osm) {
         placeType = getPlaceType(props.addendum.osm)
       }
@@ -272,7 +273,7 @@ export class PeliasAdapter {
         id: primaryId,
         externalIds,
         name: {
-          value: props.name || 'Unnamed Place',
+          value: props.name || null,
           sourceId: actualSource,
         },
         description: null,
@@ -326,7 +327,7 @@ export class PeliasAdapter {
         id: id || `${actualSource}/${feature.properties?.gid || 'unknown'}`,
         externalIds: { [actualSource]: feature.properties?.gid || 'unknown' },
         name: {
-          value: feature.properties?.name || 'Unnamed Place',
+          value: feature.properties?.name || null,
           sourceId: actualSource,
         },
         description: null,

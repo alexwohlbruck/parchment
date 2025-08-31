@@ -23,8 +23,9 @@ import { useMapService } from '@/services/map.service'
 import { useMapStore } from '@/stores/map.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { storeToRefs } from 'pinia'
-import MapControls from '@/components/map/controls/MapControls.vue'
 import { useLayersService } from '@/services/layers.service'
+
+import MapChips from '@/components/map/MapChips.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -53,6 +54,10 @@ function onNavTransitionComplete() {
 function closeSheet() {
   router.push({ name: AppRoute.MAP })
 }
+
+const isDrawerOpen = computed(() => {
+  return appStore.obstructingComponentsMap.has('left-sheet')
+})
 
 onMounted(async () => {
   await layersStore.loadLayers()
@@ -113,9 +118,11 @@ defineExpose({
       <transition-slide no-opacity :offset="[0, '-130%']">
         <div
           v-if="navTransitionComplete && !isMobileScreen"
-          class="pointer-events-auto"
+          class="pointer-events-auto flex gap-2"
         >
           <Palette class="h-fit w-100" />
+
+          <MapChips v-if="!isDrawerOpen" />
         </div>
       </transition-slide>
     </div>

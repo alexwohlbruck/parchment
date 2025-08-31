@@ -40,14 +40,8 @@ export const useCategoryStore = defineStore('category', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  // Check if Overpass integration is available
-  const isOverpassAvailable = computed(() => {
-    const integrationsStore = useIntegrationsStore()
-    const overpassConfigs = integrationsStore.getConfigurationsForIntegration(
-      IntegrationId.OVERPASS,
-    )
-    return overpassConfigs.length > 0
-  })
+  // Categories are now always available since they come from OSM tagging schema
+  const isOverpassAvailable = computed(() => true)
 
   // Get categories for current language from cache
   const currentLanguageCategories = computed(() => {
@@ -74,14 +68,6 @@ export const useCategoryStore = defineStore('category', () => {
   async function loadCategories(
     forceRefresh = false,
   ): Promise<CategoryResult[]> {
-    // Return empty array if Overpass is not available
-    if (!isOverpassAvailable.value) {
-      console.warn(
-        'Categories not loaded: Overpass integration is not configured',
-      )
-      return []
-    }
-
     // Return cached data if available and not stale
     if (
       !forceRefresh &&
@@ -134,11 +120,6 @@ export const useCategoryStore = defineStore('category', () => {
    */
   function searchCategories(query: string, maxResults = 10): CategoryResult[] {
     if (!query || query.trim().length === 0) {
-      return []
-    }
-
-    // Return empty array if Overpass is not available
-    if (!isOverpassAvailable.value) {
       return []
     }
 

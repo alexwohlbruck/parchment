@@ -184,7 +184,10 @@ function mapService() {
 
   function onMapLoad() {
     setConfigProperties()
-    layersService.initializeLayers(layers.value, mapStrategy)
+    
+    // Include search results layer with regular layers
+    const allLayers = [layersService.createSearchResultsLayer(), ...layers.value]
+    layersService.initializeLayers(allLayers, mapStrategy)
 
     // Show waypoint markers immediately when map loads
     if (directionsStore.waypoints) {
@@ -205,7 +208,10 @@ function mapService() {
 
   function onStyleLoad() {
     setConfigProperties()
-    layersService.initializeLayers(layers.value, mapStrategy)
+    
+    // Include search results layer with regular layers
+    const allLayers = [layersService.createSearchResultsLayer(), ...layers.value]
+    layersService.initializeLayers(allLayers, mapStrategy)
 
     // Show waypoint markers immediately when style loads
     if (directionsStore.waypoints) {
@@ -632,6 +638,11 @@ function mapService() {
     if (paddingUpdateTimeout) {
       clearTimeout(paddingUpdateTimeout)
       paddingUpdateTimeout = null
+    }
+
+    // Clean up search results layer
+    if (mapStrategy) {
+      layersService.removeSearchResultsLayer(mapStrategy)
     }
 
     // Remove event listeners

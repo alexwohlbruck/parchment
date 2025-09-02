@@ -2,10 +2,18 @@ import { api } from '@/lib/api'
 import type { Layer, LayerGroup } from '@/types/map.types'
 import { LayerType, MapEngine, MapboxLayerType } from '@/types/map.types'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
-import { toRaw } from 'vue'
+import { toRaw, watch } from 'vue'
 import { cssHslToHex, adjustLightness } from '@/lib/utils'
 import type { Place } from '@/types/place.types'
 import SearchResultMapIcon from '@/components/map/SearchResultMapIcon.vue'
+import { useSearchStore } from '@/stores/search.store'
+import {
+  SEARCH_RESULTS_LAYER_ID,
+  SEARCH_RESULTS_SOURCE_ID,
+  SEARCH_RESULTS_LABELS_LAYER_ID,
+  SEARCH_RESULTS_LAYER_CONFIG,
+  EMPTY_SEARCH_RESULTS_GEOJSON,
+} from '@/constants/layer.constants'
 
 export function useLayersService() {
   // Core CRUD operations
@@ -100,8 +108,45 @@ export function useLayersService() {
     layers.forEach(layer => {
       // Convert reactive proxy to plain object to avoid proxy issues
       const plainLayer = toRaw(layer)
+      
+      // Special handling for search results layer
+      if (plainLayer.id === SEARCH_RESULTS_LAYER_ID) {
+        initializeSearchResultsLayer(mapStrategy)
+      }
+      
       mapStrategy.addLayer(plainLayer)
     })
+  }
+
+  function initializeSearchResultsLayer(mapStrategy: MapStrategy) {
+    // Get current search results to restore data after style change
+    const searchStore = useSearchStore()
+    const currentResults = searchStore.searchResults
+    const currentGeoJSON = currentResults.length > 0 
+      ? createResultsGeoJSON(currentResults) 
+      : EMPTY_SEARCH_RESULTS_GEOJSON
+    
+    // Create the search results source with current data
+    try {
+      mapStrategy.addSource(SEARCH_RESULTS_SOURCE_ID, {
+        type: 'geojson',
+        data: currentGeoJSON,
+      })
+    } catch (error) {
+      // Source might already exist, update it instead
+      const source = mapStrategy.mapInstance.getSource(SEARCH_RESULTS_SOURCE_ID)
+      if (source) {
+        source.setData(currentGeoJSON)
+      }
+    }
+    
+    // Set up reactivity for search results (only once)
+    initializeSearchResultsReactivity(mapStrategy)
+    
+    // If we have results, also recreate the Vue markers
+    if (currentResults.length > 0) {
+      updateSearchResultsVueMarkers(mapStrategy, currentResults, searchStore.hoveredPlaceId)
+    }
   }
 
   function toggleLayerVisibility(
@@ -493,6 +538,144 @@ export function useLayersService() {
     }
   }
 
+  // Search results layer management
+  let searchResultsVueMarkers = new Map<string, any>()
+  let searchResultsReactivityInitialized = false
+
+  function createSearchResultsLayer(): Layer {
+    return {
+      ...SEARCH_RESULTS_LAYER_CONFIG,
+      id: SEARCH_RESULTS_LAYER_ID,
+      userId: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+  }
+
+  function initializeSearchResultsReactivity(mapStrategy: MapStrategy) {
+    if (!mapStrategy || searchResultsReactivityInitialized) return
+
+    // Watch for search results changes and update the layer
+    const searchStore = useSearchStore()
+    
+    watch(
+      () => searchStore.searchResults,
+      (newResults) => {
+        updateSearchResultsData(mapStrategy, newResults, searchStore.hoveredPlaceId)
+      },
+      { deep: true }
+    )
+
+    watch(
+      () => searchStore.hoveredPlaceId,
+      (newHoveredId) => {
+        updateSearchResultsHoverState(mapStrategy, searchStore.searchResults, newHoveredId)
+      }
+    )
+
+    searchResultsReactivityInitialized = true
+  }
+
+  function updateSearchResultsData(
+    mapStrategy: MapStrategy,
+    places: Place[],
+    hoveredPlaceId: string | null = null
+  ) {
+    if (!mapStrategy) return
+
+    // Update GeoJSON data
+    const geoJSON = createResultsGeoJSON(places)
+    const source = mapStrategy.mapInstance.getSource(SEARCH_RESULTS_SOURCE_ID)
+    if (source) {
+      source.setData(geoJSON)
+    }
+
+    // Show/hide the layer based on whether we have results
+    const hasResults = places.length > 0
+    toggleLayerVisibility(SEARCH_RESULTS_LABELS_LAYER_ID, hasResults, mapStrategy)
+
+    // Update Vue markers
+    updateSearchResultsVueMarkers(mapStrategy, places, hoveredPlaceId)
+  }
+
+  function updateSearchResultsHoverState(
+    mapStrategy: MapStrategy,
+    places: Place[],
+    hoveredPlaceId: string | null
+  ) {
+    if (!mapStrategy) return
+    updateSearchResultsVueMarkers(mapStrategy, places, hoveredPlaceId)
+  }
+
+  function updateSearchResultsVueMarkers(
+    mapStrategy: MapStrategy,
+    places: Place[],
+    hoveredPlaceId: string | null = null
+  ) {
+    // Clear existing markers
+    searchResultsVueMarkers.forEach((marker, placeId) => {
+      const markerId = `search-result-${placeId}`
+      mapStrategy.removeMarker(markerId)
+    })
+    searchResultsVueMarkers.clear()
+
+    // Add new markers
+    places.forEach(place => {
+      if (!place.geometry?.value?.center) return
+
+      const { lat, lng } = place.geometry.value.center
+      const markerId = `search-result-${place.id}`
+
+      const marker = mapStrategy.addVueMarker(
+        markerId,
+        { lat, lng },
+        SearchResultMapIcon,
+        {
+          place,
+          isHovered: hoveredPlaceId === place.id,
+          onClick: (clickPlace: Place, event: MouseEvent) => {
+            // Emit an event that can be handled by the search view
+            const searchStore = useSearchStore()
+            // Store the clicked place for the view to handle
+            document.dispatchEvent(new CustomEvent('search-result-click', { 
+              detail: { place: clickPlace, event } 
+            }))
+          },
+          onMouseenter: (hoverPlace: Place, event: MouseEvent) => {
+            const searchStore = useSearchStore()
+            searchStore.setHoveredPlace(hoverPlace.id)
+          },
+          onMouseleave: (leavePlace: Place, event: MouseEvent) => {
+            const searchStore = useSearchStore()
+            if (searchStore.hoveredPlaceId === leavePlace.id) {
+              searchStore.setHoveredPlace(null)
+            }
+          },
+        },
+      )
+
+      searchResultsVueMarkers.set(place.id, marker)
+    })
+  }
+
+  function removeSearchResultsLayer(mapStrategy: MapStrategy) {
+    if (!mapStrategy) return
+    
+    // Clear Vue markers
+    searchResultsVueMarkers.forEach((marker, placeId) => {
+      const markerId = `search-result-${placeId}`
+      mapStrategy.removeMarker(markerId)
+    })
+    searchResultsVueMarkers.clear()
+
+    // Remove layer and source
+    mapStrategy.removeLayer(SEARCH_RESULTS_LABELS_LAYER_ID)
+    mapStrategy.removeSource(SEARCH_RESULTS_SOURCE_ID)
+    
+    // Reset reactivity flag so it can be reinitialized
+    searchResultsReactivityInitialized = false
+  }
+
   return {
     getLayers,
     createLayer,
@@ -516,6 +699,12 @@ export function useLayersService() {
     removeLayerFromMap,
     setLayerShownInSelector,
     setGroupShownInSelector,
-    createInteractiveResultsLayer,
+
+
+    // Search results layer management
+    createSearchResultsLayer,
+    updateSearchResultsData,
+    updateSearchResultsHoverState,
+    removeSearchResultsLayer,
   }
 }

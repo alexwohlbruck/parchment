@@ -2,13 +2,13 @@
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useMapStore } from '@/stores/map.store'
+import { useSearchStore } from '@/stores/search.store'
 import { useMapService } from '@/services/map.service'
 import { useMapCamera } from '@/composables/useMapCamera'
 import { useMapListener } from '@/composables/useMapListener'
 import { useDebounceFn } from '@vueuse/core'
 import type { MapCamera, MapBounds } from '@/types/map.types'
 import { useSearchService } from '@/services/search.service'
-import { useLayersService } from '@/services/layers.service'
 import type { Place } from '@/types/place.types'
 import type { SearchResult } from '@/types/search.types'
 import PlaceList from '@/components/place/PlaceList.vue'
@@ -17,45 +17,31 @@ import ErrorMessage from '@/components/ErrorMessage.vue'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { getPlaceRoute } from '@/lib/place.utils'
+import { storeToRefs } from 'pinia'
 
 const route = useRoute()
 const router = useRouter()
 const searchService = useSearchService()
 const mapStore = useMapStore()
 const mapService = useMapService()
-const layersService = useLayersService()
-
-const hoveredPlaceId = ref<string | null>(null)
+const searchStore = useSearchStore()
 
 const SIGNIFICANT_MOVEMENT_THRESHOLD = 0.3 // If camera moves to new area, refresh search results
-const SEARCH_RESULTS_LAYER_ID = 'search-results'
-const SEARCH_RESULTS_SOURCE_ID = 'search-results-source'
-
-let searchResultsLayer: ReturnType<
-  typeof layersService.createInteractiveResultsLayer
-> | null = null
 
 let lastRefreshBounds: MapBounds | null = null
 
-watch(hoveredPlaceId, () => {
-  if (searchResultsLayer) {
-    searchResultsLayer.updateHoverState(hoveredPlaceId.value)
-  }
-})
-
-const places = ref<Place[]>([])
-const loading = ref(false)
-const error = ref<string | null>(null)
-
 const { camera } = useMapCamera()
 
-const isMapRefreshing = ref(false)
-const isLoading = computed(() => loading.value || isMapRefreshing.value)
 const searchType = computed(() => {
   if (route.query.categoryId) return 'category'
   // if (route.query.overpassQuery) return 'overpass'
   return 'text'
 })
+
+// Note: Using searchStore directly in template due to TypeScript complexity with storeToRefs
+
+// Event listener reference for cleanup
+let searchClickHandler: ((event: Event) => void) | null = null
 
 // Filter state
 const activeFilters = ref({
@@ -66,17 +52,16 @@ const activeFilters = ref({
   sort: 'relevance' as string,
 })
 
-// Search results layer management
+// Search management
 
-// TODO: If we are displaying max result count, we should always refresh
 const debouncedMapRefresh = useDebounceFn(async (camera: MapCamera) => {
-  isMapRefreshing.value = true
+  searchStore.setMapRefreshing(true)
   try {
     await performSearch()
     lastRefreshBounds = mapService.getBounds()
   } catch (error) {
   } finally {
-    isMapRefreshing.value = false
+    searchStore.setMapRefreshing(false)
   }
 }, 800)
 
@@ -85,6 +70,12 @@ function shouldMapRefresh(camera: MapCamera) {
 
   if (!lastRefreshBounds || !bounds) {
     return false
+  }
+
+  // Force refresh if the last query returned the maximum number of results
+  // This indicates there may be more results available in the current area
+  if (searchStore.hitMaxResults) {
+    return true
   }
 
   function calculateBoundsArea(bounds: MapBounds) {
@@ -129,48 +120,7 @@ useMapListener('moveend', () => {
   }
 })
 
-function updateSearchResultsLayer() {
-  if (places.value.length === 0) {
-    if (searchResultsLayer) {
-      searchResultsLayer.remove()
-      searchResultsLayer = null
-    }
-    return
-  }
-
-  if (!searchResultsLayer) {
-    searchResultsLayer = layersService.createInteractiveResultsLayer(
-      mapService.mapStrategy,
-      {
-        layerId: SEARCH_RESULTS_LAYER_ID,
-        sourceId: SEARCH_RESULTS_SOURCE_ID,
-        places: places.value,
-        hoveredPlaceId: hoveredPlaceId.value,
-        onPlaceClick: handleSearchResultClick,
-        onPlaceHover: handleSearchResultHover,
-        onPlaceLeave: handleSearchResultLeave,
-      },
-    )
-  } else {
-    searchResultsLayer.updateData(places.value, hoveredPlaceId.value)
-  }
-}
-
-let currentHoveredPlaceId: string | null = null
-
-function handleSearchResultHover(place: Place, event: MouseEvent) {
-  currentHoveredPlaceId = place.id
-  hoveredPlaceId.value = place.id
-}
-
-function handleSearchResultLeave(place: Place, event: MouseEvent) {
-  if (hoveredPlaceId.value === place.id) {
-    currentHoveredPlaceId = null
-    hoveredPlaceId.value = null
-  }
-}
-
-// Handle click on search result
+// Handle click on search result from map markers
 function handleSearchResultClick(place: Place, event: any) {
   if (place?.id) {
     const placeRoute = getPlaceRoute(place.id)
@@ -179,75 +129,88 @@ function handleSearchResultClick(place: Place, event: any) {
 }
 
 async function performSearch() {
-  loading.value = true
-  error.value = null
+  searchStore.setSearchLoading(true)
+  searchStore.setSearchError(null)
+
+  // Set search metadata
+  searchStore.setSearchType(searchType.value as 'text' | 'category' | 'overpass')
+  if (searchType.value === 'text') {
+    searchStore.setSearchQuery(route.query.text as string)
+  } else if (searchType.value === 'category') {
+    searchStore.setSearchQuery(route.query.categoryName as string || route.query.categoryId as string)
+  }
 
   const bounds = mapService.getBounds()
   const center = mapService.getCenter()
 
-  if (searchType.value === 'category') {
-    places.value = await searchService.searchByCategory(
-      route.query.categoryId as string,
-      {
-        bounds: bounds || undefined,
-      },
-    )
-  } else if (searchType.value === 'text') {
-    const searchResults = await searchService.search({
-      query: route.query.text as string,
-      lat: center.lat,
-      lng: center.lng,
-      autocomplete: false,
-      maxResults: 100,
-    })
-    // Since autocomplete is false, we should get SearchResult objects with full metadata
-    places.value = (searchResults as SearchResult[])
-      .filter(result => result.type === 'place')
-      .map(result => result.metadata.place as unknown as Place)
-    console.log('Search results:', places.value)
-  }
+  try {
+    let places: Place[] = []
+    const maxResults = 100
 
-  error.value = null
-  loading.value = false
-  updateSearchResultsLayer()
-  lastRefreshBounds = mapService.getBounds()
+    // Track the max results in the search store
+    searchStore.setLastMaxResults(maxResults)
+
+    if (searchType.value === 'category') {
+      places = await searchService.searchByCategory(
+        route.query.categoryId as string,
+        {
+          bounds: bounds || undefined,
+          maxResults,
+        },
+      )
+    } else if (searchType.value === 'text') {
+      const searchResults = await searchService.search({
+        query: route.query.text as string,
+        lat: center.lat,
+        lng: center.lng,
+        autocomplete: false,
+        maxResults,
+      })
+      // Since autocomplete is false, we should get SearchResult objects with full metadata
+      places = (searchResults as SearchResult[])
+        .filter(result => result.type === 'place')
+        .map(result => result.metadata.place as unknown as Place)
+      console.log('Search results:', places)
+    }
+
+    // Update the search store with results - this will automatically update the map layer
+    searchStore.setSearchResults(places)
+    searchStore.setLastSearchBounds(bounds)
+    lastRefreshBounds = bounds
+  } catch (error) {
+    console.error('Search error:', error)
+    searchStore.setSearchError(error instanceof Error ? error.message : 'Search failed')
+    searchStore.setSearchResults([])
+  } finally {
+    searchStore.setSearchLoading(false)
+  }
 }
 
 onMounted(() => {
+  // Listen for search result clicks from map markers
+  searchClickHandler = (event: Event) => {
+    const customEvent = event as CustomEvent
+    const { place } = customEvent.detail
+    handleSearchResultClick(place, customEvent.detail.event)
+  }
+  
+  document.addEventListener('search-result-click', searchClickHandler)
+
   performSearch()
 })
 
 onUnmounted(() => {
-  if (searchResultsLayer) {
-    searchResultsLayer.remove()
-    searchResultsLayer = null
+  // Clear search results when leaving the page
+  // This will automatically hide the search results layer and clear its data
+  // via the reactive watchers in the layers service
+  searchStore.clearSearchResults()
+  
+  // Remove event listener
+  if (searchClickHandler) {
+    document.removeEventListener('search-result-click', searchClickHandler)
+    searchClickHandler = null
   }
 })
-
-// Watch for changes in places and update the layer
-watch(
-  places,
-  () => {
-    updateSearchResultsLayer()
-  },
-  { deep: true },
-)
-
-// Watch for map engine changes to recreate layer
-watch(
-  () => mapStore.settings.engine,
-  () => {
-    if (places.value.length > 0) {
-      // Remove existing layer before recreating
-      if (searchResultsLayer) {
-        searchResultsLayer.remove()
-        searchResultsLayer = null
-      }
-      // Recreate layer when engine changes
-      updateSearchResultsLayer()
-    }
-  },
-)
 
 watch(
   () => route.query,
@@ -275,7 +238,7 @@ function handleFiltersChanged(filters: {
 <template>
   <div class="h-full flex flex-col px-3 pt-4 gap-2">
     <!-- Search Header -->
-    <div v-if="!isLoading || places.length > 0" class="relative pl-2">
+    <div v-if="!searchStore.isLoading || searchStore.hasResults" class="relative pl-2">
       <div class="">
         <!-- Main Title -->
         <div class="space-y-1">
@@ -297,13 +260,13 @@ function handleFiltersChanged(filters: {
           <div class="flex flex-col sm:flex-row sm:items-center gap-2">
             <div class="flex items-center gap-2">
               <span class="text-sm font-medium text-foreground">
-                {{ places.length.toLocaleString() }}
-                {{ places.length === 1 ? 'result' : 'results' }}
+                {{ searchStore.searchResults.length.toLocaleString() }}
+                {{ searchStore.searchResults.length === 1 ? 'result' : 'results' }}
               </span>
             </div>
 
             <div
-              v-if="isMapRefreshing"
+              v-if="searchStore.isMapRefreshing"
               class="flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 text-primary rounded-full text-xs"
             >
               <div
@@ -332,22 +295,22 @@ function handleFiltersChanged(filters: {
 
     <!-- Error state (only show if no existing places to display) -->
     <ErrorMessage
-      v-if="error && !isLoading && places.length === 0"
+      v-if="searchStore.searchError && !searchStore.isLoading && !searchStore.hasResults"
       type="error"
       title="Search Error"
-      :message="error"
+      :message="searchStore.searchError"
       button-text="Try Again"
       @action="performSearch"
     />
 
     <!-- Results take up remaining space -->
-    <div v-if="places.length > 0 || isLoading" class="flex-1 overflow-auto">
+    <div v-if="searchStore.hasResults || searchStore.isLoading" class="flex-1 overflow-auto">
       <div class="max-w-4xl mx-auto">
         <PlaceList
-          :places="places"
-          :loading="isLoading"
-          @place-hover="hoveredPlaceId = $event"
-          @place-leave="hoveredPlaceId = null"
+          :places="searchStore.searchResults"
+          :loading="searchStore.isLoading"
+          @place-hover="searchStore.setHoveredPlace($event)"
+          @place-leave="searchStore.setHoveredPlace(null)"
         />
       </div>
     </div>

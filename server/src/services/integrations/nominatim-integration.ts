@@ -5,8 +5,30 @@ import {
   IntegrationCapabilityId,
   IntegrationId,
   Integration,
+  PlaceInfoCapability,
 } from '../../types/integration.types'
 import { SOURCE } from '../../lib/constants'
+import { NominatimAdapter } from './adapters/nominatim-adapter'
+import type { Place } from '../../types/place.types'
+
+// Get version from package.json
+const packageJson = require('../../../package.json')
+
+
+// TODO: Rate limit all nominatim requests to 1 request per second
+
+
+/**
+ * Get proper headers for Nominatim requests to comply with usage policy
+ */
+function getNominatimHeaders(): Record<string, string> {
+  const serverOrigin = process.env.SERVER_ORIGIN!
+  
+  return {
+    'User-Agent': `Parchment/${packageJson.version} (https://github.com/alexwohlbruck/parchment)`,
+    'Referer': serverOrigin,
+  }
+}
 
 // TODO: Is email an optional field?
 export interface NominatimConfig extends IntegrationConfig {
@@ -19,14 +41,14 @@ export interface NominatimConfig extends IntegrationConfig {
  */
 export class NominatimIntegration implements Integration<NominatimConfig> {
   private initialized = false
+  private adapter = new NominatimAdapter()
 
   readonly integrationId = IntegrationId.NOMINATIM
-  readonly capabilityIds = [IntegrationCapabilityId.GEOCODING]
+  readonly capabilityIds = [IntegrationCapabilityId.GEOCODING, IntegrationCapabilityId.PLACE_INFO]
   readonly capabilities = {
     geocoding: {
       geocode: this.searchPlaces.bind(this),
       reverseGeocode: async (lat: number, lng: number) => {
-        // Implement reverse geocoding using Nominatim's reverse endpoint
         const apiUrl = `${
           this.config.host.endsWith('/')
             ? this.config.host.slice(0, -1)
@@ -41,10 +63,16 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
           // email: this.config.email,
         }
 
-        const response = await axios.get(apiUrl, { params })
+        const response = await axios.get(apiUrl, { 
+          params,
+          headers: getNominatimHeaders()
+        })
         return response.data ? [response.data] : []
       },
     },
+    placeInfo: {
+      getPlaceInfo: this.getPlaceInfo.bind(this),
+    } as PlaceInfoCapability,
   }
   readonly sources = [SOURCE.OSM]
 
@@ -108,7 +136,10 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
         // email: config.email,
       }
 
-      await axios.get(apiUrl, { params })
+      await axios.get(apiUrl, { 
+        params,
+        headers: getNominatimHeaders()
+      })
 
       return { success: true }
     } catch (error: any) {
@@ -176,7 +207,10 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
       params['bounded'] = 1
     }
 
-    const response = await axios.get(apiUrl, { params })
+    const response = await axios.get(apiUrl, { 
+      params,
+      headers: getNominatimHeaders()
+    })
     return response.data || []
   }
 
@@ -202,23 +236,21 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
   }
 
   /**
-   * Get place details by Nominatim ID
-   * @param id The place ID
+   * Get place info by OSM ID using Nominatim lookup API
+   * @param id The OSM ID in format type/id (e.g., node/123456) or just the ID
    * @returns Place details or null if not found
    */
-  async getPlaceDetails(id: string): Promise<any | null> {
+  private async getPlaceInfo(id: string): Promise<Place | null> {
     this.ensureInitialized()
 
     try {
-      console.log(`Getting place details from Nominatim for ID: ${id}`)
-
       // Remove provider prefix if present
       let osmId = id
-      if (id.startsWith('nominatim/')) {
-        osmId = id.substring(10)
+      if (id.startsWith('osm/')) {
+        osmId = id.substring(4)
       }
 
-      // Handle potential prefix like 'node/'
+      // Parse OSM type and ID
       let osmType: string | null = null
       let osmIdValue: string = osmId
 
@@ -234,15 +266,18 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
         return null
       }
 
-      // Build the query for Nominatim - use reverse lookup if no type is provided
+      // Build the lookup API URL
       const apiUrl = `${
         this.config.host.endsWith('/')
           ? this.config.host.slice(0, -1)
           : this.config.host
       }/lookup`
 
+      // Prepare OSM ID for Nominatim (N/W/R prefix + ID)
+      const osmIdFormatted = `${osmType?.charAt(0).toUpperCase() || 'N'}${osmIdValue}`
+
       const params: Record<string, any> = {
-        osm_ids: `${osmType?.charAt(0).toUpperCase() || 'N'}${osmIdValue}`,
+        osm_ids: osmIdFormatted,
         format: 'json',
         addressdetails: 1,
         extratags: 1,
@@ -250,17 +285,9 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
         'accept-language': 'en',
       }
 
-      // if (this.config.email) {
-      //   params.email = this.config.email
-      // }
-
-      console.log(`Calling Nominatim lookup API with params:`, params)
-
       const response = await axios.get(apiUrl, {
         params,
-        headers: {
-          'User-Agent': 'Parchment/1.0',
-        },
+        headers: getNominatimHeaders(),
       })
 
       // Nominatim lookup returns an array
@@ -269,14 +296,12 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
         !Array.isArray(response.data) ||
         response.data.length === 0
       ) {
-        console.error('No results found from Nominatim lookup')
         return null
       }
 
-      console.log(
-        `Nominatim lookup successful, got ${response.data.length} results`,
-      )
-      return response.data[0]
+      // Use the adapter to convert to standardized Place format
+      const result = response.data[0]
+      return this.adapter.placeInfo.adaptPlaceDetails(result)
     } catch (error) {
       console.error('Error getting place details from Nominatim:', error)
       return null

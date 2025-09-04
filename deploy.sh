@@ -261,6 +261,7 @@ update_cargo_toml "$NEW_VERSION"
 build_tauri
 
 # Build and push Docker images
+# TODO: Check logged in to docker first
 build_and_push_docker "$NEW_VERSION"
 
 echo "Version update and deployment complete!" 

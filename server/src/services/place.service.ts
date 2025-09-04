@@ -63,7 +63,7 @@ export async function lookupPlaceById(
   }
 }
 
-/**
+/** 
  * Look up a place by name/coordinates on all available providers
  *
  * @param name The name of the place
@@ -230,7 +230,7 @@ export async function lookupEnrichedPlaceById(
     if (!place) return null
 
     // If place has name and location, look it up from other sources and merge in
-    if (place.name && place.geometry.value.center) {
+    if (place.name?.value && place.geometry.value.center) {
       const { lat, lng } = place.geometry.value.center
 
       const thirdPartyPlace = await lookupPlaceByNameAndLocation(

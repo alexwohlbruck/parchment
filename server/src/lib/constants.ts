@@ -38,13 +38,16 @@ export const SOURCE_PRIORITIES = {
   [SOURCE.VALHALLA]: 70, // Routing provider - high priority for routing data
 } as const
 
+// TODO: Make these constants defined per-capability
 /**
- * Integration priorities for category search
+ * Integration priorities for capabilities
  * Higher value = higher priority
  */
 export const INTEGRATION_PRIORITIES: Partial<Record<IntegrationId, number>> = {
-  // [IntegrationId.PELIAS]: 100, // Fastest, self-hosted, good category coverage. Pelias not configured yet
-  [IntegrationId.GEOAPIFY]: 80, // Fast, paid, extensive categories but limited
+  [IntegrationId.PELIAS]: 100, // Fast, self-hosted, good coverage for place info and search
+  [IntegrationId.NOMINATIM]: 90, // Free, rate-limited, good for geocoding
+  [IntegrationId.GOOGLE_MAPS]: 80, // Fast, paid, excellent coverage
+  [IntegrationId.GEOAPIFY]: 70, // Fast, paid, extensive categories but limited
   [IntegrationId.OVERPASS]: 60, // Slowest, free, supports any OSM tags (fallback)
 } as const
 

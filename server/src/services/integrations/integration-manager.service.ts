@@ -7,7 +7,7 @@ import {
   Integration,
 } from '../../types/integration.types'
 import { IntegrationRegistry } from './integration-registry'
-import { Source } from '../../lib/constants'
+import { Source, INTEGRATION_PRIORITIES } from '../../lib/constants'
 import { initializeWithTest } from '../../lib/integration.utils'
 
 /**
@@ -135,7 +135,7 @@ export class IntegrationManagerService {
    * Gets a configured integration that supports a specific data source and capability
    * @param sourceId The source ID (e.g., SOURCE.GOOGLE, SOURCE.OSM)
    * @param capabilityId The capability ID that the integration must support
-   * @returns The best matching cached integration, or undefined if not found
+   * @returns The best matching cached integration based on priority, or undefined if not found
    */
   getConfiguredIntegrationForSource(
     sourceId: Source,
@@ -144,13 +144,20 @@ export class IntegrationManagerService {
     const integrations =
       this.getConfiguredIntegrationsByCapability(capabilityId)
 
-    const compatibleIntegrations = integrations.filter((integration) =>
-      this.integrationsCache
-        .get(this.getCacheKey(integration))
-        ?.integration.sources?.includes(sourceId),
-    )
+    const compatibleIntegrations = integrations
+      .filter((integration) =>
+        this.integrationsCache
+          .get(this.getCacheKey(integration))
+          ?.integration.sources?.includes(sourceId),
+      )
+      .sort((a, b) => {
+        // Sort by priority (highest first)
+        const priorityA = INTEGRATION_PRIORITIES[a.integrationId] ?? 0
+        const priorityB = INTEGRATION_PRIORITIES[b.integrationId] ?? 0
+        return priorityB - priorityA
+      })
 
-    // Return the first compatible integration
+    // Return the highest priority compatible integration
     return compatibleIntegrations.length ? compatibleIntegrations[0] : undefined
   }
 
@@ -246,9 +253,10 @@ export class IntegrationManagerService {
 
   /**
    * Get all configured integrations with a specific capability, regardless of user
+   * Sorted by priority (highest first)
    *
    * @param capabilityId The capability to filter by
-   * @returns Array of cached integrations with the specified capability
+   * @returns Array of cached integrations with the specified capability, sorted by priority
    */
   getConfiguredIntegrationsByCapability(
     capabilityId: IntegrationCapabilityId,
@@ -265,7 +273,12 @@ export class IntegrationManagerService {
       }
     }
 
-    return result
+    // Sort by priority (highest first)
+    return result.sort((a, b) => {
+      const priorityA = INTEGRATION_PRIORITIES[a.integrationId] ?? 0
+      const priorityB = INTEGRATION_PRIORITIES[b.integrationId] ?? 0
+      return priorityB - priorityA
+    })
   }
 
   /**

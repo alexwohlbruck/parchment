@@ -18,7 +18,7 @@ import {
   MapBounds,
 } from '../types/integration.types'
 import { integrationManager } from './integrations'
-import { INTEGRATION_PRIORITIES } from '../lib/constants'
+
 
 /**
  * Convert a CategoryResult/preset to a SearchResult
@@ -284,15 +284,9 @@ export async function searchByCategory(
     return []
   }
 
-  const integrationRecords = integrationManager
-    .getConfiguredIntegrationsByCapability(
-      IntegrationCapabilityId.SEARCH_CATEGORY,
-    )
-    .sort((a, b) => {
-      const priorityA = INTEGRATION_PRIORITIES[a.integrationId] ?? 0
-      const priorityB = INTEGRATION_PRIORITIES[b.integrationId] ?? 0
-      return priorityB - priorityA
-    })
+  const integrationRecords = integrationManager.getConfiguredIntegrationsByCapability(
+    IntegrationCapabilityId.SEARCH_CATEGORY,
+  )
 
   const preferredIntegration = integrationRecords[0]
 

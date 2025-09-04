@@ -6,6 +6,7 @@ import {
   IntegrationCapabilityId,
   IntegrationId,
   Integration,
+  PlaceInfoCapability,
 } from '../../types/integration.types'
 import { Place, Address } from '../../types/place.types'
 import { SOURCE } from '../../lib/constants'
@@ -28,6 +29,7 @@ export class PeliasIntegration implements Integration<PeliasConfig> {
   readonly capabilityIds = [
     IntegrationCapabilityId.GEOCODING,
     IntegrationCapabilityId.AUTOCOMPLETE,
+    // IntegrationCapabilityId.PLACE_INFO, // TODO: Doesn't work yet, may not be possible
   ]
   readonly capabilities = {
     geocoding: {
@@ -48,6 +50,9 @@ export class PeliasIntegration implements Integration<PeliasConfig> {
     autocomplete: {
       getAutocomplete: this.getAutocomplete.bind(this),
     },
+    placeInfo: {
+      getPlaceInfo: this.getPlaceInfo.bind(this),
+    } as PlaceInfoCapability,
   }
   readonly sources = [SOURCE.OSM, SOURCE.OPENADDRESSES]
 
@@ -287,7 +292,7 @@ export class PeliasIntegration implements Integration<PeliasConfig> {
    * @param id The place ID
    * @returns Place details or null if not found
    */
-  async getPlaceDetails(id: string): Promise<any | null> {
+  private async getPlaceInfo(id: string): Promise<Place | null> {
     this.ensureInitialized()
 
     try {
@@ -337,7 +342,9 @@ export class PeliasIntegration implements Integration<PeliasConfig> {
         return null
       }
 
-      return response.data.features[0]
+      // Use the adapter to convert the Pelias feature to a standardized Place
+      const feature = response.data.features[0] as PeliasFeature
+      return this.adapter.placeInfo.adaptPlaceDetails(feature)
     } catch (error) {
       console.error('Error getting place details from Pelias:', error)
       return null

@@ -4,7 +4,8 @@ export const APP_NAME = 'Parchment Maps'
 export const APP_NAME_SHORT = 'Parchment'
 export const APP_VERSION = packageJson.version
 
-export const DEFAULT_SERVER_URL = 'https://api.parchment.app'
+export const DEFAULT_SERVER_URL = import.meta.env.VITE_SERVER_ORIGIN ||
+  (import.meta.env.DEV ? 'http://localhost:5000' : 'https://api.parchment.app')
 
 export const MarkerIds = {
   SELECTED_POI: 'selected-poi',

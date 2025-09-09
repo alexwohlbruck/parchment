@@ -10,6 +10,9 @@ import {
   BikeIcon,
   CarFrontIcon,
   TruckIcon,
+  TrendingUpIcon,
+  TrendingDownIcon,
+  MountainIcon,
 } from 'lucide-vue-next'
 import type {
   TripOption,
@@ -75,6 +78,15 @@ const tripDescription = computed(() => {
   return 'Mixed modes'
 })
 
+// Check if elevation data is available and relevant (bike/pedestrian modes)
+const hasElevationData = computed(() => {
+  return (
+    (props.trip.mode === 'cycling' || 
+     props.trip.mode === 'walking') &&
+    props.trip.summary.totalElevationGain !== undefined
+  )
+})
+
 function getTripModeLabel(mode: string, vehicleType?: string): string {
   if (mode === 'walking') return 'Walking'
   if (mode === 'driving') return vehicleType === 'car' ? 'Driving' : 'Vehicle'
@@ -96,6 +108,10 @@ function formatDistance(meters: number) {
   return `${(meters / 1000).toFixed(1)} km`
 }
 
+function formatElevation(meters: number) {
+  return `${Math.round(meters)} m`
+}
+
 function getDisplayTime(date: Date, isFirstSegment: boolean = false) {
   // Only show "Now" for the first segment if it starts immediately (within 2 minutes)
   if (isFirstSegment) {
@@ -114,8 +130,26 @@ function getSegmentTooltip(segment: any): string {
   const duration = formatDuration(segment.duration)
   const distance = segment.distance ? formatDistance(segment.distance) : ''
   const mode = getTripModeLabel(segment.mode, segment.vehicleType)
+  
+  let tooltip = `${mode}: ${duration}${distance ? ', ' + distance : ''}`
+  
+  // Add elevation info for bike/pedestrian segments if available
+  if ((segment.mode === 'cycling' || segment.mode === 'biking' || segment.mode === 'walking') && 
+      segment.instructions && segment.instructions.length > 0) {
+    const elevationGain = segment.instructions.reduce((total: number, inst: any) => 
+      total + (inst.elevationGain || 0), 0)
+    const elevationLoss = segment.instructions.reduce((total: number, inst: any) => 
+      total + (inst.elevationLoss || 0), 0)
+    
+    if (elevationGain > 0) {
+      tooltip += `\n↗ ${formatElevation(elevationGain)} climb`
+    }
+    if (elevationLoss > 0) {
+      tooltip += `\n↘ ${formatElevation(elevationLoss)} descent`
+    }
+  }
 
-  return `${mode}: ${duration}${distance ? ', ' + distance : ''}`
+  return tooltip
 }
 
 function handleClick() {
@@ -185,6 +219,35 @@ function navigateToTripDetail() {
       <div class="text-xs text-muted-foreground mb-1">
         {{ formatDistance(trip.summary.totalDistance) }}
       </div>
+      
+      <!-- Elevation data for bike/pedestrian modes -->
+      <div v-if="hasElevationData" class="flex flex-col gap-0.5 mt-1">
+        <div 
+          v-if="trip.summary.totalElevationGain && trip.summary.totalElevationGain > 0"
+          class="flex items-center justify-end gap-1 text-xs text-green-600"
+          :title="`Total elevation gain: ${formatElevation(trip.summary.totalElevationGain)}`"
+        >
+          <TrendingUpIcon class="size-3" />
+          <span>{{ formatElevation(trip.summary.totalElevationGain) }}</span>
+        </div>
+        <div 
+          v-if="trip.summary.totalElevationLoss && trip.summary.totalElevationLoss > 0"
+          class="flex items-center justify-end gap-1 text-xs text-red-600"
+          :title="`Total elevation loss: ${formatElevation(trip.summary.totalElevationLoss)}`"
+        >
+          <TrendingDownIcon class="size-3" />
+          <span>{{ formatElevation(trip.summary.totalElevationLoss) }}</span>
+        </div>
+        <div 
+          v-if="trip.summary.maxElevation"
+          class="flex items-center justify-end gap-1 text-xs text-muted-foreground"
+          :title="`Highest point: ${formatElevation(trip.summary.maxElevation)}`"
+        >
+          <MountainIcon class="size-3" />
+          <span>{{ formatElevation(trip.summary.maxElevation) }}</span>
+        </div>
+      </div>
+      
       <!-- Cost display if available -->
       <div v-if="trip.cost?.total" class="text-xs text-muted-foreground mt-1">
         ${{ trip.cost.total.amount.toFixed(2) }}

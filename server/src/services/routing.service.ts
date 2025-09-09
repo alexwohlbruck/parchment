@@ -29,6 +29,7 @@ export class RoutingService {
       )
 
     if (routingIntegrations.length === 0) {
+      // TODO: Return useful error to client (Do this for all integration-based endpoints)
       throw new Error('No routing integrations configured')
     }
 
@@ -93,6 +94,7 @@ export class RoutingService {
     }
   }
 
+  // TODO: Remove
   /**
    * Map legacy costing parameter to unified travel mode
    */

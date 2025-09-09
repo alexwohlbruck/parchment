@@ -13,6 +13,7 @@ export const SOURCE = {
   TRIPADVISOR: 'tripadvisor',
   OPENTABLE: 'opentable',
   VALHALLA: 'valhalla',
+  GEOAPIFY: 'geoapify',
 } as const
 // TODO: Fix types for source and integration ids
 export type Source = (typeof SOURCE)[keyof typeof SOURCE]
@@ -28,6 +29,7 @@ export const SOURCE_PRIORITIES = {
 
   // Secondary sources
   [SOURCE.GOOGLE]: 80,
+  [SOURCE.GEOAPIFY]: 75,
   [SOURCE.WIKIDATA]: 60,
 
   // Tertiary sources
@@ -48,7 +50,8 @@ export const INTEGRATION_PRIORITIES: Partial<Record<IntegrationId, number>> = {
   [IntegrationId.NOMINATIM]: 90, // Free, rate-limited, good for geocoding
   [IntegrationId.GOOGLE_MAPS]: 80, // Fast, paid, excellent coverage
   [IntegrationId.GEOAPIFY]: 70, // Fast, paid, extensive categories but limited
-  [IntegrationId.OVERPASS]: 60, // Slowest, free, supports any OSM tags (fallback)
+  [IntegrationId.VALHALLA]: 60, // Fast, free, good coverage for place info and search
+  [IntegrationId.OVERPASS]: 50, // Slowest, free, supports any OSM tags (fallback)
 } as const
 
 // TODO: Remove this

@@ -160,7 +160,7 @@ async function performSearch() {
       )
     } else if (searchType.value === 'text') {
       const searchResults = await searchService.search({
-        query: route.query.text as string,
+        query: route.query.q as string,
         lat: center.lat,
         lng: center.lng,
         autocomplete: false,

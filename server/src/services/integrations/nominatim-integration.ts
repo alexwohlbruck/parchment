@@ -5,6 +5,7 @@ import {
   IntegrationCapabilityId,
   IntegrationId,
   Integration,
+  SearchCapability,
   PlaceInfoCapability,
 } from '../../types/integration.types'
 import { SOURCE } from '../../lib/constants'
@@ -44,8 +45,15 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
   private adapter = new NominatimAdapter()
 
   readonly integrationId = IntegrationId.NOMINATIM
-  readonly capabilityIds = [IntegrationCapabilityId.GEOCODING, IntegrationCapabilityId.PLACE_INFO]
+  readonly capabilityIds = [
+    IntegrationCapabilityId.SEARCH,
+    IntegrationCapabilityId.GEOCODING,
+    IntegrationCapabilityId.PLACE_INFO,
+  ]
   readonly capabilities = {
+    search: {
+      searchPlaces: this.searchPlaces.bind(this),
+    } as SearchCapability,
     geocoding: {
       geocode: this.searchPlaces.bind(this),
       reverseGeocode: async (lat: number, lng: number) => {
@@ -185,7 +193,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
     lat?: number,
     lng?: number,
     radius?: number,
-  ) {
+  ): Promise<Place[]> {
     this.ensureInitialized()
 
     const apiUrl = this.buildApiUrl()
@@ -211,7 +219,14 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
       params,
       headers: getNominatimHeaders()
     })
-    return response.data || []
+    const results = (response.data || []) as any[]
+
+    if (!Array.isArray(results) || results.length === 0) return []
+
+    // Adapt Nominatim search results to unified Place objects
+    return results.map((result) =>
+      this.adapter.placeInfo.adaptPlaceDetails(result),
+    )
   }
 
   /**

@@ -116,6 +116,15 @@ export interface RouteInstruction {
     | 'slight-right'
     | 'u-turn'
   exitNumber?: number // for roundabouts
+
+  // Elevation and surface data (for bike/pedestrian modes)
+  elevation?: number // meters above sea level
+  elevationGain?: number // meters gained in this segment
+  elevationLoss?: number // meters lost in this segment
+  maxElevation?: number // highest point in this segment
+  minElevation?: number // lowest point in this segment
+  surface?: string // road surface type
+  roadClass?: string // classification of the road
 }
 
 export interface RouteLeg {
@@ -133,6 +142,12 @@ export interface RouteLeg {
   hasTolls?: boolean
   hasHighways?: boolean
   hasFerries?: boolean
+
+  // Elevation data (for bike/pedestrian modes)
+  totalElevationGain?: number // total meters climbed
+  totalElevationLoss?: number // total meters descended
+  maxElevation?: number // highest point on this leg
+  minElevation?: number // lowest point on this leg
 
   // Traffic
   durationInTraffic?: number
@@ -153,6 +168,12 @@ export interface RouteSummary {
   hasTolls: boolean
   hasHighways: boolean
   hasFerries: boolean
+
+  // Elevation data (for bike/pedestrian modes)
+  totalElevationGain?: number // total meters climbed
+  totalElevationLoss?: number // total meters descended
+  maxElevation?: number // highest point on route
+  minElevation?: number // lowest point on route
 
   departureTime?: Date
   arrivalTime?: Date

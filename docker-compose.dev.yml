@@ -65,6 +65,7 @@ services:
       dockerfile: web/Dockerfile.dev
     network_mode: host
     environment:
+      VITE_SERVER_ORIGIN: ${SERVER_ORIGIN}
       VITE_MAPBOX_ACCESS_TOKEN: ${MAPBOX_ACCESS_TOKEN}
       VITE_MAPTILER_API_KEY: ${MAPTILER_API_KEY}
     ports:

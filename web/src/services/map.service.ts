@@ -12,11 +12,13 @@ import {
   LayerType,
   MapSettings,
 } from '@/types/map.types'
+import type { Place } from '@/types/place.types'
 import { useMapStore } from '../stores/map.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useLayersService } from '@/services/layers.service'
 import { useAppStore } from '../stores/app.store'
 import { useDirectionsStore } from '@/stores/directions.store'
+import { useThemeStore } from '@/stores/theme.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { IntegrationId } from '@server/types/integration.types'
 import { createSharedComposable, useDark } from '@vueuse/core'
@@ -48,8 +50,10 @@ function mapService() {
   const appStore = useAppStore()
   const directionsStore = useDirectionsStore()
   const integrationsStore = useIntegrationsStore()
+  const themeStore = useThemeStore()
   const { settings } = storeToRefs(mapStore)
   const { layers } = storeToRefs(layersStore)
+  const { accentColor, isDark } = storeToRefs(themeStore)
   const router = useRouter()
   let mapStrategy: MapStrategy
   let mapContainer: HTMLElement
@@ -62,6 +66,13 @@ function mapService() {
 
   // Debounced padding update to prevent excessive calls
   let paddingUpdateTimeout: ReturnType<typeof setTimeout> | null = null
+
+  // Watch for theme changes to update polygon colors
+  watch([accentColor, isDark], () => {
+    if (mapStrategy && isMapReady.value) {
+      layersService.updatePlacePolygonColors(mapStrategy)
+    }
+  })
 
   function getMapStrategy(
     container: string | HTMLElement,
@@ -162,14 +173,6 @@ function mapService() {
     })
 
     mapEventBus.on('click:poi', ({ osmId, poiType, lngLat }) => {
-      if (lngLat) {
-        // Remove any existing POI markers
-        mapStrategy.removeAllMarkers()
-
-        // Add marker at clicked location
-        mapStrategy.addMarker(MarkerIds.SELECTED_POI, lngLat)
-      }
-
       router.push({
         name: AppRoute.PLACE,
         params: {
@@ -212,6 +215,12 @@ function mapService() {
     // Include search results layer with regular layers
     const allLayers = [layersService.createSearchResultsLayer(), ...layers.value]
     layersService.initializeLayers(allLayers, mapStrategy)
+
+    // Initialize place polygon layers
+    layersService.initializePlacePolygonLayers(mapStrategy)
+    
+    // Update polygon colors to match current theme
+    layersService.updatePlacePolygonColors(mapStrategy)
 
     // Show waypoint markers immediately when style loads
     if (directionsStore.waypoints) {
@@ -344,6 +353,52 @@ function mapService() {
   function jumpTo(camera: Partial<MapCamera>) {
     const adjustedCamera = adjustCameraForVisibleCenter(camera)
     mapStrategy.jumpTo(adjustedCamera)
+  }
+
+  function fitBounds(bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, options?: any) {
+    if (!mapStrategy) return
+    
+    // Calculate existing map padding to account for obstructing UI elements
+    const paddingInfo = calculateMapPadding()
+    const basePadding = paddingInfo?.padding || { top: 0, bottom: 0, left: 0, right: 0 }
+    
+    // Handle different padding input formats from options
+    let additionalPadding = { top: 50, bottom: 50, left: 50, right: 50 } // Default
+    
+    if (options?.padding) {
+      if (typeof options.padding === 'number') {
+        // Uniform padding
+        additionalPadding = {
+          top: options.padding,
+          bottom: options.padding,
+          left: options.padding,
+          right: options.padding,
+        }
+      } else if (typeof options.padding === 'object') {
+        // Object padding - merge with defaults
+        additionalPadding = {
+          top: options.padding.top ?? 50,
+          bottom: options.padding.bottom ?? 50,
+          left: options.padding.left ?? 50,
+          right: options.padding.right ?? 50,
+        }
+      }
+    }
+    
+    // Combine base padding (from UI obstructions) with additional padding
+    const combinedPadding = {
+      top: (basePadding.top || 0) + additionalPadding.top,
+      bottom: (basePadding.bottom || 0) + additionalPadding.bottom,
+      left: (basePadding.left || 0) + additionalPadding.left,
+      right: (basePadding.right || 0) + additionalPadding.right,
+    }
+    
+    const finalOptions = {
+      ...options,
+      padding: combinedPadding,
+    }
+    
+    mapStrategy.fitBounds(bounds, finalOptions)
   }
 
   function setMapEngine(mapEngine: MapEngine) {
@@ -770,6 +825,7 @@ function mapService() {
     updateMapPadding,
     flyTo,
     jumpTo,
+    fitBounds,
     setMapEngine,
     setMapProjection,
     toggle3dTerrain,
@@ -793,6 +849,8 @@ function mapService() {
       props: Record<string, any> = {},
     ) => mapStrategy?.addVueMarker(id, lngLat, component, props),
     removeAllMarkers: () => mapStrategy?.removeAllMarkers(),
+    updatePlacePolygon: (place: Place | null) => 
+      layersService.updatePlacePolygon(mapStrategy, place),
     zoomIn,
     zoomOut,
     resetNorth,

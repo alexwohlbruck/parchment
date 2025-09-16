@@ -12,10 +12,12 @@ const route = useRoute()
 const router = useRouter()
 const { currentPlace, loading, fetchPlaceDetails, clearPlace } =
   usePlaceService()
-const { flyTo, addMarker, removeAllMarkers } = useMapService()
+const { flyTo, fitBounds, addMarker, removeAllMarkers, updatePlacePolygon } = useMapService()
 
 async function loadPlace() {
   clearPlace()
+  // Clear any existing polygon
+  updatePlacePolygon(null)
 
   const { type, id, provider, placeId, name, lat, lng } = route.params
 
@@ -77,6 +79,8 @@ async function loadPlace() {
     typeof lat === 'string' &&
     typeof lng === 'string'
   ) {
+    // Note: Do not move camera here - wait for place data to load
+    // This prevents double camera movement (once from coordinates, once from loaded data)
     const place = await fetchPlaceDetails('', '', {
       name,
       lat: parseFloat(lat),
@@ -99,10 +103,26 @@ function handlePlaceResult(place: any) {
       removeAllMarkers()
       addMarker(MarkerIds.SELECTED_POI, new LngLat(lng, lat))
 
-      flyTo({
-        center: new LngLat(lng, lat),
-        zoom: 17,
-      })
+      // Update polygon layer with place data
+      updatePlacePolygon(place)
+
+      // Use different camera behavior based on geometry type
+      if (place.geometry.value.bounds && ['polygon', 'multipolygon', 'linestring'].includes(place.geometry.value.type)) {
+        // For geometries with bounds data, fit the view to the geometry area with padding
+        // The map service will automatically account for obstructing UI elements
+        fitBounds(place.geometry.value.bounds, {
+          padding: 50, // Additional padding around the geometry bounds
+          duration: 1200,
+          easing: (t) => t * (2 - t) // easeOutQuad for smooth animation
+        })
+      } else {
+        // For points or geometries without bounds, use traditional flyTo with appropriate zoom
+        const zoom = place.geometry.value.type === 'point' ? 17 : 16
+        flyTo({
+          center: new LngLat(lng, lat),
+          zoom,
+        })
+      }
     }
   }
 }
@@ -120,6 +140,8 @@ watch(
 
 onUnmounted(() => {
   removeAllMarkers()
+  // Clear polygon when leaving place view
+  updatePlacePolygon(null)
 })
 </script>
 

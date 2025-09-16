@@ -206,6 +206,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
       limit: '50',
       dedupe: '1',
       'accept-language': 'en', // TODO: i18n
+      polygon_geojson: '1', // Request polygon geometry in GeoJSON format
       // email: this.config.email,
     }
 
@@ -298,6 +299,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
         extratags: 1,
         namedetails: 1,
         'accept-language': 'en',
+        polygon_geojson: 1, // Request polygon geometry in GeoJSON format
       }
 
       const response = await axios.get(apiUrl, {

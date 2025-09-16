@@ -24,7 +24,7 @@ export interface Coordinates {
 }
 
 export interface PlaceGeometry {
-  type: 'point' | 'polygon' | 'multipolygon'
+  type: 'point' | 'linestring' | 'polygon' | 'multipolygon'
   center: Coordinates
   plusCode?: string
   bounds?: {
@@ -33,7 +33,8 @@ export interface PlaceGeometry {
     maxLat: number
     maxLng: number
   }
-  nodes?: Coordinates[] // For polygons/ways
+  nodes?: Coordinates[] // For linestrings and polygon exterior rings
+  polygons?: Coordinates[][] // For multipolygons: array of polygon rings (first ring is exterior, subsequent are holes)
 }
 
 export interface PlacePhoto {

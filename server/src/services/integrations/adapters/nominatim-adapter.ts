@@ -33,6 +33,10 @@ export interface NominatimLookupResult {
   namedetails?: {
     [key: string]: string
   }
+  geojson?: {
+    type: 'Polygon' | 'MultiPolygon' | 'Point' | 'LineString' | 'MultiLineString'
+    coordinates: any[] // GeoJSON coordinates array
+  }
 }
 
 /**
@@ -149,9 +153,44 @@ export class NominatimAdapter {
     const lat = parseFloat(data.lat)
     const lng = parseFloat(data.lon)
     
-    const geometry: PlaceGeometry = {
+    // Default to point geometry
+    let geometry: PlaceGeometry = {
       type: 'point',
       center: { lat, lng },
+    }
+
+    // Process GeoJSON geometry if available
+    if (data.geojson) {
+      switch (data.geojson.type) {
+        case 'LineString':
+        case 'MultiLineString':
+          geometry = {
+            type: 'linestring',
+            center: { lat, lng },
+            nodes: this.extractLineStringNodes(data.geojson.coordinates, data.geojson.type),
+          }
+          break
+          
+        case 'Polygon':
+          geometry = {
+            type: 'polygon',
+            center: { lat, lng },
+            nodes: this.extractPolygonNodes(data.geojson.coordinates),
+          }
+          break
+          
+        case 'MultiPolygon':
+          geometry = {
+            type: 'multipolygon',
+            center: { lat, lng },
+            polygons: this.extractMultiPolygonNodes(data.geojson.coordinates),
+          }
+          break
+          
+        case 'Point':
+          // Keep as point geometry (already set)
+          break
+      }
     }
 
     // Add bounding box if available
@@ -166,6 +205,66 @@ export class NominatimAdapter {
     }
 
     return geometry
+  }
+
+  /**
+   * Extract coordinate nodes from GeoJSON LineString or MultiLineString coordinates
+   * LineString format: [[lng, lat], [lng, lat], ...]
+   * MultiLineString format: [[[lng, lat], [lng, lat], ...], ...]
+   */
+  private extractLineStringNodes(coordinates: any, type: string): Array<{ lat: number; lng: number }> {
+    if (!coordinates) return []
+    
+    if (type === 'LineString') {
+      // Direct coordinate array
+      return coordinates.map(([lng, lat]: number[]) => ({ lat, lng }))
+    } else if (type === 'MultiLineString') {
+      // Array of LineStrings - combine all lines into one array
+      const allNodes: Array<{ lat: number; lng: number }> = []
+      coordinates.forEach((lineCoords: number[][]) => {
+        allNodes.push(...lineCoords.map(([lng, lat]) => ({ lat, lng })))
+      })
+      return allNodes
+    }
+    
+    return []
+  }
+
+  /**
+   * Extract coordinate nodes from GeoJSON Polygon coordinates
+   * GeoJSON Polygon format: [[[lng, lat], [lng, lat], ...]]
+   */
+  private extractPolygonNodes(coordinates: number[][][]): Array<{ lat: number; lng: number }> {
+    if (!coordinates || coordinates.length === 0) return []
+    
+    // Take the exterior ring (first array in coordinates)
+    const exteriorRing = coordinates[0]
+    return exteriorRing.map(([lng, lat]) => ({ lat, lng }))
+  }
+
+  /**
+   * Extract all polygons from GeoJSON MultiPolygon coordinates
+   * GeoJSON MultiPolygon format: [[[[lng, lat], [lng, lat], ...]], ...]
+   * Returns array of polygon rings where each polygon can have multiple rings (exterior + holes)
+   */
+  private extractMultiPolygonNodes(coordinates: number[][][][]): Array<Array<{ lat: number; lng: number }>> {
+    if (!coordinates || coordinates.length === 0) return []
+    
+    const polygons: Array<Array<{ lat: number; lng: number }>> = []
+    
+    // Process each polygon in the multipolygon
+    coordinates.forEach((polygonCoords) => {
+      if (polygonCoords && polygonCoords.length > 0) {
+        // For now, just take the exterior ring (first ring) of each polygon
+        // TODO: In the future, we could handle holes by processing all rings
+        const exteriorRing = polygonCoords[0]
+        if (exteriorRing && exteriorRing.length > 0) {
+          polygons.push(exteriorRing.map(([lng, lat]) => ({ lat, lng })))
+        }
+      }
+    })
+    
+    return polygons
   }
 
   /**

@@ -31,6 +31,7 @@ export class MapStrategy {
   addDataSource() {}
   flyTo(camera: Partial<MapCamera>) {}
   jumpTo(camera: Partial<MapCamera>) {}
+  fitBounds(bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, options?: any) {}
   setDirections(directions: Directions) {}
   unsetDirections() {}
   setPegman(pegman: Pegman) {}

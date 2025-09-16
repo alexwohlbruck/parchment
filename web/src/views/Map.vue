@@ -59,8 +59,7 @@ const isDrawerOpen = computed(() => {
   return appStore.obstructingComponentsMap.has('left-sheet')
 })
 
-onMounted(async () => {
-  await layersStore.loadLayers()
+onMounted(() => {
   nextTick(() => {
     mountTeleports.value = true
   })

@@ -288,6 +288,20 @@ export class MapboxStrategy extends MapStrategy {
     this.mapInstance.jumpTo(camera)
   }
 
+  fitBounds(bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, options: any = {}) {
+    const mapboxBounds = new LngLatBounds(
+      [bounds.minLng, bounds.minLat],
+      [bounds.maxLng, bounds.maxLat]
+    )
+    
+    this.mapInstance.fitBounds(mapboxBounds, {
+      padding: options.padding || 100,
+      duration: options.duration || 1000,
+      easing: options.easing || (t => t * (2 - t)),
+      ...options
+    })
+  }
+
   setDirections(directions: Directions) {
     this.unsetDirections()
 
@@ -633,7 +647,7 @@ export class MapboxStrategy extends MapStrategy {
     super.addMarker(id, lngLat)
 
     const marker = new Marker({
-      color: 'hsl(var(--primary))', // Use CSS variable from shadcn theme
+      color: cssHslToHex('hsl(var(--primary))'), // Convert CSS variable to hex color
     })
       .setLngLat(lngLat)
       .addTo(this.mapInstance)

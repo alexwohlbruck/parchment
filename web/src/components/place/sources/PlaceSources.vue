@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ChevronDownIcon, ExternalLinkIcon } from 'lucide-vue-next'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
+import PlaceSection from '../details/PlaceSection.vue'
 import type { Place } from '@/types/place.types'
 
 defineProps<{
@@ -27,41 +29,84 @@ function formatDate(dateString: string) {
 </script>
 
 <template>
-  <div class="flex flex-col gap-2">
-    <h2 class="text-sm font-medium">Sources</h2>
-    <!-- Source Info -->
-    <div
-      v-for="source in place.sources"
-      :key="source.id"
-      class="border border-border rounded-lg overflow-hidden"
-    >
-      <div class="pl-3 pr-1 py-1 flex flex-col">
-        <div class="flex items-center justify-between">
-          <div class="flex-1">
-            <div class="flex items-center justify-between">
-              <button
-                v-if="source.id === 'osm'"
-                @click="showTags = !showTags"
-                class="flex-1 flex items-center justify-between"
-              >
-                <div class="div flex flex-col items-start">
-                  <span class="text-sm">{{ source.name }}</span>
-                  <span
-                    v-if="source.updated"
-                    class="text-xs text-muted-foreground text-start"
-                  >
-                    Last updated
-                    {{ formatDate(source.updated) }}
-                    {{ source.updatedBy ? `by ${source.updatedBy}` : '' }}
-                  </span>
+  <PlaceSection>
+    <template #main>
+      <div class="space-y-3">
+        <div
+          v-for="source in place.sources"
+          :key="source.id"
+        >
+          <!-- OSM Source with collapsible tags -->
+          <div v-if="source.id === 'osm'">
+            <Collapsible v-model:open="showTags">
+              <CollapsibleTrigger class="w-full cursor-pointer">
+                <div class="flex items-center justify-between group">
+                  <div class="flex flex-col items-start flex-1">
+                    <span class="text-sm font-medium">{{ source.name }}</span>
+                    <span
+                      v-if="source.updated"
+                      class="text-xs text-muted-foreground text-start"
+                    >
+                      Last updated
+                      {{ formatDate(source.updated) }}
+                      {{ source.updatedBy ? `by ${source.updatedBy}` : '' }}
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      asChild
+                      v-if="source.url"
+                      @click.stop
+                    >
+                      <a
+                        :href="source.url"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        :title="`View on ${source.name}`"
+                      >
+                        <ExternalLinkIcon class="size-4" />
+                      </a>
+                    </Button>
+                    <Button 
+                      variant="ghost"
+                      size="icon-xs"
+                    >
+                      <ChevronDownIcon
+                        class="size-4 text-muted-foreground transition-transform group-hover:text-foreground"
+                        :class="{ 'rotate-180': showTags }"
+                      />
+                    </Button>
+                  </div>
                 </div>
-                <ChevronDownIcon
-                  class="size-4 text-muted-foreground transition-transform"
-                  :class="{ 'rotate-180': showTags }"
-                />
-              </button>
-              <div v-else class="flex-1 flex flex-col items-start">
-                <span class="text-sm">{{ source.name }}</span>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div class="mt-2 bg-muted/30 rounded-md p-3">
+                  <div class="space-y-2">
+                    <div
+                      v-for="[key, value] in Object.entries(place.amenities || {})"
+                      :key="key"
+                      class="flex items-start justify-between gap-3 text-sm"
+                    >
+                      <span class="font-medium text-muted-foreground min-w-0 flex-shrink-0">
+                        {{ key }}
+                      </span>
+                      <span class="break-all text-right min-w-0">
+                        {{ value.value }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+          
+          <!-- Other sources (non-collapsible) -->
+          <div v-else>
+            <div class="flex items-center justify-between">
+              <div class="flex-1 flex flex-col items-start">
+                <span class="text-sm font-medium">{{ source.name }}</span>
                 <span
                   v-if="source.updated"
                   class="text-xs text-muted-foreground"
@@ -74,7 +119,6 @@ function formatDate(dateString: string) {
               <Button
                 variant="ghost"
                 size="icon"
-                class="ml-2"
                 asChild
                 v-if="source.url"
               >
@@ -91,23 +135,6 @@ function formatDate(dateString: string) {
           </div>
         </div>
       </div>
-      <div v-if="source.id === 'osm' && showTags">
-        <Table>
-          <TableBody>
-            <TableRow
-              v-for="[key, value] in Object.entries(place.amenities || {})"
-              :key="key"
-            >
-              <TableCell class="font-medium text-muted-foreground">
-                {{ key }}
-              </TableCell>
-              <TableCell class="break-all">
-                {{ value.value }}
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  </div>
+    </template>
+  </PlaceSection>
 </template>

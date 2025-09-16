@@ -127,8 +127,8 @@ function handleBrandLogoError() {
     </div>
 
     <template v-else-if="place">
-      <div class="flex flex-col gap-4 pt-4">
-        <div class="px-4">
+      <div class="flex flex-col pt-4 pb-6">
+        <div class="px-4 mb-6">
           <PlaceHeader
             :place="place"
             @close="router.push({ name: AppRoute.MAP })"
@@ -152,9 +152,9 @@ function handleBrandLogoError() {
           @imageError="handlePlaceImageError"
         /> -->
 
-        <div class="px-4">
+        <div class="px-4 space-y-2">
           <DetailsList :place="place" />
-          <PlaceSources :place="place" class="mt-4" />
+          <PlaceSources :place="place" />
         </div>
       </div>
     </template>

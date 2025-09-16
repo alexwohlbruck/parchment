@@ -289,6 +289,20 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.jumpTo(camera)
   }
 
+  fitBounds(bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, options: any = {}) {
+    const mapboxBounds = new LngLatBounds(
+      [bounds.minLng, bounds.minLat],
+      [bounds.maxLng, bounds.maxLat]
+    )
+    
+    this.mapInstance.fitBounds(mapboxBounds, {
+      padding: options.padding || 100,
+      duration: options.duration || 1000,
+      easing: options.easing || (t => t * (2 - t)),
+      ...options
+    })
+  }
+
   setDirections(directions: Directions) {
     this.unsetDirections()
 

@@ -258,7 +258,7 @@ update_tauri_conf "$NEW_VERSION"
 update_cargo_toml "$NEW_VERSION"
 
 # Build Tauri app
-build_tauri
+# build_tauri
 
 # Build and push Docker images
 # TODO: Check logged in to docker first

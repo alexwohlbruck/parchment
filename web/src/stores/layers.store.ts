@@ -2,18 +2,61 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Layer, LayerGroup, LayerGroupWithLayers } from '@/types/map.types'
 import { useLayersService } from '@/services/layers.service'
+import { useIntegrationsStore } from '@/stores/integrations.store'
+import { 
+  CORE_LAYERS, 
+  CORE_LAYER_IDS,
+  USER_LAYER_TEMPLATES,
+  USER_LAYER_GROUP_TEMPLATES,
+  LAYER_INTEGRATION_REQUIREMENTS
+} from '@/constants/layer.constants'
+// Helper function to generate IDs
+function generateId(): string {
+  return `layer-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+}
 
 export const useLayersStore = defineStore('layers', () => {
   const layersService = useLayersService()
+  const integrationsStore = useIntegrationsStore()
 
-  const layers = ref<Layer[]>([])
+  const userLayers = ref<Layer[]>([]) // Only user-created layers from server
   const layerGroups = ref<LayerGroup[]>([])
   const isSyncing = ref(false) // Track when syncing with server
 
-  // Simple computed properties - no complex denormalization
+  // Core layers that are always present (hidden from user)
+  const coreLayers = computed(() => {
+    return CORE_LAYERS.map((layerTemplate, index) => ({
+      ...layerTemplate,
+      id: Object.values(CORE_LAYER_IDS)[index],
+      userId: 'core',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }))
+  })
+
+  // All layers (core + user layers), filtered by integrations
+  const layers = computed(() => {
+    // Filter user layers based on integration requirements
+    const filteredUserLayers = userLayers.value.filter(layer => {
+      const configId = layer.configuration?.id
+      if (!configId) return true
+      
+      const requiredIntegration = LAYER_INTEGRATION_REQUIREMENTS[configId as keyof typeof LAYER_INTEGRATION_REQUIREMENTS]
+      if (!requiredIntegration) return true
+      
+      // Check if required integration is configured
+      return integrationsStore.configuredIntegrations.some(
+        integration => integration.id.toLowerCase() === requiredIntegration
+      )
+    })
+
+    return [...coreLayers.value, ...filteredUserLayers]
+  })
+
+  // UI display computed properties (only show user layers, hide core layers)
   const ungroupedLayers = computed(() =>
-    layers.value
-      .filter(layer => !layer.groupId)
+    userLayers.value
+      .filter(layer => !layer.groupId && layer.showInLayerSelector)
       .sort((a, b) => a.order - b.order),
   )
 
@@ -24,13 +67,13 @@ export const useLayersStore = defineStore('layers', () => {
   const groupsWithLayers = computed<LayerGroupWithLayers[]>(() =>
     sortedGroups.value.map(group => ({
       ...group,
-      layers: layers.value
-        .filter(layer => layer.groupId === group.id)
+      layers: userLayers.value
+        .filter(layer => layer.groupId === group.id && layer.showInLayerSelector)
         .sort((a, b) => a.order - b.order),
     })),
   )
 
-  // Mixed list of ungrouped layers and groups for main reordering
+  // Mixed list of ungrouped layers and groups for main reordering (user layers only)
   const mainReorderableItems = computed(() => {
     const items: (Layer | LayerGroup)[] = [
       ...ungroupedLayers.value,
@@ -39,38 +82,104 @@ export const useLayersStore = defineStore('layers', () => {
     return items.sort((a, b) => a.order - b.order)
   })
 
-  // Load layers and groups from server
+  // Load layers and groups from server (user layers only)
   async function loadLayers() {
     const [layersData, groupsData] = await Promise.all([
       layersService.getLayers(),
       layersService.getLayerGroups(),
     ])
 
-    layers.value = layersData
+    userLayers.value = layersData
     layerGroups.value = groupsData
   }
 
-  // Layer operations
+  // TODO: Create template "store" where users can import pre-made layers from the community
+  // Populate user's account with template layers (replaces server-side populate endpoint)
+  async function populateUserLayerTemplates() {
+    try {
+      // First, create layer groups that don't exist
+      const existingGroupNames = new Set(layerGroups.value.map(g => g.name))
+      
+      for (const groupTemplate of USER_LAYER_GROUP_TEMPLATES) {
+        if (!existingGroupNames.has(groupTemplate.name)) {
+          // Check if this group requires integrations
+          const hasRequiredIntegration = groupTemplate.name === 'Mapillary' 
+            ? integrationsStore.configuredIntegrations.some(i => i.id.toLowerCase() === 'mapillary')
+            : true
+            
+          if (hasRequiredIntegration) {
+            await addLayerGroup(groupTemplate)
+          }
+        }
+      }
+
+      // Reload groups to get the created IDs
+      await loadLayers()
+
+      // Then create layers that don't exist
+      const existingConfigIds = new Set(userLayers.value.map(l => l.configuration?.id).filter(Boolean))
+
+      for (const layerTemplate of USER_LAYER_TEMPLATES) {
+        const configId = layerTemplate.configuration?.id
+        if (configId && !existingConfigIds.has(configId)) {
+          // Check integration requirements
+          const requiredIntegration = LAYER_INTEGRATION_REQUIREMENTS[configId as keyof typeof LAYER_INTEGRATION_REQUIREMENTS]
+          const hasRequiredIntegration = !requiredIntegration || 
+            integrationsStore.configuredIntegrations.some(i => i.id.toLowerCase() === requiredIntegration)
+            
+          if (hasRequiredIntegration) {
+            // Find group ID if this layer belongs to a group
+            let groupId: string | null = null
+            if (layerTemplate.groupId) {
+              const group = layerGroups.value.find(g => g.name === layerTemplate.groupId)
+              groupId = group?.id || null
+            }
+
+            await addLayer({
+              ...layerTemplate,
+              groupId,
+            })
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to populate user layer templates:', error)
+    }
+  }
+
+  // Layer operations (user layers only)
   async function addLayer(
     layer: Omit<Layer, 'id' | 'userId' | 'createdAt' | 'updatedAt'>,
   ) {
     const newLayer = await layersService.createLayer(layer)
-    layers.value.push(newLayer)
+    userLayers.value.push(newLayer)
     return newLayer
   }
 
   async function updateLayer(id: string, updates: Partial<Layer>) {
+    // Don't allow updating core layers
+    if (Object.values(CORE_LAYER_IDS).includes(id as any)) {
+      console.warn('Cannot update core layer:', id)
+      return
+    }
+    
     const updatedLayer = await layersService.updateLayer(id, updates)
-    const index = layers.value.findIndex(l => l.id === id)
+    const index = userLayers.value.findIndex(l => l.id === id)
     if (index !== -1) {
-      layers.value[index] = updatedLayer
+      userLayers.value[index] = updatedLayer
     }
     return updatedLayer
   }
 
   async function removeLayer(id: string) {
+    // Don't allow removing core layers
+    if (Object.values(CORE_LAYER_IDS).includes(id as any)) {
+      console.warn('Cannot remove core layer:', id)
+      return
+    }
+    
     await layersService.deleteLayer(id)
-    layers.value = layers.value.filter(l => l.id !== id)
+    userLayers.value = userLayers.value.filter(l => l.id !== id)
   }
 
   // Layer group operations
@@ -98,6 +207,7 @@ export const useLayersStore = defineStore('layers', () => {
 
   // Optimistic visibility updates
   function updateLayerVisibility(layerId: string, visible: boolean) {
+    // Handle both core and user layers
     const layer = layers.value.find(l => l.id === layerId)
     if (layer) {
       layer.visible = visible
@@ -130,8 +240,8 @@ export const useLayersStore = defineStore('layers', () => {
 
     newItems.forEach((item, index) => {
       if ('groupId' in item) {
-        // It's a layer - update local state
-        const layer = layers.value.find(l => l.id === item.id)
+        // It's a layer - update local state (user layers only)
+        const layer = userLayers.value.find(l => l.id === item.id)
         if (layer) {
           layer.order = index
           layer.groupId = null // Main list only contains ungrouped layers
@@ -154,9 +264,9 @@ export const useLayersStore = defineStore('layers', () => {
   }
 
   async function handleUngroupedReorder(newLayers: Layer[]) {
-    // Optimistically update local state
+    // Optimistically update local state (user layers only)
     newLayers.forEach((layer, index) => {
-      const localLayer = layers.value.find(l => l.id === layer.id)
+      const localLayer = userLayers.value.find(l => l.id === layer.id)
       if (localLayer) {
         localLayer.order = index
         localLayer.groupId = null
@@ -174,9 +284,9 @@ export const useLayersStore = defineStore('layers', () => {
   }
 
   async function handleGroupReorder(groupId: string, newLayers: Layer[]) {
-    // Optimistically update local state
+    // Optimistically update local state (user layers only)
     newLayers.forEach((layer, index) => {
-      const localLayer = layers.value.find(l => l.id === layer.id)
+      const localLayer = userLayers.value.find(l => l.id === layer.id)
       if (localLayer) {
         localLayer.order = index
         localLayer.groupId = groupId
@@ -208,8 +318,8 @@ export const useLayersStore = defineStore('layers', () => {
       newIndex,
     )
 
-    // Find the layer being moved
-    const movingLayer = layers.value.find(l => l.id === layerId)
+    // Find the layer being moved (user layers only)
+    const movingLayer = userLayers.value.find(l => l.id === layerId)
     if (!movingLayer) {
       console.error('Layer not found:', layerId)
       return
@@ -220,8 +330,8 @@ export const useLayersStore = defineStore('layers', () => {
 
     // Get target group layers (excluding the moving layer)
     const targetLayers = newGroupId
-      ? layers.value.filter(l => l.groupId === newGroupId && l.id !== layerId)
-      : layers.value.filter(l => !l.groupId && l.id !== layerId)
+      ? userLayers.value.filter(l => l.groupId === newGroupId && l.id !== layerId)
+      : userLayers.value.filter(l => !l.groupId && l.id !== layerId)
 
     console.log('Target group has', targetLayers.length, 'existing layers')
 
@@ -241,7 +351,7 @@ export const useLayersStore = defineStore('layers', () => {
 
     // If layer came from a different group, reorder the old group
     if (oldGroupId !== newGroupId && oldGroupId !== null) {
-      const oldGroupLayers = layers.value
+      const oldGroupLayers = userLayers.value
         .filter(l => l.groupId === oldGroupId)
         .sort((a, b) => a.order - b.order)
 
@@ -290,7 +400,9 @@ export const useLayersStore = defineStore('layers', () => {
 
   return {
     // State
-    layers,
+    layers, // All layers (core + user)
+    userLayers, // Only user layers
+    coreLayers, // Only core layers
     layerGroups,
     isSyncing,
     // Computed
@@ -299,6 +411,7 @@ export const useLayersStore = defineStore('layers', () => {
     mainReorderableItems,
     // Data operations
     loadLayers,
+    populateUserLayerTemplates, // New function to populate templates
     addLayer,
     updateLayer,
     removeLayer,

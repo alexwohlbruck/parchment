@@ -86,10 +86,9 @@ function openLayerGroupConfigDialog(groupId?: string) {
 }
 
 async function restoreDefaults() {
-  const res = await layersService.restoreDefaultLayers()
-  await layersStore.loadLayers()
+  const count = await layersStore.populateUserLayerTemplates()
   appService.toast.success(
-    t('layers.restoreDefaults.success', { count: res?.restored ?? 0 }),
+    t('layers.restoreDefaults.success', { count }),
   )
 }
 

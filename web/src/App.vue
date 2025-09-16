@@ -8,6 +8,7 @@ import { useCommandService } from '@/services/command.service'
 import { useAuthService } from '@/services/auth.service'
 import { useIntegrationService } from '@/services/integration.service'
 import { useCategoryStore } from '@/stores/category.store'
+import { useLayersStore } from '@/stores/layers.store'
 import { useResponsive } from '@/lib/utils'
 
 import DesktopNav from '@/components/navigation/DesktopNavigation.vue'
@@ -23,6 +24,7 @@ const commandService = useCommandService()
 const authService = useAuthService()
 const integrationService = useIntegrationService()
 const categoryStore = useCategoryStore()
+const layersStore = useLayersStore()
 const appStore = useAppStore()
 const { isMobileScreen } = useResponsive()
 
@@ -41,6 +43,10 @@ onMounted(async () => {
   if (authStore.me) {
     await integrationService.fetchAvailableIntegrations()
     await integrationService.fetchConfiguredIntegrations()
+    // Load existing layers first
+    await layersStore.loadLayers()
+    // Then populate any missing template layers
+    await layersStore.populateUserLayerTemplates()
     // Initialize categories for offline search
     categoryStore.init()
   }

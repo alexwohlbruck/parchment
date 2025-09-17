@@ -118,7 +118,7 @@ function handleBrandLogoError() {
 </script>
 
 <template>
-  <div class="h-full flex flex-col relative">
+  <div class="h-full flex flex-col relative px-4">
     <div
       v-if="loading"
       class="h-full p-4 flex items-center justify-center py-8"
@@ -127,8 +127,8 @@ function handleBrandLogoError() {
     </div>
 
     <template v-else-if="place">
-      <div class="flex flex-col pt-4 pb-6">
-        <div class="px-4 mb-6">
+      <div class="flex flex-col py-4 space-y-4">
+        <div>
           <PlaceHeader
             :place="place"
             @close="router.push({ name: AppRoute.MAP })"
@@ -152,10 +152,8 @@ function handleBrandLogoError() {
           @imageError="handlePlaceImageError"
         /> -->
 
-        <div class="px-4 space-y-2">
-          <DetailsList :place="place" />
-          <PlaceSources :place="place" />
-        </div>
+        <DetailsList :place="place"/>
+        <PlaceSources :place="place"/>
       </div>
     </template>
   </div>

@@ -90,10 +90,10 @@ function formatDate(dateString: string) {
                       class="flex items-start justify-between gap-3 text-sm"
                     >
                       <span class="font-medium text-muted-foreground min-w-0 flex-shrink-0">
-                        {{ key }}
+                        {{ key }} 
                       </span>
                       <span class="break-all text-right min-w-0">
-                        {{ value.value }}
+                        {{ value }}
                       </span>
                     </div>
                   </div>

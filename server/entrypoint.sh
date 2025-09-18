@@ -6,8 +6,14 @@ if [ "$NODE_ENV" = "production" ]; then
     
     # Wait for database to be ready using pg_isready
     echo "Waiting for database to be ready..."
-    DB_HOST=${DATABASE_HOST:-localhost}
-    DB_PORT=${DATABASE_PORT:-5432}
+    # Extract database host from DATABASE_URL if available, otherwise use environment variables
+    if [ -n "$DATABASE_URL" ]; then
+        DB_HOST=$(echo $DATABASE_URL | sed -n 's/.*@\([^:]*\):.*/\1/p')
+        DB_PORT=$(echo $DATABASE_URL | sed -n 's/.*:\([0-9]*\)\/.*/\1/p')
+    else
+        DB_HOST=${DATABASE_HOST:-localhost}
+        DB_PORT=${DATABASE_PORT:-5432}
+    fi
     
     # Wait for database to be ready with timeout
     for i in {1..30}; do
@@ -32,8 +38,14 @@ else
     
     # Wait for database to be ready using pg_isready
     echo "Waiting for database to be ready..."
-    DB_HOST=${DATABASE_HOST:-localhost}
-    DB_PORT=${DATABASE_PORT:-5432}
+    # Extract database host from DATABASE_URL if available, otherwise use environment variables
+    if [ -n "$DATABASE_URL" ]; then
+        DB_HOST=$(echo $DATABASE_URL | sed -n 's/.*@\([^:]*\):.*/\1/p')
+        DB_PORT=$(echo $DATABASE_URL | sed -n 's/.*:\([0-9]*\)\/.*/\1/p')
+    else
+        DB_HOST=${DATABASE_HOST:-localhost}
+        DB_PORT=${DATABASE_PORT:-5432}
+    fi
     
     # Wait for database to be ready with timeout
     for i in {1..30}; do

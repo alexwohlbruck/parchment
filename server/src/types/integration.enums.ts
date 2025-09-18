@@ -13,6 +13,9 @@ export enum IntegrationId {
   MAPBOX = 'mapbox',
   VALHALLA = 'valhalla',
   TRANSITLAND = 'transitland',
+  WIKIDATA = 'wikidata',
+  WIKIPEDIA = 'wikipedia',
+  WIKIMEDIA = 'wikimedia',
 }
 
 export enum IntegrationCapabilityId {

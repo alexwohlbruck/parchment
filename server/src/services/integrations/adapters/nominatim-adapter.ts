@@ -51,9 +51,7 @@ export class NominatimAdapter {
 
       return {
         id: primaryId,
-        externalIds: {
-          [SOURCE.OSM]: osmId,
-        },
+        externalIds: this.extractExternalIds(data, osmId),
         name: {
           value: this.extractName(data),
           sourceId: SOURCE.OSM,
@@ -86,6 +84,27 @@ export class NominatimAdapter {
         createdAt: timestamp,
       }
     },
+  }
+
+  /**
+   * Extract external IDs from Nominatim data
+   */
+  private extractExternalIds(data: NominatimLookupResult, osmId: string): Record<string, string> {
+    const externalIds: Record<string, string> = {
+      [SOURCE.OSM]: osmId,
+    }
+
+    // Extract Wikidata ID if available
+    if (data.extratags?.wikidata) {
+      externalIds[SOURCE.WIKIDATA] = data.extratags.wikidata
+    }
+
+    // Extract Wikipedia reference if available
+    if (data.extratags?.wikipedia) {
+      externalIds[SOURCE.WIKIPEDIA] = data.extratags.wikipedia
+    }
+
+    return externalIds
   }
 
   /**

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { StarIcon, XIcon } from 'lucide-vue-next'
+import { computed, ref, onMounted, nextTick, watch } from 'vue'
+import { StarIcon, XIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import type { Place } from '@/types/place.types'
 import { getLogoPhoto } from '@/types/place.types'
@@ -39,12 +39,44 @@ const description = computed(() => props.place?.description?.value || null)
 const logoLoading = ref(false)
 const logoError = ref(false)
 const brandLogoLoaded = ref(false)
+const isDescriptionExpanded = ref(false)
+const descriptionRef = ref<HTMLElement>()
+const showToggleButton = ref(false)
 
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'logoLoaded'): void
   (e: 'logoError'): void
 }>()
+
+// Check if description content overflows the max height
+const checkOverflow = async () => {
+  if (!descriptionRef.value || !description.value) return
+  
+  await nextTick()
+  
+  // Temporarily expand to measure full height
+  const element = descriptionRef.value
+  const originalMaxHeight = element.style.maxHeight
+  element.style.maxHeight = 'none'
+  
+  const fullHeight = element.scrollHeight
+  const maxHeight = 128 // 8rem = 128px (assuming 1rem = 16px)
+  
+  // Restore original max height
+  element.style.maxHeight = originalMaxHeight
+  
+  showToggleButton.value = fullHeight > maxHeight
+}
+
+onMounted(() => {
+  checkOverflow()
+})
+
+// Watch for description changes and recheck overflow
+watch(description, () => {
+  checkOverflow()
+}, { immediate: true })
 </script>
 
 <template>
@@ -74,8 +106,8 @@ const emit = defineEmits<{
               :src="brandLogo"
               :alt="place.name.value + ' logo'"
               class="w-full h-full object-contain bg-white"
-              @load="$emit('logoLoaded')"
-              @error="$emit('logoError')"
+              @load="emit('logoLoaded')"
+              @error="emit('logoError')"
             />
           </transition>
         </div>
@@ -116,7 +148,7 @@ const emit = defineEmits<{
         variant="secondary"
         size="icon"
         class="size-7 rounded-full"
-        @click="$emit('close')"
+        @click="emit('close')"
       >
         <XIcon class="size-4" />
       </Button>
@@ -124,9 +156,47 @@ const emit = defineEmits<{
 
     <!-- Description Section -->
     <div v-if="description">
-      <p class="text-sm text-muted-foreground leading-relaxed">
-        {{ description }}
-      </p>
+      <!-- Collapsed view with max height -->
+      <div 
+        v-if="!isDescriptionExpanded"
+        ref="descriptionRef"
+        class="relative overflow-hidden"
+        style="max-height: 7rem"
+      >
+        <p class="text-sm text-muted-foreground leading-relaxed">
+          {{ description }}
+        </p>
+        
+        <!-- Fade out gradient (only show when content overflows) -->
+        <div 
+          v-if="showToggleButton"
+          class="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-muted to-transparent pointer-events-none" 
+        />
+      </div>
+      
+      <!-- Expanded view -->
+      <div v-else>
+        <p class="text-sm text-muted-foreground leading-relaxed">
+          {{ description }}
+        </p>
+      </div>
+      
+      <!-- Toggle button (only show if content overflows) -->
+      <button
+        v-if="showToggleButton"
+        @click="isDescriptionExpanded = !isDescriptionExpanded"
+        class="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors cursor-pointer"
+      >
+        <template v-if="isDescriptionExpanded">
+          <ChevronUpIcon class="w-3 h-3" />
+          Show less
+        </template>
+        <template v-else>
+          <ChevronDownIcon class="w-3 h-3" />
+          Show more
+        </template>
+      </button>
     </div>
   </div>
 </template>
+

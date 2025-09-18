@@ -147,6 +147,51 @@ const availableIntegrations: IntegrationDefinition[] = [
     configSchema: 'geoapifySchema',
     scope: [IntegrationScope.SYSTEM],
   },
+  {
+    id: IntegrationId.WIKIDATA,
+    name: 'Wikidata',
+    description: 'Structured knowledge base for enriching place information',
+    color: '#339966',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.WIKIDATA,
+      )
+    },
+    paid: false,
+    cloud: true,
+    configSchema: 'wikidataSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
+    id: IntegrationId.WIKIPEDIA,
+    name: 'Wikipedia',
+    description: 'Free encyclopedia content and place descriptions',
+    color: '#000000',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.WIKIPEDIA,
+      )
+    },
+    paid: false,
+    cloud: true,
+    configSchema: 'wikipediaSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
+    id: IntegrationId.WIKIMEDIA,
+    name: 'Wikimedia Commons',
+    description: 'Free media repository for place images',
+    color: '#006699',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.WIKIMEDIA,
+      )
+    },
+    paid: false,
+    cloud: true,
+    configSchema: 'wikimediaSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
 ]
 
 export async function initializeIntegrations() {

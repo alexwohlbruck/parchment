@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { cn } from '@/lib/utils'
 import { TransitionExpand } from '@morev/vue-transitions'
 import type { Place } from '@/types/place.types'
 
@@ -14,7 +15,7 @@ const emit = defineEmits<{
 
 <template>
   <TransitionExpand>
-    <div v-if="place.photos.length > 0" class="w-full relative">
+    <div v-if="place.photos.length > 0" :class="cn('w-full relative', $attrs.class ?? '')">
       <div
         class="w-full overflow-x-auto snap-x snap-mandatory flex gap-2"
         style="scrollbar-width: none; -ms-overflow-style: none"

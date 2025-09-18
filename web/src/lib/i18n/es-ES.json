@@ -558,7 +558,10 @@
         "tripadvisor": "Reseñas y recomendaciones de viajes",
         "geoapify": "Geocodificación, rutas e información de lugares",
         "valhalla": "Motor de rutas de código abierto para navegación multimodal",
-        "transitland": "Teselas y APIs de rutas de tránsito"
+        "transitland": "Teselas y APIs de rutas de tránsito",
+        "wikidata": "Base de conocimiento estructurado para enriquecer información de lugares",
+        "wikipedia": "Contenido gratuito de enciclopedia y descripciones de lugares",
+        "wikimedia": "Repositorio gratuito de medios para imágenes de lugares"
       }
     },
     "users": {

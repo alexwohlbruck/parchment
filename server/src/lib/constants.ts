@@ -8,6 +8,8 @@ export const SOURCE = {
   OPENADDRESSES: 'openaddresses',
   GOOGLE: 'google',
   WIKIDATA: 'wikidata',
+  WIKIPEDIA: 'wikipedia',
+  WIKIMEDIA: 'wikimedia',
   YELP: 'yelp',
   FOURSQUARE: 'foursquare',
   TRIPADVISOR: 'tripadvisor',
@@ -29,15 +31,17 @@ export const SOURCE_PRIORITIES = {
 
   // Secondary sources
   [SOURCE.GOOGLE]: 80,
+  [SOURCE.WIKIPEDIA]: 78, // High priority for detailed descriptions
   [SOURCE.GEOAPIFY]: 75,
-  [SOURCE.WIKIDATA]: 60,
+  [SOURCE.VALHALLA]: 70, // Routing provider - high priority for routing data
+  [SOURCE.WIKIDATA]: 65,
+  [SOURCE.WIKIMEDIA]: 45,
 
   // Tertiary sources
   [SOURCE.YELP]: 50,
   [SOURCE.FOURSQUARE]: 40,
   [SOURCE.TRIPADVISOR]: 40,
   [SOURCE.OPENTABLE]: 30,
-  [SOURCE.VALHALLA]: 70, // Routing provider - high priority for routing data
 } as const
 
 // TODO: Make these constants defined per-capability
@@ -49,9 +53,12 @@ export const INTEGRATION_PRIORITIES: Partial<Record<IntegrationId, number>> = {
   [IntegrationId.PELIAS]: 100, // Fast, self-hosted, good coverage for place info and search
   [IntegrationId.NOMINATIM]: 90, // Free, rate-limited, good for geocoding
   [IntegrationId.GOOGLE_MAPS]: 80, // Fast, paid, excellent coverage
+  [IntegrationId.WIKIPEDIA]: 78, // Free, high-quality detailed descriptions
   [IntegrationId.GEOAPIFY]: 70, // Fast, paid, extensive categories but limited
+  [IntegrationId.WIKIDATA]: 65, // Free, structured data, good for enrichment
   [IntegrationId.VALHALLA]: 60, // Fast, free, good coverage for place info and search
   [IntegrationId.OVERPASS]: 50, // Slowest, free, supports any OSM tags (fallback)
+  [IntegrationId.WIKIMEDIA]: 45, // Free, images, depends on Wikidata
 } as const
 
 // TODO: Remove this

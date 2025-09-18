@@ -15,6 +15,43 @@ export function getSourcePriority(sourceId: string): number {
 }
 
 /**
+ * Extract Commons filename from various URL formats
+ * Returns normalized filename (with underscores) or null if not a Commons URL
+ */
+export function extractCommonsFilename(url: string): string | null {
+  try {
+    let filename: string | null = null
+
+    // Commons direct upload URL: https://upload.wikimedia.org/wikipedia/commons/e/ec/EastWest_Blvd.jpg
+    const uploadMatch = url.match(/\/wikipedia\/commons\/[^\/]+\/[^\/]+\/([^?]+)/)
+    if (uploadMatch) {
+      filename = decodeURIComponent(uploadMatch[1])
+    }
+
+    // Commons FilePath URL: https://commons.wikimedia.org/wiki/Special:FilePath/EastWest%20Blvd.jpg
+    if (!filename) {
+      const filePathMatch = url.match(/\/Special:FilePath\/([^?]+)/)
+      if (filePathMatch) {
+        filename = decodeURIComponent(filePathMatch[1]).replace(/%20/g, ' ')
+      }
+    }
+
+    // Commons File page URL: https://commons.wikimedia.org/wiki/File:EastWest_Blvd.jpg
+    if (!filename) {
+      const filePageMatch = url.match(/\/wiki\/File:([^?]+)/)
+      if (filePageMatch) {
+        filename = decodeURIComponent(filePageMatch[1]).replace(/%20/g, ' ')
+      }
+    }
+
+    // Normalize spaces to underscores for consistent comparison
+    return filename ? filename.replace(/ /g, '_') : null
+  } catch (error) {
+    return null
+  }
+}
+
+/**
  * Normalize text for comparison (names, addresses, etc.)
  * Works globally for any language
  */
@@ -266,8 +303,8 @@ function shouldMergePlaces(place1: Place, place2: Place): boolean {
   const distanceSimilarity = 1 / (1 + Math.pow(distanceMeters / 100, 2))
 
   const nameSimilarity = calculateTextSimilarity(
-    place1.name.value,
-    place2.name.value,
+    place1.name.value || '',
+    place2.name.value || '',
   )
   const addressSimilarity = calculateAddressSimilarity(place1, place2)
 
@@ -392,16 +429,73 @@ export function mergePlaces(
       }
     }
 
-    // Merge photos without duplicates
+    // Merge photos without duplicates (including Commons filename deduplication)
     if (place.photos.length > 0) {
       const existingUrls = new Set(
         result.photos.map((photo) => photo.value.url),
       )
+      const existingCommonsFiles = new Set(
+        result.photos
+          .map((photo) => extractCommonsFilename(photo.value.url))
+          .filter((filename): filename is string => filename !== null)
+      )
+      
       for (const photo of place.photos) {
-        if (!existingUrls.has(photo.value.url)) {
-          result.photos.push(cloneDeep(photo))
+        const photoUrl = photo.value.url
+        const commonsFilename = extractCommonsFilename(photoUrl)
+        
+        // Skip if we already have this exact URL
+        if (existingUrls.has(photoUrl)) {
+          continue
+        }
+        
+        // Skip if we already have this Commons file (but keep the higher priority source)
+        if (commonsFilename && existingCommonsFiles.has(commonsFilename)) {
+          // Find the existing photo with this Commons file
+          const existingPhotoIndex = result.photos.findIndex(existingPhoto => 
+            extractCommonsFilename(existingPhoto.value.url) === commonsFilename
+          )
+          
+          if (existingPhotoIndex !== -1) {
+            const existingPhoto = result.photos[existingPhotoIndex]
+            const newSourcePriority = getSourcePriority(photo.sourceId)
+            const existingSourcePriority = getSourcePriority(existingPhoto.sourceId)
+            
+            // Replace with higher priority source
+            if (newSourcePriority > existingSourcePriority) {
+              result.photos[existingPhotoIndex] = cloneDeep(photo)
+            }
+          }
+          continue
+        }
+        
+        // Add new photo if it's not a duplicate
+        result.photos.push(cloneDeep(photo))
+        if (commonsFilename) {
+          existingCommonsFiles.add(commonsFilename)
+        }
+        existingUrls.add(photoUrl)
+      }
+    }
+
+    // Ensure only one photo is marked as primary (highest priority source wins)
+    if (result.photos.length > 0) {
+      // Find the photo with the highest source priority
+      let primaryPhotoIndex = 0
+      let highestPriority = getSourcePriority(result.photos[0].sourceId)
+      
+      for (let i = 1; i < result.photos.length; i++) {
+        const priority = getSourcePriority(result.photos[i].sourceId)
+        if (priority > highestPriority) {
+          highestPriority = priority
+          primaryPhotoIndex = i
         }
       }
+      
+      // Set primary status
+      result.photos.forEach((photo, index) => {
+        photo.value.isPrimary = index === primaryPhotoIndex
+      })
     }
 
     // Merge sources

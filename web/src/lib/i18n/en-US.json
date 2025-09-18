@@ -569,7 +569,10 @@
         "geoapify": "Geocoding, routing, and place data",
         "mapbox": "Interactive maps, geocoding, and navigation",
         "valhalla": "Open-source routing engine for multimodal navigation",
-        "transitland": "Transit routes tiles and APIs"
+        "transitland": "Transit routes tiles and APIs",
+        "wikidata": "Structured knowledge base for enriching place information",
+        "wikipedia": "Free encyclopedia content and place descriptions",
+        "wikimedia": "Free media repository for place images"
       }
     },
     "users": {

@@ -316,7 +316,7 @@ function getFullAddress(address: any) {
               </CollapsibleTrigger>
               
               <CollapsibleContent>
-                <div class="mt-3 ml-7 bg-muted/30 rounded-md p-3 space-y-3">
+                <div class="mt-3 bg-muted/30 rounded-md p-3 space-y-3">
                   <!-- Coordinates -->
                   <DetailItem
                     v-if="coordinates"
@@ -403,7 +403,7 @@ function getFullAddress(address: any) {
               </CollapsibleTrigger>
               
               <CollapsibleContent>
-                <div class="mt-3 ml-7 bg-muted/30 rounded-md p-3">
+                <div class="mt-3 bg-muted/30 rounded-md p-3">
                   <div class="text-sm text-muted-foreground space-y-1">
                     <div
                       v-for="day in DAYS"

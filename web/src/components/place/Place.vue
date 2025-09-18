@@ -128,7 +128,7 @@ function handleBrandLogoError() {
 
     <template v-else-if="place">
       <div class="flex flex-col py-4 space-y-4">
-        <div>
+        <div class="flex flex-col space-y-4">
           <PlaceHeader
             :place="place"
             @close="router.push({ name: AppRoute.MAP })"
@@ -137,7 +137,7 @@ function handleBrandLogoError() {
           />
 
           <PlaceActions
-            class="mt-4"
+            class=""
             :place="place"
             @directions="handleDirectionsClick"
             @directionsFrom="handleDirectionsFromClick"
@@ -146,14 +146,17 @@ function handleBrandLogoError() {
         </div>
 
         <!-- Temporary disabled, photos are costing a lot of API calls lmao -->
-        <!-- <PlaceGallery
+        <PlaceGallery
+          class="ml-[-1rem] mr-[-1rem] w-[calc(100%+2rem)]"
           :place="place"
           @imageLoaded="handlePlaceImageLoad"
           @imageError="handlePlaceImageError"
-        /> -->
+        />
 
-        <DetailsList :place="place"/>
-        <PlaceSources :place="place"/>
+        <div class="flex flex-col space-y-2">
+          <DetailsList :place="place"/>
+          <PlaceSources :place="place"/>
+        </div>
       </div>
     </template>
   </div>

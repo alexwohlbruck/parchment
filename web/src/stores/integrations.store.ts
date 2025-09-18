@@ -15,6 +15,9 @@ import {
   siMapbox,
   siTripadvisor,
   siYelp,
+  siWikidata,
+  siWikipedia,
+  siWikimediacommons,
 } from 'simple-icons'
 import { Integration } from '@/types/integrations.types'
 
@@ -32,6 +35,9 @@ const iconMap: Record<string, any> = {
   [IntegrationId.GEOAPIFY]: null,
   [IntegrationId.MAPBOX]: siMapbox,
   [IntegrationId.VALHALLA]: siOpenstreetmap,
+  [IntegrationId.WIKIDATA]: siWikidata,
+  [IntegrationId.WIKIPEDIA]: siWikipedia,
+  [IntegrationId.WIKIMEDIA]: siWikimediacommons,
 }
 
 const getIcon = (integrationId: string) => {

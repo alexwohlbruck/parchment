@@ -66,4 +66,16 @@ export const configSchemas: Record<
   geoapifySchema: z.object({
     apiKey: z.string().min(1, 'API Key is required'),
   }),
+
+  wikidataSchema: z.object({
+    // Wikidata doesn't require any configuration
+  }),
+
+  wikipediaSchema: z.object({
+    // Wikipedia doesn't require any configuration
+  }),
+
+  wikimediaSchema: z.object({
+    // Wikimedia Commons doesn't require any configuration
+  }),
 }

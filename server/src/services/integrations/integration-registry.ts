@@ -9,6 +9,9 @@ import { ValhallaIntegration } from './valhalla-integration'
 import { MapillaryIntegration } from './mapillary-integration'
 import { TransitlandIntegration } from './transitland-integration'
 import { GeoapifyIntegration } from './geoapify-integration'
+import { WikidataIntegration } from './wikidata-integration'
+import { WikipediaIntegration } from './wikipedia-integration'
+import { WikimediaIntegration } from './wikimedia-integration'
 
 /**
  * Registry for all integrations
@@ -33,6 +36,9 @@ export class IntegrationRegistry {
     this.registerIntegration(new MapillaryIntegration())
     this.registerIntegration(new TransitlandIntegration())
     this.registerIntegration(new GeoapifyIntegration())
+    this.registerIntegration(new WikidataIntegration())
+    this.registerIntegration(new WikipediaIntegration())
+    this.registerIntegration(new WikimediaIntegration())
   }
 
   /**

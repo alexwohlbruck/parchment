@@ -3,6 +3,7 @@ import { swagger } from '@elysiajs/swagger'
 import { cors } from '@elysiajs/cors'
 import { cors as corsConfig, swagger as swaggerConfig } from './config'
 import {
+  healthCheck as healthCheckController,
   auth as authController,
   user as userController,
   directions as directionsController,
@@ -21,6 +22,7 @@ const app = new Elysia()
 app.use(cors(corsConfig))
 app.use(swagger(swaggerConfig))
 
+app.use(healthCheckController)
 app.use(authController)
 app.use(userController)
 app.use(directionsController)

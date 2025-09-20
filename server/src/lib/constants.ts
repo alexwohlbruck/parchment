@@ -16,6 +16,7 @@ export const SOURCE = {
   OPENTABLE: 'opentable',
   VALHALLA: 'valhalla',
   GEOAPIFY: 'geoapify',
+  TRANSITLAND: 'transitland',
 } as const
 // TODO: Fix types for source and integration ids
 export type Source = (typeof SOURCE)[keyof typeof SOURCE]
@@ -32,6 +33,7 @@ export const SOURCE_PRIORITIES = {
   // Secondary sources
   [SOURCE.GOOGLE]: 80,
   [SOURCE.WIKIPEDIA]: 78, // High priority for detailed descriptions
+  [SOURCE.TRANSITLAND]: 77, // High priority for transit data
   [SOURCE.GEOAPIFY]: 75,
   [SOURCE.VALHALLA]: 70, // Routing provider - high priority for routing data
   [SOURCE.WIKIDATA]: 65,
@@ -54,6 +56,7 @@ export const INTEGRATION_PRIORITIES: Partial<Record<IntegrationId, number>> = {
   [IntegrationId.NOMINATIM]: 90, // Free, rate-limited, good for geocoding
   [IntegrationId.GOOGLE_MAPS]: 80, // Fast, paid, excellent coverage
   [IntegrationId.WIKIPEDIA]: 78, // Free, high-quality detailed descriptions
+  [IntegrationId.TRANSITLAND]: 77, // Paid, authoritative transit data
   [IntegrationId.GEOAPIFY]: 70, // Fast, paid, extensive categories but limited
   [IntegrationId.WIKIDATA]: 65, // Free, structured data, good for enrichment
   [IntegrationId.VALHALLA]: 60, // Fast, free, good coverage for place info and search

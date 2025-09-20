@@ -111,8 +111,8 @@ export function useLayersService() {
       // Convert reactive proxy to plain object to avoid proxy issues
       const plainLayer = toRaw(layer)
       
-      // Special handling for search results layer
-      if (plainLayer.id === SEARCH_RESULTS_LAYER_ID) {
+      // Special handling for search results layer (both old and core layer IDs)
+      if (plainLayer.id === SEARCH_RESULTS_LAYER_ID || plainLayer.configuration?.id === SEARCH_RESULTS_LABELS_LAYER_ID) {
         initializeSearchResultsLayer(mapStrategy)
       }
       
@@ -121,6 +121,11 @@ export function useLayersService() {
   }
 
   function initializeSearchResultsLayer(mapStrategy: MapStrategy) {
+    // Skip if already initialized for this map instance
+    if (searchResultsSourceInitialized) {
+      return
+    }
+    
     // Get current search results to restore data after style change
     const searchStore = useSearchStore()
     const currentResults = searchStore.searchResults
@@ -134,11 +139,16 @@ export function useLayersService() {
         type: 'geojson',
         data: currentGeoJSON,
       })
+      searchResultsSourceInitialized = true
     } catch (error) {
       // Source might already exist, update it instead
       const source = mapStrategy.mapInstance.getSource(SEARCH_RESULTS_SOURCE_ID)
       if (source) {
         source.setData(currentGeoJSON)
+        searchResultsSourceInitialized = true
+      } else {
+        console.warn('Failed to add search results source:', error)
+        return
       }
     }
     
@@ -543,6 +553,7 @@ export function useLayersService() {
   // Search results layer management
   let searchResultsVueMarkers = new Map<string, any>()
   let searchResultsReactivityInitialized = false
+  let searchResultsSourceInitialized = false
 
   function createSearchResultsLayer(): Layer {
     return {
@@ -674,8 +685,16 @@ export function useLayersService() {
     mapStrategy.removeLayer(SEARCH_RESULTS_LABELS_LAYER_ID)
     mapStrategy.removeSource(SEARCH_RESULTS_SOURCE_ID)
     
-    // Reset reactivity flag so it can be reinitialized
+    // Reset flags so they can be reinitialized
     searchResultsReactivityInitialized = false
+    searchResultsSourceInitialized = false
+  }
+
+  function resetLayerState() {
+    // Reset all layer initialization flags when map changes
+    searchResultsReactivityInitialized = false
+    searchResultsSourceInitialized = false
+    searchResultsVueMarkers.clear()
   }
 
   // Theme-reactive layer color updates
@@ -892,6 +911,7 @@ export function useLayersService() {
     updateSearchResultsData,
     updateSearchResultsHoverState,
     removeSearchResultsLayer,
+    resetLayerState,
 
     // Place polygon layer management
     initializePlacePolygonLayers,

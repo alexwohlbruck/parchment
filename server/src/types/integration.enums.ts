@@ -29,4 +29,5 @@ export enum IntegrationCapabilityId {
   MAP_ENGINE = 'mapEngine',
   MAP_LAYER = 'mapLayer',
   STREET_VIEW = 'streetView',
+  TRANSIT_DATA = 'transitData',
 }

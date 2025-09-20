@@ -418,6 +418,20 @@
   "feedback": {
     "title": "Feedback"
   },
+  "place": {
+    "transit": {
+      "viewOnTransitland": "Ver en Transitland",
+      "transitStop": "Parada de Tránsito",
+      "upcomingDepartures": "Próximas Salidas",
+      "unknownDirection": "Dirección Desconocida",
+      "now": "Ahora",
+      "min": "min",
+      "live": "EN VIVO",
+      "realTimeData": "Datos en tiempo real",
+      "noUpcomingDepartures": "No hay próximas salidas disponibles",
+      "checkBackLater": "Vuelve más tarde o visita el sitio web del proveedor de tránsito"
+    }
+  },
   "settings": {
     "title": "Configuración",
     "description": "Administra la configuración de tu cuenta y el comportamiento de la aplicación",
@@ -543,7 +557,8 @@
         "placeInfo": "Información de Lugares",
         "imagery": "Imágenes",
         "title": "Capacidades",
-        "streetView": "Vista de calle"
+        "streetView": "Vista de calle",
+        "transitData": "Datos de Tránsito"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",

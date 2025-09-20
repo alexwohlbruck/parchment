@@ -4,10 +4,12 @@ import type {
   Address,
   AttributedValue,
   OpeningHours,
+  TransitStopInfo,
 } from '../../../types/place.types'
 import { getPlaceType } from '../../../lib/place.utils'
 import { SOURCE } from '../../../lib/constants'
 import { parseOpeningHoursForUnifiedFormat } from '../../../lib/place.utils'
+import { extractTransitIdentifiers, isTransitStopType, isTransitStop, createTransitInfo } from '../../../lib/transit-utils'
 
 /**
  * Interface for Nominatim lookup response object
@@ -73,6 +75,7 @@ export class NominatimAdapter {
         contactInfo: this.extractContactInfo(data.extratags),
         openingHours: this.extractOpeningHours(data.extratags),
         amenities: this.extractAmenities(data),
+        ...this.getTransitField(data),
         sources: [
           {
             id: SOURCE.OSM,
@@ -437,5 +440,29 @@ export class NominatimAdapter {
     }
 
     return amenities
+  }
+
+  /**
+   * Get transit field for Place object (only includes if there's meaningful transit data)
+   */
+  private getTransitField(data: NominatimLookupResult): { transit: AttributedValue<TransitStopInfo> } | {} {
+    const transitInfo = this.extractTransitInfo(data)
+    // Only include transit field if we have an onestop ID or other meaningful identifiers
+    if (transitInfo && (transitInfo.value.onestopId || transitInfo.value.code)) {
+      return { transit: transitInfo }
+    }
+    return {}
+  }
+
+  /**
+   * Extract transit information from Nominatim data
+   */
+  private extractTransitInfo(data: NominatimLookupResult): AttributedValue<TransitStopInfo> | null {
+    const tags = data.extratags || {}
+    return createTransitInfo(
+      tags,
+      this.extractName(data) || undefined,
+      data.extratags?.description
+    )
   }
 }

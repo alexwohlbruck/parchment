@@ -1,4 +1,4 @@
-import type { Place } from '../types/place.types'
+import type { Place, TransitDeparture } from '../types/place.types'
 import type { SupportedLanguage } from '../lib/i18n'
 import { mergePlacesCollection, mergePlaces } from './merge.service'
 import { Source, SOURCE } from '../lib/constants'
@@ -10,7 +10,90 @@ import { User } from '../schema/users.schema'
 import { WikidataIntegration } from './integrations/wikidata-integration'
 import { WikipediaIntegration } from './integrations/wikipedia-integration'
 import { WikimediaIntegration } from './integrations/wikimedia-integration'
+import { TransitlandIntegration } from './integrations/transitland-integration'
 import { dedupeWikiPhotos } from './integrations/wiki-utils'
+import { isTransitStopType, isTransitStop, extractOnestopIdFromWikidata, extractAllOnestopIdsFromWikidata } from '../lib/transit-utils'
+
+/**
+ * Extract OSM tags from place amenities
+ */
+function extractOsmTags(place: Place): Record<string, string> {
+  const tags: Record<string, string> = {}
+  
+  if (!place.amenities) return tags
+  
+  // Convert amenities back to tag format
+  for (const [key, value] of Object.entries(place.amenities)) {
+    if (key.startsWith('type:')) continue // Skip type prefixed keys
+    
+    const tagValue = typeof value === 'object' && value?.value !== undefined ? value.value : value
+    if (typeof tagValue === 'string') {
+      tags[key] = tagValue
+    } else if (typeof tagValue === 'boolean') {
+      tags[key] = tagValue ? 'yes' : 'no'
+    } else if (typeof tagValue === 'number') {
+      tags[key] = tagValue.toString()
+    }
+  }
+  
+  return tags
+}
+
+/**
+ * Check if a place is a transit stop using both place type and OSM tags
+ */
+function isPlaceTransitStop(place: Place): boolean {
+  const placeType = place.placeType.value
+  const osmTags = extractOsmTags(place)
+  return isTransitStop(placeType, osmTags)
+}
+
+/**
+ * Try to find a Transitland onestop ID by searching near coordinates
+ * This is a fallback for transit stops without Wikidata IDs
+ */
+async function tryFindOnestopIdByCoordinates(
+  name: string,
+  coordinates: { lat: number; lng: number }
+): Promise<string | null> {
+  try {
+    // Get Transitland integration
+    const transitlandIntegrationRecord = integrationManager.getConfiguredIntegrationForSource(
+      SOURCE.TRANSITLAND,
+      IntegrationCapabilityId.TRANSIT_DATA,
+    )
+
+    if (!transitlandIntegrationRecord) {
+      console.log('Transitland integration not configured')
+      return null
+    }
+
+    const transitlandIntegration = integrationManager.getCachedIntegrationInstance(transitlandIntegrationRecord) as TransitlandIntegration
+    if (!transitlandIntegration) {
+      console.log('Transitland integration instance not found')
+      return null
+    }
+
+    // Search for stops near the coordinates
+    const nearbyStops = await transitlandIntegration.searchStopsNear(
+      coordinates.lat,
+      coordinates.lng,
+      50, // 50 meter radius
+      name
+    )
+
+    if (nearbyStops.length > 0) {
+      // Return the onestop ID of the closest/best match
+      const bestMatch = nearbyStops[0]
+      return bestMatch.onestop_id || bestMatch.id || null
+    }
+
+    return null
+  } catch (error) {
+    console.error('Error finding onestop ID by coordinates:', error)
+    return null
+  }
+}
 
 // TODO: Move this to more relevant file (merge service?)
 /**
@@ -227,7 +310,27 @@ async function enrichPlaceWithWikiData(
     // Check if we have a Wikidata ID
     const wikidataId = place.externalIds?.wikidata
     if (!wikidataId) {
-      console.log('No Wikidata ID found for place, skipping Wiki enrichment')
+      console.log('No Wikidata ID found for place')
+      
+      // For transit stops without Wikidata, try to find onestop ID by coordinates
+      if (isPlaceTransitStop(place) && place.name.value && place.geometry.value.center) {
+        const onestopId = await tryFindOnestopIdByCoordinates(place.name.value, place.geometry.value.center)
+        if (onestopId) {
+          const timestamp = new Date().toISOString()
+          
+          place.transit = {
+            value: {
+              onestopId,
+              name: place.name.value || undefined,
+            },
+            sourceId: SOURCE.TRANSITLAND,
+            timestamp,
+          }
+          
+          console.log(`Found transit stop via coordinate search: ${onestopId}`)
+        }
+      }
+      
       return place
     }
 
@@ -253,6 +356,32 @@ async function enrichPlaceWithWikiData(
     if (!wikidataEntity) {
       console.log(`No Wikidata entity found for ID: ${wikidataId}`)
       return place
+    }
+
+    // Extract onestop IDs from Wikidata and add to transit data if this is a transit stop
+    const allOnestopIds = extractAllOnestopIdsFromWikidata(wikidataEntity)
+    if (allOnestopIds.length > 0 && isPlaceTransitStop(place)) {
+      const timestamp = new Date().toISOString()
+      
+      // Create or update transit info with the onestop IDs
+      const transitInfo = {
+        onestopId: allOnestopIds[0], // Primary onestop ID (for backward compatibility)
+        onestopIds: allOnestopIds.length > 1 ? allOnestopIds : undefined, // All IDs for transfer hubs
+        name: place.name.value || undefined,
+        ...place.transit?.value
+      }
+
+      place.transit = {
+        value: transitInfo,
+        sourceId: SOURCE.WIKIDATA,
+        timestamp,
+      }
+
+      if (allOnestopIds.length > 1) {
+        console.log(`Linked transit hub to Transitland via Wikidata: ${allOnestopIds.join(', ')}`)
+      } else {
+        console.log(`Linked transit stop to Transitland via Wikidata: ${allOnestopIds[0]}`)
+      }
     }
 
     // Get Wikidata place data and merge it
@@ -378,6 +507,103 @@ async function enrichPlaceWithWikiData(
 }
 
 /**
+ * Enrich a place with transit data from Transitland if it's a transit stop
+ * 
+ * @param place The place to enrich
+ * @returns The enriched place or the original place if transit data is not available
+ */
+async function enrichPlaceWithTransitData(place: Place): Promise<Place> {
+  try {
+    // Only enrich places that have transit information but no departures yet
+    if (!place.transit?.value) {
+      return place
+    }
+
+    const transitInfo = place.transit.value
+    const onestopIds = transitInfo.onestopIds || [transitInfo.onestopId]
+    
+    // Skip if no onestop IDs or already have departure data
+    if (onestopIds.length === 0 || (transitInfo.departures && transitInfo.departures.length > 0)) {
+      return place
+    }
+
+    // Get Transitland integration
+    const transitlandIntegrationRecord = integrationManager.getConfiguredIntegrationForSource(
+      SOURCE.TRANSITLAND,
+      IntegrationCapabilityId.TRANSIT_DATA,
+    )
+
+    if (!transitlandIntegrationRecord) {
+      console.log('Transitland integration not configured, skipping transit enrichment')
+      return place
+    }
+
+    const transitlandIntegration = integrationManager.getCachedIntegrationInstance(transitlandIntegrationRecord) as TransitlandIntegration
+    if (!transitlandIntegration) {
+      console.log('Transitland integration instance not found')
+      return place
+    }
+
+    // Fetch departure data from all onestop IDs (for transfer hubs)
+    const allDepartures: TransitDeparture[] = []
+    
+    for (const onestopId of onestopIds) {
+      try {
+        const departures = await transitlandIntegration.getDepartures(onestopId, {
+          next: 3600, // Next hour
+          limit: 20
+        })
+        
+        if (departures && departures.length > 0) {
+          allDepartures.push(...departures)
+        }
+      } catch (error) {
+        console.error(`Error fetching departures for onestop ID ${onestopId}:`, error)
+        // Continue with other onestop IDs
+      }
+    }
+
+    if (allDepartures && allDepartures.length > 0) {
+      // Sort departures by time to provide a unified schedule
+      allDepartures.sort((a, b) => {
+        const timeA = a.departureTime || a.arrivalTime || ''
+        const timeB = b.departureTime || b.arrivalTime || ''
+        return timeA.localeCompare(timeB)
+      })
+
+      // Update the existing transit data with all departures
+      const existingTransit = place.transit?.value || { onestopId: onestopIds[0] }
+      const updatedTransit = {
+        ...existingTransit,
+        departures: allDepartures,
+      }
+
+      place.transit = {
+        value: updatedTransit,
+        sourceId: SOURCE.TRANSITLAND,
+        timestamp: new Date().toISOString(),
+      }
+
+      // Add Transitland as a source if not already present
+      const hasTransitlandSource = place.sources.some((s) => s.id === SOURCE.TRANSITLAND)
+      if (!hasTransitlandSource) {
+        const primaryOnestopId = onestopIds[0]
+        place.sources.push({
+          id: SOURCE.TRANSITLAND,
+          name: 'Transitland',
+          url: `https://www.transit.land/stops/${primaryOnestopId}`,
+        })
+      }
+    }
+
+    return place
+  } catch (error) {
+    console.error('Error enriching place with transit data:', error)
+    return place // Return original place if enrichment fails
+  }
+}
+
+/**
  * Look up a place by ID and enrich it with data from other sources
  *
  * @param source The source ID (e.g., SOURCE.GOOGLE, SOURCE.OSM)
@@ -419,6 +645,9 @@ export async function lookupEnrichedPlaceById(
 
     // Enrich with Wiki data (Wikidata, Wikipedia, Wikimedia Commons)
     place = await enrichPlaceWithWikiData(place, language)
+
+    // Enrich with transit data from Transitland
+    place = await enrichPlaceWithTransitData(place)
 
     // Add bookmark information if user ID is provided
     if (userId && place) {

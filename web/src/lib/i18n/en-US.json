@@ -428,6 +428,20 @@
   "feedback": {
     "title": "Feedback"
   },
+  "place": {
+    "transit": {
+      "viewOnTransitland": "View on Transitland",
+      "transitStop": "Transit Stop",
+      "upcomingDepartures": "Upcoming Departures",
+      "unknownDirection": "Unknown Direction",
+      "now": "Now",
+      "min": "min",
+      "live": "LIVE",
+      "realTimeData": "Real-time data",
+      "noUpcomingDepartures": "No upcoming departures available",
+      "checkBackLater": "Check back later or visit the transit provider's website"
+    }
+  },
   "settings": {
     "title": "Settings",
     "account": {
@@ -553,7 +567,8 @@
         "imagery": "Imagery",
         "mapEngine": "Map Engine",
         "title": "Capabilities",
-        "streetView": "Street View"
+        "streetView": "Street View",
+        "transitData": "Transit Data"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",

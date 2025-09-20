@@ -3,11 +3,13 @@ import type {
   AttributedValue,
   Address,
   OpeningHours,
+  TransitStopInfo,
 } from '../../../types/place.types'
 import { SOURCE } from '../../../lib/constants'
 import { getPlaceType } from '../../../lib/place.utils'
 import { parseOpeningHoursForUnifiedFormat } from '../../../lib/place.utils'
 import { calculateOSMCenter } from '../../../util/geometry-conversion'
+import { extractTransitIdentifiers, isTransitStopType, createTransitInfo } from '../../../lib/transit-utils'
 
 // TODO: Move this type def to a shared types file
 export interface OverpassElement {
@@ -66,6 +68,7 @@ export class OverpassAdapter {
         openingHours: this.extractOpeningHours(data.tags),
         amenities: this.extractAmenities(data.tags),
         description: this.extractDescription(data.tags),
+        ...this.getTransitField(data),
         sources: [
           {
             id: SOURCE.OSM,
@@ -337,5 +340,29 @@ export class OverpassAdapter {
     }
 
     return amenities
+  }
+
+  /**
+   * Get transit field for Place object (only includes if there's meaningful transit data)
+   */
+  private getTransitField(data: OverpassElement): { transit: AttributedValue<TransitStopInfo> } | {} {
+    const transitInfo = this.extractTransitInfo(data)
+    // Only include transit field if we have an onestop ID or other meaningful identifiers
+    if (transitInfo && (transitInfo.value.onestopId || transitInfo.value.code)) {
+      return { transit: transitInfo }
+    }
+    return {}
+  }
+
+  /**
+   * Extract transit information from OSM tags
+   */
+  private extractTransitInfo(data: OverpassElement): AttributedValue<TransitStopInfo> | null {
+    const tags = data.tags || {}
+    return createTransitInfo(
+      tags,
+      this.extractName(tags),
+      tags.description
+    )
   }
 }

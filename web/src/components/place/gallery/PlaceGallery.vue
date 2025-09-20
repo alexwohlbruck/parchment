@@ -17,13 +17,12 @@ const emit = defineEmits<{
   <TransitionExpand>
     <div v-if="place.photos.length > 0" :class="cn('w-full relative', $attrs.class ?? '')">
       <div
-        class="w-full overflow-x-auto snap-x snap-mandatory flex gap-2"
-        style="scrollbar-width: none; -ms-overflow-style: none"
+        class="w-full overflow-x-auto snap-x snap-mandatory flex gap-2 scrollbar-hidden pb-2 -mb-2"
       >
         <div
           v-for="(photo, index) in place.photos"
           :key="index"
-          class="h-48 flex-none snap-center relative first:ml-4 last:mr-4 rounded-lg overflow-hidden"
+          class="h-48 flex-none snap-center relative first:ml-4 last:mr-4 rounded-lg overflow-hidden  shadow-md"
           :style="{ width: 'auto' }"
         >
           <div
@@ -45,6 +44,7 @@ const emit = defineEmits<{
             v-if="!photo.value.url"
             class="absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground"
           >
+            <!-- TODO: i18n -->
             Failed to load image
           </div>
         </div>

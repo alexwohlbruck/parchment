@@ -1,4 +1,4 @@
-import { Place } from './place.types'
+import { Place, TransitDeparture } from './place.types'
 import { Source } from '../lib/constants'
 import { IntegrationId, IntegrationCapabilityId } from './integration.enums'
 import type { IntegrationRecord } from '../schema/integrations.schema'
@@ -76,6 +76,21 @@ export interface ImageryCapability {
 
 export interface MapEngineCapability {} // No methods needed for now
 
+export interface TransitDataCapability {
+  getDepartures(onestopId: string, options?: {
+    next?: number // seconds
+    startTime?: string
+    endTime?: string
+    limit?: number
+  }): Promise<TransitDeparture[]>
+  
+  // TODO: Implement these endpoints
+  // getStops(options?: any): Promise<any[]>
+  // getRoutes(options?: any): Promise<any[]>
+  // getAgencies(options?: any): Promise<any[]>
+  // getTrips(options?: any): Promise<any[]>
+}
+
 // Integration capabilities container
 export interface IntegrationCapabilities {
   search?: SearchCapability
@@ -86,6 +101,7 @@ export interface IntegrationCapabilities {
   routing?: RoutingCapability
   imagery?: ImageryCapability
   mapEngine?: MapEngineCapability
+  transitData?: TransitDataCapability
 }
 
 /**

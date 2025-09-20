@@ -82,6 +82,61 @@ export interface Amenity {
   displayName?: string
 }
 
+export interface TransitDeparture {
+  arrivalTime?: string // ISO time string
+  departureTime?: string // ISO time string
+  scheduledArrivalTime?: string
+  scheduledDepartureTime?: string
+  delay?: number // in seconds
+  realTime?: boolean
+  headsign?: string
+  direction?: string
+  stopSequence?: number
+  trip: {
+    id: string
+    shortName?: string
+    headsign?: string
+    directionId?: number
+    blockId?: string
+    routeId: string
+  }
+  route: {
+    id: string
+    shortName?: string
+    longName?: string
+    color?: string
+    textColor?: string
+    type?: number // GTFS route type
+    agencyId?: string
+  }
+  agency?: {
+    id: string
+    name?: string
+    url?: string
+    timezone?: string
+    phone?: string
+  }
+}
+
+export interface TransitStopInfo {
+  onestopId: string
+  onestopIds?: string[] // For transfer hubs with multiple platforms
+  name?: string
+  code?: string
+  description?: string
+  timezone?: string
+  wheelchairBoarding?: number
+  departures?: TransitDeparture[]
+  routes?: Array<{
+    id: string
+    shortName?: string
+    longName?: string
+    color?: string
+    textColor?: string
+    type?: number
+  }>
+}
+
 export interface ContactInfo {
   phone?: string
   formattedPhone?: string
@@ -112,6 +167,7 @@ export interface Place {
     rating: AttributedValue<number>
     reviewCount: AttributedValue<number>
   }
+  transit?: AttributedValue<TransitStopInfo> | null
 
   // All sources that contributed data
   sources: SourceReference[]

@@ -14,6 +14,7 @@ import PlaceGallery from './gallery/PlaceGallery.vue'
 import PlaceActions from './actions/PlaceActions.vue'
 import PlaceSources from './sources/PlaceSources.vue'
 import DetailsList from './details/DetailsList.vue'
+import PlaceTransit from './details/PlaceTransit.vue'
 
 const props = defineProps<{
   place: Place | null
@@ -127,8 +128,8 @@ function handleBrandLogoError() {
     </div>
 
     <template v-else-if="place">
-      <div class="flex flex-col py-4 space-y-4">
-        <div class="flex flex-col space-y-4">
+      <div class="flex flex-col py-4 space-y-3">
+        <div class="flex flex-col space-y-3">
           <PlaceHeader
             :place="place"
             @close="router.push({ name: AppRoute.MAP })"
@@ -145,18 +146,16 @@ function handleBrandLogoError() {
           />
         </div>
 
-        <!-- Temporary disabled, photos are costing a lot of API calls lmao -->
+
         <PlaceGallery
           class="ml-[-1rem] mr-[-1rem] w-[calc(100%+2rem)]"
           :place="place"
           @imageLoaded="handlePlaceImageLoad"
           @imageError="handlePlaceImageError"
         />
-
-        <div class="flex flex-col space-y-2">
-          <DetailsList :place="place"/>
-          <PlaceSources :place="place"/>
-        </div>
+        <PlaceTransit :place="place"/>
+        <DetailsList :place="place"/>
+        <PlaceSources :place="place"/>
       </div>
     </template>
   </div>

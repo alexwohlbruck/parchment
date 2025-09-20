@@ -11,6 +11,8 @@ import type {
   OpeningTime,
   Amenity,
   AttributedValue,
+  TransitDeparture,
+  TransitStopInfo,
 } from '@server/types/place.types'
 
 // Re-export for use in client code
@@ -26,6 +28,8 @@ export type {
   OpeningTime,
   Amenity,
   AttributedValue,
+  TransitDeparture,
+  TransitStopInfo,
 }
 
 // TODO: Move out of types

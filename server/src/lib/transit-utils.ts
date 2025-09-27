@@ -8,14 +8,10 @@ export function extractOnestopIdFromWikidata(wikidataEntity: any): string | null
 }
 
 export function extractAllOnestopIdsFromWikidata(wikidataEntity: any): string[] {
-  if (!wikidataEntity?.claims) {
-    return []
-  }
+  if (!wikidataEntity?.claims) return []
 
   const onestopIdClaims = wikidataEntity.claims[WIKIDATA_TRANSITLAND_ONESTOP_ID_PROPERTY]
-  if (!onestopIdClaims || onestopIdClaims.length === 0) {
-    return []
-  }
+  if (!onestopIdClaims?.length) return []
 
   const onestopIds: string[] = []
   for (const claim of onestopIdClaims) {
@@ -150,9 +146,7 @@ export function createTransitInfo(
 ): AttributedValue<TransitStopInfo> | null {
   const transitIds = extractTransitIdentifiers(tags)
   
-  if (!transitIds.isTransitStop) {
-    return null
-  }
+  if (!transitIds.isTransitStop) return null
 
   const timestamp = new Date().toISOString()
   

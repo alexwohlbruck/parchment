@@ -97,27 +97,19 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
   async searchStopsNear(lat: number, lng: number, radius?: number, name?: string): Promise<any[]> {
     this.ensureInitialized()
 
+    const baseUrl = `${TRANSITLAND_API_BASE_URL}/stops`
+    const params = new URLSearchParams({
+      apikey: this.config.apiKey,
+      lat: lat.toString(),
+      lon: lng.toString(),
+      radius: (radius || 100).toString(),
+    })
+    
+    if (name) params.append('search', name)
+
     try {
-      const baseUrl = `${TRANSITLAND_API_BASE_URL}/stops`
-      const params = new URLSearchParams()
-      params.append('apikey', this.config.apiKey)
-      params.append('lat', lat.toString())
-      params.append('lon', lng.toString())
-      if (radius) {
-        params.append('radius', radius.toString())
-      } else {
-        params.append('radius', '100') // 100 meter default radius
-      }
-      if (name) {
-        params.append('search', name)
-      }
-
       const response = await fetch(`${baseUrl}?${params.toString()}`)
-
-      if (!response.ok) {
-        console.error('Transitland search API error:', response.status, response.statusText)
-        return []
-      }
+      if (!response.ok) return []
 
       const data = await response.json()
       return data.stops || []
@@ -138,54 +130,35 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
   }): Promise<TransitDeparture[]> {
     this.ensureInitialized()
 
+    const baseUrl = `${TRANSITLAND_API_BASE_URL}/stops`
+    const url = `${baseUrl}/${encodeURIComponent(onestopId)}/departures`
+    
+    const params = new URLSearchParams({ apikey: this.config.apiKey })
+    
+    if (options?.next) params.append('next', options.next.toString())
+    if (options?.startTime) params.append('start_time', options.startTime)
+    if (options?.endTime) params.append('end_time', options.endTime)
+    if (options?.limit) params.append('limit', options.limit.toString())
+
     try {
-      const baseUrl = `${TRANSITLAND_API_BASE_URL}/stops`
-      const url = `${baseUrl}/${encodeURIComponent(onestopId)}/departures`
-      
-      const params = new URLSearchParams()
-      params.append('apikey', this.config.apiKey)
-      
-      if (options?.next) {
-        params.append('next', options.next.toString())
-      }
-      if (options?.startTime) {
-        params.append('start_time', options.startTime)
-      }
-      if (options?.endTime) {
-        params.append('end_time', options.endTime)
-      }
-      if (options?.limit) {
-        params.append('limit', options.limit.toString())
-      }
-
-      const fullUrl = `${url}?${params.toString()}`
-      const response = await fetch(fullUrl)
-
-      if (!response.ok) {
-        console.error(`Transitland API error for ${onestopId}:`, response.status, response.statusText)
-        const errorText = await response.text()
-        console.error('Error response:', errorText)
-        return []
-      }
+      const response = await fetch(`${url}?${params.toString()}`)
+      if (!response.ok) return []
 
       const data = await response.json()
+      if (!data.stops?.length) return []
       
       // Collect departures from all stops and child stops
-      let allDepartures: any[] = []
+      const allDepartures: any[] = []
       
-      if (data.stops && data.stops.length > 0) {
-        for (const stop of data.stops) {
-          // Add departures directly from the stop
-          if (stop.departures && stop.departures.length > 0) {
-            allDepartures.push(...stop.departures)
-          }
-          
-          // Add departures from child stops (platforms)
-          if (stop.children && stop.children.length > 0) {
-            for (const child of stop.children) {
-              if (child.departures && child.departures.length > 0) {
-                allDepartures.push(...child.departures)
-              }
+      for (const stop of data.stops) {
+        if (stop.departures?.length) {
+          allDepartures.push(...stop.departures)
+        }
+        
+        if (stop.children?.length) {
+          for (const child of stop.children) {
+            if (child.departures?.length) {
+              allDepartures.push(...child.departures)
             }
           }
         }

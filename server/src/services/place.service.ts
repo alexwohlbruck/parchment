@@ -1,6 +1,7 @@
 import type { Place, TransitDeparture } from '../types/place.types'
 import type { SupportedLanguage } from '../lib/i18n'
-import { mergePlacesCollection, mergePlaces } from './merge.service'
+import { mergePlacesCollection, mergePlaces, calculateTextSimilarity } from './merge.service'
+import type { PlaceRelation } from '../types/place.types'
 import { Source, SOURCE } from '../lib/constants'
 import { findBookmarkByExternalIds } from './library/bookmarks.service'
 import * as turf from '@turf/turf'
@@ -13,6 +14,46 @@ import { WikimediaIntegration } from './integrations/wikimedia-integration'
 import { TransitlandIntegration } from './integrations/transitland-integration'
 import { dedupeWikiPhotos } from './integrations/wiki-utils'
 import { isTransitStopType, isTransitStop, extractOnestopIdFromWikidata, extractAllOnestopIdsFromWikidata } from '../lib/transit-utils'
+
+/**
+ * Normalize transit stop names for better fuzzy matching
+ * Handles common differences between OSM and GTFS naming conventions
+ */
+function normalizeTransitStopName(name: string): string {
+  const original = name
+  const normalized = name
+    .toLowerCase()
+    .trim()
+    // Normalize Unicode characters (decompose accents, etc.)
+    .normalize('NFD')
+    // Remove diacritics/accents for better matching
+    .replace(/[\u0300-\u036f]/g, '')
+    // Replace common separators with spaces
+    .replace(/[&+/\-_]/g, ' ')
+    // Remove parentheses and their contents (often contains system names or directions)
+    .replace(/\([^)]*\)/g, '')
+    .replace(/\[[^\]]*\]/g, '')
+    // Remove multiple spaces and trim
+    .replace(/\s+/g, ' ')
+    .trim()
+    
+  console.log(`🔄 [Transit] Normalized "${original}" → "${normalized}"`)
+  return normalized
+}
+
+/**
+ * Calculate similarity between transit stop names using specialized normalization
+ * Returns a score from 0 to 1, where 1 is a perfect match
+ */
+function calculateTransitStopSimilarity(name1: string, name2: string): number {
+  if (!name1 || !name2) return 0
+  
+  const normalized1 = normalizeTransitStopName(name1)
+  const normalized2 = normalizeTransitStopName(name2)
+  
+  // Use the existing fuzzy matching logic but with transit-specific normalization
+  return calculateTextSimilarity(normalized1, normalized2)
+}
 
 /**
  * Extract OSM tags from place amenities
@@ -40,6 +81,73 @@ function extractOsmTags(place: Place): Record<string, string> {
 }
 
 /**
+ * Look up parent relations for a place, particularly useful for transit stops
+ * that might have their Wikidata on a parent "transit stop area" relation
+ */
+async function enrichPlaceWithParentRelations(place: Place): Promise<void> {
+  if (!shouldLookupParentRelations(place)) return
+  
+  const osmId = place.externalIds[SOURCE.OSM]
+  if (!osmId) return
+  
+  const nominatimIntegration = integrationManager.getIntegration('nominatim')
+  if (!nominatimIntegration) return
+  
+  try {
+    const baseUrl = nominatimIntegration.config.baseUrl || 'https://nominatim.openstreetmap.org'
+    const relations = await nominatimIntegration.adapter.lookupParentRelations(osmId, baseUrl)
+    
+    if (!relations.length) return
+    
+    place.relations = {
+      value: relations,
+      sourceId: SOURCE.OSM,
+      timestamp: new Date().toISOString(),
+    }
+    
+    // For transit stops, check if any parent relation is a transit stop area with Wikidata
+    if (isPlaceTransitStop(place)) {
+      const transitStopArea = relations.find(rel => 
+        rel.tags?.public_transport === 'stop_area' || 
+        rel.tags?.type === 'public_transport'
+      )
+      
+      if (transitStopArea?.tags?.wikidata) {
+        place.externalIds[SOURCE.WIKIDATA] = transitStopArea.tags.wikidata
+      }
+    }
+  } catch (error) {
+    console.error('Error looking up parent relations:', error)
+  }
+}
+
+/**
+ * Determine if we should look up parent relations for a place
+ * This helps avoid unnecessary API calls for places that are unlikely to benefit
+ */
+function shouldLookupParentRelations(place: Place): boolean {
+  // Always lookup for transit stops (they might have parent stop areas)
+  if (isPlaceTransitStop(place)) {
+    return true
+  }
+  
+  // Lookup for buildings that might be part of complexes
+  const placeType = place.placeType.value?.toLowerCase()
+  if (placeType?.includes('building') || placeType?.includes('office') || placeType?.includes('shop')) {
+    return true
+  }
+  
+  // Lookup for amenities that might be part of larger facilities
+  const amenityKeys = Object.keys(place.amenities || {})
+  const interestingAmenities = ['parking', 'restaurant', 'cafe', 'shop', 'atm', 'toilets']
+  if (amenityKeys.some(key => interestingAmenities.includes(key))) {
+    return true
+  }
+  
+  return false
+}
+
+/**
  * Check if a place is a transit stop using both place type and OSM tags
  */
 function isPlaceTransitStop(place: Place): boolean {
@@ -56,6 +164,10 @@ async function tryFindOnestopIdByCoordinates(
   name: string,
   coordinates: { lat: number; lng: number }
 ): Promise<string | null> {
+  console.debug('🔍 [Transit] Attempting coordinate-based onestop ID lookup:')
+  console.debug('  - Name:', name)
+  console.debug('  - Coordinates:', coordinates)
+  
   try {
     // Get Transitland integration
     const transitlandIntegrationRecord = integrationManager.getConfiguredIntegrationForSource(
@@ -64,33 +176,87 @@ async function tryFindOnestopIdByCoordinates(
     )
 
     if (!transitlandIntegrationRecord) {
-      console.log('Transitland integration not configured')
+      console.debug('🚫 [Transit] Transitland integration not configured')
       return null
     }
 
     const transitlandIntegration = integrationManager.getCachedIntegrationInstance(transitlandIntegrationRecord) as TransitlandIntegration
     if (!transitlandIntegration) {
-      console.log('Transitland integration instance not found')
+      console.debug('🚫 [Transit] Transitland integration instance not found')
       return null
     }
 
-    // Search for stops near the coordinates
+    console.log('🌐 [Transit] Searching Transitland for nearby stops (150m radius)')
+    // Search for stops near the coordinates without name filter to get all candidates
     const nearbyStops = await transitlandIntegration.searchStopsNear(
       coordinates.lat,
       coordinates.lng,
-      50, // 50 meter radius
-      name
+      150, // 150 meter radius for better coverage
+      // name - removed to get all nearby stops for fuzzy matching
     )
 
+    console.log(`📍 [Transit] Found ${nearbyStops.length} nearby stops, applying fuzzy name matching...`)
+
     if (nearbyStops.length > 0) {
-      // Return the onestop ID of the closest/best match
-      const bestMatch = nearbyStops[0]
-      return bestMatch.onestop_id || bestMatch.id || null
+      const candidatesWithSimilarity = nearbyStops.map(stop => {
+        const nameSimilarity = calculateTransitStopSimilarity(name, stop.stop_name || '')
+        console.log(`  🎯 [Transit] "${stop.stop_name}" → similarity: ${(nameSimilarity * 100).toFixed(1)}%`)
+        return {
+          ...stop,
+          nameSimilarity,
+          onestopId: stop.onestop_id || stop.id
+        }
+      })
+      
+      candidatesWithSimilarity.sort((a, b) => {
+        if (Math.abs(a.nameSimilarity - b.nameSimilarity) > 0.01) {
+          return b.nameSimilarity - a.nameSimilarity
+        }
+        return (a.distance || 999) - (b.distance || 999)
+      })
+      
+      console.log(`🎯 [Transit] Top fuzzy matching candidates:`)
+      candidatesWithSimilarity.slice(0, 5).forEach((candidate, index) => {
+        console.log(`  ${index + 1}. "${candidate.stop_name}"`)
+        console.log(`     - Similarity: ${(candidate.nameSimilarity * 100).toFixed(1)}%`)
+        console.log(`     - Distance: ${candidate.distance || 'Unknown'}m`)
+        console.log(`     - Onestop ID: ${candidate.onestop_id}`)
+      })
+      
+      const bestMatch = candidatesWithSimilarity[0]
+      const MIN_SIMILARITY_THRESHOLD = 0.25  // Reduced from 0.3 to 0.25 for more fuzzy matching
+      const HIGH_SIMILARITY_THRESHOLD = 0.75 // Reduced from 0.8 to 0.75 for grouping similar stops
+      
+      console.log(`📊 [Transit] Thresholds: MIN=${(MIN_SIMILARITY_THRESHOLD * 100).toFixed(0)}%, HIGH=${(HIGH_SIMILARITY_THRESHOLD * 100).toFixed(0)}%`)
+      
+      if (bestMatch.nameSimilarity >= MIN_SIMILARITY_THRESHOLD) {
+        const highSimilarityMatches = candidatesWithSimilarity.filter(
+          candidate => candidate.nameSimilarity >= HIGH_SIMILARITY_THRESHOLD
+        )
+        
+        if (highSimilarityMatches.length > 1) {
+          console.log(`🔍 [Transit] Found ${highSimilarityMatches.length} high-similarity matches, storing multiple IDs`)
+          highSimilarityMatches.forEach((match, index) => {
+            console.log(`    ${index + 1}. "${match.stop_name}" (${match.onestopId}) - ${(match.nameSimilarity * 100).toFixed(1)}%`)
+          })
+          const allOnestopIds = highSimilarityMatches.map(match => match.onestopId)
+          ;(tryFindOnestopIdByCoordinates as any)._lastFoundMultipleIds = allOnestopIds
+          console.log(`✅ [Transit] Returning primary match: ${allOnestopIds[0]}`)
+          return allOnestopIds[0]
+        } else {
+          console.log(`✅ [Transit] Found single best match: "${bestMatch.stop_name}" (${bestMatch.onestopId}) - ${(bestMatch.nameSimilarity * 100).toFixed(1)}%`)
+          return bestMatch.onestopId
+        }
+      } else {
+        console.log(`❌ [Transit] Best match similarity too low: ${(bestMatch.nameSimilarity * 100).toFixed(1)}% < ${(MIN_SIMILARITY_THRESHOLD * 100).toFixed(0)}%`)
+      }
+    } else {
+      console.log(`❌ [Transit] No nearby stops found within 150m`)
     }
 
     return null
   } catch (error) {
-    console.error('Error finding onestop ID by coordinates:', error)
+    console.error('❌ [Transit] Error finding onestop ID by coordinates:', error)
     return null
   }
 }
@@ -307,10 +473,12 @@ async function enrichPlaceWithWikiData(
   language: SupportedLanguage = 'en'
 ): Promise<Place> {
   try {
-    // Check if we have a Wikidata ID
+    // First, try to find Wikidata ID via parent relations (especially for transit stops)
+    await enrichPlaceWithParentRelations(place)
+    
+    // Check if we have a Wikidata ID (either original or from parent relation)
     const wikidataId = place.externalIds?.wikidata
     if (!wikidataId) {
-      console.log('No Wikidata ID found for place')
       
       // For transit stops without Wikidata, try to find onestop ID by coordinates
       if (isPlaceTransitStop(place) && place.name.value && place.geometry.value.center) {
@@ -318,16 +486,20 @@ async function enrichPlaceWithWikiData(
         if (onestopId) {
           const timestamp = new Date().toISOString()
           
+          // Check if multiple IDs were found (stored in function property)
+          const multipleIds = (tryFindOnestopIdByCoordinates as any)._lastFoundMultipleIds
+          
           place.transit = {
             value: {
               onestopId,
+              onestopIds: multipleIds && multipleIds.length > 1 ? multipleIds : undefined,
               name: place.name.value || undefined,
             },
             sourceId: SOURCE.TRANSITLAND,
             timestamp,
           }
           
-          console.log(`Found transit stop via coordinate search: ${onestopId}`)
+          delete (tryFindOnestopIdByCoordinates as any)._lastFoundMultipleIds
         }
       }
       
@@ -359,9 +531,18 @@ async function enrichPlaceWithWikiData(
     }
 
     // Extract onestop IDs from Wikidata and add to transit data if this is a transit stop
+    console.debug(`📡 [Transit] Checking Wikidata entity ${wikidataId} for onestop IDs`)
     const allOnestopIds = extractAllOnestopIdsFromWikidata(wikidataEntity)
     if (allOnestopIds.length > 0 && isPlaceTransitStop(place)) {
       const timestamp = new Date().toISOString()
+      
+      console.debug(`🎯 [Transit] Wikidata → Transitland mapping successful:`)
+      console.debug(`  - Wikidata ID: ${wikidataId}`)
+      console.debug(`  - Onestop IDs: ${allOnestopIds.join(', ')}`)
+      console.debug(`  - Source: Wikidata P11109 property`)
+      allOnestopIds.forEach(id => {
+        console.debug(`  - Transitland URL: https://www.transit.land/stops/${id}`)
+      })
       
       // Create or update transit info with the onestop IDs
       const transitInfo = {
@@ -522,8 +703,14 @@ async function enrichPlaceWithTransitData(place: Place): Promise<Place> {
     const transitInfo = place.transit.value
     const onestopIds = transitInfo.onestopIds || [transitInfo.onestopId]
     
+    console.debug('🚆 [Transit] Enriching place with transit departures:')
+    console.debug(`  - Place: ${place.name.value}`)
+    console.debug(`  - Onestop IDs: ${onestopIds.join(', ')}`)
+    console.debug(`  - Source: ${place.transit.sourceId}`)
+    
     // Skip if no onestop IDs or already have departure data
     if (onestopIds.length === 0 || (transitInfo.departures && transitInfo.departures.length > 0)) {
+      console.debug('🚫 [Transit] Skipping: No onestop IDs or already have departure data')
       return place
     }
 
@@ -534,31 +721,40 @@ async function enrichPlaceWithTransitData(place: Place): Promise<Place> {
     )
 
     if (!transitlandIntegrationRecord) {
-      console.log('Transitland integration not configured, skipping transit enrichment')
+      console.debug('🚫 [Transit] Transitland integration not configured, skipping transit enrichment')
       return place
     }
 
     const transitlandIntegration = integrationManager.getCachedIntegrationInstance(transitlandIntegrationRecord) as TransitlandIntegration
     if (!transitlandIntegration) {
-      console.log('Transitland integration instance not found')
+      console.debug('🚫 [Transit] Transitland integration instance not found')
       return place
     }
 
+    console.debug('🔄 [Transit] Fetching departures from Transitland API...')
+    
     // Fetch departure data from all onestop IDs (for transfer hubs)
     const allDepartures: TransitDeparture[] = []
     
     for (const onestopId of onestopIds) {
       try {
+        console.debug(`🌐 [Transit] Querying departures for onestop ID: ${onestopId}`)
+        console.debug(`  - API: GET https://transit.land/api/v2/rest/stops/${onestopId}/departures`)
+        console.debug(`  - Parameters: next=3600 (1 hour), limit=20`)
+        
         const departures = await transitlandIntegration.getDepartures(onestopId, {
           next: 3600, // Next hour
           limit: 20
         })
         
         if (departures && departures.length > 0) {
+          console.debug(`✅ [Transit] Found ${departures.length} departures for ${onestopId}`)
           allDepartures.push(...departures)
+        } else {
+          console.debug(`🚫 [Transit] No departures found for ${onestopId}`)
         }
       } catch (error) {
-        console.error(`Error fetching departures for onestop ID ${onestopId}:`, error)
+        console.error(`❌ [Transit] Error fetching departures for onestop ID ${onestopId}:`, error)
         // Continue with other onestop IDs
       }
     }

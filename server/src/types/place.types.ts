@@ -137,6 +137,16 @@ export interface TransitStopInfo {
   }>
 }
 
+export interface PlaceRelation {
+  id: string // OSM ID (e.g., "relation/123456")
+  type: 'relation' | 'way' | 'node'
+  name?: string
+  placeType?: string
+  role?: string // Role in the relation (e.g., "platform", "stop_area", "building")
+  relationshipType: 'parent' | 'child' | 'member' // How this relates to the main place
+  tags?: Record<string, string> // Relevant OSM tags
+}
+
 export interface ContactInfo {
   phone?: string
   formattedPhone?: string
@@ -168,6 +178,7 @@ export interface Place {
     reviewCount: AttributedValue<number>
   }
   transit?: AttributedValue<TransitStopInfo> | null
+  relations?: AttributedValue<PlaceRelation[]> | null
 
   // All sources that contributed data
   sources: SourceReference[]

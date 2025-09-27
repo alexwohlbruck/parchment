@@ -5,11 +5,28 @@ import type {
   AttributedValue,
   OpeningHours,
   TransitStopInfo,
+  PlaceRelation,
 } from '../../../types/place.types'
 import { getPlaceType } from '../../../lib/place.utils'
 import { SOURCE } from '../../../lib/constants'
 import { parseOpeningHoursForUnifiedFormat } from '../../../lib/place.utils'
 import { extractTransitIdentifiers, isTransitStopType, isTransitStop, createTransitInfo } from '../../../lib/transit-utils'
+
+/**
+ * Interface for Nominatim hierarchy response (parent relations)
+ */
+export interface NominatimHierarchyResult {
+  place_id: number
+  osm_type: 'node' | 'way' | 'relation'
+  osm_id: number
+  class: string
+  type: string
+  admin_level?: number
+  localname?: string
+  rank_search?: number
+  rank_address?: number
+  extratags?: Record<string, string>
+}
 
 /**
  * Interface for Nominatim lookup response object
@@ -464,5 +481,100 @@ export class NominatimAdapter {
       this.extractName(data) || undefined,
       data.extratags?.description
     )
+  }
+
+  /**
+   * Look up parent relations for an OSM object
+   * Useful for finding transit stop areas, building complexes, etc.
+   */
+  async lookupParentRelations(
+    osmId: string, // format: "node/123" or "way/456" or "relation/789"
+    baseUrl: string
+  ): Promise<PlaceRelation[]> {
+    const [osmType, osmIdNumber] = osmId.split('/')
+    
+    const url = new URL(`${baseUrl}/hierarchy`)
+    url.searchParams.set('osm_type', osmType.charAt(0).toUpperCase()) // N, W, or R
+    url.searchParams.set('osm_id', osmIdNumber)
+    url.searchParams.set('format', 'json')
+    
+    try {
+      const response = await fetch(url.toString())
+      if (!response.ok) return []
+      
+      const data: NominatimHierarchyResult[] = await response.json()
+      
+      return data
+        .filter(item => this.isUsefulRelation(item))
+        .map(item => ({
+          id: `${item.osm_type}/${item.osm_id}`,
+          type: item.osm_type,
+          name: item.localname || item.extratags?.name,
+          placeType: this.getRelationPlaceType(item),
+          relationshipType: 'parent' as const,
+          tags: item.extratags || {}
+        }))
+    } catch (error) {
+      console.error('Error looking up parent relations:', error)
+      return []
+    }
+  }
+
+  // TODO: Review for necessity
+  /**
+   * Determine if a relation is useful to return (filters out administrative boundaries, etc.)
+   */
+  private isUsefulRelation(item: NominatimHierarchyResult): boolean {
+    const tags = item.extratags || {}
+    
+    // Always include transit-related relations
+    if (tags.public_transport || tags.railway || tags.route || tags.type === 'public_transport') {
+      return true
+    }
+    
+    // Include building complexes, campuses, etc.
+    if (tags.amenity || tags.landuse || tags.leisure || tags.tourism) {
+      return true
+    }
+    
+    // Include sites and areas
+    if (tags.type === 'site' || tags.type === 'multipolygon') {
+      return true
+    }
+    
+    // Skip administrative boundaries (unless they're special cases)
+    if (item.class === 'boundary' && item.type === 'administrative') {
+      return false
+    }
+    
+    // Skip if no meaningful tags
+    if (Object.keys(tags).length === 0) {
+      return false
+    }
+    
+    return true
+  }
+
+  // TODO: Review for necessity
+  /**
+   * Get a meaningful place type for a relation
+   */
+  private getRelationPlaceType(item: NominatimHierarchyResult): string {
+    const tags = item.extratags || {}
+    
+    // Transit-specific types
+    if (tags.public_transport === 'stop_area') return 'Transit Stop Area'
+    if (tags.public_transport === 'platform') return 'Transit Platform'
+    if (tags.railway === 'station') return 'Railway Station'
+    if (tags.type === 'public_transport') return 'Transit Area'
+    
+    // Building/facility types
+    if (tags.amenity) return tags.amenity.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+    if (tags.landuse) return tags.landuse.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+    if (tags.leisure) return tags.leisure.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+    if (tags.tourism) return tags.tourism.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+    
+    // Fallback to class/type
+    return `${item.class}/${item.type}`.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
   }
 }

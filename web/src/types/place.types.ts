@@ -13,6 +13,7 @@ import type {
   AttributedValue,
   TransitDeparture,
   TransitStopInfo,
+  PlaceRelation,
 } from '@server/types/place.types'
 
 // Re-export for use in client code
@@ -30,6 +31,7 @@ export type {
   AttributedValue,
   TransitDeparture,
   TransitStopInfo,
+  PlaceRelation,
 }
 
 // TODO: Move out of types

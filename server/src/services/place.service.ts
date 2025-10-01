@@ -429,6 +429,9 @@ export async function lookupPlaceByNameAndLocation(
     language?: SupportedLanguage
   },
 ): Promise<Place | null> {
+  const startTime = Date.now()
+  console.log(`⏱️ [PERF] Third party place lookup: ${name} at ${coordinates.lat},${coordinates.lng}`)
+  
   try {
     const {
       userId,
@@ -438,24 +441,34 @@ export async function lookupPlaceByNameAndLocation(
     } = options || {}
 
     // Get all places matching the name and coordinates from all providers
+    const searchStart = Date.now()
     const places = await lookupPlacesByNameAndLocation(name, coordinates, {
       radius,
       sourceBlacklist,
       autocomplete,
     })
+    const searchTime = Date.now() - searchStart
+    console.log(`⏱️ [PERF] Multi-provider search: ${searchTime}ms (found ${places.length} places)`)
 
     if (places.length === 0) {
+      console.log(`⏱️ [PERF] Third party lookup (no results): ${Date.now() - startTime}ms`)
       return null
     }
 
     if (userId && places.length > 0) {
+      const bookmarkStart = Date.now()
       // TODO: Where else do we need to add bookmark info?
       await addBookmarkInfo(places, userId)
+      const bookmarkTime = Date.now() - bookmarkStart
+      console.log(`⏱️ [PERF] Third party bookmark info: ${bookmarkTime}ms`)
     }
+
+    const totalTime = Date.now() - startTime
+    console.log(`⏱️ [PERF] Third party place lookup total: ${totalTime}ms`)
 
     return places[0] || null
   } catch (error) {
-    console.error('Error getting place by name and coordinates:', error)
+    console.error(`❌ [PERF] Error getting place by name and coordinates (${Date.now() - startTime}ms):`, error)
     return null
   }
 }
@@ -472,6 +485,9 @@ async function enrichPlaceWithWikiData(
   place: Place, 
   language: SupportedLanguage = 'en'
 ): Promise<Place> {
+  const startTime = Date.now()
+  console.log(`⏱️ [PERF] Starting Wiki data enrichment`)
+  
   try {
     // First, try to find Wikidata ID via parent relations (especially for transit stops)
     await enrichPlaceWithParentRelations(place)
@@ -482,7 +498,11 @@ async function enrichPlaceWithWikiData(
       
       // For transit stops without Wikidata, try to find onestop ID by coordinates
       if (isPlaceTransitStop(place) && place.name.value && place.geometry.value.center) {
+        const coordSearchStart = Date.now()
         const onestopId = await tryFindOnestopIdByCoordinates(place.name.value, place.geometry.value.center)
+        const coordSearchTime = Date.now() - coordSearchStart
+        console.log(`⏱️ [PERF] Coordinate search for onestop ID: ${coordSearchTime}ms`)
+        
         if (onestopId) {
           const timestamp = new Date().toISOString()
           
@@ -503,6 +523,7 @@ async function enrichPlaceWithWikiData(
         }
       }
       
+      console.log(`⏱️ [PERF] Wiki data enrichment (no Wikidata ID): ${Date.now() - startTime}ms`)
       return place
     }
 
@@ -524,15 +545,20 @@ async function enrichPlaceWithWikiData(
     }
 
     // Fetch Wikidata entity
+    const wikidataFetchStart = Date.now()
     const wikidataEntity = await wikidataIntegration.getEntityData(wikidataId, language)
+    const wikidataFetchTime = Date.now() - wikidataFetchStart
+    console.log(`⏱️ [PERF] Wikidata entity fetch: ${wikidataFetchTime}ms`)
+    
     if (!wikidataEntity) {
       console.log(`No Wikidata entity found for ID: ${wikidataId}`)
+      console.log(`⏱️ [PERF] Wiki data enrichment (no entity): ${Date.now() - startTime}ms`)
       return place
     }
 
     // Extract onestop IDs from Wikidata and add to transit data if this is a transit stop
-    console.debug(`📡 [Transit] Checking Wikidata entity ${wikidataId} for onestop IDs`)
     const allOnestopIds = extractAllOnestopIdsFromWikidata(wikidataEntity)
+    
     if (allOnestopIds.length > 0 && isPlaceTransitStop(place)) {
       const timestamp = new Date().toISOString()
       
@@ -566,9 +592,16 @@ async function enrichPlaceWithWikiData(
     }
 
     // Get Wikidata place data and merge it
+    const wikidataPlaceStart = Date.now()
     const wikidataPlace = await wikidataIntegration.capabilities.placeInfo?.getPlaceInfo(wikidataId)
+    const wikidataPlaceTime = Date.now() - wikidataPlaceStart
+    console.log(`⏱️ [PERF] Wikidata place info fetch: ${wikidataPlaceTime}ms`)
+    
     if (wikidataPlace) {
+      const mergeStart = Date.now()
       place = mergePlaces(place, wikidataPlace)
+      const mergeTime = Date.now() - mergeStart
+      console.log(`⏱️ [PERF] Wikidata place merge: ${mergeTime}ms`)
     }
 
     // Extract Wikipedia title from Wikidata entity
@@ -584,9 +617,16 @@ async function enrichPlaceWithWikiData(
         const wikipediaIntegration = integrationManager.getCachedIntegrationInstance(wikipediaIntegrationRecord) as WikipediaIntegration
         if (wikipediaIntegration) {
           // Fetch Wikipedia data
+          const wikipediaStart = Date.now()
           const wikipediaPlace = await wikipediaIntegration.capabilities.placeInfo?.getPlaceInfo(`${language}:${wikipediaTitle}`)
+          const wikipediaTime = Date.now() - wikipediaStart
+          console.log(`⏱️ [PERF] Wikipedia fetch: ${wikipediaTime}ms`)
+          
           if (wikipediaPlace) {
+            const mergeStart = Date.now()
             place = mergePlaces(place, wikipediaPlace)
+            const mergeTime = Date.now() - mergeStart
+            console.log(`⏱️ [PERF] Wikipedia merge: ${mergeTime}ms`)
           }
         }
       }
@@ -613,7 +653,10 @@ async function enrichPlaceWithWikiData(
               : `gallery:${commonsGallery}`
 
             // Fetch place info (which includes images) from Commons
+            const wikimediaStart = Date.now()
             const wikimediaPlace = await wikimediaIntegration.capabilities.placeInfo?.getPlaceInfo(wikimediaId)
+            const wikimediaTime = Date.now() - wikimediaStart
+            console.log(`⏱️ [PERF] Wikimedia fetch: ${wikimediaTime}ms`)
 
             if (wikimediaPlace && wikimediaPlace.photos.length > 0) {
               // Update photo priorities before merging
@@ -815,14 +858,29 @@ export async function lookupEnrichedPlaceById(
     language?: SupportedLanguage
   },
 ): Promise<Place | null> {
+  const startTime = Date.now()
+  console.log(`⏱️ [PERF] Starting enriched place lookup: source=${source}, id=${id}`)
+  
   try {
     const { userId, language = 'en' } = options || {}
 
+    // Step 1: Get base place data
+    const step1Start = Date.now()
     let place = await lookupPlaceById(source, id)
-    if (!place) return null
+    const step1Time = Date.now() - step1Start
+    console.log(`⏱️ [PERF] Step 1 - Base place lookup: ${step1Time}ms`)
+    
+    if (!place) {
+      console.log(`⏱️ [PERF] Total time (no place found): ${Date.now() - startTime}ms`)
+      return null
+    }
 
-    // If place has name and location, look it up from other sources and merge in
-    if (place.name?.value && place.geometry.value.center) {
+    // Step 2: Look up from other sources and merge
+    // Skip third-party search for transit stops to avoid overriding authoritative transit data
+    const skipThirdPartySearch = isPlaceTransitStop(place) && source === SOURCE.TRANSITLAND
+    
+    if (place.name?.value && place.geometry.value.center && !skipThirdPartySearch) {
+      const step2Start = Date.now()
       const { lat, lng } = place.geometry.value.center
 
       const thirdPartyPlace = await lookupPlaceByNameAndLocation(
@@ -833,20 +891,34 @@ export async function lookupEnrichedPlaceById(
           sourceBlacklist: [source], // Exclude the original source
         },
       )
+      const step2Time = Date.now() - step2Start
+      console.log(`⏱️ [PERF] Step 2 - Third party place lookup: ${step2Time}ms`)
 
       if (thirdPartyPlace) {
+        const mergeStart = Date.now()
         place = mergePlaces(place, thirdPartyPlace)
+        const mergeTime = Date.now() - mergeStart
+        console.log(`⏱️ [PERF] Step 2b - Place merge: ${mergeTime}ms`)
       }
+    } else if (skipThirdPartySearch) {
+      console.log(`⏱️ [PERF] Step 2 - Skipped third party search for Transitland transit stop`)
     }
 
-    // Enrich with Wiki data (Wikidata, Wikipedia, Wikimedia Commons)
-    place = await enrichPlaceWithWikiData(place, language)
+    // Step 3 & 4: Enrich with Wiki data and transit data in parallel
+    const enrichmentStart = Date.now()
+    const [wikiEnrichedPlace, transitEnrichedPlace] = await Promise.all([
+      enrichPlaceWithWikiData(place, language),
+      enrichPlaceWithTransitData(place)
+    ])
+    
+    // Merge the results (wiki data takes precedence for conflicts)
+    place = mergePlaces(wikiEnrichedPlace, transitEnrichedPlace)
+    const enrichmentTime = Date.now() - enrichmentStart
+    console.log(`⏱️ [PERF] Step 3&4 - Parallel enrichment (Wiki + Transit): ${enrichmentTime}ms`)
 
-    // Enrich with transit data from Transitland
-    place = await enrichPlaceWithTransitData(place)
-
-    // Add bookmark information if user ID is provided
+    // Step 5: Add bookmark information if user ID is provided
     if (userId && place) {
+      const step5Start = Date.now()
       const bookmarkInfo = await findBookmarkByExternalIds(
         place.externalIds,
         userId,
@@ -855,12 +927,18 @@ export async function lookupEnrichedPlaceById(
         place.bookmark = bookmarkInfo.bookmark
         place.collectionIds = bookmarkInfo.collectionIds
       }
+      const step5Time = Date.now() - step5Start
+      console.log(`⏱️ [PERF] Step 5 - Bookmark info: ${step5Time}ms`)
     }
+
+    const totalTime = Date.now() - startTime
+    console.log(`⏱️ [PERF] Total enriched place lookup time: ${totalTime}ms`)
 
     return place
   } catch (error) {
+    const totalTime = Date.now() - startTime
     console.error(
-      `Error looking up and merging place data (${source}/${id}):`,
+      `❌ [PERF] Error looking up and merging place data (${source}/${id}) after ${totalTime}ms:`,
       error,
     )
     return null

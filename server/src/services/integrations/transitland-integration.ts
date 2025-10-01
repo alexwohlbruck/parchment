@@ -5,8 +5,9 @@ import {
   IntegrationId,
   Integration,
   TransitDataCapability,
+  PlaceInfoCapability,
 } from '../../types/integration.types'
-import { TransitDeparture } from '../../types/place.types'
+import { TransitDeparture, Place } from '../../types/place.types'
 import { SOURCE } from '../../lib/constants'
 
 const TRANSITLAND_API_BASE_URL = 'https://transit.land/api/v2/rest'
@@ -22,11 +23,15 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
   readonly capabilityIds: IntegrationCapabilityId[] = [
     IntegrationCapabilityId.MAP_LAYER,
     IntegrationCapabilityId.TRANSIT_DATA,
+    IntegrationCapabilityId.PLACE_INFO,
   ]
   readonly capabilities = {
     transitData: {
       getDepartures: this.getDepartures.bind(this),
     } as TransitDataCapability,
+    placeInfo: {
+      getPlaceInfo: this.getPlaceInfo.bind(this),
+    } as PlaceInfoCapability,
   }
   readonly sources = [SOURCE.TRANSITLAND]
 
@@ -128,6 +133,9 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
     endTime?: string
     limit?: number
   }): Promise<TransitDeparture[]> {
+    const startTime = Date.now()
+    console.log(`⏱️ [PERF] Transitland getDepartures: ${onestopId}`)
+    
     this.ensureInitialized()
 
     const baseUrl = `${TRANSITLAND_API_BASE_URL}/stops`
@@ -234,5 +242,147 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
         } : undefined,
       }
     })
+  }
+
+  /**
+   * Get stop details by onestop ID
+   */
+  async getStop(onestopId: string): Promise<any | null> {
+    const startTime = Date.now()
+    console.log(`⏱️ [PERF] Transitland getStop: ${onestopId}`)
+    
+    this.ensureInitialized()
+
+    try {
+      const baseUrl = `${TRANSITLAND_API_BASE_URL}/stops`
+      const url = `${baseUrl}/${encodeURIComponent(onestopId)}`
+      
+      const params = new URLSearchParams()
+      params.append('apikey', this.config.apiKey)
+
+      const fullUrl = `${url}?${params.toString()}`
+
+      const fetchStart = Date.now()
+      const response = await fetch(fullUrl)
+      const fetchTime = Date.now() - fetchStart
+      console.log(`⏱️ [PERF] Transitland API fetch: ${fetchTime}ms`)
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.log(`⏱️ [PERF] Transitland getStop (404): ${Date.now() - startTime}ms`)
+          return null
+        }
+        console.error('Transitland stop API error:', response.status, response.statusText)
+        return null
+      }
+
+      const parseStart = Date.now()
+      const data = await response.json()
+      const parseTime = Date.now() - parseStart
+      console.log(`⏱️ [PERF] Transitland JSON parse: ${parseTime}ms`)
+      
+      // Transitland API returns stops in an array
+      if (data.stops && data.stops.length > 0) {
+        const totalTime = Date.now() - startTime
+        console.log(`⏱️ [PERF] Transitland getStop total: ${totalTime}ms`)
+        return data.stops[0]
+      }
+      
+      console.log(`⏱️ [PERF] Transitland getStop (no stops): ${Date.now() - startTime}ms`)
+      return null
+    } catch (error) {
+      console.error(`❌ [PERF] Error fetching stop from Transitland (${Date.now() - startTime}ms):`, error)
+      return null
+    }
+  }
+
+  /**
+   * Get place info by onestop ID (implements PlaceInfoCapability)
+   */
+  private async getPlaceInfo(onestopId: string): Promise<Place | null> {
+    try {
+      const stop = await this.getStop(onestopId)
+      if (!stop) {
+        return null
+      }
+
+      // Convert Transitland stop to unified Place format
+      return this.adaptStopToPlace(stop)
+    } catch (error) {
+      console.error('Error getting place info from Transitland:', error)
+      return null
+    }
+  }
+
+  /**
+   * Convert Transitland stop data to unified Place format
+   */
+  private adaptStopToPlace(stop: any): Place {
+    const now = new Date().toISOString()
+    
+    return {
+      id: `transitland:${stop.onestop_id}`,
+      externalIds: {
+        [SOURCE.TRANSITLAND]: stop.onestop_id,
+      },
+      name: {
+        value: stop.stop_name || null,
+        sourceId: SOURCE.TRANSITLAND,
+        timestamp: now,
+      },
+      description: {
+        value: stop.stop_desc || '',
+        sourceId: SOURCE.TRANSITLAND,
+        timestamp: now,
+      },
+      placeType: {
+        value: 'Transit Stop',
+        sourceId: SOURCE.TRANSITLAND,
+        timestamp: now,
+      },
+      geometry: {
+        value: {
+          type: 'point',
+          center: {
+            lat: stop.geometry?.coordinates?.[1] || 0,
+            lng: stop.geometry?.coordinates?.[0] || 0,
+          },
+        },
+        sourceId: SOURCE.TRANSITLAND,
+        timestamp: now,
+      },
+      photos: [],
+      address: null,
+      contactInfo: {
+        phone: null,
+        email: null,
+        website: null,
+        socials: {},
+      },
+      openingHours: null,
+      amenities: {},
+      transit: {
+        value: {
+          onestopId: stop.onestop_id,
+          name: stop.stop_name,
+          code: stop.stop_code,
+          description: stop.stop_desc,
+          timezone: stop.stop_timezone,
+          wheelchairBoarding: stop.wheelchair_boarding,
+        },
+        sourceId: SOURCE.TRANSITLAND,
+        timestamp: now,
+      },
+      sources: [
+        {
+          id: SOURCE.TRANSITLAND,
+          name: 'Transitland',
+          url: `https://transit.land/stops/${stop.onestop_id}`,
+          updated: now,
+        },
+      ],
+      lastUpdated: now,
+      createdAt: now,
+    }
   }
 }

@@ -1,12 +1,18 @@
 import { api } from '@/lib/api'
 import type { Layer, LayerGroup } from '@/types/map.types'
-import { LayerType, MapEngine, MapboxLayerType } from '@/types/map.types'
+import { LayerType, MapEngine, MapboxLayerType, MapColorTheme } from '@/types/map.types'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { toRaw, watch } from 'vue'
 import { cssHslToHex, adjustLightness } from '@/lib/utils'
 import type { Place } from '@/types/place.types'
 import SearchResultMapIcon from '@/components/map/SearchResultMapIcon.vue'
 import { useSearchStore } from '@/stores/search.store'
+import { useThemeStore } from '@/stores/theme.store'
+import { useStorage } from '@vueuse/core'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
+import { DEFAULT_SERVER_URL } from '@/lib/constants'
+import { isTransitStopLayer } from '@/lib/transit.utils'
 import {
   SEARCH_RESULTS_LAYER_ID,
   SEARCH_RESULTS_SOURCE_ID,
@@ -25,6 +31,59 @@ import {
 } from '@/constants/layer.constants'
 
 export function useLayersService() {
+  // Initialize theme store inside the composable where Pinia is available
+  const themeStore = useThemeStore()
+  const router = useRouter()
+
+  // Helper function to apply map color theme based on transit visibility and theme
+  function applyTransitMapTheme(
+    mapStrategy: MapStrategy,
+    hasVisibleTransitLayers: boolean,
+    hideTransitLabels: boolean = true
+  ) {
+    // Only apply faded effect in light mode when transit layers are visible
+    const shouldUseFaded = hasVisibleTransitLayers && !themeStore.isDark
+    mapStrategy.setMapColorTheme(shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT)
+    
+    if (hideTransitLabels) {
+      mapStrategy.setTransitLabels(!hasVisibleTransitLayers) // Hide default transit labels when our layers are active
+    }
+  }
+
+  // Add click handlers for transit stops to open place detail view
+  function addTransitStopClickHandlers(mapStrategy: MapStrategy, layerId: string) {
+    if (!mapStrategy?.mapInstance) return
+    
+    const handleClick = (event: any) => {
+      const feature = event.features?.[0]
+      if (feature && feature.properties) {
+        const onestopId = feature.properties.onestop_id || feature.properties.stop_id
+        if (onestopId) {
+          router.push({
+            name: AppRoute.PLACE_PROVIDER,
+            params: {
+              provider: 'transitland',
+              placeId: onestopId,
+            },
+          })
+        }
+      }
+    }
+
+    const handleMouseEnter = () => {
+      mapStrategy.mapInstance.getCanvas().style.cursor = 'pointer'
+    }
+
+    const handleMouseLeave = () => {
+      mapStrategy.mapInstance.getCanvas().style.cursor = ''
+    }
+
+    // Add all handlers
+    mapStrategy.mapInstance.on('click', layerId, handleClick)
+    mapStrategy.mapInstance.on('mouseenter', layerId, handleMouseEnter)
+    mapStrategy.mapInstance.on('mouseleave', layerId, handleMouseLeave)
+  }
+
   // Core CRUD operations (user layers only - no server-side defaults)
   async function getLayers() {
     const { data } = await api.get<Layer[]>('/library/layers')
@@ -116,6 +175,11 @@ export function useLayersService() {
         initializeSearchResultsLayer(mapStrategy)
       }
       
+      // Add transit stop click handlers for transit stop layers
+      if (isTransitStopLayer(plainLayer.configuration?.id)) {
+        addTransitStopClickHandlers(mapStrategy, plainLayer.configuration.id)
+      }
+      
       mapStrategy.addLayer(plainLayer)
     })
   }
@@ -172,6 +236,21 @@ export function useLayersService() {
     }
   }
 
+  // Helper function to check if any transit layers are visible
+  function checkTransitLayersVisibility(layers: Layer[], layerConfigId?: string, newState?: boolean): boolean {
+    return layers.some(l => {
+      if (l.type !== LayerType.TRANSIT) return false
+      
+      // If this is the layer being updated, use the new state
+      if (layerConfigId && l.configuration.id === layerConfigId) {
+        return newState ?? false
+      }
+      
+      // Otherwise use current visibility
+      return l.visible
+    })
+  }
+
   // SERVER-FIRST visibility updates (no optimistic local store changes)
   async function setLayerVisibility(
     layerConfigId: Layer['configuration']['id'],
@@ -185,11 +264,36 @@ export function useLayersService() {
 
     const newState = state ?? !layer.visible
 
-    // First update server via store updater (which persists and updates store)
-    await layersStore.updateLayer(layer.id, { visible: newState })
+    // For client-side layers, only update visibility in memory (no server update)
+    if (layer.id.startsWith('client-')) {
+      layersStore.updateLayerVisibility(layer.id, newState)
+    } else {
+      // For user layers, update server via store updater (which persists and updates store)
+      await layersStore.updateLayer(layer.id, { visible: newState })
+    }
 
     // Then update map visualization
     toggleLayerVisibility(layerConfigId, newState, mapStrategy)
+
+    // Handle special layer types
+    if (layer.type === LayerType.TRANSIT && mapStrategy) {
+      // For Transitland layers, also toggle the case layer
+      if (layer.configuration.id === 'transitland') {
+        const caseLayer = layers.find(l => l.configuration.id === 'transitland-case')
+        if (caseLayer) {
+          if (caseLayer.id.startsWith('client-')) {
+            layersStore.updateLayerVisibility(caseLayer.id, newState)
+          } else {
+            await layersStore.updateLayer(caseLayer.id, { visible: newState })
+          }
+          toggleLayerVisibility('transitland-case', newState, mapStrategy)
+        }
+      }
+      
+      // Apply map color theme and transit labels based on transit layer visibility
+      const hasVisibleTransitLayers = checkTransitLayersVisibility(layers, layerConfigId, newState)
+      applyTransitMapTheme(mapStrategy, hasVisibleTransitLayers)
+    }
   }
 
   // Show-in-selector toggles (do not affect map visibility)
@@ -224,20 +328,52 @@ export function useLayersService() {
     layers: Layer[],
     mapStrategy?: MapStrategy,
   ) {
-    // Update the group's own visible state on the server
-    await layersStore.updateLayerGroup(group.id, { visible })
+    // For client-side groups, only update visibility in memory
+    if (group.id.startsWith('client-')) {
+      layersStore.toggleLayerGroupVisibility(group.id, visible)
+    } else {
+      // Update the group's own visible state on the server
+      await layersStore.updateLayerGroup(group.id, { visible })
+    }
 
-    // Find all layers in this group from the provided layers array (DB data)
+    // Find all layers in this group from the provided layers array
     const groupLayers = layers.filter(l => l.groupId === group.id)
 
-    // Update each layer on the server first, then reflect on the map
+    // Check if this group contains transit layers
+    const hasTransitLayers = groupLayers.some(l => l.type === LayerType.TRANSIT)
+
+    // Update each layer's visibility
     for (const layer of groupLayers) {
       try {
-        await layersStore.updateLayer(layer.id, { visible })
+        if (layer.id.startsWith('client-')) {
+          // For client-side layers, only update in memory
+          layersStore.updateLayerVisibility(layer.id, visible)
+        } else {
+          // For user layers, update on server
+          await layersStore.updateLayer(layer.id, { visible })
+        }
         toggleLayerVisibility(layer.configuration.id, visible, mapStrategy)
       } catch (error) {
         console.error(`Failed to set visibility for layer ${layer.id}`, error)
       }
+    }
+
+    // Apply map color theme if this group contains transit layers
+    if (hasTransitLayers && mapStrategy) {
+      // Check if any transit layers will be visible after this group toggle
+      const hasVisibleTransitLayers = layers.some(l => {
+        if (l.type !== LayerType.TRANSIT) return false
+        
+        // If this layer is in the group being toggled, use the new visibility state
+        if (l.groupId === group.id) {
+          return visible
+        }
+        
+        // Otherwise use current visibility
+        return l.visible
+      })
+      
+      applyTransitMapTheme(mapStrategy, hasVisibleTransitLayers)
     }
   }
 
@@ -266,9 +402,51 @@ export function useLayersService() {
     }
   }
 
+  async function toggleTransitLayers(
+    layers: Layer[],
+    layersStore: any,
+    mapStrategy?: MapStrategy,
+    visible?: boolean,
+  ) {
+    const newState = visible ?? false
+
+    const transitLayers = layers.filter(
+      layer => layer.type === LayerType.TRANSIT,
+    )
+
+    for (const layer of transitLayers) {
+      try {
+        if (layer.id.startsWith('client-')) {
+          // For client-side layers, only update in memory
+          layersStore.updateLayerVisibility(layer.id, newState)
+        } else {
+          // For user layers, update on server
+          await layersStore.updateLayer(layer.id, { visible: newState })
+        }
+        toggleLayerVisibility(layer.configuration.id, newState, mapStrategy)
+      } catch (error) {
+        console.error(
+          `Failed to set transit layer ${layer.id} visibility:`,
+          error,
+        )
+      }
+    }
+
+    // Set map color theme and transit labels based on transit layer visibility
+    if (mapStrategy) {
+      applyTransitMapTheme(mapStrategy, newState)
+    }
+  }
+
   function addLayerToMap(layer: Layer, mapStrategy?: MapStrategy) {
     if (!mapStrategy) return
     const plainLayer = toRaw(layer)
+    
+    // Add transit stop click handlers for dynamically added transit stop layers
+    if (isTransitStopLayer(plainLayer.configuration?.id)) {
+      addTransitStopClickHandlers(mapStrategy, plainLayer.configuration.id)
+    }
+    
     mapStrategy.addLayer(plainLayer)
   }
 
@@ -291,6 +469,7 @@ export function useLayersService() {
     onPlaceLeave?: (place: Place, event: any) => void
   }
 
+  // TODO: Unused code?
   function createInteractiveResultsLayer(
     mapStrategy: MapStrategy,
     options: SearchResultsLayerOptions,
@@ -900,11 +1079,11 @@ export function useLayersService() {
     toggleLayerVisibility,
     toggleLayerGroupVisibility,
     toggleStreetViewLayers,
+    toggleTransitLayers,
     addLayerToMap,
     removeLayerFromMap,
     setLayerShownInSelector,
     setGroupShownInSelector,
-
 
     // Search results layer management
     createSearchResultsLayer,

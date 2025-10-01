@@ -29,6 +29,12 @@ export enum MapTheme {
   DARK = 'dark',
 }
 
+export enum MapColorTheme {
+  DEFAULT = 'default',
+  FADED = 'faded',
+  MONOCHROME = 'monochrome',
+}
+
 export interface MapSettings {
   theme: MapTheme
   engine: MapEngine
@@ -170,6 +176,7 @@ export type MaplibreLayerConfiguration = {
 export enum LayerType {
   CUSTOM = 'custom',
   STREET_VIEW = 'street_view',
+  TRANSIT = 'transit',
 }
 
 export interface Layer {

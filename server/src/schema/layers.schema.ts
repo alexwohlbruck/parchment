@@ -11,6 +11,7 @@ import { users } from './users.schema'
 export const LayerType = {
   CUSTOM: 'custom',
   STREET_VIEW: 'street_view',
+  TRANSIT: 'transit',
 } as const
 
 export const MapEngine = {

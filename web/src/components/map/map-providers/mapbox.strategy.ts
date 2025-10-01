@@ -20,6 +20,7 @@ import {
   MapCamera,
   MapSettings,
   MapTheme,
+  MapColorTheme,
   MapillaryImage,
   Pegman,
   PEGMAN_LAYERS,
@@ -465,6 +466,11 @@ export class MapboxStrategy extends MapStrategy {
     this.mapInstance.setConfigProperty('basemap', 'showPlaceLabels', value)
   }
 
+  setLandmarkIcons(value: boolean) {
+    this.mapInstance.setConfigProperty('basemap', 'showLandmarkIcons', value)
+    this.mapInstance.setConfigProperty('basemap', 'showLandmarkIconLabels', value)
+  }
+
   setMapProjection(projection: MapProjection) {
     this.mapInstance.setProjection(projection)
   }
@@ -499,6 +505,10 @@ export class MapboxStrategy extends MapStrategy {
     }
     const lightPreset = themeMap[theme]
     this.mapInstance.setConfigProperty('basemap', 'lightPreset', lightPreset)
+  }
+
+  setMapColorTheme(theme: MapColorTheme) {
+    this.mapInstance.setConfigProperty('basemap', 'theme', theme)
   }
 
   setBasemap(basemap: Basemap) {

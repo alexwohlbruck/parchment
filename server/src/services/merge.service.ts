@@ -409,6 +409,11 @@ export function mergePlaces(
     )
     result.amenities = mergeAttributedRecord(result.amenities, place.amenities)
 
+    // Merge transit data (prioritize sources with richer transit information)
+    if (place.transit) {
+      result.transit = mergeAttributedValue(result.transit || null, place.transit)
+    }
+
     // Merge ratings
     if (place.ratings) {
       if (!result.ratings) {

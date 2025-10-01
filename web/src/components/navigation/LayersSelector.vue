@@ -17,7 +17,7 @@ const layersStore = useLayersStore()
 const layersService = useLayersService()
 const mapStore = useMapStore()
 const mapService = useMapService()
-const { layers, layerGroups, mainReorderableItems } = storeToRefs(layersStore)
+const { layers, allLayerGroups, mainReorderableItems } = storeToRefs(layersStore)
 
 // Helper function to convert icon string name to Vue component
 function getIconComponent(iconName?: string | null) {
@@ -47,7 +47,7 @@ async function toggleLayerVisibility(layerId: string, visible: boolean) {
 }
 
 async function toggleLayerGroupVisibility(groupId: string, visible: boolean) {
-  const group = layerGroups.value.find(g => g.id === groupId)
+  const group = allLayerGroups.value.find(g => g.id === groupId)
   if (group) {
     await layersService.toggleLayerGroupVisibility(
       group,
@@ -73,7 +73,7 @@ const ungroupedLayers = computed(() => {
 
 // Get layer groups (filtered for non-street-view content and showInLayerSelector)
 const filteredGroups = computed(() => {
-  return layerGroups.value.filter(group => {
+  return allLayerGroups.value.filter(group => {
     // Only show groups that are enabled in the selector
     if (!group.showInLayerSelector) return false
 
@@ -98,7 +98,7 @@ const allLayers = computed(() => {
     .map(item => {
       // Item is a group
       if (!('groupId' in item)) {
-        const group = layerGroups.value.find(g => g.id === item.id)
+        const group = allLayerGroups.value.find(g => g.id === item.id)
         if (!group) return null
         // Only include groups that should show and have at least one non-street-view layer
         if (!group.showInLayerSelector) return null

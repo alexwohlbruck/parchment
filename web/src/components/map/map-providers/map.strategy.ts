@@ -5,6 +5,7 @@ import {
   MapSettings,
   MapProjection,
   MapTheme,
+  MapColorTheme,
   Pegman,
   LngLat,
   Waypoint,
@@ -40,10 +41,12 @@ export class MapStrategy {
   setRoadLabels(value: boolean) {}
   setTransitLabels(value: boolean) {}
   setPlaceLabels(value: boolean) {}
+  setLandmarkIcons(value: boolean) {}
   setMapProjection(projection: MapProjection) {}
   setMap3dTerrain(value: boolean) {}
   setMap3dObjects(value: boolean) {}
   setMapTheme(theme: MapTheme) {}
+  setMapColorTheme(theme: MapColorTheme) {}
   setBasemap(basemap: Basemap) {}
   addSource(sourceId: string, source: any) {}
   removeSource(sourceId: string) {}

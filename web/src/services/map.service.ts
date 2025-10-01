@@ -3,6 +3,7 @@ import {
   MapEngine,
   MapProjection,
   MapTheme,
+  MapColorTheme,
   StreetViewType,
   type Layer,
   type MapEvents,
@@ -188,9 +189,22 @@ function mapService() {
   function onMapLoad() {
     setConfigProperties()
     
+    // Sync client-side layer visibility with their group states
+    const hasVisibleTransitLayers = layersStore.syncClientSideLayerVisibility()
+    
     // Include search results layer with regular layers
     const allLayers = [layersService.createSearchResultsLayer(), ...layers.value]
     layersService.initializeLayers(allLayers, mapStrategy)
+    
+    // Apply transit map theme if transit layers are visible
+    if (hasVisibleTransitLayers && mapStrategy) {
+      // Import the theme store to access the applyTransitMapTheme function
+      const themeStore = useThemeStore()
+      const shouldUseFaded = hasVisibleTransitLayers && !themeStore.isDark
+      mapStrategy.setMapColorTheme(shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT)
+      mapStrategy.setTransitLabels(!hasVisibleTransitLayers)
+    }
+
 
     // Show waypoint markers immediately when map loads
     if (directionsStore.waypoints) {
@@ -212,6 +226,9 @@ function mapService() {
   function onStyleLoad() {
     setConfigProperties()
     
+    // Sync client-side layer visibility with their group states
+    const hasVisibleTransitLayers = layersStore.syncClientSideLayerVisibility()
+    
     // Include search results layer with regular layers
     const allLayers = [layersService.createSearchResultsLayer(), ...layers.value]
     layersService.initializeLayers(allLayers, mapStrategy)
@@ -221,6 +238,14 @@ function mapService() {
     
     // Update polygon colors to match current theme
     layersService.updatePlacePolygonColors(mapStrategy)
+    
+    // Apply transit map theme if transit layers are visible
+    if (hasVisibleTransitLayers && mapStrategy) {
+      const themeStore = useThemeStore()
+      const shouldUseFaded = hasVisibleTransitLayers && !themeStore.isDark
+      mapStrategy.setMapColorTheme(shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT)
+      mapStrategy.setTransitLabels(!hasVisibleTransitLayers)
+    }
 
     // Show waypoint markers immediately when style loads
     if (directionsStore.waypoints) {

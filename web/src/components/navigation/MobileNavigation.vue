@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import Palette from '@/components/palette/Palette.vue'
 import { capitalize } from '@/filters/text.filters'
+import BottomSheet from '@/components/BottomSheet.vue'
 import {
   MapIcon,
   HistoryIcon,
@@ -16,7 +17,7 @@ import {
   MilestoneIcon,
 } from 'lucide-vue-next'
 
-useObstructingComponent(undefined, 'mobileNav')
+// useObstructingComponent(undefined, 'mobileNav')
 const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
@@ -60,9 +61,14 @@ const items = computed(() => {
 </script>
 
 <template>
-  <div class="gap-1 fixed bottom-0 w-full">
+  <BottomSheet
+    peek-height="125px"
+    open
+    disableSwipeClose
+    class="absolute w-full h-full bg-background z-50 top-0 left-0 w-full md:w-104 h-full rounded-t-md shadow-lg justify-center gap-1"
+  >
     <Card
-      class="flex flex-col gap-2 p-2 bg-muted shadow-md rounded-b-none border-0 pb-[min(calc(env(safe-area-inset-bottom)-.25rem), 1rem)]"
+      class="flex flex-col h-full gap-2 p-2 bg-muted shadow-md rounded-b-none border-0 pb-[min(calc(env(safe-area-inset-bottom)-.25rem), 1rem)]"
     >
       <div class="relative">
         <Palette />
@@ -76,11 +82,11 @@ const items = computed(() => {
             :value="item.to"
           >
             <component :is="item.icon" class="size-5" />
-            <!-- TODO: Use typography component -->
             <p class="text-xs">{{ item.label }}</p>
           </TabsTrigger>
         </TabsList>
       </Tabs>
     </Card>
-  </div>
+  </BottomSheet>
+  
 </template>

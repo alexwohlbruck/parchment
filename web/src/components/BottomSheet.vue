@@ -24,6 +24,8 @@ const props = defineProps<{
   peekHeight?: number
   disableSwipeClose?: boolean
   open?: boolean
+  showDragHandle?: boolean
+  showCloseButton?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -41,17 +43,13 @@ const { isDragActive } = useDragState()
 const appStore = useAppStore()
 
 // useObstructingComponent(sheet, 'bottom-sheet')
-const { height: windowHeight } = useWindowSize()
 
 const { y: scrollY } = useScroll(scrollContainer)
 const isAtTop = computed(() => scrollY.value === 0)
 
 let lastTouchY = 0
 let isScrollingUp = false
-
-// Calculate snap points based on window height and custom peek height
-const snapPoints = ['300px', 0.5, 1]
-
+const snapPoints = computed(() => [props.peekHeight ?? '300px', 0.5, 1])
 const isFullyExpanded = computed(() => activeSnapPoint.value === 1)
 
 function handleOpenChange(open: boolean) {
@@ -141,15 +139,15 @@ function handleTouchEnd() {
 
       >
         <Card class="h-full flex flex-col">
-          <div ref="headerRef" class="flex justify-between items-center flex-shrink-0 p-1.5">
-            <div class="flex-1 flex justify-center">
+          <div ref="headerRef" class="flex justify-between items-center flex-shrink-0">
+            <div v-if="showDragHandle" class="flex-1 flex justify-center py-3">
               <DrawerHandle class="h-1 w-16 rounded-full bg-muted-foreground" />
             </div>
-            <DrawerClose as-child>
+            <DrawerClose v-if="showCloseButton" as-child>
               <Button
                 variant="secondary"
                 size="icon-xs"
-                class="rounded-full hover:bg-muted transition-colors"
+                class="rounded-full hover:bg-muted transition-colors absolute top-2 right-2"
                 @click="emit('close')"
               >
                 <X class="size-3.5" />
@@ -170,27 +168,7 @@ function handleTouchEnd() {
             @touchmove="handleTouchMove"
             @touchend="handleTouchEnd"
           >
-            <div>
-              <slot>
-                <!-- Default test content -->
-                <div>
-                  <p>Active Snap Point: {{activeSnapPoint}}</p>
-                  <p>Is Fully Expanded: {{isFullyExpanded}}</p>
-                  <div class="space-y-4 mt-4">
-                    <p class="text-muted-foreground">
-                      This is scrollable content. When you scroll to the top and continue dragging, 
-                      it should convert to drawer drag gestures.
-                    </p>
-                    <div v-for="i in 20" :key="i" class="p-4 bg-muted rounded">
-                      <p>Scrollable item {{ i }}</p>
-                      <p class="text-sm text-muted-foreground">
-                        This content demonstrates the scroll-to-drag conversion functionality.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </slot>
-            </div>
+              <slot/>
           </div>
         </Card>
       </DrawerContent>

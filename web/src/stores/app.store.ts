@@ -7,6 +7,7 @@ import ComponentDialog from '@/components/dialogs/ComponentDialog.vue'
 import ConfirmDialog from '@/components/dialogs/ConfirmDialog.vue'
 import PromptDialog from '@/components/dialogs/PromptDialog.vue'
 import AutoformDialog from '@/components/dialogs/AutoformDialog.vue'
+import ProgrammaticDrawer from '@/components/ProgrammaticDrawer.vue'
 
 export const useAppStore = defineStore('app', () => {
   const obstructingComponentsMap = ref<Map<string, Component>>(new Map())
@@ -218,6 +219,7 @@ export const useAppStore = defineStore('app', () => {
         [DialogType.Prompt]: PromptDialog,
         [DialogType.AutoForm]: AutoformDialog,
         [DialogType.Template]: ConfirmDialog, // TODO
+        [DialogType.Drawer]: ProgrammaticDrawer,
       }
 
       if (
@@ -228,6 +230,15 @@ export const useAppStore = defineStore('app', () => {
         const componentOptions =
           options as import('@/types/app.types').ComponentDialogOptions
         componentOptions.component = markRaw(componentOptions.component)
+      }
+      
+      if (
+        type === DialogType.Drawer &&
+        (options as import('@/types/app.types').DrawerOptions).component
+      ) {
+        const drawerOptions =
+          options as import('@/types/app.types').DrawerOptions
+        drawerOptions.component = markRaw(drawerOptions.component)
       }
 
       const newDialog: {

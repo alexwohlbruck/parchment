@@ -10,6 +10,7 @@ export enum DialogType {
   Prompt,
   AutoForm,
   Template,
+  Drawer,
 }
 
 export interface BaseDialogOptions {
@@ -55,9 +56,20 @@ export interface TemplateDialogOptions extends BaseDialogOptions {
   onContinue?: (payload?: any) => Promise<any>
 }
 
+export interface DrawerOptions {
+  component: Component
+  props?: Record<string, any>
+  peekHeight?: number
+  disableSwipeClose?: boolean
+  onClose?: () => void
+  onSnapPointChange?: (snapPoint: string) => void
+  onContinue?: (payload?: any) => Promise<any>
+}
+
 export type DialogOptions =
   | ComponentDialogOptions
   | ConfirmDialogOptions
   | PromptDialogOptions
   | AutoFormDialogOptions
   | TemplateDialogOptions
+  | DrawerOptions

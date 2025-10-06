@@ -128,7 +128,7 @@ function handleBrandLogoError() {
     </div>
 
     <template v-else-if="place">
-      <div class="flex flex-col py-4 space-y-3">
+      <div class="flex flex-col space-y-3">
         <div class="flex flex-col space-y-3">
           <PlaceHeader
             :place="place"

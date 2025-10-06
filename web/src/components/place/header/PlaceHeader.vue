@@ -143,15 +143,6 @@ watch(description, () => {
           </span>
         </div>
       </div>
-      <Button
-        v-if="isMobileScreen"
-        variant="secondary"
-        size="icon"
-        class="size-7 rounded-full"
-        @click="emit('close')"
-      >
-        <XIcon class="size-4" />
-      </Button>
     </div>
 
     <!-- Description Section -->
@@ -170,7 +161,7 @@ watch(description, () => {
         <!-- Fade out gradient (only show when content overflows) -->
         <div 
           v-if="showToggleButton"
-          class="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-muted to-transparent pointer-events-none" 
+          class="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background md:from-muted to-transparent pointer-events-none" 
         />
       </div>
       

@@ -29,7 +29,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <BottomSheet
+  <!-- <BottomSheet
     v-model:open="isOpen"
     :peek-height="options.peekHeight"
     :disable-swipe-close="options.disableSwipeClose"
@@ -37,5 +37,5 @@ onMounted(() => {
     @snap-point-change="handleSnapPointChange"
   >
     <SafeComponent v-bind="options.props" />
-  </BottomSheet>
+  </BottomSheet> -->
 </template>

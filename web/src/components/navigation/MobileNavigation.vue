@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import Palette from '@/components/palette/Palette.vue'
 import { capitalize } from '@/filters/text.filters'
 import BottomSheet from '@/components/BottomSheet.vue'
+import { TransitionExpand } from '@morev/vue-transitions'
 import {
   MapIcon,
   HistoryIcon,
@@ -22,6 +23,7 @@ const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const activeSnapPoint = ref<number | string | null>(null)
+const activeSnapPointIndex = ref<number>(-1)
 const paletteRef = ref<InstanceType<typeof Palette>>()
 const currentPath = computed(() => route.path)
 const routeModel = computed({
@@ -31,7 +33,8 @@ const routeModel = computed({
   },
 })
 
-const isFullyExpanded = computed(() => activeSnapPoint.value === 1)
+const isFullyExpanded = computed(() => activeSnapPointIndex.value === 2)
+const isPeeking = computed(() => activeSnapPointIndex.value === 0)
 
 const items = computed(() => {
   return [
@@ -77,35 +80,38 @@ watch(isFullyExpanded, (newVal) => {
 </script>
 
 <template>
-   <BottomSheet
+   <bottom-sheet
      peek-height="125px"
      open
-     disableSwipeClose
+     dismissable
      v-model:active-snap-point="activeSnapPoint"
+     v-model:active-snap-point-index="activeSnapPointIndex"
      class="absolute bg-background z-50 top-0 left-0 w-full md:w-104 h-full rounded-t-md shadow-lg justify-center"
    >
     <Card
-      class="flex flex-col h-full gap-2 p-2 bg-muted shadow-md rounded-b-none border-0 pb-[min(calc(env(safe-area-inset-bottom)-.25rem), 1rem)]"
+      class="flex flex-col h-full p-2 bg-muted shadow-md rounded-b-none border-0 pb-[min(calc(env(safe-area-inset-bottom)-.25rem), 1rem)]"
     >
-      <div class="relative">
+      <div class="relative mb-1">
         <Palette ref="paletteRef" @input-focused="handlePaletteInputFocused" />
       </div>
 
-      <Tabs v-if="!isFullyExpanded" v-model="routeModel" default-value="/" class="w-full">
-        <TabsList class="w-full h-16 px-0">
-          <TabsTrigger
-            v-for="(item, i) in items"
-            class="flex-1 h-full flex-col gap-1"
-            :value="item.to"
-          >
-            <component :is="item.icon" class="size-5" />
-            <p class="text-xs">{{ item.label }}</p>
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <transition-expand>
+        <Tabs v-if="isPeeking" v-model="routeModel" default-value="/" class="w-full mb-2">
+          <TabsList class="w-full h-16 px-0">
+            <TabsTrigger
+              v-for="(item, i) in items"
+              class="flex-1 h-full flex-col gap-1"
+              :value="item.to"
+            >
+              <component :is="item.icon" class="size-5" />
+              <p class="text-xs">{{ item.label }}</p>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </transition-expand>
       
       <p>Content here</p>
     </Card>
-  </BottomSheet>
+  </bottom-sheet>
   
 </template>

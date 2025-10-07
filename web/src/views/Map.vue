@@ -200,13 +200,15 @@ defineExpose({
     <!-- Mobile bottom sheet container -->
     <template v-if="isMobileScreen">
 
-      <!-- <BottomSheet
-        open disableSwipeClose
+      <bottom-sheet
+        :open="isMapSubview"
+        show-drag-handle
+        show-close-button
         class="absolute bg-background z-50 top-0 left-0 w-full md:w-104 h-full rounded-t-md shadow-lg justify-center"
         @close="closeSheet"
       >
         <router-view />
-      </BottomSheet> -->
+      </bottom-sheet>
     </template>
 
     <!-- Desktop left sheet container -->

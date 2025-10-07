@@ -60,7 +60,7 @@ export interface DrawerOptions {
   component: Component
   props?: Record<string, any>
   peekHeight?: number
-  disableSwipeClose?: boolean
+  dismissable?: boolean
   onClose?: () => void
   onSnapPointChange?: (snapPoint: string) => void
   onContinue?: (payload?: any) => Promise<any>

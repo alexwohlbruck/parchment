@@ -32,7 +32,7 @@ onMounted(() => {
   <!-- <BottomSheet
     v-model:open="isOpen"
     :peek-height="options.peekHeight"
-    :disable-swipe-close="options.disableSwipeClose"
+    :disable-swipe-close="options.dismissable"
     @close="handleClose"
     @snap-point-change="handleSnapPointChange"
   >

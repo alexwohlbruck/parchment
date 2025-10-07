@@ -32,6 +32,10 @@ import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { fuzzyFilter, noFilter } from '@/lib/utils'
 import { TransitionSlide } from '@morev/vue-transitions'
 
+const emit = defineEmits<{
+  (e: 'inputFocused'): void
+}>()
+
 const { t } = useI18n()
 const route = useRoute()
 const commandStore = useCommandStore()
@@ -129,7 +133,22 @@ function clearInput() {
   query.value = ''
 }
 
+function resetPalette() {
+  closePalette()
+  resetCommand()
+}
+
+// Expose functions for parent components
+defineExpose({
+  closePalette,
+  resetPalette,
+  focusInput,
+  blurInput,
+  clearInput,
+})
+
 function inputFocused(event: FocusEvent) {
+  emit('inputFocused')
   if (!showResults.value) {
     openPalette(true)
   }

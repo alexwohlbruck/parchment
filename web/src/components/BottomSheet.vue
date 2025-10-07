@@ -21,28 +21,30 @@ import { X } from 'lucide-vue-next'
 
 const props = defineProps<{
   class?: HTMLAttributes['class']
-  peekHeight?: number
+  peekHeight?: number | string
   disableSwipeClose?: boolean
   open?: boolean
   showDragHandle?: boolean
   showCloseButton?: boolean
+  activeSnapPoint?: number | string | null
 }>()
 
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'update:open', open: boolean): void
   (e: 'snapPointChange', snapPoint: string): void
+  (e: 'update:activeSnapPoint', snapPoint: number | string | null): void
 }>()
 
 const sheet = ref<HTMLElement | null>(null)
 const scrollContainer = ref<HTMLElement | null>(null)
 const headerRef = ref<HTMLElement | null>(null)
 const isOpen = ref(props.open ?? true)
-const activeSnapPoint = ref<number | string | null>(null)
+const activeSnapPoint = ref<number | string | null>(props.activeSnapPoint ?? null)
 const { isDragActive } = useDragState()
 const appStore = useAppStore()
 
-// useObstructingComponent(sheet, 'bottom-sheet')
+useObstructingComponent(sheet, 'bottom-sheet')
 
 const { y: scrollY } = useScroll(scrollContainer)
 const isAtTop = computed(() => scrollY.value === 0)
@@ -62,9 +64,12 @@ function handleOpenChange(open: boolean) {
 
 function snapPointChanged(snapPoint: number | string | null) {
   activeSnapPoint.value = snapPoint
-  const snapIndex = snapPoints.indexOf(snapPoint as string | number)
-  const snapName = String(snapPoints[snapIndex] || 'UNKNOWN')
+  const snapIndex = snapPoints.value.indexOf(snapPoint as string | number)
+  const snapName = String(snapPoints.value[snapIndex] || 'UNKNOWN')
+  
+  // Emit both events for different use cases
   emit('snapPointChange', snapName)
+  emit('update:activeSnapPoint', snapPoint)
   
   // Manually trigger refresh of obstructing components when snap position changes
   // This provides more precise timing than the automatic debounced updates
@@ -89,6 +94,13 @@ useHotkeys([
 watch(() => props.open, (newOpen) => {
   if (newOpen !== undefined && newOpen !== isOpen.value) {
     isOpen.value = newOpen
+  }
+})
+
+// Watch for external activeSnapPoint prop changes
+watch(() => props.activeSnapPoint, (newSnapPoint) => {
+  if (newSnapPoint !== undefined && newSnapPoint !== activeSnapPoint.value) {
+    activeSnapPoint.value = newSnapPoint
   }
 })
 
@@ -127,50 +139,51 @@ function handleTouchEnd() {
     :modal="false"
     direction="bottom"
     :snap-points="snapPoints"
+    v-model:active-snap-point="activeSnapPoint"
     @update:activeSnapPoint="snapPointChanged"
     :repositionInputs="true"
     :dismissible="!props.disableSwipeClose"
     >
     <DrawerPortal>
-      <DrawerOverlay  class="fixed bg-black/40 inset-0 z-50"/>
+      <DrawerOverlay class="fixed bg-black/40 inset-0 z-50"/>
       <DrawerContent
         ref="sheet"
-        :class="cn('bg-background z-30 rounded-t-md shadow-lg flex flex-col h-full fixed z-50 bottom-0 left-0 right-0', $props.class)"
+        :class="cn('bg-background z-30 rounded-t-md min-h-full shadow-lg flex flex-col fixed z-50 bottom-0 left-0 right-0', $props.class)"
 
       >
-        <Card class="h-full flex flex-col">
-          <div ref="headerRef" class="flex justify-between items-center flex-shrink-0">
-            <div v-if="showDragHandle" class="flex-1 flex justify-center py-3">
-              <DrawerHandle class="h-1 w-16 rounded-full bg-muted-foreground" />
-            </div>
-            <DrawerClose v-if="showCloseButton" as-child>
-              <Button
-                variant="secondary"
-                size="icon-xs"
-                class="rounded-full hover:bg-muted transition-colors absolute top-2 right-2"
-                @click="emit('close')"
-              >
-                <X class="size-3.5" />
-              </Button>
-            </DrawerClose>
+        <div v-if="showDragHandle || showCloseButton" ref="headerRef" class="flex justify-between items-center flex-shrink-0">
+          <div v-if="showDragHandle" class="flex-1 flex justify-center py-3">
+            <DrawerHandle class="h-1 w-16 rounded-full bg-muted-foreground" />
           </div>
-          
-          <!-- Scrollable content -->
-          <div
-            ref="scrollContainer"
-            :class="
-              cn('flex-1 overscroll-contain', {
-                'overflow-y-auto pointer-events-auto': isFullyExpanded,
-                'overflow-y-hidden pointer-events-none': !isFullyExpanded,
-              })
-            "
-            @touchstart="handleTouchStart"
-            @touchmove="handleTouchMove"
-            @touchend="handleTouchEnd"
-          >
-              <slot/>
-          </div>
-        </Card>
+          <DrawerClose v-if="showCloseButton" as-child>
+            <Button
+              variant="secondary"
+              size="icon-xs"
+              class="rounded-full hover:bg-muted transition-colors absolute top-2 right-2"
+              @click="emit('close')"
+            >
+              <X class="size-3.5" />
+            </Button>
+          </DrawerClose>
+        </div>
+        
+        <!-- Scrollable content -->
+        <div
+          ref="scrollContainer"
+          :class="
+            cn('flex-1 overscroll-contain', {
+            })
+          "
+        >
+        
+              <!-- 'overflow-y-auto pointer-events-auto': isFullyExpanded,
+              'overflow-y-hidden pointer-events-none': !isFullyExpanded, -->
+        
+          <!-- @touchstart="handleTouchStart"
+          @touchmove="handleTouchMove"
+          @touchend="handleTouchEnd" -->
+            <slot/>
+        </div>
       </DrawerContent>
     </DrawerPortal>
   </DrawerRoot>

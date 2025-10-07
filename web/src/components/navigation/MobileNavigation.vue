@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useObstructingComponent } from '@/composables/useObstructingComponent'
@@ -21,6 +21,8 @@ import {
 const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
+const activeSnapPoint = ref<number | string | null>(null)
+const paletteRef = ref<InstanceType<typeof Palette>>()
 const currentPath = computed(() => route.path)
 const routeModel = computed({
   get: () => currentPath.value,
@@ -28,6 +30,8 @@ const routeModel = computed({
     router.push(newValue)
   },
 })
+
+const isFullyExpanded = computed(() => activeSnapPoint.value === 1)
 
 const items = computed(() => {
   return [
@@ -58,23 +62,36 @@ const items = computed(() => {
     },
   ]
 })
+
+function handlePaletteInputFocused() {
+  console.log('handlePaletteInputFocused')
+  activeSnapPoint.value = 1 // Fully expand the drawer
+}
+
+watch(isFullyExpanded, (newVal) => {
+  if (!newVal) {
+    paletteRef.value?.resetPalette()
+  }
+})
+
 </script>
 
 <template>
-  <BottomSheet
-    peek-height="125px"
-    open
-    disableSwipeClose
-    class="absolute w-full h-full bg-background z-50 top-0 left-0 w-full md:w-104 h-full rounded-t-md shadow-lg justify-center gap-1"
-  >
+   <BottomSheet
+     peek-height="125px"
+     open
+     disableSwipeClose
+     v-model:active-snap-point="activeSnapPoint"
+     class="absolute bg-background z-50 top-0 left-0 w-full md:w-104 h-full rounded-t-md shadow-lg justify-center"
+   >
     <Card
       class="flex flex-col h-full gap-2 p-2 bg-muted shadow-md rounded-b-none border-0 pb-[min(calc(env(safe-area-inset-bottom)-.25rem), 1rem)]"
     >
       <div class="relative">
-        <Palette />
+        <Palette ref="paletteRef" @input-focused="handlePaletteInputFocused" />
       </div>
 
-      <Tabs v-model="routeModel" default-value="/" class="w-full">
+      <Tabs v-if="!isFullyExpanded" v-model="routeModel" default-value="/" class="w-full">
         <TabsList class="w-full h-16 px-0">
           <TabsTrigger
             v-for="(item, i) in items"
@@ -86,6 +103,8 @@ const items = computed(() => {
           </TabsTrigger>
         </TabsList>
       </Tabs>
+      
+      <p>Content here</p>
     </Card>
   </BottomSheet>
   

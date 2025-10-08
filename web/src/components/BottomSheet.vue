@@ -172,10 +172,10 @@ onMounted(() => {
     :dismissible="!props.dismissable"
     >
     <DrawerPortal>
-      <DrawerOverlay class="fixed bg-black/40 inset-0 z-50"/>
+      <DrawerOverlay class="fixed bg-black/40 inset-0 z-30"/>
       <DrawerContent
         ref="sheet"
-        :class="cn('bg-background z-30 rounded-t-md min-h-full shadow-lg flex flex-col fixed z-50 bottom-0 left-0 right-0', props.class)"
+        :class="cn('bg-background z-40 rounded-t-md min-h-full shadow-lg flex flex-col fixed bottom-0 left-0 right-0', props.class)"
 
       >
         <div v-if="props.showDragHandle || props.showCloseButton" ref="headerRef" class="flex justify-between items-center flex-shrink-0">
@@ -194,22 +194,20 @@ onMounted(() => {
           </DrawerClose>
         </div>
         
-        <!-- Scrollable content -->
         <div
           ref="scrollContainer"
           :class="
-            cn('flex-1 overscroll-contain', {
+            cn('flex-1 h-[200vh]', {
+              'overflow-y-auto': isFullyExpanded,
+              'overflow-y-hidden': !isFullyExpanded,
             })
           "
-        >
-        
-              <!-- 'overflow-y-auto pointer-events-auto': isFullyExpanded,
-              'overflow-y-hidden pointer-events-none': !isFullyExpanded, -->
-        
-          <!-- @touchstart="handleTouchStart"
+          :style="{ touchAction: isFullyExpanded ? 'pan-y' : 'none' }"
+          @touchstart="handleTouchStart"
           @touchmove="handleTouchMove"
-          @touchend="handleTouchEnd" -->
-            <slot/>
+          @touchend="handleTouchEnd"
+        >
+          <slot/>
         </div>
       </DrawerContent>
     </DrawerPortal>
@@ -219,6 +217,10 @@ onMounted(() => {
 
 
 <style scoped>
+[data-vaul-drawer] {
+  position: fixed;
+}
+
 [data-vaul-drawer][data-vaul-snap-points=true][data-vaul-drawer-direction=bottom][data-state=open] {
   animation-name: slideFromBottomToSnapPoint;
 }

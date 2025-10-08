@@ -50,7 +50,7 @@ function handleTabChange(tabId) {
 </script>
 
 <template>
-  <div class="p-4 h-full w-full flex flex-col">
+  <div class="p-4 w-full flex flex-col">
     <Tabs
       :model-value="tabValue"
       @update:model-value="handleTabChange"
@@ -67,7 +67,8 @@ function handleTabChange(tabId) {
         </TabsTrigger>
       </TabsList>
 
-      <div class="flex-1 overflow-auto">
+      <!-- TODO: Create dedicated header, scrollably body, and footer in bottom sheet component -->
+      <div class="flex-1">
         <router-view />
       </div>
     </Tabs>

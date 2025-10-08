@@ -17,6 +17,7 @@ import {
   LibraryIcon,
   MilestoneIcon,
 } from 'lucide-vue-next'
+import Button from '../ui/button/Button.vue'
 
 // useObstructingComponent(undefined, 'mobileNav')
 const { t } = useI18n()
@@ -81,12 +82,12 @@ watch(isFullyExpanded, (newVal) => {
 
 <template>
    <bottom-sheet
-     peek-height="125px"
-     open
-     dismissable
-     v-model:active-snap-point="activeSnapPoint"
-     v-model:active-snap-point-index="activeSnapPointIndex"
-     class="absolute bg-background z-50 top-0 left-0 w-full md:w-104 h-full rounded-t-md shadow-lg justify-center"
+      peek-height="125px"
+      open
+      dismissable
+      v-model:active-snap-point="activeSnapPoint"
+      v-model:active-snap-point-index="activeSnapPointIndex"
+      class="bg-background absolute z-50 top-0 left-0 w-full md:w-104 h-full rounded-t-md shadow-lg justify-center"
    >
     <Card
       class="flex flex-col h-full p-2 bg-muted shadow-md rounded-b-none border-0 pb-[min(calc(env(safe-area-inset-bottom)-.25rem), 1rem)]"
@@ -109,8 +110,10 @@ watch(isFullyExpanded, (newVal) => {
           </TabsList>
         </Tabs>
       </transition-expand>
-      
+
       <p>Content here</p>
+
+      
     </Card>
   </bottom-sheet>
   

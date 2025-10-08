@@ -69,7 +69,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="h-full w-full overflow-y-auto flex flex-col">
+  <div class="w-full overflow-y- flex flex-col">
     <div class="p-4 space-y-3 flex flex-col">
       <Tabs v-model="selectedMode" default-value="pedestrian">
         <TabsList class="w-full flex">

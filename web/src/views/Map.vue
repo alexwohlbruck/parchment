@@ -204,9 +204,11 @@ defineExpose({
         :open="isMapSubview"
         show-drag-handle
         show-close-button
-        class="absolute bg-background z-50 top-0 left-0 w-full md:w-104 h-full rounded-t-md shadow-lg justify-center"
+        class="absolute bg-background z-50 top-0 left-0 w-full md:w-104 h-full rounded-t-md shadow-lg justify-center "
         @close="closeSheet"
       >
+        <!-- TODO: Scrollable content not working, we have to find workarounds
+             https://github.com/unovue/vaul-vue/issues/36 -->
         <router-view />
       </bottom-sheet>
     </template>

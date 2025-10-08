@@ -190,7 +190,7 @@ async function handleRemoveFromCollection(bookmark: Bookmark) {
     </div>
 
     <!-- Places List -->
-    <div v-else class="flex flex-col gap-2 pb-4 flex-1 overflow-y-auto">
+    <div v-else class="flex flex-col gap-2 pb-4 flex-1 overflow-y-auto touch-pan-y">
       <BookmarkCard
         v-for="bookmark in filteredBookmarks"
         :key="bookmark.id"

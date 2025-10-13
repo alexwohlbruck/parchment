@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, markRaw } from 'vue'
+import { ref, onMounted, markRaw, watch } from 'vue'
 import BottomSheet from '@/components/BottomSheet.vue'
 import type { DrawerOptions } from '@/types/app.types'
 
@@ -13,15 +13,17 @@ const isOpen = ref(false)
 // Mark the component as raw to prevent Vue from making it reactive
 const SafeComponent = markRaw(props.options.component)
 
-function handleClose() {
-  isOpen.value = false
-  props.options.onClose?.()
-  props.onClose()
-}
-
 function handleSnapPointChange(snapPoint: string) {
   props.options.onSnapPointChange?.(snapPoint)
 }
+
+// Watch for drawer close
+watch(isOpen, (open) => {
+  if (!open) {
+    props.options.onClose?.()
+    props.onClose()
+  }
+})
 
 onMounted(() => {
   isOpen.value = true
@@ -32,8 +34,7 @@ onMounted(() => {
   <!-- <BottomSheet
     v-model:open="isOpen"
     :peek-height="options.peekHeight"
-    :disable-swipe-close="options.dismissable"
-    @close="handleClose"
+    :dismissable="options.dismissable"
     @snap-point-change="handleSnapPointChange"
   >
     <SafeComponent v-bind="options.props" />

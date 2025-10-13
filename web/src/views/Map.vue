@@ -46,14 +46,23 @@ const streetView = ref(false)
 const mapUIArea = computed(() => appStore.mapUIArea)
 const isFloatingLayout = computed(() => route.meta?.layout === 'floating')
 const navTransitionComplete = ref(false)
+const bottomSheetOpen = ref(false)
 
 function onNavTransitionComplete() {
   navTransitionComplete.value = true
 }
 
-function closeSheet() {
-  router.push({ name: AppRoute.MAP })
-}
+// Watch for route changes to open/close bottom sheet
+watch(isMapSubview, (isSubview) => {
+  bottomSheetOpen.value = isSubview
+}, { immediate: true })
+
+// Watch for bottom sheet close to navigate back
+watch(bottomSheetOpen, (isOpen) => {
+  if (!isOpen && isMapSubview.value) {
+    router.push({ name: AppRoute.MAP })
+  }
+})
 
 const isDrawerOpen = computed(() => {
   return appStore.obstructingComponentsMap.has('left-sheet')
@@ -194,6 +203,41 @@ defineExpose({
     </transition-slide>
   </div>
 
+  <!-- Debug overlay for obstructing components -->
+  <div v-if="appStore.debugObstructingComponents" class="fixed inset-0 pointer-events-none z-[100]">
+    <!-- Show map UI area -->
+    <div 
+      class="absolute border-4 border-green-500 bg-green-500/10"
+      :style="{
+        left: `${mapUIArea.x}px`,
+        top: `${mapUIArea.y}px`,
+        width: `${mapUIArea.width}px`,
+        height: `${mapUIArea.height}px`,
+      }"
+    >
+      <div class="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 text-xs font-mono rounded">
+        Map UI Area: {{ Math.round(mapUIArea.width) }}x{{ Math.round(mapUIArea.height) }}
+      </div>
+    </div>
+
+    <!-- Show each obstructing component -->
+    <div 
+      v-for="[key, dimensions] in appStore.componentDimensions" 
+      :key="key"
+      class="absolute border-2 border-red-500 bg-red-500/10"
+      :style="{
+        left: `${dimensions.x}px`,
+        top: `${dimensions.y}px`,
+        width: `${dimensions.width}px`,
+        height: `${dimensions.height}px`,
+      }"
+    >
+      <div class="absolute top-1 left-1 bg-red-500 text-white px-1 py-0.5 text-[10px] font-mono rounded">
+        {{ key }}: {{ Math.round(dimensions.width) }}x{{ Math.round(dimensions.height) }}
+      </div>
+    </div>
+  </div>
+
   <!-- Search palette -->
 
   <div class="flex flex-1 h-full relative overflow-hidden">
@@ -201,11 +245,12 @@ defineExpose({
     <template v-if="isMobileScreen">
 
       <bottom-sheet
-        :open="isMapSubview"
+        v-model:open="bottomSheetOpen"
         show-drag-handle
+        dismissable
         show-close-button
+        obstructing-key="map-content-sheet"
         class="absolute bg-background z-50 top-0 left-0 w-full md:w-104 h-full rounded-t-md shadow-lg justify-center "
-        @close="closeSheet"
       >
         <!-- TODO: Scrollable content not working, we have to find workarounds
              https://github.com/unovue/vaul-vue/issues/36 -->
@@ -218,7 +263,7 @@ defineExpose({
       <TransitionSlide no-opacity :offset="['-130%', 0]">
         <LeftSheet
           v-if="!route.meta.dialog && isMapSubview"
-          @close="closeSheet"
+          @close="() => router.push({ name: AppRoute.MAP })"
         >
           <router-view />
         </LeftSheet>

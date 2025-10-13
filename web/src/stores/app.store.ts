@@ -10,19 +10,20 @@ import AutoformDialog from '@/components/dialogs/AutoformDialog.vue'
 import ProgrammaticDrawer from '@/components/ProgrammaticDrawer.vue'
 
 export const useAppStore = defineStore('app', () => {
-  const obstructingComponentsMap = ref<Map<string, Component>>(new Map())
+  const obstructingComponentsMap = ref<Map<string, Component | HTMLElement>>(new Map())
   const { width: windowWidth, height: windowHeight } = useWindowSize()
   const forceRefresh = ref(0)
+  const debugObstructingComponents = ref(true) // Set to false to disable debug mode
   let nextId = 0
 
   // To use these, call the composable `useObstructingComponent`
-  function trackObstructingComponent(component: Component) {
+  function trackObstructingComponent(component: Component | HTMLElement) {
     const id = `auto_${nextId++}`
     obstructingComponentsMap.value.set(id, component)
     return id
   }
 
-  function trackObstructingComponentWithKey(key: string, component: Component) {
+  function trackObstructingComponentWithKey(key: string, component: Component | HTMLElement) {
     obstructingComponentsMap.value.set(key, component)
   }
 
@@ -30,13 +31,12 @@ export const useAppStore = defineStore('app', () => {
     return obstructingComponentsMap.value.get(key)
   }
 
-  function untrackObstructingComponent(component: Component) {
-    // Find and remove component from map
-    for (const [key, comp] of obstructingComponentsMap.value.entries()) {
-      if (comp === component) {
-        obstructingComponentsMap.value.delete(key)
-      }
-    }
+  function untrackObstructingComponent(id: string) {
+    obstructingComponentsMap.value.delete(id)
+    // Trigger reactivity by creating a new Map
+    obstructingComponentsMap.value = new Map(obstructingComponentsMap.value)
+    // Refresh to recalculate visible area
+    refreshObstructingComponents()
   }
 
   function refreshObstructingComponents() {
@@ -56,9 +56,16 @@ export const useAppStore = defineStore('app', () => {
 
     for (const [key, component] of obstructingComponentsMap.value.entries()) {
       try {
-        const el = (component as unknown as { $el?: HTMLElement }).$el
+        // Get the actual HTMLElement from either a Vue component or direct element
+        let el: HTMLElement | null = null
+        if (component instanceof HTMLElement) {
+          el = component
+        } else {
+          el = (component as unknown as { $el?: HTMLElement }).$el || null
+        }
 
-        if (!el) continue
+        // Ensure we have a valid HTMLElement (not a text node or comment)
+        if (!el || !(el instanceof HTMLElement)) continue
 
         const rect = el.getBoundingClientRect()
         dimensions.set(key, {
@@ -76,7 +83,7 @@ export const useAppStore = defineStore('app', () => {
   })
 
   // Helper function to calculate visible area given a list of components
-  function calculateVisibleArea(components: Component[]) {
+  function calculateVisibleArea(components: (Component | HTMLElement)[]) {
     const viewportWidth = windowWidth.value
     const viewportHeight = windowHeight.value
 
@@ -94,9 +101,16 @@ export const useAppStore = defineStore('app', () => {
     const obstacles = components
       .map(component => {
         try {
-          const el = (component as unknown as { $el?: HTMLElement }).$el
+          // Get the actual HTMLElement from either a Vue component or direct element
+          let el: HTMLElement | null = null
+          if (component instanceof HTMLElement) {
+            el = component
+          } else {
+            el = (component as unknown as { $el?: HTMLElement }).$el || null
+          }
 
-          if (!el) return null
+          // Ensure we have a valid HTMLElement (not a text node or comment)
+          if (!el || !(el instanceof HTMLElement)) return null
 
           const rect = el.getBoundingClientRect()
 
@@ -308,5 +322,6 @@ export const useAppStore = defineStore('app', () => {
     mapUIArea,
     refreshObstructingComponents,
     componentDimensions,
+    debugObstructingComponents,
   }
 })

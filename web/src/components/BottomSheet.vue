@@ -3,9 +3,8 @@ import type { HTMLAttributes } from 'vue'
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { cn } from '@/lib/utils'
 import { useWindowSize, useScroll } from '@vueuse/core'
-// import { useObstructingComponent } from '@/composables/useObstructingComponent'
+import { useObstructingComponent } from '@/composables/useObstructingComponent'
 import { useAppStore } from '@/stores/app.store'
-import { useDragState } from '@/composables/useDragState'
 import { useHotkeys } from '@/composables/useHotkeys'
 import { 
   DrawerRoot, 
@@ -19,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { X } from 'lucide-vue-next'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   class?: HTMLAttributes['class']
   peekHeight?: number | string
   dismissable?: boolean
@@ -28,10 +27,13 @@ const props = defineProps<{
   showCloseButton?: boolean
   activeSnapPoint?: number | string | null
   customSnapPoints?: (number | string)[]
-}>()
+  obstructingKey?: string
+}>(), {
+  open: true,
+  obstructingKey: 'bottom-sheet',
+})
 
 const emit = defineEmits<{
-  (e: 'close'): void
   (e: 'update:open', open: boolean): void
   (e: 'snapPointChange', snapPoint: string): void
   (e: 'update:activeSnapPoint', snapPoint: number | string | null): void
@@ -41,12 +43,10 @@ const emit = defineEmits<{
 const sheet = ref<HTMLElement | null>(null)
 const scrollContainer = ref<HTMLElement | null>(null)
 const headerRef = ref<HTMLElement | null>(null)
-const isOpen = ref(props.open ?? true)
 const activeSnapPoint = ref<number | string | null>(props.activeSnapPoint ?? null)
-const { isDragActive } = useDragState()
 const appStore = useAppStore()
 
-// useObstructingComponent(sheet, 'bottom-sheet')
+useObstructingComponent(sheet, props.obstructingKey)
 
 const { y: scrollY } = useScroll(scrollContainer)
 const isAtTop = computed(() => scrollY.value === 0)
@@ -64,11 +64,7 @@ const activeSnapPointIndex = computed(() => {
 })
 
 function handleOpenChange(open: boolean) {
-  isOpen.value = open
   emit('update:open', open)
-  if (!open) {
-    emit('close')
-  }
 }
 
 function snapPointChanged(snapPoint: number | string | null) {
@@ -94,18 +90,12 @@ useHotkeys([
   {
     key: 'esc',
     handler: () => {
-      isOpen.value = false
-      emit('close')
+      if (props.dismissable) {
+        emit('update:open', false)
+      }
     },
   },
 ])
-
-// Watch for external open prop changes
-watch(() => props.open, (newOpen) => {
-  if (newOpen !== undefined && newOpen !== isOpen.value) {
-    isOpen.value = newOpen
-  }
-})
 
 // Watch for external activeSnapPoint prop changes
 watch(() => props.activeSnapPoint, (newSnapPoint) => {
@@ -116,7 +106,7 @@ watch(() => props.activeSnapPoint, (newSnapPoint) => {
 
 watch(activeSnapPointIndex, (newIndex) => {
   if (newIndex === -1) {
-    emit('close')
+    emit('update:open', false)
   }
 })
 
@@ -161,15 +151,16 @@ onMounted(() => {
 <template>
 
 <DrawerRoot
-    :open="isOpen"
-    @open-change="handleOpenChange"
+    :open="props.open"
+    @update:open="handleOpenChange"
     :modal="false"
     direction="bottom"
     :snap-points="snapPoints"
     v-model:active-snap-point="activeSnapPoint"
     @update:activeSnapPoint="snapPointChanged"
     :repositionInputs="true"
-    :dismissible="!props.dismissable"
+    :dismissible="props.dismissable"
+    :fade-from-index="0"
     >
     <DrawerPortal>
       <DrawerOverlay class="fixed bg-black/40 inset-0 z-30"/>
@@ -187,7 +178,6 @@ onMounted(() => {
               variant="secondary"
               size="icon-xs"
               class="rounded-full hover:bg-muted transition-colors absolute top-2 right-2"
-              @click="emit('close')"
             >
               <X class="size-3.5" />
             </Button>

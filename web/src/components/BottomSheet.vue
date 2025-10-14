@@ -4,7 +4,7 @@ import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { cn } from '@/lib/utils'
 import { useWindowSize, useScroll } from '@vueuse/core'
 import { useObstructingComponent } from '@/composables/useObstructingComponent'
-import { useAppStore } from '@/stores/app.store'
+import { useAppStore, type ManualBounds } from '@/stores/app.store'
 import { useHotkeys } from '@/composables/useHotkeys'
 import { 
   DrawerRoot, 
@@ -45,15 +45,61 @@ const scrollContainer = ref<HTMLElement | null>(null)
 const headerRef = ref<HTMLElement | null>(null)
 const activeSnapPoint = ref<number | string | null>(props.activeSnapPoint ?? null)
 const appStore = useAppStore()
+const { width: windowWidth, height: windowHeight } = useWindowSize()
 
-useObstructingComponent(sheet, props.obstructingKey)
+const shouldTrack = computed(() => {
+  return props.open
+})
+
+// Calculate manual bounds based on snap point
+const manualBounds = computed<ManualBounds | null>(() => {
+  let snapPoint = activeSnapPoint.value
+  const open = props.open // Watch both snap point and open state together
+  if (snapPoint === null) return null
+
+  // Use the second to last snap point when fully expanded
+  if (isFullyExpanded.value) {
+    snapPoint = snapPoints.value[snapPoints.value.length - 2]
+  }
+
+  let sheetHeight: number
+
+  if (typeof snapPoint === 'number') {
+    // If it's between 0 and 1, treat it as a percentage
+    if (snapPoint > 0 && snapPoint <= 1) {
+      sheetHeight = windowHeight.value * snapPoint
+    } else {
+      // Otherwise, treat it as pixel value
+      sheetHeight = snapPoint
+    }
+  } else if (typeof snapPoint === 'string') {
+    // Parse pixel values like "300px"
+    if (snapPoint.endsWith('px')) {
+      sheetHeight = parseFloat(snapPoint)
+    } else {
+      // Assume it's a number string
+      sheetHeight = parseFloat(snapPoint)
+    }
+  } else {
+    return null
+  }
+
+  return {
+    x: 0,
+    y: windowHeight.value - sheetHeight,
+    width: windowWidth.value,
+    height: sheetHeight,
+  }
+})
+
+useObstructingComponent(sheet, props.obstructingKey, manualBounds, shouldTrack)
 
 const { y: scrollY } = useScroll(scrollContainer)
 const isAtTop = computed(() => scrollY.value === 0)
 
 let lastTouchY = 0
 let isScrollingUp = false
-const snapPoints = computed(() => props.customSnapPoints ?? [props.peekHeight ?? '300px', 0.5, 1])
+const snapPoints = computed(() => props.customSnapPoints ?? [props.peekHeight ?? '250px', 0.5, 1])
 const isFullyExpanded = computed(() => activeSnapPoint.value === 1)
 
 // Computed value for active snap point index
@@ -77,12 +123,8 @@ function snapPointChanged(snapPoint: number | string | null) {
   emit('update:activeSnapPoint', snapPoint)
   emit('update:activeSnapPointIndex', snapIndex)
   
-  // Manually trigger refresh of obstructing components when snap position changes
-  // This provides more precise timing than the automatic debounced updates
-  nextTick(() => {
-    // TODO: Not working
-    // appStore.refreshObstructingComponents()
-  })
+  // Manual bounds will be automatically recalculated by the computed property
+  // and the watcher in useObstructingComponent will update the store
 }
 
 // Handle ESC key
@@ -160,12 +202,11 @@ onMounted(() => {
     @update:activeSnapPoint="snapPointChanged"
     :repositionInputs="true"
     :dismissible="props.dismissable"
-    :fade-from-index="0"
+    :fade-from-index="0 as any"
     >
     <DrawerPortal>
       <DrawerOverlay class="fixed bg-black/40 inset-0 z-30"/>
       <DrawerContent
-        ref="sheet"
         :class="cn('bg-background z-40 rounded-t-md min-h-full shadow-lg flex flex-col fixed bottom-0 left-0 right-0', props.class)"
 
       >

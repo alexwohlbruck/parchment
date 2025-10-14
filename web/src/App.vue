@@ -58,7 +58,7 @@ onMounted(async () => {
   <Toaster richColors closeButton :duration="7000" position="bottom-center" />
   <HotkeysMenu />
   <DialogView></DialogView>
-  <MobileNav v-if="isFloatingLayout" class="z-20" />
+
   <div v-for="dialog in dialogs" :key="dialog.id">
     <component
       :is="dialog.component"
@@ -85,15 +85,9 @@ onMounted(async () => {
     </template>
 
     <!-- Mobile navigation -->
-    <!-- <template v-else>
-      <transition-slide
-        no-opacity
-        :offset="[0, '130%']"
-        @after-enter="viewRef?.onNavTransitionComplete"
-      >
-        <MobileNav v-if="isFloatingLayout" class="z-20" />
-      </transition-slide>
-    </template> -->
+    <template v-else-if="isFloatingLayout">
+      <MobileNav class="z-20" />
+    </template>
 
 
     <!-- Main content -->

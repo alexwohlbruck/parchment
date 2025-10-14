@@ -246,6 +246,7 @@ defineExpose({
 
       <bottom-sheet
         v-model:open="bottomSheetOpen"
+        :default-snap-point-index="1"
         show-drag-handle
         dismissable
         show-close-button

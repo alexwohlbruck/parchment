@@ -21,7 +21,7 @@ export const useAppStore = defineStore('app', () => {
   const manualBoundsMap = ref<Map<string, ManualBounds>>(new Map())
   const { width: windowWidth, height: windowHeight } = useWindowSize()
   const forceRefresh = ref(0)
-  const debugObstructingComponents = ref(true)
+  const debugObstructingComponents = ref(false)
   let nextId = 0
 
   // To use these, call the composable `useObstructingComponent`

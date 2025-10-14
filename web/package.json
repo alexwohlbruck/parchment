@@ -21,6 +21,7 @@
     "@morev/vue-transitions"
   ],
   "dependencies": {
+    "@alexwohlbruck/vaul-vue": "^0.4.2-fork",
     "@internationalized/date": "^3.5.4",
     "@mdi/js": "^7.4.47",
     "@morev/vue-transitions": "^3.0.2",
@@ -55,7 +56,6 @@
     "tailwindcss-animate": "^1.0.7",
     "ua-parser-js": "^1.0.37",
     "uuid": "^11.0.5",
-    "vaul-vue": "^0.4.1",
     "vee-validate": "^4.12.8",
     "vue": "^3.5.13",
     "vue-i18n": "^9.13.1",

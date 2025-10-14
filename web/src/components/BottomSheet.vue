@@ -13,7 +13,7 @@ import {
   DrawerPortal, 
   DrawerHandle,
   DrawerClose
-} from 'vaul-vue'
+} from '@alexwohlbruck/vaul-vue'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { X } from 'lucide-vue-next'
@@ -26,11 +26,13 @@ const props = withDefaults(defineProps<{
   showDragHandle?: boolean
   showCloseButton?: boolean
   activeSnapPoint?: number | string | null
+  defaultSnapPointIndex?: number
   customSnapPoints?: (number | string)[]
   obstructingKey?: string
 }>(), {
   open: true,
   obstructingKey: 'bottom-sheet',
+  defaultSnapPointIndex: 0,
 })
 
 const emit = defineEmits<{
@@ -116,15 +118,8 @@ function handleOpenChange(open: boolean) {
 function snapPointChanged(snapPoint: number | string | null) {
   activeSnapPoint.value = snapPoint
   const snapIndex = snapPoints.value.indexOf(snapPoint as string | number)
-  const snapName = String(snapPoints.value[snapIndex] || 'UNKNOWN')
-  
-  // Emit both events for different use cases
-  emit('snapPointChange', snapName)
   emit('update:activeSnapPoint', snapPoint)
   emit('update:activeSnapPointIndex', snapIndex)
-  
-  // Manual bounds will be automatically recalculated by the computed property
-  // and the watcher in useObstructingComponent will update the store
 }
 
 // Handle ESC key
@@ -152,6 +147,7 @@ watch(activeSnapPointIndex, (newIndex) => {
   }
 })
 
+
 // Touch event handlers to prevent upward scroll when at top
 function handleTouchStart(e: TouchEvent) {
   lastTouchY = e.touches[0].clientY
@@ -177,17 +173,6 @@ function handleTouchEnd() {
   isScrollingUp = false
 }
 
-// Initialize the activeSnapPoint with the first snap point if not provided
-onMounted(() => {
-  if (activeSnapPoint.value === null) {
-    activeSnapPoint.value = snapPoints.value[0]
-    // Emit the initial index
-    nextTick(() => {
-      emit('update:activeSnapPointIndex', 0)
-    })
-  }
-})
-
 </script>
 
 <template>
@@ -200,6 +185,7 @@ onMounted(() => {
     :snap-points="snapPoints"
     v-model:active-snap-point="activeSnapPoint"
     @update:activeSnapPoint="snapPointChanged"
+    :default-snap-point="props.defaultSnapPointIndex"
     :repositionInputs="true"
     :dismissible="props.dismissable"
     :fade-from-index="0 as any"

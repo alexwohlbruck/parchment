@@ -84,7 +84,7 @@ watch(isFullyExpanded, (newVal) => {
    <bottom-sheet
       peek-height="125px"
       :open="true"
-      dismissable
+      :dismissable="false"
       obstructing-key="mobile-navigation-sheet"
       v-model:active-snap-point="activeSnapPoint"
       v-model:active-snap-point-index="activeSnapPointIndex"

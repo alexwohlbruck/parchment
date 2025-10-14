@@ -9,21 +9,29 @@ import PromptDialog from '@/components/dialogs/PromptDialog.vue'
 import AutoformDialog from '@/components/dialogs/AutoformDialog.vue'
 import ProgrammaticDrawer from '@/components/ProgrammaticDrawer.vue'
 
+export interface ManualBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export const useAppStore = defineStore('app', () => {
-  const obstructingComponentsMap = ref<Map<string, Component | HTMLElement>>(new Map())
+  const obstructingComponentsMap = ref<Map<string, Component>>(new Map())
+  const manualBoundsMap = ref<Map<string, ManualBounds>>(new Map())
   const { width: windowWidth, height: windowHeight } = useWindowSize()
   const forceRefresh = ref(0)
-  const debugObstructingComponents = ref(true) // Set to false to disable debug mode
+  const debugObstructingComponents = ref(true)
   let nextId = 0
 
   // To use these, call the composable `useObstructingComponent`
-  function trackObstructingComponent(component: Component | HTMLElement) {
+  function trackObstructingComponent(component: Component) {
     const id = `auto_${nextId++}`
     obstructingComponentsMap.value.set(id, component)
     return id
   }
 
-  function trackObstructingComponentWithKey(key: string, component: Component | HTMLElement) {
+  function trackObstructingComponentWithKey(key: string, component: Component) {
     obstructingComponentsMap.value.set(key, component)
   }
 
@@ -31,11 +39,23 @@ export const useAppStore = defineStore('app', () => {
     return obstructingComponentsMap.value.get(key)
   }
 
-  function untrackObstructingComponent(id: string) {
-    obstructingComponentsMap.value.delete(id)
-    // Trigger reactivity by creating a new Map
-    obstructingComponentsMap.value = new Map(obstructingComponentsMap.value)
-    // Refresh to recalculate visible area
+  function untrackObstructingComponent(component: Component) {
+    // Find and remove component from map
+    for (const [key, comp] of obstructingComponentsMap.value.entries()) {
+      if (comp === component) {
+        obstructingComponentsMap.value.delete(key)
+        manualBoundsMap.value.delete(key)
+      }
+    }
+  }
+
+  function updateManualBounds(key: string, bounds: ManualBounds) {
+    manualBoundsMap.value.set(key, bounds)
+    refreshObstructingComponents()
+  }
+
+  function clearManualBounds(key: string) {
+    manualBoundsMap.value.delete(key)
     refreshObstructingComponents()
   }
 
@@ -55,17 +75,23 @@ export const useAppStore = defineStore('app', () => {
     >()
 
     for (const [key, component] of obstructingComponentsMap.value.entries()) {
-      try {
-        // Get the actual HTMLElement from either a Vue component or direct element
-        let el: HTMLElement | null = null
-        if (component instanceof HTMLElement) {
-          el = component
-        } else {
-          el = (component as unknown as { $el?: HTMLElement }).$el || null
-        }
+      // Check if this component has manual bounds first
+      const manualBounds = manualBoundsMap.value.get(key)
+      if (manualBounds) {
+        dimensions.set(key, manualBounds)
+        continue
+      }
 
-        // Ensure we have a valid HTMLElement (not a text node or comment)
-        if (!el || !(el instanceof HTMLElement)) continue
+      // Otherwise, use automatic bounds detection
+      try {
+        const el = (component as unknown as { $el?: HTMLElement }).$el
+
+        if (!el || !el.getBoundingClientRect) continue
+
+        // Ensure it's actually a valid element
+        if (typeof el.getBoundingClientRect !== 'function') {
+          continue
+        }
 
         const rect = el.getBoundingClientRect()
         dimensions.set(key, {
@@ -82,8 +108,10 @@ export const useAppStore = defineStore('app', () => {
     return dimensions
   })
 
-  // Helper function to calculate visible area given a list of components
-  function calculateVisibleArea(components: (Component | HTMLElement)[]) {
+  // Helper function to calculate visible area given a list of bounds
+  function calculateVisibleArea(
+    obstacles: { x: number; y: number; width: number; height: number }[],
+  ) {
     const viewportWidth = windowWidth.value
     const viewportHeight = windowHeight.value
 
@@ -94,47 +122,9 @@ export const useAppStore = defineStore('app', () => {
       height: viewportHeight,
     }
 
-    if (components.length === 0) {
+    if (obstacles.length === 0) {
       return availableArea
     }
-
-    const obstacles = components
-      .map(component => {
-        try {
-          // Get the actual HTMLElement from either a Vue component or direct element
-          let el: HTMLElement | null = null
-          if (component instanceof HTMLElement) {
-            el = component
-          } else {
-            el = (component as unknown as { $el?: HTMLElement }).$el || null
-          }
-
-          // Ensure we have a valid HTMLElement (not a text node or comment)
-          if (!el || !(el instanceof HTMLElement)) return null
-
-          const rect = el.getBoundingClientRect()
-
-          return {
-            x: rect.left,
-            y: rect.top,
-            width: rect.width,
-            height: rect.height,
-          }
-        } catch (error) {
-          console.error('Failed to get bounding rect for component', error)
-          return null
-        }
-      })
-      .filter(
-        (
-          obstacle,
-        ): obstacle is {
-          x: number
-          y: number
-          width: number
-          height: number
-        } => obstacle !== null,
-      )
 
     for (const obstacle of obstacles) {
       if (
@@ -196,19 +186,20 @@ export const useAppStore = defineStore('app', () => {
 
   const visibleMapArea = computed(() => {
     const _ = forceRefresh.value
-    return calculateVisibleArea(
-      Array.from(obstructingComponentsMap.value.values()),
-    )
+    // Use all component dimensions
+    const allBounds = Array.from(componentDimensions.value.values())
+    return calculateVisibleArea(allBounds)
   })
 
   const mapUIArea = computed(() => {
     const _ = forceRefresh.value
-    const navKeys = ['desktopNav', 'mobileNav']
-    const navComponents = navKeys
-      .map(key => obstructingComponentsMap.value.get(key))
-      .filter((component): component is Component => component !== undefined)
+    // Only use nav component dimensions
+    const navKeys = ['desktopNav', 'mobileNav', 'mobile-navigation-sheet']
+    const navBounds = navKeys
+      .map(key => componentDimensions.value.get(key))
+      .filter((bounds): bounds is ManualBounds => bounds !== undefined)
 
-    return calculateVisibleArea(navComponents)
+    return calculateVisibleArea(navBounds)
   })
 
   const dialogs = ref<
@@ -323,5 +314,7 @@ export const useAppStore = defineStore('app', () => {
     refreshObstructingComponents,
     componentDimensions,
     debugObstructingComponents,
+    updateManualBounds,
+    clearManualBounds,
   }
 })

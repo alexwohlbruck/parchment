@@ -37,29 +37,31 @@ const layersStore = useLayersStore()
 const { layers } = storeToRefs(layersStore)
 const layersService = useLayersService()
 
-const isMapSubview = computed(() => {
-  return route.matched.length > 1 && route.name !== AppRoute.MAP
+const isBottomSheetView = computed(() => {
+  const isSubview = route.matched.length > 1 && route.name !== AppRoute.MAP
+  const isNotDialog = !route.meta.dialog
+  return isSubview && isNotDialog
 })
 const pipSwapped = ref(false)
 const mountTeleports = ref(false)
 const streetView = ref(false)
 const mapUIArea = computed(() => appStore.mapUIArea)
-const isFloatingLayout = computed(() => route.meta?.layout === 'floating')
-const navTransitionComplete = ref(false)
+const hideUI = computed(() => !!route.meta?.hideUI)
 const bottomSheetOpen = ref(false)
+const isNavTransitioning = ref(false)
 
-function onNavTransitionComplete() {
-  navTransitionComplete.value = true
+function navTransitioning(value: boolean) {
+  isNavTransitioning.value = value
 }
 
 // Watch for route changes to open/close bottom sheet
-watch(isMapSubview, (isSubview) => {
+watch(isBottomSheetView, (isSubview) => {
   bottomSheetOpen.value = isSubview
 }, { immediate: true })
 
 // Watch for bottom sheet close to navigate back
 watch(bottomSheetOpen, (isOpen) => {
-  if (!isOpen && isMapSubview.value) {
+  if (!isOpen && isBottomSheetView.value) {
     router.push({ name: AppRoute.MAP })
   }
 })
@@ -102,7 +104,7 @@ watch(
 )
 
 defineExpose({
-  onNavTransitionComplete,
+  navTransitioning,
 })
 </script>
 
@@ -111,7 +113,7 @@ defineExpose({
 
   <!-- z-50 above drawers -->
   <div
-    v-if="isFloatingLayout"
+    v-if="!hideUI"
     class="fixed z-50 p-2 flex justify-between gap-2 pointer-events-none"
     :style="{
       left: `${mapUIArea.x}px`,
@@ -123,9 +125,9 @@ defineExpose({
     <!-- Left section -->
     <div class="flex flex-col items-start gap-2">
       <!-- Left top -->
-      <transition-slide no-opacity :offset="[0, '-130%']">
+      <transition-slide appear no-opacity :offset="[0, '-130%']">
         <div
-          v-if="navTransitionComplete && !isMobileScreen"
+          v-if="isNavTransitioning && !isMobileScreen"
           class="pointer-events-auto flex gap-2"
         >
           <Palette class="h-fit w-100" />
@@ -138,7 +140,7 @@ defineExpose({
 
   <!-- z-20 below drawers -->
   <div
-    v-if="isFloatingLayout"
+    v-if="!hideUI"
     class="fixed z-20 p-2 flex justify-between gap-2 pointer-events-none"
     :style="{
       left: `${mapUIArea.x}px`,
@@ -150,9 +152,9 @@ defineExpose({
     <!-- Left section -->
     <div class="flex flex-col items-start gap-2">
       <!-- Left top -->
-      <transition-slide no-opacity :offset="[0, '-130%']">
+      <transition-slide appear no-opacity :offset="[0, '-130%']">
         <div
-          v-if="navTransitionComplete"
+          v-if="isNavTransitioning"
           class="pointer-events-auto flex flex-col gap-2 items-start"
         >
           <!-- Palette placeholder -->
@@ -163,17 +165,17 @@ defineExpose({
       </transition-slide>
 
       <!-- Left middle -->
-      <transition-slide no-opacity :offset="['-130%', 0]">
+      <transition-slide appear no-opacity :offset="['-130%', 0]">
         <div
-          v-if="navTransitionComplete"
+          v-if="isNavTransitioning"
           class="pointer-events-auto flex flex-col"
         ></div>
       </transition-slide>
 
       <!-- Left bottom -->
-      <transition-slide no-opacity :offset="[0, '130%']">
+      <transition-slide appear no-opacity :offset="[0, '130%']">
         <div
-          v-if="navTransitionComplete"
+          v-if="isNavTransitioning"
           class="pointer-events-auto mt-auto flex flex-col gap-2"
         >
           <AttributionControl />
@@ -182,9 +184,9 @@ defineExpose({
     </div>
 
     <!-- Right section -->
-    <transition-slide no-opacity :offset="['130%', 0]">
+    <transition-slide appear no-opacity :offset="['130%', 0]">
       <div
-        v-if="navTransitionComplete"
+        v-if="isNavTransitioning"
         class="flex flex-col items-end justify-between pointer-events-auto"
       >
         <!-- Right top -->
@@ -263,7 +265,7 @@ defineExpose({
     <template v-else>
       <TransitionSlide no-opacity :offset="['-130%', 0]">
         <LeftSheet
-          v-if="!route.meta.dialog && isMapSubview"
+          v-if="!route.meta.dialog && isBottomSheetView"
           @close="() => router.push({ name: AppRoute.MAP })"
         >
           <router-view />
@@ -284,7 +286,7 @@ defineExpose({
   </div>
 
   <!-- Street view pip -->
-  <StreetViewPip :layout="route.meta?.layout" v-model:pip-swapped="pipSwapped">
+  <StreetViewPip :hide-ui="route.meta?.hideUI" v-model:pip-swapped="pipSwapped">
     <template v-if="mountTeleports && streetView">
       <Teleport :to="pipSwapped ? '#mainContent' : '#pipContent'">
         <StreetView class="w-full h-full" :pip-swapped="pipSwapped" />

@@ -9,7 +9,7 @@ declare module 'vue-router' {
   interface RouteMeta {
     auth?: boolean
     isAdmin?: boolean
-    layout?: 'floating' | 'sidebar'
+    hideUI?: boolean
     dialog?: boolean
   }
 }

@@ -32,7 +32,7 @@ const { dialogs } = appStore
 const navMini = ref(true)
 const viewRef = ref()
 
-const isFloatingLayout = computed(() => route.meta?.layout === 'floating')
+const hideUI = computed(() => !!route.meta?.hideUI)
 const authStore = useAuthStore()
 
 onMounted(async () => {
@@ -72,12 +72,14 @@ onMounted(async () => {
     <!-- Desktop navigation -->
     <template v-if="!isMobileScreen">
       <transition-slide
+        appear
         no-opacity
         :offset="['-130%', 0]"
-        @after-enter="viewRef?.onNavTransitionComplete"
+        @after-enter="() => viewRef?.navTransitioning(true)"
+        @before-leave="() => viewRef?.navTransitioning(false)"
       >
         <DesktopNav
-          v-if="isFloatingLayout"
+          v-if="!hideUI"
           v-model:mini="navMini"
           class="z-40 h-full"
         />
@@ -85,7 +87,7 @@ onMounted(async () => {
     </template>
 
     <!-- Mobile navigation -->
-    <template v-else-if="isFloatingLayout">
+    <template v-else-if="!hideUI">
       <MobileNav class="z-20" />
     </template>
 

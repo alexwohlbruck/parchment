@@ -7,7 +7,7 @@ import { Maximize2Icon, XIcon } from 'lucide-vue-next'
 import { TransitionExpand } from '@morev/vue-transitions'
 
 const props = defineProps<{
-  layout?: string
+  hideUI?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -29,8 +29,8 @@ function swapPip() {
     class="w-full absolute right-0 z-12 p-2 flex flex-col gap-2 items-end pointer-events-none"
     :class="{
       'bottom-[calc(8.25rem+env(safe-area-inset-bottom))] md:bottom-0':
-        props.layout === 'floating',
-      'bottom-0': props.layout !== 'floating',
+        !props.hideUI,
+      'bottom-0': props.hideUI,
     }"
   >
     <TransitionExpand>

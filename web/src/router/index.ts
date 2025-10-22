@@ -65,7 +65,6 @@ const router = createRouter({
       name: AppRoute.MAP,
       component: Map,
       meta: {
-        layout: 'floating',
         auth: true,
       },
       children: [
@@ -154,7 +153,6 @@ const router = createRouter({
       meta: {
         auth: true,
         dialog: true,
-        layout: 'floating',
       },
       beforeEnter: [keepDefaultView],
       children: [
@@ -196,6 +194,7 @@ const router = createRouter({
       component: Map,
       meta: {
         auth: true,
+        hideUI: true,
       },
       beforeEnter: async (to, from) => {
         const id = to.params.id

@@ -70,7 +70,7 @@ onUnmounted(() => {
 
 <template>
   <div class="w-full overflow-y- flex flex-col">
-    <div class="p-4 space-y-3 flex flex-col">
+    <div class="px-3 space-y-3 flex flex-col">
       <Tabs v-model="selectedMode" default-value="pedestrian">
         <TabsList class="w-full flex">
           <TabsTrigger

@@ -50,7 +50,7 @@ function handleTabChange(tabId) {
 </script>
 
 <template>
-  <div class="p-4 w-full flex flex-col">
+  <div class="px-3 w-full flex flex-col">
     <Tabs
       :model-value="tabValue"
       @update:model-value="handleTabChange"

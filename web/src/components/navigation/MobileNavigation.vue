@@ -17,7 +17,6 @@ import {
   LibraryIcon,
   MilestoneIcon,
 } from 'lucide-vue-next'
-import Button from '../ui/button/Button.vue'
 
 // useObstructingComponent(undefined, 'mobileNav')
 const { t } = useI18n()
@@ -27,12 +26,6 @@ const activeSnapPoint = ref<number | string | null>(null)
 const activeSnapPointIndex = ref<number>(-1)
 const paletteRef = ref<InstanceType<typeof Palette>>()
 const currentPath = computed(() => route.path)
-const routeModel = computed({
-  get: () => currentPath.value,
-  set: newValue => {
-    router.push(newValue)
-  },
-})
 
 const isFullyExpanded = computed(() => activeSnapPointIndex.value === 2)
 const isPeeking = computed(() => activeSnapPointIndex.value === 0)
@@ -98,12 +91,13 @@ watch(isFullyExpanded, (newVal) => {
       </div>
 
       <transition-expand>
-        <Tabs v-if="isPeeking" v-model="routeModel" default-value="/" class="w-full mb-2">
+        <Tabs v-if="isPeeking" :model-value="currentPath" class="w-full mb-2">
           <TabsList class="w-full h-16 px-0">
             <TabsTrigger
               v-for="(item, i) in items"
               class="flex-1 h-full flex-col gap-1"
               :value="item.to"
+              @click="router.push(item.to)"
             >
               <component :is="item.icon" class="size-5" />
               <p class="text-xs">{{ item.label }}</p>

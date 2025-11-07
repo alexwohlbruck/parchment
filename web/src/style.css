@@ -16,6 +16,17 @@
 
   --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-50: color-mix(in oklch, hsl(var(--primary)) 5%, white);
+  --color-primary-100: color-mix(in oklch, hsl(var(--primary)) 10%, white);
+  --color-primary-200: color-mix(in oklch, hsl(var(--primary)) 20%, white);
+  --color-primary-300: color-mix(in oklch, hsl(var(--primary)) 30%, white);
+  --color-primary-400: color-mix(in oklch, hsl(var(--primary)) 40%, white);
+  --color-primary-500: hsl(var(--primary));
+  --color-primary-600: color-mix(in oklch, hsl(var(--primary)) 90%, black);
+  --color-primary-700: color-mix(in oklch, hsl(var(--primary)) 80%, black);
+  --color-primary-800: color-mix(in oklch, hsl(var(--primary)) 70%, black);
+  --color-primary-900: color-mix(in oklch, hsl(var(--primary)) 60%, black);
+  --color-primary-950: color-mix(in oklch, hsl(var(--primary)) 50%, black);
 
   --color-secondary: hsl(var(--secondary));
   --color-secondary-foreground: hsl(var(--secondary-foreground));
@@ -110,6 +121,18 @@
 @utility scrollbar-hidden {
   &::-webkit-scrollbar {
     display: none;
+  }
+}
+
+@utility bg-primary-muted {
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-800);
+  border-color: var(--color-primary-300);
+
+  &:is(.dark *) {
+    background-color: var(--color-primary-800);
+    color: var(--color-primary-200);
+    border-color: var(--color-primary-600);
   }
 }
 

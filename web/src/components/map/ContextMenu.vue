@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, computed } from 'vue'
+import { onMounted, onUnmounted, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
@@ -10,6 +10,7 @@ import { LngLat } from '@/types/map.types'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useMapStore } from '@/stores/map.store'
 import { encode } from 'pluscodes'
+import type { MenuItemDefinition } from '@/components/responsive/ResponsiveDropdown.vue'
 import {
   PencilIcon,
   CopyIcon,
@@ -18,26 +19,7 @@ import {
   PlusIcon,
   ExternalLinkIcon,
 } from 'lucide-vue-next'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuPortal,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import BrandIcon from '@/components/ui/brand-icon/BrandIcon.vue'
-import {
-  siOpenstreetmap,
-  siGooglemaps,
-  siApple,
-  siYandexcloud,
-  siBaidu,
-} from 'simple-icons'
+import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 
 const router = useRouter()
 const appService = useAppService()
@@ -55,7 +37,7 @@ const clickedLngLat = ref<LngLat | null>(null)
 
 onMounted(() => {
   mapEventBus.on('contextmenu', e => {
-    contextMenuPosition.value = { x: e.point.x, y: e.point.y - 18 }
+    contextMenuPosition.value = { x: e.point.x, y: e.point.y - 4 }
     clickedLngLat.value = e.lngLat
     showContextMenu.value = true
   })
@@ -84,7 +66,6 @@ const useMultistopDirections = computed(() => {
     (count, waypoint) => (waypoint.lngLat ? count + 1 : count),
     0,
   )
-  console.log(filledWaypointsCount, waypoints.value.length)
   return waypoints.value.length > 2 || filledWaypointsCount >= 2
 })
 
@@ -104,11 +85,9 @@ function directionsFrom() {
 
 function fillWaypoint() {
   router.push('/directions')
-  setTimeout(() => {
-    directionsService.fillWaypoint({
-      lngLat: clickedLngLat.value,
-    })
-  }, 0)
+  directionsService.fillWaypoint({
+    lngLat: clickedLngLat.value,
+  })
 }
 
 function openMapEditor(editor: 'id' | 'rapid' | 'josm') {
@@ -177,128 +156,156 @@ function openExternalMap(
       break
   }
 }
+
+// Build menu items based on current state
+const menuItems = computed<MenuItemDefinition[]>(() => {
+  const items: MenuItemDefinition[] = []
+
+  // Directions items
+  if (!useMultistopDirections.value) {
+    items.push({
+      type: 'item',
+      id: 'directions-from',
+      label: t('directions.planRouteFromHere'),
+      icon: ArrowUpFromDotIcon,
+      onSelect: directionsFrom,
+    })
+    items.push({
+      type: 'item',
+      id: 'directions-to',
+      label: t('directions.directionsHere'),
+      icon: ArrowDownToDotIcon,
+      onSelect: directionsTo,
+    })
+  } else {
+    items.push({
+      type: 'item',
+      id: 'add-stop',
+      label: t('directions.addStop'),
+      icon: PlusIcon,
+      onSelect: fillWaypoint,
+    })
+  }
+
+  items.push({ type: 'separator' })
+
+  // Copy location submenu
+  if (clickedLngLat.value) {
+    const coords = clickedLngLat.value
+    const plusCode = encode({ latitude: coords.lat, longitude: coords.lng })
+
+    items.push({
+      type: 'submenu',
+      id: 'copy-location',
+      label: t('map.contextMenu.copyLocation'),
+      icon: CopyIcon,
+      items: [
+        {
+          type: 'item',
+          id: 'copy-coords',
+          label: `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`,
+          onSelect: () => copyCoordinates(coords),
+        },
+        {
+          type: 'item',
+          id: 'copy-pluscode',
+          label: plusCode || '',
+          onSelect: () => copyPlusCode(coords),
+        },
+      ],
+    })
+  }
+
+  // View in external maps submenu
+  items.push({
+    type: 'submenu',
+    id: 'view-in',
+    label: t('map.contextMenu.viewIn'),
+    icon: ExternalLinkIcon,
+    items: [
+      {
+        type: 'item',
+        id: 'view-osm',
+        label: 'OpenStreetMap',
+        onSelect: () => openExternalMap('osm'),
+      },
+      {
+        type: 'item',
+        id: 'view-google',
+        label: 'Google Maps',
+        onSelect: () => openExternalMap('google'),
+      },
+      {
+        type: 'item',
+        id: 'view-apple',
+        label: 'Apple Maps',
+        onSelect: () => openExternalMap('apple'),
+      },
+      {
+        type: 'item',
+        id: 'view-yandex',
+        label: 'Yandex Maps',
+        onSelect: () => openExternalMap('yandex'),
+      },
+      {
+        type: 'item',
+        id: 'view-2gis',
+        label: '2GIS',
+        onSelect: () => openExternalMap('2gis'),
+      },
+    ],
+  })
+
+  // Edit submenu
+  items.push({
+    type: 'submenu',
+    id: 'edit',
+    label: t('map.contextMenu.edit'),
+    icon: PencilIcon,
+    items: [
+      {
+        type: 'item',
+        id: 'edit-id',
+        label: 'OpenStreetMap iD',
+        onSelect: () => openMapEditor('id'),
+      },
+      {
+        type: 'item',
+        id: 'edit-rapid',
+        label: 'Rapid',
+        onSelect: () => openMapEditor('rapid'),
+      },
+      {
+        type: 'item',
+        id: 'edit-josm',
+        label: 'JOSM',
+        onSelect: () => openMapEditor('josm'),
+      },
+    ],
+  })
+
+  return items
+})
 </script>
 
 <template>
-  <DropdownMenu :open="showContextMenu" @update:open="showContextMenu = $event">
-    <div
-      :style="{
-        position: 'fixed',
-        left: `${contextMenuPosition.x}px`,
-        top: `${contextMenuPosition.y}px`,
-      }"
-    >
-      <DropdownMenuTrigger> </DropdownMenuTrigger>
-    </div>
-    <DropdownMenuContent align="start" :side-offset="0">
-      <DropdownMenuGroup>
-        <DropdownMenuItem
-          v-if="!useMultistopDirections"
-          @click="directionsFrom()"
-        >
-          <ArrowUpFromDotIcon class="size-4 rotate-90" />
-          <span>{{ t('directions.planRouteFromHere') }}</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          v-if="!useMultistopDirections"
-          @click="directionsTo()"
-        >
-          <ArrowDownToDotIcon class="size-4 -rotate-90" />
-          <span>{{ t('directions.directionsHere') }}</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem v-if="useMultistopDirections" @click="fillWaypoint()">
-          <PlusIcon class="size-4" />
-          <span>{{ t('directions.addStop') }}</span>
-        </DropdownMenuItem>
-      </DropdownMenuGroup>
-
-      <DropdownMenuSeparator />
-
-      <DropdownMenuGroup>
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <CopyIcon class="mr-2 size-4" />
-            <span>{{ t('map.contextMenu.copyLocation') }}</span>
-          </DropdownMenuSubTrigger>
-          <DropdownMenuPortal>
-            <DropdownMenuSubContent>
-              <DropdownMenuItem
-                @click="copyCoordinates(clickedLngLat)"
-                v-if="clickedLngLat"
-              >
-                <span>
-                  {{ clickedLngLat.lat.toFixed(5) }},
-                  {{ clickedLngLat.lng.toFixed(5) }}
-                </span>
-              </DropdownMenuItem>
-
-              <DropdownMenuItem
-                @click="copyPlusCode(clickedLngLat)"
-                v-if="clickedLngLat"
-              >
-                <span>{{
-                  encode({
-                    latitude: clickedLngLat.lat,
-                    longitude: clickedLngLat.lng,
-                  }) || ''
-                }}</span>
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuPortal>
-        </DropdownMenuSub>
-
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <ExternalLinkIcon class="mr-2 size-4" />
-            <span>{{ t('map.contextMenu.viewIn') }}</span>
-          </DropdownMenuSubTrigger>
-          <DropdownMenuPortal>
-            <DropdownMenuSubContent>
-              <DropdownMenuItem @click="openExternalMap('osm')">
-                <BrandIcon :icon="siOpenstreetmap" class="size-4" />
-                <span>OpenStreetMap</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem @click="openExternalMap('google')">
-                <BrandIcon :icon="siGooglemaps" class="size-4" />
-                <span>Google Maps</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem @click="openExternalMap('apple')">
-                <BrandIcon :icon="siApple" class="size-4" />
-                <span>Apple Maps</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem @click="openExternalMap('yandex')">
-                <BrandIcon :icon="siYandexcloud" class="size-4" />
-                <span>Yandex Maps</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem @click="openExternalMap('2gis')">
-                <!-- TODO: Add 2GIS icon -->
-                <!-- <BrandIcon :icon="si2gis" class="size-4" /> -->
-                <span>2GIS</span>
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuPortal>
-        </DropdownMenuSub>
-
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <PencilIcon class="mr-2 size-4" />
-            <span>{{ t('map.contextMenu.edit') }}</span>
-          </DropdownMenuSubTrigger>
-          <DropdownMenuPortal>
-            <DropdownMenuSubContent>
-              <DropdownMenuItem @click="openMapEditor('id')">
-                <span>OpenStreetMap iD</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem @click="openMapEditor('rapid')">
-                <span>Rapid</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem @click="openMapEditor('josm')">
-                <span>JOSM</span>
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuPortal>
-        </DropdownMenuSub>
-      </DropdownMenuGroup>
-    </DropdownMenuContent>
-  </DropdownMenu>
+  <ResponsiveDropdown
+    v-model:open="showContextMenu"
+    :items="menuItems"
+    align="start"
+    :side-offset="0"
+    :custom-snap-points="['450px', 0.7]"
+  >
+    <template #trigger>
+      <div
+        :style="{
+          position: 'fixed',
+          left: `${contextMenuPosition.x}px`,
+          top: `${contextMenuPosition.y}px`,
+          width: '1px',
+          height: '1px',
+        }"
+      />
+    </template>
+  </ResponsiveDropdown>
 </template>

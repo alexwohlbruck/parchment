@@ -41,7 +41,7 @@
     "fuzzysort": "^2.0.4",
     "lucide-static": "^0.511.0",
     "lucide-vue-next": "0.475.0",
-    "mapbox-gl": "^3.15.0",
+    "mapbox-gl": "^3.16.0",
     "mapillary-js": "^4.1.2",
     "maplibre-gl": "^4.2.0",
     "mitt": "^3.0.1",
@@ -50,7 +50,7 @@
     "pinia-orm": "^1.10.2",
     "pluscodes": "^2.6.0",
     "radix-vue": "^1.9.12",
-    "reka-ui": "^2.3.2",
+    "reka-ui": "^2.6.0",
     "simple-icons": "^14.12.2",
     "tailwind-merge": "^2.3.0",
     "tailwindcss-animate": "^1.0.7",
@@ -79,6 +79,7 @@
     "postgres": "^3.4.5",
     "tailwindcss": "^4.1.10",
     "typescript": "^5.4.5",
-    "vite": "^5.2.11"
+    "vite": "^5.2.11",
+    "vite-svg-loader": "^5.1.0"
   }
 }

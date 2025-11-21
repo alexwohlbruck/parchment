@@ -124,7 +124,7 @@
   }
 }
 
-@utility bg-primary-muted {
+@utility bg-primary-tinted {
   background-color: var(--color-primary-100);
   color: var(--color-primary-800);
   border-color: var(--color-primary-300);

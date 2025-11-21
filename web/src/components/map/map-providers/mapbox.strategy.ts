@@ -289,17 +289,20 @@ export class MapboxStrategy extends MapStrategy {
     this.mapInstance.jumpTo(camera)
   }
 
-  fitBounds(bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, options: any = {}) {
+  fitBounds(
+    bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
+    options: any = {},
+  ) {
     const mapboxBounds = new LngLatBounds(
       [bounds.minLng, bounds.minLat],
-      [bounds.maxLng, bounds.maxLat]
+      [bounds.maxLng, bounds.maxLat],
     )
-    
+
     this.mapInstance.fitBounds(mapboxBounds, {
       padding: options.padding || 100,
       duration: options.duration || 1000,
       easing: options.easing || (t => t * (2 - t)),
-      ...options
+      ...options,
     })
   }
 
@@ -468,7 +471,11 @@ export class MapboxStrategy extends MapStrategy {
 
   setLandmarkIcons(value: boolean) {
     this.mapInstance.setConfigProperty('basemap', 'showLandmarkIcons', value)
-    this.mapInstance.setConfigProperty('basemap', 'showLandmarkIconLabels', value)
+    this.mapInstance.setConfigProperty(
+      'basemap',
+      'showLandmarkIconLabels',
+      value,
+    )
   }
 
   setMapProjection(projection: MapProjection) {

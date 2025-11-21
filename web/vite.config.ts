@@ -1,11 +1,17 @@
 import path from 'path'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
+import svgLoader from 'vite-svg-loader'
 
 const host = process.env.TAURI_DEV_HOST
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    vue(),
+    svgLoader({
+      defaultImport: 'url', // Import as URL by default
+    }),
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

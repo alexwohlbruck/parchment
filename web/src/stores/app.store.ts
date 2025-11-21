@@ -236,7 +236,7 @@ export const useAppStore = defineStore('app', () => {
           options as import('@/types/app.types').ComponentDialogOptions
         componentOptions.component = markRaw(componentOptions.component)
       }
-      
+
       if (
         type === DialogType.Drawer &&
         (options as import('@/types/app.types').DrawerOptions).component

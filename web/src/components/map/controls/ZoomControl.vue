@@ -7,7 +7,7 @@ const mapService = useMapService()
 </script>
 
 <template>
-  <div class="flex flex-col shadow-md rounded-md">
+  <div class="flex flex-col rounded-md">
     <Button
       variant="outline"
       size="icon-sm"

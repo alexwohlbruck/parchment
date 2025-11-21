@@ -34,7 +34,7 @@ async function onToggle() {
 </script>
 
 <template>
-  <Card v-if="hasStreetViewLayers" class="border-none shadow-md rounded-md">
+  <Card v-if="hasStreetViewLayers" class="border-none rounded-md">
     <Toggle
       variant="outline"
       size="icon"

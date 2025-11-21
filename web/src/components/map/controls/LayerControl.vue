@@ -2,32 +2,27 @@
 import { Button } from '@/components/ui/button'
 import { Layers3Icon } from 'lucide-vue-next'
 import LayersSelector from '@/components/navigation/LayersSelector.vue'
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from '@/components/ui/hover-card'
+import ResponsiveHoverCard from '@/components/responsive/ResponsiveHoverCard.vue'
 </script>
 
 <template>
-  <HoverCard :openDelay="0" :closeDelay="100">
-    <HoverCardTrigger as-child>
-      <Button variant="outline" size="icon" class="size-10 shadow-md">
+  <ResponsiveHoverCard
+    :open-delay="0"
+    :close-delay="100"
+    side="left"
+    align="end"
+    :side-offset="12"
+    desktop-content-class="w-[360px] max-w-[calc(100vw-3.75rem)] md:max-w-[400px] p-4 shadow-xl"
+    :custom-snap-points="['400px', 0.7, 1]"
+  >
+    <template #trigger>
+      <Button variant="outline" size="icon" class="size-10">
         <Layers3Icon class="size-5" />
       </Button>
-    </HoverCardTrigger>
+    </template>
 
-    <HoverCardContent
-      side="left"
-      align="end"
-      :side-offset="12"
-      class="w-[360px] max-w-[calc(100vw-3.75rem)] md:max-w-[400px] p-0 border-0 shadow-xl bg-background/95 backdrop-blur-sm"
-    >
-      <div
-        class="rounded-lg border border-border bg-card text-card-foreground shadow-lg"
-      >
-        <LayersSelector />
-      </div>
-    </HoverCardContent>
-  </HoverCard>
+    <template #content>
+      <LayersSelector />
+    </template>
+  </ResponsiveHoverCard>
 </template>

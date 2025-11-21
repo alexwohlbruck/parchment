@@ -17,7 +17,8 @@ const layersStore = useLayersStore()
 const layersService = useLayersService()
 const mapStore = useMapStore()
 const mapService = useMapService()
-const { layers, allLayerGroups, mainReorderableItems } = storeToRefs(layersStore)
+const { layers, allLayerGroups, mainReorderableItems } =
+  storeToRefs(layersStore)
 
 // Helper function to convert icon string name to Vue component
 function getIconComponent(iconName?: string | null) {
@@ -163,7 +164,7 @@ const allLayers = computed(() => {
 </script>
 
 <template>
-  <div class="p-4 space-y-5 min-w-0">
+  <div class="space-y-5 min-w-0">
     <!-- Base Map Section -->
     <div class="space-y-3">
       <H6

@@ -24,7 +24,7 @@ export const useBookmarksService = createSharedComposable(() => {
 
     // Extract coordinates from place geometry
     const geometry = place.geometry?.value
-    if (!geometry || geometry.type !== 'point' || !geometry.center) {
+    if (!geometry || !geometry.center) {
       toast.error(t('services.bookmarks.saveErrorNoCoordinates'))
       return null
     }

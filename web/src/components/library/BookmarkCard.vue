@@ -27,10 +27,10 @@ import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { storeToRefs } from 'pinia'
 import type { Bookmark } from '@/types/library.types'
 import { getThemeColorClasses, type ThemeColor } from '@/lib/utils'
-import { toast } from 'vue-sonner'
 import { useAppService } from '@/services/app.service'
 import BookmarkForm from '@/components/library/BookmarkForm.vue'
 import CollectionPicker from '@/components/library/CollectionPicker.vue'
+import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 
 const props = defineProps<{
   bookmark: Bookmark
@@ -148,14 +148,20 @@ async function editBookmark() {
           </div>
 
           <!-- Actions dropdown -->
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child @click.stop>
-              <Button variant="ghost" size="icon" class="size-8">
+          <ResponsiveDropdown align="end" :custom-snap-points="['400px', 0.7]">
+            <template #trigger>
+              <Button variant="ghost" size="icon" class="size-8" @click.stop>
                 <MoreVerticalIcon class="size-4" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem @click.stop="editBookmark">
+            </template>
+
+            <template #content="{ close }">
+              <DropdownMenuItem
+                @click.stop="
+                  editBookmark()
+                  close()
+                "
+              >
                 <PencilIcon class="size-4" />
                 {{ t('general.edit') }}
               </DropdownMenuItem>
@@ -169,14 +175,13 @@ async function editBookmark() {
                 <DropdownMenuSubContent class="min-w-[240px]">
                   <CollectionPicker
                     :bookmark="bookmark"
-                    :collection-id="collectionId"
                     @toggle-collection="handleCollectionToggle"
                     @create-collection="handleCreateCollection"
                   />
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            </template>
+          </ResponsiveDropdown>
         </div>
       </div>
     </CardContent>

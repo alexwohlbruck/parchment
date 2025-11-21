@@ -61,7 +61,7 @@ onUnmounted(() => {
   <Button
     variant="outline"
     size="icon-sm"
-    class="rounded-md shadow-md"
+    class="rounded-md"
     @click="mapService.resetNorth()"
     @mousedown.prevent="onDragStart"
     :class="{ 'cursor-grab': !isDragging, 'cursor-grabbing': isDragging }"

@@ -288,7 +288,7 @@ const filterFunction = computed(() => {
 <template>
   <div ref="container">
     <Command
-      class="shadow-md bg-background"
+      class="border border-border bg-background"
       ref="commandPalette"
       :open="commandOpen"
       :ignore-filter="true"
@@ -305,7 +305,7 @@ const filterFunction = computed(() => {
 
           <template v-if="activeCommand">
             <div
-              class="select-none whitespace-nowrap rounded-md bg-primary px-1.5 py-1 font-sans text-xs text-primary-foreground"
+              class="select-none whitespace-nowrap rounded-md bg-primary-tinted border px-1.5 py-1 font-sans text-xs"
             >
               {{ activeCommand.name }}
             </div>

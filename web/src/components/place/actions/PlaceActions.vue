@@ -3,10 +3,8 @@ import { computed, ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import {
-  NavigationIcon,
   ShareIcon,
   BookmarkIcon,
-  Check,
   FolderPlusIcon,
   ArrowUpFromDotIcon,
   ArrowDownToDotIcon,
@@ -15,16 +13,11 @@ import { useCollectionsService } from '@/services/library/collections.service'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
 import type { Place } from '@/types/place.types'
 import type { Collection } from '@/types/library.types'
-import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { usePlaceService } from '@/services/place.service'
 import CollectionPicker from '@/components/library/CollectionPicker.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { type ThemeColor } from '@/lib/utils'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
+import ResponsivePopover from '@/components/responsive/ResponsivePopover.vue'
 
 const props = defineProps<{
   place: Place
@@ -32,7 +25,6 @@ const props = defineProps<{
 
 const collectionsService = useCollectionsService()
 const bookmarksService = useBookmarksService()
-const bookmarksStore = useBookmarksStore()
 const { setBookmarkStatus } = usePlaceService()
 const { t } = useI18n()
 const defaultCollection = ref<Collection | null>(null)
@@ -87,8 +79,16 @@ const hasOsmId = computed(() => {
       <ShareIcon class="size-4" />
     </Button>
     <template v-if="hasOsmId">
-      <Popover v-if="isSaved && bookmarkId">
-        <PopoverTrigger as-child>
+      <ResponsivePopover
+        v-if="isSaved && bookmarkId"
+        align="end"
+        desktop-content-class="w-auto px-0 py-1 min-w-[240px]"
+        :peek-height="'400px'"
+        modal
+        :z-index-offset="10"
+        mobile-content-class="pt-0 px-1"
+      >
+        <template #trigger>
           <Button
             size="icon"
             variant="outline"
@@ -96,14 +96,19 @@ const hasOsmId = computed(() => {
           >
             <FolderPlusIcon class="size-4" />
           </Button>
-        </PopoverTrigger>
-        <PopoverContent align="end" class="w-auto px-0 py-1 min-w-[240px]">
+        </template>
+        <template #content="{ close }">
           <CollectionPicker
             :bookmark="{ id: bookmarkId } as any"
-            @bookmark-deleted="setBookmarkStatus(null, null)"
+            @bookmark-deleted="
+              () => {
+                setBookmarkStatus(null, null)
+                close()
+              }
+            "
           />
-        </PopoverContent>
-      </Popover>
+        </template>
+      </ResponsivePopover>
       <Button
         v-else
         size="icon"

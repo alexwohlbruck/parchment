@@ -20,7 +20,6 @@ import BottomSheet from '@/components/BottomSheet.vue'
 import LeftSheet from '@/components/LeftSheet.vue'
 import StreetViewPip from '@/components/map/StreetViewPip.vue'
 import { useMapService } from '@/services/map.service'
-import { useMapStore } from '@/stores/map.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { storeToRefs } from 'pinia'
 import { useLayersService } from '@/services/layers.service'
@@ -32,7 +31,6 @@ const router = useRouter()
 const { isMobileScreen } = useResponsive()
 const appStore = useAppStore()
 const mapService = useMapService()
-const mapStore = useMapStore()
 const layersStore = useLayersStore()
 const { layers } = storeToRefs(layersStore)
 const layersService = useLayersService()
@@ -48,24 +46,34 @@ const streetView = ref(false)
 const mapUIArea = computed(() => appStore.mapUIArea)
 const hideUI = computed(() => !!route.meta?.hideUI)
 const bottomSheetOpen = ref(false)
-const isNavTransitioning = ref(false)
+const isNavTransitioning = ref(isMobileScreen.value)
 
 function navTransitioning(value: boolean) {
   isNavTransitioning.value = value
 }
 
-// Watch for route changes to open/close bottom sheet
-watch(isBottomSheetView, (isSubview) => {
-  bottomSheetOpen.value = isSubview
-}, { immediate: true })
-
-// Watch for bottom sheet close to navigate back
-watch(bottomSheetOpen, (isOpen) => {
-  if (!isOpen && isBottomSheetView.value) {
+// Open bottom sheet when a map subview is opened
+watch(isBottomSheetView, async isOpen => {
+  if (isOpen) {
+    // Small delay to allow other drawers to start their close animation
+    // This works in conjunction with useDrawerCoordination to prevent race conditions
+    await new Promise(resolve => setTimeout(resolve, 10))
+    bottomSheetOpen.value = isOpen
+  } else {
+    bottomSheetOpen.value = isOpen
     router.push({ name: AppRoute.MAP })
   }
 })
 
+// Navigate back to map when bottom sheet is closed
+function onOpenChange(value: boolean) {
+  bottomSheetOpen.value = value
+  if (!value) {
+    router.push({ name: AppRoute.MAP })
+  }
+}
+
+// Detect if left sidebar is visible
 const isDrawerOpen = computed(() => {
   return appStore.obstructingComponentsMap.has('left-sheet')
 })
@@ -206,9 +214,12 @@ defineExpose({
   </div>
 
   <!-- Debug overlay for obstructing components -->
-  <div v-if="appStore.debugObstructingComponents" class="fixed inset-0 pointer-events-none z-[100]">
+  <div
+    v-if="appStore.debugObstructingComponents"
+    class="fixed inset-0 pointer-events-none z-[100]"
+  >
     <!-- Show map UI area -->
-    <div 
+    <div
       class="absolute border-4 border-green-500 bg-green-500/10"
       :style="{
         left: `${mapUIArea.x}px`,
@@ -217,14 +228,18 @@ defineExpose({
         height: `${mapUIArea.height}px`,
       }"
     >
-      <div class="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 text-xs font-mono rounded">
-        Map UI Area: {{ Math.round(mapUIArea.width) }}x{{ Math.round(mapUIArea.height) }}
+      <div
+        class="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 text-xs font-mono rounded"
+      >
+        Map UI Area: {{ Math.round(mapUIArea.width) }}x{{
+          Math.round(mapUIArea.height)
+        }}
       </div>
     </div>
 
     <!-- Show each obstructing component -->
-    <div 
-      v-for="[key, dimensions] in appStore.componentDimensions" 
+    <div
+      v-for="[key, dimensions] in appStore.componentDimensions"
       :key="key"
       class="absolute border-2 border-red-500 bg-red-500/10"
       :style="{
@@ -234,8 +249,12 @@ defineExpose({
         height: `${dimensions.height}px`,
       }"
     >
-      <div class="absolute top-1 left-1 bg-red-500 text-white px-1 py-0.5 text-[10px] font-mono rounded">
-        {{ key }}: {{ Math.round(dimensions.width) }}x{{ Math.round(dimensions.height) }}
+      <div
+        class="absolute top-1 left-1 bg-red-500 text-white px-1 py-0.5 text-[10px] font-mono rounded"
+      >
+        {{ key }}: {{ Math.round(dimensions.width) }}x{{
+          Math.round(dimensions.height)
+        }}
       </div>
     </div>
   </div>
@@ -245,18 +264,15 @@ defineExpose({
   <div class="flex flex-1 h-full relative overflow-hidden">
     <!-- Mobile bottom sheet container -->
     <template v-if="isMobileScreen">
-
       <bottom-sheet
-        v-model:open="bottomSheetOpen"
+        parent-id="map"
+        :open="bottomSheetOpen"
+        @update:open="onOpenChange"
         :default-snap-point-index="1"
         show-drag-handle
-        dismissable
         show-close-button
         obstructing-key="map-content-sheet"
-        class="absolute bg-background z-50 top-0 left-0 w-full md:w-104 h-full rounded-t-md shadow-lg justify-center "
       >
-        <!-- TODO: Scrollable content not working, we have to find workarounds
-             https://github.com/unovue/vaul-vue/issues/36 -->
         <router-view />
       </bottom-sheet>
     </template>

@@ -18,7 +18,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
-import ParchmentLogo from '@/assets/parchment.svg'
+import ParchmentLogo from '@/assets/parchment.svg?component'
 import {
   MapIcon,
   MilestoneIcon,
@@ -134,7 +134,7 @@ const items = computed(() => {
     <div
       :class="
         cn(
-          'bg-background overflow-y-auto py-2 shadow-md flex flex-col gap-2',
+          'bg-background overflow-y-auto py-2 border-border border-r flex flex-col gap-2',
           $attrs.class ?? '',
         )
       "
@@ -144,14 +144,12 @@ const items = computed(() => {
           to="/"
           class="flex items-center gap-3 hover:opacity-85 dark:hover:opacity-90 transition-opacity cursor-pointer"
         >
-          <img
-            :src="ParchmentLogo"
-            alt="Parchment"
-            class="w-5 h-11 scale-150"
-            style="filter: drop-shadow(0 0.75px 0.2px rgba(0, 0, 0, 0.2))"
+          <ParchmentLogo
+            class="w-5 h-11 scale-150 text-primary"
+            aria-label="Parchment"
           />
           <transition-expand axis="x" :duration="50" easing="ease-out">
-            <span v-if="!mini" class="text-nowrap text-base"> Parchment </span>
+            <span v-if="!mini" class="text-nowrap text-base text-primary-950 dark:text-primary-100"> Parchment </span>
           </transition-expand>
         </router-link>
       </h2>

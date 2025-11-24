@@ -6,6 +6,7 @@ import { useObstructingComponent } from '@/composables/useObstructingComponent'
 import { Card } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import Palette from '@/components/palette/Palette.vue'
+import DashboardHome from '@/components/dashboard/DashboardHome.vue'
 import { capitalize } from '@/filters/text.filters'
 import BottomSheet from '@/components/BottomSheet.vue'
 import { TransitionExpand } from '@morev/vue-transitions'
@@ -65,26 +66,25 @@ function handlePaletteInputFocused() {
   activeSnapPoint.value = 1 // Fully expand the drawer
 }
 
-watch(isFullyExpanded, (newVal) => {
+watch(isFullyExpanded, newVal => {
   if (!newVal) {
     paletteRef.value?.resetPalette()
   }
 })
-
 </script>
 
 <template>
-   <bottom-sheet
-      peek-height="125px"
-      :open="true"
-      :dismissable="false"
-      obstructing-key="mobile-navigation-sheet"
-      v-model:active-snap-point="activeSnapPoint"
-      v-model:active-snap-point-index="activeSnapPointIndex"
-      class="bg-background absolute z-50 top-0 left-0 w-full md:w-104 h-full rounded-t-md shadow-lg justify-center"
-   >
+  <bottom-sheet
+    peek-height="125px"
+    :open="true"
+    :dismissable="false"
+    obstructing-key="mobile-navigation-sheet"
+    v-model:active-snap-point="activeSnapPoint"
+    v-model:active-snap-point-index="activeSnapPointIndex"
+    class="bg-background absolute z-50 top-0 left-0 w-full md:w-104 h-full rounded-t-md shadow-lg justify-center"
+  >
     <Card
-      class="flex flex-col h-full p-2 bg-muted shadow-md rounded-b-none border-0 pb-[min(calc(env(safe-area-inset-bottom)-.25rem), 1rem)]"
+      class="flex flex-col min-h-full p-2 bg-muted shadow-md rounded-b-none border-0 pb-[min(calc(env(safe-area-inset-bottom)-.25rem), 1rem)]"
     >
       <div class="relative mb-1">
         <Palette ref="paletteRef" @input-focused="handlePaletteInputFocused" />
@@ -106,10 +106,7 @@ watch(isFullyExpanded, (newVal) => {
         </Tabs>
       </transition-expand>
 
-      <p>Content here</p>
-
-      
+      <DashboardHome />
     </Card>
   </bottom-sheet>
-  
 </template>

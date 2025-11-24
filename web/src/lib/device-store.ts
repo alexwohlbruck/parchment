@@ -10,7 +10,10 @@ async function getStore() {
   if (!isTauri) return null
 
   if (!store) {
-    store = await load('store.json', { autoSave: true })
+    store = await load('store.json', {
+      autoSave: true,
+      defaults: {},
+    })
   }
 
   return store

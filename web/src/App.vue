@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app.store'
 import { useAuthStore } from '@/stores/auth.store'
@@ -32,8 +32,13 @@ const { dialogs } = appStore
 const navMini = ref(true)
 const viewRef = ref()
 
-const hideUI = computed(() => !!route.meta?.hideUI)
+const hideUI = ref(true)
 const authStore = useAuthStore()
+
+// We don't use computed value here, it was causing a layout shift
+watch(route, () => {
+  hideUI.value = route.meta?.hideUI ?? false
+})
 
 onMounted(async () => {
   // TODO: Use maplibre if not authed or not on paid plan
@@ -51,6 +56,18 @@ onMounted(async () => {
     categoryStore.init()
   }
 })
+
+function afterNavTransition(value: boolean) {
+  if (viewRef.value?.navTransitioning) {
+    viewRef.value.navTransitioning(value)
+  }
+}
+
+function beforeNavTransition(value: boolean) {
+  if (viewRef.value?.navTransitioning) {
+    viewRef.value.navTransitioning(value)
+  }
+}
 </script>
 
 <template>
@@ -75,14 +92,10 @@ onMounted(async () => {
         appear
         no-opacity
         :offset="['-130%', 0]"
-        @after-enter="() => viewRef?.navTransitioning(true)"
-        @before-leave="() => viewRef?.navTransitioning(false)"
+        @after-enter="() => afterNavTransition(true)"
+        @before-leave="() => beforeNavTransition(false)"
       >
-        <DesktopNav
-          v-if="!hideUI"
-          v-model:mini="navMini"
-          class="z-40 h-full"
-        />
+        <DesktopNav v-if="!hideUI" v-model:mini="navMini" class="z-40 h-full" />
       </transition-slide>
     </template>
 
@@ -90,7 +103,6 @@ onMounted(async () => {
     <template v-else-if="!hideUI">
       <MobileNav class="z-20" />
     </template>
-
 
     <!-- Main content -->
     <main class="flex-1">

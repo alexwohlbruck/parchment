@@ -59,6 +59,9 @@ const router = createRouter({
       path: '/signin',
       name: AppRoute.SIGNIN,
       component: Signin,
+      meta: {
+        hideUI: true,
+      },
     },
     {
       path: '/',

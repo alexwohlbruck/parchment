@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, computed, watch } from 'vue'
+import { onMounted, onUnmounted, ref, computed, watch, h } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
@@ -11,6 +11,8 @@ import { useDirectionsStore } from '@/stores/directions.store'
 import { useMapStore } from '@/stores/map.store'
 import { encode } from 'pluscodes'
 import type { MenuItemDefinition } from '@/components/responsive/ResponsiveDropdown.vue'
+import BrandIcon from '@/components/ui/brand-icon/BrandIcon.vue'
+import { siOpenstreetmap, siGooglemaps, siApple } from 'simple-icons/icons'
 import {
   PencilIcon,
   CopyIcon,
@@ -18,6 +20,7 @@ import {
   ArrowUpFromDotIcon,
   PlusIcon,
   ExternalLinkIcon,
+  MapIcon,
 } from 'lucide-vue-next'
 import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 
@@ -161,6 +164,13 @@ function openExternalMap(
 const menuItems = computed<MenuItemDefinition[]>(() => {
   const items: MenuItemDefinition[] = []
 
+  const OsmIcon = () => h(BrandIcon, { icon: siOpenstreetmap, class: 'size-4' })
+  const GoogleMapsIcon = () =>
+    h(BrandIcon, { icon: siGooglemaps, class: 'size-4' })
+  const AppleMapsIcon = () =>
+    h(BrandIcon, { icon: siApple, class: 'size-4', useThemeColor: true })
+  const GenericMapsIcon = MapIcon
+
   // Directions items
   if (!useMultistopDirections.value) {
     items.push({
@@ -227,30 +237,35 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
         type: 'item',
         id: 'view-osm',
         label: 'OpenStreetMap',
+        icon: OsmIcon,
         onSelect: () => openExternalMap('osm'),
       },
       {
         type: 'item',
         id: 'view-google',
         label: 'Google Maps',
+        icon: GoogleMapsIcon,
         onSelect: () => openExternalMap('google'),
       },
       {
         type: 'item',
         id: 'view-apple',
         label: 'Apple Maps',
+        icon: AppleMapsIcon,
         onSelect: () => openExternalMap('apple'),
       },
       {
         type: 'item',
         id: 'view-yandex',
         label: 'Yandex Maps',
+        icon: GenericMapsIcon,
         onSelect: () => openExternalMap('yandex'),
       },
       {
         type: 'item',
         id: 'view-2gis',
         label: '2GIS',
+        icon: GenericMapsIcon,
         onSelect: () => openExternalMap('2gis'),
       },
     ],

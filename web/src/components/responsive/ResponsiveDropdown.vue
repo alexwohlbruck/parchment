@@ -326,7 +326,7 @@ function getSnapPointsForSheet(index: number): (number | string)[] {
           </p>
         </div>
 
-        <div>
+        <div class="px-2">
           <template
             v-for="(item, itemIndex) in sheet.items"
             :key="item.id || itemIndex"

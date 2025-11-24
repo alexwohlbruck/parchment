@@ -156,12 +156,7 @@ async function editBookmark() {
             </template>
 
             <template #content="{ close }">
-              <DropdownMenuItem
-                @click.stop="
-                  editBookmark()
-                  close()
-                "
-              >
+              <DropdownMenuItem @click.stop="editBookmark()">
                 <PencilIcon class="size-4" />
                 {{ t('general.edit') }}
               </DropdownMenuItem>

@@ -391,7 +391,13 @@ export function useLayersService() {
 
     for (const layer of streetViewLayers) {
       try {
-        await layersStore.updateLayer(layer.id, { visible: newState })
+        if (layer.id.startsWith('client-')) {
+          // For client-side layers, only update in memory
+          layersStore.updateLayerVisibility(layer.id, newState)
+        } else {
+          // For user layers, update on server
+          await layersStore.updateLayer(layer.id, { visible: newState })
+        }
         toggleLayerVisibility(layer.configuration.id, newState, mapStrategy)
       } catch (error) {
         console.error(

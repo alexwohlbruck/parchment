@@ -171,3 +171,31 @@
 body {
   overscroll-behavior: none;
 }
+
+/* Tauri drag region support */
+/* Windows touch/pen support - use app-region for better compatibility */
+*[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+}
+
+/* Make interactive elements non-draggable */
+[data-tauri-drag-region] button,
+[data-tauri-drag-region] a,
+[data-tauri-drag-region] input,
+[data-tauri-drag-region] select,
+[data-tauri-drag-region] textarea,
+[data-tauri-drag-region] [role="button"],
+[data-tauri-drag-region] [tabindex],
+[data-tauri-drag-region="false"] {
+  -webkit-app-region: no-drag !important;
+  app-region: no-drag !important;
+}
+
+/* Tauri translucency support */
+.tauri-translucent {
+  /* Enhanced backdrop blur for better translucency */
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}

@@ -117,102 +117,6 @@ defineExpose({
 </script>
 
 <template>
-  <!-- Map UI items -->
-
-  <!-- z-50 above drawers -->
-  <div
-    v-if="!hideUI"
-    class="fixed z-50 p-2 flex justify-between gap-2 pointer-events-none"
-    :style="{
-      left: `${mapUIArea.x}px`,
-      top: `${mapUIArea.y}px`,
-      width: `${mapUIArea.width}px`,
-      height: `${mapUIArea.height}px`,
-    }"
-  >
-    <!-- Left section -->
-    <div class="flex flex-col items-start gap-2">
-      <!-- Left top -->
-      <transition-slide appear no-opacity :offset="[0, '-130%']">
-        <div
-          v-if="isNavTransitioning && !isMobileScreen"
-          class="pointer-events-auto flex gap-2"
-        >
-          <Palette class="h-fit w-100" />
-
-          <MapChips v-if="!isDrawerOpen" />
-        </div>
-      </transition-slide>
-    </div>
-  </div>
-
-  <!-- z-20 below drawers -->
-  <div
-    v-if="!hideUI"
-    class="fixed z-20 p-2 flex justify-between gap-2 pointer-events-none"
-    :style="{
-      left: `${mapUIArea.x}px`,
-      top: `${mapUIArea.y}px`,
-      width: `${mapUIArea.width}px`,
-      height: `${mapUIArea.height}px`,
-    }"
-  >
-    <!-- Left section -->
-    <div class="flex flex-col items-start gap-2">
-      <!-- Left top -->
-      <transition-slide appear no-opacity :offset="[0, '-130%']">
-        <div
-          v-if="isNavTransitioning"
-          class="pointer-events-auto flex flex-col gap-2 items-start"
-        >
-          <!-- Palette placeholder -->
-          <div class="h-11 w-100" v-if="!isMobileScreen"></div>
-
-          <ScaleControl />
-        </div>
-      </transition-slide>
-
-      <!-- Left middle -->
-      <transition-slide appear no-opacity :offset="['-130%', 0]">
-        <div
-          v-if="isNavTransitioning"
-          class="pointer-events-auto flex flex-col"
-        ></div>
-      </transition-slide>
-
-      <!-- Left bottom -->
-      <transition-slide appear no-opacity :offset="[0, '130%']">
-        <div
-          v-if="isNavTransitioning"
-          class="pointer-events-auto mt-auto flex flex-col gap-2"
-        >
-          <AttributionControl />
-        </div>
-      </transition-slide>
-    </div>
-
-    <!-- Right section -->
-    <transition-slide appear no-opacity :offset="['130%', 0]">
-      <div
-        v-if="isNavTransitioning"
-        class="flex flex-col items-end justify-between pointer-events-auto"
-      >
-        <!-- Right top -->
-        <div class="pointer-events-auto flex flex-col gap-2">
-          <ZoomControl />
-          <CompassControl />
-          <LocateControl />
-        </div>
-
-        <!-- Right bottom -->
-        <div class="pointer-events-auto flex flex-col gap-2">
-          <StreetViewControl />
-          <LayerControl />
-        </div>
-      </div>
-    </transition-slide>
-  </div>
-
   <!-- Debug overlay for obstructing components -->
   <div
     v-if="appStore.debugObstructingComponents"
@@ -290,7 +194,90 @@ defineExpose({
     </template>
 
     <!-- Map canvas -->
-    <div id="mainContent" class="flex-1 fixed top-0 left-0 w-full h-dvh">
+    <div id="mainContent" class="flex-1 relative w-full h-full">
+      <!-- Map UI controls positioned within map container -->
+      <template v-if="!hideUI">
+        <!-- z-50 above drawers -->
+        <div
+          class="absolute z-50 p-2 flex justify-between gap-2 pointer-events-none inset-0"
+        >
+          <!-- Left section -->
+          <div class="flex flex-col items-start gap-2">
+            <!-- Left top -->
+            <transition-slide appear no-opacity :offset="[0, '-130%']">
+              <div
+                v-if="isNavTransitioning && !isMobileScreen"
+                class="pointer-events-auto flex gap-2"
+              >
+                <Palette class="h-fit w-100" />
+
+                <MapChips v-if="!isDrawerOpen" />
+              </div>
+            </transition-slide>
+          </div>
+        </div>
+
+        <!-- z-20 below drawers -->
+        <div
+          class="absolute z-20 p-2 flex justify-between gap-2 pointer-events-none inset-0"
+        >
+          <!-- Left section -->
+          <div class="flex flex-col items-start gap-2">
+            <!-- Left top -->
+            <transition-slide appear no-opacity :offset="[0, '-130%']">
+              <div
+                v-if="isNavTransitioning"
+                class="pointer-events-auto flex flex-col gap-2 items-start"
+              >
+                <!-- Palette placeholder -->
+                <div class="h-11 w-100" v-if="!isMobileScreen"></div>
+
+                <ScaleControl />
+              </div>
+            </transition-slide>
+
+            <!-- Left middle -->
+            <transition-slide appear no-opacity :offset="['-130%', 0]">
+              <div
+                v-if="isNavTransitioning"
+                class="pointer-events-auto flex flex-col"
+              ></div>
+            </transition-slide>
+
+            <!-- Left bottom -->
+            <transition-slide appear no-opacity :offset="[0, '130%']">
+              <div
+                v-if="isNavTransitioning"
+                class="pointer-events-auto mt-auto flex flex-col gap-2"
+              >
+                <AttributionControl />
+              </div>
+            </transition-slide>
+          </div>
+
+          <!-- Right section -->
+          <transition-slide appear no-opacity :offset="['130%', 0]">
+            <div
+              v-if="isNavTransitioning"
+              class="flex flex-col items-end justify-between pointer-events-auto"
+            >
+              <!-- Right top -->
+              <div class="pointer-events-auto flex flex-col gap-2">
+                <ZoomControl />
+                <CompassControl />
+                <LocateControl />
+              </div>
+
+              <!-- Right bottom -->
+              <div class="pointer-events-auto flex flex-col gap-2">
+                <StreetViewControl />
+                <LayerControl />
+              </div>
+            </div>
+          </transition-slide>
+        </div>
+      </template>
+
       <template v-if="mountTeleports">
         <Teleport
           :to="pipSwapped && streetView ? '#pipContent' : '#mainContent'"

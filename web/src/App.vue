@@ -10,6 +10,7 @@ import { useIntegrationService } from '@/services/integration.service'
 import { useCategoryStore } from '@/stores/category.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useResponsive } from '@/lib/utils'
+import { isTauri } from '@/lib/api'
 
 import DesktopNav from '@/components/navigation/DesktopNavigation.vue'
 import MobileNav from '@/components/navigation/MobileNavigation.vue'
@@ -85,7 +86,10 @@ function beforeNavTransition(value: boolean) {
     />
   </div>
 
-  <div class="flex flex-row h-dvh bg-background items-stretch">
+  <div
+    class="flex flex-row h-dvh items-stretch"
+    :class="isTauri ? '' : 'bg-background'"
+  >
     <!-- Desktop navigation -->
     <template v-if="!isMobileScreen">
       <transition-slide
@@ -105,7 +109,10 @@ function beforeNavTransition(value: boolean) {
     </template>
 
     <!-- Main content -->
-    <main class="flex-1">
+    <main
+      class="flex-1 h-full overflow-hidden"
+      :class="isTauri ? '' : 'bg-background'"
+    >
       <router-view v-slot="{ Component }">
         <keep-alive include="Map">
           <component :is="Component" ref="viewRef" />

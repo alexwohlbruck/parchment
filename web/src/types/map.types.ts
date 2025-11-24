@@ -175,7 +175,7 @@ export type MaplibreLayerConfiguration = {
 
 export enum LayerType {
   CUSTOM = 'custom',
-  STREET_VIEW = 'street_view',
+  STREET_VIEW = 'street-view',
   TRANSIT = 'transit',
 }
 

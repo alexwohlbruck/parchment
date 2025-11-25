@@ -288,7 +288,7 @@ const filterFunction = computed(() => {
 <template>
   <div ref="container">
     <Command
-      class="border border-border bg-background"
+      class="border border-border bg-background/85 backdrop-blur-xl backdrop-saturate-150"
       ref="commandPalette"
       :open="commandOpen"
       :ignore-filter="true"

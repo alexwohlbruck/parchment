@@ -25,7 +25,7 @@ import Kbd from '@/components/ui/kbd/Kbd.vue'
 import ParchmentLogo from '@/assets/parchment.svg?component'
 import {
   MapIcon,
-  MilestoneIcon,
+  CornerUpRightIcon,
   BookMarkedIcon,
   HistoryIcon,
   CloudOffIcon,
@@ -41,6 +41,10 @@ import { useFullscreen } from '@/composables/useFullscreen'
 import { CommandName } from '@/stores/command.store'
 import { Icon } from '@/types/app.types'
 import { Hotkey } from '@/types/command.types'
+import Palette from '@/components/palette/Palette.vue'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { SearchIcon } from 'lucide-vue-next'
+import { useCommandService } from '@/services/command.service'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -49,11 +53,14 @@ const { me } = storeToRefs(authStore)
 const { openExternalLink } = useExternalLink()
 const mapService = useMapService()
 const { isFullscreen } = useFullscreen()
+const commandService = useCommandService()
 
 const mini = defineModel('mini', { type: Boolean, default: true })
 const navRef = ref<HTMLElement | null>(null)
 const appStore = useAppStore()
 const { width: windowWidth, height: windowHeight } = useWindowSize()
+const paletteDialogOpen = ref(false)
+const paletteDialogRef = ref<InstanceType<typeof Palette> | null>(null)
 
 useHotkeys([
   {
@@ -64,6 +71,13 @@ useHotkeys([
     handler: () => (mini.value = !mini.value),
   },
 ])
+
+// Handle OPEN_PALETTE command - open dialog
+commandService.bindCommandToFunction(CommandName.OPEN_PALETTE, () => {
+  if (!paletteDialogOpen.value) {
+    openPaletteDialog()
+  }
+})
 
 // Track navbar bounds manually for map UI area calculation
 // We need to register it in the obstructing components map first
@@ -111,6 +125,16 @@ watch(mini, () => {
   })
 })
 
+watch(paletteDialogOpen, isOpen => {
+  if (isOpen) {
+    nextTick(() => {
+      paletteDialogRef.value?.focusInput()
+    })
+  } else {
+    paletteDialogRef.value?.resetPalette()
+  }
+})
+
 interface MenuItemDefinition {
   separator?: boolean
   items?: {
@@ -124,9 +148,22 @@ interface MenuItemDefinition {
   }[]
   spacer?: boolean
 }
+function openPaletteDialog() {
+  paletteDialogOpen.value = true
+  nextTick(() => {
+    paletteDialogRef.value?.focusInput()
+  })
+}
+
 const items = computed<MenuItemDefinition[]>(() => [
   {
     items: [
+      {
+        label: t('palette.commands.search.name'),
+        icon: SearchIcon,
+        onClick: openPaletteDialog,
+        hotkeyId: 'openPalette',
+      },
       {
         label: t('map.title'),
         icon: MapIcon,
@@ -135,7 +172,7 @@ const items = computed<MenuItemDefinition[]>(() => [
       },
       {
         label: t('directions.title'),
-        icon: MilestoneIcon,
+        icon: CornerUpRightIcon,
         // hotkey: ['d'],
         to: '/directions',
       },
@@ -221,10 +258,7 @@ const items = computed<MenuItemDefinition[]>(() => [
         data-tauri-drag-region
       ></div>
 
-      <h2
-        v-if="!isTauri"
-        :class="cn('px-[.95rem] text-lg font-bold', mini ? 'ml-1.5' : 'ml-0')"
-      >
+      <h2 v-if="!isTauri" class="px-[.95rem] text-lg font-bold">
         <router-link
           to="/"
           class="flex items-center gap-3 hover:opacity-85 dark:hover:opacity-90 transition-opacity cursor-pointer"
@@ -241,6 +275,13 @@ const items = computed<MenuItemDefinition[]>(() => [
           </span>
         </router-link>
       </h2>
+
+      <!-- Palette - always shown in dialog -->
+      <Dialog v-model:open="paletteDialogOpen">
+        <DialogContent class="p-0 max-w-2xl">
+          <Palette ref="paletteDialogRef" />
+        </DialogContent>
+      </Dialog>
 
       <template v-for="(item, i) in items" :key="i">
         <Separator
@@ -335,8 +376,7 @@ const items = computed<MenuItemDefinition[]>(() => [
           v-if="me"
           :class="
             cn(
-              'px-2.5 py-2 rounded-lg flex items-center gap-2 hover:bg-foreground/5',
-              mini ? 'ml-0.5' : 'ml-0',
+              'py-1 rounded-lg flex flex-row justify-center gap-2 hover:bg-foreground/5',
             )
           "
         >

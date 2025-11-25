@@ -43,7 +43,7 @@
         "description": "Run a command"
       },
       "search": {
-        "name": "Search places",
+        "name": "Search",
         "description": "Search for places, businesses, and amenities",
         "keywords": "find locate",
         "arguments": {

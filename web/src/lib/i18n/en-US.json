@@ -138,6 +138,11 @@
           }
         }
       },
+      "openSettings": {
+        "name": "Open settings",
+        "description": "Open the settings page",
+        "keywords": "settings preferences config"
+      },
       "signOut": {
         "name": "Sign out",
         "description": "Sign out of your account",
@@ -418,7 +423,9 @@
   },
   "navigation": {
     "minimize": "Minimize",
-    "maximize": "Maximize"
+    "maximize": "Maximize",
+    "toggle": "Toggle navigation",
+    "toggleDescription": "Toggle the navigation sidebar between minimized and expanded"
   },
   "attribution": {
     "poweredBy": "Powered by",

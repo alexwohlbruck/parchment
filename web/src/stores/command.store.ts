@@ -15,6 +15,7 @@ import {
   MapPinIcon,
   PaletteIcon,
   SearchIcon,
+  SettingsIcon,
   SunMoonIcon,
   TerminalIcon,
 } from 'lucide-vue-next'
@@ -45,6 +46,7 @@ export enum CommandName {
   CHOOSE_MAP_ENGINE = 'chooseMapEngine',
   MAP_PROJECTION = 'mapProjection',
   OPEN_HOTKEYS_MENU = 'openHotkeysMenu',
+  OPEN_SETTINGS = 'openSettings',
   UPDATE_LANGUAGE = 'updateLanguage',
   SIGN_OUT = 'signOut',
 }
@@ -406,8 +408,22 @@ export const useCommandStore = defineStore('command', () => {
         name: t('palette.commands.openHotkeysMenu.name'),
         description: t('palette.commands.openHotkeysMenu.description'),
         keywords: t('palette.commands.openHotkeysMenu.keywords'),
-        hotkey: ['s'],
+        hotkey: ['h'],
         icon: HelpCircleIcon,
+      },
+      {
+        id: CommandName.OPEN_SETTINGS,
+        name: t('palette.commands.openSettings.name'),
+        description: t('palette.commands.openSettings.description'),
+        keywords: t('palette.commands.openSettings.keywords'),
+        hotkey: [','],
+        icon: SettingsIcon,
+        action: () => {
+          const current = router.currentRoute.value
+          if (current.matched.some(r => r.name === AppRoute.SETTINGS)) return
+
+          router.push({ name: AppRoute.SETTINGS })
+        },
       },
       {
         id: CommandName.UPDATE_LANGUAGE,

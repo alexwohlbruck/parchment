@@ -13,9 +13,12 @@ import { useCommandService } from '@/services/command.service'
 import { CommandName, useCommandStore } from '@/stores/command.store'
 import Span from '@/components/ui/typography/Span.vue'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
+import { useHotkeyStore } from '@/stores/hotkey.store'
+import type { Command } from '@/types/command.types'
 
 const commandService = useCommandService()
 const commandStore = useCommandStore()
+const hotkeyStore = useHotkeyStore()
 
 const open = ref(false)
 const query = ref('')
@@ -24,10 +27,23 @@ function openHotkeysMenu() {
   open.value = true
 }
 
+// Combine command hotkeys and ephemeral hotkeys
 const hotkeys = computed(() => {
-  return commandStore.commands.filter(command => {
-    return !!command.hotkey
-  })
+  const commandHotkeys: Array<Command & { id: string }> = commandStore.commands
+    .filter(command => !!command.hotkey)
+    .map(command => ({
+      ...command,
+      id: command.id,
+    }))
+
+  const ephemeralHotkeys = hotkeyStore.getAllEphemeralHotkeys().map(hotkey => ({
+    id: hotkey.id,
+    name: hotkey.name,
+    description: hotkey.description,
+    hotkey: hotkey.hotkey,
+  }))
+
+  return [...commandHotkeys, ...ephemeralHotkeys]
 })
 
 const searchResults = computed(() => {

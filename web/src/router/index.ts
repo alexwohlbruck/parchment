@@ -149,6 +149,7 @@ const router = createRouter({
     },
     {
       path: '/settings',
+      name: AppRoute.SETTINGS,
       components: {
         default: Map,
         dialogContent: Settings,

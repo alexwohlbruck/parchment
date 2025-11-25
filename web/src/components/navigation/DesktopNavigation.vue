@@ -34,8 +34,9 @@ import {
   LibraryIcon,
   MessageSquareQuoteIcon,
 } from 'lucide-vue-next'
+import { useHotkeys } from '@/composables/useHotkeys'
+import { CommandName } from '@/stores/command.store'
 
-// useObstructingComponent(undefined, 'desktopNav')
 const router = useRouter()
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -45,6 +46,16 @@ const mini = defineModel('mini', { type: Boolean, default: true })
 const navRef = ref<HTMLElement | null>(null)
 const appStore = useAppStore()
 const { width: windowWidth, height: windowHeight } = useWindowSize()
+
+useHotkeys([
+  {
+    id: 'toggle-nav-mini',
+    key: ['meta', 's'], // Compatible with command store format
+    name: t('navigation.toggle'),
+    description: t('navigation.toggleDescription'),
+    handler: () => (mini.value = !mini.value),
+  },
+])
 
 // Track navbar bounds manually for map UI area calculation
 // We need to register it in the obstructing components map first
@@ -151,6 +162,8 @@ const items = computed(() => {
           onClick: () => {
             mini.value = !mini.value
           },
+          hotkey: ['meta', 's'],
+          hotkeyId: 'toggle-nav-mini',
         },
         {
           label: t('feedback.title'),
@@ -165,7 +178,7 @@ const items = computed(() => {
         {
           label: t('settings.title'),
           icon: SettingsIcon,
-          // hotkey: ['s'],
+          commandId: CommandName.OPEN_SETTINGS,
           to: '/settings',
         },
       ],
@@ -181,7 +194,7 @@ const items = computed(() => {
       :class="
         cn(
           'overflow-y-auto py-2 border-border border-r flex flex-col gap-2 items-stretch relative',
-          isTauri ? 'tauri-translucent backdrop-blur-xl' : 'bg-background',
+          isTauri ? 'tauri-translucent' : 'bg-background',
           $attrs.class ?? '',
         )
       "
@@ -191,12 +204,7 @@ const items = computed(() => {
       <div v-if="isTauri" class="h-3 w-16" data-tauri-drag-region></div>
 
       <h2
-        :class="
-          cn(
-            'px-[.95rem] text-lg font-bold',
-            mini && isTauri ? 'ml-1.5' : 'ml-0',
-          )
-        "
+        :class="cn('px-[.95rem] text-lg font-bold', mini ? 'ml-1.5' : 'ml-0')"
         data-tauri-drag-region
       >
         <router-link
@@ -233,13 +241,16 @@ const items = computed(() => {
           <div class="flex flex-col px-1">
             <template v-for="subitem in item.items">
               <!-- v-if="subitem.to && (subitem.condition ?? true)" -->
-              <TooltipProvider v-if="subitem.onClick" :disabled="!mini">
+              <TooltipProvider
+                v-if="(subitem as any).onClick"
+                :disabled="!mini"
+              >
                 <Tooltip>
                   <TooltipTrigger as-child>
                     <Button
                       variant="ghost"
                       class="w-full flex px-3 justify-center gap-3 hover:bg-primary/5 hover:text-primary"
-                      @click="subitem.onClick"
+                      @click=";(subitem as any).onClick"
                     >
                       <component :is="subitem.icon" class="size-5" />
                       <transition-expand
@@ -248,13 +259,21 @@ const items = computed(() => {
                         easing="ease-out"
                       >
                         <div v-if="!mini" class="flex flex-1 gap-1 text-nowrap">
-                          <div>
+                          <div class="flex-1 text-left">
                             {{ subitem.label }}
                           </div>
+
+                          <Kbd
+                            v-if="!mini && ((subitem as any).hotkey || (subitem as any).hotkeyId || (subitem as any).commandId)"
+                            :hotkey-id="(subitem as any).hotkeyId"
+                            :hotkey="(subitem as any).hotkeyId || (subitem as any).commandId ? undefined : (subitem as any).hotkey"
+                            :command-id="(subitem as any).commandId"
+                          ></Kbd>
                         </div>
                       </transition-expand>
                     </Button>
                   </TooltipTrigger>
+
                   <TooltipContent side="right" v-if="mini">
                     <p>{{ subitem.label }}</p>
                   </TooltipContent>
@@ -291,12 +310,17 @@ const items = computed(() => {
                               {{ subitem.label }}
                             </div>
 
-                            <!-- <Kbd v-if="subitem.hotkey" :hotkey="subitem.hotkey"></Kbd> -->
+                            <Kbd
+                              v-if="(subitem as any).hotkey || (subitem as any).commandId"
+                              :hotkey="(subitem as any).hotkey"
+                              :command-id="(subitem as any).commandId"
+                            ></Kbd>
                           </div>
                         </transition-expand>
                       </router-link>
                     </Button>
                   </TooltipTrigger>
+
                   <TooltipContent side="right" v-if="mini">
                     <p>{{ subitem.label }}</p>
                   </TooltipContent>
@@ -310,12 +334,7 @@ const items = computed(() => {
       <router-link
         to="/settings/account"
         v-if="me"
-        :class="
-          cn(
-            'px-2.5 flex items-center gap-2',
-            mini && isTauri ? 'ml-1.5' : 'ml-0',
-          )
-        "
+        :class="cn('px-2.5 flex items-center gap-2', mini ? 'ml-1.5' : 'ml-0')"
       >
         <Avatar size="xs">
           <AvatarImage

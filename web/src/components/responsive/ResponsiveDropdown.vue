@@ -10,6 +10,7 @@ import {
 } from 'vue'
 import { useResponsive } from '@/lib/utils'
 import { useRouter } from 'vue-router'
+import { useExternalLink } from '@/composables/useExternalLink'
 import BottomSheet from '@/components/BottomSheet.vue'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -199,13 +200,15 @@ function handleOpenChange(value: boolean) {
   internalOpen.value = value
 }
 
+const { openExternalLink } = useExternalLink()
+
 function handleItemClick(item: MenuItem) {
   if (item.disabled) return
 
   if (item.to) {
     router.push(item.to)
   } else if (item.href) {
-    window.open(item.href, '_blank')
+    openExternalLink(item.href, '_blank')
   }
 
   item.onSelect?.()

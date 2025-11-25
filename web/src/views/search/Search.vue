@@ -133,11 +133,16 @@ async function performSearch() {
   searchStore.setSearchError(null)
 
   // Set search metadata
-  searchStore.setSearchType(searchType.value as 'text' | 'category' | 'overpass')
+  searchStore.setSearchType(
+    searchType.value as 'text' | 'category' | 'overpass',
+  )
   if (searchType.value === 'text') {
     searchStore.setSearchQuery(route.query.text as string)
   } else if (searchType.value === 'category') {
-    searchStore.setSearchQuery(route.query.categoryName as string || route.query.categoryId as string)
+    searchStore.setSearchQuery(
+      (route.query.categoryName as string) ||
+        (route.query.categoryId as string),
+    )
   }
 
   const bounds = mapService.getBounds()
@@ -179,7 +184,9 @@ async function performSearch() {
     lastRefreshBounds = bounds
   } catch (error) {
     console.error('Search error:', error)
-    searchStore.setSearchError(error instanceof Error ? error.message : 'Search failed')
+    searchStore.setSearchError(
+      error instanceof Error ? error.message : 'Search failed',
+    )
     searchStore.setSearchResults([])
   } finally {
     searchStore.setSearchLoading(false)
@@ -193,7 +200,7 @@ onMounted(() => {
     const { place } = customEvent.detail
     handleSearchResultClick(place, customEvent.detail.event)
   }
-  
+
   document.addEventListener('search-result-click', searchClickHandler)
 
   performSearch()
@@ -204,7 +211,7 @@ onUnmounted(() => {
   // This will automatically hide the search results layer and clear its data
   // via the reactive watchers in the layers service
   searchStore.clearSearchResults()
-  
+
   // Remove event listener
   if (searchClickHandler) {
     document.removeEventListener('search-result-click', searchClickHandler)
@@ -236,9 +243,12 @@ function handleFiltersChanged(filters: {
 </script>
 
 <template>
-  <div class="h-full flex flex-col px-3 pt-4 gap-2">
+  <div class="h-full flex flex-col px-3 gap-2">
     <!-- Search Header -->
-    <div v-if="!searchStore.isLoading || searchStore.hasResults" class="relative pl-2">
+    <div
+      v-if="!searchStore.isLoading || searchStore.hasResults"
+      class="relative pl-2"
+    >
       <div class="">
         <!-- Main Title -->
         <div class="space-y-1">
@@ -261,7 +271,9 @@ function handleFiltersChanged(filters: {
             <div class="flex items-center gap-2">
               <span class="text-sm font-medium text-foreground">
                 {{ searchStore.searchResults.length.toLocaleString() }}
-                {{ searchStore.searchResults.length === 1 ? 'result' : 'results' }}
+                {{
+                  searchStore.searchResults.length === 1 ? 'result' : 'results'
+                }}
               </span>
             </div>
 
@@ -295,7 +307,11 @@ function handleFiltersChanged(filters: {
 
     <!-- Error state (only show if no existing places to display) -->
     <ErrorMessage
-      v-if="searchStore.searchError && !searchStore.isLoading && !searchStore.hasResults"
+      v-if="
+        searchStore.searchError &&
+        !searchStore.isLoading &&
+        !searchStore.hasResults
+      "
       type="error"
       title="Search Error"
       :message="searchStore.searchError"
@@ -304,7 +320,10 @@ function handleFiltersChanged(filters: {
     />
 
     <!-- Results take up remaining space -->
-    <div v-if="searchStore.hasResults || searchStore.isLoading" class="flex-1 overflow-auto">
+    <div
+      v-if="searchStore.hasResults || searchStore.isLoading"
+      class="flex-1 overflow-auto"
+    >
       <div class="max-w-4xl mx-auto">
         <PlaceList
           :places="searchStore.searchResults"

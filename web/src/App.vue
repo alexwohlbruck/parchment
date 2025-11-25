@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app.store'
 import { useAuthStore } from '@/stores/auth.store'
@@ -11,6 +11,7 @@ import { useCategoryStore } from '@/stores/category.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useResponsive } from '@/lib/utils'
 import { isTauri } from '@/lib/api'
+import { useExternalLink } from '@/composables/useExternalLink'
 
 import DesktopNav from '@/components/navigation/DesktopNavigation.vue'
 import MobileNav from '@/components/navigation/MobileNavigation.vue'
@@ -28,6 +29,7 @@ const categoryStore = useCategoryStore()
 const layersStore = useLayersStore()
 const appStore = useAppStore()
 const { isMobileScreen } = useResponsive()
+const { openExternalLink } = useExternalLink()
 
 const { dialogs } = appStore
 const navMini = ref(true)
@@ -40,6 +42,50 @@ const authStore = useAuthStore()
 watch(route, () => {
   hideUI.value = route.meta?.hideUI ?? false
 })
+
+// Global click handler for external links
+function handleExternalLinkClick(event: MouseEvent) {
+  const target = event.target as HTMLElement
+  // Find the closest anchor tag or element with href
+  const anchor = target.closest('a[href]') as HTMLAnchorElement | null
+  if (!anchor) return
+
+  // Don't intercept router-link components (they have router-link-active class or are router-link elements)
+  if (
+    anchor.classList.contains('router-link-active') ||
+    anchor.classList.contains('router-link-exact-active') ||
+    anchor.tagName.toLowerCase() === 'router-link' ||
+    anchor.closest('router-link')
+  ) {
+    return
+  }
+
+  const href = anchor.getAttribute('href')
+  if (!href) return
+
+  // Check if it's an external link
+  const isExternal =
+    href.startsWith('http://') ||
+    href.startsWith('https://') ||
+    href.startsWith('mailto:') ||
+    href.startsWith('tel:') ||
+    href.startsWith('//') // Protocol-relative URLs
+
+  // Check if it's an internal route (starts with / but not http:// or https://)
+  const isInternalRoute = href.startsWith('/') && !href.startsWith('//')
+
+  // Don't intercept internal routes or anchors
+  if (isInternalRoute || href.startsWith('#')) {
+    return
+  }
+
+  // If it's external, prevent default and use opener
+  if (isExternal) {
+    event.preventDefault()
+    event.stopPropagation()
+    openExternalLink(href, anchor.target || '_blank')
+  }
+}
 
 onMounted(async () => {
   // TODO: Use maplibre if not authed or not on paid plan
@@ -56,6 +102,14 @@ onMounted(async () => {
     // Initialize categories for offline search
     categoryStore.init()
   }
+
+  // Add global click handler for external links
+  document.addEventListener('click', handleExternalLinkClick, true)
+})
+
+onUnmounted(() => {
+  // Remove global click handler
+  document.removeEventListener('click', handleExternalLinkClick, true)
 })
 
 function afterNavTransition(value: boolean) {

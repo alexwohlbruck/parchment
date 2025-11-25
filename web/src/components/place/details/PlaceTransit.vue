@@ -7,6 +7,7 @@ import type { Place, TransitDeparture, TransitStopInfo } from '@/types/place.typ
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { TrainIcon, BusIcon, ClockIcon, NavigationIcon, ExternalLinkIcon } from 'lucide-vue-next'
+import { useExternalLink } from '@/composables/useExternalLink'
 
 // Configure dayjs to handle time parsing
 dayjs.extend(customParseFormat)
@@ -16,6 +17,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const { openExternalLink } = useExternalLink()
 
 // Real-time updates for countdown
 const currentTime = ref(new Date())
@@ -223,7 +225,7 @@ function getDepartureTimeStyle(departure: TransitDeparture): Record<string, stri
 
 function openTransitlandLink() {
   if (transitInfo.value?.onestopId) {
-    window.open(`https://www.transit.land/stops/${transitInfo.value.onestopId}`, '_blank')
+    openExternalLink(`https://www.transit.land/stops/${transitInfo.value.onestopId}`, '_blank')
   }
 }
 </script>

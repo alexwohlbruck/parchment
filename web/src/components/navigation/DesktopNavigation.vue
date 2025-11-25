@@ -9,6 +9,8 @@ import { useAppStore } from '@/stores/app.store'
 import { capitalize } from '@/filters/text.filters'
 import { isTauri } from '@/lib/api'
 import { useWindowSize } from '@vueuse/core'
+import { useExternalLink } from '@/composables/useExternalLink'
+import { useMapService } from '@/services/map.service'
 
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -36,11 +38,15 @@ import {
 } from 'lucide-vue-next'
 import { useHotkeys } from '@/composables/useHotkeys'
 import { CommandName } from '@/stores/command.store'
+import { Icon } from '@/types/app.types'
+import { Hotkey } from '@/types/command.types'
 
 const router = useRouter()
 const { t } = useI18n()
 const authStore = useAuthStore()
 const { me } = storeToRefs(authStore)
+const { openExternalLink } = useExternalLink()
+const mapService = useMapService()
 
 const mini = defineModel('mini', { type: Boolean, default: true })
 const navRef = ref<HTMLElement | null>(null)
@@ -97,94 +103,99 @@ watch(
   { immediate: true, flush: 'post' },
 )
 
-const items = computed(() => {
-  return [
-    {
-      separator: true,
-    },
-    {
-      items: [
-        {
-          label: t('map.title'),
-          icon: MapIcon,
-          // hotkey: ['m'],
-          to: '/',
-        },
-        {
-          label: t('directions.title'),
-          icon: MilestoneIcon,
-          // hotkey: ['d'],
-          to: '/directions',
-        },
-      ],
-    },
-    {
-      separator: true,
-    },
-    {
-      items: [
-        {
-          label: capitalize(t('library.title')),
-          icon: LibraryIcon,
-          // hotkey: ['p'],
-          to: '/library',
-        },
-        {
-          label: t('timeline.title'),
-          icon: HistoryIcon,
-          // hotkey: ['t'],
-          to: '/timeline',
-        },
-        {
-          label: t('offlineMaps.title'),
-          // hotkey: ['o'],
-          icon: CloudOffIcon,
-          to: '/offline',
-        },
-        {
-          label: t('people.title'),
-          // hotkey: ['l'],
-          icon: UsersRoundIcon,
-          to: '/people',
-        },
-      ],
-    },
-    {
-      spacer: true,
-    },
-    {
-      items: [
-        {
-          label: mini.value
-            ? t('navigation.maximize')
-            : t('navigation.minimize'),
-          icon: PanelLeftIcon,
-          onClick: () => {
-            mini.value = !mini.value
-          },
-          hotkey: ['meta', 's'],
-          hotkeyId: 'toggle-nav-mini',
-        },
-        {
-          label: t('feedback.title'),
-          icon: MessageSquareQuoteIcon,
-          onClick: () => {
-            window.open(
-              'https://github.com/alexwohlbruck/parchment/issues',
-              '_blank',
-            )
-          },
-        },
-        {
-          label: t('settings.title'),
-          icon: SettingsIcon,
-          commandId: CommandName.OPEN_SETTINGS,
-          to: '/settings',
-        },
-      ],
-    },
-  ]
+watch(mini, () => {
+  nextTick(() => {
+    mapService.resize()
+  })
 })
+
+interface MenuItemDefinition {
+  separator?: boolean
+  items?: {
+    label: string
+    icon: Icon
+    hotkey?: Hotkey
+    hotkeyId?: string
+    commandId?: CommandName
+    to?: string
+    onClick?: () => void | Promise<void>
+  }[]
+  spacer?: boolean
+}
+const items = computed<MenuItemDefinition[]>(() => [
+  {
+    items: [
+      {
+        label: t('map.title'),
+        icon: MapIcon,
+        // hotkey: ['m'],
+        to: '/',
+      },
+      {
+        label: t('directions.title'),
+        icon: MilestoneIcon,
+        // hotkey: ['d'],
+        to: '/directions',
+      },
+      {
+        label: capitalize(t('library.title')),
+        icon: LibraryIcon,
+        // hotkey: ['p'],
+        to: '/library',
+      },
+      {
+        label: t('timeline.title'),
+        icon: HistoryIcon,
+        // hotkey: ['t'],
+        to: '/timeline',
+      },
+      {
+        label: t('offlineMaps.title'),
+        // hotkey: ['o'],
+        icon: CloudOffIcon,
+        to: '/offline',
+      },
+      {
+        label: t('people.title'),
+        // hotkey: ['l'],
+        icon: UsersRoundIcon,
+        to: '/people',
+      },
+    ],
+  },
+  {
+    spacer: true,
+  },
+  {
+    items: [
+      {
+        label: mini.value ? t('navigation.maximize') : t('navigation.minimize'),
+        icon: PanelLeftIcon,
+        onClick: () => {
+          mini.value = !mini.value
+        },
+        hotkey: ['meta', 's'],
+        hotkeyId: 'toggle-nav-mini',
+      },
+      {
+        label: t('feedback.title'),
+        icon: MessageSquareQuoteIcon,
+        onClick: () => {
+          openExternalLink(
+            'https://github.com/alexwohlbruck/parchment/issues',
+            '_blank',
+          )
+        },
+      },
+      {
+        label: t('settings.title'),
+        icon: SettingsIcon,
+        commandId: CommandName.OPEN_SETTINGS,
+        to: '/settings',
+      },
+    ],
+  },
+])
 </script>
 
 <template>
@@ -193,7 +204,7 @@ const items = computed(() => {
       ref="navRef"
       :class="
         cn(
-          'overflow-y-auto py-2 border-border border-r flex flex-col gap-2 items-stretch relative',
+          'overflow-y-auto pt-2 pb-1 border-border border-r flex flex-col gap-2 items-stretch relative',
           isTauri ? 'tauri-translucent' : 'bg-background',
           $attrs.class ?? '',
         )
@@ -204,8 +215,8 @@ const items = computed(() => {
       <div v-if="isTauri" class="h-3 w-16" data-tauri-drag-region></div>
 
       <h2
+        v-if="!isTauri"
         :class="cn('px-[.95rem] text-lg font-bold', mini ? 'ml-1.5' : 'ml-0')"
-        data-tauri-drag-region
       >
         <router-link
           to="/"
@@ -215,14 +226,12 @@ const items = computed(() => {
             class="w-5 h-11 scale-150 text-primary"
             aria-label="Parchment"
           />
-          <transition-expand axis="x" :duration="50" easing="ease-out">
-            <span
-              v-if="!mini"
-              class="text-nowrap text-base text-primary-950 dark:text-primary-100"
-            >
-              Parchment
-            </span>
-          </transition-expand>
+          <span
+            v-if="!mini"
+            class="text-nowrap text-base text-primary-950 dark:text-primary-100"
+          >
+            Parchment
+          </span>
         </router-link>
       </h2>
 
@@ -241,36 +250,27 @@ const items = computed(() => {
           <div class="flex flex-col px-1">
             <template v-for="subitem in item.items">
               <!-- v-if="subitem.to && (subitem.condition ?? true)" -->
-              <TooltipProvider
-                v-if="(subitem as any).onClick"
-                :disabled="!mini"
-              >
+              <TooltipProvider v-if="subitem.onClick" :disabled="!mini">
                 <Tooltip>
                   <TooltipTrigger as-child>
                     <Button
                       variant="ghost"
                       class="w-full flex px-3 justify-center gap-3 hover:bg-primary/5 hover:text-primary"
-                      @click=";(subitem as any).onClick"
+                      @click="subitem.onClick()"
                     >
                       <component :is="subitem.icon" class="size-5" />
-                      <transition-expand
-                        axis="x"
-                        :duration="50"
-                        easing="ease-out"
-                      >
-                        <div v-if="!mini" class="flex flex-1 gap-1 text-nowrap">
-                          <div class="flex-1 text-left">
-                            {{ subitem.label }}
-                          </div>
-
-                          <Kbd
-                            v-if="!mini && ((subitem as any).hotkey || (subitem as any).hotkeyId || (subitem as any).commandId)"
-                            :hotkey-id="(subitem as any).hotkeyId"
-                            :hotkey="(subitem as any).hotkeyId || (subitem as any).commandId ? undefined : (subitem as any).hotkey"
-                            :command-id="(subitem as any).commandId"
-                          ></Kbd>
+                      <div v-if="!mini" class="flex flex-1 gap-1 text-nowrap">
+                        <div class="flex-1 text-left">
+                          {{ subitem.label }}
                         </div>
-                      </transition-expand>
+
+                        <Kbd
+                          v-if="!mini && ((subitem as any).hotkey || (subitem as any).hotkeyId || (subitem as any).commandId)"
+                          :hotkey-id="(subitem as any).hotkeyId"
+                          :hotkey="(subitem as any).hotkeyId || (subitem as any).commandId ? undefined : (subitem as any).hotkey"
+                          :command-id="(subitem as any).commandId"
+                        ></Kbd>
+                      </div>
                     </Button>
                   </TooltipTrigger>
 
@@ -290,33 +290,24 @@ const items = computed(() => {
                       :to="subitem.to"
                       :class="
                         router.currentRoute.value.path === subitem.to
-                          ? 'bg-primary/5 text-primary'
+                          ? 'bg-primary/10 text-primary'
                           : ''
                       "
                     >
                       <router-link :to="subitem.to">
                         <component :is="subitem.icon" class="size-5" />
 
-                        <transition-expand
-                          axis="x"
-                          :duration="50"
-                          easing="ease-out"
-                        >
-                          <div
-                            v-if="!mini"
-                            class="flex flex-1 gap-1 text-nowrap"
-                          >
-                            <div class="flex-1">
-                              {{ subitem.label }}
-                            </div>
-
-                            <Kbd
-                              v-if="(subitem as any).hotkey || (subitem as any).commandId"
-                              :hotkey="(subitem as any).hotkey"
-                              :command-id="(subitem as any).commandId"
-                            ></Kbd>
+                        <div v-if="!mini" class="flex flex-1 gap-1 text-nowrap">
+                          <div class="flex-1">
+                            {{ subitem.label }}
                           </div>
-                        </transition-expand>
+
+                          <Kbd
+                            v-if="(subitem as any).hotkey || (subitem as any).commandId"
+                            :hotkey="(subitem as any).hotkey"
+                            :command-id="(subitem as any).commandId"
+                          ></Kbd>
+                        </div>
                       </router-link>
                     </Button>
                   </TooltipTrigger>
@@ -331,31 +322,36 @@ const items = computed(() => {
         </div>
       </template>
 
-      <router-link
-        to="/settings/account"
-        v-if="me"
-        :class="cn('px-2.5 flex items-center gap-2', mini ? 'ml-1.5' : 'ml-0')"
-      >
-        <Avatar size="xs">
-          <AvatarImage
-            v-if="me.picture"
-            :src="me.picture"
-            alt="@alexwohlbruck"
-          />
-          <AvatarFallback v-else>
-            {{ me.firstName?.charAt(0) }} {{ me.lastName?.charAt(0) }}
-          </AvatarFallback>
-        </Avatar>
+      <div class="px-1">
+        <router-link
+          to="/settings/account"
+          v-if="me"
+          :class="
+            cn(
+              'px-2.5 py-2 rounded-lg flex items-center gap-2 hover:bg-foreground/5',
+              mini ? 'ml-0.5' : 'ml-0',
+            )
+          "
+        >
+          <Avatar size="xs">
+            <AvatarImage
+              v-if="me.picture"
+              :src="me.picture"
+              alt="@alexwohlbruck"
+            />
+            <AvatarFallback v-else>
+              {{ me.firstName?.charAt(0) }} {{ me.lastName?.charAt(0) }}
+            </AvatarFallback>
+          </Avatar>
 
-        <transition-expand axis="x" :duration="50" easing="ease-out">
           <div class="flex flex-col text-nowrap" v-if="!mini">
             <span class="text-sm font-semibold leading-4">
               {{ me.firstName }} {{ me.lastName }}
             </span>
             <span class="text-xs text-gray-500 leading-4">{{ me.email }}</span>
           </div>
-        </transition-expand>
-      </router-link>
+        </router-link>
+      </div>
     </div>
   </div>
 </template>

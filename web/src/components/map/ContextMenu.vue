@@ -12,6 +12,7 @@ import { useMapStore } from '@/stores/map.store'
 import { encode } from 'pluscodes'
 import type { MenuItemDefinition } from '@/components/responsive/ResponsiveDropdown.vue'
 import BrandIcon from '@/components/ui/brand-icon/BrandIcon.vue'
+import { useExternalLink } from '@/composables/useExternalLink'
 import { siOpenstreetmap, siGooglemaps, siApple } from 'simple-icons/icons'
 import {
   PencilIcon,
@@ -30,6 +31,7 @@ const directionsService = useDirectionsService()
 const directionsStore = useDirectionsStore()
 const mapStore = useMapStore()
 const { t } = useI18n()
+const { openExternalLink } = useExternalLink()
 
 const { waypoints } = storeToRefs(directionsStore)
 const { mapCamera } = storeToRefs(mapStore)
@@ -97,19 +99,19 @@ function openMapEditor(editor: 'id' | 'rapid' | 'josm') {
   if (!clickedLngLat.value) return
   switch (editor) {
     case 'id':
-      window.open(
+      openExternalLink(
         `https://www.openstreetmap.org/edit?editor=id#map=18/${clickedLngLat.value.lat}/${clickedLngLat.value.lng}`,
         '_blank',
       )
       break
     case 'rapid':
-      window.open(
+      openExternalLink(
         `https://mapwith.ai/rapid?#map=18/${clickedLngLat.value.lat}/${clickedLngLat.value.lng}&photo_overlay=mapillary&photo=mapillary/147417114029979`,
         '_blank',
       )
       break
     case 'josm':
-      window.open(
+      openExternalLink(
         `http://127.0.0.1:8111/load_and_zoom?left=${clickedLngLat.value.lng}&right=${clickedLngLat.value.lng}&top=${clickedLngLat.value.lat}&bottom=${clickedLngLat.value.lat}`,
         '_blank',
       )
@@ -123,7 +125,7 @@ function openExternalMap(
   if (!clickedLngLat.value) return
   switch (service) {
     case 'osm':
-      window.open(
+      openExternalLink(
         `https://www.openstreetmap.org/#map=${Math.ceil(
           mapCamera.value.zoom,
         )}/${clickedLngLat.value.lat}/${clickedLngLat.value.lng}`,
@@ -131,20 +133,20 @@ function openExternalMap(
       )
       break
     case 'google':
-      window.open(
+      openExternalLink(
         `https://www.google.com/maps/@${clickedLngLat.value.lat},${clickedLngLat.value.lng},${mapCamera.value.zoom}z`,
         '_blank',
       )
       break
     case 'apple':
       const span = Math.pow(2, 20 - mapCamera.value.zoom) / 1024
-      window.open(
+      openExternalLink(
         `https://maps.apple.com/frame?center=${clickedLngLat.value.lat}%2C${clickedLngLat.value.lng}&span=${span}%2C${span}`,
         '_blank',
       )
       break
     case 'yandex':
-      window.open(
+      openExternalLink(
         `https://yandex.com/maps/?ll=${clickedLngLat.value.lng}%2C${
           clickedLngLat.value.lat
         }&z=${Math.ceil(mapCamera.value.zoom)}`,
@@ -152,7 +154,7 @@ function openExternalMap(
       )
       break
     case '2gis':
-      window.open(
+      openExternalLink(
         `https://2gis.ae/?m=${clickedLngLat.value.lng}%2C${clickedLngLat.value.lat}%2F${mapCamera.value.zoom}&immersive=on`,
         '_blank',
       )

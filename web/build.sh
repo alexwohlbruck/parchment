@@ -48,7 +48,7 @@ case $PLATFORM in
     ;;
   android-apk)
     echo "🤖 Building Android app (APK)..."
-    bun tauri android build --apk --verbose
+    bun tauri android build --apk true --verbose
     ;;
   all)
     echo "🌍 Building for all platforms..."

@@ -135,6 +135,11 @@
         "name": "Atajos de teclado",
         "description": "Ver todos los atajos de teclado disponibles"
       },
+      "openSettings": {
+        "name": "Abrir configuración",
+        "description": "Abrir la página de configuración",
+        "keywords": "configuración preferencias config"
+      },
       "updateLanguage": {
         "name": "Cambiar idioma",
         "description": "Cambiar el idioma de la aplicación",
@@ -408,7 +413,9 @@
   },
   "navigation": {
     "minimize": "Minimizar",
-    "maximize": "Maximizar"
+    "maximize": "Maximizar",
+    "toggle": "Alternar navegación",
+    "toggleDescription": "Alternar la barra lateral de navegación entre minimizada y expandida"
   },
   "attribution": {
     "poweredBy": "Desarrollado por",

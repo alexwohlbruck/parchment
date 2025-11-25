@@ -37,6 +37,7 @@ import {
   MessageSquareQuoteIcon,
 } from 'lucide-vue-next'
 import { useHotkeys } from '@/composables/useHotkeys'
+import { useFullscreen } from '@/composables/useFullscreen'
 import { CommandName } from '@/stores/command.store'
 import { Icon } from '@/types/app.types'
 import { Hotkey } from '@/types/command.types'
@@ -47,6 +48,7 @@ const authStore = useAuthStore()
 const { me } = storeToRefs(authStore)
 const { openExternalLink } = useExternalLink()
 const mapService = useMapService()
+const { isFullscreen } = useFullscreen()
 
 const mini = defineModel('mini', { type: Boolean, default: true })
 const navRef = ref<HTMLElement | null>(null)
@@ -204,7 +206,7 @@ const items = computed<MenuItemDefinition[]>(() => [
       ref="navRef"
       :class="
         cn(
-          'overflow-y-auto pt-2 pb-1 border-border border-r flex flex-col gap-2 items-stretch relative',
+          'overflow-y-auto py-1 border-border border-r flex flex-col gap-2 items-stretch relative',
           isTauri ? 'tauri-translucent' : 'bg-background',
           $attrs.class ?? '',
         )
@@ -212,7 +214,12 @@ const items = computed<MenuItemDefinition[]>(() => [
       data-tauri-drag-region
     >
       <!-- Spacer for traffic lights on macOS - draggable -->
-      <div v-if="isTauri" class="h-3 w-16" data-tauri-drag-region></div>
+      <!-- Hide spacer in fullscreen mode since traffic lights are hidden -->
+      <div
+        v-if="isTauri && !isFullscreen"
+        class="h-4 w-16"
+        data-tauri-drag-region
+      ></div>
 
       <h2
         v-if="!isTauri"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onClickOutside, useMagicKeys, useDebounceFn } from '@vueuse/core'
 import { useRoute, useRouter } from 'vue-router'
@@ -255,14 +255,13 @@ watch(query, newQuery => {
   debouncedLoadOptions()
 })
 
-// When the palette becomes visible, check if there's an active argument and open it
+// Load argument options on open if command is selected and requires arguments
 watch(
   () => props.open,
-  isOpen => {
-    if (isOpen && activeArgument.value) {
-      openPalette()
-    }
+  async isOpen => {
+    if (isOpen && activeArgument.value) await loadArgumentOptions()
   },
+  { immediate: true },
 )
 
 watch(escape, value => {

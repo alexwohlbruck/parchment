@@ -32,21 +32,17 @@
     "all": "Todos"
   },
   "palette": {
-    "general": {
-      "yes": "Sí",
-      "no": "No",
-      "cancel": "Cancelar",
-      "continue": "Continuar",
-      "delete": "Eliminar",
-      "confirm": "Confirmar",
-      "close": "Cerrar",
-      "save": "Guardar",
-      "name": "Nombre"
-    },
     "placeholder": {
       "default": "Buscar cerca...",
       "command": "Ejecutar comando...",
       "argument": "Buscar un elemento..."
+    },
+    "footer": {
+      "moveUpDown": "Mover arriba/abajo",
+      "open": "Seleccionar",
+      "close": "Cerrar",
+      "openPalette": "Abrir paleta",
+      "commandGuide": "Guía de comandos"
     },
     "commands": {
       "openPalette": {

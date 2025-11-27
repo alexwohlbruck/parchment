@@ -13,6 +13,10 @@ export enum DialogType {
   Drawer,
 }
 
+export type AppEvents = {
+  'palette:open': void
+}
+
 export interface BaseDialogOptions {
   title?: string
   description?: string

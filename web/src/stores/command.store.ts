@@ -37,7 +37,6 @@ import { Icon } from '@/types/app.types'
 import { AppRoute } from '@/router'
 
 export enum CommandName {
-  OPEN_PALETTE = 'openPalette',
   SEARCH = 'search',
   GOTO = 'goto',
   TOGGLE_THEME = 'toggleTheme',
@@ -84,6 +83,7 @@ export const useCommandStore = defineStore('command', () => {
   const { settings } = storeToRefs(mapStore)
 
   function commandIsAvailable(command: Command) {
+    // Check command is compatible with map engine
     if (!command.engine || command.engine?.includes(settings.value.engine)) {
       return true
     }
@@ -118,26 +118,8 @@ export const useCommandStore = defineStore('command', () => {
     return items as CommandArgumentOption[]
   }
 
-  function bindCommandToFunction(id: CommandName, action: Function) {
-    const command = getCommand(id)
-    if (command) {
-      command.action = (...args: any[]) => {
-        if (commandIsAvailable(command)) {
-          action(...args)
-        }
-      }
-    }
-  }
-
   const commands = computed<Command[]>(() => {
     return [
-      {
-        id: CommandName.OPEN_PALETTE,
-        name: t('palette.commands.openPalette.name'),
-        description: t('palette.commands.openPalette.description'),
-        hotkey: ['mod', 'k'],
-        icon: TerminalIcon,
-      },
       {
         id: CommandName.SEARCH,
         name: t('palette.commands.search.name'),
@@ -470,7 +452,6 @@ export const useCommandStore = defineStore('command', () => {
     getCommand,
     useCommand,
     getCommandArgumentOptions,
-    bindCommandToFunction,
     commands,
   }
 })

@@ -87,7 +87,11 @@ watch(isFullyExpanded, newVal => {
       class="flex flex-col min-h-full p-2 bg-muted shadow-md rounded-b-none border-0 pb-[min(calc(env(safe-area-inset-bottom)-.25rem), 1rem)]"
     >
       <div class="relative mb-1">
-        <Palette ref="paletteRef" @input-focused="handlePaletteInputFocused" />
+        <Palette
+          ref="paletteRef"
+          @input-focused="handlePaletteInputFocused"
+          search-on-open
+        />
       </div>
 
       <transition-expand>

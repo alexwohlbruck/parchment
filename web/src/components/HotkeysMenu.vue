@@ -15,6 +15,7 @@ import Span from '@/components/ui/typography/Span.vue'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { useHotkeyStore } from '@/stores/hotkey.store'
 import type { Command } from '@/types/command.types'
+import { useHotkeys } from '@/composables/useHotkeys'
 
 const commandService = useCommandService()
 const commandStore = useCommandStore()
@@ -59,10 +60,15 @@ watch(open, value => {
   if (!value) query.value = ''
 })
 
-commandService.bindCommandToFunction(
-  CommandName.OPEN_HOTKEYS_MENU,
-  openHotkeysMenu,
-)
+useHotkeys([
+  {
+    id: 'open-hotkeys-menu',
+    key: ['h'],
+    name: 'Open hotkeys menu',
+    description: 'Open the hotkeys menu',
+    handler: openHotkeysMenu,
+  },
+])
 </script>
 
 <template>

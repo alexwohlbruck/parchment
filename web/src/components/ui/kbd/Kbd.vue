@@ -43,7 +43,6 @@ const hotkey = computed(() => {
   if (props.hotkey) {
     return props.hotkey
   } else if (props.hotkeyId) {
-    // Get hotkey array from store (compatible with command store format)
     return hotkeyStore.getHotkeyById(props.hotkeyId) ?? []
   } else if (props.commandId) {
     return commandService.getHotkey(props.commandId) ?? []
@@ -59,6 +58,12 @@ const displayString = computed(() => {
       if (key === 'ctrl') return 'Ctrl'
       if (key === 'shift') return 'Shift'
       if (key === 'alt') return 'Alt'
+      if (key === 'enter' || key === 'return') return 'RETURN'
+      if (key === 'escape' || key === 'esc') return 'ESC'
+      if (key === 'up' || key === 'arrowup') return '↑'
+      if (key === 'down' || key === 'arrowdown') return '↓'
+      if (key === 'left' || key === 'arrowleft') return '←'
+      if (key === 'right' || key === 'arrowright') return '→'
       return key.toUpperCase()
     })
     .join(' ')

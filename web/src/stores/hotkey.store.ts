@@ -1,6 +1,13 @@
 import { defineStore } from 'pinia'
 import { computed } from 'vue'
 import { type Hotkey } from '@/types/command.types'
+import { CommandName } from '@/stores/command.store'
+
+export enum HotkeyId {
+  TOGGLE_NAV_MINI = 'toggle-nav-mini',
+  COMMAND_PALETTE = 'command-palette',
+  SEARCH = 'search',
+}
 
 export interface EphemeralHotkey {
   id: string
@@ -95,9 +102,7 @@ export const useHotkeyStore = defineStore('hotkey', () => {
       : hotkeyStringToArray(key)
 
     // Convert to string for mousetrap binding
-    const mousetrapKey = Array.isArray(key)
-      ? hotkeyArrayToString(key)
-      : key
+    const mousetrapKey = Array.isArray(key) ? hotkeyArrayToString(key) : key
 
     // Register ephemeral hotkey if ID is provided
     if (id && name && description) {
@@ -123,9 +128,7 @@ export const useHotkeyStore = defineStore('hotkey', () => {
    */
   function unregisterBinding(key: string | Hotkey) {
     // Convert to string for mousetrap unbinding
-    const mousetrapKey = Array.isArray(key)
-      ? hotkeyArrayToString(key)
-      : key
+    const mousetrapKey = Array.isArray(key) ? hotkeyArrayToString(key) : key
 
     const binding = activeBindings.get(mousetrapKey)
     if (binding?.id) {
@@ -167,9 +170,7 @@ export const useHotkeyStore = defineStore('hotkey', () => {
   const ephemeralHotkeysList = computed(() =>
     Array.from(ephemeralHotkeys.values()),
   )
-  const activeBindingsList = computed(() =>
-    Array.from(activeBindings.values()),
-  )
+  const activeBindingsList = computed(() => Array.from(activeBindings.values()))
 
   return {
     // Computed state (reactive)
@@ -187,4 +188,3 @@ export const useHotkeyStore = defineStore('hotkey', () => {
     getBinding,
   }
 })
-

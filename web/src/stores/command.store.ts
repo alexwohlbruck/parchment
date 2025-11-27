@@ -35,6 +35,7 @@ import { useCategoryStore } from '@/stores/category.store'
 import { formatAddress } from '@/lib/place.utils'
 import { Icon } from '@/types/app.types'
 import { AppRoute } from '@/router'
+import ColorCommandArgumentOption from '@/components/palette/custom-items/ColorCommandArgumentOption.vue'
 
 export enum CommandName {
   SEARCH = 'search',
@@ -292,6 +293,7 @@ export const useCommandStore = defineStore('command', () => {
             id: 'color',
             name: t('palette.commands.updateThemeColor.arguments.color.name'),
             type: 'string',
+            customItemComponent: ColorCommandArgumentOption,
             getItems() {
               // TODO: This get called for each item, should be called once
               return allColors.map(color => ({

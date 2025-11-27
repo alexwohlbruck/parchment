@@ -42,10 +42,12 @@ const props = withDefaults(
   defineProps<{
     searchOnOpen?: boolean
     open?: boolean
+    showHints?: boolean
   }>(),
   {
     searchOnOpen: false,
     open: true,
+    showHints: false,
   },
 )
 
@@ -338,8 +340,8 @@ const filterFunction = computed(() => {
                 class="absolute flex gap-1 transition-all duration-200"
                 :class="showResults || isDrawerOpen ? 'right-6' : 'right-0'"
               >
-                <Kbd commandId="search"></Kbd>
-                <Kbd commandId="openPalette"></Kbd>
+                <!-- TODO: Detect if device has keyboard -->
+                <!-- <Kbd commandId="search"></Kbd> -->
               </div>
             </transition-slide>
             <transition-slide :duration="200" :offset="['100%', 0]">
@@ -439,7 +441,9 @@ const filterFunction = computed(() => {
         </CommandList>
       </template>
 
+      <!-- Keyboard shortcut hints -->
       <div
+        v-if="showHints"
         class="flex items-center gap-4 px-3 py-2 text-xs text-muted-foreground bg-muted/50 border-t border-border"
       >
         <div class="flex items-center gap-1.5">

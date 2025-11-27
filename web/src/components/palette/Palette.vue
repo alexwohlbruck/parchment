@@ -6,6 +6,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useCommandService } from '@/services/command.service'
 import { CommandName, useCommandStore } from '@/stores/command.store'
 import { useAppStore } from '@/stores/app.store'
+import { HotkeyId } from '@/stores/hotkey.store'
 import { AppRoute } from '@/router'
 import {
   ArgumentType,
@@ -34,7 +35,19 @@ import { TransitionSlide } from '@morev/vue-transitions'
 
 const emit = defineEmits<{
   (e: 'inputFocused'): void
+  (e: 'update:open', value: boolean): void
 }>()
+
+const props = withDefaults(
+  defineProps<{
+    searchOnOpen?: boolean
+    open?: boolean
+  }>(),
+  {
+    searchOnOpen: false,
+    open: true,
+  },
+)
 
 const { t } = useI18n()
 const route = useRoute()
@@ -42,7 +55,6 @@ const commandStore = useCommandStore()
 const appStore = useAppStore()
 const router = useRouter()
 const {
-  bindCommandToFunction,
   activeCommand,
   activeArgument,
   argumentsList,
@@ -52,7 +64,10 @@ const {
 } = useCommandService()
 
 const query = ref('')
-const commandOpen = ref(true)
+const commandOpen = computed({
+  get: () => props.open ?? true,
+  set: value => emit('update:open', value),
+})
 const showResults = ref(false)
 const isDrawerOpen = computed(() => {
   return appStore.obstructingComponentsMap.has('left-sheet')
@@ -67,14 +82,9 @@ const commandPalette = ref<InstanceType<typeof Command>>()
 const input = ref<InstanceType<typeof CommandInput>>()
 const { escape } = useMagicKeys()
 
-bindCommandToFunction(CommandName.OPEN_PALETTE, focusInput)
-
 const filteredCommands = computed(() => {
-  // Don't include the openPalette command in the results, we are already looking at the search palette
-  const availableCommands = commandStore.commands.filter(
-    command =>
-      command.id != CommandName.OPEN_PALETTE &&
-      commandStore.commandIsAvailable(command),
+  const availableCommands = commandStore.commands.filter(command =>
+    commandStore.commandIsAvailable(command),
   )
 
   return filterFunction.value
@@ -94,11 +104,15 @@ function openPalette(withSearch = false) {
   focusInput()
 
   if (withSearch) {
-    const searchCommand = commandStore.commands.find(
-      command => command.id === 'search',
-    )
-    executeCommand(searchCommand!)
+    openSearchCommand()
   }
+}
+
+function openSearchCommand() {
+  const searchCommand = commandStore.commands.find(
+    command => command.id === 'search',
+  )
+  executeCommand(searchCommand!)
 }
 
 function closePalette() {
@@ -127,6 +141,7 @@ function focusInput() {
 
 function blurInput() {
   input.value?.inputElement?.blur()
+  commandOpen.value = false
 }
 
 function clearInput() {
@@ -140,17 +155,19 @@ function resetPalette() {
 
 // Expose functions for parent components
 defineExpose({
+  openPalette,
   closePalette,
   resetPalette,
   focusInput,
   blurInput,
   clearInput,
+  openSearchCommand,
 })
 
 function inputFocused(event: FocusEvent) {
   emit('inputFocused')
   if (!showResults.value) {
-    openPalette(true)
+    openPalette(props.searchOnOpen)
   }
 }
 
@@ -238,12 +255,15 @@ watch(query, newQuery => {
   debouncedLoadOptions()
 })
 
-// If a command is executed that needs arguments, open the palette
-watch(activeArgument, (newVal, prevVal) => {
-  if (newVal) {
-    openPalette()
-  }
-})
+// When the palette becomes visible, check if there's an active argument and open it
+watch(
+  () => props.open,
+  isOpen => {
+    if (isOpen && activeArgument.value) {
+      openPalette()
+    }
+  },
+)
 
 watch(escape, value => {
   if (value) {
@@ -288,9 +308,9 @@ const filterFunction = computed(() => {
 <template>
   <div ref="container">
     <Command
-      class="border border-border bg-background"
+      class="border border-border bg-background/85 backdrop-blur-xl backdrop-saturate-150"
       ref="commandPalette"
-      :open="commandOpen"
+      v-model:open="commandOpen"
       :ignore-filter="true"
     >
       <CommandInput
@@ -301,7 +321,7 @@ const filterFunction = computed(() => {
         @keydown.backspace="onBackspace()"
       >
         <template v-slot:prefix>
-          <component :is="icon" class="size-4 shrink-0 opacity-50" />
+          <component :is="icon" class="size-4! shrink-0 opacity-50" />
 
           <template v-if="activeCommand">
             <div
@@ -329,7 +349,7 @@ const filterFunction = computed(() => {
                 class="absolute right-0 w-4"
               >
                 <XIcon
-                  class="size-4 cursor-pointer opacity-50 hover:opacity-100"
+                  class="size-4! cursor-pointer opacity-50 hover:opacity-100"
                   @click="resetOrClose()"
                 />
               </div>
@@ -419,6 +439,30 @@ const filterFunction = computed(() => {
           </CommandGroup>
         </CommandList>
       </template>
+
+      <div
+        class="flex items-center gap-4 px-3 py-2 text-xs text-muted-foreground bg-muted/50 border-t border-border"
+      >
+        <div class="flex items-center gap-1.5">
+          <Kbd :hotkeyId="HotkeyId.COMMAND_PALETTE" size="xs" />
+          <span>{{ t('palette.footer.openPalette') }}</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <div class="flex items-center gap-0.5">
+            <Kbd :hotkey="['up']" size="xs" />
+            <Kbd :hotkey="['down']" size="xs" />
+          </div>
+          <span>{{ t('palette.footer.moveUpDown') }}</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <Kbd :hotkey="['enter']" size="xs" />
+          <span>{{ t('palette.footer.open') }}</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <Kbd :hotkey="['escape']" size="xs" />
+          <span>{{ t('palette.footer.close') }}</span>
+        </div>
+      </div>
     </Command>
   </div>
 </template>

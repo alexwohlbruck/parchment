@@ -42,7 +42,7 @@ const clickedLngLat = ref<LngLat | null>(null)
 
 onMounted(() => {
   mapEventBus.on('contextmenu', e => {
-    contextMenuPosition.value = { x: e.point.x, y: e.point.y - 4 }
+    contextMenuPosition.value = { x: e.point.x + 52, y: e.point.y - 4 } // TODO: Fix offset (something to do with viewport width, sidebar)
     clickedLngLat.value = e.lngLat
     showContextMenu.value = true
   })

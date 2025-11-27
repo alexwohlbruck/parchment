@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, watch, nextTick } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth.store'
+import { useCommandStore } from '@/stores/command.store'
 import { useAppStore } from '@/stores/app.store'
 import { capitalize } from '@/filters/text.filters'
 import { isTauri } from '@/lib/api'
 import { useWindowSize } from '@vueuse/core'
 import { useExternalLink } from '@/composables/useExternalLink'
 import { useMapService } from '@/services/map.service'
+import { appEventBus } from '@/lib/eventBus'
 
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -25,7 +27,7 @@ import Kbd from '@/components/ui/kbd/Kbd.vue'
 import ParchmentLogo from '@/assets/parchment.svg?component'
 import {
   MapIcon,
-  MilestoneIcon,
+  CornerUpRightIcon,
   BookMarkedIcon,
   HistoryIcon,
   CloudOffIcon,
@@ -39,8 +41,13 @@ import {
 import { useHotkeys } from '@/composables/useHotkeys'
 import { useFullscreen } from '@/composables/useFullscreen'
 import { CommandName } from '@/stores/command.store'
+import { HotkeyId } from '@/stores/hotkey.store'
 import { Icon } from '@/types/app.types'
 import { Hotkey } from '@/types/command.types'
+import Palette from '@/components/palette/Palette.vue'
+import { CommandDialog } from '@/components/ui/command'
+import { SearchIcon } from 'lucide-vue-next'
+import { useCommandService } from '@/services/command.service'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -49,19 +56,30 @@ const { me } = storeToRefs(authStore)
 const { openExternalLink } = useExternalLink()
 const mapService = useMapService()
 const { isFullscreen } = useFullscreen()
+const commandService = useCommandService()
+const commandStore = useCommandStore()
 
 const mini = defineModel('mini', { type: Boolean, default: true })
 const navRef = ref<HTMLElement | null>(null)
 const appStore = useAppStore()
 const { width: windowWidth, height: windowHeight } = useWindowSize()
+const paletteDialogOpen = ref(false)
+const paletteDialogRef = ref<InstanceType<typeof Palette> | null>(null)
 
 useHotkeys([
   {
-    id: 'toggle-nav-mini',
-    key: ['meta', 's'], // Compatible with command store format
+    id: HotkeyId.TOGGLE_NAV_MINI,
+    key: ['s'],
     name: t('navigation.toggle'),
     description: t('navigation.toggleDescription'),
     handler: () => (mini.value = !mini.value),
+  },
+  {
+    id: HotkeyId.COMMAND_PALETTE,
+    key: ['mod', 'k'],
+    name: t('palette.commands.search.name'),
+    description: t('palette.commands.search.description'),
+    handler: () => openPalette(),
   },
 ])
 
@@ -124,25 +142,47 @@ interface MenuItemDefinition {
   }[]
   spacer?: boolean
 }
+
+function openPalette(withSearch = false) {
+  paletteDialogOpen.value = true
+  if (withSearch) {
+    // Active search command
+    commandService.executeCommand(commandStore.getCommand(CommandName.SEARCH)!)
+  }
+}
+
+// If command is executed with hotkey, open the palette
+const handlePaletteOpen = () => {
+  openPalette()
+}
+
+onMounted(() => {
+  appEventBus.on('palette:open', handlePaletteOpen)
+})
+
+onUnmounted(() => {
+  appEventBus.off('palette:open', handlePaletteOpen)
+})
+
 const items = computed<MenuItemDefinition[]>(() => [
   {
     items: [
       {
-        label: t('map.title'),
-        icon: MapIcon,
-        // hotkey: ['m'],
-        to: '/',
+        label: t('palette.commands.search.name'),
+        icon: SearchIcon,
+        onClick: () => openPalette(true),
+        commandId: CommandName.SEARCH,
       },
       {
         label: t('directions.title'),
-        icon: MilestoneIcon,
+        icon: CornerUpRightIcon,
         // hotkey: ['d'],
         to: '/directions',
       },
       {
         label: capitalize(t('library.title')),
         icon: LibraryIcon,
-        // hotkey: ['p'],
+        // hotkey: ['l'],
         to: '/library',
       },
       {
@@ -176,8 +216,7 @@ const items = computed<MenuItemDefinition[]>(() => [
         onClick: () => {
           mini.value = !mini.value
         },
-        hotkey: ['meta', 's'],
-        hotkeyId: 'toggle-nav-mini',
+        hotkeyId: HotkeyId.TOGGLE_NAV_MINI,
       },
       {
         label: t('feedback.title'),
@@ -221,10 +260,7 @@ const items = computed<MenuItemDefinition[]>(() => [
         data-tauri-drag-region
       ></div>
 
-      <h2
-        v-if="!isTauri"
-        :class="cn('px-[.95rem] text-lg font-bold', mini ? 'ml-1.5' : 'ml-0')"
-      >
+      <h2 v-if="!isTauri" class="px-[.95rem] text-lg font-bold">
         <router-link
           to="/"
           class="flex items-center gap-3 hover:opacity-85 dark:hover:opacity-90 transition-opacity cursor-pointer"
@@ -241,6 +277,14 @@ const items = computed<MenuItemDefinition[]>(() => [
           </span>
         </router-link>
       </h2>
+
+      <CommandDialog
+        v-model:open="paletteDialogOpen"
+        modal
+        class="top-[20%] translate-y-0"
+      >
+        <Palette ref="paletteDialogRef" v-model:open="paletteDialogOpen" />
+      </CommandDialog>
 
       <template v-for="(item, i) in items" :key="i">
         <Separator
@@ -335,8 +379,7 @@ const items = computed<MenuItemDefinition[]>(() => [
           v-if="me"
           :class="
             cn(
-              'px-2.5 py-2 rounded-lg flex items-center gap-2 hover:bg-foreground/5',
-              mini ? 'ml-0.5' : 'ml-0',
+              'px-1 py-2 rounded-lg flex flex-row justify-center gap-2 hover:bg-foreground/5',
             )
           "
         >

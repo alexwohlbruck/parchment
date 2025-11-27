@@ -6,7 +6,6 @@ import { useResponsive } from '@/lib/utils'
 
 import { TransitionSlide } from '@morev/vue-transitions'
 import { useAppStore } from '@/stores/app.store'
-import Palette from '@/components/palette/Palette.vue'
 import Map from '@/components/map/Map.vue'
 import StreetView from '@/components/map/StreetView.vue'
 import LayerControl from '@/components/map/controls/LayerControl.vue'
@@ -209,9 +208,7 @@ defineExpose({
                 v-if="isNavTransitioning && !isMobileScreen"
                 class="pointer-events-auto flex gap-2"
               >
-                <Palette class="h-fit w-100" />
-
-                <MapChips v-if="!isDrawerOpen" />
+                <!-- <MapChips v-if="!isDrawerOpen" /> -->
               </div>
             </transition-slide>
           </div>
@@ -229,9 +226,6 @@ defineExpose({
                 v-if="isNavTransitioning"
                 class="pointer-events-auto flex flex-col gap-2 items-start"
               >
-                <!-- Palette placeholder -->
-                <div class="h-11 w-100" v-if="!isMobileScreen"></div>
-
                 <ScaleControl />
               </div>
             </transition-slide>

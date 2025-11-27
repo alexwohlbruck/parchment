@@ -37,13 +37,20 @@
       "command": "Run command...",
       "argument": "Find an item..."
     },
+    "footer": {
+      "moveUpDown": "Move up/down",
+      "open": "Open",
+      "close": "Close",
+      "openPalette": "Open palette",
+      "commandGuide": "Command guide"
+    },
     "commands": {
       "openPalette": {
         "name": "Command palette",
         "description": "Run a command"
       },
       "search": {
-        "name": "Search places",
+        "name": "Search",
         "description": "Search for places, businesses, and amenities",
         "keywords": "find locate",
         "arguments": {

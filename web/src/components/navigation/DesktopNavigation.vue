@@ -283,7 +283,7 @@ const items = computed<MenuItemDefinition[]>(() => [
         modal
         class="top-[20%] translate-y-0"
       >
-        <Palette ref="paletteDialogRef" v-model:open="paletteDialogOpen" />
+        <Palette ref="paletteDialogRef" v-model:open="paletteDialogOpen" :show-hints="true" />
       </CommandDialog>
 
       <template v-for="(item, i) in items" :key="i">

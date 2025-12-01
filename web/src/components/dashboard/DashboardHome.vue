@@ -1,36 +1,30 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import { storeToRefs } from 'pinia'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
-import { useCollectionsStore } from '@/stores/library/collections.store'
+import { useAuthStore } from '@/stores/auth.store'
 import { Card } from '@/components/ui/card'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { ItemIcon } from '@/components/ui/item-icon'
-import {
-  MapIcon,
-  HistoryIcon,
-  UsersRoundIcon,
-  SettingsIcon,
-  LibraryIcon,
-  MilestoneIcon,
-  BookmarkIcon,
-  RouteIcon,
-  MapPinIcon,
-  NavigationIcon,
-} from 'lucide-vue-next'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import BookmarkCard from '@/components/library/BookmarkCard.vue'
 import { H4 } from '@/components/ui/typography'
-import type { Bookmark } from '@/types/library.types'
-import { ThemeColor } from '@/lib/utils'
+import { AppRoute } from '@/router'
+import type { ThemeColor } from '@/lib/utils'
+import { capitalize } from '@/filters/text.filters'
 
 const router = useRouter()
 const { t } = useI18n()
 const bookmarksStore = useBookmarksStore()
-const collectionsStore = useCollectionsStore()
+const authStore = useAuthStore()
+const { me } = storeToRefs(authStore)
+
+// Inject minimize function from MobileNavigation
+const minimizeSheet = inject<() => void>('minimizeMobileSheet', () => {})
 
 const recentBookmarks = computed(() => {
-  // Sort by createdAt desc and take top 5
   return [...bookmarksStore.bookmarks]
     .sort(
       (a, b) =>
@@ -39,208 +33,193 @@ const recentBookmarks = computed(() => {
     .slice(0, 5)
 })
 
-const recentCollections = computed(() => {
-  return collectionsStore.collections.slice(0, 4)
-})
+const libraryTabs = computed(() => [
+  {
+    id: 'collections',
+    icon: 'FolderOpen',
+    color: 'blue' as ThemeColor,
+    route: AppRoute.LIBRARY_COLLECTIONS,
+    label: capitalize(t('library.entities.collections.title.plural')),
+  },
+  {
+    id: 'routes',
+    icon: 'Route',
+    color: 'green' as ThemeColor,
+    route: AppRoute.LIBRARY_ROUTES,
+    label: capitalize(t('library.entities.routes.title.plural')),
+  },
+  {
+    id: 'layers',
+    icon: 'Layers3',
+    color: 'orange' as ThemeColor,
+    route: AppRoute.LIBRARY_LAYERS,
+    label: capitalize(t('library.entities.layers.title.plural')),
+  },
+  {
+    id: 'maps',
+    icon: 'Map',
+    color: 'violet' as ThemeColor,
+    route: AppRoute.LIBRARY_MAPS,
+    label: capitalize(t('library.entities.maps.title.plural')),
+  },
+])
 
-function navigateToPlace(bookmark: Bookmark) {
-  const route = bookmarksStore.navigateToBookmark(bookmark)
-  if (route) {
-    router.push(route)
-  }
+function navigateTo(path: string) {
+  minimizeSheet()
+  router.push(path)
+}
+
+function navigateToRoute(routeName: AppRoute) {
+  minimizeSheet()
+  router.push({ name: routeName })
 }
 </script>
 
 <template>
-  <div>
-    <div class="pt-1 space-y-6 pb-24">
-      <!-- Navigation Grid (Bento Layout) -->
-      <div class="grid grid-cols-2 gap-2">
-        <!-- Library Card (Full Width) -->
-        <Card
-          class="col-span-2 p-4 pb-2 hover:bg-card transition-colors cursor-pointer border shadow-none"
-          @click="router.push('/library')"
+  <div class="flex flex-col h-full pt-2">
+    <div class="pt-1 space-y-4 flex-1">
+      <!-- Library Section -->
+      <div>
+        <H4
+          class="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1"
+          >{{ t('library.title') }}</H4
         >
-          <div class="flex items-center gap-2 mb-2">
-            <div class="p-2 bg-blue-500/10 rounded-lg">
-              <LibraryIcon class="w-5 h-5 text-blue-600" />
-            </div>
-            <div class="flex flex-col">
-              <H4 class="text-base leading-none">Library</H4>
-              <span class="text-xs text-muted-foreground mt-1"
-                >{{ bookmarksStore.bookmarks.length }} saved places</span
-              >
-            </div>
-          </div>
+        <div class="grid grid-cols-2 gap-2">
+          <Card
+            v-for="tab in libraryTabs"
+            :key="tab.id"
+            class="p-3 flex flex-col items-start justify-between gap-1 hover:bg-card transition-colors cursor-pointer border shadow-none h-24"
+            @click="navigateToRoute(tab.route)"
+          >
+            <ItemIcon
+              :icon="tab.icon"
+              :color="tab.color"
+              size="sm"
+              variant="ghost"
+            />
+            <span class="font-medium text-sm">{{ tab.label }}</span>
+          </Card>
+        </div>
+      </div>
 
-          <div class="grid grid-cols-4 gap-2">
-            <div
-              class="flex flex-col items-center gap-1 p-2 rounded-md hover:bg-muted/50 transition-colors"
-            >
-              <div class="p-2 bg-muted rounded-full">
-                <MapPinIcon class="w-4 h-4 text-foreground" />
-              </div>
-              <span class="text-[11px] font-medium text-muted-foreground"
-                >Pinned</span
-              >
-            </div>
-            <div
-              class="flex flex-col items-center gap-1 p-2 rounded-md hover:bg-muted/50 transition-colors"
-            >
-              <div class="p-2 bg-muted rounded-full">
-                <MapIcon class="w-4 h-4 text-foreground" />
-              </div>
-              <span class="text-[11px] font-medium text-muted-foreground"
-                >Places</span
-              >
-            </div>
-            <div
-              class="flex flex-col items-center gap-1 p-2 rounded-md hover:bg-muted/50 transition-colors"
-            >
-              <div class="p-2 bg-muted rounded-full">
-                <BookmarkIcon class="w-4 h-4 text-foreground" />
-              </div>
-              <span class="text-[11px] font-medium text-muted-foreground"
-                >Guides</span
-              >
-            </div>
-            <div
-              class="flex flex-col items-center gap-1 p-2 rounded-md hover:bg-muted/50 transition-colors"
-            >
-              <div class="p-2 bg-muted rounded-full">
-                <RouteIcon class="w-4 h-4 text-foreground" />
-              </div>
-              <span class="text-[11px] font-medium text-muted-foreground"
-                >Routes</span
-              >
-            </div>
-          </div>
-        </Card>
-
-        <!-- Directions -->
-        <Card
-          class="p-4 flex flex-col items-start justify-between gap-2 hover:bg-card transition-colors cursor-pointer border shadow-none h-32"
-          @click="router.push('/directions')"
+      <!-- Navigation Section -->
+      <div>
+        <H4
+          class="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1"
+          >{{ t('navigation.title') }}</H4
         >
-          <div class="p-2.5 bg-green-500/10 rounded-full">
-            <NavigationIcon class="w-5 h-5 text-green-600" />
-          </div>
-          <span class="font-medium text-sm">Directions</span>
-        </Card>
+        <div class="grid grid-cols-2 gap-2">
+          <!-- Directions -->
+          <Card
+            class="p-3 flex flex-col items-start justify-between gap-1 hover:bg-card transition-colors cursor-pointer border shadow-none h-24"
+            @click="navigateTo('/directions')"
+          >
+            <ItemIcon
+              icon="Navigation"
+              color="green"
+              size="sm"
+              variant="ghost"
+            />
+            <span class="font-medium text-sm">{{ t('directions.title') }}</span>
+          </Card>
 
-        <!-- Timeline -->
-        <Card
-          class="p-4 flex flex-col items-start justify-between gap-2 hover:bg-card transition-colors cursor-pointer border shadow-none h-32"
-          @click="router.push('/timeline')"
-        >
-          <div class="p-2.5 bg-orange-500/10 rounded-full">
-            <HistoryIcon class="w-5 h-5 text-orange-600" />
-          </div>
-          <span class="font-medium text-sm">Timeline</span>
-        </Card>
+          <!-- Timeline -->
+          <Card
+            class="p-3 flex flex-col items-start justify-between gap-1 hover:bg-card transition-colors cursor-pointer border shadow-none h-24"
+            @click="navigateTo('/timeline')"
+          >
+            <ItemIcon icon="History" color="orange" size="sm" variant="ghost" />
+            <span class="font-medium text-sm">{{ t('timeline.title') }}</span>
+          </Card>
 
-        <!-- People -->
-        <Card
-          class="p-4 flex flex-col items-start justify-between gap-2 hover:bg-card transition-colors cursor-pointer border shadow-none h-32"
-          @click="router.push('/people')"
-        >
-          <div class="p-2.5 bg-purple-500/10 rounded-full">
-            <UsersRoundIcon class="w-5 h-5 text-purple-600" />
-          </div>
-          <span class="font-medium text-sm">People</span>
-        </Card>
+          <!-- People -->
+          <Card
+            class="p-3 flex flex-col items-start justify-between gap-1 hover:bg-card transition-colors cursor-pointer border shadow-none h-24"
+            @click="navigateTo('/people')"
+          >
+            <ItemIcon
+              icon="UsersRound"
+              color="violet"
+              size="sm"
+              variant="ghost"
+            />
+            <span class="font-medium text-sm">{{ t('people.title') }}</span>
+          </Card>
 
-        <!-- Settings -->
-        <Card
-          class="p-4 flex flex-col items-start justify-between gap-2 hover:bg-card transition-colors cursor-pointer border shadow-none h-32"
-          @click="router.push('/settings')"
-        >
-          <div class="p-2.5 bg-gray-500/10 rounded-full">
-            <SettingsIcon class="w-5 h-5 text-gray-600" />
-          </div>
-          <span class="font-medium text-sm">Settings</span>
-        </Card>
+          <!-- Settings -->
+          <Card
+            class="p-3 flex flex-col items-start justify-between gap-1 hover:bg-card transition-colors cursor-pointer border shadow-none h-24"
+            @click="navigateTo('/settings')"
+          >
+            <ItemIcon icon="Settings" color="gray" size="sm" variant="ghost" />
+            <span class="font-medium text-sm">{{ t('settings.title') }}</span>
+          </Card>
+        </div>
       </div>
 
       <!-- Recent Places -->
       <div v-if="recentBookmarks.length > 0">
-        <div class="flex items-center justify-between mb-3 px-1">
-          <H4 class="text-base font-semibold">Recents</H4>
+        <div class="flex items-center justify-between mb-2 px-1">
+          <H4
+            class="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
+            >{{ t('general.recents') }}</H4
+          >
           <Button
             variant="ghost"
             size="sm"
-            class="h-8 text-xs text-muted-foreground hover:text-foreground"
-            @click="router.push('/library')"
+            class="h-7 text-xs text-muted-foreground hover:text-foreground"
+            @click="navigateTo('/library')"
           >
-            See all
+            {{ t('general.seeAll') }}
           </Button>
         </div>
-        <div class="space-y-2">
-          <Card
-            v-for="place in recentBookmarks"
-            :key="place.id"
-            class="p-3 flex items-center gap-2 hover:bg-accent/50 transition-colors cursor-pointer border"
-            @click="navigateToPlace(place)"
-          >
-            <ItemIcon
-              :icon="place.icon || 'map-pin'"
-              size="sm"
-              :color="place.iconColor as ThemeColor || 'primary'"
-              variant="solid"
-            />
-            <div class="flex-1 overflow-hidden min-w-0">
-              <p class="font-medium text-sm truncate">{{ place.name }}</p>
-              <p class="text-xs text-muted-foreground truncate">
-                {{ place.address || 'No address' }}
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              class="h-8 w-8 text-muted-foreground"
-            >
-              <MilestoneIcon class="w-4 h-4" />
-            </Button>
-          </Card>
+        <div class="space-y-1">
+          <BookmarkCard
+            v-for="bookmark in recentBookmarks"
+            :key="bookmark.id"
+            :bookmark="bookmark"
+            @click="minimizeSheet"
+          />
         </div>
       </div>
+    </div>
 
-      <!-- Collections / Guides -->
-      <div v-if="recentCollections.length > 0">
-        <div class="flex items-center justify-between mb-3 px-1">
-          <H4 class="text-base font-semibold">Guides We Love</H4>
-          <Button
-            variant="ghost"
-            size="sm"
-            class="h-8 text-xs text-muted-foreground hover:text-foreground"
-            @click="router.push('/library')"
-          >
-            See all
-          </Button>
+    <!-- Account Section -->
+    <div v-if="me" class="pt-3 pb-2 border-t border-border mt-auto">
+      <router-link
+        to="/settings/account"
+        class="flex items-center justify-between mb-2 px-1"
+        @click="minimizeSheet"
+      >
+        <H4
+          class="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
+          >{{ t('settings.account.title') }}</H4
+        >
+      </router-link>
+      <router-link
+        to="/settings/account"
+        class="flex items-center gap-3 p-2 rounded-lg hover:bg-foreground/5 transition-colors"
+        @click="minimizeSheet"
+      >
+        <Avatar size="sm">
+          <AvatarImage
+            v-if="me.picture"
+            :src="me.picture"
+            :alt="me.firstName"
+          />
+          <AvatarFallback v-else>
+            {{ me.firstName?.charAt(0) }}{{ me.lastName?.charAt(0) }}
+          </AvatarFallback>
+        </Avatar>
+        <div class="flex flex-col min-w-0">
+          <span class="text-sm font-semibold leading-tight truncate">
+            {{ me.firstName }} {{ me.lastName }}
+          </span>
+          <span class="text-xs text-muted-foreground leading-tight truncate">{{
+            me.email
+          }}</span>
         </div>
-        <div class="grid grid-cols-2 gap-2">
-          <Card
-            v-for="collection in recentCollections"
-            :key="collection.id"
-            class="aspect-square relative overflow-hidden hover:opacity-90 transition-opacity cursor-pointer border shadow-none group"
-            @click="router.push(`/library/collections/${collection.id}`)"
-          >
-            <div
-              class="absolute inset-0 bg-muted/30 z-0 group-hover:bg-muted/50 transition-colors"
-            ></div>
-            <div
-              class="relative z-10 h-full flex flex-col justify-end p-3 bg-gradient-to-t from-black/60 to-transparent"
-            >
-              <p class="font-medium text-white text-sm">
-                {{ collection.name }}
-              </p>
-              <p class="text-[10px] text-white/80">
-                {{ collection.description || 'No description' }}
-              </p>
-            </div>
-          </Card>
-        </div>
-      </div>
+      </router-link>
     </div>
   </div>
 </template>

@@ -29,7 +29,9 @@
     "optional": "Opcional",
     "default": "Predeterminado",
     "enabled": "Habilitado",
-    "all": "Todos"
+    "all": "Todos",
+    "recents": "Recientes",
+    "seeAll": "Ver todo"
   },
   "palette": {
     "placeholder": {
@@ -265,7 +267,7 @@
     "addStop": "Añadir parada"
   },
   "library": {
-    "title": "biblioteca",
+    "title": "Biblioteca",
     "search": {
       "bookmarks": "Buscar marcadores...",
       "collections": "Buscar colecciones..."
@@ -412,6 +414,7 @@
     "title": "Personas"
   },
   "navigation": {
+    "title": "Navegación",
     "minimize": "Minimizar",
     "maximize": "Maximizar",
     "toggle": "Alternar navegación",

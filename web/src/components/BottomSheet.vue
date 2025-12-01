@@ -235,7 +235,7 @@ function handleTouchEnd() {
       <DrawerContent
         :class="
           cn(
-            'bg-background rounded-t-md min-h-full shadow-lg flex flex-col fixed bottom-0 left-0 right-0',
+            'bg-background rounded-t-md min-h-full shadow-lg flex flex-col fixed bottom-0 left-0 right-0 border-t border-border',
             props.class,
           )
         "

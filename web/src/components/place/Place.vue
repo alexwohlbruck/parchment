@@ -146,6 +146,7 @@ function handleBrandLogoError() {
           />
         </div>
 
+        <div class="h-48"></div>
 
         <PlaceGallery
           class="ml-[-1rem] mr-[-1rem] w-[calc(100%+2rem)]"
@@ -153,9 +154,9 @@ function handleBrandLogoError() {
           @imageLoaded="handlePlaceImageLoad"
           @imageError="handlePlaceImageError"
         />
-        <PlaceTransit :place="place"/>
-        <DetailsList :place="place"/>
-        <PlaceSources :place="place"/>
+        <PlaceTransit :place="place" />
+        <DetailsList :place="place" />
+        <PlaceSources :place="place" />
       </div>
     </template>
   </div>

@@ -198,7 +198,7 @@ defineExpose({
       <template v-if="!hideUI">
         <!-- z-50 above drawers -->
         <div
-          class="absolute z-50 p-2 flex justify-between gap-2 pointer-events-none inset-0"
+          class="absolute z-50 p-2 flex justify-between gap-2 pointer-events-none inset-0 safe-area-inset"
         >
           <!-- Left section -->
           <div class="flex flex-col items-start gap-2">
@@ -216,7 +216,7 @@ defineExpose({
 
         <!-- z-20 below drawers -->
         <div
-          class="absolute z-20 p-2 flex justify-between gap-2 pointer-events-none inset-0"
+          class="absolute z-20 p-2 flex justify-between gap-2 pointer-events-none inset-0 safe-area-inset"
         >
           <!-- Left section -->
           <div class="flex flex-col items-start gap-2">
@@ -295,3 +295,12 @@ defineExpose({
     </template>
   </StreetViewPip>
 </template>
+
+<style scoped>
+.safe-area-inset {
+  padding-top: calc(0.5rem + env(safe-area-inset-top));
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  padding-left: calc(0.5rem + env(safe-area-inset-left));
+  padding-right: calc(0.5rem + env(safe-area-inset-right));
+}
+</style>

@@ -34,6 +34,7 @@ export interface MenuItem {
   label: string
   icon?: Component
   disabled?: boolean
+  variant?: 'default' | 'destructive'
   to?: string
   href?: string
   onSelect?: () => void | Promise<void>
@@ -56,7 +57,9 @@ export interface MenuSubmenu {
   label: string
   icon?: Component
   disabled?: boolean
-  items: MenuItemDefinition[]
+  items?: MenuItemDefinition[]
+  customComponent?: Component
+  customProps?: Record<string, any>
 }
 
 export type MenuItemDefinition =
@@ -98,7 +101,9 @@ const emit = defineEmits<{
 interface SheetLayer {
   id: string
   title?: string
-  items: MenuItemDefinition[]
+  items?: MenuItemDefinition[]
+  customComponent?: Component
+  customProps?: Record<string, any>
   open: boolean
 }
 
@@ -198,6 +203,11 @@ onUnmounted(() => {
 
 function handleOpenChange(value: boolean) {
   internalOpen.value = value
+  // Close the bottom sheet and immediately clean up body styles
+  // that vaul-vue sets. This prevents reka-ui dialogs from capturing stale
+  // body styles and restoring them when the dialog closes.
+  document.body.style.overflow = ''
+  document.body.style.pointerEvents = ''
 }
 
 const { openExternalLink } = useExternalLink()
@@ -224,6 +234,10 @@ function openSubmenu(submenu: MenuSubmenu) {
       id: `sheet-${Date.now()}-${newDepth}`,
       title: submenu.label,
       items: submenu.items,
+      customComponent: submenu.customComponent
+        ? markRaw(submenu.customComponent)
+        : undefined,
+      customProps: submenu.customProps,
       open: true,
     }
     sheetStack.value.push(newSheet)
@@ -293,7 +307,10 @@ function getSnapPointsForSheet(index: number): (number | string)[] {
 </script>
 
 <template>
-  <div v-if="isMobileScreen">
+  <!-- Mobile: Trigger + Bottom Sheets -->
+  <template v-if="isMobileScreen">
+    <slot name="trigger" :open="() => handleOpenChange(true)" />
+
     <BottomSheet
       v-for="(sheet, index) in sheetStack"
       :key="sheet.id"
@@ -311,6 +328,13 @@ function getSnapPointsForSheet(index: number): (number | string)[] {
     >
       <div v-if="SafeCustomComponent && index === 0">
         <component :is="SafeCustomComponent" v-bind="customProps" />
+      </div>
+
+      <div v-else-if="sheet.customComponent">
+        <div v-if="sheet.title" class="mb-4 mx-3">
+          <h2 class="text-lg font-semibold">{{ sheet.title }}</h2>
+        </div>
+        <component :is="sheet.customComponent" v-bind="sheet.customProps" />
       </div>
 
       <div v-else>
@@ -347,13 +371,24 @@ function getSnapPointsForSheet(index: number): (number | string)[] {
               v-else-if="item.type === 'item'"
               variant="ghost"
               class="w-full justify-start h-auto px-3 py-2.5 gap-2"
+              :class="{
+                'text-destructive hover:text-destructive':
+                  item.variant === 'destructive' && !item.disabled,
+                'opacity-50 cursor-not-allowed': item.disabled,
+              }"
               :disabled="item.disabled"
               @click="handleItemClick(item)"
             >
               <component
                 v-if="item.icon"
                 :is="item.icon"
-                class="size-4 shrink-0"
+                :class="[
+                  'size-4 shrink-0',
+                  {
+                    'text-destructive':
+                      item.variant === 'destructive' && !item.disabled,
+                  },
+                ]"
               />
               <span>{{ item.label }}</span>
             </Button>
@@ -362,6 +397,9 @@ function getSnapPointsForSheet(index: number): (number | string)[] {
               v-else-if="item.type === 'submenu'"
               variant="ghost"
               class="w-full justify-start h-auto px-3 py-2.5 gap-2"
+              :class="{
+                'opacity-50 cursor-not-allowed': item.disabled,
+              }"
               :disabled="item.disabled"
               @click="openSubmenu(item)"
             >
@@ -377,8 +415,9 @@ function getSnapPointsForSheet(index: number): (number | string)[] {
         </div>
       </div>
     </BottomSheet>
-  </div>
+  </template>
 
+  <!-- Desktop: Dropdown Menu -->
   <DropdownMenu v-else v-model:open="internalOpen">
     <DropdownMenuTrigger as-child>
       <slot name="trigger" :open="() => handleOpenChange(true)" />
@@ -407,41 +446,76 @@ function getSnapPointsForSheet(index: number): (number | string)[] {
           <DropdownMenuItem
             v-else-if="item.type === 'item'"
             :disabled="item.disabled"
+            :class="{
+              'text-destructive focus:text-destructive':
+                item.variant === 'destructive' && !item.disabled,
+            }"
             @click="handleItemClick(item)"
           >
-            <component v-if="item.icon" :is="item.icon" class="size-4" />
+            <component
+              v-if="item.icon"
+              :is="item.icon"
+              :class="[
+                'size-4',
+                {
+                  'text-destructive':
+                    item.variant === 'destructive' && !item.disabled,
+                },
+              ]"
+            />
             <span>{{ item.label }}</span>
           </DropdownMenuItem>
 
           <DropdownMenuSub v-else-if="item.type === 'submenu'">
-            <DropdownMenuSubTrigger>
+            <DropdownMenuSubTrigger :disabled="item.disabled">
               <component v-if="item.icon" :is="item.icon" class="size-4" />
               <span>{{ item.label }}</span>
             </DropdownMenuSubTrigger>
             <DropdownMenuPortal>
               <DropdownMenuSubContent>
-                <template
-                  v-for="(subItem, subIndex) in item.items"
-                  :key="subItem.id || subIndex"
-                >
-                  <DropdownMenuSeparator v-if="subItem.type === 'separator'" />
-
-                  <DropdownMenuLabel v-else-if="subItem.type === 'label'">
-                    {{ subItem.label }}
-                  </DropdownMenuLabel>
-
-                  <DropdownMenuItem
-                    v-else-if="subItem.type === 'item'"
-                    :disabled="subItem.disabled"
-                    @click="handleItemClick(subItem)"
+                <component
+                  v-if="item.customComponent"
+                  :is="item.customComponent"
+                  v-bind="item.customProps"
+                />
+                <template v-else>
+                  <template
+                    v-for="(subItem, subIndex) in item.items"
+                    :key="subItem.id || subIndex"
                   >
-                    <component
-                      v-if="subItem.icon"
-                      :is="subItem.icon"
-                      class="size-4"
+                    <DropdownMenuSeparator
+                      v-if="subItem.type === 'separator'"
                     />
-                    <span>{{ subItem.label }}</span>
-                  </DropdownMenuItem>
+
+                    <DropdownMenuLabel v-else-if="subItem.type === 'label'">
+                      {{ subItem.label }}
+                    </DropdownMenuLabel>
+
+                    <DropdownMenuItem
+                      v-else-if="subItem.type === 'item'"
+                      :disabled="subItem.disabled"
+                      :class="{
+                        'text-destructive focus:text-destructive':
+                          subItem.variant === 'destructive' &&
+                          !subItem.disabled,
+                      }"
+                      @click="handleItemClick(subItem)"
+                    >
+                      <component
+                        v-if="subItem.icon"
+                        :is="subItem.icon"
+                        :class="[
+                          'size-4',
+                          {
+                            'text-destructive':
+                              subItem.variant === 'destructive' &&
+                              !subItem.disabled,
+                          },
+                        ]"
+                      />
+                      <span>{{ subItem.label }}</span>
+                    </DropdownMenuItem>
+                  </template>
                 </template>
               </DropdownMenuSubContent>
             </DropdownMenuPortal>

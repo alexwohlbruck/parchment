@@ -1,17 +1,14 @@
 <script setup lang="ts">
+import { computed, markRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { MoreVerticalIcon, Pencil, Trash, StarIcon } from 'lucide-vue-next'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useAppService } from '@/services/app.service'
 import CollectionForm from '@/components/library/CollectionForm.vue'
+import ResponsiveDropdown, {
+  type MenuItemDefinition,
+} from '@/components/responsive/ResponsiveDropdown.vue'
 import type { Collection } from '@/types/library.types'
 import type { ThemeColor } from '@/lib/utils'
 
@@ -79,28 +76,55 @@ async function deleteCollection() {
     await collectionsService.deleteCollection(props.collection.id)
   }
 }
+
+const menuItems = computed<MenuItemDefinition[]>(() => {
+  const items: MenuItemDefinition[] = [
+    {
+      type: 'item',
+      id: 'edit',
+      label: t('general.edit'),
+      icon: markRaw(Pencil),
+      onSelect: editCollection,
+    },
+  ]
+
+  // Only show "make default" if collection is not already default
+  if (!props.collection.isDefault) {
+    items.push({
+      type: 'item',
+      id: 'make-default',
+      label: t('library.actions.makeDefault'),
+      icon: markRaw(StarIcon),
+      disabled: true,
+    })
+  }
+
+  // Only show delete if collection is not the default collection
+  if (!props.collection.isDefault) {
+    items.push({
+      type: 'item',
+      id: 'delete',
+      label: t('general.delete'),
+      icon: markRaw(Trash),
+      variant: 'destructive',
+      onSelect: deleteCollection,
+    })
+  }
+
+  return items
+})
 </script>
 
 <template>
-  <DropdownMenu>
-    <DropdownMenuTrigger as-child @click.stop>
-      <Button variant="ghost" size="icon" class="size-8">
+  <ResponsiveDropdown
+    align="end"
+    :items="menuItems"
+    :custom-snap-points="['300px', 0.5]"
+  >
+    <template #trigger="{ open }">
+      <Button variant="ghost" size="icon" class="size-8" @click.stop="open">
         <MoreVerticalIcon class="size-4" />
       </Button>
-    </DropdownMenuTrigger>
-    <DropdownMenuContent align="end">
-      <DropdownMenuItem @click.stop="editCollection">
-        <Pencil class="size-4 mr-2" />
-        {{ t('general.edit') }}
-      </DropdownMenuItem>
-      <DropdownMenuItem disabled>
-        <StarIcon class="size-4 mr-2" />
-        {{ t('library.actions.makeDefault') }}
-      </DropdownMenuItem>
-      <DropdownMenuItem @click.stop="deleteCollection" class="text-destructive">
-        <Trash class="size-4 mr-2" />
-        {{ t('general.delete') }}
-      </DropdownMenuItem>
-    </DropdownMenuContent>
-  </DropdownMenu>
+    </template>
+  </ResponsiveDropdown>
 </template>

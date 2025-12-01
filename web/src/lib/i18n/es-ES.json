@@ -338,6 +338,10 @@
       "editBookmark": {
         "title": "Editar Marcador",
         "description": "Modificar detalles del marcador"
+      },
+      "deleteCollection": {
+        "title": "Eliminar Colección",
+        "description": "¿Estás seguro de que deseas eliminar \"{name}\"? Esta acción no se puede deshacer."
       }
     },
     "form": {

@@ -1,24 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, onMounted, markRaw } from 'vue'
 import { Card, CardContent } from '@/components/ui/card'
 import { useI18n } from 'vue-i18n'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
-} from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { ItemIcon } from '@/components/ui/item-icon'
-import {
-  MoreVerticalIcon,
-  FolderXIcon,
-  PencilIcon,
-  FolderPlusIcon,
-} from 'lucide-vue-next'
+import { MoreVerticalIcon, PencilIcon, FolderPlusIcon } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
@@ -30,7 +16,9 @@ import { getThemeColorClasses, type ThemeColor } from '@/lib/utils'
 import { useAppService } from '@/services/app.service'
 import BookmarkForm from '@/components/library/BookmarkForm.vue'
 import CollectionPicker from '@/components/library/CollectionPicker.vue'
-import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
+import ResponsiveDropdown, {
+  type MenuItemDefinition,
+} from '@/components/responsive/ResponsiveDropdown.vue'
 
 const props = defineProps<{
   bookmark: Bookmark
@@ -78,14 +66,6 @@ function navigateToBookmark() {
   }
 }
 
-function handleCollectionToggle(collectionId: string) {
-  emit('addToCollection', props.bookmark)
-}
-
-function handleCreateCollection(bookmark: Bookmark) {
-  console.log('Create new collection with:', bookmark)
-}
-
 async function editBookmark() {
   appService
     .componentDialog({
@@ -111,6 +91,26 @@ async function editBookmark() {
       await bookmarksService.updateBookmark(props.bookmark.id, params)
     })
 }
+
+const menuItems = computed<MenuItemDefinition[]>(() => [
+  {
+    type: 'item',
+    id: 'edit',
+    label: t('general.edit'),
+    icon: markRaw(PencilIcon),
+    onSelect: editBookmark,
+  },
+  {
+    type: 'submenu',
+    id: 'add-to-collection',
+    label: t('library.actions.addToCollection'),
+    icon: markRaw(FolderPlusIcon),
+    customComponent: markRaw(CollectionPicker),
+    customProps: {
+      bookmark: props.bookmark,
+    },
+  },
+])
 </script>
 
 <template>
@@ -148,33 +148,21 @@ async function editBookmark() {
           </div>
 
           <!-- Actions dropdown -->
-          <ResponsiveDropdown align="end" :custom-snap-points="['400px', 0.7]">
-            <template #trigger>
-              <Button variant="ghost" size="icon" class="size-8" @click.stop>
+          <ResponsiveDropdown
+            align="end"
+            :items="menuItems"
+            :z-index-offset="1"
+            :custom-snap-points="['400px', 0.7]"
+          >
+            <template #trigger="{ open }">
+              <Button
+                variant="ghost"
+                size="icon"
+                class="size-8"
+                @click.stop="open"
+              >
                 <MoreVerticalIcon class="size-4" />
               </Button>
-            </template>
-
-            <template #content="{ close }">
-              <DropdownMenuItem @click.stop="editBookmark()">
-                <PencilIcon class="size-4" />
-                {{ t('general.edit') }}
-              </DropdownMenuItem>
-
-              <!-- Add to collections submenu -->
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <FolderPlusIcon class="size-4 mr-2" />
-                  {{ t('library.actions.addToCollection') }}
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent class="min-w-[240px]">
-                  <CollectionPicker
-                    :bookmark="bookmark"
-                    @toggle-collection="handleCollectionToggle"
-                    @create-collection="handleCreateCollection"
-                  />
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
             </template>
           </ResponsiveDropdown>
         </div>

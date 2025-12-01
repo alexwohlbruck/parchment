@@ -361,6 +361,10 @@
       "editBookmark": {
         "title": "Edit Bookmark",
         "description": "Modify bookmark details"
+      },
+      "deleteCollection": {
+        "title": "Delete Collection",
+        "description": "Are you sure you want to delete \"{name}\"? This action cannot be undone."
       }
     },
     "form": {

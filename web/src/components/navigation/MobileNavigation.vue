@@ -43,7 +43,7 @@ watch(isFullyExpanded, newVal => {
     :trackObstructing="false"
     v-model:active-snap-point="activeSnapPoint"
     v-model:active-snap-point-index="activeSnapPointIndex"
-    class="bg-background absolute z-50 top-0 left-0 w-full md:w-104 h-full rounded-t-md shadow-lg justify-center"
+    class="z-50 w-full md:w-104 h-full rounded-t-md shadow-lg justify-center"
   >
     <Card
       class="flex flex-col min-h-full p-2 bg-muted shadow-md rounded-b-none border-0 pb-[min(calc(env(safe-area-inset-bottom)-.25rem),1rem)]"

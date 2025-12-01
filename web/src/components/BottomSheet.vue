@@ -320,7 +320,7 @@ function handleTouchEnd() {
       <DrawerContent
         :class="
           cn(
-            'bg-background rounded-t-md min-h-full shadow-lg flex flex-col fixed bottom-0 left-0 right-0 border-t border-border pb-[min(calc(env(safe-area-inset-bottom)-.25rem),1rem)]',
+            'bg-background rounded-t-md min-h-full shadow-lg flex flex-col absolute top-0 bottom-0 left-0 right-0 border-t border-border pb-[min(calc(env(safe-area-inset-bottom)-.25rem),1rem)]',
             props.class,
           )
         "
@@ -360,7 +360,10 @@ function handleTouchEnd() {
               'overflow-y-hidden': !isFullyExpanded,
             })
           "
-          :style="{ touchAction: isFullyExpanded ? 'pan-y' : 'none' }"
+          :style="{
+            touchAction: isFullyExpanded ? 'pan-y' : 'none',
+            overscrollBehavior: 'none',
+          }"
           @touchstart="handleTouchStart"
           @touchmove="handleTouchMove"
           @touchend="handleTouchEnd"

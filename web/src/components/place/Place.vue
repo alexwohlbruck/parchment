@@ -146,8 +146,6 @@ function handleBrandLogoError() {
           />
         </div>
 
-        <div class="h-48"></div>
-
         <PlaceGallery
           class="ml-[-1rem] mr-[-1rem] w-[calc(100%+2rem)]"
           :place="place"

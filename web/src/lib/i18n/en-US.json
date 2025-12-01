@@ -29,7 +29,9 @@
     "optional": "Optional",
     "default": "Default",
     "enabled": "Enabled",
-    "all": "All"
+    "all": "All",
+    "recents": "Recents",
+    "seeAll": "See all"
   },
   "palette": {
     "placeholder": {
@@ -288,7 +290,7 @@
     "addStop": "Add stop"
   },
   "library": {
-    "title": "library",
+    "title": "Library",
     "search": {
       "bookmarks": "Search bookmarks...",
       "collections": "Search collections..."
@@ -433,6 +435,7 @@
     "title": "People"
   },
   "navigation": {
+    "title": "Navigation",
     "minimize": "Minimize",
     "maximize": "Maximize",
     "toggle": "Toggle navigation",

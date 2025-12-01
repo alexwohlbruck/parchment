@@ -243,6 +243,7 @@ defineExpose({
               <div
                 v-if="isNavTransitioning"
                 class="pointer-events-auto mt-auto flex flex-col gap-2"
+                :class="{ 'mb-16': isMobileScreen }"
               >
                 <AttributionControl />
               </div>
@@ -263,7 +264,10 @@ defineExpose({
               </div>
 
               <!-- Right bottom -->
-              <div class="pointer-events-auto flex flex-col gap-2">
+              <div
+                class="pointer-events-auto flex flex-col gap-2"
+                :class="{ 'mb-16': isMobileScreen }"
+              >
                 <StreetViewControl />
                 <LayerControl />
               </div>

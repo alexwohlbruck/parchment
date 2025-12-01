@@ -12,7 +12,7 @@ import { useCollectionsService } from '@/services/library/collections.service'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { storeToRefs } from 'pinia'
 import type { Bookmark } from '@/types/library.types'
-import { getThemeColorClasses, type ThemeColor } from '@/lib/utils'
+import type { ThemeColor } from '@/lib/utils'
 import { useAppService } from '@/services/app.service'
 import BookmarkForm from '@/components/library/BookmarkForm.vue'
 import CollectionPicker from '@/components/library/CollectionPicker.vue'
@@ -45,10 +45,6 @@ onMounted(async () => {
   if (collections.value.length === 0) {
     await collectionsService.fetchCollections()
   }
-})
-
-const colorClasses = computed(() => {
-  return getThemeColorClasses(props.bookmark.iconColor as ThemeColor)
 })
 
 function navigateToBookmark() {
@@ -119,16 +115,11 @@ const menuItems = computed<MenuItemDefinition[]>(() => [
     @click="navigateToBookmark"
   >
     <CardContent class="p-2 flex items-center gap-3">
-      <div
-        class="size-10 rounded-md flex items-center justify-center shrink-0"
-        :class="colorClasses"
-      >
-        <ItemIcon
-          :icon="bookmark.icon"
-          :color="bookmark.iconColor as ThemeColor"
-          size="md"
-        />
-      </div>
+      <ItemIcon
+        :icon="bookmark.icon"
+        :color="(bookmark.iconColor as ThemeColor) || 'blue'"
+        size="md"
+      />
 
       <div class="grow min-w-0">
         <div class="flex items-center justify-between">

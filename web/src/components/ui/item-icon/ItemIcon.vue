@@ -35,22 +35,31 @@ const iconComponent = computed(() => {
     : FolderIcon
 })
 
+// Ghost variant color classes using opacity for reliable rendering
+const ghostColorClasses: Record<ThemeColor, string> = {
+  zinc: 'bg-zinc-500/10 text-zinc-700 dark:bg-zinc-500/20 dark:text-zinc-300',
+  rose: 'bg-rose-500/10 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300',
+  blue: 'bg-blue-500/10 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300',
+  green: 'bg-green-500/10 text-green-700 dark:bg-green-500/20 dark:text-green-300',
+  orange: 'bg-orange-500/10 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300',
+  red: 'bg-red-500/10 text-red-700 dark:bg-red-500/20 dark:text-red-300',
+  slate: 'bg-slate-500/10 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300',
+  stone: 'bg-stone-500/10 text-stone-700 dark:bg-stone-500/20 dark:text-stone-300',
+  gray: 'bg-gray-500/10 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300',
+  neutral: 'bg-neutral-500/10 text-neutral-700 dark:bg-neutral-500/20 dark:text-neutral-300',
+  yellow: 'bg-yellow-500/10 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300',
+  violet: 'bg-violet-500/10 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300',
+  primary: 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary',
+}
+
 const colorClasses = computed(() => {
   if (props.plain) return ''
 
-  const baseClasses = getThemeColorClasses(props.color as ThemeColor)
-
   if (props.variant === 'ghost') {
-    if (props.color === 'primary') {
-      return 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary'
-    }
-
-    return baseClasses
-      .replace(/bg-(\w+)-200/g, 'bg-$1-100')
-      .replace(/dark:bg-(\w+)-800/g, 'dark:bg-$1-900')
+    return ghostColorClasses[props.color as ThemeColor]
   }
 
-  return baseClasses
+  return getThemeColorClasses(props.color as ThemeColor)
 })
 
 const containerSizeClass = computed(() => {

@@ -56,7 +56,9 @@ watch(isFullyExpanded, newVal => {
         />
       </div>
 
-      <DashboardHome />
+      <TransitionFade>
+        <DashboardHome v-if="activeSnapPointIndex !== 0" />
+      </TransitionFade>
     </Card>
   </bottom-sheet>
 </template>

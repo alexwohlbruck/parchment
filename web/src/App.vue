@@ -126,6 +126,10 @@ function beforeNavTransition(value: boolean) {
 </script>
 
 <template>
+  <div
+    class="safe-area-blur fixed top-0 left-0 right-0 h-[calc(env(safe-area-inset-top)*1.2)] pointer-events-none z-50"
+  ></div>
+
   <!-- Popups and modals -->
   <Toaster richColors closeButton :duration="7000" position="bottom-center" />
   <HotkeysMenu />
@@ -180,5 +184,11 @@ function beforeNavTransition(value: boolean) {
 .debug-rect {
   border: 2px dashed rgba(255, 0, 0, 0.7);
   background-color: rgba(255, 0, 0, 0.1);
+}
+
+.safe-area-blur {
+  backdrop-filter: blur(10px);
+  background: hsl(var(--muted) / 0.3);
+  mask-image: linear-gradient(to bottom, black 0%, black 50%, transparent 100%);
 }
 </style>

@@ -34,6 +34,7 @@ const props = withDefaults(
     trackObstructing?: boolean
     parentId?: string
     zIndexOffset?: number
+    respectSafeArea?: boolean
   }>(),
   {
     open: true,
@@ -42,6 +43,7 @@ const props = withDefaults(
     defaultSnapPointIndex: 0,
     trackObstructing: true,
     zIndexOffset: 0,
+    respectSafeArea: true,
   },
 )
 
@@ -116,12 +118,52 @@ useObstructingComponent(sheet, props.obstructingKey, manualBounds, shouldTrack)
 const { y: scrollY } = useScroll(scrollContainer)
 const isAtTop = computed(() => scrollY.value === 0)
 
+// Get safe area inset top for iOS notch handling
+const safeAreaInsetTop = ref(0)
+onMounted(() => {
+  // Read the CSS environment variable for safe area
+  const testEl = document.createElement('div')
+  testEl.style.paddingTop = 'env(safe-area-inset-top)'
+  document.body.appendChild(testEl)
+  const computedStyle = getComputedStyle(testEl)
+  safeAreaInsetTop.value = parseFloat(computedStyle.paddingTop) || 0
+  document.body.removeChild(testEl)
+})
+
+// Calculate the max snap point that respects safe area
+const maxSnapPoint = computed(() => {
+  if (!props.respectSafeArea || safeAreaInsetTop.value === 0) {
+    return 1
+  }
+  // Calculate the fraction of screen height that excludes the safe area
+  // Returns a value like 0.95 for a ~50px safe area on a 1000px screen
+  return (windowHeight.value - safeAreaInsetTop.value) / windowHeight.value
+})
+
 let lastTouchY = 0
 let isScrollingUp = false
-const snapPoints = computed(
-  () => props.customSnapPoints ?? [props.peekHeight ?? '250px', 0.5, 1],
-)
-const isFullyExpanded = computed(() => activeSnapPoint.value === 1)
+
+// Process snap points, replacing any `1` with the safe-area-aware max
+const snapPoints = computed(() => {
+  const basePoints = props.customSnapPoints ?? [
+    props.peekHeight ?? '250px',
+    0.5,
+    1,
+  ]
+  return basePoints.map(point => {
+    // Replace `1` (full height) with safe-area-aware max
+    if (point === 1) {
+      return maxSnapPoint.value
+    }
+    return point
+  })
+})
+
+// Check if fully expanded by comparing to the last snap point
+const isFullyExpanded = computed(() => {
+  const lastSnapPoint = snapPoints.value[snapPoints.value.length - 1]
+  return activeSnapPoint.value === lastSnapPoint
+})
 
 // Computed value for active snap point index
 const activeSnapPointIndex = computed(() => {
@@ -224,8 +266,7 @@ function handleTouchEnd() {
     :default-snap-point="props.defaultSnapPointIndex"
     :repositionInputs="true"
     :dismissible="props.dismissable"
-    :fade-from-index="0 as any
-    "
+    :fade-from-index="0 as any"
   >
     <DrawerPortal>
       <DrawerOverlay

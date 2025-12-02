@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, watch, provide } from 'vue'
+import { computed, ref, watch, provide, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Card } from '@/components/ui/card'
 import Palette from '@/components/palette/Palette.vue'
 import DashboardHome from '@/components/dashboard/DashboardHome.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
+import { Button } from '@/components/ui/button'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -33,19 +34,24 @@ watch(isFullyExpanded, newVal => {
     paletteRef.value?.resetPalette()
   }
 })
+
+function test() {
+  console.log('test')
+}
 </script>
 
 <template>
   <bottom-sheet
+    open
     :peek-height="PEEK_HEIGHT"
-    :open="true"
     :dismissable="false"
     :trackObstructing="false"
     v-model:active-snap-point="activeSnapPoint"
     v-model:active-snap-point-index="activeSnapPointIndex"
-    class="z-50 w-full md:w-104 h-full rounded-t-md shadow-lg justify-center"
+    class="z-50 w-full md:w-104 h-full"
   >
-    <Card
+    <Button @click="test">test</Button>
+    <!-- <Card
       class="flex flex-col min-h-full p-2 bg-muted shadow-md rounded-b-none border-0 pb-[min(calc(env(safe-area-inset-bottom)-.25rem),1rem)]"
     >
       <div class="relative">
@@ -59,6 +65,6 @@ watch(isFullyExpanded, newVal => {
       <TransitionFade>
         <DashboardHome v-if="activeSnapPointIndex !== 0" />
       </TransitionFade>
-    </Card>
+    </Card> -->
   </bottom-sheet>
 </template>

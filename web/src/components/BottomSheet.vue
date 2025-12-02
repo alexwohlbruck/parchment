@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from 'vue'
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { cn } from '@/lib/utils'
-import { useWindowSize, useScroll } from '@vueuse/core'
+import { useWindowSize, useScroll, useScreenSafeArea } from '@vueuse/core'
 import { useObstructingComponent } from '@/composables/useObstructingComponent'
 import { type ManualBounds } from '@/stores/app.store'
 import { useHotkeys } from '@/composables/useHotkeys'
@@ -39,6 +39,7 @@ const props = withDefaults(
   {
     open: true,
     modal: false,
+    peekHeight: '125px',
     obstructingKey: 'bottom-sheet',
     defaultSnapPointIndex: 0,
     trackObstructing: true,
@@ -119,19 +120,11 @@ const { y: scrollY } = useScroll(scrollContainer)
 const isAtTop = computed(() => scrollY.value === 0)
 
 // Get safe area insets for iOS notch/home indicator handling
-const safeAreaInsetTop = ref(0)
-const safeAreaInsetBottom = ref(0)
-onMounted(() => {
-  // Read the CSS environment variables for safe areas
-  const testEl = document.createElement('div')
-  testEl.style.paddingTop = 'env(safe-area-inset-top)'
-  testEl.style.paddingBottom = 'env(safe-area-inset-bottom)'
-  document.body.appendChild(testEl)
-  const computedStyle = getComputedStyle(testEl)
-  safeAreaInsetTop.value = parseFloat(computedStyle.paddingTop) || 0
-  safeAreaInsetBottom.value = parseFloat(computedStyle.paddingBottom) || 0
-  document.body.removeChild(testEl)
-})
+const { top: safeAreaTop, bottom: safeAreaBottom } = useScreenSafeArea()
+const safeAreaInsetTop = computed(() => parseFloat(safeAreaTop.value) || 0)
+const safeAreaInsetBottom = computed(
+  () => parseFloat(safeAreaBottom.value) || 0,
+)
 
 // Calculate the max snap point that respects top safe area
 const maxSnapPoint = computed(() => {
@@ -143,59 +136,33 @@ const maxSnapPoint = computed(() => {
   return (windowHeight.value - safeAreaInsetTop.value) / windowHeight.value
 })
 
-// Calculate adjusted peek height that accounts for bottom safe area
-const adjustedPeekHeight = computed(() => {
-  const basePeek = props.peekHeight ?? '125px'
-
-  if (!props.respectSafeArea || safeAreaInsetBottom.value === 0) {
-    return basePeek
-  }
-
-  // Parse the base peek height and add the bottom safe area inset
-  if (typeof basePeek === 'string' && basePeek.endsWith('px')) {
-    const peekPx = parseFloat(basePeek)
-    return `${peekPx + safeAreaInsetBottom.value}px`
-  } else if (typeof basePeek === 'number') {
-    // If it's a fraction (0-1), convert to pixels, add safe area, then back to fraction
-    if (basePeek > 0 && basePeek <= 1) {
-      const peekPx = basePeek * windowHeight.value
-      return (peekPx + safeAreaInsetBottom.value) / windowHeight.value
-    }
-    // Otherwise treat as pixels
-    return basePeek + safeAreaInsetBottom.value
-  }
-
-  return basePeek
-})
-
 let lastTouchY = 0
 let isScrollingUp = false
 
+const rawSnapPoints = computed(() => {
+  return props.customSnapPoints ?? [props.peekHeight, 0.5, 1]
+})
+
 // Process snap points, replacing `1` with safe-area-aware max and using adjusted peek
 const snapPoints = computed(() => {
-  const basePoints = props.customSnapPoints ?? [
-    adjustedPeekHeight.value,
-    0.5,
-    1,
-  ]
-  return basePoints.map((point, index) => {
+  return rawSnapPoints.value.map((point, index) => {
     // Replace `1` (full height) with safe-area-aware max
     if (point === 1) {
       return maxSnapPoint.value
     }
     // For custom snap points, adjust the first one (peek) if it matches the original peekHeight
-    if (
-      props.customSnapPoints &&
-      index === 0 &&
-      props.respectSafeArea &&
-      safeAreaInsetBottom.value > 0
-    ) {
+    if (index === 0 && props.respectSafeArea && safeAreaInsetBottom.value > 0) {
       // Adjust pixel-based first snap point
       if (typeof point === 'string' && point.endsWith('px')) {
         const pointPx = parseFloat(point)
         return `${pointPx + safeAreaInsetBottom.value}px`
-      } else if (typeof point === 'number' && point > 1) {
-        // Treat as pixel value
+      } else if (typeof point === 'number') {
+        if (point > 0 && point <= 1) {
+          return (
+            (point * windowHeight.value + safeAreaInsetBottom.value) /
+            windowHeight.value
+          )
+        }
         return point + safeAreaInsetBottom.value
       }
     }
@@ -259,8 +226,14 @@ useHotkeys([
 watch(
   () => props.activeSnapPoint,
   newSnapPoint => {
-    if (newSnapPoint !== undefined && newSnapPoint !== activeSnapPoint.value) {
-      activeSnapPoint.value = newSnapPoint
+    if (!newSnapPoint) return
+
+    if (rawSnapPoints.value?.includes(newSnapPoint)) {
+      const index = rawSnapPoints.value?.indexOf(newSnapPoint)
+      const mappedSnapPoint = snapPoints.value[index]
+      if (mappedSnapPoint && newSnapPoint !== activeSnapPoint.value) {
+        activeSnapPoint.value = mappedSnapPoint
+      }
     }
   },
 )
@@ -320,7 +293,7 @@ function handleTouchEnd() {
       <DrawerContent
         :class="
           cn(
-            'bg-background rounded-t-md min-h-full shadow-lg flex flex-col absolute top-0 bottom-0 left-0 right-0 border-t border-border pb-[min(calc(env(safe-area-inset-bottom)-.25rem),1rem)]',
+            'bg-background rounded-t-md min-h-full shadow-lg flex flex-col absolute top-0 bottom-0 left-0 right-0 border-t border-border pb-[min(env(safe-area-inset-bottom),1rem)]',
             props.class,
           )
         "
@@ -329,6 +302,7 @@ function handleTouchEnd() {
           '--tw-shadow':
             '0 -4px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
         }"
+        :data-vaul-no-drag="!isAtTop ? '' : undefined"
       >
         <div
           v-if="props.showDragHandle || props.showCloseButton"

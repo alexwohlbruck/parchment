@@ -172,7 +172,7 @@ html,
 body {
   background: transparent;
   overscroll-behavior: none;
-  height: 100vh;
+  height: 100dvh;
 }
 
 /* Tauri drag region support */

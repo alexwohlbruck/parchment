@@ -65,11 +65,13 @@ const libraryTabs = computed(() => [
 ])
 
 function navigateTo(path: string) {
+  console.log('navigateTo', path)
   minimizeSheet()
   router.push(path)
 }
 
 function navigateToRoute(routeName: AppRoute) {
+  console.log('navigateToRoute', routeName)
   minimizeSheet()
   router.push({ name: routeName })
 }

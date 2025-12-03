@@ -26,7 +26,7 @@
     "@morev/vue-transitions"
   ],
   "dependencies": {
-    "@alexwohlbruck/vaul-vue": "^0.4.4",
+    "@alexwohlbruck/vaul-vue": "file:/Users/alexwohlbruck/Documents/code/vaul-vue/packages/vaul-vue",
     "@internationalized/date": "^3.5.4",
     "@mdi/js": "^7.4.47",
     "@morev/vue-transitions": "^3.0.2",

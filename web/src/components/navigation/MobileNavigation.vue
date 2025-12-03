@@ -50,8 +50,8 @@ function test() {
     v-model:active-snap-point-index="activeSnapPointIndex"
     class="z-50 w-full md:w-104 h-full"
   >
-    <Button @click="test">test</Button>
-    <!-- <Card
+    <!-- <Button @click="test">test</Button> -->
+    <Card
       class="flex flex-col min-h-full p-2 bg-muted shadow-md rounded-b-none border-0 pb-[min(calc(env(safe-area-inset-bottom)-.25rem),1rem)]"
     >
       <div class="relative">
@@ -65,6 +65,6 @@ function test() {
       <TransitionFade>
         <DashboardHome v-if="activeSnapPointIndex !== 0" />
       </TransitionFade>
-    </Card> -->
+    </Card>
   </bottom-sheet>
 </template>

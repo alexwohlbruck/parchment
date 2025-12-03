@@ -7,6 +7,7 @@ import router from './router'
 import VueTransitions from '@morev/vue-transitions'
 import { MotionPlugin } from '@vueuse/motion'
 import VueVirtualScroller from 'vue-virtual-scroller'
+import { initVaulChromeWorkaround } from '@/lib/vaulChromeWorkaround'
 
 import '@morev/vue-transitions/styles'
 import '@/styles/themes.css'
@@ -24,5 +25,7 @@ app.use(i18n)
 app.use(VueTransitions)
 app.use(MotionPlugin)
 app.use(VueVirtualScroller)
+
+initVaulChromeWorkaround()
 
 app.mount('#app')

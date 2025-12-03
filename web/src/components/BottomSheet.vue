@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from 'vue'
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { cn } from '@/lib/utils'
 import { useWindowSize, useScroll, useScreenSafeArea } from '@vueuse/core'
 import { useObstructingComponent } from '@/composables/useObstructingComponent'
@@ -17,6 +17,7 @@ import {
 } from '@alexwohlbruck/vaul-vue'
 import { Button } from '@/components/ui/button'
 import { X } from 'lucide-vue-next'
+import { handleVaulRelease } from '@/lib/vaulChromeWorkaround'
 
 const props = withDefaults(
   defineProps<{
@@ -67,50 +68,36 @@ const { registerDismissing, unregisterDismissing, isDismissing } =
 const drawerId =
   props.parentId || `drawer-${Math.random().toString(36).substr(2, 9)}`
 
-const shouldTrack = computed(() => {
-  return props.open && props.trackObstructing
-})
+// ==================== HELPERS ====================
 
-// Calculate manual bounds based on snap point
+type SnapPoint = number | string
+
+// Convert any snap point format to pixel height
+function snapPointToPixels(point: SnapPoint): number {
+  if (typeof point === 'string') return parseFloat(point)
+  if (point > 0 && point <= 1) return windowHeight.value * point
+  return point
+}
+
+// ==================== OBSTRUCTING BOUNDS ====================
+
+const shouldTrack = computed(() => props.open && props.trackObstructing)
+
 const manualBounds = computed<ManualBounds | null>(() => {
-  if (!props.trackObstructing) return null
+  if (!props.trackObstructing || activeSnapPoint.value === null) return null
 
-  let snapPoint = activeSnapPoint.value
-  const open = props.open // Watch both snap point and open state together
-  if (snapPoint === null) return null
+  // Use second-to-last snap point when fully expanded (for map padding)
+  const point = isFullyExpanded.value
+    ? snapPoints.value.at(-2) ?? activeSnapPoint.value
+    : activeSnapPoint.value
 
-  // Use the second to last snap point when fully expanded
-  if (isFullyExpanded.value) {
-    snapPoint = snapPoints.value[snapPoints.value.length - 2]
-  }
-
-  let sheetHeight: number
-
-  if (typeof snapPoint === 'number') {
-    // If it's between 0 and 1, treat it as a percentage
-    if (snapPoint > 0 && snapPoint <= 1) {
-      sheetHeight = windowHeight.value * snapPoint
-    } else {
-      // Otherwise, treat it as pixel value
-      sheetHeight = snapPoint
-    }
-  } else if (typeof snapPoint === 'string') {
-    // Parse pixel values like "300px"
-    if (snapPoint.endsWith('px')) {
-      sheetHeight = parseFloat(snapPoint)
-    } else {
-      // Assume it's a number string
-      sheetHeight = parseFloat(snapPoint)
-    }
-  } else {
-    return null
-  }
+  const height = snapPointToPixels(point)
 
   return {
     x: 0,
-    y: windowHeight.value - sheetHeight,
+    y: windowHeight.value - height,
     width: windowWidth.value,
-    height: sheetHeight,
+    height,
   }
 })
 
@@ -119,69 +106,105 @@ useObstructingComponent(sheet, props.obstructingKey, manualBounds, shouldTrack)
 const { y: scrollY } = useScroll(scrollContainer)
 const isAtTop = computed(() => scrollY.value === 0)
 
-// Get safe area insets for iOS notch/home indicator handling
+// ==================== SAFE AREA HANDLING ====================
+// Use refs that only increase to prevent brief resets during init (common in mobile WebViews)
 const { top: safeAreaTop, bottom: safeAreaBottom } = useScreenSafeArea()
-const safeAreaInsetTop = computed(() => parseFloat(safeAreaTop.value) || 0)
-const safeAreaInsetBottom = computed(
+const safeAreaInsetTop = ref(0)
+const safeAreaInsetBottom = ref(0)
+
+watch(
+  () => parseFloat(safeAreaTop.value) || 0,
+  val => {
+    if (val > safeAreaInsetTop.value) safeAreaInsetTop.value = val
+  },
+  { immediate: true },
+)
+watch(
   () => parseFloat(safeAreaBottom.value) || 0,
+  val => {
+    if (val > safeAreaInsetBottom.value) safeAreaInsetBottom.value = val
+  },
+  { immediate: true },
 )
 
-// Calculate the max snap point that respects top safe area
-const maxSnapPoint = computed(() => {
-  if (!props.respectSafeArea || safeAreaInsetTop.value === 0) {
-    return 1
+// ==================== SNAP POINTS ====================
+// Flow: userSnapPoints → snapPoints (with safe area adjustments) → vaul
+
+// User-provided snap points (or sensible defaults)
+const userSnapPoints = computed<SnapPoint[]>(
+  () => props.customSnapPoints ?? [props.peekHeight, 0.5, 1],
+)
+
+// Apply safe area adjustments to a snap point
+function adjustForSafeArea(point: SnapPoint, index: number): SnapPoint {
+  if (!props.respectSafeArea) return point
+
+  // Full height (1) → respect top safe area (notch/status bar)
+  if (point === 1 && safeAreaInsetTop.value > 0) {
+    return (windowHeight.value - safeAreaInsetTop.value) / windowHeight.value
   }
-  // Calculate the fraction of screen height that excludes the safe area
-  // Returns a value like 0.95 for a ~50px safe area on a 1000px screen
-  return (windowHeight.value - safeAreaInsetTop.value) / windowHeight.value
-})
 
-let lastTouchY = 0
-let isScrollingUp = false
-
-const rawSnapPoints = computed(() => {
-  return props.customSnapPoints ?? [props.peekHeight, 0.5, 1]
-})
-
-// Process snap points, replacing `1` with safe-area-aware max and using adjusted peek
-const snapPoints = computed(() => {
-  return rawSnapPoints.value.map((point, index) => {
-    // Replace `1` (full height) with safe-area-aware max
-    if (point === 1) {
-      return maxSnapPoint.value
+  // First snap point (peek) → add bottom safe area (home indicator)
+  if (index === 0 && safeAreaInsetBottom.value > 0) {
+    if (typeof point === 'string' && point.endsWith('px')) {
+      return `${parseFloat(point) + safeAreaInsetBottom.value}px`
     }
-    // For custom snap points, adjust the first one (peek) if it matches the original peekHeight
-    if (index === 0 && props.respectSafeArea && safeAreaInsetBottom.value > 0) {
-      // Adjust pixel-based first snap point
-      if (typeof point === 'string' && point.endsWith('px')) {
-        const pointPx = parseFloat(point)
-        return `${pointPx + safeAreaInsetBottom.value}px`
-      } else if (typeof point === 'number') {
-        if (point > 0 && point <= 1) {
-          return (
-            (point * windowHeight.value + safeAreaInsetBottom.value) /
-            windowHeight.value
-          )
-        }
-        return point + safeAreaInsetBottom.value
+    if (typeof point === 'number') {
+      if (point > 0 && point <= 1) {
+        return (
+          (point * windowHeight.value + safeAreaInsetBottom.value) /
+          windowHeight.value
+        )
       }
+      return point + safeAreaInsetBottom.value
     }
-    return point
-  })
-})
+  }
 
-// Check if fully expanded by comparing to the last snap point
-const isFullyExpanded = computed(() => {
-  const lastSnapPoint = snapPoints.value[snapPoints.value.length - 1]
-  return activeSnapPoint.value === lastSnapPoint
-})
+  return point
+}
 
-// Computed value for active snap point index
+// Final snap points passed to vaul (with safe area adjustments applied)
+const snapPoints = computed<SnapPoint[]>(() =>
+  userSnapPoints.value.map((point, i) => adjustForSafeArea(point, i)),
+)
+
+// ==================== SNAP POINT STATE ====================
+
+// Track which index we're at (persists across snapPoints array changes)
+const snapIndex = ref(props.defaultSnapPointIndex ?? 0)
+
+// Derived state
 const activeSnapPointIndex = computed(() => {
-  const currentSnapPoint = activeSnapPoint.value
-  if (currentSnapPoint === null) return -1
-  return snapPoints.value.findIndex(point => point === currentSnapPoint)
+  if (activeSnapPoint.value === null) return -1
+  return snapPoints.value.indexOf(activeSnapPoint.value)
 })
+
+const isFullyExpanded = computed(
+  () => activeSnapPoint.value === snapPoints.value.at(-1),
+)
+
+// ==================== SNAP POINT SYNCING ====================
+
+// When user drags to a new snap point, update our tracked index
+watch(activeSnapPoint, val => {
+  if (val === null) return
+  const idx = snapPoints.value.indexOf(val)
+  if (idx >= 0) snapIndex.value = idx
+})
+
+// When snapPoints array changes (e.g., safe area loads), update position
+// flush: 'post' ensures we run after vaul's internal updates
+watch(
+  snapPoints,
+  points => {
+    if (!props.open || snapIndex.value < 0) return
+    const target = points[snapIndex.value]
+    if (target && activeSnapPoint.value !== target) {
+      activeSnapPoint.value = target
+    }
+  },
+  { flush: 'post' },
+)
 
 function handleOpenChange(open: boolean) {
   // Prevent closing this drawer if another drawer is currently dismissing
@@ -203,11 +226,13 @@ function handleOpenChange(open: boolean) {
   emit('update:open', open)
 }
 
-function snapPointChanged(snapPoint: number | string | null) {
-  activeSnapPoint.value = snapPoint
-  const snapIndex = snapPoints.value.indexOf(snapPoint as string | number)
-  emit('update:activeSnapPoint', snapPoint)
-  emit('update:activeSnapPointIndex', snapIndex)
+function onSnapPointChange(point: SnapPoint | null) {
+  activeSnapPoint.value = point
+  emit('update:activeSnapPoint', point)
+  emit(
+    'update:activeSnapPointIndex',
+    snapPoints.value.indexOf(point as SnapPoint),
+  )
 }
 
 // Handle ESC key
@@ -215,36 +240,37 @@ useHotkeys([
   {
     key: 'esc',
     handler: () => {
-      if (props.dismissable) {
-        emit('update:open', false)
-      }
+      if (props.dismissable) emit('update:open', false)
     },
   },
 ])
 
-// Watch for external activeSnapPoint prop changes
+// Handle external activeSnapPoint prop changes (parent sets a user-facing snap point value)
 watch(
   () => props.activeSnapPoint,
-  newSnapPoint => {
-    if (!newSnapPoint) return
-
-    if (rawSnapPoints.value?.includes(newSnapPoint)) {
-      const index = rawSnapPoints.value?.indexOf(newSnapPoint)
-      const mappedSnapPoint = snapPoints.value[index]
-      if (mappedSnapPoint && newSnapPoint !== activeSnapPoint.value) {
-        activeSnapPoint.value = mappedSnapPoint
+  newPoint => {
+    if (!newPoint) return
+    // Map from user snap point to adjusted snap point
+    const idx = userSnapPoints.value.indexOf(newPoint)
+    if (idx >= 0) {
+      const adjusted = snapPoints.value[idx]
+      if (adjusted && adjusted !== activeSnapPoint.value) {
+        activeSnapPoint.value = adjusted
       }
     }
   },
 )
 
-watch(activeSnapPointIndex, (newIndex, oldIndex) => {
-  if (newIndex === -1) {
-    emit('update:open', false)
-  }
+// Close when snap point becomes invalid (dragged below minimum)
+watch(activeSnapPointIndex, idx => {
+  if (idx === -1) emit('update:open', false)
 })
 
-// Touch event handlers to prevent upward scroll when at top
+// ==================== TOUCH SCROLL HANDLING ====================
+
+let lastTouchY = 0
+let isScrollingUp = false
+
 function handleTouchStart(e: TouchEvent) {
   lastTouchY = e.touches[0].clientY
 }
@@ -274,12 +300,13 @@ function handleTouchEnd() {
   <DrawerRoot
     :open="props.open"
     @update:open="handleOpenChange"
+    @release="handleVaulRelease"
     :modal="modal"
     :should-scale-background="true"
     direction="bottom"
     :snap-points="snapPoints"
     v-model:active-snap-point="activeSnapPoint"
-    @update:activeSnapPoint="snapPointChanged"
+    @update:activeSnapPoint="onSnapPointChange"
     :default-snap-point="props.defaultSnapPointIndex"
     :repositionInputs="true"
     :dismissible="props.dismissable"

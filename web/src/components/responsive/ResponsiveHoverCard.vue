@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { useResponsive } from '@/lib/utils'
+import { ref, watch } from 'vue'
+import {
+  useResponsiveOverlay,
+  type ResponsiveOverlayBaseProps,
+  type ResponsiveOverlayPositionProps,
+} from '@/composables/useResponsiveOverlay'
 import BottomSheet from '@/components/BottomSheet.vue'
 import {
   HoverCard,
@@ -8,40 +12,34 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
 
-const props = withDefaults(
-  defineProps<{
-    open?: boolean
-    openDelay?: number
-    closeDelay?: number
-    align?: 'start' | 'center' | 'end'
-    side?: 'top' | 'right' | 'bottom' | 'left'
-    sideOffset?: number
-    desktopContentClass?: string
-    mobileContentClass?: string
-    // Bottom sheet specific props
-    modal?: boolean
-    peekHeight?: number | string
-    customSnapPoints?: (number | string)[]
-    showDragHandle?: boolean
-    showCloseButton?: boolean
-  }>(),
-  {
-    openDelay: 0,
-    closeDelay: 100,
-    align: 'center',
-    side: 'bottom',
-    sideOffset: 0,
-    modal: false,
-    showDragHandle: true,
-    showCloseButton: true,
-  },
-)
+interface Props extends ResponsiveOverlayBaseProps, ResponsiveOverlayPositionProps {
+  openDelay?: number
+  closeDelay?: number
+  desktopContentClass?: string
+  mobileContentClass?: string
+  modal?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  openDelay: 0,
+  closeDelay: 100,
+  align: 'center',
+  side: 'bottom',
+  sideOffset: 0,
+  modal: false,
+  showDragHandle: true,
+  showCloseButton: true,
+})
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
 }>()
 
-const { isMobileScreen } = useResponsive()
+const { isMobileScreen } = useResponsiveOverlay({
+  open: props.open,
+  emit,
+})
+
 const mobileOpen = ref(false)
 
 // Only used for mobile bottom sheet

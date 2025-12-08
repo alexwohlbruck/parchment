@@ -8,6 +8,7 @@ import { type ManualBounds } from '@/stores/app.store'
 import { useHotkeys } from '@/composables/useHotkeys'
 import { useDrawerCoordination } from '@/composables/useDrawerCoordination'
 import {
+  DrawerTrigger,
   DrawerRoot,
   DrawerContent,
   DrawerOverlay,
@@ -56,7 +57,9 @@ const emit = defineEmits<{
   (e: 'update:activeSnapPointIndex', index: number): void
 }>()
 
+const open = ref(props.open)
 const sheet = ref<HTMLElement | null>(null)
+const drawerContentRef = ref<InstanceType<typeof DrawerContent> | null>(null)
 const scrollContainer = ref<HTMLElement | null>(null)
 const headerRef = ref<HTMLElement | null>(null)
 const activeSnapPoint = ref<number | string | null>(
@@ -217,6 +220,7 @@ function handleOpenChange(open: boolean) {
     // Drawer is starting to close - register it
     registerDismissing(drawerId)
 
+    // TODO: Move to animation end event
     // Unregister after animation completes (typical drawer animation is 300-500ms)
     setTimeout(() => {
       unregisterDismissing(drawerId)
@@ -227,7 +231,7 @@ function handleOpenChange(open: boolean) {
 }
 
 function onSnapPointChange(point: SnapPoint | null) {
-  activeSnapPoint.value = point
+  // activeSnapPoint.value = point as number
   emit('update:activeSnapPoint', point)
   emit(
     'update:activeSnapPointIndex',
@@ -255,7 +259,7 @@ watch(
     if (idx >= 0) {
       const adjusted = snapPoints.value[idx]
       if (adjusted && adjusted !== activeSnapPoint.value) {
-        activeSnapPoint.value = adjusted
+        activeSnapPoint.value = adjusted as number
       }
     }
   },
@@ -265,6 +269,38 @@ watch(
 watch(activeSnapPointIndex, idx => {
   if (idx === -1) emit('update:open', false)
 })
+
+// Fix: Capture the current transform position before the drawer closes
+// to prevent the close animation from jumping back to the snap point
+watch(
+  () => props.open,
+  (newValue, oldValue) => {
+    if (oldValue && !newValue) {
+      // Drawer is about to close - capture current transform position
+      const drawer = drawerContentRef.value?.$el as HTMLElement | undefined
+      if (drawer) {
+        const computedStyle = window.getComputedStyle(drawer)
+        const transform = computedStyle.transform
+
+        // Extract the Y translation from the matrix
+        const match = transform.match(/matrix.*\((.+)\)/)
+        if (match) {
+          const values = match[1].split(', ')
+          // For matrix3d, Y is at index 13; for matrix, Y is at index 5
+          const yValue = transform.startsWith('matrix3d')
+            ? parseFloat(values[13])
+            : parseFloat(values[5])
+
+          if (!isNaN(yValue)) {
+            // Set CSS custom property for the close animation starting position
+            drawer.style.setProperty('--close-from-position', `${yValue}px`)
+          }
+        }
+      }
+    }
+  },
+  { flush: 'sync' }, // Use sync to run before DOM updates
+)
 
 // ==================== TOUCH SCROLL HANDLING ====================
 
@@ -294,6 +330,16 @@ function handleTouchMove(e: TouchEvent) {
 function handleTouchEnd() {
   isScrollingUp = false
 }
+
+function handleAnimationEnd(open: boolean) {
+  if (!open) {
+    console.log('handleAnimationEnd', open)
+    setTimeout(() => {
+      activeSnapPoint.value =
+        snapPoints.value[props.defaultSnapPointIndex] ?? null
+    }, 100)
+  }
+}
 </script>
 
 <template>
@@ -301,13 +347,13 @@ function handleTouchEnd() {
     :open="props.open"
     @update:open="handleOpenChange"
     @release="handleVaulRelease"
+    @animation-end="handleAnimationEnd"
     :modal="modal"
     :should-scale-background="true"
     direction="bottom"
     :snap-points="snapPoints"
     v-model:active-snap-point="activeSnapPoint"
     @update:activeSnapPoint="onSnapPointChange"
-    :default-snap-point="props.defaultSnapPointIndex"
     :repositionInputs="true"
     :dismissible="props.dismissable"
     :fade-from-index="0 as any"
@@ -318,6 +364,7 @@ function handleTouchEnd() {
         :style="{ zIndex: 30 + props.zIndexOffset }"
       />
       <DrawerContent
+        ref="drawerContentRef"
         :class="
           cn(
             'bg-background rounded-t-md min-h-full shadow-lg flex flex-col absolute top-0 bottom-0 left-0 right-0 border-t border-border pb-[min(env(safe-area-inset-bottom),1rem)]',
@@ -393,6 +440,24 @@ function handleTouchEnd() {
   }
   to {
     transform: translate3d(0, var(--snap-point-height, 0), 0);
+  }
+}
+
+/* Fix: Override the close animation for snap-point drawers to start from the current position */
+[data-vaul-drawer][data-vaul-drawer-direction='bottom'][data-state='closed'] {
+  animation-name: slideToBottomFromCurrentPosition !important;
+}
+
+@keyframes slideToBottomFromCurrentPosition {
+  from {
+    transform: translate3d(
+      0,
+      var(--close-from-position, var(--snap-point-height, 0)),
+      0
+    );
+  }
+  to {
+    transform: translate3d(0, 100%, 0);
   }
 }
 </style>

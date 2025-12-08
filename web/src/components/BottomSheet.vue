@@ -417,6 +417,8 @@ function handleAnimationEnd(open: boolean) {
           @touchend="handleTouchEnd"
         >
           <slot />
+          <!-- Spacer to account for safe area inset bottom -->
+          <div class="w-full h-[env(safe-area-inset-bottom)]"></div>
         </div>
       </DrawerContent>
     </DrawerPortal>

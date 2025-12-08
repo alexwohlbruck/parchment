@@ -171,6 +171,7 @@ defineExpose({
         parent-id="map"
         :open="bottomSheetOpen"
         @update:open="onOpenChange"
+        dismissable
         :default-snap-point-index="1"
         show-drag-handle
         show-close-button

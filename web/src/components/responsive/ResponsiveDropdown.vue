@@ -1,16 +1,14 @@
 <script setup lang="ts">
-import {
-  ref,
-  computed,
-  watch,
-  onMounted,
-  onUnmounted,
-  markRaw,
-  type Component,
-} from 'vue'
-import { useResponsive } from '@/lib/utils'
+import { ref, watch, nextTick, markRaw, type Component } from 'vue'
 import { useRouter } from 'vue-router'
 import { useExternalLink } from '@/composables/useExternalLink'
+import {
+  useResponsiveOverlay,
+  computeSnapPoints,
+  type ResponsiveOverlayBaseProps,
+  type ResponsiveOverlayPositionProps,
+  type ResponsiveOverlayTitleProps,
+} from '@/composables/useResponsiveOverlay'
 import BottomSheet from '@/components/BottomSheet.vue'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -26,7 +24,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuPortal,
 } from '@/components/ui/dropdown-menu'
-import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-vue-next'
+import { ChevronRight, ChevronLeft } from 'lucide-vue-next'
 
 export interface MenuItem {
   type: 'item'
@@ -68,149 +66,101 @@ export type MenuItemDefinition =
   | MenuLabel
   | MenuSubmenu
 
-const props = withDefaults(
-  defineProps<{
-    open?: boolean
-    align?: 'start' | 'center' | 'end'
-    side?: 'top' | 'right' | 'bottom' | 'left'
-    sideOffset?: number
-    contentClass?: string
-    items?: MenuItemDefinition[]
-    customComponent?: Component
-    customProps?: Record<string, any>
-    title?: string
-    description?: string
-    peekHeight?: number | string
-    customSnapPoints?: (number | string)[]
-    showDragHandle?: boolean
-    showCloseButton?: boolean
-  }>(),
-  {
-    align: 'start',
-    side: 'bottom',
-    sideOffset: 0,
-    showDragHandle: true,
-    showCloseButton: false,
-  },
-)
+interface Props
+  extends ResponsiveOverlayBaseProps,
+    ResponsiveOverlayPositionProps,
+    ResponsiveOverlayTitleProps {
+  contentClass?: string
+  items?: MenuItemDefinition[]
+  customComponent?: Component
+  customProps?: Record<string, any>
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  align: 'start',
+  side: 'bottom',
+  sideOffset: 0,
+  showDragHandle: true,
+  showCloseButton: false,
+})
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
 }>()
 
-interface SheetLayer {
-  id: string
-  title?: string
-  items?: MenuItemDefinition[]
-  customComponent?: Component
-  customProps?: Record<string, any>
-  open: boolean
-}
+const { isMobileScreen, internalOpen, handleOpenChange } = useResponsiveOverlay(
+  {
+    open: props.open,
+    emit,
+    cleanupBodyStyles: true,
+  },
+)
 
-const { isMobileScreen } = useResponsive()
 const router = useRouter()
-const internalOpen = ref(props.open ?? false)
-const sheetStack = ref<SheetLayer[]>([])
-const historyId = ref<string>(`dropdown-${Date.now()}-${Math.random()}`)
-const isHandlingPopState = ref(false)
+const { openExternalLink } = useExternalLink()
 
 const SafeCustomComponent = props.customComponent
   ? markRaw(props.customComponent)
   : null
 
-watch(
-  () => props.open,
-  newValue => {
-    if (newValue !== undefined) {
-      internalOpen.value = newValue
-    }
-  },
-)
+// Submenu stack for mobile nested bottom sheets
+interface SubmenuStackEntry {
+  submenu: MenuSubmenu
+  open: boolean
+}
 
-watch(internalOpen, newValue => {
-  if (isHandlingPopState.value) return
+const submenuStack = ref<SubmenuStackEntry[]>([])
 
-  emit('update:open', newValue)
+// Clear submenu stack when main menu closes
+watch(internalOpen, isOpen => {
+  if (!isOpen) {
+    submenuStack.value = []
+  }
+})
 
-  if (newValue) {
-    // Initialize the first sheet layer when opening
-    if (sheetStack.value.length === 0) {
-      sheetStack.value.push({
-        id: `sheet-${Date.now()}-0`,
-        title: props.title,
-        items: props.items || [],
-        open: true,
-      })
-    }
-  } else {
-    // Clear all sheets when closing
-    sheetStack.value.forEach(sheet => {
-      sheet.open = false
-    })
+async function openSubmenu(submenu: MenuSubmenu) {
+  if (submenu.disabled) return
+
+  const index = submenuStack.value.length
+
+  // Push with open: false first so the component mounts
+  submenuStack.value = [
+    ...submenuStack.value,
+    {
+      submenu,
+      open: false,
+    },
+  ]
+
+  // Wait for the component to mount, then open it
+  await nextTick()
+
+  // Update the array immutably to ensure reactivity
+  submenuStack.value = submenuStack.value.map((entry, i) =>
+    i === index ? { ...entry, open: true } : entry,
+  )
+}
+
+function closeSubmenu(index: number) {
+  if (index >= 0 && index < submenuStack.value.length) {
+    // First close the sheet
+    submenuStack.value = submenuStack.value.map((entry, i) =>
+      i === index ? { ...entry, open: false } : entry,
+    )
+    // Remove this and all deeper submenus after animation completes
     setTimeout(() => {
-      sheetStack.value = []
-    }, 300) // Wait for animation to complete
-  }
-})
-
-function handlePopState(event: PopStateEvent) {
-  if (!isMobileScreen.value) return
-
-  const state = event.state
-
-  if (state?.dropdownId === historyId.value) {
-    isHandlingPopState.value = true
-
-    const targetDepth = state.submenuDepth || 0
-    const currentDepth = sheetStack.value.length
-
-    if (targetDepth < currentDepth) {
-      if (targetDepth === 0) {
-        // Close all sheets
-        handleOpenChange(false)
-      } else {
-        // Close sheets until we reach the target depth
-        while (sheetStack.value.length > targetDepth) {
-          const sheet = sheetStack.value[sheetStack.value.length - 1]
-          if (sheet) {
-            sheet.open = false
-          }
-          setTimeout(() => {
-            sheetStack.value.pop()
-          }, 300)
-        }
-      }
-    }
-
-    isHandlingPopState.value = false
-  } else if (
-    internalOpen.value &&
-    (!state || state.dropdownId !== historyId.value)
-  ) {
-    isHandlingPopState.value = true
-    handleOpenChange(false)
-    isHandlingPopState.value = false
+      submenuStack.value = submenuStack.value.slice(0, index)
+    }, 300)
   }
 }
 
-onMounted(() => {
-  window.addEventListener('popstate', handlePopState)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('popstate', handlePopState)
-})
-
-function handleOpenChange(value: boolean) {
-  internalOpen.value = value
-  // Close the bottom sheet and immediately clean up body styles
-  // that vaul-vue sets. This prevents reka-ui dialogs from capturing stale
-  // body styles and restoring them when the dialog closes.
-  document.body.style.overflow = ''
-  document.body.style.pointerEvents = ''
+function handleSubmenuOpenChange(index: number, isOpen: boolean) {
+  console.log('LOG: handleSubmenuOpenChange', isOpen)
+  if (!isOpen) {
+    console.log('LOG: closing submenu')
+    // closeSubmenu(index) // TODO: This is called when submenu opens with suprious open events from reka dialog
+  }
 }
-
-const { openExternalLink } = useExternalLink()
 
 function handleItemClick(item: MenuItem) {
   if (item.disabled) return
@@ -222,140 +172,48 @@ function handleItemClick(item: MenuItem) {
   }
 
   item.onSelect?.()
+  // Close all submenus and main menu
+  submenuStack.value = []
   handleOpenChange(false)
 }
 
-function openSubmenu(submenu: MenuSubmenu) {
-  if (submenu.disabled) return
-
-  if (isMobileScreen.value) {
-    const newDepth = sheetStack.value.length
-    const newSheet: SheetLayer = {
-      id: `sheet-${Date.now()}-${newDepth}`,
-      title: submenu.label,
-      items: submenu.items,
-      customComponent: submenu.customComponent
-        ? markRaw(submenu.customComponent)
-        : undefined,
-      customProps: submenu.customProps,
-      open: true,
-    }
-    sheetStack.value.push(newSheet)
-
-    // Add to browser history
-    if (!isHandlingPopState.value) {
-      window.history.pushState(
-        {
-          dropdownId: historyId.value,
-          submenuDepth: sheetStack.value.length,
-        },
-        '',
-      )
-    }
-  }
-}
-
-function closeTopSheet(sheetId: string) {
-  const sheetIndex = sheetStack.value.findIndex(s => s.id === sheetId)
-  if (sheetIndex === -1) return
-
-  const sheet = sheetStack.value[sheetIndex]
-  sheet.open = false
-
-  // Remove from stack after animation
-  setTimeout(() => {
-    sheetStack.value.splice(sheetIndex, 1)
-
-    // If we closed the last sheet, close the entire dropdown
-    if (sheetStack.value.length === 0) {
-      handleOpenChange(false)
-    }
-  }, 300)
-}
-
-// Calculate snap points for nested sheets - each one is slightly less tall
-function getSnapPointsForSheet(index: number): (number | string)[] {
-  if (index === 0) {
-    // First sheet uses the original snap points
-    return props.customSnapPoints || [props.peekHeight ?? '250px', 0.5, 1]
-  }
-
-  // For nested sheets, reduce each snap point by a small offset
-  const baseSnapPoints = props.customSnapPoints || [
-    props.peekHeight ?? '250px',
-    0.5,
-    1,
-  ]
-  const reductionPerLevel = 0.05 // Reduce by 5% per level
-
-  return baseSnapPoints.map(point => {
-    if (typeof point === 'number') {
-      // If it's a decimal (percentage), subtract the reduction
-      if (point > 0 && point <= 1) {
-        return Math.max(0.3, point - reductionPerLevel * index)
-      }
-      // If it's pixels, subtract a pixel amount
-      return Math.max(150, point - 20 * index)
-    } else if (typeof point === 'string' && point.endsWith('px')) {
-      // Parse pixel values and reduce them
-      const pixels = parseFloat(point)
-      return `${Math.max(150, pixels - 20 * index)}px`
-    }
-    return point
-  })
-}
+const snapPoints = computeSnapPoints(props.customSnapPoints, props.peekHeight)
 </script>
 
 <template>
-  <!-- Mobile: Trigger + Bottom Sheets -->
+  <!-- Mobile: Trigger + Bottom Sheet -->
   <template v-if="isMobileScreen">
     <slot name="trigger" :open="() => handleOpenChange(true)" />
 
+    <!-- Main bottom sheet -->
     <BottomSheet
-      v-for="(sheet, index) in sheetStack"
-      :key="sheet.id"
       modal
-      :parent-id="`${historyId}-${sheet.id}`"
-      v-model:open="sheet.open"
-      :custom-snap-points="getSnapPointsForSheet(index)"
+      v-model:open="internalOpen"
+      :custom-snap-points="snapPoints"
       :show-drag-handle="showDragHandle"
       :show-close-button="showCloseButton"
       :dismissable="true"
       :track-obstructing="false"
       obstructing-key="responsive-dropdown"
-      :z-index-offset="index * 20"
-      @update:open="open => !open && closeTopSheet(sheet.id)"
+      @update:open="handleOpenChange"
     >
-      <div v-if="SafeCustomComponent && index === 0">
+      <div v-if="SafeCustomComponent">
         <component :is="SafeCustomComponent" v-bind="customProps" />
       </div>
 
-      <div v-else-if="sheet.customComponent">
-        <div v-if="sheet.title" class="mb-4 mx-3">
-          <h2 class="text-lg font-semibold">{{ sheet.title }}</h2>
-        </div>
-        <component :is="sheet.customComponent" v-bind="sheet.customProps" />
-      </div>
-
       <div v-else>
-        <div
-          v-if="sheet.title || (description && index === 0)"
-          class="mb-4 mx-3"
-        >
-          <h2 v-if="sheet.title" class="text-lg font-semibold">
-            {{ sheet.title }}
+        <div v-if="title || description" class="mb-4 mx-3">
+          <h2 v-if="title" class="text-lg font-semibold">
+            {{ title }}
           </h2>
-          <p
-            v-if="description && index === 0"
-            class="text-sm text-muted-foreground mt-1"
-          >
+          <p v-if="description" class="text-sm text-muted-foreground mt-1">
             {{ description }}
           </p>
         </div>
 
         <div class="px-2">
           <template
-            v-for="(item, itemIndex) in sheet.items"
+            v-for="(item, itemIndex) in items"
             :key="item.id || itemIndex"
           >
             <Separator v-if="item.type === 'separator'" class="my-1.5" />
@@ -393,28 +251,134 @@ function getSnapPointsForSheet(index: number): (number | string)[] {
               <span>{{ item.label }}</span>
             </Button>
 
+            <!-- Submenu trigger -->
             <Button
               v-else-if="item.type === 'submenu'"
               variant="ghost"
-              class="w-full justify-start h-auto px-3 py-2.5 gap-2"
+              class="w-full justify-between h-auto px-3 py-2.5"
               :class="{
                 'opacity-50 cursor-not-allowed': item.disabled,
               }"
               :disabled="item.disabled"
               @click="openSubmenu(item)"
             >
-              <component
-                v-if="item.icon"
-                :is="item.icon"
-                class="size-4 shrink-0"
-              />
-              <span class="flex-1 text-left">{{ item.label }}</span>
-              <ChevronRightIcon class="size-4 shrink-0" />
+              <span class="flex items-center gap-2">
+                <component
+                  v-if="item.icon"
+                  :is="item.icon"
+                  class="size-4 shrink-0"
+                />
+                <span>{{ item.label }}</span>
+              </span>
+              <ChevronRight class="size-4 shrink-0 text-muted-foreground" />
             </Button>
           </template>
         </div>
       </div>
     </BottomSheet>
+
+    <!-- Nested submenu bottom sheets -->
+    <template v-for="(entry, index) in submenuStack" :key="index">
+      <BottomSheet
+        modal
+        :open="entry.open"
+        :custom-snap-points="snapPoints"
+        :show-drag-handle="showDragHandle"
+        :show-close-button="false"
+        :dismissable="true"
+        :track-obstructing="false"
+        :obstructing-key="`responsive-dropdown-submenu-${index}`"
+        @update:open="(val: boolean) => handleSubmenuOpenChange(index, val)"
+      >
+        <div v-if="entry.submenu.customComponent">
+          <component
+            :is="markRaw(entry.submenu.customComponent)"
+            v-bind="entry.submenu.customProps"
+          />
+        </div>
+
+        <div v-else>
+          <!-- Submenu header with back button -->
+          <div class="flex items-center gap-2 mb-4 mx-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              class="size-8 shrink-0"
+              @click="closeSubmenu(index)"
+            >
+              <ChevronLeft class="size-4" />
+            </Button>
+            <h2 class="text-lg font-semibold">
+              {{ entry.submenu.label }}
+            </h2>
+          </div>
+
+          <div class="px-2">
+            <template
+              v-for="(subItem, subIndex) in entry.submenu.items"
+              :key="subItem.id || subIndex"
+            >
+              <Separator v-if="subItem.type === 'separator'" class="my-1.5" />
+
+              <div
+                v-else-if="subItem.type === 'label'"
+                class="px-2 py-1.5 text-sm font-semibold"
+              >
+                {{ subItem.label }}
+              </div>
+
+              <Button
+                v-else-if="subItem.type === 'item'"
+                variant="ghost"
+                class="w-full justify-start h-auto px-3 py-2.5 gap-2"
+                :class="{
+                  'text-destructive hover:text-destructive':
+                    subItem.variant === 'destructive' && !subItem.disabled,
+                  'opacity-50 cursor-not-allowed': subItem.disabled,
+                }"
+                :disabled="subItem.disabled"
+                @click="handleItemClick(subItem)"
+              >
+                <component
+                  v-if="subItem.icon"
+                  :is="subItem.icon"
+                  :class="[
+                    'size-4 shrink-0',
+                    {
+                      'text-destructive':
+                        subItem.variant === 'destructive' && !subItem.disabled,
+                    },
+                  ]"
+                />
+                <span>{{ subItem.label }}</span>
+              </Button>
+
+              <!-- Nested submenu trigger (supports infinite nesting) -->
+              <Button
+                v-else-if="subItem.type === 'submenu'"
+                variant="ghost"
+                class="w-full justify-between h-auto px-3 py-2.5"
+                :class="{
+                  'opacity-50 cursor-not-allowed': subItem.disabled,
+                }"
+                :disabled="subItem.disabled"
+                @click="openSubmenu(subItem)"
+              >
+                <span class="flex items-center gap-2">
+                  <component
+                    v-if="subItem.icon"
+                    :is="subItem.icon"
+                    class="size-4 shrink-0"
+                  />
+                  <span>{{ subItem.label }}</span>
+                </span>
+                <ChevronRight class="size-4 shrink-0 text-muted-foreground" />
+              </Button>
+            </template>
+          </div>
+        </div>
+      </BottomSheet>
+    </template>
   </template>
 
   <!-- Desktop: Dropdown Menu -->

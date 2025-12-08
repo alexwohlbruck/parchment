@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { useResponsive } from '@/lib/utils'
+import {
+  useResponsiveOverlay,
+  type ResponsiveOverlayBaseProps,
+  type ResponsiveOverlayTitleProps,
+} from '@/composables/useResponsiveOverlay'
 import BottomSheet from '@/components/BottomSheet.vue'
 import {
   Dialog,
@@ -11,17 +14,11 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 
-const props = withDefaults(defineProps<{
-  open?: boolean
-  title?: string
-  description?: string
+interface Props extends ResponsiveOverlayBaseProps, ResponsiveOverlayTitleProps {
   contentClass?: string
-  // Bottom sheet specific props
-  peekHeight?: number | string
-  customSnapPoints?: (number | string)[]
-  showDragHandle?: boolean
-  showCloseButton?: boolean
-}>(), {
+}
+
+const props = withDefaults(defineProps<Props>(), {
   showDragHandle: true,
   showCloseButton: true,
 })
@@ -30,24 +27,12 @@ const emit = defineEmits<{
   'update:open': [value: boolean]
 }>()
 
-const { isMobileScreen } = useResponsive()
-const internalOpen = ref(props.open ?? false)
-
-// Sync internal state with prop
-watch(() => props.open, (newValue) => {
-  if (newValue !== undefined) {
-    internalOpen.value = newValue
-  }
-})
-
-// Emit changes
-watch(internalOpen, (newValue) => {
-  emit('update:open', newValue)
-})
-
-function handleOpenChange(value: boolean) {
-  internalOpen.value = value
-}
+const { isMobileScreen, internalOpen, handleOpenChange } = useResponsiveOverlay(
+  {
+    open: props.open,
+    emit,
+  },
+)
 </script>
 
 <template>

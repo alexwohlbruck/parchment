@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { useResponsive } from '@/lib/utils'
+import { ref, watch } from 'vue'
+import {
+  useResponsiveOverlay,
+  type ResponsiveOverlayBaseProps,
+  type ResponsiveOverlayPositionProps,
+} from '@/composables/useResponsiveOverlay'
 import BottomSheet from '@/components/BottomSheet.vue'
 import {
   Popover,
@@ -8,38 +12,32 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 
-const props = withDefaults(
-  defineProps<{
-    open?: boolean
-    align?: 'start' | 'center' | 'end'
-    side?: 'top' | 'right' | 'bottom' | 'left'
-    sideOffset?: number
-    desktopContentClass?: string
-    mobileContentClass?: string
-    // Bottom sheet specific props
-    modal?: boolean
-    peekHeight?: number | string
-    customSnapPoints?: (number | string)[]
-    showDragHandle?: boolean
-    showCloseButton?: boolean
-    zIndexOffset?: number
-  }>(),
-  {
-    align: 'center',
-    side: 'bottom',
-    sideOffset: 0,
-    modal: false,
-    showDragHandle: true,
-    showCloseButton: true,
-    zIndexOffset: 0,
-  },
-)
+interface Props extends ResponsiveOverlayBaseProps, ResponsiveOverlayPositionProps {
+  desktopContentClass?: string
+  mobileContentClass?: string
+  modal?: boolean
+  zIndexOffset?: number
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  align: 'center',
+  side: 'bottom',
+  sideOffset: 0,
+  modal: false,
+  showDragHandle: true,
+  showCloseButton: true,
+  zIndexOffset: 0,
+})
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
 }>()
 
-const { isMobileScreen } = useResponsive()
+const { isMobileScreen } = useResponsiveOverlay({
+  open: props.open,
+  emit,
+})
+
 const mobileOpen = ref(false)
 const desktopOpen = ref(props.open ?? false)
 

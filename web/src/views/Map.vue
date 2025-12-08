@@ -172,6 +172,7 @@ defineExpose({
         :open="bottomSheetOpen"
         @update:open="onOpenChange"
         :default-snap-point-index="1"
+        dismissable
         show-drag-handle
         show-close-button
         obstructing-key="map-content-sheet"

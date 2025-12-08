@@ -36,7 +36,7 @@ const { openExternalLink } = useExternalLink()
 const { waypoints } = storeToRefs(directionsStore)
 const { mapCamera } = storeToRefs(mapStore)
 
-const showContextMenu = ref(false)
+const showContextMenu = ref(true)
 const contextMenuPosition = ref({ x: 0, y: 0 })
 const clickedLngLat = ref<LngLat | null>(null)
 

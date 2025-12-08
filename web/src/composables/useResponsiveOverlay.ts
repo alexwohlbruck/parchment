@@ -47,8 +47,8 @@ export const responsiveOverlayPositionDefaults = {
 }
 
 export interface UseResponsiveOverlayOptions {
-  /** Initial open state from props */
-  open?: boolean
+  /** Getter function for the open prop (use () => props.open to make it reactive) */
+  getOpen: () => boolean | undefined
   /** Emit function from the component */
   emit: (event: 'update:open', value: boolean) => void
   /** Whether to clean up body styles on close (for vaul-vue workaround) */
@@ -75,19 +75,16 @@ export interface UseResponsiveOverlayReturn {
 export function useResponsiveOverlay(
   options: UseResponsiveOverlayOptions,
 ): UseResponsiveOverlayReturn {
-  const { emit, cleanupBodyStyles = false } = options
+  const { getOpen, emit, cleanupBodyStyles = false } = options
   const { isMobileScreen } = useResponsive()
-  const internalOpen = ref(options.open ?? false)
+  const internalOpen = ref(getOpen() ?? false)
 
-  // Watch for external prop changes
-  watch(
-    () => options.open,
-    newValue => {
-      if (newValue !== undefined) {
-        internalOpen.value = newValue
-      }
-    },
-  )
+  // Watch for external prop changes (using getter function for reactivity)
+  watch(getOpen, newValue => {
+    if (newValue !== undefined) {
+      internalOpen.value = newValue
+    }
+  })
 
   // Emit changes to parent
   watch(internalOpen, newValue => {
@@ -132,4 +129,3 @@ export function computeSnapPoints(
 ): (number | string)[] {
   return customSnapPoints || [peekHeight ?? '250px', 0.5, 1]
 }
-

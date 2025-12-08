@@ -207,6 +207,9 @@ export class MapboxStrategy extends MapStrategy {
         point: e.point,
       })
     })
+
+    // Touch-and-hold for mobile context menu
+    this.setupLongPressHandler()
     this.mapInstance.on('click', 'mapillary-image', e => {
       mapEventBus.emit('click:mapillary-image', {
         lngLat: e.lngLat,

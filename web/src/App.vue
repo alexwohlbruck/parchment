@@ -145,7 +145,7 @@ function beforeNavTransition(value: boolean) {
   </div>
 
   <div
-    class="flex flex-row h-dvh items-stretch"
+    class="flex flex-row h-[100vh] items-stretch"
     :class="isTauri ? '' : 'bg-background'"
   >
     <!-- Desktop navigation -->
@@ -187,7 +187,7 @@ function beforeNavTransition(value: boolean) {
 }
 
 .safe-area-blur {
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(2px);
   background: hsl(var(--muted) / 0.3);
   mask-image: linear-gradient(to bottom, black 0%, black 50%, transparent 100%);
 }

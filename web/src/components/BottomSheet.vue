@@ -367,7 +367,7 @@ function handleAnimationEnd(open: boolean) {
         ref="drawerContentRef"
         :class="
           cn(
-            'bg-background rounded-t-md min-h-full shadow-lg flex flex-col absolute top-0 bottom-0 left-0 right-0 border-t border-border pb-[min(env(safe-area-inset-bottom),1rem)]',
+            'bg-background rounded-t-md min-h-full shadow-lg flex flex-col absolute top-0 bottom-0 left-0 right-0 border-t border-border',
             props.class,
           )
         "
@@ -403,7 +403,7 @@ function handleAnimationEnd(open: boolean) {
         <div
           ref="scrollContainer"
           :class="
-            cn('flex-1 h-[200vh]', {
+            cn('flex-1 h-[200vh] pb-[env(safe-area-inset-bottom)]', {
               'overflow-y-auto': isFullyExpanded,
               'overflow-y-hidden': !isFullyExpanded,
             })

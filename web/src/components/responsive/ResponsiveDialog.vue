@@ -14,7 +14,9 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 
-interface Props extends ResponsiveOverlayBaseProps, ResponsiveOverlayTitleProps {
+interface Props
+  extends ResponsiveOverlayBaseProps,
+    ResponsiveOverlayTitleProps {
   contentClass?: string
 }
 
@@ -29,7 +31,7 @@ const emit = defineEmits<{
 
 const { isMobileScreen, internalOpen, handleOpenChange } = useResponsiveOverlay(
   {
-    open: props.open,
+    getOpen: () => props.open,
     emit,
   },
 )
@@ -41,7 +43,7 @@ const { isMobileScreen, internalOpen, handleOpenChange } = useResponsiveOverlay(
     <div @click="handleOpenChange(true)">
       <slot name="trigger" :open="() => handleOpenChange(true)" />
     </div>
-    
+
     <BottomSheet
       v-model:open="internalOpen"
       :peek-height="props.peekHeight"
@@ -53,8 +55,15 @@ const { isMobileScreen, internalOpen, handleOpenChange } = useResponsiveOverlay(
     >
       <div class="p-4">
         <div v-if="props.title || props.description" class="mb-4">
-          <h2 v-if="props.title" class="text-lg font-semibold">{{ props.title }}</h2>
-          <p v-if="props.description" class="text-sm text-muted-foreground mt-1">{{ props.description }}</p>
+          <h2 v-if="props.title" class="text-lg font-semibold">
+            {{ props.title }}
+          </h2>
+          <p
+            v-if="props.description"
+            class="text-sm text-muted-foreground mt-1"
+          >
+            {{ props.description }}
+          </p>
         </div>
         <slot name="content" :close="() => handleOpenChange(false)" />
       </div>
@@ -69,10 +78,11 @@ const { isMobileScreen, internalOpen, handleOpenChange } = useResponsiveOverlay(
     <DialogContent :class="props.contentClass">
       <DialogHeader v-if="props.title || props.description">
         <DialogTitle v-if="props.title">{{ props.title }}</DialogTitle>
-        <DialogDescription v-if="props.description">{{ props.description }}</DialogDescription>
+        <DialogDescription v-if="props.description">{{
+          props.description
+        }}</DialogDescription>
       </DialogHeader>
       <slot name="content" :close="() => handleOpenChange(false)" />
     </DialogContent>
   </Dialog>
 </template>
-

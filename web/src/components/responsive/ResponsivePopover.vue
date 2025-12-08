@@ -12,7 +12,9 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 
-interface Props extends ResponsiveOverlayBaseProps, ResponsiveOverlayPositionProps {
+interface Props
+  extends ResponsiveOverlayBaseProps,
+    ResponsiveOverlayPositionProps {
   desktopContentClass?: string
   mobileContentClass?: string
   modal?: boolean
@@ -34,7 +36,7 @@ const emit = defineEmits<{
 }>()
 
 const { isMobileScreen } = useResponsiveOverlay({
-  open: props.open,
+  getOpen: () => props.open,
   emit,
 })
 

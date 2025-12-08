@@ -261,6 +261,9 @@ export class MaplibreStrategy extends MapStrategy {
         point: e.point,
       })
     })
+
+    // Touch-and-hold for mobile context menu
+    this.setupLongPressHandler()
     this.mapInstance.on('click', 'mapillary-image', e => {
       mapEventBus.emit('click:mapillary-image', {
         lngLat: e.lngLat,
@@ -289,17 +292,20 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.jumpTo(camera)
   }
 
-  fitBounds(bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, options: any = {}) {
+  fitBounds(
+    bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
+    options: any = {},
+  ) {
     const mapboxBounds = new LngLatBounds(
       [bounds.minLng, bounds.minLat],
-      [bounds.maxLng, bounds.maxLat]
+      [bounds.maxLng, bounds.maxLat],
     )
-    
+
     this.mapInstance.fitBounds(mapboxBounds, {
       padding: options.padding || 100,
       duration: options.duration || 1000,
       easing: options.easing || (t => t * (2 - t)),
-      ...options
+      ...options,
     })
   }
 

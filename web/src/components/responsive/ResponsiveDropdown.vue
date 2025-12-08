@@ -90,7 +90,7 @@ const emit = defineEmits<{
 
 const { isMobileScreen, internalOpen, handleOpenChange } = useResponsiveOverlay(
   {
-    open: props.open,
+    getOpen: () => props.open,
     emit,
     cleanupBodyStyles: true,
   },

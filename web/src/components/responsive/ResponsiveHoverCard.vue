@@ -12,7 +12,9 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
 
-interface Props extends ResponsiveOverlayBaseProps, ResponsiveOverlayPositionProps {
+interface Props
+  extends ResponsiveOverlayBaseProps,
+    ResponsiveOverlayPositionProps {
   openDelay?: number
   closeDelay?: number
   desktopContentClass?: string
@@ -36,7 +38,7 @@ const emit = defineEmits<{
 }>()
 
 const { isMobileScreen } = useResponsiveOverlay({
-  open: props.open,
+  getOpen: () => props.open,
   emit,
 })
 

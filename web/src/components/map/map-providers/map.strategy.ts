@@ -103,6 +103,11 @@ export class MapStrategy {
       clearLongPress()
     }
 
+    // Prevent default browser context menu on long-press
+    canvas.addEventListener('contextmenu', (e: Event) => {
+      e.preventDefault()
+    })
+
     canvas.addEventListener('touchstart', handleTouchStart)
     canvas.addEventListener('touchmove', handleTouchMove)
     canvas.addEventListener('touchend', handleTouchEnd)

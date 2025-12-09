@@ -37,6 +37,16 @@ export function initVaulChromeWorkaround() {
 
   let pendingTarget: HTMLElement | null = null
 
+  // Not related to workaround, prevents native context menu from opening on vaul overlays
+  document.addEventListener('contextmenu', event => {
+    if (
+      event.target instanceof HTMLElement &&
+      event.target.hasAttribute('data-vaul-overlay')
+    ) {
+      event.preventDefault()
+    }
+  })
+
   // Track pointer start position to detect swipes vs taps
   document.addEventListener(
     'pointerdown',

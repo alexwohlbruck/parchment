@@ -370,7 +370,7 @@ const snapPoints = computeSnapPoints(props.customSnapPoints, props.peekHeight)
                     :is="subItem.icon"
                     class="size-4 shrink-0"
                   />
-                  <span>{{ subItem.label }}</span>
+                  <span>{{ subItem.label }}!</span>
                 </span>
                 <ChevronRight class="size-4 shrink-0 text-muted-foreground" />
               </Button>

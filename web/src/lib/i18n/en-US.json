@@ -536,6 +536,21 @@
         "transitLabels": "Transit labels",
         "placeLabels": "Place labels"
       },
+      "controls": {
+        "title": "Map controls",
+        "zoom": "Zoom",
+        "compass": "Compass",
+        "scale": "Scale bar",
+        "streetView": "Street view",
+        "locate": "Locate",
+        "visibility": {
+          "always": "Always",
+          "never": "Never",
+          "whileRotating": "While rotating",
+          "whileZooming": "While zooming",
+          "whileActive": "While active"
+        }
+      },
       "basemaps": {
         "title": "Basemaps",
         "new": "New basemap",

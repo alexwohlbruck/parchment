@@ -261,7 +261,6 @@ defineExpose({
               <div class="pointer-events-auto flex flex-col gap-2">
                 <ZoomControl />
                 <CompassControl />
-                <LocateControl />
               </div>
 
               <!-- Right bottom -->
@@ -271,6 +270,7 @@ defineExpose({
               >
                 <StreetViewControl />
                 <LayerControl />
+                <LocateControl />
               </div>
             </div>
           </transition-slide>

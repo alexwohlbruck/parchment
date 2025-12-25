@@ -65,6 +65,14 @@ function mapService() {
     null,
   )
 
+  // Track map interaction states for conditional control visibility
+  const isRotatedOrPitched = ref(false)
+  const isCurrentlyRotating = ref(false)
+  const isCurrentlyZooming = ref(false)
+  let rotatingHideTimeout: ReturnType<typeof setTimeout> | null = null
+  let zoomingHideTimeout: ReturnType<typeof setTimeout> | null = null
+  const CONTROL_HIDE_DELAY = 1500 // ms before hiding controls after interaction stops
+
   // Debounced padding update to prevent excessive calls
   let paddingUpdateTimeout: ReturnType<typeof setTimeout> | null = null
 
@@ -159,6 +167,43 @@ function mapService() {
       mapStore.setMapCamera(data)
     })
 
+    // Track rotation/pitch state for conditional control visibility
+    mapEventBus.on('move', data => {
+      const { bearing, pitch } = data
+      const wasRotatedOrPitched = isRotatedOrPitched.value
+      isRotatedOrPitched.value =
+        Math.abs(bearing) > 0.5 || Math.abs(pitch) > 0.5
+
+      // Detect if user is actively rotating
+      if (
+        wasRotatedOrPitched !== isRotatedOrPitched.value ||
+        Math.abs(bearing) > 0.5 ||
+        Math.abs(pitch) > 0.5
+      ) {
+        isCurrentlyRotating.value = true
+        if (rotatingHideTimeout) clearTimeout(rotatingHideTimeout)
+        rotatingHideTimeout = setTimeout(() => {
+          if (!isRotatedOrPitched.value) {
+            isCurrentlyRotating.value = false
+          }
+        }, CONTROL_HIDE_DELAY)
+      }
+    })
+
+    // Track zoom state for conditional control visibility
+    let previousZoom: number | null = null
+    mapEventBus.on('move', data => {
+      const { zoom } = data
+      if (previousZoom !== null && Math.abs(zoom - previousZoom) > 0.01) {
+        isCurrentlyZooming.value = true
+        if (zoomingHideTimeout) clearTimeout(zoomingHideTimeout)
+        zoomingHideTimeout = setTimeout(() => {
+          isCurrentlyZooming.value = false
+        }, CONTROL_HIDE_DELAY)
+      }
+      previousZoom = zoom
+    })
+
     mapEventBus.on('click:mapillary-image', ({ lngLat, image }) => {
       if (image) {
         mapStrategy.flyTo({
@@ -188,23 +233,27 @@ function mapService() {
 
   function onMapLoad() {
     setConfigProperties()
-    
+
     // Sync client-side layer visibility with their group states
     const hasVisibleTransitLayers = layersStore.syncClientSideLayerVisibility()
-    
+
     // Include search results layer with regular layers
-    const allLayers = [layersService.createSearchResultsLayer(), ...layers.value]
+    const allLayers = [
+      layersService.createSearchResultsLayer(),
+      ...layers.value,
+    ]
     layersService.initializeLayers(allLayers, mapStrategy)
-    
+
     // Apply transit map theme if transit layers are visible
     if (hasVisibleTransitLayers && mapStrategy) {
       // Import the theme store to access the applyTransitMapTheme function
       const themeStore = useThemeStore()
       const shouldUseFaded = hasVisibleTransitLayers && !themeStore.isDark
-      mapStrategy.setMapColorTheme(shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT)
+      mapStrategy.setMapColorTheme(
+        shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT,
+      )
       mapStrategy.setTransitLabels(!hasVisibleTransitLayers)
     }
-
 
     // Show waypoint markers immediately when map loads
     if (directionsStore.waypoints) {
@@ -225,25 +274,30 @@ function mapService() {
 
   function onStyleLoad() {
     setConfigProperties()
-    
+
     // Sync client-side layer visibility with their group states
     const hasVisibleTransitLayers = layersStore.syncClientSideLayerVisibility()
-    
+
     // Include search results layer with regular layers
-    const allLayers = [layersService.createSearchResultsLayer(), ...layers.value]
+    const allLayers = [
+      layersService.createSearchResultsLayer(),
+      ...layers.value,
+    ]
     layersService.initializeLayers(allLayers, mapStrategy)
 
     // Initialize place polygon layers
     layersService.initializePlacePolygonLayers(mapStrategy)
-    
+
     // Update polygon colors to match current theme
     layersService.updatePlacePolygonColors(mapStrategy)
-    
+
     // Apply transit map theme if transit layers are visible
     if (hasVisibleTransitLayers && mapStrategy) {
       const themeStore = useThemeStore()
       const shouldUseFaded = hasVisibleTransitLayers && !themeStore.isDark
-      mapStrategy.setMapColorTheme(shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT)
+      mapStrategy.setMapColorTheme(
+        shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT,
+      )
       mapStrategy.setTransitLabels(!hasVisibleTransitLayers)
     }
 
@@ -380,16 +434,24 @@ function mapService() {
     mapStrategy.jumpTo(adjustedCamera)
   }
 
-  function fitBounds(bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, options?: any) {
+  function fitBounds(
+    bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
+    options?: any,
+  ) {
     if (!mapStrategy) return
-    
+
     // Calculate existing map padding to account for obstructing UI elements
     const paddingInfo = calculateMapPadding()
-    const basePadding = paddingInfo?.padding || { top: 0, bottom: 0, left: 0, right: 0 }
-    
+    const basePadding = paddingInfo?.padding || {
+      top: 0,
+      bottom: 0,
+      left: 0,
+      right: 0,
+    }
+
     // Handle different padding input formats from options
     let additionalPadding = { top: 50, bottom: 50, left: 50, right: 50 } // Default
-    
+
     if (options?.padding) {
       if (typeof options.padding === 'number') {
         // Uniform padding
@@ -409,7 +471,7 @@ function mapService() {
         }
       }
     }
-    
+
     // Combine base padding (from UI obstructions) with additional padding
     const combinedPadding = {
       top: (basePadding.top || 0) + additionalPadding.top,
@@ -417,12 +479,12 @@ function mapService() {
       left: (basePadding.left || 0) + additionalPadding.left,
       right: (basePadding.right || 0) + additionalPadding.right,
     }
-    
+
     const finalOptions = {
       ...options,
       padding: combinedPadding,
     }
-    
+
     mapStrategy.fitBounds(bounds, finalOptions)
   }
 
@@ -713,11 +775,22 @@ function mapService() {
     // Reset state
     isMapReady.value = false
     queuedTrips.value = null
+    isRotatedOrPitched.value = false
+    isCurrentlyRotating.value = false
+    isCurrentlyZooming.value = false
 
-    // Clear any pending padding updates
+    // Clear any pending timeouts
     if (paddingUpdateTimeout) {
       clearTimeout(paddingUpdateTimeout)
       paddingUpdateTimeout = null
+    }
+    if (rotatingHideTimeout) {
+      clearTimeout(rotatingHideTimeout)
+      rotatingHideTimeout = null
+    }
+    if (zoomingHideTimeout) {
+      clearTimeout(zoomingHideTimeout)
+      zoomingHideTimeout = null
     }
 
     // Clean up search results layer
@@ -874,7 +947,7 @@ function mapService() {
       props: Record<string, any> = {},
     ) => mapStrategy?.addVueMarker(id, lngLat, component, props),
     removeAllMarkers: () => mapStrategy?.removeAllMarkers(),
-    updatePlacePolygon: (place: Place | null) => 
+    updatePlacePolygon: (place: Place | null) =>
       layersService.updatePlacePolygon(mapStrategy, place),
     zoomIn,
     zoomOut,
@@ -905,6 +978,11 @@ function mapService() {
     getZoom() {
       return mapStrategy?.mapInstance?.getZoom() || null
     },
+
+    // Reactive state for conditional control visibility
+    isRotatedOrPitched,
+    isCurrentlyRotating,
+    isCurrentlyZooming,
   }
 }
 

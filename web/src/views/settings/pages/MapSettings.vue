@@ -6,7 +6,7 @@ import { useAppService } from '@/services/app.service'
 import { useMapService } from '@/services/map.service'
 import { useMapStore } from '@/stores/map.store'
 import { useCommandStore } from '@/stores/command.store'
-import { type Layer, MapEngine, MapProjection } from '@/types/map.types'
+import { type Layer, MapEngine, MapProjection, ControlVisibility } from '@/types/map.types'
 import { CommandName } from '@/stores/command.store'
 
 import { Button } from '@/components/ui/button'
@@ -29,6 +29,11 @@ import {
   InfoIcon,
   TrainIcon,
   MapPinIcon,
+  ZoomInIcon,
+  CompassIcon,
+  RulerIcon,
+  PersonStandingIcon,
+  LocateIcon,
 } from 'lucide-vue-next'
 import Layers from '@/components/map/Layers.vue'
 
@@ -38,7 +43,7 @@ const appService = useAppService()
 const mapService = useMapService()
 const { t } = useI18n()
 
-const { settings } = storeToRefs(mapStore)
+const { settings, controlSettings } = storeToRefs(mapStore)
 
 const engineCommand = commandStore.useCommand(CommandName.CHOOSE_MAP_ENGINE)
 const projectionCommand = commandStore.useCommand(CommandName.MAP_PROJECTION)
@@ -173,6 +178,123 @@ const basemap = computed(() => {
           :model-value="settings.placeLabels"
           @update:model-value="mapService.togglePlaceLabels()"
         />
+      </SettingsItem>
+    </SettingsSection>
+
+    <!-- Map controls visibility -->
+    <SettingsSection :title="$t('settings.mapSettings.controls.title')">
+      <SettingsItem
+        :title="$t('settings.mapSettings.controls.zoom')"
+        :icon="ZoomInIcon"
+      >
+        <Select v-model="controlSettings.zoom">
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem :value="ControlVisibility.ALWAYS">
+                {{ $t('settings.mapSettings.controls.visibility.always') }}
+              </SelectItem>
+              <SelectItem :value="ControlVisibility.NEVER">
+                {{ $t('settings.mapSettings.controls.visibility.never') }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.controls.compass')"
+        :icon="CompassIcon"
+      >
+        <Select v-model="controlSettings.compass">
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem :value="ControlVisibility.ALWAYS">
+                {{ $t('settings.mapSettings.controls.visibility.always') }}
+              </SelectItem>
+              <SelectItem :value="ControlVisibility.WHILE_ROTATING">
+                {{ $t('settings.mapSettings.controls.visibility.whileRotating') }}
+              </SelectItem>
+              <SelectItem :value="ControlVisibility.NEVER">
+                {{ $t('settings.mapSettings.controls.visibility.never') }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.controls.scale')"
+        :icon="RulerIcon"
+      >
+        <Select v-model="controlSettings.scale">
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem :value="ControlVisibility.ALWAYS">
+                {{ $t('settings.mapSettings.controls.visibility.always') }}
+              </SelectItem>
+              <SelectItem :value="ControlVisibility.WHILE_ZOOMING">
+                {{ $t('settings.mapSettings.controls.visibility.whileZooming') }}
+              </SelectItem>
+              <SelectItem :value="ControlVisibility.NEVER">
+                {{ $t('settings.mapSettings.controls.visibility.never') }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.controls.streetView')"
+        :icon="PersonStandingIcon"
+      >
+        <Select v-model="controlSettings.streetView">
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem :value="ControlVisibility.ALWAYS">
+                {{ $t('settings.mapSettings.controls.visibility.always') }}
+              </SelectItem>
+              <SelectItem :value="ControlVisibility.WHILE_ACTIVE">
+                {{ $t('settings.mapSettings.controls.visibility.whileActive') }}
+              </SelectItem>
+              <SelectItem :value="ControlVisibility.NEVER">
+                {{ $t('settings.mapSettings.controls.visibility.never') }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.controls.locate')"
+        :icon="LocateIcon"
+      >
+        <Select v-model="controlSettings.locate">
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem :value="ControlVisibility.ALWAYS">
+                {{ $t('settings.mapSettings.controls.visibility.always') }}
+              </SelectItem>
+              <SelectItem :value="ControlVisibility.NEVER">
+                {{ $t('settings.mapSettings.controls.visibility.never') }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
       </SettingsItem>
     </SettingsSection>
 

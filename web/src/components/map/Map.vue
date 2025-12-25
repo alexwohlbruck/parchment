@@ -174,7 +174,8 @@ watch(
   display: none !important;
 }
 
-.mapboxgl-ctrl-geolocate {
+.mapboxgl-ctrl-geolocate,
+.mapboxgl-ctrl:has(.mapboxgl-ctrl-geolocate) {
   display: none !important;
 }
 </style>

@@ -516,6 +516,21 @@
         "transitLabels": "Etiquetas de tránsito",
         "placeLabels": "Etiquetas de lugares"
       },
+      "controls": {
+        "title": "Controles del mapa",
+        "zoom": "Zoom",
+        "compass": "Brújula",
+        "scale": "Barra de escala",
+        "streetView": "Vista de calle",
+        "locate": "Ubicación",
+        "visibility": {
+          "always": "Siempre",
+          "never": "Nunca",
+          "whileRotating": "Mientras rota",
+          "whileZooming": "Mientras hace zoom",
+          "whileActive": "Mientras está activo"
+        }
+      },
       "basemaps": {
         "title": "Mapas base",
         "new": "Nuevo mapa base",

@@ -63,16 +63,11 @@ async function toggleLayerGroupVisibility(groupId: string, visible: boolean) {
 const ungroupedLayers = computed(() => {
   return layers.value.filter(layer => {
     const raw = toRaw(layer)
-    return (
-      raw &&
-      !raw.groupId &&
-      raw.type !== LayerType.STREET_VIEW &&
-      raw.showInLayerSelector
-    )
+    return raw && !raw.groupId && raw.showInLayerSelector
   })
 })
 
-// Get layer groups (filtered for non-street-view content and showInLayerSelector)
+// Get layer groups (filtered for showInLayerSelector)
 const filteredGroups = computed(() => {
   return allLayerGroups.value.filter(group => {
     // Only show groups that are enabled in the selector
@@ -82,9 +77,7 @@ const filteredGroups = computed(() => {
       const raw = toRaw(layer)
       return raw && raw.groupId === group.id
     })
-    return groupLayers.some(
-      layer => toRaw(layer)?.type !== LayerType.STREET_VIEW,
-    )
+    return groupLayers
   })
 })
 
@@ -104,9 +97,7 @@ const allLayers = computed(() => {
         // Only include groups that should show and have at least one non-street-view layer
         if (!group.showInLayerSelector) return null
         const groupHasNonStreetLayer = layers.value.some(
-          l =>
-            toRaw(l)?.groupId === group.id &&
-            toRaw(l)?.type !== LayerType.STREET_VIEW,
+          l => toRaw(l)?.groupId === group.id,
         )
         if (!groupHasNonStreetLayer) return null
         return {
@@ -123,12 +114,7 @@ const allLayers = computed(() => {
 
       // Item is a layer (ungrouped only appears in main list)
       const raw = toRaw(item)
-      if (
-        raw &&
-        !raw.groupId &&
-        raw.type !== LayerType.STREET_VIEW &&
-        raw.showInLayerSelector
-      ) {
+      if (raw && !raw.groupId && raw.showInLayerSelector) {
         return {
           type: 'layer' as const,
           id: getLayerId(raw),

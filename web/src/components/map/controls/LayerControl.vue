@@ -16,7 +16,7 @@ import ResponsiveHoverCard from '@/components/responsive/ResponsiveHoverCard.vue
     :custom-snap-points="['400px', 0.7, 1]"
   >
     <template #trigger>
-      <Button variant="outline" size="icon" class="size-10">
+      <Button variant="outline" size="icon-sm" class="rounded-md size-11">
         <Layers3Icon class="size-5" />
       </Button>
     </template>

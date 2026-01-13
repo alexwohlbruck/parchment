@@ -9,8 +9,15 @@ import { permissions as permissionsSchema } from '../schema/permissions.schema'
 import { generateId } from '../util'
 import { getRoles } from '../services/auth.service'
 import { sendMail } from '../services/mailer.service'
-import { permissions } from '../middleware/auth.middleware'
+import { permissions, requireAuth } from '../middleware/auth.middleware'
 import { PermissionId } from '../types/auth.types'
+import {
+  updateUserAlias,
+  updateUserKeys,
+  getUserIdentity,
+} from '../services/user.service'
+import { buildHandle, getServerDomain } from '../services/federation.service'
+import { isValidAlias } from '../lib/crypto'
 
 const app = new Elysia({ prefix: '/users' })
 
@@ -48,7 +55,8 @@ app.use(permissions(PermissionId.USERS_READ)).get(
         (sessionCount) => sessionCount.userId === user.id,
       )
       const sessionCount = sessionCountResult
-        ? +sessionCountResult.sessionCount
+        ? +(sessionCountResult as { sessionCount: string | number })
+            .sessionCount
         : 0
       return { ...user, sessionCount }
     })
@@ -84,9 +92,6 @@ app.use(permissions(PermissionId.USERS_CREATE)).post(
 
     const roles = await getRoles(newUser.id)
 
-    // Populate default layers for new user
-    await populateDefaultLayers(newUser.id)
-
     await sendMail({
       to: newUser.email,
       from: 'onboarding',
@@ -111,6 +116,10 @@ app.use(permissions(PermissionId.USERS_CREATE)).post(
         t.Union([t.Literal('user'), t.Literal('alpha'), t.Literal('admin')]),
       ),
     }),
+    detail: {
+      tags: ['Users'],
+      summary: 'Create a new user',
+    },
   },
 )
 
@@ -127,11 +136,103 @@ app.use(permissions(PermissionId.ROLES_READ)).get(
   },
 )
 
-app
-  .use(permissions(PermissionId.PERMISSIONS_READ))
-  .get('/permissions', async (_context) => {
+app.use(permissions(PermissionId.PERMISSIONS_READ)).get(
+  '/permissions',
+  async (_context) => {
     const result = await db.select().from(permissionsSchema)
     return result
-  })
+  },
+  {
+    detail: {
+      tags: ['Users'],
+      summary: 'Get all permissions',
+    },
+  },
+)
+
+/**
+ * Get current user's federation identity
+ */
+app.use(requireAuth).get(
+  '/me/identity',
+  async ({ user, error }) => {
+    const identity = await getUserIdentity(user.id)
+    if (!identity) {
+      return error(404, { message: 'User not found' })
+    }
+    return {
+      ...identity,
+      domain: getServerDomain(),
+    }
+  },
+  {
+    detail: {
+      tags: ['Users', 'Federation'],
+      description: 'Get current user federation identity (handle, keys)',
+    },
+  },
+)
+
+/**
+ * Update current user's alias
+ */
+app.use(requireAuth).patch(
+  '/me/alias',
+  async ({ user, body, error }) => {
+    const { alias } = body
+
+    if (!isValidAlias(alias)) {
+      return error(400, {
+        message:
+          'Invalid alias. Use 3-30 alphanumeric characters or underscores.',
+      })
+    }
+
+    const result = await updateUserAlias(user.id, alias)
+
+    if (!result.success) {
+      return error(400, { message: result.error || 'Failed to update alias' })
+    }
+
+    return {
+      alias,
+      handle: buildHandle(alias),
+    }
+  },
+  {
+    body: t.Object({
+      alias: t.String(),
+    }),
+    detail: {
+      tags: ['Users', 'Federation'],
+      description: 'Update current user alias (username for federation)',
+    },
+  },
+)
+
+/**
+ * Register or update public keys
+ */
+app.use(requireAuth).put(
+  '/me/keys',
+  async ({ user, body, set }) => {
+    const { signingKey, encryptionKey } = body
+
+    await updateUserKeys(user.id, signingKey, encryptionKey)
+
+    set.status = 200
+    return { success: true }
+  },
+  {
+    body: t.Object({
+      signingKey: t.String(),
+      encryptionKey: t.String(),
+    }),
+    detail: {
+      tags: ['Users', 'Federation'],
+      description: 'Register or update federation public keys',
+    },
+  },
+)
 
 export default app

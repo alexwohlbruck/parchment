@@ -17,6 +17,7 @@ import NotFound from '@/views/NotFound.vue'
 import Collections from '@/views/library/collections/Collections.vue'
 import Layers from '@/views/library/layers/Layers.vue'
 import Integrations from '@/views/settings/pages/Integrations.vue'
+import Friends from '@/views/friends/Friends.vue'
 
 import { useAuthStore } from '@/stores/auth.store'
 
@@ -43,6 +44,7 @@ export enum AppRoute {
   MAP_SETTINGS = 'mapSettings',
   USERS = 'users',
   INTEGRATIONS = 'integrations',
+  FRIENDS = 'friends',
   NOT_FOUND = 'not-found',
 }
 
@@ -144,6 +146,14 @@ const router = createRouter({
           name: AppRoute.COLLECTION,
           component: Collection,
           props: true,
+        },
+        {
+          path: '/friends',
+          name: AppRoute.FRIENDS,
+          component: Friends,
+          meta: {
+            auth: true,
+          },
         },
       ],
     },

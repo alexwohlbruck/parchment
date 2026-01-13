@@ -14,8 +14,19 @@ import { Directions, TripsResponse } from '@/types/directions.types'
 import { Component } from 'vue'
 import { destroyVueMarkerElement } from '@/lib/vue-marker.utils'
 import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
+import FriendLocationMarker from '@/components/map/FriendLocationMarker.vue'
 import { mapEventBus } from '@/lib/eventBus'
 import { impactFeedback } from '@tauri-apps/plugin-haptics'
+
+export interface FriendLocationData {
+  friendHandle: string
+  friendAlias: string
+  friendName?: string
+  friendAvatar?: string
+  lngLat: LngLat
+  updatedAt: Date
+  accuracy?: number
+}
 
 export class MapStrategy {
   mapInstance: any
@@ -257,5 +268,32 @@ export class MapStrategy {
 
   unsetWaypointMarkers() {
     this.clearWaypointMarkers()
+  }
+
+  setFriendLocations(locations: FriendLocationData[]) {
+    this.clearFriendLocationMarkers()
+
+    locations.forEach(location => {
+      this.addVueMarker(
+        `friend-location-${location.friendHandle}`,
+        location.lngLat,
+        FriendLocationMarker,
+        {
+          friendHandle: location.friendHandle,
+          friendAlias: location.friendAlias,
+          friendName: location.friendName,
+          friendAvatar: location.friendAvatar,
+          updatedAt: location.updatedAt,
+          accuracy: location.accuracy,
+        },
+      )
+    })
+  }
+
+  clearFriendLocationMarkers() {
+    const friendMarkerIds = Array.from(this.markers.keys()).filter(id =>
+      id.startsWith('friend-location-'),
+    )
+    friendMarkerIds.forEach(id => this.removeMarker(id))
   }
 }

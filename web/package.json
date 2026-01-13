@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
     "dev:desktop": "bun tauri dev",
     "dev:ios": "bun tauri ios dev",
     "dev:android": "sh -c 'sleep 5 && adb reverse tcp:5000 tcp:5000' & bun tauri android dev",
@@ -30,6 +32,10 @@
     "@internationalized/date": "^3.5.4",
     "@mdi/js": "^7.4.47",
     "@morev/vue-transitions": "^3.0.2",
+    "@noble/ciphers": "^2.1.1",
+    "@noble/curves": "^2.0.1",
+    "@noble/ed25519": "^3.0.0",
+    "@noble/hashes": "^2.0.1",
     "@simplewebauthn/browser": "^10.0.0",
     "@tanstack/vue-table": "^8.17.0",
     "@tauri-apps/plugin-haptics": "~2",
@@ -82,12 +88,15 @@
     "@types/simple-icons": "^5.21.1",
     "@types/vue-router": "^2.0.0",
     "@vitejs/plugin-vue": "^4.6.2",
+    "@vitest/ui": "^4.0.16",
     "drizzle-orm": "^0.44.2",
+    "happy-dom": "^20.1.0",
     "postcss": "^8.4.38",
     "postgres": "^3.4.5",
     "tailwindcss": "^4.1.10",
     "typescript": "^5.4.5",
     "vite": "^5.2.11",
-    "vite-svg-loader": "^5.1.0"
+    "vite-svg-loader": "^5.1.0",
+    "vitest": "^4.0.16"
   }
 }

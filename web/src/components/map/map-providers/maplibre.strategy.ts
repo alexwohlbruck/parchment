@@ -733,6 +733,7 @@ export class MaplibreStrategy extends MapStrategy {
 
     const marker = new Marker({
       element: element,
+      anchor: 'center', // Center the element on the position
     })
       .setLngLat(lngLat as LngLatLike)
       .addTo(this.mapInstance)

@@ -60,3 +60,22 @@ export const auth = {
   getToken: () => get<string>('auth_token'),
   clearToken: () => remove('auth_token'),
 }
+
+// Convenience methods for location encryption keys and tracking
+export const location = {
+  setPrivateKey: (key: string) => save('location_private_key', key),
+  getPrivateKey: () => get<string>('location_private_key'),
+  clearPrivateKey: () => remove('location_private_key'),
+  setSharedKeys: <T = Record<string, unknown>>(keys: T) => save('location_shared_keys', keys),
+  getSharedKeys: <T = Record<string, unknown>>() => get<T>('location_shared_keys'),
+  clearSharedKeys: () => remove('location_shared_keys'),
+  setDeviceId: (id: string) => save('location_device_id', id),
+  getDeviceId: () => get<string>('location_device_id'),
+  setFingerprint: (fingerprint: string) => save('location_fingerprint', fingerprint),
+  getFingerprint: () => get<string>('location_fingerprint'),
+  setBuffer: <T = unknown>(buffer: T[]) => save('location_buffer', buffer),
+  getBuffer: <T = unknown>() => get<T[]>('location_buffer'),
+  clearBuffer: () => remove('location_buffer'),
+  setTrackingEnabled: (enabled: boolean) => save('location_tracking_enabled', enabled),
+  getTrackingEnabled: () => get<boolean>('location_tracking_enabled'),
+}

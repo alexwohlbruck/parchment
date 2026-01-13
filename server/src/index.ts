@@ -12,6 +12,10 @@ import {
   library as libraryController,
   integrations as integrationsController,
   search as searchController,
+  federation as federationController,
+  friends as friendsController,
+  sharing as sharingController,
+  location as locationController,
 } from './controllers'
 import { initializeIntegrations } from './services/integration.service'
 import { initI18n } from './lib/i18n'
@@ -31,6 +35,10 @@ app.use(proxyController)
 app.use(libraryController)
 app.use(integrationsController)
 app.use(searchController)
+app.use(federationController)
+app.use(friendsController)
+app.use(sharingController)
+app.use(locationController)
 
 app.onError(({ code }) => {
   if (code === 'NOT_FOUND') return 'Route not found :(' // TODO: i18n, proper error

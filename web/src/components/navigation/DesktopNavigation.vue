@@ -198,10 +198,10 @@ const items = computed<MenuItemDefinition[]>(() => [
         to: '/offline',
       },
       {
-        label: t('people.title'),
-        // hotkey: ['l'],
+        label: t('friends.title'),
+        // hotkey: ['f'],
         icon: UsersRoundIcon,
-        to: '/people',
+        to: '/friends',
       },
     ],
   },

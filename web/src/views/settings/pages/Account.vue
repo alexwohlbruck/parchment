@@ -18,6 +18,7 @@ import {
 import { SettingsSection, SettingsItem } from '@/components/settings'
 import Passkeys from '@/components/auth/Passkeys.vue'
 import Sessions from '@/components/auth/Sessions.vue'
+import IdentitySettings from '@/components/friends/IdentitySettings.vue'
 
 const authService = useAuthService()
 const authStore = useAuthStore()
@@ -76,6 +77,8 @@ const languageCommand = commandStore.useCommand(CommandName.UPDATE_LANGUAGE)
           </Select>
         </SettingsItem>
       </SettingsSection>
+
+      <IdentitySettings />
 
       <Sessions />
 

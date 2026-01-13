@@ -12,6 +12,7 @@ import { useLayersStore } from '@/stores/layers.store'
 import { useResponsive } from '@/lib/utils'
 import { isTauri } from '@/lib/api'
 import { useExternalLink } from '@/composables/useExternalLink'
+import { useFriendLocationsLayer } from '@/composables/useFriendLocationsLayer'
 
 import DesktopNav from '@/components/navigation/DesktopNavigation.vue'
 import MobileNav from '@/components/navigation/MobileNavigation.vue'
@@ -28,6 +29,7 @@ const integrationService = useIntegrationService()
 const categoryStore = useCategoryStore()
 const layersStore = useLayersStore()
 const appStore = useAppStore()
+const friendLocationsLayer = useFriendLocationsLayer()
 const { isMobileScreen } = useResponsive()
 const { openExternalLink } = useExternalLink()
 
@@ -101,6 +103,8 @@ onMounted(async () => {
     await layersStore.populateUserLayerTemplates()
     // Initialize categories for offline search
     categoryStore.init()
+    // Initialize friend locations layer (watches visibility and polls accordingly)
+    friendLocationsLayer.initialize()
   }
 
   // Add global click handler for external links
@@ -110,6 +114,8 @@ onMounted(async () => {
 onUnmounted(() => {
   // Remove global click handler
   document.removeEventListener('click', handleExternalLinkClick, true)
+  // Cleanup friend locations layer
+  friendLocationsLayer.cleanup()
 })
 
 function afterNavTransition(value: boolean) {

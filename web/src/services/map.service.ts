@@ -27,7 +27,10 @@ import { storeToRefs } from 'pinia'
 import { MapboxStrategy } from '@/components/map/map-providers/mapbox.strategy'
 import { MaplibreStrategy } from '@/components/map/map-providers/maplibre.strategy'
 import { mapEventBus } from '@/lib/eventBus'
-import { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import {
+  MapStrategy,
+  type FriendLocationData,
+} from '@/components/map/map-providers/map.strategy'
 import { watch } from 'vue'
 import { AppRoute } from '@/router'
 import { useRouter } from 'vue-router'
@@ -983,6 +986,11 @@ function mapService() {
     isRotatedOrPitched,
     isCurrentlyRotating,
     isCurrentlyZooming,
+
+    // Friend location markers
+    setFriendLocations: (locations: FriendLocationData[]) =>
+      mapStrategy?.setFriendLocations(locations),
+    clearFriendLocations: () => mapStrategy?.clearFriendLocationMarkers(),
   }
 }
 

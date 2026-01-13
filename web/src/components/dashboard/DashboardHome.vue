@@ -134,10 +134,10 @@ function navigateToRoute(routeName: AppRoute) {
             <span class="font-medium text-sm">{{ t('timeline.title') }}</span>
           </Card>
 
-          <!-- People -->
+          <!-- Friends -->
           <Card
             class="p-3 flex flex-col items-start justify-between gap-1 hover:bg-card transition-colors cursor-pointer border shadow-none h-24"
-            @click="navigateTo('/people')"
+            @click="navigateTo('/friends')"
           >
             <ItemIcon
               icon="UsersRound"
@@ -145,7 +145,7 @@ function navigateToRoute(routeName: AppRoute) {
               size="sm"
               variant="ghost"
             />
-            <span class="font-medium text-sm">{{ t('people.title') }}</span>
+            <span class="font-medium text-sm">{{ t('friends.title') }}</span>
           </Card>
 
           <!-- Settings -->

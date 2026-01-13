@@ -431,8 +431,106 @@
   "customMaps": {
     "title": "Custom maps"
   },
-  "people": {
-    "title": "People"
+  "friends": {
+    "title": "Friends",
+    "addFriend": "Add Friend",
+    "addFirstFriend": "Add Your First Friend",
+    "removeFriend": "Remove Friend",
+    "sendInvite": "Send Invite",
+    "accept": "Accept",
+    "cancel": "Cancel",
+    "done": "Done",
+    "locationSharing": "Location sharing",
+    "invitations": {
+      "title": "Pending Invitations",
+      "incoming": "Incoming",
+      "outgoing": "Outgoing",
+      "noIncoming": "No incoming invitations.",
+      "noOutgoing": "No outgoing invitations.",
+      "noPending": "No pending invitations."
+    },
+    "empty": {
+      "title": "You haven't added any friends yet.",
+      "setupRequired": "Set up your federation identity to connect with friends across servers."
+    },
+    "addDialog": {
+      "title": "Add Friend",
+      "description": "Enter a friend's handle to send them an invitation. They can be on this server or any other Parchment server.",
+      "handleLabel": "Friend's Handle",
+      "formatHint": "Format: username@server.domain",
+      "userNotFound": "User not found. Check the handle and try again.",
+      "lookupFailed": "Failed to look up user. Please try again.",
+      "sendFailed": "Failed to send invitation",
+      "invitationSent": "Invitation sent successfully!"
+    },
+    "e2ee": {
+      "title": "End-to-End Encrypted",
+      "description": "Your location is encrypted on your device. Only the friends you choose can decrypt it."
+    },
+    "identity": {
+      "title": "Federation Identity",
+      "description": "Your identity for connecting with friends across servers",
+      "handle": "Handle",
+      "handleDescription": "Your unique identifier for federation",
+      "username": "Username",
+      "usernameDescription": "Your username (alias) on this server",
+      "server": "Server",
+      "serverDescription": "The server hosting your identity",
+      "notSet": "Not set",
+      "edit": "Edit",
+      "set": "Set",
+      "setupButton": "Set Up Identity",
+      "setupDescription": "Set up your federation identity to connect with friends and share data securely across Parchment servers.",
+      "importButton": "Import Recovery Key",
+      "importDescription": "Your identity exists on this server, but you need to import your recovery key to use it on this device.",
+      "recoveryKey": "Recovery Key",
+      "recoveryKeyDescription": "View your recovery key for backup",
+      "viewKey": "View Key",
+      "aliasHint": "3-30 characters, letters, numbers, underscores only",
+      "updateFailed": "Failed to update alias",
+      "setupInvitations": "Set up your identity to see invitations."
+    },
+    "recoveryKey": {
+      "setupTitle": "Set Up Identity",
+      "setupDescription": "Create your federation identity with end-to-end encryption",
+      "importTitle": "Import Recovery Key",
+      "importDescription": "Restore your identity using your recovery key",
+      "viewTitle": "Your Recovery Key",
+      "viewDescription": "Save this key securely to recover your identity on other devices",
+      "warning": "Keep this key secret! Anyone with this key can access your encrypted data.",
+      "copied": "Copied!",
+      "copyKey": "Copy Key",
+      "confirmSaved": "I have saved my recovery key securely",
+      "completeSetup": "Complete Setup",
+      "enterKey": "Enter your recovery key",
+      "invalidKey": "Invalid recovery key format",
+      "importFailed": "Failed to import recovery key",
+      "importKey": "Import Key"
+    },
+    "map": {
+      "lastSeen": "Last seen",
+      "updated": "Updated",
+      "accuracy": "±{meters}m",
+      "justNow": "just now",
+      "minutesAgo": "{n}m ago",
+      "hoursAgo": "{n}h ago",
+      "daysAgo": "{n}d ago"
+    },
+    "locationSettings": {
+      "title": "Location Sharing",
+      "description": "Choose which friends can see your real-time location. All location data is end-to-end encrypted.",
+      "addFriendsPrompt": "Add friends to start sharing your location.",
+      "e2eeNotice": "Your location is encrypted on your device before being sent. Only the friends you choose can decrypt and see your location. The server never sees your actual coordinates."
+    },
+    "shareDialog": {
+      "title": "Share {name}",
+      "description": "Select friends to share this {type} with. Data will be end-to-end encrypted.",
+      "identityRequired": "You need to set up your identity before sharing.",
+      "noFriends": "Add friends to share with them.",
+      "alreadyShared": "Shared",
+      "e2eeNotice": "End-to-end encrypted sharing",
+      "shareButton": "Share with {count} friend(s)"
+    }
   },
   "navigation": {
     "title": "Navigation",

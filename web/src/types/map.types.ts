@@ -177,6 +177,7 @@ export enum LayerType {
   CUSTOM = 'custom',
   STREET_VIEW = 'street-view',
   TRANSIT = 'transit',
+  FRIENDS = 'friends',
 }
 
 export interface Layer {

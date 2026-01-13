@@ -687,6 +687,7 @@ export class MapboxStrategy extends MapStrategy {
 
     const marker = new Marker({
       element: element,
+      anchor: 'center', // Center the element on the position
     })
       .setLngLat(lngLat)
       .addTo(this.mapInstance)

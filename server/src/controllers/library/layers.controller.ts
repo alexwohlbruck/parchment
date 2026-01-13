@@ -47,16 +47,22 @@ async function ensureGroupId(
 app
   .use(requireAuth)
   .use(permissions(PermissionId.LAYERS_READ))
-  .get('/layers', async ({ user }) => {
-    // Only return user-created layers (no default layers merging)
-    const userLayers = await layersService.getLayers(user.id)
-    
-    // Filter out tombstones and return clean user layers
-    return userLayers.filter((l) => {
-      if (l.name && l.name.startsWith('__tombstone__')) return false
-      return true
-    })
-  })
+  .get(
+    '/layers',
+    async ({ user }) => {
+      const userLayers = await layersService.getLayers(user.id)
+      return userLayers.filter((l) => {
+        if (l.name && l.name.startsWith('__tombstone__')) return false
+        return true
+      })
+    },
+    {
+      detail: {
+        tags: ['Layers'],
+        summary: 'Get all layers',
+      },
+    },
+  )
 
 app
   .use(requireAuth)
@@ -81,6 +87,10 @@ app
         groupId: t.Optional(t.Union([t.String(), t.Null()])),
         configuration: t.Any(),
       }),
+      detail: {
+        tags: ['Layers'],
+        summary: 'Create a layer',
+      },
     },
   )
 
@@ -90,7 +100,6 @@ app
   .put(
     '/layers/:id',
     async ({ user, params: { id }, body, set }) => {
-      // Only allow updating user-owned layers
       const layer = await layersService.updateLayer(id, user.id, body)
       if (!layer) {
         set.status = 404
@@ -113,6 +122,10 @@ app
         groupId: t.Optional(t.Union([t.String(), t.Null()])),
         configuration: t.Optional(t.Any()),
       }),
+      detail: {
+        tags: ['Layers'],
+        summary: 'Update a layer',
+      },
     },
   )
 
@@ -129,6 +142,10 @@ app
       params: t.Object({
         id: t.String(),
       }),
+      detail: {
+        tags: ['Layers'],
+        summary: 'Delete a layer',
+      },
     },
   )
 
@@ -136,11 +153,19 @@ app
 app
   .use(requireAuth)
   .use(permissions(PermissionId.LAYERS_READ))
-  .get('/layers/groups', async ({ user }) => {
-    // Only return user-created layer groups (no default groups merging)
-    const groups = await layersService.getLayerGroups(user.id)
-    return groups
-  })
+  .get(
+    '/layers/groups',
+    async ({ user }) => {
+      const groups = await layersService.getLayerGroups(user.id)
+      return groups
+    },
+    {
+      detail: {
+        tags: ['Layers'],
+        summary: 'Get all layer groups',
+      },
+    },
+  )
 
 app
   .use(requireAuth)
@@ -161,6 +186,10 @@ app
         icon: t.Optional(t.String()),
         order: t.Number(),
       }),
+      detail: {
+        tags: ['Layers'],
+        summary: 'Create a layer group',
+      },
     },
   )
 
@@ -188,6 +217,10 @@ app
         icon: t.Optional(t.String()),
         order: t.Optional(t.Number()),
       }),
+      detail: {
+        tags: ['Layers'],
+        summary: 'Update a layer group',
+      },
     },
   )
 
@@ -204,6 +237,10 @@ app
       params: t.Object({
         id: t.String(),
       }),
+      detail: {
+        tags: ['Layers'],
+        summary: 'Delete a layer group',
+      },
     },
   )
 
@@ -230,6 +267,10 @@ app
         targetGroupId: t.Optional(t.Union([t.String(), t.Null()])),
         targetOrder: t.Number(),
       }),
+      detail: {
+        tags: ['Layers'],
+        summary: 'Move a layer',
+      },
     },
   )
 
@@ -249,6 +290,10 @@ app
       body: t.Object({
         targetOrder: t.Number(),
       }),
+      detail: {
+        tags: ['Layers'],
+        summary: 'Move a layer group',
+      },
     },
   )
 
@@ -272,25 +317,36 @@ app
           }),
         ),
       }),
+      detail: {
+        tags: ['Layers'],
+        summary: 'Reorder layers',
+      },
     },
   )
-
 
 app
   .use(requireAuth)
   .use(permissions(PermissionId.LAYERS_WRITE))
-  .post('/layers/restore-defaults', async ({ user }) => {
-    // Delete only tombstone rows used to hide reserved defaults for this user
-    const userLayers = await layersService.getLayers(user.id)
-    const tombstones = userLayers.filter((l) =>
-      l.name?.startsWith('__tombstone__:'),
-    )
-    let count = 0
-    for (const t of tombstones) {
-      await layersService.deleteLayer(t.id, user.id)
-      count++
-    }
-    return { success: true, restored: count }
-  })
+  .post(
+    '/layers/restore-defaults',
+    async ({ user }) => {
+      const userLayers = await layersService.getLayers(user.id)
+      const tombstones = userLayers.filter((l) =>
+        l.name?.startsWith('__tombstone__:'),
+      )
+      let count = 0
+      for (const t of tombstones) {
+        await layersService.deleteLayer(t.id, user.id)
+        count++
+      }
+      return { success: true, restored: count }
+    },
+    {
+      detail: {
+        tags: ['Layers'],
+        summary: 'Restore default layers',
+      },
+    },
+  )
 
 export default app

@@ -37,6 +37,17 @@
   --color-muted: hsl(var(--muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
 
+  --color-muted-light: color-mix(
+    in oklch,
+    hsl(var(--muted)) 40%,
+    hsl(var(--background)) 60%
+  );
+  --color-muted-light-foreground: color-mix(
+    in oklch,
+    hsl(var(--muted-foreground)) 40%,
+    hsl(var(--foreground)) 60%
+  );
+
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
 

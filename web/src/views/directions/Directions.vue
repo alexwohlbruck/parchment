@@ -20,6 +20,7 @@ import WaypointInput from './WaypointInput.vue'
 import TripsList from './TripsList.vue'
 import { Spinner } from '@/components/ui/spinner'
 import { Waypoint } from '@/types/map.types'
+import PanelLayout from '@/components/layouts/PanelLayout.vue'
 
 dayjs.extend(duration)
 
@@ -69,8 +70,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="w-full overflow-y- flex flex-col">
-    <div class="px-3 space-y-3 flex flex-col">
+  <PanelLayout>
+    <div class="space-y-3 flex flex-col">
       <Tabs v-model="selectedMode" default-value="pedestrian">
         <TabsList class="w-full flex">
           <TabsTrigger
@@ -92,7 +93,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Loading state -->
-    <div v-if="isLoading" class="flex items-center justify-center py-8 px-4">
+    <div v-if="isLoading" class="flex items-center justify-center py-8">
       <Spinner />
       <span class="ml-2 text-sm text-muted-foreground"> Finding trips... </span>
     </div>
@@ -103,9 +104,9 @@ onUnmounted(() => {
     <!-- No results -->
     <div
       v-else-if="!isLoading && waypoints.some(wp => wp.lngLat)"
-      class="text-center py-8 text-muted-foreground px-4"
+      class="text-center py-8 text-muted-foreground"
     >
       <p class="text-sm">No routes found</p>
     </div>
-  </div>
+  </PanelLayout>
 </template>

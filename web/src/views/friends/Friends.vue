@@ -16,6 +16,7 @@ import { Code } from '@/components/ui/code'
 import { Button } from '@/components/ui/button'
 import CopyButton from '@/components/CopyButton.vue'
 import { useRouter } from 'vue-router'
+import PanelLayout from '@/components/layouts/PanelLayout.vue'
 
 const friendsStore = useFriendsStore()
 const identityStore = useIdentityStore()
@@ -64,9 +65,9 @@ function handleSetupIdentity() {
 </script>
 
 <template>
-  <div class="w-full h-full flex flex-col gap-4 px-4 overflow-y-auto">
+  <PanelLayout>
     <!-- Main Content -->
-    <Tabs default-value="friends" class="flex-1 flex flex-col">
+    <Tabs default-value="friends" class="flex-1 flex flex-col gap-4">
       <TabsList class="w-full">
         <TabsTrigger value="friends" class="flex-1 gap-2">
           <Users class="h-4 w-4" />
@@ -97,5 +98,5 @@ function handleSetupIdentity() {
       :mode="recoveryDialogMode"
       @complete="handleSetupComplete"
     />
-  </div>
+  </PanelLayout>
 </template>

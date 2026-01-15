@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useFriendsStore } from '@/stores/friends.store'
@@ -7,6 +7,7 @@ import { useIdentityStore } from '@/stores/identity.store'
 import { useLocationService } from '@/services/location.service'
 import { useE2eeLocationBroadcast } from '@/composables/useE2eeLocationBroadcast'
 import { useFriendLocations } from '@/composables/useFriendLocations'
+import { appEventBus } from '@/lib/eventBus'
 import FriendCard from './FriendCard.vue'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -79,6 +80,11 @@ async function handleRemove(friend: Friendship) {
   await friendsStore.remove(friend)
 }
 
+async function handleSyncKeys() {
+  await friendsStore.syncKeys()
+  await friendLocations.fetchLocations()
+}
+
 async function handleToggleLocation(friendHandle: string, enabled: boolean) {
   locationSaving.value = friendHandle
   try {
@@ -119,6 +125,21 @@ function getFriendLocation(friendHandle: string) {
 
 const hasAnyLocationSharing = computed(() => {
   return Object.values(locationConfigs).some(c => c.enabled)
+})
+
+// Listen for location config changes from other components (e.g., FriendDetail)
+function handleLocationConfigChanged({ friendHandle, enabled }: { friendHandle: string; enabled: boolean }) {
+  if (locationConfigs[friendHandle]) {
+    locationConfigs[friendHandle].enabled = enabled
+  }
+}
+
+onMounted(() => {
+  appEventBus.on('location-config:changed', handleLocationConfigChanged)
+})
+
+onUnmounted(() => {
+  appEventBus.off('location-config:changed', handleLocationConfigChanged)
 })
 </script>
 
@@ -190,6 +211,7 @@ const hasAnyLocationSharing = computed(() => {
           :location-saving="locationSaving === friend.friendHandle"
           @remove="handleRemove"
           @toggle-location="handleToggleLocation"
+          @sync-keys="handleSyncKeys"
         />
       </div>
 

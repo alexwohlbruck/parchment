@@ -15,6 +15,7 @@ import PlaceActions from './actions/PlaceActions.vue'
 import PlaceSources from './sources/PlaceSources.vue'
 import DetailsList from './details/DetailsList.vue'
 import PlaceTransit from './details/PlaceTransit.vue'
+import PanelLayout from '@/components/layouts/PanelLayout.vue'
 
 const props = defineProps<{
   place: Place | null
@@ -119,10 +120,10 @@ function handleBrandLogoError() {
 </script>
 
 <template>
-  <div class="h-full flex flex-col relative px-4">
+  <PanelLayout>
     <div
       v-if="loading"
-      class="h-full p-4 flex items-center justify-center py-8"
+      class="h-full flex items-center justify-center py-8"
     >
       <Spinner class="w-6 h-6" />
     </div>
@@ -138,7 +139,6 @@ function handleBrandLogoError() {
           />
 
           <PlaceActions
-            class=""
             :place="place"
             @directions="handleDirectionsClick"
             @directionsFrom="handleDirectionsFromClick"
@@ -147,7 +147,7 @@ function handleBrandLogoError() {
         </div>
 
         <PlaceGallery
-          class="ml-[-1rem] mr-[-1rem] w-[calc(100%+2rem)]"
+          class="ml-[-0.75rem] mr-[-0.75rem] w-[calc(100%+1.5rem)]"
           :place="place"
           @imageLoaded="handlePlaceImageLoad"
           @imageError="handlePlaceImageError"
@@ -157,7 +157,7 @@ function handleBrandLogoError() {
         <PlaceSources :place="place" />
       </div>
     </template>
-  </div>
+  </PanelLayout>
 </template>
 
 <style>

@@ -42,6 +42,42 @@ export function useE2eeLocationBroadcast() {
   let broadcastIntervalId: ReturnType<typeof setInterval> | null = null
   let watchPositionId: number | null = null
   let currentLocation: GeolocationPosition | null = null
+  let batteryManager: BatteryManager | null = null
+
+  // Battery Manager type (not in all TypeScript libs)
+  interface BatteryManager extends EventTarget {
+    charging: boolean
+    chargingTime: number
+    dischargingTime: number
+    level: number
+  }
+
+  /**
+   * Initialize battery monitoring if available
+   */
+  async function initBatteryMonitor() {
+    try {
+      // Browser Battery API
+      if ('getBattery' in navigator) {
+        batteryManager = await (navigator as any).getBattery()
+      }
+    } catch (error) {
+      console.warn('Battery API not available:', error)
+    }
+  }
+
+  /**
+   * Get current battery info or undefined if not available
+   */
+  function getBatteryInfo(): { level: number; charging: boolean } | undefined {
+    if (batteryManager) {
+      return {
+        level: batteryManager.level,
+        charging: batteryManager.charging,
+      }
+    }
+    return undefined
+  }
 
   // Computed
   const friendsWithSharing = ref<
@@ -128,13 +164,17 @@ export function useE2eeLocationBroadcast() {
     broadcastError.value = null
 
     try {
+      const batteryInfo = getBatteryInfo()
       const locationData: LocationData = {
         lat: currentLocation.coords.latitude,
         lng: currentLocation.coords.longitude,
         accuracy: currentLocation.coords.accuracy ?? undefined,
         altitude: currentLocation.coords.altitude ?? undefined,
+        altitudeAccuracy: currentLocation.coords.altitudeAccuracy ?? undefined,
         speed: currentLocation.coords.speed ?? undefined,
         heading: currentLocation.coords.heading ?? undefined,
+        battery: batteryInfo?.level,
+        batteryCharging: batteryInfo?.charging,
         timestamp: currentLocation.timestamp,
       }
 
@@ -215,6 +255,7 @@ export function useE2eeLocationBroadcast() {
       includeHistory.value = config.includeHistory
 
     await loadFriendsWithSharing()
+    await initBatteryMonitor()
     startLocationWatch()
 
     // Initial broadcast after a short delay to get location

@@ -354,8 +354,11 @@ export interface LocationData {
   lng: number
   accuracy?: number
   altitude?: number
+  altitudeAccuracy?: number
   speed?: number
   heading?: number
+  battery?: number // 0-1 representing battery percentage
+  batteryCharging?: boolean
   timestamp: number
 }
 

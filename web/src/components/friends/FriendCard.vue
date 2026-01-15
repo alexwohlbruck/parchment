@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -12,10 +13,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { MoreVertical, UserMinus, ExternalLink, MapPin } from 'lucide-vue-next'
+import { MoreVertical, UserMinus, MapPin, RefreshCwIcon } from 'lucide-vue-next'
+import { AppRoute } from '@/router'
 import type { Friendship } from '@/services/friends.service'
 import type { FriendLocation } from '@/composables/useFriendLocations'
 
+const router = useRouter()
 const { t } = useI18n()
 
 interface LocationConfig {
@@ -34,7 +37,19 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   remove: [friend: Friendship]
   toggleLocation: [friendHandle: string, enabled: boolean]
+  syncKeys: []
 }>()
+
+const isSyncing = ref(false)
+
+async function handleSyncKeys() {
+  isSyncing.value = true
+  emit('syncKeys')
+  // Give a bit of time for visual feedback
+  setTimeout(() => {
+    isSyncing.value = false
+  }, 1000)
+}
 
 const alias = computed(() => {
   return props.friend.friendHandle.split('@')[0]
@@ -87,12 +102,22 @@ const isLocationFresh = computed(() => {
   const fiveMinutes = 5 * 60 * 1000
   return Date.now() - props.friendLocation.updatedAt.getTime() < fiveMinutes
 })
+
+function openFriendDetail() {
+  router.push({
+    name: AppRoute.FRIEND_DETAIL,
+    params: { handle: props.friend.friendHandle },
+  })
+}
 </script>
 
 <template>
-  <Card class="overflow-hidden">
-    <!-- Main Content -->
-    <div class="p-4 flex items-center gap-3">
+  <Card class="overflow-hidden group">
+    <!-- Main Content (Clickable) -->
+    <div 
+      class="p-4 flex items-center gap-3 cursor-pointer hover:bg-muted/50 transition-colors"
+      @click="openFriendDetail"
+    >
       <Avatar class="h-11 w-11 shrink-0">
         <AvatarImage
           v-if="friend.friendPicture"
@@ -122,11 +147,20 @@ const isLocationFresh = computed(() => {
       <!-- Menu -->
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" class="h-8 w-8 shrink-0">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            class="h-8 w-8 shrink-0"
+            @click.stop
+          >
             <MoreVertical class="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem @click="handleSyncKeys">
+            <RefreshCwIcon class="h-4 w-4 mr-2" :class="{ 'animate-spin': isSyncing }" />
+            {{ t('friends.detail.syncKeys') }}
+          </DropdownMenuItem>
           <DropdownMenuItem
             @click="emit('remove', friend)"
             class="text-destructive"

@@ -15,6 +15,7 @@ export enum DialogType {
 
 export type AppEvents = {
   'palette:open': void
+  'location-config:changed': { friendHandle: string; enabled: boolean }
 }
 
 export interface BaseDialogOptions {

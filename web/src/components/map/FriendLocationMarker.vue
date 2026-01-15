@@ -7,6 +7,7 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from '@/components/ui/tooltip'
+import { mapEventBus } from '@/lib/eventBus'
 
 // Simple translation function - markers are rendered outside app context
 function t(key: string, params?: Record<string, any>): string {
@@ -32,6 +33,10 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+
+function handleClick() {
+  mapEventBus.emit('click:friend-marker', { friendHandle: props.friendHandle })
+}
 
 const displayName = computed(() => {
   return props.friendName || props.friendAlias
@@ -78,7 +83,11 @@ const isStale = computed(() => {
   <TooltipProvider>
     <Tooltip>
       <TooltipTrigger asChild>
-        <div class="friend-location-marker" :class="{ stale: isStale }">
+        <div 
+          class="friend-location-marker" 
+          :class="{ stale: isStale }"
+          @click="handleClick"
+        >
           <!-- Pulsing ring behind the avatar -->
           <div class="marker-pulse" />
 

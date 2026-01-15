@@ -45,6 +45,7 @@ export enum AppRoute {
   USERS = 'users',
   INTEGRATIONS = 'integrations',
   FRIENDS = 'friends',
+  FRIEND_DETAIL = 'friend-detail',
   NOT_FOUND = 'not-found',
 }
 
@@ -151,6 +152,15 @@ const router = createRouter({
           path: '/friends',
           name: AppRoute.FRIENDS,
           component: Friends,
+          meta: {
+            auth: true,
+          },
+        },
+        {
+          path: '/friends/:handle',
+          name: AppRoute.FRIEND_DETAIL,
+          component: () => import('@/views/friends/FriendDetail.vue'),
+          props: true,
           meta: {
             auth: true,
           },

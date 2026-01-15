@@ -6,15 +6,18 @@
  * It also broadcasts the user's own location when sharing is enabled.
  */
 
-import { watch, computed } from 'vue'
+import { watch, computed, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { createSharedComposable } from '@vueuse/core'
+import { useRouter } from 'vue-router'
 import { useLayersStore } from '@/stores/layers.store'
 import { useIdentityStore } from '@/stores/identity.store'
 import { useFriendsStore } from '@/stores/friends.store'
 import { useFriendLocations } from '@/composables/useFriendLocations'
 import { useE2eeLocationBroadcast } from '@/composables/useE2eeLocationBroadcast'
 import { useMapService } from '@/services/map.service'
+import { mapEventBus } from '@/lib/eventBus'
+import { AppRoute } from '@/router'
 
 const POLL_INTERVAL = 30000 // 30 seconds
 
@@ -25,6 +28,7 @@ function friendLocationsLayerComposable() {
   const friendLocations = useFriendLocations()
   const locationBroadcast = useE2eeLocationBroadcast()
   const mapService = useMapService()
+  const router = useRouter()
 
   const { clientSideLayers } = storeToRefs(layersStore)
   const { isSetupComplete } = storeToRefs(identityStore)
@@ -60,6 +64,9 @@ function friendLocationsLayerComposable() {
     if (isLayerVisible.value && isSetupComplete.value) {
       await startLocationServices()
     }
+
+    // Listen for friend marker clicks to navigate to friend detail
+    mapEventBus.on('click:friend-marker', handleFriendMarkerClick)
 
     // Watch for layer visibility changes
     watch(
@@ -112,6 +119,13 @@ function friendLocationsLayerComposable() {
     )
   }
 
+  function handleFriendMarkerClick({ friendHandle }: { friendHandle: string }) {
+    router.push({
+      name: AppRoute.FRIEND_DETAIL,
+      params: { handle: friendHandle },
+    })
+  }
+
   async function startLocationServices() {
     // Sync friend keys before fetching locations to ensure we have latest public keys
     await friendsStore.syncKeys()
@@ -133,6 +147,7 @@ function friendLocationsLayerComposable() {
   function cleanup() {
     stopLocationServices()
     friendLocations.cleanup()
+    mapEventBus.off('click:friend-marker', handleFriendMarkerClick)
     initialized = false
   }
 

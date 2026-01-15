@@ -9,6 +9,7 @@ import {
   MapIcon,
   Layers3Icon,
 } from 'lucide-vue-next'
+import PanelLayout from '@/components/layouts/PanelLayout.vue'
 
 const tabs = [
   {
@@ -50,7 +51,7 @@ function handleTabChange(tabId) {
 </script>
 
 <template>
-  <div class="px-3 w-full flex flex-col">
+  <PanelLayout>
     <Tabs
       :model-value="tabValue"
       @update:model-value="handleTabChange"
@@ -72,5 +73,5 @@ function handleTabChange(tabId) {
         <router-view />
       </div>
     </Tabs>
-  </div>
+  </PanelLayout>
 </template>

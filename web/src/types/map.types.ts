@@ -108,6 +108,9 @@ export type MapEvents = {
     lngLat: LngLat
     point: { x: number; y: number }
   }
+  'click:friend-marker': {
+    friendHandle: string
+  }
 }
 
 export enum SourceType {

@@ -191,7 +191,7 @@ async function createCollection() {
       </div>
     </div>
 
-    <div v-else class="flex flex-col gap-2 pb-4 flex-1 overflow-y-auto">
+    <div v-else class="flex flex-col gap-2 pb-4 flex-1">
       <CollectionCard
         v-for="collection in filteredCollections"
         :key="collection.id"

@@ -1,86 +1,70 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch, provide, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useObstructingComponent } from '@/composables/useObstructingComponent'
 import { Card } from '@/components/ui/card'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import Palette from '@/components/palette/Palette.vue'
-import { capitalize } from '@/filters/text.filters'
-import {
-  MapIcon,
-  HistoryIcon,
-  UsersRoundIcon,
-  SettingsIcon,
-  LibraryIcon,
-  MilestoneIcon,
-} from 'lucide-vue-next'
+import DashboardHome from '@/components/dashboard/DashboardHome.vue'
+import BottomSheet from '@/components/BottomSheet.vue'
+import { Button } from '@/components/ui/button'
 
-useObstructingComponent(undefined, 'mobileNav')
 const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
-const currentPath = computed(() => route.path)
-const routeModel = computed({
-  get: () => currentPath.value,
-  set: newValue => {
-    router.push(newValue)
-  },
+const activeSnapPoint = ref<number | string | null>(null)
+const activeSnapPointIndex = ref<number>(-1)
+const paletteRef = ref<InstanceType<typeof Palette>>()
+const PEEK_HEIGHT = '65px'
+
+const isFullyExpanded = computed(() => activeSnapPointIndex.value === 2)
+
+function minimizeSheet() {
+  activeSnapPoint.value = PEEK_HEIGHT
+}
+
+// Provide minimize function to child components
+provide('minimizeMobileSheet', minimizeSheet)
+
+function handlePaletteInputFocused() {
+  activeSnapPoint.value = 1 // Fully expand the drawer
+}
+
+watch(isFullyExpanded, newVal => {
+  if (!newVal) {
+    paletteRef.value?.resetPalette()
+  }
 })
 
-const items = computed(() => {
-  return [
-    {
-      label: t('directions.title'),
-      icon: MilestoneIcon,
-      to: '/directions',
-    },
-    {
-      label: capitalize(t('library.title')),
-      icon: LibraryIcon,
-      to: '/library',
-    },
-    {
-      label: t('timeline.title'),
-      icon: HistoryIcon,
-      to: '/timeline',
-    },
-    {
-      label: t('people.title'),
-      icon: UsersRoundIcon,
-      to: '/people',
-    },
-    {
-      label: t('settings.title'),
-      icon: SettingsIcon,
-      to: '/settings',
-    },
-  ]
-})
+function test() {
+  console.log('test')
+}
 </script>
 
 <template>
-  <div class="gap-1 fixed bottom-0 w-full">
+  <bottom-sheet
+    open
+    :peek-height="PEEK_HEIGHT"
+    :dismissable="false"
+    :trackObstructing="false"
+    v-model:active-snap-point="activeSnapPoint"
+    v-model:active-snap-point-index="activeSnapPointIndex"
+    class="z-50 w-full md:w-104 h-full"
+  >
+    <!-- <Button @click="test">test</Button> -->
     <Card
-      class="flex flex-col gap-2 p-2 bg-muted shadow-md rounded-b-none border-0 pb-[min(calc(env(safe-area-inset-bottom)-.25rem), 1rem)]"
+      class="flex flex-col min-h-full p-2 bg-muted shadow-md rounded-b-none border-0"
     >
       <div class="relative">
-        <Palette />
+        <Palette
+          ref="paletteRef"
+          @input-focused="handlePaletteInputFocused"
+          search-on-open
+        />
       </div>
 
-      <Tabs v-model="routeModel" default-value="/" class="w-full">
-        <TabsList class="w-full h-16 px-0">
-          <TabsTrigger
-            v-for="(item, i) in items"
-            class="flex-1 h-full flex-col gap-1"
-            :value="item.to"
-          >
-            <component :is="item.icon" class="size-5" />
-            <!-- TODO: Use typography component -->
-            <p class="text-xs">{{ item.label }}</p>
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <TransitionFade>
+        <DashboardHome v-if="activeSnapPointIndex !== 0" />
+      </TransitionFade>
     </Card>
-  </div>
+  </bottom-sheet>
 </template>

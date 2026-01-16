@@ -45,6 +45,10 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
         ),
         collectionIds: t.Optional(t.Array(t.String())),
       }),
+      detail: {
+        tags: ['Library'],
+        summary: 'Create a new bookmark',
+      },
     },
   )
 
@@ -97,6 +101,10 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
           collectionIds: t.Array(t.String()),
         }),
       ),
+      detail: {
+        tags: ['Library'],
+        summary: 'Update a bookmark',
+      },
     },
   )
 
@@ -131,6 +139,10 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
       body: t.Object({
         collectionIds: t.Array(t.String()),
       }),
+      detail: {
+        tags: ['Library'],
+        summary: 'Remove bookmark from collections',
+      },
     },
   )
 
@@ -148,6 +160,10 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
       params: t.Object({
         id: t.String(),
       }),
+      detail: {
+        tags: ['Library'],
+        summary: 'Get collections for a bookmark',
+      },
     },
   )
 

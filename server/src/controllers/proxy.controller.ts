@@ -19,17 +19,24 @@ async function proxyTileRequest(
       .getConfiguredIntegrations()
       .find((i) => i.integrationId === integrationId)
 
-    if (!systemIntegration || !systemIntegration.config?.apiKey && !systemIntegration.config?.accessToken) {
+    if (
+      !systemIntegration ||
+      (!systemIntegration.config?.apiKey &&
+        !systemIntegration.config?.accessToken)
+    ) {
       return new Response(`${integrationId} not configured`, { status: 501 })
     }
 
-    const apiKey = systemIntegration.config.apiKey || systemIntegration.config.accessToken
+    const apiKey =
+      systemIntegration.config.apiKey || systemIntegration.config.accessToken
     const targetUrl = targetUrlFn(apiKey, params)
 
     const response = await fetch(targetUrl)
 
     if (!response.ok) {
-      console.error(`${errorContext}: ${response.status} ${response.statusText}`)
+      console.error(
+        `${errorContext}: ${response.status} ${response.statusText}`,
+      )
       return new Response('Upstream error', { status: response.status })
     }
 
@@ -48,69 +55,106 @@ async function proxyTileRequest(
 }
 
 // Proxy route for Loom tile service
-app.get('/loom/:service/geo/:z/:x/:y', async ({ params }) => {
-  const { service, z, x, y } = params
+app.get(
+  '/loom/:service/geo/:z/:x/:y',
+  async ({ params }) => {
+    const { service, z, x, y } = params
 
-  try {
-    // Construct the target URL
-    const targetUrl = `https://loom.cs.uni-freiburg.de/tiles/${service}/geo/${z}/${x}/${y}.mvt`
+    try {
+      const targetUrl = `https://loom.cs.uni-freiburg.de/tiles/${service}/geo/${z}/${x}/${y}.mvt`
+      const response = await fetch(targetUrl)
 
-    // Fetch the data from the target URL
-    const response = await fetch(targetUrl)
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch from Loom: ${response.status} ${response.statusText}`,
+        )
+      }
 
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch from Loom: ${response.status} ${response.statusText}`,
-      )
+      const data = await response.arrayBuffer()
+
+      return new Response(data, {
+        headers: {
+          'Content-Type': 'application/x-protobuf',
+          'Cache-Control': 'public, max-age=86400',
+        },
+      })
+    } catch (error) {
+      console.error('Proxy error:', error)
+      return new Response('Proxy error', { status: 500 })
     }
-
-    // Get response as ArrayBuffer (for binary data like MVT)
-    const data = await response.arrayBuffer()
-
-    // Return the response with appropriate headers
-    return new Response(data, {
-      headers: {
-        'Content-Type': 'application/x-protobuf',
-        'Cache-Control': 'public, max-age=86400',
-      },
-    })
-  } catch (error) {
-    console.error('Proxy error:', error)
-    return new Response('Proxy error', { status: 500 })
-  }
-})
+  },
+  {
+    detail: {
+      tags: ['Proxy'],
+      summary: 'Proxy Loom tile service',
+    },
+  },
+)
 
 // Proxy Mapillary vector tiles with token from integration
-app.get('/mapillary/:dataset/:version/:z/:x/:y', async ({ params }) => {
-  return proxyTileRequest(
-    IntegrationId.MAPILLARY,
-    (accessToken, { dataset, version, z, x, y }) =>
-      `https://tiles.mapillary.com/maps/vtp/${dataset}/${version}/${z}/${x}/${y}?access_token=${encodeURIComponent(accessToken)}`,
-    params,
-    'Mapillary',
-  )
-})
+app.get(
+  '/mapillary/:dataset/:version/:z/:x/:y',
+  async ({ params }) => {
+    return proxyTileRequest(
+      IntegrationId.MAPILLARY,
+      (accessToken, { dataset, version, z, x, y }) =>
+        `https://tiles.mapillary.com/maps/vtp/${dataset}/${version}/${z}/${x}/${y}?access_token=${encodeURIComponent(
+          accessToken,
+        )}`,
+      params,
+      'Mapillary',
+    )
+  },
+  {
+    detail: {
+      tags: ['Proxy'],
+      summary: 'Proxy Mapillary vector tiles',
+    },
+  },
+)
 
 // Proxy Transitland route tiles with API key from integration
-app.get('/transitland/routes/:z/:x/:y', async ({ params }) => {
-  return proxyTileRequest(
-    IntegrationId.TRANSITLAND,
-    (apiKey, { z, x, y }) =>
-      `https://transit.land/api/v2/tiles/routes/tiles/${z}/${x}/${y}.pbf?apikey=${encodeURIComponent(apiKey)}`,
-    params,
-    'Transitland routes',
-  )
-})
+app.get(
+  '/transitland/routes/:z/:x/:y',
+  async ({ params }) => {
+    return proxyTileRequest(
+      IntegrationId.TRANSITLAND,
+      (apiKey, { z, x, y }) =>
+        `https://transit.land/api/v2/tiles/routes/tiles/${z}/${x}/${y}.pbf?apikey=${encodeURIComponent(
+          apiKey,
+        )}`,
+      params,
+      'Transitland routes',
+    )
+  },
+  {
+    detail: {
+      tags: ['Proxy'],
+      summary: 'Proxy Transitland route tiles',
+    },
+  },
+)
 
 // Proxy Transitland stop tiles with API key from integration
-app.get('/transitland/stops/:z/:x/:y', async ({ params }) => {
-  return proxyTileRequest(
-    IntegrationId.TRANSITLAND,
-    (apiKey, { z, x, y }) =>
-      `https://transit.land/api/v2/tiles/stops/tiles/${z}/${x}/${y}.pbf?apikey=${encodeURIComponent(apiKey)}`,
-    params,
-    'Transitland stops',
-  )
-})
+app.get(
+  '/transitland/stops/:z/:x/:y',
+  async ({ params }) => {
+    return proxyTileRequest(
+      IntegrationId.TRANSITLAND,
+      (apiKey, { z, x, y }) =>
+        `https://transit.land/api/v2/tiles/stops/tiles/${z}/${x}/${y}.pbf?apikey=${encodeURIComponent(
+          apiKey,
+        )}`,
+      params,
+      'Transitland stops',
+    )
+  },
+  {
+    detail: {
+      tags: ['Proxy'],
+      summary: 'Proxy Transitland stop tiles',
+    },
+  },
+)
 
 export default app

@@ -7,6 +7,7 @@
     "delete": "Delete",
     "confirm": "Confirm",
     "close": "Close",
+    "back": "Back",
     "save": "Save",
     "share": "Share",
     "name": "Name",
@@ -28,7 +29,9 @@
     "optional": "Optional",
     "default": "Default",
     "enabled": "Enabled",
-    "all": "All"
+    "all": "All",
+    "recents": "Recents",
+    "seeAll": "See all"
   },
   "palette": {
     "placeholder": {
@@ -36,13 +39,20 @@
       "command": "Run command...",
       "argument": "Find an item..."
     },
+    "footer": {
+      "moveUpDown": "Move up/down",
+      "open": "Select",
+      "close": "Close",
+      "openPalette": "Open palette",
+      "commandGuide": "Command guide"
+    },
     "commands": {
       "openPalette": {
         "name": "Command palette",
         "description": "Run a command"
       },
       "search": {
-        "name": "Search places",
+        "name": "Search",
         "description": "Search for places, businesses, and amenities",
         "keywords": "find locate",
         "arguments": {
@@ -136,6 +146,11 @@
             "name": "Language"
           }
         }
+      },
+      "openSettings": {
+        "name": "Open settings",
+        "description": "Open the settings page",
+        "keywords": "settings preferences config"
       },
       "signOut": {
         "name": "Sign out",
@@ -275,7 +290,7 @@
     "addStop": "Add stop"
   },
   "library": {
-    "title": "library",
+    "title": "Library",
     "search": {
       "bookmarks": "Search bookmarks...",
       "collections": "Search collections..."
@@ -348,6 +363,10 @@
       "editBookmark": {
         "title": "Edit Bookmark",
         "description": "Modify bookmark details"
+      },
+      "deleteCollection": {
+        "title": "Delete Collection",
+        "description": "Are you sure you want to delete \"{name}\"? This action cannot be undone."
       }
     },
     "form": {
@@ -412,12 +431,141 @@
   "customMaps": {
     "title": "Custom maps"
   },
-  "people": {
-    "title": "People"
+  "friends": {
+    "title": "Friends",
+    "addFriend": "Add Friend",
+    "addFirstFriend": "Add Your First Friend",
+    "removeFriend": "Remove Friend",
+    "sendInvite": "Send Invite",
+    "accept": "Accept",
+    "cancel": "Cancel",
+    "done": "Done",
+    "locationSharing": "Location sharing",
+    "invitations": {
+      "title": "Pending Invitations",
+      "incoming": "Incoming",
+      "outgoing": "Outgoing",
+      "noIncoming": "No incoming invitations.",
+      "noOutgoing": "No outgoing invitations.",
+      "noPending": "No pending invitations."
+    },
+    "empty": {
+      "title": "You haven't added any friends yet.",
+      "setupRequired": "Set up your federation identity to connect with friends across servers."
+    },
+    "addDialog": {
+      "title": "Add Friend",
+      "description": "Enter a friend's handle to send them an invitation. They can be on this server or any other Parchment server.",
+      "handleLabel": "Friend's Handle",
+      "formatHint": "Format: username@server.domain",
+      "userNotFound": "User not found. Check the handle and try again.",
+      "lookupFailed": "Failed to look up user. Please try again.",
+      "sendFailed": "Failed to send invitation",
+      "invitationSent": "Invitation sent successfully!"
+    },
+    "e2ee": {
+      "title": "End-to-End Encrypted",
+      "description": "Your location is encrypted on your device. Only the friends you choose can decrypt it."
+    },
+    "identity": {
+      "title": "Federation Identity",
+      "description": "Your identity for connecting with friends across servers",
+      "handle": "Handle",
+      "handleDescription": "Your unique identifier for federation",
+      "username": "Username",
+      "usernameDescription": "Your username (alias) on this server",
+      "server": "Server",
+      "serverDescription": "The server hosting your identity",
+      "notSet": "Not set",
+      "edit": "Edit",
+      "set": "Set",
+      "setupButton": "Set Up Identity",
+      "setupDescription": "Set up your federation identity to connect with friends and share data securely across Parchment servers.",
+      "importButton": "Import Recovery Key",
+      "importDescription": "Your identity exists on this server, but you need to import your recovery key to use it on this device.",
+      "recoveryKey": "Recovery Key",
+      "recoveryKeyDescription": "View your recovery key for backup",
+      "viewKey": "View Key",
+      "aliasHint": "3-30 characters, letters, numbers, underscores only",
+      "updateFailed": "Failed to update alias",
+      "setupInvitations": "Set up your identity to see invitations."
+    },
+    "recoveryKey": {
+      "setupTitle": "Set Up Identity",
+      "setupDescription": "Create your federation identity with end-to-end encryption",
+      "importTitle": "Import Recovery Key",
+      "importDescription": "Restore your identity using your recovery key",
+      "viewTitle": "Your Recovery Key",
+      "viewDescription": "Save this key securely to recover your identity on other devices",
+      "warning": "Keep this key secret! Anyone with this key can access your encrypted data.",
+      "copied": "Copied!",
+      "copyKey": "Copy Key",
+      "confirmSaved": "I have saved my recovery key securely",
+      "completeSetup": "Complete Setup",
+      "enterKey": "Enter your recovery key",
+      "invalidKey": "Invalid recovery key format",
+      "importFailed": "Failed to import recovery key",
+      "importKey": "Import Key"
+    },
+    "map": {
+      "lastSeen": "Last seen",
+      "updated": "Updated",
+      "accuracy": "±{meters}m",
+      "justNow": "just now",
+      "minutesAgo": "{n}m ago",
+      "hoursAgo": "{n}h ago",
+      "daysAgo": "{n}d ago"
+    },
+    "locationSettings": {
+      "title": "Location Sharing",
+      "description": "Choose which friends can see your real-time location. All location data is end-to-end encrypted.",
+      "addFriendsPrompt": "Add friends to start sharing your location.",
+      "e2eeNotice": "Your location is encrypted on your device before being sent. Only the friends you choose can decrypt and see your location. The server never sees your actual coordinates."
+    },
+    "shareDialog": {
+      "title": "Share {name}",
+      "description": "Select friends to share this {type} with. Data will be end-to-end encrypted.",
+      "identityRequired": "You need to set up your identity before sharing.",
+      "noFriends": "Add friends to share with them.",
+      "alreadyShared": "Shared",
+      "e2eeNotice": "End-to-end encrypted sharing",
+      "shareButton": "Share with {count} friend(s)"
+    },
+    "detail": {
+      "justNow": "Just now",
+      "minutesAgo": "{count}m ago",
+      "hoursAgo": "{count}h ago",
+      "daysAgo": "{count}d ago",
+      "lastKnownLocation": "Last Known Location",
+      "showOnMap": "Show on Map",
+      "noLocationData": "No location data",
+      "noLocationDescription": "This friend hasn't shared their location with you yet.",
+      "locationSharing": "Location Sharing",
+      "shareMyLocation": "Share my location",
+      "sharingEnabled": "Your location is shared with this friend",
+      "sharingDisabled": "Your location is hidden from this friend",
+      "accuracy": "Accuracy",
+      "altitude": "Altitude",
+      "speed": "Speed",
+      "stationary": "Stationary",
+      "heading": "Heading",
+      "battery": "Battery",
+      "security": "Security",
+      "encryptionKey": "Encryption Key",
+      "signingKey": "Signing Key",
+      "removeFriend": "Remove Friend",
+      "removeConfirmation": "Are you sure you want to remove {name} as a friend? This will also stop all location sharing.",
+      "syncKeys": "Sync Keys",
+      "keysSynced": "Keys synced successfully",
+      "syncFailed": "Failed to sync keys"
+    }
   },
   "navigation": {
+    "title": "Navigation",
     "minimize": "Minimize",
-    "maximize": "Maximize"
+    "maximize": "Maximize",
+    "toggle": "Toggle navigation",
+    "toggleDescription": "Toggle the navigation sidebar between minimized and expanded"
   },
   "attribution": {
     "poweredBy": "Powered by",
@@ -477,7 +625,7 @@
             "gray": "Gray",
             "neutral": "Neutral",
             "yellow": "Yellow",
-            "violet": "Voilet"
+            "violet": "Violet"
           }
         },
         "radius": {
@@ -513,6 +661,21 @@
         "roadLabels": "Road labels",
         "transitLabels": "Transit labels",
         "placeLabels": "Place labels"
+      },
+      "controls": {
+        "title": "Map controls",
+        "zoom": "Zoom",
+        "compass": "Compass",
+        "scale": "Scale bar",
+        "streetView": "Street view",
+        "locate": "Locate",
+        "visibility": {
+          "always": "Always",
+          "never": "Never",
+          "whileRotating": "While rotating",
+          "whileZooming": "While zooming",
+          "whileActive": "While active"
+        }
       },
       "basemaps": {
         "title": "Basemaps",

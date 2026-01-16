@@ -87,6 +87,10 @@ app.get(
       radius: t.Optional(t.Number()),
       lang: t.Optional(t.String()),
     }),
+    detail: {
+      tags: ['Places'],
+      summary: 'Get place details by ID or name/location',
+    },
   },
 )
 

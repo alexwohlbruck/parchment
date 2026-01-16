@@ -50,6 +50,10 @@ const searchRouter = new Elysia({ prefix: '/search' })
         maxResults: t.Optional(t.Union([t.String(), t.Number()])),
         autocomplete: t.Optional(t.Union([t.String(), t.Boolean()])),
       }),
+      detail: {
+        tags: ['Search'],
+        summary: 'Search for places',
+      },
     },
   )
 
@@ -107,6 +111,10 @@ const searchRouter = new Elysia({ prefix: '/search' })
         query: t.String({ minLength: 1 }),
         maxResults: t.Optional(t.Number({ minimum: 1, maximum: 1000 })),
       }),
+      detail: {
+        tags: ['Search'],
+        summary: 'Execute advanced Overpass query',
+      },
     },
   )
 
@@ -150,6 +158,10 @@ const searchRouter = new Elysia({ prefix: '/search' })
         }),
         maxResults: t.Optional(t.Number({ minimum: 1, maximum: 1000 })),
       }),
+      detail: {
+        tags: ['Search'],
+        summary: 'Search by category/preset',
+      },
     },
   )
 
@@ -181,6 +193,10 @@ const searchRouter = new Elysia({ prefix: '/search' })
       query: t.Object({
         maxResults: t.Optional(t.Union([t.String(), t.Number()])),
       }),
+      detail: {
+        tags: ['Search'],
+        summary: 'Get all categories/presets',
+      },
     },
   )
 
@@ -209,6 +225,10 @@ const searchRouter = new Elysia({ prefix: '/search' })
       params: t.Object({
         categoryId: t.String(),
       }),
+      detail: {
+        tags: ['Search'],
+        summary: 'Get a specific category by ID',
+      },
     },
   )
 

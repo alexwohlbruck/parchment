@@ -24,7 +24,7 @@ useHotkeys([
 <template>
   <Card
     ref="sheet"
-    class="bg-muted overflow-y-auto z-30 top-0 left-0 w-full md:w-104 h-full pt-12 flex flex-col rounded-l-none border-l-0 border-y-0 justify-center"
+    class="bg-muted-light shadow-none overflow-y-auto z-30 absolute top-0 left-0 w-full md:w-104 h-full flex flex-col rounded-l-none border-foreground/5 border-l-0 border-y-0 justify-start"
   >
     <slot />
   </Card>

@@ -15,6 +15,7 @@ import {
   MapPinIcon,
   PaletteIcon,
   SearchIcon,
+  SettingsIcon,
   SunMoonIcon,
   TerminalIcon,
 } from 'lucide-vue-next'
@@ -34,9 +35,9 @@ import { useCategoryStore } from '@/stores/category.store'
 import { formatAddress } from '@/lib/place.utils'
 import { Icon } from '@/types/app.types'
 import { AppRoute } from '@/router'
+import ColorCommandArgumentOption from '@/components/palette/custom-items/ColorCommandArgumentOption.vue'
 
 export enum CommandName {
-  OPEN_PALETTE = 'openPalette',
   SEARCH = 'search',
   GOTO = 'goto',
   TOGGLE_THEME = 'toggleTheme',
@@ -45,6 +46,7 @@ export enum CommandName {
   CHOOSE_MAP_ENGINE = 'chooseMapEngine',
   MAP_PROJECTION = 'mapProjection',
   OPEN_HOTKEYS_MENU = 'openHotkeysMenu',
+  OPEN_SETTINGS = 'openSettings',
   UPDATE_LANGUAGE = 'updateLanguage',
   SIGN_OUT = 'signOut',
 }
@@ -82,6 +84,7 @@ export const useCommandStore = defineStore('command', () => {
   const { settings } = storeToRefs(mapStore)
 
   function commandIsAvailable(command: Command) {
+    // Check command is compatible with map engine
     if (!command.engine || command.engine?.includes(settings.value.engine)) {
       return true
     }
@@ -116,26 +119,8 @@ export const useCommandStore = defineStore('command', () => {
     return items as CommandArgumentOption[]
   }
 
-  function bindCommandToFunction(id: CommandName, action: Function) {
-    const command = getCommand(id)
-    if (command) {
-      command.action = (...args: any[]) => {
-        if (commandIsAvailable(command)) {
-          action(...args)
-        }
-      }
-    }
-  }
-
   const commands = computed<Command[]>(() => {
     return [
-      {
-        id: CommandName.OPEN_PALETTE,
-        name: t('palette.commands.openPalette.name'),
-        description: t('palette.commands.openPalette.description'),
-        hotkey: ['mod', 'k'],
-        icon: TerminalIcon,
-      },
       {
         id: CommandName.SEARCH,
         name: t('palette.commands.search.name'),
@@ -308,6 +293,7 @@ export const useCommandStore = defineStore('command', () => {
             id: 'color',
             name: t('palette.commands.updateThemeColor.arguments.color.name'),
             type: 'string',
+            customItemComponent: ColorCommandArgumentOption,
             getItems() {
               // TODO: This get called for each item, should be called once
               return allColors.map(color => ({
@@ -406,8 +392,22 @@ export const useCommandStore = defineStore('command', () => {
         name: t('palette.commands.openHotkeysMenu.name'),
         description: t('palette.commands.openHotkeysMenu.description'),
         keywords: t('palette.commands.openHotkeysMenu.keywords'),
-        hotkey: ['s'],
+        hotkey: ['h'],
         icon: HelpCircleIcon,
+      },
+      {
+        id: CommandName.OPEN_SETTINGS,
+        name: t('palette.commands.openSettings.name'),
+        description: t('palette.commands.openSettings.description'),
+        keywords: t('palette.commands.openSettings.keywords'),
+        hotkey: [','],
+        icon: SettingsIcon,
+        action: () => {
+          const current = router.currentRoute.value
+          if (current.matched.some(r => r.name === AppRoute.SETTINGS)) return
+
+          router.push({ name: AppRoute.SETTINGS })
+        },
       },
       {
         id: CommandName.UPDATE_LANGUAGE,
@@ -454,7 +454,6 @@ export const useCommandStore = defineStore('command', () => {
     getCommand,
     useCommand,
     getCommandArgumentOptions,
-    bindCommandToFunction,
     commands,
   }
 })

@@ -1,24 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, onMounted, markRaw } from 'vue'
 import { Card, CardContent } from '@/components/ui/card'
 import { useI18n } from 'vue-i18n'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
-} from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { ItemIcon } from '@/components/ui/item-icon'
-import {
-  MoreVerticalIcon,
-  FolderXIcon,
-  PencilIcon,
-  FolderPlusIcon,
-} from 'lucide-vue-next'
+import { MoreVerticalIcon, PencilIcon, FolderPlusIcon } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
@@ -26,11 +12,13 @@ import { useCollectionsService } from '@/services/library/collections.service'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { storeToRefs } from 'pinia'
 import type { Bookmark } from '@/types/library.types'
-import { getThemeColorClasses, type ThemeColor } from '@/lib/utils'
-import { toast } from 'vue-sonner'
+import type { ThemeColor } from '@/lib/utils'
 import { useAppService } from '@/services/app.service'
 import BookmarkForm from '@/components/library/BookmarkForm.vue'
 import CollectionPicker from '@/components/library/CollectionPicker.vue'
+import ResponsiveDropdown, {
+  type MenuItemDefinition,
+} from '@/components/responsive/ResponsiveDropdown.vue'
 
 const props = defineProps<{
   bookmark: Bookmark
@@ -59,10 +47,6 @@ onMounted(async () => {
   }
 })
 
-const colorClasses = computed(() => {
-  return getThemeColorClasses(props.bookmark.iconColor as ThemeColor)
-})
-
 function navigateToBookmark() {
   const route = bookmarksStore.navigateToBookmark(props.bookmark)
   const [type, osmId] = props.bookmark.externalIds.osm.split('/')
@@ -76,14 +60,6 @@ function navigateToBookmark() {
       },
     })
   }
-}
-
-function handleCollectionToggle(collectionId: string) {
-  emit('addToCollection', props.bookmark)
-}
-
-function handleCreateCollection(bookmark: Bookmark) {
-  console.log('Create new collection with:', bookmark)
 }
 
 async function editBookmark() {
@@ -111,6 +87,26 @@ async function editBookmark() {
       await bookmarksService.updateBookmark(props.bookmark.id, params)
     })
 }
+
+const menuItems = computed<MenuItemDefinition[]>(() => [
+  {
+    type: 'item',
+    id: 'edit',
+    label: t('general.edit'),
+    icon: markRaw(PencilIcon),
+    onSelect: editBookmark,
+  },
+  {
+    type: 'submenu',
+    id: 'add-to-collection',
+    label: t('library.actions.addToCollection'),
+    icon: markRaw(FolderPlusIcon),
+    customComponent: markRaw(CollectionPicker),
+    customProps: {
+      bookmark: props.bookmark,
+    },
+  },
+])
 </script>
 
 <template>
@@ -119,16 +115,11 @@ async function editBookmark() {
     @click="navigateToBookmark"
   >
     <CardContent class="p-2 flex items-center gap-3">
-      <div
-        class="size-10 rounded-md flex items-center justify-center shrink-0"
-        :class="colorClasses"
-      >
-        <ItemIcon
-          :icon="bookmark.icon"
-          :color="bookmark.iconColor as ThemeColor"
-          size="md"
-        />
-      </div>
+      <ItemIcon
+        :icon="bookmark.icon"
+        :color="(bookmark.iconColor as ThemeColor) || 'blue'"
+        size="md"
+      />
 
       <div class="grow min-w-0">
         <div class="flex items-center justify-between">
@@ -148,35 +139,23 @@ async function editBookmark() {
           </div>
 
           <!-- Actions dropdown -->
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child @click.stop>
-              <Button variant="ghost" size="icon" class="size-8">
+          <ResponsiveDropdown
+            align="end"
+            :items="menuItems"
+            :z-index-offset="1"
+            :custom-snap-points="['400px', 0.7]"
+          >
+            <template #trigger="{ open }">
+              <Button
+                variant="ghost"
+                size="icon"
+                class="size-8"
+                @click.stop="open"
+              >
                 <MoreVerticalIcon class="size-4" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem @click.stop="editBookmark">
-                <PencilIcon class="size-4" />
-                {{ t('general.edit') }}
-              </DropdownMenuItem>
-
-              <!-- Add to collections submenu -->
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <FolderPlusIcon class="size-4 mr-2" />
-                  {{ t('library.actions.addToCollection') }}
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent class="min-w-[240px]">
-                  <CollectionPicker
-                    :bookmark="bookmark"
-                    :collection-id="collectionId"
-                    @toggle-collection="handleCollectionToggle"
-                    @create-collection="handleCreateCollection"
-                  />
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            </template>
+          </ResponsiveDropdown>
         </div>
       </div>
     </CardContent>

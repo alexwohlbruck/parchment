@@ -6,7 +6,7 @@ import {
   watch,
   ref,
 } from 'vue'
-import { useAppStore } from '@/stores/app.store'
+import { useAppStore, ManualBounds } from '@/stores/app.store'
 import { useElementBounding, useMutationObserver } from '@vueuse/core'
 
 interface ObstructingComponent {
@@ -24,15 +24,42 @@ const watchedComponents: ObstructingComponent[] = []
  *
  * @param elementRef Optional ref to an element to track instead of the current component
  * @param key Optional unique key to identify this component for later reference
+ * @param manualBounds Optional reactive ref containing manual bounds to use instead of automatic tracking
+ * @param enabled Optional reactive ref to enable/disable tracking dynamically
  */
 export function useObstructingComponent(
   elementRef?: Ref<HTMLElement | null>,
   key?: string,
+  manualBounds?: Ref<ManualBounds | null>,
+  enabled?: Ref<boolean>,
 ) {
   const appStore = useAppStore()
   const instance = getCurrentInstance()
   let componentElement: Ref<HTMLElement | null> = elementRef || ref(null)
   let trackingId: string | undefined
+  let isCurrentlyTracked = false
+
+  const trackComponent = () => {
+    if (!instance?.proxy || isCurrentlyTracked) return
+
+    if (key) {
+      appStore.trackObstructingComponentWithKey(key, instance.proxy)
+      trackingId = key
+    } else {
+      trackingId = appStore.trackObstructingComponents(instance.proxy)
+    }
+    isCurrentlyTracked = true
+  }
+
+  const untrackComponent = () => {
+    if (!instance?.proxy || !isCurrentlyTracked) return
+
+    appStore.untrackObstructingComponent(instance.proxy)
+    if (trackingId && manualBounds) {
+      appStore.clearManualBounds(trackingId)
+    }
+    isCurrentlyTracked = false
+  }
 
   onMounted(() => {
     if (instance?.proxy) {
@@ -41,14 +68,44 @@ export function useObstructingComponent(
         componentElement.value = instance.proxy.$el
       }
 
-      if (key) {
-        appStore.trackObstructingComponentWithKey(key, instance.proxy)
-        trackingId = key
+      // Set up tracking ID
+      trackingId = key || `auto_${Date.now()}_${Math.random()}`
+
+      // Watch enabled state if provided
+      if (enabled) {
+        watch(
+          enabled,
+          (isEnabled) => {
+            if (isEnabled) {
+              trackComponent()
+            } else {
+              untrackComponent()
+            }
+          },
+          { immediate: true },
+        )
       } else {
-        trackingId = appStore.trackObstructingComponents(instance.proxy)
+        // Track immediately if no enabled ref provided
+        trackComponent()
       }
 
-      if (componentElement.value) {
+      // If manual bounds are provided, watch them and update the store
+      if (manualBounds) {
+        watch(
+          manualBounds,
+          (bounds) => {
+            if (bounds && trackingId && isCurrentlyTracked) {
+              appStore.updateManualBounds(trackingId, bounds)
+            }
+          },
+          { immediate: true, deep: true },
+        )
+      }
+      // Otherwise, use automatic bounds tracking
+      else {
+        // Only set up automatic tracking if we have an element
+        if (!componentElement.value) return
+
         const bounds = useElementBounding(componentElement)
 
         const tracker: ObstructingComponent = {
@@ -69,34 +126,36 @@ export function useObstructingComponent(
             bounds.bottom,
           ],
           () => {
-            // Only trigger refresh if the component is visible
-            if (bounds.width.value > 0 && bounds.height.value > 0) {
+            // Only trigger refresh if the component is visible and tracked
+            if (bounds.width.value > 0 && bounds.height.value > 0 && isCurrentlyTracked) {
               appStore.refreshObstructingComponents()
             }
           },
           { immediate: true },
         )
 
-        if (componentElement.value) {
-          useMutationObserver(
-            componentElement,
-            () => {
+        useMutationObserver(
+          componentElement,
+          () => {
+            if (isCurrentlyTracked) {
               appStore.refreshObstructingComponents()
-            },
-            {
-              attributes: true,
-              attributeFilter: ['style', 'class'],
-              childList: false,
-            },
-          )
-        }
+            }
+          },
+          {
+            attributes: true,
+            attributeFilter: ['style', 'class'],
+            childList: false,
+          },
+        )
       }
     }
   })
 
   onUnmounted(() => {
     if (instance?.proxy) {
-      appStore.untrackObstructingComponent(instance.proxy)
+      if (isCurrentlyTracked) {
+        untrackComponent()
+      }
 
       const index = watchedComponents.findIndex(
         c => c.element.value === componentElement.value,

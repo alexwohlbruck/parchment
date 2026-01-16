@@ -3,15 +3,18 @@ import { cva } from 'class-variance-authority'
 import { computed } from 'vue'
 import { type Hotkey } from '@/types/command.types'
 import { useCommandService } from '@/services/command.service'
+import { useHotkeyStore } from '@/stores/hotkey.store'
 
 const commandService = useCommandService()
+const hotkeyStore = useHotkeyStore()
 
 type KbdProps = {
   as?: string
   size?: 'xs' | 'sm' | 'md'
 } & (
-  | { hotkey: Hotkey; commandId?: never }
-  | { commandId: string; hotkey?: never }
+  | { hotkey: Hotkey; commandId?: never; hotkeyId?: never }
+  | { commandId: string; hotkey?: never; hotkeyId?: never }
+  | { hotkeyId: string; hotkey?: never; commandId?: never }
 )
 
 const props = withDefaults(defineProps<KbdProps>(), {
@@ -21,7 +24,7 @@ const props = withDefaults(defineProps<KbdProps>(), {
 
 const kbdClass = computed(() => {
   return cva(
-    'inline-flex items-center whitespace-nowrap pointer-events-none h-5 select-none items-center gap-1 rounded border border-border bg-muted text-nowrap font-sans font-medium',
+    'inline-flex items-center whitespace-nowrap pointer-events-none h-5 select-none items-center gap-1 rounded border border-foreground/15 bg-muted text-nowrap font-sans font-medium',
     {
       variants: {
         size: {
@@ -39,6 +42,8 @@ const kbdClass = computed(() => {
 const hotkey = computed(() => {
   if (props.hotkey) {
     return props.hotkey
+  } else if (props.hotkeyId) {
+    return hotkeyStore.getHotkeyById(props.hotkeyId) ?? []
   } else if (props.commandId) {
     return commandService.getHotkey(props.commandId) ?? []
   }
@@ -46,12 +51,19 @@ const hotkey = computed(() => {
 })
 
 const displayString = computed(() => {
+  if (!hotkey?.value?.map) return ''
   return hotkey.value
     .map(key => {
       if (key === 'meta' || key === 'mod') return '⌘'
       if (key === 'ctrl') return 'Ctrl'
       if (key === 'shift') return 'Shift'
       if (key === 'alt') return 'Alt'
+      if (key === 'enter' || key === 'return') return 'RETURN'
+      if (key === 'escape' || key === 'esc') return 'ESC'
+      if (key === 'up' || key === 'arrowup') return '↑'
+      if (key === 'down' || key === 'arrowdown') return '↓'
+      if (key === 'left' || key === 'arrowleft') return '←'
+      if (key === 'right' || key === 'arrowright') return '→'
       return key.toUpperCase()
     })
     .join(' ')

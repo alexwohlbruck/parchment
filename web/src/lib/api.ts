@@ -3,12 +3,92 @@ import axios, { AxiosError } from 'axios'
 import { useI18n } from 'vue-i18n'
 import { toast } from 'vue-sonner'
 import { useStorage } from '@vueuse/core'
-import { watchEffect } from 'vue'
+import { watchEffect, ref, computed } from 'vue'
 import { DEFAULT_SERVER_URL, APP_NAME_SHORT } from '@/lib/constants'
 import router, { AppRoute } from '@/router'
 import { i18n } from '@/lib/i18n'
 
-export const isTauri = !!window.isTauri
+// Detect Tauri environment using the Tauri API
+// Try to use @tauri-apps/api/os for reliable detection
+let _isTauriCache: boolean | null = null
+let _isTauriPromise: Promise<boolean> | null = null
+
+async function detectTauriAsync(): Promise<boolean> {
+  try {
+    // Try to use the Tauri OS plugin - if it's available, we're in Tauri
+    const { platform } = await import('@tauri-apps/plugin-os')
+    const osPlatform = await platform() // If this succeeds, we're in Tauri
+    if (import.meta.env.DEV) {
+      console.log('[Tauri Detection] Platform detected:', osPlatform)
+    }
+    return true
+  } catch (e) {
+    // If import fails or API call fails, we're not in Tauri
+    if (import.meta.env.DEV) {
+      console.log('[Tauri Detection] Async detection failed:', e)
+    }
+    return false
+  }
+}
+
+// Synchronous check as fallback
+function checkTauriSync(): boolean {
+  if (typeof window === 'undefined') return false
+
+  const win = window as any
+  // Check multiple possible Tauri indicators
+  return (
+    typeof win.__TAURI__ !== 'undefined' ||
+    typeof win.__TAURI_METADATA__ !== 'undefined' ||
+    typeof win.__TAURI_INTERNALS__ !== 'undefined' ||
+    typeof win.__TAURI_IPC__ !== 'undefined' ||
+    window.location.protocol === 'tauri:'
+  )
+}
+
+// Initialize detection
+if (typeof window !== 'undefined') {
+  // Start async detection immediately
+  _isTauriPromise = detectTauriAsync().then(result => {
+    _isTauriCache = result
+    if (import.meta.env.DEV) {
+      console.log('[Tauri Detection] Async detection result:', result)
+    }
+    return result
+  })
+
+  // Also check sync as fallback
+  _isTauriCache = checkTauriSync()
+
+  // Re-check sync after delays
+  const recheck = () => {
+    const syncResult = checkTauriSync()
+    if (syncResult !== _isTauriCache) {
+      _isTauriCache = syncResult
+      if (import.meta.env.DEV) {
+        console.log('[Tauri Detection] Sync check updated to:', syncResult)
+      }
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', recheck)
+  }
+  setTimeout(recheck, 100)
+  setTimeout(recheck, 500)
+}
+
+// Export as a value (uses sync check initially, will be updated by async)
+export const isTauri = _isTauriCache ?? false
+
+// Export async function for components that need accurate detection
+export async function getIsTauri(): Promise<boolean> {
+  if (_isTauriPromise) {
+    return _isTauriPromise
+  }
+  _isTauriPromise = detectTauriAsync()
+  return _isTauriPromise
+}
 
 // Reactive server URL from localStorage, defaults to api.parchment.app
 const serverUrl = useStorage('parchment-selected-server', DEFAULT_SERVER_URL)

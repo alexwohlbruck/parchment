@@ -14,6 +14,19 @@ import { Directions, TripsResponse } from '@/types/directions.types'
 import { Component } from 'vue'
 import { destroyVueMarkerElement } from '@/lib/vue-marker.utils'
 import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
+import FriendLocationMarker from '@/components/map/FriendLocationMarker.vue'
+import { mapEventBus } from '@/lib/eventBus'
+import { impactFeedback } from '@tauri-apps/plugin-haptics'
+
+export interface FriendLocationData {
+  friendHandle: string
+  friendAlias: string
+  friendName?: string
+  friendAvatar?: string
+  lngLat: LngLat
+  updatedAt: Date
+  accuracy?: number
+}
 
 export class MapStrategy {
   mapInstance: any
@@ -21,6 +34,8 @@ export class MapStrategy {
   options: MapSettings
   accessToken?: string
   markers: Map<string, any> = new Map() // Track active markers
+  protected longPressTimer: ReturnType<typeof setTimeout> | null = null
+  protected touchStartPoint: { x: number; y: number } | null = null
 
   constructor(container, options: MapSettings, accessToken?: string) {
     this.container = container
@@ -28,11 +43,96 @@ export class MapStrategy {
     this.accessToken = accessToken
   }
 
+  /**
+   * Sets up touch-and-hold gesture to trigger context menu on mobile.
+   * Should be called from configureEventListeners() in child classes after mapInstance is initialized.
+   */
+  protected setupLongPressHandler() {
+    const LONG_PRESS_DURATION = 500 // ms
+    const MOVE_THRESHOLD = 10 // pixels
+
+    const canvas = this.mapInstance.getCanvas()
+
+    const clearLongPress = () => {
+      if (this.longPressTimer) {
+        clearTimeout(this.longPressTimer)
+        this.longPressTimer = null
+      }
+      this.touchStartPoint = null
+    }
+
+    const handleTouchStart = (e: TouchEvent) => {
+      // Only handle single finger touch
+      if (e.touches.length !== 1) {
+        clearLongPress()
+        return
+      }
+
+      const touch = e.touches[0]
+      this.touchStartPoint = { x: touch.clientX, y: touch.clientY }
+
+      this.longPressTimer = setTimeout(async () => {
+        if (this.touchStartPoint) {
+          const rect = canvas.getBoundingClientRect()
+          const x = this.touchStartPoint.x - rect.left
+          const y = this.touchStartPoint.y - rect.top
+
+          // Convert pixel coordinates to lng/lat
+          const lngLat = this.mapInstance.unproject([x, y])
+
+          // Trigger haptic feedback on mobile
+          try {
+            await impactFeedback('medium')
+          } catch {
+            // Haptics not available (e.g., web/desktop)
+          }
+
+          mapEventBus.emit('contextmenu', {
+            lngLat,
+            point: { x, y },
+          })
+        }
+        this.longPressTimer = null
+      }, LONG_PRESS_DURATION)
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!this.longPressTimer || !this.touchStartPoint) return
+
+      const touch = e.touches[0]
+      const dx = touch.clientX - this.touchStartPoint.x
+      const dy = touch.clientY - this.touchStartPoint.y
+      const distance = Math.sqrt(dx * dx + dy * dy)
+
+      // Cancel if finger moved too much (user is panning)
+      if (distance > MOVE_THRESHOLD) {
+        clearLongPress()
+      }
+    }
+
+    const handleTouchEnd = () => {
+      clearLongPress()
+    }
+
+    // Prevent default browser context menu on long-press
+    canvas.addEventListener('contextmenu', (e: Event) => {
+      e.preventDefault()
+    })
+
+    canvas.addEventListener('touchstart', handleTouchStart)
+    canvas.addEventListener('touchmove', handleTouchMove)
+    canvas.addEventListener('touchend', handleTouchEnd)
+    canvas.addEventListener('touchcancel', handleTouchEnd)
+  }
+
   resize() {}
   addDataSource() {}
   flyTo(camera: Partial<MapCamera>) {}
   jumpTo(camera: Partial<MapCamera>) {}
-  fitBounds(bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }, options?: any) {}
+  fitBounds(
+    bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
+    options?: any,
+  ) {}
   setDirections(directions: Directions) {}
   unsetDirections() {}
   setPegman(pegman: Pegman) {}
@@ -168,5 +268,32 @@ export class MapStrategy {
 
   unsetWaypointMarkers() {
     this.clearWaypointMarkers()
+  }
+
+  setFriendLocations(locations: FriendLocationData[]) {
+    this.clearFriendLocationMarkers()
+
+    locations.forEach(location => {
+      this.addVueMarker(
+        `friend-location-${location.friendHandle}`,
+        location.lngLat,
+        FriendLocationMarker,
+        {
+          friendHandle: location.friendHandle,
+          friendAlias: location.friendAlias,
+          friendName: location.friendName,
+          friendAvatar: location.friendAvatar,
+          updatedAt: location.updatedAt,
+          accuracy: location.accuracy,
+        },
+      )
+    })
+  }
+
+  clearFriendLocationMarkers() {
+    const friendMarkerIds = Array.from(this.markers.keys()).filter(id =>
+      id.startsWith('friend-location-'),
+    )
+    friendMarkerIds.forEach(id => this.removeMarker(id))
   }
 }

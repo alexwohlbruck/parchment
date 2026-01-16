@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onClickOutside, useMagicKeys, useDebounceFn } from '@vueuse/core'
 import { useRoute, useRouter } from 'vue-router'
 import { useCommandService } from '@/services/command.service'
 import { CommandName, useCommandStore } from '@/stores/command.store'
 import { useAppStore } from '@/stores/app.store'
+import { HotkeyId } from '@/stores/hotkey.store'
 import { AppRoute } from '@/router'
 import {
   ArgumentType,
@@ -32,13 +33,30 @@ import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { fuzzyFilter, noFilter } from '@/lib/utils'
 import { TransitionSlide } from '@morev/vue-transitions'
 
+const emit = defineEmits<{
+  (e: 'inputFocused'): void
+  (e: 'update:open', value: boolean): void
+}>()
+
+const props = withDefaults(
+  defineProps<{
+    searchOnOpen?: boolean
+    open?: boolean
+    showHints?: boolean
+  }>(),
+  {
+    searchOnOpen: false,
+    open: true,
+    showHints: false,
+  },
+)
+
 const { t } = useI18n()
 const route = useRoute()
 const commandStore = useCommandStore()
 const appStore = useAppStore()
 const router = useRouter()
 const {
-  bindCommandToFunction,
   activeCommand,
   activeArgument,
   argumentsList,
@@ -48,7 +66,10 @@ const {
 } = useCommandService()
 
 const query = ref('')
-const commandOpen = ref(true)
+const commandOpen = computed({
+  get: () => props.open ?? true,
+  set: value => emit('update:open', value),
+})
 const showResults = ref(false)
 const isDrawerOpen = computed(() => {
   return appStore.obstructingComponentsMap.has('left-sheet')
@@ -63,14 +84,9 @@ const commandPalette = ref<InstanceType<typeof Command>>()
 const input = ref<InstanceType<typeof CommandInput>>()
 const { escape } = useMagicKeys()
 
-bindCommandToFunction(CommandName.OPEN_PALETTE, focusInput)
-
 const filteredCommands = computed(() => {
-  // Don't include the openPalette command in the results, we are already looking at the search palette
-  const availableCommands = commandStore.commands.filter(
-    command =>
-      command.id != CommandName.OPEN_PALETTE &&
-      commandStore.commandIsAvailable(command),
+  const availableCommands = commandStore.commands.filter(command =>
+    commandStore.commandIsAvailable(command),
   )
 
   return filterFunction.value
@@ -90,11 +106,15 @@ function openPalette(withSearch = false) {
   focusInput()
 
   if (withSearch) {
-    const searchCommand = commandStore.commands.find(
-      command => command.id === 'search',
-    )
-    executeCommand(searchCommand!)
+    openSearchCommand()
   }
+}
+
+function openSearchCommand() {
+  const searchCommand = commandStore.commands.find(
+    command => command.id === 'search',
+  )
+  executeCommand(searchCommand!)
 }
 
 function closePalette() {
@@ -123,15 +143,33 @@ function focusInput() {
 
 function blurInput() {
   input.value?.inputElement?.blur()
+  commandOpen.value = false
 }
 
 function clearInput() {
   query.value = ''
 }
 
+function resetPalette() {
+  closePalette()
+  resetCommand()
+}
+
+// Expose functions for parent components
+defineExpose({
+  openPalette,
+  closePalette,
+  resetPalette,
+  focusInput,
+  blurInput,
+  clearInput,
+  openSearchCommand,
+})
+
 function inputFocused(event: FocusEvent) {
+  emit('inputFocused')
   if (!showResults.value) {
-    openPalette(true)
+    openPalette(props.searchOnOpen)
   }
 }
 
@@ -219,12 +257,14 @@ watch(query, newQuery => {
   debouncedLoadOptions()
 })
 
-// If a command is executed that needs arguments, open the palette
-watch(activeArgument, (newVal, prevVal) => {
-  if (newVal) {
-    openPalette()
-  }
-})
+// Load argument options on open if command is selected and requires arguments
+watch(
+  () => props.open,
+  async isOpen => {
+    if (isOpen && activeArgument.value) await loadArgumentOptions()
+  },
+  { immediate: true },
+)
 
 watch(escape, value => {
   if (value) {
@@ -269,9 +309,9 @@ const filterFunction = computed(() => {
 <template>
   <div ref="container">
     <Command
-      class="shadow-md bg-background"
+      class="border border-border bg-background/85 backdrop-blur-xl backdrop-saturate-150"
       ref="commandPalette"
-      :open="commandOpen"
+      v-model:open="commandOpen"
       :ignore-filter="true"
     >
       <CommandInput
@@ -282,11 +322,11 @@ const filterFunction = computed(() => {
         @keydown.backspace="onBackspace()"
       >
         <template v-slot:prefix>
-          <component :is="icon" class="size-4 shrink-0 opacity-50" />
+          <component :is="icon" class="size-4! shrink-0 opacity-50" />
 
           <template v-if="activeCommand">
             <div
-              class="select-none whitespace-nowrap rounded-md bg-primary px-1.5 py-1 font-sans text-xs text-primary-foreground"
+              class="select-none whitespace-nowrap rounded-md bg-primary-tinted border px-1.5 py-1 font-sans text-xs"
             >
               {{ activeCommand.name }}
             </div>
@@ -300,8 +340,8 @@ const filterFunction = computed(() => {
                 class="absolute flex gap-1 transition-all duration-200"
                 :class="showResults || isDrawerOpen ? 'right-6' : 'right-0'"
               >
-                <Kbd commandId="search"></Kbd>
-                <Kbd commandId="openPalette"></Kbd>
+                <!-- TODO: Detect if device has keyboard -->
+                <!-- <Kbd commandId="search"></Kbd> -->
               </div>
             </transition-slide>
             <transition-slide :duration="200" :offset="['100%', 0]">
@@ -310,7 +350,7 @@ const filterFunction = computed(() => {
                 class="absolute right-0 w-4"
               >
                 <XIcon
-                  class="size-4 cursor-pointer opacity-50 hover:opacity-100"
+                  class="size-4! cursor-pointer opacity-50 hover:opacity-100"
                   @click="resetOrClose()"
                 />
               </div>
@@ -400,6 +440,32 @@ const filterFunction = computed(() => {
           </CommandGroup>
         </CommandList>
       </template>
+
+      <!-- Keyboard shortcut hints -->
+      <div
+        v-if="showHints"
+        class="flex items-center gap-4 px-3 py-2 text-xs text-muted-foreground bg-muted/50 border-t border-border"
+      >
+        <div class="flex items-center gap-1.5">
+          <Kbd :hotkeyId="HotkeyId.COMMAND_PALETTE" size="xs" />
+          <span>{{ t('palette.footer.openPalette') }}</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <div class="flex items-center gap-0.5">
+            <Kbd :hotkey="['up']" size="xs" />
+            <Kbd :hotkey="['down']" size="xs" />
+          </div>
+          <span>{{ t('palette.footer.moveUpDown') }}</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <Kbd :hotkey="['enter']" size="xs" />
+          <span>{{ t('palette.footer.open') }}</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <Kbd :hotkey="['escape']" size="xs" />
+          <span>{{ t('palette.footer.close') }}</span>
+        </div>
+      </div>
     </Command>
   </div>
 </template>

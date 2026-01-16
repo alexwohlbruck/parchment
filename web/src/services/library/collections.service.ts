@@ -120,6 +120,88 @@ export const useCollectionsService = createSharedComposable(() => {
     }
   }
 
+  // ============================================================================
+  // Sensitive Collections & Encrypted Points
+  // ============================================================================
+
+  async function setSensitive(collectionId: string, isSensitive: boolean) {
+    try {
+      const response = await api.put(
+        `/library/collections/${collectionId}/sensitive`,
+        { isSensitive },
+      )
+      return response.data.success
+    } catch (error) {
+      toast.error('Failed to update collection sensitivity')
+      return false
+    }
+  }
+
+  async function getEncryptedPoints(collectionId: string) {
+    try {
+      const response = await api.get(
+        `/library/collections/${collectionId}/encrypted-points`,
+      )
+      return response.data.points as Array<{
+        id: string
+        encryptedData: string
+        nonce: string
+        createdAt: string
+        updatedAt: string
+      }>
+    } catch (error) {
+      toast.error('Failed to fetch encrypted points')
+      return []
+    }
+  }
+
+  async function createEncryptedPoint(
+    collectionId: string,
+    encryptedData: string,
+    nonce: string,
+  ) {
+    try {
+      const response = await api.post(
+        `/library/collections/${collectionId}/encrypted-points`,
+        { encryptedData, nonce },
+      )
+      return response.data
+    } catch (error) {
+      toast.error('Failed to create encrypted point')
+      return null
+    }
+  }
+
+  async function updateEncryptedPoint(
+    collectionId: string,
+    pointId: string,
+    encryptedData: string,
+    nonce: string,
+  ) {
+    try {
+      const response = await api.put(
+        `/library/collections/${collectionId}/encrypted-points/${pointId}`,
+        { encryptedData, nonce },
+      )
+      return response.data
+    } catch (error) {
+      toast.error('Failed to update encrypted point')
+      return null
+    }
+  }
+
+  async function deleteEncryptedPoint(collectionId: string, pointId: string) {
+    try {
+      await api.delete(
+        `/library/collections/${collectionId}/encrypted-points/${pointId}`,
+      )
+      return true
+    } catch (error) {
+      toast.error('Failed to delete encrypted point')
+      return false
+    }
+  }
+
   return {
     fetchCollections,
     fetchCollectionById,
@@ -129,5 +211,11 @@ export const useCollectionsService = createSharedComposable(() => {
     deleteCollection,
     getBookmarksInCollection,
     getCollectionDisplayName,
+    // Sensitive collections
+    setSensitive,
+    getEncryptedPoints,
+    createEncryptedPoint,
+    updateEncryptedPoint,
+    deleteEncryptedPoint,
   }
 })

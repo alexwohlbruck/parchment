@@ -3,7 +3,7 @@ import { computed, ref, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Input } from '@/components/ui/input'
 import { ItemIcon } from '@/components/ui/item-icon'
-import { SearchIcon, PlusIcon, CheckIcon, StarIcon } from 'lucide-vue-next'
+import { SearchIcon, CheckIcon, StarIcon } from 'lucide-vue-next'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
@@ -198,9 +198,9 @@ function openCreateCollectionDialog() {
 </script>
 
 <template>
-  <div>
+  <div class="flex flex-col gap-2">
     <div
-      class="px-2 py-1.5"
+      class="px-2"
       @click.stop="preventPropagation"
       @keydown.stop="handleKeydown"
     >
@@ -211,7 +211,7 @@ function openCreateCollectionDialog() {
         <Input
           ref="searchInputRef"
           v-model="collectionSearchQuery"
-          class="w-full h-8 pl-7"
+          class="w-full md:h-9 pl-7"
           :placeholder="t('library.actions.searchCollections')"
           @keydown="handleKeydown"
         />
@@ -220,7 +220,7 @@ function openCreateCollectionDialog() {
 
     <div
       v-if="sortedAndFilteredCollections.length > 0"
-      class="max-h-[200px] overflow-y-auto px-1"
+      class="max-h-[200px] overflow-y-auto px-1 flex flex-col gap-1"
     >
       <template
         v-for="(collection, index) in sortedAndFilteredCollections"
@@ -260,16 +260,7 @@ function openCreateCollectionDialog() {
             class="size-4 text-primary ml-auto"
           />
         </Button>
-        <Separator
-          v-if="
-            index === 0 &&
-            collection.isDefault &&
-            sortedAndFilteredCollections.length > 1
-          "
-          class="my-1"
-        />
       </template>
-      <Separator class="my-1" />
     </div>
 
     <div
@@ -290,14 +281,24 @@ function openCreateCollectionDialog() {
       }}
     </div>
 
-    <div class="px-1">
+    <Separator />
+
+    <div class="px-1 flex">
       <Button
         variant="ghost"
         class="w-full justify-start h-auto px-2 py-1.5 text-sm font-normal flex items-center gap-2"
         @click.prevent.stop="openCreateCollectionDialog"
       >
-        <PlusIcon class="size-4 mr-0.5" />
-        {{ t('library.actions.createNewCollection') }}
+        <div class="relative mr-0.5">
+          <div
+            class="size-7 rounded-sm flex items-center justify-center shrink-0 bg-muted"
+          >
+            <ItemIcon icon="PlusIcon" color="gray" size="sm" />
+          </div>
+        </div>
+        <span class="grow min-w-0 text-left">
+          {{ t('library.actions.createNewCollection') }}
+        </span>
       </Button>
     </div>
   </div>

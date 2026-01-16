@@ -108,6 +108,9 @@ export type MapEvents = {
     lngLat: LngLat
     point: { x: number; y: number }
   }
+  'click:friend-marker': {
+    friendHandle: string
+  }
 }
 
 export enum SourceType {
@@ -175,8 +178,9 @@ export type MaplibreLayerConfiguration = {
 
 export enum LayerType {
   CUSTOM = 'custom',
-  STREET_VIEW = 'street_view',
+  STREET_VIEW = 'street-view',
   TRANSIT = 'transit',
+  FRIENDS = 'friends',
 }
 
 export interface Layer {
@@ -258,3 +262,20 @@ export const MarkerIds = {
 } as const
 
 export type MarkerId = (typeof MarkerIds)[keyof typeof MarkerIds]
+
+// Map control visibility settings
+export enum ControlVisibility {
+  ALWAYS = 'always',
+  NEVER = 'never',
+  WHILE_ROTATING = 'while-rotating', // for compass
+  WHILE_ZOOMING = 'while-zooming', // for scale
+  WHILE_ACTIVE = 'while-active', // for street view (when toggled on)
+}
+
+export interface MapControlSettings {
+  zoom: ControlVisibility.ALWAYS | ControlVisibility.NEVER
+  compass: ControlVisibility.ALWAYS | ControlVisibility.WHILE_ROTATING | ControlVisibility.NEVER
+  scale: ControlVisibility.ALWAYS | ControlVisibility.WHILE_ZOOMING | ControlVisibility.NEVER
+  streetView: ControlVisibility.ALWAYS | ControlVisibility.WHILE_ACTIVE | ControlVisibility.NEVER
+  locate: ControlVisibility.ALWAYS | ControlVisibility.NEVER
+}

@@ -6,7 +6,6 @@ import { useResponsive } from '@/lib/utils'
 
 import { TransitionSlide } from '@morev/vue-transitions'
 import { useAppStore } from '@/stores/app.store'
-import Palette from '@/components/palette/Palette.vue'
 import Map from '@/components/map/Map.vue'
 import StreetView from '@/components/map/StreetView.vue'
 import LayerControl from '@/components/map/controls/LayerControl.vue'
@@ -20,7 +19,6 @@ import BottomSheet from '@/components/BottomSheet.vue'
 import LeftSheet from '@/components/LeftSheet.vue'
 import StreetViewPip from '@/components/map/StreetViewPip.vue'
 import { useMapService } from '@/services/map.service'
-import { useMapStore } from '@/stores/map.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { storeToRefs } from 'pinia'
 import { useLayersService } from '@/services/layers.service'
@@ -32,29 +30,49 @@ const router = useRouter()
 const { isMobileScreen } = useResponsive()
 const appStore = useAppStore()
 const mapService = useMapService()
-const mapStore = useMapStore()
 const layersStore = useLayersStore()
 const { layers } = storeToRefs(layersStore)
 const layersService = useLayersService()
 
-const isMapSubview = computed(() => {
-  return route.matched.length > 1 && route.name !== AppRoute.MAP
+const isBottomSheetView = computed(() => {
+  const isSubview = route.matched.length > 1 && route.name !== AppRoute.MAP
+  const isNotDialog = !route.meta.dialog
+  return isSubview && isNotDialog
 })
 const pipSwapped = ref(false)
 const mountTeleports = ref(false)
 const streetView = ref(false)
 const mapUIArea = computed(() => appStore.mapUIArea)
-const isFloatingLayout = computed(() => route.meta?.layout === 'floating')
-const navTransitionComplete = ref(false)
+const hideUI = computed(() => !!route.meta?.hideUI)
+const bottomSheetOpen = ref(false)
+const isNavTransitioning = ref(isMobileScreen.value)
 
-function onNavTransitionComplete() {
-  navTransitionComplete.value = true
+function navTransitioning(value: boolean) {
+  isNavTransitioning.value = value
 }
 
-function closeSheet() {
-  router.push({ name: AppRoute.MAP })
+// Open bottom sheet when a map subview is opened
+watch(isBottomSheetView, async isOpen => {
+  if (isOpen) {
+    // Small delay to allow other drawers to start their close animation
+    // This works in conjunction with useDrawerCoordination to prevent race conditions
+    await new Promise(resolve => setTimeout(resolve, 10))
+    bottomSheetOpen.value = isOpen
+  } else {
+    bottomSheetOpen.value = isOpen
+    router.push({ name: AppRoute.MAP })
+  }
+})
+
+// Navigate back to map when bottom sheet is closed
+function onOpenChange(value: boolean) {
+  bottomSheetOpen.value = value
+  if (!value) {
+    router.push({ name: AppRoute.MAP })
+  }
 }
 
+// Detect if left sidebar is visible
 const isDrawerOpen = computed(() => {
   return appStore.obstructingComponentsMap.has('left-sheet')
 })
@@ -93,105 +111,55 @@ watch(
 )
 
 defineExpose({
-  onNavTransitionComplete,
+  navTransitioning,
 })
 </script>
 
 <template>
-  <!-- Map UI items -->
-
-  <!-- z-50 above drawers -->
+  <!-- Debug overlay for obstructing components -->
   <div
-    v-if="isFloatingLayout"
-    class="fixed z-50 p-2 flex justify-between gap-2 pointer-events-none"
-    :style="{
-      left: `${mapUIArea.x}px`,
-      top: `${mapUIArea.y}px`,
-      width: `${mapUIArea.width}px`,
-      height: `${mapUIArea.height}px`,
-    }"
+    v-if="appStore.debugObstructingComponents"
+    class="fixed inset-0 pointer-events-none z-[100]"
   >
-    <!-- Left section -->
-    <div class="flex flex-col items-start gap-2">
-      <!-- Left top -->
-      <transition-slide no-opacity :offset="[0, '-130%']">
-        <div
-          v-if="navTransitionComplete && !isMobileScreen"
-          class="pointer-events-auto flex gap-2"
-        >
-          <Palette class="h-fit w-100" />
-
-          <MapChips v-if="!isDrawerOpen" />
-        </div>
-      </transition-slide>
-    </div>
-  </div>
-
-  <!-- z-20 below drawers -->
-  <div
-    v-if="isFloatingLayout"
-    class="fixed z-20 p-2 flex justify-between gap-2 pointer-events-none"
-    :style="{
-      left: `${mapUIArea.x}px`,
-      top: `${mapUIArea.y}px`,
-      width: `${mapUIArea.width}px`,
-      height: `${mapUIArea.height}px`,
-    }"
-  >
-    <!-- Left section -->
-    <div class="flex flex-col items-start gap-2">
-      <!-- Left top -->
-      <transition-slide no-opacity :offset="[0, '-130%']">
-        <div
-          v-if="navTransitionComplete"
-          class="pointer-events-auto flex flex-col gap-2 items-start"
-        >
-          <!-- Palette placeholder -->
-          <div class="h-11 w-100" v-if="!isMobileScreen"></div>
-
-          <ScaleControl />
-        </div>
-      </transition-slide>
-
-      <!-- Left middle -->
-      <transition-slide no-opacity :offset="['-130%', 0]">
-        <div
-          v-if="navTransitionComplete"
-          class="pointer-events-auto flex flex-col"
-        ></div>
-      </transition-slide>
-
-      <!-- Left bottom -->
-      <transition-slide no-opacity :offset="[0, '130%']">
-        <div
-          v-if="navTransitionComplete"
-          class="pointer-events-auto mt-auto flex flex-col gap-2"
-        >
-          <AttributionControl />
-        </div>
-      </transition-slide>
-    </div>
-
-    <!-- Right section -->
-    <transition-slide no-opacity :offset="['130%', 0]">
+    <!-- Show map UI area -->
+    <div
+      class="absolute border-4 border-green-500 bg-green-500/10"
+      :style="{
+        left: `${mapUIArea.x}px`,
+        top: `${mapUIArea.y}px`,
+        width: `${mapUIArea.width}px`,
+        height: `${mapUIArea.height}px`,
+      }"
+    >
       <div
-        v-if="navTransitionComplete"
-        class="flex flex-col items-end justify-between pointer-events-auto"
+        class="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 text-xs font-mono rounded"
       >
-        <!-- Right top -->
-        <div class="pointer-events-auto flex flex-col gap-2">
-          <ZoomControl />
-          <CompassControl />
-          <LocateControl />
-        </div>
-
-        <!-- Right bottom -->
-        <div class="pointer-events-auto flex flex-col gap-2">
-          <StreetViewControl />
-          <LayerControl />
-        </div>
+        Map UI Area: {{ Math.round(mapUIArea.width) }}x{{
+          Math.round(mapUIArea.height)
+        }}
       </div>
-    </transition-slide>
+    </div>
+
+    <!-- Show each obstructing component -->
+    <div
+      v-for="[key, dimensions] in appStore.componentDimensions"
+      :key="key"
+      class="absolute border-2 border-red-500 bg-red-500/10"
+      :style="{
+        left: `${dimensions.x}px`,
+        top: `${dimensions.y}px`,
+        width: `${dimensions.width}px`,
+        height: `${dimensions.height}px`,
+      }"
+    >
+      <div
+        class="absolute top-1 left-1 bg-red-500 text-white px-1 py-0.5 text-[10px] font-mono rounded"
+      >
+        {{ key }}: {{ Math.round(dimensions.width) }}x{{
+          Math.round(dimensions.height)
+        }}
+      </div>
+    </div>
   </div>
 
   <!-- Search palette -->
@@ -199,21 +167,26 @@ defineExpose({
   <div class="flex flex-1 h-full relative overflow-hidden">
     <!-- Mobile bottom sheet container -->
     <template v-if="isMobileScreen">
-      <BottomSheet
-        v-if="!route.meta.dialog && isMapSubview"
-        class="absolute bg-background z-30 top-0 left-0 w-full md:w-104 h-full rounded-t-md shadow-lg justify-center"
-        @close="closeSheet"
+      <bottom-sheet
+        parent-id="map"
+        :open="bottomSheetOpen"
+        @update:open="onOpenChange"
+        :default-snap-point-index="1"
+        dismissable
+        show-drag-handle
+        show-close-button
+        obstructing-key="map-content-sheet"
       >
         <router-view />
-      </BottomSheet>
+      </bottom-sheet>
     </template>
 
     <!-- Desktop left sheet container -->
     <template v-else>
       <TransitionSlide no-opacity :offset="['-130%', 0]">
         <LeftSheet
-          v-if="!route.meta.dialog && isMapSubview"
-          @close="closeSheet"
+          v-if="!route.meta.dialog && isBottomSheetView"
+          @close="() => router.push({ name: AppRoute.MAP })"
         >
           <router-view />
         </LeftSheet>
@@ -221,7 +194,89 @@ defineExpose({
     </template>
 
     <!-- Map canvas -->
-    <div id="mainContent" class="flex-1 fixed top-0 left-0 w-full h-dvh">
+    <div id="mainContent" class="flex-1 relative w-full h-full">
+      <!-- Map UI controls positioned within map container -->
+      <template v-if="!hideUI">
+        <!-- z-50 above drawers -->
+        <div
+          class="absolute z-50 p-2 flex justify-between gap-2 pointer-events-none inset-0 safe-area-inset"
+        >
+          <!-- Left section -->
+          <div class="flex flex-col items-start gap-2">
+            <!-- Left top -->
+            <transition-slide appear no-opacity :offset="[0, '-130%']">
+              <div
+                v-if="isNavTransitioning && !isMobileScreen"
+                class="pointer-events-auto flex gap-2"
+              >
+                <!-- <MapChips v-if="!isDrawerOpen" /> -->
+              </div>
+            </transition-slide>
+          </div>
+        </div>
+
+        <!-- z-20 below drawers -->
+        <div
+          class="absolute z-20 p-2 flex justify-between gap-2 pointer-events-none inset-0 safe-area-inset"
+        >
+          <!-- Left section -->
+          <div class="flex flex-col items-start gap-2">
+            <!-- Left top -->
+            <transition-slide appear no-opacity :offset="[0, '-130%']">
+              <div
+                v-if="isNavTransitioning"
+                class="pointer-events-auto flex flex-col gap-2 items-start"
+              >
+                <ScaleControl />
+              </div>
+            </transition-slide>
+
+            <!-- Left middle -->
+            <transition-slide appear no-opacity :offset="['-130%', 0]">
+              <div
+                v-if="isNavTransitioning"
+                class="pointer-events-auto flex flex-col"
+              ></div>
+            </transition-slide>
+
+            <!-- Left bottom -->
+            <transition-slide appear no-opacity :offset="[0, '130%']">
+              <div
+                v-if="isNavTransitioning"
+                class="pointer-events-auto mt-auto flex flex-col gap-2"
+                :class="{ 'mb-16': isMobileScreen }"
+              >
+                <AttributionControl />
+              </div>
+            </transition-slide>
+          </div>
+
+          <!-- Right section -->
+          <transition-slide appear no-opacity :offset="['130%', 0]">
+            <div
+              v-if="isNavTransitioning"
+              class="flex flex-col items-end justify-between pointer-events-auto"
+            >
+              <!-- Right top -->
+              <div class="pointer-events-auto flex flex-col gap-2">
+                <ZoomControl />
+                <CompassControl />
+              </div>
+
+              <!-- Right bottom -->
+              <div
+                class="pointer-events-auto flex flex-col gap-2"
+                :class="{ 'mb-16': isMobileScreen }"
+              >
+                <StreetViewControl />
+                <LayerControl />
+                <LocateControl />
+              </div>
+            </div>
+          </transition-slide>
+        </div>
+      </template>
+
       <template v-if="mountTeleports">
         <Teleport
           :to="pipSwapped && streetView ? '#pipContent' : '#mainContent'"
@@ -233,7 +288,7 @@ defineExpose({
   </div>
 
   <!-- Street view pip -->
-  <StreetViewPip :layout="route.meta?.layout" v-model:pip-swapped="pipSwapped">
+  <StreetViewPip :hide-ui="route.meta?.hideUI" v-model:pip-swapped="pipSwapped">
     <template v-if="mountTeleports && streetView">
       <Teleport :to="pipSwapped ? '#mainContent' : '#pipContent'">
         <StreetView class="w-full h-full" :pip-swapped="pipSwapped" />
@@ -241,3 +296,12 @@ defineExpose({
     </template>
   </StreetViewPip>
 </template>
+
+<style scoped>
+.safe-area-inset {
+  padding-top: calc(0.5rem + env(safe-area-inset-top));
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  padding-left: calc(0.5rem + env(safe-area-inset-left));
+  padding-right: calc(0.5rem + env(safe-area-inset-right));
+}
+</style>

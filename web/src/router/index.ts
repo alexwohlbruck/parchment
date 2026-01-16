@@ -17,6 +17,7 @@ import NotFound from '@/views/NotFound.vue'
 import Collections from '@/views/library/collections/Collections.vue'
 import Layers from '@/views/library/layers/Layers.vue'
 import Integrations from '@/views/settings/pages/Integrations.vue'
+import Friends from '@/views/friends/Friends.vue'
 
 import { useAuthStore } from '@/stores/auth.store'
 
@@ -43,6 +44,8 @@ export enum AppRoute {
   MAP_SETTINGS = 'mapSettings',
   USERS = 'users',
   INTEGRATIONS = 'integrations',
+  FRIENDS = 'friends',
+  FRIEND_DETAIL = 'friend-detail',
   NOT_FOUND = 'not-found',
 }
 
@@ -59,13 +62,15 @@ const router = createRouter({
       path: '/signin',
       name: AppRoute.SIGNIN,
       component: Signin,
+      meta: {
+        hideUI: true,
+      },
     },
     {
       path: '/',
       name: AppRoute.MAP,
       component: Map,
       meta: {
-        layout: 'floating',
         auth: true,
       },
       children: [
@@ -143,10 +148,28 @@ const router = createRouter({
           component: Collection,
           props: true,
         },
+        {
+          path: '/friends',
+          name: AppRoute.FRIENDS,
+          component: Friends,
+          meta: {
+            auth: true,
+          },
+        },
+        {
+          path: '/friends/:handle',
+          name: AppRoute.FRIEND_DETAIL,
+          component: () => import('@/views/friends/FriendDetail.vue'),
+          props: true,
+          meta: {
+            auth: true,
+          },
+        },
       ],
     },
     {
       path: '/settings',
+      name: AppRoute.SETTINGS,
       components: {
         default: Map,
         dialogContent: Settings,
@@ -154,7 +177,6 @@ const router = createRouter({
       meta: {
         auth: true,
         dialog: true,
-        layout: 'floating',
       },
       beforeEnter: [keepDefaultView],
       children: [
@@ -196,6 +218,7 @@ const router = createRouter({
       component: Map,
       meta: {
         auth: true,
+        hideUI: true,
       },
       beforeEnter: async (to, from) => {
         const id = to.params.id

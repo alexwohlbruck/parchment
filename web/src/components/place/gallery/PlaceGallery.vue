@@ -17,7 +17,7 @@ const emit = defineEmits<{
   <TransitionExpand>
     <div v-if="place.photos.length > 0" :class="cn('w-full relative', $attrs.class ?? '')">
       <div
-        class="w-full overflow-x-auto snap-x snap-mandatory flex gap-2 scrollbar-hidden pb-2 -mb-2"
+        class="w-full overflow-x-auto touch-pan-x snap-x snap-mandatory flex gap-2 scrollbar-hidden pb-2 -mb-2"
       >
         <div
           v-for="(photo, index) in place.photos"

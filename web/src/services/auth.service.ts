@@ -40,9 +40,9 @@ function authService() {
     const authenticatedUserPromise = api.get('auth/sessions/current')
     authStore.setAuthenticatedUserPromise(authenticatedUserPromise)
 
-    const {
-      data: { user, token: sessionId },
-    } = await authenticatedUserPromise
+    const response = await authenticatedUserPromise
+    const { user, token: sessionId } = response?.data ?? {}
+
     if (user) {
       setAuthenticatedUser(user, sessionId)
     } else {

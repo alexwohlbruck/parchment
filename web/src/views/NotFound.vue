@@ -27,7 +27,7 @@ const goHome = () => {
           {{ t('notFound.message') }}
         </Span>
       </div>
-      <Button variant="outline" @click="goHome" class="gap-2 mt-8">
+      <Button variant="outline" @click="goHome" class="gap-2">
         <ArrowLeftIcon class="h-4 w-4" />
         {{ t('notFound.action') }}
       </Button>

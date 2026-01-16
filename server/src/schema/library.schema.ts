@@ -54,6 +54,7 @@ export const collections = pgTable('collections', {
     .references(() => users.id, { onDelete: 'cascade' }),
   isPublic: boolean('is_public').default(false).notNull(),
   isDefault: boolean('is_default').default(false).notNull(),
+  isSensitive: boolean('is_sensitive').default(false).notNull(), // E2EE sensitive mode
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
@@ -74,6 +75,23 @@ export const bookmarksCollections = pgTable(
   }),
 )
 
+// Encrypted points for sensitive collections
+// These are E2EE and cannot be searched server-side
+export const encryptedPoints = pgTable('encrypted_points', {
+  id: text('id').primaryKey().notNull(),
+  collectionId: text('collection_id')
+    .notNull()
+    .references(() => collections.id, { onDelete: 'cascade' }),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  encryptedData: text('encrypted_data').notNull(), // E2EE JSON with name, location, icon, etc.
+  nonce: text('nonce').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
 export type Bookmark = typeof bookmarks.$inferSelect
 export type Collection = typeof collections.$inferSelect
 export type BookmarkCollection = typeof bookmarksCollections.$inferSelect
+export type EncryptedPoint = typeof encryptedPoints.$inferSelect

@@ -102,7 +102,7 @@ const socialLinks = [
     <Button
       variant="outline"
       size="icon-xs"
-      class="rounded-md shadow-md"
+      class="rounded-md"
       @click="showDialog = true"
     >
       <InfoIcon class="size-3.5" />

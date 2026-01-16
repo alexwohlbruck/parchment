@@ -7,11 +7,21 @@ import ComponentDialog from '@/components/dialogs/ComponentDialog.vue'
 import ConfirmDialog from '@/components/dialogs/ConfirmDialog.vue'
 import PromptDialog from '@/components/dialogs/PromptDialog.vue'
 import AutoformDialog from '@/components/dialogs/AutoformDialog.vue'
+import ProgrammaticDrawer from '@/components/ProgrammaticDrawer.vue'
+
+export interface ManualBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
 
 export const useAppStore = defineStore('app', () => {
   const obstructingComponentsMap = ref<Map<string, Component>>(new Map())
+  const manualBoundsMap = ref<Map<string, ManualBounds>>(new Map())
   const { width: windowWidth, height: windowHeight } = useWindowSize()
   const forceRefresh = ref(0)
+  const debugObstructingComponents = ref(false)
   let nextId = 0
 
   // To use these, call the composable `useObstructingComponent`
@@ -34,8 +44,19 @@ export const useAppStore = defineStore('app', () => {
     for (const [key, comp] of obstructingComponentsMap.value.entries()) {
       if (comp === component) {
         obstructingComponentsMap.value.delete(key)
+        manualBoundsMap.value.delete(key)
       }
     }
+  }
+
+  function updateManualBounds(key: string, bounds: ManualBounds) {
+    manualBoundsMap.value.set(key, bounds)
+    refreshObstructingComponents()
+  }
+
+  function clearManualBounds(key: string) {
+    manualBoundsMap.value.delete(key)
+    refreshObstructingComponents()
   }
 
   function refreshObstructingComponents() {
@@ -54,10 +75,23 @@ export const useAppStore = defineStore('app', () => {
     >()
 
     for (const [key, component] of obstructingComponentsMap.value.entries()) {
+      // Check if this component has manual bounds first
+      const manualBounds = manualBoundsMap.value.get(key)
+      if (manualBounds) {
+        dimensions.set(key, manualBounds)
+        continue
+      }
+
+      // Otherwise, use automatic bounds detection
       try {
         const el = (component as unknown as { $el?: HTMLElement }).$el
 
-        if (!el) continue
+        if (!el || !el.getBoundingClientRect) continue
+
+        // Ensure it's actually a valid element
+        if (typeof el.getBoundingClientRect !== 'function') {
+          continue
+        }
 
         const rect = el.getBoundingClientRect()
         dimensions.set(key, {
@@ -74,8 +108,10 @@ export const useAppStore = defineStore('app', () => {
     return dimensions
   })
 
-  // Helper function to calculate visible area given a list of components
-  function calculateVisibleArea(components: Component[]) {
+  // Helper function to calculate visible area given a list of bounds
+  function calculateVisibleArea(
+    obstacles: { x: number; y: number; width: number; height: number }[],
+  ) {
     const viewportWidth = windowWidth.value
     const viewportHeight = windowHeight.value
 
@@ -86,40 +122,9 @@ export const useAppStore = defineStore('app', () => {
       height: viewportHeight,
     }
 
-    if (components.length === 0) {
+    if (obstacles.length === 0) {
       return availableArea
     }
-
-    const obstacles = components
-      .map(component => {
-        try {
-          const el = (component as unknown as { $el?: HTMLElement }).$el
-
-          if (!el) return null
-
-          const rect = el.getBoundingClientRect()
-
-          return {
-            x: rect.left,
-            y: rect.top,
-            width: rect.width,
-            height: rect.height,
-          }
-        } catch (error) {
-          console.error('Failed to get bounding rect for component', error)
-          return null
-        }
-      })
-      .filter(
-        (
-          obstacle,
-        ): obstacle is {
-          x: number
-          y: number
-          width: number
-          height: number
-        } => obstacle !== null,
-      )
 
     for (const obstacle of obstacles) {
       if (
@@ -181,19 +186,20 @@ export const useAppStore = defineStore('app', () => {
 
   const visibleMapArea = computed(() => {
     const _ = forceRefresh.value
-    return calculateVisibleArea(
-      Array.from(obstructingComponentsMap.value.values()),
-    )
+    // Use all component dimensions
+    const allBounds = Array.from(componentDimensions.value.values())
+    return calculateVisibleArea(allBounds)
   })
 
   const mapUIArea = computed(() => {
     const _ = forceRefresh.value
-    const navKeys = ['desktopNav', 'mobileNav']
-    const navComponents = navKeys
-      .map(key => obstructingComponentsMap.value.get(key))
-      .filter((component): component is Component => component !== undefined)
+    // Only use nav component dimensions
+    const navKeys = ['desktopNav', 'mobileNav', 'mobile-navigation-sheet']
+    const navBounds = navKeys
+      .map(key => componentDimensions.value.get(key))
+      .filter((bounds): bounds is ManualBounds => bounds !== undefined)
 
-    return calculateVisibleArea(navComponents)
+    return calculateVisibleArea(navBounds)
   })
 
   const dialogs = ref<
@@ -218,6 +224,7 @@ export const useAppStore = defineStore('app', () => {
         [DialogType.Prompt]: PromptDialog,
         [DialogType.AutoForm]: AutoformDialog,
         [DialogType.Template]: ConfirmDialog, // TODO
+        [DialogType.Drawer]: ProgrammaticDrawer,
       }
 
       if (
@@ -228,6 +235,15 @@ export const useAppStore = defineStore('app', () => {
         const componentOptions =
           options as import('@/types/app.types').ComponentDialogOptions
         componentOptions.component = markRaw(componentOptions.component)
+      }
+
+      if (
+        type === DialogType.Drawer &&
+        (options as import('@/types/app.types').DrawerOptions).component
+      ) {
+        const drawerOptions =
+          options as import('@/types/app.types').DrawerOptions
+        drawerOptions.component = markRaw(drawerOptions.component)
       }
 
       const newDialog: {
@@ -297,5 +313,8 @@ export const useAppStore = defineStore('app', () => {
     mapUIArea,
     refreshObstructingComponents,
     componentDimensions,
+    debugObstructingComponents,
+    updateManualBounds,
+    clearManualBounds,
   }
 })

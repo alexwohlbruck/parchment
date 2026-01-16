@@ -37,105 +37,138 @@ const app = new Elysia({ prefix: '/integrations' })
 app.use(requireAuth)
 
 // New: Public integrations for client (safe subset)
-app.get('/public', async () => {
-  const list = await getPublicIntegrations()
-  return list
-})
+app.get(
+  '/public',
+  async () => {
+    const list = await getPublicIntegrations()
+    return list
+  },
+  {
+    detail: {
+      tags: ['Integrations'],
+      summary: 'Get public integrations (safe subset)',
+    },
+  },
+)
 
 // Get all available integrations (metadata only)
-app.get('/available', async ({ user }) => {
-  // Check if user has basic read permission for integrations
-  const userPermissions = await getPermissions(user.id)
-  const canRead = hasPermission(userPermissions, PermissionId.INTEGRATIONS_READ)
-  const canWriteSystem = hasPermission(
-    userPermissions,
-    PermissionId.INTEGRATIONS_WRITE_SYSTEM,
-  )
+app.get(
+  '/available',
+  async ({ user }) => {
+    // Check if user has basic read permission for integrations
+    const userPermissions = await getPermissions(user.id)
+    const canRead = hasPermission(
+      userPermissions,
+      PermissionId.INTEGRATIONS_READ,
+    )
+    const canWriteSystem = hasPermission(
+      userPermissions,
+      PermissionId.INTEGRATIONS_WRITE_SYSTEM,
+    )
 
-  if (!canRead) {
-    return error(403, {
-      message: 'Insufficient permissions to view integrations',
-    })
-  }
+    if (!canRead) {
+      return error(403, {
+        message: 'Insufficient permissions to view integrations',
+      })
+    }
 
-  const allAvailableIntegrations = await getAvailableIntegrations()
+    const allAvailableIntegrations = await getAvailableIntegrations()
 
-  // Get configured integrations to check what's already set up
-  const configuredIntegrations = await getConfiguredIntegrations()
-  const configuredIntegrationIds = new Set(
-    configuredIntegrations.map((integration) => integration.integrationId),
-  )
+    // Get configured integrations to check what's already set up
+    const configuredIntegrations = await getConfiguredIntegrations()
+    const configuredIntegrationIds = new Set(
+      configuredIntegrations.map((integration) => integration.integrationId),
+    )
 
-  // Filter integrations based on user permissions and scope
-  const filteredIntegrations = allAvailableIntegrations.filter(
-    (integration) => {
-      // If integration has SYSTEM scope
-      if (integration.scope.includes(IntegrationScope.SYSTEM)) {
-        // If it's already configured, show to users with read permissions
-        if (configuredIntegrationIds.has(integration.id)) {
+    // Filter integrations based on user permissions and scope
+    const filteredIntegrations = allAvailableIntegrations.filter(
+      (integration) => {
+        // If integration has SYSTEM scope
+        if (integration.scope.includes(IntegrationScope.SYSTEM)) {
+          // If it's already configured, show to users with read permissions
+          if (configuredIntegrationIds.has(integration.id)) {
+            return canRead
+          }
+          // If not configured, only show to users with write permissions
+          return canWriteSystem
+        }
+
+        // If integration has USER scope, user just needs read permissions
+        if (integration.scope.includes(IntegrationScope.USER)) {
           return canRead
         }
-        // If not configured, only show to users with write permissions
-        return canWriteSystem
-      }
 
-      // If integration has USER scope, user just needs read permissions
-      if (integration.scope.includes(IntegrationScope.USER)) {
-        return canRead
-      }
+        return false
+      },
+    )
 
-      return false
+    return filteredIntegrations
+  },
+  {
+    detail: {
+      tags: ['Integrations'],
+      summary: 'Get all available integrations (metadata only)',
     },
-  )
-
-  return filteredIntegrations
-})
+  },
+)
 
 // Get user's configured integrations (user-specific ones plus system-wide ones)
 // Configs are sanitized unless user has appropriate write permissions
-app.get('/configured', async ({ user }) => {
-  // Check if user has basic read permission for integrations
-  const userPermissions = await getPermissions(user.id)
-  const canRead = hasPermission(userPermissions, PermissionId.INTEGRATIONS_READ)
-  const canWriteUser = hasPermission(
-    userPermissions,
-    PermissionId.INTEGRATIONS_WRITE_USER,
-  )
-  const canWriteSystem = hasPermission(
-    userPermissions,
-    PermissionId.INTEGRATIONS_WRITE_SYSTEM,
-  )
+app.get(
+  '/configured',
+  async ({ user }) => {
+    // Check if user has basic read permission for integrations
+    const userPermissions = await getPermissions(user.id)
+    const canRead = hasPermission(
+      userPermissions,
+      PermissionId.INTEGRATIONS_READ,
+    )
+    const canWriteUser = hasPermission(
+      userPermissions,
+      PermissionId.INTEGRATIONS_WRITE_USER,
+    )
+    const canWriteSystem = hasPermission(
+      userPermissions,
+      PermissionId.INTEGRATIONS_WRITE_SYSTEM,
+    )
 
-  if (!canRead) {
-    return error(403, {
-      message: 'Insufficient permissions to view integrations',
+    if (!canRead) {
+      return error(403, {
+        message: 'Insufficient permissions to view integrations',
+      })
+    }
+
+    // Get user-specific integrations
+    const userIntegrations = await getConfiguredIntegrations(user.id)
+
+    // Get system-wide integrations
+    const systemIntegrations = await getConfiguredIntegrations()
+
+    // Combine all integrations
+    const allIntegrations = [...userIntegrations, ...systemIntegrations]
+
+    // Sanitize configs based on user permissions and integration scope
+    return allIntegrations.map((integration) => {
+      const definition = getIntegrationDefinition(integration.integrationId)
+      if (!definition) return sanitizeIntegrationConfig(integration)
+
+      // Check if user can see full config based on integration scope
+      const canSeeFullConfig =
+        (definition.scope.includes(IntegrationScope.USER) && canWriteUser) ||
+        (definition.scope.includes(IntegrationScope.SYSTEM) && canWriteSystem)
+
+      return canSeeFullConfig
+        ? integration
+        : sanitizeIntegrationConfig(integration)
     })
-  }
-
-  // Get user-specific integrations
-  const userIntegrations = await getConfiguredIntegrations(user.id)
-
-  // Get system-wide integrations
-  const systemIntegrations = await getConfiguredIntegrations()
-
-  // Combine all integrations
-  const allIntegrations = [...userIntegrations, ...systemIntegrations]
-
-  // Sanitize configs based on user permissions and integration scope
-  return allIntegrations.map((integration) => {
-    const definition = getIntegrationDefinition(integration.integrationId)
-    if (!definition) return sanitizeIntegrationConfig(integration)
-
-    // Check if user can see full config based on integration scope
-    const canSeeFullConfig =
-      (definition.scope.includes(IntegrationScope.USER) && canWriteUser) ||
-      (definition.scope.includes(IntegrationScope.SYSTEM) && canWriteSystem)
-
-    return canSeeFullConfig
-      ? integration
-      : sanitizeIntegrationConfig(integration)
-  })
-})
+  },
+  {
+    detail: {
+      tags: ['Integrations'],
+      summary: 'Get configured integrations for user',
+    },
+  },
+)
 
 // Get a specific integration
 app.get(
@@ -189,6 +222,10 @@ app.get(
     params: t.Object({
       id: t.String(),
     }),
+    detail: {
+      tags: ['Integrations'],
+      summary: 'Get a specific integration',
+    },
   },
 )
 
@@ -283,6 +320,10 @@ app.post(
       ),
       isSystemWide: t.Optional(t.Boolean()),
     }),
+    detail: {
+      tags: ['Integrations'],
+      summary: 'Create a new integration',
+    },
   },
 )
 
@@ -372,6 +413,10 @@ app.put(
         ),
       ),
     }),
+    detail: {
+      tags: ['Integrations'],
+      summary: 'Update an integration',
+    },
   },
 )
 
@@ -436,6 +481,10 @@ app.delete(
     params: t.Object({
       id: t.String(),
     }),
+    detail: {
+      tags: ['Integrations'],
+      summary: 'Delete an integration',
+    },
   },
 )
 
@@ -503,6 +552,10 @@ app.post(
       integrationId: t.String(),
       config: t.Record(t.String(), t.Any()),
     }),
+    detail: {
+      tags: ['Integrations'],
+      summary: 'Test an integration configuration',
+    },
   },
 )
 

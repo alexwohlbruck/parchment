@@ -16,6 +16,17 @@
 
   --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-50: color-mix(in oklch, hsl(var(--primary)) 5%, white);
+  --color-primary-100: color-mix(in oklch, hsl(var(--primary)) 10%, white);
+  --color-primary-200: color-mix(in oklch, hsl(var(--primary)) 20%, white);
+  --color-primary-300: color-mix(in oklch, hsl(var(--primary)) 30%, white);
+  --color-primary-400: color-mix(in oklch, hsl(var(--primary)) 40%, white);
+  --color-primary-500: hsl(var(--primary));
+  --color-primary-600: color-mix(in oklch, hsl(var(--primary)) 90%, black);
+  --color-primary-700: color-mix(in oklch, hsl(var(--primary)) 80%, black);
+  --color-primary-800: color-mix(in oklch, hsl(var(--primary)) 70%, black);
+  --color-primary-900: color-mix(in oklch, hsl(var(--primary)) 60%, black);
+  --color-primary-950: color-mix(in oklch, hsl(var(--primary)) 50%, black);
 
   --color-secondary: hsl(var(--secondary));
   --color-secondary-foreground: hsl(var(--secondary-foreground));
@@ -25,6 +36,17 @@
 
   --color-muted: hsl(var(--muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-muted-light: color-mix(
+    in oklch,
+    hsl(var(--muted)) 40%,
+    hsl(var(--background)) 60%
+  );
+  --color-muted-light-foreground: color-mix(
+    in oklch,
+    hsl(var(--muted-foreground)) 40%,
+    hsl(var(--foreground)) 60%
+  );
 
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
@@ -113,6 +135,18 @@
   }
 }
 
+@utility bg-primary-tinted {
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-800);
+  border-color: var(--color-primary-300);
+
+  &:is(.dark *) {
+    background-color: var(--color-primary-800);
+    color: var(--color-primary-200);
+    border-color: var(--color-primary-600);
+  }
+}
+
 /*
   The default border color has changed to `currentcolor` in Tailwind CSS v4,
   so we've added these compatibility styles to make sure everything still
@@ -145,6 +179,56 @@
 }
 
 /* Prevent pull-to-refresh on mobile browsers */
+html,
 body {
+  background: transparent;
   overscroll-behavior: none;
+  height: 100dvh;
+}
+
+/* Tauri drag region support */
+/* Windows touch/pen support - use app-region for better compatibility */
+*[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+}
+
+/* Make interactive elements non-draggable */
+[data-tauri-drag-region] button,
+[data-tauri-drag-region] a,
+[data-tauri-drag-region] input,
+[data-tauri-drag-region] select,
+[data-tauri-drag-region] textarea,
+[data-tauri-drag-region] [role='button'],
+[data-tauri-drag-region] [tabindex],
+[data-tauri-drag-region='false'] {
+  -webkit-app-region: no-drag !important;
+  app-region: no-drag !important;
+}
+
+/* Tauri translucency support */
+.tauri-translucent {
+  /* Enhanced backdrop blur for better translucency */
+  backdrop-filter: blur(20px) brightness(0.2) saturate(200%);
+  background-color: hsl(var(--primary) / 0.1);
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .tauri-translucent {
+    backdrop-filter: blur(20px) brightness(10) saturate(180%);
+    background-color: hsl(var(--primary) / 0.25);
+  }
+}
+
+.tauri-translucent::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  mix-blend-mode: overlay;
+  pointer-events: none;
 }

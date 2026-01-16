@@ -90,9 +90,9 @@ app.post(
 
 app.group('/passkeys', (app) => {
   app.group('/register', (app) => {
-    app
-      .use(requireAuth)
-      .post('/options', async ({ user, cookie: { challenge }, set }) => {
+    app.use(requireAuth).post(
+      '/options',
+      async ({ user, cookie: { challenge }, set }) => {
         const { email } = await fetchUser(user.id)
 
         try {
@@ -106,7 +106,14 @@ app.group('/passkeys', (app) => {
         } catch (err) {
           set.status = 500
         }
-      })
+      },
+      {
+        detail: {
+          tags: ['Auth'],
+          summary: 'Get passkey registration options',
+        },
+      },
+    )
 
     app.use(requireAuth).post(
       '/verify',
@@ -192,15 +199,24 @@ app.group('/passkeys', (app) => {
   })
 
   app.group('/authenticate', (app) => {
-    app.post('options', async ({ set, cookie: { challenge } }) => {
-      try {
-        const options = await generateWebauthnOptions('authenticate')
-        challenge.value = options.challenge
-        return options
-      } catch (err) {
-        set.status = 500
-      }
-    })
+    app.post(
+      'options',
+      async ({ set, cookie: { challenge } }) => {
+        try {
+          const options = await generateWebauthnOptions('authenticate')
+          challenge.value = options.challenge
+          return options
+        } catch (err) {
+          set.status = 500
+        }
+      },
+      {
+        detail: {
+          tags: ['Auth'],
+          summary: 'Get passkey authentication options',
+        },
+      },
+    )
 
     app.post(
       'verify',
@@ -262,24 +278,44 @@ app.group('/passkeys', (app) => {
           clientExtensionResults: t.Any(),
           authenticatorAttachment: t.String(),
         }),
+        detail: {
+          tags: ['Auth'],
+          summary: 'Verify passkey authentication',
+        },
       },
     )
 
     return app
   })
 
-  app.use(requireAuth).get('/', async ({ user, set }) => {
-    return db.select().from(passkeys).where(eq(passkeys.userId, user.id))
-  })
+  app.use(requireAuth).get(
+    '/',
+    async ({ user, set }) => {
+      return db.select().from(passkeys).where(eq(passkeys.userId, user.id))
+    },
+    {
+      detail: {
+        tags: ['Auth'],
+        summary: 'List all passkeys for current user',
+      },
+    },
+  )
 
-  app
-    .use(requireAuth)
-    .delete('/:passkeyId', async ({ user, set, params: { passkeyId } }) => {
+  app.use(requireAuth).delete(
+    '/:passkeyId',
+    async ({ user, set, params: { passkeyId } }) => {
       await db
         .delete(passkeys)
         .where(and(eq(passkeys.id, passkeyId), eq(passkeys.userId, user.id)))
       set.status = 204
-    })
+    },
+    {
+      detail: {
+        tags: ['Auth'],
+        summary: 'Delete a passkey',
+      },
+    },
+  )
 
   return app
 })
@@ -366,28 +402,53 @@ app.group('/sessions', (app) => {
     },
   )
 
-  app.use(requireAuth).get('current/permissions', async ({ user }) => {
-    const permissions = await getPermissions(user.id)
-    return { permissions }
-  })
+  app.use(requireAuth).get(
+    'current/permissions',
+    async ({ user }) => {
+      const permissions = await getPermissions(user.id)
+      return { permissions }
+    },
+    {
+      detail: {
+        tags: ['Auth'],
+        summary: 'Get current session permissions',
+      },
+    },
+  )
 
-  app.use(requireAuth).get('/', async ({ set, user }) => {
-    return await db
-      .select()
-      .from(sessions)
-      .where(eq(sessions.userId, user.id))
-      .orderBy(desc(sessions.createdAt))
-  })
+  app.use(requireAuth).get(
+    '/',
+    async ({ set, user }) => {
+      return await db
+        .select()
+        .from(sessions)
+        .where(eq(sessions.userId, user.id))
+        .orderBy(desc(sessions.createdAt))
+    },
+    {
+      detail: {
+        tags: ['Auth'],
+        summary: 'Get all sessions for current user',
+      },
+    },
+  )
 
-  app
-    .use(requireAuth)
-    .delete('/:sessionId', async ({ set, user, params: { sessionId } }) => {
+  app.use(requireAuth).delete(
+    '/:sessionId',
+    async ({ set, user, params: { sessionId } }) => {
       if (!user) return (set.status = 401)
       await db
         .delete(sessions)
         .where(and(eq(sessions.id, sessionId), eq(sessions.userId, user.id)))
       return (set.status = 204)
-    })
+    },
+    {
+      detail: {
+        tags: ['Auth'],
+        summary: 'Delete a session',
+      },
+    },
+  )
 
   return app
 })

@@ -1,6 +1,6 @@
 {
   "name": "parchment",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "scripts": {
     "build": "bun build ./src/index.ts ./src/migrate.ts ./src/seed/seed.ts --outdir ./dist --target bun",
     "start": "bun dist/index.js",

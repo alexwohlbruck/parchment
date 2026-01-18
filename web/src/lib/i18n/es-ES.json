@@ -544,7 +544,8 @@
     "minimize": "Minimizar",
     "maximize": "Maximizar",
     "toggle": "Alternar navegación",
-    "toggleDescription": "Alternar la barra lateral de navegación entre minimizada y expandida"
+    "toggleDescription": "Alternar la barra lateral de navegación entre minimizada y expandida",
+    "needHelp": "¿Necesitas ayuda?"
   },
   "attribution": {
     "poweredBy": "Desarrollado por",

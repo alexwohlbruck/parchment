@@ -565,8 +565,7 @@
     "minimize": "Minimize",
     "maximize": "Maximize",
     "toggle": "Toggle navigation",
-    "toggleDescription": "Toggle the navigation sidebar between minimized and expanded",
-    "needHelp": "Need help?"
+    "toggleDescription": "Toggle the navigation sidebar between minimized and expanded"
   },
   "attribution": {
     "poweredBy": "Powered by",

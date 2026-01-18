@@ -7,6 +7,7 @@ import Palette from '@/components/palette/Palette.vue'
 import DashboardHome from '@/components/dashboard/DashboardHome.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
 import { Button } from '@/components/ui/button'
+import AccountDropdown from '@/components/navigation/AccountDropdown.vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -65,6 +66,11 @@ function test() {
       <TransitionFade>
         <DashboardHome v-if="activeSnapPointIndex !== 0" />
       </TransitionFade>
+
+      <!-- Account dropdown at the bottom when expanded -->
+      <div v-if="activeSnapPointIndex !== 0" class="mt-auto pt-4 px-1">
+        <AccountDropdown />
+      </div>
     </Card>
   </bottom-sheet>
 </template>

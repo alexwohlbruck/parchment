@@ -25,6 +25,9 @@ export default defineConfig({
     port: parseInt(process.env.VITE_PORT || '5173'),
     // host: host || false,
     // strictPort: true,
+    watch: {
+      ignored: ['**/src-tauri/target/**'],
+    },
   },
   // envPrefix: ['VITE_', 'TAURI_ENV_*'],
   // build: {

@@ -7,11 +7,14 @@ import { Session } from '@/types/session.types'
 import { isTauri } from '@/lib/api'
 import { auth as deviceStore } from '@/lib/device-store'
 import { api } from '@/lib/api'
+import { useStorage } from '@vueuse/core'
 
 export const useAuthStore = defineStore('auth', () => {
   const router = useRouter()
 
-  const me = ref<User | null | undefined>()
+  const cachedUser = useStorage<User | null>('parchment-user', null)
+  
+  const me = ref<User | null | undefined>(cachedUser.value ?? undefined)
   const permissions = ref<PermissionId[]>([])
   const sessions = ref<Session[]>([])
   const sessionId = ref<Session['id'] | null>(null)
@@ -32,6 +35,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function setAuthenticatedUser(user: User, _sessionId: Session['id']) {
     me.value = user
+    cachedUser.value = user // Persist to localStorage
     sessionId.value = _sessionId
 
     if (isTauri) {
@@ -40,6 +44,12 @@ export const useAuthStore = defineStore('auth', () => {
 
     router.push(stashedPath.value || { name: AppRoute.MAP })
   }
+  
+  // Update user without navigation (for background refresh)
+  function updateUser(user: User | null) {
+    me.value = user
+    cachedUser.value = user
+  }
 
   function setPermissions(_permissions: PermissionId[]) {
     permissions.value = _permissions
@@ -47,6 +57,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function unsetAuthenticatedUser() {
     me.value = null
+    cachedUser.value = null // Clear localStorage cache
     sessionId.value = null
     if (isTauri) {
       await deviceStore.clearToken()
@@ -80,6 +91,7 @@ export const useAuthStore = defineStore('auth', () => {
     stashPath,
     setAuthToken,
     setAuthenticatedUser,
+    updateUser,
     setPermissions,
     unsetAuthenticatedUser,
     authenticatedUserPromise,

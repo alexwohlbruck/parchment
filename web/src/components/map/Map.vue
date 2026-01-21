@@ -5,6 +5,7 @@ import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useMapService } from '@/services/map.service'
 import { MapStrategy } from './map-providers/map.strategy'
 import { MapEngine } from '@/types/map.types'
+import { IntegrationId } from '@server/types/integration.types'
 
 import ContextMenu from '@/components/map/ContextMenu.vue'
 import MapLoading from '@/components/map/MapLoading.vue'
@@ -71,6 +72,37 @@ onMounted(() => {
       }
     },
     { immediate: true },
+  )
+  
+  // Watch for Mapbox integration changes and refresh map
+  watch(
+    () => integrationsStore.integrationConfigurations,
+    (newConfigs, oldConfigs) => {
+      if (mapStore.settings.engine !== MapEngine.MAPBOX) return
+      if (!mapContainer.value) return
+      
+      const newMapbox = (Array.isArray(newConfigs) ? newConfigs : [])
+        .find(c => c.integrationId === IntegrationId.MAPBOX)
+      const oldMapbox = (Array.isArray(oldConfigs) ? oldConfigs : [])
+        .find(c => c.integrationId === IntegrationId.MAPBOX)
+      
+      // Refresh if Mapbox config changed
+      if (JSON.stringify(newMapbox) !== JSON.stringify(oldMapbox)) {
+        // Destroy existing map and reset local reference
+        mapService.destroy()
+        mapStrategy = undefined as any
+        
+        // Reinitialize if we can
+        const result = mapService.initializeMap(
+          mapContainer.value,
+          mapStore.settings.engine,
+        )
+        if (result) {
+          mapStrategy = result
+        }
+      }
+    },
+    { deep: true },
   )
 })
 

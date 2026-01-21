@@ -24,7 +24,9 @@ import {
   LogOutIcon,
   ChevronUpIcon,
   CheckIcon,
+  InfoIcon,
 } from 'lucide-vue-next'
+import AboutDialog from '@/components/dialogs/AboutDialog.vue'
 
 const props = defineProps<{
   mini?: boolean
@@ -40,6 +42,7 @@ const { toggleDark } = themeStore
 const authService = useAuthService()
 
 const dropdownOpen = ref(false)
+const aboutDialogOpen = ref(false)
 
 // Language options from command store
 const languageOptions = computed(() =>
@@ -95,6 +98,15 @@ const menuItems = computed((): MenuItemDefinition[] => {
       label: t('feedback.title'),
       icon: MessageSquareQuoteIcon,
       href: 'https://github.com/alexwohlbruck/parchment/issues',
+    },
+    {
+      type: 'item',
+      id: 'about',
+      label: t('about.title', 'About'),
+      icon: InfoIcon,
+      onSelect: () => {
+        aboutDialogOpen.value = true
+      },
     },
     {
       type: 'item',
@@ -195,4 +207,6 @@ const menuItems = computed((): MenuItemDefinition[] => {
       </div>
     </template>
   </ResponsiveDropdown>
+
+  <AboutDialog v-model:open="aboutDialogOpen" />
 </template>

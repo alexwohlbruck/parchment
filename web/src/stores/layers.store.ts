@@ -24,9 +24,13 @@ export const useLayersStore = defineStore('layers', () => {
   const layersService = useLayersService()
   const integrationsStore = useIntegrationsStore()
 
-  const userLayers = ref<Layer[]>([]) // Only user-created layers from server
-  const layerGroups = ref<LayerGroup[]>([])
+  const cachedUserLayers = useStorage<Layer[] | null>('parchment-user-layers', null)
+  const cachedLayerGroups = useStorage<LayerGroup[] | null>('parchment-layer-groups', null)
+  
+  const userLayers = ref<Layer[]>(cachedUserLayers.value ?? []) // Only user-created layers from server
+  const layerGroups = ref<LayerGroup[]>(cachedLayerGroups.value ?? [])
   const isSyncing = ref(false) // Track when syncing with server
+  const isLoadingLayers = ref(false) // Track initial layer load
   
   // Persistent storage for client-side layer group visibility states
   const clientSideGroupVisibility = useStorage<Record<string, boolean>>('parchment-client-layer-groups', {})
@@ -187,14 +191,44 @@ export const useLayersStore = defineStore('layers', () => {
   })
 
   // Load layers and groups from server (user layers only)
+  // If cached data exists (is array), returns immediately and the fetch updates cache in background
   async function loadLayers() {
-    const [layersData, groupsData] = await Promise.all([
-      layersService.getLayers(),
-      layersService.getLayerGroups(),
-    ])
+    // Array (even empty) = cached, null/other = never fetched
+    const hasCachedData = Array.isArray(cachedUserLayers.value) || Array.isArray(cachedLayerGroups.value)
+    
+    // If we have cached data, don't block - fetch will update in background
+    if (hasCachedData) {
+      Promise.all([
+        layersService.getLayers(),
+        layersService.getLayerGroups(),
+      ]).then(([layersData, groupsData]) => {
+        userLayers.value = layersData
+        layerGroups.value = groupsData
+        cachedUserLayers.value = layersData
+        cachedLayerGroups.value = groupsData
+      }).catch(error => {
+        console.error('Failed to refresh layers:', error)
+      })
+      return
+    }
+    
+    // No cache - must wait for server
+    isLoadingLayers.value = true
+    try {
+      const [layersData, groupsData] = await Promise.all([
+        layersService.getLayers(),
+        layersService.getLayerGroups(),
+      ])
 
-    userLayers.value = layersData
-    layerGroups.value = groupsData
+      userLayers.value = layersData
+      layerGroups.value = groupsData
+      
+      // Update cache
+      cachedUserLayers.value = layersData
+      cachedLayerGroups.value = groupsData
+    } finally {
+      isLoadingLayers.value = false
+    }
   }
 
   // TODO: Create template "store" where users can import pre-made layers from the community
@@ -251,12 +285,23 @@ export const useLayersStore = defineStore('layers', () => {
     }
   }
 
+  // Helper to sync userLayers to cache
+  function syncLayersToCache() {
+    cachedUserLayers.value = [...userLayers.value]
+  }
+  
+  // Helper to sync layerGroups to cache
+  function syncGroupsToCache() {
+    cachedLayerGroups.value = [...layerGroups.value]
+  }
+
   // Layer operations (user layers only)
   async function addLayer(
     layer: Omit<Layer, 'id' | 'userId' | 'createdAt' | 'updatedAt'>,
   ) {
     const newLayer = await layersService.createLayer(layer)
     userLayers.value.push(newLayer)
+    syncLayersToCache()
     return newLayer
   }
 
@@ -272,6 +317,7 @@ export const useLayersStore = defineStore('layers', () => {
     if (index !== -1) {
       userLayers.value[index] = updatedLayer
     }
+    syncLayersToCache()
     return updatedLayer
   }
 
@@ -284,6 +330,7 @@ export const useLayersStore = defineStore('layers', () => {
     
     await layersService.deleteLayer(id)
     userLayers.value = userLayers.value.filter(l => l.id !== id)
+    syncLayersToCache()
   }
 
   // Layer group operations
@@ -292,6 +339,7 @@ export const useLayersStore = defineStore('layers', () => {
   ) {
     const newGroup = await layersService.createLayerGroup(group)
     layerGroups.value.push(newGroup)
+    syncGroupsToCache()
     return newGroup
   }
 
@@ -301,12 +349,14 @@ export const useLayersStore = defineStore('layers', () => {
     if (index !== -1) {
       layerGroups.value[index] = updatedGroup
     }
+    syncGroupsToCache()
     return updatedGroup
   }
 
   async function removeLayerGroup(id: string) {
     await layersService.deleteLayerGroup(id)
     layerGroups.value = layerGroups.value.filter(g => g.id !== id)
+    syncGroupsToCache()
   }
 
   // Optimistic visibility updates
@@ -483,6 +533,8 @@ export const useLayersStore = defineStore('layers', () => {
     try {
       await layersService.moveLayer(layerId, newGroupId, newIndex)
       console.log('Server sync successful')
+      // Sync optimistic updates to cache
+      syncLayersToCache()
     } catch (error) {
       console.error('Failed to sync layer move with server:', error)
       // On error, refresh from server to restore correct state
@@ -501,6 +553,9 @@ export const useLayersStore = defineStore('layers', () => {
       const success = await layersService.reorderLayers(updates)
       if (success) {
         console.log('Reorder sync successful')
+        // Sync optimistic updates to cache
+        syncLayersToCache()
+        syncGroupsToCache()
       } else {
         console.error('Reorder sync failed')
         await loadLayers()
@@ -555,6 +610,14 @@ export const useLayersStore = defineStore('layers', () => {
     }
   })
 
+  // Clear all cached data (used on sign out)
+  function clearCache() {
+    userLayers.value = []
+    layerGroups.value = []
+    cachedUserLayers.value = null
+    cachedLayerGroups.value = null
+  }
+
   return {
     // State
     layers, // All layers (core + client-side + user)
@@ -564,13 +627,14 @@ export const useLayersStore = defineStore('layers', () => {
     layerGroups, // Only user layer groups
     allLayerGroups, // Both client-side and user groups
     isSyncing,
+    isLoadingLayers,
     // Computed
     ungroupedLayers,
     groupsWithLayers,
     mainReorderableItems,
     // Data operations
     loadLayers,
-    populateUserLayerTemplates, // New function to populate templates
+    populateUserLayerTemplates,
     addLayer,
     updateLayer,
     removeLayer,
@@ -587,5 +651,6 @@ export const useLayersStore = defineStore('layers', () => {
     handleLayerMove,
     // Sync functions
     syncClientSideLayerVisibility,
+    clearCache,
   }
 })

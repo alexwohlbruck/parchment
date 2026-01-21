@@ -95,6 +95,7 @@ onMounted(async () => {
   themeStore.initAccentColor()
   await authService.getAuthenticatedUser()
   if (authStore.me) {
+    // These calls return immediately if cached, refreshing data in background
     await integrationService.fetchAvailableIntegrations()
     await integrationService.fetchConfiguredIntegrations()
     // Load existing layers first

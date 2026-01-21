@@ -129,7 +129,7 @@ function mapService() {
   function canInitializeMapEngine(mapEngine: MapEngine): boolean {
     switch (mapEngine) {
       case MapEngine.MAPBOX:
-        return !!getMapEngineCredentials(mapEngine)
+        return integrationsStore.isMapboxEngineActive
       case MapEngine.MAPLIBRE:
         return true // MapLibre always works
       default:
@@ -516,6 +516,15 @@ function mapService() {
 
     mapStrategy = getMapStrategy(mapContainer, mapEngine, accessToken)
     mapStore.setMapStrategy(mapStrategy)
+  }
+  
+  /**
+   * Reinitialize the map with current engine settings.
+   * Useful when integration configuration changes.
+   */
+  function reinitializeMap() {
+    const currentEngine = mapStore.settings.engine
+    setMapEngine(currentEngine)
   }
 
   function setMapProjection(projection: MapProjection) {
@@ -928,6 +937,7 @@ function mapService() {
     jumpTo,
     fitBounds,
     setMapEngine,
+    reinitializeMap,
     setMapProjection,
     toggle3dTerrain,
     toggle3dObjects,

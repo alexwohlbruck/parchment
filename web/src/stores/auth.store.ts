@@ -7,12 +7,18 @@ import { Session } from '@/types/session.types'
 import { isTauri } from '@/lib/api'
 import { auth as deviceStore } from '@/lib/device-store'
 import { api } from '@/lib/api'
-import { useStorage } from '@vueuse/core'
+import { useStorage, StorageSerializers } from '@vueuse/core'
 
 export const useAuthStore = defineStore('auth', () => {
   const router = useRouter()
 
-  const cachedUser = useStorage<User | null>('parchment-user', null)
+  // Explicit serializer ensures proper JSON serialization
+  const cachedUser = useStorage<User | null>(
+    'parchment-user',
+    null,
+    localStorage,
+    { serializer: StorageSerializers.object },
+  )
   
   const me = ref<User | null | undefined>(cachedUser.value ?? undefined)
   const permissions = ref<PermissionId[]>([])

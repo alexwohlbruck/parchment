@@ -170,14 +170,13 @@ export function useIntegrationService() {
       return store.availableIntegrations
     }
     
-    // No cache - wait for response
+    // No cache - wait for response (loading state blocks UI)
     store.isLoadingAvailable = true
     try {
       const response = await api.get<IntegrationDefinition[]>(
         '/integrations/available',
       )
       store.availableIntegrations = response.data
-      store.hasInitialized = true
       return response.data
     } finally {
       store.isLoadingAvailable = false
@@ -204,14 +203,13 @@ export function useIntegrationService() {
       return store.integrationConfigurations
     }
     
-    // No cache - wait for response
+    // No cache - wait for response (loading state blocks UI)
     store.isLoadingConfigured = true
     try {
       const response = await api.get<IntegrationRecord[]>(
         '/integrations/configured',
       )
       store.integrationConfigurations = response.data
-      store.hasInitialized = true
       return response.data
     } finally {
       store.isLoadingConfigured = false

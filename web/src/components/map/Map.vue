@@ -26,10 +26,7 @@ const mapControlsVisibility = computed(() =>
   props.pipSwapped ? 'hidden' : 'visible',
 )
 
-// Computed properties for map state
-const isLoadingIntegrations = computed(() => {
-  return !integrationsStore.integrationsReady
-})
+const isLoadingIntegrations = computed(() => !integrationsStore.integrationsReady)
 
 const shouldShowMapboxFallback = computed(() => {
   // Only show fallback if integrations are ready, we're using Mapbox, and Mapbox is available but not configured

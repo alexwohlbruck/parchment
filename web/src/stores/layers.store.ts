@@ -4,7 +4,7 @@ import type { Layer, LayerGroup, LayerGroupWithLayers } from '@/types/map.types'
 import { LayerType } from '@/types/map.types'
 import { useLayersService } from '@/services/layers.service'
 import { useIntegrationsStore } from '@/stores/integrations.store'
-import { useStorage } from '@vueuse/core'
+import { useStorage, StorageSerializers } from '@vueuse/core'
 import { 
   CORE_LAYERS, 
   CORE_LAYER_IDS,
@@ -24,11 +24,27 @@ export const useLayersStore = defineStore('layers', () => {
   const layersService = useLayersService()
   const integrationsStore = useIntegrationsStore()
 
-  const cachedUserLayers = useStorage<Layer[] | null>('parchment-user-layers', null)
-  const cachedLayerGroups = useStorage<LayerGroup[] | null>('parchment-layer-groups', null)
+  // Explicit serializer ensures proper JSON serialization
+  const cachedUserLayers = useStorage<Layer[] | null>(
+    'parchment-user-layers',
+    null,
+    localStorage,
+    { serializer: StorageSerializers.object },
+  )
+  const cachedLayerGroups = useStorage<LayerGroup[] | null>(
+    'parchment-layer-groups',
+    null,
+    localStorage,
+    { serializer: StorageSerializers.object },
+  )
   
-  const userLayers = ref<Layer[]>(cachedUserLayers.value ?? []) // Only user-created layers from server
-  const layerGroups = ref<LayerGroup[]>(cachedLayerGroups.value ?? [])
+  // Safely initialize from cache - ensure we have arrays
+  const userLayers = ref<Layer[]>(Array.isArray(cachedUserLayers.value) ? cachedUserLayers.value : [])
+  const layerGroups = ref<LayerGroup[]>(Array.isArray(cachedLayerGroups.value) ? cachedLayerGroups.value : [])
+  
+  // Helper to safely get arrays (handles corrupted cache data)
+  const safeUserLayers = () => Array.isArray(userLayers.value) ? userLayers.value : []
+  const safeLayerGroups = () => Array.isArray(layerGroups.value) ? layerGroups.value : []
   const isSyncing = ref(false) // Track when syncing with server
   const isLoadingLayers = ref(false) // Track initial layer load
   
@@ -107,7 +123,7 @@ export const useLayersStore = defineStore('layers', () => {
   // All layers (core + client-side + user layers), filtered by integrations
   const layers = computed(() => {
     // Filter user layers based on integration requirements
-    const filteredUserLayers = userLayers.value.filter(layer => {
+    const filteredUserLayers = safeUserLayers().filter(layer => {
       const configId = layer.configuration?.id
       if (!configId) return true
       
@@ -157,7 +173,7 @@ export const useLayersStore = defineStore('layers', () => {
   // UI display computed properties (show both client-side and user layers, hide core layers)
   const ungroupedLayers = computed(() => {
     const clientUngrouped = clientSideLayers.value.filter(layer => !layer.groupId && layer.showInLayerSelector)
-    const userUngrouped = userLayers.value.filter(layer => !layer.groupId && layer.showInLayerSelector)
+    const userUngrouped = safeUserLayers().filter(layer => !layer.groupId && layer.showInLayerSelector)
     return [...clientUngrouped, ...userUngrouped].sort((a, b) => a.order - b.order)
   })
 
@@ -168,7 +184,7 @@ export const useLayersStore = defineStore('layers', () => {
   const groupsWithLayers = computed<LayerGroupWithLayers[]>(() =>
     sortedGroups.value.map(group => ({
       ...group,
-      layers: [...clientSideLayers.value, ...userLayers.value]
+      layers: [...clientSideLayers.value, ...safeUserLayers()]
         .filter(layer => layer.groupId === group.id && layer.showInLayerSelector)
         .sort((a, b) => a.order - b.order),
     })),
@@ -176,8 +192,8 @@ export const useLayersStore = defineStore('layers', () => {
 
   // Mixed list of ungrouped layers and groups for main reordering (excludes client-side items)
   const mainReorderableItems = computed(() => {
-    const userUngrouped = userLayers.value.filter(layer => !layer.groupId && layer.showInLayerSelector)
-    const userGroups = layerGroups.value.filter(group => group.showInLayerSelector)
+    const userUngrouped = safeUserLayers().filter(layer => !layer.groupId && layer.showInLayerSelector)
+    const userGroups = safeLayerGroups().filter(group => group.showInLayerSelector)
     const clientUngrouped = clientSideLayers.value.filter(layer => !layer.groupId && layer.showInLayerSelector)
     const clientGroups = clientSideLayerGroups.value.filter(group => group.showInLayerSelector)
     
@@ -255,7 +271,7 @@ export const useLayersStore = defineStore('layers', () => {
       await loadLayers()
 
       // Then create layers that don't exist
-      const existingConfigIds = new Set(userLayers.value.map(l => l.configuration?.id).filter(Boolean))
+      const existingConfigIds = new Set(safeUserLayers().map(l => l.configuration?.id).filter(Boolean))
 
       for (const layerTemplate of USER_LAYER_TEMPLATES.value) {
         const configId = layerTemplate.configuration?.id
@@ -269,7 +285,7 @@ export const useLayersStore = defineStore('layers', () => {
             // Find group ID if this layer belongs to a group
             let groupId: string | null = null
             if (layerTemplate.groupId) {
-              const group = layerGroups.value.find(g => g.name === layerTemplate.groupId)
+              const group = safeLayerGroups().find(g => g.name === layerTemplate.groupId)
               groupId = group?.id || null
             }
 

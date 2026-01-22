@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { useStorage } from '@vueuse/core'
+import { useStorage, StorageSerializers } from '@vueuse/core'
 import {
   IntegrationId,
   IntegrationCapabilityId,
@@ -48,13 +48,18 @@ const getIcon = (integrationId: string) => {
 export const useIntegrationsStore = defineStore('integrations', () => {
   // Use null as default to distinguish "never fetched" from "fetched but empty"
   // null = not initialized, [] = initialized but no integrations
+  // Explicit serializer ensures proper JSON serialization
   const integrationConfigurations = useStorage<IntegrationRecord[] | null>(
     'integration-configurations',
     null,
+    localStorage,
+    { serializer: StorageSerializers.object },
   )
   const availableIntegrations = useStorage<IntegrationDefinition[] | null>(
     'available-integrations',
     null,
+    localStorage,
+    { serializer: StorageSerializers.object },
   )
   
   // Helper to safely get array value (handles corrupted cache data)
@@ -63,15 +68,28 @@ export const useIntegrationsStore = defineStore('integrations', () => {
   const safeAvailableArray = () => 
     Array.isArray(availableIntegrations.value) ? availableIntegrations.value : []
 
-  // Loading states
+  // Loading states - only used when there's NO cached data
   const isLoadingAvailable = ref(false)
   const isLoadingConfigured = ref(false)
   
   // Track whether integrations have been fetched at least once
-  // null means not initialized, array (even empty) means initialized
-  const hasInitialized = ref(
-    Array.isArray(integrationConfigurations.value) || Array.isArray(availableIntegrations.value)
-  )
+  // Computed so it reactively updates when storage values change
+  // true if we have any cached data (array = fetched, null = never fetched)
+  const hasInitialized = computed(() => {
+    return Array.isArray(integrationConfigurations.value) || Array.isArray(availableIntegrations.value)
+  })
+  
+  // Check if integrations are ready
+  // If we have cached data (hasInitialized), we're ready immediately - don't wait for background refresh
+  // Only block UI if we have NO cached data and are actively fetching
+  const integrationsReady = computed(() => {
+    // If we have any cached data, we're ready - background refresh shouldn't block UI
+    if (hasInitialized.value) {
+      return true
+    }
+    // No cache - only ready when loading is complete
+    return !isLoadingAvailable.value && !isLoadingConfigured.value
+  })
 
   const configuredIntegrations = computed(() => {
     return safeAvailableArray().map(integration => ({
@@ -142,11 +160,6 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     return hasToken && isEngineCapabilityActive
   })
 
-  // Check if integrations are ready (initialized and not currently loading)
-  const integrationsReady = computed(() => {
-    return hasInitialized.value && !isLoadingAvailable.value && !isLoadingConfigured.value
-  })
-
   // Check if Mapbox is available but not configured (or configured but engine disabled)
   const isMapboxAvailableButNotConfigured = computed(() => {
     const isMapboxAvailable = safeAvailableArray().some(
@@ -167,7 +180,7 @@ export const useIntegrationsStore = defineStore('integrations', () => {
   function clearCache() {
     integrationConfigurations.value = null
     availableIntegrations.value = null
-    hasInitialized.value = false
+    // hasInitialized is computed and will automatically be false when values are null
   }
 
   return {

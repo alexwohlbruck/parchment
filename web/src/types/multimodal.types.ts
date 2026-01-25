@@ -77,6 +77,8 @@ export interface RoutingPreferences {
   maxWalkingDistance?: number // meters
   maxTransfers?: number
   wheelchairAccessible?: boolean
+  useKnownVehicleLocations?: boolean
+  useKnownParkingLocations?: boolean
 }
 
 export interface TripResponse {

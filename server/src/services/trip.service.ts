@@ -582,8 +582,23 @@ class DrivingSegmentPlanner extends SegmentPlanner {
   ): Promise<SegmentPlanResult | null> {
     // Check if user has a car available
     const availableCar = input.availableVehicles.find((v) => v.type === 'car')
+    
+    // Check if we should use known vehicle locations
+    const useKnownLocations = input.preferences.useKnownVehicleLocations !== false
+    
+    // If no vehicle is provided AND we're not using known locations,
+    // plan a direct driving route (assume car is at origin)
+    if (!availableCar && !useKnownLocations) {
+      return this.planDirectDrivingRoute(input)
+    }
+    
     if (!availableCar) {
       return null // Cannot drive without a car
+    }
+
+    // If we're not using known locations, assume car is at origin
+    if (!useKnownLocations) {
+      return this.planDirectDrivingRoute(input, availableCar)
     }
 
     // TODO: Remove this hardcoded data before committing - it is sensitive
@@ -916,6 +931,82 @@ class DrivingSegmentPlanner extends SegmentPlanner {
     return { segment: combinedSegment, resultingState }
   }
 
+  /**
+   * Plan a direct driving route from origin to destination
+   * (assumes car is already at the origin)
+   */
+  private async planDirectDrivingRoute(
+    input: SegmentPlanInput,
+    vehicle?: Vehicle,
+  ): Promise<SegmentPlanResult | null> {
+    try {
+      // Use routing service to get actual driving directions
+      const routeResult = await routingService.getRoute(
+        [
+          {
+            type: 'coordinates',
+            value: [input.from.location.lat, input.from.location.lng],
+          },
+          {
+            type: 'coordinates',
+            value: [input.to.location.lat, input.to.location.lng],
+          },
+        ],
+        'auto',
+      )
+
+      if (!routeResult.routes.length) {
+        return null
+      }
+
+      const route = routeResult.routes[0]
+      const leg = route.legs[0]
+
+      const segment: TripSegment = {
+        segmentIndex: 0,
+        mode: 'driving',
+        ownership: vehicle ? 'personal' : undefined,
+        vehicle: vehicle,
+        start: input.from,
+        end: input.to,
+        startTime: input.departureTime,
+        endTime: new Date(
+          new Date(input.departureTime).getTime() + leg.duration * 1000,
+        ).toISOString(),
+        duration: leg.duration,
+        distance: leg.distance,
+        geometry: leg.geometry,
+        instructions: leg.instructions.map((instruction) => instruction.text),
+        cost: {
+          value: Math.round(leg.distance * 0.0002),
+          currency: 'USD',
+        },
+        co2: Math.round(leg.distance * 0.2),
+      }
+
+      const resultingState: SegmentState = {
+        currentTime: segment.endTime,
+        currentLocation: input.to.location,
+        currentMode: 'driving',
+        parkedVehicles: vehicle
+          ? [
+              ...input.priorState.parkedVehicles,
+              {
+                vehicle: vehicle,
+                location: input.to.location,
+                parkedAt: segment.endTime,
+              },
+            ]
+          : input.priorState.parkedVehicles,
+      }
+
+      return { segment, resultingState }
+    } catch (error) {
+      console.error('Error planning direct driving route:', error)
+      return null
+    }
+  }
+
   private calculateDistance(from: Coordinate, to: Coordinate): number {
     // Same as walking planner - would use routing engine in practice
     const R = 6371000
@@ -945,8 +1036,22 @@ class BikingSegmentPlanner extends SegmentPlanner {
       (v) => v.type === 'bike' || v.type === 'e-bike',
     )
 
+    // Check if we should use known vehicle locations
+    const useKnownLocations = input.preferences.useKnownVehicleLocations !== false
+    
+    // If no vehicle is provided AND we're not using known locations,
+    // plan a direct biking route (assume bike is at origin)
+    if (!availableBike && !useKnownLocations) {
+      return this.planDirectBikingRoute(input)
+    }
+    
     if (!availableBike) {
       return null
+    }
+
+    // If we're not using known locations, assume bike is at origin
+    if (!useKnownLocations) {
+      return this.planDirectBikingRoute(input, availableBike)
     }
 
     // TODO: Remove this hardcoded data before committing - it is sensitive
@@ -1271,6 +1376,79 @@ class BikingSegmentPlanner extends SegmentPlanner {
     }
 
     return { segment: combinedSegment, resultingState }
+  }
+
+  /**
+   * Plan a direct biking route from origin to destination
+   * (assumes bike is already at the origin)
+   */
+  private async planDirectBikingRoute(
+    input: SegmentPlanInput,
+    vehicle?: Vehicle,
+  ): Promise<SegmentPlanResult | null> {
+    try {
+      // Use routing service to get actual biking directions
+      const routeResult = await routingService.getRoute(
+        [
+          {
+            type: 'coordinates',
+            value: [input.from.location.lat, input.from.location.lng],
+          },
+          {
+            type: 'coordinates',
+            value: [input.to.location.lat, input.to.location.lng],
+          },
+        ],
+        'bicycle',
+      )
+
+      if (!routeResult.routes.length) {
+        return null
+      }
+
+      const route = routeResult.routes[0]
+      const leg = route.legs[0]
+
+      const segment: TripSegment = {
+        segmentIndex: 0,
+        mode: 'biking',
+        ownership: vehicle ? 'personal' : undefined,
+        vehicle: vehicle,
+        start: input.from,
+        end: input.to,
+        startTime: input.departureTime,
+        endTime: new Date(
+          new Date(input.departureTime).getTime() + leg.duration * 1000,
+        ).toISOString(),
+        duration: leg.duration,
+        distance: leg.distance,
+        geometry: leg.geometry,
+        instructions: leg.instructions.map((instruction) => instruction.text),
+        cost: { value: 0, currency: 'USD' },
+        co2: 0,
+      }
+
+      const resultingState: SegmentState = {
+        currentTime: segment.endTime,
+        currentLocation: input.to.location,
+        currentMode: 'biking',
+        parkedVehicles: vehicle
+          ? [
+              ...input.priorState.parkedVehicles,
+              {
+                vehicle: vehicle,
+                location: input.to.location,
+                parkedAt: segment.endTime,
+              },
+            ]
+          : input.priorState.parkedVehicles,
+      }
+
+      return { segment, resultingState }
+    } catch (error) {
+      console.error('Error planning direct biking route:', error)
+      return null
+    }
   }
 
   private calculateDistance(from: Coordinate, to: Coordinate): number {

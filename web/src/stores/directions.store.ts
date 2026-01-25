@@ -1,7 +1,8 @@
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { Waypoint } from '@/types/map.types'
+import { RoutingPreferences } from '@/types/multimodal.types'
 
 export const useDirectionsStore = defineStore('directions', () => {
   const directions = ref<null | Directions>(null)
@@ -17,6 +18,43 @@ export const useDirectionsStore = defineStore('directions', () => {
   const selectedMode = ref('pedestrian')
   const isLoading = ref(false)
   const selectedTripId = ref<string | null>(null) // Track which trip is currently shown on map
+  
+  const defaultPreferences: RoutingPreferences = {
+    avoidHighways: false,
+    avoidTolls: false,
+    preferHOV: false,
+    avoidFerries: false,
+    preferLitPaths: false,
+    preferPavedPaths: false,
+    avoidHills: false,
+    safetyVsEfficiency: 0.5,
+    maxWalkingDistance: 1000,
+    maxTransfers: 3,
+    wheelchairAccessible: false,
+    useKnownVehicleLocations: true, // Default to enabled
+    useKnownParkingLocations: true, // Default to enabled
+  }
+
+  // Load from localStorage with defaults merged
+  const loadPreferences = (): RoutingPreferences => {
+    const stored = localStorage.getItem('routingPreferences')
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored)
+        return { ...defaultPreferences, ...parsed }
+      } catch {
+        return defaultPreferences
+      }
+    }
+    return defaultPreferences
+  }
+
+  const routingPreferences = ref<RoutingPreferences>(loadPreferences())
+
+  // Watch and save to localStorage
+  watch(routingPreferences, (newVal) => {
+    localStorage.setItem('routingPreferences', JSON.stringify(newVal))
+  }, { deep: true })
 
   function setDirections(directions_: Directions) {
     directions.value = directions_
@@ -66,6 +104,10 @@ export const useDirectionsStore = defineStore('directions', () => {
     isLoading.value = loading
   }
 
+  function setRoutingPreferences(preferences: RoutingPreferences) {
+    routingPreferences.value = preferences
+  }
+
   return {
     directions,
     trips,
@@ -73,6 +115,7 @@ export const useDirectionsStore = defineStore('directions', () => {
     selectedMode,
     isLoading,
     selectedTripId,
+    routingPreferences,
     setDirections,
     setTrips,
     unsetDirections,
@@ -82,5 +125,6 @@ export const useDirectionsStore = defineStore('directions', () => {
     setWaypoints,
     removeWaypoint,
     setLoading,
+    setRoutingPreferences,
   }
 })

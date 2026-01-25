@@ -67,6 +67,8 @@ const RoutingPreferencesSchema = t.Object({
   maxWalkingDistance: t.Optional(t.Number({ minimum: 0 })),
   maxTransfers: t.Optional(t.Number({ minimum: 0 })),
   wheelchairAccessible: t.Optional(t.Boolean()),
+  useKnownVehicleLocations: t.Optional(t.Boolean()),
+  useKnownParkingLocations: t.Optional(t.Boolean()),
 })
 
 const TripRequestSchema = t.Object({

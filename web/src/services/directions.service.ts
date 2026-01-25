@@ -35,18 +35,24 @@ const MODE_TO_VEHICLES = {
 
 function directionsService() {
   const directionsStore = useDirectionsStore()
-  const { waypoints, selectedMode } = storeToRefs(directionsStore)
+  const { waypoints, selectedMode, routingPreferences } =
+    storeToRefs(directionsStore)
 
   // Track the last request to prevent duplicates
   const lastRequestKey = ref<string>('')
   const isRequestInProgress = ref(false)
 
-  function generateRequestKey(waypoints: Waypoint[], mode: string): string {
+  function generateRequestKey(
+    waypoints: Waypoint[],
+    mode: string,
+    preferences: any,
+  ): string {
     const waypointKey = waypoints
       .filter(wp => wp.lngLat != null)
       .map(wp => `${wp.lngLat!.lat},${wp.lngLat!.lng}`)
       .join(';')
-    return `${waypointKey}|${mode}`
+    const prefsKey = JSON.stringify(preferences)
+    return `${waypointKey}|${mode}|${prefsKey}`
   }
 
   async function getDirections() {
@@ -54,6 +60,7 @@ function directionsService() {
     const currentRequestKey = generateRequestKey(
       filteredWaypoints,
       selectedMode.value,
+      routingPreferences.value,
     )
 
     console.log(
@@ -87,9 +94,24 @@ function directionsService() {
 
     try {
       // Determine which vehicles to show based on selected mode
-      const availableVehicles =
+      const modeVehicles =
         MODE_TO_VEHICLES[selectedMode.value as keyof typeof MODE_TO_VEHICLES] ||
         AVAILABLE_VEHICLES
+
+      // Only include vehicle locations if the preference is enabled
+      const shouldIncludeVehicleLocations = routingPreferences.value.useKnownVehicleLocations !== false
+
+      // Filter vehicles based on the preference
+      const availableVehicles = shouldIncludeVehicleLocations
+        ? modeVehicles.map(vehicleType => ({
+            id: `${vehicleType}-${Date.now()}`,
+            type: vehicleType,
+            location:
+              HARDCODED_VEHICLE_LOCATIONS[
+                vehicleType as keyof typeof HARDCODED_VEHICLE_LOCATIONS
+              ],
+          }))
+        : []
 
       // Build multimodal trip request for the new API
       const tripRequest = {
@@ -106,27 +128,16 @@ function directionsService() {
               : 'via',
           label: waypoint.place?.name?.value,
         })),
-        availableVehicles: availableVehicles.map(vehicleType => ({
-          id: `${vehicleType}-${Date.now()}`,
-          type: vehicleType,
-          location:
-            HARDCODED_VEHICLE_LOCATIONS[
-              vehicleType as keyof typeof HARDCODED_VEHICLE_LOCATIONS
-            ],
-        })),
-        routingPreferences: {
-          avoidHighways: false,
-          avoidTolls: false,
-          safetyVsEfficiency: 0.5, // Balanced approach
-          maxWalkingDistance: 1000, // 1km max walking
-          maxTransfers: 3,
-        },
+        availableVehicles,
+        routingPreferences: routingPreferences.value,
         requestId: `frontend-${Date.now()}-${Math.random()
           .toString(36)
           .substr(2, 9)}`,
       }
 
       console.log('Making multimodal trip API request:', tripRequest)
+      console.log('Routing preferences:', routingPreferences.value)
+      console.log('Available vehicles count:', availableVehicles.length)
       const { data: response } = await api.post('/directions/', tripRequest)
       console.log('Multimodal trip API response received:', response)
 
@@ -307,7 +318,7 @@ function directionsService() {
 
   // Watch for changes and call getDirections immediately
   watch(
-    [waypoints, selectedMode],
+    [waypoints, selectedMode, routingPreferences],
     () => {
       getDirections()
     },

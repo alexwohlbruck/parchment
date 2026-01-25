@@ -63,22 +63,11 @@ function directionsService() {
       routingPreferences.value,
     )
 
-    console.log(
-      'getDirections called with waypoints:',
-      filteredWaypoints.length,
-      'mode:',
-      selectedMode.value,
-    )
-
     // Skip if this is the same request as last time or if a request is already in progress
     if (
       currentRequestKey === lastRequestKey.value ||
       isRequestInProgress.value
     ) {
-      console.log(
-        'Skipping duplicate or concurrent request:',
-        currentRequestKey,
-      )
       return
     }
 
@@ -135,11 +124,7 @@ function directionsService() {
           .substr(2, 9)}`,
       }
 
-      console.log('Making multimodal trip API request:', tripRequest)
-      console.log('Routing preferences:', routingPreferences.value)
-      console.log('Available vehicles count:', availableVehicles.length)
       const { data: response } = await api.post('/directions/', tripRequest)
-      console.log('Multimodal trip API response received:', response)
 
       // Helper function to normalize mode names from backend to frontend
       const normalizeMode = (mode: string): string => {
@@ -167,7 +152,7 @@ function directionsService() {
                 : WaypointType.VIA,
             name: waypoint.place?.name?.value || '',
           })),
-          availableVehicles: availableVehicles,
+          availableVehicles: availableVehicles.map(v => v.type) as string[],
           maxOptions: 3,
           includeWalking: true,
           preferences: {

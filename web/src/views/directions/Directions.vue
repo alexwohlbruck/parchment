@@ -71,9 +71,6 @@ useMapListener('click', data => {
   })
 })
 
-onUnmounted(() => {
-  directionsService.clearWaypoints()
-})
 </script>
 
 <template>

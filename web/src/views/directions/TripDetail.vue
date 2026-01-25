@@ -16,6 +16,7 @@ import {
   TrainIcon,
   TruckIcon,
 } from 'lucide-vue-next'
+import { AppRoute } from '@/router'
 
 const route = useRoute()
 const router = useRouter()
@@ -31,6 +32,13 @@ const trip = computed(() => {
   if (!directionsStore.trips?.trips) return null
   return directionsStore.trips.trips.find(t => t.id === tripId.value) || null
 })
+
+// If no trip is found after mounting, redirect back to directions
+watch(trip, (newTrip) => {
+  if (newTrip === null && !isLoading.value && directionsStore.trips) {
+    router.push({ name: AppRoute.DIRECTIONS })
+  }
+}, { immediate: true })
 
 // Mode icons mapping
 const modeIcons = {
@@ -74,7 +82,8 @@ onMounted(() => {
 // Restore all trips when leaving the component
 function goBack() {
   mapService.showAllTrips()
-  router.back()
+  // Navigate back to directions view, preserving the trips data
+  router.push({ name: AppRoute.DIRECTIONS })
 }
 
 // Utility functions for formatting

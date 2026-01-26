@@ -166,16 +166,16 @@ function handleTabChange(value: string | number) {
               <Label for="avoid-hills-walking" class="text-sm font-normal">Hills</Label>
               <Switch
                 id="avoid-hills-walking"
-                :checked="preferences.avoidHills ?? false"
-                @update:checked="(val) => updatePreference('avoidHills', val)"
+                :model-value="preferences.avoidHills ?? false"
+                @update:model-value="(val) => updatePreference('avoidHills', val)"
               />
             </div>
             <div class="flex items-center justify-between">
               <Label for="avoid-ferries-walking" class="text-sm font-normal">Ferries</Label>
               <Switch
                 id="avoid-ferries-walking"
-                :checked="preferences.avoidFerries ?? false"
-                @update:checked="(val) => updatePreference('avoidFerries', val)"
+                :model-value="preferences.avoidFerries ?? false"
+                @update:model-value="(val) => updatePreference('avoidFerries', val)"
               />
             </div>
           </div>
@@ -188,8 +188,8 @@ function handleTabChange(value: string | number) {
               <Label for="prefer-lit-walking" class="text-sm font-normal">Lit paths</Label>
               <Switch
                 id="prefer-lit-walking"
-                :checked="preferences.preferLitPaths ?? false"
-                @update:checked="(val) => updatePreference('preferLitPaths', val)"
+                :model-value="preferences.preferLitPaths ?? false"
+                @update:model-value="(val) => updatePreference('preferLitPaths', val)"
               />
             </div>
             <div class="flex items-center justify-between">
@@ -198,8 +198,8 @@ function handleTabChange(value: string | number) {
               </Label>
               <Switch
                 id="prefer-paved-walking"
-                :checked="preferences.preferPavedPaths ?? false"
-                @update:checked="(val) => updatePreference('preferPavedPaths', val)"
+                :model-value="preferences.preferPavedPaths ?? false"
+                @update:model-value="(val) => updatePreference('preferPavedPaths', val)"
               />
             </div>
           </div>
@@ -215,8 +215,8 @@ function handleTabChange(value: string | number) {
             </Label>
             <Switch
               id="wheelchair-walking"
-              :checked="preferences.wheelchairAccessible ?? false"
-              @update:checked="(val) => updatePreference('wheelchairAccessible', val)"
+              :model-value="preferences.wheelchairAccessible ?? false"
+              @update:model-value="(val) => updatePreference('wheelchairAccessible', val)"
             />
           </div>
         </div>
@@ -260,16 +260,16 @@ function handleTabChange(value: string | number) {
               <Label for="avoid-hills-cycling" class="text-sm font-normal">Hills</Label>
               <Switch
                 id="avoid-hills-cycling"
-                :checked="preferences.avoidHills ?? false"
-                @update:checked="(val) => updatePreference('avoidHills', val)"
+                :model-value="preferences.avoidHills ?? false"
+                @update:model-value="(val) => updatePreference('avoidHills', val)"
               />
             </div>
             <div class="flex items-center justify-between">
               <Label for="avoid-ferries-cycling" class="text-sm font-normal">Ferries</Label>
               <Switch
                 id="avoid-ferries-cycling"
-                :checked="preferences.avoidFerries ?? false"
-                @update:checked="(val) => updatePreference('avoidFerries', val)"
+                :model-value="preferences.avoidFerries ?? false"
+                @update:model-value="(val) => updatePreference('avoidFerries', val)"
               />
             </div>
           </div>
@@ -282,8 +282,8 @@ function handleTabChange(value: string | number) {
               <Label for="prefer-lit-cycling" class="text-sm font-normal">Lit paths</Label>
               <Switch
                 id="prefer-lit-cycling"
-                :checked="preferences.preferLitPaths ?? false"
-                @update:checked="(val) => updatePreference('preferLitPaths', val)"
+                :model-value="preferences.preferLitPaths ?? false"
+                @update:model-value="(val) => updatePreference('preferLitPaths', val)"
               />
             </div>
             <div class="flex items-center justify-between">
@@ -292,8 +292,8 @@ function handleTabChange(value: string | number) {
               </Label>
               <Switch
                 id="prefer-paved-cycling"
-                :checked="preferences.preferPavedPaths ?? false"
-                @update:checked="(val) => updatePreference('preferPavedPaths', val)"
+                :model-value="preferences.preferPavedPaths ?? false"
+                @update:model-value="(val) => updatePreference('preferPavedPaths', val)"
               />
             </div>
           </div>
@@ -363,8 +363,8 @@ function handleTabChange(value: string | number) {
             <Label for="avoid-ferries-transit" class="text-sm font-normal">Ferries</Label>
             <Switch
               id="avoid-ferries-transit"
-              :checked="preferences.avoidFerries ?? false"
-              @update:checked="(val) => updatePreference('avoidFerries', val)"
+              :model-value="preferences.avoidFerries ?? false"
+              @update:model-value="(val) => updatePreference('avoidFerries', val)"
             />
           </div>
         </div>
@@ -379,8 +379,8 @@ function handleTabChange(value: string | number) {
             </Label>
             <Switch
               id="wheelchair-transit"
-              :checked="preferences.wheelchairAccessible ?? false"
-              @update:checked="(val) => updatePreference('wheelchairAccessible', val)"
+              :model-value="preferences.wheelchairAccessible ?? false"
+              @update:model-value="(val) => updatePreference('wheelchairAccessible', val)"
             />
           </div>
         </div>
@@ -395,24 +395,24 @@ function handleTabChange(value: string | number) {
               <Label for="avoid-highways" class="text-sm font-normal">Highways</Label>
               <Switch
                 id="avoid-highways"
-                :checked="preferences.avoidHighways ?? false"
-                @update:checked="(val) => updatePreference('avoidHighways', val)"
+                :model-value="preferences.avoidHighways ?? false"
+                @update:model-value="(val) => updatePreference('avoidHighways', val)"
               />
             </div>
             <div class="flex items-center justify-between">
               <Label for="avoid-tolls" class="text-sm font-normal">Tolls</Label>
               <Switch
                 id="avoid-tolls"
-                :checked="preferences.avoidTolls ?? false"
-                @update:checked="(val) => updatePreference('avoidTolls', val)"
+                :model-value="preferences.avoidTolls ?? false"
+                @update:model-value="(val) => updatePreference('avoidTolls', val)"
               />
             </div>
             <div class="flex items-center justify-between">
               <Label for="avoid-ferries-auto" class="text-sm font-normal">Ferries</Label>
               <Switch
                 id="avoid-ferries-auto"
-                :checked="preferences.avoidFerries ?? false"
-                @update:checked="(val) => updatePreference('avoidFerries', val)"
+                :model-value="preferences.avoidFerries ?? false"
+                @update:model-value="(val) => updatePreference('avoidFerries', val)"
               />
             </div>
           </div>
@@ -424,8 +424,8 @@ function handleTabChange(value: string | number) {
             <Label for="prefer-hov" class="text-sm font-normal">HOV lanes</Label>
             <Switch
               id="prefer-hov"
-              :checked="preferences.preferHOV ?? false"
-              @update:checked="(val) => updatePreference('preferHOV', val)"
+              :model-value="preferences.preferHOV ?? false"
+              @update:model-value="(val) => updatePreference('preferHOV', val)"
             />
           </div>
         </div>

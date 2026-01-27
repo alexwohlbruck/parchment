@@ -69,6 +69,7 @@ const RoutingPreferencesSchema = t.Object({
   wheelchairAccessible: t.Optional(t.Boolean()),
   useKnownVehicleLocations: t.Optional(t.Boolean()),
   useKnownParkingLocations: t.Optional(t.Boolean()),
+  routingEngine: t.Optional(t.String()), // Preferred routing engine ID
 })
 
 const TripRequestSchema = t.Object({
@@ -387,7 +388,6 @@ app.get(
         },
       },
       integrations: {
-        routingEngines: ['valhalla'], // TODO: Add other engines as they're configured
         transitData: [], // TODO: Add GTFS feeds
         rideshareProviders: [], // TODO: Add rideshare integrations
       },

@@ -50,6 +50,50 @@ export interface GeocodingCapability {
 export interface RoutingCapability {
   getRoute(request: RouteRequest): Promise<UnifiedRoute>
   getMatrix?(request: MatrixRequest): Promise<MatrixResponse>
+  
+  // Metadata about what this routing engine supports
+  metadata?: RoutingCapabilityMetadata
+}
+
+// Metadata describing routing engine capabilities
+export interface RoutingCapabilityMetadata {
+  // Supported routing preferences
+  supportedPreferences: {
+    avoidHighways?: boolean
+    avoidTolls?: boolean
+    avoidFerries?: boolean
+    avoidUnpaved?: boolean
+    avoidHills?: boolean
+    preferHOV?: boolean
+    preferLitPaths?: boolean
+    preferPavedPaths?: boolean
+    safetyVsEfficiency?: boolean
+    maxWalkDistance?: boolean
+    maxTransfers?: boolean
+    wheelchairAccessible?: boolean
+  }
+  
+  // Supported travel modes
+  supportedModes: string[] // e.g., ['driving', 'walking', 'cycling', 'transit']
+  
+  // Route optimization types supported
+  supportedOptimizations?: string[] // e.g., ['time', 'distance', 'balanced']
+  
+  // Additional features
+  features?: {
+    alternatives?: boolean // Can provide alternative routes
+    traffic?: boolean // Supports traffic data
+    elevation?: boolean // Provides elevation data
+    instructions?: boolean // Provides turn-by-turn instructions
+    matrix?: boolean // Supports distance/time matrix
+    transit?: boolean // Supports transit routing
+  }
+  
+  // Limits
+  limits?: {
+    maxWaypoints?: number
+    maxAlternatives?: number
+  }
 }
 
 export interface MapBounds {

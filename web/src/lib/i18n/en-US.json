@@ -7,6 +7,7 @@
     "delete": "Delete",
     "confirm": "Confirm",
     "close": "Close",
+    "done": "Done",
     "back": "Back",
     "save": "Save",
     "share": "Share",
@@ -287,7 +288,21 @@
     "planRoute": "Plan route",
     "to": "To",
     "from": "From",
-    "addStop": "Add stop"
+    "addStop": "Add stop",
+    "modes": {
+      "walking": "Walking",
+      "cycling": "Cycling",
+      "transit": "Transit",
+      "driving": "Driving"
+    },
+    "preferences": {
+      "general": "General Options",
+      "walking": "Walking Options",
+      "cycling": "Cycling Options",
+      "transit": "Transit Options",
+      "driving": "Driving Options",
+      "routingEngine": "Routing Engine"
+    }
   },
   "library": {
     "title": "Library",

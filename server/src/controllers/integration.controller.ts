@@ -147,7 +147,11 @@ app.get(
     // Combine all integrations
     const allIntegrations = [...userIntegrations, ...systemIntegrations]
 
+    // Import integration manager to get capability metadata
+    const { integrationManager } = await import('../services/integrations')
+
     // Sanitize configs based on user permissions and integration scope
+    // and add capability metadata
     return allIntegrations.map((integration) => {
       const definition = getIntegrationDefinition(integration.integrationId)
       if (!definition) return sanitizeIntegrationConfig(integration)
@@ -157,15 +161,33 @@ app.get(
         (definition.scope.includes(IntegrationScope.USER) && canWriteUser) ||
         (definition.scope.includes(IntegrationScope.SYSTEM) && canWriteSystem)
 
-      return canSeeFullConfig
+      const baseIntegration = canSeeFullConfig
         ? integration
         : sanitizeIntegrationConfig(integration)
+
+      // Get the integration instance to access capability metadata
+      const instance = integrationManager.getCachedIntegrationInstance(integration)
+      
+      // Enhance capabilities with metadata
+      const enhancedCapabilities = integration.capabilities.map((cap) => {
+        const capabilityMetadata = instance?.capabilities[cap.id]?.metadata
+        return {
+          ...cap,
+          metadata: capabilityMetadata || null,
+        }
+      })
+
+      return {
+        ...baseIntegration,
+        name: definition.name, // Add human-friendly name from definition
+        capabilities: enhancedCapabilities,
+      }
     })
   },
   {
     detail: {
       tags: ['Integrations'],
-      summary: 'Get configured integrations for user',
+      summary: 'Get configured integrations for user with capability metadata',
     },
   },
 )

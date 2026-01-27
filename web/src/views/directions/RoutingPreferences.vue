@@ -1,17 +1,29 @@
 <script setup lang="ts">
 import { computed, watch, ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   CarFrontIcon,
   BikeIcon,
   TrainIcon,
   FootprintsIcon,
 } from 'lucide-vue-next'
-import { RoutingPreferences } from '@/types/multimodal.types'
+import { RoutingPreferences, RoutingEngine } from '@/types/multimodal.types'
+import { useIntegrationsStore } from '@/stores/integrations.store'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   modelValue: RoutingPreferences
@@ -20,6 +32,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: RoutingPreferences]
+  'close': []
 }>()
 
 const preferences = computed({
@@ -36,6 +49,78 @@ function updatePreference<K extends keyof RoutingPreferences>(
     [key]: value,
   }
 }
+
+// Routing engines state - get from integrations store
+const integrationsStore = useIntegrationsStore()
+
+// Get routing engines from configured integrations
+const routingEngines = computed(() => {
+  const configurations = integrationsStore.integrationConfigurations || []
+  return configurations
+    .filter((integration) => 
+      integration.capabilities.some((cap) => cap.id === 'routing' && cap.active)
+    )
+    .map((integration) => {
+      const routingCap = integration.capabilities.find((cap) => cap.id === 'routing') as any
+      return {
+        integrationId: integration.integrationId,
+        name: (integration as any).name || integration.integrationId, // Use name from API
+        metadata: routingCap?.metadata || null,
+      }
+    })
+})
+
+const selectedEngine = computed({
+  get: () => preferences.value.routingEngine || null,
+  set: (value: string | null) => updatePreference('routingEngine', value || undefined),
+})
+
+// Handle engine selection change
+function handleEngineChange(value: any) {
+  selectedEngine.value = value ? String(value) : null
+}
+
+// Set default engine on mount if none selected
+onMounted(() => {
+  if (!selectedEngine.value && routingEngines.value.length > 0) {
+    selectedEngine.value = routingEngines.value[0].integrationId
+  }
+})
+
+// Get currently selected engine metadata
+const currentEngineMetadata = computed(() => {
+  if (!selectedEngine.value) return null
+  const engine = routingEngines.value.find(e => e.integrationId === selectedEngine.value)
+  return engine?.metadata || null
+})
+
+// Helper to check if a preference is supported
+function isPreferenceSupported(preference: string): boolean {
+  if (!currentEngineMetadata.value) return true // Show all if no metadata
+  const supported = currentEngineMetadata.value.supportedPreferences as Record<string, boolean>
+  return supported[preference] === true // Only show if explicitly true
+}
+
+// Computed properties to check if sections have any visible items
+const hasWalkingAvoidOptions = computed(() => 
+  isPreferenceSupported('avoidHills') || isPreferenceSupported('avoidFerries')
+)
+
+const hasWalkingPreferOptions = computed(() => 
+  isPreferenceSupported('preferLitPaths') || isPreferenceSupported('preferPavedPaths')
+)
+
+const hasCyclingAvoidOptions = computed(() => 
+  isPreferenceSupported('avoidHills') || isPreferenceSupported('avoidFerries')
+)
+
+const hasCyclingPreferOptions = computed(() => 
+  isPreferenceSupported('preferLitPaths') || isPreferenceSupported('preferPavedPaths')
+)
+
+const hasDrivingAvoidOptions = computed(() => 
+  isPreferenceSupported('avoidHighways') || isPreferenceSupported('avoidTolls') || isPreferenceSupported('avoidFerries')
+)
 
 // Convert safety slider value (0-1) to display percentage
 const safetyPercentage = computed(() =>
@@ -58,6 +143,22 @@ const useKnownVehicleLocations = computed({
 const useKnownParkingLocations = computed({
   get: () => preferences.value.useKnownParkingLocations ?? true,
   set: (value: boolean) => updatePreference('useKnownParkingLocations', value),
+})
+
+// Get current mode display name
+const currentModeName = computed(() => {
+  switch (activeTab.value) {
+    case 'pedestrian':
+      return t('directions.preferences.walking')
+    case 'bicycle':
+      return t('directions.preferences.cycling')
+    case 'transit':
+      return t('directions.preferences.transit')
+    case 'auto':
+      return t('directions.preferences.driving')
+    default:
+      return ''
+  }
 })
 
 // Map mode types to tab values
@@ -112,7 +213,38 @@ function handleTabChange(value: string | number) {
 
 <template>
   <div class="w-full">
-    <Tabs :model-value="activeTab" @update:model-value="handleTabChange" class="w-full">
+    <!-- General Section -->
+    <div v-if="routingEngines.length > 0" class="px-4 pt-4 pb-3 space-y-3">
+      <h2 class="text-sm font-medium">{{ t('directions.preferences.general') }}</h2>
+      <div class="flex items-center justify-between">
+        <Label for="routing-engine-global" class="text-sm font-normal">{{ t('directions.preferences.routingEngine') }}</Label>
+        <Select
+          :model-value="selectedEngine"
+          @update:model-value="handleEngineChange"
+        >
+          <SelectTrigger id="routing-engine-global" class="h-8 w-[140px] text-xs">
+            <SelectValue placeholder="Select engine" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem
+              v-for="engine in routingEngines"
+              :key="engine.integrationId"
+              :value="engine.integrationId"
+              class="text-xs"
+            >
+              {{ engine.name }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+
+    <!-- Mode Title -->
+    <div class="px-4 pt-3 pb-2 border-t border-border">
+      <h2 class="text-sm font-medium">{{ currentModeName }}</h2>
+    </div>
+
+    <Tabs :model-value="activeTab" @update:model-value="handleTabChange" class="w-full px-2">
       <TabsList class="w-full grid grid-cols-4">
         <TabsTrigger value="pedestrian" class="text-xs" title="Walking">
           <FootprintsIcon class="size-5" />
@@ -129,8 +261,8 @@ function handleTabChange(value: string | number) {
       </TabsList>
 
       <!-- Walking Options -->
-      <TabsContent value="pedestrian" class="p-4 space-y-4 mt-0">
-        <div class="space-y-3">
+      <TabsContent value="pedestrian" class="py-4 px-2 space-y-4 mt-0">
+        <div v-if="isPreferenceSupported('safetyVsEfficiency')" class="space-y-3">
           <div class="flex items-center justify-between">
             <Label for="safety-slider-walking" class="text-sm font-normal">
               Route priority
@@ -159,10 +291,10 @@ function handleTabChange(value: string | number) {
           </div>
         </div>
 
-        <div class="space-y-3 border-t border-border pt-3">
+        <div v-if="hasWalkingAvoidOptions" class="space-y-3 border-t border-border pt-3">
           <h4 class="text-xs font-semibold uppercase text-muted-foreground">Avoid</h4>
           <div class="space-y-3">
-            <div class="flex items-center justify-between">
+            <div v-if="isPreferenceSupported('avoidHills')" class="flex items-center justify-between">
               <Label for="avoid-hills-walking" class="text-sm font-normal">Hills</Label>
               <Switch
                 id="avoid-hills-walking"
@@ -170,7 +302,7 @@ function handleTabChange(value: string | number) {
                 @update:model-value="(val) => updatePreference('avoidHills', val)"
               />
             </div>
-            <div class="flex items-center justify-between">
+            <div v-if="isPreferenceSupported('avoidFerries')" class="flex items-center justify-between">
               <Label for="avoid-ferries-walking" class="text-sm font-normal">Ferries</Label>
               <Switch
                 id="avoid-ferries-walking"
@@ -181,10 +313,10 @@ function handleTabChange(value: string | number) {
           </div>
         </div>
 
-        <div class="space-y-3 border-t border-border pt-3">
+        <div v-if="hasWalkingPreferOptions" class="space-y-3 border-t border-border pt-3">
           <h4 class="text-xs font-semibold uppercase text-muted-foreground">Prefer</h4>
           <div class="space-y-3">
-            <div class="flex items-center justify-between">
+            <div v-if="isPreferenceSupported('preferLitPaths')" class="flex items-center justify-between">
               <Label for="prefer-lit-walking" class="text-sm font-normal">Lit paths</Label>
               <Switch
                 id="prefer-lit-walking"
@@ -192,7 +324,7 @@ function handleTabChange(value: string | number) {
                 @update:model-value="(val) => updatePreference('preferLitPaths', val)"
               />
             </div>
-            <div class="flex items-center justify-between">
+            <div v-if="isPreferenceSupported('preferPavedPaths')" class="flex items-center justify-between">
               <Label for="prefer-paved-walking" class="text-sm font-normal">
                 Paved paths
               </Label>
@@ -205,7 +337,7 @@ function handleTabChange(value: string | number) {
           </div>
         </div>
 
-        <div class="space-y-3 border-t border-border pt-3">
+        <div v-if="isPreferenceSupported('wheelchairAccessible')" class="space-y-3 border-t border-border pt-3">
           <h4 class="text-xs font-semibold uppercase text-muted-foreground">
             Accessibility
           </h4>
@@ -223,8 +355,8 @@ function handleTabChange(value: string | number) {
       </TabsContent>
 
       <!-- Cycling Options -->
-      <TabsContent value="bicycle" class="p-4 space-y-4 mt-0">
-        <div class="space-y-3">
+      <TabsContent value="bicycle" class="py-4 px-2 space-y-4 mt-0">
+        <div v-if="isPreferenceSupported('safetyVsEfficiency')" class="space-y-3">
           <div class="flex items-center justify-between">
             <Label for="safety-slider-cycling" class="text-sm font-normal">
               Route priority
@@ -253,10 +385,10 @@ function handleTabChange(value: string | number) {
           </div>
         </div>
 
-        <div class="space-y-3 border-t border-border pt-3">
+        <div v-if="hasCyclingAvoidOptions" class="space-y-3 border-t border-border pt-3">
           <h4 class="text-xs font-semibold uppercase text-muted-foreground">Avoid</h4>
           <div class="space-y-3">
-            <div class="flex items-center justify-between">
+            <div v-if="isPreferenceSupported('avoidHills')" class="flex items-center justify-between">
               <Label for="avoid-hills-cycling" class="text-sm font-normal">Hills</Label>
               <Switch
                 id="avoid-hills-cycling"
@@ -264,7 +396,7 @@ function handleTabChange(value: string | number) {
                 @update:model-value="(val) => updatePreference('avoidHills', val)"
               />
             </div>
-            <div class="flex items-center justify-between">
+            <div v-if="isPreferenceSupported('avoidFerries')" class="flex items-center justify-between">
               <Label for="avoid-ferries-cycling" class="text-sm font-normal">Ferries</Label>
               <Switch
                 id="avoid-ferries-cycling"
@@ -275,10 +407,10 @@ function handleTabChange(value: string | number) {
           </div>
         </div>
 
-        <div class="space-y-3 border-t border-border pt-3">
+        <div v-if="hasCyclingPreferOptions" class="space-y-3 border-t border-border pt-3">
           <h4 class="text-xs font-semibold uppercase text-muted-foreground">Prefer</h4>
           <div class="space-y-3">
-            <div class="flex items-center justify-between">
+            <div v-if="isPreferenceSupported('preferLitPaths')" class="flex items-center justify-between">
               <Label for="prefer-lit-cycling" class="text-sm font-normal">Lit paths</Label>
               <Switch
                 id="prefer-lit-cycling"
@@ -286,7 +418,7 @@ function handleTabChange(value: string | number) {
                 @update:model-value="(val) => updatePreference('preferLitPaths', val)"
               />
             </div>
-            <div class="flex items-center justify-between">
+            <div v-if="isPreferenceSupported('preferPavedPaths')" class="flex items-center justify-between">
               <Label for="prefer-paved-cycling" class="text-sm font-normal">
                 Paved paths
               </Label>
@@ -325,8 +457,8 @@ function handleTabChange(value: string | number) {
       </TabsContent>
 
       <!-- Transit Options -->
-      <TabsContent value="transit" class="p-4 space-y-4 mt-0">
-        <div class="space-y-3">
+      <TabsContent value="transit" class="py-4 px-2 space-y-4 mt-0">
+        <div v-if="isPreferenceSupported('maxWalkDistance')" class="space-y-3">
           <Label for="max-walking" class="text-sm font-normal">
             Max walking distance
           </Label>
@@ -344,7 +476,7 @@ function handleTabChange(value: string | number) {
           </div>
         </div>
 
-        <div class="space-y-3 border-t border-border pt-3">
+        <div v-if="isPreferenceSupported('maxTransfers')" class="space-y-3 border-t border-border pt-3">
           <Label for="max-transfers" class="text-sm font-normal">Max transfers</Label>
           <Input
             id="max-transfers"
@@ -357,7 +489,7 @@ function handleTabChange(value: string | number) {
           />
         </div>
 
-        <div class="space-y-3 border-t border-border pt-3">
+        <div v-if="isPreferenceSupported('avoidFerries')" class="space-y-3 border-t border-border pt-3">
           <h4 class="text-xs font-semibold uppercase text-muted-foreground">Avoid</h4>
           <div class="flex items-center justify-between">
             <Label for="avoid-ferries-transit" class="text-sm font-normal">Ferries</Label>
@@ -369,7 +501,7 @@ function handleTabChange(value: string | number) {
           </div>
         </div>
 
-        <div class="space-y-3 border-t border-border pt-3">
+        <div v-if="isPreferenceSupported('wheelchairAccessible')" class="space-y-3 border-t border-border pt-3">
           <h4 class="text-xs font-semibold uppercase text-muted-foreground">
             Accessibility
           </h4>
@@ -387,11 +519,11 @@ function handleTabChange(value: string | number) {
       </TabsContent>
 
       <!-- Driving Options -->
-      <TabsContent value="auto" class="p-4 space-y-4 mt-0">
-        <div class="space-y-3">
+      <TabsContent value="auto" class="py-4 px-2 space-y-4 mt-0">
+        <div v-if="hasDrivingAvoidOptions" class="space-y-3">
           <h4 class="text-xs font-semibold uppercase text-muted-foreground">Avoid</h4>
           <div class="space-y-3">
-            <div class="flex items-center justify-between">
+            <div v-if="isPreferenceSupported('avoidHighways')" class="flex items-center justify-between">
               <Label for="avoid-highways" class="text-sm font-normal">Highways</Label>
               <Switch
                 id="avoid-highways"
@@ -399,7 +531,7 @@ function handleTabChange(value: string | number) {
                 @update:model-value="(val) => updatePreference('avoidHighways', val)"
               />
             </div>
-            <div class="flex items-center justify-between">
+            <div v-if="isPreferenceSupported('avoidTolls')" class="flex items-center justify-between">
               <Label for="avoid-tolls" class="text-sm font-normal">Tolls</Label>
               <Switch
                 id="avoid-tolls"
@@ -407,7 +539,7 @@ function handleTabChange(value: string | number) {
                 @update:model-value="(val) => updatePreference('avoidTolls', val)"
               />
             </div>
-            <div class="flex items-center justify-between">
+            <div v-if="isPreferenceSupported('avoidFerries')" class="flex items-center justify-between">
               <Label for="avoid-ferries-auto" class="text-sm font-normal">Ferries</Label>
               <Switch
                 id="avoid-ferries-auto"
@@ -418,7 +550,7 @@ function handleTabChange(value: string | number) {
           </div>
         </div>
 
-        <div class="space-y-3 border-t border-border pt-3">
+        <div v-if="isPreferenceSupported('preferHOV')" class="space-y-3 border-t border-border pt-3">
           <h4 class="text-xs font-semibold uppercase text-muted-foreground">Prefer</h4>
           <div class="flex items-center justify-between">
             <Label for="prefer-hov" class="text-sm font-normal">HOV lanes</Label>
@@ -455,5 +587,11 @@ function handleTabChange(value: string | number) {
         </div>
       </TabsContent>
     </Tabs>
+
+    <div class="hidden md:flex justify-end px-4 py-3 border-t border-border">
+      <Button size="sm" @click="emit('close')">
+        {{ t('general.done') }}
+      </Button>
+    </div>
   </div>
 </template>

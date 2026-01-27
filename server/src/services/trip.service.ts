@@ -147,7 +147,7 @@ export class TripService {
   ): Promise<{ segment: TripSegment; state: SegmentState; multimodalSegments?: TripSegment[] } | null> {
     switch (mode) {
       case 'walking':
-        return this.planWalkingSegment(from, to, state)
+        return this.planWalkingSegment(from, to, state, preferences)
       case 'driving':
         return this.planDrivingSegment(from, to, state, availableVehicles, preferences)
       case 'biking':
@@ -164,6 +164,7 @@ export class TripService {
     from: Waypoint,
     to: Waypoint,
     state: SegmentState,
+    preferences?: any,
   ): Promise<{ segment: TripSegment; state: SegmentState } | null> {
     try {
       const route = await routingService.getRoute(
@@ -172,6 +173,7 @@ export class TripService {
           { type: 'coordinates', value: [to.location.lat, to.location.lng] },
         ],
         'pedestrian',
+        preferences,
       )
 
       if (!route.routes.length) return null
@@ -225,7 +227,7 @@ export class TripService {
 
     // Direct driving (assume car at origin)
     if (!car || !useKnownLocations) {
-      return this.planDirectDrive(from, to, state)
+      return this.planDirectDrive(from, to, state, preferences)
     }
 
     // Multimodal: walk to car + drive
@@ -239,6 +241,7 @@ export class TripService {
           { type: 'coordinates', value: [carLocation.lat, carLocation.lng] },
         ],
         'pedestrian',
+        preferences,
       )
 
       // Drive to destination
@@ -248,6 +251,7 @@ export class TripService {
           { type: 'coordinates', value: [to.location.lat, to.location.lng] },
         ],
         'auto',
+        preferences,
       )
 
       if (!walkRoute.routes.length || !driveRoute.routes.length) return null
@@ -308,6 +312,7 @@ export class TripService {
     from: Waypoint,
     to: Waypoint,
     state: SegmentState,
+    preferences?: any,
   ): Promise<{ segment: TripSegment; state: SegmentState } | null> {
     try {
       const route = await routingService.getRoute(
@@ -316,6 +321,7 @@ export class TripService {
           { type: 'coordinates', value: [to.location.lat, to.location.lng] },
         ],
         'auto',
+        preferences,
       )
 
       if (!route.routes.length) return null
@@ -367,7 +373,7 @@ export class TripService {
 
     // Direct biking (assume bike at origin)
     if (!bike || !useKnownLocations) {
-      return this.planDirectBike(from, to, state)
+      return this.planDirectBike(from, to, state, preferences)
     }
 
     // Multimodal: walk to bike + ride
@@ -381,6 +387,7 @@ export class TripService {
           { type: 'coordinates', value: [bikeLocation.lat, bikeLocation.lng] },
         ],
         'pedestrian',
+        preferences,
       )
 
       // Bike to destination
@@ -390,6 +397,7 @@ export class TripService {
           { type: 'coordinates', value: [to.location.lat, to.location.lng] },
         ],
         'bicycle',
+        preferences,
       )
 
       if (!walkRoute.routes.length || !bikeRoute.routes.length) return null
@@ -449,6 +457,7 @@ export class TripService {
     from: Waypoint,
     to: Waypoint,
     state: SegmentState,
+    preferences?: any,
   ): Promise<{ segment: TripSegment; state: SegmentState } | null> {
     try {
       const route = await routingService.getRoute(
@@ -457,6 +466,7 @@ export class TripService {
           { type: 'coordinates', value: [to.location.lat, to.location.lng] },
         ],
         'bicycle',
+        preferences,
       )
 
       if (!route.routes.length) return null

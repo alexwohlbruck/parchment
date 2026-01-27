@@ -14,15 +14,6 @@ const HARDCODED_VEHICLE_LOCATIONS = {
   bike: { lat: 35.21700938703438, lng: -80.81994398107717 },
 }
 
-// Map UI mode selection to vehicle types
-const MODE_TO_VEHICLES: Record<string, string[]> = {
-  multi: ['car', 'bike'],
-  auto: ['car'],
-  bicycle: ['bike'],
-  pedestrian: [],
-  transit: [],
-}
-
 function directionsService() {
   const store = useDirectionsStore()
   const { waypoints, selectedMode, routingPreferences } = storeToRefs(store)
@@ -63,15 +54,14 @@ function directionsService() {
     store.setLoading(true)
 
     try {
-      // Determine which vehicles to include based on mode
-      const vehicleTypes = MODE_TO_VEHICLES[selectedMode.value] || []
+      // Send all known vehicles - backend will determine which are relevant for the selected mode
       const useVehicleLocations = routingPreferences.value.useKnownVehicleLocations !== false
 
       const availableVehicles = useVehicleLocations
-        ? vehicleTypes.map(type => ({
+        ? Object.entries(HARDCODED_VEHICLE_LOCATIONS).map(([type, location]) => ({
             id: `${type}-${Date.now()}`,
             type,
-            location: HARDCODED_VEHICLE_LOCATIONS[type as keyof typeof HARDCODED_VEHICLE_LOCATIONS],
+            location,
           }))
         : []
 
@@ -82,6 +72,7 @@ function directionsService() {
           type: i === 0 ? 'origin' : i === validWaypoints.length - 1 ? 'destination' : 'via',
           label: wp.place?.name?.value,
         })),
+        selectedMode: selectedMode.value,
         availableVehicles,
         routingPreferences: routingPreferences.value,
         requestId: `frontend-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -98,7 +89,7 @@ function directionsService() {
             type: i === 0 || i === validWaypoints.length - 1 ? WaypointType.STOP : WaypointType.VIA,
             name: wp.place?.name?.value || '',
           })),
-          availableVehicles: vehicleTypes,
+          availableVehicles: availableVehicles.map(v => v.type),
           maxOptions: 5,
           includeWalking: true,
           preferences: { optimize: 'time', alternatives: true },

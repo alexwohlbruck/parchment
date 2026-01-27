@@ -22,6 +22,7 @@ import TripsList from './TripsList.vue'
 import RoutingPreferences from './RoutingPreferences.vue'
 import { Spinner } from '@/components/ui/spinner'
 import { Waypoint } from '@/types/map.types'
+import { SelectedMode } from '@/types/multimodal.types'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import { Button } from '@/components/ui/button'
 import ResponsivePopover from '@/components/responsive/ResponsivePopover.vue'
@@ -37,19 +38,19 @@ const { waypoints, trips, selectedMode, isLoading, routingPreferences } =
 
 const showPreferences = ref(false)
 
-const modes = [
+const modes: Array<{ type: SelectedMode; icon: any; label: string }> = [
   {
     type: 'multi',
     icon: ShuffleIcon,
     label: 'All modes',
   },
   {
-    type: 'pedestrian',
+    type: 'walking',
     icon: FootprintsIcon,
     label: 'Walking',
   },
   {
-    type: 'bicycle',
+    type: 'biking',
     icon: BikeIcon,
     label: 'Cycling',
   },
@@ -59,7 +60,7 @@ const modes = [
     label: 'Transit',
   },
   {
-    type: 'auto',
+    type: 'driving',
     icon: CarFrontIcon,
     label: 'Driving',
   },
@@ -77,7 +78,7 @@ useMapListener('click', data => {
   <PanelLayout>
     <div class="space-y-3 flex flex-col">
       <div class="flex items-center gap-2">
-        <Tabs v-model="selectedMode" default-value="pedestrian" class="flex-1">
+        <Tabs v-model="selectedMode" default-value="walking" class="flex-1">
           <TabsList class="w-full flex">
             <TabsTrigger
               v-for="(mode, i) in modes"

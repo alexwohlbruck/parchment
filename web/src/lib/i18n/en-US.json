@@ -301,7 +301,9 @@
       "cycling": "Cycling Options",
       "transit": "Transit Options",
       "driving": "Driving Options",
-      "routingEngine": "Routing Engine"
+      "routingEngine": "Routing Engine",
+      "useKnownVehicleLocations": "Use known vehicle locations",
+      "useKnownParkingLocations": "Use known parking locations"
     }
   },
   "library": {

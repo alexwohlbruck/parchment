@@ -2,7 +2,7 @@ import { ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { Waypoint } from '@/types/map.types'
-import { RoutingPreferences } from '@/types/multimodal.types'
+import { RoutingPreferences, SelectedMode } from '@/types/multimodal.types'
 
 export const useDirectionsStore = defineStore('directions', () => {
   const directions = ref<null | Directions>(null)
@@ -15,7 +15,7 @@ export const useDirectionsStore = defineStore('directions', () => {
       lngLat: null,
     },
   ]) // List of locations to get directions for
-  const selectedMode = ref('pedestrian')
+  const selectedMode = ref<SelectedMode>('walking')
   const isLoading = ref(false)
   const selectedTripId = ref<string | null>(null) // Track which trip is currently shown on map
   

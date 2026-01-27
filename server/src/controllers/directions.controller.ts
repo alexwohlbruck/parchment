@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia'
 import { multimodalTripService } from '../services/trip.service'
 import {
   TripRequest,
+  SelectedMode,
   VehicleType,
   WaypointType,
   EnergyType,
@@ -72,8 +73,18 @@ const RoutingPreferencesSchema = t.Object({
   routingEngine: t.Optional(t.String()), // Preferred routing engine ID
 })
 
+// Schema for SelectedMode type
+const SelectedModeSchema = t.Union([
+  t.Literal('multi'),
+  t.Literal('walking'),
+  t.Literal('driving'),
+  t.Literal('biking'),
+  t.Literal('transit'),
+] as const)
+
 const TripRequestSchema = t.Object({
   waypoints: t.Array(WaypointSchema, { minItems: 2 }),
+  selectedMode: t.Optional(SelectedModeSchema),
   routingPreferences: t.Optional(RoutingPreferencesSchema),
   availableVehicles: t.Optional(t.Array(VehicleSchema)),
   knownAccessPoints: t.Optional(t.Array(AccessPointSchema)),
@@ -104,6 +115,7 @@ app.post(
           label: wp.label,
           type: wp.type as WaypointType,
         })),
+        selectedMode: body.selectedMode,
         routingPreferences: body.routingPreferences,
         availableVehicles: body.availableVehicles?.map((vehicle) => ({
           id: vehicle.id,

@@ -84,6 +84,7 @@ export interface RoutingPreferences {
   wheelchairAccessible?: boolean
   useKnownVehicleLocations?: boolean
   useKnownParkingLocations?: boolean
+  routingEngine?: string // Preferred routing engine integration ID
 }
 
 // =============================================================================

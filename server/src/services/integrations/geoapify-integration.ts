@@ -56,6 +56,36 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
     } as GeocodingCapability,
     routing: {
       getRoute: this.getRoute.bind(this),
+      metadata: {
+        supportedPreferences: {
+          avoidHighways: true,
+          avoidTolls: true,
+          avoidFerries: true,
+          avoidUnpaved: false,
+          avoidHills: false,
+          preferHOV: false,
+          preferLitPaths: false,
+          preferPavedPaths: false,
+          safetyVsEfficiency: true, // Maps to route type (balanced/short)
+          maxWalkDistance: false, // Only for transit
+          maxTransfers: false, // Only for transit
+          wheelchairAccessible: false, // Only for transit
+        },
+        supportedModes: ['driving', 'walking', 'cycling', 'motorcycle'],
+        supportedOptimizations: ['time', 'distance', 'balanced'],
+        features: {
+          alternatives: false,
+          traffic: true, // Supports approximated traffic
+          elevation: true, // For cycling and walking
+          instructions: true,
+          matrix: false,
+          transit: false,
+        },
+        limits: {
+          maxWaypoints: 50,
+          maxAlternatives: 0,
+        },
+      },
     } as RoutingCapability,
   }
 
@@ -325,18 +355,47 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
         apiKey: this.config.apiKey,
       }
 
-      // Add vehicle preferences if provided
+      // Add routing preferences if provided
       if (request.preferences) {
+        const avoidOptions: string[] = []
+        
+        // Build avoid parameter according to Geoapify API format
         if (request.preferences.avoidTolls) {
-          params.avoid = params.avoid ? `${params.avoid},tolls` : 'tolls'
+          avoidOptions.push('tolls')
         }
         if (request.preferences.avoidHighways) {
-          params.avoid = params.avoid ? `${params.avoid},highways` : 'highways'
+          avoidOptions.push('highways')
         }
         if (request.preferences.avoidFerries) {
-          params.avoid = params.avoid ? `${params.avoid},ferries` : 'ferries'
+          avoidOptions.push('ferries')
+        }
+        
+        // Join avoid options with pipe separator as per Geoapify docs
+        if (avoidOptions.length > 0) {
+          params.avoid = avoidOptions.join('|')
+        }
+        
+        // Map route optimization preference
+        // Note: Geoapify doesn't have a direct "safety" option, but we can use:
+        // - balanced (default): compromise between time, cost, and distance
+        // - short: optimizes by distance (could be considered "safer" as it minimizes exposure)
+        // - less_maneuvers: fewer turns (could be considered "safer" for some users)
+        if (request.preferences.optimize) {
+          if (request.preferences.optimize === 'distance') {
+            params.type = 'short'
+          } else if (request.preferences.optimize === 'balanced') {
+            params.type = 'balanced'
+          }
+          // 'time' is the default, no need to set type parameter
         }
       }
+
+      console.log('[Geoapify] Routing request params:', {
+        waypoints: params.waypoints,
+        mode: params.mode,
+        avoid: params.avoid,
+        type: params.type,
+      })
 
       const response = await axios.get(url, { params })
 

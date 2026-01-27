@@ -116,6 +116,7 @@ useMapListener('click', data => {
             <RoutingPreferences
               v-model="routingPreferences"
               :selected-mode="selectedMode"
+              @close="close"
             />
           </template>
         </ResponsivePopover>

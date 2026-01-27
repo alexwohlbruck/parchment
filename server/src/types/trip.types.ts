@@ -27,6 +27,9 @@ export type Mode =
   | 'paratransit'
   | 'mixed'
 
+// UI-level mode selection (includes 'multi' for all modes)
+export type SelectedMode = 'multi' | 'walking' | 'driving' | 'biking' | 'transit'
+
 export type WaypointType = 'origin' | 'destination' | 'via'
 
 export type OwnershipType = 'personal' | 'shared'
@@ -39,6 +42,7 @@ export type EnergyType = 'electric' | 'gas' | 'diesel' | 'hybrid'
 
 export interface TripRequest {
   waypoints: Waypoint[] // minimum 2
+  selectedMode?: SelectedMode // Filter trips by mode
   routingPreferences?: RoutingPreferences
   availableVehicles?: Vehicle[]
   knownAccessPoints?: AccessPoint[]

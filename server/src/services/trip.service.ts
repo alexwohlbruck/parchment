@@ -9,6 +9,7 @@ import {
   Waypoint,
   Vehicle,
   Mode,
+  SelectedMode,
   SegmentState,
 } from '../types/trip.types'
 import { Coordinate } from '../types/unified-routing.types'
@@ -35,8 +36,8 @@ export class TripService {
     const candidates: TripResponse[] = []
     const dataSources: DataSource[] = []
 
-    // Generate trip options for each mode
-    const modes: Mode[] = ['walking', 'driving', 'biking']
+    // Determine which modes to generate based on selectedMode
+    const modes: Mode[] = this.getModesToGenerate(request.selectedMode)
     
     for (const mode of modes) {
       try {
@@ -72,6 +73,33 @@ export class TripService {
         processingTime: Date.now() - startTime,
         dataSourcesUsed: dataSources,
       },
+    }
+  }
+
+  /**
+   * Determine which modes to generate based on user selection
+   * Walking is always included as it can be combined with any mode
+   */
+  private getModesToGenerate(selectedMode?: SelectedMode): Mode[] {
+    switch (selectedMode) {
+      case 'multi':
+        // Multi-modal: generate all available modes
+        return ['walking', 'driving', 'biking']
+      case 'walking':
+        // Walking only
+        return ['walking']
+      case 'driving':
+        // Driving (can include walking to car)
+        return ['walking', 'driving']
+      case 'biking':
+        // Biking (can include walking to bike)
+        return ['walking', 'biking']
+      case 'transit':
+        // Transit (can include walking to/from transit)
+        return ['walking'] // TODO: Add transit when implemented
+      default:
+        // Default to all modes if not specified
+        return ['walking', 'driving', 'biking']
     }
   }
 

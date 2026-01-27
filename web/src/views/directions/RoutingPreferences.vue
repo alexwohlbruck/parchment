@@ -2,6 +2,7 @@
 import { computed, watch, ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
@@ -20,14 +21,14 @@ import {
   TrainIcon,
   FootprintsIcon,
 } from 'lucide-vue-next'
-import { RoutingPreferences, RoutingEngine } from '@/types/multimodal.types'
+import { RoutingPreferences, RoutingEngine, SelectedMode } from '@/types/multimodal.types'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 
 const { t } = useI18n()
 
 const props = defineProps<{
   modelValue: RoutingPreferences
-  selectedMode: string
+  selectedMode: SelectedMode
 }>()
 
 const emit = defineEmits<{
@@ -148,13 +149,13 @@ const useKnownParkingLocations = computed({
 // Get current mode display name
 const currentModeName = computed(() => {
   switch (activeTab.value) {
-    case 'pedestrian':
+    case 'walking':
       return t('directions.preferences.walking')
-    case 'bicycle':
+    case 'biking':
       return t('directions.preferences.cycling')
     case 'transit':
       return t('directions.preferences.transit')
-    case 'auto':
+    case 'driving':
       return t('directions.preferences.driving')
     default:
       return ''
@@ -163,25 +164,25 @@ const currentModeName = computed(() => {
 
 // Map mode types to tab values
 const modeToTab: Record<string, string> = {
-  pedestrian: 'pedestrian',
-  bicycle: 'bicycle',
+  walking: 'walking',
+  biking: 'biking',
   transit: 'transit',
-  auto: 'auto',
-  multi: 'pedestrian', // Default for multi mode
+  driving: 'driving',
+  multi: 'walking', // Default for multi mode
 }
 
 // Active tab state
-const activeTab = ref<string>('pedestrian')
+const activeTab = ref<string>('walking')
 
 // Initialize tab based on current mode
 onMounted(() => {
   // Always sync to current mode first
   if (props.selectedMode !== 'multi') {
-    activeTab.value = modeToTab[props.selectedMode] || 'pedestrian'
+    activeTab.value = modeToTab[props.selectedMode] || 'walking'
   } else {
     // For multi mode, use last opened tab from localStorage
     const saved = localStorage.getItem('routingPreferencesTab')
-    activeTab.value = saved || 'pedestrian'
+    activeTab.value = saved || 'walking'
   }
 })
 
@@ -191,11 +192,11 @@ watch(
   (newMode) => {
     // Always sync to current mode
     if (newMode !== 'multi') {
-      activeTab.value = modeToTab[newMode] || 'pedestrian'
+      activeTab.value = modeToTab[newMode] || 'walking'
     } else {
       // For multi mode, use last opened tab from localStorage
       const saved = localStorage.getItem('routingPreferencesTab')
-      activeTab.value = saved || 'pedestrian'
+      activeTab.value = saved || 'walking'
     }
   },
   { immediate: false }
@@ -214,9 +215,10 @@ function handleTabChange(value: string | number) {
 <template>
   <div class="w-full">
     <!-- General Section -->
-    <div v-if="routingEngines.length > 0" class="px-4 pt-4 pb-3 space-y-3">
-      <h2 class="text-sm font-medium">{{ t('directions.preferences.general') }}</h2>
-      <div class="flex items-center justify-between">
+    <div class="p-4 space-y-3">
+      <h2 class="font-semibold">{{ t('directions.preferences.general') }}</h2>
+      
+      <div v-if="routingEngines.length > 0" class="flex items-center justify-between">
         <Label for="routing-engine-global" class="text-sm font-normal">{{ t('directions.preferences.routingEngine') }}</Label>
         <Select
           :model-value="selectedEngine"
@@ -237,31 +239,54 @@ function handleTabChange(value: string | number) {
           </SelectContent>
         </Select>
       </div>
+
+      <div class="space-y-3 border-border pt-3">
+        <div class="flex items-center justify-between">
+          <Label for="use-known-vehicle-locations" class="text-sm font-normal">
+            {{ t('directions.preferences.useKnownVehicleLocations') }}
+          </Label>
+          <Switch
+            id="use-known-vehicle-locations"
+            v-model="useKnownVehicleLocations"
+          />
+        </div>
+        <div class="flex items-center justify-between">
+          <Label for="use-known-parking-locations" class="text-sm font-normal">
+            {{ t('directions.preferences.useKnownParkingLocations') }}
+          </Label>
+          <Switch
+            id="use-known-parking-locations"
+            v-model="useKnownParkingLocations"
+          />
+        </div>
+      </div>
     </div>
 
+    <Separator/>
+
     <!-- Mode Title -->
-    <div class="px-4 pt-3 pb-2 border-t border-border">
-      <h2 class="text-sm font-medium">{{ currentModeName }}</h2>
+    <div class="p-4">
+      <h2 class="font-semibold">{{ currentModeName }}</h2>
     </div>
 
     <Tabs :model-value="activeTab" @update:model-value="handleTabChange" class="w-full px-2">
       <TabsList class="w-full grid grid-cols-4">
-        <TabsTrigger value="pedestrian" class="text-xs" title="Walking">
+        <TabsTrigger value="walking" class="text-xs" title="Walking">
           <FootprintsIcon class="size-5" />
         </TabsTrigger>
-        <TabsTrigger value="bicycle" class="text-xs" title="Cycling">
+        <TabsTrigger value="biking" class="text-xs" title="Cycling">
           <BikeIcon class="size-5" />
         </TabsTrigger>
         <TabsTrigger value="transit" class="text-xs" title="Transit">
           <TrainIcon class="size-5" />
         </TabsTrigger>
-        <TabsTrigger value="auto" class="text-xs" title="Driving">
+        <TabsTrigger value="driving" class="text-xs" title="Driving">
           <CarFrontIcon class="size-5" />
         </TabsTrigger>
       </TabsList>
 
       <!-- Walking Options -->
-      <TabsContent value="pedestrian" class="py-4 px-2 space-y-4 mt-0">
+      <TabsContent value="walking" class="py-4 px-2 space-y-4 mt-0">
         <div v-if="isPreferenceSupported('safetyVsEfficiency')" class="space-y-3">
           <div class="flex items-center justify-between">
             <Label for="safety-slider-walking" class="text-sm font-normal">
@@ -291,7 +316,7 @@ function handleTabChange(value: string | number) {
           </div>
         </div>
 
-        <div v-if="hasWalkingAvoidOptions" class="space-y-3 border-t border-border pt-3">
+        <div v-if="hasWalkingAvoidOptions" class="space-y-3 pt-3">
           <h4 class="text-xs font-semibold uppercase text-muted-foreground">Avoid</h4>
           <div class="space-y-3">
             <div v-if="isPreferenceSupported('avoidHills')" class="flex items-center justify-between">
@@ -313,7 +338,7 @@ function handleTabChange(value: string | number) {
           </div>
         </div>
 
-        <div v-if="hasWalkingPreferOptions" class="space-y-3 border-t border-border pt-3">
+        <div v-if="hasWalkingPreferOptions" class="space-y-3 pt-3">
           <h4 class="text-xs font-semibold uppercase text-muted-foreground">Prefer</h4>
           <div class="space-y-3">
             <div v-if="isPreferenceSupported('preferLitPaths')" class="flex items-center justify-between">
@@ -337,7 +362,7 @@ function handleTabChange(value: string | number) {
           </div>
         </div>
 
-        <div v-if="isPreferenceSupported('wheelchairAccessible')" class="space-y-3 border-t border-border pt-3">
+        <div v-if="isPreferenceSupported('wheelchairAccessible')" class="space-y-3 pt-3">
           <h4 class="text-xs font-semibold uppercase text-muted-foreground">
             Accessibility
           </h4>
@@ -355,7 +380,7 @@ function handleTabChange(value: string | number) {
       </TabsContent>
 
       <!-- Cycling Options -->
-      <TabsContent value="bicycle" class="py-4 px-2 space-y-4 mt-0">
+      <TabsContent value="biking" class="py-4 px-2 space-y-4 mt-0">
         <div v-if="isPreferenceSupported('safetyVsEfficiency')" class="space-y-3">
           <div class="flex items-center justify-between">
             <Label for="safety-slider-cycling" class="text-sm font-normal">
@@ -385,7 +410,7 @@ function handleTabChange(value: string | number) {
           </div>
         </div>
 
-        <div v-if="hasCyclingAvoidOptions" class="space-y-3 border-t border-border pt-3">
+        <div v-if="hasCyclingAvoidOptions" class="space-y-3 pt-3">
           <h4 class="text-xs font-semibold uppercase text-muted-foreground">Avoid</h4>
           <div class="space-y-3">
             <div v-if="isPreferenceSupported('avoidHills')" class="flex items-center justify-between">
@@ -407,7 +432,7 @@ function handleTabChange(value: string | number) {
           </div>
         </div>
 
-        <div v-if="hasCyclingPreferOptions" class="space-y-3 border-t border-border pt-3">
+        <div v-if="hasCyclingPreferOptions" class="space-y-3 pt-3">
           <h4 class="text-xs font-semibold uppercase text-muted-foreground">Prefer</h4>
           <div class="space-y-3">
             <div v-if="isPreferenceSupported('preferLitPaths')" class="flex items-center justify-between">
@@ -426,30 +451,6 @@ function handleTabChange(value: string | number) {
                 id="prefer-paved-cycling"
                 :model-value="preferences.preferPavedPaths ?? false"
                 @update:model-value="(val) => updatePreference('preferPavedPaths', val)"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div class="space-y-3 border-t border-border pt-3">
-          <h4 class="text-xs font-semibold uppercase text-muted-foreground">Vehicle Options</h4>
-          <div class="space-y-3">
-            <div class="flex items-center justify-between">
-              <Label for="use-known-bike-locations" class="text-sm font-normal">
-                Use known bike locations
-              </Label>
-              <Switch
-                id="use-known-bike-locations"
-                v-model="useKnownVehicleLocations"
-              />
-            </div>
-            <div class="flex items-center justify-between">
-              <Label for="use-known-bike-parking" class="text-sm font-normal">
-                Use known bike parking
-              </Label>
-              <Switch
-                id="use-known-bike-parking"
-                v-model="useKnownParkingLocations"
               />
             </div>
           </div>
@@ -476,7 +477,7 @@ function handleTabChange(value: string | number) {
           </div>
         </div>
 
-        <div v-if="isPreferenceSupported('maxTransfers')" class="space-y-3 border-t border-border pt-3">
+        <div v-if="isPreferenceSupported('maxTransfers')" class="space-y-3 pt-3">
           <Label for="max-transfers" class="text-sm font-normal">Max transfers</Label>
           <Input
             id="max-transfers"
@@ -489,7 +490,7 @@ function handleTabChange(value: string | number) {
           />
         </div>
 
-        <div v-if="isPreferenceSupported('avoidFerries')" class="space-y-3 border-t border-border pt-3">
+        <div v-if="isPreferenceSupported('avoidFerries')" class="space-y-3 pt-3">
           <h4 class="text-xs font-semibold uppercase text-muted-foreground">Avoid</h4>
           <div class="flex items-center justify-between">
             <Label for="avoid-ferries-transit" class="text-sm font-normal">Ferries</Label>
@@ -501,7 +502,7 @@ function handleTabChange(value: string | number) {
           </div>
         </div>
 
-        <div v-if="isPreferenceSupported('wheelchairAccessible')" class="space-y-3 border-t border-border pt-3">
+        <div v-if="isPreferenceSupported('wheelchairAccessible')" class="space-y-3 pt-3">
           <h4 class="text-xs font-semibold uppercase text-muted-foreground">
             Accessibility
           </h4>
@@ -519,7 +520,7 @@ function handleTabChange(value: string | number) {
       </TabsContent>
 
       <!-- Driving Options -->
-      <TabsContent value="auto" class="py-4 px-2 space-y-4 mt-0">
+      <TabsContent value="driving" class="py-4 px-2 space-y-4 mt-0">
         <div v-if="hasDrivingAvoidOptions" class="space-y-3">
           <h4 class="text-xs font-semibold uppercase text-muted-foreground">Avoid</h4>
           <div class="space-y-3">
@@ -550,7 +551,7 @@ function handleTabChange(value: string | number) {
           </div>
         </div>
 
-        <div v-if="isPreferenceSupported('preferHOV')" class="space-y-3 border-t border-border pt-3">
+        <div v-if="isPreferenceSupported('preferHOV')" class="space-y-3 pt-3">
           <h4 class="text-xs font-semibold uppercase text-muted-foreground">Prefer</h4>
           <div class="flex items-center justify-between">
             <Label for="prefer-hov" class="text-sm font-normal">HOV lanes</Label>
@@ -559,30 +560,6 @@ function handleTabChange(value: string | number) {
               :model-value="preferences.preferHOV ?? false"
               @update:model-value="(val) => updatePreference('preferHOV', val)"
             />
-          </div>
-        </div>
-
-        <div class="space-y-3 border-t border-border pt-3">
-          <h4 class="text-xs font-semibold uppercase text-muted-foreground">Vehicle Options</h4>
-          <div class="space-y-3">
-            <div class="flex items-center justify-between">
-              <Label for="use-known-car-locations" class="text-sm font-normal">
-                Use known car locations
-              </Label>
-              <Switch
-                id="use-known-car-locations"
-                v-model="useKnownVehicleLocations"
-              />
-            </div>
-            <div class="flex items-center justify-between">
-              <Label for="use-known-parking" class="text-sm font-normal">
-                Use known parking locations
-              </Label>
-              <Switch
-                id="use-known-parking"
-                v-model="useKnownParkingLocations"
-              />
-            </div>
           </div>
         </div>
       </TabsContent>

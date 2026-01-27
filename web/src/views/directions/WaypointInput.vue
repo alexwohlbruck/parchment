@@ -83,7 +83,7 @@ function clearWaypoint(index: number) {
     emit('update:modelValue', newWaypoints)
   } else {
     const newWaypoints = [...waypoints.value]
-    newWaypoints[index] = directionsService.createBlankWaypoint()
+    newWaypoints[index] = { lngLat: null }
     emit('update:modelValue', newWaypoints)
   }
 }
@@ -92,7 +92,7 @@ function addWaypoint() {
   inputTexts.value.push('')
   emit('update:modelValue', [
     ...waypoints.value,
-    directionsService.createBlankWaypoint(),
+    { lngLat: null },
   ])
 }
 
@@ -424,7 +424,7 @@ defineExpose({
     </template>
   </draggable>
 
-  <Button variant="outline" :icon="PlusIcon" @click="addWaypoint()">
+  <Button variant="outline" :icon="PlusIcon" @click="addWaypoint()" class="w-fit self-center">
     {{ $t('directions.addStop') }}
   </Button>
 </template>

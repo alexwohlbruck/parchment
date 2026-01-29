@@ -1,18 +1,22 @@
 import { api } from '@/lib/api'
-import type { Layer, LayerGroup } from '@/types/map.types'
+import type { Layer, LayerGroup, LngLat } from '@/types/map.types'
 import { LayerType, MapEngine, MapboxLayerType, MapColorTheme } from '@/types/map.types'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
-import { toRaw, watch } from 'vue'
+import { toRaw, watch, Component } from 'vue'
 import { cssHslToHex, adjustLightness } from '@/lib/utils'
 import type { Place } from '@/types/place.types'
 import SearchResultMapIcon from '@/components/map/SearchResultMapIcon.vue'
 import { useSearchStore } from '@/stores/search.store'
 import { useThemeStore } from '@/stores/theme.store'
+import { useDirectionsStore } from '@/stores/directions.store'
 import { useStorage } from '@vueuse/core'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { DEFAULT_SERVER_URL } from '@/lib/constants'
 import { isTransitStopLayer } from '@/lib/transit.utils'
+import { WaypointsLayer } from '@/components/map/layers/waypoints-layer'
+import { FriendLocationsLayer } from '@/components/map/layers/friend-locations-layer'
+import { TripInstructionsLayer } from '@/components/map/layers/trip-instructions-layer'
 import {
   SEARCH_RESULTS_LAYER_ID,
   SEARCH_RESULTS_SOURCE_ID,
@@ -31,9 +35,15 @@ import {
 } from '@/constants/layer.constants'
 
 export function useLayersService() {
-  // Initialize theme store inside the composable where Pinia is available
+  // Initialize stores inside the composable where Pinia is available
   const themeStore = useThemeStore()
+  const directionsStore = useDirectionsStore()
   const router = useRouter()
+  
+  // Marker layer instances
+  let waypointsLayer: WaypointsLayer | null = null
+  let friendLocationsLayer: FriendLocationsLayer | null = null
+  let tripInstructionsLayer: TripInstructionsLayer | null = null
 
   // Helper function to apply map color theme based on transit visibility and theme
   function applyTransitMapTheme(
@@ -1067,6 +1077,107 @@ export function useLayersService() {
     mapStrategy.removeSource(PLACE_POLYGON_SOURCE_ID)
   }
 
+  // ============================================================================
+  // MARKER LAYERS (Waypoints, Friends, Trip Instructions)
+  // ============================================================================
+
+  /**
+   * Initialize marker layers with map strategy
+   * Call this after map is loaded
+   */
+  function initializeMarkerLayers(mapStrategy: MapStrategy) {
+    // Create marker layer instances
+    waypointsLayer = new WaypointsLayer()
+    friendLocationsLayer = new FriendLocationsLayer()
+    tripInstructionsLayer = new TripInstructionsLayer()
+
+    // Initialize with map API
+    const markerAPI = {
+      addVueMarker: (id: string, lngLat: LngLat, component: Component, props: Record<string, any>) =>
+        mapStrategy?.addVueMarker(id, lngLat, component, props),
+      removeMarker: (id: string) => mapStrategy?.removeMarker(id),
+      hasMarker: (id: string) => mapStrategy?.hasMarker(id) ?? false,
+    }
+
+    waypointsLayer.initialize(markerAPI)
+    friendLocationsLayer.initialize(markerAPI)
+    tripInstructionsLayer.initialize(markerAPI)
+
+    // Set up watchers for reactive updates
+    setupMarkerLayerWatchers()
+  }
+
+  /**
+   * Set up watchers to sync marker layers with store state
+   */
+  function setupMarkerLayerWatchers() {
+    // Watch for trip changes
+    watch(
+      () => directionsStore.trips,
+      trips => {
+        if (trips) {
+          // Show the first trip by default (recommended or first in list)
+          const firstTrip =
+            trips.trips.find(trip => trip.isRecommended) || trips.trips[0]
+          
+          // Update instruction markers if showing single trip
+          if (firstTrip) {
+            tripInstructionsLayer?.setTrip(firstTrip)
+          } else {
+            tripInstructionsLayer?.setTrip(null)
+          }
+        } else {
+          // Clear instruction markers when trips are cleared
+          tripInstructionsLayer?.setTrip(null)
+        }
+      },
+    )
+
+    // Watch for selected trip changes
+    watch(
+      () => directionsStore.selectedTripId,
+      (selectedTripId) => {
+        const trips = directionsStore.trips
+        if (!trips || !selectedTripId) {
+          // Clear instruction markers when no trip is selected
+          tripInstructionsLayer?.setTrip(null)
+          return
+        }
+
+        // Update instruction markers for selected trip
+        const trip = trips.trips.find(t => t.id === selectedTripId)
+        tripInstructionsLayer?.setTrip(trip || null)
+      },
+    )
+  }
+
+  /**
+   * Destroy marker layers and clean up
+   */
+  function destroyMarkerLayers() {
+    waypointsLayer?.destroy()
+    friendLocationsLayer?.destroy()
+    tripInstructionsLayer?.destroy()
+    
+    waypointsLayer = null
+    friendLocationsLayer = null
+    tripInstructionsLayer = null
+  }
+
+  /**
+   * Highlight a specific instruction point (for UI interactions)
+   */
+  function highlightInstructionPoint(segmentIndex: number, instructionIndex: number) {
+    tripInstructionsLayer?.highlightInstruction(segmentIndex, instructionIndex)
+  }
+
+  /**
+   * Clear highlighted instruction point
+   */
+  function clearHighlightedInstructionPoint() {
+    tripInstructionsLayer?.clearHighlight()
+  }
+
   return {
     getLayers,
     createLayer,
@@ -1103,5 +1214,11 @@ export function useLayersService() {
     updatePlacePolygon,
     updatePlacePolygonColors,
     removePlacePolygonLayers,
+
+    // Marker layers management
+    initializeMarkerLayers,
+    destroyMarkerLayers,
+    highlightInstructionPoint,
+    clearHighlightedInstructionPoint,
   }
 }

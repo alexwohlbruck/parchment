@@ -1,7 +1,7 @@
 // Multimodal Trip Planner Types
 // Based on detailed requirements specification
 
-import { Coordinate } from './unified-routing.types'
+import { Coordinate, RouteInstruction } from './unified-routing.types'
 
 // =============================================================================
 // CORE TYPES
@@ -119,7 +119,7 @@ export interface TripSegment {
   duration: number // seconds
   distance: number // meters
   geometry: any // GeoJSON or encoded polyline
-  instructions: string[]
+  instructions: RouteInstruction[] | string[] // Support both full instructions and simple strings
   cost?: CurrencyAmount
   co2?: number // grams
   details?: SegmentDetails

@@ -221,7 +221,7 @@ export class TripService {
         duration: leg.duration,
         distance: leg.distance,
         geometry: leg.geometry,
-        instructions: leg.instructions.map(i => i.text),
+        instructions: leg.instructions,
         co2: 0,
       }
 
@@ -366,7 +366,7 @@ export class TripService {
         duration: leg.duration,
         distance: leg.distance,
         geometry: leg.geometry,
-        instructions: leg.instructions.map(i => i.text),
+        instructions: leg.instructions,
         cost: { value: leg.distance * 0.0002, currency: 'USD' },
         co2: leg.distance * 0.00024,
       }
@@ -511,7 +511,7 @@ export class TripService {
         duration: leg.duration,
         distance: leg.distance,
         geometry: leg.geometry,
-        instructions: leg.instructions.map(i => i.text),
+        instructions: leg.instructions,
         co2: 0,
       }
 

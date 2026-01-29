@@ -430,6 +430,9 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
   ): RouteLeg {
     const startWaypoint = request.waypoints[legIndex]
     const endWaypoint = request.waypoints[legIndex + 1]
+    
+    // Decode geometry once for use in instructions
+    const geometry = this.decodePolyline(leg.shape)
 
     return {
       startWaypoint,
@@ -437,9 +440,9 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
       mode: request.mode,
       distance: leg.summary.length * 1000, // Convert km to meters
       duration: leg.summary.time,
-      geometry: this.decodePolyline(leg.shape),
+      geometry,
       instructions: leg.maneuvers.map((maneuver) =>
-        this.buildRouteInstruction(maneuver),
+        this.buildRouteInstruction(maneuver, geometry),
       ),
       hasTolls: leg.summary.has_toll,
       hasHighways: leg.summary.has_highway,
@@ -450,14 +453,17 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
   /**
    * Build route instruction from Valhalla maneuver
    */
-  private buildRouteInstruction(maneuver: ValhallaManeuver): RouteInstruction {
+  private buildRouteInstruction(maneuver: ValhallaManeuver, geometry: { lat: number; lng: number }[]): RouteInstruction {
+    // Extract coordinate from geometry using begin_shape_index
+    let coordinate = { lat: 0, lng: 0 }
+    if (maneuver.begin_shape_index !== undefined && geometry[maneuver.begin_shape_index]) {
+      coordinate = geometry[maneuver.begin_shape_index]
+    }
+    
     return {
       type: this.mapManeuverType(maneuver.type),
       text: maneuver.instruction,
-      coordinate: {
-        lat: 0, // Valhalla doesn't provide lat/lng in maneuvers
-        lng: 0, // Would need to decode from shape
-      },
+      coordinate,
       distance: maneuver.length * 1000, // Convert km to meters
       duration: maneuver.time,
       streetName: maneuver.street_names?.[0],

@@ -43,6 +43,7 @@ import { MapLayerGroup, TripGroup } from '@/lib/layer-group'
 import { Component, watch } from 'vue'
 import { createVueMarkerElement } from '@/lib/vue-marker.utils'
 import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
+import InstructionPointMarker from '@/components/map/InstructionPointMarker.vue'
 import { useAppStore } from '@/stores/app.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { getPrimaryThemeHex, adjustLightness, cssHslToHex } from '@/lib/utils'
@@ -711,12 +712,14 @@ export class MapboxStrategy extends MapStrategy {
     }
 
     // Create fresh trip groups for visible trips
+    const visibleTrips: any[] = []
     trips.trips.forEach(trip => {
       if (visibleTripIds.has(trip.id)) {
         const groupId = `trip-${trip.id}`
         console.log(`Creating new trip group: ${groupId}`)
         const tripGroup = new TripGroup(this, trip)
         this.layerGroups.set(groupId, tripGroup)
+        visibleTrips.push(trip)
       }
     })
 
@@ -788,32 +791,7 @@ export class MapboxStrategy extends MapStrategy {
     }
   }
 
-  // Waypoint marker methods (separate from trip routes)
-  setWaypointMarkers(waypoints: Waypoint[]) {
-    // Remove existing waypoint markers
-    this.clearWaypointMarkers()
-
-    // Add new waypoint markers for all waypoints with coordinates
-    waypoints.forEach((waypoint, index) => {
-      if (waypoint.lngLat) {
-        this.addVueMarker(
-          `waypoint-${index}`,
-          waypoint.lngLat,
-          WaypointMapIcon,
-          {
-            index,
-            totalWaypoints: waypoints.length,
-            type:
-              index === 0
-                ? 'origin'
-                : index === waypoints.length - 1
-                ? 'destination'
-                : 'waypoint',
-          },
-        )
-      }
-    })
-  }
+  // Note: Waypoint and instruction point markers are now handled by base MapStrategy class
 
   private updateStreetViewColors() {
     const primary = getPrimaryThemeHex()

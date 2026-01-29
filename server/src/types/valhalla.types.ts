@@ -67,6 +67,8 @@ export type ValhallaManeuver = {
   length: number
   time: number
   street_names?: string[]
+  begin_shape_index?: number
+  end_shape_index?: number
   sign?: {
     exit_number?: string
   }

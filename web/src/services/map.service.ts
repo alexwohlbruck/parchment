@@ -27,15 +27,10 @@ import { storeToRefs } from 'pinia'
 import { MapboxStrategy } from '@/components/map/map-providers/mapbox.strategy'
 import { MaplibreStrategy } from '@/components/map/map-providers/maplibre.strategy'
 import { mapEventBus } from '@/lib/eventBus'
-import {
-  MapStrategy,
-  type FriendLocationData,
-} from '@/components/map/map-providers/map.strategy'
-import { watch } from 'vue'
+import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { AppRoute } from '@/router'
 import { useRouter } from 'vue-router'
-import { ref, toRaw } from 'vue'
-import { Component } from 'vue'
+import { ref, toRaw, watch, Component } from 'vue'
 
 const dark = useDark()
 
@@ -258,10 +253,8 @@ function mapService() {
       mapStrategy.setTransitLabels(!hasVisibleTransitLayers)
     }
 
-    // Show waypoint markers immediately when map loads
-    if (directionsStore.waypoints) {
-      mapStrategy?.setWaypointMarkers(directionsStore.waypoints)
-    }
+    // Initialize marker layers - they will automatically sync with store state
+    layersService.initializeMarkerLayers(mapStrategy)
 
     // Show queued trips if any
     if (queuedTrips.value) {
@@ -304,10 +297,7 @@ function mapService() {
       mapStrategy.setTransitLabels(!hasVisibleTransitLayers)
     }
 
-    // Show waypoint markers immediately when style loads
-    if (directionsStore.waypoints) {
-      mapStrategy?.setWaypointMarkers(directionsStore.waypoints)
-    }
+    // Note: Waypoint markers are automatically managed by WaypointsLayer
   }
 
   function setConfigProperties() {
@@ -728,7 +718,8 @@ function mapService() {
     },
   )
 
-  // Watch for trip changes
+  // Watch for trip changes - handles route rendering
+  // Note: Instruction markers are automatically managed by layers.service
   watch(
     () => directionsStore.trips,
     trips => {
@@ -754,24 +745,15 @@ function mapService() {
     },
   )
 
-  // Watch for waypoint changes and always show waypoint markers
-  watch(
-    () => directionsStore.waypoints,
-    waypoints => {
-      if (isMapReady.value && mapStrategy) {
-        mapStrategy.setWaypointMarkers(waypoints)
-      }
-      // Note: We don't queue waypoint markers since they're managed separately
-    },
-    { deep: true },
-  )
-
-  // Watch for selected trip changes
+  // Watch for selected trip changes - handles route rendering
+  // Note: Instruction markers are automatically managed by layers.service
   watch(
     () => directionsStore.selectedTripId,
-    (selectedTripId, oldSelectedTripId) => {
+    (selectedTripId) => {
       const trips = directionsStore.trips
-      if (!trips || !selectedTripId) return
+      if (!trips || !selectedTripId) {
+        return
+      }
 
       const visibleTripIds = new Set([selectedTripId])
 
@@ -805,6 +787,9 @@ function mapService() {
       zoomingHideTimeout = null
     }
 
+    // Destroy marker layers
+    layersService.destroyMarkerLayers()
+
     // Clean up search results layer
     if (mapStrategy) {
       layersService.removeSearchResultsLayer(mapStrategy)
@@ -829,6 +814,15 @@ function mapService() {
 
     const visibleTripIds = new Set(tripIds)
 
+    // Update selectedTripId to trigger instruction markers update
+    if (visibleTripIds.size === 1) {
+      const [tripId] = visibleTripIds
+      directionsStore.setSelectedTripId(tripId)
+    } else {
+      // Clear selected trip when showing multiple or no trips
+      directionsStore.setSelectedTripId(null)
+    }
+
     if (isMapReady.value && mapStrategy) {
       mapStrategy.setTrips(trips, visibleTripIds)
     } else {
@@ -844,6 +838,9 @@ function mapService() {
     if (!trips) return
 
     const allTripIds = new Set<string>(trips.trips.map(trip => trip.id))
+
+    // Clear selected trip when showing all trips (no instruction markers)
+    directionsStore.setSelectedTripId(null)
 
     if (isMapReady.value && mapStrategy) {
       mapStrategy.setTrips(trips, allTripIds)
@@ -997,10 +994,10 @@ function mapService() {
     isCurrentlyRotating,
     isCurrentlyZooming,
 
-    // Friend location markers
-    setFriendLocations: (locations: FriendLocationData[]) =>
-      mapStrategy?.setFriendLocations(locations),
-    clearFriendLocations: () => mapStrategy?.clearFriendLocationMarkers(),
+    // Instruction marker highlights (for UI interactions like hovering)
+    // Delegated to layers service which manages marker layers
+    highlightInstructionPoint: layersService.highlightInstructionPoint,
+    clearHighlightedInstructionPoint: layersService.clearHighlightedInstructionPoint,
   }
 }
 

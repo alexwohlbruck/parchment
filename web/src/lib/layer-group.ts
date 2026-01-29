@@ -218,10 +218,78 @@ export class TripGroup extends MapLayerGroup {
         if (!nextSegment.geometry) return
         this._addConnectorLayer(segment, nextSegment, segmentIndex)
       }
+      
+      // Instruction points are now rendered as HTML markers, not as a layer
+      // this._addInstructionPointsLayer(segment, segmentIndex)
     })
 
     // Don't add origin/destination layers here since waypoint markers are managed separately
     // this._addOriginDestinationLayers()
+  }
+
+  /**
+   * Add instruction points layer for a segment
+   */
+  private _addInstructionPointsLayer(segment: TripSegment, segmentIndex: number): void {
+    // Only add points if there are instructions with coordinates
+    const instructionsWithCoords = segment.instructions?.filter(
+      (instr: any) => typeof instr === 'object' && instr.coordinate
+    )
+    
+    if (!instructionsWithCoords || instructionsWithCoords.length === 0) return
+
+    const sourceId = `${this.id}-instructions-${segmentIndex}`
+    const circleLayerId = `${this.id}-instruction-circles-${segmentIndex}`
+
+    // Create GeoJSON for instruction points
+    const features = instructionsWithCoords.map((instr: any, index: number) => ({
+      type: 'Feature',
+      properties: {
+        instructionIndex: index,
+        segmentIndex,
+        text: instr.text,
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: [instr.coordinate.lng, instr.coordinate.lat],
+      },
+    }))
+
+    const geoJSON: FeatureCollection = {
+      type: 'FeatureCollection',
+      features: features as any,
+    }
+
+    // Add source
+    this.map.addSource(sourceId, {
+      type: 'geojson',
+      data: geoJSON,
+    })
+    this.sources.add(sourceId)
+
+    // Add circle layer (smaller white circles without numbers)
+    this.addLayer({
+      id: circleLayerId,
+      groupId: this.id,
+      name: `Trip ${this.trip.id} Instruction Points ${segmentIndex}`,
+      type: LayerType.CUSTOM,
+      showInLayerSelector: false,
+      visible: true,
+      engine: [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+      order: 10, // Render on top
+      configuration: {
+        id: circleLayerId,
+        type: 'circle',
+        source: sourceId,
+        paint: {
+          'circle-radius': 3,
+          'circle-color': '#ffffff',
+          'circle-stroke-width': 1.5,
+          'circle-stroke-color': this._getSegmentColor(segment),
+          'circle-opacity': 1,
+        },
+      } as any,
+    })
   }
 
   private _addSegmentLayer(segment: TripSegment, segmentIndex: number): void {
@@ -404,12 +472,6 @@ export class TripGroup extends MapLayerGroup {
         },
       } as any,
     })
-  }
-
-  private _addOriginDestinationLayers(): void {
-    // This method is no longer used since waypoint markers are managed separately
-    // by the map strategy to ensure they're always visible
-    return
   }
 
   /**

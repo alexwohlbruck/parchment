@@ -17,11 +17,15 @@ import {
   TruckIcon,
 } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
+import type { RouteInstruction } from '@/types/directions.types'
 
 const route = useRoute()
 const router = useRouter()
 const directionsStore = useDirectionsStore()
 const mapService = useMapService()
+
+// State for hover interactions
+const hoveredInstructionKey = ref<string | null>(null)
 
 const tripId = computed(() => route.params.id as string)
 const isLoading = ref(false)
@@ -66,6 +70,7 @@ watch(
   newTrip => {
     if (newTrip) {
       // Show only this trip on the map
+      // Note: setVisibleTrips automatically updates instruction markers via selectedTripId
       mapService.setVisibleTrips([newTrip.id])
     }
   },
@@ -75,15 +80,38 @@ watch(
 // Show only the selected trip on the map when component mounts
 onMounted(() => {
   if (trip.value) {
+    // Note: setVisibleTrips automatically updates instruction markers via selectedTripId
     mapService.setVisibleTrips([trip.value.id])
   }
 })
 
 // Restore all trips when leaving the component
 function goBack() {
+  // Note: showAllTrips automatically clears instruction markers via selectedTripId
   mapService.showAllTrips()
   // Navigate back to directions view, preserving the trips data
   router.push({ name: AppRoute.DIRECTIONS })
+}
+
+// Handle hovering instructions
+function onInstructionHover(segmentIndex: number, instrIndex: number, instruction: string | RouteInstruction) {
+  const key = `${segmentIndex}-${instrIndex}`
+  hoveredInstructionKey.value = key
+  
+  // Highlight the point on the map
+  if (typeof instruction === 'object' && instruction.coordinate) {
+    mapService.highlightInstructionPoint(segmentIndex, instrIndex)
+  }
+}
+
+function onInstructionLeave() {
+  hoveredInstructionKey.value = null
+  mapService.clearHighlightedInstructionPoint()
+}
+
+// Generate unique key for instruction
+function getInstructionKey(segmentIndex: number, instrIndex: number): string {
+  return `${segmentIndex}-${instrIndex}`
 }
 
 // Utility functions for formatting
@@ -243,7 +271,12 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
                           instruction, instrIndex
                         ) in segment.instructions"
                         :key="instrIndex"
-                        class="flex items-center text-sm hover:bg-muted/50 rounded-lg p-2 pl-0 transition-colors"
+                        class="flex items-center text-sm hover:bg-muted/50 rounded-lg p-2 pl-0 transition-colors cursor-pointer"
+                        :class="{
+                          'bg-muted': hoveredInstructionKey === getInstructionKey(index, instrIndex)
+                        }"
+                        @mouseenter="onInstructionHover(index, instrIndex, instruction)"
+                        @mouseleave="onInstructionLeave"
                       >
                         <div
                           class="shrink-0 w-6 h-6 mr-2 rounded-full flex items-center justify-center text-xs font-medium"

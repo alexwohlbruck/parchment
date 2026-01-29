@@ -13,20 +13,8 @@ import {
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { Component } from 'vue'
 import { destroyVueMarkerElement } from '@/lib/vue-marker.utils'
-import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
-import FriendLocationMarker from '@/components/map/FriendLocationMarker.vue'
 import { mapEventBus } from '@/lib/eventBus'
 import { impactFeedback } from '@tauri-apps/plugin-haptics'
-
-export interface FriendLocationData {
-  friendHandle: string
-  friendAlias: string
-  friendName?: string
-  friendAvatar?: string
-  lngLat: LngLat
-  updatedAt: Date
-  accuracy?: number
-}
 
 export class MapStrategy {
   mapInstance: any
@@ -227,73 +215,23 @@ export class MapStrategy {
     this.markers.clear()
   }
 
+  hasMarker(id: string): boolean {
+    return this.markers.has(id)
+  }
+
+  getMarkerCount(prefix?: string): number {
+    if (!prefix) return this.markers.size
+    return Array.from(this.markers.keys()).filter(id => id.startsWith(prefix)).length
+  }
+
+  removeMarkersByPrefix(prefix: string) {
+    const markerIds = Array.from(this.markers.keys()).filter(id =>
+      id.startsWith(prefix)
+    )
+    markerIds.forEach(id => this.removeMarker(id))
+  }
+
   // Trip visualization methods
   setTrips(trips: TripsResponse, visibleTripIds: Set<string>) {}
   unsetTrips() {}
-
-  // Waypoint marker methods (separate from trip routes)
-  setWaypointMarkers(waypoints: Waypoint[]) {
-    // Remove existing waypoint markers
-    this.clearWaypointMarkers()
-
-    // Add new waypoint markers for all waypoints with coordinates
-    waypoints.forEach((waypoint, index) => {
-      if (waypoint.lngLat) {
-        this.addVueMarker(
-          `waypoint-${index}`,
-          waypoint.lngLat,
-          WaypointMapIcon,
-          {
-            index,
-            totalWaypoints: waypoints.length,
-            type:
-              index === 0
-                ? 'origin'
-                : index === waypoints.length - 1
-                ? 'destination'
-                : 'waypoint',
-          },
-        )
-      }
-    })
-  }
-
-  clearWaypointMarkers() {
-    // Remove waypoint markers
-    const waypointMarkerIds = Array.from(this.markers.keys()).filter(id =>
-      id.startsWith('waypoint-'),
-    )
-    waypointMarkerIds.forEach(id => this.removeMarker(id))
-  }
-
-  unsetWaypointMarkers() {
-    this.clearWaypointMarkers()
-  }
-
-  setFriendLocations(locations: FriendLocationData[]) {
-    this.clearFriendLocationMarkers()
-
-    locations.forEach(location => {
-      this.addVueMarker(
-        `friend-location-${location.friendHandle}`,
-        location.lngLat,
-        FriendLocationMarker,
-        {
-          friendHandle: location.friendHandle,
-          friendAlias: location.friendAlias,
-          friendName: location.friendName,
-          friendAvatar: location.friendAvatar,
-          updatedAt: location.updatedAt,
-          accuracy: location.accuracy,
-        },
-      )
-    })
-  }
-
-  clearFriendLocationMarkers() {
-    const friendMarkerIds = Array.from(this.markers.keys()).filter(id =>
-      id.startsWith('friend-location-'),
-    )
-    friendMarkerIds.forEach(id => this.removeMarker(id))
-  }
 }

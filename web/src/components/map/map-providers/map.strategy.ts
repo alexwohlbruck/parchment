@@ -190,6 +190,7 @@ export class MapStrategy {
     lngLat: LngLat,
     component: Component,
     props: Record<string, any> = {},
+    zIndex?: number,
   ) {}
 
   removeMarker(id: string) {

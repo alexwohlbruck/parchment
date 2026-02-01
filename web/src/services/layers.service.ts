@@ -1093,8 +1093,8 @@ export function useLayersService() {
 
     // Initialize with map API
     const markerAPI = {
-      addVueMarker: (id: string, lngLat: LngLat, component: Component, props: Record<string, any>) =>
-        mapStrategy?.addVueMarker(id, lngLat, component, props),
+      addVueMarker: (id: string, lngLat: LngLat, component: Component, props: Record<string, any>, zIndex?: number) =>
+        mapStrategy?.addVueMarker(id, lngLat, component, props, zIndex),
       removeMarker: (id: string) => mapStrategy?.removeMarker(id),
       hasMarker: (id: string) => mapStrategy?.hasMarker(id) ?? false,
     }

@@ -16,6 +16,8 @@ export interface MarkerLayerConfig {
   component: Component
   /** Whether the layer is currently enabled */
   enabled?: Ref<boolean>
+  /** Z-index for markers in this layer (higher = on top) */
+  zIndex?: number
 }
 
 export interface MarkerData {
@@ -28,7 +30,7 @@ export interface MarkerData {
 }
 
 export interface MapMarkerAPI {
-  addVueMarker(id: string, lngLat: LngLat, component: Component, props: Record<string, any>): void
+  addVueMarker(id: string, lngLat: LngLat, component: Component, props: Record<string, any>, zIndex?: number): void
   removeMarker(id: string): void
   hasMarker(id: string): boolean
 }
@@ -41,6 +43,7 @@ export abstract class BaseMarkerLayer {
   protected idPrefix: string
   protected component: Component
   protected enabled: Ref<boolean> | undefined
+  protected zIndex: number | undefined
   protected mapAPI: MapMarkerAPI | null = null
   protected watchStop: WatchStopHandle | null = null
   protected currentMarkerIds = new Set<string>()
@@ -49,12 +52,27 @@ export abstract class BaseMarkerLayer {
     this.idPrefix = config.idPrefix
     this.component = config.component
     this.enabled = config.enabled
+    this.zIndex = config.zIndex
   }
 
   /**
    * Subclasses must implement this to provide reactive marker data
    */
   protected abstract getData(): MarkerData[]
+
+  /**
+   * Get the ID prefix for this layer
+   */
+  getIdPrefix(): string {
+    return this.idPrefix
+  }
+
+  /**
+   * Get the z-index for this layer's markers
+   */
+  getZIndex(): number | undefined {
+    return this.zIndex
+  }
 
   /**
    * Initialize the layer with map API
@@ -111,12 +129,13 @@ export abstract class BaseMarkerLayer {
         this.mapAPI!.removeMarker(fullId)
       }
       
-      // Add marker with current props
+      // Add marker with current props and layer's z-index
       this.mapAPI!.addVueMarker(
         fullId,
         markerData.lngLat,
         this.component,
-        markerData.props
+        markerData.props,
+        this.zIndex
       )
     })
 

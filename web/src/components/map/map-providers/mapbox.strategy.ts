@@ -681,8 +681,9 @@ export class MapboxStrategy extends MapStrategy {
     lngLat: LngLat,
     component: Component,
     props: Record<string, any> = {},
+    zIndex?: number,
   ) {
-    super.addVueMarker(id, lngLat, component, props)
+    super.addVueMarker(id, lngLat, component, props, zIndex)
 
     const element = createVueMarkerElement(component, props)
 
@@ -692,6 +693,14 @@ export class MapboxStrategy extends MapStrategy {
     })
       .setLngLat(lngLat)
       .addTo(this.mapInstance)
+
+    // Set z-index on the marker's DOM element if provided
+    if (zIndex !== undefined) {
+      const markerElement = marker.getElement()
+      if (markerElement) {
+        markerElement.style.zIndex = String(zIndex)
+      }
+    }
 
     this.markers.set(id, marker)
   }

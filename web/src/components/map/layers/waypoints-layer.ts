@@ -15,6 +15,7 @@ export class WaypointsLayer extends BaseMarkerLayer {
     super({
       idPrefix: 'waypoint-',
       component: WaypointMapIcon,
+      zIndex: 100, // Highest priority - always on top
     })
   }
 

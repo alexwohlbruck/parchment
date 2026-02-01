@@ -28,6 +28,7 @@ export class FriendLocationsLayer extends BaseMarkerLayer {
       idPrefix: 'friend-location-',
       component: FriendLocationMarker,
       enabled: isEnabled,
+      zIndex: 50, // Medium priority - between waypoints and instructions
     })
   }
 

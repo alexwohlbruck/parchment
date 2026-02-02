@@ -18,6 +18,7 @@ import {
 } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
 import type { RouteInstruction } from '@/types/directions.types'
+import ElevationChart from '@/components/directions/ElevationChart.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -268,6 +269,17 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
                     </Caption>
                   </div>
                 </div>
+
+                <!-- Elevation Chart -->
+                <ElevationChart
+                  v-if="segment.geometry && (segment.totalElevationGain || segment.totalElevationLoss)"
+                  :geometry="segment.geometry"
+                  :total-elevation-gain="segment.totalElevationGain"
+                  :total-elevation-loss="segment.totalElevationLoss"
+                  :max-elevation="segment.maxElevation"
+                  :min-elevation="segment.minElevation"
+                  class="mb-3"
+                />
 
                 <!-- Instructions List - Left aligned under the icon -->
                 <div class="flex">

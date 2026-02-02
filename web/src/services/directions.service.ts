@@ -179,6 +179,10 @@ function directionsService() {
             distance: seg.distance,
             geometry: seg.geometry,
             instructions: seg.instructions,
+            totalElevationGain: seg.totalElevationGain,
+            totalElevationLoss: seg.totalElevationLoss,
+            maxElevation: seg.maxElevation,
+            minElevation: seg.minElevation,
           }),
         )
       }
@@ -195,6 +199,10 @@ function directionsService() {
           distance: segment.distance,
           geometry: segment.geometry,
           instructions: segment.instructions,
+          totalElevationGain: segment.totalElevationGain,
+          totalElevationLoss: segment.totalElevationLoss,
+          maxElevation: segment.maxElevation,
+          minElevation: segment.minElevation,
         },
       ]
     })

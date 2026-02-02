@@ -489,20 +489,25 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
 
   /**
    * Extract geometry from GraphHopper points
+   * Supports both 2D [lng, lat] and 3D [lng, lat, elevation] coordinates
    */
   private extractGeometry(
     points: any,
-  ): Array<{ lat: number; lng: number }> {
+  ): Array<{ lat: number; lng: number; elevation?: number }> {
     if (typeof points === 'string') {
       // Encoded polyline - would need decoding
       // For now, return empty array as we request points_encoded: false
       return []
     } else if (points && points.type === 'LineString') {
-      // GeoJSON format: [lng, lat]
-      return points.coordinates.map(([lng, lat]: [number, number]) => ({
-        lat,
-        lng,
-      }))
+      // GeoJSON format: [lng, lat] or [lng, lat, elevation]
+      return points.coordinates.map((coord: number[]) => {
+        const [lng, lat, elevation] = coord
+        return {
+          lat,
+          lng,
+          ...(elevation !== undefined && { elevation }),
+        }
+      })
     }
     return []
   }
@@ -529,6 +534,9 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
     // Extract route characteristics from details
     const characteristics = this.extractRouteCharacteristics(path.details)
 
+    // Calculate elevation statistics from geometry
+    const elevationStats = this.calculateElevationStats(geometry)
+
     return [
       {
         startWaypoint,
@@ -541,8 +549,57 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
         hasTolls: characteristics.hasTolls,
         hasHighways: characteristics.hasHighways,
         hasFerries: characteristics.hasFerries,
+        totalElevationGain: elevationStats.totalGain,
+        totalElevationLoss: elevationStats.totalLoss,
+        maxElevation: elevationStats.max,
+        minElevation: elevationStats.min,
       },
     ]
+  }
+
+  /**
+   * Calculate elevation statistics from geometry
+   */
+  private calculateElevationStats(geometry: Coordinate[]): {
+    totalGain: number
+    totalLoss: number
+    max: number | undefined
+    min: number | undefined
+  } {
+    const elevations = geometry
+      .map(coord => coord.elevation)
+      .filter((elev): elev is number => elev !== undefined)
+
+    if (elevations.length === 0) {
+      return {
+        totalGain: 0,
+        totalLoss: 0,
+        max: undefined,
+        min: undefined,
+      }
+    }
+
+    let totalGain = 0
+    let totalLoss = 0
+    const max = Math.max(...elevations)
+    const min = Math.min(...elevations)
+
+    // Calculate cumulative elevation gain/loss
+    for (let i = 1; i < elevations.length; i++) {
+      const diff = elevations[i] - elevations[i - 1]
+      if (diff > 0) {
+        totalGain += diff
+      } else {
+        totalLoss += Math.abs(diff)
+      }
+    }
+
+    return {
+      totalGain: Math.round(totalGain),
+      totalLoss: Math.round(totalLoss),
+      max: Math.round(max),
+      min: Math.round(min),
+    }
   }
 
   /**

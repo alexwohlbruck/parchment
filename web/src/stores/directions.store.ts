@@ -18,7 +18,7 @@ export const useDirectionsStore = defineStore('directions', () => {
   const selectedMode = ref<SelectedMode>('walking')
   const isLoading = ref(false)
   const selectedTripId = ref<string | null>(null) // Track which trip is currently shown on map
-  
+
   const defaultPreferences: RoutingPreferences = {
     avoidHighways: false,
     avoidTolls: false,
@@ -52,9 +52,13 @@ export const useDirectionsStore = defineStore('directions', () => {
   const routingPreferences = ref<RoutingPreferences>(loadPreferences())
 
   // Watch and save to localStorage
-  watch(routingPreferences, (newVal) => {
-    localStorage.setItem('routingPreferences', JSON.stringify(newVal))
-  }, { deep: true })
+  watch(
+    routingPreferences,
+    newVal => {
+      localStorage.setItem('routingPreferences', JSON.stringify(newVal))
+    },
+    { deep: true },
+  )
 
   function setDirections(directions_: Directions) {
     directions.value = directions_

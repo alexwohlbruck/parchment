@@ -1,10 +1,12 @@
 import { watch, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { api } from '@/lib/api'
-import { createSharedComposable } from '@vueuse/core'
+import { createSharedComposable, useGeolocation } from '@vueuse/core'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { Waypoint } from '@/types/map.types'
 import { TripsResponse, WaypointType } from '@/types/directions.types'
+import { LngLat } from 'mapbox-gl'
+import type { Place } from '@/types/place.types'
 
 const MIN_WAYPOINTS = 2
 
@@ -20,6 +22,12 @@ function directionsService() {
 
   const lastRequestKey = ref('')
   const isRequesting = ref(false)
+
+  const {
+    coords,
+    isSupported: isGeolocationSupported,
+    resume,
+  } = useGeolocation()
 
   /**
    * Generate unique key for request deduplication
@@ -246,7 +254,61 @@ function directionsService() {
     store.setWaypoint(0, waypoint)
   }
 
+  /**
+   * Get current location as a waypoint
+   * Returns null if geolocation is not supported or not available
+   */
+  function getCurrentLocationWaypoint(): Waypoint | null {
+    if (
+      !isGeolocationSupported.value ||
+      !coords.value.latitude ||
+      !coords.value.longitude ||
+      coords.value.latitude === Infinity ||
+      coords.value.longitude === Infinity
+    ) {
+      return null
+    }
+
+    const currentLocationPlace: Place = {
+      id: 'current-location',
+      name: { value: 'Current Location' },
+      geometry: {
+        value: {
+          type: 'point',
+          center: {
+            lat: coords.value.latitude,
+            lng: coords.value.longitude,
+          },
+        },
+      },
+      externalIds: {},
+      address: null,
+      placeType: { value: 'current_location' },
+    } as Place
+
+    return {
+      lngLat: new LngLat(coords.value.longitude, coords.value.latitude),
+      place: currentLocationPlace,
+    }
+  }
+
+  /**
+   * Populate the origin (first waypoint) with current location
+   * This is useful when clicking "Directions" buttons to automatically set the starting point
+   */
+  function populateOriginWithCurrentLocation() {
+    const currentLocation = getCurrentLocationWaypoint()
+    if (currentLocation) {
+      store.setWaypoint(0, currentLocation)
+    }
+  }
+
+  /**
+   * Set up directions with current location as origin and destination waypoint
+   * Automatically populates the first waypoint with current location
+   */
   function directionsTo(waypoint: Waypoint) {
+    populateOriginWithCurrentLocation()
     store.setWaypoint(1, waypoint)
   }
 
@@ -254,6 +316,11 @@ function directionsService() {
   watch([waypoints, selectedMode, routingPreferences], getDirections, {
     deep: true,
   })
+
+  // Request geolocation permissions early so current location is available
+  if (isGeolocationSupported.value) {
+    resume()
+  }
 
   return {
     getDirections,
@@ -265,6 +332,8 @@ function directionsService() {
     addWaypoint,
     directionsFrom,
     directionsTo,
+    getCurrentLocationWaypoint,
+    populateOriginWithCurrentLocation,
   }
 }
 

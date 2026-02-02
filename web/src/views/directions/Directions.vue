@@ -71,7 +71,6 @@ useMapListener('click', data => {
     lngLat: data.lngLat,
   })
 })
-
 </script>
 
 <template>

@@ -77,7 +77,7 @@ useMapListener('click', data => {
   <PanelLayout>
     <div class="space-y-3 flex flex-col">
       <div class="flex items-center gap-2">
-        <Tabs v-model="selectedMode" default-value="walking" class="flex-1">
+        <Tabs v-model="selectedMode" class="flex-1">
           <TabsList class="w-full flex">
             <TabsTrigger
               v-for="(mode, i) in modes"

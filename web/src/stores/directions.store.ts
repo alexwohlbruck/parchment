@@ -15,7 +15,21 @@ export const useDirectionsStore = defineStore('directions', () => {
       lngLat: null,
     },
   ]) // List of locations to get directions for
-  const selectedMode = ref<SelectedMode>('walking')
+  
+  // Load selected mode from localStorage, default to 'multi'
+  const loadSelectedMode = (): SelectedMode => {
+    const stored = localStorage.getItem('selectedMode')
+    if (stored) {
+      try {
+        return stored as SelectedMode
+      } catch {
+        return 'multi'
+      }
+    }
+    return 'multi'
+  }
+  
+  const selectedMode = ref<SelectedMode>(loadSelectedMode())
   const isLoading = ref(false)
   const selectedTripId = ref<string | null>(null) // Track which trip is currently shown on map
 
@@ -51,7 +65,7 @@ export const useDirectionsStore = defineStore('directions', () => {
 
   const routingPreferences = ref<RoutingPreferences>(loadPreferences())
 
-  // Watch and save to localStorage
+  // Watch and save routing preferences to localStorage
   watch(
     routingPreferences,
     newVal => {
@@ -59,6 +73,11 @@ export const useDirectionsStore = defineStore('directions', () => {
     },
     { deep: true },
   )
+
+  // Watch and save selected mode to localStorage
+  watch(selectedMode, newVal => {
+    localStorage.setItem('selectedMode', newVal)
+  })
 
   function setDirections(directions_: Directions) {
     directions.value = directions_

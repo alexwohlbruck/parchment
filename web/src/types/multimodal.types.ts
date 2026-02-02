@@ -22,7 +22,12 @@ export type Mode =
   | 'mixed'
 
 // UI-level mode selection (includes 'multi' for all modes)
-export type SelectedMode = 'multi' | 'walking' | 'driving' | 'biking' | 'transit'
+export type SelectedMode =
+  | 'multi'
+  | 'walking'
+  | 'driving'
+  | 'biking'
+  | 'transit'
 
 export type WaypointType = 'origin' | 'destination' | 'via'
 

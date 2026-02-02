@@ -38,11 +38,15 @@ const trip = computed(() => {
 })
 
 // If no trip is found after mounting, redirect back to directions
-watch(trip, (newTrip) => {
-  if (newTrip === null && !isLoading.value && directionsStore.trips) {
-    router.push({ name: AppRoute.DIRECTIONS })
-  }
-}, { immediate: true })
+watch(
+  trip,
+  newTrip => {
+    if (newTrip === null && !isLoading.value && directionsStore.trips) {
+      router.push({ name: AppRoute.DIRECTIONS })
+    }
+  },
+  { immediate: true },
+)
 
 // Mode icons mapping
 const modeIcons = {
@@ -94,10 +98,14 @@ function goBack() {
 }
 
 // Handle hovering instructions
-function onInstructionHover(segmentIndex: number, instrIndex: number, instruction: string | RouteInstruction) {
+function onInstructionHover(
+  segmentIndex: number,
+  instrIndex: number,
+  instruction: string | RouteInstruction,
+) {
   const key = `${segmentIndex}-${instrIndex}`
   hoveredInstructionKey.value = key
-  
+
   // Highlight the point on the map
   if (typeof instruction === 'object' && instruction.coordinate) {
     mapService.highlightInstructionPoint(segmentIndex, instrIndex)
@@ -273,9 +281,13 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
                         :key="instrIndex"
                         class="flex items-center text-sm hover:bg-muted/50 rounded-lg p-2 pl-0 transition-colors cursor-pointer"
                         :class="{
-                          'bg-muted': hoveredInstructionKey === getInstructionKey(index, instrIndex)
+                          'bg-muted':
+                            hoveredInstructionKey ===
+                            getInstructionKey(index, instrIndex),
                         }"
-                        @mouseenter="onInstructionHover(index, instrIndex, instruction)"
+                        @mouseenter="
+                          onInstructionHover(index, instrIndex, instruction)
+                        "
                         @mouseleave="onInstructionLeave"
                       >
                         <div

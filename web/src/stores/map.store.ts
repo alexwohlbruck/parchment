@@ -35,11 +35,15 @@ const defaultSettings: MapSettings = {
 // This only runs on first load when no saved settings exist
 function getDefaultControlSettings(): MapControlSettings {
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768 // md breakpoint
-  
+
   return {
     zoom: isMobile ? ControlVisibility.NEVER : ControlVisibility.ALWAYS,
-    compass: isMobile ? ControlVisibility.WHILE_ROTATING : ControlVisibility.ALWAYS,
-    scale: isMobile ? ControlVisibility.WHILE_ZOOMING : ControlVisibility.ALWAYS,
+    compass: isMobile
+      ? ControlVisibility.WHILE_ROTATING
+      : ControlVisibility.ALWAYS,
+    scale: isMobile
+      ? ControlVisibility.WHILE_ZOOMING
+      : ControlVisibility.ALWAYS,
     streetView: ControlVisibility.ALWAYS,
     locate: ControlVisibility.ALWAYS,
   }
@@ -53,7 +57,10 @@ export const useMapStore = defineStore('map', () => {
   }
 
   const settings = useStorage<MapSettings>('map', defaultSettings)
-  const controlSettings = useStorage<MapControlSettings>('map-controls', getDefaultControlSettings())
+  const controlSettings = useStorage<MapControlSettings>(
+    'map-controls',
+    getDefaultControlSettings(),
+  )
 
   const mapCamera = useStorage<MapCamera>('map-camera', {
     center: [-44.808291513887866, 21.851187958608364],

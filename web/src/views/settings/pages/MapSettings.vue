@@ -6,7 +6,12 @@ import { useAppService } from '@/services/app.service'
 import { useMapService } from '@/services/map.service'
 import { useMapStore } from '@/stores/map.store'
 import { useCommandStore } from '@/stores/command.store'
-import { type Layer, MapEngine, MapProjection, ControlVisibility } from '@/types/map.types'
+import {
+  type Layer,
+  MapEngine,
+  MapProjection,
+  ControlVisibility,
+} from '@/types/map.types'
 import { CommandName } from '@/stores/command.store'
 
 import { Button } from '@/components/ui/button'
@@ -67,7 +72,9 @@ const basemap = computed(() => {
       >
         <Select
           :model-value="settings.engine"
-          @update:model-value="(value) => mapService.setMapEngine(value as MapEngine)"
+          @update:model-value="
+            value => mapService.setMapEngine(value as MapEngine)
+          "
         >
           <SelectTrigger class="w-fit">
             <SelectValue />
@@ -218,7 +225,9 @@ const basemap = computed(() => {
                 {{ $t('settings.mapSettings.controls.visibility.always') }}
               </SelectItem>
               <SelectItem :value="ControlVisibility.WHILE_ROTATING">
-                {{ $t('settings.mapSettings.controls.visibility.whileRotating') }}
+                {{
+                  $t('settings.mapSettings.controls.visibility.whileRotating')
+                }}
               </SelectItem>
               <SelectItem :value="ControlVisibility.NEVER">
                 {{ $t('settings.mapSettings.controls.visibility.never') }}
@@ -242,7 +251,9 @@ const basemap = computed(() => {
                 {{ $t('settings.mapSettings.controls.visibility.always') }}
               </SelectItem>
               <SelectItem :value="ControlVisibility.WHILE_ZOOMING">
-                {{ $t('settings.mapSettings.controls.visibility.whileZooming') }}
+                {{
+                  $t('settings.mapSettings.controls.visibility.whileZooming')
+                }}
               </SelectItem>
               <SelectItem :value="ControlVisibility.NEVER">
                 {{ $t('settings.mapSettings.controls.visibility.never') }}

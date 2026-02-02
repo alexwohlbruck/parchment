@@ -55,6 +55,17 @@ export const configSchemas: Record<
     host: z.string().url('Please enter a valid URL'),
   }),
 
+  graphhopperSchema: z.object({
+    host: z.string().url('Please enter a valid URL').optional().default('https://graphhopper.com/api/1'),
+    apiKey: z.string().min(1, 'API Key is required').optional(),
+  }).refine(
+    (data) => data.host || data.apiKey,
+    {
+      message: 'Either host (for self-hosted) or API Key (for GraphHopper API) is required',
+      path: ['host'],
+    }
+  ),
+
   mapillarySchema: z.object({
     accessToken: z.string().min(1, 'Access token is required'),
   }),

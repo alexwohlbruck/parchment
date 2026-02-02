@@ -102,6 +102,21 @@ const availableIntegrations: IntegrationDefinition[] = [
     scope: [IntegrationScope.SYSTEM],
   },
   {
+    id: IntegrationId.GRAPHHOPPER,
+    name: 'GraphHopper',
+    description: 'Fast and efficient routing engine with custom models',
+    color: '#F7941E',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.GRAPHHOPPER,
+      )
+    },
+    paid: false, // Can be self-hosted (free) or use API (paid)
+    cloud: false, // Supports both self-hosted and cloud
+    configSchema: 'graphhopperSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
     id: IntegrationId.MAPILLARY,
     name: 'Mapillary',
     description: 'Street-level imagery platform',

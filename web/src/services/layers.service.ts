@@ -1,6 +1,11 @@
 import { api } from '@/lib/api'
 import type { Layer, LayerGroup, LngLat } from '@/types/map.types'
-import { LayerType, MapEngine, MapboxLayerType, MapColorTheme } from '@/types/map.types'
+import {
+  LayerType,
+  MapEngine,
+  MapboxLayerType,
+  MapColorTheme,
+} from '@/types/map.types'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { toRaw, watch, Component } from 'vue'
 import { cssHslToHex, adjustLightness } from '@/lib/utils'
@@ -39,7 +44,7 @@ export function useLayersService() {
   const themeStore = useThemeStore()
   const directionsStore = useDirectionsStore()
   const router = useRouter()
-  
+
   // Marker layer instances
   let waypointsLayer: WaypointsLayer | null = null
   let friendLocationsLayer: FriendLocationsLayer | null = null
@@ -49,25 +54,31 @@ export function useLayersService() {
   function applyTransitMapTheme(
     mapStrategy: MapStrategy,
     hasVisibleTransitLayers: boolean,
-    hideTransitLabels: boolean = true
+    hideTransitLabels: boolean = true,
   ) {
     // Only apply faded effect in light mode when transit layers are visible
     const shouldUseFaded = hasVisibleTransitLayers && !themeStore.isDark
-    mapStrategy.setMapColorTheme(shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT)
-    
+    mapStrategy.setMapColorTheme(
+      shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT,
+    )
+
     if (hideTransitLabels) {
       mapStrategy.setTransitLabels(!hasVisibleTransitLayers) // Hide default transit labels when our layers are active
     }
   }
 
   // Add click handlers for transit stops to open place detail view
-  function addTransitStopClickHandlers(mapStrategy: MapStrategy, layerId: string) {
+  function addTransitStopClickHandlers(
+    mapStrategy: MapStrategy,
+    layerId: string,
+  ) {
     if (!mapStrategy?.mapInstance) return
-    
+
     const handleClick = (event: any) => {
       const feature = event.features?.[0]
       if (feature && feature.properties) {
-        const onestopId = feature.properties.onestop_id || feature.properties.stop_id
+        const onestopId =
+          feature.properties.onestop_id || feature.properties.stop_id
         if (onestopId) {
           router.push({
             name: AppRoute.PLACE_PROVIDER,
@@ -171,7 +182,6 @@ export function useLayersService() {
     return data
   }
 
-
   // Map integration functions
   function initializeLayers(layers: Layer[], mapStrategy?: MapStrategy) {
     if (!mapStrategy) return
@@ -179,17 +189,20 @@ export function useLayersService() {
     layers.forEach(layer => {
       // Convert reactive proxy to plain object to avoid proxy issues
       const plainLayer = toRaw(layer)
-      
+
       // Special handling for search results layer (both old and core layer IDs)
-      if (plainLayer.id === SEARCH_RESULTS_LAYER_ID || plainLayer.configuration?.id === SEARCH_RESULTS_LABELS_LAYER_ID) {
+      if (
+        plainLayer.id === SEARCH_RESULTS_LAYER_ID ||
+        plainLayer.configuration?.id === SEARCH_RESULTS_LABELS_LAYER_ID
+      ) {
         initializeSearchResultsLayer(mapStrategy)
       }
-      
+
       // Add transit stop click handlers for transit stop layers
       if (isTransitStopLayer(plainLayer.configuration?.id)) {
         addTransitStopClickHandlers(mapStrategy, plainLayer.configuration.id)
       }
-      
+
       mapStrategy.addLayer(plainLayer)
     })
   }
@@ -199,14 +212,15 @@ export function useLayersService() {
     if (searchResultsSourceInitialized) {
       return
     }
-    
+
     // Get current search results to restore data after style change
     const searchStore = useSearchStore()
     const currentResults = searchStore.searchResults
-    const currentGeoJSON = currentResults.length > 0 
-      ? createResultsGeoJSON(currentResults) 
-      : EMPTY_SEARCH_RESULTS_GEOJSON
-    
+    const currentGeoJSON =
+      currentResults.length > 0
+        ? createResultsGeoJSON(currentResults)
+        : EMPTY_SEARCH_RESULTS_GEOJSON
+
     // Create the search results source with current data
     try {
       mapStrategy.addSource(SEARCH_RESULTS_SOURCE_ID, {
@@ -225,13 +239,17 @@ export function useLayersService() {
         return
       }
     }
-    
+
     // Set up reactivity for search results (only once)
     initializeSearchResultsReactivity(mapStrategy)
-    
+
     // If we have results, also recreate the Vue markers
     if (currentResults.length > 0) {
-      updateSearchResultsVueMarkers(mapStrategy, currentResults, searchStore.hoveredPlaceId)
+      updateSearchResultsVueMarkers(
+        mapStrategy,
+        currentResults,
+        searchStore.hoveredPlaceId,
+      )
     }
   }
 
@@ -247,15 +265,19 @@ export function useLayersService() {
   }
 
   // Helper function to check if any transit layers are visible
-  function checkTransitLayersVisibility(layers: Layer[], layerConfigId?: string, newState?: boolean): boolean {
+  function checkTransitLayersVisibility(
+    layers: Layer[],
+    layerConfigId?: string,
+    newState?: boolean,
+  ): boolean {
     return layers.some(l => {
       if (l.type !== LayerType.TRANSIT) return false
-      
+
       // If this is the layer being updated, use the new state
       if (layerConfigId && l.configuration.id === layerConfigId) {
         return newState ?? false
       }
-      
+
       // Otherwise use current visibility
       return l.visible
     })
@@ -289,7 +311,9 @@ export function useLayersService() {
     if (layer.type === LayerType.TRANSIT && mapStrategy) {
       // For Transitland layers, also toggle the case layer
       if (layer.configuration.id === 'transitland') {
-        const caseLayer = layers.find(l => l.configuration.id === 'transitland-case')
+        const caseLayer = layers.find(
+          l => l.configuration.id === 'transitland-case',
+        )
         if (caseLayer) {
           if (caseLayer.id.startsWith('client-')) {
             layersStore.updateLayerVisibility(caseLayer.id, newState)
@@ -299,9 +323,13 @@ export function useLayersService() {
           toggleLayerVisibility('transitland-case', newState, mapStrategy)
         }
       }
-      
+
       // Apply map color theme and transit labels based on transit layer visibility
-      const hasVisibleTransitLayers = checkTransitLayersVisibility(layers, layerConfigId, newState)
+      const hasVisibleTransitLayers = checkTransitLayersVisibility(
+        layers,
+        layerConfigId,
+        newState,
+      )
       applyTransitMapTheme(mapStrategy, hasVisibleTransitLayers)
     }
   }
@@ -373,16 +401,16 @@ export function useLayersService() {
       // Check if any transit layers will be visible after this group toggle
       const hasVisibleTransitLayers = layers.some(l => {
         if (l.type !== LayerType.TRANSIT) return false
-        
+
         // If this layer is in the group being toggled, use the new visibility state
         if (l.groupId === group.id) {
           return visible
         }
-        
+
         // Otherwise use current visibility
         return l.visible
       })
-      
+
       applyTransitMapTheme(mapStrategy, hasVisibleTransitLayers)
     }
   }
@@ -457,12 +485,12 @@ export function useLayersService() {
   function addLayerToMap(layer: Layer, mapStrategy?: MapStrategy) {
     if (!mapStrategy) return
     const plainLayer = toRaw(layer)
-    
+
     // Add transit stop click handlers for dynamically added transit stop layers
     if (isTransitStopLayer(plainLayer.configuration?.id)) {
       addTransitStopClickHandlers(mapStrategy, plainLayer.configuration.id)
     }
-    
+
     mapStrategy.addLayer(plainLayer)
   }
 
@@ -765,20 +793,28 @@ export function useLayersService() {
 
     // Watch for search results changes and update the layer
     const searchStore = useSearchStore()
-    
+
     watch(
       () => searchStore.searchResults,
-      (newResults) => {
-        updateSearchResultsData(mapStrategy, newResults, searchStore.hoveredPlaceId)
+      newResults => {
+        updateSearchResultsData(
+          mapStrategy,
+          newResults,
+          searchStore.hoveredPlaceId,
+        )
       },
-      { deep: true }
+      { deep: true },
     )
 
     watch(
       () => searchStore.hoveredPlaceId,
-      (newHoveredId) => {
-        updateSearchResultsHoverState(mapStrategy, searchStore.searchResults, newHoveredId)
-      }
+      newHoveredId => {
+        updateSearchResultsHoverState(
+          mapStrategy,
+          searchStore.searchResults,
+          newHoveredId,
+        )
+      },
     )
 
     searchResultsReactivityInitialized = true
@@ -787,7 +823,7 @@ export function useLayersService() {
   function updateSearchResultsData(
     mapStrategy: MapStrategy,
     places: Place[],
-    hoveredPlaceId: string | null = null
+    hoveredPlaceId: string | null = null,
   ) {
     if (!mapStrategy) return
 
@@ -800,7 +836,11 @@ export function useLayersService() {
 
     // Show/hide the layer based on whether we have results
     const hasResults = places.length > 0
-    toggleLayerVisibility(SEARCH_RESULTS_LABELS_LAYER_ID, hasResults, mapStrategy)
+    toggleLayerVisibility(
+      SEARCH_RESULTS_LABELS_LAYER_ID,
+      hasResults,
+      mapStrategy,
+    )
 
     // Update Vue markers
     updateSearchResultsVueMarkers(mapStrategy, places, hoveredPlaceId)
@@ -809,7 +849,7 @@ export function useLayersService() {
   function updateSearchResultsHoverState(
     mapStrategy: MapStrategy,
     places: Place[],
-    hoveredPlaceId: string | null
+    hoveredPlaceId: string | null,
   ) {
     if (!mapStrategy) return
     updateSearchResultsVueMarkers(mapStrategy, places, hoveredPlaceId)
@@ -818,7 +858,7 @@ export function useLayersService() {
   function updateSearchResultsVueMarkers(
     mapStrategy: MapStrategy,
     places: Place[],
-    hoveredPlaceId: string | null = null
+    hoveredPlaceId: string | null = null,
   ) {
     // Clear existing markers
     searchResultsVueMarkers.forEach((marker, placeId) => {
@@ -845,9 +885,11 @@ export function useLayersService() {
             // Emit an event that can be handled by the search view
             const searchStore = useSearchStore()
             // Store the clicked place for the view to handle
-            document.dispatchEvent(new CustomEvent('search-result-click', { 
-              detail: { place: clickPlace, event } 
-            }))
+            document.dispatchEvent(
+              new CustomEvent('search-result-click', {
+                detail: { place: clickPlace, event },
+              }),
+            )
           },
           onMouseenter: (hoverPlace: Place, event: MouseEvent) => {
             const searchStore = useSearchStore()
@@ -868,7 +910,7 @@ export function useLayersService() {
 
   function removeSearchResultsLayer(mapStrategy: MapStrategy) {
     if (!mapStrategy) return
-    
+
     // Clear Vue markers
     searchResultsVueMarkers.forEach((marker, placeId) => {
       const markerId = `search-result-${placeId}`
@@ -879,7 +921,7 @@ export function useLayersService() {
     // Remove layer and source
     mapStrategy.removeLayer(SEARCH_RESULTS_LABELS_LAYER_ID)
     mapStrategy.removeSource(SEARCH_RESULTS_SOURCE_ID)
-    
+
     // Reset flags so they can be reinitialized
     searchResultsReactivityInitialized = false
     searchResultsSourceInitialized = false
@@ -901,14 +943,14 @@ export function useLayersService() {
       mapStrategy.mapInstance.setPaintProperty(
         PLACE_POLYGON_FILL_LAYER_ID,
         'fill-color',
-        getPlacePolygonFillColor()
+        getPlacePolygonFillColor(),
       )
 
       // Update stroke layer color
       mapStrategy.mapInstance.setPaintProperty(
         PLACE_POLYGON_STROKE_LAYER_ID,
         'line-color',
-        getPlacePolygonStrokeColor()
+        getPlacePolygonStrokeColor(),
       )
     } catch (error) {
       console.error('Failed to update place polygon colors:', error)
@@ -938,16 +980,19 @@ export function useLayersService() {
       case 'polygon':
         if (geometry.nodes && geometry.nodes.length > 0) {
           const coordinates = geometry.nodes.map(node => [node.lng, node.lat])
-          
+
           // Ensure the polygon is closed by adding the first point at the end if needed
           if (coordinates.length > 0) {
             const firstPoint = coordinates[0]
             const lastPoint = coordinates[coordinates.length - 1]
-            if (firstPoint[0] !== lastPoint[0] || firstPoint[1] !== lastPoint[1]) {
+            if (
+              firstPoint[0] !== lastPoint[0] ||
+              firstPoint[1] !== lastPoint[1]
+            ) {
               coordinates.push(firstPoint)
             }
           }
-          
+
           geoJSONGeometry = {
             type: 'Polygon',
             coordinates: [coordinates], // Single ring for now (exterior only)
@@ -960,19 +1005,22 @@ export function useLayersService() {
           // Handle multiple polygons properly
           const allPolygons = geometry.polygons.map(polygonNodes => {
             const coordinates = polygonNodes.map(node => [node.lng, node.lat])
-            
+
             // Ensure each polygon is closed
             if (coordinates.length > 0) {
               const firstPoint = coordinates[0]
               const lastPoint = coordinates[coordinates.length - 1]
-              if (firstPoint[0] !== lastPoint[0] || firstPoint[1] !== lastPoint[1]) {
+              if (
+                firstPoint[0] !== lastPoint[0] ||
+                firstPoint[1] !== lastPoint[1]
+              ) {
                 coordinates.push(firstPoint)
               }
             }
-            
+
             return [coordinates] // Each polygon has one ring (exterior only for now)
           })
-          
+
           geoJSONGeometry = {
             type: 'MultiPolygon',
             coordinates: allPolygons,
@@ -991,16 +1039,18 @@ export function useLayersService() {
 
     return {
       type: 'FeatureCollection' as const,
-      features: [{
-        type: 'Feature' as const,
-        properties: {
-          id: place.id,
-          name: place.name.value || '',
-          placeType: place.placeType.value,
-          geometryType: geometry.type,
+      features: [
+        {
+          type: 'Feature' as const,
+          properties: {
+            id: place.id,
+            name: place.name.value || '',
+            placeType: place.placeType.value,
+            geometryType: geometry.type,
+          },
+          geometry: geoJSONGeometry,
         },
-        geometry: geoJSONGeometry,
-      }],
+      ],
     }
   }
 
@@ -1045,27 +1095,42 @@ export function useLayersService() {
   function updatePlacePolygon(mapStrategy: MapStrategy, place: Place | null) {
     if (!mapStrategy) return
 
-    const geoJSON = place ? createGeometryGeoJSON(place) : EMPTY_PLACE_POLYGON_GEOJSON
+    const geoJSON = place
+      ? createGeometryGeoJSON(place)
+      : EMPTY_PLACE_POLYGON_GEOJSON
     const source = mapStrategy.mapInstance.getSource(PLACE_POLYGON_SOURCE_ID)
-    
+
     if (source) {
       source.setData(geoJSON)
     }
 
     // Show/hide layers based on whether we have geometric data (polygon, multipolygon, or linestring)
-    const hasGeometryData = Boolean(place && 
-      place.geometry?.value && 
-      (
-        // Check for polygon/multipolygon with nodes
-        (place.geometry.value.type === 'polygon' && place.geometry.value.nodes && place.geometry.value.nodes.length > 0) ||
-        (place.geometry.value.type === 'multipolygon' && place.geometry.value.polygons && place.geometry.value.polygons.length > 0) ||
+    const hasGeometryData = Boolean(
+      place &&
+      place.geometry?.value &&
+      // Check for polygon/multipolygon with nodes
+      ((place.geometry.value.type === 'polygon' &&
+        place.geometry.value.nodes &&
+        place.geometry.value.nodes.length > 0) ||
+        (place.geometry.value.type === 'multipolygon' &&
+          place.geometry.value.polygons &&
+          place.geometry.value.polygons.length > 0) ||
         // Check for linestring with nodes
-        (place.geometry.value.type === 'linestring' && place.geometry.value.nodes && place.geometry.value.nodes.length > 0)
-      )
+        (place.geometry.value.type === 'linestring' &&
+          place.geometry.value.nodes &&
+          place.geometry.value.nodes.length > 0)),
     )
 
-    toggleLayerVisibility(PLACE_POLYGON_FILL_LAYER_ID, hasGeometryData, mapStrategy)
-    toggleLayerVisibility(PLACE_POLYGON_STROKE_LAYER_ID, hasGeometryData, mapStrategy)
+    toggleLayerVisibility(
+      PLACE_POLYGON_FILL_LAYER_ID,
+      hasGeometryData,
+      mapStrategy,
+    )
+    toggleLayerVisibility(
+      PLACE_POLYGON_STROKE_LAYER_ID,
+      hasGeometryData,
+      mapStrategy,
+    )
   }
 
   function removePlacePolygonLayers(mapStrategy: MapStrategy) {
@@ -1093,8 +1158,13 @@ export function useLayersService() {
 
     // Initialize with map API
     const markerAPI = {
-      addVueMarker: (id: string, lngLat: LngLat, component: Component, props: Record<string, any>, zIndex?: number) =>
-        mapStrategy?.addVueMarker(id, lngLat, component, props, zIndex),
+      addVueMarker: (
+        id: string,
+        lngLat: LngLat,
+        component: Component,
+        props: Record<string, any>,
+        zIndex?: number,
+      ) => mapStrategy?.addVueMarker(id, lngLat, component, props, zIndex),
       removeMarker: (id: string) => mapStrategy?.removeMarker(id),
       hasMarker: (id: string) => mapStrategy?.hasMarker(id) ?? false,
     }
@@ -1119,7 +1189,7 @@ export function useLayersService() {
           // Show the first trip by default (recommended or first in list)
           const firstTrip =
             trips.trips.find(trip => trip.isRecommended) || trips.trips[0]
-          
+
           // Update instruction markers if showing single trip
           if (firstTrip) {
             tripInstructionsLayer?.setTrip(firstTrip)
@@ -1136,7 +1206,7 @@ export function useLayersService() {
     // Watch for selected trip changes
     watch(
       () => directionsStore.selectedTripId,
-      (selectedTripId) => {
+      selectedTripId => {
         const trips = directionsStore.trips
         if (!trips || !selectedTripId) {
           // Clear instruction markers when no trip is selected
@@ -1158,7 +1228,7 @@ export function useLayersService() {
     waypointsLayer?.destroy()
     friendLocationsLayer?.destroy()
     tripInstructionsLayer?.destroy()
-    
+
     waypointsLayer = null
     friendLocationsLayer = null
     tripInstructionsLayer = null
@@ -1167,7 +1237,10 @@ export function useLayersService() {
   /**
    * Highlight a specific instruction point (for UI interactions)
    */
-  function highlightInstructionPoint(segmentIndex: number, instructionIndex: number) {
+  function highlightInstructionPoint(
+    segmentIndex: number,
+    instructionIndex: number,
+  ) {
     tripInstructionsLayer?.highlightInstruction(segmentIndex, instructionIndex)
   }
 

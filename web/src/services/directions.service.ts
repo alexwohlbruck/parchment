@@ -37,7 +37,11 @@ function directionsService() {
    */
   async function getDirections() {
     const validWaypoints = waypoints.value.filter(wp => wp.lngLat)
-    const requestKey = getRequestKey(validWaypoints, selectedMode.value, routingPreferences.value)
+    const requestKey = getRequestKey(
+      validWaypoints,
+      selectedMode.value,
+      routingPreferences.value,
+    )
 
     // Skip duplicate or concurrent requests
     if (requestKey === lastRequestKey.value || isRequesting.value) return
@@ -55,21 +59,29 @@ function directionsService() {
 
     try {
       // Send all known vehicles - backend will determine which are relevant for the selected mode
-      const useVehicleLocations = routingPreferences.value.useKnownVehicleLocations !== false
+      const useVehicleLocations =
+        routingPreferences.value.useKnownVehicleLocations !== false
 
       const availableVehicles = useVehicleLocations
-        ? Object.entries(HARDCODED_VEHICLE_LOCATIONS).map(([type, location]) => ({
-            id: `${type}-${Date.now()}`,
-            type,
-            location,
-          }))
+        ? Object.entries(HARDCODED_VEHICLE_LOCATIONS).map(
+            ([type, location]) => ({
+              id: `${type}-${Date.now()}`,
+              type,
+              location,
+            }),
+          )
         : []
 
       // Build API request
       const request = {
         waypoints: validWaypoints.map((wp, i) => ({
           location: { lat: wp.lngLat!.lat, lng: wp.lngLat!.lng },
-          type: i === 0 ? 'origin' : i === validWaypoints.length - 1 ? 'destination' : 'via',
+          type:
+            i === 0
+              ? 'origin'
+              : i === validWaypoints.length - 1
+                ? 'destination'
+                : 'via',
           label: wp.place?.name?.value,
         })),
         selectedMode: selectedMode.value,
@@ -86,7 +98,10 @@ function directionsService() {
           waypoints: validWaypoints.map((wp, i) => ({
             id: `wp-${i}`,
             coordinate: { lat: wp.lngLat!.lat, lng: wp.lngLat!.lng },
-            type: i === 0 || i === validWaypoints.length - 1 ? WaypointType.STOP : WaypointType.VIA,
+            type:
+              i === 0 || i === validWaypoints.length - 1
+                ? WaypointType.STOP
+                : WaypointType.VIA,
             name: wp.place?.name?.value || '',
           })),
           availableVehicles: availableVehicles.map(v => v.type),
@@ -114,8 +129,11 @@ function directionsService() {
           cost: candidate.trip.tripStats.totalCost,
           co2Emissions: candidate.trip.tripStats.totalCo2,
         })),
-        earliestStart: data.trips[0]?.trip.earliestStartTime || new Date().toISOString(),
-        latestEnd: data.trips[0]?.trip.latestEndTime || new Date(Date.now() + 3600000).toISOString(),
+        earliestStart:
+          data.trips[0]?.trip.earliestStartTime || new Date().toISOString(),
+        latestEnd:
+          data.trips[0]?.trip.latestEndTime ||
+          new Date(Date.now() + 3600000).toISOString(),
         metadata: data.metadata,
       }
 
@@ -149,32 +167,36 @@ function directionsService() {
   function flattenSegments(segments: any[]): any[] {
     return segments.flatMap(segment => {
       if (segment.details?.multimodalSegments) {
-        return segment.details.multimodalSegments.map((seg: any, i: number) => ({
-          id: `segment-${segment.segmentIndex}-${i}`,
-          type: 'route',
-          mode: normalizeMode(seg.mode),
-          vehicleType: seg.vehicle?.type || seg.mode,
-          startTime: new Date(seg.startTime),
-          endTime: new Date(seg.endTime),
-          duration: seg.duration,
-          distance: seg.distance,
-          geometry: seg.geometry,
-          instructions: seg.instructions,
-        }))
+        return segment.details.multimodalSegments.map(
+          (seg: any, i: number) => ({
+            id: `segment-${segment.segmentIndex}-${i}`,
+            type: 'route',
+            mode: normalizeMode(seg.mode),
+            vehicleType: seg.vehicle?.type || seg.mode,
+            startTime: new Date(seg.startTime),
+            endTime: new Date(seg.endTime),
+            duration: seg.duration,
+            distance: seg.distance,
+            geometry: seg.geometry,
+            instructions: seg.instructions,
+          }),
+        )
       }
-      
-      return [{
-        id: `segment-${segment.segmentIndex}`,
-        type: 'route',
-        mode: normalizeMode(segment.mode),
-        vehicleType: segment.vehicle?.type || segment.mode,
-        startTime: new Date(segment.startTime),
-        endTime: new Date(segment.endTime),
-        duration: segment.duration,
-        distance: segment.distance,
-        geometry: segment.geometry,
-        instructions: segment.instructions,
-      }]
+
+      return [
+        {
+          id: `segment-${segment.segmentIndex}`,
+          type: 'route',
+          mode: normalizeMode(segment.mode),
+          vehicleType: segment.vehicle?.type || segment.mode,
+          startTime: new Date(segment.startTime),
+          endTime: new Date(segment.endTime),
+          duration: segment.duration,
+          distance: segment.distance,
+          geometry: segment.geometry,
+          instructions: segment.instructions,
+        },
+      ]
     })
   }
 
@@ -221,7 +243,9 @@ function directionsService() {
   }
 
   // Auto-fetch when waypoints, mode, or preferences change
-  watch([waypoints, selectedMode, routingPreferences], getDirections, { deep: true })
+  watch([waypoints, selectedMode, routingPreferences], getDirections, {
+    deep: true,
+  })
 
   return {
     getDirections,

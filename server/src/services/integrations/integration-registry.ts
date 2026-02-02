@@ -6,6 +6,7 @@ import { NominatimIntegration } from './nominatim-integration'
 import { OverpassIntegration } from './overpass-integration'
 import { MapboxIntegration } from './mapbox-integration'
 import { ValhallaIntegration } from './valhalla-integration'
+import { GraphHopperIntegration } from './graphhopper-integration'
 import { MapillaryIntegration } from './mapillary-integration'
 import { TransitlandIntegration } from './transitland-integration'
 import { GeoapifyIntegration } from './geoapify-integration'
@@ -33,6 +34,7 @@ export class IntegrationRegistry {
     this.registerIntegration(new OverpassIntegration())
     this.registerIntegration(new MapboxIntegration())
     this.registerIntegration(new ValhallaIntegration())
+    this.registerIntegration(new GraphHopperIntegration())
     this.registerIntegration(new MapillaryIntegration())
     this.registerIntegration(new TransitlandIntegration())
     this.registerIntegration(new GeoapifyIntegration())

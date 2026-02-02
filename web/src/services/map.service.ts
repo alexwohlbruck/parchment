@@ -507,7 +507,7 @@ function mapService() {
     mapStrategy = getMapStrategy(mapContainer, mapEngine, accessToken)
     mapStore.setMapStrategy(mapStrategy)
   }
-  
+
   /**
    * Reinitialize the map with current engine settings.
    * Useful when integration configuration changes.
@@ -749,7 +749,7 @@ function mapService() {
   // Note: Instruction markers are automatically managed by layers.service
   watch(
     () => directionsStore.selectedTripId,
-    (selectedTripId) => {
+    selectedTripId => {
       const trips = directionsStore.trips
       if (!trips || !selectedTripId) {
         return
@@ -997,7 +997,8 @@ function mapService() {
     // Instruction marker highlights (for UI interactions like hovering)
     // Delegated to layers service which manages marker layers
     highlightInstructionPoint: layersService.highlightInstructionPoint,
-    clearHighlightedInstructionPoint: layersService.clearHighlightedInstructionPoint,
+    clearHighlightedInstructionPoint:
+      layersService.clearHighlightedInstructionPoint,
   }
 }
 

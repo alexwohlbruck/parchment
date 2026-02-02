@@ -15,6 +15,7 @@ export const SOURCE = {
   TRIPADVISOR: 'tripadvisor',
   OPENTABLE: 'opentable',
   VALHALLA: 'valhalla',
+  GRAPHHOPPER: 'graphhopper',
   GEOAPIFY: 'geoapify',
   TRANSITLAND: 'transitland',
 } as const
@@ -35,6 +36,7 @@ export const SOURCE_PRIORITIES = {
   [SOURCE.WIKIPEDIA]: 78, // High priority for detailed descriptions
   [SOURCE.TRANSITLAND]: 77, // High priority for transit data
   [SOURCE.GEOAPIFY]: 75,
+  [SOURCE.GRAPHHOPPER]: 72, // Routing provider - preferred routing engine
   [SOURCE.VALHALLA]: 70, // Routing provider - high priority for routing data
   [SOURCE.WIKIDATA]: 65,
   [SOURCE.WIKIMEDIA]: 45,
@@ -59,7 +61,8 @@ export const INTEGRATION_PRIORITIES: Partial<Record<IntegrationId, number>> = {
   [IntegrationId.TRANSITLAND]: 77, // Paid, authoritative transit data
   [IntegrationId.GEOAPIFY]: 70, // Fast, paid, extensive categories but limited
   [IntegrationId.WIKIDATA]: 65, // Free, structured data, good for enrichment
-  [IntegrationId.VALHALLA]: 60, // Fast, free, good coverage for place info and search
+  [IntegrationId.GRAPHHOPPER]: 62, // Fast, free/paid, preferred routing engine with custom models
+  [IntegrationId.VALHALLA]: 60, // Fast, free, good coverage for routing
   [IntegrationId.OVERPASS]: 50, // Slowest, free, supports any OSM tags (fallback)
   [IntegrationId.WIKIMEDIA]: 45, // Free, images, depends on Wikidata
 } as const

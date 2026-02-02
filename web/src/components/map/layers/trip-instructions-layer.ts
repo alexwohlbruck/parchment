@@ -27,7 +27,7 @@ export class TripInstructionsLayer extends BaseMarkerLayer {
     super({
       idPrefix: 'instruction-',
       component: InstructionPointMarker,
-      zIndex: 10, // Lowest priority - below other markers
+      zIndex: 1, // Lowest priority - below other markers
     })
   }
 

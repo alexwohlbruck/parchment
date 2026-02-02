@@ -274,8 +274,17 @@ export enum ControlVisibility {
 
 export interface MapControlSettings {
   zoom: ControlVisibility.ALWAYS | ControlVisibility.NEVER
-  compass: ControlVisibility.ALWAYS | ControlVisibility.WHILE_ROTATING | ControlVisibility.NEVER
-  scale: ControlVisibility.ALWAYS | ControlVisibility.WHILE_ZOOMING | ControlVisibility.NEVER
-  streetView: ControlVisibility.ALWAYS | ControlVisibility.WHILE_ACTIVE | ControlVisibility.NEVER
+  compass:
+    | ControlVisibility.ALWAYS
+    | ControlVisibility.WHILE_ROTATING
+    | ControlVisibility.NEVER
+  scale:
+    | ControlVisibility.ALWAYS
+    | ControlVisibility.WHILE_ZOOMING
+    | ControlVisibility.NEVER
+  streetView:
+    | ControlVisibility.ALWAYS
+    | ControlVisibility.WHILE_ACTIVE
+    | ControlVisibility.NEVER
   locate: ControlVisibility.ALWAYS | ControlVisibility.NEVER
 }

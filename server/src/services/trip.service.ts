@@ -38,7 +38,7 @@ export class TripService {
 
     // Determine which modes to generate based on selectedMode
     const modes: Mode[] = this.getModesToGenerate(request.selectedMode)
-    
+
     for (const mode of modes) {
       try {
         const trip = await this.planModeTrip(request, mode, dataSources)
@@ -52,10 +52,10 @@ export class TripService {
     const rankedTrips: TripCandidate[] = candidates
       .map((trip, index) => ({
         trip,
-        score: { 
-          overall: 1 / trip.tripStats.totalDuration, 
-          time: 0, 
-          cost: 0, 
+        score: {
+          overall: 1 / trip.tripStats.totalDuration,
+          time: 0,
+          cost: 0,
           environmental: 0,
           comfort: 0,
           safety: 0,
@@ -123,7 +123,7 @@ export class TripService {
     for (let i = 0; i < request.waypoints.length - 1; i++) {
       const from = request.waypoints[i]
       const to = request.waypoints[i + 1]
-      
+
       const result = await this.planSegment(
         mode,
         from,
@@ -155,7 +155,8 @@ export class TripService {
       segments,
       tripStats,
       earliestStartTime: segments[0]?.startTime || currentState.currentTime,
-      latestEndTime: segments[segments.length - 1]?.endTime || currentState.currentTime,
+      latestEndTime:
+        segments[segments.length - 1]?.endTime || currentState.currentTime,
       dataSources,
       requestId: request.requestId,
       generatedAt: new Date().toISOString(),
@@ -172,14 +173,30 @@ export class TripService {
     state: SegmentState,
     availableVehicles: Vehicle[],
     preferences: any,
-  ): Promise<{ segment: TripSegment; state: SegmentState; multimodalSegments?: TripSegment[] } | null> {
+  ): Promise<{
+    segment: TripSegment
+    state: SegmentState
+    multimodalSegments?: TripSegment[]
+  } | null> {
     switch (mode) {
       case 'walking':
         return this.planWalkingSegment(from, to, state, preferences)
       case 'driving':
-        return this.planDrivingSegment(from, to, state, availableVehicles, preferences)
+        return this.planDrivingSegment(
+          from,
+          to,
+          state,
+          availableVehicles,
+          preferences,
+        )
       case 'biking':
-        return this.planBikingSegment(from, to, state, availableVehicles, preferences)
+        return this.planBikingSegment(
+          from,
+          to,
+          state,
+          availableVehicles,
+          preferences,
+        )
       default:
         return null
     }
@@ -197,7 +214,10 @@ export class TripService {
     try {
       const route = await routingService.getRoute(
         [
-          { type: 'coordinates', value: [from.location.lat, from.location.lng] },
+          {
+            type: 'coordinates',
+            value: [from.location.lat, from.location.lng],
+          },
           { type: 'coordinates', value: [to.location.lat, to.location.lng] },
         ],
         'pedestrian',
@@ -207,7 +227,7 @@ export class TripService {
       if (!route.routes.length) return null
 
       const leg = route.routes[0].legs[0]
-      
+
       // Skip very short segments (< 1 min)
       if (leg.duration < 60) return null
 
@@ -217,7 +237,9 @@ export class TripService {
         start: from,
         end: to,
         startTime: state.currentTime,
-        endTime: new Date(new Date(state.currentTime).getTime() + leg.duration * 1000).toISOString(),
+        endTime: new Date(
+          new Date(state.currentTime).getTime() + leg.duration * 1000,
+        ).toISOString(),
         duration: leg.duration,
         distance: leg.distance,
         geometry: leg.geometry,
@@ -249,8 +271,12 @@ export class TripService {
     state: SegmentState,
     availableVehicles: Vehicle[],
     preferences: any,
-  ): Promise<{ segment: TripSegment; state: SegmentState; multimodalSegments?: TripSegment[] } | null> {
-    const car = availableVehicles.find(v => v.type === 'car')
+  ): Promise<{
+    segment: TripSegment
+    state: SegmentState
+    multimodalSegments?: TripSegment[]
+  } | null> {
+    const car = availableVehicles.find((v) => v.type === 'car')
     const useKnownLocations = preferences.useKnownVehicleLocations !== false
 
     // Direct driving (assume car at origin)
@@ -260,12 +286,15 @@ export class TripService {
 
     // Multimodal: walk to car + drive
     const carLocation = HARDCODED_VEHICLE_LOCATIONS.car
-    
+
     try {
       // Walk to car
       const walkRoute = await routingService.getRoute(
         [
-          { type: 'coordinates', value: [from.location.lat, from.location.lng] },
+          {
+            type: 'coordinates',
+            value: [from.location.lat, from.location.lng],
+          },
           { type: 'coordinates', value: [carLocation.lat, carLocation.lng] },
         ],
         'pedestrian',
@@ -293,11 +322,13 @@ export class TripService {
         start: from,
         end: { location: carLocation, type: 'via', label: 'Your car' },
         startTime: state.currentTime,
-        endTime: new Date(new Date(state.currentTime).getTime() + walkLeg.duration * 1000).toISOString(),
+        endTime: new Date(
+          new Date(state.currentTime).getTime() + walkLeg.duration * 1000,
+        ).toISOString(),
         duration: walkLeg.duration,
         distance: walkLeg.distance,
         geometry: walkLeg.geometry,
-        instructions: walkLeg.instructions.map(i => i.text),
+        instructions: walkLeg.instructions.map((i) => i.text),
         co2: 0,
       }
 
@@ -308,11 +339,13 @@ export class TripService {
         start: { location: carLocation, type: 'via', label: 'Your car' },
         end: to,
         startTime: walkSegment.endTime,
-        endTime: new Date(new Date(walkSegment.endTime).getTime() + driveLeg.duration * 1000).toISOString(),
+        endTime: new Date(
+          new Date(walkSegment.endTime).getTime() + driveLeg.duration * 1000,
+        ).toISOString(),
         duration: driveLeg.duration,
         distance: driveLeg.distance,
         geometry: driveLeg.geometry,
-        instructions: driveLeg.instructions.map(i => i.text),
+        instructions: driveLeg.instructions.map((i) => i.text),
         cost: { value: driveLeg.distance * 0.0002, currency: 'USD' }, // ~$0.20/km
         co2: driveLeg.distance * 0.00024, // ~240g CO2/km
       }
@@ -345,7 +378,10 @@ export class TripService {
     try {
       const route = await routingService.getRoute(
         [
-          { type: 'coordinates', value: [from.location.lat, from.location.lng] },
+          {
+            type: 'coordinates',
+            value: [from.location.lat, from.location.lng],
+          },
           { type: 'coordinates', value: [to.location.lat, to.location.lng] },
         ],
         'auto',
@@ -362,7 +398,9 @@ export class TripService {
         start: from,
         end: to,
         startTime: state.currentTime,
-        endTime: new Date(new Date(state.currentTime).getTime() + leg.duration * 1000).toISOString(),
+        endTime: new Date(
+          new Date(state.currentTime).getTime() + leg.duration * 1000,
+        ).toISOString(),
         duration: leg.duration,
         distance: leg.distance,
         geometry: leg.geometry,
@@ -395,8 +433,12 @@ export class TripService {
     state: SegmentState,
     availableVehicles: Vehicle[],
     preferences: any,
-  ): Promise<{ segment: TripSegment; state: SegmentState; multimodalSegments?: TripSegment[] } | null> {
-    const bike = availableVehicles.find(v => v.type === 'bike')
+  ): Promise<{
+    segment: TripSegment
+    state: SegmentState
+    multimodalSegments?: TripSegment[]
+  } | null> {
+    const bike = availableVehicles.find((v) => v.type === 'bike')
     const useKnownLocations = preferences.useKnownVehicleLocations !== false
 
     // Direct biking (assume bike at origin)
@@ -406,12 +448,15 @@ export class TripService {
 
     // Multimodal: walk to bike + ride
     const bikeLocation = HARDCODED_VEHICLE_LOCATIONS.bike
-    
+
     try {
       // Walk to bike
       const walkRoute = await routingService.getRoute(
         [
-          { type: 'coordinates', value: [from.location.lat, from.location.lng] },
+          {
+            type: 'coordinates',
+            value: [from.location.lat, from.location.lng],
+          },
           { type: 'coordinates', value: [bikeLocation.lat, bikeLocation.lng] },
         ],
         'pedestrian',
@@ -439,11 +484,13 @@ export class TripService {
         start: from,
         end: { location: bikeLocation, type: 'via', label: 'Your bike' },
         startTime: state.currentTime,
-        endTime: new Date(new Date(state.currentTime).getTime() + walkLeg.duration * 1000).toISOString(),
+        endTime: new Date(
+          new Date(state.currentTime).getTime() + walkLeg.duration * 1000,
+        ).toISOString(),
         duration: walkLeg.duration,
         distance: walkLeg.distance,
         geometry: walkLeg.geometry,
-        instructions: walkLeg.instructions.map(i => i.text),
+        instructions: walkLeg.instructions.map((i) => i.text),
         co2: 0,
       }
 
@@ -454,11 +501,13 @@ export class TripService {
         start: { location: bikeLocation, type: 'via', label: 'Your bike' },
         end: to,
         startTime: walkSegment.endTime,
-        endTime: new Date(new Date(walkSegment.endTime).getTime() + bikeLeg.duration * 1000).toISOString(),
+        endTime: new Date(
+          new Date(walkSegment.endTime).getTime() + bikeLeg.duration * 1000,
+        ).toISOString(),
         duration: bikeLeg.duration,
         distance: bikeLeg.distance,
         geometry: bikeLeg.geometry,
-        instructions: bikeLeg.instructions.map(i => i.text),
+        instructions: bikeLeg.instructions.map((i) => i.text),
         co2: 0,
       }
 
@@ -490,7 +539,10 @@ export class TripService {
     try {
       const route = await routingService.getRoute(
         [
-          { type: 'coordinates', value: [from.location.lat, from.location.lng] },
+          {
+            type: 'coordinates',
+            value: [from.location.lat, from.location.lng],
+          },
           { type: 'coordinates', value: [to.location.lat, to.location.lng] },
         ],
         'bicycle',
@@ -507,7 +559,9 @@ export class TripService {
         start: from,
         end: to,
         startTime: state.currentTime,
-        endTime: new Date(new Date(state.currentTime).getTime() + leg.duration * 1000).toISOString(),
+        endTime: new Date(
+          new Date(state.currentTime).getTime() + leg.duration * 1000,
+        ).toISOString(),
         duration: leg.duration,
         distance: leg.distance,
         geometry: leg.geometry,
@@ -549,7 +603,8 @@ export class TripService {
     return {
       totalDuration,
       totalDistance,
-      totalCost: totalCost > 0 ? { value: totalCost, currency: 'USD' } : undefined,
+      totalCost:
+        totalCost > 0 ? { value: totalCost, currency: 'USD' } : undefined,
       totalCo2: totalCo2 > 0 ? totalCo2 : undefined,
     }
   }
@@ -563,7 +618,11 @@ export class TripService {
     }
 
     for (const waypoint of request.waypoints) {
-      if (!waypoint.location || typeof waypoint.location.lat !== 'number' || typeof waypoint.location.lng !== 'number') {
+      if (
+        !waypoint.location ||
+        typeof waypoint.location.lat !== 'number' ||
+        typeof waypoint.location.lng !== 'number'
+      ) {
         throw new Error('All waypoints must have valid coordinates')
       }
     }

@@ -245,6 +245,10 @@ export class TripService {
         geometry: leg.geometry,
         instructions: leg.instructions,
         co2: 0,
+        totalElevationGain: leg.totalElevationGain,
+        totalElevationLoss: leg.totalElevationLoss,
+        maxElevation: leg.maxElevation,
+        minElevation: leg.minElevation,
       }
 
       return {
@@ -330,6 +334,10 @@ export class TripService {
         geometry: walkLeg.geometry,
         instructions: walkLeg.instructions.map((i) => i.text),
         co2: 0,
+        totalElevationGain: walkLeg.totalElevationGain,
+        totalElevationLoss: walkLeg.totalElevationLoss,
+        maxElevation: walkLeg.maxElevation,
+        minElevation: walkLeg.minElevation,
       }
 
       const driveSegment: TripSegment = {
@@ -348,6 +356,10 @@ export class TripService {
         instructions: driveLeg.instructions.map((i) => i.text),
         cost: { value: driveLeg.distance * 0.0002, currency: 'USD' }, // ~$0.20/km
         co2: driveLeg.distance * 0.00024, // ~240g CO2/km
+        totalElevationGain: driveLeg.totalElevationGain,
+        totalElevationLoss: driveLeg.totalElevationLoss,
+        maxElevation: driveLeg.maxElevation,
+        minElevation: driveLeg.minElevation,
       }
 
       return {
@@ -407,6 +419,10 @@ export class TripService {
         instructions: leg.instructions,
         cost: { value: leg.distance * 0.0002, currency: 'USD' },
         co2: leg.distance * 0.00024,
+        totalElevationGain: leg.totalElevationGain,
+        totalElevationLoss: leg.totalElevationLoss,
+        maxElevation: leg.maxElevation,
+        minElevation: leg.minElevation,
       }
 
       return {
@@ -492,6 +508,10 @@ export class TripService {
         geometry: walkLeg.geometry,
         instructions: walkLeg.instructions.map((i) => i.text),
         co2: 0,
+        totalElevationGain: walkLeg.totalElevationGain,
+        totalElevationLoss: walkLeg.totalElevationLoss,
+        maxElevation: walkLeg.maxElevation,
+        minElevation: walkLeg.minElevation,
       }
 
       const bikeSegment: TripSegment = {
@@ -509,6 +529,10 @@ export class TripService {
         geometry: bikeLeg.geometry,
         instructions: bikeLeg.instructions.map((i) => i.text),
         co2: 0,
+        totalElevationGain: bikeLeg.totalElevationGain,
+        totalElevationLoss: bikeLeg.totalElevationLoss,
+        maxElevation: bikeLeg.maxElevation,
+        minElevation: bikeLeg.minElevation,
       }
 
       return {
@@ -567,6 +591,10 @@ export class TripService {
         geometry: leg.geometry,
         instructions: leg.instructions,
         co2: 0,
+        totalElevationGain: leg.totalElevationGain,
+        totalElevationLoss: leg.totalElevationLoss,
+        maxElevation: leg.maxElevation,
+        minElevation: leg.minElevation,
       }
 
       return {

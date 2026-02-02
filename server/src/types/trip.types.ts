@@ -128,6 +128,11 @@ export interface TripSegment {
   cost?: CurrencyAmount
   co2?: number // grams
   details?: SegmentDetails
+  // Elevation data
+  totalElevationGain?: number // meters
+  totalElevationLoss?: number // meters
+  maxElevation?: number // meters
+  minElevation?: number // meters
 }
 
 export interface TripStats {

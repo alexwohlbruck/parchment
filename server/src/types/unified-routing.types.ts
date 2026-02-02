@@ -4,6 +4,7 @@
 export interface Coordinate {
   lng: number
   lat: number
+  elevation?: number // meters above sea level
 }
 
 // Travel modes standardized across providers
@@ -311,6 +312,12 @@ export interface TimelineSegment {
   distance?: number // meters
   instructions?: RouteInstruction[]
   geometry?: Coordinate[]
+
+  // Elevation data
+  totalElevationGain?: number // meters
+  totalElevationLoss?: number // meters
+  maxElevation?: number // meters
+  minElevation?: number // meters
 
   // Transit specific (for future use)
   lineName?: string

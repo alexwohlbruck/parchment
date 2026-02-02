@@ -255,13 +255,7 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
                   <!-- Segment Info -->
                   <div class="flex items-center gap-4">
                     <H6 class="capitalize">
-                      {{ segment.mode
-                      }}{{
-                        segment.vehicleType &&
-                        segment.vehicleType !== segment.mode
-                          ? ` (${segment.vehicleType})`
-                          : ''
-                      }}
+                      {{ segment.mode }}
                     </H6>
                     <Caption class="text-muted-foreground">
                       {{ formatDuration(segment.duration) }} •
@@ -270,9 +264,14 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
                   </div>
                 </div>
 
-                <!-- Elevation Chart -->
+                <!-- Elevation Chart (only for walking and cycling) -->
                 <ElevationChart
-                  v-if="segment.geometry && (segment.totalElevationGain || segment.totalElevationLoss)"
+                  v-if="
+                    segment.geometry &&
+                    (segment.totalElevationGain ||
+                      segment.totalElevationLoss) &&
+                    (segment.mode === 'walking' || segment.mode === 'cycling')
+                  "
                   :geometry="segment.geometry"
                   :total-elevation-gain="segment.totalElevationGain"
                   :total-elevation-loss="segment.totalElevationLoss"

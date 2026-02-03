@@ -66,11 +66,37 @@ const modes: Array<{ type: SelectedMode; icon: any; label: string }> = [
   },
 ]
 
-useMapListener('click', data => {
-  directionsService.fillWaypoint({
-    lngLat: data.lngLat,
-  })
-})
+// Override default click behavior to add waypoints instead of navigating
+useMapListener(
+  'click',
+  data => {
+    directionsService.fillWaypoint({
+      lngLat: data.lngLat,
+      place:
+        data.poi && data.poi.name
+          ? {
+              id: `${data.poi.poiType}/${data.poi.osmId}`,
+              name: {
+                value: data.poi.name,
+                sourceId: 'osm',
+              },
+              placeType: {
+                value: 'poi',
+                sourceId: 'osm',
+              },
+              geometry: {
+                value: {
+                  type: 'point',
+                  center: data.lngLat,
+                },
+                sourceId: 'osm',
+              },
+            }
+          : undefined,
+    })
+  },
+  { override: true },
+)
 </script>
 
 <template>

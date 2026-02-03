@@ -115,6 +115,7 @@ export class MapboxStrategy extends MapStrategy {
   mapInstance: MapboxMap
   private streetViewLayerIds: Set<string> = new Set()
   private unwatchTheme?: () => void
+  private clickDebounceTimer: number | null = null
   geolocateControl: GeolocateControl
   layerGroups: Map<string, MapLayerGroup> = new Map()
 
@@ -196,10 +197,19 @@ export class MapboxStrategy extends MapStrategy {
       })
     })
     this.mapInstance.on('click', e => {
-      mapEventBus.emit('click', {
-        lngLat: e.lngLat,
-        point: e.point,
-      })
+      // Debounce to allow POI interaction to fire first
+      if (this.clickDebounceTimer) {
+        clearTimeout(this.clickDebounceTimer)
+      }
+      
+      this.clickDebounceTimer = window.setTimeout(() => {
+        // Emit regular click without POI data
+        mapEventBus.emit('click', {
+          lngLat: e.lngLat,
+          point: e.point,
+        })
+        this.clickDebounceTimer = null
+      }, 50)
     })
     this.mapInstance.on('contextmenu', e => {
       e.preventDefault()
@@ -265,16 +275,27 @@ export class MapboxStrategy extends MapStrategy {
         const center = e.feature.properties?.center
 
         if (poiType !== 'unknown') {
+          // Cancel the debounced regular click
+          if (this.clickDebounceTimer) {
+            clearTimeout(this.clickDebounceTimer)
+            this.clickDebounceTimer = null
+          }
+
           // For ways/relations, use center point if available
           const lngLat = center
             ? { lng: center[0], lat: center[1] }
             : { lng: coordinates[0], lat: coordinates[1] }
 
-          mapEventBus.emit('click:poi', {
-            osmId,
-            poiType,
+          // Emit unified click event with POI data
+          const poiName = e.feature.properties?.name
+          mapEventBus.emit('click', {
             lngLat,
             point: e.point,
+            poi: {
+              osmId,
+              poiType,
+              name: typeof poiName === 'string' ? poiName : undefined,
+            },
           })
         }
       },

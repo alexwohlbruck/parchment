@@ -56,27 +56,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
     } as SearchCapability,
     geocoding: {
       geocode: this.searchPlaces.bind(this),
-      reverseGeocode: async (lat: number, lng: number) => {
-        const apiUrl = `${
-          this.config.host.endsWith('/')
-            ? this.config.host.slice(0, -1)
-            : this.config.host
-        }/reverse`
-
-        const params: Record<string, any> = {
-          lat,
-          lon: lng,
-          format: 'json',
-          addressdetails: 1,
-          // email: this.config.email,
-        }
-
-        const response = await axios.get(apiUrl, { 
-          params,
-          headers: getNominatimHeaders()
-        })
-        return response.data ? [response.data] : []
-      },
+      reverseGeocode: this.reverseGeocode.bind(this),
     },
     placeInfo: {
       getPlaceInfo: this.getPlaceInfo.bind(this),
@@ -249,6 +229,49 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
 
     // Format as viewbox parameter (minLon,minLat,maxLon,maxLat)
     return `${minLng},${minLat},${maxLng},${maxLat}`
+  }
+
+  /**
+   * Reverse geocode coordinates to places
+   * @param lat Latitude
+   * @param lng Longitude
+   * @returns Array of places
+   */
+  private async reverseGeocode(lat: number, lng: number): Promise<Place[]> {
+    this.ensureInitialized()
+
+    const apiUrl = `${
+      this.config.host.endsWith('/')
+        ? this.config.host.slice(0, -1)
+        : this.config.host
+    }/reverse`
+
+    const params: Record<string, any> = {
+      lat,
+      lon: lng,
+      format: 'jsonv2',
+      addressdetails: 1,
+      extratags: 1,
+      namedetails: 1,
+      'accept-language': 'en', // TODO: i18n
+      polygon_geojson: 1,
+      // email: this.config.email,
+    }
+
+    try {
+      const response = await axios.get(apiUrl, { 
+        params,
+        headers: getNominatimHeaders()
+      })
+      
+      if (!response.data) return []
+      
+      // Adapt the result to Place format
+      return [this.adapter.placeInfo.adaptPlaceDetails(response.data)]
+    } catch (error) {
+      console.error('Error reverse geocoding with Nominatim:', error)
+      return []
+    }
   }
 
   /**

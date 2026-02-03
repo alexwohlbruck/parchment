@@ -65,16 +65,13 @@ export function getSearchResultName(place: Place): string {
     return place.name.value || 'Current Location'
   }
 
-  // If no name, use place type as fallback
-  if (!place.name.value) {
-    return (
-      place.placeType.value.charAt(0).toUpperCase() +
-      place.placeType.value.slice(1)
-    )
+  // If place has a name, use it
+  if (place.name.value) {
+    return place.name.value
   }
 
-  // Default to place name for regular places
-  return place.name.value
+  // Otherwise, fall back to formatted address
+  return formatAddress(place)
 }
 
 /**

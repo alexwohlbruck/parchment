@@ -12,6 +12,7 @@ import {
   library as libraryController,
   integrations as integrationsController,
   search as searchController,
+  geocoding as geocodingController,
   federation as federationController,
   friends as friendsController,
   sharing as sharingController,
@@ -35,6 +36,7 @@ app.use(proxyController)
 app.use(libraryController)
 app.use(integrationsController)
 app.use(searchController)
+app.use(geocodingController)
 app.use(federationController)
 app.use(friendsController)
 app.use(sharingController)

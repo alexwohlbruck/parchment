@@ -7,6 +7,7 @@ import { Waypoint } from '@/types/map.types'
 import { TripsResponse, WaypointType } from '@/types/directions.types'
 import { LngLat } from 'mapbox-gl'
 import type { Place } from '@/types/place.types'
+import { useGeocodingService } from './geocoding.service'
 
 const MIN_WAYPOINTS = 2
 
@@ -90,7 +91,7 @@ function directionsService() {
               : i === validWaypoints.length - 1
                 ? 'destination'
                 : 'via',
-          label: wp.place?.name?.value,
+          label: wp.place?.name?.value || '',
         })),
         selectedMode: selectedMode.value,
         availableVehicles,
@@ -216,14 +217,57 @@ function directionsService() {
     })
   }
 
-  // Waypoint management
-  function fillWaypoint(waypoint: Waypoint) {
-    const emptyIndex = waypoints.value.findIndex(wp => !wp.lngLat)
-    if (emptyIndex !== -1) {
-      store.setWaypoint(emptyIndex, waypoint)
-    } else {
-      store.setWaypoint(waypoints.value.length, waypoint)
+  /**
+   * Helper function to set a waypoint and reverse geocode if needed
+   * This ensures consistent behavior across all waypoint-setting functions
+   */
+  async function setWaypointWithGeocoding(index: number, waypoint: Waypoint) {
+    // Immediately set the waypoint with coordinates (for instant feedback)
+    store.setWaypoint(index, waypoint)
+    
+    // If waypoint has coordinates but no place info (e.g., from map click),
+    // try to reverse geocode to get address information in the background
+    if (waypoint.lngLat && !waypoint.place) {
+      console.log('[Directions] Reverse geocoding waypoint at', waypoint.lngLat)
+      
+      // Reverse geocode in the background
+      const geocodingService = useGeocodingService()
+      geocodingService.reverseGeocode({
+        lat: waypoint.lngLat.lat,
+        lng: waypoint.lngLat.lng,
+        limit: 1,
+      }).then(result => {
+        // If we got a result, update the waypoint with place info
+        if (result.results && result.results.length > 0) {
+          const place = result.results[0]
+          console.log('[Directions] Reverse geocoding successful:', {
+            name: place.name?.value,
+            address: place.address?.value,
+          })
+          
+          // Update the waypoint with the geocoded place info
+          const updatedWaypoint = {
+            ...waypoints.value[index],
+            place: place,
+          }
+          store.setWaypoint(index, updatedWaypoint)
+        } else {
+          console.log('[Directions] No reverse geocoding results found')
+        }
+      }).catch(error => {
+        console.error('[Directions] Failed to reverse geocode waypoint:', error)
+        // Continue without place info if geocoding fails
+      })
+    } else if (waypoint.place) {
+      console.log('[Directions] Waypoint already has place info:', waypoint.place.name?.value)
     }
+  }
+
+  // Waypoint management
+  async function fillWaypoint(waypoint: Waypoint) {
+    const emptyIndex = waypoints.value.findIndex(wp => !wp.lngLat)
+    const targetIndex = emptyIndex !== -1 ? emptyIndex : waypoints.value.length
+    await setWaypointWithGeocoding(targetIndex, waypoint)
   }
 
   function setWaypoint(index: number, waypoint: Waypoint) {
@@ -250,8 +294,8 @@ function directionsService() {
     store.setWaypoint(waypoints.value.length, waypoint || { lngLat: null })
   }
 
-  function directionsFrom(waypoint: Waypoint) {
-    store.setWaypoint(0, waypoint)
+  async function directionsFrom(waypoint: Waypoint) {
+    await setWaypointWithGeocoding(0, waypoint)
   }
 
   /**
@@ -307,12 +351,12 @@ function directionsService() {
    * Set up directions with current location as origin and destination waypoint
    * Only populates the first waypoint with current location if it's empty
    */
-  function directionsTo(waypoint: Waypoint) {
+  async function directionsTo(waypoint: Waypoint) {
     // Only populate origin if it's empty
     if (!waypoints.value[0]?.lngLat) {
       populateOriginWithCurrentLocation()
     }
-    store.setWaypoint(1, waypoint)
+    await setWaypointWithGeocoding(1, waypoint)
   }
 
   // Auto-fetch when waypoints, mode, or preferences change

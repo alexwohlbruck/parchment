@@ -199,38 +199,6 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
         </div>
       </div>
 
-      <!-- Trip Summary Card -->
-      <Card>
-        <CardContent class="p-4">
-          <div class="flex justify-around">
-            <div class="text-center">
-              <div class="text-2xl font-bold">
-                {{ trip.segments.length }}
-              </div>
-              <div class="text-xs text-muted-foreground">Segments</div>
-            </div>
-            <div class="text-center">
-              <div class="text-2xl font-bold">
-                {{ [...new Set(trip.segments.map(s => s.mode))].length }}
-              </div>
-              <div class="text-xs text-muted-foreground">Transport Modes</div>
-            </div>
-            <div class="text-center" v-if="trip.cost?.total">
-              <div class="text-2xl font-bold">
-                {{ formatCurrency(trip.cost.total) }}
-              </div>
-              <div class="text-xs text-muted-foreground">Total Cost</div>
-            </div>
-            <div class="text-center" v-if="trip.co2Emissions">
-              <div class="text-2xl font-bold">
-                {{ trip.co2Emissions.toFixed(1) }}
-              </div>
-              <div class="text-xs text-muted-foreground">kg CO₂</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       <!-- Instructions -->
       <Card>
         <CardContent class="p-4">

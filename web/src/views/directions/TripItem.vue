@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import dayjs from 'dayjs'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useMapService } from '@/services/map.service'
 import { getTravelModeCssClass } from '@/lib/travel-mode-colors'
 import {
@@ -39,6 +40,7 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const mapService = useMapService()
+const { t } = useI18n()
 
 const modeIcons = {
   walking: FootprintsIcon,
@@ -65,7 +67,7 @@ const isMultimodalTrip = computed(() => {
 const tripDescription = computed(() => {
   if (props.trip.segments.length === 1) {
     const segment = props.trip.segments[0]
-    return getTripModeLabel(segment.mode, segment.vehicleType)
+    return getTripModeLabel(segment.mode)
   }
 
   if (isMultimodalTrip.value) {
@@ -81,18 +83,14 @@ const tripDescription = computed(() => {
 // Check if elevation data is available and relevant (bike/pedestrian modes)
 const hasElevationData = computed(() => {
   return (
-    (props.trip.mode === 'cycling' || 
-     props.trip.mode === 'walking') &&
+    (props.trip.mode === 'cycling' || props.trip.mode === 'walking') &&
     props.trip.summary.totalElevationGain !== undefined
   )
 })
 
-function getTripModeLabel(mode: string, vehicleType?: string): string {
-  if (mode === 'walking') return 'Walking'
-  if (mode === 'driving') return vehicleType === 'car' ? 'Driving' : 'Vehicle'
-  if (mode === 'cycling' || mode === 'biking')
-    return vehicleType === 'bike' ? 'Cycling' : 'E-bike'
-  return mode.charAt(0).toUpperCase() + mode.slice(1)
+function getTripModeLabel(mode: string): string {
+  const normalizedMode = mode === 'biking' ? 'cycling' : mode
+  return t(`directions.modes.${normalizedMode}`)
 }
 
 function formatDuration(seconds: number) {
@@ -129,18 +127,27 @@ function getDisplayTime(date: Date, isFirstSegment: boolean = false) {
 function getSegmentTooltip(segment: any): string {
   const duration = formatDuration(segment.duration)
   const distance = segment.distance ? formatDistance(segment.distance) : ''
-  const mode = getTripModeLabel(segment.mode, segment.vehicleType)
-  
+  const mode = getTripModeLabel(segment.mode)
+
   let tooltip = `${mode}: ${duration}${distance ? ', ' + distance : ''}`
-  
+
   // Add elevation info for bike/pedestrian segments if available
-  if ((segment.mode === 'cycling' || segment.mode === 'biking' || segment.mode === 'walking') && 
-      segment.instructions && segment.instructions.length > 0) {
-    const elevationGain = segment.instructions.reduce((total: number, inst: any) => 
-      total + (inst.elevationGain || 0), 0)
-    const elevationLoss = segment.instructions.reduce((total: number, inst: any) => 
-      total + (inst.elevationLoss || 0), 0)
-    
+  if (
+    (segment.mode === 'cycling' ||
+      segment.mode === 'biking' ||
+      segment.mode === 'walking') &&
+    segment.instructions &&
+    segment.instructions.length > 0
+  ) {
+    const elevationGain = segment.instructions.reduce(
+      (total: number, inst: any) => total + (inst.elevationGain || 0),
+      0,
+    )
+    const elevationLoss = segment.instructions.reduce(
+      (total: number, inst: any) => total + (inst.elevationLoss || 0),
+      0,
+    )
+
     if (elevationGain > 0) {
       tooltip += `\n↗ ${formatElevation(elevationGain)} climb`
     }
@@ -219,26 +226,32 @@ function navigateToTripDetail() {
       <div class="text-xs text-muted-foreground mb-1">
         {{ formatDistance(trip.summary.totalDistance) }}
       </div>
-      
+
       <!-- Elevation data for bike/pedestrian modes -->
       <div v-if="hasElevationData" class="flex flex-col gap-0.5 mt-1">
-        <div 
-          v-if="trip.summary.totalElevationGain && trip.summary.totalElevationGain > 0"
+        <div
+          v-if="
+            trip.summary.totalElevationGain &&
+            trip.summary.totalElevationGain > 0
+          "
           class="flex items-center justify-end gap-1 text-xs text-green-600"
           :title="`Total elevation gain: ${formatElevation(trip.summary.totalElevationGain)}`"
         >
           <TrendingUpIcon class="size-3" />
           <span>{{ formatElevation(trip.summary.totalElevationGain) }}</span>
         </div>
-        <div 
-          v-if="trip.summary.totalElevationLoss && trip.summary.totalElevationLoss > 0"
+        <div
+          v-if="
+            trip.summary.totalElevationLoss &&
+            trip.summary.totalElevationLoss > 0
+          "
           class="flex items-center justify-end gap-1 text-xs text-red-600"
           :title="`Total elevation loss: ${formatElevation(trip.summary.totalElevationLoss)}`"
         >
           <TrendingDownIcon class="size-3" />
           <span>{{ formatElevation(trip.summary.totalElevationLoss) }}</span>
         </div>
-        <div 
+        <div
           v-if="trip.summary.maxElevation"
           class="flex items-center justify-end gap-1 text-xs text-muted-foreground"
           :title="`Highest point: ${formatElevation(trip.summary.maxElevation)}`"
@@ -247,7 +260,7 @@ function navigateToTripDetail() {
           <span>{{ formatElevation(trip.summary.maxElevation) }}</span>
         </div>
       </div>
-      
+
       <!-- Cost display if available -->
       <div v-if="trip.cost?.total" class="text-xs text-muted-foreground mt-1">
         ${{ trip.cost.total.amount.toFixed(2) }}
@@ -295,7 +308,7 @@ function navigateToTripDetail() {
             v-if="(segment.duration / 60) * pixelsPerMinute > 60"
             class="flex-1 px-2 text-xs font-medium text-white truncate"
           >
-            {{ getTripModeLabel(segment.mode, segment.vehicleType) }}
+            {{ getTripModeLabel(segment.mode) }}
           </div>
 
           <!-- Tooltip on hover -->

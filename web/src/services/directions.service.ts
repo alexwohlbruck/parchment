@@ -305,10 +305,13 @@ function directionsService() {
 
   /**
    * Set up directions with current location as origin and destination waypoint
-   * Automatically populates the first waypoint with current location
+   * Only populates the first waypoint with current location if it's empty
    */
   function directionsTo(waypoint: Waypoint) {
-    populateOriginWithCurrentLocation()
+    // Only populate origin if it's empty
+    if (!waypoints.value[0]?.lngLat) {
+      populateOriginWithCurrentLocation()
+    }
     store.setWaypoint(1, waypoint)
   }
 

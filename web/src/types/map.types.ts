@@ -79,7 +79,7 @@ export type MapBounds = {
 // TODO: Use optional fields
 export type Waypoint = {
   lngLat: LngLat | null
-  place?: Place | null
+  place?: Partial<Place> | null
 }
 
 export type MapillaryImage = Image // TODO: Use custom type
@@ -88,6 +88,11 @@ export type MapEvents = {
   click: {
     lngLat: LngLat
     point: { x: number; y: number }
+    poi?: {
+      osmId: string
+      poiType: 'node' | 'way' | 'relation'
+      name?: string
+    }
   }
   'click:mapillary-image': {
     lngLat: LngLat
@@ -99,12 +104,6 @@ export type MapEvents = {
   move: MapCamera
   'style.load': MapInstance
   contextmenu: {
-    lngLat: LngLat
-    point: { x: number; y: number }
-  }
-  'click:poi': {
-    osmId: string
-    poiType: 'node' | 'way' | 'relation'
     lngLat: LngLat
     point: { x: number; y: number }
   }

@@ -216,12 +216,15 @@ function mapService() {
       }
     })
 
-    mapEventBus.on('click:poi', ({ osmId, poiType, lngLat }) => {
+    mapEventBus.on('click', async data => {
+      // Only navigate if POI data is present
+      if (!data.poi) return
+
       router.push({
         name: AppRoute.PLACE,
         params: {
-          type: poiType,
-          id: osmId,
+          type: data.poi.poiType,
+          id: data.poi.osmId,
         },
       })
     })

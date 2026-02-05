@@ -13,6 +13,7 @@ import { GeoapifyIntegration } from './geoapify-integration'
 import { WikidataIntegration } from './wikidata-integration'
 import { WikipediaIntegration } from './wikipedia-integration'
 import { WikimediaIntegration } from './wikimedia-integration'
+import { OpenWeatherMapIntegration } from './openweathermap-integration'
 
 /**
  * Registry for all integrations
@@ -41,6 +42,7 @@ export class IntegrationRegistry {
     this.registerIntegration(new WikidataIntegration())
     this.registerIntegration(new WikipediaIntegration())
     this.registerIntegration(new WikimediaIntegration())
+    this.registerIntegration(new OpenWeatherMapIntegration())
   }
 
   /**

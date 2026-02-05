@@ -16,6 +16,7 @@ export enum IntegrationId {
   WIKIDATA = 'wikidata',
   WIKIPEDIA = 'wikipedia',
   WIKIMEDIA = 'wikimedia',
+  OPENWEATHERMAP = 'openweathermap',
 }
 
 export enum IntegrationCapabilityId {
@@ -30,4 +31,5 @@ export enum IntegrationCapabilityId {
   MAP_LAYER = 'mapLayer',
   STREET_VIEW = 'streetView',
   TRANSIT_DATA = 'transitData',
+  WEATHER = 'weather',
 }

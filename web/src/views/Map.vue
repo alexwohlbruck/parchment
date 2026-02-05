@@ -24,6 +24,7 @@ import { storeToRefs } from 'pinia'
 import { useLayersService } from '@/services/layers.service'
 
 import MapChips from '@/components/map/MapChips.vue'
+import WeatherControl from '@/components/map/controls/WeatherControl.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -225,8 +226,9 @@ defineExpose({
             <transition-slide appear no-opacity :offset="[0, '-130%']">
               <div
                 v-if="isNavTransitioning"
-                class="pointer-events-auto flex flex-col gap-2 items-start"
+                class="pointer-events-auto flex gap-2 items-start"
               >
+                <WeatherControl />
                 <ScaleControl />
               </div>
             </transition-slide>

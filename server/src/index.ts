@@ -17,6 +17,7 @@ import {
   friends as friendsController,
   sharing as sharingController,
   location as locationController,
+  weather as weatherController,
 } from './controllers'
 import { initializeIntegrations } from './services/integration.service'
 import { initI18n } from './lib/i18n'
@@ -41,6 +42,7 @@ app.use(federationController)
 app.use(friendsController)
 app.use(sharingController)
 app.use(locationController)
+app.use(weatherController)
 
 app.onError(({ code }) => {
   if (code === 'NOT_FOUND') return 'Route not found :(' // TODO: i18n, proper error

@@ -135,6 +135,40 @@ export interface TransitDataCapability {
   // getTrips(options?: any): Promise<any[]>
 }
 
+export interface WeatherData {
+  temperature: number // in Celsius
+  temperatureFeelsLike: number // in Celsius
+  temperatureMin?: number // in Celsius
+  temperatureMax?: number // in Celsius
+  humidity?: number // percentage
+  pressure?: number // hPa
+  windSpeed?: number // m/s
+  windDirection?: number // degrees
+  cloudiness?: number // percentage
+  visibility?: number // meters
+  condition: string // e.g., "Clear", "Clouds", "Rain", etc.
+  conditionDescription: string // e.g., "clear sky", "light rain"
+  conditionIcon: string // weather icon code
+  aqi?: number // Air Quality Index (1-5 scale, 1=Good, 5=Very Poor)
+  aqiComponents?: {
+    co?: number // Carbon monoxide
+    no?: number // Nitrogen monoxide
+    no2?: number // Nitrogen dioxide
+    o3?: number // Ozone
+    so2?: number // Sulphur dioxide
+    pm2_5?: number // Fine particulate matter
+    pm10?: number // Coarse particulate matter
+    nh3?: number // Ammonia
+  }
+  timestamp: string // ISO 8601 timestamp
+  sunrise?: string // ISO 8601 timestamp
+  sunset?: string // ISO 8601 timestamp
+}
+
+export interface WeatherCapability {
+  getWeather(lat: number, lng: number): Promise<WeatherData>
+}
+
 // Integration capabilities container
 export interface IntegrationCapabilities {
   search?: SearchCapability
@@ -146,6 +180,7 @@ export interface IntegrationCapabilities {
   imagery?: ImageryCapability
   mapEngine?: MapEngineCapability
   transitData?: TransitDataCapability
+  weather?: WeatherCapability
 }
 
 /**

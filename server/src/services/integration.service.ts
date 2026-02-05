@@ -207,6 +207,22 @@ const availableIntegrations: IntegrationDefinition[] = [
     configSchema: 'wikimediaSchema',
     scope: [IntegrationScope.SYSTEM],
   },
+  {
+    id: IntegrationId.OPENWEATHERMAP,
+    name: 'OpenWeatherMap',
+    description: 'Weather data and air quality information',
+    color: '#EB6E4B',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.OPENWEATHERMAP,
+      )
+    },
+    paid: true,
+    cloud: true,
+    configSchema: 'apiKeySchema',
+    public: true,
+    scope: [IntegrationScope.SYSTEM],
+  },
 ]
 
 export async function initializeIntegrations() {

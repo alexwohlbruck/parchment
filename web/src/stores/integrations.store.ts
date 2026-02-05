@@ -39,6 +39,7 @@ const iconMap: Record<string, any> = {
   [IntegrationId.WIKIDATA]: siWikidata,
   [IntegrationId.WIKIPEDIA]: siWikipedia,
   [IntegrationId.WIKIMEDIA]: siWikimediacommons,
+  [IntegrationId.OPENWEATHERMAP]: null, // Uses custom weather icon
 }
 
 const getIcon = (integrationId: string) => {
@@ -142,6 +143,14 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     return hasToken && isEngineCapabilityActive
   })
 
+  // Check if weather capability is configured and active
+  const isWeatherActive = computed(() => {
+    return isCapabilityActive(
+      IntegrationId.OPENWEATHERMAP,
+      IntegrationCapabilityId.WEATHER,
+    )
+  })
+
   // Check if integrations are ready (initialized and not currently loading)
   const integrationsReady = computed(() => {
     return hasInitialized.value && !isLoadingAvailable.value && !isLoadingConfigured.value
@@ -182,6 +191,7 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     hasInitialized,
     isMapboxAvailableButNotConfigured,
     isMapboxEngineActive,
+    isWeatherActive,
     isLoadingAvailable,
     isLoadingConfigured,
     getIntegrationConfig,

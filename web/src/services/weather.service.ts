@@ -4,9 +4,10 @@ import { useMapStore } from '@/stores/map.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import type { WeatherData } from '@server/types/integration.types'
 import { api } from '@/lib/api'
+import { useI18n } from 'vue-i18n'
 
 const MIN_ZOOM_LEVEL = 9 // Only show weather at zoom level 9 or higher
-const UPDATE_DISTANCE_THRESHOLD = 50000 // Only update if moved more than 50km (in meters)
+const UPDATE_DISTANCE_THRESHOLD = 25000 // Only update if moved more than 25km (in meters)
 const UPDATE_TIME_THRESHOLD = 10 * 60 * 1000 // Only update every 10 minutes (in milliseconds)
 
 interface WeatherCache {
@@ -19,6 +20,7 @@ interface WeatherCache {
 function weatherService() {
   const mapStore = useMapStore()
   const integrationsStore = useIntegrationsStore()
+  const { locale } = useI18n()
   const weather = ref<WeatherData | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
@@ -96,8 +98,12 @@ function weatherService() {
     error.value = null
 
     try {
+      // Map i18n locale to OpenWeatherMap language codes
+      // OpenWeatherMap supports codes like 'en', 'es', 'fr', etc.
+      const lang = locale.value.split('-')[0] // Convert 'en-US' to 'en', 'es-ES' to 'es'
+      
       const response = await api.get<WeatherData>('/weather', {
-        params: { lat, lng },
+        params: { lat, lng, lang },
       })
 
       weather.value = response.data

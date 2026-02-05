@@ -30,7 +30,7 @@
  * 3. Update UI labels and color scales accordingly
  * 4. Consider adding PM2.5/PM10 concentration display as fallback
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useWeatherService } from '@/services/weather.service'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useMapStore } from '@/stores/map.store'
@@ -38,6 +38,7 @@ import { useAppStore } from '@/stores/app.store'
 import { Button } from '@/components/ui/button'
 import { ControlVisibility, UnitSystem } from '@/types/map.types'
 import { storeToRefs } from 'pinia'
+import WeatherDetailsDialog from '@/components/map/WeatherDetailsDialog.vue'
 import { 
   Sun,
   Moon,
@@ -65,6 +66,8 @@ const appStore = useAppStore()
 const { weather, loading } = weatherService
 const { controlSettings } = storeToRefs(mapStore)
 const { unitSystem } = storeToRefs(appStore)
+
+const showDetailsDialog = ref(false)
 
 // Only show if: control is enabled, integration is active, AND we have weather data
 const isVisible = computed(() => {
@@ -273,6 +276,7 @@ const aqiLabel = computed(() => {
       variant="outline"
       class="weather-control h-auto px-2 py-1.5 flex flex-col gap-0.5 items-center justify-center min-w-[3rem]"
       :title="`${weather?.conditionDescription}, ${temperature}${temperatureUnit}${aqiLevel ? ` • Air Quality: ${aqiLabel}` : ''}`"
+      @click="showDetailsDialog = true"
     >
       <!-- Weather Icon and Temperature -->
       <div class="flex items-center gap-1">
@@ -303,6 +307,12 @@ const aqiLabel = computed(() => {
       </div>
     </Button>
   </transition>
+
+  <!-- Weather Details Dialog -->
+  <WeatherDetailsDialog
+    v-model:open="showDetailsDialog"
+    :weather="weather"
+  />
 </template>
 
 <style scoped>

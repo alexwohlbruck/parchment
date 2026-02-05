@@ -33,6 +33,30 @@
     "recents": "Recientes",
     "seeAll": "Ver todo"
   },
+  "weather": {
+    "title": "Condiciones del tiempo",
+    "subtitle": "Condiciones actuales y pronóstico",
+    "airQuality": "Calidad del aire",
+    "feelsLike": "Sensación térmica",
+    "humidity": "Humedad",
+    "wind": "Viento",
+    "visibility": "Visibilidad",
+    "pressure": "Presión",
+    "cloudiness": "Nubosidad",
+    "sunrise": "Amanecer",
+    "sunset": "Atardecer",
+    "aqi": {
+      "good": "Buena",
+      "fair": "Aceptable",
+      "moderate": "Moderada",
+      "poor": "Mala",
+      "veryPoor": "Muy mala",
+      "unhealthySensitive": "Insalubre para grupos sensibles",
+      "unhealthy": "Insalubre",
+      "veryUnhealthy": "Muy insalubre",
+      "hazardous": "Peligrosa"
+    }
+  },
   "palette": {
     "placeholder": {
       "default": "Buscar cerca...",

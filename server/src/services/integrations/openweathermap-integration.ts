@@ -111,14 +111,18 @@ export class OpenWeatherMapIntegration implements Integration<OpenWeatherMapConf
    * Get current weather data for a location
    * @param lat Latitude
    * @param lng Longitude
+   * @param lang Language code (e.g., 'en', 'es', 'fr') - defaults to 'en'
    * @returns Weather data
    */
-  async getWeather(lat: number, lng: number): Promise<WeatherData> {
+  async getWeather(lat: number, lng: number, lang?: string): Promise<WeatherData> {
     this.ensureInitialized()
 
     try {
+      // Map common language codes to OpenWeatherMap format
+      const languageCode = lang || 'en'
+      
       // Fetch weather data using Current Weather API 2.5 (free tier)
-      const weatherUrl = `${this.WEATHER_URL}?lat=${lat}&lon=${lng}&appid=${this.config.apiKey}&units=metric`
+      const weatherUrl = `${this.WEATHER_URL}?lat=${lat}&lon=${lng}&appid=${this.config.apiKey}&units=metric&lang=${languageCode}`
       const weatherResponse = await fetch(weatherUrl)
 
       if (!weatherResponse.ok) {
@@ -148,6 +152,7 @@ export class OpenWeatherMapIntegration implements Integration<OpenWeatherMapConf
       const sys = weatherData.sys
 
       const result: WeatherData = {
+        locationName: weatherData.name || undefined,
         temperature: Math.round(main.temp),
         temperatureFeelsLike: Math.round(main.feels_like),
         temperatureMin: main.temp_min ? Math.round(main.temp_min) : undefined,

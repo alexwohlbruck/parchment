@@ -136,6 +136,7 @@ export interface TransitDataCapability {
 }
 
 export interface WeatherData {
+  locationName?: string // City or location name
   temperature: number // in Celsius
   temperatureFeelsLike: number // in Celsius
   temperatureMin?: number // in Celsius
@@ -166,7 +167,7 @@ export interface WeatherData {
 }
 
 export interface WeatherCapability {
-  getWeather(lat: number, lng: number): Promise<WeatherData>
+  getWeather(lat: number, lng: number, lang?: string): Promise<WeatherData>
 }
 
 // Integration capabilities container

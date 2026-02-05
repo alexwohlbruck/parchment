@@ -10,7 +10,7 @@ const weatherRouter = new Elysia({ prefix: '/weather' })
   .get(
     '/',
     async ({ query }) => {
-      const { lat, lng } = query
+      const { lat, lng, lang } = query
 
       if (lat === undefined || lng === undefined) {
         return error(400, {
@@ -46,6 +46,7 @@ const weatherRouter = new Elysia({ prefix: '/weather' })
         const weatherData = await integration.capabilities.weather.getWeather(
           Number(lat),
           Number(lng),
+          lang,
         )
 
         return weatherData
@@ -60,6 +61,7 @@ const weatherRouter = new Elysia({ prefix: '/weather' })
       query: t.Object({
         lat: t.Numeric(),
         lng: t.Numeric(),
+        lang: t.Optional(t.String()),
       }),
     },
   )

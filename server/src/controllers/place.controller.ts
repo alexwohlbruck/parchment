@@ -76,18 +76,26 @@ app.get(
           }
           
           const geoapifyPlace = await geoapifyIntegration.capabilities.placeInfo.getPlaceInfo(id!)
+          
+          if (!geoapifyPlace) {
+            return error(404, {
+              message: 'Geoapify place not found',
+            })
+          }
+          
           const osmId = geoapifyPlace?.externalIds?.[SOURCE.OSM]
           
           if (osmId) {
+            // If OSM ID exists, get enriched data from OSM
             console.log(`[place.controller] Geoapify place ${id} → OSM ${osmId}`)
             place = await lookupEnrichedPlaceById(SOURCE.OSM, osmId, {
               userId: user?.id,
               language,
             })
           } else {
-            return error(404, {
-              message: 'Geoapify place does not have an OSM ID for full details',
-            })
+            // No OSM ID, return Geoapify data as-is
+            console.log(`[place.controller] Geoapify place ${id} has no OSM ID, returning Geoapify data`)
+            place = geoapifyPlace
           }
         } else {
           place = await lookupEnrichedPlaceById(source!, id!, {

@@ -11,6 +11,7 @@ import {
   MapEngine,
   MapProjection,
   ControlVisibility,
+  UnitSystem,
 } from '@/types/map.types'
 import { CommandName } from '@/stores/command.store'
 
@@ -39,6 +40,7 @@ import {
   RulerIcon,
   PersonStandingIcon,
   LocateIcon,
+  CloudSun,
 } from 'lucide-vue-next'
 import Layers from '@/components/map/Layers.vue'
 
@@ -292,6 +294,27 @@ const basemap = computed(() => {
         :icon="LocateIcon"
       >
         <Select v-model="controlSettings.locate">
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem :value="ControlVisibility.ALWAYS">
+                {{ $t('settings.mapSettings.controls.visibility.always') }}
+              </SelectItem>
+              <SelectItem :value="ControlVisibility.NEVER">
+                {{ $t('settings.mapSettings.controls.visibility.never') }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.controls.weather')"
+        :icon="CloudSun"
+      >
+        <Select v-model="controlSettings.weather">
           <SelectTrigger class="w-fit">
             <SelectValue />
           </SelectTrigger>

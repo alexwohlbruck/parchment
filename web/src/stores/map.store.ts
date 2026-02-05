@@ -46,6 +46,7 @@ function getDefaultControlSettings(): MapControlSettings {
       : ControlVisibility.ALWAYS,
     streetView: ControlVisibility.ALWAYS,
     locate: ControlVisibility.ALWAYS,
+    weather: ControlVisibility.ALWAYS,
   }
 }
 

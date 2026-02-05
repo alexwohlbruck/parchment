@@ -751,7 +751,8 @@
         "mapEngine": "Map Engine",
         "title": "Capabilities",
         "streetView": "Street View",
-        "transitData": "Transit Data"
+        "transitData": "Transit Data",
+        "weather": "Weather"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",
@@ -770,7 +771,8 @@
         "transitland": "Transit routes tiles and APIs",
         "wikidata": "Structured knowledge base for enriching place information",
         "wikipedia": "Free encyclopedia content and place descriptions",
-        "wikimedia": "Free media repository for place images"
+        "wikimedia": "Free media repository for place images",
+        "openweathermap": "Weather data and air quality information"
       }
     },
     "users": {

@@ -26,6 +26,7 @@ import {
   MapPinIcon,
 } from 'lucide-vue-next'
 import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
+import { Skeleton } from '@/components/ui/skeleton'
 import { formatAddress } from '@/lib/place.utils'
 import { AppRoute } from '@/router'
 
@@ -303,10 +304,20 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
     items.push({ type: 'separator' })
   } else if (isGeocoding.value) {
     items.push({
-      type: 'item',
+      type: 'custom',
       id: 'geocoding-loader',
-      label: t('map.contextMenu.loadingAddress', 'Loading address...'),
-      disabled: true,
+      component: h('div', {
+        class: 'flex items-center gap-3 px-2 py-1.5 text-sm cursor-not-allowed',
+      }, [
+        // Icon
+        h(MapPinIcon, {
+          class: 'h-4 w-4 shrink-0 text-muted-foreground',
+        }),
+        // Skeleton loader - h-5 matches text-sm line-height (1.25rem/20px)
+        h(Skeleton, {
+          class: 'h-5 flex-1',
+        }),
+      ]),
     })
     items.push({ type: 'separator' })
   }

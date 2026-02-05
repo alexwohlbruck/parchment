@@ -8,7 +8,7 @@ import PlaceSection from '../details/PlaceSection.vue'
 import type { Place } from '@/types/place.types'
 
 defineProps<{
-  place: Place
+  place: Partial<Place>
 }>()
 
 const showTags = ref(false)

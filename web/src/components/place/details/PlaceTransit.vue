@@ -13,7 +13,7 @@ import { useExternalLink } from '@/composables/useExternalLink'
 dayjs.extend(customParseFormat)
 
 const props = defineProps<{
-  place: Place
+  place: Partial<Place>
 }>()
 
 const { t } = useI18n()

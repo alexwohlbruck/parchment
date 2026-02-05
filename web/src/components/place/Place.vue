@@ -18,7 +18,7 @@ import PlaceTransit from './details/PlaceTransit.vue'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 
 const props = defineProps<{
-  place: Place | null
+  place: Partial<Place> | null
   loading: boolean
 }>()
 

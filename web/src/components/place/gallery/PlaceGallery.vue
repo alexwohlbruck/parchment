@@ -4,7 +4,7 @@ import { TransitionExpand } from '@morev/vue-transitions'
 import type { Place } from '@/types/place.types'
 
 const { place } = defineProps<{
-  place: Place
+  place: Partial<Place>
 }>()
 
 const emit = defineEmits<{
@@ -15,7 +15,7 @@ const emit = defineEmits<{
 
 <template>
   <TransitionExpand>
-    <div v-if="place.photos.length > 0" :class="cn('w-full relative', $attrs.class ?? '')">
+    <div v-if="place.photos && place.photos.length > 0" :class="cn('w-full relative', $attrs.class ?? '')">
       <div
         class="w-full overflow-x-auto touch-pan-x snap-x snap-mandatory flex gap-2 scrollbar-hidden pb-2 -mb-2"
       >

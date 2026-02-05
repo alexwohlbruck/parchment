@@ -27,6 +27,7 @@ export enum AppRoute {
   PLACE = 'place',
   PLACE_PROVIDER = 'place-provider',
   PLACE_LOCATION = 'place-location',
+  PLACE_COORDS = 'place-coords',
   STREET = 'street',
   DIRECTIONS = 'directions',
   TRIP = 'trip',
@@ -109,6 +110,11 @@ const router = createRouter({
         {
           path: '/place/location/:name/:lat/:lng',
           name: AppRoute.PLACE_LOCATION,
+          component: Place,
+        },
+        {
+          path: '/place/coords/:lat/:lng',
+          name: AppRoute.PLACE_COORDS,
           component: Place,
         },
         {

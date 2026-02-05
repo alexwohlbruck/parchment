@@ -10,12 +10,14 @@ import { AppRoute } from '@/router'
 
 const route = useRoute()
 const router = useRouter()
-const { currentPlace, loading, fetchPlaceDetails, clearPlace } =
+const { currentPlace, loading, fetchPlaceDetails, fetchPlaceDetailsByCoordinates, clearPlace, setPartialPlace } =
   usePlaceService()
 const { flyTo, fitBounds, addMarker, removeAllMarkers, updatePlacePolygon } = useMapService()
 
 async function loadPlace() {
-  clearPlace()
+  // Don't clear place - keep partial data visible during loading
+  // clearPlace() // REMOVED
+  
   // Clear any existing polygon
   updatePlacePolygon(null)
 
@@ -73,19 +75,41 @@ async function loadPlace() {
     return
   }
 
-  // Case 3: Name and coordinates
-  if (
-    typeof name === 'string' &&
-    typeof lat === 'string' &&
-    typeof lng === 'string'
-  ) {
-    // Note: Do not move camera here - wait for place data to load
-    // This prevents double camera movement (once from coordinates, once from loaded data)
-    const place = await fetchPlaceDetails('', '', {
-      name,
+  // Case 3: Name + location lookup (legacy /place/location/:name/:lat/:lng format)
+  if (typeof name === 'string' && typeof lat === 'string' && typeof lng === 'string') {
+    const coordinates = {
       lat: parseFloat(lat),
       lng: parseFloat(lng),
-    })
+    }
+    
+    // Immediately add marker and move camera for partial place data
+    if (currentPlace.value?.geometry?.value?.center) {
+      handlePlaceResult(currentPlace.value)
+    }
+    
+    // Use name-based search for more accurate results
+    const place = await fetchPlaceDetails(name, undefined, coordinates)
+    handlePlaceResult(place)
+    return
+  }
+
+  // Case 4: Coordinate-only lookup (new /place/coords/:lat/:lng format)
+  if (typeof lat === 'string' && typeof lng === 'string') {
+    const coordinates = {
+      lat: parseFloat(lat),
+      lng: parseFloat(lng),
+    }
+    
+    // Immediately add marker and move camera for partial place data
+    if (currentPlace.value?.geometry?.value?.center) {
+      handlePlaceResult(currentPlace.value)
+    }
+    
+    // Load full enriched place details
+    const place = await fetchPlaceDetailsByCoordinates(
+      coordinates.lat,
+      coordinates.lng,
+    )
     handlePlaceResult(place)
     return
   }

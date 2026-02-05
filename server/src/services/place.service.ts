@@ -81,6 +81,103 @@ function extractOsmTags(place: Place): Record<string, string> {
 }
 
 /**
+ * Check if a place is missing meaningful address data
+ * For buildings/POIs, we want at least a street address
+ */
+function isMissingAddressData(place: Place): boolean {
+  if (!place.address?.value) return true
+  
+  const addr = place.address.value
+  
+  // Check if we have street address - this is the most important component
+  const hasStreet = !!addr.street1
+  
+  // If we don't have a street address, consider it missing
+  // (even if we have city/country, that's not specific enough for a building)
+  return !hasStreet
+}
+
+/**
+ * Enrich a place with address data from reverse geocoding if address is missing
+ */
+async function enrichPlaceWithAddressData(place: Place): Promise<Place> {
+  // Skip if we already have good address data
+  if (!isMissingAddressData(place)) {
+    console.log('📍 Place already has address data, skipping address enrichment')
+    return place
+  }
+  
+  // Skip if we don't have coordinates
+  if (!place.geometry.value.center) {
+    console.log('📍 Place has no coordinates, cannot enrich address')
+    return place
+  }
+  
+  const startTime = Date.now()
+  console.log('📍 Place missing address data, attempting reverse geocoding enrichment...')
+  
+  try {
+    const { lat, lng } = place.geometry.value.center
+    
+    // Get geocoding integrations sorted by priority (Nominatim > Geoapify)
+    const geocodingIntegrations = integrationManager.getConfiguredIntegrationsByCapability(
+      IntegrationCapabilityId.GEOCODING
+    )
+    
+    if (!geocodingIntegrations.length) {
+      console.log('📍 No geocoding integration available for address enrichment')
+      return place
+    }
+    
+    // Try each geocoding integration in priority order
+    for (const integrationRecord of geocodingIntegrations) {
+      const integration = integrationManager.getCachedIntegrationInstance(integrationRecord)
+      
+      if (!integration?.capabilities.geocoding) continue
+      
+      console.log(`📍 Trying address enrichment with ${integrationRecord.integrationId}...`)
+      
+      try {
+        const results = await integration.capabilities.geocoding.reverseGeocode(lat, lng)
+        
+        if (results?.[0]?.address?.value) {
+          const geocodedAddress = results[0].address
+          
+          // Only use the address if it has meaningful data
+          const addr = geocodedAddress.value
+          if (addr.street1 || addr.locality) {
+            console.log(`📍 Successfully enriched address from ${integrationRecord.integrationId}`)
+            place.address = geocodedAddress
+            
+            // Add to sources if not already present
+            const sourceId = geocodedAddress.sourceId
+            if (!place.sources.some(s => s.sourceId === sourceId)) {
+              place.sources.push({
+                sourceId,
+                timestamp: geocodedAddress.timestamp,
+              })
+            }
+            
+            const enrichTime = Date.now() - startTime
+            console.log(`⏱️ [PERF] Address enrichment: ${enrichTime}ms`)
+            return place
+          }
+        }
+      } catch (error) {
+        console.error(`📍 Error enriching address with ${integrationRecord.integrationId}:`, error)
+        // Continue to next integration
+      }
+    }
+    
+    console.log('📍 No geocoding integration returned useful address data')
+    return place
+  } catch (error) {
+    console.error('📍 Error during address enrichment:', error)
+    return place
+  }
+}
+
+/**
  * Look up parent relations for a place, particularly useful for transit stops
  * that might have their Wikidata on a parent "transit stop area" relation
  */
@@ -296,22 +393,32 @@ export async function lookupPlaceById(
   placeId: string,
 ): Promise<Place | null> {
   try {
+    console.log(`[lookupPlaceById] Looking up source=${source}, placeId=${placeId}`)
     const integrationRecord =
       integrationManager.getConfiguredIntegrationForSource(
         source,
         IntegrationCapabilityId.PLACE_INFO,
       )
 
-    if (!integrationRecord) return null
+    if (!integrationRecord) {
+      console.log(`[lookupPlaceById] No integration found for source=${source} with PLACE_INFO capability`)
+      return null
+    }
 
+    console.log(`[lookupPlaceById] Found integration: ${integrationRecord.integrationId}`)
     const integration =
       integrationManager.getCachedIntegrationInstance(integrationRecord)
-    if (!integration) return null
+    if (!integration) {
+      console.log(`[lookupPlaceById] Integration instance not cached`)
+      return null
+    }
 
+    console.log(`[lookupPlaceById] Calling getPlaceInfo...`)
     return (
       (await integration.capabilities.placeInfo?.getPlaceInfo(placeId)) ?? null
     )
   } catch (error) {
+    console.error(`[lookupPlaceById] Error:`, error)
     return null
   }
 }
@@ -904,21 +1011,23 @@ export async function lookupEnrichedPlaceById(
       console.log(`⏱️ [PERF] Step 2 - Skipped third party search for Transitland transit stop`)
     }
 
-    // Step 3 & 4: Enrich with Wiki data and transit data in parallel
+    // Step 3, 4 & 5: Enrich with Wiki data, transit data, and address data in parallel
+    // Clone the place object for each enrichment to avoid race conditions
     const enrichmentStart = Date.now()
-    const [wikiEnrichedPlace, transitEnrichedPlace] = await Promise.all([
-      enrichPlaceWithWikiData(place, language),
-      enrichPlaceWithTransitData(place)
+    const [wikiEnrichedPlace, transitEnrichedPlace, addressEnrichedPlace] = await Promise.all([
+      enrichPlaceWithWikiData(JSON.parse(JSON.stringify(place)), language),
+      enrichPlaceWithTransitData(JSON.parse(JSON.stringify(place))),
+      enrichPlaceWithAddressData(JSON.parse(JSON.stringify(place)))
     ])
     
     // Merge the results (wiki data takes precedence for conflicts)
-    place = mergePlaces(wikiEnrichedPlace, transitEnrichedPlace)
+    place = mergePlaces(mergePlaces(wikiEnrichedPlace, transitEnrichedPlace), addressEnrichedPlace)
     const enrichmentTime = Date.now() - enrichmentStart
-    console.log(`⏱️ [PERF] Step 3&4 - Parallel enrichment (Wiki + Transit): ${enrichmentTime}ms`)
+    console.log(`⏱️ [PERF] Step 3-5 - Parallel enrichment (Wiki + Transit + Address): ${enrichmentTime}ms`)
 
-    // Step 5: Add bookmark information if user ID is provided
+    // Step 6: Add bookmark information if user ID is provided
     if (userId && place) {
-      const step5Start = Date.now()
+      const step6Start = Date.now()
       const bookmarkInfo = await findBookmarkByExternalIds(
         place.externalIds,
         userId,
@@ -927,8 +1036,8 @@ export async function lookupEnrichedPlaceById(
         place.bookmark = bookmarkInfo.bookmark
         place.collectionIds = bookmarkInfo.collectionIds
       }
-      const step5Time = Date.now() - step5Start
-      console.log(`⏱️ [PERF] Step 5 - Bookmark info: ${step5Time}ms`)
+      const step6Time = Date.now() - step6Start
+      console.log(`⏱️ [PERF] Step 6 - Bookmark info: ${step6Time}ms`)
     }
 
     const totalTime = Date.now() - startTime
@@ -939,6 +1048,221 @@ export async function lookupEnrichedPlaceById(
     const totalTime = Date.now() - startTime
     console.error(
       `❌ [PERF] Error looking up and merging place data (${source}/${id}) after ${totalTime}ms:`,
+      error,
+    )
+    return null
+  }
+}
+
+/**
+ * Look up and enrich a place by coordinates using reverse geocoding
+ * @param lat Latitude
+ * @param lng Longitude
+ * @param options Optional parameters for user context and search radius
+ * @returns Enriched place or null if not found
+ */
+export async function lookupEnrichedPlaceByCoordinates(
+  lat: number,
+  lng: number,
+  options?: {
+    userId?: User['id']
+    radius?: number
+    language?: SupportedLanguage
+  },
+): Promise<Place | null> {
+  const startTime = Date.now()
+  console.log(`⏱️ [PERF] Starting coordinate-based place lookup: lat=${lat}, lng=${lng}`)
+  
+  try {
+    const { userId, radius = 50, language = 'en' } = options || {}
+
+    // Step 1: Reverse geocode to find place at coordinates
+    const geocodingIntegrations = integrationManager.getConfiguredIntegrationsByCapability(
+      IntegrationCapabilityId.GEOCODING
+    )
+    
+    if (!geocodingIntegrations.length) {
+      console.error('No geocoding integration available')
+      return null
+    }
+    
+    const geocodingIntegration = integrationManager.getCachedIntegrationInstance(geocodingIntegrations[0])
+    
+    if (!geocodingIntegration?.capabilities.geocoding) {
+      console.error('Geocoding capability not available')
+      return null
+    }
+    
+    const step1Start = Date.now()
+    const results = await geocodingIntegration.capabilities.geocoding.reverseGeocode(lat, lng)
+    const step1Time = Date.now() - step1Start
+    console.log(`⏱️ [PERF] Step 1 - Reverse geocoding: ${step1Time}ms`)
+    
+    if (!results?.[0]) {
+      console.log(`⏱️ [PERF] Total time (no results): ${Date.now() - startTime}ms`)
+      return null
+    }
+    
+    let place = results[0]
+    
+    // Step 2: If we found a place with a name or ID, try to get full enriched details
+    // This handles clicking near a POI - we want the full POI details, not just address
+    
+    // First, check if we have an OSM ID - if so, use the full enrichment pipeline
+    const osmId = place.externalIds?.[SOURCE.OSM]
+    if (osmId) {
+      console.log(`📍 Found OSM ID: ${osmId}, using full enrichment pipeline...`)
+      
+      const step2Start = Date.now()
+      const enrichedPlace = await lookupEnrichedPlaceById(SOURCE.OSM, osmId, { userId, language })
+      const step2Time = Date.now() - step2Start
+      console.log(`⏱️ [PERF] Step 2 - Full enrichment by OSM ID: ${step2Time}ms`)
+      
+      if (enrichedPlace) {
+        // Override the coordinates with the exact clicked coordinates
+        // This ensures the marker stays where the user clicked
+        enrichedPlace.geometry = {
+          ...enrichedPlace.geometry,
+          value: {
+            ...enrichedPlace.geometry.value,
+            center: { lat, lng },
+          },
+        }
+        
+        const totalTime = Date.now() - startTime
+        console.log(`⏱️ [PERF] Total coordinate lookup time (with OSM enrichment): ${totalTime}ms`)
+        return enrichedPlace
+      }
+    }
+    
+    // Second, check if we have a Geoapify place ID
+    // Fetch it to extract the OSM ID, then use OSM for full enrichment
+    const geoapifyPlaceId = place.externalIds?.[SOURCE.GEOAPIFY]
+    if (!osmId && geoapifyPlaceId) {
+      console.log(`📍 Found Geoapify place ID: ${geoapifyPlaceId}, extracting OSM ID...`)
+      
+      const step2Start = Date.now()
+      
+      // Fetch from Geoapify to get OSM ID
+      const { IntegrationId, IntegrationCapabilityId } = await import('../types/integration.enums.js')
+      const geoapifyRecords = integrationManager
+        .getConfiguredIntegrationsByCapability(IntegrationCapabilityId.PLACE_INFO)
+        .filter((int) => int.integrationId === IntegrationId.GEOAPIFY)
+      
+      if (geoapifyRecords.length) {
+        const geoapifyIntegration = integrationManager.getCachedIntegrationInstance(geoapifyRecords[0])
+        
+        if (geoapifyIntegration?.capabilities.placeInfo) {
+          try {
+            const geoapifyPlace = await geoapifyIntegration.capabilities.placeInfo.getPlaceInfo(geoapifyPlaceId)
+            const extractedOsmId = geoapifyPlace?.externalIds?.[SOURCE.OSM]
+            
+            if (extractedOsmId) {
+              console.log(`📍 Extracted OSM ID from Geoapify: ${extractedOsmId}, using full OSM enrichment...`)
+              const enrichedPlace = await lookupEnrichedPlaceById(SOURCE.OSM, extractedOsmId, { userId, language })
+              const step2Time = Date.now() - step2Start
+              console.log(`⏱️ [PERF] Step 2 - Full enrichment via Geoapify→OSM: ${step2Time}ms`)
+              
+              if (enrichedPlace) {
+                // Override the coordinates with the exact clicked coordinates
+                enrichedPlace.geometry = {
+                  ...enrichedPlace.geometry,
+                  value: {
+                    ...enrichedPlace.geometry.value,
+                    center: { lat, lng },
+                  },
+                }
+                
+                const totalTime = Date.now() - startTime
+                console.log(`⏱️ [PERF] Total coordinate lookup time (with Geoapify→OSM enrichment): ${totalTime}ms`)
+                return enrichedPlace
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching Geoapify place for OSM ID extraction:', error)
+          }
+        }
+      }
+      
+      const step2Time = Date.now() - step2Start
+      console.log(`⏱️ [PERF] Step 2 - Geoapify place lookup (no OSM ID found): ${step2Time}ms`)
+    }
+    
+    // If no OSM ID but we have a name, try name+location search
+    if (place.name?.value && place.geometry.value.center) {
+      console.log(`📍 Found place with name: ${place.name.value}, searching for full details...`)
+      
+      const step2Start = Date.now()
+      const fullPlace = await lookupPlaceByNameAndLocation(
+        place.name.value,
+        place.geometry.value.center,
+        {
+          userId,
+          radius: 50, // Search within 50m
+          language,
+        }
+      )
+      const step2Time = Date.now() - step2Start
+      console.log(`⏱️ [PERF] Step 2 - Name+location search: ${step2Time}ms`)
+      
+      if (fullPlace) {
+        // Override the coordinates with the exact clicked coordinates
+        // This ensures the marker stays where the user clicked
+        fullPlace.geometry = {
+          ...fullPlace.geometry,
+          value: {
+            ...fullPlace.geometry.value,
+            center: { lat, lng },
+          },
+        }
+        
+        const totalTime = Date.now() - startTime
+        console.log(`⏱️ [PERF] Total coordinate lookup time (with name search): ${totalTime}ms`)
+        return fullPlace
+      }
+    }
+    
+    // Step 3: No place found or no name - return address-only data
+    console.log(`📍 No place found, returning address-only data`)
+    
+    // Override geocoded coordinates with the exact clicked coordinates
+    place.geometry = {
+      ...place.geometry,
+      value: {
+        ...place.geometry.value,
+        center: { lat, lng },
+      },
+    }
+    
+    // Strip POI data for address-only results
+    place.id = `coords/${lat}/${lng}`
+    place.externalIds = {}
+    place.name = { value: null, sourceId: 'geocoding', timestamp: new Date().toISOString() }
+    place.description = null
+    place.placeType = { value: 'address', sourceId: 'geocoding', timestamp: new Date().toISOString() }
+    place.photos = []
+    place.contactInfo = {
+      phone: null,
+      email: null,
+      website: null,
+      socials: {},
+    }
+    place.openingHours = null
+    place.ratings = undefined
+    place.transit = null
+    place.relations = null
+    place.amenities = {}
+    
+    // Note: No enrichment for address-only results since we've stripped all IDs and data
+
+    const totalTime = Date.now() - startTime
+    console.log(`⏱️ [PERF] Total coordinate lookup time (basic enrichment): ${totalTime}ms`)
+
+    return place
+  } catch (error) {
+    const totalTime = Date.now() - startTime
+    console.error(
+      `❌ [PERF] Error looking up place by coordinates (${lat},${lng}) after ${totalTime}ms:`,
       error,
     )
     return null

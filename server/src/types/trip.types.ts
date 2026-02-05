@@ -124,7 +124,7 @@ export interface TripSegment {
   duration: number // seconds
   distance: number // meters
   geometry: any // GeoJSON or encoded polyline
-  instructions: RouteInstruction[] | string[] // Support both full instructions and simple strings
+  instructions: RouteInstruction[]
   cost?: CurrencyAmount
   co2?: number // grams
   details?: SegmentDetails

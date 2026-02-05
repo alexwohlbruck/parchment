@@ -169,6 +169,8 @@
       "validation": "{type} error"
     },
     "coordinatesCopied": "Coordinates copied to clipboard",
+    "addressCopied": "Address copied to clipboard",
+    "placeNameCopied": "Place name copied to clipboard",
     "invitationSent": "Invitation sent to {email}",
     "unknownError": "An unknown error occurred",
     "plusCodeCopied": "Plus Code copied to clipboard",
@@ -179,7 +181,8 @@
     "contextMenu": {
       "edit": "Edit map",
       "viewIn": "View in",
-      "copyLocation": "Copy location"
+      "copyLocation": "Copy location",
+      "loadingAddress": "Loading address..."
     }
   },
   "layers": {

@@ -98,7 +98,7 @@ const geocodingRouter = new Elysia({ prefix: '/geocoding' })
     async ({ query, user }) => {
       const { lat, lng, limit = 10 } = query
 
-      if (!lat || !lng) {
+      if (lat === undefined || lng === undefined) {
         return error(400, {
           message: 'Both lat and lng parameters are required',
         })

@@ -94,6 +94,7 @@ export type MapEvents = {
       name?: string
     }
   }
+  // TODO: Fold this into 'click' event
   'click:mapillary-image': {
     lngLat: LngLat
     point: { x: number; y: number }
@@ -107,6 +108,7 @@ export type MapEvents = {
     lngLat: LngLat
     point: { x: number; y: number }
   }
+  // TODO: Fold this into 'click' event
   'click:friend-marker': {
     friendHandle: string
   }

@@ -958,7 +958,7 @@ export function useLayersService() {
   }
 
   // Place geometry layer management (handles polygons, multipolygons, and linestrings)
-  function createGeometryGeoJSON(place: Place) {
+  function createGeometryGeoJSON(place: Partial<Place>) {
     const geometry = place.geometry?.value
     if (!geometry) {
       return EMPTY_PLACE_POLYGON_GEOJSON
@@ -1092,11 +1092,11 @@ export function useLayersService() {
     mapStrategy.addLayer(strokeLayer)
   }
 
-  function updatePlacePolygon(mapStrategy: MapStrategy, place: Place | null) {
+  function updatePlacePolygon(mapStrategy: MapStrategy, place: Partial<Place> | null) {
     if (!mapStrategy) return
 
     const geoJSON = place
-      ? createGeometryGeoJSON(place)
+      ? createGeometryGeoJSON(place as Place)
       : EMPTY_PLACE_POLYGON_GEOJSON
     const source = mapStrategy.mapInstance.getSource(PLACE_POLYGON_SOURCE_ID)
 
@@ -1121,16 +1121,25 @@ export function useLayersService() {
           place.geometry.value.nodes.length > 0)),
     )
 
-    toggleLayerVisibility(
-      PLACE_POLYGON_FILL_LAYER_ID,
-      hasGeometryData,
-      mapStrategy,
-    )
-    toggleLayerVisibility(
-      PLACE_POLYGON_STROKE_LAYER_ID,
-      hasGeometryData,
-      mapStrategy,
-    )
+    // Only toggle visibility if the layers exist
+    try {
+      if (mapStrategy.mapInstance.getLayer(PLACE_POLYGON_FILL_LAYER_ID)) {
+        toggleLayerVisibility(
+          PLACE_POLYGON_FILL_LAYER_ID,
+          hasGeometryData,
+          mapStrategy,
+        )
+      }
+      if (mapStrategy.mapInstance.getLayer(PLACE_POLYGON_STROKE_LAYER_ID)) {
+        toggleLayerVisibility(
+          PLACE_POLYGON_STROKE_LAYER_ID,
+          hasGeometryData,
+          mapStrategy,
+        )
+      }
+    } catch (error) {
+      console.warn('Failed to toggle place polygon visibility:', error)
+    }
   }
 
   function removePlacePolygonLayers(mapStrategy: MapStrategy) {

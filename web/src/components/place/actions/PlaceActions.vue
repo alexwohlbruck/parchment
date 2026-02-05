@@ -20,7 +20,7 @@ import { type ThemeColor } from '@/lib/utils'
 import ResponsivePopover from '@/components/responsive/ResponsivePopover.vue'
 
 const props = defineProps<{
-  place: Place
+  place: Partial<Place>
 }>()
 
 const collectionsService = useCollectionsService()
@@ -56,7 +56,7 @@ async function createBookmark() {
 }
 
 const hasOsmId = computed(() => {
-  return props.place.externalIds['osm'] // TODO: Use enum constant
+  return props.place.externalIds?.['osm'] // TODO: Use enum constant
 })
 </script>
 

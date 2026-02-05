@@ -158,6 +158,8 @@
       "validation": "Error de {type}"
     },
     "coordinatesCopied": "Coordenadas copiadas al portapapeles",
+    "addressCopied": "Dirección copiada al portapapeles",
+    "placeNameCopied": "Nombre del lugar copiado al portapapeles",
     "invitationSent": "Invitación enviada a {email}",
     "unknownError": "Ocurrió un error desconocido",
     "plusCodeCopied": "Código Plus copiado al portapapeles",
@@ -168,7 +170,8 @@
     "contextMenu": {
       "edit": "Editar mapa",
       "viewIn": "Ver en",
-      "copyLocation": "Copiar ubicación"
+      "copyLocation": "Copiar ubicación",
+      "loadingAddress": "Cargando dirección..."
     }
   },
   "layers": {

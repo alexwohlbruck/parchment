@@ -8,6 +8,7 @@ import {
   SearchCategoryCapability,
   AutocompleteCapability,
   GeocodingCapability,
+  PlaceInfoCapability,
   RoutingCapability,
   MapBounds,
 } from '../../types/integration.types'
@@ -23,6 +24,7 @@ import {
   GeoapifyRoutingResponse,
 } from './adapters/geoapify-adapter'
 import { getGeoapifyCategory } from './mappings/geoapify-preset-mapping'
+import { SOURCE } from '../../lib/constants'
 
 export interface GeoapifyConfig extends IntegrationConfig {
   apiKey: string
@@ -34,6 +36,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
   protected config: GeoapifyConfig = { apiKey: '' }
   private placesBaseUrl = 'https://api.geoapify.com/v2/places'
   private geocodingBaseUrl = 'https://api.geoapify.com/v1/geocode'
+  private placeDetailsBaseUrl = 'https://api.geoapify.com/v2/place-details'
   private routingBaseUrl = 'https://api.geoapify.com/v1/routing'
 
   readonly integrationId = IntegrationId.GEOAPIFY
@@ -41,6 +44,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
     IntegrationCapabilityId.SEARCH_CATEGORY,
     IntegrationCapabilityId.AUTOCOMPLETE,
     IntegrationCapabilityId.GEOCODING,
+    IntegrationCapabilityId.PLACE_INFO, // Used internally for OSM ID extraction only
     IntegrationCapabilityId.ROUTING,
   ]
   readonly capabilities = {
@@ -54,6 +58,9 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
       geocode: this.geocode.bind(this),
       reverseGeocode: this.reverseGeocode.bind(this),
     } as GeocodingCapability,
+    placeInfo: {
+      getPlaceInfo: this.getPlaceInfo.bind(this),
+    } as PlaceInfoCapability,
     routing: {
       getRoute: this.getRoute.bind(this),
       metadata: {
@@ -88,6 +95,9 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
       },
     } as RoutingCapability,
   }
+  // Note: Empty sources array - Geoapify is not a primary data source
+  // It's used for geocoding, search, and routing, but place details come from OSM
+  readonly sources: Source[] = []
 
   initialize(config: GeoapifyConfig): void {
     if (!this.validateConfig(config)) {
@@ -322,6 +332,35 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
     } catch (error) {
       console.error('Error reverse geocoding with Geoapify:', error)
       return []
+    }
+  }
+
+  /**
+   * Get place details by Geoapify place ID
+   * @param id The Geoapify place ID
+   * @returns Place details or null if not found
+   */
+  async getPlaceInfo(id: string): Promise<Place | null> {
+    this.ensureInitialized()
+
+    try {
+      const url = `${this.placeDetailsBaseUrl}`
+      const params: any = {
+        id,
+        apiKey: this.config.apiKey,
+        format: 'geojson',
+      }
+
+      const response = await axios.get(url, { params })
+
+      if (!response.data?.features?.[0]) {
+        return null
+      }
+
+      return this.adapter.adaptPlaceDetails(response.data.features[0])
+    } catch (error) {
+      console.error('[Geoapify] Error getting place details:', error)
+      return null
     }
   }
 

@@ -1,19 +1,23 @@
 <script setup lang="ts">
 import { useMapCamera } from '@/composables/useMapCamera'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import type { LngLat } from '@/types/map.types'
-import { MapProjection, ControlVisibility } from '@/types/map.types'
+import { MapProjection, ControlVisibility, UnitSystem } from '@/types/map.types'
 import { useMapService } from '@/services/map.service'
 import { useMapStore } from '@/stores/map.store'
+import { useAppStore } from '@/stores/app.store'
 import { useResponsive } from '@/lib/utils'
 
 const mapService = useMapService()
 const mapStore = useMapStore()
+const appStore = useAppStore()
 const { controlSettings } = storeToRefs(mapStore)
+const { unitSystem } = storeToRefs(appStore)
 const { camera, onCameraMove } = useMapCamera()
 const { isMobileScreen, isMediumScreen } = useResponsive()
-const useMetric = ref(false) // TODO: Create user setting for this
+
+const useMetric = computed(() => unitSystem.value === UnitSystem.METRIC)
 
 const isVisible = computed(() => {
   const setting = controlSettings.value.scale

@@ -588,7 +588,17 @@
       }
     },
     "behavior": {
-      "title": "Comportamiento"
+      "title": "Comportamiento",
+      "language": {
+        "title": "Idioma"
+      },
+      "units": {
+        "title": "Unidades",
+        "system": "Sistema de unidades",
+        "description": "Sistema de unidades preferido para temperatura, distancia y velocidad",
+        "metric": "Métrico (°C, km, m/s)",
+        "imperial": "Imperial (°F, mi, mph)"
+      }
     },
     "appearance": {
       "title": "Apariencia",
@@ -652,6 +662,7 @@
         "scale": "Barra de escala",
         "streetView": "Vista de calle",
         "locate": "Ubicación",
+        "weather": "Clima",
         "visibility": {
           "always": "Siempre",
           "never": "Nunca",

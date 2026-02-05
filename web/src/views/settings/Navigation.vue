@@ -41,7 +41,6 @@ const pages: {
     id: 'behavior',
     to: '/settings/behavior',
     icon: CogIcon,
-    disabled: true,
   },
   {
     id: 'appearance',

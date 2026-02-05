@@ -288,4 +288,10 @@ export interface MapControlSettings {
     | ControlVisibility.WHILE_ACTIVE
     | ControlVisibility.NEVER
   locate: ControlVisibility.ALWAYS | ControlVisibility.NEVER
+  weather: ControlVisibility.ALWAYS | ControlVisibility.NEVER
+}
+
+export enum UnitSystem {
+  METRIC = 'metric',
+  IMPERIAL = 'imperial',
 }

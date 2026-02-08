@@ -2,6 +2,7 @@
 // Based on detailed requirements specification
 
 import { Coordinate, RouteInstruction } from './unified-routing.types'
+import type { Language } from '../lib/i18n/i18n.types'
 
 // =============================================================================
 // CORE TYPES
@@ -55,6 +56,8 @@ export interface TripRequest {
   preferredArrivalTime?: string // ISO string
   requestId?: string
   timestamp?: string // For reproducibility
+  /** Language code for localized instructions (e.g. en-US, es-ES) */
+  language?: Language
 }
 
 export interface Waypoint {

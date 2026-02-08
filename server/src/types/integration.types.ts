@@ -21,6 +21,7 @@ export interface SearchCapability {
     options?: {
       radius?: number
       limit?: number
+      language?: import('../lib/i18n').Language
     },
   ): Promise<Place[]>
 }
@@ -38,13 +39,25 @@ export interface AutocompleteCapability {
 }
 
 export interface PlaceInfoCapability {
-  getPlaceInfo(id: string): Promise<Place | null>
+  getPlaceInfo(
+    id: string,
+    options?: { language?: import('../lib/i18n').Language },
+  ): Promise<Place | null>
 }
 
 // TODO: Return types
 export interface GeocodingCapability {
-  geocode(query: string, lat?: number, lng?: number): Promise<any[]>
-  reverseGeocode(lat: number, lng: number): Promise<any[]>
+  geocode(
+    query: string,
+    lat?: number,
+    lng?: number,
+    options?: { language?: import('../lib/i18n').Language },
+  ): Promise<any[]>
+  reverseGeocode(
+    lat: number,
+    lng: number,
+    options?: { language?: import('../lib/i18n').Language },
+  ): Promise<any[]>
 }
 
 export interface RoutingCapability {

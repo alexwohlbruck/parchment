@@ -91,6 +91,9 @@ export interface RouteRequest {
   includeGeometry?: boolean
   geometryFormat?: 'geojson' | 'polyline'
 
+  // Localization (for turn-by-turn instructions)
+  language?: import('../lib/i18n').Language
+
   // Timing
   departureTime?: Date
 

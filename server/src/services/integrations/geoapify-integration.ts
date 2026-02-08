@@ -25,6 +25,7 @@ import {
 } from './adapters/geoapify-adapter'
 import { getGeoapifyCategory } from './mappings/geoapify-preset-mapping'
 import { SOURCE } from '../../lib/constants'
+import { getLanguageCode } from '../../lib/i18n'
 
 export interface GeoapifyConfig extends IntegrationConfig {
   apiKey: string
@@ -265,6 +266,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
     query: string,
     lat?: number,
     lng?: number,
+    _options?: { language?: string },
   ): Promise<Place[]> {
     this.ensureInitialized()
 
@@ -307,7 +309,11 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
    * @param lng Longitude
    * @returns Array of reverse geocoded places
    */
-  async reverseGeocode(lat: number, lng: number): Promise<Place[]> {
+  async reverseGeocode(
+    lat: number,
+    lng: number,
+    _options?: { language?: string },
+  ): Promise<Place[]> {
     this.ensureInitialized()
 
     try {
@@ -340,7 +346,10 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
    * @param id The Geoapify place ID
    * @returns Place details or null if not found
    */
-  async getPlaceInfo(id: string): Promise<Place | null> {
+  async getPlaceInfo(
+    id: string,
+    _options?: { language?: string },
+  ): Promise<Place | null> {
     this.ensureInitialized()
 
     try {
@@ -385,6 +394,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
         details += ',elevation'
       }
       
+      const lang = request.language ? getLanguageCode(request.language) : undefined
       const params: any = {
         waypoints: request.waypoints
           .map(wp => `${wp.coordinate.lat},${wp.coordinate.lng}`)
@@ -392,6 +402,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
         mode: this.mapTravelModeToGeoapify(request.mode),
         details,
         apiKey: this.config.apiKey,
+        ...(lang && { lang }),
       }
 
       // Add routing preferences if provided

@@ -119,6 +119,11 @@ export class TripService {
       parkedVehicles: [],
     }
 
+    const preferencesWithLanguage = {
+      ...(request.routingPreferences || {}),
+      ...(request.language && { language: request.language }),
+    }
+
     // Plan each leg of the journey
     for (let i = 0; i < request.waypoints.length - 1; i++) {
       const from = request.waypoints[i]
@@ -130,7 +135,7 @@ export class TripService {
         to,
         currentState,
         request.availableVehicles || [],
-        request.routingPreferences || {},
+        preferencesWithLanguage,
       )
 
       if (!result) return null

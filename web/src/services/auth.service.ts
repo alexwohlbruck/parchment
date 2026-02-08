@@ -2,6 +2,7 @@ import { api, isTauri } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
 import { useIntegrationService } from '@/services/integration.service'
 import { clearAllUserCaches } from '@/services/cache.service'
+import { syncPreferencesFromBackend } from '@/services/preferences.service'
 import { createSharedComposable } from '@vueuse/core'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 import { Session } from '@/types/session.types'
@@ -86,13 +87,13 @@ function authService() {
     // Set auth header first so integration fetches are authenticated
     setAuthHeader(sessionId)
     
-    // Fetch integrations before navigating to the map
-    // This ensures map has credentials available on fresh sign-in
+    // Fetch integrations and preferences before navigating to the map
     await Promise.all([
       integrationService.fetchAvailableIntegrations(),
       integrationService.fetchConfiguredIntegrations(),
+      syncPreferencesFromBackend(),
     ])
-    
+
     // Now navigate to the map (authStore.setAuthenticatedUser triggers navigation)
     authStore.setAuthenticatedUser(user, sessionId)
     getPermissions()

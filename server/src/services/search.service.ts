@@ -7,7 +7,7 @@ import {
 } from '../types/search.types'
 import { Bookmark } from '../types/library.types'
 import { Place } from '../types/place.types'
-import type { SupportedLanguage } from '../lib/i18n'
+import type { Language } from '../lib/i18n/i18n.types'
 // Import existing services
 import { searchBookmarks as searchBookmarksService } from './library/bookmarks.service'
 import { lookupPlacesByNameAndLocation } from './place.service'
@@ -192,7 +192,7 @@ function convertPlaceToSearchResult(place: Place): SearchResult {
 export async function search(
   userId: string,
   options: SearchOptions,
-  language: SupportedLanguage = 'en',
+  language: Language = 'en-US',
 ): Promise<SearchResponse | AutocompleteResponse> {
   const {
     query,
@@ -236,6 +236,7 @@ export async function search(
         radius,
         autocomplete,
         userId,
+        language,
       },
     )
 

@@ -299,7 +299,10 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
   /**
    * Get place info by onestop ID (implements PlaceInfoCapability)
    */
-  private async getPlaceInfo(onestopId: string): Promise<Place | null> {
+  private async getPlaceInfo(
+    onestopId: string,
+    _options?: { language?: string },
+  ): Promise<Place | null> {
     try {
       const stop = await this.getStop(onestopId)
       if (!stop) {

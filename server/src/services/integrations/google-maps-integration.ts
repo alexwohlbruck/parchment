@@ -15,6 +15,7 @@ import {
 import type { Place } from '../../types/place.types'
 import { GoogleAdapter } from './adapters/google-adapter'
 import { SOURCE } from '../../lib/constants'
+import { getLanguageCode } from '../../lib/i18n'
 
 // TODO: Use official Google client SDK for requests
 
@@ -126,21 +127,27 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
   /**
    * Get place details by place ID
    * @param placeId The Google Place ID
+   * @param options Optional parameters including language
    * @returns Place details or null if not found
    */
-  private async getPlaceInfo(placeId: string): Promise<Place | null> {
+  private async getPlaceInfo(
+    placeId: string,
+    options?: { language?: string },
+  ): Promise<Place | null> {
     try {
       console.log('Fetching place details for:', placeId)
-      const url = `${this.baseUrl}/places/${placeId}`
+      const lang = options?.language ? getLanguageCode(options.language) : undefined
+      const url = new URL(`${this.baseUrl}/places/${placeId}`)
+      if (lang) url.searchParams.set('languageCode', lang)
 
       const fieldMask =
         'id,displayName,formattedAddress,addressComponents,internationalPhoneNumber,websiteUri,types,photos,rating,userRatingCount,googleMapsUri,priceLevel,businessStatus,editorialSummary,location,dineIn,takeout,delivery,curbsidePickup,servesBreakfast,servesLunch,servesDinner,servesBeer,servesVegetarianFood,servesCocktails,servesCoffee,outdoorSeating,liveMusic,goodForChildren,goodForGroups,restroom,regularOpeningHours,utcOffsetMinutes'
 
       console.log(
         'Place Details URL:',
-        url.replace(this.config.apiKey, '[API_KEY]'),
+        url.toString().replace(this.config.apiKey, '[API_KEY]'),
       )
-      const response = await fetch(url, {
+      const response = await fetch(url.toString(), {
         method: 'GET',
         headers: {
           'X-Goog-Api-Key': this.config.apiKey,
@@ -179,16 +186,24 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
   /**
    * Geocode an address to coordinates
    * @param address The address to geocode
+   * @param options Optional parameters including language
    * @returns Array of place results
    */
-  private async geocode(address: string): Promise<Place[]> {
+  private async geocode(
+    address: string,
+    _lat?: number,
+    _lng?: number,
+    options?: { language?: string },
+  ): Promise<Place[]> {
     try {
       // Use the legacy Geocoding API as the new Places API doesn't have direct geocoding
       const url = `https://maps.googleapis.com/maps/api/geocode/json`
-      const params = {
+      const lang = options?.language ? getLanguageCode(options.language) : undefined
+      const params: Record<string, string> = {
         address: address,
         key: this.config.apiKey,
       }
+      if (lang) params.language = lang
 
       const queryString = new URLSearchParams(params).toString()
       const fullUrl = `${url}?${queryString}`
@@ -254,16 +269,23 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
    * Reverse geocode coordinates to places
    * @param lat Latitude
    * @param lng Longitude
+   * @param options Optional parameters including language
    * @returns Array of place results
    */
-  private async reverseGeocode(lat: number, lng: number): Promise<Place[]> {
+  private async reverseGeocode(
+    lat: number,
+    lng: number,
+    options?: { language?: string },
+  ): Promise<Place[]> {
     try {
       // Use the legacy Geocoding API as the new Places API doesn't have direct reverse geocoding
       const url = `https://maps.googleapis.com/maps/api/geocode/json`
-      const params = {
+      const lang = options?.language ? getLanguageCode(options.language) : undefined
+      const params: Record<string, string> = {
         latlng: `${lat},${lng}`,
         key: this.config.apiKey,
       }
+      if (lang) params.language = lang
 
       const queryString = new URLSearchParams(params).toString()
       const fullUrl = `${url}?${queryString}`
@@ -340,6 +362,7 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
     options?: {
       radius?: number
       limit?: number
+      language?: string
     },
   ): Promise<Place[]> {
     if (!this.config.apiKey) {
@@ -349,11 +372,13 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
 
     try {
       console.log(`Searching Google Places for: "${query}"`)
+      const lang = options?.language ? getLanguageCode(options.language) : undefined
 
       const url = `${this.baseUrl}/places:searchText`
       const requestBody: any = {
         textQuery: query,
         maxResultCount: options?.limit || 20,
+        ...(lang && { languageCode: lang }),
       }
 
       // Add location bias if coordinates are provided

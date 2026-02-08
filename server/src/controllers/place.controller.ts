@@ -1,6 +1,6 @@
-import { Elysia, t, error } from 'elysia'
+import { Elysia, t } from 'elysia'
 import { getSession, requireAuth } from '../middleware/auth.middleware.js'
-import i18nMiddleware from '../middleware/i18n.middleware.js'
+import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
 import {
   lookupPlaceByNameAndLocation,
   lookupEnrichedPlaceById,
@@ -9,12 +9,13 @@ import {
 import { SOURCE } from '../lib/constants.js'
 const app = new Elysia({ prefix: '/places' })
   .use(getSession)
-  .use(i18nMiddleware)
 
 // Get place by looking up source+id or name+lat+lng
 app.get(
   '/details',
-  async ({ query, user, language }) => {
+  async (ctx) => {
+    const { query, user, i18n, t, status } = ctx as typeof ctx & { i18n?: { language: import('../lib/i18n').Language }; t?: any; status?: any }
+    const language = i18n?.language ?? DEFAULT_LANGUAGE
     const { source, id, name, lat, lng, radius = 500 } = query
 
     const isIdLookup = Boolean(source) && Boolean(id)
@@ -26,8 +27,8 @@ app.get(
 
     // Check for at least one valid lookup parameter
     if (!isIdLookup && !isNameLocationLookup && !isCoordinateLookup) {
-      return error(400, {
-        message: 'Please provide either source+id, name+lat+lng, or lat+lng',
+      return status(400, {
+        message: t('errors.place.invalidParams'),
       })
     }
 
@@ -43,9 +44,8 @@ app.get(
             : [null, id]
 
           if (!osmType || !['node', 'way', 'relation'].includes(osmType)) {
-            return error(400, {
-              message:
-                'Invalid OSM type. Format should be "type/id" where type is node, way, or relation.',
+            return status(400, {
+              message: t('errors.place.invalidOsmType'),
             })
           }
         }
@@ -62,24 +62,24 @@ app.get(
             .filter((int) => int.integrationId === IntegrationId.GEOAPIFY)
           
           if (!geoapifyRecords.length) {
-            return error(500, {
-              message: 'Geoapify integration not available',
+            return status(500, {
+              message: t('errors.integration.notAvailable'),
             })
           }
           
           const geoapifyIntegration = integrationManager.getCachedIntegrationInstance(geoapifyRecords[0])
           
           if (!geoapifyIntegration?.capabilities.placeInfo) {
-            return error(500, {
-              message: 'Geoapify placeInfo capability not available',
+            return status(500, {
+              message: t('errors.integration.notAvailable'),
             })
           }
           
           const geoapifyPlace = await geoapifyIntegration.capabilities.placeInfo.getPlaceInfo(id!)
           
           if (!geoapifyPlace) {
-            return error(404, {
-              message: 'Geoapify place not found',
+            return status(404, {
+              message: t('errors.notFound.place'),
             })
           }
           
@@ -125,16 +125,16 @@ app.get(
       }
 
       if (!place) {
-        return error(404, {
-          message: 'Place not found with the provided parameters',
+        return status(404, {
+          message: t('errors.place.notFoundWithParams'),
         })
       }
 
       return place
     } catch (err) {
       console.error('Error in place lookup:', err)
-      return error(500, {
-        message: 'Error retrieving place data',
+      return status(500, {
+        message: t('errors.place.retrievalError'),
       })
     }
   },

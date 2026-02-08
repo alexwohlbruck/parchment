@@ -93,6 +93,7 @@ export class RoutingService {
       mode,
       includeInstructions: true,
       includeGeometry: true,
+      language: (preferences as { language?: import('../lib/i18n').Language })?.language,
       preferences: preferences ? {
         optimize,
         avoidTolls: preferences.avoidTolls,

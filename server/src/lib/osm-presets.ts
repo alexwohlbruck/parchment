@@ -1,4 +1,5 @@
-import type { SupportedLanguage } from './i18n'
+import type { Language } from './i18n'
+import { getLanguageCode } from './i18n'
 
 export type GeometryType = 'point' | 'line' | 'area' | 'vertex' | 'relation'
 
@@ -214,19 +215,20 @@ function buildIndex(presets: Record<string, PresetDefinition>): GeometryIndex {
   return geometryIndex
 }
 
-function loadTranslations(language: SupportedLanguage): any {
-  if (translations.has(language)) {
-    return translations.get(language)
+function loadTranslations(language: Language): any {
+  const apiLang = getLanguageCode(language)
+  if (translations.has(apiLang)) {
+    return translations.get(apiLang)
   }
 
   try {
-    const rawData = require(`@openstreetmap/id-tagging-schema/dist/translations/${language}.json`)
-    const data = rawData[language]
-    translations.set(language, data)
+    const rawData = require(`@openstreetmap/id-tagging-schema/dist/translations/${apiLang}.json`)
+    const data = rawData[apiLang]
+    translations.set(apiLang, data)
     return data
   } catch (error) {
-    if (language !== 'en') {
-      return loadTranslations('en')
+    if (apiLang !== 'en') {
+      return loadTranslations('en-US')
     }
     return { presets: { presets: {}, fields: {} } }
   }
@@ -368,14 +370,14 @@ export function matchTags(
 
 export function getPresetName(
   preset: PresetDefinition,
-  language: SupportedLanguage = 'en',
+  language: Language = 'en-US',
 ): string {
-  if (language === 'en') {
+  if (getLanguageCode(language) === 'en') {
     return preset.name
   }
 
   const c = createCache()
-  const key = `${preset.id}:${language}`
+  const key = `${preset.id}:${getLanguageCode(language)}`
 
   return getCached(c.names, c.stats.names, key, () => {
     const data = loadTranslations(language)
@@ -425,10 +427,10 @@ export function getPresetIcon(
 
 export function getPresetFields(
   preset: PresetDefinition,
-  language: SupportedLanguage = 'en',
+  language: Language = 'en-US',
 ): FieldDefinition[] {
   const c = createCache()
-  const key = `${preset.id}:${language}`
+  const key = `${preset.id}:${getLanguageCode(language)}`
 
   return getCached(c.fields, c.stats.fields, key, () => {
     const fieldData = loadFields()
@@ -491,7 +493,7 @@ export function getPresetFields(
 
 export function getPlaceType(
   tags: Record<string, string>,
-  language: SupportedLanguage = 'en',
+  language: Language = 'en-US',
   geometry: GeometryType = 'point',
 ): string {
   const match = matchTags(tags, geometry)
@@ -499,22 +501,12 @@ export function getPlaceType(
     return getPresetName(match.preset, language)
   }
 
-  const fallbacks: Record<
-    SupportedLanguage,
-    { place: string; unnamed: string }
-  > = {
+  const fallbacks: Record<string, { place: string; unnamed: string }> = {
     en: { place: 'Place', unnamed: 'Unnamed Place' },
-    fr: { place: 'Lieu', unnamed: 'Lieu sans nom' },
-    de: { place: 'Ort', unnamed: 'Unbenannter Ort' },
     es: { place: 'Lugar', unnamed: 'Lugar sin nombre' },
-    it: { place: 'Luogo', unnamed: 'Luogo senza nome' },
-    pt: { place: 'Local', unnamed: 'Local sem nome' },
-    ru: { place: 'Место', unnamed: 'Безымянное место' },
-    ja: { place: '場所', unnamed: '名前のない場所' },
-    zh: { place: '地点', unnamed: '未命名地点' },
   }
 
-  const fallback = fallbacks[language] || fallbacks.en
+  const fallback = fallbacks[getLanguageCode(language)] || fallbacks.en
   return tags.name ? fallback.place : fallback.unnamed
 }
 
@@ -547,7 +539,7 @@ export function getPlaceIcon(
 
 export function getPlaceFields(
   tags: Record<string, string>,
-  language: SupportedLanguage = 'en',
+  language: Language = 'en-US',
   geometry: GeometryType = 'point',
 ): FieldDefinition[] {
   const match = matchTags(tags, geometry)

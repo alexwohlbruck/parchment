@@ -104,9 +104,13 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
   /**
    * Get place details by OSM ID
    * @param id The OSM ID in format type/id (e.g., node/123456)
+   * @param options Optional parameters including language
    * @returns Place details or null if not found
    */
-  private async getPlaceInfo(id: string): Promise<Place | null> {
+  private async getPlaceInfo(
+    id: string,
+    _options?: { language?: string },
+  ): Promise<Place | null> {
     if (!this.config.host) {
       console.error('Overpass integration not properly configured')
       return null

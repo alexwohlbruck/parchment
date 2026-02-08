@@ -1,6 +1,7 @@
-import { Elysia, t, error } from 'elysia'
+import { Elysia, t } from 'elysia'
 import { integrationManager } from '../services/integrations'
 import { IntegrationCapabilityId } from '../types/integration.types'
+import { getLanguageCode } from '../lib/i18n'
 
 const weatherRouter = new Elysia({ prefix: '/weather' })
   /**
@@ -9,12 +10,13 @@ const weatherRouter = new Elysia({ prefix: '/weather' })
    */
   .get(
     '/',
-    async ({ query }) => {
+    async ({ query, t, i18n, status }) => {
       const { lat, lng, lang } = query
+      const language = lang ?? getLanguageCode(i18n.language)
 
       if (lat === undefined || lng === undefined) {
-        return error(400, {
-          message: 'Latitude and longitude are required',
+        return status(400, {
+          message: t('errors.weather.locationRequired'),
         })
       }
 
@@ -26,8 +28,8 @@ const weatherRouter = new Elysia({ prefix: '/weather' })
           )
 
         if (weatherIntegrations.length === 0) {
-          return error(503, {
-            message: 'No weather service is currently available',
+          return status(503, {
+            message: t('errors.integration.unavailable'),
           })
         }
 
@@ -37,23 +39,23 @@ const weatherRouter = new Elysia({ prefix: '/weather' })
           integrationManager.getCachedIntegrationInstance(integrationRecord)
 
         if (!integration || !integration.capabilities.weather) {
-          return error(503, {
-            message: 'Weather service is not properly configured',
+          return status(503, {
+            message: t('errors.integration.unavailable'),
           })
         }
 
-        // Call the weather capability
+        // Call the weather capability (always metric; lang for descriptions)
         const weatherData = await integration.capabilities.weather.getWeather(
           Number(lat),
           Number(lng),
-          lang,
+          language,
         )
 
         return weatherData
       } catch (err: any) {
         console.error('Error fetching weather:', err)
-        return error(500, {
-          message: err.message || 'Failed to fetch weather data',
+        return status(500, {
+          message: err.message || t('errors.weather.fetchFailed'),
         })
       }
     },

@@ -1,5 +1,5 @@
 import type { OpeningTime } from '../types/place.types'
-import type { SupportedLanguage } from './i18n'
+import type { Language } from './i18n'
 import {
   getPlaceType as getOSMPlaceType,
   type GeometryType,
@@ -7,7 +7,7 @@ import {
 
 export function getPlaceType(
   tags: Record<string, string>,
-  language: SupportedLanguage = 'en',
+  language: Language = 'en-US',
   geometry: GeometryType = 'point',
 ): string {
   return getOSMPlaceType(tags, language, geometry)

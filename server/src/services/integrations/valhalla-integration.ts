@@ -17,6 +17,7 @@ import {
   RouteInstruction,
   RouteSummary,
 } from '../../types/unified-routing.types'
+import { getLanguageCode } from '../../lib/i18n'
 import type {
   ValhallaConfig,
   ValhallaResponse,
@@ -185,6 +186,7 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
         : this.config.host
       const url = `${host}/route`
 
+      const lang = request.language ? getLanguageCode(request.language) : 'en'
       const requestBody = {
         locations: request.waypoints.map((waypoint) => ({
           lat: waypoint.coordinate.lat,
@@ -198,6 +200,7 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
           units: 'kilometers',
           narrative: request.includeInstructions ?? true,
           format: 'json',
+          ...(lang && { language: lang }),
         },
       }
 

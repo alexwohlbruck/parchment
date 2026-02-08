@@ -4,6 +4,7 @@ import dayjs from 'dayjs'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useMapService } from '@/services/map.service'
+import { useUnits } from '@/composables/useUnits'
 import { getTravelModeCssClass } from '@/lib/travel-mode-colors'
 import {
   FootprintsIcon,
@@ -41,6 +42,7 @@ const emit = defineEmits<{
 const router = useRouter()
 const mapService = useMapService()
 const { t } = useI18n()
+const { formatDistance, formatElevation } = useUnits()
 
 const modeIcons = {
   walking: FootprintsIcon,
@@ -99,15 +101,6 @@ function formatDuration(seconds: number) {
   const hours = Math.floor(minutes / 60)
   const remainingMinutes = minutes % 60
   return `${hours}h ${remainingMinutes}m`
-}
-
-function formatDistance(meters: number) {
-  if (meters < 1000) return `${Math.round(meters)} m`
-  return `${(meters / 1000).toFixed(1)} km`
-}
-
-function formatElevation(meters: number) {
-  return `${Math.round(meters)} m`
 }
 
 function getDisplayTime(date: Date, isFirstSegment: boolean = false) {

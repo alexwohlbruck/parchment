@@ -18,6 +18,7 @@ import {
   RouteSummary,
   Coordinate,
 } from '../../types/unified-routing.types'
+import { getLanguageCode } from '../../lib/i18n'
 import type {
   GraphHopperConfig,
   GraphHopperRouteRequest,
@@ -255,6 +256,7 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
       const baseUrl = this.getBaseUrl(this.config)
       const url = `${baseUrl}/route`
 
+      const locale = request.language ? getLanguageCode(request.language) : undefined
       const requestBody: GraphHopperRouteRequest = {
         profile: this.mapTravelModeToProfile(request.mode),
         points: request.waypoints.map((waypoint) => [
@@ -266,6 +268,7 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
         points_encoded: false, // Use GeoJSON format for easier parsing
         elevation: true, // Enable elevation data
         details: ['road_class', 'surface', 'toll', 'road_environment'], // Request useful path details
+        ...(locale && { locale }),
       }
 
       // Apply preferences

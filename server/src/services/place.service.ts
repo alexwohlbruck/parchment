@@ -1,5 +1,5 @@
 import type { Place, TransitDeparture } from '../types/place.types'
-import type { SupportedLanguage } from '../lib/i18n'
+import type { Language } from '../lib/i18n/i18n.types'
 import { mergePlacesCollection, mergePlaces, calculateTextSimilarity } from './merge.service'
 import type { PlaceRelation } from '../types/place.types'
 import { Source, SOURCE } from '../lib/constants'
@@ -386,11 +386,13 @@ async function addBookmarkInfo(places: Place[], userId: string): Promise<void> {
  *
  * @param source The source ID (e.g., SOURCE.GOOGLE, SOURCE.OSM)
  * @param placeId The provider-specific ID for the place
+ * @param options Optional parameters including language for localized results
  * @returns Provider-specific place data or null if not found
  */
 export async function lookupPlaceById(
   source: Source,
   placeId: string,
+  options?: { language?: Language },
 ): Promise<Place | null> {
   try {
     console.log(`[lookupPlaceById] Looking up source=${source}, placeId=${placeId}`)
@@ -415,7 +417,10 @@ export async function lookupPlaceById(
 
     console.log(`[lookupPlaceById] Calling getPlaceInfo...`)
     return (
-      (await integration.capabilities.placeInfo?.getPlaceInfo(placeId)) ?? null
+      (await integration.capabilities.placeInfo?.getPlaceInfo(
+        placeId,
+        options,
+      )) ?? null
     )
   } catch (error) {
     console.error(`[lookupPlaceById] Error:`, error)
@@ -440,6 +445,7 @@ export async function lookupPlacesByNameAndLocation(
     radius?: number
     sourceBlacklist?: Source[]
     userId?: User['id']
+    language?: Language
   },
 ): Promise<Place[]> {
   try {
@@ -447,6 +453,7 @@ export async function lookupPlacesByNameAndLocation(
       radius = 500,
       sourceBlacklist = [],
       autocomplete = false,
+      language,
     } = options || {}
 
     const integrationRecords = integrationManager
@@ -486,6 +493,7 @@ export async function lookupPlacesByNameAndLocation(
           name,
           coordinates.lat,
           coordinates.lng,
+          { radius, language },
         )
       }
     })
@@ -533,7 +541,7 @@ export async function lookupPlaceByNameAndLocation(
     userId?: User['id']
     radius?: number
     sourceBlacklist?: Source[]
-    language?: SupportedLanguage
+    language?: Language
   },
 ): Promise<Place | null> {
   const startTime = Date.now()
@@ -545,6 +553,7 @@ export async function lookupPlaceByNameAndLocation(
       radius = 500,
       sourceBlacklist = [],
       autocomplete = false,
+      language,
     } = options || {}
 
     // Get all places matching the name and coordinates from all providers
@@ -553,6 +562,7 @@ export async function lookupPlaceByNameAndLocation(
       radius,
       sourceBlacklist,
       autocomplete,
+      language,
     })
     const searchTime = Date.now() - searchStart
     console.log(`⏱️ [PERF] Multi-provider search: ${searchTime}ms (found ${places.length} places)`)
@@ -590,7 +600,7 @@ export async function lookupPlaceByNameAndLocation(
  */
 async function enrichPlaceWithWikiData(
   place: Place, 
-  language: SupportedLanguage = 'en'
+  language: Language = 'en'
 ): Promise<Place> {
   const startTime = Date.now()
   console.log(`⏱️ [PERF] Starting Wiki data enrichment`)
@@ -962,7 +972,7 @@ export async function lookupEnrichedPlaceById(
   id: string,
   options?: {
     userId?: User['id']
-    language?: SupportedLanguage
+    language?: Language
   },
 ): Promise<Place | null> {
   const startTime = Date.now()
@@ -1067,7 +1077,7 @@ export async function lookupEnrichedPlaceByCoordinates(
   options?: {
     userId?: User['id']
     radius?: number
-    language?: SupportedLanguage
+    language?: Language
   },
 ): Promise<Place | null> {
   const startTime = Date.now()

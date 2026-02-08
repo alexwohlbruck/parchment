@@ -1,12 +1,10 @@
-import { Elysia, t, error } from 'elysia'
+import { Elysia, t } from 'elysia'
 import { requireAuth } from '../middleware/auth.middleware'
-import i18nMiddleware from '../middleware/i18n.middleware'
 import { integrationManager } from '../services/integrations'
 import { IntegrationCapabilityId } from '../types/integration.types'
 
 const geocodingRouter = new Elysia({ prefix: '/geocoding' })
   .use(requireAuth)
-  .use(i18nMiddleware)
 
   /**
    * Forward geocoding: Convert an address/query to coordinates
@@ -14,12 +12,12 @@ const geocodingRouter = new Elysia({ prefix: '/geocoding' })
    */
   .get(
     '/forward',
-    async ({ query, user }) => {
+    async ({ query, user, status, t }) => {
       const { query: searchQuery, lat, lng, limit = 10 } = query
 
       if (!searchQuery || searchQuery.trim().length === 0) {
-        return error(400, {
-          message: 'Query parameter is required',
+        return status(400, {
+          message: t('errors.geocoding.queryRequired'),
         })
       }
 
@@ -31,8 +29,8 @@ const geocodingRouter = new Elysia({ prefix: '/geocoding' })
           )
 
         if (geocodingIntegrations.length === 0) {
-          return error(503, {
-            message: 'No geocoding service is currently available',
+          return status(503, {
+            message: t('errors.geocoding.serviceUnavailable'),
           })
         }
 
@@ -42,8 +40,8 @@ const geocodingRouter = new Elysia({ prefix: '/geocoding' })
           integrationManager.getCachedIntegrationInstance(integrationRecord)
 
         if (!integration || !integration.capabilities.geocoding) {
-          return error(503, {
-            message: 'Geocoding service is not properly configured',
+          return status(503, {
+            message: t('errors.integration.notConfigured'),
           })
         }
 
@@ -65,11 +63,9 @@ const geocodingRouter = new Elysia({ prefix: '/geocoding' })
         }
       } catch (err) {
         console.error('Error performing forward geocoding:', err)
-        return error(500, {
+        return status(500, {
           message:
-            err instanceof Error
-              ? err.message
-              : 'Failed to perform geocoding',
+            err instanceof Error ? err.message : 'Failed to perform geocoding',
         })
       }
     },
@@ -95,12 +91,12 @@ const geocodingRouter = new Elysia({ prefix: '/geocoding' })
    */
   .get(
     '/reverse',
-    async ({ query, user }) => {
+    async ({ query, user, status, t }) => {
       const { lat, lng, limit = 10 } = query
 
       if (lat === undefined || lng === undefined) {
-        return error(400, {
-          message: 'Both lat and lng parameters are required',
+        return status(400, {
+          message: t('errors.geocoding.coordinatesRequired'),
         })
       }
 
@@ -110,21 +106,21 @@ const geocodingRouter = new Elysia({ prefix: '/geocoding' })
         const longitude = parseFloat(lng)
 
         if (isNaN(latitude) || isNaN(longitude)) {
-          return error(400, {
-            message: 'Invalid lat or lng values',
+          return status(400, {
+            message: t('errors.validation.invalidCoordinates'),
           })
         }
 
         // Validate coordinate ranges
         if (latitude < -90 || latitude > 90) {
-          return error(400, {
-            message: 'Latitude must be between -90 and 90',
+          return status(400, {
+            message: t('errors.validation.latitudeRange'),
           })
         }
 
         if (longitude < -180 || longitude > 180) {
-          return error(400, {
-            message: 'Longitude must be between -180 and 180',
+          return status(400, {
+            message: t('errors.validation.longitudeRange'),
           })
         }
 
@@ -135,8 +131,8 @@ const geocodingRouter = new Elysia({ prefix: '/geocoding' })
           )
 
         if (geocodingIntegrations.length === 0) {
-          return error(503, {
-            message: 'No geocoding service is currently available',
+          return status(503, {
+            message: t('errors.geocoding.serviceUnavailable'),
           })
         }
 
@@ -146,17 +142,16 @@ const geocodingRouter = new Elysia({ prefix: '/geocoding' })
           integrationManager.getCachedIntegrationInstance(integrationRecord)
 
         if (!integration || !integration.capabilities.geocoding) {
-          return error(503, {
-            message: 'Geocoding service is not properly configured',
+          return status(503, {
+            message: t('errors.integration.notConfigured'),
           })
         }
 
         // Call the reverse geocoding capability
-        const results =
-          await integration.capabilities.geocoding.reverseGeocode(
-            latitude,
-            longitude,
-          )
+        const results = await integration.capabilities.geocoding.reverseGeocode(
+          latitude,
+          longitude,
+        )
 
         // Limit results
         const limitedResults = results.slice(0, parseInt(limit.toString()))
@@ -172,7 +167,7 @@ const geocodingRouter = new Elysia({ prefix: '/geocoding' })
         }
       } catch (err) {
         console.error('Error performing reverse geocoding:', err)
-        return error(500, {
+        return status(500, {
           message:
             err instanceof Error
               ? err.message

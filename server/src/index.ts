@@ -1,6 +1,7 @@
 import { Elysia } from 'elysia'
 import { swagger } from '@elysiajs/swagger'
 import { cors } from '@elysiajs/cors'
+import { i18next } from 'elysia-i18next'
 import { cors as corsConfig, swagger as swaggerConfig } from './config'
 import {
   healthCheck as healthCheckController,
@@ -20,13 +21,24 @@ import {
   weather as weatherController,
 } from './controllers'
 import { initializeIntegrations } from './services/integration.service'
-import { initI18n } from './lib/i18n'
+import { getI18nInitOptions, detectLanguage } from './lib/i18n'
 import { initializeOsmPresets } from './lib/osm-presets'
 
 const app = new Elysia()
 
 app.use(cors(corsConfig))
 app.use(swagger(swaggerConfig))
+app.use(
+  i18next({
+    initOptions: getI18nInitOptions(),
+    detectLanguage: ({ request }) => {
+      const url = new URL(request.url)
+      const queryLang = url.searchParams.get('lang') ?? undefined
+      const acceptLanguage = request.headers.get('accept-language') ?? undefined
+      return detectLanguage(queryLang, acceptLanguage)
+    },
+  }),
+)
 
 app.use(healthCheckController)
 app.use(authController)
@@ -65,8 +77,7 @@ console.log(
 // Initialize services asynchronously
 async function initialize() {
   try {
-    await initI18n()
-    console.log('✅ i18n initialized')
+    console.log('✅ i18n configured')
 
     initializeOsmPresets()
 

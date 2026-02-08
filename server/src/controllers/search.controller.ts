@@ -1,6 +1,6 @@
-import { Elysia, t, error } from 'elysia'
+import { Elysia, t } from 'elysia'
 import { requireAuth } from '../middleware/auth.middleware'
-import i18nMiddleware from '../middleware/i18n.middleware'
+import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
 import * as searchService from '../services/search.service'
 import { integrationManager } from '../services/integrations'
 import {
@@ -12,11 +12,11 @@ import { categoryService } from '../services/category.service'
 
 const searchRouter = new Elysia({ prefix: '/search' })
   .use(requireAuth)
-  .use(i18nMiddleware)
 
   .get(
     '/',
-    async ({ query, user, language }) => {
+    async ({ query, user, i18n, status }) => {
+      const language = i18n?.language ?? DEFAULT_LANGUAGE
       const {
         q: searchQuery = '',
         lat,
@@ -59,7 +59,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
 
   .post(
     '/advanced',
-    async ({ body, user, language }) => {
+    async ({ body, status, t }) => {
       const { query, maxResults = 100 } = body
 
       const overpassIntegration =
@@ -69,8 +69,8 @@ const searchRouter = new Elysia({ prefix: '/search' })
         )
 
       if (!overpassIntegration) {
-        return error(503, {
-          message: 'Overpass integration is not configured.',
+        return status(503, {
+          message: t('errors.search.overpassNotConfigured'),
         })
       }
 
@@ -81,8 +81,8 @@ const searchRouter = new Elysia({ prefix: '/search' })
         !integration ||
         integration.integrationId !== IntegrationId.OVERPASS
       ) {
-        return error(503, {
-          message: 'Overpass integration is not available',
+        return status(503, {
+          message: t('errors.search.overpassNotAvailable'),
         })
       }
 
@@ -98,7 +98,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
           executedAt: new Date().toISOString(),
         }
       } catch (err) {
-        return error(500, {
+        return status(500, {
           message:
             err instanceof Error
               ? err.message
@@ -121,7 +121,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
   // TODO: Remove client-side category cache. Return category suggestions in search endpoint
   .post(
     '/category',
-    async ({ body, user, language }) => {
+    async ({ body, status }) => {
       const { presetId, bounds, maxResults = 100 } = body
 
       try {
@@ -138,8 +138,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
         }
       } catch (err) {
         console.error('Error executing category search:', err)
-        return error(500, {
-          // TODO: Deprecated error function
+        return status(500, {
           message:
             err instanceof Error
               ? err.message
@@ -168,7 +167,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
   // Categories endpoint for loading OSM presets
   .get(
     '/categories',
-    async ({ query, language }) => {
+    async ({ query, language, t, status }) => {
       const { maxResults = 1000 } = query
 
       try {
@@ -184,8 +183,8 @@ const searchRouter = new Elysia({ prefix: '/search' })
         }
       } catch (err) {
         console.error('Error loading categories:', err)
-        return error(500, {
-          message: 'Failed to load categories',
+        return status(500, {
+          message: t('errors.search.categoriesLoadFailed'),
         })
       }
     },
@@ -203,21 +202,21 @@ const searchRouter = new Elysia({ prefix: '/search' })
   // Get a specific category by ID
   .get(
     '/categories/:categoryId',
-    async ({ params: { categoryId }, language }) => {
+    async ({ params: { categoryId }, language, t, status }) => {
       try {
         const category = categoryService.getCategoryById(categoryId, language)
 
         if (!category) {
-          return error(404, {
-            message: 'Category not found',
+          return status(404, {
+            message: t('errors.notFound.category'),
           })
         }
 
         return category
       } catch (err) {
         console.error('Error getting category:', err)
-        return error(500, {
-          message: 'Failed to get category',
+        return status(500, {
+          message: t('errors.search.categoryFailed'),
         })
       }
     },

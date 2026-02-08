@@ -89,9 +89,9 @@ export const getSession = (app: Elysia) =>
 
 // Use getSession to get user ID, return 401 if user is not authenticated
 export const requireAuth = (app: Elysia) =>
-  app.use(getSession).derive(async ({ set, user, session, error }) => {
+  app.use(getSession).derive(async ({ user, session, status, t }) => {
     if (!user || !session) {
-      return error(401, { message: 'You must be signed in' }) // TODO: i18n
+      return status(401, { message: t('errors.auth.unauthorized') })
     }
     return {
       user,
@@ -111,11 +111,11 @@ export const getUser = (app: Elysia) =>
 // Require the user have certain permissions to access a route
 export const permissions =
   (allowedPermissions: PermissionRule) => (app: Elysia) =>
-    app.use(getUser).derive(async ({ user, error }) => {
+    app.use(getUser).derive(async ({ user, status, t }) => {
       const userPermissions = await getPermissions(user.id)
 
       if (!hasPermission(userPermissions, allowedPermissions)) {
-        return error(401, { message: 'You do not have permission to do this' })
+        return status(401, { message: t('errors.auth.forbidden') })
       }
 
       return {

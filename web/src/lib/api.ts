@@ -6,7 +6,7 @@ import { useStorage } from '@vueuse/core'
 import { watchEffect, ref, computed } from 'vue'
 import { DEFAULT_SERVER_URL, APP_NAME_SHORT } from '@/lib/constants'
 import router, { AppRoute } from '@/router'
-import { i18n } from '@/lib/i18n'
+import { i18n, storedLocale } from '@/lib/i18n'
 
 // Detect Tauri environment using the Tauri API
 // Try to use @tauri-apps/api/os for reliable detection
@@ -100,6 +100,12 @@ export const api = axios.create({
 
 watchEffect(() => {
   api.defaults.baseURL = serverUrl.value
+})
+
+// Send locale to backend for localized responses (e.g. weather, directions, place names)
+api.interceptors.request.use((config) => {
+  config.headers.set('Accept-Language', storedLocale.value)
+  return config
 })
 
 /**

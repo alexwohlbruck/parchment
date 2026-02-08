@@ -47,6 +47,7 @@ import UserHandle from '@/components/UserHandle.vue'
 import { useMapService } from '@/services/map.service'
 import { appEventBus } from '@/lib/eventBus'
 import DetailPanelLayout from '@/components/layouts/DetailPanelLayout.vue'
+import { useUnits } from '@/composables/useUnits'
 
 const props = defineProps<{
   handle: string
@@ -60,6 +61,7 @@ const appService = useAppService()
 const locationService = useLocationService()
 const locationBroadcast = useE2eeLocationBroadcast()
 const mapService = useMapService()
+const { formatSpeed, formatElevation } = useUnits()
 
 const { friends } = storeToRefs(friendsStore)
 const friendLocations = useFriendLocations()
@@ -372,7 +374,7 @@ watch([isLoading, friend], ([loading, f]) => {
                 {{ t('friends.detail.altitude') }}
               </p>
               <p class="font-medium">
-                {{ Math.round(friendLocation.location.altitude) }}m
+                {{ formatElevation(friendLocation.location.altitude) }}
               </p>
             </div>
           </div>
@@ -389,8 +391,7 @@ watch([isLoading, friend], ([loading, f]) => {
               </p>
               <p class="font-medium">
                 <template v-if="friendLocation.location.speed > 0.5">
-                  {{ (friendLocation.location.speed * 3.6).toFixed(1) }}
-                  km/h
+                  {{ formatSpeed(friendLocation.location.speed) }}
                 </template>
                 <template v-else>
                   {{ t('friends.detail.stationary') }}

@@ -1,4 +1,5 @@
 import { Elysia, t } from 'elysia'
+import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
 import { multimodalTripService } from '../services/trip.service'
 import {
   TripRequest,
@@ -102,10 +103,12 @@ const app = new Elysia({ prefix: '/directions' })
  */
 app.post(
   '/',
-  async ({ body }) => {
+  async (ctx) => {
+    const { body, i18n } = ctx as typeof ctx & { i18n?: { language: import('../lib/i18n').Language } }
     try {
-      // Convert the validated body to our internal TripRequest type
+      // Language from elysia-i18next context; fallback from lib/i18n config only (no magic strings)
       const request: TripRequest = {
+        language: i18n?.language ?? DEFAULT_LANGUAGE,
         waypoints: body.waypoints.map((wp, index) => ({
           location: {
             lat: wp.location.lat,

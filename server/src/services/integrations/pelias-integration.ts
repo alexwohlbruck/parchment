@@ -34,7 +34,11 @@ export class PeliasIntegration implements Integration<PeliasConfig> {
   readonly capabilities = {
     geocoding: {
       geocode: this.searchPlaces.bind(this),
-      reverseGeocode: async (lat: number, lng: number) => {
+      reverseGeocode: async (
+        lat: number,
+        lng: number,
+        _options?: { language?: string },
+      ) => {
         // Implement reverse geocoding using Pelias reverse endpoint
         const url = `${this.config.host}/v1/reverse`
         const params: Record<string, any> = {
@@ -161,14 +165,17 @@ export class PeliasIntegration implements Integration<PeliasConfig> {
     query: string,
     lat?: number,
     lng?: number,
-    radius?: number,
+    options?: { radius?: number; limit?: number; language?: string },
   ) {
     this.ensureInitialized()
+    const radius = options?.radius
+      ? options.radius / 1000
+      : undefined
 
     const apiUrl = this.buildApiUrl()
     const params: Record<string, any> = {
       text: query,
-      size: 10,
+      size: options?.limit ?? 10,
     }
 
     // Add API key if available
@@ -181,11 +188,10 @@ export class PeliasIntegration implements Integration<PeliasConfig> {
       params['focus.point.lat'] = lat
       params['focus.point.lon'] = lng
 
-      // We can optionally restrict the search radius with boundary.circle
-      if (radius) {
+      // We can optionally restrict the search radius with boundary.circle (radius in km)
+      if (radius !== undefined) {
         params['boundary.circle.lat'] = lat
         params['boundary.circle.lon'] = lng
-        // Radius is already in kilometers for Pelias
         params['boundary.circle.radius'] = radius
       }
     }
@@ -290,9 +296,13 @@ export class PeliasIntegration implements Integration<PeliasConfig> {
   /**
    * Get place details by Pelias ID
    * @param id The place ID
+   * @param options Optional parameters including language
    * @returns Place details or null if not found
    */
-  private async getPlaceInfo(id: string): Promise<Place | null> {
+  private async getPlaceInfo(
+    id: string,
+    _options?: { language?: string },
+  ): Promise<Place | null> {
     this.ensureInitialized()
 
     try {

@@ -155,6 +155,13 @@
       "when": 1768266042406,
       "tag": "0021_modern_jamie_braddock",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1770503750125,
+      "tag": "0022_new_oracle",
+      "breakpoints": true
     }
   ]
 }

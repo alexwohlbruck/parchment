@@ -172,9 +172,10 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
     query: string,
     lat?: number,
     lng?: number,
-    radius?: number,
+    options?: { radius?: number; limit?: number; language?: string },
   ): Promise<Place[]> {
     this.ensureInitialized()
+    const radius = options?.radius
 
     const apiUrl = this.buildApiUrl()
     const params: Record<string, any> = {
@@ -183,16 +184,17 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
       addressdetails: '1',
       extratags: '1',
       namedetails: '1',
-      limit: '50',
+      limit: String(options?.limit ?? 50),
       dedupe: '1',
-      'accept-language': 'en', // TODO: i18n
+      'accept-language': options?.language ?? 'en',
       polygon_geojson: '1', // Request polygon geometry in GeoJSON format
       // email: this.config.email,
     }
 
-    // Add location bias if coordinates are provided
+    // Add location bias if coordinates are provided (radius in km; options.radius may be in meters)
     if (lat !== undefined && lng !== undefined) {
-      params['viewbox'] = this.createViewbox(lat, lng, radius)
+      const radiusKm = radius != null ? radius / 1000 : 10
+      params['viewbox'] = this.createViewbox(lat, lng, radiusKm)
       params['bounded'] = 1
     }
 
@@ -277,9 +279,13 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
   /**
    * Get place info by OSM ID using Nominatim lookup API
    * @param id The OSM ID in format type/id (e.g., node/123456) or just the ID
+   * @param options Optional parameters including language
    * @returns Place details or null if not found
    */
-  private async getPlaceInfo(id: string): Promise<Place | null> {
+  private async getPlaceInfo(
+    id: string,
+    _options?: { language?: string },
+  ): Promise<Place | null> {
     this.ensureInitialized()
 
     try {

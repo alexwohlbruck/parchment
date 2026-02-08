@@ -21,7 +21,7 @@ export type Directions = {
     type?: string
     original_index?: number
   }>
-  language: string // TODO: We have a type for Locale
+  language: import('../lib/i18n').Language
   status: number
   status_message: string
   summary: {

@@ -19,11 +19,13 @@ import {
 import { AppRoute } from '@/router'
 import type { RouteInstruction } from '@/types/directions.types'
 import ElevationChart from '@/components/directions/ElevationChart.vue'
+import { useUnits } from '@/composables/useUnits'
 
 const route = useRoute()
 const router = useRouter()
 const directionsStore = useDirectionsStore()
 const mapService = useMapService()
+const { formatDistance } = useUnits()
 
 // State for hover interactions
 const hoveredInstructionKey = ref<string | null>(null)
@@ -134,13 +136,9 @@ const formatDuration = (seconds: number): string => {
   return `${minutes}m`
 }
 
-const formatDistance = (meters: number | undefined): string => {
-  if (!meters) return '0m'
-
-  if (meters >= 1000) {
-    return `${(meters / 1000).toFixed(1)}km`
-  }
-  return `${Math.round(meters)}m`
+const formatDistanceDisplay = (meters: number | undefined): string => {
+  if (!meters) return formatDistance(0)
+  return formatDistance(meters)
 }
 
 const formatTime = (date: Date): string => {
@@ -181,7 +179,7 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
         <div class="flex-1 min-w-0">
           <H5 class="text-muted-foreground mb-1">
             {{ formatDuration(trip.summary.totalDuration) }} •
-            {{ formatDistance(trip.summary.totalDistance) }}
+            {{ formatDistanceDisplay(trip.summary.totalDistance) }}
           </H5>
 
           <div class="flex items-center gap-4 text-sm text-muted-foreground">
@@ -227,7 +225,7 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
                     </H6>
                     <Caption class="text-muted-foreground">
                       {{ formatDuration(segment.duration) }} •
-                      {{ formatDistance(segment.distance) }}
+                      {{ formatDistanceDisplay(segment.distance) }}
                     </Caption>
                   </div>
                 </div>
@@ -301,7 +299,7 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
                               class="flex items-center gap-1"
                             >
                               <span>{{
-                                formatDistance(instruction.distance)
+                                formatDistanceDisplay(instruction.distance)
                               }}</span>
                             </span>
                             <span

@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { distance } from '@turf/distance'
 import { point } from '@turf/helpers'
 import type { ChartConfig } from '@/components/ui/chart'
+import { useUnits } from '@/composables/useUnits'
 import { VisArea, VisAxis, VisLine, VisXYContainer } from '@unovis/vue'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -22,6 +23,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const { formatDistance, formatElevation } = useUnits()
 
 interface ChartDataPoint {
   distance: number
@@ -92,19 +94,6 @@ const svgDefs = computed(() => {
     </linearGradient>
   `
 })
-
-// Format distance for display
-function formatDistance(meters: number): string {
-  if (meters < 1000) {
-    return `${Math.round(meters)} m`
-  }
-  return `${(meters / 1000).toFixed(1)} km`
-}
-
-// Format elevation for display
-function formatElevation(meters: number): string {
-  return `${Math.round(meters)} m`
-}
 
 // Check if we have elevation data
 const hasElevationData = computed(() => {

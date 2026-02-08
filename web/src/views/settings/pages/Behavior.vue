@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
+import { watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app.store'
+import { useAuthStore } from '@/stores/auth.store'
 import { useCommandStore } from '@/stores/command.store'
 import { CommandName } from '@/stores/command.store'
 import { UnitSystem } from '@/types/map.types'
+import type { Locale } from '@/lib/i18n'
+import { updatePreferences } from '@/services/preferences.service'
 import { SettingsSection, SettingsItem } from '@/components/settings'
 import {
   Select,
@@ -17,11 +21,27 @@ import {
 import { Gauge, LanguagesIcon } from 'lucide-vue-next'
 
 const appStore = useAppStore()
+const authStore = useAuthStore()
 const commandStore = useCommandStore()
 const { unitSystem } = storeToRefs(appStore)
 const { locale } = useI18n()
 
 const languageCommand = commandStore.useCommand(CommandName.UPDATE_LANGUAGE)
+
+// Persist language and unit preferences to backend when logged in
+watch(
+  [locale, unitSystem],
+  ([newLocale, newUnitSystem]) => {
+    if (!authStore.me) return
+    updatePreferences({
+      language: newLocale as Locale,
+      unitSystem: newUnitSystem as UnitSystem,
+    }).catch(() => {
+      // Ignore errors (e.g. network); local state is already updated
+    })
+  },
+  { deep: true },
+)
 </script>
 
 <template>

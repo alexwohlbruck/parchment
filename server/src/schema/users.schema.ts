@@ -3,6 +3,7 @@ import { pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 import { usersToRoles } from './users-roles.schema'
 import { friendships } from './friendships.schema'
 import { friendInvitations } from './friend-invitations.schema'
+import { userPreferences } from './user-preferences.schema'
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -17,10 +18,11 @@ export const users = pgTable('users', {
   updatedAt: timestamp('updated_at').defaultNow(),
 })
 
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ one, many }) => ({
   usersToRoles: many(usersToRoles),
   friendships: many(friendships),
   friendInvitations: many(friendInvitations),
+  preferences: one(userPreferences),
 }))
 
 export type User = typeof users.$inferSelect

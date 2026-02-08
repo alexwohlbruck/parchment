@@ -23,8 +23,10 @@ import {
 } from 'lucide-vue-next'
 import { RoutingPreferences, RoutingEngine, SelectedMode } from '@/types/multimodal.types'
 import { useIntegrationsStore } from '@/stores/integrations.store'
+import { useUnits } from '@/composables/useUnits'
 
 const { t } = useI18n()
+const { isMetric, convert } = useUnits()
 
 const props = defineProps<{
   modelValue: RoutingPreferences
@@ -128,12 +130,23 @@ const safetyPercentage = computed(() =>
   Math.round((preferences.value.safetyVsEfficiency ?? 0.5) * 100),
 )
 
-// Convert max walking distance from meters to km for display
-const maxWalkingKm = computed({
-  get: () => (preferences.value.maxWalkingDistance ?? 1000) / 1000,
-  set: (value: number) =>
-    updatePreference('maxWalkingDistance', Math.round(value * 1000)),
+// Max walking distance in display unit (km or mi); stored as meters
+const maxWalkingDisplay = computed({
+  get: () => {
+    const meters = preferences.value.maxWalkingDistance ?? 1000
+    if (isMetric.value) return meters / 1000
+    return Number(convert(meters, 'm').to('mi'))
+  },
+  set: (value: number) => {
+    const meters = isMetric.value
+      ? Math.round(value * 1000)
+      : Math.round(Number(convert(value, 'mi').to('m')))
+    updatePreference('maxWalkingDistance', meters)
+  },
 })
+const maxWalkingDisplayMin = computed(() => (isMetric.value ? 0.1 : 0.1))
+const maxWalkingDisplayMax = computed(() => (isMetric.value ? 10 : 6.2))
+const maxWalkingDisplayUnit = computed(() => (isMetric.value ? 'km' : 'mi'))
 
 // Computed properties for boolean switches with defaults
 const useKnownVehicleLocations = computed({
@@ -466,14 +479,14 @@ function handleTabChange(value: string | number) {
           <div class="flex items-center gap-2">
             <Input
               id="max-walking"
-              v-model.number="maxWalkingKm"
+              v-model.number="maxWalkingDisplay"
               type="number"
-              min="0.1"
-              max="10"
+              :min="maxWalkingDisplayMin"
+              :max="maxWalkingDisplayMax"
               step="0.1"
               class="flex-1"
             />
-            <span class="text-sm text-muted-foreground">km</span>
+            <span class="text-sm text-muted-foreground">{{ maxWalkingDisplayUnit }}</span>
           </div>
         </div>
 

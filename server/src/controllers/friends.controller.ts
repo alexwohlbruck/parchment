@@ -60,18 +60,18 @@ app.use(requireAuth).get(
  */
 app.use(requireAuth).post(
   '/invite',
-  async ({ user, body, error }) => {
+  async ({ user, body, status, t }) => {
     const { handle, signature } = body
 
     // Validate handle format
     if (!parseHandle(handle)) {
-      return error(400, { message: 'Invalid handle format. Use alias@domain' })
+      return status(400, { message: t('errors.friends.invalidHandle') })
     }
 
     const result = await sendFriendInvitation(user.id, handle, signature)
 
     if (!result.success) {
-      return error(400, {
+      return status(400, {
         message: result.error || 'Failed to send invitation',
       })
     }
@@ -95,11 +95,11 @@ app.use(requireAuth).post(
  */
 app.use(requireAuth).post(
   '/invitations/:id/accept',
-  async ({ user, params: { id }, body, error }) => {
+  async ({ user, params: { id }, body, status, t }) => {
     const result = await acceptFriendInvitation(user.id, id, body.signature)
 
     if (!result.success) {
-      return error(400, {
+      return status(400, {
         message: result.error || 'Failed to accept invitation',
       })
     }
@@ -125,11 +125,11 @@ app.use(requireAuth).post(
  */
 app.use(requireAuth).post(
   '/invitations/:id/reject',
-  async ({ user, params: { id }, body, error }) => {
+  async ({ user, params: { id }, body, status, t }) => {
     const result = await rejectFriendInvitation(user.id, id, body?.signature)
 
     if (!result.success) {
-      return error(400, {
+      return status(400, {
         message: result.error || 'Failed to reject invitation',
       })
     }
@@ -157,11 +157,11 @@ app.use(requireAuth).post(
  */
 app.use(requireAuth).delete(
   '/invitations/:id',
-  async ({ user, params: { id }, error }) => {
+  async ({ user, params: { id }, status, t }) => {
     const result = await cancelFriendInvitation(user.id, id)
 
     if (!result.success) {
-      return error(400, {
+      return status(400, {
         message: result.error || 'Failed to cancel invitation',
       })
     }
@@ -184,13 +184,13 @@ app.use(requireAuth).delete(
  */
 app.use(requireAuth).delete(
   '/:handle',
-  async ({ user, params: { handle }, error }) => {
+  async ({ user, params: { handle }, status, t }) => {
     // URL decode the handle since it contains @
     const decodedHandle = decodeURIComponent(handle)
     const result = await removeFriend(user.id, decodedHandle)
 
     if (!result.success) {
-      return error(400, { message: result.error || 'Failed to remove friend' })
+      return status(400, { message: result.error || 'Failed to remove friend' })
     }
 
     return { success: true }
@@ -211,17 +211,17 @@ app.use(requireAuth).delete(
  */
 app.use(requireAuth).get(
   '/resolve/:handle',
-  async ({ params: { handle }, error }) => {
+  async ({ params: { handle }, status, t }) => {
     const decodedHandle = decodeURIComponent(handle)
 
     if (!parseHandle(decodedHandle)) {
-      return error(400, { message: 'Invalid handle format' })
+      return status(400, { message: t('errors.friends.invalidHandle') })
     }
 
     const userInfo = await resolveHandle(decodedHandle)
 
     if (!userInfo) {
-      return error(404, { message: 'User not found' })
+      return status(404, { message: t('errors.notFound.user') })
     }
 
     return userInfo

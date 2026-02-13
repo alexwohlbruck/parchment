@@ -23,12 +23,15 @@ import {
 import { buildHandle, getServerDomain } from '../services/federation.service'
 import { isValidAlias } from '../lib/crypto'
 
+import { i18next } from 'elysia-i18next'
+import { detectLanguage, getI18nInitOptions } from '../lib/i18n'
+
 const app = new Elysia({ prefix: '/users' })
 
 // TODO: Make permission names type safe
 app.use(permissions(PermissionId.USERS_READ)).get(
   '/',
-  async (_context) => {
+  async () => {
     const usersResult = await db
       .select({
         id: users.id,

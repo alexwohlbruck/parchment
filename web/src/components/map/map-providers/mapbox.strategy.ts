@@ -121,12 +121,17 @@ export class MapboxStrategy extends MapStrategy {
   private currentLanguage?: string
   private hdRoadsEnabled: boolean = false
 
-  constructor(container, options: MapSettings, accessToken?: string, language?: string) {
+  constructor(
+    container,
+    options: MapSettings,
+    accessToken?: string,
+    language?: string,
+  ) {
     super(container, options, accessToken)
 
     const { center, zoom, bearing, pitch } = options.camera || {}
     const { projection } = options
-    
+
     // Store the current language
     this.currentLanguage = language
 
@@ -608,6 +613,14 @@ export class MapboxStrategy extends MapStrategy {
 
   addSource(sourceId: string, source: any) {
     try {
+      // Check if style is loaded before adding source
+      if (!this.mapInstance.isStyleLoaded()) {
+        this.mapInstance.once('style.load', () => {
+          this.addSource(sourceId, source)
+        })
+        return
+      }
+
       // Remove existing source if it exists to prevent conflicts
       if (this.mapInstance.getSource(sourceId)) {
         this.mapInstance.removeSource(sourceId)
@@ -625,6 +638,14 @@ export class MapboxStrategy extends MapStrategy {
     const { configuration } = themedLayer
 
     try {
+      // Check if style is loaded before adding layer
+      if (!this.mapInstance.isStyleLoaded()) {
+        this.mapInstance.once('style.load', () => {
+          this.addLayer(layer, overwrite)
+        })
+        return
+      }
+
       // Handle source if it exists in the configuration
       if (typeof configuration.source === 'object') {
         const sourceId = configuration.source.id
@@ -730,7 +751,19 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   destroy() {
-    this.mapInstance?.remove()
+    // Clean up theme watcher
+    if (this.unwatchTheme) {
+      this.unwatchTheme()
+      this.unwatchTheme = undefined
+    }
+
+    // Remove the map instance
+    if (this.mapInstance) {
+      const canvas = this.mapInstance.getCanvas()
+      if (canvas && canvas.parentElement) {
+        this.mapInstance.remove()
+      }
+    }
   }
 
   addMarker(id: string, lngLat: LngLat) {
@@ -776,14 +809,9 @@ export class MapboxStrategy extends MapStrategy {
 
   // Trip visualization methods
   setTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
-    console.log(
-      `Setting trips: visible=${Array.from(visibleTripIds).join(', ')}`,
-    )
-
     // ALWAYS destroy ALL existing trip groups to ensure complete cleanup
     for (const groupId of this.layerGroups.keys()) {
       if (groupId.startsWith('trip-')) {
-        console.log(`Destroying existing trip group: ${groupId}`)
         this.layerGroups.get(groupId)?.destroy()
         this.layerGroups.delete(groupId)
       }
@@ -794,7 +822,6 @@ export class MapboxStrategy extends MapStrategy {
     trips.trips.forEach(trip => {
       if (visibleTripIds.has(trip.id)) {
         const groupId = `trip-${trip.id}`
-        console.log(`Creating new trip group: ${groupId}`)
         const tripGroup = new TripGroup(this, trip)
         this.layerGroups.set(groupId, tripGroup)
         visibleTrips.push(trip)

@@ -44,8 +44,18 @@ const savedServers = useStorage<string[]>('parchment-servers', [
   DEFAULT_SERVER_URL,
 ])
 
-onMounted(() => {
-  authService.signInWithPasskey(true)
+onMounted(async () => {
+  try {
+    // Start eager passkey authentication (conditional UI)
+    // This allows browsers to show passkey autofill in the email field
+    await authService.signInWithPasskey(true)
+  } catch (error: any) {
+    // Silently ignore abort errors - these happen when the user navigates away
+    // or when the authentication ceremony is cancelled
+    if (error?.name !== 'AbortError' && error?.name !== 'NotAllowedError') {
+      console.error('Passkey authentication error:', error)
+    }
+  }
 })
 
 const emit = defineEmits({
@@ -169,6 +179,15 @@ async function startPasskeySignin() {
   awaitingPasskey.value = true
   try {
     await authService.signInWithPasskey(false)
+  } catch (error: any) {
+    // Handle user cancellation gracefully
+    if (error?.name === 'AbortError' || error?.name === 'NotAllowedError') {
+      // User cancelled - no need to show error
+      return
+    }
+    // Show error for other types of failures
+    appService.toast('Failed to sign in with passkey')
+    console.error('Passkey authentication error:', error)
   } finally {
     awaitingPasskey.value = false
   }

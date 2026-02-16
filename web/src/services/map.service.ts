@@ -339,35 +339,47 @@ function mapService() {
   }
 
   function onStyleLoad() {
-    setConfigProperties()
+    // Wait for style to be fully loaded before initializing layers
+    const initializeAfterStyleLoad = () => {
+      if (!mapStrategy?.mapInstance?.isStyleLoaded()) {
+        // Style not fully loaded yet, wait a bit and try again
+        setTimeout(initializeAfterStyleLoad, 50)
+        return
+      }
 
-    // Sync client-side layer visibility with their group states
-    const hasVisibleTransitLayers = layersStore.syncClientSideLayerVisibility()
+      setConfigProperties()
 
-    // Include search results layer with regular layers
-    const allLayers = [
-      layersService.createSearchResultsLayer(),
-      ...layers.value,
-    ]
-    layersService.initializeLayers(allLayers, mapStrategy)
+      // Sync client-side layer visibility with their group states
+      const hasVisibleTransitLayers = layersStore.syncClientSideLayerVisibility()
 
-    // Initialize place polygon layers
-    layersService.initializePlacePolygonLayers(mapStrategy)
+      // Include search results layer with regular layers
+      const allLayers = [
+        layersService.createSearchResultsLayer(),
+        ...layers.value,
+      ]
+      layersService.initializeLayers(allLayers, mapStrategy)
 
-    // Update polygon colors to match current theme
-    layersService.updatePlacePolygonColors(mapStrategy)
+      // Initialize place polygon layers
+      layersService.initializePlacePolygonLayers(mapStrategy)
 
-    // Apply transit map theme if transit layers are visible
-    if (hasVisibleTransitLayers && mapStrategy) {
-      const themeStore = useThemeStore()
-      const shouldUseFaded = hasVisibleTransitLayers && !themeStore.isDark
-      mapStrategy.setMapColorTheme(
-        shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT,
-      )
-      mapStrategy.setTransitLabels(!hasVisibleTransitLayers)
+      // Update polygon colors to match current theme
+      layersService.updatePlacePolygonColors(mapStrategy)
+
+      // Apply transit map theme if transit layers are visible
+      if (hasVisibleTransitLayers && mapStrategy) {
+        const themeStore = useThemeStore()
+        const shouldUseFaded = hasVisibleTransitLayers && !themeStore.isDark
+        mapStrategy.setMapColorTheme(
+          shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT,
+        )
+        mapStrategy.setTransitLabels(!hasVisibleTransitLayers)
+      }
+
+      // Note: Waypoint markers are automatically managed by WaypointsLayer
     }
 
-    // Note: Waypoint markers are automatically managed by WaypointsLayer
+    // Start the initialization process
+    initializeAfterStyleLoad()
   }
 
   function setConfigProperties() {

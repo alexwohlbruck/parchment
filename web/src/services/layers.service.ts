@@ -939,6 +939,16 @@ export function useLayersService() {
     if (!mapStrategy) return
 
     try {
+      // Check if layers exist before updating paint properties
+      if (!mapStrategy.mapInstance.getLayer(PLACE_POLYGON_FILL_LAYER_ID)) {
+        console.warn('Place polygon fill layer does not exist yet')
+        return
+      }
+      if (!mapStrategy.mapInstance.getLayer(PLACE_POLYGON_STROKE_LAYER_ID)) {
+        console.warn('Place polygon stroke layer does not exist yet')
+        return
+      }
+
       // Update fill layer color
       mapStrategy.mapInstance.setPaintProperty(
         PLACE_POLYGON_FILL_LAYER_ID,

@@ -176,101 +176,104 @@ const icon = computed(() => {
 <template>
   <Card
     :class="
-      cn('p-4 hover:bg-muted/50 transition-colors cursor-pointer relative', {
-        grayscale: !isIntegrationEnabled,
-      })
+      cn(
+        'flex flex-col gap-3 hover:bg-muted/50 transition-colors cursor-pointer relative',
+        {
+          grayscale: !isIntegrationEnabled,
+        },
+      )
     "
     @click="handleClick"
   >
-    <div class="flex flex-col gap-3">
-      <div class="flex items-start justify-between">
-        <div
-          class="size-12 flex items-center justify-center rounded-lg shadow-md"
-          :style="{ backgroundColor: integration.color }"
+    <div class="flex items-start justify-between pt-4 px-4">
+      <div
+        class="size-12 flex items-center justify-center rounded-lg shadow-md"
+        :style="{ backgroundColor: integration.color }"
+      >
+        <svg
+          v-if="icon"
+          class="size-7 text-white"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          v-html="icon.svg"
+        />
+        <span v-else class="text-white font-medium text-lg">
+          {{ getInitial(integration.name) }}
+        </span>
+      </div>
+      <div class="flex gap-1 items-center">
+        <span
+          v-if="integration.paid"
+          class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300 font-semibold"
+        >
+          $
+        </span>
+        <span
+          v-if="integration.cloud"
+          class="text-[10px] p-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 font-semibold flex items-center gap-0.5"
+        >
+          <CloudIcon class="size-3" />
+        </span>
+        <span
+          v-if="integration.scope"
+          class="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-100 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 font-semibold flex items-center gap-0.5"
+        >
+          <UserIcon
+            v-if="integration.scope.includes(IntegrationScope.USER)"
+            class="size-3"
+          />
+          <HardDriveIcon
+            v-if="integration.scope.includes(IntegrationScope.SYSTEM)"
+            class="size-3"
+          />
+        </span>
+        <Button
+          v-if="configuration && !disabled"
+          variant="outline"
+          size="icon"
+          class="ml-1 size-6 text-red-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-950"
+          @click="handleDelete"
+        >
+          <Trash2Icon class="size-3" />
+        </Button>
+      </div>
+    </div>
+    <div class="px-4">
+      <h4 class="font-medium">{{ integration.name }}</h4>
+      <p class="text-sm text-muted-foreground line-clamp-2">
+        {{
+          t(
+            `settings.integrations.descriptions.${
+              configuration?.integrationId || integration.id
+            }`,
+          )
+        }}
+      </p>
+    </div>
+    <div class="bg-muted/50 flex-1 border-t border-border">
+      <div class="flex flex-wrap gap-2 px-2 py-3">
+        <span
+          v-for="capability in integration.capabilities"
+          :key="capability"
+          class="text-xs px-2 py-0.5 rounded-full bg-primary/5 text-primary font-semibold inline-flex items-center gap-1"
         >
           <svg
-            v-if="icon"
-            class="size-7 text-white"
+            v-if="isCapabilityEnabled(capability)"
+            xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
-            fill="currentColor"
-            v-html="icon.svg"
-          />
-          <span v-else class="text-white font-medium text-lg">
-            {{ getInitial(integration.name) }}
-          </span>
-        </div>
-        <div class="flex gap-1 items-center">
-          <span
-            v-if="integration.paid"
-            class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300 font-semibold"
+            width="12"
+            height="12"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="3"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="size-3"
           >
-            $
-          </span>
-          <span
-            v-if="integration.cloud"
-            class="text-[10px] p-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 font-semibold flex items-center gap-0.5"
-          >
-            <CloudIcon class="size-3" />
-          </span>
-          <span
-            v-if="integration.scope"
-            class="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-100 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 font-semibold flex items-center gap-0.5"
-          >
-            <UserIcon
-              v-if="integration.scope.includes(IntegrationScope.USER)"
-              class="size-3"
-            />
-            <HardDriveIcon
-              v-if="integration.scope.includes(IntegrationScope.SYSTEM)"
-              class="size-3"
-            />
-          </span>
-          <Button
-            v-if="configuration && !disabled"
-            variant="outline"
-            size="icon"
-            class="ml-1 size-6 text-red-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-950"
-            @click="handleDelete"
-          >
-            <Trash2Icon class="size-3" />
-          </Button>
-        </div>
-      </div>
-      <div>
-        <h4 class="font-medium">{{ integration.name }}</h4>
-        <p class="text-sm text-muted-foreground line-clamp-2">
-          {{
-            t(
-              `settings.integrations.descriptions.${
-                configuration?.integrationId || integration.id
-              }`,
-            )
-          }}
-        </p>
-        <div class="flex flex-wrap gap-1 mt-2">
-          <span
-            v-for="capability in integration.capabilities"
-            :key="capability"
-            class="text-xs px-2 py-0.5 rounded-full bg-primary/5 text-primary font-semibold inline-flex items-center gap-1"
-          >
-            <svg
-              v-if="isCapabilityEnabled(capability)"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              width="12"
-              height="12"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="3"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="size-3"
-            >
-              <path d="M20 6 9 17l-5-5" />
-            </svg>
-            {{ t(`settings.integrations.capabilities.${capability}`) }}
-          </span>
-        </div>
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+          {{ t(`settings.integrations.capabilities.${capability}`) }}
+        </span>
       </div>
     </div>
   </Card>

@@ -834,5 +834,29 @@
     "subtitle": "Wrong continent",
     "message": "Even Columbus was a better navigator.",
     "action": "Return to Spain"
+  },
+  "auth": {
+    "signIn": {
+      "title": "Sign in",
+      "welcome": "Welcome back to Parchment",
+      "server": "Server",
+      "email": "Email",
+      "emailPlaceholder": "magellan@parchment.app",
+      "sendCode": "Send verification code",
+      "signInWithPasskey": "Sign in with passkey",
+      "or": "Or",
+      "termsAndPrivacy": "By continuing, you agree to Parchment's Terms of Service and Privacy Policy"
+    },
+    "otp": {
+      "title": "Verification code",
+      "description": "Code sent to {email}",
+      "submit": "Submit",
+      "cancel": "Cancel",
+      "verifying": "Verifying...",
+      "success": "Success!"
+    },
+    "server": {
+      "addCustom": "Add custom server..."
+    }
   }
 }

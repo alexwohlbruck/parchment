@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import * as z from 'zod'
 import { useForm, useIsFormValid } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
@@ -8,6 +9,8 @@ import { useAppService } from '@/services/app.service'
 import { isTauri, setServerUrl, useServerUrl } from '@/lib/api'
 import { useStorage } from '@vueuse/core'
 import { DEFAULT_SERVER_URL } from '@/lib/constants'
+
+const { t } = useI18n()
 
 import { Input } from '@/components/ui/input'
 import { FingerprintIcon, PlusIcon, TrashIcon } from 'lucide-vue-next'
@@ -184,11 +187,11 @@ function getDisplayName(serverUrl: string): string {
 </script>
 
 <template>
-  <form @submit.prevent="requestOtp()">
+  <form @submit.prevent="requestOtp()" class="space-y-4">
     <!-- Server Selection -->
     <FormField v-slot="{ componentField }" name="selectedServer">
-      <FormItem class="mb-4">
-        <FormLabel>Server</FormLabel>
+      <FormItem>
+        <FormLabel>{{ t('auth.signIn.server') }}</FormLabel>
         <FormControl>
           <input
             type="hidden"
@@ -199,9 +202,9 @@ function getDisplayName(serverUrl: string): string {
             <DropdownMenuTrigger as-child>
               <Button
                 variant="outline"
-                class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-hidden focus:ring-inset focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap [&>span]:truncate [&>span]:min-w-0"
+                class="w-full justify-between"
               >
-                <span class="truncate min-w-0">{{
+                <span class="truncate">{{
                   getDisplayName(selectedServer)
                 }}</span>
                 <svg
@@ -218,18 +221,14 @@ function getDisplayName(serverUrl: string): string {
                 </svg>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent
-              class="min-w-40 w-(--reka-dropdown-menu-trigger-width)"
-            >
+            <DropdownMenuContent align="start" class="w-[var(--radix-dropdown-menu-trigger-width)]">
               <DropdownMenuItem
                 v-for="server in savedServers"
                 :key="server"
-                class="relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-hidden transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 justify-between group"
+                class="pl-8 pr-2"
                 @click="handleServerSelection(server)"
               >
-                <span
-                  class="absolute left-2 flex h-3.5 w-3.5 items-center justify-center"
-                >
+                <span class="absolute left-2 flex items-center justify-center">
                   <svg
                     v-if="selectedServer === server"
                     class="size-4"
@@ -244,24 +243,24 @@ function getDisplayName(serverUrl: string): string {
                     <path d="M20 6 9 17l-5-5" />
                   </svg>
                 </span>
-                <span class="truncate">{{ getDisplayName(server) }}</span>
+                <span class="flex-1 truncate">{{ getDisplayName(server) }}</span>
                 <Button
                   v-if="server !== DEFAULT_SERVER_URL"
                   variant="ghost"
                   size="sm"
-                  class="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                  class="size-6 p-0 ml-2 opacity-0 group-hover:opacity-100"
                   @click.stop="deleteServer(server)"
                 >
-                  <TrashIcon class="h-3 w-3" />
+                  <TrashIcon class="size-3" />
                 </Button>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                class="relative flex cursor-default select-none items-center rounded-sm gap-2 px-2 py-1.5 text-sm outline-hidden transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 text-muted-foreground"
+                class="gap-2"
                 @click="handleServerSelection('add-custom')"
               >
                 <PlusIcon class="size-4" />
-                <span>Add custom server...</span>
+                <span>{{ t('auth.server.addCustom') }}</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -273,13 +272,13 @@ function getDisplayName(serverUrl: string): string {
     <!-- Email Input -->
     <FormField v-slot="{ componentField }" name="email">
       <FormItem>
-        <FormLabel>Email</FormLabel>
+        <FormLabel>{{ t('auth.signIn.email') }}</FormLabel>
         <FormControl>
           <Input
             autofocus
             v-bind="componentField"
             type="email"
-            placeholder="magellan@parchment.app"
+            :placeholder="t('auth.signIn.emailPlaceholder')"
             v-model="email"
             autocomplete="username webauthn"
           />
@@ -294,13 +293,13 @@ function getDisplayName(serverUrl: string): string {
       :disabled="!isFormValid"
       :loading="isLoading"
     >
-      Send verification code
+      {{ t('auth.signIn.sendCode') }}
     </Button>
   </form>
 
-  <div class="flex w-full items-center" v-if="!isTauri">
+  <div class="flex items-center my-6" v-if="!isTauri">
     <hr class="flex-1" />
-    <span class="px-3 text-sm font-semibold">Or</span>
+    <span class="px-4 text-xs text-muted-foreground uppercase">{{ t('auth.signIn.or') }}</span>
     <hr class="flex-1" />
   </div>
 
@@ -309,7 +308,9 @@ function getDisplayName(serverUrl: string): string {
     @click="startPasskeySignin"
     :icon="FingerprintIcon"
     :loading="awaitingPasskey"
+    variant="outline"
+    class="w-full"
   >
-    Sign in with passkey
+    {{ t('auth.signIn.signInWithPasskey') }}
   </Button>
 </template>

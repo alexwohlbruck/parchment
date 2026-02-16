@@ -1,9 +1,13 @@
 <script lang="ts" setup>
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { TransitionExpand } from '@morev/vue-transitions'
 
-import { H2, H4 } from '@/components/ui/typography'
 import Otp from '@/components/auth/forms/Otp.vue'
 import SigninForm from '@/components/auth/forms/SigninForm.vue'
+import parchmentMapBg from '@/assets/img/parchment-map.png'
+
+const { t } = useI18n()
 
 enum SigninStep {
   email,
@@ -26,45 +30,103 @@ function beginOtp({
 }
 </script>
 
-<style>
-#map-graphic {
-  background-image: url('@/assets/img/map.png');
+<style scoped>
+.signin-container {
+  animation: fadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.parchment-bg {
+  background-image: url('@/assets/img/parchment-map.png');
   background-size: cover;
   background-position: center;
-  filter: saturate(1.5);
+  background-repeat: no-repeat;
+  opacity: 0.35;
+}
+
+.dark .parchment-bg {
+  filter: invert(1);
+}
+
+.form-card {
+  backdrop-filter: blur(20px);
+  box-shadow: 
+    0 0 0 1px rgba(0, 0, 0, 0.05),
+    0 4px 6px rgba(0, 0, 0, 0.07),
+    0 10px 20px rgba(0, 0, 0, 0.08);
+}
+
+.dark .form-card {
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 4px 6px rgba(0, 0, 0, 0.4),
+    0 10px 20px rgba(0, 0, 0, 0.5);
 }
 </style>
 
 <template>
   <div
-    class="flex flex-col sm:flex-row h-full gap-4 p-4 bg-cyan-50 dark:bg-slate-900"
+    class="relative flex flex-col h-full overflow-hidden bg-slate-50 dark:bg-slate-950 pt-[max(env(safe-area-inset-top), 0px)]"
   >
-    <div class="flex-1 flex flex-col h-full">
-      <div id="map-graphic" class="bg-blue-200 rounded-3xl h-full"></div>
+    <!-- Background map image with gradient fade -->
+    <div class="absolute inset-0 pointer-events-none">
+      <div class="parchment-bg absolute inset-0"></div>
+      <!-- Gradient overlay to fade the map into the background -->
+      <div class="absolute inset-0 bg-gradient-to-b from-slate-50/50 via-slate-50/30 to-slate-50/50 dark:from-slate-950/50 dark:via-slate-950/30 dark:to-slate-950/50" />
     </div>
 
-    <div class="sm:flex-1 flex flex-col h-full">
-      <H4>Parchment</H4>
-      <div class="flex-1 flex flex-col justify-center items-center gap-2">
-        <div class="flex flex-col gap-2">
-          <H2>Sign in</H2>
+    <!-- Sign In Form -->
+    <div class="relative z-10 flex-1 flex flex-col h-full justify-center items-center p-6 signin-container">
+      <div class="w-full max-w-sm space-y-6">
+        <!-- Logo -->
+        <div class="flex justify-center">
+          <img
+            src="@/assets/parchment.svg"
+            alt="Parchment"
+            class="h-14 w-14 dark:invert"
+          />
+        </div>
 
-          <template v-if="step === SigninStep.email">
-            <div class="w-64 flex flex-col gap-2">
-              <SigninForm @submit="beginOtp" />
-            </div>
-          </template>
+        <!-- Form Card -->
+        <div class="form-card bg-white/90 dark:bg-slate-900/90 rounded-xl p-8 space-y-6">
+          <!-- Title -->
+          <div class="text-center space-y-1">
+            <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">
+              {{ t('auth.signIn.title') }}
+            </h1>
+            <p class="text-sm text-slate-600 dark:text-slate-400">
+              {{ t('auth.signIn.welcome') }}
+            </p>
+          </div>
 
-          <template v-if="step === SigninStep.otp">
-            <div class="w-96 flex flex-col gap-2">
+          <!-- Forms -->
+          <TransitionExpand :duration="300">
+            <div :key="step">
+              <SigninForm v-if="step === SigninStep.email" @submit="beginOtp" />
               <Otp
+                v-else
                 :email="email"
                 :server-url="serverUrl"
                 @cancel="step = SigninStep.email"
               />
             </div>
-          </template>
+          </TransitionExpand>
         </div>
+
+        <!-- Footer Text -->
+        <p class="text-center text-xs text-slate-500 dark:text-slate-400">
+          {{ t('auth.signIn.termsAndPrivacy') }}
+        </p>
       </div>
     </div>
   </div>

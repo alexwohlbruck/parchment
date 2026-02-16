@@ -65,6 +65,7 @@ const router = createRouter({
       component: Signin,
       meta: {
         hideUI: true,
+        transition: 'slide',
       },
     },
     {
@@ -73,6 +74,7 @@ const router = createRouter({
       component: Map,
       meta: {
         auth: true,
+        transition: 'slide',
       },
       children: [
         {

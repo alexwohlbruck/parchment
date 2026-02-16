@@ -178,10 +178,16 @@ function beforeNavTransition(value: boolean) {
       class="flex-1 h-full overflow-hidden"
       :class="isTauri ? '' : 'bg-background'"
     >
-      <router-view v-slot="{ Component }">
-        <keep-alive include="Map">
-          <component :is="Component" ref="viewRef" />
-        </keep-alive>
+      <router-view v-slot="{ Component, route }">
+        <transition-slide
+          mode="out-in"
+          :offset="[0, 20]"
+          :duration="400"
+        >
+          <keep-alive include="Map">
+            <component :is="Component" :key="route.path" ref="viewRef" />
+          </keep-alive>
+        </transition-slide>
       </router-view>
     </main>
   </div>

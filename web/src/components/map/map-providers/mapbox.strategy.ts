@@ -118,17 +118,22 @@ export class MapboxStrategy extends MapStrategy {
   private clickDebounceTimer: number | null = null
   geolocateControl: GeolocateControl
   layerGroups: Map<string, MapLayerGroup> = new Map()
+  private currentLanguage?: string
 
-  constructor(container, options: MapSettings, accessToken?: string) {
+  constructor(container, options: MapSettings, accessToken?: string, language?: string) {
     super(container, options, accessToken)
 
     const { center, zoom, bearing, pitch } = options.camera || {}
     const { projection } = options
+    
+    // Store the current language
+    this.currentLanguage = language
 
     this.mapInstance = new MapboxMap({
       accessToken: accessToken || import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
       container,
       style: basemapUrls[options.basemap || 'standard'],
+      language: language, // Set language during initialization for Standard style
       center: center as LngLatLike,
       bearing,
       pitch,
@@ -201,7 +206,7 @@ export class MapboxStrategy extends MapStrategy {
       if (this.clickDebounceTimer) {
         clearTimeout(this.clickDebounceTimer)
       }
-      
+
       this.clickDebounceTimer = window.setTimeout(() => {
         // Emit regular click without POI data
         mapEventBus.emit('click', {
@@ -395,8 +400,8 @@ export class MapboxStrategy extends MapStrategy {
             index === 0
               ? 'origin'
               : index === directions.locations.length - 1
-              ? 'destination'
-              : 'waypoint',
+                ? 'destination'
+                : 'waypoint',
         },
       )
     })
@@ -410,9 +415,12 @@ export class MapboxStrategy extends MapStrategy {
     )
 
     // Create a bounds object that encompasses all coordinates
-    const bounds = allCoordinates.reduce((bounds, coord) => {
-      return bounds.extend(coord)
-    }, new LngLatBounds(allCoordinates[0], allCoordinates[0]))
+    const bounds = allCoordinates.reduce(
+      (bounds, coord) => {
+        return bounds.extend(coord)
+      },
+      new LngLatBounds(allCoordinates[0], allCoordinates[0]),
+    )
 
     // Fit the map to show the entire route with padding
     this.mapInstance.fitBounds(bounds, {
@@ -546,6 +554,20 @@ export class MapboxStrategy extends MapStrategy {
   setBasemap(basemap: Basemap) {
     const url = basemapUrls[basemap]
     this.mapInstance.setStyle(url)
+  }
+
+  setMapLanguage(locale: string): boolean {
+    // Convert locale to language code for map tiles (e.g., 'en-US' -> 'en', 'es-ES' -> 'es')
+    const languageCode = locale.split('-')[0]
+
+    // Check if language is already set
+    if (this.currentLanguage === languageCode) {
+      return false // No change needed
+    }
+
+    // For Mapbox (both Standard and legacy styles), language must be set during initialization
+    // Return true to indicate that map needs to be reinitialized
+    return true
   }
 
   removeSource(sourceId: string) {

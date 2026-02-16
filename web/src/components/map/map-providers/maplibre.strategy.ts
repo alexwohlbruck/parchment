@@ -370,8 +370,8 @@ export class MaplibreStrategy extends MapStrategy {
             index === 0
               ? 'origin'
               : index === directions.locations.length - 1
-              ? 'destination'
-              : 'waypoint',
+                ? 'destination'
+                : 'waypoint',
         },
       )
     })
@@ -385,9 +385,12 @@ export class MaplibreStrategy extends MapStrategy {
     )
 
     // Create a bounds object that encompasses all coordinates
-    const bounds = allCoordinates.reduce((bounds, coord) => {
-      return bounds.extend(coord)
-    }, new LngLatBounds(allCoordinates[0], allCoordinates[0]))
+    const bounds = allCoordinates.reduce(
+      (bounds, coord) => {
+        return bounds.extend(coord)
+      },
+      new LngLatBounds(allCoordinates[0], allCoordinates[0]),
+    )
 
     // Fit the map to show the entire route with padding
     this.mapInstance.fitBounds(bounds, {
@@ -582,6 +585,11 @@ export class MaplibreStrategy extends MapStrategy {
       hybrid: basemapUrls.hybrid,
     }
     this.mapInstance.setStyle(themeMap[basemap])
+  }
+
+  setMapLanguage(locale: string): boolean {
+    // TODO: Implement
+    return false // MapLibre doesn't require reinitialization
   }
 
   removeSource(sourceId: string) {

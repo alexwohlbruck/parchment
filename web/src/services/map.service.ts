@@ -31,6 +31,7 @@ import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { AppRoute } from '@/router'
 import { useRouter } from 'vue-router'
 import { ref, toRaw, watch, Component } from 'vue'
+import { storedLocale } from '@/lib/i18n'
 
 const dark = useDark()
 
@@ -62,6 +63,7 @@ function mapService() {
   const queuedTrips = ref<{ trips: any; visibleTripIds: Set<string> } | null>(
     null,
   )
+  let isReinitializingForLanguage = false
 
   // Track map interaction states for conditional control visibility
   const isRotatedOrPitched = ref(false)
@@ -85,6 +87,7 @@ function mapService() {
     container: string | HTMLElement,
     mapEngine: MapEngine,
     accessToken?: string,
+    language?: string,
   ) {
     const { settings, mapCamera } = mapStore
 
@@ -94,9 +97,12 @@ function mapService() {
       camera: mapCamera,
     }
 
+    // Convert locale to language code (e.g., 'en-US' -> 'en')
+    const languageCode = language ? language.split('-')[0] : undefined
+
     switch (mapEngine) {
       case MapEngine.MAPBOX:
-        return new MapboxStrategy(container, options, accessToken)
+        return new MapboxStrategy(container, options, accessToken, languageCode)
       case MapEngine.MAPLIBRE:
         return new MaplibreStrategy(container, options, accessToken)
     }
@@ -146,7 +152,10 @@ function mapService() {
     // Get credentials for the map engine
     const accessToken = getMapEngineCredentials(mapEngine)
 
-    mapStrategy = getMapStrategy(container, mapEngine, accessToken)
+    // Get current language for initialization
+    const currentLanguage = storedLocale.value
+
+    mapStrategy = getMapStrategy(container, mapEngine, accessToken, currentLanguage)
     mapStore.setMapStrategy(mapStrategy)
 
     mapEventBus.on('load', async () => {
@@ -219,18 +228,20 @@ function mapService() {
     mapEventBus.on('click', async data => {
       const { usePlaceService } = await import('@/services/place.service')
       const placeService = usePlaceService()
-      
+
       // For POI clicks, show immediate POI data
       if (data.poi) {
         // Create partial place from POI click data
         const partialPlace: Partial<Place> = {
           id: `osm/${data.poi.poiType}/${data.poi.osmId}`,
           externalIds: { osm: `${data.poi.poiType}/${data.poi.osmId}` },
-          name: data.poi.name ? { 
-            value: data.poi.name, 
-            sourceId: 'osm',
-            timestamp: new Date().toISOString(),
-          } : undefined,
+          name: data.poi.name
+            ? {
+                value: data.poi.name,
+                sourceId: 'osm',
+                timestamp: new Date().toISOString(),
+              }
+            : undefined,
           geometry: {
             value: {
               type: 'point',
@@ -239,16 +250,16 @@ function mapService() {
             sourceId: 'osm',
             timestamp: new Date().toISOString(),
           },
-          placeType: { 
-            value: 'poi', 
+          placeType: {
+            value: 'poi',
             sourceId: 'osm',
             timestamp: new Date().toISOString(),
           },
         }
-        
+
         // Set partial data immediately
         placeService.setPartialPlace(partialPlace)
-        
+
         // Navigate
         router.push({
           name: AppRoute.PLACE,
@@ -259,7 +270,7 @@ function mapService() {
         })
         return
       }
-      
+
       // For non-POI clicks, show coordinates immediately
       const partialPlace: Partial<Place> = {
         geometry: {
@@ -271,10 +282,10 @@ function mapService() {
           timestamp: new Date().toISOString(),
         },
       }
-      
+
       // Set partial data immediately
       placeService.setPartialPlace(partialPlace)
-      
+
       // Navigate to coordinate-based route
       router.push({
         name: AppRoute.PLACE_COORDS,
@@ -563,7 +574,10 @@ function mapService() {
     // Get credentials for the map engine
     const accessToken = getMapEngineCredentials(mapEngine)
 
-    mapStrategy = getMapStrategy(mapContainer, mapEngine, accessToken)
+    // Get current language for initialization
+    const currentLanguage = storedLocale.value
+
+    mapStrategy = getMapStrategy(mapContainer, mapEngine, accessToken, currentLanguage)
     mapStore.setMapStrategy(mapStrategy)
   }
 
@@ -739,6 +753,46 @@ function mapService() {
 
   watch(dark, newDark => {
     mapStrategy?.setMapTheme(newDark ? MapTheme.DARK : MapTheme.LIGHT)
+  })
+
+  // Watch for language preference changes and update map labels
+  watch(storedLocale, newLocale => {
+    // Skip if we're currently reinitializing for a language change
+    if (isReinitializingForLanguage) {
+      return
+    }
+
+    if (mapStrategy) {
+      const needsReinit = mapStrategy.setMapLanguage(newLocale)
+      
+      // If the map needs to be reinitialized (e.g., Mapbox Standard style),
+      // reinitialize with the new language
+      if (needsReinit) {
+        const currentEngine = mapStore.settings.engine
+        
+        // Only get camera if map is ready, otherwise use stored camera
+        if (isMapReady.value) {
+          const currentCamera = {
+            center: mapStrategy.mapInstance.getCenter(),
+            zoom: mapStrategy.mapInstance.getZoom(),
+            bearing: mapStrategy.mapInstance.getBearing(),
+            pitch: mapStrategy.mapInstance.getPitch(),
+          }
+          mapStore.setMapCamera(currentCamera)
+        }
+        
+        // Set flag to prevent watcher from firing during reinitialization
+        isReinitializingForLanguage = true
+        
+        // Reinitialize the map with the new language
+        setMapEngine(currentEngine)
+        
+        // Reset flag after reinitialization
+        setTimeout(() => {
+          isReinitializingForLanguage = false
+        }, 100)
+      }
+    }
   })
 
   watch(

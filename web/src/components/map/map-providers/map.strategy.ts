@@ -136,6 +136,9 @@ export class MapStrategy {
   setMapTheme(theme: MapTheme) {}
   setMapColorTheme(theme: MapColorTheme) {}
   setBasemap(basemap: Basemap) {}
+  setMapLanguage(locale: string): boolean {
+    return false // Default: no reinitialization needed
+  }
   addSource(sourceId: string, source: any) {}
   removeSource(sourceId: string) {}
   addLayer(layer: Layer, overwrite: boolean = false) {}

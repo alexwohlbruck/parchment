@@ -29,6 +29,7 @@ const defaultSettings: MapSettings = {
   roadLabels: true,
   transitLabels: true,
   placeLabels: true,
+  hdRoads: false,
 }
 
 // Compute default control settings based on screen size (mobile vs desktop)

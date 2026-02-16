@@ -672,8 +672,11 @@
       "title": "Mapa",
       "configuration": {
         "title": "Configuración del mapa",
+        "experimental": "Experimental",
         "3dTerrain": "Terreno 3D",
         "3dObjects": "Objetos 3D",
+        "hdRoads": "Carreteras HD",
+        "hdRoadsDescription": "Visualización de carreteras de alta definición con detalles mejorados",
         "poiLabels": "Etiquetas de POI",
         "roadLabels": "Etiquetas de carreteras",
         "transitLabels": "Etiquetas de tránsito",

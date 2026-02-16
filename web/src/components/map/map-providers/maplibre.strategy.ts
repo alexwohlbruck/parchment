@@ -719,7 +719,21 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   destroy() {
-    this.mapInstance?.remove()
+    try {
+      // Remove the map instance
+      if (this.mapInstance) {
+        // Check if the map's canvas still exists before removing
+        // This prevents errors when the DOM has already been cleaned up
+        const canvas = this.mapInstance.getCanvas()
+        if (canvas && canvas.parentElement) {
+          this.mapInstance.remove()
+        }
+      }
+    } catch (error) {
+      // Silently catch errors during cleanup to prevent console spam
+      // The map instance may already be partially destroyed
+      console.debug('Map cleanup error (non-critical):', error)
+    }
   }
 
   addMarker(id: string, lngLat: LngLat) {

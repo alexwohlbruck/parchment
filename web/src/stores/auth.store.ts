@@ -59,6 +59,7 @@ export const useAuthStore = defineStore('auth', () => {
     me.value = null
     cachedUser.value = null // Clear localStorage cache
     sessionId.value = null
+    authenticatedUserPromise.value = undefined // Clear the promise to prevent router guards from waiting
     if (isTauri) {
       await deviceStore.clearToken()
     }

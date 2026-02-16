@@ -41,6 +41,7 @@ import {
   PersonStandingIcon,
   LocateIcon,
   CloudSun,
+  RouteIcon,
 } from 'lucide-vue-next'
 import Layers from '@/components/map/Layers.vue'
 
@@ -142,10 +143,26 @@ const basemap = computed(() => {
         v-if="settings.engine === MapEngine.MAPBOX"
         :title="$t('settings.mapSettings.configuration.3dTerrain')"
         :icon="MountainSnowIcon"
+        :badge="$t('settings.mapSettings.configuration.experimental')"
       >
         <Switch
           :model-value="settings.terrain3d"
           @update:model-value="mapService.toggle3dTerrain()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        v-if="settings.engine === MapEngine.MAPBOX"
+        :title="$t('settings.mapSettings.configuration.hdRoads')"
+        :description="
+          $t('settings.mapSettings.configuration.hdRoadsDescription')
+        "
+        :icon="RouteIcon"
+        :badge="$t('settings.mapSettings.configuration.experimental')"
+      >
+        <Switch
+          :model-value="settings.hdRoads"
+          @update:model-value="mapService.toggleHdRoads()"
         />
       </SettingsItem>
 

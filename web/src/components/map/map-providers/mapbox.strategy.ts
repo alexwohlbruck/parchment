@@ -119,6 +119,7 @@ export class MapboxStrategy extends MapStrategy {
   geolocateControl: GeolocateControl
   layerGroups: Map<string, MapLayerGroup> = new Map()
   private currentLanguage?: string
+  private hdRoadsEnabled: boolean = false
 
   constructor(container, options: MapSettings, accessToken?: string, language?: string) {
     super(container, options, accessToken)
@@ -549,6 +550,31 @@ export class MapboxStrategy extends MapStrategy {
 
   setMapColorTheme(theme: MapColorTheme) {
     this.mapInstance.setConfigProperty('basemap', 'theme', theme)
+  }
+
+  setHdRoads(value: boolean) {
+    if (this.hdRoadsEnabled === value) {
+      return // No change needed
+    }
+
+    this.hdRoadsEnabled = value
+
+    try {
+      if (value) {
+        // Add HD roads import
+        // The addImport method takes an ImportSpecification object
+        this.mapInstance.addImport({
+          id: 'hd-roads',
+          url: 'mapbox://styles/mapbox/high-definition-roads',
+          config: {},
+        })
+      } else {
+        // Remove HD roads import
+        this.mapInstance.removeImport('hd-roads')
+      }
+    } catch (error) {
+      console.warn('Failed to toggle HD roads:', error)
+    }
   }
 
   setBasemap(basemap: Basemap) {

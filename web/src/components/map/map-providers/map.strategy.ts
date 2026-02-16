@@ -136,6 +136,7 @@ export class MapStrategy {
   setMapTheme(theme: MapTheme) {}
   setMapColorTheme(theme: MapColorTheme) {}
   setBasemap(basemap: Basemap) {}
+  setHdRoads(value: boolean) {}
   setMapLanguage(locale: string): boolean {
     return false // Default: no reinitialization needed
   }

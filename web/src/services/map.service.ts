@@ -377,6 +377,7 @@ function mapService() {
     mapStrategy?.setPlaceLabels(mapStore.settings.placeLabels)
     mapStrategy?.setMap3dObjects(mapStore.settings.objects3d)
     mapStrategy?.setMap3dTerrain(mapStore.settings.terrain3d)
+    mapStrategy?.setHdRoads(mapStore.settings.hdRoads)
   }
 
   let isInitializingGroups = false
@@ -676,6 +677,17 @@ function mapService() {
     () => mapStore.settings.placeLabels,
     value => {
       mapStrategy?.setPlaceLabels(value)
+    },
+  )
+
+  function toggleHdRoads(value?: boolean) {
+    mapStore.settings.hdRoads = value ?? !mapStore.settings.hdRoads
+  }
+
+  watch(
+    () => mapStore.settings.hdRoads,
+    value => {
+      mapStrategy?.setHdRoads(value)
     },
   )
 
@@ -1055,6 +1067,7 @@ function mapService() {
     toggleRoadLabels,
     toggleTransitLabels,
     togglePlaceLabels,
+    toggleHdRoads,
     destroy,
     on,
     off,

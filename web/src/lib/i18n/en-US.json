@@ -709,8 +709,11 @@
       "title": "Map",
       "configuration": {
         "title": "Map configuration",
+        "experimental": "Experimental",
         "3dTerrain": "3D terrain",
         "3dObjects": "3D objects",
+        "hdRoads": "HD roads",
+        "hdRoadsDescription": "High-definition road visualization with enhanced detail",
         "poiLabels": "POI labels",
         "roadLabels": "Road labels",
         "transitLabels": "Transit labels",

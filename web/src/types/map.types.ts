@@ -47,6 +47,7 @@ export interface MapSettings {
   roadLabels: boolean
   transitLabels: boolean
   placeLabels: boolean
+  hdRoads: boolean
 }
 
 export type MapCamera = {

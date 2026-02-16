@@ -795,5 +795,29 @@
     "subtitle": "Continente equivocado",
     "message": "Incluso Colón fue un mejor navegante.",
     "action": "Volver a España"
+  },
+  "auth": {
+    "signIn": {
+      "title": "Iniciar sesión",
+      "welcome": "Bienvenido de nuevo a Parchment",
+      "server": "Servidor",
+      "email": "Correo electrónico",
+      "emailPlaceholder": "magellan@parchment.app",
+      "sendCode": "Enviar código de verificación",
+      "signInWithPasskey": "Iniciar sesión con clave de acceso",
+      "or": "O",
+      "termsAndPrivacy": "Al continuar, aceptas los Términos de Servicio y la Política de Privacidad de Parchment"
+    },
+    "otp": {
+      "title": "Código de verificación",
+      "description": "Código enviado a {email}",
+      "submit": "Enviar",
+      "cancel": "Cancelar",
+      "verifying": "Verificando...",
+      "success": "¡Éxito!"
+    },
+    "server": {
+      "addCustom": "Añadir servidor personalizado..."
+    }
   }
 }

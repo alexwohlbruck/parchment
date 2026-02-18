@@ -7,14 +7,14 @@ import { Card } from '@/components/ui/card'
 import { Toggle } from '@/components/ui/toggle'
 import { PersonStandingIcon } from 'lucide-vue-next'
 import { useLayersStore } from '@/stores/layers.store'
-import { useLayersService } from '@/services/layers.service'
+import { useStreetViewLayersService } from '@/services/layers/features/street-view-layers.service'
 import { useMapStore } from '@/stores/map.store'
 
 const mapService = useMapService()
 const mapStore = useMapStore()
 const { controlSettings } = storeToRefs(mapStore)
 const layersStore = useLayersStore()
-const layersService = useLayersService()
+const streetViewLayersService = useStreetViewLayersService()
 
 const hasStreetViewLayers = computed(() =>
   layersStore.layers.some(layer => layer.type === LayerType.STREET_VIEW),
@@ -37,7 +37,7 @@ const isVisible = computed(() => {
 
 async function onToggle() {
   const next = !isStreetViewLayerVisible.value
-  await layersService.toggleStreetViewLayers(
+  await streetViewLayersService.toggleStreetViewLayers(
     layersStore.layers,
     layersStore,
     mapService.mapStrategy,

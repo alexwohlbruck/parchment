@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useMapService } from '@/services/map.service'
@@ -71,26 +71,16 @@ const modeColors = {
   truck: 'bg-orange-500',
 } as const
 
-// Watch for trip changes and update map visibility
+// Watch for trip changes and update map visibility (immediate: true covers mount; do not also call in onMounted or we double-call setTrips and the route disappears)
 watch(
   trip,
   newTrip => {
     if (newTrip) {
-      // Show only this trip on the map
-      // Note: setVisibleTrips automatically updates instruction markers via selectedTripId
       mapService.setVisibleTrips([newTrip.id])
     }
   },
   { immediate: true },
 )
-
-// Show only the selected trip on the map when component mounts
-onMounted(() => {
-  if (trip.value) {
-    // Note: setVisibleTrips automatically updates instruction markers via selectedTripId
-    mapService.setVisibleTrips([trip.value.id])
-  }
-})
 
 // Restore all trips when leaving the component
 function goBack() {

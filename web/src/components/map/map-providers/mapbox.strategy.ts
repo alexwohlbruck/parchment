@@ -564,21 +564,17 @@ export class MapboxStrategy extends MapStrategy {
 
     this.hdRoadsEnabled = value
 
-    try {
-      if (value) {
-        // Add HD roads import
-        // The addImport method takes an ImportSpecification object
-        this.mapInstance.addImport({
-          id: 'hd-roads',
-          url: 'mapbox://styles/mapbox/high-definition-roads',
-          config: {},
-        })
-      } else {
-        // Remove HD roads import
-        this.mapInstance.removeImport('hd-roads')
-      }
-    } catch (error) {
-      console.warn('Failed to toggle HD roads:', error)
+    if (value) {
+      // Add HD roads import
+      // The addImport method takes an ImportSpecification object
+      this.mapInstance.addImport({
+        id: 'hd-roads',
+        url: 'mapbox://styles/mapbox/high-definition-roads',
+        config: {},
+      })
+    } else {
+      // Remove HD roads import
+      this.mapInstance.removeImport('hd-roads')
     }
   }
 
@@ -602,12 +598,8 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   removeSource(sourceId: string) {
-    try {
-      if (this.mapInstance.getSource(sourceId)) {
-        this.mapInstance.removeSource(sourceId)
-      }
-    } catch (error) {
-      console.warn(`Failed to remove source ${sourceId}:`, error)
+    if (this.mapInstance.getSource(sourceId)) {
+      this.mapInstance.removeSource(sourceId)
     }
   }
 
@@ -637,72 +629,59 @@ export class MapboxStrategy extends MapStrategy {
     const themedLayer = applyThemedStreetViewStyling(layer)
     const { configuration } = themedLayer
 
-    try {
-      // Check if style is loaded before adding layer
-      if (!this.mapInstance.isStyleLoaded()) {
-        this.mapInstance.once('style.load', () => {
-          this.addLayer(layer, overwrite)
-        })
-        return
-      }
+    // Handle source if it exists in the configuration
+    if (typeof configuration.source === 'object') {
+      const sourceId = configuration.source.id
+      const existingSource = this.mapInstance.getSource(sourceId)
 
-      // Handle source if it exists in the configuration
-      if (typeof configuration.source === 'object') {
-        const sourceId = configuration.source.id
-        const existingSource = this.mapInstance.getSource(sourceId)
-
-        if (existingSource) {
-          if (overwrite) {
-            this.mapInstance.removeSource(sourceId)
-            this.mapInstance.addSource(sourceId, configuration.source as any)
-          }
-        } else {
+      if (existingSource) {
+        if (overwrite) {
+          this.mapInstance.removeSource(sourceId)
           this.mapInstance.addSource(sourceId, configuration.source as any)
         }
-
-        // Update configuration to use source ID instead of source object
-        configuration.source = sourceId
+      } else {
+        this.mapInstance.addSource(sourceId, configuration.source as any)
       }
 
-      // Verify source exists before adding layer
-      if (typeof configuration.source === 'string') {
-        const sourceExists = this.mapInstance.getSource(configuration.source)
-        if (!sourceExists) {
-          return
-        }
-      }
+      // Update configuration to use source ID instead of source object
+      configuration.source = sourceId
+    }
 
-      // Handle layer
-      const existingLayer = this.mapInstance.getLayer(configuration.id)
-      if (existingLayer && overwrite) {
-        this.mapInstance.removeLayer(configuration.id)
+    // Verify source exists before adding layer
+    if (typeof configuration.source === 'string') {
+      const sourceExists = this.mapInstance.getSource(configuration.source)
+      if (!sourceExists) {
+        console.warn(
+          `Cannot add layer ${configuration.id}: source '${configuration.source}' does not exist`,
+        )
+        return
       }
-      if (!existingLayer || overwrite) {
-        this.mapInstance.addLayer({
-          ...(configuration as any),
-          layout: {
-            ...configuration.layout,
-            visibility: themedLayer.visible ? 'visible' : 'none',
-          },
-        })
+    }
 
-        // Track street view layer ids for live theme updates
-        if (themedLayer.type === LayerType.STREET_VIEW) {
-          this.streetViewLayerIds.add(configuration.id)
-        }
+    // Handle layer
+    const existingLayer = this.mapInstance.getLayer(configuration.id)
+    if (existingLayer && overwrite) {
+      this.mapInstance.removeLayer(configuration.id)
+    }
+    if (!existingLayer || overwrite) {
+      this.mapInstance.addLayer({
+        ...(configuration as any),
+        layout: {
+          ...configuration.layout,
+          visibility: themedLayer.visible ? 'visible' : 'none',
+        },
+      })
+
+      // Track street view layer ids for live theme updates
+      if (themedLayer.type === LayerType.STREET_VIEW) {
+        this.streetViewLayerIds.add(configuration.id)
       }
-    } catch (error) {
-      // Silent error handling
     }
   }
 
   removeLayer(layerId: Layer['configuration']['id']) {
-    try {
-      if (this.mapInstance.getLayer(layerId)) {
-        this.mapInstance.removeLayer(layerId)
-      }
-    } catch (error) {
-      console.warn(`Failed to remove layer ${layerId}:`, error)
+    if (this.mapInstance.getLayer(layerId)) {
+      this.mapInstance.removeLayer(layerId)
     }
   }
 
@@ -710,6 +689,12 @@ export class MapboxStrategy extends MapStrategy {
     layerId: Layer['configuration']['id'],
     visible: boolean,
   ) {
+    // Check if layer exists before trying to toggle visibility
+    if (!this.mapInstance.getLayer(layerId)) {
+      console.warn(`Cannot toggle visibility: layer '${layerId}' does not exist in map`)
+      return
+    }
+    
     this.mapInstance.setLayoutProperty(
       layerId,
       'visibility',
@@ -809,7 +794,20 @@ export class MapboxStrategy extends MapStrategy {
 
   // Trip visualization methods
   setTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
-    // ALWAYS destroy ALL existing trip groups to ensure complete cleanup
+    // Idempotent: if we already show exactly these trips, skip destroy+recreate to avoid route flicker from double-calls (e.g. TripDetail watch + onMounted)
+    const currentTripIds = new Set(
+      [...this.layerGroups.keys()]
+        .filter(k => k.startsWith('trip-'))
+        .map(k => k.slice('trip-'.length)),
+    )
+    if (
+      currentTripIds.size === visibleTripIds.size &&
+      [...visibleTripIds].every(id => currentTripIds.has(id))
+    ) {
+      return
+    }
+
+    // Destroy ALL existing trip groups
     for (const groupId of this.layerGroups.keys()) {
       if (groupId.startsWith('trip-')) {
         this.layerGroups.get(groupId)?.destroy()
@@ -828,7 +826,6 @@ export class MapboxStrategy extends MapStrategy {
       }
     })
 
-    // Only fit map to trips if there are visible trips
     if (visibleTripIds.size > 0) {
       this.fitMapToTrips(trips, visibleTripIds)
     }

@@ -593,12 +593,8 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   removeSource(sourceId: string) {
-    try {
-      if (this.mapInstance.getSource(sourceId)) {
-        this.mapInstance.removeSource(sourceId)
-      }
-    } catch (error) {
-      console.warn(`Failed to remove source ${sourceId}:`, error)
+    if (this.mapInstance.getSource(sourceId)) {
+      this.mapInstance.removeSource(sourceId)
     }
   }
 
@@ -621,63 +617,61 @@ export class MaplibreStrategy extends MapStrategy {
       applyThemedStreetViewStyling(layer),
     )
 
-    try {
-      if (typeof configuration.source === 'object') {
-        const sourceId = configuration.source.id
-        const existingSource = this.mapInstance.getSource(sourceId)
+    if (typeof configuration.source === 'object') {
+      const sourceId = configuration.source.id
+      const existingSource = this.mapInstance.getSource(sourceId)
 
-        if (existingSource) {
-          if (overwrite) {
-            this.mapInstance.removeSource(sourceId)
-            this.mapInstance.addSource(sourceId, configuration.source as any)
-          }
-        } else {
+      if (existingSource) {
+        if (overwrite) {
+          this.mapInstance.removeSource(sourceId)
           this.mapInstance.addSource(sourceId, configuration.source as any)
         }
-        configuration.source = sourceId
+      } else {
+        this.mapInstance.addSource(sourceId, configuration.source as any)
       }
+      configuration.source = sourceId
+    }
 
-      if (typeof configuration.source === 'string') {
-        const sourceExists = this.mapInstance.getSource(configuration.source)
-        if (!sourceExists) {
-          return
-        }
+    if (typeof configuration.source === 'string') {
+      const sourceExists = this.mapInstance.getSource(configuration.source)
+      if (!sourceExists) {
+        return
       }
+    }
 
-      const existingLayer = this.mapInstance.getLayer(configuration.id)
-      if (existingLayer && overwrite) {
-        this.mapInstance.removeLayer(configuration.id)
+    const existingLayer = this.mapInstance.getLayer(configuration.id)
+    if (existingLayer && overwrite) {
+      this.mapInstance.removeLayer(configuration.id)
+    }
+    if (!existingLayer || overwrite) {
+      this.mapInstance.addLayer({
+        ...(configuration as any),
+        layout: {
+          ...configuration.layout,
+          visibility: layer.visible ? 'visible' : 'none',
+        },
+      })
+      if (layer.type === LayerType.STREET_VIEW) {
+        this.streetViewLayerIds.add(configuration.id)
       }
-      if (!existingLayer || overwrite) {
-        this.mapInstance.addLayer({
-          ...(configuration as any),
-          layout: {
-            ...configuration.layout,
-            visibility: layer.visible ? 'visible' : 'none',
-          },
-        })
-        if (layer.type === LayerType.STREET_VIEW) {
-          this.streetViewLayerIds.add(configuration.id)
-        }
-      }
-    } catch (error) {
-      // Silent error handling
     }
   }
 
   // TODO: Use maplibre Layer['configuration']['id']
   removeLayer(layerId: string) {
-    try {
-      if (this.mapInstance.getLayer(layerId)) {
-        this.mapInstance.removeLayer(layerId)
-      }
-    } catch (error) {
-      console.warn(`Failed to remove layer ${layerId}:`, error)
+    if (this.mapInstance.getLayer(layerId)) {
+      this.mapInstance.removeLayer(layerId)
     }
   }
 
   // TODO: Use maplibre Layer['configuration']['id']
   toggleLayerVisibility(layerId: string, visible: boolean) {
+    // Check if layer exists before trying to toggle visibility
+    if (!this.mapInstance.getLayer(layerId)) {
+      console.warn(`Cannot toggle visibility: layer '${layerId}' does not exist in map`)
+      return
+    }
+    
     this.mapInstance.setLayoutProperty(
       layerId,
       'visibility',
@@ -776,32 +770,36 @@ export class MaplibreStrategy extends MapStrategy {
   // Note: Waypoint markers are handled by base MapStrategy class
 
   setTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
-    console.log(
-      `Setting trips: visible=${Array.from(visibleTripIds).join(', ')}`,
+    // Idempotent: if we already show exactly these trips, skip destroy+recreate
+    const currentTripIds = new Set(
+      [...this.layerGroups.keys()]
+        .filter(k => k.startsWith('trip-'))
+        .map(k => k.slice('trip-'.length)),
     )
+    if (
+      currentTripIds.size === visibleTripIds.size &&
+      [...visibleTripIds].every(id => currentTripIds.has(id))
+    ) {
+      return
+    }
 
-    // ALWAYS destroy ALL existing trip groups to ensure complete cleanup
     for (const groupId of this.layerGroups.keys()) {
       if (groupId.startsWith('trip-')) {
-        console.log(`Destroying existing trip group: ${groupId}`)
         this.layerGroups.get(groupId)?.destroy()
         this.layerGroups.delete(groupId)
       }
     }
 
-    // Create fresh trip groups for visible trips
     const visibleTrips: any[] = []
     trips.trips.forEach(trip => {
       if (visibleTripIds.has(trip.id)) {
         const groupId = `trip-${trip.id}`
-        console.log(`Creating new trip group: ${groupId}`)
         const tripGroup = new TripGroup(this, trip)
         this.layerGroups.set(groupId, tripGroup)
         visibleTrips.push(trip)
       }
     })
 
-    // Only fit map to trips if there are visible trips
     if (visibleTripIds.size > 0) {
       this.fitMapToTrips(trips, visibleTripIds)
     }

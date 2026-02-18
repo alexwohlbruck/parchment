@@ -21,7 +21,7 @@ import StreetViewPip from '@/components/map/StreetViewPip.vue'
 import { useMapService } from '@/services/map.service'
 import { useLayersStore } from '@/stores/layers.store'
 import { storeToRefs } from 'pinia'
-import { useLayersService } from '@/services/layers.service'
+import { useStreetViewLayersService } from '@/services/layers/features/street-view-layers.service'
 
 import MapChips from '@/components/map/MapChips.vue'
 import WeatherControl from '@/components/map/controls/WeatherControl.vue'
@@ -33,7 +33,7 @@ const appStore = useAppStore()
 const mapService = useMapService()
 const layersStore = useLayersStore()
 const { layers } = storeToRefs(layersStore)
-const layersService = useLayersService()
+const streetViewLayersService = useStreetViewLayersService()
 
 const isBottomSheetView = computed(() => {
   const isSubview = route.matched.length > 1 && route.name !== AppRoute.MAP
@@ -90,7 +90,7 @@ watch(
     nextTick(async () => {
       streetView.value = name === AppRoute.STREET
       if (streetView.value) {
-        await layersService.toggleStreetViewLayers(
+        await streetViewLayersService.toggleStreetViewLayers(
           layers.value,
           layersStore,
           mapService.mapStrategy,

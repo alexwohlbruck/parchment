@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Layer, LayerGroup, LayerGroupWithLayers } from '@/types/map.types'
 import { LayerType } from '@/types/map.types'
-import { useLayersService } from '@/services/layers.service'
+import { useLayersService } from '@/services/layers/layers.service'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useStorage } from '@vueuse/core'
 import {
@@ -287,67 +287,63 @@ export const useLayersStore = defineStore('layers', () => {
   // TODO: Create template "store" where users can import pre-made layers from the community
   // Populate user's account with template layers (replaces server-side populate endpoint)
   async function populateUserLayerTemplates() {
-    try {
-      // First, create layer groups that don't exist
-      const existingGroupNames = new Set(layerGroups.value.map(g => g.name))
+    // First, create layer groups that don't exist
+    const existingGroupNames = new Set(layerGroups.value.map(g => g.name))
 
-      for (const groupTemplate of USER_LAYER_GROUP_TEMPLATES.value) {
-        if (!existingGroupNames.has(groupTemplate.name)) {
-          // Check if this group requires integrations
-          const hasRequiredIntegration =
-            groupTemplate.name === 'Mapillary'
-              ? integrationsStore.configuredIntegrations.some(
-                  i => i.id.toLowerCase() === 'mapillary',
-                )
-              : true
-
-          if (hasRequiredIntegration) {
-            await addLayerGroup(groupTemplate)
-          }
-        }
-      }
-
-      // Reload groups to get the created IDs
-      await loadLayers()
-
-      // Then create layers that don't exist
-      const existingConfigIds = new Set(
-        userLayers.value.map(l => l.configuration?.id).filter(Boolean),
-      )
-
-      for (const layerTemplate of USER_LAYER_TEMPLATES.value) {
-        const configId = layerTemplate.configuration?.id
-        if (configId && !existingConfigIds.has(configId)) {
-          // Check integration requirements
-          const requiredIntegration =
-            LAYER_INTEGRATION_REQUIREMENTS[
-              configId as keyof typeof LAYER_INTEGRATION_REQUIREMENTS
-            ]
-          const hasRequiredIntegration =
-            !requiredIntegration ||
-            integrationsStore.configuredIntegrations.some(
-              i => i.id.toLowerCase() === requiredIntegration,
-            )
-
-          if (hasRequiredIntegration) {
-            // Find group ID if this layer belongs to a group
-            let groupId: string | null = null
-            if (layerTemplate.groupId) {
-              const group = layerGroups.value.find(
-                g => g.name === layerTemplate.groupId,
+    for (const groupTemplate of USER_LAYER_GROUP_TEMPLATES.value) {
+      if (!existingGroupNames.has(groupTemplate.name)) {
+        // Check if this group requires integrations
+        const hasRequiredIntegration =
+          groupTemplate.name === 'Mapillary'
+            ? integrationsStore.configuredIntegrations.some(
+                i => i.id.toLowerCase() === 'mapillary',
               )
-              groupId = group?.id || null
-            }
+            : true
 
-            await addLayer({
-              ...layerTemplate,
-              groupId,
-            })
-          }
+        if (hasRequiredIntegration) {
+          await addLayerGroup(groupTemplate)
         }
       }
-    } catch (error) {
-      console.error('Failed to populate user layer templates:', error)
+    }
+
+    // Reload groups to get the created IDs
+    await loadLayers()
+
+    // Then create layers that don't exist
+    const existingConfigIds = new Set(
+      userLayers.value.map(l => l.configuration?.id).filter(Boolean),
+    )
+
+    for (const layerTemplate of USER_LAYER_TEMPLATES.value) {
+      const configId = layerTemplate.configuration?.id
+      if (configId && !existingConfigIds.has(configId)) {
+        // Check integration requirements
+        const requiredIntegration =
+          LAYER_INTEGRATION_REQUIREMENTS[
+            configId as keyof typeof LAYER_INTEGRATION_REQUIREMENTS
+          ]
+        const hasRequiredIntegration =
+          !requiredIntegration ||
+          integrationsStore.configuredIntegrations.some(
+            i => i.id.toLowerCase() === requiredIntegration,
+          )
+
+        if (hasRequiredIntegration) {
+          // Find group ID if this layer belongs to a group
+          let groupId: string | null = null
+          if (layerTemplate.groupId) {
+            const group = layerGroups.value.find(
+              g => g.name === layerTemplate.groupId,
+            )
+            groupId = group?.id || null
+          }
+
+          await addLayer({
+            ...layerTemplate,
+            groupId,
+          })
+        }
+      }
     }
   }
 
@@ -678,25 +674,18 @@ export const useLayersStore = defineStore('layers', () => {
             (tileUrl: string) => tileUrl.replace(oldUrl, newUrl),
           )
 
-          try {
-            await updateLayer(layer.id, {
-              configuration: {
-                ...layer.configuration,
-                source: {
-                  ...layer.configuration.source,
-                  tiles: updatedTiles,
-                },
+          await updateLayer(layer.id, {
+            configuration: {
+              ...layer.configuration,
+              source: {
+                ...layer.configuration.source,
+                tiles: updatedTiles,
               },
-            })
-            console.log(
-              `Updated proxy URLs for layer: ${layer.configuration.id}`,
-            )
-          } catch (error) {
-            console.warn(
-              `Failed to update proxy URLs for layer ${layer.configuration.id}:`,
-              error,
-            )
-          }
+            },
+          })
+          console.log(
+            `Updated proxy URLs for layer: ${layer.configuration.id}`,
+          )
         }
       }
     }

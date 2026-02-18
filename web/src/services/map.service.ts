@@ -16,7 +16,10 @@ import {
 import type { Place } from '@/types/place.types'
 import { useMapStore } from '../stores/map.store'
 import { useLayersStore } from '@/stores/layers.store'
-import { useLayersService } from '@/services/layers.service'
+import { useLayersService } from '@/services/layers/layers.service'
+import { usePlacePolygonLayerService } from '@/services/layers/features/place-polygon-layer.service'
+import { useSearchResultsLayerService } from '@/services/layers/features/search-results-layer.service'
+import { useMarkerLayersService } from '@/services/layers/markers/marker-layers.service'
 import { useAppStore } from '../stores/app.store'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useThemeStore } from '@/stores/theme.store'
@@ -47,6 +50,9 @@ function mapService() {
   const mapStore = useMapStore()
   const layersStore = useLayersStore()
   const layersService = useLayersService()
+  const placePolygonLayerService = usePlacePolygonLayerService()
+  const searchResultsLayerService = useSearchResultsLayerService()
+  const markerLayersService = useMarkerLayersService()
   const appStore = useAppStore()
   const directionsStore = useDirectionsStore()
   const integrationsStore = useIntegrationsStore()
@@ -79,7 +85,7 @@ function mapService() {
   // Watch for theme changes to update polygon colors
   watch([accentColor, isDark], () => {
     if (mapStrategy && isMapReady.value) {
-      layersService.updatePlacePolygonColors(mapStrategy)
+      placePolygonLayerService.updatePlacePolygonColors(mapStrategy)
     }
   })
 
@@ -155,7 +161,12 @@ function mapService() {
     // Get current language for initialization
     const currentLanguage = storedLocale.value
 
-    mapStrategy = getMapStrategy(container, mapEngine, accessToken, currentLanguage)
+    mapStrategy = getMapStrategy(
+      container,
+      mapEngine,
+      accessToken,
+      currentLanguage,
+    )
     mapStore.setMapStrategy(mapStrategy)
 
     mapEventBus.on('load', async () => {
@@ -300,43 +311,11 @@ function mapService() {
   }
 
   function onMapLoad() {
-    setConfigProperties()
-
-    // Sync client-side layer visibility with their group states
-    const hasVisibleTransitLayers = layersStore.syncClientSideLayerVisibility()
-
-    // Include search results layer with regular layers
-    const allLayers = [
-      layersService.createSearchResultsLayer(),
-      ...layers.value,
-    ]
-    layersService.initializeLayers(allLayers, mapStrategy)
-
-    // Apply transit map theme if transit layers are visible
-    if (hasVisibleTransitLayers && mapStrategy) {
-      // Import the theme store to access the applyTransitMapTheme function
-      const themeStore = useThemeStore()
-      const shouldUseFaded = hasVisibleTransitLayers && !themeStore.isDark
-      mapStrategy.setMapColorTheme(
-        shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT,
-      )
-      mapStrategy.setTransitLabels(!hasVisibleTransitLayers)
-    }
-
-    // Initialize marker layers - they will automatically sync with store state
-    layersService.initializeMarkerLayers(mapStrategy)
-
-    // Show queued trips if any
-    if (queuedTrips.value) {
-      mapStrategy?.setTrips(
-        queuedTrips.value.trips,
-        queuedTrips.value.visibleTripIds,
-      )
-      queuedTrips.value = null
-    }
+    // NOTE: Layer initialization happens in onStyleLoad() after style is fully loaded
+    // This function only handles map-level setup that doesn't require the style to be loaded
 
     isMapReady.value = true
-    
+
     // Ensure map container is properly sized after load
     resize()
   }
@@ -353,20 +332,21 @@ function mapService() {
       setConfigProperties()
 
       // Sync client-side layer visibility with their group states
-      const hasVisibleTransitLayers = layersStore.syncClientSideLayerVisibility()
+      const hasVisibleTransitLayers =
+        layersStore.syncClientSideLayerVisibility()
 
       // Include search results layer with regular layers
       const allLayers = [
-        layersService.createSearchResultsLayer(),
+        searchResultsLayerService.createSearchResultsLayer(),
         ...layers.value,
       ]
       layersService.initializeLayers(allLayers, mapStrategy)
 
       // Initialize place polygon layers
-      layersService.initializePlacePolygonLayers(mapStrategy)
+      placePolygonLayerService.initializePlacePolygonLayers(mapStrategy)
 
       // Update polygon colors to match current theme
-      layersService.updatePlacePolygonColors(mapStrategy)
+      placePolygonLayerService.updatePlacePolygonColors(mapStrategy)
 
       // Apply transit map theme if transit layers are visible
       if (hasVisibleTransitLayers && mapStrategy) {
@@ -376,6 +356,18 @@ function mapService() {
           shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT,
         )
         mapStrategy.setTransitLabels(!hasVisibleTransitLayers)
+      }
+
+      // Initialize marker layers - they will automatically sync with store state
+      markerLayersService.initializeMarkerLayers(mapStrategy)
+
+      // Show queued trips if any
+      if (queuedTrips.value) {
+        mapStrategy?.setTrips(
+          queuedTrips.value.trips,
+          queuedTrips.value.visibleTripIds,
+        )
+        queuedTrips.value = null
       }
 
       // Note: Waypoint markers are automatically managed by WaypointsLayer
@@ -593,7 +585,12 @@ function mapService() {
     // Get current language for initialization
     const currentLanguage = storedLocale.value
 
-    mapStrategy = getMapStrategy(mapContainer, mapEngine, accessToken, currentLanguage)
+    mapStrategy = getMapStrategy(
+      mapContainer,
+      mapEngine,
+      accessToken,
+      currentLanguage,
+    )
     mapStore.setMapStrategy(mapStrategy)
   }
 
@@ -791,12 +788,12 @@ function mapService() {
 
     if (mapStrategy) {
       const needsReinit = mapStrategy.setMapLanguage(newLocale)
-      
+
       // If the map needs to be reinitialized (e.g., Mapbox Standard style),
       // reinitialize with the new language
       if (needsReinit) {
         const currentEngine = mapStore.settings.engine
-        
+
         // Only get camera if map is ready, otherwise use stored camera
         if (isMapReady.value) {
           const currentCamera = {
@@ -807,13 +804,13 @@ function mapService() {
           }
           mapStore.setMapCamera(currentCamera)
         }
-        
+
         // Set flag to prevent watcher from firing during reinitialization
         isReinitializingForLanguage = true
-        
+
         // Reinitialize the map with the new language
         setMapEngine(currentEngine)
-        
+
         // Reset flag after reinitialization
         setTimeout(() => {
           isReinitializingForLanguage = false
@@ -885,25 +882,9 @@ function mapService() {
     },
   )
 
-  // Watch for selected trip changes - handles route rendering
-  // Note: Instruction markers are automatically managed by layers.service
-  watch(
-    () => directionsStore.selectedTripId,
-    selectedTripId => {
-      const trips = directionsStore.trips
-      if (!trips || !selectedTripId) {
-        return
-      }
-
-      const visibleTripIds = new Set([selectedTripId])
-
-      if (isMapReady.value && mapStrategy) {
-        mapStrategy.setTrips(trips, visibleTripIds)
-      } else {
-        queuedTrips.value = { trips, visibleTripIds }
-      }
-    },
-  )
+  // Note: selectedTripId changes are handled by setVisibleTrips(), showAllTrips(), 
+  // and showOnlyWaypoints() which explicitly call mapStrategy.setTrips().
+  // Instruction markers are automatically managed by marker-layers.service via its own watcher.
 
   function destroy() {
     // Reset state
@@ -928,11 +909,11 @@ function mapService() {
     }
 
     // Destroy marker layers
-    layersService.destroyMarkerLayers()
+    markerLayersService.destroyMarkerLayers()
 
     // Clean up search results layer
     if (mapStrategy) {
-      layersService.removeSearchResultsLayer(mapStrategy)
+      searchResultsLayerService.removeSearchResultsLayer(mapStrategy)
     }
 
     // Remove event listeners
@@ -1009,14 +990,13 @@ function mapService() {
   }
 
   /**
-   * Show specific trip on hover
+   * Show specific trip on hover (route line + instruction markers)
    */
   function showTripOnHover(tripId: string) {
     const trips = directionsStore.trips
     if (!trips) return
 
-    // Update selected trip in store
-    directionsStore.setSelectedTripId(tripId)
+    setVisibleTrips([tripId])
   }
 
   /**
@@ -1099,7 +1079,7 @@ function mapService() {
     ) => mapStrategy?.addVueMarker(id, lngLat, component, props),
     removeAllMarkers: () => mapStrategy?.removeAllMarkers(),
     updatePlacePolygon: (place: Place | null) =>
-      layersService.updatePlacePolygon(mapStrategy, place),
+      placePolygonLayerService.updatePlacePolygon(mapStrategy, place),
     zoomIn,
     zoomOut,
     resetNorth,
@@ -1136,10 +1116,10 @@ function mapService() {
     isCurrentlyZooming,
 
     // Instruction marker highlights (for UI interactions like hovering)
-    // Delegated to layers service which manages marker layers
-    highlightInstructionPoint: layersService.highlightInstructionPoint,
+    // Delegated to marker layers service which manages marker layers
+    highlightInstructionPoint: markerLayersService.highlightInstructionPoint,
     clearHighlightedInstructionPoint:
-      layersService.clearHighlightedInstructionPoint,
+      markerLayersService.clearHighlightedInstructionPoint,
   }
 }
 

@@ -1,22 +1,14 @@
 import type { InitOptions } from 'i18next'
-import { readFileSync } from 'fs'
-import { join, dirname } from 'path'
-import { fileURLToPath } from 'url'
 import { LANGUAGES, DEFAULT_LANGUAGE, type Language } from './i18n.types'
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
+import enUS from './locales/en-US.json'
+import esES from './locales/es-ES.json'
 
 export { LANGUAGES, DEFAULT_LANGUAGE, type Language }
 
-function loadLocaleResource(locale: string): Record<string, unknown> {
-  const filePath = join(__dirname, 'locales', `${locale}.json`)
-  return JSON.parse(readFileSync(filePath, 'utf-8'))
-}
-
 /** Options for elysia-i18next plugin (single source of config; no direct i18next runtime use). */
 export function getI18nInitOptions(): InitOptions {
-  const enUS = loadLocaleResource('en-US')
-  const esES = loadLocaleResource('es-ES')
+  const enUSResource = enUS as Record<string, unknown>
+  const esESResource = esES as Record<string, unknown>
   return {
     lng: DEFAULT_LANGUAGE,
     fallbackLng: {
@@ -26,10 +18,10 @@ export function getI18nInitOptions(): InitOptions {
     },
     supportedLngs: [...LANGUAGES],
     resources: {
-      'en-US': { translation: enUS },
-      'es-ES': { translation: esES },
-      en: { translation: enUS },
-      es: { translation: esES },
+      'en-US': { translation: enUSResource },
+      'es-ES': { translation: esESResource },
+      en: { translation: enUSResource },
+      es: { translation: esESResource },
     },
     interpolation: { escapeValue: false },
   }

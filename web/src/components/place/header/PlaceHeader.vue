@@ -109,7 +109,7 @@ watch(description, () => {
             <img
               v-show="brandLogoLoaded"
               :src="brandLogo"
-              :alt="place.name.value + ' logo'"
+              :alt="(place.name?.value ?? '') + ' logo'"
               class="w-full h-full object-contain bg-white"
               @load="emit('logoLoaded')"
               @error="emit('logoError')"

@@ -46,7 +46,8 @@ async function createBookmark() {
     console.error('Default collection not loaded, cannot save place.')
     return
   }
-  const newBookmark = await bookmarksService.createBookmark(props.place, [
+  if (!props.place?.id) return
+  const newBookmark = await bookmarksService.createBookmark(props.place as Place, [
     defaultCollection.value.id,
   ])
 

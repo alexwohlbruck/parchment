@@ -28,11 +28,11 @@ export function useUnits() {
     /** Format speed (input in m/s). */
     formatSpeed(metersPerSecond: number): string {
       if (isMetric.value) {
-        const kmh = convert(metersPerSecond, 'm/s').to('km/h')
-        return `${Math.round(Number(kmh))} km/h`
+        const kmh = metersPerSecond * 3.6
+        return `${Math.round(kmh)} km/h`
       }
-      const mph = convert(metersPerSecond, 'm/s').to('mph')
-      return `${Math.round(Number(mph))} mph`
+      const mph = metersPerSecond * 2.236936
+      return `${Math.round(mph)} mph`
     },
 
     /** Format temperature (input in Celsius). */

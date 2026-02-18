@@ -1,6 +1,6 @@
 import { createI18n } from 'vue-i18n'
 import { useStorage } from '@vueuse/core'
-import { watch } from 'vue'
+import { watch, type Ref } from 'vue'
 import enUS from './en-US.json'
 import esES from './es-ES.json'
 
@@ -29,13 +29,13 @@ export const i18n = createI18n<[TranslationsSchema | any], Locale>({
   },
 })
 
-// Sync i18n locale with stored locale
+// Sync i18n locale with stored locale (locale is a Ref in composition API)
+const localeRef = i18n.global.locale as unknown as Ref<Locale>
 watch(storedLocale, (newLocale) => {
-  i18n.global.locale.value = newLocale
+  localeRef.value = newLocale
 })
 
-// Sync stored locale with i18n locale changes
-watch(() => i18n.global.locale.value, (newLocale) => {
+watch(() => localeRef.value, (newLocale) => {
   if (storedLocale.value !== newLocale) {
     storedLocale.value = newLocale
   }

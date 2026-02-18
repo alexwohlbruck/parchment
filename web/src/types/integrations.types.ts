@@ -2,14 +2,14 @@
 export * from '@server/types/integration.types'
 
 // Client-side types
-import { z, ZodObject } from 'zod'
+import { z } from 'zod'
 import { IntegrationDefinition } from '@server/types/integration.types'
 
 // TODO: i18n translate error messages
 
 export const configSchemas: Record<
   IntegrationDefinition['configSchema'],
-  ZodObject<any>
+  z.ZodTypeAny
 > = {
   apiKeySchema: z.object({
     apiKey: z.string().min(1, 'API Key is required'),

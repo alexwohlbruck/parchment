@@ -139,8 +139,11 @@ function weatherService() {
       return
     }
 
+    const lat = Array.isArray(center) ? center[1] : center.lat
+    const lng = Array.isArray(center) ? center[0] : ('lng' in center ? center.lng : center.lon)
+
     // Check if we should update
-    if (!shouldUpdateWeather(center.lat, center.lng, zoom)) {
+    if (!shouldUpdateWeather(lat, lng, zoom)) {
       // If we have cached data, use it
       if (cache.value && cache.value.data) {
         weather.value = cache.value.data
@@ -149,7 +152,7 @@ function weatherService() {
     }
 
     // Fetch new weather data
-    await fetchWeather(center.lat, center.lng)
+    await fetchWeather(lat, lng)
   }
 
   /**

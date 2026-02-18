@@ -194,7 +194,7 @@ const formatDistance = (
 }
 
 function toggleUnits() {
-  useMetric.value = !useMetric.value
+  unitSystem.value = useMetric.value ? UnitSystem.IMPERIAL : UnitSystem.METRIC
 }
 
 const isLowZoom = computed(() => {

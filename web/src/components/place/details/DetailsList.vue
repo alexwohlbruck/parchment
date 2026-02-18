@@ -41,7 +41,7 @@ const cuisines = computed(() => {
 
 const osmUrl = computed(() => {
   if (!props.place) return ''
-  const osmSource = props.place.sources.find(s => s.id === SOURCE.OSM)
+  const osmSource = props.place.sources?.find(s => s.id === SOURCE.OSM)
   return osmSource?.url || ''
 })
 

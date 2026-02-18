@@ -115,7 +115,7 @@ function addWaypoint() {
 
 function getWaypointName(waypoint: Waypoint) {
   if (waypoint.place) {
-    const placeName = getSearchResultName(waypoint.place)
+    const placeName = getSearchResultName(waypoint.place as Place)
     // If place exists but has no name, fall back to coordinates
     if (placeName) {
       return placeName

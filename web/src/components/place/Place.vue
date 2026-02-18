@@ -60,7 +60,7 @@ function sharePlace() {
   const url = window.location.href
   if (navigator.share) {
     try {
-      const name = props.place?.name.value || ''
+      const name = props.place?.name?.value ?? ''
       navigator.share({
         url,
         title: name,

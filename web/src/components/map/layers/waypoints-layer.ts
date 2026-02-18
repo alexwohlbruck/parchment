@@ -21,7 +21,7 @@ export class WaypointsLayer extends BaseMarkerLayer {
 
   protected getData(): MarkerData[] {
     const waypoints = this.directionsStore.waypoints
-    
+
     return waypoints
       .map((waypoint, index) => {
         if (!waypoint.lngLat) return null
@@ -40,6 +40,6 @@ export class WaypointsLayer extends BaseMarkerLayer {
           },
         }
       })
-      .filter((m): m is MarkerData => m !== null)
+      .filter((m): m is NonNullable<typeof m> => m !== null) as MarkerData[]
   }
 }

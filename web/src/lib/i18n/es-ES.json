@@ -1,4 +1,8 @@
 {
+  "taglines": {
+    "short": "La próxima generación de mapas digitales",
+    "long": "Explora el mundo con mapas hermosos y detallados creados por la comunidad"
+  },
   "general": {
     "yes": "Sí",
     "no": "No",
@@ -798,8 +802,6 @@
   },
   "auth": {
     "signIn": {
-      "title": "Iniciar sesión",
-      "welcome": "Bienvenido de nuevo a Parchment",
       "server": "Servidor",
       "email": "Correo electrónico",
       "emailPlaceholder": "magellan{'@'}parchment.app",

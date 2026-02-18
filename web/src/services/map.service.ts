@@ -336,6 +336,9 @@ function mapService() {
     }
 
     isMapReady.value = true
+    
+    // Ensure map container is properly sized after load
+    resize()
   }
 
   function onStyleLoad() {

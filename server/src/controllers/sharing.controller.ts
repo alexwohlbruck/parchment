@@ -91,10 +91,10 @@ app.use(requireAuth).post(
  */
 app.use(requireAuth).post(
   '/:shareId/revoke',
-  async ({ params, user, error }) => {
+  async ({ params, user, status }) => {
     const revoked = await sharingService.revokeShare(user.id, params.shareId)
     if (!revoked) {
-      return error(404, { message: 'Share not found' })
+      return status(404, { message: t('errors.notFound.share') })
     }
     return { success: true }
   },
@@ -114,10 +114,10 @@ app.use(requireAuth).post(
  */
 app.use(requireAuth).delete(
   '/:shareId',
-  async ({ params, user, error }) => {
+  async ({ params, user, status }) => {
     const deleted = await sharingService.deleteShare(user.id, params.shareId)
     if (!deleted) {
-      return error(404, { message: 'Share not found' })
+      return status(404, { message: t('errors.notFound.share') })
     }
     return { success: true }
   },
@@ -175,13 +175,13 @@ app.use(requireAuth).get(
  */
 app.use(requireAuth).post(
   '/incoming/:shareId/accept',
-  async ({ params, user, error }) => {
+  async ({ params, user, status }) => {
     const share = await sharingService.acceptIncomingShare(
       user.id,
       params.shareId,
     )
     if (!share) {
-      return error(404, { message: 'Share not found' })
+      return status(404, { message: t('errors.notFound.share') })
     }
     return share
   },
@@ -201,13 +201,13 @@ app.use(requireAuth).post(
  */
 app.use(requireAuth).post(
   '/incoming/:shareId/reject',
-  async ({ params, user, error }) => {
+  async ({ params, user, status }) => {
     const rejected = await sharingService.rejectIncomingShare(
       user.id,
       params.shareId,
     )
     if (!rejected) {
-      return error(404, { message: 'Share not found' })
+      return status(404, { message: t('errors.notFound.share') })
     }
     return { success: true }
   },
@@ -227,13 +227,13 @@ app.use(requireAuth).post(
  */
 app.use(requireAuth).delete(
   '/incoming/:shareId',
-  async ({ params, user, error }) => {
+  async ({ params, user, status }) => {
     const deleted = await sharingService.deleteIncomingShare(
       user.id,
       params.shareId,
     )
     if (!deleted) {
-      return error(404, { message: 'Share not found' })
+      return status(404, { message: t('errors.notFound.share') })
     }
     return { success: true }
   },

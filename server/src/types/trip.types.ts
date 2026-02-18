@@ -1,7 +1,8 @@
 // Multimodal Trip Planner Types
 // Based on detailed requirements specification
 
-import { Coordinate } from './unified-routing.types'
+import { Coordinate, RouteInstruction } from './unified-routing.types'
+import type { Language } from '../lib/i18n/i18n.types'
 
 // =============================================================================
 // CORE TYPES
@@ -27,6 +28,14 @@ export type Mode =
   | 'paratransit'
   | 'mixed'
 
+// UI-level mode selection (includes 'multi' for all modes)
+export type SelectedMode =
+  | 'multi'
+  | 'walking'
+  | 'driving'
+  | 'biking'
+  | 'transit'
+
 export type WaypointType = 'origin' | 'destination' | 'via'
 
 export type OwnershipType = 'personal' | 'shared'
@@ -39,6 +48,7 @@ export type EnergyType = 'electric' | 'gas' | 'diesel' | 'hybrid'
 
 export interface TripRequest {
   waypoints: Waypoint[] // minimum 2
+  selectedMode?: SelectedMode // Filter trips by mode
   routingPreferences?: RoutingPreferences
   availableVehicles?: Vehicle[]
   knownAccessPoints?: AccessPoint[]
@@ -46,6 +56,8 @@ export interface TripRequest {
   preferredArrivalTime?: string // ISO string
   requestId?: string
   timestamp?: string // For reproducibility
+  /** Language code for localized instructions (e.g. en-US, es-ES) */
+  language?: Language
 }
 
 export interface Waypoint {
@@ -82,6 +94,9 @@ export interface RoutingPreferences {
   maxWalkingDistance?: number // meters
   maxTransfers?: number
   wheelchairAccessible?: boolean
+  useKnownVehicleLocations?: boolean
+  useKnownParkingLocations?: boolean
+  routingEngine?: string // Preferred routing engine integration ID
 }
 
 // =============================================================================
@@ -112,10 +127,15 @@ export interface TripSegment {
   duration: number // seconds
   distance: number // meters
   geometry: any // GeoJSON or encoded polyline
-  instructions: string[]
+  instructions: RouteInstruction[]
   cost?: CurrencyAmount
   co2?: number // grams
   details?: SegmentDetails
+  // Elevation data
+  totalElevationGain?: number // meters
+  totalElevationLoss?: number // meters
+  maxElevation?: number // meters
+  minElevation?: number // meters
 }
 
 export interface TripStats {

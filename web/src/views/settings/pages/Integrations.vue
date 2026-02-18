@@ -36,7 +36,7 @@ onMounted(async () => {
       <LoaderCircleIcon class="animate-spin h-8 w-8 text-primary" />
     </div>
 
-    <div v-else>
+    <div v-else class="space-y-4">
       <!-- Configured Integrations -->
       <IntegrationsList
         :title="t('settings.integrations.title')"

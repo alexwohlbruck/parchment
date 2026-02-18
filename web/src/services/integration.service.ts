@@ -30,7 +30,8 @@ export function useIntegrationService() {
   async function refreshLayersIfNeeded(integrationId?: string) {
     try {
       // Reload layers if the integration involved can affect map layers
-      const justUpdated = store.integrationConfigurations.find(
+      const configs = Array.isArray(store.integrationConfigurations) ? store.integrationConfigurations : []
+      const justUpdated = configs.find(
         i => i.integrationId === integrationId,
       )
       if (!integrationId || hasMapLayerCapability(justUpdated)) {
@@ -76,7 +77,8 @@ export function useIntegrationService() {
     const response = await api.put(`/integrations/${id}`, updates)
 
     await fetchConfiguredIntegrations()
-    const updated = store.integrationConfigurations.find(i => i.id === id)
+    const configsAfterUpdate = Array.isArray(store.integrationConfigurations) ? store.integrationConfigurations : []
+    const updated = configsAfterUpdate.find(i => i.id === id)
     await refreshLayersIfNeeded(updated?.integrationId)
     return response.data
   }
@@ -85,7 +87,8 @@ export function useIntegrationService() {
     isLoading.value = true
     error.value = null
 
-    const deleted = store.integrationConfigurations.find(i => i.id === id)
+    const configsBeforeDelete = Array.isArray(store.integrationConfigurations) ? store.integrationConfigurations : []
+    const deleted = configsBeforeDelete.find(i => i.id === id)
 
     await api.delete(`/integrations/${id}`)
 
@@ -113,7 +116,8 @@ export function useIntegrationService() {
   }
 
   async function toggleIntegrationEnabled(id: string, enabled: boolean) {
-    const integration = store.integrationConfigurations.find(i => i.id === id)
+    const configs = Array.isArray(store.integrationConfigurations) ? store.integrationConfigurations : []
+    const integration = configs.find(i => i.id === id)
     if (!integration) return
 
     const updatedCapabilities = integration.capabilities.map(cap => ({
@@ -132,7 +136,8 @@ export function useIntegrationService() {
     capabilityId: IntegrationCapabilityId,
     active: boolean,
   ) {
-    const integration = store.integrationConfigurations.find(i => i.id === id)
+    const configs = Array.isArray(store.integrationConfigurations) ? store.integrationConfigurations : []
+    const integration = configs.find(i => i.id === id)
     if (!integration) return
 
     const updatedCapabilities = integration.capabilities.map(cap =>
@@ -145,26 +150,68 @@ export function useIntegrationService() {
     return result
   }
 
+  /**
+   * Fetch available integrations from server.
+   * If cached data exists (is array), returns immediately and refreshes in background.
+   */
   async function fetchAvailableIntegrations() {
+    // Array (even empty) = cached, null/other = never fetched
+    const hasCachedData = Array.isArray(store.availableIntegrations)
+    
+    if (hasCachedData) {
+      // Return cached data immediately, refresh in background
+      api.get<IntegrationDefinition[]>('/integrations/available')
+        .then(response => {
+          store.availableIntegrations = response.data
+        })
+        .catch(error => {
+          console.error('Failed to refresh available integrations:', error)
+        })
+      return store.availableIntegrations
+    }
+    
+    // No cache - wait for response
     store.isLoadingAvailable = true
     try {
       const response = await api.get<IntegrationDefinition[]>(
         '/integrations/available',
       )
       store.availableIntegrations = response.data
+      store.hasInitialized = true
       return response.data
     } finally {
       store.isLoadingAvailable = false
     }
   }
 
+  /**
+   * Fetch configured integrations from server.
+   * If cached data exists (is array), returns immediately and refreshes in background.
+   */
   async function fetchConfiguredIntegrations() {
+    // Array (even empty) = cached, null/other = never fetched
+    const hasCachedData = Array.isArray(store.integrationConfigurations)
+    
+    if (hasCachedData) {
+      // Return cached data immediately, refresh in background
+      api.get<IntegrationRecord[]>('/integrations/configured')
+        .then(response => {
+          store.integrationConfigurations = response.data
+        })
+        .catch(error => {
+          console.error('Failed to refresh configured integrations:', error)
+        })
+      return store.integrationConfigurations
+    }
+    
+    // No cache - wait for response
     store.isLoadingConfigured = true
     try {
       const response = await api.get<IntegrationRecord[]>(
         '/integrations/configured',
       )
       store.integrationConfigurations = response.data
+      store.hasInitialized = true
       return response.data
     } finally {
       store.isLoadingConfigured = false

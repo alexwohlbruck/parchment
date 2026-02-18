@@ -124,7 +124,10 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
    * @param id The identifier containing category/gallery info (e.g., "category:PariserPlatz" or "gallery:PariserPlatz")
    * @returns Place with images or null if not found
    */
-  private async getPlaceInfo(id: string): Promise<Place | null> {
+  private async getPlaceInfo(
+    id: string,
+    _options?: { language?: string },
+  ): Promise<Place | null> {
     this.ensureInitialized()
 
     try {

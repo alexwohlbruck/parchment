@@ -56,27 +56,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
     } as SearchCapability,
     geocoding: {
       geocode: this.searchPlaces.bind(this),
-      reverseGeocode: async (lat: number, lng: number) => {
-        const apiUrl = `${
-          this.config.host.endsWith('/')
-            ? this.config.host.slice(0, -1)
-            : this.config.host
-        }/reverse`
-
-        const params: Record<string, any> = {
-          lat,
-          lon: lng,
-          format: 'json',
-          addressdetails: 1,
-          // email: this.config.email,
-        }
-
-        const response = await axios.get(apiUrl, { 
-          params,
-          headers: getNominatimHeaders()
-        })
-        return response.data ? [response.data] : []
-      },
+      reverseGeocode: this.reverseGeocode.bind(this),
     },
     placeInfo: {
       getPlaceInfo: this.getPlaceInfo.bind(this),
@@ -192,9 +172,10 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
     query: string,
     lat?: number,
     lng?: number,
-    radius?: number,
+    options?: { radius?: number; limit?: number; language?: string },
   ): Promise<Place[]> {
     this.ensureInitialized()
+    const radius = options?.radius
 
     const apiUrl = this.buildApiUrl()
     const params: Record<string, any> = {
@@ -203,16 +184,17 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
       addressdetails: '1',
       extratags: '1',
       namedetails: '1',
-      limit: '50',
+      limit: String(options?.limit ?? 50),
       dedupe: '1',
-      'accept-language': 'en', // TODO: i18n
+      'accept-language': options?.language ?? 'en',
       polygon_geojson: '1', // Request polygon geometry in GeoJSON format
       // email: this.config.email,
     }
 
-    // Add location bias if coordinates are provided
+    // Add location bias if coordinates are provided (radius in km; options.radius may be in meters)
     if (lat !== undefined && lng !== undefined) {
-      params['viewbox'] = this.createViewbox(lat, lng, radius)
+      const radiusKm = radius != null ? radius / 1000 : 10
+      params['viewbox'] = this.createViewbox(lat, lng, radiusKm)
       params['bounded'] = 1
     }
 
@@ -252,11 +234,58 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
   }
 
   /**
+   * Reverse geocode coordinates to places
+   * @param lat Latitude
+   * @param lng Longitude
+   * @returns Array of places
+   */
+  private async reverseGeocode(lat: number, lng: number): Promise<Place[]> {
+    this.ensureInitialized()
+
+    const apiUrl = `${
+      this.config.host.endsWith('/')
+        ? this.config.host.slice(0, -1)
+        : this.config.host
+    }/reverse`
+
+    const params: Record<string, any> = {
+      lat,
+      lon: lng,
+      format: 'jsonv2',
+      addressdetails: 1,
+      extratags: 1,
+      namedetails: 1,
+      'accept-language': 'en', // TODO: i18n
+      polygon_geojson: 1,
+      // email: this.config.email,
+    }
+
+    try {
+      const response = await axios.get(apiUrl, { 
+        params,
+        headers: getNominatimHeaders()
+      })
+      
+      if (!response.data) return []
+      
+      // Adapt the result to Place format
+      return [this.adapter.placeInfo.adaptPlaceDetails(response.data)]
+    } catch (error) {
+      console.error('Error reverse geocoding with Nominatim:', error)
+      return []
+    }
+  }
+
+  /**
    * Get place info by OSM ID using Nominatim lookup API
    * @param id The OSM ID in format type/id (e.g., node/123456) or just the ID
+   * @param options Optional parameters including language
    * @returns Place details or null if not found
    */
-  private async getPlaceInfo(id: string): Promise<Place | null> {
+  private async getPlaceInfo(
+    id: string,
+    _options?: { language?: string },
+  ): Promise<Place | null> {
     this.ensureInitialized()
 
     try {

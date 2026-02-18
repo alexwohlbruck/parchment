@@ -90,33 +90,8 @@ function friendLocationsLayerComposable() {
       }
     )
 
-    // Watch for location changes and update map markers
-    watch(
-      () => friendLocations.locations.value,
-      (newLocations) => {
-        if (isLayerVisible.value) {
-          if (newLocations.length > 0) {
-            mapService.setFriendLocations(
-              newLocations.map(loc => ({
-                friendHandle: loc.friendHandle,
-                friendAlias: loc.friendAlias,
-                friendName: loc.friendName,
-                friendAvatar: loc.friendPicture,
-                lngLat: loc.lngLat,
-                updatedAt: loc.updatedAt,
-                accuracy: loc.location.accuracy,
-              }))
-            )
-          } else {
-            // Don't clear locations when layer is visible - preserve last known positions
-            // Only clear when layer is hidden (handled in stopLocationServices)
-          }
-        } else {
-          mapService.clearFriendLocations()
-        }
-      },
-      { deep: true, immediate: true }
-    )
+    // Note: Friend location markers are now automatically managed by FriendLocationsLayer
+    // which watches both the layer visibility and friend locations data
   }
 
   function handleFriendMarkerClick({ friendHandle }: { friendHandle: string }) {
@@ -138,7 +113,7 @@ function friendLocationsLayerComposable() {
   function stopLocationServices() {
     friendLocations.stopPolling()
     locationBroadcast.stop()
-    mapService.clearFriendLocations()
+    // Note: Markers are automatically cleared by FriendLocationsLayer when layer is hidden
   }
 
   /**

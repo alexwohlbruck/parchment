@@ -1,0 +1,88 @@
+{
+  "errors": {
+    "validation": {
+      "required": "{{field}} is required",
+      "invalid": "{{field}} is invalid",
+      "minLength": "{{field}} must be at least {{min}} characters",
+      "maxLength": "{{field}} must be at most {{max}} characters",
+      "invalidCoordinates": "Invalid coordinates",
+      "latitudeRange": "Latitude must be between -90 and 90",
+      "longitudeRange": "Longitude must be between -180 and 180"
+    },
+    "auth": {
+      "unauthorized": "You must be signed in",
+      "forbidden": "You don't have permission",
+      "invalidCredentials": "Invalid credentials",
+      "sessionExpired": "Your session has expired",
+      "authenticationRequired": "Authentication required",
+      "passkeyVerificationFailed": "Passkey verification failed",
+      "passkeyNotFound": "Passkey does not exist for this user",
+      "challengeNotFound": "Could not find challenge cookie",
+      "invalidSession": "Invalid or expired session",
+      "insufficientPermissions": "Insufficient permissions"
+    },
+    "notFound": {
+      "place": "Place not found",
+      "route": "Route not found",
+      "user": "User not found",
+      "resource": "Resource not found",
+      "integration": "Integration not found",
+      "integrationDefinition": "Integration definition not found",
+      "share": "Share not found",
+      "category": "Category not found"
+    },
+    "place": {
+      "invalidParams": "Please provide either source+id, name+lat+lng, or lat+lng",
+      "invalidOsmType": "Invalid OSM type. Format should be \"type/id\" where type is node, way, or relation.",
+      "notFoundWithParams": "Place not found with the provided parameters",
+      "retrievalError": "Error retrieving place data"
+    },
+    "server": {
+      "internal": "An internal server error occurred",
+      "serviceUnavailable": "Service temporarily unavailable"
+    },
+    "integration": {
+      "failed": "External service request failed",
+      "unavailable": "Service is currently unavailable",
+      "notConfigured": "Service is not properly configured",
+      "notAvailable": "Service integration is not available",
+      "invalidId": "Invalid integration ID",
+      "invalidScope": "Invalid integration scope",
+      "noUpdates": "No updates provided"
+    },
+    "geocoding": {
+      "queryRequired": "Query parameter is required",
+      "coordinatesRequired": "Both lat and lng parameters are required",
+      "serviceUnavailable": "No geocoding service is currently available"
+    },
+    "directions": {
+      "noRoute": "No route found",
+      "invalidWaypoints": "Invalid waypoints provided"
+    },
+    "weather": {
+      "fetchFailed": "Failed to fetch weather data",
+      "locationRequired": "Location is required for weather"
+    },
+    "search": {
+      "failed": "Search failed",
+      "invalidQuery": "Invalid search query",
+      "overpassNotConfigured": "Overpass integration is not configured",
+      "overpassNotAvailable": "Overpass integration is not available",
+      "categoriesLoadFailed": "Failed to load categories",
+      "categoryFailed": "Failed to get category"
+    },
+    "friends": {
+      "invalidHandle": "Invalid handle format. Use alias@domain"
+    }
+  },
+  "success": {
+    "created": "{{entity}} created successfully",
+    "updated": "{{entity}} updated successfully",
+    "deleted": "{{entity}} deleted successfully",
+    "saved": "Saved successfully"
+  },
+  "info": {
+    "warning": "Warning",
+    "notice": "Notice"
+  }
+}

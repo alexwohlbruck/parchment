@@ -16,7 +16,10 @@ import {
 import type { Place } from '@/types/place.types'
 import { useMapStore } from '../stores/map.store'
 import { useLayersStore } from '@/stores/layers.store'
-import { useLayersService } from '@/services/layers.service'
+import { useLayersService } from '@/services/layers/layers.service'
+import { usePlacePolygonLayerService } from '@/services/layers/features/place-polygon-layer.service'
+import { useSearchResultsLayerService } from '@/services/layers/features/search-results-layer.service'
+import { useMarkerLayersService } from '@/services/layers/markers/marker-layers.service'
 import { useAppStore } from '../stores/app.store'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useThemeStore } from '@/stores/theme.store'
@@ -27,15 +30,11 @@ import { storeToRefs } from 'pinia'
 import { MapboxStrategy } from '@/components/map/map-providers/mapbox.strategy'
 import { MaplibreStrategy } from '@/components/map/map-providers/maplibre.strategy'
 import { mapEventBus } from '@/lib/eventBus'
-import {
-  MapStrategy,
-  type FriendLocationData,
-} from '@/components/map/map-providers/map.strategy'
-import { watch } from 'vue'
+import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { AppRoute } from '@/router'
 import { useRouter } from 'vue-router'
-import { ref, toRaw } from 'vue'
-import { Component } from 'vue'
+import { ref, toRaw, watch, Component } from 'vue'
+import { storedLocale } from '@/lib/i18n'
 
 const dark = useDark()
 
@@ -51,6 +50,9 @@ function mapService() {
   const mapStore = useMapStore()
   const layersStore = useLayersStore()
   const layersService = useLayersService()
+  const placePolygonLayerService = usePlacePolygonLayerService()
+  const searchResultsLayerService = useSearchResultsLayerService()
+  const markerLayersService = useMarkerLayersService()
   const appStore = useAppStore()
   const directionsStore = useDirectionsStore()
   const integrationsStore = useIntegrationsStore()
@@ -67,6 +69,7 @@ function mapService() {
   const queuedTrips = ref<{ trips: any; visibleTripIds: Set<string> } | null>(
     null,
   )
+  let isReinitializingForLanguage = false
 
   // Track map interaction states for conditional control visibility
   const isRotatedOrPitched = ref(false)
@@ -82,7 +85,7 @@ function mapService() {
   // Watch for theme changes to update polygon colors
   watch([accentColor, isDark], () => {
     if (mapStrategy && isMapReady.value) {
-      layersService.updatePlacePolygonColors(mapStrategy)
+      placePolygonLayerService.updatePlacePolygonColors(mapStrategy)
     }
   })
 
@@ -90,6 +93,7 @@ function mapService() {
     container: string | HTMLElement,
     mapEngine: MapEngine,
     accessToken?: string,
+    language?: string,
   ) {
     const { settings, mapCamera } = mapStore
 
@@ -99,9 +103,12 @@ function mapService() {
       camera: mapCamera,
     }
 
+    // Convert locale to language code (e.g., 'en-US' -> 'en')
+    const languageCode = language ? language.split('-')[0] : undefined
+
     switch (mapEngine) {
       case MapEngine.MAPBOX:
-        return new MapboxStrategy(container, options, accessToken)
+        return new MapboxStrategy(container, options, accessToken, languageCode)
       case MapEngine.MAPLIBRE:
         return new MaplibreStrategy(container, options, accessToken)
     }
@@ -129,7 +136,7 @@ function mapService() {
   function canInitializeMapEngine(mapEngine: MapEngine): boolean {
     switch (mapEngine) {
       case MapEngine.MAPBOX:
-        return !!getMapEngineCredentials(mapEngine)
+        return integrationsStore.isMapboxEngineActive
       case MapEngine.MAPLIBRE:
         return true // MapLibre always works
       default:
@@ -151,7 +158,15 @@ function mapService() {
     // Get credentials for the map engine
     const accessToken = getMapEngineCredentials(mapEngine)
 
-    mapStrategy = getMapStrategy(container, mapEngine, accessToken)
+    // Get current language for initialization
+    const currentLanguage = storedLocale.value
+
+    mapStrategy = getMapStrategy(
+      container,
+      mapEngine,
+      accessToken,
+      currentLanguage,
+    )
     mapStore.setMapStrategy(mapStrategy)
 
     mapEventBus.on('load', async () => {
@@ -221,12 +236,73 @@ function mapService() {
       }
     })
 
-    mapEventBus.on('click:poi', ({ osmId, poiType, lngLat }) => {
+    mapEventBus.on('click', async data => {
+      const { usePlaceService } = await import('@/services/place.service')
+      const placeService = usePlaceService()
+
+      // For POI clicks, show immediate POI data
+      if (data.poi) {
+        // Create partial place from POI click data
+        const partialPlace: Partial<Place> = {
+          id: `osm/${data.poi.poiType}/${data.poi.osmId}`,
+          externalIds: { osm: `${data.poi.poiType}/${data.poi.osmId}` },
+          name: data.poi.name
+            ? {
+                value: data.poi.name,
+                sourceId: 'osm',
+                timestamp: new Date().toISOString(),
+              }
+            : undefined,
+          geometry: {
+            value: {
+              type: 'point',
+              center: data.lngLat,
+            },
+            sourceId: 'osm',
+            timestamp: new Date().toISOString(),
+          },
+          placeType: {
+            value: 'poi',
+            sourceId: 'osm',
+            timestamp: new Date().toISOString(),
+          },
+        }
+
+        // Set partial data immediately
+        placeService.setPartialPlace(partialPlace)
+
+        // Navigate
+        router.push({
+          name: AppRoute.PLACE,
+          params: {
+            type: data.poi.poiType,
+            id: data.poi.osmId,
+          },
+        })
+        return
+      }
+
+      // For non-POI clicks, show coordinates immediately
+      const partialPlace: Partial<Place> = {
+        geometry: {
+          value: {
+            type: 'point',
+            center: data.lngLat,
+          },
+          sourceId: 'map',
+          timestamp: new Date().toISOString(),
+        },
+      }
+
+      // Set partial data immediately
+      placeService.setPartialPlace(partialPlace)
+
+      // Navigate to coordinate-based route
       router.push({
-        name: AppRoute.PLACE,
+        name: AppRoute.PLACE_COORDS,
         params: {
-          type: poiType,
-          id: osmId,
+          lat: data.lngLat.lat.toString(),
+          lng: data.lngLat.lng.toString(),
         },
       })
     })
@@ -235,79 +311,70 @@ function mapService() {
   }
 
   function onMapLoad() {
-    setConfigProperties()
-
-    // Sync client-side layer visibility with their group states
-    const hasVisibleTransitLayers = layersStore.syncClientSideLayerVisibility()
-
-    // Include search results layer with regular layers
-    const allLayers = [
-      layersService.createSearchResultsLayer(),
-      ...layers.value,
-    ]
-    layersService.initializeLayers(allLayers, mapStrategy)
-
-    // Apply transit map theme if transit layers are visible
-    if (hasVisibleTransitLayers && mapStrategy) {
-      // Import the theme store to access the applyTransitMapTheme function
-      const themeStore = useThemeStore()
-      const shouldUseFaded = hasVisibleTransitLayers && !themeStore.isDark
-      mapStrategy.setMapColorTheme(
-        shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT,
-      )
-      mapStrategy.setTransitLabels(!hasVisibleTransitLayers)
-    }
-
-    // Show waypoint markers immediately when map loads
-    if (directionsStore.waypoints) {
-      mapStrategy?.setWaypointMarkers(directionsStore.waypoints)
-    }
-
-    // Show queued trips if any
-    if (queuedTrips.value) {
-      mapStrategy?.setTrips(
-        queuedTrips.value.trips,
-        queuedTrips.value.visibleTripIds,
-      )
-      queuedTrips.value = null
-    }
+    // NOTE: Layer initialization happens in onStyleLoad() after style is fully loaded
+    // This function only handles map-level setup that doesn't require the style to be loaded
 
     isMapReady.value = true
+
+    // Ensure map container is properly sized after load
+    resize()
   }
 
   function onStyleLoad() {
-    setConfigProperties()
+    // Wait for style to be fully loaded before initializing layers
+    const initializeAfterStyleLoad = () => {
+      if (!mapStrategy?.mapInstance?.isStyleLoaded()) {
+        // Style not fully loaded yet, wait a bit and try again
+        setTimeout(initializeAfterStyleLoad, 50)
+        return
+      }
 
-    // Sync client-side layer visibility with their group states
-    const hasVisibleTransitLayers = layersStore.syncClientSideLayerVisibility()
+      setConfigProperties()
 
-    // Include search results layer with regular layers
-    const allLayers = [
-      layersService.createSearchResultsLayer(),
-      ...layers.value,
-    ]
-    layersService.initializeLayers(allLayers, mapStrategy)
+      // Sync client-side layer visibility with their group states
+      const hasVisibleTransitLayers =
+        layersStore.syncClientSideLayerVisibility()
 
-    // Initialize place polygon layers
-    layersService.initializePlacePolygonLayers(mapStrategy)
+      // Include search results layer with regular layers
+      const allLayers = [
+        searchResultsLayerService.createSearchResultsLayer(),
+        ...layers.value,
+      ]
+      layersService.initializeLayers(allLayers, mapStrategy)
 
-    // Update polygon colors to match current theme
-    layersService.updatePlacePolygonColors(mapStrategy)
+      // Initialize place polygon layers
+      placePolygonLayerService.initializePlacePolygonLayers(mapStrategy)
 
-    // Apply transit map theme if transit layers are visible
-    if (hasVisibleTransitLayers && mapStrategy) {
-      const themeStore = useThemeStore()
-      const shouldUseFaded = hasVisibleTransitLayers && !themeStore.isDark
-      mapStrategy.setMapColorTheme(
-        shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT,
-      )
-      mapStrategy.setTransitLabels(!hasVisibleTransitLayers)
+      // Update polygon colors to match current theme
+      placePolygonLayerService.updatePlacePolygonColors(mapStrategy)
+
+      // Apply transit map theme if transit layers are visible
+      if (hasVisibleTransitLayers && mapStrategy) {
+        const themeStore = useThemeStore()
+        const shouldUseFaded = hasVisibleTransitLayers && !themeStore.isDark
+        mapStrategy.setMapColorTheme(
+          shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT,
+        )
+        mapStrategy.setTransitLabels(!hasVisibleTransitLayers)
+      }
+
+      // Initialize marker layers - they will automatically sync with store state
+      markerLayersService.initializeMarkerLayers(mapStrategy)
+
+      // Show queued trips if any
+      if (queuedTrips.value) {
+        mapStrategy?.setTrips(
+          queuedTrips.value.trips,
+          queuedTrips.value.visibleTripIds,
+        )
+        queuedTrips.value = null
+      }
+
+      // Note: Waypoint markers are automatically managed by WaypointsLayer
     }
 
-    // Show waypoint markers immediately when style loads
-    if (directionsStore.waypoints) {
-      mapStrategy?.setWaypointMarkers(directionsStore.waypoints)
-    }
+    // Start the initialization process
+    initializeAfterStyleLoad()
   }
 
   function setConfigProperties() {
@@ -317,6 +384,7 @@ function mapService() {
     mapStrategy?.setPlaceLabels(mapStore.settings.placeLabels)
     mapStrategy?.setMap3dObjects(mapStore.settings.objects3d)
     mapStrategy?.setMap3dTerrain(mapStore.settings.terrain3d)
+    mapStrategy?.setHdRoads(mapStore.settings.hdRoads)
   }
 
   let isInitializingGroups = false
@@ -514,8 +582,25 @@ function mapService() {
     // Get credentials for the map engine
     const accessToken = getMapEngineCredentials(mapEngine)
 
-    mapStrategy = getMapStrategy(mapContainer, mapEngine, accessToken)
+    // Get current language for initialization
+    const currentLanguage = storedLocale.value
+
+    mapStrategy = getMapStrategy(
+      mapContainer,
+      mapEngine,
+      accessToken,
+      currentLanguage,
+    )
     mapStore.setMapStrategy(mapStrategy)
+  }
+
+  /**
+   * Reinitialize the map with current engine settings.
+   * Useful when integration configuration changes.
+   */
+  function reinitializeMap() {
+    const currentEngine = mapStore.settings.engine
+    setMapEngine(currentEngine)
   }
 
   function setMapProjection(projection: MapProjection) {
@@ -607,6 +692,17 @@ function mapService() {
     },
   )
 
+  function toggleHdRoads(value?: boolean) {
+    mapStore.settings.hdRoads = value ?? !mapStore.settings.hdRoads
+  }
+
+  watch(
+    () => mapStore.settings.hdRoads,
+    value => {
+      mapStrategy?.setHdRoads(value)
+    },
+  )
+
   function resize() {
     mapStrategy?.resize()
   }
@@ -683,6 +779,46 @@ function mapService() {
     mapStrategy?.setMapTheme(newDark ? MapTheme.DARK : MapTheme.LIGHT)
   })
 
+  // Watch for language preference changes and update map labels
+  watch(storedLocale, newLocale => {
+    // Skip if we're currently reinitializing for a language change
+    if (isReinitializingForLanguage) {
+      return
+    }
+
+    if (mapStrategy) {
+      const needsReinit = mapStrategy.setMapLanguage(newLocale)
+
+      // If the map needs to be reinitialized (e.g., Mapbox Standard style),
+      // reinitialize with the new language
+      if (needsReinit) {
+        const currentEngine = mapStore.settings.engine
+
+        // Only get camera if map is ready, otherwise use stored camera
+        if (isMapReady.value) {
+          const currentCamera = {
+            center: mapStrategy.mapInstance.getCenter(),
+            zoom: mapStrategy.mapInstance.getZoom(),
+            bearing: mapStrategy.mapInstance.getBearing(),
+            pitch: mapStrategy.mapInstance.getPitch(),
+          }
+          mapStore.setMapCamera(currentCamera)
+        }
+
+        // Set flag to prevent watcher from firing during reinitialization
+        isReinitializingForLanguage = true
+
+        // Reinitialize the map with the new language
+        setMapEngine(currentEngine)
+
+        // Reset flag after reinitialization
+        setTimeout(() => {
+          isReinitializingForLanguage = false
+        }, 100)
+      }
+    }
+  })
+
   watch(
     () => mapStore.pegman,
     (pegman, oldPegman) => {
@@ -719,7 +855,8 @@ function mapService() {
     },
   )
 
-  // Watch for trip changes
+  // Watch for trip changes - handles route rendering
+  // Note: Instruction markers are automatically managed by layers.service
   watch(
     () => directionsStore.trips,
     trips => {
@@ -745,34 +882,9 @@ function mapService() {
     },
   )
 
-  // Watch for waypoint changes and always show waypoint markers
-  watch(
-    () => directionsStore.waypoints,
-    waypoints => {
-      if (isMapReady.value && mapStrategy) {
-        mapStrategy.setWaypointMarkers(waypoints)
-      }
-      // Note: We don't queue waypoint markers since they're managed separately
-    },
-    { deep: true },
-  )
-
-  // Watch for selected trip changes
-  watch(
-    () => directionsStore.selectedTripId,
-    (selectedTripId, oldSelectedTripId) => {
-      const trips = directionsStore.trips
-      if (!trips || !selectedTripId) return
-
-      const visibleTripIds = new Set([selectedTripId])
-
-      if (isMapReady.value && mapStrategy) {
-        mapStrategy.setTrips(trips, visibleTripIds)
-      } else {
-        queuedTrips.value = { trips, visibleTripIds }
-      }
-    },
-  )
+  // Note: selectedTripId changes are handled by setVisibleTrips(), showAllTrips(), 
+  // and showOnlyWaypoints() which explicitly call mapStrategy.setTrips().
+  // Instruction markers are automatically managed by marker-layers.service via its own watcher.
 
   function destroy() {
     // Reset state
@@ -796,9 +908,12 @@ function mapService() {
       zoomingHideTimeout = null
     }
 
+    // Destroy marker layers
+    markerLayersService.destroyMarkerLayers()
+
     // Clean up search results layer
     if (mapStrategy) {
-      layersService.removeSearchResultsLayer(mapStrategy)
+      searchResultsLayerService.removeSearchResultsLayer(mapStrategy)
     }
 
     // Remove event listeners
@@ -820,6 +935,15 @@ function mapService() {
 
     const visibleTripIds = new Set(tripIds)
 
+    // Update selectedTripId to trigger instruction markers update
+    if (visibleTripIds.size === 1) {
+      const [tripId] = visibleTripIds
+      directionsStore.setSelectedTripId(tripId)
+    } else {
+      // Clear selected trip when showing multiple or no trips
+      directionsStore.setSelectedTripId(null)
+    }
+
     if (isMapReady.value && mapStrategy) {
       mapStrategy.setTrips(trips, visibleTripIds)
     } else {
@@ -835,6 +959,9 @@ function mapService() {
     if (!trips) return
 
     const allTripIds = new Set<string>(trips.trips.map(trip => trip.id))
+
+    // Clear selected trip when showing all trips (no instruction markers)
+    directionsStore.setSelectedTripId(null)
 
     if (isMapReady.value && mapStrategy) {
       mapStrategy.setTrips(trips, allTripIds)
@@ -863,14 +990,13 @@ function mapService() {
   }
 
   /**
-   * Show specific trip on hover
+   * Show specific trip on hover (route line + instruction markers)
    */
   function showTripOnHover(tripId: string) {
     const trips = directionsStore.trips
     if (!trips) return
 
-    // Update selected trip in store
-    directionsStore.setSelectedTripId(tripId)
+    setVisibleTrips([tripId])
   }
 
   /**
@@ -928,6 +1054,7 @@ function mapService() {
     jumpTo,
     fitBounds,
     setMapEngine,
+    reinitializeMap,
     setMapProjection,
     toggle3dTerrain,
     toggle3dObjects,
@@ -935,6 +1062,7 @@ function mapService() {
     toggleRoadLabels,
     toggleTransitLabels,
     togglePlaceLabels,
+    toggleHdRoads,
     destroy,
     on,
     off,
@@ -951,7 +1079,7 @@ function mapService() {
     ) => mapStrategy?.addVueMarker(id, lngLat, component, props),
     removeAllMarkers: () => mapStrategy?.removeAllMarkers(),
     updatePlacePolygon: (place: Place | null) =>
-      layersService.updatePlacePolygon(mapStrategy, place),
+      placePolygonLayerService.updatePlacePolygon(mapStrategy, place),
     zoomIn,
     zoomOut,
     resetNorth,
@@ -987,10 +1115,11 @@ function mapService() {
     isCurrentlyRotating,
     isCurrentlyZooming,
 
-    // Friend location markers
-    setFriendLocations: (locations: FriendLocationData[]) =>
-      mapStrategy?.setFriendLocations(locations),
-    clearFriendLocations: () => mapStrategy?.clearFriendLocationMarkers(),
+    // Instruction marker highlights (for UI interactions like hovering)
+    // Delegated to marker layers service which manages marker layers
+    highlightInstructionPoint: markerLayersService.highlightInstructionPoint,
+    clearHighlightedInstructionPoint:
+      markerLayersService.clearHighlightedInstructionPoint,
   }
 }
 

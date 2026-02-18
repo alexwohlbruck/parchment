@@ -1,322 +1,376 @@
-import { watch, nextTick, ref } from 'vue'
+import { watch, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { api } from '@/lib/api'
-import { createSharedComposable } from '@vueuse/core'
+import { createSharedComposable, useGeolocation } from '@vueuse/core'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { Waypoint } from '@/types/map.types'
 import { TripsResponse, WaypointType } from '@/types/directions.types'
+import { LngLat } from 'mapbox-gl'
+import type { Place } from '@/types/place.types'
+import { useGeocodingService } from './geocoding.service'
 
-const MIN_LOCATIONS = 2
+const MIN_WAYPOINTS = 2
 
-// TODO: Remove this hardcoded data before committing - it is sensitive
-// Hardcoded vehicle locations for testing multimodality
+// TODO: Move to database per user
 const HARDCODED_VEHICLE_LOCATIONS = {
-  car: {
-    lat: 35.21712207929376,
-    lng: -80.81946433041882,
-  },
-  bike: {
-    lat: 35.21700938703438,
-    lng: -80.81994398107717,
-  },
-}
-
-// Available vehicle modes that users can select (walking is implicit via includeWalking)
-const AVAILABLE_VEHICLES = ['car', 'bike']
-
-// Map frontend mode selection to available vehicles
-const MODE_TO_VEHICLES = {
-  multi: ['car', 'bike'], // Multi-modal shows all vehicle options (walking is implicit)
-  auto: ['car'],
-  bicycle: ['bike'],
-  pedestrian: [], // Pedestrian mode only uses walking (implicit)
-  transit: [], // Transit fallback to walking for now (implicit)
+  car: { lat: 35.21712207929376, lng: -80.81946433041882 },
+  bike: { lat: 35.21700938703438, lng: -80.81994398107717 },
 }
 
 function directionsService() {
-  const directionsStore = useDirectionsStore()
-  const { waypoints, selectedMode } = storeToRefs(directionsStore)
+  const store = useDirectionsStore()
+  const { waypoints, selectedMode, routingPreferences } = storeToRefs(store)
 
-  // Track the last request to prevent duplicates
-  const lastRequestKey = ref<string>('')
-  const isRequestInProgress = ref(false)
+  const lastRequestKey = ref('')
+  const isRequesting = ref(false)
 
-  function generateRequestKey(waypoints: Waypoint[], mode: string): string {
-    const waypointKey = waypoints
-      .filter(wp => wp.lngLat != null)
+  const {
+    coords,
+    isSupported: isGeolocationSupported,
+    resume,
+  } = useGeolocation()
+
+  /**
+   * Generate unique key for request deduplication
+   */
+  function getRequestKey(wps: Waypoint[], mode: string, prefs: any): string {
+    const coords = wps
+      .filter(wp => wp.lngLat)
       .map(wp => `${wp.lngLat!.lat},${wp.lngLat!.lng}`)
       .join(';')
-    return `${waypointKey}|${mode}`
+    return `${coords}|${mode}|${JSON.stringify(prefs)}`
   }
 
+  /**
+   * Fetch directions from API
+   */
   async function getDirections() {
-    const filteredWaypoints = waypoints.value.filter(wp => wp.lngLat != null)
-    const currentRequestKey = generateRequestKey(
-      filteredWaypoints,
+    const validWaypoints = waypoints.value.filter(wp => wp.lngLat)
+    const requestKey = getRequestKey(
+      validWaypoints,
       selectedMode.value,
+      routingPreferences.value,
     )
 
-    console.log(
-      'getDirections called with waypoints:',
-      filteredWaypoints.length,
-      'mode:',
-      selectedMode.value,
-    )
+    // Skip duplicate or concurrent requests
+    if (requestKey === lastRequestKey.value || isRequesting.value) return
 
-    // Skip if this is the same request as last time or if a request is already in progress
-    if (
-      currentRequestKey === lastRequestKey.value ||
-      isRequestInProgress.value
-    ) {
-      console.log(
-        'Skipping duplicate or concurrent request:',
-        currentRequestKey,
-      )
-      return
-    }
-
-    if (filteredWaypoints.length < MIN_LOCATIONS) {
-      directionsStore.unsetTrips()
+    // Need at least 2 waypoints
+    if (validWaypoints.length < MIN_WAYPOINTS) {
+      store.unsetTrips()
       lastRequestKey.value = ''
       return
     }
 
-    lastRequestKey.value = currentRequestKey
-    isRequestInProgress.value = true
-    directionsStore.setLoading(true)
+    lastRequestKey.value = requestKey
+    isRequesting.value = true
+    store.setLoading(true)
 
     try {
-      // Determine which vehicles to show based on selected mode
-      const availableVehicles =
-        MODE_TO_VEHICLES[selectedMode.value as keyof typeof MODE_TO_VEHICLES] ||
-        AVAILABLE_VEHICLES
+      // Send all known vehicles - backend will determine which are relevant for the selected mode
+      const useVehicleLocations =
+        routingPreferences.value.useKnownVehicleLocations !== false
 
-      // Build multimodal trip request for the new API
-      const tripRequest = {
-        waypoints: filteredWaypoints.map((waypoint, index) => ({
-          location: {
-            lat: waypoint.lngLat!.lat,
-            lng: waypoint.lngLat!.lng,
-          },
+      const availableVehicles = useVehicleLocations
+        ? Object.entries(HARDCODED_VEHICLE_LOCATIONS).map(
+            ([type, location]) => ({
+              id: `${type}-${Date.now()}`,
+              type,
+              location,
+            }),
+          )
+        : []
+
+      // Build API request
+      const request = {
+        waypoints: validWaypoints.map((wp, i) => ({
+          location: { lat: wp.lngLat!.lat, lng: wp.lngLat!.lng },
           type:
-            index === 0
+            i === 0
               ? 'origin'
-              : index === filteredWaypoints.length - 1
-              ? 'destination'
-              : 'via',
-          label: waypoint.place?.name?.value,
+              : i === validWaypoints.length - 1
+                ? 'destination'
+                : 'via',
+          label: wp.place?.name?.value || '',
         })),
-        availableVehicles: availableVehicles.map(vehicleType => ({
-          id: `${vehicleType}-${Date.now()}`,
-          type: vehicleType,
-          location:
-            HARDCODED_VEHICLE_LOCATIONS[
-              vehicleType as keyof typeof HARDCODED_VEHICLE_LOCATIONS
-            ],
-        })),
-        routingPreferences: {
-          avoidHighways: false,
-          avoidTolls: false,
-          safetyVsEfficiency: 0.5, // Balanced approach
-          maxWalkingDistance: 1000, // 1km max walking
-          maxTransfers: 3,
-        },
-        requestId: `frontend-${Date.now()}-${Math.random()
-          .toString(36)
-          .substr(2, 9)}`,
+        selectedMode: selectedMode.value,
+        availableVehicles,
+        routingPreferences: routingPreferences.value,
+        requestId: `frontend-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       }
 
-      console.log('Making multimodal trip API request:', tripRequest)
-      const { data: response } = await api.post('/directions/', tripRequest)
-      console.log('Multimodal trip API response received:', response)
+      const { data } = await api.post('/directions/', request)
 
-      // Helper function to normalize mode names from backend to frontend
-      const normalizeMode = (mode: string): string => {
-        const modeMap: Record<string, string> = {
-          biking: 'cycling',
-          walking: 'walking',
-          driving: 'driving',
-          transit: 'transit',
-        }
-        return modeMap[mode] || mode
-      }
-
-      // Transform the multimodal response to match the expected trips format
-      const transformedResponse: TripsResponse = {
+      // Transform response to UI format
+      const response: TripsResponse = {
         request: {
-          waypoints: filteredWaypoints.map((waypoint, index) => ({
-            id: `waypoint-${index}`,
-            coordinate: {
-              lat: waypoint.lngLat!.lat,
-              lng: waypoint.lngLat!.lng,
-            },
+          waypoints: validWaypoints.map((wp, i) => ({
+            id: `wp-${i}`,
+            coordinate: { lat: wp.lngLat!.lat, lng: wp.lngLat!.lng },
             type:
-              index === 0 || index === filteredWaypoints.length - 1
+              i === 0 || i === validWaypoints.length - 1
                 ? WaypointType.STOP
                 : WaypointType.VIA,
-            name: waypoint.place?.name?.value || '',
+            name: wp.place?.name?.value || '',
           })),
-          availableVehicles: availableVehicles,
-          maxOptions: 3,
+          availableVehicles: availableVehicles.map(v => v.type),
+          maxOptions: 5,
           includeWalking: true,
-          preferences: {
-            optimize: 'time' as const,
-            alternatives: true,
-          },
+          preferences: { optimize: 'time', alternatives: true },
         },
-        trips: response.trips.map((tripCandidate: any, tripIndex: number) => ({
-          id: `${
-            tripCandidate.trip.requestId || `trip-${Date.now()}`
-          }-${tripIndex}`,
-          mode: normalizeMode(
-            tripCandidate.trip.segments[0]?.mode || 'walking',
-          ),
-          vehicleType:
-            tripCandidate.trip.segments[0]?.vehicle?.type || 'walking',
+        trips: data.trips.map((candidate: any, idx: number) => ({
+          id: `${candidate.trip.requestId || `trip-${Date.now()}`}-${idx}`,
+          mode: normalizeMode(candidate.trip.segments[0]?.mode || 'walking'),
+          vehicleType: candidate.trip.segments[0]?.vehicle?.type || 'walking',
           summary: {
-            totalDuration: tripCandidate.trip.tripStats.totalDuration,
-            totalDistance: tripCandidate.trip.tripStats.totalDistance,
-            hasTolls: false, // TODO: Extract from segments
-            hasHighways: false, // TODO: Extract from segments
-            hasFerries: false, // TODO: Extract from segments
+            totalDuration: candidate.trip.tripStats.totalDuration,
+            totalDistance: candidate.trip.tripStats.totalDistance,
+            hasTolls: false,
+            hasHighways: false,
+            hasFerries: false,
           },
-          segments: tripCandidate.trip.segments
-            .map((segment: any) => {
-              // Check if this is a combined multimodal segment with detailed segments
-              if (segment.details?.multimodalSegments) {
-                // Extract the individual segments from the combined segment
-                return segment.details.multimodalSegments.map(
-                  (detailSegment: any, detailIndex: number) => ({
-                    id: `segment-${segment.segmentIndex}-detail-${detailIndex}`,
-                    type: 'route',
-                    mode: normalizeMode(detailSegment.mode),
-                    vehicleType:
-                      detailSegment.vehicle?.type || detailSegment.mode,
-                    startTime: new Date(detailSegment.startTime),
-                    endTime: new Date(detailSegment.endTime),
-                    duration: detailSegment.duration,
-                    distance: detailSegment.distance,
-                    geometry: detailSegment.geometry,
-                    instructions: detailSegment.instructions,
-                  }),
-                )
-              } else {
-                // Regular single segment
-                return [
-                  {
-                    id: `segment-${segment.segmentIndex}`,
-                    type: 'route',
-                    mode: normalizeMode(segment.mode),
-                    vehicleType: segment.vehicle?.type || segment.mode,
-                    startTime: new Date(segment.startTime),
-                    endTime: new Date(segment.endTime),
-                    duration: segment.duration,
-                    distance: segment.distance,
-                    geometry: segment.geometry,
-                    instructions: segment.instructions,
-                  },
-                ]
-              }
-            })
-            .flat(), // Flatten the array to handle multimodal segments
-          startTime: new Date(tripCandidate.trip.earliestStartTime),
-          endTime: new Date(tripCandidate.trip.latestEndTime),
-          isRecommended: tripCandidate.rank === 1,
-          rank: tripCandidate.rank,
+          segments: flattenSegments(candidate.trip.segments),
+          startTime: new Date(candidate.trip.earliestStartTime),
+          endTime: new Date(candidate.trip.latestEndTime),
+          isRecommended: candidate.rank === 1,
+          rank: candidate.rank,
           provider: 'multimodal',
-          cost: tripCandidate.trip.tripStats.totalCost,
-          co2Emissions: tripCandidate.trip.tripStats.totalCo2,
+          cost: candidate.trip.tripStats.totalCost,
+          co2Emissions: candidate.trip.tripStats.totalCo2,
         })),
         earliestStart:
-          response.trips[0]?.trip.earliestStartTime || new Date().toISOString(),
+          data.trips[0]?.trip.earliestStartTime || new Date().toISOString(),
         latestEnd:
-          response.trips[0]?.trip.latestEndTime ||
+          data.trips[0]?.trip.latestEndTime ||
           new Date(Date.now() + 3600000).toISOString(),
-        metadata: response.metadata,
+        metadata: data.metadata,
       }
 
-      directionsStore.setTrips(transformedResponse)
+      store.setTrips(response)
     } catch (error) {
-      console.error('Error getting trips:', error)
-      directionsStore.unsetTrips()
-      // Reset the last request key on error so user can retry
-      lastRequestKey.value = ''
+      console.error('Failed to fetch directions:', error)
+      store.unsetTrips()
+      lastRequestKey.value = '' // Allow retry
     } finally {
-      isRequestInProgress.value = false
-      directionsStore.setLoading(false)
+      isRequesting.value = false
+      store.setLoading(false)
     }
   }
 
-  function createBlankWaypoint() {
-    return {
-      lngLat: null,
+  /**
+   * Normalize mode names from backend to frontend
+   */
+  function normalizeMode(mode: string): string {
+    const map: Record<string, string> = {
+      biking: 'cycling',
+      walking: 'walking',
+      driving: 'driving',
+      transit: 'transit',
+    }
+    return map[mode] || mode
+  }
+
+  /**
+   * Flatten multimodal segments into single array
+   */
+  function flattenSegments(segments: any[]): any[] {
+    return segments.flatMap(segment => {
+      if (segment.details?.multimodalSegments) {
+        return segment.details.multimodalSegments.map(
+          (seg: any, i: number) => ({
+            id: `segment-${segment.segmentIndex}-${i}`,
+            type: 'route',
+            mode: normalizeMode(seg.mode),
+            vehicleType: seg.vehicle?.type || seg.mode,
+            startTime: new Date(seg.startTime),
+            endTime: new Date(seg.endTime),
+            duration: seg.duration,
+            distance: seg.distance,
+            geometry: seg.geometry,
+            instructions: seg.instructions,
+            totalElevationGain: seg.totalElevationGain,
+            totalElevationLoss: seg.totalElevationLoss,
+            maxElevation: seg.maxElevation,
+            minElevation: seg.minElevation,
+          }),
+        )
+      }
+
+      return [
+        {
+          id: `segment-${segment.segmentIndex}`,
+          type: 'route',
+          mode: normalizeMode(segment.mode),
+          vehicleType: segment.vehicle?.type || segment.mode,
+          startTime: new Date(segment.startTime),
+          endTime: new Date(segment.endTime),
+          duration: segment.duration,
+          distance: segment.distance,
+          geometry: segment.geometry,
+          instructions: segment.instructions,
+          totalElevationGain: segment.totalElevationGain,
+          totalElevationLoss: segment.totalElevationLoss,
+          maxElevation: segment.maxElevation,
+          minElevation: segment.minElevation,
+        },
+      ]
+    })
+  }
+
+  /**
+   * Helper function to set a waypoint and reverse geocode if needed
+   * This ensures consistent behavior across all waypoint-setting functions
+   */
+  async function setWaypointWithGeocoding(index: number, waypoint: Waypoint) {
+    // Immediately set the waypoint with coordinates (for instant feedback)
+    store.setWaypoint(index, waypoint)
+    
+    // If waypoint has coordinates but no place info (e.g., from map click),
+    // try to reverse geocode to get address information in the background
+    if (waypoint.lngLat && !waypoint.place) {
+      console.log('[Directions] Reverse geocoding waypoint at', waypoint.lngLat)
+      
+      // Reverse geocode in the background
+      const geocodingService = useGeocodingService()
+      geocodingService.reverseGeocode({
+        lat: waypoint.lngLat.lat,
+        lng: waypoint.lngLat.lng,
+        limit: 1,
+      }).then(result => {
+        // If we got a result, update the waypoint with place info
+        if (result.results && result.results.length > 0) {
+          const place = result.results[0]
+          console.log('[Directions] Reverse geocoding successful:', {
+            name: place.name?.value,
+            address: place.address?.value,
+          })
+          
+          // Update the waypoint with the geocoded place info
+          const updatedWaypoint = {
+            ...waypoints.value[index],
+            place: place,
+          }
+          store.setWaypoint(index, updatedWaypoint)
+        } else {
+          console.log('[Directions] No reverse geocoding results found')
+        }
+      }).catch(error => {
+        console.error('[Directions] Failed to reverse geocode waypoint:', error)
+        // Continue without place info if geocoding fails
+      })
+    } else if (waypoint.place) {
+      console.log('[Directions] Waypoint already has place info:', waypoint.place.name?.value)
     }
   }
 
-  // Fill a new waypoint into an available slot
-  function fillWaypoint(waypoint: Waypoint) {
-    const emptyIndex = waypoints.value.findIndex(wp => wp.lngLat === null)
-    if (emptyIndex !== -1) {
-      directionsStore.setWaypoint(emptyIndex, waypoint)
-    } else {
-      directionsStore.setWaypoint(waypoints.value.length, waypoint)
-    }
+  // Waypoint management
+  async function fillWaypoint(waypoint: Waypoint) {
+    const emptyIndex = waypoints.value.findIndex(wp => !wp.lngLat)
+    const targetIndex = emptyIndex !== -1 ? emptyIndex : waypoints.value.length
+    await setWaypointWithGeocoding(targetIndex, waypoint)
   }
 
   function setWaypoint(index: number, waypoint: Waypoint) {
-    directionsStore.setWaypoint(index, waypoint)
+    store.setWaypoint(index, waypoint)
   }
 
-  function setWaypoints(waypoints: Waypoint[]) {
-    directionsStore.setWaypoints(waypoints)
+  function setWaypoints(wps: Waypoint[]) {
+    store.setWaypoints(wps)
   }
 
   function clearWaypoints() {
-    directionsStore.setWaypoints([
-      { lngLat: null },
-      { lngLat: null },
-    ] as Waypoint[])
+    store.setWaypoints([{ lngLat: null }, { lngLat: null }] as Waypoint[])
   }
 
   function removeWaypoint(index: number) {
-    // Only prevent removal if we would have fewer than minimum locations
-    if (waypoints.value.length <= MIN_LOCATIONS) {
-      // If we're at minimum waypoints, clear the waypoint instead of removing it
-      directionsStore.setWaypoint(index, {
-        ...waypoints.value[index],
-        lngLat: null,
-      })
+    if (waypoints.value.length <= MIN_WAYPOINTS) {
+      store.setWaypoint(index, { ...waypoints.value[index], lngLat: null })
     } else {
-      // We have more than minimum waypoints, safe to remove
-      directionsStore.removeWaypoint(index)
+      store.removeWaypoint(index)
     }
   }
 
   function addWaypoint(waypoint?: Waypoint) {
-    const newWaypoint = waypoint || createBlankWaypoint()
-    directionsStore.setWaypoint(waypoints.value.length, newWaypoint)
+    store.setWaypoint(waypoints.value.length, waypoint || { lngLat: null })
   }
 
   async function directionsFrom(waypoint: Waypoint) {
-    directionsStore.setWaypoint(0, waypoint)
+    await setWaypointWithGeocoding(0, waypoint)
   }
 
+  /**
+   * Get current location as a waypoint
+   * Returns null if geolocation is not supported or not available
+   */
+  function getCurrentLocationWaypoint(): Waypoint | null {
+    if (
+      !isGeolocationSupported.value ||
+      !coords.value.latitude ||
+      !coords.value.longitude ||
+      coords.value.latitude === Infinity ||
+      coords.value.longitude === Infinity
+    ) {
+      return null
+    }
+
+    const currentLocationPlace: Place = {
+      id: 'current-location',
+      name: { value: 'Current Location' },
+      geometry: {
+        value: {
+          type: 'point',
+          center: {
+            lat: coords.value.latitude,
+            lng: coords.value.longitude,
+          },
+        },
+      },
+      externalIds: {},
+      address: null,
+      placeType: { value: 'current_location' },
+    } as Place
+
+    return {
+      lngLat: new LngLat(coords.value.longitude, coords.value.latitude),
+      place: currentLocationPlace,
+    }
+  }
+
+  /**
+   * Populate the origin (first waypoint) with current location
+   * This is useful when clicking "Directions" buttons to automatically set the starting point
+   */
+  function populateOriginWithCurrentLocation() {
+    const currentLocation = getCurrentLocationWaypoint()
+    if (currentLocation) {
+      store.setWaypoint(0, currentLocation)
+    }
+  }
+
+  /**
+   * Set up directions with current location as origin and destination waypoint
+   * Only populates the first waypoint with current location if it's empty
+   */
   async function directionsTo(waypoint: Waypoint) {
-    directionsStore.setWaypoint(1, waypoint)
+    // Only populate origin if it's empty
+    if (!waypoints.value[0]?.lngLat) {
+      populateOriginWithCurrentLocation()
+    }
+    await setWaypointWithGeocoding(1, waypoint)
   }
 
-  // Watch for changes and call getDirections immediately
-  watch(
-    [waypoints, selectedMode],
-    () => {
-      getDirections()
-    },
-    { deep: true },
-  )
+  // Auto-fetch when waypoints, mode, or preferences change
+  watch([waypoints, selectedMode, routingPreferences], getDirections, {
+    deep: true,
+  })
+
+  // Request geolocation permissions early so current location is available
+  if (isGeolocationSupported.value) {
+    resume()
+  }
 
   return {
     getDirections,
-    createBlankWaypoint,
     fillWaypoint,
     setWaypoint,
     setWaypoints,
@@ -325,6 +379,8 @@ function directionsService() {
     addWaypoint,
     directionsFrom,
     directionsTo,
+    getCurrentLocationWaypoint,
+    populateOriginWithCurrentLocation,
   }
 }
 

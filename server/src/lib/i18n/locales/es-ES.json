@@ -1,0 +1,88 @@
+{
+  "errors": {
+    "validation": {
+      "required": "{{field}} es obligatorio",
+      "invalid": "{{field}} no es válido",
+      "minLength": "{{field}} debe tener al menos {{min}} caracteres",
+      "maxLength": "{{field}} debe tener como máximo {{max}} caracteres",
+      "invalidCoordinates": "Coordenadas no válidas",
+      "latitudeRange": "La latitud debe estar entre -90 y 90",
+      "longitudeRange": "La longitud debe estar entre -180 y 180"
+    },
+    "auth": {
+      "unauthorized": "Debes iniciar sesión",
+      "forbidden": "No tienes permiso",
+      "invalidCredentials": "Credenciales inválidas",
+      "sessionExpired": "Tu sesión ha expirado",
+      "authenticationRequired": "Se requiere autenticación",
+      "passkeyVerificationFailed": "Falló la verificación de passkey",
+      "passkeyNotFound": "No existe passkey para este usuario",
+      "challengeNotFound": "No se pudo encontrar la cookie de desafío",
+      "invalidSession": "Sesión inválida o expirada",
+      "insufficientPermissions": "Permisos insuficientes"
+    },
+    "notFound": {
+      "place": "Lugar no encontrado",
+      "route": "Ruta no encontrada",
+      "user": "Usuario no encontrado",
+      "resource": "Recurso no encontrado",
+      "integration": "Integración no encontrada",
+      "integrationDefinition": "Definición de integración no encontrada",
+      "share": "Compartir no encontrado",
+      "category": "Categoría no encontrada"
+    },
+    "place": {
+      "invalidParams": "Proporcione source+id, name+lat+lng o lat+lng",
+      "invalidOsmType": "Tipo OSM no válido. El formato debe ser \"type/id\" donde type es node, way o relation.",
+      "notFoundWithParams": "Lugar no encontrado con los parámetros proporcionados",
+      "retrievalError": "Error al recuperar datos del lugar"
+    },
+    "server": {
+      "internal": "Se produjo un error interno del servidor",
+      "serviceUnavailable": "Servicio no disponible temporalmente"
+    },
+    "integration": {
+      "failed": "La solicitud al servicio externo falló",
+      "unavailable": "El servicio no está disponible",
+      "notConfigured": "El servicio no está configurado correctamente",
+      "notAvailable": "La integración del servicio no está disponible",
+      "invalidId": "ID de integración no válido",
+      "invalidScope": "Ámbito de integración no válido",
+      "noUpdates": "No se proporcionaron actualizaciones"
+    },
+    "geocoding": {
+      "queryRequired": "Se requiere el parámetro de consulta",
+      "coordinatesRequired": "Se requieren los parámetros lat y lng",
+      "serviceUnavailable": "No hay servicio de geocodificación disponible"
+    },
+    "directions": {
+      "noRoute": "No se encontró ruta",
+      "invalidWaypoints": "Puntos de paso no válidos"
+    },
+    "weather": {
+      "fetchFailed": "Error al obtener datos meteorológicos",
+      "locationRequired": "Se requiere ubicación para el tiempo"
+    },
+    "search": {
+      "failed": "Búsqueda fallida",
+      "invalidQuery": "Consulta de búsqueda no válida",
+      "overpassNotConfigured": "La integración de Overpass no está configurada",
+      "overpassNotAvailable": "La integración de Overpass no está disponible",
+      "categoriesLoadFailed": "Error al cargar categorías",
+      "categoryFailed": "Error al obtener categoría"
+    },
+    "friends": {
+      "invalidHandle": "Formato de handle no válido. Use alias@domain"
+    }
+  },
+  "success": {
+    "created": "{{entity}} creado correctamente",
+    "updated": "{{entity}} actualizado correctamente",
+    "deleted": "{{entity}} eliminado correctamente",
+    "saved": "Guardado correctamente"
+  },
+  "info": {
+    "warning": "Aviso",
+    "notice": "Aviso"
+  }
+}

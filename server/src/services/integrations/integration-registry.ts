@@ -6,12 +6,14 @@ import { NominatimIntegration } from './nominatim-integration'
 import { OverpassIntegration } from './overpass-integration'
 import { MapboxIntegration } from './mapbox-integration'
 import { ValhallaIntegration } from './valhalla-integration'
+import { GraphHopperIntegration } from './graphhopper-integration'
 import { MapillaryIntegration } from './mapillary-integration'
 import { TransitlandIntegration } from './transitland-integration'
 import { GeoapifyIntegration } from './geoapify-integration'
 import { WikidataIntegration } from './wikidata-integration'
 import { WikipediaIntegration } from './wikipedia-integration'
 import { WikimediaIntegration } from './wikimedia-integration'
+import { OpenWeatherMapIntegration } from './openweathermap-integration'
 
 /**
  * Registry for all integrations
@@ -33,12 +35,14 @@ export class IntegrationRegistry {
     this.registerIntegration(new OverpassIntegration())
     this.registerIntegration(new MapboxIntegration())
     this.registerIntegration(new ValhallaIntegration())
+    this.registerIntegration(new GraphHopperIntegration())
     this.registerIntegration(new MapillaryIntegration())
     this.registerIntegration(new TransitlandIntegration())
     this.registerIntegration(new GeoapifyIntegration())
     this.registerIntegration(new WikidataIntegration())
     this.registerIntegration(new WikipediaIntegration())
     this.registerIntegration(new WikimediaIntegration())
+    this.registerIntegration(new OpenWeatherMapIntegration())
   }
 
   /**

@@ -7,26 +7,31 @@ import { getLogoPhoto } from '@/types/place.types'
 import { useResponsive } from '@/lib/utils'
 
 const props = defineProps<{
-  place: Place
+  place: Partial<Place>
 }>()
 
 const { isMobileScreen } = useResponsive()
 
 const placeName = computed(() => {
-  if (props.place?.name.value) {
-    return props.place.name.value
-  }
-  // If no name, use place type as name
-  const type = props.place?.placeType.value || 'Place'
-  return type.charAt(0).toUpperCase() + type.slice(1)
+  // Return the name if it exists, otherwise return null (don't show title)
+  return props.place?.name?.value || null
 })
 
 const placeType = computed(() => {
-  // If we're using place type as name, don't show it again as type
-  if (!props.place?.name.value) {
+  // Only show place type if we have a name
+  if (!props.place?.name?.value) {
     return null
   }
-  return props.place?.placeType.value || 'Place'
+  
+  const type = props.place?.placeType?.value
+  
+  // Filter out geometry types that shouldn't be displayed as place types
+  const geometryTypes = ['Point', 'LineString', 'Polygon', 'MultiPolygon', 'Line', 'Area']
+  if (!type || geometryTypes.includes(type)) {
+    return null
+  }
+  
+  return type
 })
 
 const rating = computed(() => props.place?.ratings?.rating?.value || null)
@@ -104,7 +109,7 @@ watch(description, () => {
             <img
               v-show="brandLogoLoaded"
               :src="brandLogo"
-              :alt="place.name.value + ' logo'"
+              :alt="(place.name?.value ?? '') + ' logo'"
               class="w-full h-full object-contain bg-white"
               @load="emit('logoLoaded')"
               @error="emit('logoError')"
@@ -118,7 +123,7 @@ watch(description, () => {
       </div>
 
       <div class="flex-1">
-        <h1 class="text-2xl font-semibold line-clamp-2">
+        <h1 v-if="placeName" class="text-2xl font-semibold line-clamp-2">
           {{ placeName }}
         </h1>
         <div v-if="placeType" class="text-sm text-muted-foreground">

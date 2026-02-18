@@ -17,6 +17,7 @@ import {
   RouteInstruction,
   RouteSummary,
 } from '../../types/unified-routing.types'
+import { getLanguageCode } from '../../lib/i18n'
 import type {
   ValhallaConfig,
   ValhallaResponse,
@@ -40,6 +41,43 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
   readonly capabilities = {
     routing: {
       getRoute: this.getRoute.bind(this),
+      metadata: {
+        supportedPreferences: {
+          // Auto/driving preferences
+          avoidHighways: true, // use_highways
+          avoidTolls: true, // use_tolls
+          avoidFerries: true, // use_ferry
+          avoidUnpaved: true, // exclude_unpaved (auto/bus/truck)
+          preferHOV: true, // include_hov2, include_hov3, include_hot
+          
+          // Bicycle preferences
+          avoidHills: true, // use_hills (bicycle/pedestrian/motor_scooter)
+          preferPavedPaths: true, // avoid_bad_surfaces (bicycle)
+          
+          // Pedestrian preferences
+          preferLitPaths: true, // use_lit (pedestrian)
+          wheelchairAccessible: true, // type: wheelchair (pedestrian)
+          maxWalkDistance: true, // max_distance, transit_start_end_max_distance
+          
+          // Not supported by Valhalla
+          safetyVsEfficiency: false,
+          maxTransfers: false, // Only for transit which isn't fully supported
+        },
+        supportedModes: ['driving', 'walking', 'cycling', 'motorcycle', 'truck'],
+        supportedOptimizations: ['time', 'distance'],
+        features: {
+          alternatives: true, // alternates parameter
+          traffic: true, // speed_types with current/predicted/constrained
+          elevation: true, // elevation_interval
+          instructions: true, // directions_type
+          matrix: true, // Matrix API available
+          transit: false, // Transit not fully supported yet
+        },
+        limits: {
+          maxWaypoints: 20,
+          maxAlternatives: 3,
+        },
+      },
     } as RoutingCapability,
   }
 
@@ -148,6 +186,7 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
         : this.config.host
       const url = `${host}/route`
 
+      const lang = request.language ? getLanguageCode(request.language) : 'en'
       const requestBody = {
         locations: request.waypoints.map((waypoint) => ({
           lat: waypoint.coordinate.lat,
@@ -161,6 +200,7 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
           units: 'kilometers',
           narrative: request.includeInstructions ?? true,
           format: 'json',
+          ...(lang && { language: lang }),
         },
       }
 
@@ -247,19 +287,44 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
 
     if (request.mode === TravelMode.DRIVING) {
       options.auto = {
-        use_tolls: preferences?.avoidTolls ? 0 : 1,
-        use_highways: preferences?.avoidHighways ? 0 : 1,
-        use_ferry: preferences?.avoidFerries ? 0 : 1,
+        // Use values: 0 (avoid) to 1 (favor)
+        use_tolls: preferences?.avoidTolls ? 0 : 0.5,
+        use_highways: preferences?.avoidHighways ? 0 : 0.5,
+        use_ferry: preferences?.avoidFerries ? 0 : 0.5,
       }
 
+      // HOV preferences
+      if (preferences?.preferHOV) {
+        options.auto.include_hov2 = true
+        options.auto.include_hov3 = true
+        options.auto.include_hot = true
+      }
+
+      // Unpaved roads
+      if (preferences?.avoidUnpaved) {
+        options.auto.exclude_unpaved = true
+      }
+
+      // Vehicle dimensions
       if (vehicle) {
         if (vehicle.height) options.auto.height = vehicle.height
         if (vehicle.width) options.auto.width = vehicle.width
         if (vehicle.weight) options.auto.weight = vehicle.weight
+        if (vehicle.length) options.auto.length = vehicle.length
       }
     } else if (request.mode === TravelMode.CYCLING) {
       options.bicycle = {
-        use_ferry: preferences?.avoidFerries ? 0 : 1,
+        use_ferry: preferences?.avoidFerries ? 0 : 0.5,
+      }
+
+      // Hills preference (0 = avoid hills, 1 = don't fear hills)
+      if (preferences?.avoidHills !== undefined) {
+        options.bicycle.use_hills = preferences.avoidHills ? 0 : 0.5
+      }
+
+      // Bad surfaces / prefer paved paths (0-1, higher = avoid bad surfaces more)
+      if (preferences?.preferPavedPaths) {
+        options.bicycle.avoid_bad_surfaces = 0.8
       }
 
       if (preferences?.providerOptions?.cyclingSpeed) {
@@ -268,9 +333,38 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
     } else if (request.mode === TravelMode.WALKING) {
       options.pedestrian = {}
 
+      // Hills preference (0 = avoid hills, 1 = don't fear hills)
+      if (preferences?.avoidHills !== undefined) {
+        options.pedestrian.use_hills = preferences.avoidHills ? 0 : 0.5
+      }
+
+      // Lit paths preference (0 = indifferent, 1 = avoid unlit)
+      if (preferences?.preferLitPaths) {
+        options.pedestrian.use_lit = 1
+      }
+
+      // Wheelchair accessibility
+      if (preferences?.wheelchairAccessible) {
+        options.pedestrian.type = 'wheelchair'
+      }
+
+      // Max walking distance (in km)
+      if (preferences?.maxWalkDistance) {
+        options.pedestrian.max_distance = preferences.maxWalkDistance / 1000
+        options.pedestrian.transit_start_end_max_distance =
+          preferences.maxWalkDistance
+        options.pedestrian.transit_transfer_max_distance =
+          preferences.maxWalkDistance
+      }
+
       if (preferences?.providerOptions?.walkingSpeed) {
         options.pedestrian.walking_speed =
           preferences.providerOptions.walkingSpeed
+      }
+    } else if (request.mode === TravelMode.MOTORCYCLE) {
+      options.motorcycle = {
+        use_highways: preferences?.avoidHighways ? 0 : 0.5,
+        use_ferry: preferences?.avoidFerries ? 0 : 0.5,
       }
     }
 
@@ -339,6 +433,9 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
   ): RouteLeg {
     const startWaypoint = request.waypoints[legIndex]
     const endWaypoint = request.waypoints[legIndex + 1]
+    
+    // Decode geometry once for use in instructions
+    const geometry = this.decodePolyline(leg.shape)
 
     return {
       startWaypoint,
@@ -346,9 +443,9 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
       mode: request.mode,
       distance: leg.summary.length * 1000, // Convert km to meters
       duration: leg.summary.time,
-      geometry: this.decodePolyline(leg.shape),
+      geometry,
       instructions: leg.maneuvers.map((maneuver) =>
-        this.buildRouteInstruction(maneuver),
+        this.buildRouteInstruction(maneuver, geometry),
       ),
       hasTolls: leg.summary.has_toll,
       hasHighways: leg.summary.has_highway,
@@ -359,14 +456,17 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
   /**
    * Build route instruction from Valhalla maneuver
    */
-  private buildRouteInstruction(maneuver: ValhallaManeuver): RouteInstruction {
+  private buildRouteInstruction(maneuver: ValhallaManeuver, geometry: { lat: number; lng: number }[]): RouteInstruction {
+    // Extract coordinate from geometry using begin_shape_index
+    let coordinate = { lat: 0, lng: 0 }
+    if (maneuver.begin_shape_index !== undefined && geometry[maneuver.begin_shape_index]) {
+      coordinate = geometry[maneuver.begin_shape_index]
+    }
+    
     return {
       type: this.mapManeuverType(maneuver.type),
       text: maneuver.instruction,
-      coordinate: {
-        lat: 0, // Valhalla doesn't provide lat/lng in maneuvers
-        lng: 0, // Would need to decode from shape
-      },
+      coordinate,
       distance: maneuver.length * 1000, // Convert km to meters
       duration: maneuver.time,
       streetName: maneuver.street_names?.[0],

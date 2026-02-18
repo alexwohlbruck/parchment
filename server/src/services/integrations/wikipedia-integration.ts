@@ -122,7 +122,10 @@ export class WikipediaIntegration implements Integration<WikipediaConfig> {
    * @param id The identifier in format "lang:PageTitle" (e.g., "en:Pariser_Platz") or "wikipedia/lang:PageTitle"
    * @returns Place details or null if not found
    */
-  private async getPlaceInfo(id: string): Promise<Place | null> {
+  private async getPlaceInfo(
+    id: string,
+    _options?: { language?: string },
+  ): Promise<Place | null> {
     this.ensureInitialized()
 
     try {

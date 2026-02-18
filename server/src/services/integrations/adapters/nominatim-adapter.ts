@@ -68,6 +68,23 @@ export class NominatimAdapter {
       const primaryId = id || `${SOURCE.OSM}/${osmId}`
       const timestamp = new Date().toISOString()
 
+      const geometry = this.extractGeometry(data)
+      
+      // Build complete tags object for place type detection
+      const tags: Record<string, string> = {
+        [data.class]: data.type,
+        ...data.extratags,
+      }
+      
+      // Map Nominatim geometry types to OSM geometry types
+      const geometryTypeMap: Record<string, 'point' | 'line' | 'area'> = {
+        'point': 'point',
+        'linestring': 'line',
+        'polygon': 'area',
+        'multipolygon': 'area',
+      }
+      const osmGeometryType = geometryTypeMap[geometry.type] || 'point'
+      
       return {
         id: primaryId,
         externalIds: this.extractExternalIds(data, osmId),
@@ -78,12 +95,12 @@ export class NominatimAdapter {
         },
         description: this.extractDescription(data.extratags),
         placeType: {
-          value: getPlaceType({ [data.class]: data.type }) || data.type || 'unknown',
+          value: getPlaceType(tags, 'en', osmGeometryType) || data.type || 'unknown',
           sourceId: SOURCE.OSM,
           timestamp,
         },
         geometry: {
-          value: this.extractGeometry(data),
+          value: geometry,
           sourceId: SOURCE.OSM,
           timestamp,
         },

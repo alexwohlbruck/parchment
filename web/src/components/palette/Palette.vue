@@ -168,7 +168,7 @@ defineExpose({
 
 function inputFocused(event: FocusEvent) {
   emit('inputFocused')
-  if (!showResults.value) {
+  if (commandOpen.value && !showResults.value) {
     openPalette(props.searchOnOpen)
   }
 }
@@ -283,7 +283,7 @@ const placeholder = computed(() => {
 
 const icon = computed(() => {
   return showResults.value
-    ? activeCommand.value?.icon ?? TerminalIcon
+    ? (activeCommand.value?.icon ?? TerminalIcon)
     : SearchIcon
 })
 

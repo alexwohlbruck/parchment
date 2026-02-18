@@ -6,7 +6,13 @@ import { useAppService } from '@/services/app.service'
 import { useMapService } from '@/services/map.service'
 import { useMapStore } from '@/stores/map.store'
 import { useCommandStore } from '@/stores/command.store'
-import { type Layer, MapEngine, MapProjection, ControlVisibility } from '@/types/map.types'
+import {
+  type Layer,
+  MapEngine,
+  MapProjection,
+  ControlVisibility,
+  UnitSystem,
+} from '@/types/map.types'
 import { CommandName } from '@/stores/command.store'
 
 import { Button } from '@/components/ui/button'
@@ -34,6 +40,8 @@ import {
   RulerIcon,
   PersonStandingIcon,
   LocateIcon,
+  CloudSun,
+  RouteIcon,
 } from 'lucide-vue-next'
 import Layers from '@/components/map/Layers.vue'
 
@@ -67,7 +75,9 @@ const basemap = computed(() => {
       >
         <Select
           :model-value="settings.engine"
-          @update:model-value="(value) => mapService.setMapEngine(value as MapEngine)"
+          @update:model-value="
+            value => mapService.setMapEngine(value as MapEngine)
+          "
         >
           <SelectTrigger class="w-fit">
             <SelectValue />
@@ -133,10 +143,26 @@ const basemap = computed(() => {
         v-if="settings.engine === MapEngine.MAPBOX"
         :title="$t('settings.mapSettings.configuration.3dTerrain')"
         :icon="MountainSnowIcon"
+        :badge="$t('settings.mapSettings.configuration.experimental')"
       >
         <Switch
           :model-value="settings.terrain3d"
           @update:model-value="mapService.toggle3dTerrain()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        v-if="settings.engine === MapEngine.MAPBOX"
+        :title="$t('settings.mapSettings.configuration.hdRoads')"
+        :description="
+          $t('settings.mapSettings.configuration.hdRoadsDescription')
+        "
+        :icon="RouteIcon"
+        :badge="$t('settings.mapSettings.configuration.experimental')"
+      >
+        <Switch
+          :model-value="settings.hdRoads"
+          @update:model-value="mapService.toggleHdRoads()"
         />
       </SettingsItem>
 
@@ -218,7 +244,9 @@ const basemap = computed(() => {
                 {{ $t('settings.mapSettings.controls.visibility.always') }}
               </SelectItem>
               <SelectItem :value="ControlVisibility.WHILE_ROTATING">
-                {{ $t('settings.mapSettings.controls.visibility.whileRotating') }}
+                {{
+                  $t('settings.mapSettings.controls.visibility.whileRotating')
+                }}
               </SelectItem>
               <SelectItem :value="ControlVisibility.NEVER">
                 {{ $t('settings.mapSettings.controls.visibility.never') }}
@@ -242,7 +270,9 @@ const basemap = computed(() => {
                 {{ $t('settings.mapSettings.controls.visibility.always') }}
               </SelectItem>
               <SelectItem :value="ControlVisibility.WHILE_ZOOMING">
-                {{ $t('settings.mapSettings.controls.visibility.whileZooming') }}
+                {{
+                  $t('settings.mapSettings.controls.visibility.whileZooming')
+                }}
               </SelectItem>
               <SelectItem :value="ControlVisibility.NEVER">
                 {{ $t('settings.mapSettings.controls.visibility.never') }}
@@ -281,6 +311,27 @@ const basemap = computed(() => {
         :icon="LocateIcon"
       >
         <Select v-model="controlSettings.locate">
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem :value="ControlVisibility.ALWAYS">
+                {{ $t('settings.mapSettings.controls.visibility.always') }}
+              </SelectItem>
+              <SelectItem :value="ControlVisibility.NEVER">
+                {{ $t('settings.mapSettings.controls.visibility.never') }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.controls.weather')"
+        :icon="CloudSun"
+      >
+        <Select v-model="controlSettings.weather">
           <SelectTrigger class="w-fit">
             <SelectValue />
           </SelectTrigger>

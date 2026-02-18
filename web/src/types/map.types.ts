@@ -47,6 +47,7 @@ export interface MapSettings {
   roadLabels: boolean
   transitLabels: boolean
   placeLabels: boolean
+  hdRoads: boolean
 }
 
 export type MapCamera = {
@@ -79,7 +80,7 @@ export type MapBounds = {
 // TODO: Use optional fields
 export type Waypoint = {
   lngLat: LngLat | null
-  place?: Place | null
+  place?: Partial<Place> | null
 }
 
 export type MapillaryImage = Image // TODO: Use custom type
@@ -88,7 +89,13 @@ export type MapEvents = {
   click: {
     lngLat: LngLat
     point: { x: number; y: number }
+    poi?: {
+      osmId: string
+      poiType: 'node' | 'way' | 'relation'
+      name?: string
+    }
   }
+  // TODO: Fold this into 'click' event
   'click:mapillary-image': {
     lngLat: LngLat
     point: { x: number; y: number }
@@ -102,12 +109,7 @@ export type MapEvents = {
     lngLat: LngLat
     point: { x: number; y: number }
   }
-  'click:poi': {
-    osmId: string
-    poiType: 'node' | 'way' | 'relation'
-    lngLat: LngLat
-    point: { x: number; y: number }
-  }
+  // TODO: Fold this into 'click' event
   'click:friend-marker': {
     friendHandle: string
   }
@@ -274,8 +276,23 @@ export enum ControlVisibility {
 
 export interface MapControlSettings {
   zoom: ControlVisibility.ALWAYS | ControlVisibility.NEVER
-  compass: ControlVisibility.ALWAYS | ControlVisibility.WHILE_ROTATING | ControlVisibility.NEVER
-  scale: ControlVisibility.ALWAYS | ControlVisibility.WHILE_ZOOMING | ControlVisibility.NEVER
-  streetView: ControlVisibility.ALWAYS | ControlVisibility.WHILE_ACTIVE | ControlVisibility.NEVER
+  compass:
+    | ControlVisibility.ALWAYS
+    | ControlVisibility.WHILE_ROTATING
+    | ControlVisibility.NEVER
+  scale:
+    | ControlVisibility.ALWAYS
+    | ControlVisibility.WHILE_ZOOMING
+    | ControlVisibility.NEVER
+  streetView:
+    | ControlVisibility.ALWAYS
+    | ControlVisibility.WHILE_ACTIVE
+    | ControlVisibility.NEVER
   locate: ControlVisibility.ALWAYS | ControlVisibility.NEVER
+  weather: ControlVisibility.ALWAYS | ControlVisibility.NEVER
+}
+
+export enum UnitSystem {
+  METRIC = 'metric',
+  IMPERIAL = 'imperial',
 }

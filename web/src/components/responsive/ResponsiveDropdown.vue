@@ -31,10 +31,13 @@ export interface MenuItem {
   id?: string
   label: string
   icon?: Component
+  trailing?: Component
+  trailingProps?: Record<string, any>
   disabled?: boolean
   variant?: 'default' | 'destructive'
   to?: string
   href?: string
+  keepOpen?: boolean
   onSelect?: () => void | Promise<void>
 }
 
@@ -46,7 +49,9 @@ export interface MenuSeparator {
 export interface MenuLabel {
   type: 'label'
   id?: string
-  label: string
+  label?: string
+  customComponent?: Component
+  customProps?: Record<string, any>
 }
 
 export interface MenuSubmenu {
@@ -60,11 +65,19 @@ export interface MenuSubmenu {
   customProps?: Record<string, any>
 }
 
+export interface MenuCustom {
+  type: 'custom'
+  id?: string
+  component: Component
+  props?: Record<string, any>
+}
+
 export type MenuItemDefinition =
   | MenuItem
   | MenuSeparator
   | MenuLabel
   | MenuSubmenu
+  | MenuCustom
 
 interface Props
   extends ResponsiveOverlayBaseProps,
@@ -162,7 +175,7 @@ function handleSubmenuOpenChange(index: number, isOpen: boolean) {
   }
 }
 
-function handleItemClick(item: MenuItem) {
+function handleItemClick(item: MenuItem, event?: Event) {
   if (item.disabled) return
 
   if (item.to) {
@@ -172,9 +185,12 @@ function handleItemClick(item: MenuItem) {
   }
 
   item.onSelect?.()
-  // Close all submenus and main menu
-  submenuStack.value = []
-  handleOpenChange(false)
+
+  // Only close menu if keepOpen is not set
+  if (!item.keepOpen) {
+    submenuStack.value = []
+    handleOpenChange(false)
+  }
 }
 
 const snapPoints = computeSnapPoints(props.customSnapPoints, props.peekHeight)
@@ -202,7 +218,10 @@ const snapPoints = computeSnapPoints(props.customSnapPoints, props.peekHeight)
       </div>
 
       <div v-else>
-        <div v-if="title || description" class="mb-4 mx-3">
+        <!-- Header slot -->
+        <slot name="header" />
+
+        <div v-if="(title || description) && !$slots.header" class="mb-4 mx-3">
           <h2 v-if="title" class="text-lg font-semibold">
             {{ title }}
           </h2>
@@ -218,37 +237,61 @@ const snapPoints = computeSnapPoints(props.customSnapPoints, props.peekHeight)
           >
             <Separator v-if="item.type === 'separator'" class="my-1.5" />
 
-            <div
-              v-else-if="item.type === 'label'"
-              class="px-2 py-1.5 text-sm font-semibold"
-            >
-              {{ item.label }}
-            </div>
+            <!-- Label with optional custom component -->
+            <template v-else-if="item.type === 'label'">
+              <component
+                v-if="item.customComponent"
+                :is="markRaw(item.customComponent)"
+                v-bind="item.customProps"
+              />
+              <div v-else class="px-2 py-1.5 text-sm font-semibold">
+                {{ item.label }}
+              </div>
+            </template>
 
+            <!-- Custom component -->
+            <component
+              v-else-if="item.type === 'custom'"
+              :is="markRaw(item.component)"
+              v-bind="item.props"
+            />
+
+            <!-- Regular item with optional trailing component -->
             <Button
               v-else-if="item.type === 'item'"
               variant="ghost"
-              class="w-full justify-start h-auto px-3 py-2.5 gap-2"
-              :class="{
-                'text-destructive hover:text-destructive':
-                  item.variant === 'destructive' && !item.disabled,
-                'opacity-50 cursor-not-allowed': item.disabled,
-              }"
+              class="w-full h-auto px-3 py-2.5 gap-2"
+              :class="[
+                item.trailing ? 'justify-between' : 'justify-start',
+                {
+                  'text-destructive hover:text-destructive':
+                    item.variant === 'destructive' && !item.disabled,
+                  'opacity-50 cursor-not-allowed': item.disabled,
+                },
+              ]"
               :disabled="item.disabled"
-              @click="handleItemClick(item)"
+              @click="handleItemClick(item, $event)"
             >
+              <span class="flex items-center gap-2">
+                <component
+                  v-if="item.icon"
+                  :is="item.icon"
+                  :class="[
+                    'size-4 shrink-0',
+                    {
+                      'text-destructive':
+                        item.variant === 'destructive' && !item.disabled,
+                    },
+                  ]"
+                />
+                <span>{{ item.label }}</span>
+              </span>
               <component
-                v-if="item.icon"
-                :is="item.icon"
-                :class="[
-                  'size-4 shrink-0',
-                  {
-                    'text-destructive':
-                      item.variant === 'destructive' && !item.disabled,
-                  },
-                ]"
+                v-if="item.trailing"
+                :is="item.trailing"
+                v-bind="item.trailingProps"
+                @click.stop
               />
-              <span>{{ item.label }}</span>
             </Button>
 
             <!-- Submenu trigger -->
@@ -274,6 +317,9 @@ const snapPoints = computeSnapPoints(props.customSnapPoints, props.peekHeight)
             </Button>
           </template>
         </div>
+
+        <!-- Footer slot -->
+        <slot name="footer" />
       </div>
     </BottomSheet>
 
@@ -400,34 +446,65 @@ const snapPoints = computeSnapPoints(props.customSnapPoints, props.peekHeight)
       />
 
       <template v-else>
+        <!-- Header slot -->
+        <slot name="header" />
+
         <template v-for="(item, index) in items" :key="item.id || index">
           <DropdownMenuSeparator v-if="item.type === 'separator'" />
 
-          <DropdownMenuLabel v-else-if="item.type === 'label'">
-            {{ item.label }}
-          </DropdownMenuLabel>
+          <!-- Label with optional custom component -->
+          <template v-else-if="item.type === 'label'">
+            <component
+              v-if="item.customComponent"
+              :is="markRaw(item.customComponent)"
+              v-bind="item.customProps"
+            />
+            <DropdownMenuLabel v-else class="font-normal">
+              {{ item.label }}
+            </DropdownMenuLabel>
+          </template>
 
+          <!-- Custom component -->
+          <component
+            v-else-if="item.type === 'custom'"
+            :is="markRaw(item.component)"
+            v-bind="item.props"
+          />
+
+          <!-- Regular item with optional trailing component -->
           <DropdownMenuItem
             v-else-if="item.type === 'item'"
             :disabled="item.disabled"
-            :class="{
-              'text-destructive focus:text-destructive':
-                item.variant === 'destructive' && !item.disabled,
-            }"
-            @click="handleItemClick(item)"
+            :class="[
+              item.trailing ? 'flex items-center justify-between' : '',
+              {
+                'text-destructive focus:text-destructive':
+                  item.variant === 'destructive' && !item.disabled,
+              },
+            ]"
+            @click="handleItemClick(item, $event)"
+            @select="item.keepOpen ? $event.preventDefault() : undefined"
           >
+            <span class="flex items-center gap-2">
+              <component
+                v-if="item.icon"
+                :is="item.icon"
+                :class="[
+                  'size-4',
+                  {
+                    'text-destructive':
+                      item.variant === 'destructive' && !item.disabled,
+                  },
+                ]"
+              />
+              <span>{{ item.label }}</span>
+            </span>
             <component
-              v-if="item.icon"
-              :is="item.icon"
-              :class="[
-                'size-4',
-                {
-                  'text-destructive':
-                    item.variant === 'destructive' && !item.disabled,
-                },
-              ]"
+              v-if="item.trailing"
+              :is="item.trailing"
+              v-bind="item.trailingProps"
+              @click.stop
             />
-            <span>{{ item.label }}</span>
           </DropdownMenuItem>
 
           <DropdownMenuSub v-else-if="item.type === 'submenu'">
@@ -451,33 +528,53 @@ const snapPoints = computeSnapPoints(props.customSnapPoints, props.peekHeight)
                       v-if="subItem.type === 'separator'"
                     />
 
-                    <DropdownMenuLabel v-else-if="subItem.type === 'label'">
-                      {{ subItem.label }}
-                    </DropdownMenuLabel>
+                    <!-- Label with optional custom component in submenu -->
+                    <template v-else-if="subItem.type === 'label'">
+                      <component
+                        v-if="subItem.customComponent"
+                        :is="markRaw(subItem.customComponent)"
+                        v-bind="subItem.customProps"
+                      />
+                      <DropdownMenuLabel v-else>
+                        {{ subItem.label }}
+                      </DropdownMenuLabel>
+                    </template>
 
                     <DropdownMenuItem
                       v-else-if="subItem.type === 'item'"
                       :disabled="subItem.disabled"
-                      :class="{
-                        'text-destructive focus:text-destructive':
-                          subItem.variant === 'destructive' &&
-                          !subItem.disabled,
-                      }"
-                      @click="handleItemClick(subItem)"
+                      :class="[
+                        subItem.trailing ? 'flex items-center justify-between' : '',
+                        {
+                          'text-destructive focus:text-destructive':
+                            subItem.variant === 'destructive' &&
+                            !subItem.disabled,
+                        },
+                      ]"
+                      @click="handleItemClick(subItem, $event)"
+                      @select="subItem.keepOpen ? $event.preventDefault() : undefined"
                     >
+                      <span class="flex items-center gap-2">
+                        <component
+                          v-if="subItem.icon"
+                          :is="subItem.icon"
+                          :class="[
+                            'size-4',
+                            {
+                              'text-destructive':
+                                subItem.variant === 'destructive' &&
+                                !subItem.disabled,
+                            },
+                          ]"
+                        />
+                        <span>{{ subItem.label }}</span>
+                      </span>
                       <component
-                        v-if="subItem.icon"
-                        :is="subItem.icon"
-                        :class="[
-                          'size-4',
-                          {
-                            'text-destructive':
-                              subItem.variant === 'destructive' &&
-                              !subItem.disabled,
-                          },
-                        ]"
+                        v-if="subItem.trailing"
+                        :is="subItem.trailing"
+                        v-bind="subItem.trailingProps"
+                        @click.stop
                       />
-                      <span>{{ subItem.label }}</span>
                     </DropdownMenuItem>
                   </template>
                 </template>
@@ -485,6 +582,9 @@ const snapPoints = computeSnapPoints(props.customSnapPoints, props.peekHeight)
             </DropdownMenuPortal>
           </DropdownMenuSub>
         </template>
+
+        <!-- Footer slot -->
+        <slot name="footer" />
       </template>
     </DropdownMenuContent>
   </DropdownMenu>

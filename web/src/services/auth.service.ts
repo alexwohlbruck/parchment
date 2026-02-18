@@ -1,5 +1,8 @@
 import { api, isTauri } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
+import { useIntegrationService } from '@/services/integration.service'
+import { clearAllUserCaches } from '@/services/cache.service'
+import { syncPreferencesFromBackend } from '@/services/preferences.service'
 import { createSharedComposable } from '@vueuse/core'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 import { Session } from '@/types/session.types'
@@ -16,6 +19,7 @@ function setAuthHeader(token: string | null) {
 
 function authService() {
   const authStore = useAuthStore()
+  const integrationService = useIntegrationService()
 
   async function loadToken() {
     if (isTauri) {
@@ -37,7 +41,37 @@ function authService() {
 
   async function getAuthenticatedUser() {
     const localAuthToken = await loadToken()
+    const hasCachedUser = authStore.me !== undefined && authStore.me !== null
+    
     const authenticatedUserPromise = api.get('auth/sessions/current')
+    
+    // If we have cached user, set a resolved promise so router guards don't block
+    // The actual server request will validate/update in background
+    if (hasCachedUser) {
+      authStore.setAuthenticatedUserPromise(Promise.resolve({ data: { user: authStore.me } }))
+      
+      // Validate session in background - update store when response arrives
+      authenticatedUserPromise.then(response => {
+        const { user, token: sessionId } = response?.data ?? {}
+        if (user) {
+          authStore.updateUser(user)
+          setAuthHeader(sessionId)
+          getPermissions()
+        } else {
+          // Session invalid - clear caches and redirect
+          clearAllUserCaches()
+          authStore.unsetAuthenticatedUser()
+        }
+      }).catch(() => {
+        // On error, session might be invalid
+        clearAllUserCaches()
+        authStore.unsetAuthenticatedUser()
+      })
+      
+      return { user: authStore.me }
+    }
+    
+    // No cache - wait for server response
     authStore.setAuthenticatedUserPromise(authenticatedUserPromise)
 
     const response = await authenticatedUserPromise
@@ -45,17 +79,23 @@ function authService() {
 
     if (user) {
       setAuthenticatedUser(user, sessionId)
-    } else {
-      // authStore.unsetAuthenticatedUser()
     }
-    return {
-      user,
-    }
+    return { user }
   }
 
   async function setAuthenticatedUser(user: User, sessionId: Session['id']) {
-    authStore.setAuthenticatedUser(user, sessionId)
+    // Set auth header first so integration fetches are authenticated
     setAuthHeader(sessionId)
+    
+    // Fetch integrations and preferences before navigating to the map
+    await Promise.all([
+      integrationService.fetchAvailableIntegrations(),
+      integrationService.fetchConfiguredIntegrations(),
+      syncPreferencesFromBackend(),
+    ])
+
+    // Now navigate to the map (authStore.setAuthenticatedUser triggers navigation)
+    authStore.setAuthenticatedUser(user, sessionId)
     getPermissions()
   }
 
@@ -88,6 +128,10 @@ function authService() {
       await deviceStore.clearToken()
     }
     setAuthHeader(null)
+    
+    // Clear all cached user data
+    clearAllUserCaches()
+    
     authStore.unsetAuthenticatedUser()
     return response
   }

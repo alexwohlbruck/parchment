@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { cn } from '@/lib/utils'
-import { useAuthStore } from '@/stores/auth.store'
 import { useCommandStore } from '@/stores/command.store'
 import { useAppStore } from '@/stores/app.store'
 import { capitalize } from '@/filters/text.filters'
@@ -16,7 +14,6 @@ import { appEventBus } from '@/lib/eventBus'
 
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   Tooltip,
   TooltipContent,
@@ -25,18 +22,17 @@ import {
 } from '@/components/ui/tooltip'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import ParchmentLogo from '@/assets/parchment.svg?component'
+import AccountDropdown from '@/components/navigation/AccountDropdown.vue'
 import {
-  MapIcon,
   CornerUpRightIcon,
-  BookMarkedIcon,
   HistoryIcon,
   CloudOffIcon,
-  MapPinnedIcon,
   UsersRoundIcon,
   SettingsIcon,
   PanelLeftIcon,
   LibraryIcon,
   MessageSquareQuoteIcon,
+  SearchIcon,
 } from 'lucide-vue-next'
 import { useHotkeys } from '@/composables/useHotkeys'
 import { useFullscreen } from '@/composables/useFullscreen'
@@ -46,13 +42,10 @@ import { Icon } from '@/types/app.types'
 import { Hotkey } from '@/types/command.types'
 import Palette from '@/components/palette/Palette.vue'
 import { CommandDialog } from '@/components/ui/command'
-import { SearchIcon } from 'lucide-vue-next'
 import { useCommandService } from '@/services/command.service'
 
 const router = useRouter()
 const { t } = useI18n()
-const authStore = useAuthStore()
-const { me } = storeToRefs(authStore)
 const { openExternalLink } = useExternalLink()
 const mapService = useMapService()
 const { isFullscreen } = useFullscreen()
@@ -374,33 +367,7 @@ const items = computed<MenuItemDefinition[]>(() => [
       </template>
 
       <div class="px-1">
-        <router-link
-          to="/settings/account"
-          v-if="me"
-          :class="
-            cn(
-              'px-1 py-2 rounded-lg flex flex-row justify-center gap-2 hover:bg-foreground/5',
-            )
-          "
-        >
-          <Avatar size="xs">
-            <AvatarImage
-              v-if="me.picture"
-              :src="me.picture"
-              alt="@alexwohlbruck"
-            />
-            <AvatarFallback v-else>
-              {{ me.firstName?.charAt(0) }} {{ me.lastName?.charAt(0) }}
-            </AvatarFallback>
-          </Avatar>
-
-          <div class="flex flex-col text-nowrap" v-if="!mini">
-            <span class="text-sm font-semibold leading-4">
-              {{ me.firstName }} {{ me.lastName }}
-            </span>
-            <span class="text-xs text-gray-500 leading-4">{{ me.email }}</span>
-          </div>
-        </router-link>
+        <AccountDropdown :mini="mini" />
       </div>
     </div>
   </div>

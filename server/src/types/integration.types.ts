@@ -21,6 +21,7 @@ export interface SearchCapability {
     options?: {
       radius?: number
       limit?: number
+      language?: import('../lib/i18n').Language
     },
   ): Promise<Place[]>
 }
@@ -38,18 +39,74 @@ export interface AutocompleteCapability {
 }
 
 export interface PlaceInfoCapability {
-  getPlaceInfo(id: string): Promise<Place | null>
+  getPlaceInfo(
+    id: string,
+    options?: { language?: import('../lib/i18n').Language },
+  ): Promise<Place | null>
 }
 
 // TODO: Return types
 export interface GeocodingCapability {
-  geocode(query: string, lat?: number, lng?: number): Promise<any[]>
-  reverseGeocode(lat: number, lng: number): Promise<any[]>
+  geocode(
+    query: string,
+    lat?: number,
+    lng?: number,
+    options?: { language?: import('../lib/i18n').Language },
+  ): Promise<any[]>
+  reverseGeocode(
+    lat: number,
+    lng: number,
+    options?: { language?: import('../lib/i18n').Language },
+  ): Promise<any[]>
 }
 
 export interface RoutingCapability {
   getRoute(request: RouteRequest): Promise<UnifiedRoute>
   getMatrix?(request: MatrixRequest): Promise<MatrixResponse>
+  
+  // Metadata about what this routing engine supports
+  metadata?: RoutingCapabilityMetadata
+}
+
+// Metadata describing routing engine capabilities
+export interface RoutingCapabilityMetadata {
+  // Supported routing preferences
+  supportedPreferences: {
+    avoidHighways?: boolean
+    avoidTolls?: boolean
+    avoidFerries?: boolean
+    avoidUnpaved?: boolean
+    avoidHills?: boolean
+    preferHOV?: boolean
+    preferLitPaths?: boolean
+    preferPavedPaths?: boolean
+    safetyVsEfficiency?: boolean
+    maxWalkDistance?: boolean
+    maxTransfers?: boolean
+    wheelchairAccessible?: boolean
+  }
+  
+  // Supported travel modes
+  supportedModes: string[] // e.g., ['driving', 'walking', 'cycling', 'transit']
+  
+  // Route optimization types supported
+  supportedOptimizations?: string[] // e.g., ['time', 'distance', 'balanced']
+  
+  // Additional features
+  features?: {
+    alternatives?: boolean // Can provide alternative routes
+    traffic?: boolean // Supports traffic data
+    elevation?: boolean // Provides elevation data
+    instructions?: boolean // Provides turn-by-turn instructions
+    matrix?: boolean // Supports distance/time matrix
+    transit?: boolean // Supports transit routing
+  }
+  
+  // Limits
+  limits?: {
+    maxWaypoints?: number
+    maxAlternatives?: number
+  }
 }
 
 export interface MapBounds {
@@ -91,6 +148,41 @@ export interface TransitDataCapability {
   // getTrips(options?: any): Promise<any[]>
 }
 
+export interface WeatherData {
+  locationName?: string // City or location name
+  temperature: number // in Celsius
+  temperatureFeelsLike: number // in Celsius
+  temperatureMin?: number // in Celsius
+  temperatureMax?: number // in Celsius
+  humidity?: number // percentage
+  pressure?: number // hPa
+  windSpeed?: number // m/s
+  windDirection?: number // degrees
+  cloudiness?: number // percentage
+  visibility?: number // meters
+  condition: string // e.g., "Clear", "Clouds", "Rain", etc.
+  conditionDescription: string // e.g., "clear sky", "light rain"
+  conditionIcon: string // weather icon code
+  aqi?: number // Air Quality Index (1-5 scale, 1=Good, 5=Very Poor)
+  aqiComponents?: {
+    co?: number // Carbon monoxide
+    no?: number // Nitrogen monoxide
+    no2?: number // Nitrogen dioxide
+    o3?: number // Ozone
+    so2?: number // Sulphur dioxide
+    pm2_5?: number // Fine particulate matter
+    pm10?: number // Coarse particulate matter
+    nh3?: number // Ammonia
+  }
+  timestamp: string // ISO 8601 timestamp
+  sunrise?: string // ISO 8601 timestamp
+  sunset?: string // ISO 8601 timestamp
+}
+
+export interface WeatherCapability {
+  getWeather(lat: number, lng: number, lang?: string): Promise<WeatherData>
+}
+
 // Integration capabilities container
 export interface IntegrationCapabilities {
   search?: SearchCapability
@@ -102,6 +194,7 @@ export interface IntegrationCapabilities {
   imagery?: ImageryCapability
   mapEngine?: MapEngineCapability
   transitData?: TransitDataCapability
+  weather?: WeatherCapability
 }
 
 /**

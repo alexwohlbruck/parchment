@@ -6,6 +6,7 @@ import { TransitionExpand } from '@morev/vue-transitions'
 import Otp from '@/components/auth/forms/Otp.vue'
 import SigninForm from '@/components/auth/forms/SigninForm.vue'
 import parchmentMapBg from '@/assets/img/parchment-map.png'
+import { APP_NAME } from '@/lib/constants'
 
 const { t } = useI18n()
 
@@ -60,14 +61,14 @@ function beginOtp({
 
 .form-card {
   backdrop-filter: blur(20px);
-  box-shadow: 
+  box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.05),
     0 4px 6px rgba(0, 0, 0, 0.07),
     0 10px 20px rgba(0, 0, 0, 0.08);
 }
 
 .dark .form-card {
-  box-shadow: 
+  box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.08),
     0 4px 6px rgba(0, 0, 0, 0.4),
     0 10px 20px rgba(0, 0, 0, 0.5);
@@ -82,30 +83,36 @@ function beginOtp({
     <div class="absolute inset-0 pointer-events-none">
       <div class="parchment-bg absolute inset-0"></div>
       <!-- Gradient overlay to fade the map into the background -->
-      <div class="absolute inset-0 bg-gradient-to-b from-slate-50/50 via-slate-50/30 to-slate-50/50 dark:from-slate-950/50 dark:via-slate-950/30 dark:to-slate-950/50" />
+      <div
+        class="absolute inset-0 bg-gradient-to-b from-slate-50/50 via-slate-50/30 to-slate-50/50 dark:from-slate-950/50 dark:via-slate-950/30 dark:to-slate-950/50"
+      />
     </div>
 
     <!-- Sign In Form -->
-    <div class="relative z-10 flex-1 flex flex-col h-full justify-center items-center p-6 signin-container">
+    <div
+      class="relative z-10 flex-1 flex flex-col h-full justify-center items-center p-6 signin-container"
+    >
       <div class="w-full max-w-sm space-y-6">
-        <!-- Logo -->
-        <div class="flex justify-center">
-          <img
-            src="@/assets/parchment.svg"
-            alt="Parchment"
-            class="h-14 w-14 dark:invert"
-          />
-        </div>
-
         <!-- Form Card -->
-        <div class="form-card bg-white/90 dark:bg-slate-900/90 rounded-xl p-8 space-y-6">
+        <div
+          class="form-card bg-white/90 dark:bg-slate-900/90 rounded-xl p-8 space-y-6"
+        >
           <!-- Title -->
           <div class="text-center space-y-1">
-            <h1 class="text-2xl font-semibold text-slate-900 dark:text-white">
-              {{ t('auth.signIn.title') }}
+            <!-- Logo -->
+            <div class="flex justify-center">
+              <img
+                src="@/assets/parchment.svg"
+                alt="Parchment"
+                class="h-14 w-14 dark:invert"
+              />
+            </div>
+
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">
+              {{ APP_NAME }}
             </h1>
             <p class="text-sm text-slate-600 dark:text-slate-400">
-              {{ t('auth.signIn.welcome') }}
+              {{ t('taglines.short') }}
             </p>
           </div>
 

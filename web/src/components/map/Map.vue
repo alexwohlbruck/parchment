@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, useTemplateRef, watch } from 'vue'
+import { computed, onMounted, onUnmounted, onActivated, useTemplateRef, watch, nextTick } from 'vue'
 import { useMapStore } from '../../stores/map.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useMapService } from '@/services/map.service'
@@ -68,6 +68,10 @@ onMounted(() => {
         // Only set mapStrategy if initialization was successful
         if (result) {
           mapStrategy = result
+          // Ensure map is properly sized after initialization
+          nextTick(() => {
+            mapService.resize()
+          })
         }
       }
     },
@@ -99,11 +103,25 @@ onMounted(() => {
         )
         if (result) {
           mapStrategy = result
+          // Ensure map is properly sized after reinitialization
+          nextTick(() => {
+            mapService.resize()
+          })
         }
       }
     },
     { deep: true },
   )
+})
+
+// Handle component activation when kept alive (e.g., after sign in)
+onActivated(() => {
+  // Ensure map container is properly sized when component is reactivated
+  nextTick(() => {
+    if (mapStrategy) {
+      mapService.resize()
+    }
+  })
 })
 
 onUnmounted(() => {

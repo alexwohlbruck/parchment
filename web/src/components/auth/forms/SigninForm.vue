@@ -219,10 +219,7 @@ function getDisplayName(serverUrl: string): string {
           />
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
-              <Button
-                variant="outline"
-                class="w-full justify-between"
-              >
+              <Button variant="outline" class="w-full justify-between">
                 <span class="truncate">{{
                   getDisplayName(selectedServer)
                 }}</span>
@@ -240,7 +237,10 @@ function getDisplayName(serverUrl: string): string {
                 </svg>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" class="w-[var(--radix-dropdown-menu-trigger-width)]">
+            <DropdownMenuContent
+              align="start"
+              class="w-[var(--radix-dropdown-menu-trigger-width)]"
+            >
               <DropdownMenuItem
                 v-for="server in savedServers"
                 :key="server"
@@ -262,7 +262,9 @@ function getDisplayName(serverUrl: string): string {
                     <path d="M20 6 9 17l-5-5" />
                   </svg>
                 </span>
-                <span class="flex-1 truncate">{{ getDisplayName(server) }}</span>
+                <span class="flex-1 truncate">{{
+                  getDisplayName(server)
+                }}</span>
                 <Button
                   v-if="server !== DEFAULT_SERVER_URL"
                   variant="ghost"
@@ -317,9 +319,11 @@ function getDisplayName(serverUrl: string): string {
   </form>
 
   <div class="flex items-center my-6" v-if="!isTauri">
-    <hr class="flex-1" />
-    <span class="px-4 text-xs text-muted-foreground uppercase">{{ t('auth.signIn.or') }}</span>
-    <hr class="flex-1" />
+    <hr class="flex-1 border-border" />
+    <span class="px-4 text-xs text-muted-foreground uppercase">{{
+      t('auth.signIn.or')
+    }}</span>
+    <hr class="flex-1 border-border" />
   </div>
 
   <Button

@@ -1,4 +1,8 @@
 {
+  "taglines": {
+    "short": "The next generation of digital maps",
+    "long": "Explore the world with beautiful, detailed maps crafted by the community"
+  },
   "general": {
     "yes": "Yes",
     "no": "No",
@@ -837,8 +841,6 @@
   },
   "auth": {
     "signIn": {
-      "title": "Sign in",
-      "welcome": "Welcome back to Parchment",
       "server": "Server",
       "email": "Email",
       "emailPlaceholder": "magellan{'@'}parchment.app",

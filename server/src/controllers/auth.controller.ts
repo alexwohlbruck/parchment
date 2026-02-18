@@ -7,7 +7,7 @@ import {
   requireAuth,
   getSessionId,
 } from '../middleware/auth.middleware'
-import { origins } from '../config'
+import { appName, origins } from '../config'
 import { Passkey, passkeys } from '../schema/passkeys.schema'
 import { sessions } from '../schema/sessions.schema'
 import {
@@ -33,18 +33,18 @@ import {
   RegistrationResponseJSON,
 } from '@simplewebauthn/server/script/deps'
 import { generateId } from '../util'
-import { populateDefaultLayers } from '../services/layers.service'
+import { detectLanguage, getI18nInitOptions } from '../lib/i18n'
 
 const app = new Elysia({ prefix: '/auth' })
 
 app.post(
-  'verify',
-  async ({ body: { email }, set, error }) => {
+  '/verify',
+  async ({ body: { email }, set, status, t }) => {
     let user = await fetchUserByEmail(email)
 
     if (!user) {
       // For now, we will have an invite-only system. When the app is opened up to GP, we will use this code to create an account for new users
-      return error(404, { message: 'User does not exist' }) // TODO: i18n
+      return status(404, { message: t('errors.notFound.user') }) // TODO: i18n
       // const userId = generateId()
       // user = (
       //   await db
@@ -117,7 +117,7 @@ app.group('/passkeys', (app) => {
 
     app.use(requireAuth).post(
       '/verify',
-      async ({ body, set, user, cookie: { challenge }, error }) => {
+      async ({ body, set, user, cookie: { challenge }, status, t }) => {
         if (!user) return (set.status = 401)
         if (!challenge.value) return (set.status = 400) // TODO: Check this is how to break out with error in Elysia, make better error
 
@@ -125,20 +125,24 @@ app.group('/passkeys', (app) => {
 
         const verification = await verifyRegistrationResponse({
           response: payload,
-          expectedChallenge: challenge.value,
-          expectedOrigin: origins.clientOrigin,
+          expectedChallenge: (challenge.value as string) ?? '',
+          expectedOrigin: (origins.clientOrigin as string) ?? '',
           expectedRPID: rpID,
           requireUserVerification: true,
         })
 
         if (!verification.verified) {
-          return error(401, { message: 'Passkey verification failed' }) // TODO: i18n
+          return status(401, {
+            message: t('errors.auth.passkeyVerificationFailed'),
+          })
         }
 
         const { registrationInfo } = verification
 
         if (!registrationInfo) {
-          return error(401, { message: 'Passkey verification failed' }) // TODO: i18n
+          return status(401, {
+            message: t('errors.auth.passkeyVerificationFailed'),
+          })
         }
 
         const {
@@ -219,10 +223,20 @@ app.group('/passkeys', (app) => {
     )
 
     app.post(
-      'verify',
-      async ({ body, cookie: { challenge }, set, headers, error, request }) => {
+      '/verify',
+      async ({
+        body,
+        cookie: { challenge },
+        set,
+        headers,
+        status,
+        request,
+        t,
+      }) => {
         if (!challenge.value) {
-          return error(401, { message: 'Could not find challenge cookie' }) // TODO: i18n
+          return status(401, {
+            message: t('errors.auth.challengeNotFound'),
+          })
         }
 
         const passkey = (
@@ -230,13 +244,15 @@ app.group('/passkeys', (app) => {
         )[0]
 
         if (!passkey) {
-          return error(401, { message: 'Passkey does not exist for this user' }) // TODO: i18n
+          return status(401, {
+            message: t('errors.auth.passkeyNotFound'),
+          })
         }
 
         const verification = await verifyAuthenticationResponse({
           response: body as AuthenticationResponseJSON,
-          expectedChallenge: challenge.value,
-          expectedOrigin: origins.clientOrigin,
+          expectedChallenge: (challenge.value as string) ?? '',
+          expectedOrigin: origins.clientOrigin ?? '',
           expectedRPID: rpID,
           authenticator: {
             credentialID: passkey.id,
@@ -262,7 +278,9 @@ app.group('/passkeys', (app) => {
         }
 
         challenge.remove()
-        return error(401, { message: 'Passkey verification failed' }) // TODO: i18n
+        return status(401, {
+          message: t('errors.auth.passkeyVerificationFailed'),
+        })
       },
       {
         body: t.Object({
@@ -326,18 +344,19 @@ app.group('/sessions', (app) => {
     async (context) => {
       const {
         body: { email, token },
-        error,
+        status,
+        t,
       } = context
       const user = await fetchUserByEmail(email)
 
       if (!user) {
-        return error(404, { message: 'User does not exist' })
+        return status(404, { message: t('errors.notFound.user') })
       }
 
-      const { id: userId } = await fetchUserByEmail(email)
-      const isValid = await validateServerToken(token, 'otp', userId)
+      const isValid = await validateServerToken(token, 'otp', user.id)
 
-      if (!isValid) return error(401, { message: 'Invalid or expired session' }) // TODO: i18n
+      if (!isValid)
+        return status(401, { message: t('errors.auth.invalidSession') })
 
       const session = await createSession(user.id, context)
 

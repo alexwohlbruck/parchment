@@ -2,14 +2,14 @@
 export * from '@server/types/integration.types'
 
 // Client-side types
-import { z, ZodObject } from 'zod'
+import { z } from 'zod'
 import { IntegrationDefinition } from '@server/types/integration.types'
 
 // TODO: i18n translate error messages
 
 export const configSchemas: Record<
   IntegrationDefinition['configSchema'],
-  ZodObject<any>
+  z.ZodTypeAny
 > = {
   apiKeySchema: z.object({
     apiKey: z.string().min(1, 'API Key is required'),
@@ -54,6 +54,17 @@ export const configSchemas: Record<
   valhallaSchema: z.object({
     host: z.string().url('Please enter a valid URL'),
   }),
+
+  graphhopperSchema: z.object({
+    host: z.string().url('Please enter a valid URL').optional().default('https://graphhopper.com/api/1'),
+    apiKey: z.string().min(1, 'API Key is required').optional(),
+  }).refine(
+    (data) => data.host || data.apiKey,
+    {
+      message: 'Either host (for self-hosted) or API Key (for GraphHopper API) is required',
+      path: ['host'],
+    }
+  ),
 
   mapillarySchema: z.object({
     accessToken: z.string().min(1, 'Access token is required'),

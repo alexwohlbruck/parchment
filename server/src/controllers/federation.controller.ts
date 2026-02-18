@@ -14,11 +14,11 @@ const app = new Elysia()
  */
 app.get(
   '/.well-known/user/:alias',
-  async ({ params: { alias }, set, error }) => {
+  async ({ params: { alias }, set, status, t }) => {
     const userInfo = await resolveLocalUser(alias)
 
     if (!userInfo) {
-      return error(404, { message: 'User not found' })
+      return status(404, { message: t('errors.notFound.user') })
     }
 
     return userInfo
@@ -41,13 +41,15 @@ app.get(
  */
 app.post(
   '/federation/inbox',
-  async ({ body, set, error }) => {
+  async ({ body, set, status, t }) => {
     const message = body as FederationMessage
 
     const result = await processFederationMessage(message)
 
     if (!result.success) {
-      return error(400, { message: result.error || 'Failed to process message' })
+      return status(400, {
+        message: result.error || 'Failed to process message',
+      })
     }
 
     set.status = 202

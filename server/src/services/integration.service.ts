@@ -102,6 +102,21 @@ const availableIntegrations: IntegrationDefinition[] = [
     scope: [IntegrationScope.SYSTEM],
   },
   {
+    id: IntegrationId.GRAPHHOPPER,
+    name: 'GraphHopper',
+    description: 'Fast and efficient routing engine with custom models',
+    color: '#F7941E',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.GRAPHHOPPER,
+      )
+    },
+    paid: false, // Can be self-hosted (free) or use API (paid)
+    cloud: false, // Supports both self-hosted and cloud
+    configSchema: 'graphhopperSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
     id: IntegrationId.MAPILLARY,
     name: 'Mapillary',
     description: 'Street-level imagery platform',
@@ -190,6 +205,22 @@ const availableIntegrations: IntegrationDefinition[] = [
     paid: false,
     cloud: true,
     configSchema: 'wikimediaSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
+    id: IntegrationId.OPENWEATHERMAP,
+    name: 'OpenWeatherMap',
+    description: 'Weather data and air quality information',
+    color: '#EB6E4B',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.OPENWEATHERMAP,
+      )
+    },
+    paid: true,
+    cloud: true,
+    configSchema: 'apiKeySchema',
+    public: true,
     scope: [IntegrationScope.SYSTEM],
   },
 ]

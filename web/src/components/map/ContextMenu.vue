@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { useAppService } from '@/services/app.service'
 import { useDirectionsService } from '@/services/directions.service'
+import { useGeocodingService } from '@/services/geocoding.service'
 import { mapEventBus } from '@/lib/eventBus'
 import { LngLat } from '@/types/map.types'
 import { useDirectionsStore } from '@/stores/directions.store'
@@ -22,8 +23,12 @@ import {
   PlusIcon,
   ExternalLinkIcon,
   MapIcon,
+  MapPinIcon,
 } from 'lucide-vue-next'
 import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
+import { Skeleton } from '@/components/ui/skeleton'
+import { formatAddress } from '@/lib/place.utils'
+import { AppRoute } from '@/router'
 
 const router = useRouter()
 const appService = useAppService()
@@ -39,6 +44,11 @@ const { mapCamera } = storeToRefs(mapStore)
 const showContextMenu = ref(false)
 const contextMenuPosition = ref({ x: 0, y: 0 })
 const clickedLngLat = ref<LngLat | null>(null)
+const geocodedPlaceName = ref<string | null>(null)
+const geocodedAddress = ref<string | null>(null)
+const geocodedOsmId = ref<string | null>(null)
+const geocodedPlaceId = ref<{ provider: string, id: string } | null>(null)
+const isGeocoding = ref(false)
 
 onMounted(() => {
   mapEventBus.on('contextmenu', e => {
@@ -65,6 +75,113 @@ function copyPlusCode(lngLat: LngLat) {
     appService.toast.info(t('messages.plusCodeCopied'))
   }
 }
+
+function copyPlaceName() {
+  if (geocodedPlaceName.value) {
+    navigator.clipboard.writeText(geocodedPlaceName.value)
+    appService.toast.info(t('messages.placeNameCopied', 'Place name copied'))
+  }
+}
+
+function copyAddress() {
+  if (geocodedAddress.value) {
+    navigator.clipboard.writeText(geocodedAddress.value)
+    appService.toast.info(t('messages.addressCopied', 'Address copied'))
+  }
+}
+
+function openPlaceAtLocation() {
+  if (!clickedLngLat.value) return
+  
+  // Priority 1: If we have an OSM ID from geocoding, open the full OSM place
+  if (geocodedOsmId.value) {
+    const [type, id] = geocodedOsmId.value.split('/')
+    router.push({
+      name: AppRoute.PLACE,
+      params: { type, id },
+    })
+  } 
+  // Priority 2: If we have a provider-specific place ID (e.g., Geoapify), use provider lookup
+  else if (geocodedPlaceId.value) {
+    router.push({
+      name: AppRoute.PLACE_PROVIDER,
+      params: {
+        provider: geocodedPlaceId.value.provider,
+        placeId: geocodedPlaceId.value.id,
+      },
+    })
+  }
+  // Priority 3: If we have a place name (but no ID), use name+coordinate lookup
+  else if (geocodedPlaceName.value) {
+    router.push({
+      name: AppRoute.PLACE_LOCATION,
+      params: {
+        name: geocodedPlaceName.value,
+        lat: clickedLngLat.value.lat.toString(),
+        lng: clickedLngLat.value.lng.toString(),
+      },
+    })
+  } 
+  // Priority 4: No name or ID, use coordinate-only lookup
+  else {
+    router.push({
+      name: AppRoute.PLACE_COORDS,
+      params: {
+        lat: clickedLngLat.value.lat.toString(),
+        lng: clickedLngLat.value.lng.toString(),
+      },
+    })
+  }
+}
+
+// Reverse geocode when context menu opens
+watch([showContextMenu, clickedLngLat], async ([isOpen, lngLat]) => {
+  if (isOpen && lngLat) {
+    geocodedPlaceName.value = null
+    geocodedAddress.value = null
+    geocodedOsmId.value = null
+    geocodedPlaceId.value = null
+    isGeocoding.value = true
+    
+    try {
+      const geocodingService = useGeocodingService()
+      const result = await geocodingService.reverseGeocode({
+        lat: lngLat.lat,
+        lng: lngLat.lng,
+        limit: 1,
+      })
+      
+      if (result.results?.[0]) {
+        const place = result.results[0]
+        
+        // Priority 1: Store OSM ID if available
+        geocodedOsmId.value = place.externalIds?.osm || null
+        
+        // Priority 2: Store provider-specific place ID (e.g., Geoapify)
+        if (!geocodedOsmId.value && result.integration && place.externalIds?.[result.integration]) {
+          geocodedPlaceId.value = {
+            provider: result.integration,
+            id: place.externalIds[result.integration],
+          }
+        }
+        
+        // Store place name and address separately
+        geocodedPlaceName.value = place.name?.value || null
+        geocodedAddress.value = formatAddress(place) || null
+      }
+    } catch (error) {
+      console.error('Context menu geocoding failed:', error)
+    } finally {
+      isGeocoding.value = false
+    }
+  } else {
+    geocodedPlaceName.value = null
+    geocodedAddress.value = null
+    geocodedOsmId.value = null
+    geocodedPlaceId.value = null
+    isGeocoding.value = false
+  }
+})
 
 const useMultistopDirections = computed(() => {
   const filledWaypointsCount = waypoints.value.reduce(
@@ -173,6 +290,38 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
     h(BrandIcon, { icon: siApple, class: 'size-4', useThemeColor: true })
   const GenericMapsIcon = MapIcon
 
+  // Show geocoded place name or address at top of menu - click to open place detail
+  const displayLabel = geocodedPlaceName.value || geocodedAddress.value
+  
+  if (displayLabel) {
+    items.push({
+      type: 'item',
+      id: 'open-place',
+      label: displayLabel,
+      icon: MapPinIcon,
+      onSelect: openPlaceAtLocation,
+    })
+    items.push({ type: 'separator' })
+  } else if (isGeocoding.value) {
+    items.push({
+      type: 'custom',
+      id: 'geocoding-loader',
+      component: h('div', {
+        class: 'flex items-center gap-3 px-2 py-1.5 text-sm cursor-not-allowed',
+      }, [
+        // Icon
+        h(MapPinIcon, {
+          class: 'h-4 w-4 shrink-0 text-muted-foreground',
+        }),
+        // Skeleton loader - h-5 matches text-sm line-height (1.25rem/20px)
+        h(Skeleton, {
+          class: 'h-5 flex-1',
+        }),
+      ]),
+    })
+    items.push({ type: 'separator' })
+  }
+
   // Directions items
   if (!useMultistopDirections.value) {
     items.push({
@@ -206,25 +355,47 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
     const coords = clickedLngLat.value
     const plusCode = encode({ latitude: coords.lat, longitude: coords.lng })
 
+    const copyItems: MenuItemDefinition[] = [
+      {
+        type: 'item',
+        id: 'copy-coords',
+        label: `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`,
+        onSelect: () => copyCoordinates(coords),
+      },
+      {
+        type: 'item',
+        id: 'copy-pluscode',
+        label: plusCode || '',
+        onSelect: () => copyPlusCode(coords),
+      },
+    ]
+    
+    // Add place name copy option if available
+    if (geocodedPlaceName.value) {
+      copyItems.push({
+        type: 'item',
+        id: 'copy-place-name',
+        label: geocodedPlaceName.value,
+        onSelect: copyPlaceName,
+      })
+    }
+    
+    // Add address copy option if available (and different from place name)
+    if (geocodedAddress.value && geocodedAddress.value !== geocodedPlaceName.value) {
+      copyItems.push({
+        type: 'item',
+        id: 'copy-address',
+        label: geocodedAddress.value,
+        onSelect: copyAddress,
+      })
+    }
+
     items.push({
       type: 'submenu',
       id: 'copy-location',
       label: t('map.contextMenu.copyLocation'),
       icon: CopyIcon,
-      items: [
-        {
-          type: 'item',
-          id: 'copy-coords',
-          label: `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`,
-          onSelect: () => copyCoordinates(coords),
-        },
-        {
-          type: 'item',
-          id: 'copy-pluscode',
-          label: plusCode || '',
-          onSelect: () => copyPlusCode(coords),
-        },
-      ],
+      items: copyItems,
     })
   }
 

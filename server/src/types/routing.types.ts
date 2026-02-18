@@ -61,7 +61,7 @@ export interface UnifiedRoute {
   /** Overall route summary */
   summary: RouteSummary
   /** Language of instructions */
-  language: string
+  language: import('../lib/i18n').Language
   /** Units used (kilometers, miles) */
   units: string
   /** Source provider information */
@@ -90,7 +90,7 @@ export interface RouteRequest {
   /** Additional routing options */
   options?: {
     units?: 'kilometers' | 'miles'
-    language?: string
+    language?: import('../lib/i18n').Language
     avoid?: string[]
     [key: string]: any
   }

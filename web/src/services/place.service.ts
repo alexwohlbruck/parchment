@@ -7,7 +7,7 @@ import type { Bookmark } from '@/types/library.types'
 import type { SourceId } from '@/types/place.types'
 
 function placeService() {
-  const currentPlace = ref<Place | null>(null)
+  const currentPlace = ref<Partial<Place> | null>(null)
   const loading = ref(false)
   const { toast } = useAppService()
 
@@ -74,6 +74,49 @@ function placeService() {
     }
   }
 
+  /**
+   * Set partial place data immediately (for progressive loading)
+   */
+  function setPartialPlace(partialPlace: Partial<Place>) {
+    currentPlace.value = partialPlace
+  }
+
+  /**
+   * Fetch place details by coordinates with enrichment
+   */
+  async function fetchPlaceDetailsByCoordinates(
+    lat: number,
+    lng: number,
+    options?: { radius?: number },
+  ): Promise<Place | null> {
+    loading.value = true
+
+    try {
+      const queryParams: Record<string, string> = {
+        lat: lat.toString(),
+        lng: lng.toString(),
+      }
+
+      if (options?.radius) {
+        queryParams.radius = options.radius.toString()
+      }
+
+      const response = await api.get<Place>('/places/details', {
+        params: queryParams,
+      })
+
+      currentPlace.value = response.data
+      return response.data
+    } catch (e) {
+      console.error('Error fetching place details by coordinates:', e)
+      toast.error(e instanceof Error ? e.message : 'An error occurred')
+      currentPlace.value = null
+      return null
+    } finally {
+      loading.value = false
+    }
+  }
+
   function clearPlace() {
     currentPlace.value = null
   }
@@ -103,6 +146,8 @@ function placeService() {
     currentPlace,
     loading,
     fetchPlaceDetails,
+    fetchPlaceDetailsByCoordinates,
+    setPartialPlace,
     clearPlace,
     setBookmarkStatus,
   }

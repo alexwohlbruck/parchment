@@ -20,7 +20,7 @@ import { type ThemeColor } from '@/lib/utils'
 import ResponsivePopover from '@/components/responsive/ResponsivePopover.vue'
 
 const props = defineProps<{
-  place: Place
+  place: Partial<Place>
 }>()
 
 const collectionsService = useCollectionsService()
@@ -46,7 +46,8 @@ async function createBookmark() {
     console.error('Default collection not loaded, cannot save place.')
     return
   }
-  const newBookmark = await bookmarksService.createBookmark(props.place, [
+  if (!props.place?.id) return
+  const newBookmark = await bookmarksService.createBookmark(props.place as Place, [
     defaultCollection.value.id,
   ])
 
@@ -56,7 +57,7 @@ async function createBookmark() {
 }
 
 const hasOsmId = computed(() => {
-  return props.place.externalIds['osm'] // TODO: Use enum constant
+  return props.place.externalIds?.['osm'] // TODO: Use enum constant
 })
 </script>
 

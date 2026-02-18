@@ -28,7 +28,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import draggable from 'vuedraggable'
-import { useLayersService } from '@/services/layers.service'
+import { useLayersService } from '@/services/layers/layers.service'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 const appService = useAppService()

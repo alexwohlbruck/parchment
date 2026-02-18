@@ -21,6 +21,14 @@ export type Mode =
   | 'paratransit'
   | 'mixed'
 
+// UI-level mode selection (includes 'multi' for all modes)
+export type SelectedMode =
+  | 'multi'
+  | 'walking'
+  | 'driving'
+  | 'biking'
+  | 'transit'
+
 export type WaypointType = 'origin' | 'destination' | 'via'
 
 export type OwnershipType = 'personal' | 'shared'
@@ -34,6 +42,7 @@ export interface Coordinate {
 
 export interface TripRequest {
   waypoints: Waypoint[]
+  selectedMode?: SelectedMode // Filter trips by mode
   routingPreferences?: RoutingPreferences
   availableVehicles?: Vehicle[]
   knownAccessPoints?: AccessPoint[]
@@ -77,6 +86,47 @@ export interface RoutingPreferences {
   maxWalkingDistance?: number // meters
   maxTransfers?: number
   wheelchairAccessible?: boolean
+  useKnownVehicleLocations?: boolean
+  useKnownParkingLocations?: boolean
+  routingEngine?: string // Preferred routing engine integration ID
+}
+
+// Routing engine capability metadata
+export interface RoutingEngineMetadata {
+  supportedPreferences: {
+    avoidHighways?: boolean
+    avoidTolls?: boolean
+    avoidFerries?: boolean
+    avoidUnpaved?: boolean
+    avoidHills?: boolean
+    preferHOV?: boolean
+    preferLitPaths?: boolean
+    preferPavedPaths?: boolean
+    safetyVsEfficiency?: boolean
+    maxWalkDistance?: boolean
+    maxTransfers?: boolean
+    wheelchairAccessible?: boolean
+  }
+  supportedModes: string[]
+  supportedOptimizations?: string[]
+  features?: {
+    alternatives?: boolean
+    traffic?: boolean
+    elevation?: boolean
+    instructions?: boolean
+    matrix?: boolean
+    transit?: boolean
+  }
+  limits?: {
+    maxWaypoints?: number
+    maxAlternatives?: number
+  }
+}
+
+export interface RoutingEngine {
+  integrationId: string
+  name: string
+  metadata: RoutingEngineMetadata | null
 }
 
 export interface TripResponse {
@@ -350,7 +400,6 @@ export interface ServiceStatus {
     }
   }
   integrations: {
-    routingEngines: string[]
     transitData: string[]
     rideshareProviders: string[]
   }

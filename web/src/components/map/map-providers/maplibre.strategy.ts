@@ -38,6 +38,7 @@ import { MapLayerGroup, TripGroup } from '@/lib/layer-group'
 import { Component, watch } from 'vue'
 import { createVueMarkerElement } from '@/lib/vue-marker.utils'
 import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
+import InstructionPointMarker from '@/components/map/InstructionPointMarker.vue'
 import { useAppStore } from '@/stores/app.store'
 import { useThemeStore } from '@/stores/theme.store'
 
@@ -369,8 +370,8 @@ export class MaplibreStrategy extends MapStrategy {
             index === 0
               ? 'origin'
               : index === directions.locations.length - 1
-              ? 'destination'
-              : 'waypoint',
+                ? 'destination'
+                : 'waypoint',
         },
       )
     })
@@ -384,9 +385,12 @@ export class MaplibreStrategy extends MapStrategy {
     )
 
     // Create a bounds object that encompasses all coordinates
-    const bounds = allCoordinates.reduce((bounds, coord) => {
-      return bounds.extend(coord)
-    }, new LngLatBounds(allCoordinates[0], allCoordinates[0]))
+    const bounds = allCoordinates.reduce(
+      (bounds, coord) => {
+        return bounds.extend(coord)
+      },
+      new LngLatBounds(allCoordinates[0], allCoordinates[0]),
+    )
 
     // Fit the map to show the entire route with padding
     this.mapInstance.fitBounds(bounds, {
@@ -583,13 +587,14 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.setStyle(themeMap[basemap])
   }
 
+  setMapLanguage(locale: string): boolean {
+    // TODO: Implement
+    return false // MapLibre doesn't require reinitialization
+  }
+
   removeSource(sourceId: string) {
-    try {
-      if (this.mapInstance.getSource(sourceId)) {
-        this.mapInstance.removeSource(sourceId)
-      }
-    } catch (error) {
-      console.warn(`Failed to remove source ${sourceId}:`, error)
+    if (this.mapInstance.getSource(sourceId)) {
+      this.mapInstance.removeSource(sourceId)
     }
   }
 
@@ -612,63 +617,61 @@ export class MaplibreStrategy extends MapStrategy {
       applyThemedStreetViewStyling(layer),
     )
 
-    try {
-      if (typeof configuration.source === 'object') {
-        const sourceId = configuration.source.id
-        const existingSource = this.mapInstance.getSource(sourceId)
+    if (typeof configuration.source === 'object') {
+      const sourceId = configuration.source.id
+      const existingSource = this.mapInstance.getSource(sourceId)
 
-        if (existingSource) {
-          if (overwrite) {
-            this.mapInstance.removeSource(sourceId)
-            this.mapInstance.addSource(sourceId, configuration.source as any)
-          }
-        } else {
+      if (existingSource) {
+        if (overwrite) {
+          this.mapInstance.removeSource(sourceId)
           this.mapInstance.addSource(sourceId, configuration.source as any)
         }
-        configuration.source = sourceId
+      } else {
+        this.mapInstance.addSource(sourceId, configuration.source as any)
       }
+      configuration.source = sourceId
+    }
 
-      if (typeof configuration.source === 'string') {
-        const sourceExists = this.mapInstance.getSource(configuration.source)
-        if (!sourceExists) {
-          return
-        }
+    if (typeof configuration.source === 'string') {
+      const sourceExists = this.mapInstance.getSource(configuration.source)
+      if (!sourceExists) {
+        return
       }
+    }
 
-      const existingLayer = this.mapInstance.getLayer(configuration.id)
-      if (existingLayer && overwrite) {
-        this.mapInstance.removeLayer(configuration.id)
+    const existingLayer = this.mapInstance.getLayer(configuration.id)
+    if (existingLayer && overwrite) {
+      this.mapInstance.removeLayer(configuration.id)
+    }
+    if (!existingLayer || overwrite) {
+      this.mapInstance.addLayer({
+        ...(configuration as any),
+        layout: {
+          ...configuration.layout,
+          visibility: layer.visible ? 'visible' : 'none',
+        },
+      })
+      if (layer.type === LayerType.STREET_VIEW) {
+        this.streetViewLayerIds.add(configuration.id)
       }
-      if (!existingLayer || overwrite) {
-        this.mapInstance.addLayer({
-          ...(configuration as any),
-          layout: {
-            ...configuration.layout,
-            visibility: layer.visible ? 'visible' : 'none',
-          },
-        })
-        if (layer.type === LayerType.STREET_VIEW) {
-          this.streetViewLayerIds.add(configuration.id)
-        }
-      }
-    } catch (error) {
-      // Silent error handling
     }
   }
 
   // TODO: Use maplibre Layer['configuration']['id']
   removeLayer(layerId: string) {
-    try {
-      if (this.mapInstance.getLayer(layerId)) {
-        this.mapInstance.removeLayer(layerId)
-      }
-    } catch (error) {
-      console.warn(`Failed to remove layer ${layerId}:`, error)
+    if (this.mapInstance.getLayer(layerId)) {
+      this.mapInstance.removeLayer(layerId)
     }
   }
 
   // TODO: Use maplibre Layer['configuration']['id']
   toggleLayerVisibility(layerId: string, visible: boolean) {
+    // Check if layer exists before trying to toggle visibility
+    if (!this.mapInstance.getLayer(layerId)) {
+      console.warn(`Cannot toggle visibility: layer '${layerId}' does not exist in map`)
+      return
+    }
+    
     this.mapInstance.setLayoutProperty(
       layerId,
       'visibility',
@@ -710,7 +713,21 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   destroy() {
-    this.mapInstance?.remove()
+    try {
+      // Remove the map instance
+      if (this.mapInstance) {
+        // Check if the map's canvas still exists before removing
+        // This prevents errors when the DOM has already been cleaned up
+        const canvas = this.mapInstance.getCanvas()
+        if (canvas && canvas.parentElement) {
+          this.mapInstance.remove()
+        }
+      }
+    } catch (error) {
+      // Silently catch errors during cleanup to prevent console spam
+      // The map instance may already be partially destroyed
+      console.debug('Map cleanup error (non-critical):', error)
+    }
   }
 
   addMarker(id: string, lngLat: LngLat) {
@@ -726,8 +743,9 @@ export class MaplibreStrategy extends MapStrategy {
     lngLat: LngLat,
     component: Component,
     props: Record<string, any> = {},
+    zIndex?: number,
   ) {
-    super.addVueMarker(id, lngLat, component, props)
+    super.addVueMarker(id, lngLat, component, props, zIndex)
 
     const element = createVueMarkerElement(component, props)
 
@@ -738,60 +756,50 @@ export class MaplibreStrategy extends MapStrategy {
       .setLngLat(lngLat as LngLatLike)
       .addTo(this.mapInstance)
 
+    // Set z-index on the marker's DOM element if provided
+    if (zIndex !== undefined) {
+      const markerElement = marker.getElement()
+      if (markerElement) {
+        markerElement.style.zIndex = String(zIndex)
+      }
+    }
+
     this.markers.set(id, marker)
   }
 
-  setWaypointMarkers(waypoints: Waypoint[]) {
-    // Remove existing waypoint markers
-    this.clearWaypointMarkers()
-
-    // Add new waypoint markers for all waypoints with coordinates
-    waypoints.forEach((waypoint, index) => {
-      if (waypoint.lngLat) {
-        this.addVueMarker(
-          `waypoint-${index}`,
-          waypoint.lngLat,
-          WaypointMapIcon,
-          {
-            index,
-            totalWaypoints: waypoints.length,
-            type:
-              index === 0
-                ? 'origin'
-                : index === waypoints.length - 1
-                ? 'destination'
-                : 'waypoint',
-          },
-        )
-      }
-    })
-  }
+  // Note: Waypoint markers are handled by base MapStrategy class
 
   setTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
-    console.log(
-      `Setting trips: visible=${Array.from(visibleTripIds).join(', ')}`,
+    // Idempotent: if we already show exactly these trips, skip destroy+recreate
+    const currentTripIds = new Set(
+      [...this.layerGroups.keys()]
+        .filter(k => k.startsWith('trip-'))
+        .map(k => k.slice('trip-'.length)),
     )
+    if (
+      currentTripIds.size === visibleTripIds.size &&
+      [...visibleTripIds].every(id => currentTripIds.has(id))
+    ) {
+      return
+    }
 
-    // ALWAYS destroy ALL existing trip groups to ensure complete cleanup
     for (const groupId of this.layerGroups.keys()) {
       if (groupId.startsWith('trip-')) {
-        console.log(`Destroying existing trip group: ${groupId}`)
         this.layerGroups.get(groupId)?.destroy()
         this.layerGroups.delete(groupId)
       }
     }
 
-    // Create fresh trip groups for visible trips
+    const visibleTrips: any[] = []
     trips.trips.forEach(trip => {
       if (visibleTripIds.has(trip.id)) {
         const groupId = `trip-${trip.id}`
-        console.log(`Creating new trip group: ${groupId}`)
         const tripGroup = new TripGroup(this, trip)
         this.layerGroups.set(groupId, tripGroup)
+        visibleTrips.push(trip)
       }
     })
 
-    // Only fit map to trips if there are visible trips
     if (visibleTripIds.size > 0) {
       this.fitMapToTrips(trips, visibleTripIds)
     }
@@ -898,4 +906,6 @@ export class MaplibreStrategy extends MapStrategy {
       }
     }
   }
+
+  // Note: Instruction point markers are now handled by base MapStrategy class
 }

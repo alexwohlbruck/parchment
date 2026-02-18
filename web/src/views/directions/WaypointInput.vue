@@ -54,6 +54,7 @@ const waypoints = computed({
 })
 
 const inputTexts = ref<string[]>([])
+const userModifiedInputs = ref<Set<number>>(new Set())
 
 watch(
   () => waypoints.value,
@@ -61,8 +62,10 @@ watch(
     inputTexts.value.length = newWaypoints.length
 
     newWaypoints.forEach((waypoint, index) => {
-      if (!inputTexts.value[index]) {
-        inputTexts.value[index] = getWaypointName(waypoint)
+      // Only update input text if user hasn't manually modified it
+      if (!userModifiedInputs.value.has(index)) {
+        const newText = getWaypointName(waypoint)
+        inputTexts.value[index] = newText
       }
     })
   },
@@ -72,6 +75,9 @@ watch(
 function clearWaypoint(index: number) {
   // Clear the input text
   inputTexts.value[index] = ''
+  
+  // Clear user-modified flag
+  userModifiedInputs.value.delete(index)
 
   if (waypoints.value.length > MIN_LOCATIONS) {
     const newWaypoints = [...waypoints.value]
@@ -79,11 +85,22 @@ function clearWaypoint(index: number) {
 
     // Remove the corresponding input text
     inputTexts.value.splice(index, 1)
+    
+    // Update user-modified flags for remaining inputs
+    const newUserModified = new Set<number>()
+    userModifiedInputs.value.forEach(i => {
+      if (i < index) {
+        newUserModified.add(i)
+      } else if (i > index) {
+        newUserModified.add(i - 1)
+      }
+    })
+    userModifiedInputs.value = newUserModified
 
     emit('update:modelValue', newWaypoints)
   } else {
     const newWaypoints = [...waypoints.value]
-    newWaypoints[index] = directionsService.createBlankWaypoint()
+    newWaypoints[index] = { lngLat: null }
     emit('update:modelValue', newWaypoints)
   }
 }
@@ -92,15 +109,20 @@ function addWaypoint() {
   inputTexts.value.push('')
   emit('update:modelValue', [
     ...waypoints.value,
-    directionsService.createBlankWaypoint(),
+    { lngLat: null },
   ])
 }
 
 function getWaypointName(waypoint: Waypoint) {
   if (waypoint.place) {
-    return getSearchResultName(waypoint.place)
+    const placeName = getSearchResultName(waypoint.place as Place)
+    // If place exists but has no name, fall back to coordinates
+    if (placeName) {
+      return placeName
+    }
   }
   if (waypoint.lngLat) {
+    // Show coordinates as fallback if no place name available
     return `${waypoint.lngLat.lat.toFixed(5)}, ${waypoint.lngLat.lng.toFixed(
       5,
     )}`
@@ -125,6 +147,9 @@ function selectPlace(index: number, place: Place, result?: AutocompleteResult) {
 
   // Update input text to show the selected place name
   inputTexts.value[index] = result ? result.title : getSearchResultName(place)
+  
+  // Clear user-modified flag since we're setting a system value
+  userModifiedInputs.value.delete(index)
 }
 
 const autocompleteResults = ref<AutocompleteResult[]>([])
@@ -342,6 +367,7 @@ defineExpose({
               @update:model-value="
                 value => {
                   inputTexts[index] = value
+                  userModifiedInputs.add(index)
                   getAutocomplete(index, value)
                 }
               "
@@ -424,7 +450,7 @@ defineExpose({
     </template>
   </draggable>
 
-  <Button variant="outline" :icon="PlusIcon" @click="addWaypoint()">
+  <Button variant="outline" :icon="PlusIcon" @click="addWaypoint()" class="w-fit self-center">
     {{ $t('directions.addStop') }}
   </Button>
 </template>

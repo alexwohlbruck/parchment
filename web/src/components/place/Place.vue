@@ -18,7 +18,7 @@ import PlaceTransit from './details/PlaceTransit.vue'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 
 const props = defineProps<{
-  place: Place | null
+  place: Partial<Place> | null
   loading: boolean
 }>()
 
@@ -60,7 +60,7 @@ function sharePlace() {
   const url = window.location.href
   if (navigator.share) {
     try {
-      const name = props.place?.name.value || ''
+      const name = props.place?.name?.value ?? ''
       navigator.share({
         url,
         title: name,

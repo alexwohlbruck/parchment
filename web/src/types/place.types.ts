@@ -35,13 +35,15 @@ export type {
 }
 
 // TODO: Move out of types
-export function getPrimaryPhoto(place: Place): PlacePhoto | null {
+export function getPrimaryPhoto(place: Partial<Place> | null): PlacePhoto | null {
+  if (!place?.photos) return null
   const primaryPhoto = place.photos.find(photo => photo.value.isPrimary)
   return primaryPhoto ? primaryPhoto.value : null
 }
 
 // TODO: Move out of types
-export function getLogoPhoto(place: Place): PlacePhoto | null {
+export function getLogoPhoto(place: Partial<Place> | null): PlacePhoto | null {
+  if (!place?.photos) return null
   const logoPhoto = place.photos.find(photo => photo.value.isLogo)
   return logoPhoto ? logoPhoto.value : null
 }

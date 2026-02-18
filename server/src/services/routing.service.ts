@@ -14,13 +14,13 @@ export class RoutingService {
    * Get a route between multiple locations
    * @param locations Array of locations to route between
    * @param costing Routing costing model (auto, bicycle, pedestrian, etc.)
-   * @param options Additional routing options
+   * @param preferences Routing preferences (avoid highways, tolls, etc.)
    * @returns Unified route response
    */
   async getRoute(
     locations: Location[],
     costing: string = 'auto',
-    options?: any,
+    preferences?: any,
   ): Promise<UnifiedRoute> {
     // Get configured routing integrations
     const routingIntegrations =
@@ -33,8 +33,20 @@ export class RoutingService {
       throw new Error('No routing integrations configured')
     }
 
-    // Use the first available routing integration
-    const routingIntegrationRecord = routingIntegrations[0]
+    // Use preferred routing engine if specified, otherwise use the first available
+    let routingIntegrationRecord = routingIntegrations[0]
+    if (preferences?.routingEngine) {
+      const preferredIntegration = routingIntegrations.find(
+        (integration) => integration.integrationId === preferences.routingEngine,
+      )
+      if (preferredIntegration) {
+        routingIntegrationRecord = preferredIntegration
+      } else {
+        console.warn(
+          `Preferred routing engine ${preferences.routingEngine} not found, using default`,
+        )
+      }
+    }
 
     // Get the cached integration instance
     const integrationInstance = integrationManager.getCachedIntegrationInstance(
@@ -63,19 +75,41 @@ export class RoutingService {
     // Convert costing to travel mode
     const mode = this.mapCostingToTravelMode(costing)
 
-    // Build unified route request
+    // Build unified route request with preferences
+    // Map safetyVsEfficiency (0=fastest, 1=safest) to optimize strategy
+    let optimize: 'time' | 'distance' | 'balanced' = 'time'
+    if (preferences?.safetyVsEfficiency !== undefined) {
+      if (preferences.safetyVsEfficiency < 0.33) {
+        optimize = 'time' // Fast routes
+      } else if (preferences.safetyVsEfficiency > 0.66) {
+        optimize = 'distance' // Shorter routes (potentially safer)
+      } else {
+        optimize = 'balanced' // Balanced approach
+      }
+    }
+    
     const request: RouteRequest = {
       waypoints,
       mode,
       includeInstructions: true,
       includeGeometry: true,
-      preferences: {
+      language: (preferences as { language?: import('../lib/i18n').Language })?.language,
+      preferences: preferences ? {
+        optimize,
+        avoidTolls: preferences.avoidTolls,
+        avoidHighways: preferences.avoidHighways,
+        avoidFerries: preferences.avoidFerries,
+        avoidUnpaved: preferences.preferPavedPaths ? true : undefined,
+        maxWalkDistance: preferences.maxWalkingDistance,
+        maxTransfers: preferences.maxTransfers,
+        wheelchairAccessible: preferences.wheelchairAccessible,
+      } : {
         optimize: 'time',
-        ...options,
       },
     }
 
     console.log('Routing waypoints:', waypoints)
+    console.log('Routing preferences:', request.preferences)
 
     try {
       const result = await integrationInstance.capabilities.routing.getRoute(

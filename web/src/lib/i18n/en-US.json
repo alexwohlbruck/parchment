@@ -1,4 +1,8 @@
 {
+  "taglines": {
+    "short": "The next generation of digital maps",
+    "long": "Explore the world with beautiful, detailed maps crafted by the community"
+  },
   "general": {
     "yes": "Yes",
     "no": "No",
@@ -7,6 +11,7 @@
     "delete": "Delete",
     "confirm": "Confirm",
     "close": "Close",
+    "done": "Done",
     "back": "Back",
     "save": "Save",
     "share": "Share",
@@ -32,6 +37,30 @@
     "all": "All",
     "recents": "Recents",
     "seeAll": "See all"
+  },
+  "weather": {
+    "title": "Weather Conditions",
+    "subtitle": "Current conditions and forecast",
+    "airQuality": "Air Quality",
+    "feelsLike": "Feels Like",
+    "humidity": "Humidity",
+    "wind": "Wind",
+    "visibility": "Visibility",
+    "pressure": "Pressure",
+    "cloudiness": "Cloudiness",
+    "sunrise": "Sunrise",
+    "sunset": "Sunset",
+    "aqi": {
+      "good": "Good",
+      "fair": "Fair",
+      "moderate": "Moderate",
+      "poor": "Poor",
+      "veryPoor": "Very Poor",
+      "unhealthySensitive": "Unhealthy for Sensitive Groups",
+      "unhealthy": "Unhealthy",
+      "veryUnhealthy": "Very Unhealthy",
+      "hazardous": "Hazardous"
+    }
   },
   "palette": {
     "placeholder": {
@@ -168,6 +197,8 @@
       "validation": "{type} error"
     },
     "coordinatesCopied": "Coordinates copied to clipboard",
+    "addressCopied": "Address copied to clipboard",
+    "placeNameCopied": "Place name copied to clipboard",
     "invitationSent": "Invitation sent to {email}",
     "unknownError": "An unknown error occurred",
     "plusCodeCopied": "Plus Code copied to clipboard",
@@ -178,7 +209,8 @@
     "contextMenu": {
       "edit": "Edit map",
       "viewIn": "View in",
-      "copyLocation": "Copy location"
+      "copyLocation": "Copy location",
+      "loadingAddress": "Loading address..."
     }
   },
   "layers": {
@@ -287,7 +319,23 @@
     "planRoute": "Plan route",
     "to": "To",
     "from": "From",
-    "addStop": "Add stop"
+    "addStop": "Add stop",
+    "modes": {
+      "walking": "Walking",
+      "cycling": "Cycling",
+      "transit": "Transit",
+      "driving": "Driving"
+    },
+    "preferences": {
+      "general": "General Options",
+      "walking": "Walking Options",
+      "cycling": "Cycling Options",
+      "transit": "Transit Options",
+      "driving": "Driving Options",
+      "routingEngine": "Routing Engine",
+      "useKnownVehicleLocations": "Use known vehicle locations",
+      "useKnownParkingLocations": "Use known parking locations"
+    }
   },
   "library": {
     "title": "Library",
@@ -457,7 +505,7 @@
       "title": "Add Friend",
       "description": "Enter a friend's handle to send them an invitation. They can be on this server or any other Parchment server.",
       "handleLabel": "Friend's Handle",
-      "formatHint": "Format: username@server.domain",
+      "formatHint": "Format: username{'@'}server.domain",
       "userNotFound": "User not found. Check the handle and try again.",
       "lookupFailed": "Failed to look up user. Please try again.",
       "sendFailed": "Failed to send invitation",
@@ -605,7 +653,17 @@
       }
     },
     "behavior": {
-      "title": "Behavior"
+      "title": "Behavior",
+      "language": {
+        "title": "Language"
+      },
+      "units": {
+        "title": "Units",
+        "system": "Unit system",
+        "description": "Preferred unit system for temperature, distance, and speed",
+        "metric": "Metric (°C, km, m/s)",
+        "imperial": "Imperial (°F, mi, mph)"
+      }
     },
     "appearance": {
       "title": "Appearance",
@@ -655,8 +713,11 @@
       "title": "Map",
       "configuration": {
         "title": "Map configuration",
+        "experimental": "Experimental",
         "3dTerrain": "3D terrain",
         "3dObjects": "3D objects",
+        "hdRoads": "HD roads",
+        "hdRoadsDescription": "High-definition road visualization with enhanced detail",
         "poiLabels": "POI labels",
         "roadLabels": "Road labels",
         "transitLabels": "Transit labels",
@@ -669,6 +730,7 @@
         "scale": "Scale bar",
         "streetView": "Street view",
         "locate": "Locate",
+        "weather": "Weather",
         "visibility": {
           "always": "Always",
           "never": "Never",
@@ -731,7 +793,8 @@
         "mapEngine": "Map Engine",
         "title": "Capabilities",
         "streetView": "Street View",
-        "transitData": "Transit Data"
+        "transitData": "Transit Data",
+        "weather": "Weather"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",
@@ -750,7 +813,8 @@
         "transitland": "Transit routes tiles and APIs",
         "wikidata": "Structured knowledge base for enriching place information",
         "wikipedia": "Free encyclopedia content and place descriptions",
-        "wikimedia": "Free media repository for place images"
+        "wikimedia": "Free media repository for place images",
+        "openweathermap": "Weather data and air quality information"
       }
     },
     "users": {
@@ -774,5 +838,27 @@
     "subtitle": "Wrong continent",
     "message": "Even Columbus was a better navigator.",
     "action": "Return to Spain"
+  },
+  "auth": {
+    "signIn": {
+      "server": "Server",
+      "email": "Email",
+      "emailPlaceholder": "magellan{'@'}parchment.app",
+      "sendCode": "Send verification code",
+      "signInWithPasskey": "Sign in with passkey",
+      "or": "Or",
+      "termsAndPrivacy": "By continuing, you agree to Parchment's Terms of Service and Privacy Policy"
+    },
+    "otp": {
+      "title": "Verification code",
+      "description": "Code sent to {email}",
+      "submit": "Submit",
+      "cancel": "Cancel",
+      "verifying": "Verifying...",
+      "success": "Success!"
+    },
+    "server": {
+      "addCustom": "Add custom server..."
+    }
   }
 }

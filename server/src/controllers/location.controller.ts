@@ -13,9 +13,9 @@ const app = new Elysia({ prefix: '/location' })
  */
 app.use(requireAuth).get(
   '/e2ee/config',
-  async ({ user, error }) => {
+  async ({ user, status }) => {
     if (!user) {
-      return error(401, { message: 'Authentication required' })
+      return status(401, { message: t('errors.auth.authenticationRequired') })
     }
 
     const configs = await locationE2eeService.getLocationSharingConfigs(user.id)
@@ -34,9 +34,9 @@ app.use(requireAuth).get(
  */
 app.use(requireAuth).post(
   '/e2ee/config',
-  async ({ body, user, error }) => {
+  async ({ body, user, status }) => {
     if (!user) {
-      return error(401, { message: 'Authentication required' })
+      return status(401, { message: t('errors.auth.authenticationRequired') })
     }
 
     const config = await locationE2eeService.setLocationSharingConfig(
@@ -70,9 +70,9 @@ app.use(requireAuth).post(
  */
 app.use(requireAuth).delete(
   '/e2ee/config/:friendHandle',
-  async ({ params, user, error }) => {
+  async ({ params, user, status }) => {
     if (!user) {
-      return error(401, { message: 'Authentication required' })
+      return status(401, { message: t('errors.auth.authenticationRequired') })
     }
 
     const deleted = await locationE2eeService.disableLocationSharing(
@@ -103,9 +103,9 @@ app.use(requireAuth).delete(
  */
 app.use(requireAuth).post(
   '/e2ee/update',
-  async ({ body, user, error }) => {
+  async ({ body, user, status }) => {
     if (!user) {
-      return error(401, { message: 'Authentication required' })
+      return status(401, { message: t('errors.auth.authenticationRequired') })
     }
 
     const results = []
@@ -164,9 +164,9 @@ app.use(requireAuth).post(
  */
 app.use(requireAuth).get(
   '/e2ee/friends',
-  async ({ user, error }) => {
+  async ({ user, status }) => {
     if (!user) {
-      return error(401, { message: 'Authentication required' })
+      return status(401, { message: t('errors.auth.authenticationRequired') })
     }
 
     const locations =
@@ -200,9 +200,9 @@ app.use(requireAuth).get(
  */
 app.use(requireAuth).get(
   '/e2ee/history',
-  async ({ query, user, error }) => {
+  async ({ query, user, status }) => {
     if (!user) {
-      return error(401, { message: 'Authentication required' })
+      return status(401, { message: t('errors.auth.authenticationRequired') })
     }
 
     const entries = await locationE2eeService.getLocationHistory(user.id, {

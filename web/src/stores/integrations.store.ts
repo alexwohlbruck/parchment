@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useStorage } from '@vueuse/core'
 import {
   IntegrationId,
+  IntegrationCapabilityId,
   type IntegrationDefinition,
   type IntegrationRecord,
 } from '@server/types/integration.types'
@@ -38,6 +39,7 @@ const iconMap: Record<string, any> = {
   [IntegrationId.WIKIDATA]: siWikidata,
   [IntegrationId.WIKIPEDIA]: siWikipedia,
   [IntegrationId.WIKIMEDIA]: siWikimediacommons,
+  [IntegrationId.OPENWEATHERMAP]: null, // Uses custom weather icon
 }
 
 const getIcon = (integrationId: string) => {
@@ -45,32 +47,46 @@ const getIcon = (integrationId: string) => {
 }
 
 export const useIntegrationsStore = defineStore('integrations', () => {
-  const integrationConfigurations = useStorage<IntegrationRecord[]>(
+  // Use null as default to distinguish "never fetched" from "fetched but empty"
+  // null = not initialized, [] = initialized but no integrations
+  const integrationConfigurations = useStorage<IntegrationRecord[] | null>(
     'integration-configurations',
-    [],
+    null,
   )
-  const availableIntegrations = useStorage<IntegrationDefinition[]>(
+  const availableIntegrations = useStorage<IntegrationDefinition[] | null>(
     'available-integrations',
-    [],
+    null,
   )
+  
+  // Helper to safely get array value (handles corrupted cache data)
+  const safeConfigurationsArray = () => 
+    Array.isArray(integrationConfigurations.value) ? integrationConfigurations.value : []
+  const safeAvailableArray = () => 
+    Array.isArray(availableIntegrations.value) ? availableIntegrations.value : []
 
   // Loading states
   const isLoadingAvailable = ref(false)
   const isLoadingConfigured = ref(false)
+  
+  // Track whether integrations have been fetched at least once
+  // null means not initialized, array (even empty) means initialized
+  const hasInitialized = ref(
+    Array.isArray(integrationConfigurations.value) || Array.isArray(availableIntegrations.value)
+  )
 
   const configuredIntegrations = computed(() => {
-    return availableIntegrations.value.map(integration => ({
+    return safeAvailableArray().map(integration => ({
       ...integration,
-      configuration: integrationConfigurations.value.filter(
+      configuration: safeConfigurationsArray().filter(
         config => config.integrationId === integration.id,
       ),
     }))
   })
 
   const unconfiguredIntegrations = computed(() => {
-    return availableIntegrations.value.filter(
+    return safeAvailableArray().filter(
       integration =>
-        !integrationConfigurations.value.some(
+        !safeConfigurationsArray().some(
           config => config.integrationId === integration.id,
         ),
     )
@@ -78,7 +94,7 @@ export const useIntegrationsStore = defineStore('integrations', () => {
 
   // Get the Mapbox access token from configured integrations
   const mapboxAccessToken = computed(() => {
-    const mapboxConfig = integrationConfigurations.value.find(
+    const mapboxConfig = safeConfigurationsArray().find(
       config => config.integrationId === IntegrationId.MAPBOX,
     )
     return mapboxConfig?.config?.accessToken as string | undefined
@@ -86,7 +102,7 @@ export const useIntegrationsStore = defineStore('integrations', () => {
 
   // Generic function to get integration config by ID
   function getIntegrationConfig(integrationId: IntegrationId) {
-    const config = integrationConfigurations.value.find(
+    const config = safeConfigurationsArray().find(
       config => config.integrationId === integrationId,
     )
     return config?.config
@@ -100,25 +116,67 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     const config = getIntegrationConfig(integrationId)
     return config?.[key]
   }
-
-  // Check if integrations are ready (both requests completed)
-  const integrationsReady = computed(() => {
-    return !isLoadingAvailable.value && !isLoadingConfigured.value
+  
+  // Check if a specific capability is active for an integration
+  function isCapabilityActive(
+    integrationId: IntegrationId,
+    capabilityId: IntegrationCapabilityId,
+  ): boolean {
+    const integrationConfig = safeConfigurationsArray().find(
+      config => config.integrationId === integrationId,
+    )
+    if (!integrationConfig) return false
+    
+    const capability = integrationConfig.capabilities?.find(
+      cap => cap.id === capabilityId,
+    )
+    return capability?.active ?? false
+  }
+  
+  // Check if Mapbox engine capability is configured and active
+  const isMapboxEngineActive = computed(() => {
+    const hasToken = !!mapboxAccessToken.value
+    const isEngineCapabilityActive = isCapabilityActive(
+      IntegrationId.MAPBOX,
+      IntegrationCapabilityId.MAP_ENGINE,
+    )
+    return hasToken && isEngineCapabilityActive
   })
 
-  // Check if Mapbox is available but not configured
+  // Check if weather capability is configured and active
+  const isWeatherActive = computed(() => {
+    return isCapabilityActive(
+      IntegrationId.OPENWEATHERMAP,
+      IntegrationCapabilityId.WEATHER,
+    )
+  })
+
+  // Check if integrations are ready (initialized and not currently loading)
+  const integrationsReady = computed(() => {
+    return hasInitialized.value && !isLoadingAvailable.value && !isLoadingConfigured.value
+  })
+
+  // Check if Mapbox is available but not configured (or configured but engine disabled)
   const isMapboxAvailableButNotConfigured = computed(() => {
-    const isMapboxAvailable = availableIntegrations.value.some(
+    const isMapboxAvailable = safeAvailableArray().some(
       integration => integration.id === IntegrationId.MAPBOX,
     )
-    const isMapboxConfigured = !!mapboxAccessToken.value
-    return integrationsReady.value && isMapboxAvailable && !isMapboxConfigured
+    // Mapbox is "not configured" if either no token or engine capability is disabled
+    const isMapboxUsable = isMapboxEngineActive.value
+    return integrationsReady.value && isMapboxAvailable && !isMapboxUsable
   })
 
   function getConfigurationsForIntegration(integrationId: string) {
-    return integrationConfigurations.value.filter(
+    return safeConfigurationsArray().filter(
       config => config.integrationId === integrationId,
     )
+  }
+
+  // Clear all cached data (used on sign out)
+  function clearCache() {
+    integrationConfigurations.value = null
+    availableIntegrations.value = null
+    hasInitialized.value = false
   }
 
   return {
@@ -130,10 +188,15 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     getConfigurationsForIntegration,
     mapboxAccessToken,
     integrationsReady,
+    hasInitialized,
     isMapboxAvailableButNotConfigured,
+    isMapboxEngineActive,
+    isWeatherActive,
     isLoadingAvailable,
     isLoadingConfigured,
     getIntegrationConfig,
     getIntegrationConfigValue,
+    isCapabilityActive,
+    clearCache,
   }
 })

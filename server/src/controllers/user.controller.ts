@@ -16,15 +16,22 @@ import {
   updateUserKeys,
   getUserIdentity,
 } from '../services/user.service'
+import {
+  getOrCreateUserPreferences,
+  updateUserPreferences,
+} from '../services/user-preferences.service'
 import { buildHandle, getServerDomain } from '../services/federation.service'
 import { isValidAlias } from '../lib/crypto'
+
+import { i18next } from 'elysia-i18next'
+import { detectLanguage, getI18nInitOptions } from '../lib/i18n'
 
 const app = new Elysia({ prefix: '/users' })
 
 // TODO: Make permission names type safe
 app.use(permissions(PermissionId.USERS_READ)).get(
   '/',
-  async (_context) => {
+  async () => {
     const usersResult = await db
       .select({
         id: users.id,
@@ -155,10 +162,10 @@ app.use(permissions(PermissionId.PERMISSIONS_READ)).get(
  */
 app.use(requireAuth).get(
   '/me/identity',
-  async ({ user, error }) => {
+  async ({ user, status, t }) => {
     const identity = await getUserIdentity(user.id)
     if (!identity) {
-      return error(404, { message: 'User not found' })
+      return status(404, { message: t('errors.notFound.user') })
     }
     return {
       ...identity,
@@ -178,11 +185,11 @@ app.use(requireAuth).get(
  */
 app.use(requireAuth).patch(
   '/me/alias',
-  async ({ user, body, error }) => {
+  async ({ user, body, status }) => {
     const { alias } = body
 
     if (!isValidAlias(alias)) {
-      return error(400, {
+      return status(400, {
         message:
           'Invalid alias. Use 3-30 alphanumeric characters or underscores.',
       })
@@ -191,7 +198,7 @@ app.use(requireAuth).patch(
     const result = await updateUserAlias(user.id, alias)
 
     if (!result.success) {
-      return error(400, { message: result.error || 'Failed to update alias' })
+      return status(400, { message: result.error || 'Failed to update alias' })
     }
 
     return {
@@ -231,6 +238,59 @@ app.use(requireAuth).put(
     detail: {
       tags: ['Users', 'Federation'],
       description: 'Register or update federation public keys',
+    },
+  },
+)
+
+/**
+ * Get current user's preferences
+ */
+app.use(requireAuth).get(
+  '/me/preferences',
+  async ({ user }) => {
+    const prefs = await getOrCreateUserPreferences(user.id)
+    return {
+      language: prefs.language,
+      unitSystem: prefs.unitSystem,
+    }
+  },
+  {
+    detail: {
+      tags: ['Users'],
+      description: 'Get current user preferences (language, unit system)',
+    },
+  },
+)
+
+/**
+ * Update current user's preferences
+ */
+app.use(requireAuth).put(
+  '/me/preferences',
+  async ({ user, body }) => {
+    const updates: {
+      language?: import('../lib/i18n').Language
+      unitSystem?: string
+    } = {}
+    if (body.language !== undefined) updates.language = body.language
+    if (body.unitSystem !== undefined) updates.unitSystem = body.unitSystem
+    if (Object.keys(updates).length === 0) {
+      const prefs = await getOrCreateUserPreferences(user.id)
+      return { language: prefs.language, unitSystem: prefs.unitSystem }
+    }
+    const prefs = await updateUserPreferences(user.id, updates)
+    return { language: prefs.language, unitSystem: prefs.unitSystem }
+  },
+  {
+    body: t.Object({
+      language: t.Optional(t.String()),
+      unitSystem: t.Optional(
+        t.Union([t.Literal('metric'), t.Literal('imperial')]),
+      ),
+    }),
+    detail: {
+      tags: ['Users'],
+      description: 'Update current user preferences (language, unit system)',
     },
   },
 )

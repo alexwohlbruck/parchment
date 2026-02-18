@@ -1,4 +1,4 @@
-import { Elysia, t, error } from 'elysia'
+import { Elysia, t } from 'elysia'
 import {
   getIntegration,
   createIntegration,
@@ -52,9 +52,9 @@ app.get(
 )
 
 // Get all available integrations (metadata only)
-app.get(
+app.use(requireAuth).get(
   '/available',
-  async ({ user }) => {
+  async ({ user, status, t }) => {
     // Check if user has basic read permission for integrations
     const userPermissions = await getPermissions(user.id)
     const canRead = hasPermission(
@@ -67,8 +67,8 @@ app.get(
     )
 
     if (!canRead) {
-      return error(403, {
-        message: 'Insufficient permissions to view integrations',
+      return status(403, {
+        message: t('errors.auth.insufficientPermissions'),
       })
     }
 
@@ -112,11 +112,12 @@ app.get(
   },
 )
 
+// TODO: Don't require auth, we should be able to get public integrations
 // Get user's configured integrations (user-specific ones plus system-wide ones)
 // Configs are sanitized unless user has appropriate write permissions
-app.get(
+app.use(requireAuth).get(
   '/configured',
-  async ({ user }) => {
+  async ({ user, status, t }) => {
     // Check if user has basic read permission for integrations
     const userPermissions = await getPermissions(user.id)
     const canRead = hasPermission(
@@ -133,8 +134,8 @@ app.get(
     )
 
     if (!canRead) {
-      return error(403, {
-        message: 'Insufficient permissions to view integrations',
+      return status(403, {
+        message: t('errors.auth.insufficientPermissions'),
       })
     }
 
@@ -147,7 +148,11 @@ app.get(
     // Combine all integrations
     const allIntegrations = [...userIntegrations, ...systemIntegrations]
 
+    // Import integration manager to get capability metadata
+    const { integrationManager } = await import('../services/integrations')
+
     // Sanitize configs based on user permissions and integration scope
+    // and add capability metadata
     return allIntegrations.map((integration) => {
       const definition = getIntegrationDefinition(integration.integrationId)
       if (!definition) return sanitizeIntegrationConfig(integration)
@@ -157,23 +162,42 @@ app.get(
         (definition.scope.includes(IntegrationScope.USER) && canWriteUser) ||
         (definition.scope.includes(IntegrationScope.SYSTEM) && canWriteSystem)
 
-      return canSeeFullConfig
+      const baseIntegration = canSeeFullConfig
         ? integration
         : sanitizeIntegrationConfig(integration)
+
+      // Get the integration instance to access capability metadata
+      const instance =
+        integrationManager.getCachedIntegrationInstance(integration)
+
+      // Enhance capabilities with metadata
+      const enhancedCapabilities = integration.capabilities.map((cap) => {
+        const capabilityMetadata = instance?.capabilities[cap.id]?.metadata
+        return {
+          ...cap,
+          metadata: capabilityMetadata || null,
+        }
+      })
+
+      return {
+        ...baseIntegration,
+        name: definition.name, // Add human-friendly name from definition
+        capabilities: enhancedCapabilities,
+      }
     })
   },
   {
     detail: {
       tags: ['Integrations'],
-      summary: 'Get configured integrations for user',
+      summary: 'Get configured integrations for user with capability metadata',
     },
   },
 )
 
 // Get a specific integration
-app.get(
+app.use(requireAuth).get(
   '/:id',
-  async ({ params: { id }, user }) => {
+  async ({ params: { id }, user, status, t }) => {
     const userPermissions = await getPermissions(user.id)
     const canRead = hasPermission(
       userPermissions,
@@ -189,8 +213,8 @@ app.get(
     )
 
     if (!canRead) {
-      return error(403, {
-        message: 'Insufficient permissions to view integration',
+      return status(403, {
+        message: t('errors.auth.insufficientPermissions'),
       })
     }
 
@@ -203,7 +227,7 @@ app.get(
     }
 
     if (!integration) {
-      return error(404, { message: 'Integration not found' })
+      return status(404, { message: t('errors.notFound.integration') })
     }
 
     // Check if user can see full config based on integration scope
@@ -230,9 +254,9 @@ app.get(
 )
 
 // Create a new integration
-app.post(
+app.use(requireAuth).post(
   '/',
-  async ({ body, user }) => {
+  async ({ body, user, status, t }) => {
     const userPermissions = await getPermissions(user.id)
     const canWriteUser = hasPermission(
       userPermissions,
@@ -250,30 +274,32 @@ app.post(
       integrationId as IntegrationId,
     )
     if (!validId) {
-      return error(400, { message: 'Invalid integration ID' })
+      return status(400, { message: t('errors.integration.invalidId') })
     }
 
     // Get integration definition to check scope
     const definition = getIntegrationDefinition(integrationId as IntegrationId)
     if (!definition) {
-      return error(400, { message: 'Integration definition not found' })
+      return status(400, {
+        message: t('errors.notFound.integrationDefinition'),
+      })
     }
 
     // Check permissions based on integration scope
     if (definition.scope.includes(IntegrationScope.SYSTEM)) {
       if (!canWriteSystem) {
-        return error(403, {
-          message: 'Insufficient permissions to create system integrations',
+        return status(403, {
+          message: t('errors.auth.insufficientPermissions'),
         })
       }
     } else if (definition.scope.includes(IntegrationScope.USER)) {
       if (!canWriteUser) {
-        return error(403, {
-          message: 'Insufficient permissions to create user integrations',
+        return status(403, {
+          message: t('errors.auth.insufficientPermissions'),
         })
       }
     } else {
-      return error(400, { message: 'Invalid integration scope' })
+      return status(400, { message: t('errors.integration.invalidScope') })
     }
 
     try {
@@ -301,7 +327,7 @@ app.post(
 
       return integration
     } catch (err: any) {
-      return error(400, {
+      return status(400, {
         message: err.message || 'Failed to create integration',
       })
     }
@@ -328,9 +354,9 @@ app.post(
 )
 
 // Update an integration
-app.put(
+app.use(requireAuth).put(
   '/:id',
-  async ({ params: { id }, body, user }) => {
+  async ({ params: { id }, body, user, status, t }) => {
     const userPermissions = await getPermissions(user.id)
     const canWriteUser = hasPermission(
       userPermissions,
@@ -343,7 +369,7 @@ app.put(
 
     // At least one of config or capabilities must be provided
     if (!body.config && !body.capabilities) {
-      return error(400, { message: 'No updates provided' })
+      return status(400, { message: t('errors.integration.noUpdates') })
     }
 
     try {
@@ -352,27 +378,29 @@ app.put(
       const userIntegration = await getIntegration(id, user.id)
 
       if (!systemIntegration && !userIntegration) {
-        return error(404, { message: 'Integration not found' })
+        return status(404, { message: t('errors.notFound.integration') })
       }
 
       const integration = systemIntegration || userIntegration
       const definition = getIntegrationDefinition(integration!.integrationId)
 
       if (!definition) {
-        return error(400, { message: 'Integration definition not found' })
+        return status(400, {
+          message: t('errors.notFound.integrationDefinition'),
+        })
       }
 
       // Check permissions based on integration scope
       if (definition.scope.includes(IntegrationScope.SYSTEM)) {
         if (!canWriteSystem) {
-          return error(403, {
-            message: 'Insufficient permissions to update system integrations',
+          return status(403, {
+            message: t('errors.auth.insufficientPermissions'),
           })
         }
       } else if (definition.scope.includes(IntegrationScope.USER)) {
         if (!canWriteUser) {
-          return error(403, {
-            message: 'Insufficient permissions to update user integrations',
+          return status(403, {
+            message: t('errors.auth.insufficientPermissions'),
           })
         }
       }
@@ -393,7 +421,7 @@ app.put(
       const updatedIntegration = await updateIntegration(id, userId, updates)
       return updatedIntegration
     } catch (err: any) {
-      return error(400, {
+      return status(400, {
         message: err.message || 'Failed to update integration',
       })
     }
@@ -421,9 +449,9 @@ app.put(
 )
 
 // Delete an integration
-app.delete(
+app.use(requireAuth).delete(
   '/:id',
-  async ({ params: { id }, user, set }) => {
+  async ({ params: { id }, user, set, status }) => {
     const userPermissions = await getPermissions(user.id)
     const canWriteUser = hasPermission(
       userPermissions,
@@ -440,27 +468,29 @@ app.delete(
       const userIntegration = await getIntegration(id, user.id)
 
       if (!systemIntegration && !userIntegration) {
-        return error(404, { message: 'Integration not found' })
+        return status(404, { message: t('errors.notFound.integration') })
       }
 
       const integration = systemIntegration || userIntegration
       const definition = getIntegrationDefinition(integration!.integrationId)
 
       if (!definition) {
-        return error(400, { message: 'Integration definition not found' })
+        return status(400, {
+          message: t('errors.notFound.integrationDefinition'),
+        })
       }
 
       // Check permissions based on integration scope
       if (definition.scope.includes(IntegrationScope.SYSTEM)) {
         if (!canWriteSystem) {
-          return error(403, {
-            message: 'Insufficient permissions to delete system integrations',
+          return status(403, {
+            message: t('errors.auth.insufficientPermissions'),
           })
         }
       } else if (definition.scope.includes(IntegrationScope.USER)) {
         if (!canWriteUser) {
-          return error(403, {
-            message: 'Insufficient permissions to delete user integrations',
+          return status(403, {
+            message: t('errors.auth.insufficientPermissions'),
           })
         }
       }
@@ -472,7 +502,7 @@ app.delete(
       set.status = 204
       return null
     } catch (err: any) {
-      return error(400, {
+      return status(400, {
         message: err.message || 'Failed to delete integration',
       })
     }
@@ -489,9 +519,9 @@ app.delete(
 )
 
 // Test an integration configuration
-app.post(
+app.use(requireAuth).post(
   '/test',
-  async ({ body, user }) => {
+  async ({ body, user, status }) => {
     const userPermissions = await getPermissions(user.id)
     const canWriteUser = hasPermission(
       userPermissions,
@@ -509,30 +539,32 @@ app.post(
       integrationId as IntegrationId,
     )
     if (!validId) {
-      return error(400, { message: 'Invalid integration ID' })
+      return status(400, { message: t('errors.integration.invalidId') })
     }
 
     // Get integration definition to check scope
     const definition = getIntegrationDefinition(integrationId as IntegrationId)
     if (!definition) {
-      return error(400, { message: 'Integration definition not found' })
+      return status(400, {
+        message: t('errors.notFound.integrationDefinition'),
+      })
     }
 
     // Check permissions based on integration scope
     if (definition.scope.includes(IntegrationScope.SYSTEM)) {
       if (!canWriteSystem) {
-        return error(403, {
-          message: 'Insufficient permissions to test system integrations',
+        return status(403, {
+          message: t('errors.auth.insufficientPermissions'),
         })
       }
     } else if (definition.scope.includes(IntegrationScope.USER)) {
       if (!canWriteUser) {
-        return error(403, {
-          message: 'Insufficient permissions to test user integrations',
+        return status(403, {
+          message: t('errors.auth.insufficientPermissions'),
         })
       }
     } else {
-      return error(400, { message: 'Invalid integration scope' })
+      return status(400, { message: t('errors.integration.invalidScope') })
     }
 
     try {
@@ -542,7 +574,7 @@ app.post(
       )
       return result
     } catch (err: any) {
-      return error(400, {
+      return status(400, {
         message: err.message || 'Failed to test integration',
       })
     }

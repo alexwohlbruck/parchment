@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { useLayersStore } from '@/stores/layers.store'
-import { useLayersService } from '@/services/layers.service'
+import { useLayersService } from '@/services/layers/layers.service'
 import { useAppService } from '@/services/app.service'
 import type { LayerGroupWithLayers, Layer } from '@/types/map.types'
 import { useDragAndDrop } from '@/composables/useDragAndDrop'

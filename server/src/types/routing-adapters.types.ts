@@ -59,7 +59,7 @@ export interface ValhallaRequest {
   }
   directions_options?: {
     units?: 'kilometers' | 'miles'
-    language?: string
+    language?: import('../lib/i18n').Language
     format?: 'json' | 'gpx' | 'osrm'
     narrative?: boolean
     banner_instructions?: boolean
@@ -386,7 +386,7 @@ export interface OpenRouteServiceRequest {
   preference?: 'fastest' | 'shortest' | 'recommended'
   format?: 'json' | 'geojson' | 'gpx'
   units?: 'km' | 'mi' | 'm'
-  language?: string
+  language?: import('../lib/i18n').Language
   geometry?: boolean
   geometry_format?: 'geojson' | 'polyline' | 'encodedpolyline'
   geometry_simplify?: boolean
@@ -525,7 +525,7 @@ export interface GoogleMapsRequest {
   mode?: 'driving' | 'walking' | 'bicycling' | 'transit'
   units?: 'metric' | 'imperial'
   region?: string
-  language?: string
+  language?: import('../lib/i18n').Language
   departure_time?: Date
   arrival_time?: Date
   avoid?: string[]

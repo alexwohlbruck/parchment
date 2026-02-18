@@ -43,6 +43,7 @@ import { MapLayerGroup, TripGroup } from '@/lib/layer-group'
 import { Component, watch } from 'vue'
 import { createVueMarkerElement } from '@/lib/vue-marker.utils'
 import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
+import InstructionPointMarker from '@/components/map/InstructionPointMarker.vue'
 import { useAppStore } from '@/stores/app.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { getPrimaryThemeHex, adjustLightness, cssHslToHex } from '@/lib/utils'
@@ -114,19 +115,31 @@ export class MapboxStrategy extends MapStrategy {
   mapInstance: MapboxMap
   private streetViewLayerIds: Set<string> = new Set()
   private unwatchTheme?: () => void
+  private clickDebounceTimer: number | null = null
   geolocateControl: GeolocateControl
   layerGroups: Map<string, MapLayerGroup> = new Map()
+  private currentLanguage?: string
+  private hdRoadsEnabled: boolean = false
 
-  constructor(container, options: MapSettings, accessToken?: string) {
+  constructor(
+    container,
+    options: MapSettings,
+    accessToken?: string,
+    language?: string,
+  ) {
     super(container, options, accessToken)
 
     const { center, zoom, bearing, pitch } = options.camera || {}
     const { projection } = options
 
+    // Store the current language
+    this.currentLanguage = language
+
     this.mapInstance = new MapboxMap({
       accessToken: accessToken || import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
       container,
       style: basemapUrls[options.basemap || 'standard'],
+      language: language, // Set language during initialization for Standard style
       center: center as LngLatLike,
       bearing,
       pitch,
@@ -195,10 +208,19 @@ export class MapboxStrategy extends MapStrategy {
       })
     })
     this.mapInstance.on('click', e => {
-      mapEventBus.emit('click', {
-        lngLat: e.lngLat,
-        point: e.point,
-      })
+      // Debounce to allow POI interaction to fire first
+      if (this.clickDebounceTimer) {
+        clearTimeout(this.clickDebounceTimer)
+      }
+
+      this.clickDebounceTimer = window.setTimeout(() => {
+        // Emit regular click without POI data
+        mapEventBus.emit('click', {
+          lngLat: e.lngLat,
+          point: e.point,
+        })
+        this.clickDebounceTimer = null
+      }, 50)
     })
     this.mapInstance.on('contextmenu', e => {
       e.preventDefault()
@@ -264,16 +286,27 @@ export class MapboxStrategy extends MapStrategy {
         const center = e.feature.properties?.center
 
         if (poiType !== 'unknown') {
+          // Cancel the debounced regular click
+          if (this.clickDebounceTimer) {
+            clearTimeout(this.clickDebounceTimer)
+            this.clickDebounceTimer = null
+          }
+
           // For ways/relations, use center point if available
           const lngLat = center
             ? { lng: center[0], lat: center[1] }
             : { lng: coordinates[0], lat: coordinates[1] }
 
-          mapEventBus.emit('click:poi', {
-            osmId,
-            poiType,
+          // Emit unified click event with POI data
+          const poiName = e.feature.properties?.name
+          mapEventBus.emit('click', {
             lngLat,
             point: e.point,
+            poi: {
+              osmId,
+              poiType,
+              name: typeof poiName === 'string' ? poiName : undefined,
+            },
           })
         }
       },
@@ -373,8 +406,8 @@ export class MapboxStrategy extends MapStrategy {
             index === 0
               ? 'origin'
               : index === directions.locations.length - 1
-              ? 'destination'
-              : 'waypoint',
+                ? 'destination'
+                : 'waypoint',
         },
       )
     })
@@ -388,9 +421,12 @@ export class MapboxStrategy extends MapStrategy {
     )
 
     // Create a bounds object that encompasses all coordinates
-    const bounds = allCoordinates.reduce((bounds, coord) => {
-      return bounds.extend(coord)
-    }, new LngLatBounds(allCoordinates[0], allCoordinates[0]))
+    const bounds = allCoordinates.reduce(
+      (bounds, coord) => {
+        return bounds.extend(coord)
+      },
+      new LngLatBounds(allCoordinates[0], allCoordinates[0]),
+    )
 
     // Fit the map to show the entire route with padding
     this.mapInstance.fitBounds(bounds, {
@@ -521,23 +557,62 @@ export class MapboxStrategy extends MapStrategy {
     this.mapInstance.setConfigProperty('basemap', 'theme', theme)
   }
 
+  setHdRoads(value: boolean) {
+    if (this.hdRoadsEnabled === value) {
+      return // No change needed
+    }
+
+    this.hdRoadsEnabled = value
+
+    if (value) {
+      // Add HD roads import
+      // The addImport method takes an ImportSpecification object
+      this.mapInstance.addImport({
+        id: 'hd-roads',
+        url: 'mapbox://styles/mapbox/high-definition-roads',
+        config: {},
+      })
+    } else {
+      // Remove HD roads import
+      this.mapInstance.removeImport('hd-roads')
+    }
+  }
+
   setBasemap(basemap: Basemap) {
     const url = basemapUrls[basemap]
     this.mapInstance.setStyle(url)
   }
 
+  setMapLanguage(locale: string): boolean {
+    // Convert locale to language code for map tiles (e.g., 'en-US' -> 'en', 'es-ES' -> 'es')
+    const languageCode = locale.split('-')[0]
+
+    // Check if language is already set
+    if (this.currentLanguage === languageCode) {
+      return false // No change needed
+    }
+
+    // For Mapbox (both Standard and legacy styles), language must be set during initialization
+    // Return true to indicate that map needs to be reinitialized
+    return true
+  }
+
   removeSource(sourceId: string) {
-    try {
-      if (this.mapInstance.getSource(sourceId)) {
-        this.mapInstance.removeSource(sourceId)
-      }
-    } catch (error) {
-      console.warn(`Failed to remove source ${sourceId}:`, error)
+    if (this.mapInstance.getSource(sourceId)) {
+      this.mapInstance.removeSource(sourceId)
     }
   }
 
   addSource(sourceId: string, source: any) {
     try {
+      // Check if style is loaded before adding source
+      if (!this.mapInstance.isStyleLoaded()) {
+        this.mapInstance.once('style.load', () => {
+          this.addSource(sourceId, source)
+        })
+        return
+      }
+
       // Remove existing source if it exists to prevent conflicts
       if (this.mapInstance.getSource(sourceId)) {
         this.mapInstance.removeSource(sourceId)
@@ -554,64 +629,59 @@ export class MapboxStrategy extends MapStrategy {
     const themedLayer = applyThemedStreetViewStyling(layer)
     const { configuration } = themedLayer
 
-    try {
-      // Handle source if it exists in the configuration
-      if (typeof configuration.source === 'object') {
-        const sourceId = configuration.source.id
-        const existingSource = this.mapInstance.getSource(sourceId)
+    // Handle source if it exists in the configuration
+    if (typeof configuration.source === 'object') {
+      const sourceId = configuration.source.id
+      const existingSource = this.mapInstance.getSource(sourceId)
 
-        if (existingSource) {
-          if (overwrite) {
-            this.mapInstance.removeSource(sourceId)
-            this.mapInstance.addSource(sourceId, configuration.source as any)
-          }
-        } else {
+      if (existingSource) {
+        if (overwrite) {
+          this.mapInstance.removeSource(sourceId)
           this.mapInstance.addSource(sourceId, configuration.source as any)
         }
-
-        // Update configuration to use source ID instead of source object
-        configuration.source = sourceId
+      } else {
+        this.mapInstance.addSource(sourceId, configuration.source as any)
       }
 
-      // Verify source exists before adding layer
-      if (typeof configuration.source === 'string') {
-        const sourceExists = this.mapInstance.getSource(configuration.source)
-        if (!sourceExists) {
-          return
-        }
-      }
+      // Update configuration to use source ID instead of source object
+      configuration.source = sourceId
+    }
 
-      // Handle layer
-      const existingLayer = this.mapInstance.getLayer(configuration.id)
-      if (existingLayer && overwrite) {
-        this.mapInstance.removeLayer(configuration.id)
+    // Verify source exists before adding layer
+    if (typeof configuration.source === 'string') {
+      const sourceExists = this.mapInstance.getSource(configuration.source)
+      if (!sourceExists) {
+        console.warn(
+          `Cannot add layer ${configuration.id}: source '${configuration.source}' does not exist`,
+        )
+        return
       }
-      if (!existingLayer || overwrite) {
-        this.mapInstance.addLayer({
-          ...(configuration as any),
-          layout: {
-            ...configuration.layout,
-            visibility: themedLayer.visible ? 'visible' : 'none',
-          },
-        })
+    }
 
-        // Track street view layer ids for live theme updates
-        if (themedLayer.type === LayerType.STREET_VIEW) {
-          this.streetViewLayerIds.add(configuration.id)
-        }
+    // Handle layer
+    const existingLayer = this.mapInstance.getLayer(configuration.id)
+    if (existingLayer && overwrite) {
+      this.mapInstance.removeLayer(configuration.id)
+    }
+    if (!existingLayer || overwrite) {
+      this.mapInstance.addLayer({
+        ...(configuration as any),
+        layout: {
+          ...configuration.layout,
+          visibility: themedLayer.visible ? 'visible' : 'none',
+        },
+      })
+
+      // Track street view layer ids for live theme updates
+      if (themedLayer.type === LayerType.STREET_VIEW) {
+        this.streetViewLayerIds.add(configuration.id)
       }
-    } catch (error) {
-      // Silent error handling
     }
   }
 
   removeLayer(layerId: Layer['configuration']['id']) {
-    try {
-      if (this.mapInstance.getLayer(layerId)) {
-        this.mapInstance.removeLayer(layerId)
-      }
-    } catch (error) {
-      console.warn(`Failed to remove layer ${layerId}:`, error)
+    if (this.mapInstance.getLayer(layerId)) {
+      this.mapInstance.removeLayer(layerId)
     }
   }
 
@@ -619,6 +689,12 @@ export class MapboxStrategy extends MapStrategy {
     layerId: Layer['configuration']['id'],
     visible: boolean,
   ) {
+    // Check if layer exists before trying to toggle visibility
+    if (!this.mapInstance.getLayer(layerId)) {
+      console.warn(`Cannot toggle visibility: layer '${layerId}' does not exist in map`)
+      return
+    }
+    
     this.mapInstance.setLayoutProperty(
       layerId,
       'visibility',
@@ -660,7 +736,19 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   destroy() {
-    this.mapInstance?.remove()
+    // Clean up theme watcher
+    if (this.unwatchTheme) {
+      this.unwatchTheme()
+      this.unwatchTheme = undefined
+    }
+
+    // Remove the map instance
+    if (this.mapInstance) {
+      const canvas = this.mapInstance.getCanvas()
+      if (canvas && canvas.parentElement) {
+        this.mapInstance.remove()
+      }
+    }
   }
 
   addMarker(id: string, lngLat: LngLat) {
@@ -680,8 +768,9 @@ export class MapboxStrategy extends MapStrategy {
     lngLat: LngLat,
     component: Component,
     props: Record<string, any> = {},
+    zIndex?: number,
   ) {
-    super.addVueMarker(id, lngLat, component, props)
+    super.addVueMarker(id, lngLat, component, props, zIndex)
 
     const element = createVueMarkerElement(component, props)
 
@@ -692,35 +781,51 @@ export class MapboxStrategy extends MapStrategy {
       .setLngLat(lngLat)
       .addTo(this.mapInstance)
 
+    // Set z-index on the marker's DOM element if provided
+    if (zIndex !== undefined) {
+      const markerElement = marker.getElement()
+      if (markerElement) {
+        markerElement.style.zIndex = String(zIndex)
+      }
+    }
+
     this.markers.set(id, marker)
   }
 
   // Trip visualization methods
   setTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
-    console.log(
-      `Setting trips: visible=${Array.from(visibleTripIds).join(', ')}`,
+    // Idempotent: if we already show exactly these trips, skip destroy+recreate to avoid route flicker from double-calls (e.g. TripDetail watch + onMounted)
+    const currentTripIds = new Set(
+      [...this.layerGroups.keys()]
+        .filter(k => k.startsWith('trip-'))
+        .map(k => k.slice('trip-'.length)),
     )
+    if (
+      currentTripIds.size === visibleTripIds.size &&
+      [...visibleTripIds].every(id => currentTripIds.has(id))
+    ) {
+      return
+    }
 
-    // ALWAYS destroy ALL existing trip groups to ensure complete cleanup
+    // Destroy ALL existing trip groups
     for (const groupId of this.layerGroups.keys()) {
       if (groupId.startsWith('trip-')) {
-        console.log(`Destroying existing trip group: ${groupId}`)
         this.layerGroups.get(groupId)?.destroy()
         this.layerGroups.delete(groupId)
       }
     }
 
     // Create fresh trip groups for visible trips
+    const visibleTrips: any[] = []
     trips.trips.forEach(trip => {
       if (visibleTripIds.has(trip.id)) {
         const groupId = `trip-${trip.id}`
-        console.log(`Creating new trip group: ${groupId}`)
         const tripGroup = new TripGroup(this, trip)
         this.layerGroups.set(groupId, tripGroup)
+        visibleTrips.push(trip)
       }
     })
 
-    // Only fit map to trips if there are visible trips
     if (visibleTripIds.size > 0) {
       this.fitMapToTrips(trips, visibleTripIds)
     }
@@ -788,32 +893,7 @@ export class MapboxStrategy extends MapStrategy {
     }
   }
 
-  // Waypoint marker methods (separate from trip routes)
-  setWaypointMarkers(waypoints: Waypoint[]) {
-    // Remove existing waypoint markers
-    this.clearWaypointMarkers()
-
-    // Add new waypoint markers for all waypoints with coordinates
-    waypoints.forEach((waypoint, index) => {
-      if (waypoint.lngLat) {
-        this.addVueMarker(
-          `waypoint-${index}`,
-          waypoint.lngLat,
-          WaypointMapIcon,
-          {
-            index,
-            totalWaypoints: waypoints.length,
-            type:
-              index === 0
-                ? 'origin'
-                : index === waypoints.length - 1
-                ? 'destination'
-                : 'waypoint',
-          },
-        )
-      }
-    })
-  }
+  // Note: Waypoint and instruction point markers are now handled by base MapStrategy class
 
   private updateStreetViewColors() {
     const primary = getPrimaryThemeHex()

@@ -1,7 +1,9 @@
 import { Elysia, t } from 'elysia'
+import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
 import { multimodalTripService } from '../services/trip.service'
 import {
   TripRequest,
+  SelectedMode,
   VehicleType,
   WaypointType,
   EnergyType,
@@ -67,10 +69,23 @@ const RoutingPreferencesSchema = t.Object({
   maxWalkingDistance: t.Optional(t.Number({ minimum: 0 })),
   maxTransfers: t.Optional(t.Number({ minimum: 0 })),
   wheelchairAccessible: t.Optional(t.Boolean()),
+  useKnownVehicleLocations: t.Optional(t.Boolean()),
+  useKnownParkingLocations: t.Optional(t.Boolean()),
+  routingEngine: t.Optional(t.String()), // Preferred routing engine ID
 })
+
+// Schema for SelectedMode type
+const SelectedModeSchema = t.Union([
+  t.Literal('multi'),
+  t.Literal('walking'),
+  t.Literal('driving'),
+  t.Literal('biking'),
+  t.Literal('transit'),
+] as const)
 
 const TripRequestSchema = t.Object({
   waypoints: t.Array(WaypointSchema, { minItems: 2 }),
+  selectedMode: t.Optional(SelectedModeSchema),
   routingPreferences: t.Optional(RoutingPreferencesSchema),
   availableVehicles: t.Optional(t.Array(VehicleSchema)),
   knownAccessPoints: t.Optional(t.Array(AccessPointSchema)),
@@ -88,10 +103,12 @@ const app = new Elysia({ prefix: '/directions' })
  */
 app.post(
   '/',
-  async ({ body }) => {
+  async (ctx) => {
+    const { body, i18n } = ctx as typeof ctx & { i18n?: { language: import('../lib/i18n').Language } }
     try {
-      // Convert the validated body to our internal TripRequest type
+      // Language from elysia-i18next context; fallback from lib/i18n config only (no magic strings)
       const request: TripRequest = {
+        language: i18n?.language ?? DEFAULT_LANGUAGE,
         waypoints: body.waypoints.map((wp, index) => ({
           location: {
             lat: wp.location.lat,
@@ -101,6 +118,7 @@ app.post(
           label: wp.label,
           type: wp.type as WaypointType,
         })),
+        selectedMode: body.selectedMode,
         routingPreferences: body.routingPreferences,
         availableVehicles: body.availableVehicles?.map((vehicle) => ({
           id: vehicle.id,
@@ -385,7 +403,6 @@ app.get(
         },
       },
       integrations: {
-        routingEngines: ['valhalla'], // TODO: Add other engines as they're configured
         transitData: [], // TODO: Add GTFS feeds
         rideshareProviders: [], // TODO: Add rideshare integrations
       },

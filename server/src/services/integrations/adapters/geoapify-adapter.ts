@@ -174,8 +174,16 @@ export class GeoapifyAdapter {
       const osmId = getOsmId(feature)
       const externalIds: Record<string, string> = {}
       
-      if (props.datasource?.raw?.osm_id) {
-        externalIds.osm = props.datasource.raw.osm_id
+      // Extract OSM ID from datasource.raw (only available in place details API, not reverse geocoding)
+      if (props.datasource?.raw?.osm_id && props.datasource?.raw?.osm_type) {
+        // Map Geoapify OSM type codes to full names
+        const typeMap: Record<string, string> = {
+          'n': 'node',
+          'w': 'way',
+          'r': 'relation',
+        }
+        const osmType = typeMap[props.datasource.raw.osm_type] || 'node'
+        externalIds.osm = `${osmType}/${props.datasource.raw.osm_id}`
       }
       if (props.place_id) {
         externalIds.geoapify = props.place_id

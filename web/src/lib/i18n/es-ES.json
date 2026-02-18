@@ -1,4 +1,8 @@
 {
+  "taglines": {
+    "short": "La próxima generación de mapas digitales",
+    "long": "Explora el mundo con mapas hermosos y detallados creados por la comunidad"
+  },
   "general": {
     "yes": "Sí",
     "no": "No",
@@ -32,6 +36,30 @@
     "all": "Todos",
     "recents": "Recientes",
     "seeAll": "Ver todo"
+  },
+  "weather": {
+    "title": "Condiciones del tiempo",
+    "subtitle": "Condiciones actuales y pronóstico",
+    "airQuality": "Calidad del aire",
+    "feelsLike": "Sensación térmica",
+    "humidity": "Humedad",
+    "wind": "Viento",
+    "visibility": "Visibilidad",
+    "pressure": "Presión",
+    "cloudiness": "Nubosidad",
+    "sunrise": "Amanecer",
+    "sunset": "Atardecer",
+    "aqi": {
+      "good": "Buena",
+      "fair": "Aceptable",
+      "moderate": "Moderada",
+      "poor": "Mala",
+      "veryPoor": "Muy mala",
+      "unhealthySensitive": "Insalubre para grupos sensibles",
+      "unhealthy": "Insalubre",
+      "veryUnhealthy": "Muy insalubre",
+      "hazardous": "Peligrosa"
+    }
   },
   "palette": {
     "placeholder": {
@@ -158,6 +186,8 @@
       "validation": "Error de {type}"
     },
     "coordinatesCopied": "Coordenadas copiadas al portapapeles",
+    "addressCopied": "Dirección copiada al portapapeles",
+    "placeNameCopied": "Nombre del lugar copiado al portapapeles",
     "invitationSent": "Invitación enviada a {email}",
     "unknownError": "Ocurrió un error desconocido",
     "plusCodeCopied": "Código Plus copiado al portapapeles",
@@ -168,7 +198,8 @@
     "contextMenu": {
       "edit": "Editar mapa",
       "viewIn": "Ver en",
-      "copyLocation": "Copiar ubicación"
+      "copyLocation": "Copiar ubicación",
+      "loadingAddress": "Cargando dirección..."
     }
   },
   "layers": {
@@ -436,7 +467,7 @@
       "title": "Añadir amigo",
       "description": "Introduce el identificador de un amigo para enviarle una invitación. Puede estar en este servidor o en cualquier otro servidor de Parchment.",
       "handleLabel": "Identificador del amigo",
-      "formatHint": "Formato: usuario@servidor.dominio",
+      "formatHint": "Formato: usuario{'@'}servidor.dominio",
       "userNotFound": "Usuario no encontrado. Verifica el identificador e intenta de nuevo.",
       "lookupFailed": "Error al buscar usuario. Por favor, intenta de nuevo.",
       "sendFailed": "Error al enviar invitación",
@@ -585,7 +616,17 @@
       }
     },
     "behavior": {
-      "title": "Comportamiento"
+      "title": "Comportamiento",
+      "language": {
+        "title": "Idioma"
+      },
+      "units": {
+        "title": "Unidades",
+        "system": "Sistema de unidades",
+        "description": "Sistema de unidades preferido para temperatura, distancia y velocidad",
+        "metric": "Métrico (°C, km, m/s)",
+        "imperial": "Imperial (°F, mi, mph)"
+      }
     },
     "appearance": {
       "title": "Apariencia",
@@ -635,8 +676,11 @@
       "title": "Mapa",
       "configuration": {
         "title": "Configuración del mapa",
+        "experimental": "Experimental",
         "3dTerrain": "Terreno 3D",
         "3dObjects": "Objetos 3D",
+        "hdRoads": "Carreteras HD",
+        "hdRoadsDescription": "Visualización de carreteras de alta definición con detalles mejorados",
         "poiLabels": "Etiquetas de POI",
         "roadLabels": "Etiquetas de carreteras",
         "transitLabels": "Etiquetas de tránsito",
@@ -649,6 +693,7 @@
         "scale": "Barra de escala",
         "streetView": "Vista de calle",
         "locate": "Ubicación",
+        "weather": "Clima",
         "visibility": {
           "always": "Siempre",
           "never": "Nunca",
@@ -710,7 +755,8 @@
         "imagery": "Imágenes",
         "title": "Capacidades",
         "streetView": "Vista de calle",
-        "transitData": "Datos de Tránsito"
+        "transitData": "Datos de Tránsito",
+        "weather": "Clima"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",
@@ -728,7 +774,8 @@
         "transitland": "Teselas y APIs de rutas de tránsito",
         "wikidata": "Base de conocimiento estructurado para enriquecer información de lugares",
         "wikipedia": "Contenido gratuito de enciclopedia y descripciones de lugares",
-        "wikimedia": "Repositorio gratuito de medios para imágenes de lugares"
+        "wikimedia": "Repositorio gratuito de medios para imágenes de lugares",
+        "openweathermap": "Datos meteorológicos e información de calidad del aire"
       }
     },
     "users": {
@@ -752,5 +799,27 @@
     "subtitle": "Continente equivocado",
     "message": "Incluso Colón fue un mejor navegante.",
     "action": "Volver a España"
+  },
+  "auth": {
+    "signIn": {
+      "server": "Servidor",
+      "email": "Correo electrónico",
+      "emailPlaceholder": "magellan{'@'}parchment.app",
+      "sendCode": "Enviar código de verificación",
+      "signInWithPasskey": "Iniciar sesión con clave de acceso",
+      "or": "O",
+      "termsAndPrivacy": "Al continuar, aceptas los Términos de Servicio y la Política de Privacidad de Parchment"
+    },
+    "otp": {
+      "title": "Código de verificación",
+      "description": "Código enviado a {email}",
+      "submit": "Enviar",
+      "cancel": "Cancelar",
+      "verifying": "Verificando...",
+      "success": "¡Éxito!"
+    },
+    "server": {
+      "addCustom": "Añadir servidor personalizado..."
+    }
   }
 }

@@ -2,13 +2,10 @@
 import { computed, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { storeToRefs } from 'pinia'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
-import { useAuthStore } from '@/stores/auth.store'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ItemIcon } from '@/components/ui/item-icon'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import BookmarkCard from '@/components/library/BookmarkCard.vue'
 import { H4 } from '@/components/ui/typography'
 import { AppRoute } from '@/router'
@@ -18,8 +15,6 @@ import { capitalize } from '@/filters/text.filters'
 const router = useRouter()
 const { t } = useI18n()
 const bookmarksStore = useBookmarksStore()
-const authStore = useAuthStore()
-const { me } = storeToRefs(authStore)
 
 // Inject minimize function from MobileNavigation
 const minimizeSheet = inject<() => void>('minimizeMobileSheet', () => {})
@@ -186,42 +181,5 @@ function navigateToRoute(routeName: AppRoute) {
       </div>
     </div>
 
-    <!-- Account Section -->
-    <div v-if="me" class="pt-3 pb-2 border-t border-border mt-auto">
-      <router-link
-        to="/settings/account"
-        class="flex items-center justify-between mb-2 px-1"
-        @click="minimizeSheet"
-      >
-        <H4
-          class="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
-          >{{ t('settings.account.title') }}</H4
-        >
-      </router-link>
-      <router-link
-        to="/settings/account"
-        class="flex items-center gap-3 p-2 rounded-lg hover:bg-foreground/5 transition-colors"
-        @click="minimizeSheet"
-      >
-        <Avatar size="sm">
-          <AvatarImage
-            v-if="me.picture"
-            :src="me.picture"
-            :alt="me.firstName"
-          />
-          <AvatarFallback v-else>
-            {{ me.firstName?.charAt(0) }}{{ me.lastName?.charAt(0) }}
-          </AvatarFallback>
-        </Avatar>
-        <div class="flex flex-col min-w-0">
-          <span class="text-sm font-semibold leading-tight truncate">
-            {{ me.firstName }} {{ me.lastName }}
-          </span>
-          <span class="text-xs text-muted-foreground leading-tight truncate">{{
-            me.email
-          }}</span>
-        </div>
-      </router-link>
-    </div>
   </div>
 </template>

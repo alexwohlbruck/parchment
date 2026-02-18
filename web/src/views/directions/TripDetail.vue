@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useMapService } from '@/services/map.service'
@@ -16,11 +16,19 @@ import {
   TrainIcon,
   TruckIcon,
 } from 'lucide-vue-next'
+import { AppRoute } from '@/router'
+import type { RouteInstruction } from '@/types/directions.types'
+import ElevationChart from '@/components/directions/ElevationChart.vue'
+import { useUnits } from '@/composables/useUnits'
 
 const route = useRoute()
 const router = useRouter()
 const directionsStore = useDirectionsStore()
 const mapService = useMapService()
+const { formatDistance } = useUnits()
+
+// State for hover interactions
+const hoveredInstructionKey = ref<string | null>(null)
 
 const tripId = computed(() => route.params.id as string)
 const isLoading = ref(false)
@@ -31,6 +39,17 @@ const trip = computed(() => {
   if (!directionsStore.trips?.trips) return null
   return directionsStore.trips.trips.find(t => t.id === tripId.value) || null
 })
+
+// If no trip is found after mounting, redirect back to directions
+watch(
+  trip,
+  newTrip => {
+    if (newTrip === null && !isLoading.value && directionsStore.trips) {
+      router.push({ name: AppRoute.DIRECTIONS })
+    }
+  },
+  { immediate: true },
+)
 
 // Mode icons mapping
 const modeIcons = {
@@ -52,29 +71,48 @@ const modeColors = {
   truck: 'bg-orange-500',
 } as const
 
-// Watch for trip changes and update map visibility
+// Watch for trip changes and update map visibility (immediate: true covers mount; do not also call in onMounted or we double-call setTrips and the route disappears)
 watch(
   trip,
   newTrip => {
     if (newTrip) {
-      // Show only this trip on the map
       mapService.setVisibleTrips([newTrip.id])
     }
   },
   { immediate: true },
 )
 
-// Show only the selected trip on the map when component mounts
-onMounted(() => {
-  if (trip.value) {
-    mapService.setVisibleTrips([trip.value.id])
-  }
-})
-
 // Restore all trips when leaving the component
 function goBack() {
+  // Note: showAllTrips automatically clears instruction markers via selectedTripId
   mapService.showAllTrips()
-  router.back()
+  // Navigate back to directions view, preserving the trips data
+  router.push({ name: AppRoute.DIRECTIONS })
+}
+
+// Handle hovering instructions
+function onInstructionHover(
+  segmentIndex: number,
+  instrIndex: number,
+  instruction: string | RouteInstruction,
+) {
+  const key = `${segmentIndex}-${instrIndex}`
+  hoveredInstructionKey.value = key
+
+  // Highlight the point on the map
+  if (typeof instruction === 'object' && instruction.coordinate) {
+    mapService.highlightInstructionPoint(segmentIndex, instrIndex)
+  }
+}
+
+function onInstructionLeave() {
+  hoveredInstructionKey.value = null
+  mapService.clearHighlightedInstructionPoint()
+}
+
+// Generate unique key for instruction
+function getInstructionKey(segmentIndex: number, instrIndex: number): string {
+  return `${segmentIndex}-${instrIndex}`
 }
 
 // Utility functions for formatting
@@ -88,13 +126,9 @@ const formatDuration = (seconds: number): string => {
   return `${minutes}m`
 }
 
-const formatDistance = (meters: number | undefined): string => {
-  if (!meters) return '0m'
-
-  if (meters >= 1000) {
-    return `${(meters / 1000).toFixed(1)}km`
-  }
-  return `${Math.round(meters)}m`
+const formatDistanceDisplay = (meters: number | undefined): string => {
+  if (!meters) return formatDistance(0)
+  return formatDistance(meters)
 }
 
 const formatTime = (date: Date): string => {
@@ -135,7 +169,7 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
         <div class="flex-1 min-w-0">
           <H5 class="text-muted-foreground mb-1">
             {{ formatDuration(trip.summary.totalDuration) }} •
-            {{ formatDistance(trip.summary.totalDistance) }}
+            {{ formatDistanceDisplay(trip.summary.totalDistance) }}
           </H5>
 
           <div class="flex items-center gap-4 text-sm text-muted-foreground">
@@ -152,38 +186,6 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
           </div>
         </div>
       </div>
-
-      <!-- Trip Summary Card -->
-      <Card>
-        <CardContent class="p-4">
-          <div class="flex justify-around">
-            <div class="text-center">
-              <div class="text-2xl font-bold">
-                {{ trip.segments.length }}
-              </div>
-              <div class="text-xs text-muted-foreground">Segments</div>
-            </div>
-            <div class="text-center">
-              <div class="text-2xl font-bold">
-                {{ [...new Set(trip.segments.map(s => s.mode))].length }}
-              </div>
-              <div class="text-xs text-muted-foreground">Transport Modes</div>
-            </div>
-            <div class="text-center" v-if="trip.cost?.total">
-              <div class="text-2xl font-bold">
-                {{ formatCurrency(trip.cost.total) }}
-              </div>
-              <div class="text-xs text-muted-foreground">Total Cost</div>
-            </div>
-            <div class="text-center" v-if="trip.co2Emissions">
-              <div class="text-2xl font-bold">
-                {{ trip.co2Emissions.toFixed(1) }}
-              </div>
-              <div class="text-xs text-muted-foreground">kg CO₂</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       <!-- Instructions -->
       <Card>
@@ -209,20 +211,30 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
                   <!-- Segment Info -->
                   <div class="flex items-center gap-4">
                     <H6 class="capitalize">
-                      {{ segment.mode
-                      }}{{
-                        segment.vehicleType &&
-                        segment.vehicleType !== segment.mode
-                          ? ` (${segment.vehicleType})`
-                          : ''
-                      }}
+                      {{ segment.mode }}
                     </H6>
                     <Caption class="text-muted-foreground">
                       {{ formatDuration(segment.duration) }} •
-                      {{ formatDistance(segment.distance) }}
+                      {{ formatDistanceDisplay(segment.distance) }}
                     </Caption>
                   </div>
                 </div>
+
+                <!-- Elevation Chart (only for walking and cycling) -->
+                <ElevationChart
+                  v-if="
+                    segment.geometry &&
+                    (segment.totalElevationGain ||
+                      segment.totalElevationLoss) &&
+                    (segment.mode === 'walking' || segment.mode === 'cycling')
+                  "
+                  :geometry="segment.geometry"
+                  :total-elevation-gain="segment.totalElevationGain"
+                  :total-elevation-loss="segment.totalElevationLoss"
+                  :max-elevation="segment.maxElevation"
+                  :min-elevation="segment.minElevation"
+                  class="mb-3"
+                />
 
                 <!-- Instructions List - Left aligned under the icon -->
                 <div class="flex">
@@ -234,7 +246,16 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
                           instruction, instrIndex
                         ) in segment.instructions"
                         :key="instrIndex"
-                        class="flex items-center text-sm hover:bg-muted/50 rounded-lg p-2 pl-0 transition-colors"
+                        class="flex items-center text-sm hover:bg-muted/50 rounded-lg p-2 pl-0 transition-colors cursor-pointer"
+                        :class="{
+                          'bg-muted':
+                            hoveredInstructionKey ===
+                            getInstructionKey(index, instrIndex),
+                        }"
+                        @mouseenter="
+                          onInstructionHover(index, instrIndex, instruction)
+                        "
+                        @mouseleave="onInstructionLeave"
                       >
                         <div
                           class="shrink-0 w-6 h-6 mr-2 rounded-full flex items-center justify-center text-xs font-medium"
@@ -268,7 +289,7 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
                               class="flex items-center gap-1"
                             >
                               <span>{{
-                                formatDistance(instruction.distance)
+                                formatDistanceDisplay(instruction.distance)
                               }}</span>
                             </span>
                             <span

@@ -30,7 +30,7 @@ import CopyButton from '@/components/CopyButton.vue'
 import { Button } from '@/components/ui/button'
 
 const props = defineProps<{
-  place: Place
+  place: Partial<Place>
 }>()
 
 const cuisines = computed(() => {
@@ -41,7 +41,7 @@ const cuisines = computed(() => {
 
 const osmUrl = computed(() => {
   if (!props.place) return ''
-  const osmSource = props.place.sources.find(s => s.id === SOURCE.OSM)
+  const osmSource = props.place.sources?.find(s => s.id === SOURCE.OSM)
   return osmSource?.url || ''
 })
 
@@ -50,9 +50,9 @@ const coordinates = computed(() => {
   return props.place.geometry.value.center
 })
 
-const phoneValue = computed(() => props.place?.contactInfo.phone?.value)
-const websiteValue = computed(() => props.place?.contactInfo.website?.value)
-const emailValue = computed(() => props.place?.contactInfo.email?.value)
+const phoneValue = computed(() => props.place?.contactInfo?.phone?.value)
+const websiteValue = computed(() => props.place?.contactInfo?.website?.value)
+const emailValue = computed(() => props.place?.contactInfo?.email?.value)
 
 const wifiStatus = computed(() => {
   if (!props.place) return null
@@ -81,16 +81,16 @@ const outdoorSeating = computed(() => {
 })
 
 const wheelchairAccess = computed(
-  () => props.place?.amenities.wheelchair?.value || null,
+  () => props.place?.amenities?.wheelchair?.value || null,
 )
 const smokingStatus = computed(
-  () => props.place?.amenities.smoking?.value || null,
+  () => props.place?.amenities?.smoking?.value || null,
 )
 const restroomAccess = computed(
-  () => props.place?.amenities.toilets?.value || null,
+  () => props.place?.amenities?.toilets?.value || null,
 )
 const wheelchairRestroomAccess = computed(
-  () => props.place?.amenities['toilets:wheelchair']?.value || null,
+  () => props.place?.amenities?.['toilets:wheelchair']?.value || null,
 )
 
 function formatCoordinates(lat: number, lng: number) {

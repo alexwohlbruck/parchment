@@ -1,22 +1,24 @@
 import { CategoryResult } from '../types/search.types'
-import type { SupportedLanguage } from '../lib/i18n'
+import type { Language } from '../lib/i18n/i18n.types'
+import { getLanguageCode } from '../lib/i18n'
 
 interface CachedCategoryData {
   categories: CategoryResult[]
   lastUpdated: string
 }
 
-// Cache by language to avoid recomputing
-const categoryCache = new Map<SupportedLanguage, CachedCategoryData>()
+// Cache by API language code (en, es) to avoid recomputing
+const categoryCache = new Map<string, CachedCategoryData>()
 
 export class CategoryService {
   /**
    * Load all searchable categories/presets from OSM tagging schema
    * Returns categories with translations for the given language
    */
-  loadCategories(language: SupportedLanguage = 'en'): CategoryResult[] {
+  loadCategories(language: Language = 'en-US'): CategoryResult[] {
+    const apiLang = getLanguageCode(language)
     // Check cache first
-    const cached = categoryCache.get(language)
+    const cached = categoryCache.get(apiLang)
     if (cached) {
       return cached.categories
     }
@@ -27,21 +29,21 @@ export class CategoryService {
       // Load presets directly since loadPresets is not exported
       const rawPresets = require('@openstreetmap/id-tagging-schema/dist/presets.min.json')
 
-      // Load translations
+      // Load translations (OSM schema uses two-letter codes)
       let translations: any = {}
       let presetTranslations: any = {}
       try {
-        const rawTranslations = require(`@openstreetmap/id-tagging-schema/dist/translations/${language}.json`)
-        translations = rawTranslations[language] || {}
+        const rawTranslations = require(`@openstreetmap/id-tagging-schema/dist/translations/${apiLang}.json`)
+        translations = rawTranslations[apiLang] || {}
         presetTranslations = translations?.presets?.presets || {}
       } catch (error) {
-        if (language !== 'en') {
+        if (apiLang !== 'en') {
           try {
             const enTranslations = require('@openstreetmap/id-tagging-schema/dist/translations/en.json')
             translations = enTranslations.en || {}
             presetTranslations = translations?.presets?.presets || {}
           } catch (enError) {
-            console.warn('Could not load translations for', language)
+            console.warn('Could not load translations for', apiLang)
           }
         }
       }
@@ -150,7 +152,7 @@ export class CategoryService {
         categories,
         lastUpdated: new Date().toISOString(),
       }
-      categoryCache.set(language, cacheData)
+      categoryCache.set(apiLang, cacheData)
 
       return categories
     } catch (error) {
@@ -163,7 +165,7 @@ export class CategoryService {
    */
   searchCategories(
     query: string,
-    language: SupportedLanguage = 'en',
+    language: Language = 'en',
     maxResults: number = 10,
   ): CategoryResult[] {
     if (!query || query.trim().length === 0) {
@@ -246,7 +248,7 @@ export class CategoryService {
    */
   getCategoryById(
     categoryId: string,
-    language: SupportedLanguage = 'en',
+    language: Language = 'en',
   ): CategoryResult | null {
     const categories = this.loadCategories(language)
     return categories.find((cat) => cat.id === categoryId) || null
@@ -255,7 +257,7 @@ export class CategoryService {
   /**
    * Clear category cache (useful for testing or language changes)
    */
-  clearCategoryCache(language?: SupportedLanguage): void {
+  clearCategoryCache(language?: Language): void {
     if (language) {
       categoryCache.delete(language)
     } else {

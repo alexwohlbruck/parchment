@@ -1,0 +1,664 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 0,
+  "workspaces": {
+    "": {
+      "name": "parchment",
+      "dependencies": {
+        "@elysiajs/cors": "^1.3.3",
+        "@elysiajs/eden": "^1.3.2",
+        "@elysiajs/swagger": "^1.3.1",
+        "@lucia-auth/adapter-drizzle": "^1.0.7",
+        "@neondatabase/serverless": "^1.0.1",
+        "@noble/ed25519": "^3.0.0",
+        "@noble/hashes": "^2.0.1",
+        "@openstreetmap/id-tagging-schema": "^6.12.0",
+        "@simplewebauthn/browser": "^10.0.0",
+        "@simplewebauthn/server": "^10.0.0",
+        "@simplewebauthn/types": "^10.0.0",
+        "@turf/turf": "^7.2.0",
+        "@types/lodash": "^4.17.17",
+        "@types/nodemailer": "^6.4.15",
+        "axios": "^1.8.4",
+        "drizzle-kit": "^0.31.0",
+        "drizzle-orm": "^0.43.1",
+        "elysia": "^1.4.22",
+        "elysia-i18next": "^4.0.3",
+        "fuzzball": "^2.2.2",
+        "geojson": "^0.5.0",
+        "i18next": "^25.3.6",
+        "lodash": "^4.17.21",
+        "lucia": "^3.2.2",
+        "md5": "^2.3.0",
+        "nodemailer": "^6.9.13",
+        "oslo": "^1.2.1",
+        "pg": "^8.14.1",
+        "pino": "^9.7.0",
+        "pluscodes": "^2.6.0",
+        "postgres": "^3.4.5",
+        "qs": "^6.14.0",
+        "ws": "^8.18.3",
+      },
+      "devDependencies": {
+        "@types/node": "^22.15.21",
+        "@types/qs": "^6.14.0",
+        "bun-types": "latest",
+      },
+    },
+  },
+  "packages": {
+    "@babel/runtime": ["@babel/runtime@7.28.6", "", {}, "sha512-05WQkdpL9COIMz4LjTxGpPNCdlpyimKppYNoJ5Di5EUObifl8t4tuLuUBBZEpoLYOmfvIWrsp9fCl0HoPRVTdA=="],
+
+    "@borewit/text-codec": ["@borewit/text-codec@0.2.1", "", {}, "sha512-k7vvKPbf7J2fZ5klGRD9AeKfUvojuZIQ3BT5u7Jfv+puwXkUBUT5PVyMDfJZpy30CBDXGMgw7fguK/lpOMBvgw=="],
+
+    "@drizzle-team/brocli": ["@drizzle-team/brocli@0.10.2", "", {}, ""],
+
+    "@elysiajs/cors": ["@elysiajs/cors@1.4.1", "", { "peerDependencies": { "elysia": ">= 1.4.0" } }, "sha512-lQfad+F3r4mNwsxRKbXyJB8Jg43oAOXjRwn7sKUL6bcOW3KjUqUimTS+woNpO97efpzjtDE0tEjGk9DTw8lqTQ=="],
+
+    "@elysiajs/eden": ["@elysiajs/eden@1.4.6", "", { "peerDependencies": { "elysia": ">=1.4.19" } }, "sha512-Tsa4NwXEWg/u73vWiYZQ3L5/ecgZSxqiEjYwpS+4qBKXeTZqZKl2hcgHJSVBL+InEDMi35Xugct7qyAXE5oM4Q=="],
+
+    "@elysiajs/swagger": ["@elysiajs/swagger@1.3.1", "", { "dependencies": { "@scalar/themes": "^0.9.52", "@scalar/types": "^0.0.12", "openapi-types": "^12.1.3", "pathe": "^1.1.2" }, "peerDependencies": { "elysia": ">= 1.3.0" } }, "sha512-LcbLHa0zE6FJKWPWKsIC/f+62wbDv3aXydqcNPVPyqNcaUgwvCajIi+5kHEU6GO3oXUCpzKaMsb3gsjt8sLzFQ=="],
+
+    "@esbuild-kit/core-utils": ["@esbuild-kit/core-utils@3.3.2", "", { "dependencies": { "esbuild": "~0.18.20", "source-map-support": "^0.5.21" } }, ""],
+
+    "@esbuild-kit/esm-loader": ["@esbuild-kit/esm-loader@2.6.5", "", { "dependencies": { "@esbuild-kit/core-utils": "^3.3.2", "get-tsconfig": "^4.7.0" } }, ""],
+
+    "@esbuild/darwin-arm64": ["@esbuild/darwin-arm64@0.25.2", "", { "os": "darwin", "cpu": "arm64" }, ""],
+
+    "@hexagon/base64": ["@hexagon/base64@1.1.28", "", {}, ""],
+
+    "@levischuck/tiny-cbor": ["@levischuck/tiny-cbor@0.2.2", "", {}, ""],
+
+    "@lucia-auth/adapter-drizzle": ["@lucia-auth/adapter-drizzle@1.0.7", "", { "peerDependencies": { "lucia": "3.x" } }, ""],
+
+    "@neondatabase/serverless": ["@neondatabase/serverless@1.0.2", "", { "dependencies": { "@types/node": "^22.15.30", "@types/pg": "^8.8.0" } }, "sha512-I5sbpSIAHiB+b6UttofhrN/UJXII+4tZPAq1qugzwCwLIL8EZLV7F/JyHUrEIiGgQpEXzpnjlJ+zwcEhheGvCw=="],
+
+    "@noble/ed25519": ["@noble/ed25519@3.0.0", "", {}, "sha512-QyteqMNm0GLqfa5SoYbSC3+Pvykwpn95Zgth4MFVSMKBB75ELl9tX1LAVsN4c3HXOrakHsF2gL4zWDAYCcsnzg=="],
+
+    "@noble/hashes": ["@noble/hashes@2.0.1", "", {}, "sha512-XlOlEbQcE9fmuXxrVTXCTlG2nlRXa9Rj3rr5Ue/+tX+nmkgbX720YHh0VR3hBF9xDvwnb8D2shVGOwNx+ulArw=="],
+
+    "@node-rs/argon2": ["@node-rs/argon2@1.7.0", "", { "optionalDependencies": { "@node-rs/argon2-darwin-arm64": "1.7.0" } }, ""],
+
+    "@node-rs/argon2-darwin-arm64": ["@node-rs/argon2-darwin-arm64@1.7.0", "", { "os": "darwin", "cpu": "arm64" }, ""],
+
+    "@node-rs/bcrypt": ["@node-rs/bcrypt@1.9.0", "", { "optionalDependencies": { "@node-rs/bcrypt-darwin-arm64": "1.9.0" } }, ""],
+
+    "@node-rs/bcrypt-darwin-arm64": ["@node-rs/bcrypt-darwin-arm64@1.9.0", "", { "os": "darwin", "cpu": "arm64" }, ""],
+
+    "@openstreetmap/id-tagging-schema": ["@openstreetmap/id-tagging-schema@6.14.0", "", {}, "sha512-VE7a4uyNkaQmGvn4ZM5yURnb58eugM55wzO9CG1yYBFwxCLtJKUsZfGB1MXMFWfbkMQhilWapttbM3EJLw+qTQ=="],
+
+    "@oslojs/asn1": ["@oslojs/asn1@1.0.0", "", { "dependencies": { "@oslojs/binary": "1.0.0" } }, ""],
+
+    "@oslojs/binary": ["@oslojs/binary@1.0.0", "", {}, ""],
+
+    "@oslojs/crypto": ["@oslojs/crypto@1.0.1", "", { "dependencies": { "@oslojs/asn1": "1.0.0", "@oslojs/binary": "1.0.0" } }, ""],
+
+    "@oslojs/encoding": ["@oslojs/encoding@1.1.0", "", {}, ""],
+
+    "@peculiar/asn1-android": ["@peculiar/asn1-android@2.3.10", "", { "dependencies": { "@peculiar/asn1-schema": "^2.3.8", "asn1js": "^3.0.5", "tslib": "^2.6.2" } }, ""],
+
+    "@peculiar/asn1-ecc": ["@peculiar/asn1-ecc@2.3.8", "", { "dependencies": { "@peculiar/asn1-schema": "^2.3.8", "@peculiar/asn1-x509": "^2.3.8", "asn1js": "^3.0.5", "tslib": "^2.6.2" } }, ""],
+
+    "@peculiar/asn1-rsa": ["@peculiar/asn1-rsa@2.3.8", "", { "dependencies": { "@peculiar/asn1-schema": "^2.3.8", "@peculiar/asn1-x509": "^2.3.8", "asn1js": "^3.0.5", "tslib": "^2.6.2" } }, ""],
+
+    "@peculiar/asn1-schema": ["@peculiar/asn1-schema@2.3.8", "", { "dependencies": { "asn1js": "^3.0.5", "pvtsutils": "^1.3.5", "tslib": "^2.6.2" } }, ""],
+
+    "@peculiar/asn1-x509": ["@peculiar/asn1-x509@2.3.8", "", { "dependencies": { "@peculiar/asn1-schema": "^2.3.8", "asn1js": "^3.0.5", "ipaddr.js": "^2.1.0", "pvtsutils": "^1.3.5", "tslib": "^2.6.2" } }, ""],
+
+    "@pinojs/redact": ["@pinojs/redact@0.4.0", "", {}, "sha512-k2ENnmBugE/rzQfEcdWHcCY+/FM3VLzH9cYEsbdsoqrvzAKRhUZeRNhAZvB8OitQJ1TBed3yqWtdjzS6wJKBwg=="],
+
+    "@scalar/openapi-types": ["@scalar/openapi-types@0.1.1", "", {}, ""],
+
+    "@scalar/themes": ["@scalar/themes@0.9.58", "", { "dependencies": { "@scalar/types": "0.0.25" } }, ""],
+
+    "@scalar/types": ["@scalar/types@0.0.12", "", { "dependencies": { "@scalar/openapi-types": "0.1.1", "@unhead/schema": "^1.9.5" } }, ""],
+
+    "@simplewebauthn/browser": ["@simplewebauthn/browser@10.0.0", "", { "dependencies": { "@simplewebauthn/types": "^10.0.0" } }, ""],
+
+    "@simplewebauthn/server": ["@simplewebauthn/server@10.0.0", "", { "dependencies": { "@hexagon/base64": "^1.1.27", "@levischuck/tiny-cbor": "^0.2.2", "@peculiar/asn1-android": "^2.3.10", "@peculiar/asn1-ecc": "^2.3.8", "@peculiar/asn1-rsa": "^2.3.8", "@peculiar/asn1-schema": "^2.3.8", "@peculiar/asn1-x509": "^2.3.8", "@simplewebauthn/types": "^10.0.0", "cross-fetch": "^4.0.0" } }, ""],
+
+    "@simplewebauthn/types": ["@simplewebauthn/types@10.0.0", "", {}, ""],
+
+    "@sinclair/typebox": ["@sinclair/typebox@0.34.31", "", {}, ""],
+
+    "@tokenizer/inflate": ["@tokenizer/inflate@0.4.1", "", { "dependencies": { "debug": "^4.4.3", "token-types": "^6.1.1" } }, "sha512-2mAv+8pkG6GIZiF1kNg1jAjh27IDxEPKwdGul3snfztFerfPGI1LjDezZp3i7BElXompqEtPmoPx6c2wgtWsOA=="],
+
+    "@tokenizer/token": ["@tokenizer/token@0.3.0", "", {}, "sha512-OvjF+z51L3ov0OyAU0duzsYuvO01PH7x4t6DJx+guahgTnBHkhJdG7soQeTSFLWN3efnHyibZ4Z8l2EuWwJN3A=="],
+
+    "@turf/along": ["@turf/along@7.2.0", "", { "dependencies": { "@turf/bearing": "^7.2.0", "@turf/destination": "^7.2.0", "@turf/distance": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/angle": ["@turf/angle@7.2.0", "", { "dependencies": { "@turf/bearing": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/rhumb-bearing": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/area": ["@turf/area@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/bbox": ["@turf/bbox@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/bbox-clip": ["@turf/bbox-clip@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/bbox-polygon": ["@turf/bbox-polygon@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/bearing": ["@turf/bearing@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/bezier-spline": ["@turf/bezier-spline@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/boolean-clockwise": ["@turf/boolean-clockwise@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/boolean-concave": ["@turf/boolean-concave@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/boolean-contains": ["@turf/boolean-contains@7.2.0", "", { "dependencies": { "@turf/bbox": "^7.2.0", "@turf/boolean-point-in-polygon": "^7.2.0", "@turf/boolean-point-on-line": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/boolean-crosses": ["@turf/boolean-crosses@7.2.0", "", { "dependencies": { "@turf/boolean-point-in-polygon": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/line-intersect": "^7.2.0", "@turf/polygon-to-line": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/boolean-disjoint": ["@turf/boolean-disjoint@7.2.0", "", { "dependencies": { "@turf/boolean-point-in-polygon": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/line-intersect": "^7.2.0", "@turf/meta": "^7.2.0", "@turf/polygon-to-line": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/boolean-equal": ["@turf/boolean-equal@7.2.0", "", { "dependencies": { "@turf/clean-coords": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "geojson-equality-ts": "^1.0.2", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/boolean-intersects": ["@turf/boolean-intersects@7.2.0", "", { "dependencies": { "@turf/boolean-disjoint": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/boolean-overlap": ["@turf/boolean-overlap@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/line-intersect": "^7.2.0", "@turf/line-overlap": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "geojson-equality-ts": "^1.0.2", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/boolean-parallel": ["@turf/boolean-parallel@7.2.0", "", { "dependencies": { "@turf/clean-coords": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/line-segment": "^7.2.0", "@turf/rhumb-bearing": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/boolean-point-in-polygon": ["@turf/boolean-point-in-polygon@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "point-in-polygon-hao": "^1.1.0", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/boolean-point-on-line": ["@turf/boolean-point-on-line@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/boolean-touches": ["@turf/boolean-touches@7.2.0", "", { "dependencies": { "@turf/boolean-point-in-polygon": "^7.2.0", "@turf/boolean-point-on-line": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/boolean-valid": ["@turf/boolean-valid@7.2.0", "", { "dependencies": { "@turf/bbox": "^7.2.0", "@turf/boolean-crosses": "^7.2.0", "@turf/boolean-disjoint": "^7.2.0", "@turf/boolean-overlap": "^7.2.0", "@turf/boolean-point-in-polygon": "^7.2.0", "@turf/boolean-point-on-line": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/line-intersect": "^7.2.0", "@types/geojson": "^7946.0.10", "geojson-polygon-self-intersections": "^1.2.1", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/boolean-within": ["@turf/boolean-within@7.2.0", "", { "dependencies": { "@turf/bbox": "^7.2.0", "@turf/boolean-point-in-polygon": "^7.2.0", "@turf/boolean-point-on-line": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/buffer": ["@turf/buffer@7.2.0", "", { "dependencies": { "@turf/bbox": "^7.2.0", "@turf/center": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/jsts": "^2.7.1", "@turf/meta": "^7.2.0", "@turf/projection": "^7.2.0", "@types/geojson": "^7946.0.10", "d3-geo": "1.7.1" } }, ""],
+
+    "@turf/center": ["@turf/center@7.2.0", "", { "dependencies": { "@turf/bbox": "^7.2.0", "@turf/helpers": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/center-mean": ["@turf/center-mean@7.2.0", "", { "dependencies": { "@turf/bbox": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/center-median": ["@turf/center-median@7.2.0", "", { "dependencies": { "@turf/center-mean": "^7.2.0", "@turf/centroid": "^7.2.0", "@turf/distance": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/center-of-mass": ["@turf/center-of-mass@7.2.0", "", { "dependencies": { "@turf/centroid": "^7.2.0", "@turf/convex": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/centroid": ["@turf/centroid@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/circle": ["@turf/circle@7.2.0", "", { "dependencies": { "@turf/destination": "^7.2.0", "@turf/helpers": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/clean-coords": ["@turf/clean-coords@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/clone": ["@turf/clone@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/clusters": ["@turf/clusters@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/clusters-dbscan": ["@turf/clusters-dbscan@7.2.0", "", { "dependencies": { "@turf/clone": "^7.2.0", "@turf/distance": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "rbush": "^3.0.1", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/clusters-kmeans": ["@turf/clusters-kmeans@7.2.0", "", { "dependencies": { "@turf/clone": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "skmeans": "0.9.7", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/collect": ["@turf/collect@7.2.0", "", { "dependencies": { "@turf/bbox": "^7.2.0", "@turf/boolean-point-in-polygon": "^7.2.0", "@turf/helpers": "^7.2.0", "@types/geojson": "^7946.0.10", "rbush": "^3.0.1", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/combine": ["@turf/combine@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/concave": ["@turf/concave@7.2.0", "", { "dependencies": { "@turf/clone": "^7.2.0", "@turf/distance": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@turf/tin": "^7.2.0", "@types/geojson": "^7946.0.10", "topojson-client": "3.x", "topojson-server": "3.x", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/convex": ["@turf/convex@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "concaveman": "^1.2.1", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/destination": ["@turf/destination@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/difference": ["@turf/difference@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "polyclip-ts": "^0.16.8", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/dissolve": ["@turf/dissolve@7.2.0", "", { "dependencies": { "@turf/flatten": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "polyclip-ts": "^0.16.8", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/distance": ["@turf/distance@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/distance-weight": ["@turf/distance-weight@7.2.0", "", { "dependencies": { "@turf/centroid": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/ellipse": ["@turf/ellipse@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/rhumb-destination": "^7.2.0", "@turf/transform-rotate": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/envelope": ["@turf/envelope@7.2.0", "", { "dependencies": { "@turf/bbox": "^7.2.0", "@turf/bbox-polygon": "^7.2.0", "@turf/helpers": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/explode": ["@turf/explode@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/flatten": ["@turf/flatten@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/flip": ["@turf/flip@7.2.0", "", { "dependencies": { "@turf/clone": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/geojson-rbush": ["@turf/geojson-rbush@7.2.0", "", { "dependencies": { "@turf/bbox": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "rbush": "^3.0.1" } }, ""],
+
+    "@turf/great-circle": ["@turf/great-circle@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10" } }, ""],
+
+    "@turf/helpers": ["@turf/helpers@7.2.0", "", { "dependencies": { "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/hex-grid": ["@turf/hex-grid@7.2.0", "", { "dependencies": { "@turf/distance": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/intersect": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/interpolate": ["@turf/interpolate@7.2.0", "", { "dependencies": { "@turf/bbox": "^7.2.0", "@turf/centroid": "^7.2.0", "@turf/clone": "^7.2.0", "@turf/distance": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/hex-grid": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@turf/point-grid": "^7.2.0", "@turf/square-grid": "^7.2.0", "@turf/triangle-grid": "^7.2.0", "@types/geojson": "^7946.0.10" } }, ""],
+
+    "@turf/intersect": ["@turf/intersect@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "polyclip-ts": "^0.16.8", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/invariant": ["@turf/invariant@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/isobands": ["@turf/isobands@7.2.0", "", { "dependencies": { "@turf/area": "^7.2.0", "@turf/bbox": "^7.2.0", "@turf/boolean-point-in-polygon": "^7.2.0", "@turf/explode": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "marchingsquares": "^1.3.3", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/isolines": ["@turf/isolines@7.2.0", "", { "dependencies": { "@turf/bbox": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "marchingsquares": "^1.3.3", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/jsts": ["@turf/jsts@2.7.2", "", { "dependencies": { "jsts": "2.7.1" } }, ""],
+
+    "@turf/kinks": ["@turf/kinks@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/length": ["@turf/length@7.2.0", "", { "dependencies": { "@turf/distance": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/line-arc": ["@turf/line-arc@7.2.0", "", { "dependencies": { "@turf/circle": "^7.2.0", "@turf/destination": "^7.2.0", "@turf/helpers": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/line-chunk": ["@turf/line-chunk@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/length": "^7.2.0", "@turf/line-slice-along": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10" } }, ""],
+
+    "@turf/line-intersect": ["@turf/line-intersect@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@types/geojson": "^7946.0.10", "sweepline-intersections": "^1.5.0", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/line-offset": ["@turf/line-offset@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10" } }, ""],
+
+    "@turf/line-overlap": ["@turf/line-overlap@7.2.0", "", { "dependencies": { "@turf/boolean-point-on-line": "^7.2.0", "@turf/geojson-rbush": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/line-segment": "^7.2.0", "@turf/meta": "^7.2.0", "@turf/nearest-point-on-line": "^7.2.0", "@types/geojson": "^7946.0.10", "fast-deep-equal": "^3.1.3", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/line-segment": ["@turf/line-segment@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/line-slice": ["@turf/line-slice@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/nearest-point-on-line": "^7.2.0", "@types/geojson": "^7946.0.10" } }, ""],
+
+    "@turf/line-slice-along": ["@turf/line-slice-along@7.2.0", "", { "dependencies": { "@turf/bearing": "^7.2.0", "@turf/destination": "^7.2.0", "@turf/distance": "^7.2.0", "@turf/helpers": "^7.2.0", "@types/geojson": "^7946.0.10" } }, ""],
+
+    "@turf/line-split": ["@turf/line-split@7.2.0", "", { "dependencies": { "@turf/bbox": "^7.2.0", "@turf/geojson-rbush": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/line-intersect": "^7.2.0", "@turf/line-segment": "^7.2.0", "@turf/meta": "^7.2.0", "@turf/nearest-point-on-line": "^7.2.0", "@turf/square": "^7.2.0", "@turf/truncate": "^7.2.0", "@types/geojson": "^7946.0.10" } }, ""],
+
+    "@turf/line-to-polygon": ["@turf/line-to-polygon@7.2.0", "", { "dependencies": { "@turf/bbox": "^7.2.0", "@turf/clone": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/mask": ["@turf/mask@7.2.0", "", { "dependencies": { "@turf/clone": "^7.2.0", "@turf/helpers": "^7.2.0", "@types/geojson": "^7946.0.10", "polyclip-ts": "^0.16.8", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/meta": ["@turf/meta@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@types/geojson": "^7946.0.10" } }, ""],
+
+    "@turf/midpoint": ["@turf/midpoint@7.2.0", "", { "dependencies": { "@turf/bearing": "^7.2.0", "@turf/destination": "^7.2.0", "@turf/distance": "^7.2.0", "@turf/helpers": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/moran-index": ["@turf/moran-index@7.2.0", "", { "dependencies": { "@turf/distance-weight": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/nearest-neighbor-analysis": ["@turf/nearest-neighbor-analysis@7.2.0", "", { "dependencies": { "@turf/area": "^7.2.0", "@turf/bbox": "^7.2.0", "@turf/bbox-polygon": "^7.2.0", "@turf/centroid": "^7.2.0", "@turf/distance": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@turf/nearest-point": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/nearest-point": ["@turf/nearest-point@7.2.0", "", { "dependencies": { "@turf/clone": "^7.2.0", "@turf/distance": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/nearest-point-on-line": ["@turf/nearest-point-on-line@7.2.0", "", { "dependencies": { "@turf/distance": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/nearest-point-to-line": ["@turf/nearest-point-to-line@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@turf/point-to-line-distance": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/planepoint": ["@turf/planepoint@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/point-grid": ["@turf/point-grid@7.2.0", "", { "dependencies": { "@turf/boolean-within": "^7.2.0", "@turf/distance": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/point-on-feature": ["@turf/point-on-feature@7.2.0", "", { "dependencies": { "@turf/boolean-point-in-polygon": "^7.2.0", "@turf/center": "^7.2.0", "@turf/explode": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/nearest-point": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/point-to-line-distance": ["@turf/point-to-line-distance@7.2.0", "", { "dependencies": { "@turf/bearing": "^7.2.0", "@turf/distance": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@turf/nearest-point-on-line": "^7.2.0", "@turf/projection": "^7.2.0", "@turf/rhumb-bearing": "^7.2.0", "@turf/rhumb-distance": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/point-to-polygon-distance": ["@turf/point-to-polygon-distance@7.2.0", "", { "dependencies": { "@turf/boolean-point-in-polygon": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@turf/point-to-line-distance": "^7.2.0", "@turf/polygon-to-line": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/points-within-polygon": ["@turf/points-within-polygon@7.2.0", "", { "dependencies": { "@turf/boolean-point-in-polygon": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/polygon-smooth": ["@turf/polygon-smooth@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/polygon-tangents": ["@turf/polygon-tangents@7.2.0", "", { "dependencies": { "@turf/bbox": "^7.2.0", "@turf/boolean-within": "^7.2.0", "@turf/explode": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/nearest-point": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/polygon-to-line": ["@turf/polygon-to-line@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/polygonize": ["@turf/polygonize@7.2.0", "", { "dependencies": { "@turf/boolean-point-in-polygon": "^7.2.0", "@turf/envelope": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/projection": ["@turf/projection@7.2.0", "", { "dependencies": { "@turf/clone": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/quadrat-analysis": ["@turf/quadrat-analysis@7.2.0", "", { "dependencies": { "@turf/area": "^7.2.0", "@turf/bbox": "^7.2.0", "@turf/bbox-polygon": "^7.2.0", "@turf/centroid": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/point-grid": "^7.2.0", "@turf/random": "^7.2.0", "@turf/square-grid": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/random": ["@turf/random@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/rectangle-grid": ["@turf/rectangle-grid@7.2.0", "", { "dependencies": { "@turf/boolean-intersects": "^7.2.0", "@turf/distance": "^7.2.0", "@turf/helpers": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/rewind": ["@turf/rewind@7.2.0", "", { "dependencies": { "@turf/boolean-clockwise": "^7.2.0", "@turf/clone": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/rhumb-bearing": ["@turf/rhumb-bearing@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/rhumb-destination": ["@turf/rhumb-destination@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/rhumb-distance": ["@turf/rhumb-distance@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/sample": ["@turf/sample@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/sector": ["@turf/sector@7.2.0", "", { "dependencies": { "@turf/circle": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/line-arc": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/shortest-path": ["@turf/shortest-path@7.2.0", "", { "dependencies": { "@turf/bbox": "^7.2.0", "@turf/bbox-polygon": "^7.2.0", "@turf/boolean-point-in-polygon": "^7.2.0", "@turf/clean-coords": "^7.2.0", "@turf/distance": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@turf/transform-scale": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/simplify": ["@turf/simplify@7.2.0", "", { "dependencies": { "@turf/clean-coords": "^7.2.0", "@turf/clone": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/square": ["@turf/square@7.2.0", "", { "dependencies": { "@turf/distance": "^7.2.0", "@turf/helpers": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/square-grid": ["@turf/square-grid@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/rectangle-grid": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/standard-deviational-ellipse": ["@turf/standard-deviational-ellipse@7.2.0", "", { "dependencies": { "@turf/center-mean": "^7.2.0", "@turf/ellipse": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@turf/points-within-polygon": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/tag": ["@turf/tag@7.2.0", "", { "dependencies": { "@turf/boolean-point-in-polygon": "^7.2.0", "@turf/clone": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/tesselate": ["@turf/tesselate@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@types/geojson": "^7946.0.10", "earcut": "^2.2.4", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/tin": ["@turf/tin@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/transform-rotate": ["@turf/transform-rotate@7.2.0", "", { "dependencies": { "@turf/centroid": "^7.2.0", "@turf/clone": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@turf/rhumb-bearing": "^7.2.0", "@turf/rhumb-destination": "^7.2.0", "@turf/rhumb-distance": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/transform-scale": ["@turf/transform-scale@7.2.0", "", { "dependencies": { "@turf/bbox": "^7.2.0", "@turf/center": "^7.2.0", "@turf/centroid": "^7.2.0", "@turf/clone": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@turf/rhumb-bearing": "^7.2.0", "@turf/rhumb-destination": "^7.2.0", "@turf/rhumb-distance": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/transform-translate": ["@turf/transform-translate@7.2.0", "", { "dependencies": { "@turf/clone": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/meta": "^7.2.0", "@turf/rhumb-destination": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/triangle-grid": ["@turf/triangle-grid@7.2.0", "", { "dependencies": { "@turf/distance": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/intersect": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/truncate": ["@turf/truncate@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/turf": ["@turf/turf@7.2.0", "", { "dependencies": { "@turf/along": "^7.2.0", "@turf/angle": "^7.2.0", "@turf/area": "^7.2.0", "@turf/bbox": "^7.2.0", "@turf/bbox-clip": "^7.2.0", "@turf/bbox-polygon": "^7.2.0", "@turf/bearing": "^7.2.0", "@turf/bezier-spline": "^7.2.0", "@turf/boolean-clockwise": "^7.2.0", "@turf/boolean-concave": "^7.2.0", "@turf/boolean-contains": "^7.2.0", "@turf/boolean-crosses": "^7.2.0", "@turf/boolean-disjoint": "^7.2.0", "@turf/boolean-equal": "^7.2.0", "@turf/boolean-intersects": "^7.2.0", "@turf/boolean-overlap": "^7.2.0", "@turf/boolean-parallel": "^7.2.0", "@turf/boolean-point-in-polygon": "^7.2.0", "@turf/boolean-point-on-line": "^7.2.0", "@turf/boolean-touches": "^7.2.0", "@turf/boolean-valid": "^7.2.0", "@turf/boolean-within": "^7.2.0", "@turf/buffer": "^7.2.0", "@turf/center": "^7.2.0", "@turf/center-mean": "^7.2.0", "@turf/center-median": "^7.2.0", "@turf/center-of-mass": "^7.2.0", "@turf/centroid": "^7.2.0", "@turf/circle": "^7.2.0", "@turf/clean-coords": "^7.2.0", "@turf/clone": "^7.2.0", "@turf/clusters": "^7.2.0", "@turf/clusters-dbscan": "^7.2.0", "@turf/clusters-kmeans": "^7.2.0", "@turf/collect": "^7.2.0", "@turf/combine": "^7.2.0", "@turf/concave": "^7.2.0", "@turf/convex": "^7.2.0", "@turf/destination": "^7.2.0", "@turf/difference": "^7.2.0", "@turf/dissolve": "^7.2.0", "@turf/distance": "^7.2.0", "@turf/distance-weight": "^7.2.0", "@turf/ellipse": "^7.2.0", "@turf/envelope": "^7.2.0", "@turf/explode": "^7.2.0", "@turf/flatten": "^7.2.0", "@turf/flip": "^7.2.0", "@turf/geojson-rbush": "^7.2.0", "@turf/great-circle": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/hex-grid": "^7.2.0", "@turf/interpolate": "^7.2.0", "@turf/intersect": "^7.2.0", "@turf/invariant": "^7.2.0", "@turf/isobands": "^7.2.0", "@turf/isolines": "^7.2.0", "@turf/kinks": "^7.2.0", "@turf/length": "^7.2.0", "@turf/line-arc": "^7.2.0", "@turf/line-chunk": "^7.2.0", "@turf/line-intersect": "^7.2.0", "@turf/line-offset": "^7.2.0", "@turf/line-overlap": "^7.2.0", "@turf/line-segment": "^7.2.0", "@turf/line-slice": "^7.2.0", "@turf/line-slice-along": "^7.2.0", "@turf/line-split": "^7.2.0", "@turf/line-to-polygon": "^7.2.0", "@turf/mask": "^7.2.0", "@turf/meta": "^7.2.0", "@turf/midpoint": "^7.2.0", "@turf/moran-index": "^7.2.0", "@turf/nearest-neighbor-analysis": "^7.2.0", "@turf/nearest-point": "^7.2.0", "@turf/nearest-point-on-line": "^7.2.0", "@turf/nearest-point-to-line": "^7.2.0", "@turf/planepoint": "^7.2.0", "@turf/point-grid": "^7.2.0", "@turf/point-on-feature": "^7.2.0", "@turf/point-to-line-distance": "^7.2.0", "@turf/point-to-polygon-distance": "^7.2.0", "@turf/points-within-polygon": "^7.2.0", "@turf/polygon-smooth": "^7.2.0", "@turf/polygon-tangents": "^7.2.0", "@turf/polygon-to-line": "^7.2.0", "@turf/polygonize": "^7.2.0", "@turf/projection": "^7.2.0", "@turf/quadrat-analysis": "^7.2.0", "@turf/random": "^7.2.0", "@turf/rectangle-grid": "^7.2.0", "@turf/rewind": "^7.2.0", "@turf/rhumb-bearing": "^7.2.0", "@turf/rhumb-destination": "^7.2.0", "@turf/rhumb-distance": "^7.2.0", "@turf/sample": "^7.2.0", "@turf/sector": "^7.2.0", "@turf/shortest-path": "^7.2.0", "@turf/simplify": "^7.2.0", "@turf/square": "^7.2.0", "@turf/square-grid": "^7.2.0", "@turf/standard-deviational-ellipse": "^7.2.0", "@turf/tag": "^7.2.0", "@turf/tesselate": "^7.2.0", "@turf/tin": "^7.2.0", "@turf/transform-rotate": "^7.2.0", "@turf/transform-scale": "^7.2.0", "@turf/transform-translate": "^7.2.0", "@turf/triangle-grid": "^7.2.0", "@turf/truncate": "^7.2.0", "@turf/union": "^7.2.0", "@turf/unkink-polygon": "^7.2.0", "@turf/voronoi": "^7.2.0", "@types/geojson": "^7946.0.10", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/union": ["@turf/union@7.2.0", "", { "dependencies": { "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "polyclip-ts": "^0.16.8", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/unkink-polygon": ["@turf/unkink-polygon@7.2.0", "", { "dependencies": { "@turf/area": "^7.2.0", "@turf/boolean-point-in-polygon": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/meta": "^7.2.0", "@types/geojson": "^7946.0.10", "rbush": "^3.0.1", "tslib": "^2.8.1" } }, ""],
+
+    "@turf/voronoi": ["@turf/voronoi@7.2.0", "", { "dependencies": { "@turf/clone": "^7.2.0", "@turf/helpers": "^7.2.0", "@turf/invariant": "^7.2.0", "@types/d3-voronoi": "^1.1.12", "@types/geojson": "^7946.0.10", "d3-voronoi": "1.1.2", "tslib": "^2.8.1" } }, ""],
+
+    "@types/d3-voronoi": ["@types/d3-voronoi@1.1.12", "", {}, ""],
+
+    "@types/geojson": ["@types/geojson@7946.0.16", "", {}, ""],
+
+    "@types/lodash": ["@types/lodash@4.17.17", "", {}, ""],
+
+    "@types/node": ["@types/node@22.19.9", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-PD03/U8g1F9T9MI+1OBisaIARhSzeidsUjQaf51fOxrfjeiKN9bLVO06lHuHYjxdnqLWJijJHfqXPSJri2EM2A=="],
+
+    "@types/nodemailer": ["@types/nodemailer@6.4.15", "", { "dependencies": { "@types/node": "*" } }, ""],
+
+    "@types/pg": ["@types/pg@8.16.0", "", { "dependencies": { "@types/node": "*", "pg-protocol": "*", "pg-types": "^2.2.0" } }, "sha512-RmhMd/wD+CF8Dfo+cVIy3RR5cl8CyfXQ0tGgW6XBL8L4LM/UTEbNXYRbLwU6w+CgrKBNbrQWt4FUtTfaU5jSYQ=="],
+
+    "@types/qs": ["@types/qs@6.14.0", "", {}, "sha512-eOunJqu0K1923aExK6y8p6fsihYEn/BYuQ4g0CxAAgFc4b/ZLN4CrsRZ55srTdqoiLzU2B2evC+apEIxprEzkQ=="],
+
+    "@unhead/schema": ["@unhead/schema@1.11.14", "", { "dependencies": { "hookable": "^5.5.3", "zhead": "^2.2.4" } }, ""],
+
+    "asn1js": ["asn1js@3.0.5", "", { "dependencies": { "pvtsutils": "^1.3.2", "pvutils": "^1.1.3", "tslib": "^2.4.0" } }, ""],
+
+    "asynckit": ["asynckit@0.4.0", "", {}, ""],
+
+    "atomic-sleep": ["atomic-sleep@1.0.0", "", {}, "sha512-kNOjDqAh7px0XWNI+4QbzoiR/nTkHAWNud2uvnJquD1/x5a7EQZMJT0AczqK0Qn67oY/TTQ1LbUKajZpp3I9tQ=="],
+
+    "axios": ["axios@1.8.4", "", { "dependencies": { "follow-redirects": "^1.15.6", "form-data": "^4.0.0", "proxy-from-env": "^1.1.0" } }, ""],
+
+    "bignumber.js": ["bignumber.js@9.2.0", "", {}, ""],
+
+    "buffer-from": ["buffer-from@1.1.2", "", {}, ""],
+
+    "bun-types": ["bun-types@1.2.15", "", { "dependencies": { "@types/node": "*" } }, "sha512-NarRIaS+iOaQU1JPfyKhZm4AsUOrwUOqRNHY0XxI8GI8jYxiLXLcdjYMG9UKS+fwWasc1uw1htV9AX24dD+p4w=="],
+
+    "call-bind-apply-helpers": ["call-bind-apply-helpers@1.0.2", "", { "dependencies": { "es-errors": "^1.3.0", "function-bind": "^1.1.2" } }, ""],
+
+    "call-bound": ["call-bound@1.0.4", "", { "dependencies": { "call-bind-apply-helpers": "^1.0.2", "get-intrinsic": "^1.3.0" } }, ""],
+
+    "charenc": ["charenc@0.0.2", "", {}, ""],
+
+    "combined-stream": ["combined-stream@1.0.8", "", { "dependencies": { "delayed-stream": "~1.0.0" } }, ""],
+
+    "commander": ["commander@2.20.3", "", {}, ""],
+
+    "concaveman": ["concaveman@1.2.1", "", { "dependencies": { "point-in-polygon": "^1.1.0", "rbush": "^3.0.1", "robust-predicates": "^2.0.4", "tinyqueue": "^2.0.3" } }, ""],
+
+    "cookie": ["cookie@1.1.1", "", {}, "sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ=="],
+
+    "cross-fetch": ["cross-fetch@4.0.0", "", { "dependencies": { "node-fetch": "^2.6.12" } }, ""],
+
+    "crypt": ["crypt@0.0.2", "", {}, ""],
+
+    "d3-array": ["d3-array@1.2.4", "", {}, ""],
+
+    "d3-geo": ["d3-geo@1.7.1", "", { "dependencies": { "d3-array": "1" } }, ""],
+
+    "d3-voronoi": ["d3-voronoi@1.1.2", "", {}, ""],
+
+    "debug": ["debug@4.4.3", "", { "dependencies": { "ms": "^2.1.3" } }, "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA=="],
+
+    "delayed-stream": ["delayed-stream@1.0.0", "", {}, ""],
+
+    "drizzle-kit": ["drizzle-kit@0.31.0", "", { "dependencies": { "@drizzle-team/brocli": "^0.10.2", "@esbuild-kit/esm-loader": "^2.5.5", "esbuild": "^0.25.2", "esbuild-register": "^3.5.0" }, "bin": "bin.cjs" }, ""],
+
+    "drizzle-orm": ["drizzle-orm@0.43.1", "", { "peerDependencies": { "@aws-sdk/client-rds-data": ">=3", "@cloudflare/workers-types": ">=4", "@electric-sql/pglite": ">=0.2.0", "@libsql/client": ">=0.10.0", "@libsql/client-wasm": ">=0.10.0", "@neondatabase/serverless": ">=0.10.0", "@op-engineering/op-sqlite": ">=2", "@opentelemetry/api": "^1.4.1", "@planetscale/database": ">=1.13", "@prisma/client": "*", "@tidbcloud/serverless": "*", "@types/better-sqlite3": "*", "@types/pg": "*", "@types/sql.js": "*", "@vercel/postgres": ">=0.8.0", "@xata.io/client": "*", "better-sqlite3": ">=7", "bun-types": "*", "expo-sqlite": ">=14.0.0", "gel": ">=2", "knex": "*", "kysely": "*", "mysql2": ">=2", "pg": ">=8", "postgres": ">=3", "sql.js": ">=1", "sqlite3": ">=5" }, "optionalPeers": ["@aws-sdk/client-rds-data", "@cloudflare/workers-types", "@electric-sql/pglite", "@libsql/client", "@libsql/client-wasm", "@op-engineering/op-sqlite", "@opentelemetry/api", "@planetscale/database", "@prisma/client", "@tidbcloud/serverless", "@types/better-sqlite3", "@types/sql.js", "@vercel/postgres", "@xata.io/client", "better-sqlite3", "expo-sqlite", "gel", "knex", "kysely", "mysql2", "sql.js", "sqlite3"] }, ""],
+
+    "dunder-proto": ["dunder-proto@1.0.1", "", { "dependencies": { "call-bind-apply-helpers": "^1.0.1", "es-errors": "^1.3.0", "gopd": "^1.2.0" } }, ""],
+
+    "earcut": ["earcut@2.2.4", "", {}, ""],
+
+    "elysia": ["elysia@1.4.22", "", { "dependencies": { "cookie": "^1.1.1", "exact-mirror": "^0.2.6", "fast-decode-uri-component": "^1.0.1", "memoirist": "^0.4.0" }, "peerDependencies": { "@sinclair/typebox": ">= 0.34.0 < 1", "@types/bun": ">= 1.2.0", "exact-mirror": ">= 0.0.9", "file-type": ">= 20.0.0", "openapi-types": ">= 12.0.0", "typescript": ">= 5.0.0" }, "optionalPeers": ["@types/bun", "typescript"] }, "sha512-Q90VCb1RVFxnFaRV0FDoSylESQQLWgLHFmWciQJdX9h3b2cSasji9KWEUvaJuy/L9ciAGg4RAhUVfsXHg5K2RQ=="],
+
+    "elysia-i18next": ["elysia-i18next@4.0.3", "", { "peerDependencies": { "elysia": ">= 1.0.1", "i18next": ">= 23.5.1" } }, "sha512-IvknDDYOUqAn76kCOVcIYtfd1UEMDFS6m2axghFxSM837kOjofzAGJRJx0wKz1APDxSPMyQIQzaKNBU/Vpen+g=="],
+
+    "es-define-property": ["es-define-property@1.0.1", "", {}, ""],
+
+    "es-errors": ["es-errors@1.3.0", "", {}, ""],
+
+    "es-object-atoms": ["es-object-atoms@1.1.1", "", { "dependencies": { "es-errors": "^1.3.0" } }, ""],
+
+    "esbuild": ["esbuild@0.25.2", "", { "optionalDependencies": { "@esbuild/darwin-arm64": "0.25.2" }, "bin": "bin/esbuild" }, ""],
+
+    "esbuild-register": ["esbuild-register@3.6.0", "", { "dependencies": { "debug": "^4.3.4" }, "peerDependencies": { "esbuild": ">=0.12 <1" } }, ""],
+
+    "exact-mirror": ["exact-mirror@0.2.6", "", { "peerDependencies": { "@sinclair/typebox": "^0.34.15" } }, "sha512-7s059UIx9/tnOKSySzUk5cPGkoILhTE4p6ncf6uIPaQ+9aRBQzQjc9+q85l51+oZ+P6aBxh084pD0CzBQPcFUA=="],
+
+    "fast-decode-uri-component": ["fast-decode-uri-component@1.0.1", "", {}, "sha512-WKgKWg5eUxvRZGwW8FvfbaH7AXSh2cL+3j5fMGzUMCxWBJ3dV3a7Wz8y2f/uQ0e3B6WmodD3oS54jTQ9HVTIIg=="],
+
+    "fast-deep-equal": ["fast-deep-equal@3.1.3", "", {}, ""],
+
+    "file-type": ["file-type@21.3.0", "", { "dependencies": { "@tokenizer/inflate": "^0.4.1", "strtok3": "^10.3.4", "token-types": "^6.1.1", "uint8array-extras": "^1.4.0" } }, "sha512-8kPJMIGz1Yt/aPEwOsrR97ZyZaD1Iqm8PClb1nYFclUCkBi0Ma5IsYNQzvSFS9ib51lWyIw5mIT9rWzI/xjpzA=="],
+
+    "follow-redirects": ["follow-redirects@1.15.6", "", {}, ""],
+
+    "form-data": ["form-data@4.0.0", "", { "dependencies": { "asynckit": "^0.4.0", "combined-stream": "^1.0.8", "mime-types": "^2.1.12" } }, ""],
+
+    "function-bind": ["function-bind@1.1.2", "", {}, ""],
+
+    "fuzzball": ["fuzzball@2.2.2", "", { "dependencies": { "heap": ">=0.2.0", "lodash": "^4.17.21", "setimmediate": "^1.0.5" } }, ""],
+
+    "geojson": ["geojson@0.5.0", "", {}, ""],
+
+    "geojson-equality-ts": ["geojson-equality-ts@1.0.2", "", { "dependencies": { "@types/geojson": "^7946.0.14" } }, ""],
+
+    "geojson-polygon-self-intersections": ["geojson-polygon-self-intersections@1.2.1", "", { "dependencies": { "rbush": "^2.0.1" } }, ""],
+
+    "get-intrinsic": ["get-intrinsic@1.3.0", "", { "dependencies": { "call-bind-apply-helpers": "^1.0.2", "es-define-property": "^1.0.1", "es-errors": "^1.3.0", "es-object-atoms": "^1.1.1", "function-bind": "^1.1.2", "get-proto": "^1.0.1", "gopd": "^1.2.0", "has-symbols": "^1.1.0", "hasown": "^2.0.2", "math-intrinsics": "^1.1.0" } }, ""],
+
+    "get-proto": ["get-proto@1.0.1", "", { "dependencies": { "dunder-proto": "^1.0.1", "es-object-atoms": "^1.0.0" } }, ""],
+
+    "get-tsconfig": ["get-tsconfig@4.10.0", "", { "dependencies": { "resolve-pkg-maps": "^1.0.0" } }, ""],
+
+    "gopd": ["gopd@1.2.0", "", {}, ""],
+
+    "has-symbols": ["has-symbols@1.1.0", "", {}, ""],
+
+    "hasown": ["hasown@2.0.2", "", { "dependencies": { "function-bind": "^1.1.2" } }, ""],
+
+    "heap": ["heap@0.2.7", "", {}, ""],
+
+    "hookable": ["hookable@5.5.3", "", {}, ""],
+
+    "i18next": ["i18next@25.8.4", "", { "dependencies": { "@babel/runtime": "^7.28.4" }, "peerDependencies": { "typescript": "^5" }, "optionalPeers": ["typescript"] }, "sha512-a9A0MnUjKvzjEN/26ZY1okpra9kA8MEwzYEz1BNm+IyxUKPRH6ihf0p7vj8YvULwZHKHl3zkJ6KOt4hewxBecQ=="],
+
+    "ieee754": ["ieee754@1.2.1", "", {}, "sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA=="],
+
+    "ipaddr.js": ["ipaddr.js@2.2.0", "", {}, ""],
+
+    "is-buffer": ["is-buffer@1.1.6", "", {}, ""],
+
+    "jsts": ["jsts@2.7.1", "", {}, ""],
+
+    "lodash": ["lodash@4.17.21", "", {}, ""],
+
+    "lucia": ["lucia@3.2.2", "", { "dependencies": { "@oslojs/crypto": "^1.0.1", "@oslojs/encoding": "^1.1.0" } }, ""],
+
+    "marchingsquares": ["marchingsquares@1.3.3", "", {}, ""],
+
+    "math-intrinsics": ["math-intrinsics@1.1.0", "", {}, ""],
+
+    "md5": ["md5@2.3.0", "", { "dependencies": { "charenc": "0.0.2", "crypt": "0.0.2", "is-buffer": "~1.1.6" } }, ""],
+
+    "memoirist": ["memoirist@0.4.0", "", {}, "sha512-zxTgA0mSYELa66DimuNQDvyLq36AwDlTuVRbnQtB+VuTcKWm5Qc4z3WkSpgsFWHNhexqkIooqpv4hdcqrX5Nmg=="],
+
+    "mime-db": ["mime-db@1.52.0", "", {}, ""],
+
+    "mime-types": ["mime-types@2.1.35", "", { "dependencies": { "mime-db": "1.52.0" } }, ""],
+
+    "ms": ["ms@2.1.3", "", {}, ""],
+
+    "node-fetch": ["node-fetch@2.7.0", "", { "dependencies": { "whatwg-url": "^5.0.0" }, "peerDependencies": { "encoding": "^0.1.0" }, "optionalPeers": ["encoding"] }, ""],
+
+    "nodemailer": ["nodemailer@6.9.13", "", {}, ""],
+
+    "object-inspect": ["object-inspect@1.13.4", "", {}, ""],
+
+    "on-exit-leak-free": ["on-exit-leak-free@2.1.2", "", {}, "sha512-0eJJY6hXLGf1udHwfNftBqH+g73EU4B504nZeKpz1sYRKafAghwxEJunB2O7rDZkL4PGfsMVnTXZ2EjibbqcsA=="],
+
+    "openapi-types": ["openapi-types@12.1.3", "", {}, ""],
+
+    "oslo": ["oslo@1.2.1", "", { "dependencies": { "@node-rs/argon2": "1.7.0", "@node-rs/bcrypt": "1.9.0" } }, ""],
+
+    "pathe": ["pathe@1.1.2", "", {}, ""],
+
+    "pg": ["pg@8.14.1", "", { "dependencies": { "pg-connection-string": "^2.7.0", "pg-pool": "^3.8.0", "pg-protocol": "^1.8.0", "pg-types": "^2.1.0", "pgpass": "1.x" }, "optionalDependencies": { "pg-cloudflare": "^1.1.1" }, "peerDependencies": { "pg-native": ">=3.0.1" }, "optionalPeers": ["pg-native"] }, ""],
+
+    "pg-cloudflare": ["pg-cloudflare@1.1.1", "", {}, ""],
+
+    "pg-connection-string": ["pg-connection-string@2.7.0", "", {}, ""],
+
+    "pg-int8": ["pg-int8@1.0.1", "", {}, ""],
+
+    "pg-pool": ["pg-pool@3.8.0", "", { "peerDependencies": { "pg": ">=8.0" } }, ""],
+
+    "pg-protocol": ["pg-protocol@1.8.0", "", {}, ""],
+
+    "pg-types": ["pg-types@2.2.0", "", { "dependencies": { "pg-int8": "1.0.1", "postgres-array": "~2.0.0", "postgres-bytea": "~1.0.0", "postgres-date": "~1.0.4", "postgres-interval": "^1.1.0" } }, ""],
+
+    "pgpass": ["pgpass@1.0.5", "", { "dependencies": { "split2": "^4.1.0" } }, ""],
+
+    "pino": ["pino@9.14.0", "", { "dependencies": { "@pinojs/redact": "^0.4.0", "atomic-sleep": "^1.0.0", "on-exit-leak-free": "^2.1.0", "pino-abstract-transport": "^2.0.0", "pino-std-serializers": "^7.0.0", "process-warning": "^5.0.0", "quick-format-unescaped": "^4.0.3", "real-require": "^0.2.0", "safe-stable-stringify": "^2.3.1", "sonic-boom": "^4.0.1", "thread-stream": "^3.0.0" }, "bin": "bin.js" }, "sha512-8OEwKp5juEvb/MjpIc4hjqfgCNysrS94RIOMXYvpYCdm/jglrKEiAYmiumbmGhCvs+IcInsphYDFwqrjr7398w=="],
+
+    "pino-abstract-transport": ["pino-abstract-transport@2.0.0", "", { "dependencies": { "split2": "^4.0.0" } }, "sha512-F63x5tizV6WCh4R6RHyi2Ml+M70DNRXt/+HANowMflpgGFMAym/VKm6G7ZOQRjqN7XbGxK1Lg9t6ZrtzOaivMw=="],
+
+    "pino-std-serializers": ["pino-std-serializers@7.1.0", "", {}, "sha512-BndPH67/JxGExRgiX1dX0w1FvZck5Wa4aal9198SrRhZjH3GxKQUKIBnYJTdj2HDN3UQAS06HlfcSbQj2OHmaw=="],
+
+    "pluscodes": ["pluscodes@2.6.0", "", {}, ""],
+
+    "point-in-polygon": ["point-in-polygon@1.1.0", "", {}, ""],
+
+    "point-in-polygon-hao": ["point-in-polygon-hao@1.2.4", "", { "dependencies": { "robust-predicates": "^3.0.2" } }, ""],
+
+    "polyclip-ts": ["polyclip-ts@0.16.8", "", { "dependencies": { "bignumber.js": "^9.1.0", "splaytree-ts": "^1.0.2" } }, ""],
+
+    "postgres": ["postgres@3.4.5", "", {}, ""],
+
+    "postgres-array": ["postgres-array@2.0.0", "", {}, ""],
+
+    "postgres-bytea": ["postgres-bytea@1.0.0", "", {}, ""],
+
+    "postgres-date": ["postgres-date@1.0.7", "", {}, ""],
+
+    "postgres-interval": ["postgres-interval@1.2.0", "", { "dependencies": { "xtend": "^4.0.0" } }, ""],
+
+    "process-warning": ["process-warning@5.0.0", "", {}, "sha512-a39t9ApHNx2L4+HBnQKqxxHNs1r7KF+Intd8Q/g1bUh6q0WIp9voPXJ/x0j+ZL45KF1pJd9+q2jLIRMfvEshkA=="],
+
+    "proxy-from-env": ["proxy-from-env@1.1.0", "", {}, ""],
+
+    "pvtsutils": ["pvtsutils@1.3.5", "", { "dependencies": { "tslib": "^2.6.1" } }, ""],
+
+    "pvutils": ["pvutils@1.1.3", "", {}, ""],
+
+    "qs": ["qs@6.14.0", "", { "dependencies": { "side-channel": "^1.1.0" } }, ""],
+
+    "quick-format-unescaped": ["quick-format-unescaped@4.0.4", "", {}, "sha512-tYC1Q1hgyRuHgloV/YXs2w15unPVh8qfu/qCTfhTYamaw7fyhumKa2yGpdSo87vY32rIclj+4fWYQXUMs9EHvg=="],
+
+    "quickselect": ["quickselect@2.0.0", "", {}, ""],
+
+    "rbush": ["rbush@3.0.1", "", { "dependencies": { "quickselect": "^2.0.0" } }, ""],
+
+    "real-require": ["real-require@0.2.0", "", {}, "sha512-57frrGM/OCTLqLOAh0mhVA9VBMHd+9U7Zb2THMGdBUoZVOtGbJzjxsYGDJ3A9AYYCP4hn6y1TVbaOfzWtm5GFg=="],
+
+    "resolve-pkg-maps": ["resolve-pkg-maps@1.0.0", "", {}, ""],
+
+    "robust-predicates": ["robust-predicates@3.0.2", "", {}, ""],
+
+    "safe-stable-stringify": ["safe-stable-stringify@2.5.0", "", {}, "sha512-b3rppTKm9T+PsVCBEOUR46GWI7fdOs00VKZ1+9c1EWDaDMvjQc6tUwuFyIprgGgTcWoVHSKrU8H31ZHA2e0RHA=="],
+
+    "setimmediate": ["setimmediate@1.0.5", "", {}, ""],
+
+    "side-channel": ["side-channel@1.1.0", "", { "dependencies": { "es-errors": "^1.3.0", "object-inspect": "^1.13.3", "side-channel-list": "^1.0.0", "side-channel-map": "^1.0.1", "side-channel-weakmap": "^1.0.2" } }, ""],
+
+    "side-channel-list": ["side-channel-list@1.0.0", "", { "dependencies": { "es-errors": "^1.3.0", "object-inspect": "^1.13.3" } }, ""],
+
+    "side-channel-map": ["side-channel-map@1.0.1", "", { "dependencies": { "call-bound": "^1.0.2", "es-errors": "^1.3.0", "get-intrinsic": "^1.2.5", "object-inspect": "^1.13.3" } }, ""],
+
+    "side-channel-weakmap": ["side-channel-weakmap@1.0.2", "", { "dependencies": { "call-bound": "^1.0.2", "es-errors": "^1.3.0", "get-intrinsic": "^1.2.5", "object-inspect": "^1.13.3", "side-channel-map": "^1.0.1" } }, ""],
+
+    "skmeans": ["skmeans@0.9.7", "", {}, ""],
+
+    "sonic-boom": ["sonic-boom@4.2.0", "", { "dependencies": { "atomic-sleep": "^1.0.0" } }, "sha512-INb7TM37/mAcsGmc9hyyI6+QR3rR1zVRu36B0NeGXKnOOLiZOfER5SA+N7X7k3yUYRzLWafduTDvJAfDswwEww=="],
+
+    "source-map": ["source-map@0.6.1", "", {}, ""],
+
+    "source-map-support": ["source-map-support@0.5.21", "", { "dependencies": { "buffer-from": "^1.0.0", "source-map": "^0.6.0" } }, ""],
+
+    "splaytree-ts": ["splaytree-ts@1.0.2", "", {}, ""],
+
+    "split2": ["split2@4.2.0", "", {}, ""],
+
+    "strtok3": ["strtok3@10.3.4", "", { "dependencies": { "@tokenizer/token": "^0.3.0" } }, "sha512-KIy5nylvC5le1OdaaoCJ07L+8iQzJHGH6pWDuzS+d07Cu7n1MZ2x26P8ZKIWfbK02+XIL8Mp4RkWeqdUCrDMfg=="],
+
+    "sweepline-intersections": ["sweepline-intersections@1.5.0", "", { "dependencies": { "tinyqueue": "^2.0.0" } }, ""],
+
+    "thread-stream": ["thread-stream@3.1.0", "", { "dependencies": { "real-require": "^0.2.0" } }, "sha512-OqyPZ9u96VohAyMfJykzmivOrY2wfMSf3C5TtFJVgN+Hm6aj+voFhlK+kZEIv2FBh1X6Xp3DlnCOfEQ3B2J86A=="],
+
+    "tinyqueue": ["tinyqueue@2.0.3", "", {}, ""],
+
+    "token-types": ["token-types@6.1.2", "", { "dependencies": { "@borewit/text-codec": "^0.2.1", "@tokenizer/token": "^0.3.0", "ieee754": "^1.2.1" } }, "sha512-dRXchy+C0IgK8WPC6xvCHFRIWYUbqqdEIKPaKo/AcTUNzwLTK6AH7RjdLWsEZcAN/TBdtfUw3PYEgPr5VPr6ww=="],
+
+    "topojson-client": ["topojson-client@3.1.0", "", { "dependencies": { "commander": "2" }, "bin": { "topo2geo": "bin/topo2geo", "topomerge": "bin/topomerge", "topoquantize": "bin/topoquantize" } }, ""],
+
+    "topojson-server": ["topojson-server@3.0.1", "", { "dependencies": { "commander": "2" }, "bin": { "geo2topo": "bin/geo2topo" } }, ""],
+
+    "tr46": ["tr46@0.0.3", "", {}, ""],
+
+    "tslib": ["tslib@2.8.1", "", {}, ""],
+
+    "uint8array-extras": ["uint8array-extras@1.5.0", "", {}, "sha512-rvKSBiC5zqCCiDZ9kAOszZcDvdAHwwIKJG33Ykj43OKcWsnmcBRL09YTU4nOeHZ8Y2a7l1MgTd08SBe9A8Qj6A=="],
+
+    "undici-types": ["undici-types@6.21.0", "", {}, ""],
+
+    "webidl-conversions": ["webidl-conversions@3.0.1", "", {}, ""],
+
+    "whatwg-url": ["whatwg-url@5.0.0", "", { "dependencies": { "tr46": "~0.0.3", "webidl-conversions": "^3.0.0" } }, ""],
+
+    "ws": ["ws@8.19.0", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-blAT2mjOEIi0ZzruJfIhb3nps74PRWTCz1IjglWEEpQl5XS/UNama6u2/rjFkDDouqr4L67ry+1aGIALViWjDg=="],
+
+    "xtend": ["xtend@4.0.2", "", {}, ""],
+
+    "zhead": ["zhead@2.2.4", "", {}, ""],
+
+    "@esbuild-kit/core-utils/esbuild": ["esbuild@0.18.20", "", { "optionalDependencies": { "@esbuild/darwin-arm64": "0.18.20" }, "bin": "bin/esbuild" }, ""],
+
+    "@peculiar/asn1-android/tslib": ["tslib@2.6.2", "", {}, ""],
+
+    "@peculiar/asn1-ecc/tslib": ["tslib@2.6.2", "", {}, ""],
+
+    "@peculiar/asn1-rsa/tslib": ["tslib@2.6.2", "", {}, ""],
+
+    "@peculiar/asn1-schema/tslib": ["tslib@2.6.2", "", {}, ""],
+
+    "@peculiar/asn1-x509/tslib": ["tslib@2.6.2", "", {}, ""],
+
+    "@scalar/themes/@scalar/types": ["@scalar/types@0.0.25", "", { "dependencies": { "@scalar/openapi-types": "0.1.5", "@unhead/schema": "^1.11.11" } }, ""],
+
+    "asn1js/tslib": ["tslib@2.6.2", "", {}, ""],
+
+    "concaveman/robust-predicates": ["robust-predicates@2.0.4", "", {}, ""],
+
+    "geojson-polygon-self-intersections/rbush": ["rbush@2.0.2", "", { "dependencies": { "quickselect": "^1.0.1" } }, ""],
+
+    "pvtsutils/tslib": ["tslib@2.6.2", "", {}, ""],
+
+    "@esbuild-kit/core-utils/esbuild/@esbuild/darwin-arm64": ["@esbuild/darwin-arm64@0.18.20", "", { "os": "darwin", "cpu": "arm64" }, ""],
+
+    "@scalar/themes/@scalar/types/@scalar/openapi-types": ["@scalar/openapi-types@0.1.5", "", {}, ""],
+
+    "geojson-polygon-self-intersections/rbush/quickselect": ["quickselect@1.1.1", "", {}, ""],
+  }
+}

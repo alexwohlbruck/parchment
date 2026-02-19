@@ -95,6 +95,7 @@
     "@types/vue-router": "^2.0.0",
     "@vitejs/plugin-vue": "^4.6.2",
     "@vitest/ui": "^4.0.16",
+    "@vue/test-utils": "^2.4.6",
     "drizzle-orm": "^0.44.2",
     "happy-dom": "^20.1.0",
     "postcss": "^8.4.38",

@@ -52,6 +52,14 @@ vi.mock('@/lib/key-storage', () => ({
   getSeed: vi.fn(() => Promise.resolve(null)),
 }))
 
+// Mock window and navigator for happy-dom environment
+if (typeof window === 'undefined') {
+  global.window = {} as any
+}
+if (typeof navigator === 'undefined') {
+  global.navigator = {} as any
+}
+
 // Mock navigator.geolocation
 const mockGeolocation = {
   watchPosition: vi.fn(),
@@ -61,6 +69,7 @@ const mockGeolocation = {
 Object.defineProperty(global.navigator, 'geolocation', {
   value: mockGeolocation,
   writable: true,
+  configurable: true,
 })
 
 // Import after mocks
@@ -339,25 +348,22 @@ describe('useE2eeLocationBroadcast', () => {
 
     test('handles geolocation permission denied', async () => {
       mockGeolocation.watchPosition.mockImplementation((success, error, options) => {
-        setTimeout(() => {
-          error({ code: 1, message: 'Permission denied' })
-        }, 0)
+        // Call error immediately (synchronously) instead of setTimeout
+        error({ code: 1, message: 'Permission denied' })
         return 123
       })
 
       mockIsSetupComplete.value = true
       mockEncryptionPrivateKey.value = aliceKeys.encryption.privateKey
 
-      vi.useFakeTimers()
-
       const { start, broadcastError } = useE2eeLocationBroadcast()
       await start()
 
-      await vi.advanceTimersByTimeAsync(100)
+      // Wait for error to propagate
+      await nextTick()
+      await nextTick()
 
       expect(broadcastError.value).toContain('Location error')
-
-      vi.useRealTimers()
     })
   })
 

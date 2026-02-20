@@ -1,0 +1,9 @@
+{
+  "mapbox": {
+    "id": "mapbox",
+    "configSchema": "mapboxSchema",
+    "config": {
+      "accessToken": "pk.test-playwright-e2e"
+    }
+  }
+}

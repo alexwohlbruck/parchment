@@ -7,6 +7,9 @@
     "dev": "vite --host",
     "test": "vitest",
     "test:ui": "vitest --ui",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
     "dev:desktop": "bun tauri dev",
     "dev:ios": "bun tauri ios dev",
     "dev:android": "sh -c 'sleep 5 && adb reverse tcp:5000 tcp:5000' & bun tauri android dev",
@@ -87,6 +90,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4.1.10",
     "@tauri-apps/cli": "^2.9.5",
     "@types/mapbox-gl": "^2.7.21",

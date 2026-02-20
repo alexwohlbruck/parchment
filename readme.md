@@ -96,9 +96,11 @@ Development mode includes:
 
 ## Testing
 
-**Unit tests (Vitest)** — From `web/`: `bun run test` (or `bun run test:ui` / `bun run test --watch`). Tests live in `web/src/**/*.{test,spec}.ts`.
+**Unit tests (Vitest)** — From `web/`: `bun run test` (or `bun run test:ui` / `bun run test --watch`). Tests live in `web/src/**/*.{test,spec}.ts`. The web build runs unit tests before building (`vitest run`). Pre-commit runs only the web unit suite (Husky + lint-staged at repo root); e2e is not run on commit.
 
-**E2E tests (Playwright)** — Require Docker. Copy `web/e2e/env.test.example` to `web/e2e/env.test` (or `.env.test` in repo root), set `APP_TESTER_EMAIL` and optionally `E2E_MAPBOX_ACCESS_TOKEN` for map tests. From `web/`: `bun run test:e2e` (starts the test stack and runs tests); `bun run test:e2e:ui` for interactive UI. Test user receives OTP `0000-0000`.
+**E2E tests (Playwright)** — Require Docker. Copy `web/e2e/env.test.example` to `web/e2e/env.test` (or `.env.test` in repo root), set `APP_TESTER_EMAIL` and optionally `E2E_MAPBOX_ACCESS_TOKEN` for map tests. From `web/`: `bun run test:e2e` (starts the test stack and runs tests); `bun run test:e2e:ui` for interactive UI. Test user receives OTP `0000-0000`. E2E runs in CI only (not on pre-commit).
+
+**CI** — The pipeline runs web unit tests and then e2e tests; PRs require both to pass.
 
 ## 🗺️ Geocoding Setup (Optional)
 

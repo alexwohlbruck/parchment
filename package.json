@@ -1,0 +1,14 @@
+{
+  "name": "parchment-root",
+  "private": true,
+  "scripts": {
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^15.4.3"
+  },
+  "lint-staged": {
+    "*": "cd web && bun run test -- run"
+  }
+}

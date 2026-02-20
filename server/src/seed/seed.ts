@@ -80,11 +80,11 @@ if (originalRoleAssignments.length) {
 // Insert initial user if none exist
 const users = await db.select().from(usersSchema).limit(1)
 if (users.length === 0) {
-  // Use default values or command line arguments
-  const firstName = process.argv[2] || 'Alex'
-  const lastName = process.argv[3] || 'Wohlbruck'
-  const email = process.argv[4] || 'alexwohlbruck@gmail.com'
-  const picture = process.argv[5] || 'https://github.com/alexwohlbruck.png'
+  // Use env (e.g. APP_TESTER_EMAIL for e2e tests), then argv, then defaults
+  const firstName = (process.env.SEED_FIRST_NAME ?? process.argv[2]) || 'Alex'
+  const lastName = (process.env.SEED_LAST_NAME ?? process.argv[3]) || 'Wohlbruck'
+  const email = (process.env.APP_TESTER_EMAIL ?? process.env.SEED_EMAIL ?? process.argv[4]) || 'alexwohlbruck@gmail.com'
+  const picture = (process.env.SEED_PICTURE ?? process.argv[5]) || 'https://github.com/alexwohlbruck.png'
 
   const [user] = await db
     .insert(usersSchema)

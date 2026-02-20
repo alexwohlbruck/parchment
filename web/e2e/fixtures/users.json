@@ -1,0 +1,14 @@
+{
+  "testUser": {
+    "email": "test@parchment.local",
+    "firstName": "Test",
+    "lastName": "User",
+    "role": "admin"
+  },
+  "invitedUser": {
+    "email": "invited-e2e@test.parchment.local",
+    "firstName": "Invited",
+    "lastName": "E2E",
+    "role": "user"
+  }
+}

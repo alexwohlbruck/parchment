@@ -135,6 +135,12 @@ export class MapboxStrategy extends MapStrategy {
     // Store the current language
     this.currentLanguage = language
 
+    // Detect if running in automated test environment
+    const isTestEnvironment = 
+      import.meta.env.MODE === 'test' || 
+      (typeof navigator !== 'undefined' && navigator.webdriver) ||
+      (typeof window !== 'undefined' && (window as any).__playwright)
+    
     this.mapInstance = new MapboxMap({
       accessToken: accessToken || import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
       container,
@@ -148,6 +154,9 @@ export class MapboxStrategy extends MapStrategy {
       projection: {
         name: projection,
       },
+      // Enable test mode for automated tests (Playwright, etc.)
+      // This prevents API calls and WebGL rendering issues in headless browsers
+      testMode: isTestEnvironment,
     })
 
     // Add geolocate control but hide it off-screen

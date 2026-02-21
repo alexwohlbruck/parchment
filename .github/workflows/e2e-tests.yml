@@ -1,0 +1,76 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+env:
+  POSTGRES_DB: parchment_test
+  POSTGRES_USER: test_user
+  POSTGRES_PASSWORD: test_password
+  SERVER_ORIGIN: http://localhost:5001
+  CLIENT_ORIGIN: http://localhost:5174
+  APP_TESTER_EMAIL: test@parchment.local
+  GMAIL_EMAIL: ''
+  GMAIL_APP_PASSWORD: ''
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    # Optional: add repo secret E2E_MAPBOX_ACCESS_TOKEN and uncomment below to run map/integration tests
+    # env:
+    #   E2E_MAPBOX_ACCESS_TOKEN: ${{ secrets.E2E_MAPBOX_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install web dependencies
+        working-directory: web
+        run: bun install --frozen-lockfile
+
+      - name: Run web unit tests
+        working-directory: web
+        run: bun run test -- run
+
+      - name: Install Playwright browsers
+        working-directory: web
+        run: bunx playwright install chromium --with-deps
+
+      - name: Create .env.test
+        run: |
+          cat << 'EOF' > .env.test
+          POSTGRES_DB=parchment_test
+          POSTGRES_USER=test_user
+          POSTGRES_PASSWORD=test_password
+          SERVER_ORIGIN=http://localhost:5001
+          CLIENT_ORIGIN=http://localhost:5174
+          APP_TESTER_EMAIL=test@parchment.local
+          GMAIL_EMAIL=
+          GMAIL_APP_PASSWORD=
+          EOF
+
+      - name: Run E2E tests
+        working-directory: web
+        run: bun run test:e2e
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: web/playwright-report/
+          retention-days: 7
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results
+          path: web/test-results/
+          retention-days: 7

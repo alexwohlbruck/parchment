@@ -39,8 +39,8 @@ export default defineConfig({
   // Retry on CI only
   retries: process.env.CI ? 2 : 0,
   
-  // Opt out of parallel tests on CI
-  workers: process.env.CI ? 1 : undefined,
+  // CI: 2 workers to speed up (runner has limited CPU; 2 is a safe balance). Local: use default (CPU-based).
+  workers: process.env.CI ? 2 : undefined,
   
   // Reporter: in CI use 'list' so test names show in the Actions log; always keep 'html' for the report artifact
   reporter: process.env.CI ? [['list'], ['html']] : 'html',

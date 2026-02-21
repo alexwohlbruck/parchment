@@ -162,8 +162,10 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Extract changelog section
-        run: node .github/scripts/extract-changelog-section.mjs "${{ steps.version.outputs.VERSION }}" > body.md
+      - name: Prepare Play Store release notes
+        run: |
+          mkdir -p play-release-notes
+          tail -n +7 CHANGELOG.md > play-release-notes/whatsnew-en-US
 
       - name: Download Android AAB
         uses: actions/download-artifact@v4
@@ -179,6 +181,7 @@ jobs:
           releaseFiles: android-aab/*.aab
           track: ${{ secrets.GOOGLE_PLAY_TRACK || 'internal' }}
           releaseName: ${{ steps.version.outputs.VERSION }}
+          whatsNewDirectory: play-release-notes
           status: completed
 
       - name: Download macOS DMGs
@@ -197,7 +200,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ steps.version.outputs.VERSION }}
-          body_path: body.md
+          body_path: CHANGELOG.md
           files: |
             android-aab/*.aab
             mac-dmg/*.dmg

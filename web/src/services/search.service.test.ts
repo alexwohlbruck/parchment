@@ -72,7 +72,14 @@ describe('useSearchService', () => {
           id: '1',
           title: 'Coffee Shop',
           type: 'place',
-          metadata: { place: {} as Place },
+          metadata: {
+            place: {
+              id: '1',
+              externalIds: {},
+              lat: 37.7749,
+              lng: -122.4194,
+            },
+          },
         },
       ]
       ;(api.get as any).mockResolvedValue({ data: { results: mockResults } })

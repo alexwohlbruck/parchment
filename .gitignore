@@ -3,3 +3,11 @@ valhalla
 node_modules
 dist
 .env
+.env.test
+# E2E env with secrets – do not commit
+web/e2e/env.test
+
+# Playwright
+playwright-report/
+web/playwright-report/
+web/test-results/

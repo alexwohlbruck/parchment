@@ -20,7 +20,7 @@
     "build:windows": "npm run build && bun tauri build --target x86_64-pc-windows-msvc",
     "build:linux": "npm run build && bun tauri build --target x86_64-unknown-linux-gnu",
     "build:ios": "npm run build && bun tauri ios build",
-    "build:android": "npm run build && bun tauri android build --aab",
+    "build:android": "npm run build && bun tauri android build --aab true",
     "build:android:apk": "npm run build && bun tauri android build --apk true --verbose",
     "tauri:clean": "cd src-tauri && cargo clean",
     "preview": "vite preview",

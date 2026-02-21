@@ -48,7 +48,7 @@ describe('useBookmarksStore', () => {
         id: 'bm-1',
         name: 'Coffee Shop',
         externalIds: { osm: '123', osmType: 'node' },
-      } as Bookmark
+      } as unknown as Bookmark
 
       store.addBookmark(bookmark)
 
@@ -62,12 +62,12 @@ describe('useBookmarksStore', () => {
         id: 'bm-1',
         name: 'Coffee Shop',
         externalIds: {},
-      } as Bookmark
+      } as unknown as Bookmark
       const bookmark2: Bookmark = {
         id: 'bm-2',
         name: 'Restaurant',
         externalIds: {},
-      } as Bookmark
+      } as unknown as Bookmark
 
       store.addBookmark(bookmark1)
       store.addBookmark(bookmark2)
@@ -83,7 +83,7 @@ describe('useBookmarksStore', () => {
         id: 'bm-1',
         name: 'Coffee Shop',
         externalIds: {},
-      } as Bookmark
+      } as unknown as Bookmark
       store.addBookmark(bookmark)
 
       const updated: Bookmark = {
@@ -101,7 +101,7 @@ describe('useBookmarksStore', () => {
         id: 'bm-1',
         name: 'Coffee Shop',
         externalIds: {},
-      } as Bookmark
+      } as unknown as Bookmark
       store.addBookmark(bookmark)
 
       store.updateBookmark('non-existent', { ...bookmark, name: 'Updated' })
@@ -117,12 +117,12 @@ describe('useBookmarksStore', () => {
         id: 'bm-1',
         name: 'Coffee Shop',
         externalIds: {},
-      } as Bookmark
+      } as unknown as Bookmark
       const bookmark2: Bookmark = {
         id: 'bm-2',
         name: 'Restaurant',
         externalIds: {},
-      } as Bookmark
+      } as unknown as Bookmark
       store.addBookmark(bookmark1)
       store.addBookmark(bookmark2)
 
@@ -138,7 +138,7 @@ describe('useBookmarksStore', () => {
         id: 'bm-1',
         name: 'Coffee Shop',
         externalIds: {},
-      } as Bookmark
+      } as unknown as Bookmark
       store.addBookmark(bookmark)
 
       store.removeBookmark('non-existent')
@@ -154,12 +154,12 @@ describe('useBookmarksStore', () => {
         id: 'bm-1',
         name: 'Coffee Shop',
         externalIds: {},
-      } as Bookmark
+      } as unknown as Bookmark
       store.addBookmark(bookmark1)
 
       const newBookmarks: Bookmark[] = [
-        { id: 'bm-2', name: 'Restaurant', externalIds: {} } as Bookmark,
-        { id: 'bm-3', name: 'Park', externalIds: {} } as Bookmark,
+        { id: 'bm-2', name: 'Restaurant', externalIds: {} } as unknown as Bookmark,
+        { id: 'bm-3', name: 'Park', externalIds: {} } as unknown as Bookmark,
       ]
       store.setBookmarks(newBookmarks)
 
@@ -175,7 +175,7 @@ describe('useBookmarksStore', () => {
         id: 'bm-1',
         name: 'Coffee Shop',
         externalIds: {},
-      } as Bookmark
+      } as unknown as Bookmark
       store.addBookmark(bookmark)
 
       const found = store.getBookmarkById('bm-1')
@@ -199,7 +199,7 @@ describe('useBookmarksStore', () => {
         id: 'bm-1',
         name: 'Coffee Shop',
         externalIds: { osm: '123', osmType: 'node' },
-      } as Bookmark
+      } as unknown as Bookmark
       store.addBookmark(bookmark)
 
       const found = store.getBookmarkByExternalId('osm', '123')
@@ -223,7 +223,7 @@ describe('useBookmarksStore', () => {
         id: 'bm-1',
         name: 'Coffee Shop',
         externalIds: { osm: '123', osmType: 'node' },
-      } as Bookmark
+      } as unknown as Bookmark
       store.addBookmark(bookmark)
 
       const saved = store.isPlaceSaved({ osm: '123' })
@@ -245,7 +245,7 @@ describe('useBookmarksStore', () => {
         id: 'bm-1',
         name: 'Coffee Shop',
         externalIds: { osm: '123', google: 'abc' },
-      } as Bookmark
+      } as unknown as Bookmark
       store.addBookmark(bookmark)
 
       const savedByOsm = store.isPlaceSaved({ osm: '123' })
@@ -265,7 +265,7 @@ describe('useBookmarksStore', () => {
         id: 'bm-1',
         name: 'Coffee Shop',
         externalIds: { osm: '123', osmType: 'node' },
-      } as Bookmark
+      } as unknown as Bookmark
 
       const route = store.navigateToBookmark(bookmark)
 
@@ -281,7 +281,7 @@ describe('useBookmarksStore', () => {
         id: 'bm-1',
         name: 'Coffee Shop',
         externalIds: { osm: '123' },
-      } as Bookmark
+      } as unknown as Bookmark
 
       const route = store.navigateToBookmark(bookmark)
 
@@ -297,7 +297,7 @@ describe('useBookmarksStore', () => {
         id: 'bm-1',
         name: 'Coffee Shop',
         externalIds: { google: 'abc' },
-      } as Bookmark
+      } as unknown as Bookmark
 
       const route = store.navigateToBookmark(bookmark)
 

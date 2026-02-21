@@ -279,18 +279,6 @@ update_tauri_conf "$NEW_VERSION"
 update_cargo_toml "$NEW_VERSION"
 update_tauri_android_version_code "$NEW_VERSION"
 
-# Ensure Docker Hub login before starting builds
-echo ""
-echo "Checking Docker Hub login (required for pushing images)..."
-if ! docker login docker.io >/dev/null 2>&1; then
-    echo "Docker Hub login failed or credentials expired."
-    echo "Run: docker login"
-    echo "Then re-run this script."
-    exit 1
-fi
-echo "Docker Hub login OK."
-echo ""
-
 # Build Tauri app
 build_tauri
 

@@ -86,6 +86,10 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Install server dependencies
+        working-directory: server
+        run: bun install --frozen-lockfile
+
       - name: Install web dependencies
         working-directory: web
         run: bun install --frozen-lockfile
@@ -111,6 +115,10 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      - name: Install server dependencies
+        working-directory: server
+        run: bun install --frozen-lockfile
 
       - name: Install web dependencies
         working-directory: web

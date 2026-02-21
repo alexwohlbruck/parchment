@@ -42,8 +42,8 @@ export default defineConfig({
   // Opt out of parallel tests on CI
   workers: process.env.CI ? 1 : undefined,
   
-  // Reporter to use
-  reporter: 'html',
+  // Reporter: in CI use 'list' so test names show in the Actions log; always keep 'html' for the report artifact
+  reporter: process.env.CI ? [['list'], ['html']] : 'html',
   
   // Shared settings for all the projects below
   use: {

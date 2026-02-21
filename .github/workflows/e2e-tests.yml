@@ -44,16 +44,15 @@ jobs:
 
       - name: Create .env.test
         run: |
-          cat << 'EOF' > .env.test
-          POSTGRES_DB=parchment_test
-          POSTGRES_USER=test_user
-          POSTGRES_PASSWORD=test_password
-          SERVER_ORIGIN=http://localhost:5001
-          CLIENT_ORIGIN=http://localhost:5174
-          APP_TESTER_EMAIL=test@parchment.local
-          GMAIL_EMAIL=
-          GMAIL_APP_PASSWORD=
-          EOF
+          echo "POSTGRES_DB=$POSTGRES_DB" > .env.test
+          echo "POSTGRES_USER=$POSTGRES_USER" >> .env.test
+          echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" >> .env.test
+          echo "SERVER_ORIGIN=$SERVER_ORIGIN" >> .env.test
+          echo "CLIENT_ORIGIN=$CLIENT_ORIGIN" >> .env.test
+          echo "APP_TESTER_EMAIL=$APP_TESTER_EMAIL" >> .env.test
+          echo "GMAIL_EMAIL=$GMAIL_EMAIL" >> .env.test
+          echo "GMAIL_APP_PASSWORD=$GMAIL_APP_PASSWORD" >> .env.test
+          cat .env.test
 
       - name: Run E2E tests
         working-directory: web

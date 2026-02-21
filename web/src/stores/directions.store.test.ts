@@ -140,11 +140,15 @@ describe('useDirectionsStore', () => {
     test('sets trips and auto-selects recommended trip', () => {
       const store = useDirectionsStore()
       const trips: TripsResponse = {
+        request: { waypoints: [] },
         trips: [
           { id: 'trip-1', isRecommended: false } as any,
           { id: 'trip-2', isRecommended: true } as any,
           { id: 'trip-3', isRecommended: false } as any,
         ],
+        earliestStart: new Date(0),
+        latestEnd: new Date(0),
+        metadata: { providers: [], processingTime: 0 },
       }
 
       store.setTrips(trips)
@@ -156,10 +160,14 @@ describe('useDirectionsStore', () => {
     test('auto-selects first trip if none recommended', () => {
       const store = useDirectionsStore()
       const trips: TripsResponse = {
+        request: { waypoints: [] },
         trips: [
           { id: 'trip-1', isRecommended: false } as any,
           { id: 'trip-2', isRecommended: false } as any,
         ],
+        earliestStart: new Date(0),
+        latestEnd: new Date(0),
+        metadata: { providers: [], processingTime: 0 },
       }
 
       store.setTrips(trips)
@@ -170,7 +178,11 @@ describe('useDirectionsStore', () => {
     test('does not set selectedTripId if no trips', () => {
       const store = useDirectionsStore()
       const trips: TripsResponse = {
+        request: { waypoints: [] },
         trips: [],
+        earliestStart: new Date(0),
+        latestEnd: new Date(0),
+        metadata: { providers: [], processingTime: 0 },
       }
 
       store.setTrips(trips)
@@ -183,7 +195,11 @@ describe('useDirectionsStore', () => {
     test('clears trips and selectedTripId', () => {
       const store = useDirectionsStore()
       const trips: TripsResponse = {
+        request: { waypoints: [] },
         trips: [{ id: 'trip-1', isRecommended: true } as any],
+        earliestStart: new Date(0),
+        latestEnd: new Date(0),
+        metadata: { providers: [], processingTime: 0 },
       }
       store.setTrips(trips)
 
@@ -243,11 +259,11 @@ describe('useDirectionsStore', () => {
     test('saves selectedMode to localStorage on change', async () => {
       const store = useDirectionsStore()
 
-      store.selectedMode = 'bike'
+      store.selectedMode = 'biking'
       await nextTick()
       await nextTick() // Wait for watcher to trigger
       
-      expect(localStorageMock.getItem('selectedMode')).toBe('bike')
+      expect(localStorageMock.getItem('selectedMode')).toBe('biking')
     })
 
     test('saves routingPreferences to localStorage on change', async () => {

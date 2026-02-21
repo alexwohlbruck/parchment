@@ -49,7 +49,7 @@ export function mountWithProviders(
 ): VueWrapper {
   const { pinia, router, global = {}, ...mountOptions } = options
 
-  const plugins = []
+  const plugins: (Pinia | Router)[] = []
   if (pinia) plugins.push(pinia)
   if (router) plugins.push(router)
 

@@ -76,6 +76,15 @@ The application will be available at:
 ./deploy.sh major    # Increment major version and deploy
 ```
 
+### GitHub Actions workflows
+
+| Workflow | Trigger | What it does |
+|----------|---------|----------------|
+| **E2E Tests** | Push or pull request to `main` or `dev` | Runs web unit tests, then Playwright e2e tests (Docker test stack + dev server). Use a branch ruleset to require the **e2e** check before merging into `dev` or `main`. |
+| **Release** | Push of a tag `v*` (e.g. `v0.0.16`) | Runs unit tests, builds Docker images (push to Docker Hub), builds Tauri Android (AAB), macOS (DMG), iOS (IPA), creates GitHub Release with CHANGELOG body and uploads assets. Optionally uploads AAB to Google Play if `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` is set. |
+
+Required secrets: **DOCKERHUB_USERNAME**, **DOCKERHUB_TOKEN** (for Release). Optional: **GOOGLE_PLAY_SERVICE_ACCOUNT_JSON**, **GOOGLE_PLAY_TRACK** (Release); **E2E_MAPBOX_ACCESS_TOKEN** (E2E Tests, for map tests); Apple signing for iOS (Release).
+
 ### Releases (CI/CD)
 
 **Version and changelog:** The app version lives in `web/package.json` (and is synced to `server/package.json`, `web/src-tauri/tauri.conf.json`, and `web/src-tauri/Cargo.toml` by `deploy.sh`). Release notes are kept in **`CHANGELOG.md`** at the repo root ([Keep a Changelog](https://keepachangelog.com/) format). That file is the source for GitHub Release bodies.

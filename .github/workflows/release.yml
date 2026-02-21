@@ -128,6 +128,9 @@ jobs:
         working-directory: web
         run: bun run build:macos:arm
 
+      - name: Add x86_64-apple-darwin target
+        run: rustup target add x86_64-apple-darwin
+
       - name: Build macOS (x64)
         working-directory: web
         run: bun run build:macos

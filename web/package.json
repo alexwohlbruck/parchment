@@ -102,6 +102,7 @@
     "@vue/test-utils": "^2.4.6",
     "drizzle-orm": "^0.44.2",
     "happy-dom": "^20.1.0",
+    "i18next": "^25.3.6",
     "postcss": "^8.4.38",
     "postgres": "^3.4.5",
     "sass": "^1.97.3",

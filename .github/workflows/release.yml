@@ -146,33 +146,30 @@ jobs:
       - name: Install Fastlane
         run: brew install fastlane
 
-      - name: Prepare iOS signing
+      - name: Setup iOS signing
         env:
-          BUILD_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          P12_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
-          PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+          CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
         run: |
-          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
-          PROVISIONING_PROFILE_PATH=$RUNNER_TEMP/parchment.mobileprovision
-          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
-          echo -n "$PROVISIONING_PROFILE_BASE64" | base64 --decode -o $PROVISIONING_PROFILE_PATH
-          PROFILE_NAME=$(security cms -D -i $PROVISIONING_PROFILE_PATH | plutil -extract Name raw -)
-          DEVELOPMENT_TEAM=$(jq -r '.bundle.iOS.developmentTeam' web/src-tauri/tauri.conf.json)
-          echo "CERTIFICATE_PATH=$CERTIFICATE_PATH" >> $GITHUB_ENV
-          echo "PROVISIONING_PROFILE_PATH=$PROVISIONING_PROFILE_PATH" >> $GITHUB_ENV
+          # Decode and save files
+          CERT_PATH=$RUNNER_TEMP/cert.p12
+          PROFILE_PATH=$RUNNER_TEMP/profile.mobileprovision
+          echo -n "$CERTIFICATE_BASE64" | base64 --decode -o $CERT_PATH
+          echo -n "$PROFILE_BASE64" | base64 --decode -o $PROFILE_PATH
+          
+          # Extract profile name
+          PROFILE_NAME=$(security cms -D -i $PROFILE_PATH | plutil -extract Name raw -)
+          
+          # Export for Fastlane
+          echo "CERTIFICATE_PATH=$CERT_PATH" >> $GITHUB_ENV
+          echo "CERTIFICATE_PASSWORD=$CERTIFICATE_PASSWORD" >> $GITHUB_ENV
+          echo "PROVISIONING_PROFILE_PATH=$PROFILE_PATH" >> $GITHUB_ENV
           echo "PROVISIONING_PROFILE_SPECIFIER=$PROFILE_NAME" >> $GITHUB_ENV
-          echo "DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM" >> $GITHUB_ENV
-          echo "CERTIFICATE_PASSWORD=$P12_PASSWORD" >> $GITHUB_ENV
-          echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> $GITHUB_ENV
 
-      - name: Build iOS frontend and Rust
-        working-directory: web
-        run: bun run build
-
-      - name: Build and sign iOS with Fastlane
+      - name: Build iOS with Fastlane
         working-directory: web/src-tauri/gen/apple
-        run: fastlane ios ci_build
+        run: fastlane ios release
 
       - name: Upload iOS IPA
         uses: actions/upload-artifact@v4

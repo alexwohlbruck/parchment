@@ -1,0 +1,10 @@
+#!/bin/bash
+# Wrapper so xcodebuild gets -destination 'generic/platform=iOS' (Tauri doesn't pass it).
+# With automatic signing, just add destination. CI overrides with CODE_SIGN_STYLE=Manual + profile.
+XCB="/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild"
+EXTRA=()
+[ -n "$CODE_SIGN_STYLE" ] && EXTRA+=(CODE_SIGN_STYLE="$CODE_SIGN_STYLE")
+[ -n "$CODE_SIGN_IDENTITY" ] && EXTRA+=(CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY")
+[ -n "$PROVISIONING_PROFILE_SPECIFIER" ] && EXTRA+=(PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_SPECIFIER")
+[ -n "$DEVELOPMENT_TEAM" ] && EXTRA+=(DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM")
+exec "$XCB" "${EXTRA[@]}" "$@" -destination 'generic/platform=iOS'

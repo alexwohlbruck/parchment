@@ -143,7 +143,6 @@ jobs:
             web/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
             web/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
 
-      # Import certificate and profile. See docs/ios-ci-signing-setup.md.
       - name: Import iOS code signing
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
@@ -161,13 +160,19 @@ jobs:
           security list-keychain -d user -s $KEYCHAIN_PATH
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           echo -n "$PROVISIONING_PROFILE_BASE64" | base64 --decode -o ~/Library/MobileDevice/Provisioning\ Profiles/parchment.mobileprovision
+          PROFILE_NAME=$(security cms -D -i ~/Library/MobileDevice/Provisioning\ Profiles/parchment.mobileprovision | plutil -extract Name raw -)
+          echo "PROVISIONING_PROFILE_SPECIFIER=$PROFILE_NAME" >> $GITHUB_ENV
+
+      - name: Set DEVELOPMENT_TEAM from tauri config
+        working-directory: web
+        run: echo "DEVELOPMENT_TEAM=$(jq -r '.bundle.iOS.developmentTeam' src-tauri/tauri.conf.json)" >> $GITHUB_ENV
 
       - name: Build iOS
         working-directory: web
         run: bun run build:ios
         env:
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
+          CODE_SIGN_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          CODE_SIGN_STYLE: Manual
 
       - name: Upload iOS IPA
         uses: actions/upload-artifact@v4

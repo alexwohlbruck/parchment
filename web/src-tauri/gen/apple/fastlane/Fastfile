@@ -3,8 +3,17 @@ default_platform(:ios)
 platform :ios do
   desc "Sign and export iOS app for CI"
   lane :sign_and_export do
-    # Setup CI keychain
-    setup_ci if ENV['CI']
+    if ENV['CI']
+      # Create keychain for CI
+      create_keychain(
+        name: "fastlane_tmp_keychain",
+        password: ENV["KEYCHAIN_PASSWORD"],
+        default_keychain: true,
+        unlock: true,
+        timeout: 3600,
+        lock_when_sleeps: false
+      )
+    end
     
     # Import certificate
     import_certificate(
@@ -19,13 +28,15 @@ platform :ios do
     
     # Build, sign and export
     build_app(
-      workspace: "app.xcodeproj/project.xcworkspace",
+      project: "app.xcodeproj",
       scheme: "app_iOS",
       export_method: "app-store",
       output_directory: "./build",
       output_name: "Parchment.ipa",
       clean: false,
       skip_build_archive: false,
+      configuration: "release",
+      destination: "generic/platform=iOS",
       export_options: {
         method: "app-store",
         provisioningProfiles: {

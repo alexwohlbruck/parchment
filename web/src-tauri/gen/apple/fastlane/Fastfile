@@ -1,59 +1,50 @@
 default_platform(:ios)
 
 platform :ios do
-  desc "Sign and export iOS app for CI"
-  lane :sign_and_export do
-    if ENV['CI']
-      # Create keychain for CI
-      create_keychain(
-        name: "fastlane_tmp_keychain",
-        password: ENV["KEYCHAIN_PASSWORD"],
-        default_keychain: true,
-        unlock: true,
-        timeout: 3600,
-        lock_when_sleeps: false
-      )
-    end
+  desc "Build iOS app for CI with manual signing"
+  lane :ci_build do
+    # Create keychain
+    create_keychain(
+      name: "fastlane_tmp_keychain",
+      password: ENV["KEYCHAIN_PASSWORD"],
+      default_keychain: true,
+      unlock: true,
+      timeout: 3600,
+      lock_when_sleeps: false
+    )
     
     # Import certificate
     import_certificate(
       certificate_path: ENV["CERTIFICATE_PATH"],
       certificate_password: ENV["CERTIFICATE_PASSWORD"],
-      keychain_name: ENV['CI'] ? "fastlane_tmp_keychain" : "login.keychain",
+      keychain_name: "fastlane_tmp_keychain",
       keychain_password: ENV["KEYCHAIN_PASSWORD"]
     )
     
-    # Install provisioning profile
+    # Install provisioning profile to system
     install_provisioning_profile(path: ENV["PROVISIONING_PROFILE_PATH"])
     
-    # Update project to use the installed profile
-    update_project_provisioning(
-      xcodeproj: "app.xcodeproj",
-      profile: ENV["PROVISIONING_PROFILE_PATH"],
-      target_filter: "app_iOS",
-      build_configuration: "release",
-      code_signing_identity: "Apple Distribution"
-    )
+    # Get profile UUID
+    profile_uuid = sh("security cms -D -i #{ENV['PROVISIONING_PROFILE_PATH']} | plutil -extract UUID raw -").strip
     
-    # Build, sign and export
-    build_app(
+    # Build and archive with explicit signing settings
+    gym(
       project: "app.xcodeproj",
       scheme: "app_iOS",
+      configuration: "release",
+      clean: false,
+      destination: "generic/platform=iOS",
       export_method: "app-store",
       output_directory: "./build",
       output_name: "Parchment.ipa",
-      clean: false,
-      skip_build_archive: false,
-      configuration: "release",
-      destination: "generic/platform=iOS",
+      xcargs: "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=#{ENV['DEVELOPMENT_TEAM']} PROVISIONING_PROFILE=#{profile_uuid} CODE_SIGN_IDENTITY='Apple Distribution'",
       export_options: {
         method: "app-store",
+        teamID: ENV["DEVELOPMENT_TEAM"],
+        signingStyle: "manual",
         provisioningProfiles: {
           "app.parchment" => ENV["PROVISIONING_PROFILE_SPECIFIER"]
-        },
-        signingStyle: "manual",
-        signingCertificate: "Apple Distribution",
-        teamID: ENV["DEVELOPMENT_TEAM"]
+        }
       }
     )
   end

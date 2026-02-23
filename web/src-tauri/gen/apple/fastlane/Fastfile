@@ -37,6 +37,7 @@ platform :ios do
       skip_build_archive: false,
       configuration: "release",
       destination: "generic/platform=iOS",
+      xcargs: "CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution' PROVISIONING_PROFILE_SPECIFIER='#{ENV['PROVISIONING_PROFILE_SPECIFIER']}' DEVELOPMENT_TEAM='#{ENV['DEVELOPMENT_TEAM']}'",
       export_options: {
         method: "app-store",
         provisioningProfiles: {

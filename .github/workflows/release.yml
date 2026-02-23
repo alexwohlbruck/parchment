@@ -166,9 +166,15 @@ jobs:
           echo "CERTIFICATE_PASSWORD=$P12_PASSWORD" >> $GITHUB_ENV
           echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> $GITHUB_ENV
 
-      - name: Build iOS with Fastlane
+      - name: Build and sign iOS with Fastlane
         working-directory: web/src-tauri/gen/apple
-        run: fastlane ios ci_build
+        run: |
+          # Build frontend and Rust code first
+          cd ../../../
+          bun run build
+          # Use Fastlane to build, sign and export
+          cd src-tauri/gen/apple
+          fastlane ios sign_and_export
         env:
           CI: true
 

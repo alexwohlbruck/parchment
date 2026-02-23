@@ -19,7 +19,7 @@
     "build:macos:arm": "npm run build && bun tauri build --target aarch64-apple-darwin",
     "build:windows": "npm run build && bun tauri build --target x86_64-pc-windows-msvc",
     "build:linux": "npm run build && bun tauri build --target x86_64-unknown-linux-gnu",
-    "build:ios": "npm run build && bun tauri ios build",
+    "build:ios": "npm run build && env -u CI PATH=\"$(pwd)/scripts:$PATH\" bun tauri ios build",
     "build:android": "npm run build && bun tauri android build --aab true",
     "build:android:apk": "npm run build && bun tauri android build --apk true --verbose",
     "tauri:clean": "cd src-tauri && cargo clean",

@@ -1,9 +1,23 @@
 default_platform(:ios)
 
 platform :ios do
-  desc "Build iOS app"
-  lane :build do
-    # Build the app
+  desc "Sign and export iOS app for CI"
+  lane :sign_and_export do
+    # Setup CI keychain
+    setup_ci if ENV['CI']
+    
+    # Import certificate
+    import_certificate(
+      certificate_path: ENV["CERTIFICATE_PATH"],
+      certificate_password: ENV["CERTIFICATE_PASSWORD"],
+      keychain_name: ENV['CI'] ? "fastlane_tmp_keychain" : "login.keychain",
+      keychain_password: ENV["KEYCHAIN_PASSWORD"]
+    )
+    
+    # Install provisioning profile
+    install_provisioning_profile(path: ENV["PROVISIONING_PROFILE_PATH"])
+    
+    # Build, sign and export
     build_app(
       workspace: "app.xcodeproj/project.xcworkspace",
       scheme: "app_iOS",
@@ -11,35 +25,16 @@ platform :ios do
       output_directory: "./build",
       output_name: "Parchment.ipa",
       clean: false,
-      skip_package_ipa: false,
+      skip_build_archive: false,
       export_options: {
         method: "app-store",
         provisioningProfiles: {
           "app.parchment" => ENV["PROVISIONING_PROFILE_SPECIFIER"]
         },
         signingStyle: "manual",
+        signingCertificate: "Apple Distribution",
         teamID: ENV["DEVELOPMENT_TEAM"]
       }
     )
-  end
-
-  desc "Build for CI"
-  lane :ci_build do
-    # Setup code signing
-    setup_ci if ENV['CI']
-    
-    # Import certificate
-    import_certificate(
-      certificate_path: ENV["CERTIFICATE_PATH"],
-      certificate_password: ENV["CERTIFICATE_PASSWORD"],
-      keychain_name: "fastlane_tmp_keychain",
-      keychain_password: ENV["KEYCHAIN_PASSWORD"]
-    )
-    
-    # Install provisioning profile
-    install_provisioning_profile(path: ENV["PROVISIONING_PROFILE_PATH"])
-    
-    # Build
-    build
   end
 end

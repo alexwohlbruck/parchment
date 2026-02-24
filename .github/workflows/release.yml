@@ -121,7 +121,7 @@ jobs:
 
       - name: Install web dependencies
         working-directory: web
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Setup iOS signing
         env:

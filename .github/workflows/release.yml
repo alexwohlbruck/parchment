@@ -171,7 +171,9 @@ jobs:
 
       - name: Build iOS IPA
         working-directory: web
-        run: npm run tauri ios build -- --export-method app-store-connect
+        run: |
+          npm run build
+          npx @tauri-apps/cli ios build --export-method app-store-connect
 
       - name: Upload iOS IPA artifact
         uses: actions/upload-artifact@v4

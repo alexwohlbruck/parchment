@@ -14,99 +14,98 @@ env:
   REGISTRY: docker.io
 
 jobs:
-  test:
-    name: Run tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - name: Install web dependencies
-        working-directory: web
-        run: bun install --frozen-lockfile
-      - name: Run web unit tests
-        working-directory: web
-        run: bun run test -- run
+  # test:
+  #   name: Run tests
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: oven-sh/setup-bun@v2
+  #       with:
+  #         bun-version: latest
+  #     - name: Install web dependencies
+  #       working-directory: web
+  #       run: bun install --frozen-lockfile
+  #     - name: Run web unit tests
+  #       working-directory: web
+  #       run: bun run test -- run
 
-  build-docker:
-    needs: [test]
-    name: Build and push Docker images
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
+  # build-docker:
+  #   needs: [test]
+  #   name: Build and push Docker images
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #     id-token: write
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+  #     - name: Set up Docker Buildx
+  #       uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+  #     - name: Log in to Docker Hub
+  #       uses: docker/login-action@v3
+  #       with:
+  #         username: ${{ secrets.DOCKERHUB_USERNAME }}
+  #         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Extract version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+  #     - name: Extract version from tag
+  #       id: version
+  #       run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Build and push web image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./web/Dockerfile.prod
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            alexwohlbruck/parchment-web:${{ steps.version.outputs.VERSION }}
-            alexwohlbruck/parchment-web:latest
+  #     - name: Build and push web image
+  #       uses: docker/build-push-action@v6
+  #       with:
+  #         context: .
+  #         file: ./web/Dockerfile.prod
+  #         platforms: linux/amd64,linux/arm64
+  #         push: true
+  #         tags: |
+  #           alexwohlbruck/parchment-web:${{ steps.version.outputs.VERSION }}
+  #           alexwohlbruck/parchment-web:latest
 
-      - name: Build and push server image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./server/Dockerfile.prod
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            alexwohlbruck/parchment-server:${{ steps.version.outputs.VERSION }}
-            alexwohlbruck/parchment-server:latest
+  #     - name: Build and push server image
+  #       uses: docker/build-push-action@v6
+  #       with:
+  #         context: .
+  #         file: ./server/Dockerfile.prod
+  #         platforms: linux/amd64,linux/arm64
+  #         push: true
+  #         tags: |
+  #           alexwohlbruck/parchment-server:${{ steps.version.outputs.VERSION }}
+  #           alexwohlbruck/parchment-server:latest
 
-  build-tauri-android:
-    needs: [test]
-    name: Build Tauri Android (AAB)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+  # build-tauri-android:
+  #   needs: [test]
+  #   name: Build Tauri Android (AAB)
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
+  #     - name: Setup Bun
+  #       uses: oven-sh/setup-bun@v2
+  #       with:
+  #         bun-version: latest
 
-      - name: Install server dependencies
-        working-directory: server
-        run: bun install --frozen-lockfile
+  #     - name: Install server dependencies
+  #       working-directory: server
+  #       run: bun install --frozen-lockfile
 
-      - name: Install web dependencies
-        working-directory: web
-        run: bun install --frozen-lockfile
+  #     - name: Install web dependencies
+  #       working-directory: web
+  #       run: bun install --frozen-lockfile
 
-      - name: Build Android AAB
-        working-directory: web
-        run: bun run build:android
+  #     - name: Build Android AAB
+  #       working-directory: web
+  #       run: bun run build:android
 
-      - name: Upload Android AAB
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-aab
-          path: web/src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
+  #     - name: Upload Android AAB
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: android-aab
+  #         path: web/src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
 
   build-tauri-mac-ios:
-    needs: [test]
-    name: Build Tauri macOS and iOS
+    name: Build iOS only (test)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -124,103 +123,28 @@ jobs:
         working-directory: web
         run: bun install --frozen-lockfile
 
-      - name: Build macOS (ARM)
+      # - name: Build macOS (ARM)
+      #   working-directory: web
+      #   run: bun run build:macos:arm
+
+      # - name: Add x86_64-apple-darwin target
+      #   run: rustup target add x86_64-apple-darwin
+
+      # - name: Build macOS (x64)
+      #   working-directory: web
+      #   run: bun run build:macos
+
+      # - name: Upload macOS artifacts
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: mac-dmg
+      #     path: |
+      #       web/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+      #       web/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+
+      - name: Build iOS with Tauri (skip signing for now)
         working-directory: web
-        run: bun run build:macos:arm
-
-      - name: Add x86_64-apple-darwin target
-        run: rustup target add x86_64-apple-darwin
-
-      - name: Build macOS (x64)
-        working-directory: web
-        run: bun run build:macos
-
-      - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mac-dmg
-          path: |
-            web/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
-            web/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
-
-      - name: Install Fastlane and dependencies
-        working-directory: web/src-tauri/gen/apple
-        run: |
-          brew install fastlane
-          bundle install
-
-      - name: Setup iOS signing
-        env:
-          CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
-        run: |
-          # Create temporary keychain
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
-          
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          
-          # Decode certificate
-          CERT_PATH=$RUNNER_TEMP/cert.p12
-          echo -n "$CERTIFICATE_BASE64" | base64 --decode > "$CERT_PATH"
-          
-          # Import certificate to keychain
-          security import "$CERT_PATH" \
-            -P "$CERTIFICATE_PASSWORD" \
-            -A \
-            -t cert \
-            -f pkcs12 \
-            -k "$KEYCHAIN_PATH"
-          security list-keychain -d user -s "$KEYCHAIN_PATH"
-          
-          # Set key partition list to allow codesign to access the key
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          
-          # Decode and install provisioning profile
-          PROFILE_PATH=$RUNNER_TEMP/profile.mobileprovision
-          echo -n "$PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
-          
-          # Extract profile UUID and name
-          PROFILE_UUID=$(security cms -D -i "$PROFILE_PATH" | plutil -extract UUID raw -)
-          PROFILE_NAME=$(security cms -D -i "$PROFILE_PATH" | plutil -extract Name raw -)
-          
-          # Install provisioning profile
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp "$PROFILE_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/"$PROFILE_UUID".mobileprovision
-          
-          # Export environment variables
-          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
-          echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> $GITHUB_ENV
-          echo "CERTIFICATE_PATH=$CERT_PATH" >> $GITHUB_ENV
-          echo "CERTIFICATE_PASSWORD=$CERTIFICATE_PASSWORD" >> $GITHUB_ENV
-          echo "PROVISIONING_PROFILE_PATH=$PROFILE_PATH" >> $GITHUB_ENV
-          echo "PROVISIONING_PROFILE_UUID=$PROFILE_UUID" >> $GITHUB_ENV
-          echo "PROVISIONING_PROFILE_SPECIFIER=$PROFILE_NAME" >> $GITHUB_ENV
-
-      - name: Update Xcode project for manual signing
-        working-directory: web/src-tauri/gen/apple
-        run: |
-          # Set manual code signing in Xcode project
-          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' app.xcodeproj/project.pbxproj
-          sed -i '' 's/CODE_SIGN_IDENTITY = "Apple Development";/CODE_SIGN_IDENTITY = "Apple Distribution";/g' app.xcodeproj/project.pbxproj
-          
-          # Add provisioning profile specifier
-          if ! grep -q "PROVISIONING_PROFILE_SPECIFIER" app.xcodeproj/project.pbxproj; then
-            sed -i '' '/DEVELOPMENT_TEAM = QPNGAD5BD2;/a\
-            				PROVISIONING_PROFILE_SPECIFIER = "'"$PROVISIONING_PROFILE_SPECIFIER"'";
-            ' app.xcodeproj/project.pbxproj
-          fi
-
-      - name: Build iOS with Fastlane
-        working-directory: web/src-tauri/gen/apple
-        env:
-          MATCH_KEYCHAIN_NAME: ${{ env.KEYCHAIN_PATH }}
-          MATCH_KEYCHAIN_PASSWORD: ${{ env.KEYCHAIN_PASSWORD }}
-          CI: true
-        run: bundle exec fastlane ios release
+        run: bun run build:ios
 
       - name: Upload iOS IPA artifact
         uses: actions/upload-artifact@v4
@@ -229,72 +153,72 @@ jobs:
           path: web/src-tauri/gen/apple/build/arm64/*.ipa
         continue-on-error: true
 
-      - name: Cleanup keychain
-        if: always()
-        run: |
-          if [ -f "$KEYCHAIN_PATH" ]; then
-            security delete-keychain "$KEYCHAIN_PATH"
-          fi
+      # - name: Cleanup keychain
+      #   if: always()
+      #   run: |
+      #     if [ -f "$KEYCHAIN_PATH" ]; then
+      #       security delete-keychain "$KEYCHAIN_PATH"
+      #     fi
 
-  release:
-    name: Create GitHub Release and upload assets
-    runs-on: ubuntu-latest
-    needs: [build-tauri-android, build-tauri-mac-ios]
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+  # release:
+  #   name: Create GitHub Release and upload assets
+  #   runs-on: ubuntu-latest
+  #   needs: [build-tauri-android, build-tauri-mac-ios]
+  #   permissions:
+  #     contents: write
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
 
-      - name: Extract version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+  #     - name: Extract version from tag
+  #       id: version
+  #       run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Prepare Play Store release notes
-        run: |
-          mkdir -p play-release-notes
-          tail -n +7 CHANGELOG.md > play-release-notes/whatsnew-en-US
+  #     - name: Prepare Play Store release notes
+  #       run: |
+  #         mkdir -p play-release-notes
+  #         tail -n +7 CHANGELOG.md > play-release-notes/whatsnew-en-US
 
-      - name: Download Android AAB
-        uses: actions/download-artifact@v4
-        with:
-          name: android-aab
+  #     - name: Download Android AAB
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: android-aab
 
-      - name: Upload AAB to Google Play
-        uses: r0adkll/upload-google-play@v1
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: app.parchment
-          releaseFiles: android-aab/*.aab
-          track: ${{ secrets.GOOGLE_PLAY_TRACK || 'internal' }}
-          releaseName: ${{ steps.version.outputs.VERSION }}
-          whatsNewDirectory: play-release-notes
-          status: completed
+  #     - name: Upload AAB to Google Play
+  #       uses: r0adkll/upload-google-play@v1
+  #       with:
+  #         serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+  #         packageName: app.parchment
+  #         releaseFiles: android-aab/*.aab
+  #         track: ${{ secrets.GOOGLE_PLAY_TRACK || 'internal' }}
+  #         releaseName: ${{ steps.version.outputs.VERSION }}
+  #         whatsNewDirectory: play-release-notes
+  #         status: completed
 
-      - name: Download macOS DMGs
-        uses: actions/download-artifact@v4
-        with:
-          name: mac-dmg
+  #     - name: Download macOS DMGs
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: mac-dmg
 
-      - name: Download iOS IPA (optional)
-        uses: actions/download-artifact@v4
-        with:
-          name: ios-ipa
-        continue-on-error: true
+  #     - name: Download iOS IPA (optional)
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: ios-ipa
+  #       continue-on-error: true
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ steps.version.outputs.VERSION }}
-          body_path: CHANGELOG.md
-          files: |
-            android-aab/*.aab
-            mac-dmg/*.dmg
-            ios-ipa/*.ipa
-          fail_on_unmatched_files: false
-          draft: false
-          make_latest: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #     - name: Create GitHub Release
+  #       uses: softprops/action-gh-release@v2
+  #       with:
+  #         tag_name: ${{ github.ref_name }}
+  #         name: Release ${{ steps.version.outputs.VERSION }}
+  #         body_path: CHANGELOG.md
+  #         files: |
+  #           android-aab/*.aab
+  #           mac-dmg/*.dmg
+  #           ios-ipa/*.ipa
+  #         fail_on_unmatched_files: false
+  #         draft: false
+  #         make_latest: true
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

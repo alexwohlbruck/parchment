@@ -4,13 +4,5 @@
 <dict>
     <key>method</key>
     <string>app-store</string>
-    <key>teamID</key>
-    <string>QPNGAD5BD2</string>
-    <key>signingStyle</key>
-    <string>manual</string>
-    <key>uploadSymbols</key>
-    <true/>
-    <key>uploadBitcode</key>
-    <false/>
 </dict>
 </plist>

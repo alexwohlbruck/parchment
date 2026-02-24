@@ -169,9 +169,9 @@ jobs:
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
           echo "PROFILE_NAME=$PROFILE_NAME" >> $GITHUB_ENV
 
-      - name: Build iOS with Tauri
+      - name: Build iOS IPA
         working-directory: web
-        run: bun tauri ios build --export-method app-store-connect
+        run: npm run build && bun tauri ios build
 
       - name: Upload iOS IPA artifact
         uses: actions/upload-artifact@v4

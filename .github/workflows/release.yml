@@ -171,11 +171,7 @@ jobs:
 
       - name: Build iOS IPA
         working-directory: web
-        run: |
-          npm run build
-          # Use cargo tauri instead of bun tauri to avoid workspace path bug
-          cd src-tauri
-          cargo tauri ios build
+        run: npm run tauri ios build -- --export-method app-store-connect
 
       - name: Upload iOS IPA artifact
         uses: actions/upload-artifact@v4

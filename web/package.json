@@ -19,6 +19,7 @@
     "build:macos:arm": "npm run build && bun tauri build --target aarch64-apple-darwin",
     "build:windows": "npm run build && bun tauri build --target x86_64-pc-windows-msvc",
     "build:linux": "npm run build && bun tauri build --target x86_64-unknown-linux-gnu",
+    "tauri": "tauri",
     "build:ios": "npm run build && bun tauri ios build --export-method debugging",
     "build:android": "npm run build && bun tauri android build --aab true",
     "build:android:apk": "npm run build && bun tauri android build --apk true --verbose",

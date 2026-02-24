@@ -110,28 +110,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          bun-version: latest
+          node-version: lts/*
 
-      - name: Install server dependencies
-        working-directory: server
-        run: bun install --frozen-lockfile
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Install web dependencies
+      - name: Install frontend dependencies
         working-directory: web
-        run: bun install
+        run: npm install
 
-      - name: Build iOS IPA
-        working-directory: web
+      - uses: tauri-apps/tauri-action@v0
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IOS_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           IOS_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           IOS_MOBILE_PROVISION: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
-        run: |
-          npm run build
-          npx @tauri-apps/cli ios build --export-method app-store-connect
+        with:
+          projectPath: web
+          includeRelease: false
+          tauriScript: npm run tauri
+          args: ios build --export-method app-store-connect
 
       - name: Upload iOS IPA artifact
         uses: actions/upload-artifact@v4

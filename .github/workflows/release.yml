@@ -123,6 +123,10 @@ jobs:
         working-directory: web
         run: bun install --frozen-lockfile
 
+      - name: Build web frontend
+        working-directory: web
+        run: npm run build
+
       # - name: Build macOS (ARM)
       #   working-directory: web
       #   run: bun run build:macos:arm
@@ -191,11 +195,12 @@ jobs:
       - name: Build iOS archive with xcodebuild
         working-directory: web/src-tauri/gen/apple
         run: |
-          xcodebuild archive \
+          set -x
+          xcodebuild clean archive \
             -project app.xcodeproj \
             -scheme app_iOS \
-            -configuration Release \
-            -archivePath $PWD/build/Parchment.xcarchive \
+            -configuration release \
+            -archivePath "$PWD/build/Parchment.xcarchive" \
             -destination 'generic/platform=iOS' \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \

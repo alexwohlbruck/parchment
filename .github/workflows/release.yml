@@ -223,7 +223,7 @@ jobs:
         run: bundle exec fastlane ios release
 
       - name: Upload to App Store Connect (optional)
-        if: secrets.APP_STORE_CONNECT_API_KEY_ID != ''
+        if: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID != '' }}
         working-directory: web/src-tauri/gen/apple
         env:
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}

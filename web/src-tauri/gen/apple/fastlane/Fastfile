@@ -3,47 +3,37 @@ default_platform(:ios)
 platform :ios do
   desc "Build for App Store (CI)"
   lane :release do
-    # Setup keychain for CI
-    if ENV['CI']
-      create_keychain(
-        name: "fastlane_tmp_keychain",
-        password: "temp",
-        default_keychain: true,
-        unlock: true,
-        timeout: 3600,
-        lock_when_sleeps: false
-      )
-      
-      # Import certificate
-      import_certificate(
-        certificate_path: ENV["CERTIFICATE_PATH"],
-        certificate_password: ENV["CERTIFICATE_PASSWORD"],
-        keychain_name: "fastlane_tmp_keychain",
-        keychain_password: "temp"
-      )
-      
-      # Install profile
-      install_provisioning_profile(path: ENV["PROVISIONING_PROFILE_PATH"])
-    end
-    
-    # Build
+    # Build and archive
     build_ios_app(
       project: "app.xcodeproj",
       scheme: "app_iOS",
-      configuration: "release",
+      configuration: "Release",
       export_method: "app-store",
       output_directory: "./build/arm64",
       output_name: "Parchment.ipa",
       clean: false,
       destination: "generic/platform=iOS",
-      xcargs: "-allowProvisioningUpdates",
+      # Don't use -allowProvisioningUpdates as we're using manual signing
+      xcargs: "CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution' PROVISIONING_PROFILE_SPECIFIER='#{ENV['PROVISIONING_PROFILE_SPECIFIER']}'",
       export_options: {
         method: "app-store",
         teamID: "QPNGAD5BD2",
+        signingStyle: "manual",
         provisioningProfiles: {
-          "app.parchment" => ENV["PROVISIONING_PROFILE_SPECIFIER"] || "iOS Team Provisioning Profile: app.parchment"
+          "app.parchment" => ENV["PROVISIONING_PROFILE_SPECIFIER"] || "Parchment App Store"
         }
       }
+    )
+  end
+  
+  desc "Upload to App Store Connect"
+  lane :upload do
+    upload_to_app_store(
+      ipa: "./build/arm64/Parchment.ipa",
+      skip_screenshots: true,
+      skip_metadata: true,
+      skip_app_version_update: true,
+      precheck_include_in_app_purchases: false
     )
   end
 end

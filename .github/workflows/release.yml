@@ -143,8 +143,11 @@ jobs:
             web/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
             web/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
 
-      - name: Install Fastlane
-        run: brew install fastlane
+      - name: Install Fastlane and dependencies
+        working-directory: web/src-tauri/gen/apple
+        run: |
+          brew install fastlane
+          bundle install
 
       - name: Setup iOS signing
         env:
@@ -152,31 +155,102 @@ jobs:
           CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
         run: |
-          # Decode and save files
+          # Create temporary keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+          
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          
+          # Decode certificate
           CERT_PATH=$RUNNER_TEMP/cert.p12
+          echo -n "$CERTIFICATE_BASE64" | base64 --decode > "$CERT_PATH"
+          
+          # Import certificate to keychain
+          security import "$CERT_PATH" \
+            -P "$CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          
+          # Set key partition list to allow codesign to access the key
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          
+          # Decode and install provisioning profile
           PROFILE_PATH=$RUNNER_TEMP/profile.mobileprovision
-          echo -n "$CERTIFICATE_BASE64" | base64 --decode -o $CERT_PATH
-          echo -n "$PROFILE_BASE64" | base64 --decode -o $PROFILE_PATH
+          echo -n "$PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
           
-          # Extract profile name
-          PROFILE_NAME=$(security cms -D -i $PROFILE_PATH | plutil -extract Name raw -)
+          # Extract profile UUID and name
+          PROFILE_UUID=$(security cms -D -i "$PROFILE_PATH" | plutil -extract UUID raw -)
+          PROFILE_NAME=$(security cms -D -i "$PROFILE_PATH" | plutil -extract Name raw -)
           
-          # Export for Fastlane
+          # Install provisioning profile
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp "$PROFILE_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/"$PROFILE_UUID".mobileprovision
+          
+          # Export environment variables
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
+          echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> $GITHUB_ENV
           echo "CERTIFICATE_PATH=$CERT_PATH" >> $GITHUB_ENV
           echo "CERTIFICATE_PASSWORD=$CERTIFICATE_PASSWORD" >> $GITHUB_ENV
           echo "PROVISIONING_PROFILE_PATH=$PROFILE_PATH" >> $GITHUB_ENV
+          echo "PROVISIONING_PROFILE_UUID=$PROFILE_UUID" >> $GITHUB_ENV
           echo "PROVISIONING_PROFILE_SPECIFIER=$PROFILE_NAME" >> $GITHUB_ENV
+
+      - name: Update Xcode project for manual signing
+        working-directory: web/src-tauri/gen/apple
+        run: |
+          # Set manual code signing in Xcode project
+          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' app.xcodeproj/project.pbxproj
+          sed -i '' 's/CODE_SIGN_IDENTITY = "Apple Development";/CODE_SIGN_IDENTITY = "Apple Distribution";/g' app.xcodeproj/project.pbxproj
+          
+          # Add provisioning profile specifier
+          if ! grep -q "PROVISIONING_PROFILE_SPECIFIER" app.xcodeproj/project.pbxproj; then
+            sed -i '' '/DEVELOPMENT_TEAM = QPNGAD5BD2;/a\
+            				PROVISIONING_PROFILE_SPECIFIER = "'"$PROVISIONING_PROFILE_SPECIFIER"'";
+            ' app.xcodeproj/project.pbxproj
+          fi
 
       - name: Build iOS with Fastlane
         working-directory: web/src-tauri/gen/apple
-        run: fastlane ios release
+        env:
+          MATCH_KEYCHAIN_NAME: ${{ env.KEYCHAIN_PATH }}
+          MATCH_KEYCHAIN_PASSWORD: ${{ env.KEYCHAIN_PASSWORD }}
+          CI: true
+        run: bundle exec fastlane ios release
 
-      - name: Upload iOS IPA
+      - name: Upload to App Store Connect (optional)
+        if: secrets.APP_STORE_CONNECT_API_KEY_ID != ''
+        working-directory: web/src-tauri/gen/apple
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: |
+          # Save API key
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo -n "$APP_STORE_CONNECT_API_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+          
+          # Upload using altool or Fastlane
+          bundle exec fastlane ios upload
+        continue-on-error: true
+
+      - name: Upload iOS IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: ios-ipa
-          path: web/src-tauri/**/*.ipa
+          path: web/src-tauri/gen/apple/build/arm64/*.ipa
         continue-on-error: true
+
+      - name: Cleanup keychain
+        if: always()
+        run: |
+          if [ -f "$KEYCHAIN_PATH" ]; then
+            security delete-keychain "$KEYCHAIN_PATH"
+          fi
 
   release:
     name: Create GitHub Release and upload assets

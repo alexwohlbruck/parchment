@@ -83,7 +83,14 @@ The application will be available at:
 | **E2E Tests** | Push or pull request to `main` or `dev` | Runs web unit tests, then Playwright e2e tests (Docker test stack + dev server). Use a branch ruleset to require the **e2e** check before merging into `dev` or `main`. |
 | **Release** | Push of a tag `v*` (e.g. `v0.0.16`) | Runs unit tests, builds Docker images (push to Docker Hub), builds Tauri Android (AAB), macOS (DMG), iOS (IPA), creates GitHub Release with CHANGELOG body and uploads assets. Optionally uploads AAB to Google Play if `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` is set. |
 
-Required secrets: **DOCKERHUB_USERNAME**, **DOCKERHUB_TOKEN** (for Release). Optional: **GOOGLE_PLAY_SERVICE_ACCOUNT_JSON**, **GOOGLE_PLAY_TRACK** (Release); **E2E_MAPBOX_ACCESS_TOKEN** (E2E Tests, for map tests); Apple signing for iOS (Release).
+Required secrets: 
+- **DOCKERHUB_USERNAME**, **DOCKERHUB_TOKEN** (for Release)
+- **APPLE_CERTIFICATE_BASE64**, **APPLE_CERTIFICATE_PASSWORD**, **APPLE_PROVISIONING_PROFILE_BASE64** (for iOS builds - see [iOS Signing Setup Guide](docs/ios-signing-setup.md))
+
+Optional secrets:
+- **GOOGLE_PLAY_SERVICE_ACCOUNT_JSON**, **GOOGLE_PLAY_TRACK** (for Android Play Store upload)
+- **APP_STORE_CONNECT_API_KEY_ID**, **APP_STORE_CONNECT_ISSUER_ID**, **APP_STORE_CONNECT_API_KEY_CONTENT** (for automatic TestFlight upload)
+- **E2E_MAPBOX_ACCESS_TOKEN** (E2E Tests, for map tests)
 
 ### Releases (CI/CD)
 
@@ -109,6 +116,17 @@ The app can compare `tag_name` (or a parsed version) with the current `APP_VERSI
 
 - **Google Play (automatic):** If you set the secret **`GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`** (full JSON key content) in the repo’s GitHub Actions secrets, the release workflow will upload the AAB to Play Console after creating the GitHub Release. Optional secret **`GOOGLE_PLAY_TRACK`**: set to `internal`, `alpha`, `beta`, or `production` (defaults to `internal` if unset). Setup: (1) Enable [Google Play Android Developer API](https://console.cloud.google.com/apis/library/androidpublisher.googleapis.com); (2) Create a service account in Google Cloud, download its JSON key; (3) In [Play Console](https://play.google.com/console) → Users and permissions, invite the service account email and grant “Release to production” (or the track you use); (4) Put the JSON key contents in GitHub secret `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`. The app must have at least one manual upload to Play before the first API upload.
 - **App Store:** Download the `.ipa` from the GitHub Release and upload via [App Store Connect](https://appstoreconnect.apple.com/) (Transporter or Xcode), or automate with [fastlane](https://fastlane.tools/) and Apple credentials in CI.
+
+### iOS Deployment Setup
+
+For automatic iOS builds and App Store deployment, see:
+- **[iOS Signing Setup Guide](docs/ios-signing-setup.md)** - Complete guide to configure Apple certificates and provisioning profiles
+- **[iOS Deployment Checklist](docs/ios-deployment-checklist.md)** - Quick reference for releases
+- **[Verification Script](scripts/verify-ios-signing.sh)** - Test your signing setup locally
+
+Required GitHub secrets: `APPLE_CERTIFICATE_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_PROVISIONING_PROFILE_BASE64`
+
+Optional (for automatic TestFlight upload): `APP_STORE_CONNECT_API_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_API_KEY_CONTENT`
 
 ### Database Management
 The database is automatically initialized with:

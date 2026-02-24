@@ -192,10 +192,16 @@ jobs:
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
           echo "PROFILE_NAME=$PROFILE_NAME" >> $GITHUB_ENV
 
+      - name: Verify web build exists
+        run: ls -la web/dist/
+
       - name: Build iOS archive with xcodebuild
         working-directory: web/src-tauri/gen/apple
         run: |
           set -x
+          # Verify dist exists
+          ls -la ../../dist/
+          
           xcodebuild clean archive \
             -project app.xcodeproj \
             -scheme app_iOS \

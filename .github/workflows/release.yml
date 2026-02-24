@@ -222,22 +222,6 @@ jobs:
           CI: true
         run: bundle exec fastlane ios release
 
-      - name: Upload to App Store Connect (optional)
-        if: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID != '' }}
-        working-directory: web/src-tauri/gen/apple
-        env:
-          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
-        run: |
-          # Save API key
-          mkdir -p ~/.appstoreconnect/private_keys
-          echo -n "$APP_STORE_CONNECT_API_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
-          
-          # Upload using altool or Fastlane
-          bundle exec fastlane ios upload
-        continue-on-error: true
-
       - name: Upload iOS IPA artifact
         uses: actions/upload-artifact@v4
         with:

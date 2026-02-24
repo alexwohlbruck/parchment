@@ -123,29 +123,6 @@ jobs:
         working-directory: web
         run: bun install --frozen-lockfile
 
-      - name: Build web frontend
-        working-directory: web
-        run: npm run build
-
-      # - name: Build macOS (ARM)
-      #   working-directory: web
-      #   run: bun run build:macos:arm
-
-      # - name: Add x86_64-apple-darwin target
-      #   run: rustup target add x86_64-apple-darwin
-
-      # - name: Build macOS (x64)
-      #   working-directory: web
-      #   run: bun run build:macos
-
-      # - name: Upload macOS artifacts
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: mac-dmg
-      #     path: |
-      #       web/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
-      #       web/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
-
       - name: Setup iOS signing
         env:
           CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
@@ -192,40 +169,15 @@ jobs:
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
           echo "PROFILE_NAME=$PROFILE_NAME" >> $GITHUB_ENV
 
-      - name: Verify web build exists
-        run: ls -la web/dist/
-
-      - name: Build iOS archive with xcodebuild
-        working-directory: web/src-tauri/gen/apple
-        run: |
-          set -x
-          # Verify dist exists
-          ls -la ../../dist/
-          
-          xcodebuild clean archive \
-            -project app.xcodeproj \
-            -scheme app_iOS \
-            -configuration release \
-            -archivePath "$PWD/build/Parchment.xcarchive" \
-            -destination 'generic/platform=iOS' \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
-            DEVELOPMENT_TEAM=QPNGAD5BD2
-
-      - name: Export IPA
-        working-directory: web/src-tauri/gen/apple
-        run: |
-          xcodebuild -exportArchive \
-            -archivePath $PWD/build/Parchment.xcarchive \
-            -exportPath $PWD/build \
-            -exportOptionsPlist ExportOptions.plist
+      - name: Build iOS with Tauri
+        working-directory: web
+        run: bun tauri ios build --export-method app-store-connect
 
       - name: Upload iOS IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: ios-ipa
-          path: web/src-tauri/gen/apple/build/*.ipa
+          path: web/src-tauri/gen/apple/build/arm64/*.ipa
         continue-on-error: true
 
       - name: Cleanup keychain

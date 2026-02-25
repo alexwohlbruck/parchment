@@ -104,6 +104,11 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
       - name: Install server dependencies
         working-directory: server
         run: bun install --frozen-lockfile
@@ -111,13 +116,6 @@ jobs:
       - name: Install web dependencies
         working-directory: web
         run: bun install --frozen-lockfile
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-          cache: 'npm'
-          cache-dependency-path: web/package-lock.json
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -175,10 +173,6 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Install web dependencies
-        working-directory: web
-        run: bun install --frozen-lockfile
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -192,6 +186,14 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+
+      - name: Install server dependencies
+        working-directory: server
+        run: bun install --frozen-lockfile
+
+      - name: Install web dependencies
+        working-directory: web
+        run: bun install --frozen-lockfile
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -236,10 +238,6 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Install web dependencies
-        working-directory: web
-        run: bun install --frozen-lockfile
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -249,6 +247,14 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-ios,x86_64-apple-ios,aarch64-apple-ios-sim
+
+      - name: Install server dependencies
+        working-directory: server
+        run: bun install --frozen-lockfile
+
+      - name: Install web dependencies
+        working-directory: web
+        run: bun install --frozen-lockfile
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2

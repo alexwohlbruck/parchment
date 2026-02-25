@@ -131,6 +131,14 @@ jobs:
         with:
           workspaces: 'web/src-tauri -> target'
 
+      - name: Read CHANGELOG
+        id: changelog
+        run: |
+          CHANGELOG=$(cat CHANGELOG.md)
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -139,9 +147,11 @@ jobs:
           IOS_MOBILE_PROVISION: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
         with:
           projectPath: web
-          includeRelease: false
-          uploadWorkflowArtifacts: true
-          workflowArtifactNamePattern: '${{ matrix.target }}-[bundle]'
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Release ${{ github.ref_name }}'
+          releaseBody: ${{ steps.changelog.outputs.body }}
+          releaseDraft: false
+          prerelease: false
           args: ${{ matrix.target == 'android' && 'android build --aab' || matrix.target == 'ios' && 'ios build --export-method app-store-connect' || format('build --target {0}', matrix.target) }}
 
       - name: Setup Node for iOS build
@@ -178,25 +188,22 @@ jobs:
             web/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
             web/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
 
-  release:
-    name: Create GitHub Release and upload assets
+  upload-to-stores:
+    name: Upload to app stores
     runs-on: ubuntu-latest
     needs: [publish-tauri]
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Extract version from tag
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
+      - name: Download Android AAB from release
+        run: |
+          gh release download ${{ github.ref_name }} -p "*.aab" -D android-aab
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Prepare Play Store release notes
         run: |
@@ -208,22 +215,9 @@ jobs:
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: app.parchment
-          releaseFiles: artifacts/android-aab/*.aab
+          releaseFiles: android-aab/*.aab
           track: ${{ secrets.GOOGLE_PLAY_TRACK || 'internal' }}
           releaseName: ${{ steps.version.outputs.VERSION }}
           whatsNewDirectory: play-release-notes
           status: completed
         continue-on-error: true
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ steps.version.outputs.VERSION }}
-          body_path: CHANGELOG.md
-          files: artifacts/**/*
-          fail_on_unmatched_files: false
-          draft: false
-          make_latest: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,7 +1,12 @@
 # Release pipeline: on tag push v*, build Docker images (push to Docker Hub),
 # build Tauri apps (Android, macOS, iOS), create GitHub Release with CHANGELOG body and upload assets.
-# Requires secrets: DOCKERHUB_USERNAME, DOCKERHUB_TOKEN.
-# For iOS build: configure Apple code signing (e.g. APPLE_SIGNING_IDENTITY, certificates, provisioning profile).
+#
+# Required secrets:
+# - DOCKERHUB_USERNAME, DOCKERHUB_TOKEN: Docker Hub credentials
+# - APPLE_MACOS_CERTIFICATE_BASE64, APPLE_MACOS_CERTIFICATE_PASSWORD: macOS code signing (Developer ID Application cert)
+# - APPLE_CERTIFICATE_BASE64, APPLE_CERTIFICATE_PASSWORD: iOS code signing (Apple Distribution cert)
+# - APPLE_API_ISSUER, APPLE_API_KEY, APPLE_API_KEY_CONTENT: App Store Connect API for notarization & upload
+# - GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: Google Play upload
 
 name: Release
 
@@ -9,32 +14,6 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
-    inputs:
-      run_tests:
-        description: 'Run tests'
-        type: boolean
-        default: false
-      build_docker:
-        description: 'Build Docker images'
-        type: boolean
-        default: false
-      build_desktop:
-        description: 'Build desktop apps (macOS, Linux)'
-        type: boolean
-        default: false
-      build_android:
-        description: 'Build Android app'
-        type: boolean
-        default: false
-      build_ios:
-        description: 'Build iOS app'
-        type: boolean
-        default: true
-      upload_stores:
-        description: 'Upload to app stores'
-        type: boolean
-        default: false
 
 env:
   REGISTRY: docker.io
@@ -43,7 +22,6 @@ jobs:
   test:
     name: Run tests
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || inputs.run_tests
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -61,9 +39,6 @@ jobs:
     needs: [test]
     name: Build Docker images
     runs-on: ubuntu-latest
-    if: |
-      (github.event_name == 'push' || inputs.build_docker) && 
-      (needs.test.result == 'success' || needs.test.result == 'skipped')
     permissions:
       contents: read
       id-token: write
@@ -108,9 +83,6 @@ jobs:
   publish-tauri:
     needs: [test]
     name: Build desktop apps
-    if: |
-      (github.event_name == 'push' || inputs.build_desktop) && 
-      (needs.test.result == 'success' || needs.test.result == 'skipped')
     permissions:
       contents: write
     strategy:
@@ -159,6 +131,57 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
+      - name: Setup macOS code signing
+        if: matrix.platform == 'macos-latest'
+        run: |
+          # Check if we have a macOS certificate (Developer ID Application)
+          if [ -z "${{ secrets.APPLE_MACOS_CERTIFICATE_BASE64 }}" ]; then
+            echo "Warning: APPLE_MACOS_CERTIFICATE_BASE64 not set. macOS app will not be signed."
+            echo "You need a 'Developer ID Application' certificate for macOS desktop apps."
+            echo "This is different from the iOS 'Apple Distribution' certificate."
+            exit 0
+          fi
+          
+          # Create keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          
+          # Import certificate
+          CERTIFICATE_PATH=$RUNNER_TEMP/certificate.p12
+          echo -n "${{ secrets.APPLE_MACOS_CERTIFICATE_BASE64 }}" | base64 --decode -o $CERTIFICATE_PATH
+          security import $CERTIFICATE_PATH -P "${{ secrets.APPLE_MACOS_CERTIFICATE_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          
+          # Export signing identity for Tauri
+          SIGNING_IDENTITY=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep "Developer ID Application" | head -1 | grep -o '".*"' | tr -d '"')
+          
+          if [ -z "$SIGNING_IDENTITY" ]; then
+            echo "Error: No 'Developer ID Application' certificate found in keychain."
+            echo "Please ensure you're using the correct certificate type."
+            exit 1
+          fi
+          
+          echo "Found signing identity: $SIGNING_IDENTITY"
+          echo "APPLE_SIGNING_IDENTITY=$SIGNING_IDENTITY" >> $GITHUB_ENV
+          echo "APPLE_CERTIFICATE=${{ secrets.APPLE_MACOS_CERTIFICATE_BASE64 }}" >> $GITHUB_ENV
+          echo "APPLE_CERTIFICATE_PASSWORD=${{ secrets.APPLE_MACOS_CERTIFICATE_PASSWORD }}" >> $GITHUB_ENV
+          
+          # Setup notarization credentials
+          if [ -n "${{ secrets.APPLE_API_ISSUER }}" ]; then
+            mkdir -p ~/.appstoreconnect/private_keys
+            echo "${{ secrets.APPLE_API_KEY_CONTENT }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
+            echo "APPLE_API_ISSUER=${{ secrets.APPLE_API_ISSUER }}" >> $GITHUB_ENV
+            echo "APPLE_API_KEY=${{ secrets.APPLE_API_KEY }}" >> $GITHUB_ENV
+            echo "APPLE_API_KEY_PATH=$HOME/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8" >> $GITHUB_ENV
+          fi
+          
+          # Clean up
+          rm $CERTIFICATE_PATH
+
       - name: Prepare release notes
         id: changelog
         shell: bash
@@ -194,9 +217,6 @@ jobs:
     needs: [test]
     name: Build Android app
     runs-on: ubuntu-22.04
-    if: |
-      (github.event_name == 'push' || inputs.build_android) && 
-      (needs.test.result == 'success' || needs.test.result == 'skipped')
     permissions:
       contents: write
     steps:
@@ -259,9 +279,6 @@ jobs:
     needs: [test]
     name: Build iOS app
     runs-on: macos-latest
-    if: |
-      (github.event_name == 'push' || inputs.build_ios) && 
-      (needs.test.result == 'success' || needs.test.result == 'skipped')
     permissions:
       contents: write
     steps:
@@ -348,19 +365,43 @@ jobs:
         working-directory: web
         run: bun tauri ios build --export-method app-store-connect
 
-      - name: Upload to release
+      - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           files: web/src-tauri/gen/apple/build/arm64/*.ipa
 
+      - name: Upload to App Store Connect
+        working-directory: web
+        run: |
+          # Find the IPA file
+          IPA_PATH=$(find src-tauri/gen/apple/build/arm64 -name "*.ipa" | head -1)
+          
+          if [ -z "$IPA_PATH" ]; then
+            echo "Error: IPA file not found"
+            exit 1
+          fi
+          
+          echo "Uploading $IPA_PATH to App Store Connect..."
+          
+          # Check if using App Store Connect API or fallback to manual credentials
+          if [ -n "${{ secrets.APPLE_API_ISSUER }}" ]; then
+            echo "Using App Store Connect API for upload"
+            xcrun altool --upload-app \
+              -t ios \
+              -f "$IPA_PATH" \
+              --apiKey "${{ secrets.APPLE_API_KEY }}" \
+              --apiIssuer "${{ secrets.APPLE_API_ISSUER }}"
+          else
+            echo "Warning: APPLE_API_ISSUER not set. Upload to App Store Connect requires API credentials."
+            echo "Please configure APPLE_API_ISSUER, APPLE_API_KEY, and APPLE_API_KEY_CONTENT secrets."
+            exit 1
+          fi
+
   upload-to-stores:
     name: Publish to app stores
     runs-on: ubuntu-latest
     needs: [publish-android]
-    if: |
-      (github.event_name == 'push' || inputs.upload_stores) && 
-      (needs.publish-android.result == 'success')
     steps:
       - uses: actions/checkout@v4
 

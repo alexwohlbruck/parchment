@@ -50,7 +50,7 @@
       "exceptionDomain": "",
       "signingIdentity": null,
       "providerShortName": null,
-      "entitlements": null
+      "entitlements": "Entitlements.plist"
     },
     "iOS": {
       "developmentTeam": "QPNGAD5BD2"

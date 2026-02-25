@@ -22,6 +22,9 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+      - name: Install server dependencies
+        working-directory: server
+        run: bun install --frozen-lockfile
       - name: Install web dependencies
         working-directory: web
         run: bun install --frozen-lockfile
@@ -74,10 +77,29 @@ jobs:
             alexwohlbruck/parchment-server:${{ steps.version.outputs.VERSION }}
             alexwohlbruck/parchment-server:latest
 
-  build-tauri-android:
+  publish-tauri:
     needs: [test]
-    name: Build Tauri Android (AAB)
-    runs-on: ubuntu-latest
+    name: Build and release Tauri apps
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            target: 'aarch64-apple-darwin'
+            bundles: 'dmg'
+          - platform: 'macos-latest'
+            target: 'x86_64-apple-darwin'
+            bundles: 'dmg'
+          - platform: 'ubuntu-22.04'
+            target: 'android'
+            bundles: 'aab'
+          - platform: 'macos-latest'
+            target: 'ios'
+            bundles: 'ipa'
+
+    runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
 
@@ -86,26 +108,13 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Install server dependencies
+        working-directory: server
+        run: bun install --frozen-lockfile
+
       - name: Install web dependencies
         working-directory: web
         run: bun install --frozen-lockfile
-
-      - name: Build Android AAB
-        working-directory: web
-        run: bun run build:android
-
-      - name: Upload Android AAB
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-aab
-          path: web/src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
-
-  build-tauri-mac-ios:
-    needs: [test]
-    name: Build macOS and iOS
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -114,8 +123,36 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
-      - name: Install frontend dependencies
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: 'web/src-tauri -> target'
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IOS_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          IOS_MOBILE_PROVISION: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+        with:
+          projectPath: web
+          includeRelease: false
+          uploadWorkflowArtifacts: true
+          workflowArtifactNamePattern: '${{ matrix.target }}-[bundle]'
+          args: ${{ matrix.target == 'android' && 'android build --aab' || matrix.target == 'ios' && 'ios build --export-method app-store-connect' || format('build --target {0}', matrix.target) }}
+
+      - name: Setup Node for iOS build
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies for iOS
         working-directory: web
         run: npm install
 
@@ -133,14 +170,6 @@ jobs:
           tauriScript: npm run tauri
           args: ios build --export-method app-store-connect
 
-      - name: Build macOS (ARM)
-        working-directory: web
-        run: bun run build:macos:arm
-
-      - name: Build macOS (x64)
-        working-directory: web
-        run: bun run build:macos
-
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -152,7 +181,7 @@ jobs:
   release:
     name: Create GitHub Release and upload assets
     runs-on: ubuntu-latest
-    needs: [build-tauri-android, build-tauri-mac-ios]
+    needs: [publish-tauri]
     permissions:
       contents: write
     steps:
@@ -164,36 +193,26 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
       - name: Prepare Play Store release notes
         run: |
           mkdir -p play-release-notes
           tail -n +7 CHANGELOG.md > play-release-notes/whatsnew-en-US
-
-      - name: Download Android AAB
-        uses: actions/download-artifact@v4
-        with:
-          name: android-aab
 
       - name: Upload AAB to Google Play
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: app.parchment
-          releaseFiles: android-aab/*.aab
+          releaseFiles: artifacts/android-aab/*.aab
           track: ${{ secrets.GOOGLE_PLAY_TRACK || 'internal' }}
           releaseName: ${{ steps.version.outputs.VERSION }}
           whatsNewDirectory: play-release-notes
           status: completed
-
-      - name: Download macOS DMGs
-        uses: actions/download-artifact@v4
-        with:
-          name: mac-dmg
-
-      - name: Download iOS IPA (optional)
-        uses: actions/download-artifact@v4
-        with:
-          name: ios-ipa
         continue-on-error: true
 
       - name: Create GitHub Release
@@ -202,10 +221,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ steps.version.outputs.VERSION }}
           body_path: CHANGELOG.md
-          files: |
-            android-aab/*.aab
-            mac-dmg/*.dmg
-            ios-ipa/*.ipa
+          files: artifacts/**/*
           fail_on_unmatched_files: false
           draft: false
           make_latest: true

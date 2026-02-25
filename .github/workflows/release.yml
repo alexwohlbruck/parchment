@@ -304,6 +304,22 @@ jobs:
           cd server && bun install --frozen-lockfile
           cd ../web && bun install --frozen-lockfile
 
+      - name: Install ImageMagick
+        run: brew install imagemagick
+
+      - name: Regenerate iOS icons
+        working-directory: web
+        run: |
+          bun tauri icon src-tauri/icons/app-icon.svg --ios-color "#1a1a1a"
+          
+          # Remove alpha channel from iOS icons (Apple requires opaque icons)
+          echo "Removing alpha channel from iOS icons..."
+          cd src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset
+          for file in *.png; do
+            magick "$file" -background "#1a1a1a" -alpha remove -alpha off "$file"
+            echo "Flattened: $file"
+          done
+
       - name: Cache Rust dependencies
         uses: swatinem/rust-cache@v2
         with:

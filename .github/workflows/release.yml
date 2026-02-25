@@ -86,10 +86,6 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Install server dependencies
-        working-directory: server
-        run: bun install --frozen-lockfile
-
       - name: Install web dependencies
         working-directory: web
         run: bun install --frozen-lockfile
@@ -137,21 +133,9 @@ jobs:
           tauriScript: npm run tauri
           args: ios build --export-method app-store-connect
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install web dependencies for macOS builds
-        working-directory: web
-        run: bun install --frozen-lockfile
-
       - name: Build macOS (ARM)
         working-directory: web
         run: bun run build:macos:arm
-
-      - name: Add x86_64-apple-darwin target
-        run: rustup target add x86_64-apple-darwin
 
       - name: Build macOS (x64)
         working-directory: web

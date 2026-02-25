@@ -61,7 +61,9 @@ jobs:
     needs: [test]
     name: Build Docker images
     runs-on: ubuntu-latest
-    if: (github.event_name == 'push' || inputs.build_docker) && (always() && !failure() && !cancelled())
+    if: |
+      (github.event_name == 'push' || inputs.build_docker) && 
+      (needs.test.result == 'success' || needs.test.result == 'skipped')
     permissions:
       contents: read
       id-token: write
@@ -106,7 +108,9 @@ jobs:
   publish-tauri:
     needs: [test]
     name: Build desktop apps
-    if: (github.event_name == 'push' || inputs.build_desktop) && (always() && !failure() && !cancelled())
+    if: |
+      (github.event_name == 'push' || inputs.build_desktop) && 
+      (needs.test.result == 'success' || needs.test.result == 'skipped')
     permissions:
       contents: write
     strategy:
@@ -190,7 +194,9 @@ jobs:
     needs: [test]
     name: Build Android app
     runs-on: ubuntu-22.04
-    if: (github.event_name == 'push' || inputs.build_android) && (always() && !failure() && !cancelled())
+    if: |
+      (github.event_name == 'push' || inputs.build_android) && 
+      (needs.test.result == 'success' || needs.test.result == 'skipped')
     permissions:
       contents: write
     steps:
@@ -253,7 +259,9 @@ jobs:
     needs: [test]
     name: Build iOS app
     runs-on: macos-latest
-    if: (github.event_name == 'push' || inputs.build_ios) && (always() && !failure() && !cancelled())
+    if: |
+      (github.event_name == 'push' || inputs.build_ios) && 
+      (needs.test.result == 'success' || needs.test.result == 'skipped')
     permissions:
       contents: write
     steps:
@@ -286,32 +294,51 @@ jobs:
 
       - name: Setup code signing
         run: |
-          # Create keychain
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
-          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          
-          # Import certificate
-          CERTIFICATE_PATH=$RUNNER_TEMP/certificate.p12
-          echo -n "${{ secrets.APPLE_CERTIFICATE_BASE64 }}" | base64 --decode -o $CERTIFICATE_PATH
-          security import $CERTIFICATE_PATH -P "${{ secrets.APPLE_CERTIFICATE_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-          security list-keychain -d user -s $KEYCHAIN_PATH
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          
-          # Import provisioning profile
-          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
-          echo -n "${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode -o $PP_PATH
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          
-          # Get UUID from provisioning profile and copy with UUID as filename
-          PP_UUID=$(grep -a -A 1 'UUID' $PP_PATH | grep -o '<string>.*</string>' | sed 's/<string>\(.*\)<\/string>/\1/')
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$PP_UUID.mobileprovision
-          
-          # Clean up
-          rm $CERTIFICATE_PATH
-          rm $PP_PATH
+          # Try automatic signing first (App Store Connect API)
+          if [ -n "${{ secrets.APPLE_API_ISSUER }}" ]; then
+            echo "Using automatic signing with App Store Connect API"
+            mkdir -p ~/.appstoreconnect/private_keys
+            echo "${{ secrets.APPLE_API_KEY_CONTENT }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
+            echo "APPLE_API_ISSUER=${{ secrets.APPLE_API_ISSUER }}" >> $GITHUB_ENV
+            echo "APPLE_API_KEY=${{ secrets.APPLE_API_KEY }}" >> $GITHUB_ENV
+            echo "APPLE_API_KEY_PATH=$HOME/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8" >> $GITHUB_ENV
+          else
+            echo "Using manual signing with certificates"
+            # Create keychain
+            KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+            KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+            security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+            security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+            security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+            
+            # Import certificate
+            CERTIFICATE_PATH=$RUNNER_TEMP/certificate.p12
+            echo -n "${{ secrets.APPLE_CERTIFICATE_BASE64 }}" | base64 --decode -o $CERTIFICATE_PATH
+            security import $CERTIFICATE_PATH -P "${{ secrets.APPLE_CERTIFICATE_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+            security list-keychain -d user -s $KEYCHAIN_PATH
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+            
+            # Import provisioning profile
+            PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+            echo -n "${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode -o $PP_PATH
+            mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+            
+            # Get UUID and profile name from provisioning profile
+            PP_UUID=$(openssl smime -inform der -verify -noverify -in $PP_PATH 2>/dev/null | plutil -extract UUID raw -)
+            PP_NAME=$(openssl smime -inform der -verify -noverify -in $PP_PATH 2>/dev/null | plutil -extract Name raw -)
+            
+            # Copy with UUID as filename
+            cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$PP_UUID.mobileprovision
+            
+            # Configure Xcode project for manual signing
+            cd src-tauri/gen/apple
+            sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' app.xcodeproj/project.pbxproj
+            sed -i '' "s/DEVELOPMENT_TEAM = QPNGAD5BD2;/DEVELOPMENT_TEAM = QPNGAD5BD2;\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = \"${PROVISIONING_PROFILE_NAME}\";/g" app.xcodeproj/project.pbxproj
+            
+            # Clean up
+            rm $CERTIFICATE_PATH
+            rm $PP_PATH
+          fi
 
       - name: Build frontend
         working-directory: web
@@ -331,7 +358,9 @@ jobs:
     name: Publish to app stores
     runs-on: ubuntu-latest
     needs: [publish-android]
-    if: (github.event_name == 'push' || inputs.upload_stores) && (always() && !failure() && !cancelled())
+    if: |
+      (github.event_name == 'push' || inputs.upload_stores) && 
+      (needs.publish-android.result == 'success')
     steps:
       - uses: actions/checkout@v4
 

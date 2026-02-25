@@ -137,6 +137,15 @@ jobs:
           tauriScript: npm run tauri
           args: ios build --export-method app-store-connect
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install web dependencies for macOS builds
+        working-directory: web
+        run: bun install --frozen-lockfile
+
       - name: Build macOS (ARM)
         working-directory: web
         run: bun run build:macos:arm

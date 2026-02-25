@@ -90,8 +90,6 @@ jobs:
             args: '--target x86_64-apple-darwin'
           - platform: 'ubuntu-22.04'
             args: ''
-          - platform: 'windows-latest'
-            args: ''
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -158,7 +156,6 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
           tauriScript: bun tauri
-          beforeBuildCommand: ''
 
   publish-android:
     needs: [test]
@@ -256,16 +253,41 @@ jobs:
         with:
           workspaces: 'web/src-tauri -> target'
 
+      - name: Setup code signing
+        run: |
+          # Create keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          
+          # Import certificate
+          CERTIFICATE_PATH=$RUNNER_TEMP/certificate.p12
+          echo -n "${{ secrets.APPLE_CERTIFICATE_BASE64 }}" | base64 --decode -o $CERTIFICATE_PATH
+          security import $CERTIFICATE_PATH -P "${{ secrets.APPLE_CERTIFICATE_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          
+          # Import provisioning profile
+          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          echo -n "${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode -o $PP_PATH
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          
+          # Get UUID from provisioning profile and copy with UUID as filename
+          PP_UUID=$(grep -a -A 1 'UUID' $PP_PATH | grep -o '<string>.*</string>' | sed 's/<string>\(.*\)<\/string>/\1/')
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$PP_UUID.mobileprovision
+          
+          # Clean up
+          rm $CERTIFICATE_PATH
+          rm $PP_PATH
+
       - name: Build frontend
         working-directory: web
         run: bun run build
 
       - name: Build app bundle
         working-directory: web
-        env:
-          IOS_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          IOS_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          IOS_MOBILE_PROVISION: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
         run: bun tauri ios build --export-method app-store-connect
 
       - name: Upload to release

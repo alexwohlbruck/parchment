@@ -132,15 +132,10 @@ jobs:
         with:
           projectPath: web
           includeRelease: false
+          uploadWorkflowArtifacts: true
+          workflowArtifactNamePattern: 'ios-[bundle]'
           tauriScript: npm run tauri
           args: ios build --export-method app-store-connect
-
-      - name: Upload iOS IPA artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-ipa
-          path: web/src-tauri/gen/apple/build/arm64/*.ipa
-        continue-on-error: true
 
       - name: Build macOS (ARM)
         working-directory: web

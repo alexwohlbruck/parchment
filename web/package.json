@@ -92,7 +92,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
-    "@tailwindcss/postcss": "^4.1.10",
+    "@tailwindcss/postcss": "^4.1.12",
     "@tauri-apps/cli": "^2.10.0",
     "@types/mapbox-gl": "^2.7.21",
     "@types/node": "^22.15.21",
@@ -107,7 +107,7 @@
     "postcss": "^8.4.38",
     "postgres": "^3.4.5",
     "sass": "^1.97.3",
-    "tailwindcss": "^4.1.10",
+    "tailwindcss": "^4.1.12",
     "typescript": "^5.4.5",
     "vite": "^5.2.11",
     "vite-svg-loader": "^5.1.0",

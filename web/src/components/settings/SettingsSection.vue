@@ -13,14 +13,10 @@ interface Props {
 }
 
 const {
-  shadow,
-  frame,
-  class: className,
-} = withDefaults(defineProps<Props>(), {
-  frame: true,
-  shadow: true,
-  class: '',
-})
+  shadow = true,
+  frame = true,
+  class: className = '',
+} = defineProps<Props>()
 </script>
 
 <template>

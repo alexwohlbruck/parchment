@@ -183,7 +183,7 @@ export function autocompleteResultToPlace(result: AutocompleteResult): Place {
         icon: result.icon || 'map-pin',
         iconColor: result.color || 'rose',
       },
-    } as Place
+    } as unknown as Place // TODO: Fix this
   }
 
   if (result.type === 'current_location') {
@@ -202,7 +202,7 @@ export function autocompleteResultToPlace(result: AutocompleteResult): Place {
       externalIds: {},
       address: null,
       placeType: { value: 'current_location' },
-    } as Place
+    } as unknown as Place
   }
 
   // Default for 'place' type and fallback
@@ -223,7 +223,7 @@ export function autocompleteResultToPlace(result: AutocompleteResult): Place {
       ? { value: { formatted: result.description } }
       : null,
     placeType: { value: 'place' },
-  } as Place
+  } as unknown as Place
 }
 
 /**
@@ -321,7 +321,7 @@ export function searchResultToPlace(result: any): Place {
         sources: [],
         lastUpdated: new Date().toISOString(),
         createdAt: new Date().toISOString(),
-      } as Place
+      } as unknown as Place
     }
 
     if (result.type === 'current_location' && result.metadata.currentLocation) {
@@ -365,7 +365,7 @@ export function searchResultToPlace(result: any): Place {
         sources: [],
         lastUpdated: new Date().toISOString(),
         createdAt: new Date().toISOString(),
-      } as Place
+      } as unknown as Place
     }
 
     if (result.type === 'place' && result.metadata.place) {
@@ -404,12 +404,12 @@ export function searchResultToPlace(result: any): Place {
               timestamp: new Date().toISOString(),
             }
           : result.description
-          ? {
-              value: { formatted: result.description },
-              sourceId: 'search',
-              timestamp: new Date().toISOString(),
-            }
-          : null,
+            ? {
+                value: { formatted: result.description },
+                sourceId: 'search',
+                timestamp: new Date().toISOString(),
+              }
+            : null,
         placeType: {
           value: place.placeType || 'place',
           sourceId: 'search',
@@ -479,7 +479,7 @@ export function searchResultToPlace(result: any): Place {
         sources: [],
         lastUpdated: new Date().toISOString(),
         createdAt: new Date().toISOString(),
-      } as Place
+      } as unknown as Place
     }
   }
 

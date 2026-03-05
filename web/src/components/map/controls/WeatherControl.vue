@@ -4,26 +4,26 @@
  * Currently we only support two AQI scales:
  * - European CAQI (1-5 scale) for metric users
  * - US EPA AQI (0-500 scale) for imperial users
- * 
+ *
  * Future enhancement: Add support for regional AQI scales based on user location:
- * 
+ *
  * Key Regional AQI Differences:
  * - U.S. EPA AQI (0-500): Often used internationally (e.g., AirNow, PurpleAir).
  *   Stricter for lower pollutant levels (PM2.5 below 9 μg/m³ is "Good").
- * 
+ *
  * - China AQI (0-500): Different, sometimes more linear calculation.
  *   Less strict than US at lower concentrations but comparable at higher levels.
- * 
+ *
  * - India NAQI (0-500): 6-category scale similar to US, but with higher breakpoints
  *   for "Good" or "Satisfactory" levels, allowing higher pollutant levels before
  *   labeling air "Unhealthy".
- * 
+ *
  * - EU CAQI (0-100): Focuses on 0-100 scale, often separating measurements for
  *   roadside vs background locations, with lower, stricter numerical indices.
- * 
+ *
  * - Canada AQHI (0-10+): Air Quality Health Index representing health risks rather
  *   than just pollutant concentrations, usually ranging from 0-10+.
- * 
+ *
  * Implementation approach:
  * 1. Add user preference or auto-detect based on location
  * 2. Implement conversion functions for each regional scale
@@ -39,12 +39,13 @@ import { Button } from '@/components/ui/button'
 import { ControlVisibility, UnitSystem } from '@/types/map.types'
 import { storeToRefs } from 'pinia'
 import WeatherDetailsDialog from '@/components/map/WeatherDetailsDialog.vue'
-import { 
+import { TransitionFade } from '@morev/vue-transitions'
+import {
   Sun,
   Moon,
-  Cloud, 
-  CloudRain, 
-  CloudSnow, 
+  Cloud,
+  CloudRain,
+  CloudSnow,
   CloudDrizzle,
   CloudLightning,
   CloudFog,
@@ -55,7 +56,7 @@ import {
   CloudRainWind,
   Wind,
   Snowflake,
-  type LucideIcon
+  type LucideIcon,
 } from 'lucide-vue-next'
 
 const weatherService = useWeatherService()
@@ -83,12 +84,12 @@ const temperature = computed(() => {
   if (!weather.value) return '–'
   const temp = weather.value.temperature
   if (temp === null || temp === undefined || isNaN(temp)) return '–'
-  
+
   // Convert to Fahrenheit if imperial
   if (unitSystem.value === UnitSystem.IMPERIAL) {
-    return Math.round((temp * 9/5) + 32)
+    return Math.round((temp * 9) / 5 + 32)
   }
-  
+
   return Math.round(temp)
 })
 
@@ -99,19 +100,23 @@ const temperatureUnit = computed(() => {
 // Map OpenWeatherMap condition to Lucide icon
 const weatherIcon = computed((): LucideIcon => {
   if (!weather.value) return Sun
-  
+
   const condition = weather.value.condition.toLowerCase()
   const description = weather.value.conditionDescription.toLowerCase()
   const icon = weather.value.conditionIcon
-  
+
   // Check if it's night time (icons ending with 'n')
   const isNight = icon?.endsWith('n')
-  
+
   // Thunderstorm (Group 2xx)
-  if (condition.includes('thunderstorm') || condition.includes('thunder') || condition.includes('storm')) {
+  if (
+    condition.includes('thunderstorm') ||
+    condition.includes('thunder') ||
+    condition.includes('storm')
+  ) {
     return CloudLightning
   }
-  
+
   // Drizzle (Group 3xx)
   if (condition.includes('drizzle')) {
     // Light drizzle with partial clouds
@@ -120,7 +125,7 @@ const weatherIcon = computed((): LucideIcon => {
     }
     return CloudDrizzle
   }
-  
+
   // Rain (Group 5xx)
   if (condition.includes('rain')) {
     // Freezing rain or sleet
@@ -128,16 +133,23 @@ const weatherIcon = computed((): LucideIcon => {
       return CloudHail
     }
     // Light rain with sun
-    if ((description.includes('light') || description.includes('shower')) && !isNight) {
+    if (
+      (description.includes('light') || description.includes('shower')) &&
+      !isNight
+    ) {
       return CloudSunRain
     }
     // Heavy rain or windy rain
-    if (description.includes('heavy') || description.includes('extreme') || description.includes('ragged')) {
+    if (
+      description.includes('heavy') ||
+      description.includes('extreme') ||
+      description.includes('ragged')
+    ) {
       return CloudRainWind
     }
     return CloudRain
   }
-  
+
   // Snow (Group 6xx)
   if (condition.includes('snow')) {
     // Sleet or rain and snow
@@ -154,12 +166,20 @@ const weatherIcon = computed((): LucideIcon => {
     }
     return CloudSnow
   }
-  
+
   // Atmosphere (Group 7xx) - fog, mist, haze, dust, sand, smoke, ash, squall, tornado
-  if (condition.includes('mist') || condition.includes('fog') || condition.includes('haze')) {
+  if (
+    condition.includes('mist') ||
+    condition.includes('fog') ||
+    condition.includes('haze')
+  ) {
     return CloudFog
   }
-  if (condition.includes('dust') || condition.includes('sand') || condition.includes('ash')) {
+  if (
+    condition.includes('dust') ||
+    condition.includes('sand') ||
+    condition.includes('ash')
+  ) {
     return CloudFog
   }
   if (condition.includes('squall') || condition.includes('tornado')) {
@@ -168,7 +188,7 @@ const weatherIcon = computed((): LucideIcon => {
   if (condition.includes('smoke')) {
     return CloudFog
   }
-  
+
   // Clouds (Group 8xx)
   if (condition.includes('clouds') || condition.includes('cloud')) {
     // Few clouds (11-25%) or scattered clouds (25-50%)
@@ -178,12 +198,12 @@ const weatherIcon = computed((): LucideIcon => {
     // Broken clouds (51-84%) or overcast (85-100%)
     return Cloud
   }
-  
+
   // Clear (Group 800)
   if (condition.includes('clear')) {
     return isNight ? Moon : Sun
   }
-  
+
   // Default fallback
   return isNight ? Moon : Sun
 })
@@ -204,7 +224,10 @@ function calculateUSAQI(pm25: number): number {
 
   for (const bp of breakpoints) {
     if (pm25 >= bp.pm_low && pm25 <= bp.pm_high) {
-      const aqi = ((bp.aqi_high - bp.aqi_low) / (bp.pm_high - bp.pm_low)) * (pm25 - bp.pm_low) + bp.aqi_low
+      const aqi =
+        ((bp.aqi_high - bp.aqi_low) / (bp.pm_high - bp.pm_low)) *
+          (pm25 - bp.pm_low) +
+        bp.aqi_low
       return Math.round(aqi)
     }
   }
@@ -227,29 +250,29 @@ const aqiLevel = computed(() => {
 const aqiBadgeClass = computed(() => {
   const aqi = aqiLevel.value
   if (!aqi) return ''
-  
+
   if (unitSystem.value === UnitSystem.METRIC) {
     // European AQI color scale (1-5)
-    if (aqi === 1) return 'bg-green-500 text-white'     // Good
-    if (aqi === 2) return 'bg-yellow-400 text-white'    // Fair
-    if (aqi === 3) return 'bg-orange-500 text-white'    // Moderate
-    if (aqi === 4) return 'bg-red-500 text-white'       // Poor
-    return 'bg-purple-600 text-white'                    // Very Poor (5)
+    if (aqi === 1) return 'bg-green-500 text-white' // Good
+    if (aqi === 2) return 'bg-yellow-400 text-white' // Fair
+    if (aqi === 3) return 'bg-orange-500 text-white' // Moderate
+    if (aqi === 4) return 'bg-red-500 text-white' // Poor
+    return 'bg-purple-600 text-white' // Very Poor (5)
   } else {
     // US EPA AQI color scale (0-500)
-    if (aqi <= 50) return 'bg-green-500 text-white'        // Good
-    if (aqi <= 100) return 'bg-yellow-400 text-white'      // Moderate
-    if (aqi <= 150) return 'bg-orange-500 text-white'      // Unhealthy for Sensitive Groups
-    if (aqi <= 200) return 'bg-red-500 text-white'         // Unhealthy
-    if (aqi <= 300) return 'bg-purple-600 text-white'      // Very Unhealthy
-    return 'bg-maroon-800 text-white'                       // Hazardous
+    if (aqi <= 50) return 'bg-green-500 text-white' // Good
+    if (aqi <= 100) return 'bg-yellow-400 text-white' // Moderate
+    if (aqi <= 150) return 'bg-orange-500 text-white' // Unhealthy for Sensitive Groups
+    if (aqi <= 200) return 'bg-red-500 text-white' // Unhealthy
+    if (aqi <= 300) return 'bg-purple-600 text-white' // Very Unhealthy
+    return 'bg-maroon-800 text-white' // Hazardous
   }
 })
 
 const aqiLabel = computed(() => {
   const aqi = aqiLevel.value
   if (!aqi) return ''
-  
+
   if (unitSystem.value === UnitSystem.METRIC) {
     // European AQI descriptive labels (1-5)
     if (aqi === 1) return 'Good'
@@ -270,7 +293,7 @@ const aqiLabel = computed(() => {
 </script>
 
 <template>
-  <transition name="fade">
+  <TransitionFade>
     <Button
       v-if="isVisible"
       variant="outline"
@@ -280,22 +303,15 @@ const aqiLabel = computed(() => {
     >
       <!-- Weather Icon and Temperature -->
       <div class="flex items-center gap-1">
-        <component 
-          :is="weatherIcon" 
-          class="h-4 w-4"
-          :stroke-width="2"
-        />
-        <span class="text-sm font-bold leading-none">
-          {{ temperature }}°
-        </span>
+        <component :is="weatherIcon" class="h-4 w-4" :stroke-width="2" />
+        <span class="text-sm font-bold leading-none"> {{ temperature }}° </span>
       </div>
 
       <!-- AQI Badge -->
-      <div
-        v-if="aqiLevel"
-        class="flex items-center gap-1 mt-0.5"
-      >
-        <span class="text-[0.5rem] font-medium opacity-60 leading-none">AQI</span>
+      <div v-if="aqiLevel" class="flex items-center gap-1 mt-0.5">
+        <span class="text-[0.5rem] font-medium opacity-60 leading-none"
+          >AQI</span
+        >
         <span class="text-[0.5rem] font-bold leading-none">
           {{ aqiLevel }}
         </span>
@@ -306,27 +322,14 @@ const aqiLabel = computed(() => {
         />
       </div>
     </Button>
-  </transition>
+  </TransitionFade>
 
   <!-- Weather Details Dialog -->
-  <WeatherDetailsDialog
-    v-model:open="showDetailsDialog"
-    :weather="weather"
-  />
+  <WeatherDetailsDialog v-model:open="showDetailsDialog" :weather="weather" />
 </template>
 
 <style scoped>
 .weather-control {
   @apply pointer-events-auto;
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
 }
 </style>

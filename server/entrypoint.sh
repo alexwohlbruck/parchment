@@ -11,8 +11,10 @@ if [ "$NODE_ENV" = "production" ]; then
         DB_HOST="$DATABASE_HOST"
         DB_PORT="$DATABASE_PORT"
     elif [ -n "$DATABASE_URL" ]; then
-        DB_HOST=$(echo "$DATABASE_URL" | sed -n 's|.*@\([^:/]*\):.*|\1|p')
-        DB_PORT=$(echo "$DATABASE_URL" | sed -n 's|.*:\([0-9]*\)/.*|\1|p')
+        # Extract host from URL (handles both with and without port)
+        DB_HOST=$(echo "$DATABASE_URL" | sed -n 's|.*@\([^:/]*\).*|\1|p')
+        # Extract port if present, otherwise use default 5432
+        DB_PORT=$(echo "$DATABASE_URL" | sed -n 's|.*@[^:]*:\([0-9]*\)/.*|\1|p')
     fi
     DB_HOST=${DB_HOST:-localhost}
     DB_PORT=${DB_PORT:-5432}
@@ -47,8 +49,10 @@ else
         DB_HOST="$DATABASE_HOST"
         DB_PORT="$DATABASE_PORT"
     elif [ -n "$DATABASE_URL" ]; then
-        DB_HOST=$(echo "$DATABASE_URL" | sed -n 's|.*@\([^:/]*\):.*|\1|p')
-        DB_PORT=$(echo "$DATABASE_URL" | sed -n 's|.*:\([0-9]*\)/.*|\1|p')
+        # Extract host from URL (handles both with and without port)
+        DB_HOST=$(echo "$DATABASE_URL" | sed -n 's|.*@\([^:/]*\).*|\1|p')
+        # Extract port if present, otherwise use default 5432
+        DB_PORT=$(echo "$DATABASE_URL" | sed -n 's|.*@[^:]*:\([0-9]*\)/.*|\1|p')
     fi
     DB_HOST=${DB_HOST:-localhost}
     DB_PORT=${DB_PORT:-5432}

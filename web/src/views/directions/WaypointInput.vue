@@ -75,7 +75,7 @@ watch(
 function clearWaypoint(index: number) {
   // Clear the input text
   inputTexts.value[index] = ''
-  
+
   // Clear user-modified flag
   userModifiedInputs.value.delete(index)
 
@@ -85,7 +85,7 @@ function clearWaypoint(index: number) {
 
     // Remove the corresponding input text
     inputTexts.value.splice(index, 1)
-    
+
     // Update user-modified flags for remaining inputs
     const newUserModified = new Set<number>()
     userModifiedInputs.value.forEach(i => {
@@ -107,10 +107,7 @@ function clearWaypoint(index: number) {
 
 function addWaypoint() {
   inputTexts.value.push('')
-  emit('update:modelValue', [
-    ...waypoints.value,
-    { lngLat: null },
-  ])
+  emit('update:modelValue', [...waypoints.value, { lngLat: null }])
 }
 
 function getWaypointName(waypoint: Waypoint) {
@@ -147,7 +144,7 @@ function selectPlace(index: number, place: Place, result?: AutocompleteResult) {
 
   // Update input text to show the selected place name
   inputTexts.value[index] = result ? result.title : getSearchResultName(place)
-  
+
   // Clear user-modified flag since we're setting a system value
   userModifiedInputs.value.delete(index)
 }
@@ -199,15 +196,14 @@ const getAutocomplete = useDebounceFn(async (index: number, value: string) => {
     const [lng, lat] = Array.isArray(center)
       ? center
       : 'lng' in center
-      ? [center.lng, center.lat]
-      : [center.lon, center.lat]
+        ? [center.lng, center.lat]
+        : [center.lon, center.lat]
 
-    autocompleteResults.value =
-      await searchService.getAutocompleteSuggestions({
-        query: value,
-        lat,
-        lng,
-      })
+    autocompleteResults.value = await searchService.getAutocompleteSuggestions({
+      query: value,
+      lat,
+      lng,
+    })
   } finally {
     isLoading.value = false
   }
@@ -231,7 +227,7 @@ function autocompleteResultToPlace(result: AutocompleteResult): Place {
       externalIds: {},
       address: null,
       placeType: { value: 'current_location' },
-    } as Place
+    } as unknown as Place // TODO: Fix this
   }
 
   if (result.type === 'bookmark') {
@@ -258,7 +254,7 @@ function autocompleteResultToPlace(result: AutocompleteResult): Place {
         icon: result.icon || 'map-pin',
         iconColor: result.color || 'rose',
       },
-    } as Place
+    } as unknown as Place
   }
 
   // Default for 'place' type and fallback
@@ -279,7 +275,7 @@ function autocompleteResultToPlace(result: AutocompleteResult): Place {
       ? { value: { formatted: result.description } }
       : null,
     placeType: { value: 'place' },
-  } as Place
+  } as unknown as Place
 }
 
 // Check if current location is already used in any waypoint that hasn't been edited
@@ -411,8 +407,8 @@ defineExpose({
                       result.type === 'current_location'
                         ? 'Locate'
                         : result.type === 'bookmark'
-                        ? result.icon || 'MapPin'
-                        : 'MapPin'
+                          ? result.icon || 'MapPin'
+                          : 'MapPin'
                     "
                     :color="(result.color as ThemeColor) || 'slate'"
                     size="sm"
@@ -450,7 +446,12 @@ defineExpose({
     </template>
   </draggable>
 
-  <Button variant="outline" :icon="PlusIcon" @click="addWaypoint()" class="w-fit self-center">
+  <Button
+    variant="outline"
+    :icon="PlusIcon"
+    @click="addWaypoint()"
+    class="w-fit self-center"
+  >
     {{ $t('directions.addStop') }}
   </Button>
 </template>

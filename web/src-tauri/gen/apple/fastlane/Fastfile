@@ -1,0 +1,39 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Build for App Store (CI)"
+  lane :release do
+    # Build and archive
+    build_ios_app(
+      project: "app.xcodeproj",
+      scheme: "app_iOS",
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: "./build/arm64",
+      output_name: "Parchment.ipa",
+      clean: false,
+      destination: "generic/platform=iOS",
+      # Don't use -allowProvisioningUpdates as we're using manual signing
+      xcargs: "CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution' PROVISIONING_PROFILE_SPECIFIER='#{ENV['PROVISIONING_PROFILE_SPECIFIER']}'",
+      export_options: {
+        method: "app-store",
+        teamID: "QPNGAD5BD2",
+        signingStyle: "manual",
+        provisioningProfiles: {
+          "app.parchment" => ENV["PROVISIONING_PROFILE_SPECIFIER"] || "Parchment App Store"
+        }
+      }
+    )
+  end
+  
+  desc "Upload to App Store Connect"
+  lane :upload do
+    upload_to_app_store(
+      ipa: "./build/arm64/Parchment.ipa",
+      skip_screenshots: true,
+      skip_metadata: true,
+      skip_app_version_update: true,
+      precheck_include_in_app_purchases: false
+    )
+  end
+end

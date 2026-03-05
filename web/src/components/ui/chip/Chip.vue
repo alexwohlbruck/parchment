@@ -30,57 +30,44 @@ const CLEAR_VALUE = '__clear__'
 
 const {
   dropdownValue,
-  multiple,
+  multiple = false,
   label,
-  variant,
-  size,
-  disabled,
+  variant = 'button',
+  size = 'xs',
+  disabled = false,
   options,
-  clearLabel,
-  forceIcon,
+  clearLabel = 'Clear',
+  forceIcon = false,
   icon,
   modelValue,
-  customContent,
-  showClear,
-  showActionButton,
+  customContent = false,
+  showClear = true,
+  showActionButton = false,
   actionIcon,
   actionLabel,
   class: className
-} = withDefaults(
-  defineProps<{
-    icon?: Component
-    label: string
-    variant?: 'button' | 'toggle' | 'dropdown'
-    size?: 'xs' | 'sm' | 'default' | 'lg'
-    disabled?: boolean
-    // For toggle variant
-    modelValue?: boolean
-    // For dropdown variant
-    dropdownValue?: string | number | boolean | Array<string | number | boolean>
-    options?: ChipOption[]
-    multiple?: boolean
-    customContent?: boolean
-    showClear?: boolean
-    clearLabel?: string
-    forceIcon?: boolean // Force using the original icon instead of selected option icon
-    // For embedded action button
-    showActionButton?: boolean
-    actionIcon?: Component
-    actionLabel?: string
-    class?: string
-  }>(),
-  {
-    variant: 'button',
-    size: 'xs',
-    disabled: false,
-    multiple: false,
-    customContent: false,
-    showClear: true,
-    clearLabel: 'Clear',
-    forceIcon: false,
-    showActionButton: false,
-  },
-)
+} = defineProps<{
+  icon?: Component
+  label: string
+  variant?: 'button' | 'toggle' | 'dropdown'
+  size?: 'xs' | 'sm' | 'default' | 'lg'
+  disabled?: boolean
+  // For toggle variant
+  modelValue?: boolean
+  // For dropdown variant
+  dropdownValue?: string | number | boolean | Array<string | number | boolean>
+  options?: ChipOption[]
+  multiple?: boolean
+  customContent?: boolean
+  showClear?: boolean
+  clearLabel?: string
+  forceIcon?: boolean // Force using the original icon instead of selected option icon
+  // For embedded action button
+  showActionButton?: boolean
+  actionIcon?: Component
+  actionLabel?: string
+  class?: string
+}>()
 
 const emit = defineEmits<{
   click: []

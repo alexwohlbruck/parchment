@@ -50,10 +50,10 @@
       "exceptionDomain": "",
       "signingIdentity": null,
       "providerShortName": null,
-      "entitlements": null
+      "entitlements": "Entitlements.plist"
     },
     "iOS": {
-      "developmentTeam": "app.parchment"
+      "developmentTeam": "QPNGAD5BD2"
     },
     "android": {
       "versionCode": 20

@@ -1,3 +1,8 @@
-xcuserdata/
 build/
-Externals/
+*.xcarchive
+*.ipa
+*.dSYM.zip
+DerivedData/
+vendor/
+.bundle/
+Gemfile.lock

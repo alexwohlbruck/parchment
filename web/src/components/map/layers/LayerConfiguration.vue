@@ -6,7 +6,7 @@ import {
   MapEngine,
   LayerType,
 } from '@/types/map.types'
-import { computed, ref, defineEmits, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import * as z from 'zod'

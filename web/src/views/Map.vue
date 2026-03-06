@@ -25,6 +25,11 @@ import { useStreetViewLayersService } from '@/services/layers/features/street-vi
 
 import MapChips from '@/components/map/MapChips.vue'
 import WeatherControl from '@/components/map/controls/WeatherControl.vue'
+import MapToolbox from '@/components/map/controls/MapToolbox.vue'
+import MeasureTool from '@/components/map/measure/MeasureTool.vue'
+import { useMapToolsStore } from '@/stores/map-tools.store'
+import { useMapStore } from '@/stores/map.store'
+import { ControlVisibility } from '@/types/map.types'
 
 const route = useRoute()
 const router = useRouter()
@@ -34,6 +39,14 @@ const mapService = useMapService()
 const layersStore = useLayersStore()
 const { layers } = storeToRefs(layersStore)
 const streetViewLayersService = useStreetViewLayersService()
+const mapToolsStore = useMapToolsStore()
+const mapStore = useMapStore()
+const { controlSettings } = storeToRefs(mapStore)
+const showToolbox = computed(
+  () =>
+    (controlSettings.value.toolbox ?? ControlVisibility.ALWAYS) ===
+    ControlVisibility.ALWAYS,
+)
 
 const isBottomSheetView = computed(() => {
   const isSubview = route.matched.length > 1 && route.name !== AppRoute.MAP
@@ -214,6 +227,12 @@ defineExpose({
               </div>
             </transition-slide>
           </div>
+          <!-- Right section (top) -->
+          <div class="flex flex-col items-end gap-2" />
+          <!-- Center (top): same padding/safe area as sides -->
+          <div
+            class="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 flex flex-col items-center justify-start pointer-events-none p-2 safe-area-inset"
+          />
         </div>
 
         <!-- z-20 below drawers -->
@@ -262,6 +281,7 @@ defineExpose({
               <!-- Right top -->
               <div class="pointer-events-auto flex flex-col gap-2">
                 <ZoomControl />
+                <MapToolbox v-if="showToolbox" />
                 <CompassControl />
               </div>
 
@@ -276,6 +296,26 @@ defineExpose({
               </div>
             </div>
           </transition-slide>
+
+          <!-- Center (bottom): same padding/safe area as left/right -->
+          <div
+            class="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 flex flex-col items-center justify-end pointer-events-none p-2 safe-area-inset"
+          >
+            <TransitionSlide
+              appear
+              no-opacity
+              :offset="[0, '110%']"
+              :duration="350"
+            >
+              <div
+                v-if="mapToolsStore.activeTool === 'measure'"
+                class="pointer-events-auto flex flex-col gap-2"
+                :class="{ 'mb-16': isMobileScreen }"
+              >
+                <MeasureTool />
+              </div>
+            </TransitionSlide>
+          </div>
         </div>
       </template>
 

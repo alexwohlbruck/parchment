@@ -103,7 +103,7 @@ watchEffect(() => {
 })
 
 // Send locale to backend for localized responses (e.g. weather, directions, place names)
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(config => {
   config.headers.set('Accept-Language', storedLocale.value)
   return config
 })

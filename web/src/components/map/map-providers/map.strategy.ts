@@ -195,6 +195,10 @@ export class MapStrategy {
     component: Component,
     props: Record<string, any> = {},
     zIndex?: number,
+    dragOptions?: {
+      onDragEnd: (lngLat: LngLat) => void
+      onDrag?: (lngLat: LngLat) => void
+    },
   ) {}
 
   removeMarker(id: string) {

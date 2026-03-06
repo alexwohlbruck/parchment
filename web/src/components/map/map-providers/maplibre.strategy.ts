@@ -744,24 +744,50 @@ export class MaplibreStrategy extends MapStrategy {
     component: Component,
     props: Record<string, any> = {},
     zIndex?: number,
+    dragOptions?: {
+      onDragEnd: (lngLat: LngLat) => void
+      onDrag?: (lngLat: LngLat) => void
+    },
   ) {
-    super.addVueMarker(id, lngLat, component, props, zIndex)
+    super.addVueMarker(id, lngLat, component, props, zIndex, dragOptions)
 
     const element = createVueMarkerElement(component, props)
+    const draggable = !!dragOptions
 
     const marker = new Marker({
-      element: element,
-      anchor: 'center', // Center the element on the position
+      element,
+      anchor: 'center',
+      ...(draggable && { draggable: true }),
     })
       .setLngLat(lngLat as LngLatLike)
       .addTo(this.mapInstance)
 
-    // Set z-index on the marker's DOM element if provided
     if (zIndex !== undefined) {
       const markerElement = marker.getElement()
       if (markerElement) {
         markerElement.style.zIndex = String(zIndex)
       }
+    }
+
+    if (draggable && dragOptions) {
+      const el = marker.getElement()
+      if (el) {
+        el.style.cursor = 'grab'
+        marker.on('dragstart', () => {
+          el.style.cursor = 'grabbing'
+        })
+      }
+      if (dragOptions.onDrag) {
+        marker.on('drag', () => {
+          const pos = marker.getLngLat()
+          dragOptions.onDrag!({ lng: pos.lng, lat: pos.lat })
+        })
+      }
+      marker.on('dragend', () => {
+        if (el) el.style.cursor = 'grab'
+        const pos = marker.getLngLat()
+        dragOptions.onDragEnd({ lng: pos.lng, lat: pos.lat })
+      })
     }
 
     this.markers.set(id, marker)

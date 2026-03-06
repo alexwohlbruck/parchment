@@ -38,6 +38,7 @@ import {
   ZoomInIcon,
   CompassIcon,
   RulerIcon,
+  PencilRulerIcon,
   PersonStandingIcon,
   LocateIcon,
   CloudSun,
@@ -332,6 +333,36 @@ const basemap = computed(() => {
         :icon="CloudSun"
       >
         <Select v-model="controlSettings.weather">
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem :value="ControlVisibility.ALWAYS">
+                {{ $t('settings.mapSettings.controls.visibility.always') }}
+              </SelectItem>
+              <SelectItem :value="ControlVisibility.NEVER">
+                {{ $t('settings.mapSettings.controls.visibility.never') }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.controls.toolbox')"
+        :icon="PencilRulerIcon"
+      >
+        <Select
+          :model-value="controlSettings.toolbox ?? ControlVisibility.ALWAYS"
+          @update:model-value="
+            v =>
+              (controlSettings.toolbox =
+                v === ControlVisibility.NEVER
+                  ? ControlVisibility.NEVER
+                  : ControlVisibility.ALWAYS)
+          "
+        >
           <SelectTrigger class="w-fit">
             <SelectValue />
           </SelectTrigger>

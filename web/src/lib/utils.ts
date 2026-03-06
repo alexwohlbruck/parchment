@@ -229,7 +229,10 @@ export function decodeShape(str, precision = 6) {
 
 // Color conversion utilities
 export function rgbToHex(rgb: string): string {
-  const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i)
+  // Match rgb(r g b) or rgba(r g b a) or rgb(r, g, b) (commas optional, CSS Color 4)
+  const m =
+    rgb.match(/rgba?\(\s*(\d+)\s+(\d+)\s+(\d+)/i) ??
+    rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i)
   if (!m) return '#04CB63'
   const r = Number(m[1]).toString(16).padStart(2, '0')
   const g = Number(m[2]).toString(16).padStart(2, '0')
@@ -305,12 +308,71 @@ export function adjustLightness(hex: string, delta: number) {
   return hslToHex(h, s, newL)
 }
 
+/**
+ * Parse Tailwind/theme HSL string to hex.
+ * Supports "hsl(H S% L%)" (space-separated, no commas) and "hsl(H, S%, L%)".
+ */
+export function themeHslToHex(hslString: string): string | null {
+  if (!hslString || typeof hslString !== 'string') return null
+  const trimmed = hslString.trim()
+  // Space-separated: hsl(221.2 83.2% 53.3%)
+  const spaceMatch = trimmed.match(/hsl\(\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%\s*\)/)
+  if (spaceMatch) {
+    const h = Number(spaceMatch[1])
+    const s = Number(spaceMatch[2])
+    const l = Number(spaceMatch[3])
+    if (!Number.isNaN(h) && !Number.isNaN(s) && !Number.isNaN(l))
+      return hslToHex(h, s, l)
+  }
+  // Comma-separated: hsl(221.2, 83.2%, 53.3%)
+  const commaMatch = trimmed.match(/hsl\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%\s*\)/)
+  if (commaMatch) {
+    const h = Number(commaMatch[1])
+    const s = Number(commaMatch[2])
+    const l = Number(commaMatch[3])
+    if (!Number.isNaN(h) && !Number.isNaN(s) && !Number.isNaN(l))
+      return hslToHex(h, s, l)
+  }
+  return null
+}
+
+/** Read theme primary from CSS variable (--primary) and convert to hex. Respects light/dark and accent. */
 export function getPrimaryThemeHex(): string {
+  try {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(
+      '--primary',
+    ).trim()
+    if (!value) return getThemeColorHex('text-primary')
+    // Theme stores primary as "H S% L%" (e.g. "221.2 83.2% 53.3%")
+    const parts = value.split(/\s+/)
+    if (parts.length >= 3) {
+      const h = Number(parts[0])
+      const s = Number(parts[1].replace('%', ''))
+      const l = Number(parts[2].replace('%', ''))
+      if (!Number.isNaN(h) && !Number.isNaN(s) && !Number.isNaN(l)) {
+        return hslToHex(h, s, l)
+      }
+    }
+  } catch {
+    // fallback to span-based resolution
+  }
+  return getThemeColorHex('text-primary')
+}
+
+/** Resolve a Tailwind theme color utility (e.g. text-primary-700) to hex for canvas/MapLibre. */
+export function getThemeColorHex(
+  utilityClass:
+    | 'text-primary'
+    | 'text-primary-600'
+    | 'text-primary-700'
+    | 'text-primary-800'
+    | 'text-primary-900',
+): string {
   try {
     const span = document.createElement('span')
     span.style.position = 'absolute'
     span.style.left = '-9999px'
-    span.className = 'text-primary'
+    span.className = utilityClass
     document.body.appendChild(span)
     const color = getComputedStyle(span).color
     document.body.removeChild(span)

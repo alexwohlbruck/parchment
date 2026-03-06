@@ -202,6 +202,18 @@
       "loadingAddress": "Cargando dirección..."
     }
   },
+  "measure": {
+    "title": "Medir",
+    "addMeasurement": "Añadir medición",
+    "close": "Cerrar herramienta de medir",
+    "distance": "Distancia",
+    "perimeter": "Perímetro",
+    "area": "Área",
+    "empty": "Haz clic en el mapa para añadir puntos.",
+    "unitsMetric": "Métrico",
+    "unitsImperial": "Imperial",
+    "cycleUnit": "Clic para cambiar unidad"
+  },
   "layers": {
     "title": "Capas",
     "meta": {
@@ -694,6 +706,7 @@
         "streetView": "Vista de calle",
         "locate": "Ubicación",
         "weather": "Clima",
+        "toolbox": "Caja de herramientas",
         "visibility": {
           "always": "Siempre",
           "never": "Nunca",

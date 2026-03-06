@@ -683,9 +683,7 @@ export const useLayersStore = defineStore('layers', () => {
               },
             },
           })
-          console.log(
-            `Updated proxy URLs for layer: ${layer.configuration.id}`,
-          )
+          console.log(`Updated proxy URLs for layer: ${layer.configuration.id}`)
         }
       }
     }

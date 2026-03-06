@@ -213,6 +213,18 @@
       "loadingAddress": "Loading address..."
     }
   },
+  "measure": {
+    "title": "Measure",
+    "addMeasurement": "Add measurement",
+    "close": "Close measure tool",
+    "distance": "Distance",
+    "perimeter": "Perimeter",
+    "area": "Area",
+    "empty": "Click on the map to add points.",
+    "unitsMetric": "Metric",
+    "unitsImperial": "Imperial",
+    "cycleUnit": "Click to cycle unit"
+  },
   "layers": {
     "title": "Layers",
     "meta": {
@@ -731,6 +743,7 @@
         "streetView": "Street view",
         "locate": "Locate",
         "weather": "Weather",
+        "toolbox": "Toolbox",
         "visibility": {
           "always": "Always",
           "never": "Never",

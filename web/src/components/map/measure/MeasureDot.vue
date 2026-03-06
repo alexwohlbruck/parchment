@@ -1,10 +1,18 @@
 <script setup lang="ts">
-defineProps<{ index: number; isFirst?: boolean }>()
+const props = defineProps<{
+  index: number
+  isFirst?: boolean
+  onRemove?: () => void
+}>()
 const emit = defineEmits<{ remove: [] }>()
 
-function onClick(e: MouseEvent) {
+function onClick(e: MouseEvent | KeyboardEvent) {
   e.stopPropagation()
-  emit('remove')
+  if (props.onRemove) {
+    props.onRemove()
+  } else {
+    emit('remove')
+  }
 }
 </script>
 
@@ -14,7 +22,7 @@ function onClick(e: MouseEvent) {
     role="button"
     tabindex="0"
     @click="onClick"
-    @keydown.enter.space.prevent="emit('remove')"
+    @keydown.enter.space.prevent="onClick"
   >
     <!-- Outer ring -->
     <span

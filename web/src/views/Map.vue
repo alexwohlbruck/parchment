@@ -27,6 +27,7 @@ import MapChips from '@/components/map/MapChips.vue'
 import WeatherControl from '@/components/map/controls/WeatherControl.vue'
 import MapToolbox from '@/components/map/controls/MapToolbox.vue'
 import MeasureTool from '@/components/map/measure/MeasureTool.vue'
+import RadiusTool from '@/components/map/measure/RadiusTool.vue'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { useMapStore } from '@/stores/map.store'
 import { ControlVisibility } from '@/types/map.types'
@@ -313,6 +314,13 @@ defineExpose({
                 :class="{ 'mb-16': isMobileScreen }"
               >
                 <MeasureTool />
+              </div>
+              <div
+                v-else-if="mapToolsStore.activeTool === 'radius'"
+                class="pointer-events-auto flex flex-col gap-2"
+                :class="{ 'mb-16': isMobileScreen }"
+              >
+                <RadiusTool />
               </div>
             </TransitionSlide>
           </div>

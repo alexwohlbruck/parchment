@@ -199,20 +199,30 @@
       "edit": "Editar mapa",
       "viewIn": "Ver en",
       "copyLocation": "Copiar ubicación",
-      "loadingAddress": "Cargando dirección..."
+      "loadingAddress": "Cargando dirección...",
+      "measure": "Medir"
     }
   },
   "measure": {
     "title": "Medir",
+    "distance": "Distancia",
+    "circle": "Círculo",
     "addMeasurement": "Añadir medición",
     "close": "Cerrar herramienta de medir",
-    "distance": "Distancia",
     "perimeter": "Perímetro",
     "area": "Área",
     "empty": "Haz clic en el mapa para añadir puntos.",
     "unitsMetric": "Métrico",
     "unitsImperial": "Imperial",
     "cycleUnit": "Clic para cambiar unidad"
+  },
+  "radius": {
+    "title": "Radio",
+    "close": "Cerrar herramienta de radio",
+    "radius": "Radio",
+    "circumference": "Circunferencia",
+    "empty": "Haz clic en el mapa para fijar el centro.",
+    "clickToConfirm": "Haz clic en el mapa para fijar el radio."
   },
   "layers": {
     "title": "Capas",

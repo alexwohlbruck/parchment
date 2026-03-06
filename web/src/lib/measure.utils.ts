@@ -179,6 +179,16 @@ export function segmentDistancesMeters(points: LngLat[]): number[] {
   return out
 }
 
+/** Circumference of a circle in meters (2 * π * r) */
+export function circleCircumferenceMeters(radiusMeters: number): number {
+  return 2 * Math.PI * radiusMeters
+}
+
+/** Area of a circle in square meters (π * r²) */
+export function circleAreaSquareMeters(radiusMeters: number): number {
+  return Math.PI * radiusMeters * radiusMeters
+}
+
 /** Polygon area in square meters (points must form a closed ring) */
 export function polygonAreaSquareMeters(points: LngLat[]): number {
   if (points.length < 3) return 0

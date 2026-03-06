@@ -27,6 +27,7 @@ import {
   MapIcon,
   MapPinIcon,
   RulerIcon,
+  CircleDotIcon,
 } from 'lucide-vue-next'
 import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -373,49 +374,29 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
     })
   }
 
-  items.push({
-    type: 'item',
-    id: 'measure',
-    label:
-      mapToolsStore.activeTool === 'measure'
-        ? t('measure.addMeasurement')
-        : t('measure.title'),
-    icon: RulerIcon,
-    onSelect: () => {
-      const lngLat = clickedLngLat.value
-      const point = clickedPoint.value
-      if (!lngLat || !point) return
-      const project = (ll: LngLat) => mapService.project(ll)
-      const click = { lngLat, point }
-      if (mapToolsStore.activeTool !== 'measure') {
-        mapToolsStore.setActiveTool('measure')
-        mapToolsStore.pushMeasureState([lngLat])
-        return
-      }
-      const points = mapToolsStore.measurePoints
-      if (!project(lngLat)) {
-        mapToolsStore.pushMeasureState([...points, lngLat])
-        return
-      }
-      if (mapToolsStore.isMeasureClosed) {
-        const insert = findSegmentToInsert(points, click, project, INSERT_THRESHOLD_PX)
-        if (insert) {
-          const startPx = project(points[insert.segmentIndex])
-          const endPx = project(points[insert.segmentIndex + 1])
-          const insertPx = project(insert.point)
-          const nearStart =
-            startPx && insertPx && distancePx(insertPx, startPx) < VERTEX_NEAR_PX
-          const nearEnd =
-            endPx && insertPx && distancePx(insertPx, endPx) < VERTEX_NEAR_PX
-          if (!nearStart && !nearEnd) {
-            const next = [...points]
-            next.splice(insert.segmentIndex + 1, 0, insert.point)
-            mapToolsStore.pushMeasureState(next)
-          }
-        }
-        return
-      }
-      const insert = findSegmentToInsert(points, click, project, INSERT_THRESHOLD_PX)
+  const measureDistanceOnSelect = () => {
+    const lngLat = clickedLngLat.value
+    const point = clickedPoint.value
+    if (!lngLat || !point) return
+    const project = (ll: LngLat) => mapService.project(ll)
+    const click = { lngLat, point }
+    if (mapToolsStore.activeTool !== 'measure') {
+      mapToolsStore.setActiveTool('measure')
+      mapToolsStore.pushMeasureState([lngLat])
+      return
+    }
+    const points = mapToolsStore.measurePoints
+    if (!project(lngLat)) {
+      mapToolsStore.pushMeasureState([...points, lngLat])
+      return
+    }
+    if (mapToolsStore.isMeasureClosed) {
+      const insert = findSegmentToInsert(
+        points,
+        click,
+        project,
+        INSERT_THRESHOLD_PX,
+      )
       if (insert) {
         const startPx = project(points[insert.segmentIndex])
         const endPx = project(points[insert.segmentIndex + 1])
@@ -428,15 +409,69 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
           const next = [...points]
           next.splice(insert.segmentIndex + 1, 0, insert.point)
           mapToolsStore.pushMeasureState(next)
-          return
         }
       }
-      if (shouldCloseLoop(points, click, project, CLOSE_LOOP_THRESHOLD_PX)) {
-        mapToolsStore.pushMeasureState([...points, { ...points[0] }])
+      return
+    }
+    const insert = findSegmentToInsert(
+      points,
+      click,
+      project,
+      INSERT_THRESHOLD_PX,
+    )
+    if (insert) {
+      const startPx = project(points[insert.segmentIndex])
+      const endPx = project(points[insert.segmentIndex + 1])
+      const insertPx = project(insert.point)
+      const nearStart =
+        startPx && insertPx && distancePx(insertPx, startPx) < VERTEX_NEAR_PX
+      const nearEnd =
+        endPx && insertPx && distancePx(insertPx, endPx) < VERTEX_NEAR_PX
+      if (!nearStart && !nearEnd) {
+        const next = [...points]
+        next.splice(insert.segmentIndex + 1, 0, insert.point)
+        mapToolsStore.pushMeasureState(next)
         return
       }
-      mapToolsStore.pushMeasureState([...points, lngLat])
-    },
+    }
+    if (shouldCloseLoop(points, click, project, CLOSE_LOOP_THRESHOLD_PX)) {
+      mapToolsStore.pushMeasureState([...points, { ...points[0] }])
+      return
+    }
+    mapToolsStore.pushMeasureState([...points, lngLat])
+  }
+
+  const measureCircleOnSelect = () => {
+    const lngLat = clickedLngLat.value
+    if (!lngLat) return
+    mapToolsStore.setActiveTool('radius')
+    mapToolsStore.setRadiusCenter(lngLat)
+  }
+
+  items.push({
+    type: 'submenu',
+    id: 'measure',
+    label: t('map.contextMenu.measure'),
+    icon: RulerIcon,
+    items: [
+      {
+        type: 'item',
+        id: 'measure-distance',
+        label:
+          mapToolsStore.activeTool === 'measure'
+            ? t('measure.addMeasurement')
+            : t('measure.distance'),
+        icon: RulerIcon,
+        onSelect: measureDistanceOnSelect,
+      },
+      {
+        type: 'item',
+        id: 'measure-circle',
+        label: t('measure.circle'),
+        icon: CircleDotIcon,
+        onSelect: measureCircleOnSelect,
+      },
+    ],
   })
 
   items.push({ type: 'separator' })

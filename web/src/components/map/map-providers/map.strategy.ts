@@ -213,6 +213,14 @@ export class MapStrategy {
     }
   }
 
+  /** Update an existing marker's position without removing it (e.g. during drag of another marker). */
+  setMarkerLngLat(id: string, lngLat: LngLat) {
+    const marker = this.markers.get(id)
+    if (marker && typeof marker.setLngLat === 'function') {
+      marker.setLngLat(lngLat)
+    }
+  }
+
   removeAllMarkers() {
     this.markers.forEach(marker => {
       if (marker.getElement) {

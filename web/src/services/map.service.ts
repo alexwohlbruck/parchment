@@ -1083,6 +1083,8 @@ function mapService() {
       },
     ) => mapStrategy?.addVueMarker(id, lngLat, component, props, zIndex, dragOptions),
     removeMarker: (id: string) => mapStrategy?.removeMarker(id),
+    setMarkerLngLat: (id: string, lngLat: LngLat) =>
+      mapStrategy?.setMarkerLngLat(id, lngLat),
     removeMarkersByPrefix: (prefix: string) =>
       mapStrategy?.removeMarkersByPrefix(prefix),
     removeAllMarkers: () => mapStrategy?.removeAllMarkers(),

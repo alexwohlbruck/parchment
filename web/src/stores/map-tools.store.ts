@@ -7,13 +7,19 @@ import {
   MEASURE_POINTS_LAYER_ID,
 } from '@/constants/layer.constants'
 
-export type MapToolId = 'none' | 'measure'
+export type MapToolId = 'none' | 'measure' | 'radius'
 
 export const useMapToolsStore = defineStore('map-tools', () => {
   const activeTool = ref<MapToolId>('none')
 
   // Measure tool state: points in order, and history for undo/redo
   const measurePoints = ref<LngLat[]>([])
+
+  // Radius tool state: center, edge point (where user set radius), radius in meters, and whether user confirmed
+  const radiusCenter = ref<LngLat | null>(null)
+  const radiusEdgePoint = ref<LngLat | null>(null)
+  const radiusMeters = ref(0)
+  const radiusConfirmed = ref(false)
   const measureHistory = ref<LngLat[][]>([])
   const measureHistoryIndex = ref(-1)
 
@@ -38,6 +44,37 @@ export const useMapToolsStore = defineStore('map-tools', () => {
     if (tool !== 'measure') {
       clearMeasure()
     }
+    if (tool !== 'radius') {
+      clearRadius()
+    }
+  }
+
+  function setRadiusCenter(center: LngLat | null) {
+    radiusCenter.value = center
+    if (!center) {
+      radiusEdgePoint.value = null
+      radiusMeters.value = 0
+      radiusConfirmed.value = false
+    }
+  }
+
+  function setRadiusEdgePoint(point: LngLat | null) {
+    radiusEdgePoint.value = point
+  }
+
+  function setRadiusMeters(meters: number) {
+    radiusMeters.value = meters
+  }
+
+  function confirmRadius() {
+    radiusConfirmed.value = true
+  }
+
+  function clearRadius() {
+    radiusCenter.value = null
+    radiusEdgePoint.value = null
+    radiusMeters.value = 0
+    radiusConfirmed.value = false
   }
 
   function clearMeasure() {
@@ -91,12 +128,21 @@ export const useMapToolsStore = defineStore('map-tools', () => {
     canUndo,
     canRedo,
     isMeasureClosed,
+    radiusCenter,
+    radiusEdgePoint,
+    radiusMeters,
+    radiusConfirmed,
     setActiveTool,
     clearMeasure,
     pushMeasureState,
     setMeasurePoints,
     measureUndo,
     measureRedo,
+    setRadiusCenter,
+    setRadiusEdgePoint,
+    setRadiusMeters,
+    confirmRadius,
+    clearRadius,
     MEASURE_SOURCE_ID,
     MEASURE_LAYER_ID,
     MEASURE_POINTS_LAYER_ID,

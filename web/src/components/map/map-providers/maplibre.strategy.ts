@@ -750,6 +750,7 @@ export class MaplibreStrategy extends MapStrategy {
     },
   ) {
     super.addVueMarker(id, lngLat, component, props, zIndex, dragOptions)
+    this.removeMarker(id)
 
     const element = createVueMarkerElement(component, props)
     const draggable = !!dragOptions

@@ -646,6 +646,13 @@
   "feedback": {
     "title": "Feedback"
   },
+  "help": {
+    "title": "Help",
+    "docs": "Docs",
+    "apiDocs": "API Docs",
+    "whatsNew": "What's new",
+    "fullChangelog": "Full changelog"
+  },
   "place": {
     "transit": {
       "viewOnTransitland": "View on Transitland",

@@ -8,6 +8,7 @@ import DashboardHome from '@/components/dashboard/DashboardHome.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
 import { Button } from '@/components/ui/button'
 import AccountDropdown from '@/components/navigation/AccountDropdown.vue'
+import HelpDropdown from '@/components/navigation/HelpDropdown.vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -67,8 +68,9 @@ function test() {
         <DashboardHome v-if="activeSnapPointIndex !== 0" />
       </TransitionFade>
 
-      <!-- Account dropdown at the bottom when expanded -->
-      <div v-if="activeSnapPointIndex !== 0" class="mt-auto pt-4 px-1">
+      <!-- Help and Account dropdowns at the bottom when expanded -->
+      <div v-if="activeSnapPointIndex !== 0" class="mt-auto pt-4 px-1 flex flex-col gap-2">
+        <HelpDropdown />
         <AccountDropdown />
       </div>
     </Card>

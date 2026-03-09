@@ -23,6 +23,7 @@ import {
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import ParchmentLogo from '@/assets/parchment.svg?component'
 import AccountDropdown from '@/components/navigation/AccountDropdown.vue'
+import HelpDropdown from '@/components/navigation/HelpDropdown.vue'
 import {
   CornerUpRightIcon,
   HistoryIcon,
@@ -366,7 +367,8 @@ const items = computed<MenuItemDefinition[]>(() => [
         </div>
       </template>
 
-      <div class="px-1">
+      <div class="px-1 flex flex-col gap-1">
+        <HelpDropdown :mini="mini" />
         <AccountDropdown :mini="mini" />
       </div>
     </div>

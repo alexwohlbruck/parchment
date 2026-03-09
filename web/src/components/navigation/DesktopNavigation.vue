@@ -23,6 +23,7 @@ import {
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import ParchmentLogo from '@/assets/parchment.svg?component'
 import AccountDropdown from '@/components/navigation/AccountDropdown.vue'
+import HelpDropdown from '@/components/navigation/HelpDropdown.vue'
 import {
   CornerUpRightIcon,
   HistoryIcon,
@@ -33,6 +34,7 @@ import {
   LibraryIcon,
   MessageSquareQuoteIcon,
   SearchIcon,
+  CircleHelpIcon,
 } from 'lucide-vue-next'
 import { useHotkeys } from '@/composables/useHotkeys'
 import { useFullscreen } from '@/composables/useFullscreen'
@@ -212,16 +214,6 @@ const items = computed<MenuItemDefinition[]>(() => [
         hotkeyId: HotkeyId.TOGGLE_NAV_MINI,
       },
       {
-        label: t('feedback.title'),
-        icon: MessageSquareQuoteIcon,
-        onClick: () => {
-          openExternalLink(
-            'https://github.com/alexwohlbruck/parchment/issues',
-            '_blank',
-          )
-        },
-      },
-      {
         label: t('settings.title'),
         icon: SettingsIcon,
         commandId: CommandName.OPEN_SETTINGS,
@@ -366,7 +358,8 @@ const items = computed<MenuItemDefinition[]>(() => [
         </div>
       </template>
 
-      <div class="px-1">
+      <div class="px-1 flex flex-col gap-1">
+        <HelpDropdown :mini="mini" />
         <AccountDropdown :mini="mini" />
       </div>
     </div>

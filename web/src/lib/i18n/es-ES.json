@@ -586,6 +586,32 @@
   "feedback": {
     "title": "Feedback"
   },
+  "help": {
+    "title": "Ayuda",
+    "search": {
+      "placeholder": "Buscar ayuda..."
+    },
+    "shortcuts": {
+      "title": "Atajos"
+    },
+    "docs": {
+      "title": "Documentación"
+    },
+    "apiDocs": {
+      "title": "Documentación de API"
+    },
+    "feedback": {
+      "title": "Feedback"
+    },
+    "whatsNew": {
+      "title": "Novedades",
+      "items": {
+        "pulse": "Presentamos Pulse — tu feed personalizado para...",
+        "newSearch": "Nueva búsqueda"
+      },
+      "fullChangelog": "Registro de cambios completo"
+    }
+  },
   "place": {
     "transit": {
       "viewOnTransitland": "Ver en Transitland",

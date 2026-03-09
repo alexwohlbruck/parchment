@@ -624,6 +624,32 @@
   "feedback": {
     "title": "Feedback"
   },
+  "help": {
+    "title": "Help",
+    "search": {
+      "placeholder": "Search for help..."
+    },
+    "shortcuts": {
+      "title": "Shortcuts"
+    },
+    "docs": {
+      "title": "Docs"
+    },
+    "apiDocs": {
+      "title": "API Docs"
+    },
+    "feedback": {
+      "title": "Feedback"
+    },
+    "whatsNew": {
+      "title": "What's new",
+      "items": {
+        "pulse": "Introducing Pulse — your personalized feed for...",
+        "newSearch": "New search"
+      },
+      "fullChangelog": "Full changelog"
+    }
+  },
   "place": {
     "transit": {
       "viewOnTransitland": "View on Transitland",

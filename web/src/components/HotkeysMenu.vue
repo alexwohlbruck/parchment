@@ -21,7 +21,7 @@ const commandService = useCommandService()
 const commandStore = useCommandStore()
 const hotkeyStore = useHotkeyStore()
 
-const open = ref(false)
+const open = defineModel('open', { type: Boolean, default: false })
 const query = ref('')
 
 function openHotkeysMenu() {

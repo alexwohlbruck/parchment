@@ -608,6 +608,13 @@
   "feedback": {
     "title": "Feedback"
   },
+  "help": {
+    "title": "Ayuda",
+    "docs": "Documentación",
+    "apiDocs": "Documentación API",
+    "whatsNew": "Novedades",
+    "fullChangelog": "Registro de cambios completo"
+  },
   "place": {
     "transit": {
       "viewOnTransitland": "Ver en Transitland",

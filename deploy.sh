@@ -260,10 +260,17 @@ fi
 
 # Show changelog and confirm
 echo ""
-echo "--- CHANGELOG.md (top) ---"
-head -n 60 CHANGELOG.md 2>/dev/null || true
-echo ""
 if [ -f CHANGELOG.md ]; then
+    echo "--- CHANGELOG section for [$NEW_VERSION] ---"
+    CHANGELOG_SECTION=$(sed -n "/## \[$NEW_VERSION\]/,/^## /p" CHANGELOG.md | sed '$d' 2>/dev/null)
+    if [ -n "$CHANGELOG_SECTION" ]; then
+        echo "$CHANGELOG_SECTION"
+    else
+        echo "(No section for [$NEW_VERSION] yet. Top of CHANGELOG.md:)"
+        head -n 60 CHANGELOG.md
+    fi
+    echo "---"
+    echo ""
     echo "Ensure there is a section for [$NEW_VERSION] before releasing. See CHANGELOG.md."
 fi
 read -r -p "Confirm changelog is updated for this release. Continue? [y/N] " reply
@@ -271,6 +278,14 @@ if [[ ! "$reply" =~ ^[yY]$ ]]; then
     echo "Aborted. Update CHANGELOG.md and re-run."
     exit 0
 fi
+
+# Prompt for release title (used as GitHub Release name)
+DEFAULT_RELEASE_TITLE="Release v$NEW_VERSION"
+echo ""
+read -r -p "Release title (press Enter for '$DEFAULT_RELEASE_TITLE'): " RELEASE_TITLE_INPUT
+RELEASE_TITLE="${RELEASE_TITLE_INPUT:-$DEFAULT_RELEASE_TITLE}"
+echo "$RELEASE_TITLE" > RELEASE_TITLE
+echo "Release title set to: $RELEASE_TITLE"
 
 # Update all version numbers in repo (including Android versionCode for Play Store)
 update_package_json "$NEW_VERSION" "web/package.json"
@@ -289,7 +304,7 @@ echo ""
 echo "Version update and deployment complete!"
 
 # Stage version files and create tag
-VERSION_FILES="web/package.json server/package.json web/src-tauri/tauri.conf.json web/src-tauri/Cargo.toml CHANGELOG.md"
+VERSION_FILES="web/package.json server/package.json web/src-tauri/tauri.conf.json web/src-tauri/Cargo.toml CHANGELOG.md RELEASE_TITLE"
 git add $VERSION_FILES 2>/dev/null || true
 if git status --short $VERSION_FILES 2>/dev/null | grep -q .; then
     echo "Staged changes:"

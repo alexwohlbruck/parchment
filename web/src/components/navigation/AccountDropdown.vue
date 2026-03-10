@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, markRaw, h, defineComponent, type Component } from 'vue'
+import { computed, ref, onMounted, markRaw, h, defineComponent, type Component } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { cn } from '@/lib/utils'
@@ -9,6 +9,8 @@ import { useThemeStore } from '@/stores/theme.store'
 import { useAuthService } from '@/services/auth.service'
 import { APP_VERSION, DEFAULT_SERVER_URL } from '@/lib/constants'
 import { appEventBus } from '@/lib/eventBus'
+import { fetchLatestRelease } from '@/composables/useGitHubReleases'
+import type { GitHubReleaseSummary } from '@/composables/useGitHubReleases'
 
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
@@ -50,18 +52,16 @@ const authService = useAuthService()
 
 const dropdownOpen = ref(false)
 const aboutDialogOpen = ref(false)
+const latestRelease = ref<GitHubReleaseSummary | null>(null)
 
-// Hardcoded changelog data (replace with API/fetched data later)
-const CHANGELOG = {
-  latest: {
-    title: 'Measurement tools and deployment pipeline',
-    date: 'Mar 9, 2025',
-    href: 'https://github.com/alexwohlbruck/parchment/releases/',
-  },
-  fullChangelogHref: 'https://github.com/alexwohlbruck/parchment/releases',
-}
-
+const RELEASES_HREF = 'https://github.com/alexwohlbruck/parchment/releases'
 const DOCS_HREF = 'https://github.com/alexwohlbruck/parchment#readme'
+
+onMounted(() => {
+  fetchLatestRelease().then(release => {
+    latestRelease.value = release
+  })
+})
 const API_DOCS_HREF = `${DEFAULT_SERVER_URL}/docs`
 
 // Language options from command store
@@ -185,9 +185,11 @@ const menuItems = computed((): MenuItemDefinition[] => {
     {
       type: 'item',
       id: 'changelog-latest',
-      label: CHANGELOG.latest.title,
+      label: latestRelease.value?.title ?? t('profileMenu.whatsNew'),
       icon: CalendarIcon,
-      href: CHANGELOG.latest.href,
+      href: latestRelease.value?.url ?? RELEASES_HREF,
+      trailing: ExternalLinkIcon,
+      trailingProps: { class: 'size-4 text-muted-foreground shrink-0' },
     },
   ]
   return items

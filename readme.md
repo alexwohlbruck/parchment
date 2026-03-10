@@ -58,7 +58,7 @@ MAPILLARY_ACCESS_TOKEN=your_mapillary_token
 The application will be available at:
 - **Frontend**: http://localhost:5173
 - **Backend API**: http://localhost:5000
-- **API Documentation**: http://localhost:5000/swagger
+- **API Documentation**: http://localhost:5000/docs
 
 ### 4. Stop the Application
 ```bash

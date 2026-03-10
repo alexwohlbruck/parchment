@@ -1,4 +1,5 @@
 export default {
+  path: '/docs',
   documentation: {
     info: {
       title: 'Parchment API Docs',

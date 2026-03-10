@@ -1,6 +1,6 @@
 FROM oven/bun:latest
 WORKDIR /app/web
-COPY web/package.json web/bun.lockb ./
+COPY web/package.json web/bun.lock ./
 RUN bun install
 COPY web/ ./
 COPY server/src /app/server/src

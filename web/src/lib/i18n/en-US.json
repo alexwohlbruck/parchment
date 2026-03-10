@@ -831,7 +831,8 @@
         "title": "Capabilities",
         "streetView": "Street View",
         "transitData": "Transit Data",
-        "weather": "Weather"
+        "weather": "Weather",
+        "logging": "Logging"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",
@@ -851,7 +852,8 @@
         "wikidata": "Structured knowledge base for enriching place information",
         "wikipedia": "Free encyclopedia content and place descriptions",
         "wikimedia": "Free media repository for place images",
-        "openweathermap": "Weather data and air quality information"
+        "openweathermap": "Weather data and air quality information",
+        "axiom": "Send server logs and traces to Axiom for debugging and monitoring"
       }
     },
     "users": {

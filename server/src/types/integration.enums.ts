@@ -17,6 +17,8 @@ export enum IntegrationId {
   WIKIPEDIA = 'wikipedia',
   WIKIMEDIA = 'wikimedia',
   OPENWEATHERMAP = 'openweathermap',
+  /** Observability / log shipping. System-only; configures OTLP export (e.g. Axiom). */
+  AXIOM = 'axiom',
 }
 
 export enum IntegrationCapabilityId {
@@ -32,4 +34,5 @@ export enum IntegrationCapabilityId {
   STREET_VIEW = 'streetView',
   TRANSIT_DATA = 'transitData',
   WEATHER = 'weather',
+  LOGGING = 'logging',
 }

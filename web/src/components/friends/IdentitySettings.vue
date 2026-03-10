@@ -135,7 +135,8 @@ function handleSetupComplete() {
         </p>
       </div>
       <Button @click="openSetupDialog" class="shrink-0" variant="outline">
-        Set up identity
+        <Key class="h-4 w-4 mr-2" />
+        Set Up Identity
       </Button>
     </div>
 

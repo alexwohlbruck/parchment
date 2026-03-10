@@ -646,6 +646,16 @@
   "feedback": {
     "title": "Feedback"
   },
+  "profileMenu": {
+    "shortcuts": "Shortcuts",
+    "docs": "Docs",
+    "apiDocs": "API Docs",
+    "whatsNew": "What's new",
+    "fullChangelog": "Full changelog",
+    "checkForUpdates": "Check for updates",
+    "updateAvailable": "Update available",
+    "updateInstalling": "Installing update…"
+  },
   "place": {
     "transit": {
       "viewOnTransitland": "View on Transitland",

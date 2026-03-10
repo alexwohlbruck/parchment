@@ -7,6 +7,7 @@
 # - APPLE_CERTIFICATE_BASE64, APPLE_CERTIFICATE_PASSWORD: iOS code signing (Apple Distribution cert)
 # - APPLE_API_ISSUER, APPLE_API_KEY, APPLE_API_KEY_CONTENT: App Store Connect API for notarization & upload
 # - GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: Google Play upload
+# - TAURI_SIGNING_PRIVATE_KEY: Tauri updater signing key (generate with: bunx tauri signer generate)
 
 name: Release
 
@@ -203,6 +204,8 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
         with:
           projectPath: web
           tagName: ${{ github.ref_name }}
@@ -212,6 +215,7 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
           tauriScript: bun tauri
+          includeUpdaterJson: true
 
   publish-android:
     needs: [test]

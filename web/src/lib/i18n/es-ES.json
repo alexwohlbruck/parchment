@@ -608,6 +608,16 @@
   "feedback": {
     "title": "Feedback"
   },
+  "profileMenu": {
+    "shortcuts": "Atajos",
+    "docs": "Documentación",
+    "apiDocs": "API Docs",
+    "whatsNew": "Novedades",
+    "fullChangelog": "Changelog completo",
+    "checkForUpdates": "Buscar actualizaciones",
+    "updateAvailable": "Actualización disponible",
+    "updateInstalling": "Instalando actualización…"
+  },
   "place": {
     "transit": {
       "viewOnTransitland": "Ver en Transitland",

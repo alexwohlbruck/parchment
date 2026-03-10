@@ -31,7 +31,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd server && bun install --frozen-lockfile
-          cd ../web && bun install --frozen-lockfile
+          cd ../web && bun install --frozen-lockfile --backend=hardlink
       - name: Run tests
         working-directory: web
         run: bun run test -- run
@@ -114,7 +114,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd server && bun install --frozen-lockfile
-          cd ../web && bun install --frozen-lockfile
+          cd ../web && bun install --frozen-lockfile --backend=hardlink
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -248,7 +248,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd server && bun install --frozen-lockfile
-          cd ../web && bun install --frozen-lockfile
+          cd ../web && bun install --frozen-lockfile --backend=hardlink
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable

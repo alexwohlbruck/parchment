@@ -32,7 +32,7 @@ jobs:
 
       - name: Install web dependencies
         working-directory: web
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --backend=hardlink
 
       - name: Run web unit tests
         working-directory: web

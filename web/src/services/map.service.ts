@@ -1076,7 +1076,17 @@ function mapService() {
       lngLat: LngLat,
       component: Component,
       props: Record<string, any> = {},
-    ) => mapStrategy?.addVueMarker(id, lngLat, component, props),
+      zIndex?: number,
+      dragOptions?: {
+        onDragEnd: (lngLat: LngLat) => void
+        onDrag?: (lngLat: LngLat) => void
+      },
+    ) => mapStrategy?.addVueMarker(id, lngLat, component, props, zIndex, dragOptions),
+    removeMarker: (id: string) => mapStrategy?.removeMarker(id),
+    setMarkerLngLat: (id: string, lngLat: LngLat) =>
+      mapStrategy?.setMarkerLngLat(id, lngLat),
+    removeMarkersByPrefix: (prefix: string) =>
+      mapStrategy?.removeMarkersByPrefix(prefix),
     removeAllMarkers: () => mapStrategy?.removeAllMarkers(),
     updatePlacePolygon: (place: Place | null) =>
       placePolygonLayerService.updatePlacePolygon(mapStrategy, place),
@@ -1108,6 +1118,14 @@ function mapService() {
     // Get current map zoom level
     getZoom() {
       return mapStrategy?.mapInstance?.getZoom() || null
+    },
+
+    /** Project lng/lat to map container pixel coordinates (for measure tool hit testing). */
+    project(lngLat: LngLat): { x: number; y: number } | null {
+      const map = mapStrategy?.mapInstance
+      if (!map?.project) return null
+      const p = map.project([lngLat.lng, lngLat.lat])
+      return p && typeof p.x === 'number' && typeof p.y === 'number' ? { x: p.x, y: p.y } : null
     },
 
     // Reactive state for conditional control visibility

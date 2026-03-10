@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { distance } from '@turf/distance'
-import { point } from '@turf/helpers'
+import * as turf from '@turf/turf'
 import type { ChartConfig } from '@/components/ui/chart'
 import { useUnits } from '@/composables/useUnits'
 import { VisArea, VisAxis, VisLine, VisXYContainer } from '@unovis/vue'
@@ -70,9 +69,9 @@ function calculateDistance(
   lat2: number,
   lng2: number,
 ): number {
-  const from = point([lng1, lat1])
-  const to = point([lng2, lat2])
-  return distance(from, to, { units: 'meters' })
+  const from = turf.point([lng1, lat1])
+  const to = turf.point([lng2, lat2])
+  return turf.distance(from, to, { units: 'meters' })
 }
 
 const chartConfig = {

@@ -4,12 +4,14 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { useAppService } from '@/services/app.service'
+import { useMapService } from '@/services/map.service'
 import { useDirectionsService } from '@/services/directions.service'
 import { useGeocodingService } from '@/services/geocoding.service'
 import { mapEventBus } from '@/lib/eventBus'
 import { LngLat } from '@/types/map.types'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useMapStore } from '@/stores/map.store'
+import { useMapToolsStore } from '@/stores/map-tools.store'
 import { encode } from 'pluscodes'
 import type { MenuItemDefinition } from '@/components/responsive/ResponsiveDropdown.vue'
 import BrandIcon from '@/components/ui/brand-icon/BrandIcon.vue'
@@ -24,10 +26,20 @@ import {
   ExternalLinkIcon,
   MapIcon,
   MapPinIcon,
+  RulerIcon,
+  CircleDotIcon,
 } from 'lucide-vue-next'
 import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatAddress } from '@/lib/place.utils'
+import {
+  findSegmentToInsert,
+  distancePx,
+  shouldCloseLoop,
+  INSERT_THRESHOLD_PX,
+  CLOSE_LOOP_THRESHOLD_PX,
+  VERTEX_NEAR_PX,
+} from '@/lib/measure.utils'
 import { AppRoute } from '@/router'
 
 const router = useRouter()
@@ -35,25 +47,30 @@ const appService = useAppService()
 const directionsService = useDirectionsService()
 const directionsStore = useDirectionsStore()
 const mapStore = useMapStore()
+const mapToolsStore = useMapToolsStore()
 const { t } = useI18n()
 const { openExternalLink } = useExternalLink()
 
 const { waypoints } = storeToRefs(directionsStore)
 const { mapCamera } = storeToRefs(mapStore)
 
+const mapService = useMapService()
 const showContextMenu = ref(false)
 const contextMenuPosition = ref({ x: 0, y: 0 })
 const clickedLngLat = ref<LngLat | null>(null)
+/** Raw map container pixel coords from contextmenu (for measure tool hit testing) */
+const clickedPoint = ref<{ x: number; y: number } | null>(null)
 const geocodedPlaceName = ref<string | null>(null)
 const geocodedAddress = ref<string | null>(null)
 const geocodedOsmId = ref<string | null>(null)
-const geocodedPlaceId = ref<{ provider: string, id: string } | null>(null)
+const geocodedPlaceId = ref<{ provider: string; id: string } | null>(null)
 const isGeocoding = ref(false)
 
 onMounted(() => {
   mapEventBus.on('contextmenu', e => {
     contextMenuPosition.value = { x: e.point.x + 52, y: e.point.y - 4 } // TODO: Fix offset (something to do with viewport width, sidebar)
     clickedLngLat.value = e.lngLat
+    clickedPoint.value = e.point
     showContextMenu.value = true
   })
 })
@@ -92,7 +109,7 @@ function copyAddress() {
 
 function openPlaceAtLocation() {
   if (!clickedLngLat.value) return
-  
+
   // Priority 1: If we have an OSM ID from geocoding, open the full OSM place
   if (geocodedOsmId.value) {
     const [type, id] = geocodedOsmId.value.split('/')
@@ -100,7 +117,7 @@ function openPlaceAtLocation() {
       name: AppRoute.PLACE,
       params: { type, id },
     })
-  } 
+  }
   // Priority 2: If we have a provider-specific place ID (e.g., Geoapify), use provider lookup
   else if (geocodedPlaceId.value) {
     router.push({
@@ -121,7 +138,7 @@ function openPlaceAtLocation() {
         lng: clickedLngLat.value.lng.toString(),
       },
     })
-  } 
+  }
   // Priority 4: No name or ID, use coordinate-only lookup
   else {
     router.push({
@@ -142,7 +159,7 @@ watch([showContextMenu, clickedLngLat], async ([isOpen, lngLat]) => {
     geocodedOsmId.value = null
     geocodedPlaceId.value = null
     isGeocoding.value = true
-    
+
     try {
       const geocodingService = useGeocodingService()
       const result = await geocodingService.reverseGeocode({
@@ -150,21 +167,25 @@ watch([showContextMenu, clickedLngLat], async ([isOpen, lngLat]) => {
         lng: lngLat.lng,
         limit: 1,
       })
-      
+
       if (result.results?.[0]) {
         const place = result.results[0]
-        
+
         // Priority 1: Store OSM ID if available
         geocodedOsmId.value = place.externalIds?.osm || null
-        
+
         // Priority 2: Store provider-specific place ID (e.g., Geoapify)
-        if (!geocodedOsmId.value && result.integration && place.externalIds?.[result.integration]) {
+        if (
+          !geocodedOsmId.value &&
+          result.integration &&
+          place.externalIds?.[result.integration]
+        ) {
           geocodedPlaceId.value = {
             provider: result.integration,
             id: place.externalIds[result.integration],
           }
         }
-        
+
         // Store place name and address separately
         geocodedPlaceName.value = place.name?.value || null
         geocodedAddress.value = formatAddress(place) || null
@@ -292,7 +313,7 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
 
   // Show geocoded place name or address at top of menu - click to open place detail
   const displayLabel = geocodedPlaceName.value || geocodedAddress.value
-  
+
   if (displayLabel) {
     items.push({
       type: 'item',
@@ -306,18 +327,23 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
     items.push({
       type: 'custom',
       id: 'geocoding-loader',
-      component: h('div', {
-        class: 'flex items-center gap-3 px-2 py-1.5 text-sm cursor-not-allowed',
-      }, [
-        // Icon
-        h(MapPinIcon, {
-          class: 'h-4 w-4 shrink-0 text-muted-foreground',
-        }),
-        // Skeleton loader - h-5 matches text-sm line-height (1.25rem/20px)
-        h(Skeleton, {
-          class: 'h-5 flex-1',
-        }),
-      ]),
+      component: h(
+        'div',
+        {
+          class:
+            'flex items-center gap-3 px-2 py-1.5 text-sm cursor-not-allowed',
+        },
+        [
+          // Icon
+          h(MapPinIcon, {
+            class: 'h-4 w-4 shrink-0 text-muted-foreground',
+          }),
+          // Skeleton loader - h-5 matches text-sm line-height (1.25rem/20px)
+          h(Skeleton, {
+            class: 'h-5 flex-1',
+          }),
+        ],
+      ),
     })
     items.push({ type: 'separator' })
   }
@@ -348,6 +374,106 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
     })
   }
 
+  const measureDistanceOnSelect = () => {
+    const lngLat = clickedLngLat.value
+    const point = clickedPoint.value
+    if (!lngLat || !point) return
+    const project = (ll: LngLat) => mapService.project(ll)
+    const click = { lngLat, point }
+    if (mapToolsStore.activeTool !== 'measure') {
+      mapToolsStore.setActiveTool('measure')
+      mapToolsStore.pushMeasureState([lngLat])
+      return
+    }
+    const points = mapToolsStore.measurePoints
+    if (!project(lngLat)) {
+      mapToolsStore.pushMeasureState([...points, lngLat])
+      return
+    }
+    if (mapToolsStore.isMeasureClosed) {
+      const insert = findSegmentToInsert(
+        points,
+        click,
+        project,
+        INSERT_THRESHOLD_PX,
+      )
+      if (insert) {
+        const startPx = project(points[insert.segmentIndex])
+        const endPx = project(points[insert.segmentIndex + 1])
+        const insertPx = project(insert.point)
+        const nearStart =
+          startPx && insertPx && distancePx(insertPx, startPx) < VERTEX_NEAR_PX
+        const nearEnd =
+          endPx && insertPx && distancePx(insertPx, endPx) < VERTEX_NEAR_PX
+        if (!nearStart && !nearEnd) {
+          const next = [...points]
+          next.splice(insert.segmentIndex + 1, 0, insert.point)
+          mapToolsStore.pushMeasureState(next)
+        }
+      }
+      return
+    }
+    const insert = findSegmentToInsert(
+      points,
+      click,
+      project,
+      INSERT_THRESHOLD_PX,
+    )
+    if (insert) {
+      const startPx = project(points[insert.segmentIndex])
+      const endPx = project(points[insert.segmentIndex + 1])
+      const insertPx = project(insert.point)
+      const nearStart =
+        startPx && insertPx && distancePx(insertPx, startPx) < VERTEX_NEAR_PX
+      const nearEnd =
+        endPx && insertPx && distancePx(insertPx, endPx) < VERTEX_NEAR_PX
+      if (!nearStart && !nearEnd) {
+        const next = [...points]
+        next.splice(insert.segmentIndex + 1, 0, insert.point)
+        mapToolsStore.pushMeasureState(next)
+        return
+      }
+    }
+    if (shouldCloseLoop(points, click, project, CLOSE_LOOP_THRESHOLD_PX)) {
+      mapToolsStore.pushMeasureState([...points, { ...points[0] }])
+      return
+    }
+    mapToolsStore.pushMeasureState([...points, lngLat])
+  }
+
+  const measureCircleOnSelect = () => {
+    const lngLat = clickedLngLat.value
+    if (!lngLat) return
+    mapToolsStore.setActiveTool('radius')
+    mapToolsStore.setRadiusCenter(lngLat)
+  }
+
+  items.push({
+    type: 'submenu',
+    id: 'measure',
+    label: t('map.contextMenu.measure'),
+    icon: RulerIcon,
+    items: [
+      {
+        type: 'item',
+        id: 'measure-distance',
+        label:
+          mapToolsStore.activeTool === 'measure'
+            ? t('measure.addMeasurement')
+            : t('measure.distance'),
+        icon: RulerIcon,
+        onSelect: measureDistanceOnSelect,
+      },
+      {
+        type: 'item',
+        id: 'measure-circle',
+        label: t('measure.circle'),
+        icon: CircleDotIcon,
+        onSelect: measureCircleOnSelect,
+      },
+    ],
+  })
+
   items.push({ type: 'separator' })
 
   // Copy location submenu
@@ -369,7 +495,7 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
         onSelect: () => copyPlusCode(coords),
       },
     ]
-    
+
     // Add place name copy option if available
     if (geocodedPlaceName.value) {
       copyItems.push({
@@ -379,9 +505,12 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
         onSelect: copyPlaceName,
       })
     }
-    
+
     // Add address copy option if available (and different from place name)
-    if (geocodedAddress.value && geocodedAddress.value !== geocodedPlaceName.value) {
+    if (
+      geocodedAddress.value &&
+      geocodedAddress.value !== geocodedPlaceName.value
+    ) {
       copyItems.push({
         type: 'item',
         id: 'copy-address',

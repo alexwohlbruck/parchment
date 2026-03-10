@@ -210,8 +210,30 @@
       "edit": "Edit map",
       "viewIn": "View in",
       "copyLocation": "Copy location",
-      "loadingAddress": "Loading address..."
+      "loadingAddress": "Loading address...",
+      "measure": "Measure"
     }
+  },
+  "measure": {
+    "title": "Measure",
+    "distance": "Distance",
+    "circle": "Circle",
+    "addMeasurement": "Add measurement",
+    "close": "Close measure tool",
+    "perimeter": "Perimeter",
+    "area": "Area",
+    "empty": "Click on the map to add points.",
+    "unitsMetric": "Metric",
+    "unitsImperial": "Imperial",
+    "cycleUnit": "Click to cycle unit"
+  },
+  "radius": {
+    "title": "Radius",
+    "close": "Close radius tool",
+    "radius": "Radius",
+    "circumference": "Circumference",
+    "empty": "Click on the map to set the center point.",
+    "clickToConfirm": "Click on the map to set the radius."
   },
   "layers": {
     "title": "Layers",
@@ -624,6 +646,20 @@
   "feedback": {
     "title": "Feedback"
   },
+  "profileMenu": {
+    "shortcuts": "Shortcuts",
+    "docs": "Docs",
+    "apiDocs": "API Docs",
+    "whatsNew": "What's new",
+    "fullChangelog": "Full changelog",
+    "checkForUpdates": "Check for updates",
+    "updateAvailable": "Update available",
+    "updateInstalling": "Installing update…",
+    "updateBanner": "New version available",
+    "versionAvailable": "Version",
+    "restartToUpdate": "Restart to update",
+    "later": "Later"
+  },
   "place": {
     "transit": {
       "viewOnTransitland": "View on Transitland",
@@ -731,6 +767,7 @@
         "streetView": "Street view",
         "locate": "Locate",
         "weather": "Weather",
+        "toolbox": "Toolbox",
         "visibility": {
           "always": "Always",
           "never": "Never",

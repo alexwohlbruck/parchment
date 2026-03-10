@@ -290,6 +290,7 @@ export interface MapControlSettings {
     | ControlVisibility.NEVER
   locate: ControlVisibility.ALWAYS | ControlVisibility.NEVER
   weather: ControlVisibility.ALWAYS | ControlVisibility.NEVER
+  toolbox?: ControlVisibility.ALWAYS | ControlVisibility.NEVER
 }
 
 export enum UnitSystem {

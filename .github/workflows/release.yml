@@ -1,0 +1,463 @@
+# Release pipeline: on tag push v*, build Docker images (push to Docker Hub),
+# build Tauri apps (Android, macOS, iOS), create GitHub Release with CHANGELOG body and upload assets.
+#
+# Required secrets:
+# - DOCKERHUB_USERNAME, DOCKERHUB_TOKEN: Docker Hub credentials
+# - APPLE_MACOS_CERTIFICATE_BASE64, APPLE_MACOS_CERTIFICATE_PASSWORD: macOS code signing (Developer ID Application cert)
+# - APPLE_CERTIFICATE_BASE64, APPLE_CERTIFICATE_PASSWORD: iOS code signing (Apple Distribution cert)
+# - APPLE_API_ISSUER, APPLE_API_KEY, APPLE_API_KEY_CONTENT: App Store Connect API for notarization & upload
+# - GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: Google Play upload
+# - TAURI_SIGNING_PRIVATE_KEY: Tauri updater signing key (generate with: bunx tauri signer generate)
+# - TAURI_SIGNING_PRIVATE_KEY_PASSWORD: Password for the encrypted Tauri updater signing key
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  REGISTRY: docker.io
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Install dependencies
+        run: |
+          cd server && bun install --frozen-lockfile
+          cd ../web && bun install --frozen-lockfile
+      - name: Run tests
+        working-directory: web
+        run: bun run test -- run
+
+  build-docker:
+    needs: [test]
+    name: Build Docker images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Build and push web
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./web/Dockerfile.prod
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            alexwohlbruck/parchment-web:${{ steps.version.outputs.VERSION }}
+            alexwohlbruck/parchment-web:latest
+
+      - name: Build and push server
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./server/Dockerfile.prod
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            alexwohlbruck/parchment-server:${{ steps.version.outputs.VERSION }}
+            alexwohlbruck/parchment-server:latest
+
+  publish-tauri:
+    needs: [test]
+    name: Build desktop apps
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-latest'
+            args: '--target x86_64-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup build environment
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install dependencies
+        run: |
+          cd server && bun install --frozen-lockfile
+          cd ../web && bun install --frozen-lockfile
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Cache Rust dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: 'web/src-tauri -> target'
+
+      - name: Install system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Setup macOS code signing
+        if: matrix.platform == 'macos-latest'
+        run: |
+          # Check if we have a macOS certificate (Developer ID Application)
+          if [ -z "${{ secrets.APPLE_MACOS_CERTIFICATE_BASE64 }}" ]; then
+            echo "Warning: APPLE_MACOS_CERTIFICATE_BASE64 not set. macOS app will not be signed."
+            echo "You need a 'Developer ID Application' certificate for macOS desktop apps."
+            echo "This is different from the iOS 'Apple Distribution' certificate."
+            exit 0
+          fi
+          
+          # Create keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          
+          # Import certificate
+          CERTIFICATE_PATH=$RUNNER_TEMP/certificate.p12
+          echo -n "${{ secrets.APPLE_MACOS_CERTIFICATE_BASE64 }}" | base64 --decode -o $CERTIFICATE_PATH
+          security import $CERTIFICATE_PATH -P "${{ secrets.APPLE_MACOS_CERTIFICATE_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          
+          # Export signing identity for Tauri
+          SIGNING_IDENTITY=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep "Developer ID Application" | head -1 | grep -o '".*"' | tr -d '"')
+          
+          if [ -z "$SIGNING_IDENTITY" ]; then
+            echo "Error: No 'Developer ID Application' certificate found in keychain."
+            echo "Please ensure you're using the correct certificate type."
+            exit 1
+          fi
+          
+          echo "Found signing identity: $SIGNING_IDENTITY"
+          echo "APPLE_SIGNING_IDENTITY=$SIGNING_IDENTITY" >> $GITHUB_ENV
+          echo "APPLE_CERTIFICATE=${{ secrets.APPLE_MACOS_CERTIFICATE_BASE64 }}" >> $GITHUB_ENV
+          echo "APPLE_CERTIFICATE_PASSWORD=${{ secrets.APPLE_MACOS_CERTIFICATE_PASSWORD }}" >> $GITHUB_ENV
+          
+          # Setup notarization credentials
+          if [ -n "${{ secrets.APPLE_API_ISSUER }}" ]; then
+            mkdir -p ~/.appstoreconnect/private_keys
+            echo "${{ secrets.APPLE_API_KEY_CONTENT }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
+            echo "APPLE_API_ISSUER=${{ secrets.APPLE_API_ISSUER }}" >> $GITHUB_ENV
+            echo "APPLE_API_KEY=${{ secrets.APPLE_API_KEY }}" >> $GITHUB_ENV
+            echo "APPLE_API_KEY_PATH=$HOME/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8" >> $GITHUB_ENV
+          fi
+          
+          # Clean up
+          rm $CERTIFICATE_PATH
+
+      - name: Prepare release notes
+        id: changelog
+        shell: bash
+        run: |
+          if [ -f CHANGELOG.md ]; then
+            CHANGELOG=$(cat CHANGELOG.md)
+          else
+            CHANGELOG="Release ${{ github.ref_name }}"
+          fi
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Build frontend
+        working-directory: web
+        run: bun run build
+
+      - name: Build and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+        with:
+          projectPath: web
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Release ${{ github.ref_name }}'
+          releaseBody: ${{ steps.changelog.outputs.body }}
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
+          tauriScript: bun tauri
+          includeUpdaterJson: true
+
+  publish-android:
+    needs: [test]
+    name: Build Android app
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup build environment
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: |
+          cd server && bun install --frozen-lockfile
+          cd ../web && bun install --frozen-lockfile
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Setup Android NDK
+        run: |
+          echo "y" | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --install "ndk;26.1.10909125"
+          echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/26.1.10909125" >> $GITHUB_ENV
+
+      - name: Cache Rust dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: 'web/src-tauri -> target'
+
+      - name: Build frontend
+        working-directory: web
+        run: bun run build
+
+      - name: Build app bundle
+        working-directory: web
+        run: bun tauri android build --aab
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: web/src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
+
+  publish-ios:
+    needs: [test]
+    name: Build iOS app
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup build environment
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,x86_64-apple-ios,aarch64-apple-ios-sim
+
+      - name: Install dependencies
+        run: |
+          cd server && bun install --frozen-lockfile
+          cd ../web && bun install --frozen-lockfile
+
+      - name: Install ImageMagick
+        run: brew install imagemagick
+
+      - name: Regenerate iOS icons
+        working-directory: web
+        run: |
+          bun tauri icon src-tauri/icons/app-icon.svg --ios-color "#1a1a1a"
+          
+          # Remove alpha channel from iOS icons (Apple requires opaque icons)
+          echo "Removing alpha channel from iOS icons..."
+          cd src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset
+          for file in *.png; do
+            magick "$file" -background "#1a1a1a" -alpha remove -alpha off "$file"
+            echo "Flattened: $file"
+          done
+
+      - name: Cache Rust dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: 'web/src-tauri -> target'
+
+      - name: Setup code signing
+        run: |
+          # Try automatic signing first (App Store Connect API)
+          if [ -n "${{ secrets.APPLE_API_ISSUER }}" ]; then
+            echo "Using automatic signing with App Store Connect API"
+            mkdir -p ~/.appstoreconnect/private_keys
+            echo "${{ secrets.APPLE_API_KEY_CONTENT }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
+            echo "APPLE_API_ISSUER=${{ secrets.APPLE_API_ISSUER }}" >> $GITHUB_ENV
+            echo "APPLE_API_KEY=${{ secrets.APPLE_API_KEY }}" >> $GITHUB_ENV
+            echo "APPLE_API_KEY_PATH=$HOME/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8" >> $GITHUB_ENV
+          else
+            echo "Using manual signing with certificates"
+            # Create keychain
+            KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+            KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+            security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+            security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+            security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+            
+            # Import certificate
+            CERTIFICATE_PATH=$RUNNER_TEMP/certificate.p12
+            echo -n "${{ secrets.APPLE_CERTIFICATE_BASE64 }}" | base64 --decode -o $CERTIFICATE_PATH
+            security import $CERTIFICATE_PATH -P "${{ secrets.APPLE_CERTIFICATE_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+            security list-keychain -d user -s $KEYCHAIN_PATH
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+            
+            # Import provisioning profile
+            PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+            echo -n "${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode -o $PP_PATH
+            mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+            
+            # Get UUID and profile name from provisioning profile
+            PP_UUID=$(openssl smime -inform der -verify -noverify -in $PP_PATH 2>/dev/null | plutil -extract UUID raw -)
+            PP_NAME=$(openssl smime -inform der -verify -noverify -in $PP_PATH 2>/dev/null | plutil -extract Name raw -)
+            
+            # Copy with UUID as filename
+            cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$PP_UUID.mobileprovision
+            
+            # Configure Xcode project for manual signing
+            cd src-tauri/gen/apple
+            sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' app.xcodeproj/project.pbxproj
+            sed -i '' "s/DEVELOPMENT_TEAM = QPNGAD5BD2;/DEVELOPMENT_TEAM = QPNGAD5BD2;\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = \"${PROVISIONING_PROFILE_NAME}\";/g" app.xcodeproj/project.pbxproj
+            
+            # Clean up
+            rm $CERTIFICATE_PATH
+            rm $PP_PATH
+          fi
+
+      - name: Build frontend
+        working-directory: web
+        run: bun run build
+
+      - name: Build app bundle
+        working-directory: web
+        run: bun tauri ios build --export-method app-store-connect
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: web/src-tauri/gen/apple/build/arm64/*.ipa
+
+      - name: Upload to App Store Connect
+        working-directory: web
+        run: |
+          # Find the IPA file
+          IPA_PATH=$(find src-tauri/gen/apple/build/arm64 -name "*.ipa" | head -1)
+          
+          if [ -z "$IPA_PATH" ]; then
+            echo "Error: IPA file not found"
+            exit 1
+          fi
+          
+          echo "Uploading $IPA_PATH to App Store Connect..."
+          
+          # Check if using App Store Connect API or fallback to manual credentials
+          if [ -n "${{ secrets.APPLE_API_ISSUER }}" ]; then
+            echo "Using App Store Connect API for upload"
+            xcrun altool --upload-app \
+              -t ios \
+              -f "$IPA_PATH" \
+              --apiKey "${{ secrets.APPLE_API_KEY }}" \
+              --apiIssuer "${{ secrets.APPLE_API_ISSUER }}"
+          else
+            echo "Warning: APPLE_API_ISSUER not set. Upload to App Store Connect requires API credentials."
+            echo "Please configure APPLE_API_ISSUER, APPLE_API_KEY, and APPLE_API_KEY_CONTENT secrets."
+            exit 1
+          fi
+
+  upload-to-stores:
+    name: Publish to app stores
+    runs-on: ubuntu-latest
+    needs: [publish-android]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Download app bundle
+        run: |
+          gh release download ${{ github.ref_name }} -p "*.aab" -D android-aab
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare release notes
+        run: |
+          mkdir -p play-release-notes
+          if [ -f CHANGELOG.md ]; then
+            tail -n +7 CHANGELOG.md > play-release-notes/whatsnew-en-US
+          else
+            echo "Release ${{ github.ref_name }}" > play-release-notes/whatsnew-en-US
+          fi
+
+      - name: Upload to Google Play
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: app.parchment
+          releaseFiles: android-aab/*.aab
+          track: ${{ secrets.GOOGLE_PLAY_TRACK || 'internal' }}
+          releaseName: ${{ steps.version.outputs.VERSION }}
+          whatsNewDirectory: play-release-notes
+          status: completed
+        continue-on-error: true

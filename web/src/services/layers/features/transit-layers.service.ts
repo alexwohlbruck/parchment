@@ -1,6 +1,6 @@
 /**
  * Transit Layers Service
- * 
+ *
  * Handles transit-specific layer operations including bulk visibility toggles
  * and transit stop click handlers for navigation.
  */
@@ -88,7 +88,7 @@ export function useTransitLayersService() {
         // For user layers, update on server
         await layersStore.updateLayer(layer.id, { visible: newState })
       }
-      
+
       if (mapStrategy) {
         mapStrategy.toggleLayerVisibility(layer.configuration.id, newState)
       }

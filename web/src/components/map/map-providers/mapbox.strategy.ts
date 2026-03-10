@@ -46,6 +46,7 @@ import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
 import InstructionPointMarker from '@/components/map/InstructionPointMarker.vue'
 import { useAppStore } from '@/stores/app.store'
 import { useThemeStore } from '@/stores/theme.store'
+import { useMapToolsStore } from '@/stores/map-tools.store'
 import { getPrimaryThemeHex, adjustLightness, cssHslToHex } from '@/lib/utils'
 
 const basemapUrls: {
@@ -135,6 +136,12 @@ export class MapboxStrategy extends MapStrategy {
     // Store the current language
     this.currentLanguage = language
 
+    // Detect if running in automated test environment
+    const isTestEnvironment = 
+      import.meta.env.MODE === 'test' || 
+      (typeof navigator !== 'undefined' && navigator.webdriver) ||
+      (typeof window !== 'undefined' && (window as any).__playwright)
+    
     this.mapInstance = new MapboxMap({
       accessToken: accessToken || import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
       container,
@@ -148,6 +155,9 @@ export class MapboxStrategy extends MapStrategy {
       projection: {
         name: projection,
       },
+      // Enable test mode for automated tests (Playwright, etc.)
+      // This prevents API calls and WebGL rendering issues in headless browsers
+      testMode: isTestEnvironment,
     })
 
     // Add geolocate control but hide it off-screen
@@ -279,6 +289,9 @@ export class MapboxStrategy extends MapStrategy {
       type: 'click',
       target: { featuresetId: 'poi', importId: 'basemap' },
       handler: e => {
+        // When measure tool is active, ignore POI clicks so the debounced map click
+        // fires and the click is treated as a regular map click (add measure point).
+        if (useMapToolsStore().activeTool === 'measure') return
         if (!e.feature?.id) return
 
         const { osmId, poiType } = parseMapboxToOsmId(e.feature.id)
@@ -769,24 +782,51 @@ export class MapboxStrategy extends MapStrategy {
     component: Component,
     props: Record<string, any> = {},
     zIndex?: number,
+    dragOptions?: {
+      onDragEnd: (lngLat: LngLat) => void
+      onDrag?: (lngLat: LngLat) => void
+    },
   ) {
-    super.addVueMarker(id, lngLat, component, props, zIndex)
+    super.addVueMarker(id, lngLat, component, props, zIndex, dragOptions)
+    this.removeMarker(id)
 
     const element = createVueMarkerElement(component, props)
+    const draggable = !!dragOptions
 
     const marker = new Marker({
-      element: element,
-      anchor: 'center', // Center the element on the position
+      element,
+      anchor: 'center',
+      ...(draggable && { draggable: true }),
     })
       .setLngLat(lngLat)
       .addTo(this.mapInstance)
 
-    // Set z-index on the marker's DOM element if provided
     if (zIndex !== undefined) {
       const markerElement = marker.getElement()
       if (markerElement) {
         markerElement.style.zIndex = String(zIndex)
       }
+    }
+
+    if (draggable && dragOptions) {
+      const el = marker.getElement()
+      if (el) {
+        el.style.cursor = 'grab'
+        marker.on('dragstart', () => {
+          el.style.cursor = 'grabbing'
+        })
+      }
+      if (dragOptions.onDrag) {
+        marker.on('drag', () => {
+          const pos = marker.getLngLat()
+          dragOptions.onDrag!({ lng: pos.lng, lat: pos.lat })
+        })
+      }
+      marker.on('dragend', () => {
+        if (el) el.style.cursor = 'grab'
+        const pos = marker.getLngLat()
+        dragOptions.onDragEnd({ lng: pos.lng, lat: pos.lat })
+      })
     }
 
     this.markers.set(id, marker)

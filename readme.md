@@ -76,6 +76,58 @@ The application will be available at:
 ./deploy.sh major    # Increment major version and deploy
 ```
 
+### GitHub Actions workflows
+
+| Workflow | Trigger | What it does |
+|----------|---------|----------------|
+| **E2E Tests** | Push or pull request to `main` or `dev` | Runs web unit tests, then Playwright e2e tests (Docker test stack + dev server). Use a branch ruleset to require the **e2e** check before merging into `dev` or `main`. |
+| **Release** | Push of a tag `v*` (e.g. `v0.0.16`) | Runs unit tests, builds Docker images (push to Docker Hub), builds Tauri Android (AAB), macOS (DMG), iOS (IPA), creates GitHub Release with CHANGELOG body and uploads assets. Optionally uploads AAB to Google Play if `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` is set. |
+
+Required secrets: 
+- **DOCKERHUB_USERNAME**, **DOCKERHUB_TOKEN** (for Release)
+- **APPLE_CERTIFICATE_BASE64**, **APPLE_CERTIFICATE_PASSWORD**, **APPLE_PROVISIONING_PROFILE_BASE64** (for iOS builds - see [iOS Signing Setup Guide](docs/ios-signing-setup.md))
+
+Optional secrets:
+- **GOOGLE_PLAY_SERVICE_ACCOUNT_JSON**, **GOOGLE_PLAY_TRACK** (for Android Play Store upload)
+- **APP_STORE_CONNECT_API_KEY_ID**, **APP_STORE_CONNECT_ISSUER_ID**, **APP_STORE_CONNECT_API_KEY_CONTENT** (for automatic TestFlight upload)
+- **E2E_MAPBOX_ACCESS_TOKEN** (E2E Tests, for map tests)
+
+### Releases (CI/CD)
+
+**Version and changelog:** The app version lives in `web/package.json` (and is synced to `server/package.json`, `web/src-tauri/tauri.conf.json`, and `web/src-tauri/Cargo.toml` by `deploy.sh`). Release notes are kept in **`CHANGELOG.md`** at the repo root ([Keep a Changelog](https://keepachangelog.com/) format). That file is the source for GitHub Release bodies.
+
+**How to cut a release:**
+1. Bump the version (e.g. `./deploy.sh patch`) and update `CHANGELOG.md` with a new `## [X.Y.Z] - date` section.
+2. Commit, push, then create and push a tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+3. The **Release** workflow runs on tag push: builds Docker images (pushed to Docker Hub), builds Tauri Android (AAB), macOS (DMG), and iOS (IPA), then creates a **GitHub Release** for that tag with the CHANGELOG section as the body and uploads the built artifacts as release assets.
+
+**Secrets:** In the repo’s GitHub Actions secrets, set `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` so the workflow can push images. For iOS builds, configure Apple code signing (e.g. `APPLE_SIGNING_IDENTITY`, `APPLE_DEVELOPMENT_TEAM`) if you use them.
+
+**Consuming release notes (app “What’s new” / landing page):** Use the [GitHub Releases API](https://docs.github.com/en/rest/releases/releases). For example:
+- **Latest release:** `GET https://api.github.com/repos/alexwohlbruck/parchment/releases/latest` → `body` is markdown release notes, `tag_name` is the version.
+- **Release by version:** `GET https://api.github.com/repos/alexwohlbruck/parchment/releases/tags/v{X.Y.Z}`.
+- **Release history:** `GET https://api.github.com/repos/alexwohlbruck/parchment/releases` (paginated).
+
+The app can compare `tag_name` (or a parsed version) with the current `APP_VERSION` to show “What’s new” on update; the landing page can list releases from the same API.
+
+**Android versionCode / iOS build:** `deploy.sh` updates the app version everywhere and also sets **Android `versionCode`** in `web/src-tauri/tauri.conf.json` (derived from the version so it always increases for Play Store). iOS uses the same `version` string for both the user-facing version and the build number (CFBundleVersion); Tauri does not yet expose a separate iOS build number in config.
+
+**Publishing app bundles to the stores:** The release workflow uploads the **AAB** and **IPA** to the **GitHub Release** and can **automatically upload the AAB to Google Play** when configured.
+
+- **Google Play (automatic):** If you set the secret **`GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`** (full JSON key content) in the repo’s GitHub Actions secrets, the release workflow will upload the AAB to Play Console after creating the GitHub Release. Optional secret **`GOOGLE_PLAY_TRACK`**: set to `internal`, `alpha`, `beta`, or `production` (defaults to `internal` if unset). Setup: (1) Enable [Google Play Android Developer API](https://console.cloud.google.com/apis/library/androidpublisher.googleapis.com); (2) Create a service account in Google Cloud, download its JSON key; (3) In [Play Console](https://play.google.com/console) → Users and permissions, invite the service account email and grant “Release to production” (or the track you use); (4) Put the JSON key contents in GitHub secret `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`. The app must have at least one manual upload to Play before the first API upload.
+- **App Store:** Download the `.ipa` from the GitHub Release and upload via [App Store Connect](https://appstoreconnect.apple.com/) (Transporter or Xcode), or automate with [fastlane](https://fastlane.tools/) and Apple credentials in CI.
+
+### iOS Deployment Setup
+
+For automatic iOS builds and App Store deployment, see:
+- **[iOS Signing Setup Guide](docs/ios-signing-setup.md)** - Complete guide to configure Apple certificates and provisioning profiles
+- **[iOS Deployment Checklist](docs/ios-deployment-checklist.md)** - Quick reference for releases
+- **[Verification Script](scripts/verify-ios-signing.sh)** - Test your signing setup locally
+
+Required GitHub secrets: `APPLE_CERTIFICATE_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_PROVISIONING_PROFILE_BASE64`
+
+Optional (for automatic TestFlight upload): `APP_STORE_CONNECT_API_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_API_KEY_CONTENT`
+
 ### Database Management
 The database is automatically initialized with:
 - **PostGIS Extension**: Spatial data support for bookmarks and location features
@@ -93,6 +145,14 @@ Development mode includes:
 - **Hot reload** for both frontend and backend
 - **Bun debugger** available at `ws://127.0.0.1:6499/debug` or `https://debug.bun.sh/#127.0.0.1:6499/debug`
 - **Source maps** for TypeScript debugging
+
+## Testing
+
+**Unit tests (Vitest)** — From `web/`: `bun run test` (or `bun run test:ui` / `bun run test --watch`). Tests live in `web/src/**/*.{test,spec}.ts`. The web build runs unit tests before building (`vitest run`). Pre-commit runs only the web unit suite (Husky + lint-staged at repo root); e2e is not run on commit.
+
+**E2E tests (Playwright)** — Require Docker. Copy `web/e2e/env.test.example` to `web/e2e/env.test` (or `.env.test` in repo root), set `APP_TESTER_EMAIL` and optionally `E2E_MAPBOX_ACCESS_TOKEN` for map tests. From `web/`: `bun run test:e2e` (starts the test stack and runs tests); `bun run test:e2e:ui` for interactive UI. Test user receives OTP `0000-0000`. E2E runs in CI only (not on pre-commit).
+
+**CI** — The pipeline runs web unit tests and then e2e tests on every push and pull request to `main` and `dev`. To block merging to `dev` until tests pass, use a **ruleset** (recommended) or a classic branch protection rule: **Settings → Rules → Rulesets** → **New ruleset** → set target to **dev** (or "Include by pattern" `dev`) → add rule **Require status checks to pass** → add status check **e2e** → Save. (Classic: **Settings → Branches** → Add rule for `dev` → Require status checks → select **e2e**.)
 
 ## 🗺️ Geocoding Setup (Optional)
 

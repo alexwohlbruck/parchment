@@ -244,7 +244,7 @@ const snapPoints = computeSnapPoints(props.customSnapPoints, props.peekHeight)
                 :is="markRaw(item.customComponent)"
                 v-bind="item.customProps"
               />
-              <div v-else class="px-2 py-1.5 text-sm font-semibold">
+              <div v-else class="px-2 py-1.5 text-xs font-semibold">
                 {{ item.label }}
               </div>
             </template>
@@ -272,7 +272,7 @@ const snapPoints = computeSnapPoints(props.customSnapPoints, props.peekHeight)
               :disabled="item.disabled"
               @click="handleItemClick(item, $event)"
             >
-              <span class="flex items-center gap-2">
+              <span class="flex items-center gap-2 min-w-0 flex-1">
                 <component
                   v-if="item.icon"
                   :is="item.icon"
@@ -284,7 +284,7 @@ const snapPoints = computeSnapPoints(props.customSnapPoints, props.peekHeight)
                     },
                   ]"
                 />
-                <span>{{ item.label }}</span>
+                <span class="min-w-0 break-words">{{ item.label }}</span>
               </span>
               <component
                 v-if="item.trailing"
@@ -368,7 +368,7 @@ const snapPoints = computeSnapPoints(props.customSnapPoints, props.peekHeight)
 
               <div
                 v-else-if="subItem.type === 'label'"
-                class="px-2 py-1.5 text-sm font-semibold"
+                class="px-2 py-1.5 text-xs font-semibold"
               >
                 {{ subItem.label }}
               </div>
@@ -459,7 +459,7 @@ const snapPoints = computeSnapPoints(props.customSnapPoints, props.peekHeight)
               :is="markRaw(item.customComponent)"
               v-bind="item.customProps"
             />
-            <DropdownMenuLabel v-else class="font-normal">
+            <DropdownMenuLabel v-else class="text-xs font-semibold">
               {{ item.label }}
             </DropdownMenuLabel>
           </template>
@@ -476,7 +476,7 @@ const snapPoints = computeSnapPoints(props.customSnapPoints, props.peekHeight)
             v-else-if="item.type === 'item'"
             :disabled="item.disabled"
             :class="[
-              item.trailing ? 'flex items-center justify-between' : '',
+              item.trailing ? 'flex items-center justify-between' : 'flex items-center',
               {
                 'text-destructive focus:text-destructive':
                   item.variant === 'destructive' && !item.disabled,
@@ -485,19 +485,19 @@ const snapPoints = computeSnapPoints(props.customSnapPoints, props.peekHeight)
             @click="handleItemClick(item, $event)"
             @select="item.keepOpen ? $event.preventDefault() : undefined"
           >
-            <span class="flex items-center gap-2">
+            <span class="flex items-center gap-2 min-w-0 flex-1">
               <component
                 v-if="item.icon"
                 :is="item.icon"
                 :class="[
-                  'size-4',
+                  'size-4 shrink-0',
                   {
                     'text-destructive':
                       item.variant === 'destructive' && !item.disabled,
                   },
                 ]"
               />
-              <span>{{ item.label }}</span>
+              <span class="min-w-0 break-words">{{ item.label }}</span>
             </span>
             <component
               v-if="item.trailing"
@@ -535,7 +535,7 @@ const snapPoints = computeSnapPoints(props.customSnapPoints, props.peekHeight)
                         :is="markRaw(subItem.customComponent)"
                         v-bind="subItem.customProps"
                       />
-                      <DropdownMenuLabel v-else>
+                      <DropdownMenuLabel v-else class="text-xs font-semibold">
                         {{ subItem.label }}
                       </DropdownMenuLabel>
                     </template>

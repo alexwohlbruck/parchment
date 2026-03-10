@@ -1,0 +1,3 @@
+- Add circle and line measure tools
+- Update links in about menu
+- Add tauri signing keys

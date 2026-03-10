@@ -13,6 +13,15 @@ get_current_version() {
     fi
 }
 
+# Function to validate version format (MAJOR.MINOR.PATCH)
+validate_version_format() {
+    local v=$1
+    if [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        return 0
+    fi
+    return 1
+}
+
 # Function to compare versions
 compare_versions() {
     local version1=$1
@@ -56,60 +65,30 @@ compare_versions() {
 increment_version() {
     local version=$1
     local increment_type=$2
-    local override_major=$3
-    local override_minor=$4
-    local override_patch=$5
     
-    # Split version into components
     IFS='.' read -r -a version_parts <<< "$version"
     local major=${version_parts[0]}
     local minor=${version_parts[1]}
     local patch=${version_parts[2]}
     
-    # Handle increment types
     case $increment_type in
-        "major")
-            if [ -n "$override_major" ]; then
-                major=$override_major
-            else
-                major=$((major + 1))
-            fi
+        major)
+            major=$((major + 1))
             minor=0
             patch=0
             ;;
-        "minor")
-            if [ -n "$override_minor" ]; then
-                minor=$override_minor
-            else
-                minor=$((minor + 1))
-            fi
+        minor)
+            minor=$((minor + 1))
             patch=0
             ;;
-        "patch")
-            if [ -n "$override_patch" ]; then
-                patch=$override_patch
-            else
-                patch=$((patch + 1))
-            fi
+        patch)
+            patch=$((patch + 1))
             ;;
         *)
             echo "Invalid increment type. Use: major, minor, or patch"
             exit 1
             ;;
     esac
-    
-    # Apply individual overrides if provided
-    if [ -n "$override_major" ] && [ "$increment_type" != "major" ]; then
-        major=$override_major
-    fi
-    
-    if [ -n "$override_minor" ] && [ "$increment_type" != "minor" ]; then
-        minor=$override_minor
-    fi
-    
-    if [ -n "$override_patch" ] && [ "$increment_type" != "patch" ]; then
-        patch=$override_patch
-    fi
     
     echo "$major.$minor.$patch"
 }
@@ -118,7 +97,6 @@ increment_version() {
 update_package_json() {
     local version=$1
     local file=$2
-    # Use sed to update version in package.json
     sed -i '' "s/\"version\": \".*\"/\"version\": \"$version\"/" "$file"
 }
 
@@ -126,7 +104,6 @@ update_package_json() {
 update_tauri_conf() {
     local version=$1
     local file="web/src-tauri/tauri.conf.json"
-    # Use sed to update version in tauri.conf.json
     sed -i '' "s/\"version\": \".*\"/\"version\": \"$version\"/" "$file"
 }
 
@@ -134,9 +111,37 @@ update_tauri_conf() {
 update_cargo_toml() {
     local version=$1
     local file="web/src-tauri/Cargo.toml"
-    # Use sed to update only the package version in the [package] section
-    # This targets the version field that comes after [package] and before the next section
     sed -i '' '/^\[package\]/,/^\[/ s/^version = ".*"/version = "'$version'"/' "$file"
+}
+
+# Compute Android versionCode from MAJOR.MINOR.PATCH (must increase every Play Store upload)
+version_to_android_version_code() {
+    local version=$1
+    IFS='.' read -r -a parts <<< "$version"
+    local major=${parts[0]:-0}
+    local minor=${parts[1]:-0}
+    local patch=${parts[2]:-0}
+    echo $(( major * 10000 + minor * 100 + patch ))
+}
+
+# Update Android versionCode in tauri.conf.json (Play Store requires it to always increase)
+update_tauri_android_version_code() {
+    local version=$1
+    local file="web/src-tauri/tauri.conf.json"
+    local computed
+    computed=$(version_to_android_version_code "$version")
+    local current=0
+    if grep -q '"versionCode"' "$file" 2>/dev/null; then
+        current=$(grep '"versionCode"' "$file" | sed 's/.*"versionCode": *\([0-9]*\).*/\1/')
+    fi
+    local code
+    if [ "$computed" -gt "$(( current + 1 ))" ] 2>/dev/null; then
+        code=$computed
+    else
+        code=$(( current + 1 ))
+    fi
+    sed -i '' 's/"versionCode": [0-9]*/"versionCode": '"$code"'/' "$file"
+    echo "Android versionCode set to $code (from version $version)"
 }
 
 # Function to build and push Docker images
@@ -144,7 +149,6 @@ build_and_push_docker() {
     local version=$1
     echo "Building Docker images..."
     
-    # Build multi-platform images (ARM64 + AMD64)
     echo "Building web image $version..."
     docker buildx build --platform linux/amd64,linux/arm64 -f web/Dockerfile.prod -t alexwohlbruck/parchment-web:$version --push .
 
@@ -163,11 +167,6 @@ build_tauri() {
     echo "Building Tauri app..."
     cd web
     
-    # # Build iOS app
-    # echo "Building iOS app..."
-    # bun run build:ios
-    
-    # Build Android app (AAB)
     echo "Building Android app (AAB)..."
     bun run build:android
     
@@ -176,42 +175,30 @@ build_tauri() {
 
 # Function to show usage
 show_usage() {
-    echo "Usage: $0 <increment_type> [options]"
-    echo "Example: $0 patch"
-    echo "Example: $0 minor"
-    echo "Example: $0 major"
-    echo "Example: $0 patch --major 2 --minor 1 --patch 5"
+    echo "Usage: $0 [increment_type] [options]"
+    echo "       $0 --version X.Y.Z [options]"
     echo ""
-    echo "Increment types: major, minor, patch"
-    echo "Version format: MAJOR.MINOR.PATCH (standard semver)"
+    echo "Examples:"
+    echo "  $0 patch              # Bump patch (e.g. 0.0.15 -> 0.0.16)"
+    echo "  $0 minor              # Bump minor (e.g. 0.0.15 -> 0.1.0)"
+    echo "  $0 major              # Bump major (e.g. 0.0.15 -> 1.0.0)"
+    echo "  $0 --version 0.1.5    # Set exact version to 0.1.5"
     echo ""
     echo "Options:"
-    echo "  --major N      Override the major version component"
-    echo "  --minor N      Override the minor version component"
-    echo "  --patch N      Override the patch version component"
-    echo "  --force        Skip version downgrade warning"
+    echo "  --version X.Y.Z      Set exact version (MAJOR.MINOR.PATCH)"
+    echo "  --force              Allow version downgrade (skip warning)"
     exit 1
 }
 
 # Parse command line arguments
 INCREMENT_TYPE=""
-OVERRIDE_MAJOR=""
-OVERRIDE_MINOR=""
-OVERRIDE_PATCH=""
+EXPLICIT_VERSION=""
 FORCE=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --major)
-            OVERRIDE_MAJOR="$2"
-            shift 2
-            ;;
-        --minor)
-            OVERRIDE_MINOR="$2"
-            shift 2
-            ;;
-        --patch)
-            OVERRIDE_PATCH="$2"
+        --version)
+            EXPLICIT_VERSION="$2"
             shift 2
             ;;
         --force)
@@ -219,49 +206,130 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         major|minor|patch)
+            if [ -n "$INCREMENT_TYPE" ]; then
+                echo "Error: Only one of major, minor, patch, or --version may be specified."
+                show_usage
+            fi
             INCREMENT_TYPE="$1"
             shift
             ;;
         *)
+            echo "Error: Unknown option or argument: $1"
             show_usage
             ;;
     esac
 done
 
-# Show usage if no increment type provided
-if [ -z "$INCREMENT_TYPE" ]; then
-    echo "No increment type provided, using default: patch"
-    INCREMENT_TYPE="patch"
+# Resolve new version
+if [ -n "$EXPLICIT_VERSION" ]; then
+    if ! validate_version_format "$EXPLICIT_VERSION"; then
+        echo "Error: --version must be MAJOR.MINOR.PATCH (e.g. 0.1.5)"
+        exit 1
+    fi
+    NEW_VERSION="$EXPLICIT_VERSION"
+elif [ -n "$INCREMENT_TYPE" ]; then
+    CURRENT_VERSION=$(get_current_version "web/package.json")
+    NEW_VERSION=$(increment_version "$CURRENT_VERSION" "$INCREMENT_TYPE")
+else
+    echo "No version specified. Using default: patch"
+    CURRENT_VERSION=$(get_current_version "web/package.json")
+    NEW_VERSION=$(increment_version "$CURRENT_VERSION" "patch")
 fi
 
-# Get current version from web/package.json
 CURRENT_VERSION=$(get_current_version "web/package.json")
 echo "Current version: $CURRENT_VERSION"
+echo "New version:     $NEW_VERSION"
 
-# Calculate new version
-NEW_VERSION=$(increment_version "$CURRENT_VERSION" "$INCREMENT_TYPE" "$OVERRIDE_MAJOR" "$OVERRIDE_MINOR" "$OVERRIDE_PATCH")
-echo "New version: $NEW_VERSION"
-
-# Compare versions
+# Compare versions (downgrade check)
 VERSION_COMPARISON=$(compare_versions "$NEW_VERSION" "$CURRENT_VERSION")
 if [ "$VERSION_COMPARISON" = "less" ] && [ "$FORCE" = false ]; then
-    echo "WARNING: New version ($NEW_VERSION) is lower than current version ($CURRENT_VERSION)"
+    echo ""
+    echo "WARNING: New version ($NEW_VERSION) is lower than current version ($CURRENT_VERSION)."
     echo "This might cause issues with versioning and updates."
     echo "Use --force to proceed anyway."
     exit 1
 fi
 
-# Update all version numbers
+# Confirm version before continuing
+echo ""
+read -r -p "Proceed with version $NEW_VERSION? [y/N] " reply
+if [[ ! "$reply" =~ ^[yY]$ ]]; then
+    echo "Aborted."
+    exit 0
+fi
+
+# Show changelog and confirm
+echo ""
+echo "--- CHANGELOG.md (top) ---"
+head -n 60 CHANGELOG.md 2>/dev/null || true
+echo ""
+if [ -f CHANGELOG.md ]; then
+    echo "Ensure there is a section for [$NEW_VERSION] before releasing. See CHANGELOG.md."
+fi
+read -r -p "Confirm changelog is updated for this release. Continue? [y/N] " reply
+if [[ ! "$reply" =~ ^[yY]$ ]]; then
+    echo "Aborted. Update CHANGELOG.md and re-run."
+    exit 0
+fi
+
+# Update all version numbers in repo (including Android versionCode for Play Store)
 update_package_json "$NEW_VERSION" "web/package.json"
 update_package_json "$NEW_VERSION" "server/package.json"
 update_tauri_conf "$NEW_VERSION"
 update_cargo_toml "$NEW_VERSION"
+update_tauri_android_version_code "$NEW_VERSION"
 
 # Build Tauri app
 build_tauri
 
 # Build and push Docker images
-# TODO: Check logged in to docker first
 build_and_push_docker "$NEW_VERSION"
 
-echo "Version update and deployment complete!" 
+echo ""
+echo "Version update and deployment complete!"
+
+# Stage version files and create tag
+VERSION_FILES="web/package.json server/package.json web/src-tauri/tauri.conf.json web/src-tauri/Cargo.toml CHANGELOG.md"
+git add $VERSION_FILES 2>/dev/null || true
+if git status --short $VERSION_FILES 2>/dev/null | grep -q .; then
+    echo "Staged changes:"
+    git status --short $VERSION_FILES
+    echo ""
+    read -r -p "Commit these changes and create tag v$NEW_VERSION? [y/N] " reply
+    if [[ "$reply" =~ ^[yY]$ ]]; then
+        git commit -m "Release $NEW_VERSION" $VERSION_FILES
+        if git rev-parse "v$NEW_VERSION" >/dev/null 2>&1; then
+            echo "Tag v$NEW_VERSION already exists. Skipping tag creation."
+        else
+            git tag -a "v$NEW_VERSION" -m "Release $NEW_VERSION"
+            echo "Created tag v$NEW_VERSION."
+        fi
+        echo ""
+        read -r -p "Push branch and tag to origin? (Triggers release workflow) [y/N] " reply
+        if [[ "$reply" =~ ^[yY]$ ]]; then
+            git push && git push origin "v$NEW_VERSION"
+            echo "Pushed. Release workflow will run."
+        else
+            echo "Skipped push. When ready: git push && git push origin v$NEW_VERSION"
+        fi
+    else
+        echo "Skipped commit and tag. When ready:"
+        echo "  git add -A && git commit -m \"Release $NEW_VERSION\" && git push"
+        echo "  git tag -a v$NEW_VERSION -m \"Release $NEW_VERSION\" && git push origin v$NEW_VERSION"
+    fi
+else
+    echo "No version file changes to commit (or not in a git repo)."
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && ! git rev-parse "v$NEW_VERSION" >/dev/null 2>&1; then
+        read -r -p "Create tag v$NEW_VERSION on current HEAD and push? [y/N] " reply
+        if [[ "$reply" =~ ^[yY]$ ]]; then
+            git tag -a "v$NEW_VERSION" -m "Release $NEW_VERSION"
+            read -r -p "Push tag to origin? (Triggers release workflow) [y/N] " reply
+            if [[ "$reply" =~ ^[yY]$ ]]; then
+                git push origin "v$NEW_VERSION"
+            fi
+        fi
+    else
+        echo "To create and push the tag manually:"
+        echo "  git tag -a v$NEW_VERSION -m \"Release $NEW_VERSION\" && git push origin v$NEW_VERSION"
+    fi
+fi

@@ -50,9 +50,23 @@ function createEventBus<Events extends Record<string, any>>() {
       overrideHandlers.get(event)!.push(handler)
     },
 
+    removeOverride<K extends keyof Events>(event: K, handler: EventBusHandler<Events[K]>) {
+      const overrides = overrideHandlers.get(event)
+      if (overrides) {
+        const index = overrides.indexOf(handler)
+        if (index !== -1) {
+          overrides.splice(index, 1)
+          if (overrides.length === 0) {
+            overrideHandlers.delete(event)
+          }
+        }
+      }
+    },
+
     all: emitter.all,
   } as Emitter<Events> & {
     setOverride<K extends keyof Events>(event: K, handler: EventBusHandler<Events[K]>): void
+    removeOverride<K extends keyof Events>(event: K, handler: EventBusHandler<Events[K]>): void
   }
 }
 

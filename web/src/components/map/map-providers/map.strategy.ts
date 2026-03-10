@@ -195,6 +195,10 @@ export class MapStrategy {
     component: Component,
     props: Record<string, any> = {},
     zIndex?: number,
+    dragOptions?: {
+      onDragEnd: (lngLat: LngLat) => void
+      onDrag?: (lngLat: LngLat) => void
+    },
   ) {}
 
   removeMarker(id: string) {
@@ -206,6 +210,14 @@ export class MapStrategy {
       }
       marker.remove()
       this.markers.delete(id)
+    }
+  }
+
+  /** Update an existing marker's position without removing it (e.g. during drag of another marker). */
+  setMarkerLngLat(id: string, lngLat: LngLat) {
+    const marker = this.markers.get(id)
+    if (marker && typeof marker.setLngLat === 'function') {
+      marker.setLngLat(lngLat)
     }
   }
 

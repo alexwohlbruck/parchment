@@ -7,7 +7,8 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useCommandStore, CommandName } from '@/stores/command.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useAuthService } from '@/services/auth.service'
-import { APP_VERSION } from '@/lib/constants'
+import { APP_VERSION, DEFAULT_SERVER_URL } from '@/lib/constants'
+import { appEventBus } from '@/lib/eventBus'
 
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
@@ -25,7 +26,13 @@ import {
   ChevronUpIcon,
   CheckIcon,
   InfoIcon,
+  KeyboardIcon,
+  FileTextIcon,
+  CodeIcon,
+  ExternalLinkIcon,
+  CalendarIcon,
 } from 'lucide-vue-next'
+import Kbd from '@/components/ui/kbd/Kbd.vue'
 import AboutDialog from '@/components/dialogs/AboutDialog.vue'
 
 const props = defineProps<{
@@ -44,23 +51,41 @@ const authService = useAuthService()
 const dropdownOpen = ref(false)
 const aboutDialogOpen = ref(false)
 
+// Hardcoded changelog data (replace with API/fetched data later)
+const CHANGELOG = {
+  latest: {
+    title: 'Measurement tools and deployment pipeline',
+    date: 'Mar 9, 2025',
+    href: 'https://github.com/alexwohlbruck/parchment/releases/',
+  },
+  fullChangelogHref: 'https://github.com/alexwohlbruck/parchment/releases',
+}
+
+const DOCS_HREF = 'https://github.com/alexwohlbruck/parchment#readme'
+const API_DOCS_HREF = `${DEFAULT_SERVER_URL}/docs`
+
 // Language options from command store
 const languageOptions = computed(() =>
-  commandStore.getCommandArgumentOptions(CommandName.UPDATE_LANGUAGE, 'language')
+  commandStore.getCommandArgumentOptions(
+    CommandName.UPDATE_LANGUAGE,
+    'language',
+  ),
 )
 
 // Create a reactive Switch wrapper component
-const DarkModeSwitch = markRaw(defineComponent({
-  name: 'DarkModeSwitch',
-  setup() {
-    return () =>
-      h(Switch, {
-        'modelValue': isDark.value,
-        'onUpdate:modelValue': () => toggleDark(),
-        'class': 'scale-75',
-      })
-  },
-})) as Component
+const DarkModeSwitch = markRaw(
+  defineComponent({
+    name: 'DarkModeSwitch',
+    setup() {
+      return () =>
+        h(Switch, {
+          modelValue: isDark.value,
+          'onUpdate:modelValue': () => toggleDark(),
+          class: 'scale-75',
+        })
+    },
+  }),
+) as Component
 
 // Build menu items for ResponsiveDropdown
 const menuItems = computed((): MenuItemDefinition[] => {
@@ -81,16 +106,46 @@ const menuItems = computed((): MenuItemDefinition[] => {
       id: 'language',
       label: t('palette.commands.updateLanguage.name'),
       icon: LanguagesIcon,
-      items: languageOptions.value?.map(lang => ({
-        type: 'item' as const,
-        id: `lang-${lang.value}`,
-        label: lang.name as string,
-        trailing: locale.value === lang.value ? CheckIcon : undefined,
-        trailingProps: { class: 'size-4 text-primary' },
-        onSelect: () => {
-          locale.value = lang.value.toString()
-        },
-      })) ?? [],
+      items:
+        languageOptions.value?.map(lang => ({
+          type: 'item' as const,
+          id: `lang-${lang.value}`,
+          label: lang.name as string,
+          trailing: locale.value === lang.value ? CheckIcon : undefined,
+          trailingProps: { class: 'size-4 text-primary' },
+          onSelect: () => {
+            locale.value = lang.value.toString()
+          },
+        })) ?? [],
+    },
+    {
+      type: 'item',
+      id: 'shortcuts',
+      label: t('profileMenu.shortcuts'),
+      icon: KeyboardIcon,
+      trailing: markRaw(Kbd),
+      trailingProps: { hotkey: ['h'], size: 'xs' },
+      onSelect: () => {
+        appEventBus.emit('palette:open')
+      },
+    },
+    {
+      type: 'item',
+      id: 'docs',
+      label: t('profileMenu.docs'),
+      icon: FileTextIcon,
+      href: DOCS_HREF,
+      trailing: ExternalLinkIcon,
+      trailingProps: { class: 'size-4 text-muted-foreground shrink-0' },
+    },
+    {
+      type: 'item',
+      id: 'api-docs',
+      label: t('profileMenu.apiDocs'),
+      icon: CodeIcon,
+      href: API_DOCS_HREF,
+      trailing: ExternalLinkIcon,
+      trailingProps: { class: 'size-4 text-muted-foreground shrink-0' },
     },
     {
       type: 'item',
@@ -98,15 +153,6 @@ const menuItems = computed((): MenuItemDefinition[] => {
       label: t('feedback.title'),
       icon: MessageSquareQuoteIcon,
       href: 'https://github.com/alexwohlbruck/parchment/issues',
-    },
-    {
-      type: 'item',
-      id: 'about',
-      label: t('about.title', 'About'),
-      icon: InfoIcon,
-      onSelect: () => {
-        aboutDialogOpen.value = true
-      },
     },
     {
       type: 'item',
@@ -128,6 +174,21 @@ const menuItems = computed((): MenuItemDefinition[] => {
         authService.signOut()
       },
     },
+    {
+      type: 'separator',
+    },
+    {
+      type: 'label',
+      id: 'whats-new-label',
+      label: t('profileMenu.whatsNew'),
+    },
+    {
+      type: 'item',
+      id: 'changelog-latest',
+      label: CHANGELOG.latest.title,
+      icon: CalendarIcon,
+      href: CHANGELOG.latest.href,
+    },
   ]
   return items
 })
@@ -140,6 +201,7 @@ const menuItems = computed((): MenuItemDefinition[] => {
     :items="menuItems"
     :side="mini ? 'right' : 'top'"
     :align="mini ? 'end' : 'start'"
+    :side-offset="8"
     content-class="w-56"
   >
     <template #trigger="{ open }">
@@ -170,7 +232,10 @@ const menuItems = computed((): MenuItemDefinition[] => {
           <span class="text-xs text-gray-500 leading-4">{{ me.email }}</span>
         </div>
 
-        <ChevronUpIcon v-if="!mini" class="size-4 text-muted-foreground self-center" />
+        <ChevronUpIcon
+          v-if="!mini"
+          class="size-4 text-muted-foreground self-center"
+        />
       </Button>
     </template>
 
@@ -202,8 +267,19 @@ const menuItems = computed((): MenuItemDefinition[] => {
     <!-- Version footer -->
     <template #footer>
       <div class="h-px bg-border my-1" />
-      <div class="px-2 py-1.5 text-xs text-muted-foreground">
-        v{{ APP_VERSION }}
+      <div class="flex items-center justify-between gap-2">
+        <span class="ml-1 text-xs text-muted-foreground">
+          v{{ APP_VERSION }}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          class="size-7 shrink-0 text-muted-foreground hover:text-foreground"
+          :aria-label="t('about.title', 'About')"
+          @click="aboutDialogOpen = true"
+        >
+          <InfoIcon class="size-4" />
+        </Button>
       </div>
     </template>
   </ResponsiveDropdown>

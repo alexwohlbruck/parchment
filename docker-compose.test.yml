@@ -1,0 +1,55 @@
+# Isolated test environment for e2e tests
+# Usage: docker compose -f docker-compose.test.yml --env-file .env.test up -d
+# Ports: DB 5433, Server 5001 (avoid conflicts with dev/prod)
+
+volumes:
+  test-db:
+  test-data:
+
+services:
+  parchment-db-test:
+    image: kartoza/postgis:latest
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-parchment_test}
+      POSTGRES_USER: ${POSTGRES_USER:-test_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-test_password}
+    volumes:
+      - test-db:/var/lib/postgresql/data
+      - ./server/scripts/init-postgis.sh:/docker-entrypoint-initdb.d/init-postgis.sh
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-test_user} -d ${POSTGRES_DB:-parchment_test}"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  parchment-server-test:
+    build:
+      context: .
+      dockerfile: server/Dockerfile.prod
+    image: parchment-server-test:latest
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-test_user}:${POSTGRES_PASSWORD:-test_password}@parchment-db-test:5432/${POSTGRES_DB:-parchment_test}
+      DATABASE_HOST: parchment-db-test
+      DATABASE_PORT: "5432"
+      SERVER_ORIGIN: ${SERVER_ORIGIN:-http://localhost:5001}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:5174}
+      APP_TESTER_EMAIL: ${APP_TESTER_EMAIL:-test@parchment.local}
+      GMAIL_EMAIL: ${GMAIL_EMAIL:-}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
+    ports:
+      - "5001:5000"
+    volumes:
+      - test-data:/app/data
+    depends_on:
+      parchment-db-test:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bun -e \"fetch('http://localhost:5000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 3s
+      timeout: 5s
+      retries: 15
+      start_period: 30s

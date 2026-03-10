@@ -26,11 +26,10 @@ function getIconComponent(iconName?: string | null) {
 
   const fullName = iconName.endsWith('Icon') ? iconName : `${iconName}Icon`
 
-  const isValidIcon =
-    fullName !== 'icons' &&
-    typeof LucideIcons[fullName as keyof typeof LucideIcons] === 'function'
+  const icon = LucideIcons[fullName as keyof typeof LucideIcons]
+  const isValidIcon = fullName !== 'icons' && typeof icon === 'function'
 
-  return isValidIcon ? LucideIcons[fullName as keyof typeof LucideIcons] : null
+  return isValidIcon ? (icon as any) : null
 }
 
 function getLayerId(layer: any): string {

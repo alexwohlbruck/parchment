@@ -10,7 +10,17 @@ export const buttonVariants = cva(
         default:
           'border border-primary-400 dark:border-primary-600 bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/95',
         destructive:
-          'border border-white/30 bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/95',
+          'border border-red-600 dark:border-red-500 bg-red-600 text-white hover:bg-red-700 dark:hover:bg-red-700 active:bg-red-800 dark:active:bg-red-800',
+        'destructive-outline':
+          'border border-input bg-background text-red-600 dark:text-red-500 hover:bg-red-100 dark:hover:bg-red-950 hover:text-red-700 dark:hover:text-red-400 active:bg-red-200 dark:active:bg-red-900',
+        'destructive-ghost':
+          'text-red-600 dark:text-red-500 hover:bg-red-100 dark:hover:bg-red-950 hover:text-red-700 dark:hover:text-red-400 active:bg-red-200 dark:active:bg-red-900',
+        info:
+          'border border-blue-600 dark:border-blue-500 bg-blue-600 text-white hover:bg-blue-700 dark:hover:bg-blue-700 active:bg-blue-800 dark:active:bg-blue-800',
+        success:
+          'border border-green-600 dark:border-green-500 bg-green-600 text-white hover:bg-green-700 dark:hover:bg-green-700 active:bg-green-800 dark:active:bg-green-800',
+        warning:
+          'border border-amber-600 dark:border-amber-500 bg-amber-600 text-white hover:bg-amber-700 dark:hover:bg-amber-700 active:bg-amber-800 dark:active:bg-amber-800',
         outline:
           'border border-input bg-background hover:bg-accent hover:text-accent-foreground active:bg-accent/90',
         secondary:

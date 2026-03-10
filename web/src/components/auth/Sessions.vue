@@ -102,10 +102,9 @@ const columns = computed<ColumnDef<Session>[]>(() => {
       id: 'delete',
       cell: ({ row }) =>
         h(Button, {
-          variant: 'outline',
+          variant: 'destructive-outline',
           size: 'icon',
           icon: Trash2Icon,
-          class: 'text-destructive',
           description: 'Delete session',
           onClick: () => deleteSession(row.original.id),
         }),

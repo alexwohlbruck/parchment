@@ -50,10 +50,9 @@ const columns = computed<ColumnDef<Role>[]>(() => {
     cell: ({ row }) =>
       h(Button, {
         disabled: true, // TODO: User delete
-        variant: 'outline',
+        variant: 'destructive-outline',
         size: 'icon',
         icon: Trash2Icon,
-        class: 'text-destructive',
         description: 'Delete user', // TODO: i18n
       }),
   })

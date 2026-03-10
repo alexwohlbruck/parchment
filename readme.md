@@ -35,12 +35,6 @@ CLIENT_ORIGIN=http://localhost:5173
 GMAIL_EMAIL=your_email@gmail.com
 GMAIL_APP_PASSWORD=your_gmail_app_password
 APP_TESTER_EMAIL=your_test_email@gmail.com
-
-# API Keys (get these from respective providers)
-MAPBOX_ACCESS_TOKEN=your_mapbox_token
-TRANSITLAND_API_KEY=your_transitland_key
-MAPTILER_API_KEY=your_maptiler_key
-MAPILLARY_ACCESS_TOKEN=your_mapillary_token
 ```
 
 ### 3. Start the Application
@@ -292,9 +286,10 @@ Gmail app passwords are required for:
 
 ## 📄 License
 
-This project is licensed under the **AGPL-3.0** license.
-- ✅ **Free to self-host** for personal, family, and friends
-- ✅ **All features available** when self-hosting  
-- ❌ **Cannot sell as a service** without sharing source code
+This software is licensed under **Apache 2.0 with the Commons Clause**.
 
-See the [LICENSE](LICENSE) file for details.
+- ✅ **Free to use, modify, and distribute** under Apache 2.0 terms
+- ✅ **Free to self-host** for personal, family, and friends
+- ❌ **Cannot sell** the software or a product/service whose value derives substantially from it (see Commons Clause in [LICENSE](LICENSE))
+
+See the [LICENSE](LICENSE) file for full terms.

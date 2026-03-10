@@ -616,7 +616,11 @@
     "fullChangelog": "Changelog completo",
     "checkForUpdates": "Buscar actualizaciones",
     "updateAvailable": "Actualización disponible",
-    "updateInstalling": "Instalando actualización…"
+    "updateInstalling": "Instalando actualización…",
+    "updateBanner": "Nueva versión disponible",
+    "versionAvailable": "Versión",
+    "restartToUpdate": "Reiniciar para actualizar",
+    "later": "Más tarde"
   },
   "place": {
     "transit": {

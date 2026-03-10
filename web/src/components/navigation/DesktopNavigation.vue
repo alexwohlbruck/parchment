@@ -2,14 +2,16 @@
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { toast } from 'vue-sonner'
 import { cn } from '@/lib/utils'
 import { useCommandStore } from '@/stores/command.store'
 import { useAppStore } from '@/stores/app.store'
 import { capitalize } from '@/filters/text.filters'
-import { isTauri } from '@/lib/api'
+import { isTauri, getIsTauri } from '@/lib/api'
 import { useWindowSize } from '@vueuse/core'
 import { useExternalLink } from '@/composables/useExternalLink'
 import { useMapService } from '@/services/map.service'
+import { useUpdater } from '@/composables/useUpdater'
 import { appEventBus } from '@/lib/eventBus'
 
 import { Button } from '@/components/ui/button'
@@ -33,7 +35,9 @@ import {
   LibraryIcon,
   MessageSquareQuoteIcon,
   SearchIcon,
+  MegaphoneIcon,
 } from 'lucide-vue-next'
+import UpdateBanner from '@/components/navigation/UpdateBanner.vue'
 import { useHotkeys } from '@/composables/useHotkeys'
 import { useFullscreen } from '@/composables/useFullscreen'
 import { CommandName } from '@/stores/command.store'
@@ -43,6 +47,7 @@ import { Hotkey } from '@/types/command.types'
 import Palette from '@/components/palette/Palette.vue'
 import { CommandDialog } from '@/components/ui/command'
 import { useCommandService } from '@/services/command.service'
+import ResponsiveHoverCard from '@/components/responsive/ResponsiveHoverCard.vue'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -58,6 +63,13 @@ const appStore = useAppStore()
 const { width: windowWidth, height: windowHeight } = useWindowSize()
 const paletteDialogOpen = ref(false)
 const paletteDialogRef = ref<InstanceType<typeof Palette> | null>(null)
+
+const isTauriDesktop = ref(false)
+const updateDismissed = ref(false)
+// Set to true to force-show the update banner for debugging
+const forceShowUpdateBanner = ref(false)
+const { updateAvailable, checkForUpdates, installUpdate, installInProgress } =
+  useUpdater()
 
 useHotkeys([
   {
@@ -78,7 +90,19 @@ useHotkeys([
 
 // Track navbar bounds manually for map UI area calculation
 // We need to register it in the obstructing components map first
-onMounted(() => {
+onMounted(async () => {
+  isTauriDesktop.value = await getIsTauri()
+  if (isTauriDesktop.value) {
+    void checkForUpdates()
+  }
+  if (import.meta.env.DEV && typeof window !== 'undefined') {
+    ;(
+      window as unknown as {
+        __parchmentForceShowUpdateBanner?: typeof forceShowUpdateBanner
+      }
+    ).__parchmentForceShowUpdateBanner = forceShowUpdateBanner
+  }
+
   // Register desktopNav in the obstructing components map
   // We use a dummy object since we're using manual bounds instead of component tracking
   if (!appStore.getObstructingComponent('desktopNav')) {
@@ -96,6 +120,16 @@ onMounted(() => {
     })
   }
 })
+
+async function handleRestartToUpdate() {
+  try {
+    toast.loading(t('profileMenu.updateInstalling'), { id: 'updater' })
+    await installUpdate()
+    toast.success(t('profileMenu.updateAvailable'), { id: 'updater' })
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : String(e), { id: 'updater' })
+  }
+}
 
 // Watch for changes to navbar position/size
 watch(
@@ -155,6 +189,11 @@ onMounted(() => {
 
 onUnmounted(() => {
   appEventBus.off('palette:open', handlePaletteOpen)
+})
+
+defineExpose({
+  /** Set to true to force-show the update banner (e.g. in console: $refs.desktopNav.forceShowUpdateBanner = true). */
+  forceShowUpdateBanner,
 })
 
 const items = computed<MenuItemDefinition[]>(() => [
@@ -276,7 +315,11 @@ const items = computed<MenuItemDefinition[]>(() => [
         modal
         class="top-[20%] translate-y-0"
       >
-        <Palette ref="paletteDialogRef" v-model:open="paletteDialogOpen" :show-hints="true" />
+        <Palette
+          ref="paletteDialogRef"
+          v-model:open="paletteDialogOpen"
+          :show-hints="true"
+        />
       </CommandDialog>
 
       <template v-for="(item, i) in items" :key="i">
@@ -285,11 +328,65 @@ const items = computed<MenuItemDefinition[]>(() => [
           class="bg-foreground/10"
           data-tauri-drag-region
         />
-        <div
-          v-else-if="item.spacer"
-          class="flex-1"
-          data-tauri-drag-region
-        ></div>
+        <template v-else-if="item.spacer">
+          <div class="flex-1" data-tauri-drag-region></div>
+          <!-- Slot for custom banner alerts (above Minimize row). Default: Tauri update banner. -->
+          <div class="px-1 py-0.5">
+            <slot name="banner">
+              <template
+                v-if="
+                  forceShowUpdateBanner ||
+                  (isTauriDesktop && updateAvailable && !updateDismissed)
+                "
+              >
+                <UpdateBanner
+                  v-if="!mini"
+                  :update-available="updateAvailable"
+                  :force-show-update-banner="forceShowUpdateBanner"
+                  :install-in-progress="installInProgress"
+                  :embedded="false"
+                  @restart="handleRestartToUpdate"
+                  @dismiss="updateDismissed = true"
+                />
+                <ResponsiveHoverCard
+                  v-else
+                  side="right"
+                  :side-offset="8"
+                  align="start"
+                  :open-delay="200"
+                  desktop-content-class="p-0 w-fit overflow-hidden rounded-md"
+                >
+                  <template #trigger>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="w-full flex px-3 justify-center hover:bg-foreground/5 hover:text-foreground relative"
+                      :aria-label="t('profileMenu.updateBanner')"
+                    >
+                      <span class="relative inline-flex">
+                        <MegaphoneIcon class="size-5" />
+                        <span
+                          class="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary ring-2 ring-background"
+                          aria-hidden
+                        />
+                      </span>
+                    </Button>
+                  </template>
+                  <template #content>
+                    <UpdateBanner
+                      :update-available="updateAvailable"
+                      :force-show-update-banner="forceShowUpdateBanner"
+                      :install-in-progress="installInProgress"
+                      :embedded="true"
+                      @restart="handleRestartToUpdate"
+                      @dismiss="updateDismissed = true"
+                    />
+                  </template>
+                </ResponsiveHoverCard>
+              </template>
+            </slot>
+          </div>
+        </template>
         <div v-else>
           <div class="flex flex-col px-1">
             <template v-for="subitem in item.items">
@@ -309,9 +406,19 @@ const items = computed<MenuItemDefinition[]>(() => [
                         </div>
 
                         <Kbd
-                          v-if="!mini && ((subitem as any).hotkey || (subitem as any).hotkeyId || (subitem as any).commandId)"
+                          v-if="
+                            !mini &&
+                            ((subitem as any).hotkey ||
+                              (subitem as any).hotkeyId ||
+                              (subitem as any).commandId)
+                          "
                           :hotkey-id="(subitem as any).hotkeyId"
-                          :hotkey="(subitem as any).hotkeyId || (subitem as any).commandId ? undefined : (subitem as any).hotkey"
+                          :hotkey="
+                            (subitem as any).hotkeyId ||
+                            (subitem as any).commandId
+                              ? undefined
+                              : (subitem as any).hotkey
+                          "
                           :command-id="(subitem as any).commandId"
                         ></Kbd>
                       </div>
@@ -347,7 +454,10 @@ const items = computed<MenuItemDefinition[]>(() => [
                           </div>
 
                           <Kbd
-                            v-if="(subitem as any).hotkey || (subitem as any).commandId"
+                            v-if="
+                              (subitem as any).hotkey ||
+                              (subitem as any).commandId
+                            "
                             :hotkey="(subitem as any).hotkey"
                             :command-id="(subitem as any).commandId"
                           ></Kbd>

@@ -654,7 +654,11 @@
     "fullChangelog": "Full changelog",
     "checkForUpdates": "Check for updates",
     "updateAvailable": "Update available",
-    "updateInstalling": "Installing update…"
+    "updateInstalling": "Installing update…",
+    "updateBanner": "New version available",
+    "versionAvailable": "Version",
+    "restartToUpdate": "Restart to update",
+    "later": "Later"
   },
   "place": {
     "transit": {

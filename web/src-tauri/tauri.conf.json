@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Parchment",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "identifier": "app.parchment",
   "build": {
     "frontendDist": "../dist",
@@ -34,9 +34,18 @@
       "csp": null
     }
   },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/alexwohlbruck/parchment/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERDNzRFQUM0NjYzNjlERUIKUldUcm5UWm14T3AwM05PazRXMWJIWmVkcnFsVUd2TGlic0lVSEZwWTR1T1FWZ3hLdGtLbmQ2N2IK"
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -56,7 +65,7 @@
       "developmentTeam": "QPNGAD5BD2"
     },
     "android": {
-      "versionCode": 20
+      "versionCode": 21
     }
   }
 }

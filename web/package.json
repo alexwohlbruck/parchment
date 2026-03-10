@@ -1,7 +1,7 @@
 {
   "name": "parchment",
   "private": true,
-  "version": "0.0.16",
+  "version": "0.0.17",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -45,7 +45,9 @@
     "@tauri-apps/plugin-haptics": "~2",
     "@tauri-apps/plugin-opener": "~2.5.2",
     "@tauri-apps/plugin-os": "~2.3.2",
+    "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-store": "~2.4.1",
+    "@tauri-apps/plugin-updater": "~2",
     "@turf/turf": "^7.3.4",
     "@unovis/ts": "^1.6.4",
     "@unovis/vue": "^1.6.4",

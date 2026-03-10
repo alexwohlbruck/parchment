@@ -134,10 +134,14 @@ Create and push a release tag with `./deploy.sh patch` (or `minor` / `major`). T
 | `TAURI_SIGNING_PRIVATE_KEY` | Yes | Sign Tauri desktop builds |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Yes | Decrypt signing key |
 | `TAURI_SIGNING_PUBLIC_KEY` | Yes | Updater manifest |
-| `APPLE_CERTIFICATE_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_PROVISIONING_PROFILE_BASE64` | No | iOS builds |
-| `APPLE_API_ISSUER`, `APPLE_API_KEY`, `APPLE_API_KEY_CONTENT` | No | TestFlight upload |
-| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | No | Play Store upload |
-| `GOOGLE_PLAY_TRACK` | No | `internal` \| `alpha` \| `beta` \| `production` |
+| `APPLE_MACOS_CERTIFICATE_BASE64` | No | macOS desktop signing |
+| `APPLE_MACOS_CERTIFICATE_PASSWORD` | No | Decrypt macOS certificate |
+| `APPLE_CERTIFICATE_BASE64` | No | iOS signing |
+| `APPLE_CERTIFICATE_PASSWORD` | No | Decrypt iOS certificate |
+| `APPLE_API_ISSUER` | No | App Store Connect API (TestFlight) |
+| `APPLE_API_KEY` | No | App Store Connect API key id |
+| `APPLE_API_KEY_CONTENT` | No | App Store Connect API key (.p8 content) |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | No | Play Store upload (JSON key) |
 
 **E2E:** Builds `.env.test` from the same [environment variables](#environment-variables) (or repo secrets / defaults).
 

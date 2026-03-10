@@ -86,7 +86,6 @@
     "vue-i18n": "^9.13.1",
     "vue-router": "^4.3.2",
     "vue-sonner": "^1.1.2",
-    "vue-tsc": "^2.0.29",
     "vue-virtual-scroller": "^2.0.0-beta.8",
     "vuedraggable": "^4.0.1",
     "zod": "^3.23.8"
@@ -99,8 +98,8 @@
     "@types/node": "^22.15.21",
     "@types/simple-icons": "^5.21.1",
     "@types/vue-router": "^2.0.0",
-    "@vitejs/plugin-vue": "^4.6.2",
-    "@vitest/ui": "^4.0.16",
+    "@vitejs/plugin-vue": "^6.0.4",
+    "@vitest/ui": "^4.0.18",
     "@vue/test-utils": "^2.4.6",
     "drizzle-orm": "^0.44.2",
     "happy-dom": "^20.1.0",
@@ -109,9 +108,10 @@
     "postgres": "^3.4.5",
     "sass": "^1.97.3",
     "tailwindcss": "^4.1.12",
-    "typescript": "^5.4.5",
-    "vite": "^5.2.11",
-    "vite-svg-loader": "^5.1.0",
-    "vitest": "^4.0.16"
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vite-svg-loader": "^5.1.1",
+    "vitest": "^4.0.18",
+    "vue-tsc": "^3.2.5"
   }
 }

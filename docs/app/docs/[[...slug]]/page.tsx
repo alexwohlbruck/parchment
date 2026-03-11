@@ -37,7 +37,10 @@ export default async function Page(props: PageProps) {
 }
 
 export async function generateStaticParams() {
-  return source.generateParams()
+  const params = await source.generateParams()
+  // Exclude API reference pages so the build does not need a live OpenAPI server.
+  // They are rendered on-demand when SERVER_ORIGIN is set (e.g. on Netlify).
+  return params.filter((p) => p.slug?.[0] !== 'api')
 }
 
 export async function generateMetadata(props: PageProps): Promise<Metadata> {

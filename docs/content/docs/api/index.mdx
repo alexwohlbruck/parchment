@@ -1,0 +1,22 @@
+---
+title: API Reference
+description: Auto-generated API reference for the Parchment REST API.
+---
+
+This section is generated automatically from the OpenAPI specification served by your Parchment instance.
+
+## Generating the API Docs
+
+Run the following command to regenerate these pages from your running server:
+
+```bash
+cd docs && bun run generate:api
+```
+
+With the shared `.env` at the monorepo root (so `SERVER_ORIGIN` is set):
+
+```bash
+cd docs && bun run generate:api
+```
+
+The script reads `SERVER_ORIGIN` from the environment (or falls back to `http://localhost:5000`) and fetches the spec from `{SERVER_ORIGIN}/docs/json`.

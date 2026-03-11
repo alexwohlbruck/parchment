@@ -15,7 +15,7 @@ services:
       - server-db:/var/lib/postgresql/data
       - ./server/scripts/init-postgis.sh:/docker-entrypoint-initdb.d/init-postgis.sh
     ports:
-      - '5432:5432'
+      - "5432:5432"
     restart: unless-stopped
 
   # Parchment backend (Elysia)
@@ -31,7 +31,7 @@ services:
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
       APP_TESTER_EMAIL: ${APP_TESTER_EMAIL}
     ports:
-      - '5000:5000'
+      - "5000:5000"
     volumes:
       - server-data:/app/data
     depends_on:
@@ -44,10 +44,8 @@ services:
     image: alexwohlbruck/parchment-web:latest
     environment:
       VITE_SERVER_ORIGIN: ${SERVER_ORIGIN}
-      VITE_MAPBOX_ACCESS_TOKEN: ${MAPBOX_ACCESS_TOKEN}
-      VITE_MAPTILER_API_KEY: ${MAPTILER_API_KEY}
     ports:
-      - '5173:5173'
+      - "5173:5173"
     depends_on:
       - parchment-server
     restart: unless-stopped

@@ -1,0 +1,52 @@
+---
+title: Environment
+description: Environment variables and configuration for Parchment.
+---
+
+All configuration is done via environment variables. Copy `.env.example` to `.env` and fill in the values.
+
+## Database
+
+| Variable | Description | Default |
+|---|---|---|
+| `POSTGRES_DB` | Database name | — |
+| `POSTGRES_USER` | Database user | — |
+| `POSTGRES_PASSWORD` | Database password | — |
+
+## Server
+
+| Variable | Description | Default |
+|---|---|---|
+| `SERVER_ORIGIN` | Public URL of the API server | `http://localhost:5000` |
+| `CLIENT_ORIGIN` | Public URL of the frontend | `http://localhost:5173` |
+
+The `CLIENT_ORIGIN` variable controls which origins the API allows requests from. In production, set it to your exact frontend domain.
+
+## Email
+
+Used for account verification and password resets. Parchment uses Gmail with an [app password](https://support.google.com/accounts/answer/185833).
+
+| Variable | Description |
+|---|---|
+| `GMAIL_EMAIL` | Gmail address to send from |
+| `GMAIL_APP_PASSWORD` | Gmail app password |
+| `APP_TESTER_EMAIL` | Email used in automated tests |
+
+## Documentation Site
+
+| Variable | Description | Default |
+|---|---|---|
+| `NEXT_PUBLIC_CLIENT_ORIGIN` | App URL shown in the docs header | `http://localhost:5173` |
+
+## Integrations
+
+Third-party integrations can be enabled in the app under **Settings → Integrations**. Each may require its own API key at the instance level.
+
+## Observability
+
+The server supports OpenTelemetry for tracing and log export:
+
+| Variable | Description |
+|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP endpoint for traces and logs |
+| `OTEL_SERVICE_NAME` | Service name in traces |

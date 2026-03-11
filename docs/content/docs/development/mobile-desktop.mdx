@@ -1,0 +1,36 @@
+---
+title: Mobile & Desktop Apps
+description: Build and run Parchment with Tauri on desktop and mobile.
+---
+
+Parchment includes Tauri-based applications for desktop and mobile.
+
+## Desktop App
+
+From `web/`:
+
+```bash
+bun run dev:desktop    # Development
+bun run build:desktop  # Production build
+```
+
+## Mobile Apps
+
+From `web/`:
+
+**Android:**
+
+```bash
+bun run dev:android        # Development
+bun run build:android      # Production AAB
+bun run build:android:apk # Production APK
+```
+
+**iOS:**
+
+```bash
+bun run dev:ios      # Development
+bun run build:ios    # Production build
+```
+
+See [Development](/docs/development/development) for release and store publishing.

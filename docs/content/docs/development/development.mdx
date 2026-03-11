@@ -1,0 +1,103 @@
+---
+title: Development
+description: Building, CI/CD, and development workflow for Parchment.
+---
+
+## Local development with start.sh
+
+From the repository root, use the `start.sh` script to run the full stack (frontend, API, database) with hot reload:
+
+```bash
+./start.sh dev
+```
+
+- **Frontend** — http://localhost:5173  
+- **API** — http://localhost:5000  
+
+To stop the development stack:
+
+```bash
+./start.sh dev --down
+```
+
+Ensure `.env` is configured (see [Environment](/docs/development/environment)). The script uses Docker Compose for the dev profile; the frontend and server run in watch mode so code changes reload automatically.
+
+## Building for Production
+
+```bash
+./deploy.sh patch    # Increment patch version and deploy
+./deploy.sh minor    # Increment minor version and deploy
+./deploy.sh major    # Increment major version and deploy
+```
+
+Requires Docker Hub access for image push.
+
+## GitHub Actions Workflows
+
+| Workflow | Trigger | What it does |
+|----------|---------|----------------|
+| **E2E Tests** | Push or PR to `main` or `dev` | Runs web unit tests, then Playwright e2e tests (Docker test stack + dev server). Use a branch ruleset to require **e2e** before merging into `dev` or `main`. |
+| **Release** | Push of tag `v*` (e.g. `v0.0.16`) | Runs unit tests, builds Docker images (push to Docker Hub), builds Tauri Android (AAB), macOS (DMG), iOS (IPA), creates GitHub Release with CHANGELOG body and uploads assets. Optionally uploads AAB to Google Play if configured. |
+
+### GitHub Actions secrets
+
+Configure these in **Settings → Secrets and variables → Actions**. See [iOS Signing Setup](https://github.com/alexwohlbruck/parchment/blob/main/docs/ios-signing-setup.md) for iOS certificate details.
+
+| Secret | Required | Used for |
+|--------|----------|----------|
+| `DOCKERHUB_USERNAME` | Yes | Pushing Docker images |
+| `DOCKERHUB_TOKEN` | Yes | Pushing Docker images |
+| `APPLE_CERTIFICATE_BASE64` | Yes | iOS builds (code signing) |
+| `APPLE_CERTIFICATE_PASSWORD` | Yes | iOS builds (code signing) |
+| `APPLE_PROVISIONING_PROFILE_BASE64` | Yes | iOS builds (provisioning) |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | No | Automatic AAB upload to Google Play (full JSON key) |
+| `GOOGLE_PLAY_TRACK` | No | Play track: `internal`, `alpha`, `beta`, or `production` (defaults to `internal`) |
+| `APP_STORE_CONNECT_API_KEY_ID` | No | Automatic TestFlight upload |
+| `APP_STORE_CONNECT_ISSUER_ID` | No | Automatic TestFlight upload |
+| `APP_STORE_CONNECT_API_KEY_CONTENT` | No | Automatic TestFlight upload |
+| `E2E_MAPBOX_ACCESS_TOKEN` | No | E2E Tests — map-related tests when set |
+
+## Releases (CI/CD)
+
+**Version and changelog:** The app version lives in `web/package.json` and is synced to `server/package.json`, `web/src-tauri/tauri.conf.json`, and `web/src-tauri/Cargo.toml` by `deploy.sh`. Release notes are in **`CHANGELOG.md`** ([Keep a Changelog](https://keepachangelog.com/) format); that file is the source for GitHub Release bodies.
+
+**How to cut a release:**
+
+1. Bump the version (e.g. `./deploy.sh patch`) and update `CHANGELOG.md` with a new `## [X.Y.Z] - date` section.
+2. Commit, push, then create and push a tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+3. The **Release** workflow runs on tag push: builds Docker images, Tauri Android (AAB), macOS (DMG), iOS (IPA), creates a GitHub Release with the CHANGELOG section as the body, and uploads artifacts.
+
+**Android versionCode / iOS build:** `deploy.sh` updates the app version everywhere and sets **Android `versionCode`** in `web/src-tauri/tauri.conf.json` for Play Store. iOS uses the same `version` for user-facing version and build number.
+
+**Publishing to stores:**
+
+- **Google Play (automatic):** Set secret **`GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`** (full JSON key). Optional **`GOOGLE_PLAY_TRACK`**: `internal`, `alpha`, `beta`, or `production`. Enable [Google Play Android Developer API](https://console.cloud.google.com/apis/library/androidpublisher.googleapis.com), create a service account, invite it in Play Console with release permissions, put the JSON in the secret.
+- **App Store:** Download the `.ipa` from the GitHub Release and upload via [App Store Connect](https://appstoreconnect.apple.com/) (Transporter or Xcode), or automate with [fastlane](https://fastlane.tools/).
+
+## iOS Deployment Setup
+
+For automatic iOS builds and App Store deployment:
+
+- **[iOS Signing Setup Guide](https://github.com/alexwohlbruck/parchment/blob/main/docs/ios-signing-setup.md)** — Configure Apple certificates and provisioning profiles
+- **[iOS Deployment Checklist](https://github.com/alexwohlbruck/parchment/blob/main/docs/ios-deployment-checklist.md)** — Quick reference for releases
+- **Verification:** `scripts/verify-ios-signing.sh` — Test signing locally
+
+Required GitHub secrets: `APPLE_CERTIFICATE_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_PROVISIONING_PROFILE_BASE64`. Optional (TestFlight): `APP_STORE_CONNECT_API_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_API_KEY_CONTENT`.
+
+## Database Management
+
+The database is initialized with PostGIS, spatial indexes, required permissions/roles, and a default admin user.
+
+To seed with a custom user:
+
+```bash
+docker exec parchment-server bun run seed:dev "FirstName" "LastName" "email@example.com" "https://example.com/picture.jpg"
+```
+
+## Debugging
+
+Development mode includes:
+
+- **Hot reload** for frontend and backend
+- **Bun debugger** at `ws://127.0.0.1:6499/debug` or https://debug.bun.sh/#127.0.0.1:6499/debug
+- **Source maps** for TypeScript debugging

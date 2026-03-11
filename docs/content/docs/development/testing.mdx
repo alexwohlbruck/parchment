@@ -1,0 +1,36 @@
+---
+title: Testing
+description: Unit tests, E2E tests, and CI for Parchment.
+---
+
+## Unit Tests (Vitest)
+
+From `web/`:
+
+```bash
+bun run test           # Run once
+bun run test:ui        # UI mode
+bun run test --watch   # Watch mode
+```
+
+Tests live in `web/src/**/*.{test,spec}.ts`. The web build runs unit tests before building (`vitest run`). Pre-commit (Husky + lint-staged) runs only the web unit suite; e2e is not run on commit.
+
+## E2E Tests (Playwright)
+
+Requires Docker.
+
+1. Copy `web/e2e/env.test.example` to `web/e2e/env.test` (or `.env.test` in repo root).
+2. Set `APP_TESTER_EMAIL` and optionally `E2E_MAPBOX_ACCESS_TOKEN` for map tests.
+
+From `web/`:
+
+```bash
+bun run test:e2e       # Start test stack and run tests
+bun run test:e2e:ui    # Interactive UI
+```
+
+Test user receives OTP `0000-0000`. E2E runs in CI only (not on pre-commit).
+
+## CI
+
+The pipeline runs web unit tests and then e2e tests on every push and pull request to `main` and `dev`. To block merging to `dev` until tests pass: **Settings → Rules → Rulesets** → New ruleset → target `dev` → add **Require status checks** → add status check **e2e** → Save.

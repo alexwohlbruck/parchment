@@ -1,0 +1,59 @@
+---
+title: Getting Started
+description: Clone, configure, and run Parchment locally.
+---
+
+## Prerequisites
+
+- [Docker](https://www.docker.com/) and [Docker Compose](https://docs.docker.com/compose/)
+- [Git](https://git-scm.com/)
+
+## 1. Clone and Setup
+
+```bash
+git clone https://github.com/alexwohlbruck/parchment.git
+cd parchment
+```
+
+## 2. Environment Configuration
+
+Copy the example environment file and configure your settings:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your configuration. Key variables:
+
+- **Database**: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
+- **Server**: `SERVER_ORIGIN`, `CLIENT_ORIGIN`
+- **Email** (for user notifications): `GMAIL_EMAIL`, `GMAIL_APP_PASSWORD`, `APP_TESTER_EMAIL`
+
+See [Environment](/docs/development/environment) for full details.
+
+## 3. Start the Application
+
+**Development mode (with hot-reload):**
+
+```bash
+./start.sh dev
+```
+
+**Production mode (using published images):**
+
+```bash
+./start.sh prod
+```
+
+The application will be available at:
+
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:5000
+- **API Documentation**: http://localhost:5000/docs
+
+## 4. Stop the Application
+
+```bash
+./start.sh dev --down    # Stop development
+./start.sh prod --down   # Stop production
+```

@@ -11,3 +11,7 @@ web/e2e/env.test
 playwright-report/
 web/playwright-report/
 web/test-results/
+
+# Docs site (Next.js + Fumadocs)
+docs/.next/
+docs/.source/

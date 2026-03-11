@@ -1,0 +1,9 @@
+# Netlify config for the Parchment docs site (Next.js + Fumadocs).
+# When linking this repo, set "Base directory" to "docs" in the Netlify UI.
+# The Essential Next.js plugin auto-detects and sets the publish directory.
+
+[build]
+  command = "bun run build"
+
+[build.environment]
+  NODE_VERSION = "20"

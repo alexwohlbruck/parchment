@@ -1,3 +1,5 @@
+
+
 # Parchment Maps
 
 A modern mapping and navigation app based on open data and open source technologies.
@@ -31,3 +33,4 @@ Then open **http://localhost:3001/docs**.
 ## License
 
 AGPL-3.0 — see [LICENSE](LICENSE). Free to self-host; cannot sell as a service without sharing source.
+

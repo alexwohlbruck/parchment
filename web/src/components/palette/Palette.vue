@@ -168,7 +168,7 @@ defineExpose({
 
 function inputFocused(event: FocusEvent) {
   emit('inputFocused')
-  if (commandOpen.value && !showResults.value) {
+  if (!showResults.value) {
     openPalette(props.searchOnOpen)
   }
 }

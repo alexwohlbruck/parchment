@@ -70,12 +70,20 @@ async function main() {
   app.use(locationController)
   app.use(weatherController)
 
-  app.onError(({ code }) => {
+  app.onError(({ code, error }) => {
     if (code === 'NOT_FOUND') return 'Route not found :(' // TODO: i18n, proper error
+    logger.error({ err: error, code }, 'Request error')
+    return new Response(
+      JSON.stringify({ error: 'Internal server error', code }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } },
+    )
   })
 
+  // Listen on 0.0.0.0 in production/Docker so the server accepts external connections
   const hostname =
-    process.env.NODE_ENV === 'development' ? '0.0.0.0' : 'localhost'
+    process.env.NODE_ENV === 'production' || process.env.HOST === '0.0.0.0'
+      ? '0.0.0.0'
+      : process.env.HOST || 'localhost'
   const port = process.env.PORT || 5000
 
   app.listen({

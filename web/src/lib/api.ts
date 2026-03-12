@@ -93,9 +93,13 @@ export async function getIsTauri(): Promise<boolean> {
 // Reactive server URL from localStorage, defaults to api.parchment.app
 const serverUrl = useStorage('parchment-selected-server', DEFAULT_SERVER_URL)
 
+/** Request timeout (ms). Prevents "loads forever" when the server doesn't respond. */
+const REQUEST_TIMEOUT_MS = 15000
+
 export const api = axios.create({
   withCredentials: !isTauri, // Only use credentials for web
   baseURL: serverUrl.value,
+  timeout: REQUEST_TIMEOUT_MS,
 })
 
 watchEffect(() => {

@@ -10,7 +10,8 @@ RUN bun install --frozen-lockfile || (rm -f bun.lock && bun install)
 # Copy app code
 COPY server/ ./
 
-# Build the app for production
+# Build the app for production (NODE_ENV=production so logger skips pino-pretty transport in bundle)
+ENV NODE_ENV=production
 RUN bun run build
 
 # Run stage: same Bun version as builder (redeclare ARG before FROM)

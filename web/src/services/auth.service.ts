@@ -42,36 +42,41 @@ function authService() {
   async function getAuthenticatedUser() {
     const localAuthToken = await loadToken()
     const hasCachedUser = authStore.me !== undefined && authStore.me !== null
-    
-    const authenticatedUserPromise = api.get('auth/sessions/current')
-    
+
+    const sessionPromise = api.get('auth/sessions/current')
+    // Resolve to no user on timeout/network error so router guard doesn't wait forever
+    const authenticatedUserPromise = sessionPromise.catch(() => {
+      authStore.updateUser(null)
+      return { data: { user: null, token: null } }
+    })
+
     // If we have cached user, set a resolved promise so router guards don't block
     // The actual server request will validate/update in background
     if (hasCachedUser) {
       authStore.setAuthenticatedUserPromise(Promise.resolve({ data: { user: authStore.me } }))
-      
+
       // Validate session in background - update store when response arrives
-      authenticatedUserPromise.then(response => {
-        const { user, token: sessionId } = response?.data ?? {}
-        if (user) {
-          authStore.updateUser(user)
-          setAuthHeader(sessionId)
-          getPermissions()
-        } else {
-          // Session invalid - clear caches and redirect
+      sessionPromise
+        .then(response => {
+          const { user, token: sessionId } = response?.data ?? {}
+          if (user) {
+            authStore.updateUser(user)
+            setAuthHeader(sessionId)
+            getPermissions()
+          } else {
+            clearAllUserCaches()
+            authStore.unsetAuthenticatedUser()
+          }
+        })
+        .catch(() => {
           clearAllUserCaches()
           authStore.unsetAuthenticatedUser()
-        }
-      }).catch(() => {
-        // On error, session might be invalid
-        clearAllUserCaches()
-        authStore.unsetAuthenticatedUser()
-      })
-      
+        })
+
       return { user: authStore.me }
     }
-    
-    // No cache - wait for server response
+
+    // No cache - wait for server response (or timeout → no user)
     authStore.setAuthenticatedUserPromise(authenticatedUserPromise)
 
     const response = await authenticatedUserPromise

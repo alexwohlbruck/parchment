@@ -1,2 +1,2 @@
-ALTER TABLE "friendships" ADD COLUMN "friend_name" text;--> statement-breakpoint
-ALTER TABLE "friendships" ADD COLUMN "friend_picture" text;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'friendships' AND column_name = 'friend_name') THEN ALTER TABLE "friendships" ADD COLUMN "friend_name" text; END IF; END $$;--> statement-breakpoint
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'friendships' AND column_name = 'friend_picture') THEN ALTER TABLE "friendships" ADD COLUMN "friend_picture" text; END IF; END $$;

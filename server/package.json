@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "bun src/index.ts --watch",
     "build": "bun build ./src/index.ts ./src/migrate.ts ./src/seed/seed.ts --outdir ./dist --target bun",
-    "start": "bun dist/index.js",
+    "start": "NODE_ENV=production bun dist/index.js",
     "start:server2": "PORT=5001 SERVER_ORIGIN=http://localhost:5001 CLIENT_ORIGIN=http://localhost:5173 bun src/index.ts",
     "test": "bun test",
     "generate": "drizzle-kit generate",

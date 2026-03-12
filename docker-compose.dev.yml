@@ -1,3 +1,5 @@
+name: parchment
+
 volumes:
   server-db:
   server:
@@ -34,7 +36,7 @@ services:
     volumes:
       - server-db:/var/lib/postgresql/data
     ports:
-      - '5432:5432'
+      - "5432:5432"
 
   # Parchment backend (Elysia)
   parchment-server:
@@ -69,7 +71,7 @@ services:
       VITE_MAPBOX_ACCESS_TOKEN: ${MAPBOX_ACCESS_TOKEN}
       VITE_MAPTILER_API_KEY: ${MAPTILER_API_KEY}
     ports:
-      - '5173:5173'
+      - "5173:5173"
     volumes:
       - ./web:/app/web
       - /app/web/node_modules

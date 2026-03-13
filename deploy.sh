@@ -144,35 +144,6 @@ update_tauri_android_version_code() {
     echo "Android versionCode set to $code (from version $version)"
 }
 
-# Function to build and push Docker images
-build_and_push_docker() {
-    local version=$1
-    echo "Building Docker images..."
-    
-    echo "Building web image $version..."
-    docker buildx build --platform linux/amd64,linux/arm64 -f web/Dockerfile.prod -t alexwohlbruck/parchment-web:$version --push .
-
-    echo "Building server image $version..."
-    docker buildx build --platform linux/amd64,linux/arm64 -f server/Dockerfile.prod -t alexwohlbruck/parchment-server:$version --push .
-    
-    echo "Building web image latest..."
-    docker buildx build --platform linux/amd64,linux/arm64 -f web/Dockerfile.prod -t alexwohlbruck/parchment-web:latest --push .
-
-    echo "Building server image latest..."
-    docker buildx build --platform linux/amd64,linux/arm64 -f server/Dockerfile.prod -t alexwohlbruck/parchment-server:latest --push .
-}
-
-# Function to build Tauri app
-build_tauri() {
-    echo "Building Tauri app..."
-    cd web
-    
-    echo "Building Android app (AAB)..."
-    bun run build:android
-    
-    cd ..
-}
-
 # Function to show usage
 show_usage() {
     echo "Usage: $0 [increment_type] [options]"
@@ -294,14 +265,10 @@ update_tauri_conf "$NEW_VERSION"
 update_cargo_toml "$NEW_VERSION"
 update_tauri_android_version_code "$NEW_VERSION"
 
-# Build Tauri app
-build_tauri
-
-# Build and push Docker images
-build_and_push_docker "$NEW_VERSION"
+# Docker images, Tauri apps, and store uploads are built by the release workflow on tag push (.github/workflows/release.yml)
 
 echo ""
-echo "Version update and deployment complete!"
+echo "Version update complete! Push the tag to trigger the release workflow (Docker, Tauri, app stores)."
 
 # Stage version files and create tag
 VERSION_FILES="web/package.json server/package.json web/src-tauri/tauri.conf.json web/src-tauri/Cargo.toml CHANGELOG.md RELEASE_TITLE"

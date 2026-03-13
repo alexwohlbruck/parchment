@@ -16,11 +16,11 @@ cp .env.example .env
 
 - **Frontend**: http://localhost:5173  
 - **Backend API**: http://localhost:5000  
-- **API docs**: http://localhost:5000/docs  
+- **API docs**: https://docs.parchment.app/docs/api  
 
 ## Documentation
 
-Full documentation (getting started, environment, self-hosting, development, testing, and more) is in the **docs** site.
+Full documentation (getting started, environment, self-hosting, development, testing, and more) is at **https://docs.parchment.app**.
 
 To run the docs locally:
 
@@ -28,7 +28,7 @@ To run the docs locally:
 cd docs && bun run dev
 ```
 
-Then open **http://localhost:3001/docs**.
+Then open **http://localhost:3001/docs** (live site: **https://docs.parchment.app**).
 
 ## License
 

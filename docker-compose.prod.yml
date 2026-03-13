@@ -1,3 +1,5 @@
+name: parchment
+
 volumes:
   server-db:
   server-data:

@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useCommandStore, CommandName } from '@/stores/command.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useAuthService } from '@/services/auth.service'
-import { APP_VERSION, DEFAULT_SERVER_URL } from '@/lib/constants'
+import { APP_VERSION } from '@/lib/constants'
 import { appEventBus } from '@/lib/eventBus'
 import { fetchLatestRelease } from '@/composables/useGitHubReleases'
 import type { GitHubReleaseSummary } from '@/composables/useGitHubReleases'
@@ -55,14 +55,14 @@ const aboutDialogOpen = ref(false)
 const latestRelease = ref<GitHubReleaseSummary | null>(null)
 
 const RELEASES_HREF = 'https://github.com/alexwohlbruck/parchment/releases'
-const DOCS_HREF = 'https://github.com/alexwohlbruck/parchment#readme'
+const DOCS_HREF = 'https://docs.parchment.app'
 
 onMounted(() => {
   fetchLatestRelease().then(release => {
     latestRelease.value = release
   })
 })
-const API_DOCS_HREF = `${DEFAULT_SERVER_URL}/docs`
+const API_DOCS_HREF = 'https://docs.parchment.app/docs/api'
 
 // Language options from command store
 const languageOptions = computed(() =>

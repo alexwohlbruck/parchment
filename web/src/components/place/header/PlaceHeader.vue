@@ -26,7 +26,7 @@ const placeType = computed(() => {
   const type = props.place?.placeType?.value
   
   // Filter out geometry types that shouldn't be displayed as place types
-  const geometryTypes = ['Point', 'LineString', 'Polygon', 'MultiPolygon', 'Line', 'Area']
+  const geometryTypes = ['Point', 'LineString', 'Polygon', 'MultiPolygon', 'Line', 'Area', 'poi']
   if (!type || geometryTypes.includes(type)) {
     return null
   }

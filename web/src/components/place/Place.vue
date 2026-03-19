@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { Spinner } from '@/components/ui/spinner'
 import { AppRoute } from '@/router'
 import { LngLat } from 'mapbox-gl'
 import { useDirectionsService } from '@/services/directions.service'
 import { getPrimaryPhoto, getLogoPhoto } from '@/types/place.types'
 import type { Place } from '@/types/place.types'
 import { useAppService } from '@/services/app.service'
+import { Skeleton } from '@/components/ui/skeleton'
 
 import PlaceHeader from './header/PlaceHeader.vue'
 import PlaceGallery from './gallery/PlaceGallery.vue'
@@ -121,14 +121,7 @@ function handleBrandLogoError() {
 
 <template>
   <PanelLayout>
-    <div
-      v-if="loading"
-      class="h-full flex items-center justify-center py-8"
-    >
-      <Spinner class="w-6 h-6" />
-    </div>
-
-    <template v-else-if="place">
+    <template v-if="place">
       <div class="flex flex-col space-y-3">
         <div class="flex flex-col space-y-3">
           <PlaceHeader
@@ -146,15 +139,34 @@ function handleBrandLogoError() {
           />
         </div>
 
-        <PlaceGallery
-          class="ml-[-0.75rem] mr-[-0.75rem] w-[calc(100%+1.5rem)]"
-          :place="place"
-          @imageLoaded="handlePlaceImageLoad"
-          @imageError="handlePlaceImageError"
-        />
-        <PlaceTransit :place="place" />
-        <DetailsList :place="place" />
-        <PlaceSources :place="place" />
+        <!-- Skeleton loaders while full data loads -->
+        <template v-if="loading">
+          <!-- Gallery skeleton -->
+          <Skeleton class="ml-[-0.75rem] mr-[-0.75rem] w-[calc(100%+1.5rem)] h-48 rounded-lg" />
+          <!-- Details skeleton -->
+          <div class="space-y-3">
+            <Skeleton class="h-5 w-3/4" />
+            <Skeleton class="h-5 w-1/2" />
+            <Skeleton class="h-5 w-2/3" />
+          </div>
+          <!-- Sources skeleton -->
+          <div class="space-y-2">
+            <Skeleton class="h-4 w-1/3" />
+            <Skeleton class="h-4 w-1/4" />
+          </div>
+        </template>
+
+        <template v-else>
+          <PlaceGallery
+            class="ml-[-0.75rem] mr-[-0.75rem] w-[calc(100%+1.5rem)]"
+            :place="place"
+            @imageLoaded="handlePlaceImageLoad"
+            @imageError="handlePlaceImageError"
+          />
+          <PlaceTransit :place="place" />
+          <DetailsList :place="place" />
+          <PlaceSources :place="place" />
+        </template>
       </div>
     </template>
   </PanelLayout>

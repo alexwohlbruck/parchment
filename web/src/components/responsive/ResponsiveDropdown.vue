@@ -344,7 +344,7 @@ function handleItemClick(item: MenuItem, event?: Event) {
 
         <div v-else>
           <!-- Submenu header with back button -->
-          <div class="flex items-center gap-2 mb-4 mx-1">
+          <div class="flex items-center gap-2 mb-2 mx-1">
             <Button
               variant="ghost"
               size="icon"
@@ -375,27 +375,38 @@ function handleItemClick(item: MenuItem, event?: Event) {
               <Button
                 v-else-if="subItem.type === 'item'"
                 variant="ghost"
-                class="w-full justify-start h-auto px-3 py-2.5 gap-2"
-                :class="{
-                  'text-destructive hover:text-destructive':
-                    subItem.variant === 'destructive' && !subItem.disabled,
-                  'opacity-50 cursor-not-allowed': subItem.disabled,
-                }"
+                class="w-full h-auto px-3 py-2.5 gap-2"
+                :class="[
+                  subItem.trailing ? 'justify-between' : 'justify-start',
+                  {
+                    'text-destructive hover:text-destructive':
+                      subItem.variant === 'destructive' && !subItem.disabled,
+                    'opacity-50 cursor-not-allowed': subItem.disabled,
+                  },
+                ]"
                 :disabled="subItem.disabled"
                 @click="handleItemClick(subItem)"
               >
+                <span class="flex items-center gap-2 min-w-0 flex-1">
+                  <component
+                    v-if="subItem.icon"
+                    :is="subItem.icon"
+                    :class="[
+                      'size-4 shrink-0',
+                      {
+                        'text-destructive':
+                          subItem.variant === 'destructive' && !subItem.disabled,
+                      },
+                    ]"
+                  />
+                  <span class="min-w-0 break-words">{{ subItem.label }}</span>
+                </span>
                 <component
-                  v-if="subItem.icon"
-                  :is="subItem.icon"
-                  :class="[
-                    'size-4 shrink-0',
-                    {
-                      'text-destructive':
-                        subItem.variant === 'destructive' && !subItem.disabled,
-                    },
-                  ]"
+                  v-if="subItem.trailing"
+                  :is="subItem.trailing"
+                  v-bind="subItem.trailingProps"
+                  @click.stop
                 />
-                <span>{{ subItem.label }}</span>
               </Button>
 
               <!-- Nested submenu trigger (supports infinite nesting) -->

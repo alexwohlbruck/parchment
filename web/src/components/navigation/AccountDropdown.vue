@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, markRaw, h, defineComponent, type Component } from 'vue'
+import {
+  computed,
+  ref,
+  watch,
+  onMounted,
+  markRaw,
+  h,
+  defineComponent,
+  type Component,
+} from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { cn } from '@/lib/utils'
@@ -50,7 +59,15 @@ const { isDark } = storeToRefs(themeStore)
 const { toggleDark } = themeStore
 const authService = useAuthService()
 
+const emit = defineEmits<{
+  (e: 'update:open', value: boolean): void
+}>()
+
 const dropdownOpen = ref(false)
+
+watch(dropdownOpen, val => {
+  emit('update:open', val)
+})
 const aboutDialogOpen = ref(false)
 const latestRelease = ref<GitHubReleaseSummary | null>(null)
 
@@ -264,12 +281,13 @@ const menuItems = computed((): MenuItemDefinition[] => {
         </div>
       </div>
       <div class="h-px bg-border my-1" />
+      <!-- TODO: Replace with separator component -->
     </template>
 
     <!-- Version footer -->
     <template #footer>
       <div class="h-px bg-border my-1" />
-      <div class="flex items-center justify-between gap-2">
+      <div class="flex items-center justify-between gap-2 px-2 pb-2 py-1">
         <span class="ml-1 text-xs text-muted-foreground">
           v{{ APP_VERSION }}
         </span>

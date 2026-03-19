@@ -126,7 +126,7 @@ const menuItems = computed((): MenuItemDefinition[] => {
       trailing: markRaw(Kbd),
       trailingProps: { hotkey: ['h'], size: 'xs' },
       onSelect: () => {
-        appEventBus.emit('palette:open')
+        appEventBus.emit('hotkeys:open')
       },
     },
     {

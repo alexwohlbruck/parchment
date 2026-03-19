@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import fuzzysort from 'fuzzysort'
 import {
   Dialog,
@@ -16,6 +16,7 @@ import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { useHotkeyStore } from '@/stores/hotkey.store'
 import type { Command } from '@/types/command.types'
 import { useHotkeys } from '@/composables/useHotkeys'
+import { appEventBus } from '@/lib/eventBus'
 
 const commandService = useCommandService()
 const commandStore = useCommandStore()
@@ -27,6 +28,14 @@ const query = ref('')
 function openHotkeysMenu() {
   open.value = true
 }
+
+onMounted(() => {
+  appEventBus.on('hotkeys:open', openHotkeysMenu)
+})
+
+onUnmounted(() => {
+  appEventBus.off('hotkeys:open', openHotkeysMenu)
+})
 
 // Combine command hotkeys and ephemeral hotkeys
 const hotkeys = computed(() => {

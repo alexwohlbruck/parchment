@@ -36,7 +36,6 @@ import { decodeShape } from '@/lib/utils'
 import colors from 'tailwindcss/colors'
 import { mapEventBus } from '@/lib/eventBus'
 import { createPegmanLayers, updatePegmanData } from '@/lib/pegman.utils'
-import { parseMapboxToOsmId } from '@/lib/map.utils'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { MapLayerGroup, TripGroup } from '@/lib/layer-group'
@@ -46,7 +45,6 @@ import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
 import InstructionPointMarker from '@/components/map/InstructionPointMarker.vue'
 import { useAppStore } from '@/stores/app.store'
 import { useThemeStore } from '@/stores/theme.store'
-import { useMapToolsStore } from '@/stores/map-tools.store'
 import { getPrimaryThemeHex, adjustLightness, cssHslToHex } from '@/lib/utils'
 
 const basemapUrls: {
@@ -116,7 +114,6 @@ export class MapboxStrategy extends MapStrategy {
   mapInstance: MapboxMap
   private streetViewLayerIds: Set<string> = new Set()
   private unwatchTheme?: () => void
-  private clickDebounceTimer: number | null = null
   geolocateControl: GeolocateControl
   layerGroups: Map<string, MapLayerGroup> = new Map()
   private currentLanguage?: string
@@ -218,19 +215,10 @@ export class MapboxStrategy extends MapStrategy {
       })
     })
     this.mapInstance.on('click', e => {
-      // Debounce to allow POI interaction to fire first
-      if (this.clickDebounceTimer) {
-        clearTimeout(this.clickDebounceTimer)
-      }
-
-      this.clickDebounceTimer = window.setTimeout(() => {
-        // Emit regular click without POI data
-        mapEventBus.emit('click', {
-          lngLat: e.lngLat,
-          point: e.point,
-        })
-        this.clickDebounceTimer = null
-      }, 50)
+      mapEventBus.emit('click', {
+        lngLat: e.lngLat,
+        point: e.point,
+      })
     })
     this.mapInstance.on('contextmenu', e => {
       e.preventDefault()
@@ -263,65 +251,6 @@ export class MapboxStrategy extends MapStrategy {
       target: { layerId: 'mapillary-image' },
       handler: () => {
         this.mapInstance.getCanvas().style.cursor = ''
-      },
-    })
-    this.listenPOIClick()
-  }
-
-  listenPOIClick() {
-    this.mapInstance.addInteraction('poi-mouseenter', {
-      type: 'mouseenter',
-      target: { featuresetId: 'poi', importId: 'basemap' },
-      handler: e => {
-        this.mapInstance.getCanvas().style.cursor = 'pointer'
-      },
-    })
-
-    this.mapInstance.addInteraction('poi-mouseleave', {
-      type: 'mouseleave',
-      target: { featuresetId: 'poi', importId: 'basemap' },
-      handler: e => {
-        this.mapInstance.getCanvas().style.cursor = ''
-      },
-    })
-
-    this.mapInstance.addInteraction('poi-click', {
-      type: 'click',
-      target: { featuresetId: 'poi', importId: 'basemap' },
-      handler: e => {
-        // When measure tool is active, ignore POI clicks so the debounced map click
-        // fires and the click is treated as a regular map click (add measure point).
-        if (useMapToolsStore().activeTool === 'measure') return
-        if (!e.feature?.id) return
-
-        const { osmId, poiType } = parseMapboxToOsmId(e.feature.id)
-        const coordinates = (e.feature.geometry as any).coordinates
-        const center = e.feature.properties?.center
-
-        if (poiType !== 'unknown') {
-          // Cancel the debounced regular click
-          if (this.clickDebounceTimer) {
-            clearTimeout(this.clickDebounceTimer)
-            this.clickDebounceTimer = null
-          }
-
-          // For ways/relations, use center point if available
-          const lngLat = center
-            ? { lng: center[0], lat: center[1] }
-            : { lng: coordinates[0], lat: coordinates[1] }
-
-          // Emit unified click event with POI data
-          const poiName = e.feature.properties?.name
-          mapEventBus.emit('click', {
-            lngLat,
-            point: e.point,
-            poi: {
-              osmId,
-              poiType,
-              name: typeof poiName === 'string' ? poiName : undefined,
-            },
-          })
-        }
       },
     })
   }

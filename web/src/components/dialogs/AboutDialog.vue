@@ -101,7 +101,7 @@ const socialLinks = [
 </script>
 
 <template>
-  <ResponsiveDialog v-model:open="internalOpen" content-class="p-0 overflow-hidden" no-padding :show-drag-handle="false">
+  <ResponsiveDialog v-model:open="internalOpen" content-class="p-0 overflow-hidden" no-padding :show-drag-handle="false" fit-content>
     <template #trigger>
       <!-- Hidden trigger for programmatic control -->
       <div style="display: none" />

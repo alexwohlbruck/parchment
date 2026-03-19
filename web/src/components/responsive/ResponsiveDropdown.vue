@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import { useExternalLink } from '@/composables/useExternalLink'
 import {
   useResponsiveOverlay,
-  computeSnapPoints,
   type ResponsiveOverlayBaseProps,
   type ResponsiveOverlayPositionProps,
   type ResponsiveOverlayTitleProps,
@@ -193,7 +192,7 @@ function handleItemClick(item: MenuItem, event?: Event) {
   }
 }
 
-const snapPoints = computeSnapPoints(props.customSnapPoints, props.peekHeight)
+
 </script>
 
 <template>
@@ -205,7 +204,7 @@ const snapPoints = computeSnapPoints(props.customSnapPoints, props.peekHeight)
     <BottomSheet
       modal
       v-model:open="internalOpen"
-      :custom-snap-points="snapPoints"
+      :fit-content="true"
       :show-drag-handle="showDragHandle"
       :show-close-button="showCloseButton"
       :dismissable="true"
@@ -328,7 +327,7 @@ const snapPoints = computeSnapPoints(props.customSnapPoints, props.peekHeight)
       <BottomSheet
         modal
         :open="entry.open"
-        :custom-snap-points="snapPoints"
+        :fit-content="true"
         :show-drag-handle="showDragHandle"
         :show-close-button="false"
         :dismissable="true"

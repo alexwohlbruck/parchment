@@ -19,6 +19,7 @@ interface Props
     ResponsiveOverlayTitleProps {
   noPadding?: boolean
   contentClass?: string
+  fitContent?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -50,6 +51,7 @@ const { isMobileScreen, internalOpen, handleOpenChange } = useResponsiveOverlay(
       v-model:open="internalOpen"
       :peek-height="props.peekHeight"
       :custom-snap-points="props.customSnapPoints"
+      :fit-content="props.fitContent"
       :show-drag-handle="props.showDragHandle"
       :show-close-button="props.showCloseButton"
       :dismissable="true"

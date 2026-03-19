@@ -236,6 +236,49 @@ function mapService() {
       }
     })
 
+    mapEventBus.on('click', async data => {
+      // Only handle POI clicks — ignore empty map clicks
+      if (!data.poi) return
+
+      const { usePlaceService } = await import('@/services/place.service')
+      const placeService = usePlaceService()
+
+      const partialPlace: Partial<Place> = {
+        id: `osm/${data.poi.poiType}/${data.poi.osmId}`,
+        externalIds: { osm: `${data.poi.poiType}/${data.poi.osmId}` },
+        name: data.poi.name
+          ? {
+              value: data.poi.name,
+              sourceId: 'osm',
+              timestamp: new Date().toISOString(),
+            }
+          : undefined,
+        geometry: {
+          value: {
+            type: 'point',
+            center: data.lngLat,
+          },
+          sourceId: 'osm',
+          timestamp: new Date().toISOString(),
+        },
+        placeType: {
+          value: 'poi',
+          sourceId: 'osm',
+          timestamp: new Date().toISOString(),
+        },
+      }
+
+      placeService.setPartialPlace(partialPlace)
+
+      router.push({
+        name: AppRoute.PLACE,
+        params: {
+          type: data.poi.poiType,
+          id: data.poi.osmId,
+        },
+      })
+    })
+
     return mapStrategy
   }
 

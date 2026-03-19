@@ -304,11 +304,12 @@ const weatherIcon = computed(() => getWeatherIcon(props.weather))
 </script>
 
 <template>
-  <ResponsiveDialog 
-    :open="open" 
+  <ResponsiveDialog
+    :open="open"
     @update:open="emit('update:open', $event)"
     content-class="max-w-lg p-0 overflow-hidden"
     :no-padding="true"
+    :fit-content="true"
   >
     <template #trigger>
       <div style="display: none" />

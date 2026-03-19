@@ -37,6 +37,7 @@ const props = withDefaults(
     parentId?: string
     zIndexOffset?: number
     respectSafeArea?: boolean
+    fitContent?: boolean
   }>(),
   {
     open: true,
@@ -351,12 +352,12 @@ function handleAnimationEnd(open: boolean) {
     :modal="modal"
     :should-scale-background="true"
     direction="bottom"
-    :snap-points="snapPoints"
+    :snap-points="props.fitContent ? undefined : snapPoints"
     v-model:active-snap-point="activeSnapPoint"
     @update:activeSnapPoint="onSnapPointChange"
     :repositionInputs="true"
     :dismissible="props.dismissable"
-    :fade-from-index="0 as any"
+    :fade-from-index="props.fitContent ? undefined : (0 as any)"
   >
     <DrawerPortal>
       <DrawerOverlay
@@ -367,7 +368,10 @@ function handleAnimationEnd(open: boolean) {
         ref="drawerContentRef"
         :class="
           cn(
-            'bg-background rounded-t-md min-h-full shadow-lg flex flex-col absolute top-0 bottom-0 left-0 right-0 border-t border-border',
+            'bg-background rounded-t-md shadow-lg flex flex-col border-t border-border',
+            props.fitContent
+              ? 'fixed bottom-0 left-0 right-0 max-h-[calc(100vh-env(safe-area-inset-top))]'
+              : 'min-h-full absolute top-0 bottom-0 left-0 right-0',
             props.class,
           )
         "
@@ -393,7 +397,7 @@ function handleAnimationEnd(open: boolean) {
             <Button
               variant="secondary"
               size="icon-xs"
-              class="rounded-full hover:bg-muted transition-colors absolute top-2 right-2"
+              class="rounded-full hover:bg-muted transition-colors absolute top-2 right-2 z-50"
             >
               <X class="size-3.5" />
             </Button>
@@ -403,13 +407,14 @@ function handleAnimationEnd(open: boolean) {
         <div
           ref="scrollContainer"
           :class="
-            cn('flex-1 h-[200vh] pb-[env(safe-area-inset-bottom)]', {
-              'overflow-y-auto': isFullyExpanded,
-              'overflow-y-hidden': !isFullyExpanded,
+            cn('pb-[env(safe-area-inset-bottom)]', {
+              'flex-1 h-[200vh]': !props.fitContent,
+              'overflow-y-auto': props.fitContent || isFullyExpanded,
+              'overflow-y-hidden': !props.fitContent && !isFullyExpanded,
             })
           "
           :style="{
-            touchAction: isFullyExpanded ? 'pan-y' : 'none',
+            touchAction: props.fitContent || isFullyExpanded ? 'pan-y' : 'none',
             overscrollBehavior: 'none',
           }"
           @touchstart="handleTouchStart"

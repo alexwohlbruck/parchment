@@ -15,7 +15,7 @@ const route = useRoute()
 const activeSnapPoint = ref<number | string | null>(null)
 const activeSnapPointIndex = ref<number>(-1)
 const paletteRef = ref<InstanceType<typeof Palette>>()
-const cardRef = ref<HTMLElement>()
+const cardRef = ref<InstanceType<typeof Card>>()
 const PEEK_HEIGHT = '65px'
 
 const isFullyExpanded = computed(() => activeSnapPointIndex.value === 2)
@@ -33,7 +33,8 @@ function handlePaletteInputFocused() {
 
 // Reset scroll position when snap point changes
 watch(activeSnapPointIndex, () => {
-  const scrollParent = cardRef.value?.$el?.parentElement
+  const el = (cardRef.value as any)?.$el as HTMLElement | undefined
+  const scrollParent = el?.parentElement
   if (scrollParent) {
     scrollParent.scrollTop = 0
   }
@@ -52,6 +53,7 @@ watch(isFullyExpanded, newVal => {
     :peek-height="PEEK_HEIGHT"
     :dismissable="false"
     :trackObstructing="false"
+    :z-index-offset="-10"
     v-model:active-snap-point="activeSnapPoint"
     v-model:active-snap-point-index="activeSnapPointIndex"
     class="w-full md:w-104 h-full"

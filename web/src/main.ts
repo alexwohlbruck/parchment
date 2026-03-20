@@ -1,5 +1,6 @@
-import { createApp } from 'vue'
+import { createApp, effectScope } from 'vue'
 import { createPinia } from 'pinia'
+import { useGeolocationService } from '@/services/geolocation.service'
 import { i18n } from '@/lib/i18n'
 import './style.css'
 import App from './App.vue'
@@ -27,5 +28,8 @@ app.use(MotionPlugin)
 app.use(VueVirtualScroller)
 
 initVaulChromeWorkaround()
+
+// Start geolocation as early as possible — before any component mounts
+effectScope().run(() => useGeolocationService())
 
 app.mount('#app')

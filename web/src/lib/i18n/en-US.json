@@ -776,6 +776,18 @@
           "whileActive": "While active"
         }
       },
+      "location": {
+        "title": "Location",
+        "locateOnStartup": "Locate me on startup",
+        "locateOnStartupDescription": "Fly to your location when the map loads",
+        "locateFlySpeed": "Locate animation speed",
+        "speed": {
+          "instant": "Instant",
+          "fast": "Fast",
+          "normal": "Normal",
+          "slow": "Slow"
+        }
+      },
       "basemaps": {
         "title": "Basemaps",
         "new": "New basemap",

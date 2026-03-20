@@ -10,6 +10,7 @@ import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { WaypointsLayer } from '@/components/map/layers/waypoints-layer'
 import { FriendLocationsLayer } from '@/components/map/layers/friend-locations-layer'
 import { TripInstructionsLayer } from '@/components/map/layers/trip-instructions-layer'
+import { UserLocationLayer } from '@/components/map/layers/user-location-layer'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { watch, Component } from 'vue'
 
@@ -20,6 +21,7 @@ export function useMarkerLayersService() {
   let waypointsLayer: WaypointsLayer | null = null
   let friendLocationsLayer: FriendLocationsLayer | null = null
   let tripInstructionsLayer: TripInstructionsLayer | null = null
+  let userLocationLayer: UserLocationLayer | null = null
 
   // ============================================================================
   // INITIALIZATION
@@ -34,6 +36,7 @@ export function useMarkerLayersService() {
     waypointsLayer = new WaypointsLayer()
     friendLocationsLayer = new FriendLocationsLayer()
     tripInstructionsLayer = new TripInstructionsLayer()
+    userLocationLayer = new UserLocationLayer()
 
     // Initialize with map API
     const markerAPI = {
@@ -51,6 +54,7 @@ export function useMarkerLayersService() {
     waypointsLayer.initialize(markerAPI)
     friendLocationsLayer.initialize(markerAPI)
     tripInstructionsLayer.initialize(markerAPI)
+    userLocationLayer.initialize(markerAPI)
 
     // Set up watchers for reactive updates
     setupMarkerLayerWatchers()
@@ -111,10 +115,12 @@ export function useMarkerLayersService() {
     waypointsLayer?.destroy()
     friendLocationsLayer?.destroy()
     tripInstructionsLayer?.destroy()
+    userLocationLayer?.destroy()
 
     waypointsLayer = null
     friendLocationsLayer = null
     tripInstructionsLayer = null
+    userLocationLayer = null
   }
 
   // ============================================================================

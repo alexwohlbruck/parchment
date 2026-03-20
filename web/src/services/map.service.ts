@@ -12,6 +12,7 @@ import {
   type LngLat,
   LayerType,
   MapSettings,
+  LocateFlySpeed,
 } from '@/types/map.types'
 import type { Place } from '@/types/place.types'
 import { useMapStore } from '../stores/map.store'
@@ -35,6 +36,7 @@ import { AppRoute } from '@/router'
 import { useRouter } from 'vue-router'
 import { ref, toRaw, watch, Component } from 'vue'
 import { storedLocale } from '@/lib/i18n'
+import { useGeolocationService } from '@/services/geolocation.service'
 
 const dark = useDark()
 
@@ -282,6 +284,43 @@ function mapService() {
     return mapStrategy
   }
 
+  // null = jumpTo (instant), undefined = Mapbox default flyTo (distance-based, no cap), number = fixed ms
+  const LOCATE_FLY_DURATIONS: Record<LocateFlySpeed, number | null | undefined> = {
+    [LocateFlySpeed.INSTANT]: null,
+    [LocateFlySpeed.FAST]: 500,
+    [LocateFlySpeed.NORMAL]: 1500,
+    [LocateFlySpeed.SLOW]: undefined,
+  }
+
+  function locateUser() {
+    const geo = useGeolocationService()
+    const speed = mapStore.settings.locateFlySpeed ?? LocateFlySpeed.NORMAL
+    const duration = LOCATE_FLY_DURATIONS[speed]
+
+    function goToLocation() {
+      const center: [number, number] = [geo.lngLat.value!.lng, geo.lngLat.value!.lat]
+      if (duration === null) {
+        jumpTo({ center, zoom: 16 })
+      } else if (duration === undefined) {
+        flyTo({ center, zoom: 16 }) // Mapbox default: distance-based speed, no fixed cap
+      } else {
+        flyTo({ center, zoom: 16, duration })
+      }
+    }
+
+    if (geo.hasLocation.value) {
+      goToLocation()
+    } else {
+      geo.resume()
+      const stopWatch = watch(geo.hasLocation, (has) => {
+        if (has) {
+          goToLocation()
+          stopWatch()
+        }
+      })
+    }
+  }
+
   function onMapLoad() {
     // NOTE: Layer initialization happens in onStyleLoad() after style is fully loaded
     // This function only handles map-level setup that doesn't require the style to be loaded
@@ -290,6 +329,11 @@ function mapService() {
 
     // Ensure map container is properly sized after load
     resize()
+
+    // Locate user on startup if enabled
+    if (mapStore.settings.locateOnStartup) {
+      locateUser()
+    }
   }
 
   function onStyleLoad() {
@@ -1065,7 +1109,7 @@ function mapService() {
     zoomIn,
     zoomOut,
     resetNorth,
-    locate: () => mapStrategy?.locate(),
+    locate: () => locateUser(),
     setMapContainer,
     setVisibleTrips,
     showAllTrips,

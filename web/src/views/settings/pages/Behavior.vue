@@ -6,9 +6,10 @@ import { useAppStore } from '@/stores/app.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useCommandStore } from '@/stores/command.store'
 import { CommandName } from '@/stores/command.store'
-import { UnitSystem } from '@/types/map.types'
+import { UnitSystem, LocateFlySpeed } from '@/types/map.types'
 import type { Locale } from '@/lib/i18n'
 import { updatePreferences } from '@/services/preferences.service'
+import { useMapStore } from '@/stores/map.store'
 import { SettingsSection, SettingsItem } from '@/components/settings'
 import {
   Select,
@@ -18,12 +19,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Gauge, LanguagesIcon } from 'lucide-vue-next'
+import { Switch } from '@/components/ui/switch'
+import { Gauge, GaugeIcon, LanguagesIcon, Navigation2Icon } from 'lucide-vue-next'
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const commandStore = useCommandStore()
+const mapStore = useMapStore()
 const { unitSystem } = storeToRefs(appStore)
+const { settings } = storeToRefs(mapStore)
 const { locale } = useI18n()
 
 const languageCommand = commandStore.useCommand(CommandName.UPDATE_LANGUAGE)
@@ -68,6 +72,50 @@ watch(
             >
               {{ language.name }}
             </SelectItem>
+          </SelectContent>
+        </Select>
+      </SettingsItem>
+    </SettingsSection>
+
+    <!-- Location behavior -->
+    <SettingsSection :title="$t('settings.mapSettings.location.title')">
+      <SettingsItem
+        :title="$t('settings.mapSettings.location.locateOnStartup')"
+        :description="$t('settings.mapSettings.location.locateOnStartupDescription')"
+        :icon="Navigation2Icon"
+      >
+        <Switch
+          :model-value="settings.locateOnStartup"
+          @update:model-value="settings.locateOnStartup = !!$event"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.location.locateFlySpeed')"
+        :icon="GaugeIcon"
+      >
+        <Select
+          :model-value="settings.locateFlySpeed ?? LocateFlySpeed.NORMAL"
+          @update:model-value="settings.locateFlySpeed = $event as LocateFlySpeed"
+        >
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem :value="LocateFlySpeed.INSTANT">
+                {{ $t('settings.mapSettings.location.speed.instant') }}
+              </SelectItem>
+              <SelectItem :value="LocateFlySpeed.FAST">
+                {{ $t('settings.mapSettings.location.speed.fast') }}
+              </SelectItem>
+              <SelectItem :value="LocateFlySpeed.NORMAL">
+                {{ $t('settings.mapSettings.location.speed.normal') }}
+              </SelectItem>
+              <SelectItem :value="LocateFlySpeed.SLOW">
+                {{ $t('settings.mapSettings.location.speed.slow') }}
+              </SelectItem>
+            </SelectGroup>
           </SelectContent>
         </Select>
       </SettingsItem>

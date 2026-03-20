@@ -739,6 +739,18 @@
           "whileActive": "Mientras está activo"
         }
       },
+      "location": {
+        "title": "Ubicación",
+        "locateOnStartup": "Ubicarme al iniciar",
+        "locateOnStartupDescription": "Volar a tu ubicación cuando se carga el mapa",
+        "locateFlySpeed": "Velocidad de animación de ubicación",
+        "speed": {
+          "instant": "Instantáneo",
+          "fast": "Rápido",
+          "normal": "Normal",
+          "slow": "Lento"
+        }
+      },
       "basemaps": {
         "title": "Mapas base",
         "new": "Nuevo mapa base",

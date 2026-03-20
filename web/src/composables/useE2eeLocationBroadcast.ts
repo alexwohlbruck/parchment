@@ -1,8 +1,9 @@
-import { ref, onUnmounted } from 'vue'
+import { ref, onUnmounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useIdentityStore } from '@/stores/identity.store'
 import { useFriendsStore } from '@/stores/friends.store'
 import { useLocationService } from '@/services/location.service'
+import { useGeolocationService } from '@/services/geolocation.service'
 import {
   encryptLocationForFriend,
   encryptLocation,
@@ -26,6 +27,7 @@ export function useE2eeLocationBroadcast() {
   const identityStore = useIdentityStore()
   const friendsStore = useFriendsStore()
   const locationService = useLocationService()
+  const geolocation = useGeolocationService()
 
   const { isSetupComplete, encryptionPrivateKey } = storeToRefs(identityStore)
   const { friends } = storeToRefs(friendsStore)
@@ -40,7 +42,7 @@ export function useE2eeLocationBroadcast() {
 
   // Internal state
   let broadcastIntervalId: ReturnType<typeof setInterval> | null = null
-  let watchPositionId: number | null = null
+  let stopLocationWatch: (() => void) | null = null
   let currentLocation: GeolocationPosition | null = null
   let batteryManager: BatteryManager | null = null
 
@@ -88,38 +90,36 @@ export function useE2eeLocationBroadcast() {
   >([])
 
   /**
-   * Start watching device location
+   * Start watching device location via centralized geolocation service
    */
   function startLocationWatch() {
-    if (!navigator.geolocation) {
+    if (!geolocation.isSupported.value) {
       broadcastError.value = 'Geolocation not supported'
       return
     }
 
-    watchPositionId = navigator.geolocation.watchPosition(
-      position => {
-        currentLocation = position
-      },
-      error => {
-        console.error('Geolocation error:', error)
-        broadcastError.value = `Location error: ${error.message}`
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 30000,
-        timeout: 10000,
-      },
-    )
-  }
+    geolocation.resume()
 
-  /**
-   * Stop watching device location
-   */
-  function stopLocationWatch() {
-    if (watchPositionId !== null) {
-      navigator.geolocation.clearWatch(watchPositionId)
-      watchPositionId = null
-    }
+    stopLocationWatch = watch(
+      geolocation.coords,
+      (coords) => {
+        if (coords.latitude !== Infinity) {
+          currentLocation = {
+            coords: {
+              latitude: coords.latitude,
+              longitude: coords.longitude,
+              accuracy: coords.accuracy,
+              altitude: coords.altitude,
+              altitudeAccuracy: coords.altitudeAccuracy,
+              heading: coords.heading,
+              speed: coords.speed,
+            },
+            timestamp: Date.now(),
+          } as GeolocationPosition
+        }
+      },
+      { immediate: true },
+    )
   }
 
   /**
@@ -275,7 +275,8 @@ export function useE2eeLocationBroadcast() {
    * Stop broadcasting
    */
   function stop() {
-    stopLocationWatch()
+    stopLocationWatch?.()
+    stopLocationWatch = null
 
     if (broadcastIntervalId) {
       clearInterval(broadcastIntervalId)

@@ -1,7 +1,8 @@
 import { watch, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { api } from '@/lib/api'
-import { createSharedComposable, useGeolocation } from '@vueuse/core'
+import { createSharedComposable } from '@vueuse/core'
+import { useGeolocationService } from '@/services/geolocation.service'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { Waypoint } from '@/types/map.types'
 import { TripsResponse, WaypointType } from '@/types/directions.types'
@@ -28,7 +29,7 @@ function directionsService() {
     coords,
     isSupported: isGeolocationSupported,
     resume,
-  } = useGeolocation()
+  } = useGeolocationService()
 
   /**
    * Generate unique key for request deduplication

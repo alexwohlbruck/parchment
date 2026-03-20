@@ -6,6 +6,7 @@ import type { Place } from '@/types/place.types'
 import type { Bookmark } from '@/types/library.types'
 import type { SourceId } from '@/types/place.types'
 import { useSearchStore } from '@/stores/search.store'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 
 function placeService() {
   const currentPlace = ref<Partial<Place> | null>(null)
@@ -84,8 +85,41 @@ function placeService() {
   }
 
   /**
+   * Find a bookmark matching the place's external IDs
+   */
+  function findBookmarkPlace(partialPlace: Partial<Place>): Partial<Place> | undefined {
+    if (!partialPlace.externalIds) return undefined
+    const bookmarksStore = useBookmarksStore()
+    const bookmark = bookmarksStore.bookmarks.find(b =>
+      Object.entries(partialPlace.externalIds!).some(
+        ([provider, id]) => b.externalIds[provider] === id,
+      ),
+    )
+    if (!bookmark) return undefined
+
+    const now = new Date().toISOString()
+    return {
+      ...partialPlace,
+      name: bookmark.name
+        ? { value: bookmark.name, sourceId: 'local', timestamp: now }
+        : partialPlace.name,
+      address: bookmark.address
+        ? { value: { formatted: bookmark.address }, sourceId: 'local', timestamp: now }
+        : partialPlace.address,
+      geometry: {
+        value: {
+          type: 'point',
+          center: { lat: bookmark.lat, lng: bookmark.lng },
+        },
+        sourceId: 'local',
+        timestamp: now,
+      },
+    }
+  }
+
+  /**
    * Set partial place data immediately (for progressive loading).
-   * Checks the search store for cached place data and merges it.
+   * Checks the search store and bookmarks store for cached place data.
    */
   function setPartialPlace(partialPlace: Partial<Place>) {
     if (partialPlace.id) {
@@ -95,7 +129,9 @@ function placeService() {
         return
       }
     }
-    currentPlace.value = partialPlace
+
+    const enriched = findBookmarkPlace(partialPlace)
+    currentPlace.value = enriched ?? partialPlace
   }
 
   /**

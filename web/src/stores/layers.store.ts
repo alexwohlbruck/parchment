@@ -5,6 +5,7 @@ import { LayerType } from '@/types/map.types'
 import { useLayersService } from '@/services/layers/layers.service'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useStorage } from '@vueuse/core'
+import { jsonSerializer } from '@/lib/storage'
 import {
   CORE_LAYERS,
   CORE_LAYER_IDS,
@@ -27,10 +28,14 @@ export const useLayersStore = defineStore('layers', () => {
   const cachedUserLayers = useStorage<Layer[] | null>(
     'parchment-user-layers',
     null,
+    undefined,
+    { serializer: jsonSerializer },
   )
   const cachedLayerGroups = useStorage<LayerGroup[] | null>(
     'parchment-layer-groups',
     null,
+    undefined,
+    { serializer: jsonSerializer },
   )
 
   const userLayers = ref<Layer[]>(

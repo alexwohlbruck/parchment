@@ -2,7 +2,6 @@ import { MapStrategy } from './map.strategy'
 import {
   Map as MapboxMap,
   NavigationControl,
-  GeolocateControl,
   AttributionControl,
   ScaleControl,
   Projection,
@@ -117,7 +116,6 @@ export class MapboxStrategy extends MapStrategy {
   private streetViewLayerIds: Set<string> = new Set()
   private unwatchTheme?: () => void
   private clickDebounceTimer: number | null = null
-  geolocateControl: GeolocateControl
   layerGroups: Map<string, MapLayerGroup> = new Map()
   private currentLanguage?: string
   private hdRoadsEnabled: boolean = false
@@ -160,16 +158,6 @@ export class MapboxStrategy extends MapStrategy {
       testMode: isTestEnvironment,
     })
 
-    // Add geolocate control but hide it off-screen
-    this.geolocateControl = new GeolocateControl({
-      positionOptions: {
-        enableHighAccuracy: true,
-      },
-      trackUserLocation: true,
-      showUserLocation: true,
-      showAccuracyCircle: true,
-    })
-
     this.addControls()
     this.configureEventListeners()
 
@@ -190,7 +178,6 @@ export class MapboxStrategy extends MapStrategy {
       }),
       'bottom-left',
     )
-    this.mapInstance.addControl(this.geolocateControl, 'top-left')
   }
 
   configureEventListeners() {
@@ -745,7 +732,8 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   locate() {
-    this.geolocateControl.trigger()
+    // Geolocation is now handled by the centralized geolocation service.
+    // See map.service.ts locate() which uses useGeolocationService().
   }
 
   destroy() {

@@ -24,14 +24,14 @@ import { cn } from '@/lib/utils'
 import { useDebounceFn } from '@vueuse/core'
 import { Spinner } from '@/components/ui/spinner'
 import { getSearchResultName } from '@/lib/search.utils'
-import { useGeolocation } from '@vueuse/core'
+import { useGeolocationService } from '@/services/geolocation.service'
 import { useI18n } from 'vue-i18n'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { type ThemeColor, fuzzyFilter } from '@/lib/utils'
 
 const searchService = useSearchService()
 const mapCamera = useMapCamera()
-const { coords, isSupported: isGeolocationSupported, resume } = useGeolocation()
+const { coords, isSupported: isGeolocationSupported, resume } = useGeolocationService()
 const { t } = useI18n()
 
 const directionsService = useDirectionsService()

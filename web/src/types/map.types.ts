@@ -35,6 +35,13 @@ export enum MapColorTheme {
   MONOCHROME = 'monochrome',
 }
 
+export enum LocateFlySpeed {
+  INSTANT = 'instant',
+  FAST = 'fast',
+  NORMAL = 'normal',
+  SLOW = 'slow',
+}
+
 export interface MapSettings {
   theme: MapTheme
   engine: MapEngine
@@ -48,6 +55,8 @@ export interface MapSettings {
   transitLabels: boolean
   placeLabels: boolean
   hdRoads: boolean
+  locateFlySpeed: LocateFlySpeed
+  locateOnStartup: boolean
 }
 
 export type MapCamera = {
@@ -61,6 +70,7 @@ export type MapCamera = {
     left?: number
     right?: number
   } // Padding around the viewport edges when considering visible content
+  duration?: number // Animation duration in ms (passed through to flyTo)
 }
 
 export type MapInstance = MapboxMap | MaplibreMap

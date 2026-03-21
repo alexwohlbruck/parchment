@@ -1,7 +1,7 @@
 [build]
   base = "web"
   publish = "dist"
-  command = "bun install && cd ../server && bun install --ignore-scripts && cd ../web && bun run build"
+  command = "source ~/.nvm/nvm.sh && nvm install 22 && nvm use 22 && bun install && cd ../server && bun install --ignore-scripts && cd ../web && bun run build"
 
 [build.environment]
   NODE_VERSION = "22" 

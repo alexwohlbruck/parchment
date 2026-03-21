@@ -89,4 +89,14 @@ export const configSchemas: Record<
   wikimediaSchema: z.object({
     // Wikimedia Commons doesn't require any configuration
   }),
+
+  axiomSchema: z.object({
+    endpoint: z
+      .string()
+      .url('Please enter a valid URL')
+      .optional()
+      .default('https://api.axiom.co'),
+    apiToken: z.string().min(1, 'API token is required'),
+    dataset: z.string().min(1, 'Dataset name is required'),
+  }),
 }

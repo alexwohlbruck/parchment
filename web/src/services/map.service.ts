@@ -12,6 +12,7 @@ import {
   type LngLat,
   LayerType,
   MapSettings,
+  LocateFlySpeed,
 } from '@/types/map.types'
 import type { Place } from '@/types/place.types'
 import { useMapStore } from '../stores/map.store'
@@ -35,6 +36,7 @@ import { AppRoute } from '@/router'
 import { useRouter } from 'vue-router'
 import { ref, toRaw, watch, Component } from 'vue'
 import { storedLocale } from '@/lib/i18n'
+import { useGeolocationService } from '@/services/geolocation.service'
 
 const dark = useDark()
 
@@ -237,77 +239,86 @@ function mapService() {
     })
 
     mapEventBus.on('click', async data => {
+      // Only handle POI clicks — ignore empty map clicks
+      if (!data.poi) return
+
       const { usePlaceService } = await import('@/services/place.service')
       const placeService = usePlaceService()
 
-      // For POI clicks, show immediate POI data
-      if (data.poi) {
-        // Create partial place from POI click data
-        const partialPlace: Partial<Place> = {
-          id: `osm/${data.poi.poiType}/${data.poi.osmId}`,
-          externalIds: { osm: `${data.poi.poiType}/${data.poi.osmId}` },
-          name: data.poi.name
-            ? {
-                value: data.poi.name,
-                sourceId: 'osm',
-                timestamp: new Date().toISOString(),
-              }
-            : undefined,
-          geometry: {
-            value: {
-              type: 'point',
-              center: data.lngLat,
-            },
-            sourceId: 'osm',
-            timestamp: new Date().toISOString(),
-          },
-          placeType: {
-            value: 'poi',
-            sourceId: 'osm',
-            timestamp: new Date().toISOString(),
-          },
-        }
-
-        // Set partial data immediately
-        placeService.setPartialPlace(partialPlace)
-
-        // Navigate
-        router.push({
-          name: AppRoute.PLACE,
-          params: {
-            type: data.poi.poiType,
-            id: data.poi.osmId,
-          },
-        })
-        return
-      }
-
-      // For non-POI clicks, show coordinates immediately
       const partialPlace: Partial<Place> = {
+        id: `osm/${data.poi.poiType}/${data.poi.osmId}`,
+        externalIds: { osm: `${data.poi.poiType}/${data.poi.osmId}` },
+        name: data.poi.name
+          ? {
+              value: data.poi.name,
+              sourceId: 'osm',
+              timestamp: new Date().toISOString(),
+            }
+          : undefined,
         geometry: {
           value: {
             type: 'point',
             center: data.lngLat,
           },
-          sourceId: 'map',
+          sourceId: 'osm',
+          timestamp: new Date().toISOString(),
+        },
+        placeType: {
+          value: 'poi',
+          sourceId: 'osm',
           timestamp: new Date().toISOString(),
         },
       }
 
-      // Set partial data immediately
       placeService.setPartialPlace(partialPlace)
 
-      // Navigate to coordinate-based route
       router.push({
-        name: AppRoute.PLACE_COORDS,
+        name: AppRoute.PLACE,
         params: {
-          lat: data.lngLat.lat.toString(),
-          lng: data.lngLat.lng.toString(),
+          type: data.poi.poiType,
+          id: data.poi.osmId,
         },
       })
     })
 
     return mapStrategy
+  }
+
+  // null = jumpTo (instant), undefined = Mapbox default flyTo (distance-based, no cap), number = fixed ms
+  const LOCATE_FLY_DURATIONS: Record<LocateFlySpeed, number | null | undefined> = {
+    [LocateFlySpeed.INSTANT]: null,
+    [LocateFlySpeed.FAST]: 500,
+    [LocateFlySpeed.NORMAL]: 1500,
+    [LocateFlySpeed.SLOW]: undefined,
+  }
+
+  function locateUser() {
+    const geo = useGeolocationService()
+    const speed = mapStore.settings.locateFlySpeed ?? LocateFlySpeed.NORMAL
+    const duration = LOCATE_FLY_DURATIONS[speed]
+
+    function goToLocation() {
+      const center: [number, number] = [geo.lngLat.value!.lng, geo.lngLat.value!.lat]
+      if (duration === null) {
+        jumpTo({ center, zoom: 16 })
+      } else if (duration === undefined) {
+        flyTo({ center, zoom: 16 }) // Mapbox default: distance-based speed, no fixed cap
+      } else {
+        flyTo({ center, zoom: 16, duration })
+      }
+    }
+
+    if (geo.hasLocation.value) {
+      goToLocation()
+    } else {
+      geo.resume()
+      const stopWatch = watch(geo.hasLocation, (has) => {
+        if (has) {
+          goToLocation()
+          stopWatch()
+        }
+      })
+    }
   }
 
   function onMapLoad() {
@@ -318,6 +329,11 @@ function mapService() {
 
     // Ensure map container is properly sized after load
     resize()
+
+    // Locate user on startup if enabled
+    if (mapStore.settings.locateOnStartup) {
+      locateUser()
+    }
   }
 
   function onStyleLoad() {
@@ -1093,7 +1109,7 @@ function mapService() {
     zoomIn,
     zoomOut,
     resetNorth,
-    locate: () => mapStrategy?.locate(),
+    locate: () => locateUser(),
     setMapContainer,
     setVisibleTrips,
     showAllTrips,

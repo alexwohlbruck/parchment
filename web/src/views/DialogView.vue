@@ -23,6 +23,7 @@ watch(dialogOpen, open => {
   <Dialog :open="dialogOpen" @update:open="open => (dialogOpen = open)">
     <DialogContent
       no-padding
+      show-close-button
       class="overflow-y-auto h-full sm:h-[90vh] max-w-full sm:max-w-[80vw] pt-[env(safe-area-inset-top)] border-none md:border"
     >
       <router-view name="dialogContent"></router-view>

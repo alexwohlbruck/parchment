@@ -13,7 +13,15 @@ import RecoveryKeyDialog from './RecoveryKeyDialog.vue'
 import { Key, User, Globe, Check, AlertCircle, Download } from 'lucide-vue-next'
 
 const identityStore = useIdentityStore()
-const { identity, handle, alias, domain, isSetupComplete, needsImport, isLoading } = storeToRefs(identityStore)
+const {
+  identity,
+  handle,
+  alias,
+  domain,
+  isSetupComplete,
+  needsImport,
+  isLoading,
+} = storeToRefs(identityStore)
 
 const aliasInput = ref('')
 const isEditingAlias = ref(false)
@@ -96,34 +104,41 @@ function handleSetupComplete() {
     </div>
 
     <!-- Needs Import (has server keys but no local) -->
-    <template v-else-if="needsImport">
-      <Alert class="mb-4">
-        <Download class="h-4 w-4" />
-        <AlertDescription>
+    <div
+      v-else-if="needsImport"
+      class="flex items-center justify-between gap-4"
+    >
+      <div class="flex items-start gap-3 text-muted-foreground">
+        <Download class="h-5 w-5 mt-0.5 shrink-0" />
+        <p class="text-sm">
           Your identity exists on this server, but you need to import your
           recovery key to use it on this device.
-        </AlertDescription>
-      </Alert>
-      <Button @click="openImportDialog">
+        </p>
+      </div>
+      <Button @click="openImportDialog" class="shrink-0">
         <Download class="h-4 w-4 mr-2" />
         Import Recovery Key
       </Button>
-    </template>
+    </div>
 
     <!-- Needs Setup -->
-    <template v-else-if="!isSetupComplete">
-      <Alert class="mb-4">
-        <Key class="h-4 w-4" />
-        <AlertDescription>
-          Set up your federation identity to connect with friends and share
-          data securely across Parchment servers.
-        </AlertDescription>
-      </Alert>
-      <Button @click="openSetupDialog">
+    <!-- TODO: Use standard stetings item component -->
+    <div
+      v-else-if="!isSetupComplete"
+      class="flex items-center justify-between gap-4"
+    >
+      <div class="flex items-center gap-3 text-muted-foreground">
+        <Key class="h-5 w-5 mt-0.5 shrink-0" />
+        <p class="text-sm">
+          Set up your federation identity to connect with friends and share data
+          securely across Parchment servers.
+        </p>
+      </div>
+      <Button @click="openSetupDialog" class="shrink-0" variant="outline">
         <Key class="h-4 w-4 mr-2" />
         Set Up Identity
       </Button>
-    </template>
+    </div>
 
     <!-- Identity Configured -->
     <template v-else>
@@ -163,11 +178,7 @@ function handleSetupComplete() {
               <Spinner v-if="isSavingAlias" class="h-4 w-4" />
               <Check v-else class="h-4 w-4" />
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              @click="cancelEditAlias"
-            >
+            <Button size="sm" variant="outline" @click="cancelEditAlias">
               Cancel
             </Button>
           </div>
@@ -215,4 +226,3 @@ function handleSetupComplete() {
     />
   </SettingsSection>
 </template>
-

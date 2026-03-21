@@ -188,6 +188,18 @@ jobs:
           # Clean up
           rm $CERTIFICATE_PATH
 
+      - name: Set release title
+        id: release_title
+        shell: bash
+        run: |
+          if [ -f RELEASE_TITLE ] && [ -s RELEASE_TITLE ]; then
+            echo "title<<EOF" >> $GITHUB_OUTPUT
+            cat RELEASE_TITLE >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "title=Release ${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Prepare release notes
         id: changelog
         shell: bash
@@ -215,7 +227,7 @@ jobs:
         with:
           projectPath: web
           tagName: ${{ github.ref_name }}
-          releaseName: 'Release ${{ github.ref_name }}'
+          releaseName: ${{ steps.release_title.outputs.title }}
           releaseBody: ${{ steps.changelog.outputs.body }}
           releaseDraft: false
           prerelease: false

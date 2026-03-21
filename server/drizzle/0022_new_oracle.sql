@@ -1,4 +1,4 @@
-CREATE TABLE "user_preferences" (
+CREATE TABLE IF NOT EXISTS "user_preferences" (
 	"user_id" text PRIMARY KEY NOT NULL,
 	"language" text DEFAULT 'en-US' NOT NULL,
 	"unit_system" text DEFAULT 'metric' NOT NULL,

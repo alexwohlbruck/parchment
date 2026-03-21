@@ -15,6 +15,7 @@ const route = useRoute()
 const activeSnapPoint = ref<number | string | null>(null)
 const activeSnapPointIndex = ref<number>(-1)
 const paletteRef = ref<InstanceType<typeof Palette>>()
+const cardRef = ref<InstanceType<typeof Card>>()
 const PEEK_HEIGHT = '65px'
 
 const isFullyExpanded = computed(() => activeSnapPointIndex.value === 2)
@@ -30,15 +31,20 @@ function handlePaletteInputFocused() {
   activeSnapPoint.value = 1 // Fully expand the drawer
 }
 
+// Reset scroll position when snap point changes
+watch(activeSnapPointIndex, () => {
+  const el = (cardRef.value as any)?.$el as HTMLElement | undefined
+  const scrollParent = el?.parentElement
+  if (scrollParent) {
+    scrollParent.scrollTop = 0
+  }
+})
+
 watch(isFullyExpanded, newVal => {
   if (!newVal) {
     paletteRef.value?.resetPalette()
   }
 })
-
-function test() {
-  console.log('test')
-}
 </script>
 
 <template>
@@ -47,12 +53,14 @@ function test() {
     :peek-height="PEEK_HEIGHT"
     :dismissable="false"
     :trackObstructing="false"
+    :z-index-offset="-10"
     v-model:active-snap-point="activeSnapPoint"
     v-model:active-snap-point-index="activeSnapPointIndex"
-    class="z-50 w-full md:w-104 h-full"
+    class="w-full md:w-104 h-full"
   >
     <!-- <Button @click="test">test</Button> -->
     <Card
+      ref="cardRef"
       class="flex flex-col min-h-full p-2 bg-muted shadow-md rounded-b-none border-0"
     >
       <div class="relative">
@@ -68,8 +76,8 @@ function test() {
       </TransitionFade>
 
       <!-- Account dropdown at the bottom when expanded -->
-      <div v-if="activeSnapPointIndex !== 0" class="mt-auto pt-4 px-1">
-        <AccountDropdown />
+      <div v-show="activeSnapPointIndex !== 0" class="mt-auto pt-4 px-1">
+        <AccountDropdown @update:open="open => { if (open) minimizeSheet() }" />
       </div>
     </Card>
   </bottom-sheet>

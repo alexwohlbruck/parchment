@@ -183,6 +183,9 @@ export interface WeatherCapability {
   getWeather(lat: number, lng: number, lang?: string): Promise<WeatherData>
 }
 
+/** Logging / observability (e.g. OTLP export to Axiom). No methods; config-only. */
+export interface LoggingCapability {}
+
 // Integration capabilities container
 export interface IntegrationCapabilities {
   search?: SearchCapability
@@ -195,6 +198,7 @@ export interface IntegrationCapabilities {
   mapEngine?: MapEngineCapability
   transitData?: TransitDataCapability
   weather?: WeatherCapability
+  logging?: LoggingCapability
 }
 
 /**

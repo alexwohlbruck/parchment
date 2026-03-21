@@ -31,6 +31,7 @@ import { MapEngine, MapProjection } from '@/types/map.types'
 import { useSearchService } from '@/services/search.service'
 import { useCommandService } from '@/services/command.service'
 import { useCategoryStore } from '@/stores/category.store'
+import { appEventBus } from '@/lib/eventBus'
 
 import { formatAddress } from '@/lib/place.utils'
 import { Icon } from '@/types/app.types'
@@ -394,6 +395,9 @@ export const useCommandStore = defineStore('command', () => {
         keywords: t('palette.commands.openHotkeysMenu.keywords'),
         hotkey: ['h'],
         icon: HelpCircleIcon,
+        action: () => {
+          appEventBus.emit('hotkeys:open')
+        },
       },
       {
         id: CommandName.OPEN_SETTINGS,

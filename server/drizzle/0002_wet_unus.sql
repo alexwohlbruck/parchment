@@ -1,4 +1,4 @@
-CREATE TABLE "collections" (
+CREATE TABLE IF NOT EXISTS "collections" (
 	"id" text PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"description" text,
@@ -10,14 +10,14 @@ CREATE TABLE "collections" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "places_collections" (
+CREATE TABLE IF NOT EXISTS "places_collections" (
 	"place_id" text NOT NULL,
 	"collection_id" text NOT NULL,
 	"added_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "places_collections_place_id_collection_id_pk" PRIMARY KEY("place_id","collection_id")
 );
 --> statement-breakpoint
-CREATE TABLE "saved_places" (
+CREATE TABLE IF NOT EXISTS "saved_places" (
 	"id" text PRIMARY KEY NOT NULL,
 	"external_ids" jsonb NOT NULL,
 	"name" text NOT NULL,

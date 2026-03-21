@@ -3,6 +3,7 @@ import { db } from '../db'
 import { users } from '../schema/users.schema'
 import { integrationManager } from '../services/integrations'
 import { IntegrationId } from '../types/integration.types'
+import { logger } from '../lib/logger'
 
 const packageJson = require('../../package.json')
 
@@ -72,7 +73,7 @@ app.get('/', async ({ set }) => {
   } catch (error) {
     response.status = 'unhealthy'
     set.status = 503
-    console.error('Health check error:', error)
+    logger.error({ err: error }, 'Health check error')
   }
 
   return response

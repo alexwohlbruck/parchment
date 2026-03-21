@@ -20,6 +20,7 @@ interface Props
   desktopContentClass?: string
   mobileContentClass?: string
   modal?: boolean
+  fitContent?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -73,6 +74,7 @@ watch(
       :modal="props.modal"
       :peek-height="props.peekHeight"
       :custom-snap-points="props.customSnapPoints"
+      :fit-content="props.fitContent"
       :show-drag-handle="props.showDragHandle"
       :show-close-button="props.showCloseButton"
       :dismissable="true"

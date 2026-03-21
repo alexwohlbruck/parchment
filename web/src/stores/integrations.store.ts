@@ -7,7 +7,7 @@ import {
   type IntegrationDefinition,
   type IntegrationRecord,
 } from '@server/types/integration.types'
-import { api } from '@/lib/api'
+import { jsonSerializer } from '@/lib/storage'
 import {
   siFoursquare,
   siGooglemaps,
@@ -20,7 +20,6 @@ import {
   siWikipedia,
   siWikimediacommons,
 } from 'simple-icons'
-import { Integration } from '@/types/integrations.types'
 
 const iconMap: Record<string, any> = {
   [IntegrationId.GOOGLE_MAPS]: siGooglemaps,
@@ -49,13 +48,19 @@ const getIcon = (integrationId: string) => {
 export const useIntegrationsStore = defineStore('integrations', () => {
   // Use null as default to distinguish "never fetched" from "fetched but empty"
   // null = not initialized, [] = initialized but no integrations
+  // Must specify serializer explicitly because null default causes vueuse to
+  // pick the "any" serializer which corrupts objects via String()
   const integrationConfigurations = useStorage<IntegrationRecord[] | null>(
     'integration-configurations',
     null,
+    undefined,
+    { serializer: jsonSerializer },
   )
   const availableIntegrations = useStorage<IntegrationDefinition[] | null>(
     'available-integrations',
     null,
+    undefined,
+    { serializer: jsonSerializer },
   )
   
   // Helper to safely get array value (handles corrupted cache data)
@@ -68,10 +73,9 @@ export const useIntegrationsStore = defineStore('integrations', () => {
   const isLoadingAvailable = ref(false)
   const isLoadingConfigured = ref(false)
   
-  // Track whether integrations have been fetched at least once
-  // null means not initialized, array (even empty) means initialized
-  const hasInitialized = ref(
-    Array.isArray(integrationConfigurations.value) || Array.isArray(availableIntegrations.value)
+  // Both data sources must be available (from cache or API) before integrations are considered ready
+  const integrationsReady = computed(
+    () => Array.isArray(integrationConfigurations.value) && Array.isArray(availableIntegrations.value)
   )
 
   const configuredIntegrations = computed(() => {
@@ -151,11 +155,6 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     )
   })
 
-  // Check if integrations are ready (initialized and not currently loading)
-  const integrationsReady = computed(() => {
-    return hasInitialized.value && !isLoadingAvailable.value && !isLoadingConfigured.value
-  })
-
   // Check if Mapbox is available but not configured (or configured but engine disabled)
   const isMapboxAvailableButNotConfigured = computed(() => {
     const isMapboxAvailable = safeAvailableArray().some(
@@ -176,7 +175,6 @@ export const useIntegrationsStore = defineStore('integrations', () => {
   function clearCache() {
     integrationConfigurations.value = null
     availableIntegrations.value = null
-    hasInitialized.value = false
   }
 
   return {
@@ -188,7 +186,6 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     getConfigurationsForIntegration,
     mapboxAccessToken,
     integrationsReady,
-    hasInitialized,
     isMapboxAvailableButNotConfigured,
     isMapboxEngineActive,
     isWeatherActive,

@@ -177,7 +177,6 @@ export function useIntegrationService() {
         '/integrations/available',
       )
       store.availableIntegrations = response.data
-      store.hasInitialized = true
       return response.data
     } finally {
       store.isLoadingAvailable = false
@@ -191,7 +190,7 @@ export function useIntegrationService() {
   async function fetchConfiguredIntegrations() {
     // Array (even empty) = cached, null/other = never fetched
     const hasCachedData = Array.isArray(store.integrationConfigurations)
-    
+
     if (hasCachedData) {
       // Return cached data immediately, refresh in background
       api.get<IntegrationRecord[]>('/integrations/configured')
@@ -203,7 +202,7 @@ export function useIntegrationService() {
         })
       return store.integrationConfigurations
     }
-    
+
     // No cache - wait for response
     store.isLoadingConfigured = true
     try {
@@ -211,7 +210,6 @@ export function useIntegrationService() {
         '/integrations/configured',
       )
       store.integrationConfigurations = response.data
-      store.hasInitialized = true
       return response.data
     } finally {
       store.isLoadingConfigured = false

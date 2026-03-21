@@ -247,8 +247,14 @@ router.beforeEach(async (to, from) => {
   const authStore = useAuthStore()
   if (to.name !== AppRoute.SIGNIN) authStore.stashPath(to.path)
   if (to.meta.auth) {
-    // Wait for current user response to come back before checking auth
-    if (authStore.me === undefined) await authStore.authenticatedUserPromise
+    // Wait for current user response (or timeout) so we don't block forever
+    if (authStore.me === undefined) {
+      try {
+        await authStore.authenticatedUserPromise
+      } catch {
+        // Timeout or network error – treat as not authenticated
+      }
+    }
     if (!authStore.me)
       return {
         name: AppRoute.SIGNIN,

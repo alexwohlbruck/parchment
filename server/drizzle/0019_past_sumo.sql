@@ -1,4 +1,4 @@
-CREATE TABLE "incoming_shares" (
+CREATE TABLE IF NOT EXISTS "incoming_shares" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"sender_handle" text NOT NULL,
@@ -12,7 +12,7 @@ CREATE TABLE "incoming_shares" (
 	"accepted_at" timestamp
 );
 --> statement-breakpoint
-CREATE TABLE "shares" (
+CREATE TABLE IF NOT EXISTS "shares" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"recipient_handle" text NOT NULL,
@@ -31,8 +31,8 @@ CREATE TABLE "shares" (
 ALTER TABLE "incoming_shares" ADD CONSTRAINT "incoming_shares_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "shares" ADD CONSTRAINT "shares_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "shares" ADD CONSTRAINT "shares_recipient_user_id_users_id_fk" FOREIGN KEY ("recipient_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "idx_incoming_shares_user" ON "incoming_shares" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "idx_incoming_shares_sender" ON "incoming_shares" USING btree ("sender_handle");--> statement-breakpoint
-CREATE INDEX "idx_shares_user" ON "shares" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "idx_shares_recipient" ON "shares" USING btree ("recipient_handle");--> statement-breakpoint
-CREATE INDEX "idx_shares_resource" ON "shares" USING btree ("resource_type","resource_id");
+CREATE INDEX IF NOT EXISTS "idx_incoming_shares_user" ON "incoming_shares" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_incoming_shares_sender" ON "incoming_shares" USING btree ("sender_handle");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_shares_user" ON "shares" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_shares_recipient" ON "shares" USING btree ("recipient_handle");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_shares_resource" ON "shares" USING btree ("resource_type","resource_id");

@@ -5,11 +5,21 @@ import { api } from '@/lib/api'
 import type { Place } from '@/types/place.types'
 import type { Bookmark } from '@/types/library.types'
 import type { SourceId } from '@/types/place.types'
+import { useSearchStore } from '@/stores/search.store'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 
 function placeService() {
   const currentPlace = ref<Partial<Place> | null>(null)
   const loading = ref(false)
   const { toast } = useAppService()
+
+  /**
+   * Look up a place in the local search results store by ID
+   */
+  function findCachedPlace(placeId: string): Place | undefined {
+    const searchStore = useSearchStore()
+    return searchStore.searchResults.find(p => p.id === placeId)
+  }
 
   /**
    * Fetch place details using the new unified lookup endpoint
@@ -75,10 +85,53 @@ function placeService() {
   }
 
   /**
-   * Set partial place data immediately (for progressive loading)
+   * Find a bookmark matching the place's external IDs
+   */
+  function findBookmarkPlace(partialPlace: Partial<Place>): Partial<Place> | undefined {
+    if (!partialPlace.externalIds) return undefined
+    const bookmarksStore = useBookmarksStore()
+    const bookmark = bookmarksStore.bookmarks.find(b =>
+      Object.entries(partialPlace.externalIds!).some(
+        ([provider, id]) => b.externalIds[provider] === id,
+      ),
+    )
+    if (!bookmark) return undefined
+
+    const now = new Date().toISOString()
+    return {
+      ...partialPlace,
+      name: bookmark.name
+        ? { value: bookmark.name, sourceId: 'local', timestamp: now }
+        : partialPlace.name,
+      address: bookmark.address
+        ? { value: { formatted: bookmark.address }, sourceId: 'local', timestamp: now }
+        : partialPlace.address,
+      geometry: {
+        value: {
+          type: 'point',
+          center: { lat: bookmark.lat, lng: bookmark.lng },
+        },
+        sourceId: 'local',
+        timestamp: now,
+      },
+    }
+  }
+
+  /**
+   * Set partial place data immediately (for progressive loading).
+   * Checks the search store and bookmarks store for cached place data.
    */
   function setPartialPlace(partialPlace: Partial<Place>) {
-    currentPlace.value = partialPlace
+    if (partialPlace.id) {
+      const cached = findCachedPlace(partialPlace.id)
+      if (cached) {
+        currentPlace.value = cached
+        return
+      }
+    }
+
+    const enriched = findBookmarkPlace(partialPlace)
+    currentPlace.value = enriched ?? partialPlace
   }
 
   /**
@@ -148,6 +201,7 @@ function placeService() {
     fetchPlaceDetails,
     fetchPlaceDetailsByCoordinates,
     setPartialPlace,
+    findCachedPlace,
     clearPlace,
     setBookmarkStatus,
   }

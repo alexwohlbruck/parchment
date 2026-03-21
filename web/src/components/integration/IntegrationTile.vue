@@ -229,9 +229,9 @@ const icon = computed(() => {
         </span>
         <Button
           v-if="configuration && !disabled"
-          variant="outline"
+          variant="destructive-outline"
           size="icon"
-          class="ml-1 size-6 text-red-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-950"
+          class="ml-1 size-6"
           @click="handleDelete"
         >
           <Trash2Icon class="size-3" />

@@ -144,35 +144,6 @@ update_tauri_android_version_code() {
     echo "Android versionCode set to $code (from version $version)"
 }
 
-# Function to build and push Docker images
-build_and_push_docker() {
-    local version=$1
-    echo "Building Docker images..."
-    
-    echo "Building web image $version..."
-    docker buildx build --platform linux/amd64,linux/arm64 -f web/Dockerfile.prod -t alexwohlbruck/parchment-web:$version --push .
-
-    echo "Building server image $version..."
-    docker buildx build --platform linux/amd64,linux/arm64 -f server/Dockerfile.prod -t alexwohlbruck/parchment-server:$version --push .
-    
-    echo "Building web image latest..."
-    docker buildx build --platform linux/amd64,linux/arm64 -f web/Dockerfile.prod -t alexwohlbruck/parchment-web:latest --push .
-
-    echo "Building server image latest..."
-    docker buildx build --platform linux/amd64,linux/arm64 -f server/Dockerfile.prod -t alexwohlbruck/parchment-server:latest --push .
-}
-
-# Function to build Tauri app
-build_tauri() {
-    echo "Building Tauri app..."
-    cd web
-    
-    echo "Building Android app (AAB)..."
-    bun run build:android
-    
-    cd ..
-}
-
 # Function to show usage
 show_usage() {
     echo "Usage: $0 [increment_type] [options]"
@@ -260,10 +231,17 @@ fi
 
 # Show changelog and confirm
 echo ""
-echo "--- CHANGELOG.md (top) ---"
-head -n 60 CHANGELOG.md 2>/dev/null || true
-echo ""
 if [ -f CHANGELOG.md ]; then
+    echo "--- CHANGELOG section for [$NEW_VERSION] ---"
+    CHANGELOG_SECTION=$(sed -n "/## \[$NEW_VERSION\]/,/^## /p" CHANGELOG.md | sed '$d' 2>/dev/null)
+    if [ -n "$CHANGELOG_SECTION" ]; then
+        echo "$CHANGELOG_SECTION"
+    else
+        echo "(No section for [$NEW_VERSION] yet. Top of CHANGELOG.md:)"
+        head -n 60 CHANGELOG.md
+    fi
+    echo "---"
+    echo ""
     echo "Ensure there is a section for [$NEW_VERSION] before releasing. See CHANGELOG.md."
 fi
 read -r -p "Confirm changelog is updated for this release. Continue? [y/N] " reply
@@ -272,6 +250,14 @@ if [[ ! "$reply" =~ ^[yY]$ ]]; then
     exit 0
 fi
 
+# Prompt for release title (used as GitHub Release name)
+DEFAULT_RELEASE_TITLE="Release v$NEW_VERSION"
+echo ""
+read -r -p "Release title (press Enter for '$DEFAULT_RELEASE_TITLE'): " RELEASE_TITLE_INPUT
+RELEASE_TITLE="${RELEASE_TITLE_INPUT:-$DEFAULT_RELEASE_TITLE}"
+echo "$RELEASE_TITLE" > RELEASE_TITLE
+echo "Release title set to: $RELEASE_TITLE"
+
 # Update all version numbers in repo (including Android versionCode for Play Store)
 update_package_json "$NEW_VERSION" "web/package.json"
 update_package_json "$NEW_VERSION" "server/package.json"
@@ -279,17 +265,13 @@ update_tauri_conf "$NEW_VERSION"
 update_cargo_toml "$NEW_VERSION"
 update_tauri_android_version_code "$NEW_VERSION"
 
-# Build Tauri app
-build_tauri
-
-# Build and push Docker images
-build_and_push_docker "$NEW_VERSION"
+# Docker images, Tauri apps, and store uploads are built by the release workflow on tag push (.github/workflows/release.yml)
 
 echo ""
-echo "Version update and deployment complete!"
+echo "Version update complete! Push the tag to trigger the release workflow (Docker, Tauri, app stores)."
 
 # Stage version files and create tag
-VERSION_FILES="web/package.json server/package.json web/src-tauri/tauri.conf.json web/src-tauri/Cargo.toml CHANGELOG.md"
+VERSION_FILES="web/package.json server/package.json web/src-tauri/tauri.conf.json web/src-tauri/Cargo.toml CHANGELOG.md RELEASE_TITLE"
 git add $VERSION_FILES 2>/dev/null || true
 if git status --short $VERSION_FILES 2>/dev/null | grep -q .; then
     echo "Staged changes:"

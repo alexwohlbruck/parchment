@@ -223,6 +223,20 @@ const availableIntegrations: IntegrationDefinition[] = [
     public: true,
     scope: [IntegrationScope.SYSTEM],
   },
+  {
+    id: IntegrationId.AXIOM,
+    name: 'Axiom',
+    description:
+      'Send server logs and traces to Axiom for debugging and monitoring. Optional; leave unset for logs to stdout only.',
+    color: '#0A0A0A',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(IntegrationId.AXIOM)
+    },
+    paid: false,
+    cloud: true,
+    configSchema: 'axiomSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
 ]
 
 export async function initializeIntegrations() {

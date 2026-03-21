@@ -48,10 +48,9 @@ const columns = computed<ColumnDef<Passkey>[]>(() => {
     id: 'delete',
     cell: ({ row }) =>
       h(Button, {
-        variant: 'outline',
+        variant: 'destructive-outline',
         size: 'icon',
         icon: Trash2Icon,
-        class: 'text-destructive',
         description: 'Delete session',
         onClick: () => deletePasskey(row.original.id),
       }),

@@ -1,3 +1,5 @@
+name: parchment
+
 volumes:
   server-db:
   server:
@@ -34,7 +36,7 @@ services:
     volumes:
       - server-db:/var/lib/postgresql/data
     ports:
-      - '5432:5432'
+      - "5432:5432"
 
   # Parchment backend (Elysia)
   parchment-server:
@@ -67,7 +69,7 @@ services:
     environment:
       VITE_SERVER_ORIGIN: ${SERVER_ORIGIN}
     ports:
-      - '5173:5173'
+      - "5173:5173"
     volumes:
       - ./web:/app/web
       - /app/web/node_modules

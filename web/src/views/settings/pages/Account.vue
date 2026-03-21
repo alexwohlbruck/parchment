@@ -33,7 +33,7 @@ const { me } = storeToRefs(authStore)
 
           <div class="flex-1"></div>
 
-          <Button variant="outline" @click="authService.signOut()">
+          <Button variant="destructive-outline" @click="authService.signOut()">
             Sign out
           </Button>
         </div>

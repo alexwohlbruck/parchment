@@ -14,6 +14,7 @@ import { WikidataIntegration } from './wikidata-integration'
 import { WikipediaIntegration } from './wikipedia-integration'
 import { WikimediaIntegration } from './wikimedia-integration'
 import { OpenWeatherMapIntegration } from './openweathermap-integration'
+import { AxiomIntegration } from './axiom-integration'
 
 /**
  * Registry for all integrations
@@ -29,6 +30,7 @@ export class IntegrationRegistry {
    * Register all default integrations
    */
   private registerDefaultIntegrations(): void {
+    this.registerIntegration(new AxiomIntegration())
     this.registerIntegration(new GoogleMapsIntegration())
     this.registerIntegration(new PeliasIntegration())
     this.registerIntegration(new NominatimIntegration())

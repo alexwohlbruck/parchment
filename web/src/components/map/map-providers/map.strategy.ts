@@ -152,25 +152,8 @@ export class MapStrategy {
   ) {}
   destroy() {}
   locate() {
-    if (!navigator.geolocation) {
-      console.error('Geolocation is not supported by your browser')
-      return
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      position => {
-        this.flyTo({
-          center: [position.coords.longitude, position.coords.latitude],
-          zoom: 16,
-        })
-      },
-      error => {
-        console.error('Error getting location:', error)
-      },
-      {
-        enableHighAccuracy: true,
-      },
-    )
+    // Geolocation is now handled by the centralized geolocation service.
+    // See map.service.ts locate() which uses useGeolocationService().
   }
 
   zoomIn() {}

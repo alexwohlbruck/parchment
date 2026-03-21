@@ -12,6 +12,7 @@ import {
   MapProjection,
   MapControlSettings,
   ControlVisibility,
+  LocateFlySpeed,
 } from '@/types/map.types'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { useStorage } from '@vueuse/core'
@@ -30,6 +31,8 @@ const defaultSettings: MapSettings = {
   transitLabels: true,
   placeLabels: true,
   hdRoads: false,
+  locateFlySpeed: LocateFlySpeed.NORMAL,
+  locateOnStartup: false,
 }
 
 // Compute default control settings based on screen size (mobile vs desktop)

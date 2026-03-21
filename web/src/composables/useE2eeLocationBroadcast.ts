@@ -100,7 +100,7 @@ export function useE2eeLocationBroadcast() {
 
     geolocation.resume()
 
-    stopLocationWatch = watch(
+    const stopCoordsWatch = watch(
       geolocation.coords,
       (coords) => {
         if (coords.latitude !== Infinity) {
@@ -120,6 +120,17 @@ export function useE2eeLocationBroadcast() {
       },
       { immediate: true },
     )
+
+    const stopErrorWatch = watch(geolocation.error, (err) => {
+      if (err) {
+        broadcastError.value = `Location error: ${err.message}`
+      }
+    })
+
+    stopLocationWatch = () => {
+      stopCoordsWatch()
+      stopErrorWatch()
+    }
   }
 
   /**

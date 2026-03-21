@@ -4,4 +4,4 @@
   command = "bun install && cd ../server && bun install --ignore-scripts && cd ../web && bun run build"
 
 [build.environment]
-  NODE_VERSION = "18" 
+  NODE_VERSION = "22" 

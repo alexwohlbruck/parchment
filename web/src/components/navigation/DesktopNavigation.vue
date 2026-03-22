@@ -425,8 +425,26 @@ const items = computed<MenuItemDefinition[]>(() => [
                     </Button>
                   </TooltipTrigger>
 
-                  <TooltipContent side="right" v-if="mini">
-                    <p>{{ subitem.label }}</p>
+                  <TooltipContent
+                    side="right"
+                    v-if="mini"
+                    class="flex items-center gap-2"
+                  >
+                    <span class="leading-none">{{ subitem.label }}</span>
+                    <Kbd
+                      v-if="
+                        (subitem as any).hotkey ||
+                        (subitem as any).hotkeyId ||
+                        (subitem as any).commandId
+                      "
+                      :hotkey-id="(subitem as any).hotkeyId"
+                      :hotkey="
+                        (subitem as any).hotkeyId || (subitem as any).commandId
+                          ? undefined
+                          : (subitem as any).hotkey
+                      "
+                      :command-id="(subitem as any).commandId"
+                    />
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -466,8 +484,21 @@ const items = computed<MenuItemDefinition[]>(() => [
                     </Button>
                   </TooltipTrigger>
 
-                  <TooltipContent side="right" v-if="mini">
-                    <p>{{ subitem.label }}</p>
+                  <TooltipContent
+                    side="right"
+                    v-if="mini"
+                    class="flex items-center gap-2"
+                  >
+                    <span class="leading-none -translate-y-px">{{
+                      subitem.label
+                    }}</span>
+                    <Kbd
+                      v-if="
+                        (subitem as any).hotkey || (subitem as any).commandId
+                      "
+                      :hotkey="(subitem as any).hotkey"
+                      :command-id="(subitem as any).commandId"
+                    />
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

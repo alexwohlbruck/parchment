@@ -1,6 +1,6 @@
 /**
  * Place Polygon Layer Service
- * 
+ *
  * Manages layers for displaying place geometries (polygons, multipolygons, linestrings).
  * Used to highlight selected places on the map with fill and stroke layers.
  */
@@ -20,6 +20,10 @@ import {
 } from '@/constants/layer.constants'
 
 export function usePlacePolygonLayerService() {
+  // Store the last place so we can re-apply after layer (re-)initialization
+  // (race condition on first load, or style-change resetting layers to empty)
+  let pendingPlace: Partial<Place> | null = null
+
   // ============================================================================
   // INITIALIZATION
   // ============================================================================
@@ -60,6 +64,11 @@ export function usePlacePolygonLayerService() {
       updatedAt: new Date().toISOString(),
     }
     mapStrategy.addLayer(strokeLayer)
+
+    // Re-apply any pending polygon data (handles race condition & style changes)
+    if (pendingPlace) {
+      updatePlacePolygon(mapStrategy, pendingPlace)
+    }
   }
 
   // ============================================================================
@@ -72,6 +81,9 @@ export function usePlacePolygonLayerService() {
   ) {
     if (!mapStrategy) return
 
+    // Always remember the latest place for replay after (re-)initialization
+    pendingPlace = place
+
     const geoJSON = place
       ? createGeometryGeoJSON(place as Place)
       : EMPTY_PLACE_POLYGON_GEOJSON
@@ -81,18 +93,16 @@ export function usePlacePolygonLayerService() {
       source.setData(geoJSON)
     }
 
-    // Show/hide layers based on whether we have geometric data (polygon, multipolygon, or linestring)
+    // Show/hide layers based on whether we have geometric data
     const hasGeometryData = Boolean(
       place &&
         place.geometry?.value &&
-        // Check for polygon/multipolygon with nodes
         ((place.geometry.value.type === 'polygon' &&
-          place.geometry.value.nodes &&
-          place.geometry.value.nodes.length > 0) ||
+          ((place.geometry.value.rings && place.geometry.value.rings.length > 0) ||
+            (place.geometry.value.nodes && place.geometry.value.nodes.length > 0))) ||
           (place.geometry.value.type === 'multipolygon' &&
             place.geometry.value.polygons &&
             place.geometry.value.polygons.length > 0) ||
-          // Check for linestring with nodes
           (place.geometry.value.type === 'linestring' &&
             place.geometry.value.nodes &&
             place.geometry.value.nodes.length > 0)),
@@ -122,11 +132,9 @@ export function usePlacePolygonLayerService() {
 
     // Check if layers exist before updating paint properties
     if (!mapStrategy.mapInstance.getLayer(PLACE_POLYGON_FILL_LAYER_ID)) {
-      console.warn('Place polygon fill layer does not exist yet')
       return
     }
     if (!mapStrategy.mapInstance.getLayer(PLACE_POLYGON_STROKE_LAYER_ID)) {
-      console.warn('Place polygon stroke layer does not exist yet')
       return
     }
 
@@ -162,6 +170,17 @@ export function usePlacePolygonLayerService() {
   // HELPER FUNCTIONS
   // ============================================================================
 
+  /** Ensure a coordinate ring is closed (first point == last point) */
+  function closeRing(coords: number[][]): number[][] {
+    if (coords.length < 2) return coords
+    const first = coords[0]
+    const last = coords[coords.length - 1]
+    if (first[0] !== last[0] || first[1] !== last[1]) {
+      coords.push([...first])
+    }
+    return coords
+  }
+
   function createGeometryGeoJSON(place: Partial<Place>) {
     const geometry = place.geometry?.value
     if (!geometry) {
@@ -182,47 +201,50 @@ export function usePlacePolygonLayerService() {
         break
 
       case 'polygon':
-        if (geometry.nodes && geometry.nodes.length > 0) {
-          const coordinates = geometry.nodes.map(node => [node.lng, node.lat])
-
-          // Ensure the polygon is closed by adding the first point at the end if needed
-          if (coordinates.length > 0) {
-            const firstPoint = coordinates[0]
-            const lastPoint = coordinates[coordinates.length - 1]
-            if (
-              firstPoint[0] !== lastPoint[0] ||
-              firstPoint[1] !== lastPoint[1]
-            ) {
-              coordinates.push(firstPoint)
-            }
-          }
-
+        if (geometry.rings && geometry.rings.length > 0) {
+          // Use rings (supports holes): first ring is exterior, subsequent are holes
           geoJSONGeometry = {
             type: 'Polygon',
-            coordinates: [coordinates], // Single ring for now (exterior only)
+            coordinates: geometry.rings.map(ring =>
+              closeRing(ring.map(node => [node.lng, node.lat])),
+            ),
+          }
+        } else if (geometry.nodes && geometry.nodes.length > 0) {
+          // Fallback to nodes (exterior ring only, for backwards compat)
+          geoJSONGeometry = {
+            type: 'Polygon',
+            coordinates: [
+              closeRing(geometry.nodes.map(node => [node.lng, node.lat])),
+            ],
           }
         }
         break
 
       case 'multipolygon':
         if (geometry.polygons && geometry.polygons.length > 0) {
-          // Handle multiple polygons properly
-          const allPolygons = geometry.polygons.map(polygonNodes => {
-            const coordinates = polygonNodes.map(node => [node.lng, node.lat])
-
-            // Ensure each polygon is closed
-            if (coordinates.length > 0) {
-              const firstPoint = coordinates[0]
-              const lastPoint = coordinates[coordinates.length - 1]
-              if (
-                firstPoint[0] !== lastPoint[0] ||
-                firstPoint[1] !== lastPoint[1]
-              ) {
-                coordinates.push(firstPoint)
-              }
+          // Each polygon is an array of rings (first is exterior, subsequent are holes)
+          const allPolygons = geometry.polygons.map(polygonRings => {
+            if (
+              Array.isArray(polygonRings[0]) &&
+              polygonRings[0].length > 0 &&
+              typeof polygonRings[0][0] === 'object' &&
+              'lat' in polygonRings[0][0]
+            ) {
+              // New format: array of rings, each ring is Coordinates[]
+              return (polygonRings as any[]).map((ring: any[]) =>
+                closeRing(ring.map((node: any) => [node.lng, node.lat])),
+              )
+            } else {
+              // Legacy flat format: single ring of Coordinates
+              return [
+                closeRing(
+                  (polygonRings as any[]).map((node: any) => [
+                    node.lng,
+                    node.lat,
+                  ]),
+                ),
+              ]
             }
-
-            return [coordinates] // Each polygon has one ring (exterior only for now)
           })
 
           geoJSONGeometry = {

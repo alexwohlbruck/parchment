@@ -605,20 +605,11 @@ export class MapboxStrategy extends MapStrategy {
 
   addSource(sourceId: string, source: any) {
     try {
-      // Check if style is loaded before adding source
-      if (!this.mapInstance.isStyleLoaded()) {
-        this.mapInstance.once('style.load', () => {
-          this.addSource(sourceId, source)
-        })
-        return
-      }
-
       // Remove existing source if it exists to prevent conflicts
       if (this.mapInstance.getSource(sourceId)) {
         this.mapInstance.removeSource(sourceId)
       }
       this.mapInstance.addSource(sourceId, source)
-      console.log(`Added source: ${sourceId}`)
     } catch (error) {
       console.error(`Failed to add source ${sourceId}:`, error)
       throw error

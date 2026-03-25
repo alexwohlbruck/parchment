@@ -346,8 +346,6 @@ function mapService() {
         return
       }
 
-      setConfigProperties()
-
       // Sync client-side layer visibility with their group states
       const hasVisibleTransitLayers =
         layersStore.syncClientSideLayerVisibility()
@@ -365,6 +363,15 @@ function mapService() {
       // Update polygon colors to match current theme
       placePolygonLayerService.updatePlacePolygonColors(mapStrategy)
 
+      // Initialize marker layers - they will automatically sync with store state
+      markerLayersService.initializeMarkerLayers(mapStrategy)
+
+      // Apply config properties AFTER all sources/layers are added,
+      // because setConfigProperties modifies the map style (e.g. removeImport)
+      // which can temporarily make isStyleLoaded() return false and cause
+      // deferred addSource calls to lose their layers.
+      setConfigProperties()
+
       // Apply transit map theme if transit layers are visible
       if (hasVisibleTransitLayers && mapStrategy) {
         const themeStore = useThemeStore()
@@ -374,9 +381,6 @@ function mapService() {
         )
         mapStrategy.setTransitLabels(!hasVisibleTransitLayers)
       }
-
-      // Initialize marker layers - they will automatically sync with store state
-      markerLayersService.initializeMarkerLayers(mapStrategy)
 
       // Show queued trips if any
       if (queuedTrips.value) {

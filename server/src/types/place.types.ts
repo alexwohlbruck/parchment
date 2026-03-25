@@ -33,8 +33,9 @@ export interface PlaceGeometry {
     maxLat: number
     maxLng: number
   }
-  nodes?: Coordinates[] // For linestrings and polygon exterior rings
-  polygons?: Coordinates[][] // For multipolygons: array of polygon rings (first ring is exterior, subsequent are holes)
+  nodes?: Coordinates[] // For linestrings and simple polygon exterior rings
+  rings?: Coordinates[][] // For polygons with holes: array of rings (first is exterior, subsequent are holes)
+  polygons?: Coordinates[][][] // For multipolygons: array of polygons, each polygon is array of rings (first is exterior, subsequent are holes)
 }
 
 export interface PlacePhoto {

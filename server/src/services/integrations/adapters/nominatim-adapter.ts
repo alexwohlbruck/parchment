@@ -237,15 +237,15 @@ export class NominatimAdapter {
           geometry = {
             type: 'polygon',
             center: { lat, lng },
-            nodes: this.extractPolygonNodes(data.geojson.coordinates),
+            ...this.extractPolygonData(data.geojson.coordinates),
           }
           break
-          
+
         case 'MultiPolygon':
           geometry = {
             type: 'multipolygon',
             center: { lat, lng },
-            polygons: this.extractMultiPolygonNodes(data.geojson.coordinates),
+            polygons: this.extractMultiPolygonRings(data.geojson.coordinates),
           }
           break
           
@@ -293,40 +293,42 @@ export class NominatimAdapter {
   }
 
   /**
-   * Extract coordinate nodes from GeoJSON Polygon coordinates
-   * GeoJSON Polygon format: [[[lng, lat], [lng, lat], ...]]
+   * Extract polygon data from GeoJSON Polygon coordinates, including holes.
+   * GeoJSON Polygon format: [exteriorRing, hole1, hole2, ...]
+   * Returns `nodes` (exterior ring only, for backwards compat) and `rings` (all rings including holes).
    */
-  private extractPolygonNodes(coordinates: number[][][]): Array<{ lat: number; lng: number }> {
-    if (!coordinates || coordinates.length === 0) return []
-    
-    // Take the exterior ring (first array in coordinates)
-    const exteriorRing = coordinates[0]
-    return exteriorRing.map(([lng, lat]) => ({ lat, lng }))
+  private extractPolygonData(coordinates: number[][][]): {
+    nodes: Array<{ lat: number; lng: number }>
+    rings: Array<Array<{ lat: number; lng: number }>>
+  } {
+    if (!coordinates || coordinates.length === 0) return { nodes: [], rings: [] }
+
+    const rings = coordinates
+      .filter(ring => ring && ring.length > 0)
+      .map(ring => ring.map(([lng, lat]) => ({ lat, lng })))
+
+    return {
+      nodes: rings[0] || [],
+      rings,
+    }
   }
 
   /**
-   * Extract all polygons from GeoJSON MultiPolygon coordinates
-   * GeoJSON MultiPolygon format: [[[[lng, lat], [lng, lat], ...]], ...]
-   * Returns array of polygon rings where each polygon can have multiple rings (exterior + holes)
+   * Extract all polygons from GeoJSON MultiPolygon coordinates, including holes.
+   * GeoJSON MultiPolygon format: [polygon1, polygon2, ...]
+   * Each polygon: [exteriorRing, hole1, hole2, ...]
+   * Returns array of polygons, each polygon is an array of rings.
    */
-  private extractMultiPolygonNodes(coordinates: number[][][][]): Array<Array<{ lat: number; lng: number }>> {
+  private extractMultiPolygonRings(coordinates: number[][][][]): Array<Array<Array<{ lat: number; lng: number }>>> {
     if (!coordinates || coordinates.length === 0) return []
-    
-    const polygons: Array<Array<{ lat: number; lng: number }>> = []
-    
-    // Process each polygon in the multipolygon
-    coordinates.forEach((polygonCoords) => {
-      if (polygonCoords && polygonCoords.length > 0) {
-        // For now, just take the exterior ring (first ring) of each polygon
-        // TODO: In the future, we could handle holes by processing all rings
-        const exteriorRing = polygonCoords[0]
-        if (exteriorRing && exteriorRing.length > 0) {
-          polygons.push(exteriorRing.map(([lng, lat]) => ({ lat, lng })))
-        }
-      }
-    })
-    
-    return polygons
+
+    return coordinates
+      .filter(polygonCoords => polygonCoords && polygonCoords.length > 0)
+      .map(polygonCoords =>
+        polygonCoords
+          .filter(ring => ring && ring.length > 0)
+          .map(ring => ring.map(([lng, lat]) => ({ lat, lng })))
+      )
   }
 
   /**

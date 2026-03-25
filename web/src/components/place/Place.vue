@@ -14,7 +14,7 @@ import PlaceGallery from './gallery/PlaceGallery.vue'
 import PlaceActions from './actions/PlaceActions.vue'
 import PlaceSources from './sources/PlaceSources.vue'
 import DetailsList from './details/DetailsList.vue'
-import PlaceTransit from './details/PlaceTransit.vue'
+import PlaceWidgets from './widgets/PlaceWidgets.vue'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 
 const props = defineProps<{
@@ -163,7 +163,7 @@ function handleBrandLogoError() {
             @imageLoaded="handlePlaceImageLoad"
             @imageError="handlePlaceImageError"
           />
-          <PlaceTransit :place="place" />
+          <PlaceWidgets :place="place" />
           <DetailsList :place="place" />
           <PlaceSources :place="place" />
         </template>

@@ -7,6 +7,9 @@ import {
   lookupEnrichedPlaceByCoordinates,
 } from '../services/place.service'
 import { SOURCE } from '../lib/constants.js'
+import { WidgetType } from '../types/place.types'
+import { fetchWidgetData } from '../services/widget.service'
+
 const app = new Elysia({ prefix: '/places' })
   .use(getSession)
 
@@ -153,6 +156,44 @@ app.get(
       summary: 'Get place details by ID, name/location, or coordinates',
       description:
         'Lookup and enrich place data. Supports ID-based lookup (source+id), name-based lookup (name+lat+lng), or coordinate-based lookup (lat+lng). Coordinate-based lookups perform reverse geocoding and run full enrichment if an OSM object is found.',
+    },
+  },
+)
+
+// Fetch widget data by type
+app.get(
+  '/widgets/:type',
+  async (ctx) => {
+    const { params, query, status } = ctx as typeof ctx & { status?: any }
+    const widgetType = params.type as WidgetType
+
+    // Validate widget type
+    if (!Object.values(WidgetType).includes(widgetType)) {
+      return status(400, {
+        message: `Unknown widget type: ${widgetType}`,
+      })
+    }
+
+    try {
+      const result = await fetchWidgetData(widgetType, query as Record<string, string>)
+      return result
+    } catch (err) {
+      console.error(`Error fetching widget data (${widgetType}):`, err)
+      return status(500, {
+        message: err instanceof Error ? err.message : 'Error fetching widget data',
+      })
+    }
+  },
+  {
+    params: t.Object({
+      type: t.String(),
+    }),
+    query: t.Record(t.String(), t.Optional(t.String())),
+    detail: {
+      tags: ['Places'],
+      summary: 'Get widget data for a place',
+      description:
+        'Fetch additional widget data (transit departures, etc.) separately from the base place lookup. Query parameters vary by widget type.',
     },
   },
 )

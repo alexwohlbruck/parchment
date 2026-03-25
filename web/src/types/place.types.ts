@@ -16,7 +16,11 @@ import type {
   PlaceRelation,
   PlaceCategory,
   PlaceIcon,
+  WidgetDescriptor,
+  WidgetResponse,
 } from '@server/types/place.types'
+
+import { WidgetType } from '@server/types/place.types'
 
 // Re-export for use in client code
 export type {
@@ -36,7 +40,11 @@ export type {
   PlaceRelation,
   PlaceCategory,
   PlaceIcon,
+  WidgetDescriptor,
+  WidgetResponse,
 }
+
+export { WidgetType }
 
 // TODO: Move out of types
 export function getPrimaryPhoto(place: Partial<Place> | null): PlacePhoto | null {

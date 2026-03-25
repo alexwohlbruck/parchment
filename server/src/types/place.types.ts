@@ -148,6 +148,23 @@ export interface PlaceRelation {
   tags?: Record<string, string> // Relevant OSM tags
 }
 
+export enum WidgetType {
+  TRANSIT = 'transit',
+}
+
+export interface WidgetDescriptor {
+  type: WidgetType
+  title: string
+  estimatedHeight: number // px, for skeleton placeholder on client
+  params: Record<string, string | number | boolean>
+}
+
+export interface WidgetResponse<T = unknown> {
+  type: WidgetType
+  data: AttributedValue<T>
+  sources: SourceReference[]
+}
+
 export type PlaceCategory =
   | 'food_and_drink'
   | 'education'
@@ -198,6 +215,9 @@ export interface Place {
   }
   transit?: AttributedValue<TransitStopInfo> | null
   relations?: AttributedValue<PlaceRelation[]> | null
+
+  // Widget descriptors for additional data sections
+  widgets?: WidgetDescriptor[]
 
   // Icon/category for display
   icon?: PlaceIcon

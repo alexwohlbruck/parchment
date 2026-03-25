@@ -14,6 +14,8 @@ import type {
   TransitDeparture,
   TransitStopInfo,
   PlaceRelation,
+  PlaceCategory,
+  PlaceIcon,
 } from '@server/types/place.types'
 
 // Re-export for use in client code
@@ -32,6 +34,8 @@ export type {
   TransitDeparture,
   TransitStopInfo,
   PlaceRelation,
+  PlaceCategory,
+  PlaceIcon,
 }
 
 // TODO: Move out of types

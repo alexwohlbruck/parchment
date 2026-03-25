@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import PlaceListItem from './PlaceListItem.vue'
-import { Separator } from '@/components/ui/separator'
 import type { Place } from '@/types/place.types'
-import { Spinner } from '@/components/ui/spinner'
+import { Skeleton } from '@/components/ui/skeleton'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   places: Place[]
   loading?: boolean
-}>()
+  showIcon?: boolean
+}>(), {
+  showIcon: true,
+})
 
 const emit = defineEmits<{
   'place-hover': [placeId: string]
@@ -17,12 +19,22 @@ const emit = defineEmits<{
 
 <template>
   <div class="w-full">
-    <!-- Loading State -->
-    <div
-      v-if="loading"
-      class="flex flex-col h-full items-center justify-center"
-    >
-      <Spinner />
+    <!-- Skeleton loading cards -->
+    <div v-if="loading" class="space-y-2">
+      <div
+        v-for="i in 6"
+        :key="i"
+        class="rounded-xl border border-border bg-card px-3 py-3"
+      >
+        <div class="flex items-start gap-3">
+          <Skeleton class="size-8 rounded-full shrink-0 mt-0.5" />
+          <div class="flex-1 flex flex-col gap-1.5 min-w-0">
+            <Skeleton class="h-[14px] rounded" :style="{ width: `${50 + (i * 13) % 40}%` }" />
+            <Skeleton class="h-[11px] rounded w-20" />
+            <Skeleton class="h-[11px] rounded" :style="{ width: `${40 + (i * 17) % 45}%` }" />
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Empty State -->
@@ -67,6 +79,7 @@ const emit = defineEmits<{
         v-for="place in places"
         :key="place.id"
         :place="place"
+        :show-icon="showIcon"
         @mouseenter="emit('place-hover', place.id)"
         @mouseleave="emit('place-leave')"
       />

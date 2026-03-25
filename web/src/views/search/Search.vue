@@ -18,6 +18,10 @@ import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { getPlaceRoute } from '@/lib/place.utils'
 import { storeToRefs } from 'pinia'
+import { useCategoryStore } from '@/stores/category.store'
+import { getCategoryColor } from '@/lib/place-colors'
+import { useThemeStore } from '@/stores/theme.store'
+import { ItemIcon } from '@/components/ui/item-icon'
 
 const route = useRoute()
 const router = useRouter()
@@ -36,6 +40,34 @@ const searchType = computed(() => {
   if (route.query.categoryId) return 'category'
   // if (route.query.overpassQuery) return 'overpass'
   return 'text'
+})
+
+const categoryStore = useCategoryStore()
+const themeStore = useThemeStore()
+
+// Category icon data for header
+const categoryData = computed(() => {
+  if (searchType.value !== 'category') return null
+  return categoryStore.getCategoryById(route.query.categoryId as string) || null
+})
+
+const categoryIconName = computed(() => categoryData.value?.iconName ?? null)
+const categoryIconPack = computed<'maki' | 'lucide'>(() => categoryData.value?.iconPack ?? 'lucide')
+
+const categoryIconColor = computed(() => {
+  // Primary: from route query (set when navigating from palette)
+  const fromRoute = route.query.categoryIconCategory as string
+  if (fromRoute) return getCategoryColor(fromRoute as any, themeStore.isDark)
+  // Fallback: from category store once loaded
+  if (categoryData.value?.iconCategory) {
+    return getCategoryColor(categoryData.value.iconCategory as any, themeStore.isDark)
+  }
+  // Last resort: from first search result
+  const firstResult = searchStore.searchResults[0]
+  if (firstResult?.icon?.category) {
+    return getCategoryColor(firstResult.icon.category, themeStore.isDark)
+  }
+  return getCategoryColor('default', themeStore.isDark)
 })
 
 // Note: Using searchStore directly in template due to TypeScript complexity with storeToRefs
@@ -193,7 +225,7 @@ async function performSearch() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   // Listen for search result clicks from map markers
   searchClickHandler = (event: Event) => {
     const customEvent = event as CustomEvent
@@ -203,7 +235,27 @@ onMounted(() => {
 
   document.addEventListener('search-result-click', searchClickHandler)
 
-  performSearch()
+  // Ensure categories are loaded so the header icon resolves on fresh tab
+  if (searchType.value === 'category') {
+    categoryStore.loadCategories()
+  }
+
+  // Wait for the map to be ready (has valid bounds) before searching.
+  // On a fresh tab the map initializes async — searching before bounds are
+  // available causes Overpass to fail.
+  if (!mapService.isMapReady.value) {
+    const unwatch = watch(
+      () => mapService.isMapReady.value,
+      (ready) => {
+        if (ready) {
+          unwatch()
+          performSearch()
+        }
+      },
+    )
+  } else {
+    performSearch()
+  }
 })
 
 onUnmounted(() => {
@@ -243,64 +295,49 @@ function handleFiltersChanged(filters: {
 </script>
 
 <template>
-  <div class="h-full flex flex-col px-3 gap-2">
+  <div class="h-full flex flex-col gap-3 pt-4 px-4">
     <!-- Search Header -->
     <div
       v-if="!searchStore.isLoading || searchStore.hasResults"
-      class="relative pl-2"
+      class="flex items-center gap-3"
     >
-      <div class="">
-        <!-- Main Title -->
-        <div class="space-y-1">
-          <h2
-            class="text-lg sm:text-xl font-bold text-foreground tracking-tight"
+      <!-- Category icon -->
+      <ItemIcon
+        v-if="searchType === 'category' && categoryIconName"
+        :icon="categoryIconName"
+        :icon-pack="categoryIconPack"
+        :custom-color="categoryIconColor"
+        variant="solid"
+        shape="circle"
+        size="md"
+      />
+
+      <!-- Title + meta -->
+      <div class="flex flex-col min-w-0">
+        <h2 class="text-lg font-bold text-foreground tracking-tight leading-tight">
+          <span v-if="searchType === 'category'">{{ route.query.categoryName }}</span>
+          <span v-else-if="route.query.overpassQuery">Advanced Search</span>
+          <span v-else>Search Results</span>
+        </h2>
+        <div class="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>
+            {{ searchStore.searchResults.length.toLocaleString() }}
+            {{ searchStore.searchResults.length === 1 ? 'result' : 'results' }}
+          </span>
+          <div
+            v-if="searchStore.isMapRefreshing"
+            class="flex items-center gap-1 text-primary text-xs"
           >
-            <span v-if="searchType === 'category'">
-              {{ route.query.categoryName }}
-            </span>
-            <span v-else-if="route.query.overpassQuery"> Advanced Search </span>
-            <span v-else> Search Results </span>
-          </h2>
-        </div>
-
-        <!-- Results Count and Status -->
-        <div
-          class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
-        >
-          <div class="flex flex-col sm:flex-row sm:items-center gap-2">
-            <div class="flex items-center gap-2">
-              <span class="text-sm font-medium text-foreground">
-                {{ searchStore.searchResults.length.toLocaleString() }}
-                {{
-                  searchStore.searchResults.length === 1 ? 'result' : 'results'
-                }}
-              </span>
-            </div>
-
-            <div
-              v-if="searchStore.isMapRefreshing"
-              class="flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 text-primary rounded-full text-xs"
-            >
-              <div
-                class="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin"
-              ></div>
-              <span class="font-medium">Updating...</span>
-            </div>
-          </div>
-
-          <!-- Mobile category context -->
-          <div v-if="searchType === 'category'" class="sm:hidden">
-            <span class="text-xs text-muted-foreground"
-              >in current map area</span
-            >
+            <div class="w-2.5 h-2.5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+            <span>Updating…</span>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="-mx-3">
+    <div class="-mx-4">
       <FilterChips
-        class="w-full overflow-x-auto scrollbar-hidden px-3"
+        class="w-full overflow-x-auto scrollbar-hidden px-4"
         @filters-changed="handleFiltersChanged"
       />
     </div>

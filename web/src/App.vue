@@ -8,6 +8,7 @@ import { useCommandService } from '@/services/command.service'
 import { useAuthService } from '@/services/auth.service'
 import { useIntegrationService } from '@/services/integration.service'
 import { useCategoryStore } from '@/stores/category.store'
+import { useCategoryPaletteStore } from '@/stores/category-palette.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useResponsive } from '@/lib/utils'
 import { isTauri } from '@/lib/api'
@@ -27,6 +28,7 @@ const commandService = useCommandService()
 const authService = useAuthService()
 const integrationService = useIntegrationService()
 const categoryStore = useCategoryStore()
+const categoryPaletteStore = useCategoryPaletteStore()
 const layersStore = useLayersStore()
 const appStore = useAppStore()
 const friendLocationsLayer = useFriendLocationsLayer()
@@ -102,8 +104,9 @@ onMounted(async () => {
     await layersStore.loadLayers()
     // Then populate any missing template layers
     await layersStore.populateUserLayerTemplates()
-    // Initialize categories for offline search
+    // Initialize categories and palette (returns from cache instantly if available)
     categoryStore.init()
+    categoryPaletteStore.loadPalette()
     // Initialize friend locations layer (watches visibility and polls accordingly)
     friendLocationsLayer.initialize()
   }

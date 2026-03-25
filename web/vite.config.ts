@@ -2,10 +2,16 @@ import path from 'path'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
 import svgLoader from 'vite-svg-loader'
+import { readFileSync } from 'fs'
+
+const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
 
 const host = process.env.TAURI_DEV_HOST
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   plugins: [
     vue(),
     svgLoader({

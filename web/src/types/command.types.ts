@@ -10,6 +10,9 @@ export type PaletteItem = {
   description?: string
   keywords?: string
   icon?: Icon
+  iconName?: string
+  iconPack?: 'lucide' | 'maki'
+  iconColor?: string
 }
 
 export type Command = PaletteItem & {

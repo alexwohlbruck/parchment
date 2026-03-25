@@ -7,7 +7,10 @@ export interface CategoryResult {
   type: 'category'
   name: string
   description?: string
-  icon?: string
+  icon?: string        // raw OSM preset icon string
+  iconName?: string    // resolved icon name ready for ItemIcon
+  iconPack?: 'lucide' | 'maki'
+  iconCategory?: string
   color?: string
   // OSM metadata for building Overpass queries
   tags: Record<string, string>
@@ -72,6 +75,8 @@ export interface AutocompleteResult {
   title: string
   description?: string
   icon?: string
+  iconPack?: 'lucide' | 'maki'
+  iconCategory?: string
   color?: string
   // Minimal metadata - just coordinates for navigation (optional for categories)
   lat?: number

@@ -34,9 +34,10 @@ import { mapEventBus } from '@/lib/eventBus'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { AppRoute } from '@/router'
 import { useRouter } from 'vue-router'
-import { ref, toRaw, watch, Component } from 'vue'
+import { ref, toRaw, watch, computed, Component } from 'vue'
 import { storedLocale } from '@/lib/i18n'
 import { useGeolocationService } from '@/services/geolocation.service'
+import { useSearchStore } from '@/stores/search.store'
 
 const dark = useDark()
 
@@ -668,12 +669,16 @@ function mapService() {
     mapStore.settings.poiLabels = value ?? !mapStore.settings.poiLabels
   }
 
-  watch(
-    () => mapStore.settings.poiLabels,
-    value => {
-      mapStrategy?.setPoiLabels(value)
-    },
+  // POI labels are suppressed while search results are visible so they don't
+  // compete visually with the search result markers and labels.  When results
+  // are cleared the user's stored preference takes effect again automatically.
+  const searchStore = useSearchStore()
+  const effectivePoiLabels = computed(
+    () => mapStore.settings.poiLabels && !searchStore.hasResults,
   )
+  watch(effectivePoiLabels, value => {
+    mapStrategy?.setPoiLabels(value)
+  })
 
   function toggleRoadLabels(value?: boolean) {
     mapStore.settings.roadLabels = value ?? !mapStore.settings.roadLabels
@@ -1145,6 +1150,7 @@ function mapService() {
     },
 
     // Reactive state for conditional control visibility
+    isMapReady,
     isRotatedOrPitched,
     isCurrentlyRotating,
     isCurrentlyZooming,

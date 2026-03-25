@@ -140,6 +140,14 @@ function loadPresets(): Record<string, PresetDefinition> {
     const def = preset as any
     let name = presetNames[id]?.name
 
+    // If no direct translation, try resolving name references
+    // Raw preset names like "{education/university}" reference another preset
+    if (!name && def.name && typeof def.name === 'string' && def.name.startsWith('{') && def.name.endsWith('}')) {
+      const refId = def.name.slice(1, -1)
+      name = presetNames[refId]?.name
+    }
+
+    // Fall back to parent preset translations
     if (!name && id.includes('/')) {
       const parts = id.split('/')
       if (parts.length === 3) {
@@ -361,7 +369,31 @@ export function matchTags(
   const key = createCacheKey(tags, geometry)
 
   return getCached(c.matches, c.stats.matches, key, () => {
-    const candidates = findCandidates(tags, geometry)
+    let candidates = findCandidates(tags, geometry)
+
+    // For 'point' geometry, also try 'vertex' as many OSM presets
+    // (transit stops, crossings, etc.) only define 'vertex' geometry
+    if (candidates.length === 0 && geometry === 'point') {
+      candidates = findCandidates(tags, 'vertex')
+    }
+
+    // If best match is a generic wildcard (e.g. railway=*), try vertex
+    // to see if a more specific preset exists there
+    if (
+      candidates.length > 0 &&
+      geometry === 'point' &&
+      Object.values(candidates[0].preset.tags).includes('*')
+    ) {
+      const vertexCandidates = findCandidates(tags, 'vertex')
+      if (
+        vertexCandidates.length > 0 &&
+        !Object.values(vertexCandidates[0].preset.tags).includes('*') &&
+        vertexCandidates[0].score >= candidates[0].score
+      ) {
+        candidates = vertexCandidates
+      }
+    }
+
     return candidates.length > 0
       ? candidates[0]
       : handleFallback(tags, geometry)
@@ -384,6 +416,21 @@ export function getPresetName(
     const presetTranslations = data.presets?.presets || {}
 
     let name = presetTranslations[preset.id]?.name
+
+    // Try resolving name references (e.g. "{education/university}")
+    if (!name) {
+      const rawPresets = loadPresets()
+      const rawDef = rawPresets[preset.id]
+      if (rawDef) {
+        // Check the raw preset data for reference names
+        const rawPresetsData = require('@openstreetmap/id-tagging-schema/dist/presets.min.json')
+        const rawName = rawPresetsData[preset.id]?.name
+        if (rawName && typeof rawName === 'string' && rawName.startsWith('{') && rawName.endsWith('}')) {
+          const refId = rawName.slice(1, -1)
+          name = presetTranslations[refId]?.name
+        }
+      }
+    }
 
     if (!name && preset.id.includes('/')) {
       const parts = preset.id.split('/')

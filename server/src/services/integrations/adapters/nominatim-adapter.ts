@@ -8,6 +8,8 @@ import type {
   PlaceRelation,
 } from '../../../types/place.types'
 import { getPlaceType } from '../../../lib/place.utils'
+import { matchTags, type GeometryType } from '../../../lib/osm-presets'
+import { buildPlaceIcon } from '../../../lib/place-categories'
 import { SOURCE } from '../../../lib/constants'
 import { parseOpeningHoursForUnifiedFormat } from '../../../lib/place.utils'
 import { extractTransitIdentifiers, isTransitStopType, isTransitStop, createTransitInfo } from '../../../lib/transit-utils'
@@ -84,7 +86,11 @@ export class NominatimAdapter {
         'multipolygon': 'area',
       }
       const osmGeometryType = geometryTypeMap[geometry.type] || 'point'
-      
+
+      // Match tags to get preset and build icon
+      const presetMatch = matchTags(tags, osmGeometryType as GeometryType)
+      const icon = buildPlaceIcon(presetMatch)
+
       return {
         id: primaryId,
         externalIds: this.extractExternalIds(data, osmId),
@@ -99,6 +105,7 @@ export class NominatimAdapter {
           sourceId: SOURCE.OSM,
           timestamp,
         },
+        icon,
         geometry: {
           value: geometry,
           sourceId: SOURCE.OSM,
@@ -148,33 +155,32 @@ export class NominatimAdapter {
    * Extract the name from Nominatim data
    */
   private extractName(data: NominatimLookupResult): string | null {
-    // Try namedetails first for language variants
+    // namedetails contains the OSM name tags of the object itself
     if (data.namedetails) {
       return (
         data.namedetails.name ||
         data.namedetails['name:en'] ||
         data.namedetails.brand ||
-        Object.values(data.namedetails)[0] ||
         null
+        // Note: do NOT fall back to Object.values()[0] — it picks up alt_name,
+        // old_name, or other secondary designations that shouldn't become the title.
       )
     }
 
-    // Try extratags
+    // extratags can carry name/brand when namedetails isn't requested
     if (data.extratags) {
       return (
         data.extratags.name ||
         data.extratags['name:en'] ||
         data.extratags.brand ||
+        data.extratags.operator ||
         null
       )
     }
 
-    // Fallback to extracting from display_name (first part before comma)
-    if (data.display_name) {
-      const firstPart = data.display_name.split(',')[0]?.trim()
-      return firstPart || null
-    }
-
+    // Do NOT fall back to display_name — it contains the surrounding area/street
+    // name for unnamed objects (e.g. a picnic table at "The Plaza" returns
+    // display_name "The Plaza, …", which is the park, not the object's name).
     return null
   }
 

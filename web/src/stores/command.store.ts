@@ -12,14 +12,12 @@ import {
   HelpCircleIcon,
   LanguagesIcon,
   LogOutIcon,
-  MapPinIcon,
   PaletteIcon,
   SearchIcon,
   SettingsIcon,
   SunMoonIcon,
   TerminalIcon,
 } from 'lucide-vue-next'
-import * as LucideIcons from 'lucide-vue-next'
 import { useDark, useToggle } from '@vueuse/core'
 import { allColors, useThemeStore, allRadii } from '@/stores/theme.store'
 import { useMapStore } from '@/stores/map.store'
@@ -30,11 +28,11 @@ import { useAuthService } from '@/services/auth.service'
 import { MapEngine, MapProjection } from '@/types/map.types'
 import { useSearchService } from '@/services/search.service'
 import { useCommandService } from '@/services/command.service'
+import { getCategoryColor } from '@/lib/place-colors'
+import type { PlaceCategory } from '@/types/place.types'
 import { useCategoryStore } from '@/stores/category.store'
 import { appEventBus } from '@/lib/eventBus'
 
-import { formatAddress } from '@/lib/place.utils'
-import { Icon } from '@/types/app.types'
 import { AppRoute } from '@/router'
 import ColorCommandArgumentOption from '@/components/palette/custom-items/ColorCommandArgumentOption.vue'
 
@@ -54,22 +52,6 @@ export enum CommandName {
 
 // TODO: Move command options to separate file
 
-/**
- * Convert icon string name to Vue component
- */
-function getIconComponent(iconName?: string): Icon {
-  if (!iconName) return MapPinIcon
-
-  const fullName = iconName.endsWith('Icon') ? iconName : `${iconName}Icon`
-
-  const isValidIcon =
-    fullName !== 'icons' &&
-    typeof LucideIcons[fullName as keyof typeof LucideIcons] === 'function'
-
-  return isValidIcon
-    ? (LucideIcons[fullName as keyof typeof LucideIcons] as Icon)
-    : MapPinIcon
-}
 
 export const useCommandStore = defineStore('command', () => {
   const isDark = useDark()
@@ -150,6 +132,7 @@ export const useCommandStore = defineStore('command', () => {
                 query: {
                   categoryId: category.id,
                   categoryName: category.name,
+                  ...(category.iconCategory ? { categoryIconCategory: category.iconCategory } : {}),
                 },
               })
             }
@@ -183,11 +166,17 @@ export const useCommandStore = defineStore('command', () => {
                     ) // Limit categories to 5
 
                     categories.forEach(category => {
+                      // Use server-resolved iconName/iconPack for consistent rendering
+                      const iconName = category.iconName || 'Tag'
+                      const iconPack = category.iconPack || 'lucide'
+                      const iconCategory = (category.iconCategory || 'default') as PlaceCategory
                       results.push({
                         value: `category:${category.id}`,
                         name: category.name,
                         description: 'Category',
-                        icon: getIconComponent(category.icon || 'Tag'),
+                        iconName,
+                        iconPack,
+                        iconColor: getCategoryColor(iconCategory, isDark.value),
                       })
                     })
                   }
@@ -221,11 +210,14 @@ export const useCommandStore = defineStore('command', () => {
                 searchResults
                   .filter(result => result.type !== 'category')
                   .forEach(result => {
+                    const iconCategory = (result.iconCategory || 'default') as PlaceCategory
                     results.push({
                       value: result.id,
                       name: result.title,
                       description: result.description,
-                      icon: getIconComponent(result.icon),
+                      iconName: result.icon || 'MapPin',
+                      iconPack: result.iconPack || 'lucide',
+                      iconColor: getCategoryColor(iconCategory, isDark.value),
                     })
                   })
 

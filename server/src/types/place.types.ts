@@ -147,6 +147,24 @@ export interface PlaceRelation {
   tags?: Record<string, string> // Relevant OSM tags
 }
 
+export type PlaceCategory =
+  | 'food_and_drink'
+  | 'education'
+  | 'medical'
+  | 'sport_and_leisure'
+  | 'store'
+  | 'arts_and_entertainment'
+  | 'commercial_services'
+  | 'park'
+  | 'default'
+
+export interface PlaceIcon {
+  category: PlaceCategory
+  icon: string // e.g. 'restaurant', 'hospital', 'park'
+  iconPack: 'lucide' | 'maki'
+  presetId?: string // OSM preset ID, e.g. 'amenity/cafe'
+}
+
 export interface ContactInfo {
   phone?: string
   formattedPhone?: string
@@ -179,6 +197,9 @@ export interface Place {
   }
   transit?: AttributedValue<TransitStopInfo> | null
   relations?: AttributedValue<PlaceRelation[]> | null
+
+  // Icon/category for display
+  icon?: PlaceIcon
 
   // All sources that contributed data
   sources: SourceReference[]

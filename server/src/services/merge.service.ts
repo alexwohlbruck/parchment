@@ -409,6 +409,11 @@ export function mergePlaces(
     )
     result.amenities = mergeAttributedRecord(result.amenities, place.amenities)
 
+    // Merge icon (keep first available)
+    if (!result.icon && place.icon) {
+      result.icon = cloneDeep(place.icon)
+    }
+
     // Merge transit data (prioritize sources with richer transit information)
     if (place.transit) {
       result.transit = mergeAttributedValue(result.transit || null, place.transit)

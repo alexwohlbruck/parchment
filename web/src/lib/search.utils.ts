@@ -1,7 +1,7 @@
 import { MapPinIcon, LocateIcon } from 'lucide-vue-next'
 import * as LucideIcons from 'lucide-vue-next'
 import { Component } from 'vue'
-import { Place } from '@/types/place.types'
+import { Place, type PlaceCategory } from '@/types/place.types'
 import { SearchResultType, AutocompleteResult } from '@/types/search.types'
 import { formatAddress } from '@/lib/place.utils'
 import { AppRoute } from '@/router'
@@ -48,7 +48,28 @@ export function getSearchResultIconName(place: Place): string {
     return iconName.endsWith('Icon') ? iconName.slice(0, -4) : iconName
   }
 
+  // Use place icon from OSM preset matching
+  if (place.icon?.icon) {
+    return place.icon.icon
+  }
+
   return 'MapPin'
+}
+
+/**
+ * Get the icon pack for a place (lucide or maki)
+ */
+export function getSearchResultIconPack(place: Place): 'lucide' | 'maki' {
+  if (place.id === 'current-location') return 'lucide'
+  if (place.placeType.value === 'bookmark' && place.bookmark?.icon) return 'lucide'
+  return place.icon?.iconPack || 'lucide'
+}
+
+/**
+ * Get the place category for coloring
+ */
+export function getSearchResultCategory(place: Place): PlaceCategory {
+  return place.icon?.category || 'default'
 }
 
 /**
@@ -70,7 +91,13 @@ export function getSearchResultName(place: Place): string {
     return place.name.value
   }
 
-  // Otherwise, fall back to formatted address
+  // For unnamed places, prefer the type label (e.g. "Drinking Water") over address
+  const type = place.placeType?.value
+  if (type && type !== 'place') {
+    return type.charAt(0).toUpperCase() + type.slice(1)
+  }
+
+  // Last resort: formatted address
   return formatAddress(place)
 }
 

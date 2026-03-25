@@ -18,19 +18,24 @@ import {
   MapBounds,
 } from '../types/integration.types'
 import { integrationManager } from './integrations'
+import { resolveIcon } from '../lib/place-categories'
 
 
 /**
  * Convert a CategoryResult/preset to a SearchResult
  */
 function convertPresetToSearchResult(preset: any): SearchResult {
+  // Resolve preset icon (usually maki-prefixed) to icon name + pack
+  const resolvedIcon = resolveIcon(preset.icon || 'maki-marker')
+
   return {
     id: preset.id,
     type: 'category',
     title: preset.name,
     description:
       preset.description || `Search for ${preset.name.toLowerCase()}`,
-    icon: preset.icon,
+    icon: resolvedIcon.icon,
+    iconPack: resolvedIcon.iconPack,
     metadata: {
       category: {
         tags: preset.tags,
@@ -66,6 +71,8 @@ function convertToAutocompleteResult(result: SearchResult): AutocompleteResult {
     title: result.title,
     description: result.description,
     icon: result.icon,
+    iconPack: result.iconPack,
+    iconCategory: result.iconCategory,
     color: result.color,
     lat,
     lng,
@@ -179,7 +186,9 @@ function convertPlaceToSearchResult(place: Place): SearchResult {
     type: 'place',
     title: place.name?.value || 'Unknown Place',
     description: description,
-    icon: 'MapPin',
+    icon: place.icon?.icon || 'MapPin',
+    iconPack: place.icon?.iconPack,
+    iconCategory: place.icon?.category,
     metadata: {
       place: place,
     },

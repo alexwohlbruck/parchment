@@ -5,34 +5,71 @@ import { Button } from '@/components/ui/button'
 import type { Place } from '@/types/place.types'
 import { getLogoPhoto } from '@/types/place.types'
 import { useResponsive } from '@/lib/utils'
+import { ItemIcon } from '@/components/ui/item-icon'
+import { getSearchResultIconName, getSearchResultIconPack, getSearchResultCategory } from '@/lib/search.utils'
+import { getCategoryColor } from '@/lib/place-colors'
+import { useThemeStore } from '@/stores/theme.store'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
 
 const props = defineProps<{
   place: Partial<Place>
 }>()
 
 const { isMobileScreen } = useResponsive()
+const themeStore = useThemeStore()
+const router = useRouter()
+
+const placeIconName = computed(() => props.place ? getSearchResultIconName(props.place as Place) : 'MapPin')
+const placeIconPack = computed(() => props.place ? getSearchResultIconPack(props.place as Place) : 'lucide' as const)
+const placeCategoryColor = computed(() => {
+  const category = props.place ? getSearchResultCategory(props.place as Place) : 'default' as const
+  return getCategoryColor(category, themeStore.isDark)
+})
 
 const placeName = computed(() => {
-  // Return the name if it exists, otherwise return null (don't show title)
+  // Return the name if it exists, fall back to place type for unnamed POIs
   return props.place?.name?.value || null
 })
 
+// For unnamed places, use the place type as the title
+const displayName = computed(() => {
+  return placeName.value || placeType.value || null
+})
+
+// Only show place type separately when there's a real name (avoid showing it twice)
+const showPlaceType = computed(() => {
+  return placeName.value && placeType.value
+})
+
 const placeType = computed(() => {
-  // Only show place type if we have a name
-  if (!props.place?.name?.value) {
-    return null
-  }
-  
   const type = props.place?.placeType?.value
-  
+
   // Filter out geometry types that shouldn't be displayed as place types
   const geometryTypes = ['Point', 'LineString', 'Polygon', 'MultiPolygon', 'Line', 'Area', 'poi']
   if (!type || geometryTypes.includes(type)) {
     return null
   }
-  
+
   return type
 })
+
+function openCategorySearch() {
+  const presetId = props.place?.icon?.presetId
+  const typeName = placeType.value
+  if (!presetId || !typeName) return
+
+  router.push({
+    name: AppRoute.SEARCH_RESULTS,
+    query: {
+      categoryId: presetId,
+      categoryName: typeName,
+      ...(props.place?.icon?.category
+        ? { categoryIconCategory: props.place.icon.category }
+        : {}),
+    },
+  })
+}
 
 const rating = computed(() => props.place?.ratings?.rating?.value || null)
 const reviewCount = computed(
@@ -123,11 +160,38 @@ watch(description, () => {
       </div>
 
       <div class="flex-1">
-        <h1 v-if="placeName" class="text-2xl font-semibold line-clamp-2">
-          {{ placeName }}
+        <h1 v-if="displayName" class="text-2xl font-semibold line-clamp-2">
+          {{ displayName }}
         </h1>
-        <div v-if="placeType" class="text-sm text-muted-foreground">
-          {{ placeType }}
+        <!-- Named place: show icon + type label as a clickable badge -->
+        <button
+          v-if="showPlaceType"
+          class="flex items-center gap-1.5 group rounded-md -mx-1 px-1 py-0.5 hover:bg-muted transition-colors"
+          :class="place?.icon?.presetId ? 'cursor-pointer' : 'cursor-default'"
+          @click="openCategorySearch"
+        >
+          <ItemIcon
+            :icon="placeIconName"
+            :icon-pack="placeIconPack"
+            :custom-color="placeCategoryColor"
+            size="sm"
+            variant="solid"
+            shape="circle"
+            class="!size-6"
+          />
+          <span class="text-sm text-muted-foreground group-hover:text-foreground transition-colors">{{ placeType }}</span>
+        </button>
+        <!-- Unnamed place: show icon badge only (type is already the title) -->
+        <div v-else-if="placeType && !placeName" class="flex items-center gap-1.5">
+          <ItemIcon
+            :icon="placeIconName"
+            :icon-pack="placeIconPack"
+            :custom-color="placeCategoryColor"
+            size="sm"
+            variant="solid"
+            shape="circle"
+            class="!size-6"
+          />
         </div>
         <div v-if="rating !== null" class="flex items-center gap-1 mt-1">
           <div class="flex">

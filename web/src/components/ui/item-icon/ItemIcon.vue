@@ -3,6 +3,10 @@ import { computed } from 'vue'
 import { getThemeColorClasses, type ThemeColor } from '@/lib/utils'
 import * as LucideIcons from 'lucide-vue-next'
 import { FolderIcon } from 'lucide-vue-next'
+import MakiIcon from './MakiIcon.vue'
+import { useThemeStore } from '@/stores/theme.store'
+
+const themeStore = useThemeStore()
 
 const props = withDefaults(
   defineProps<{
@@ -11,6 +15,9 @@ const props = withDefaults(
     size?: 'sm' | 'md' | 'lg'
     variant?: 'solid' | 'ghost'
     plain?: boolean
+    iconPack?: 'lucide' | 'maki'
+    customColor?: string // Direct CSS color value (overrides ThemeColor)
+    shape?: 'square' | 'circle' // Shape of the container
   }>(),
   {
     icon: 'Folder',
@@ -18,10 +25,16 @@ const props = withDefaults(
     size: 'md',
     variant: 'solid',
     plain: false,
+    iconPack: 'lucide',
+    shape: 'square',
   },
 )
 
+const isMaki = computed(() => props.iconPack === 'maki')
+
 const iconComponent = computed(() => {
+  if (isMaki.value) return null
+
   const fullName = props.icon.endsWith('Icon')
     ? props.icon
     : `${props.icon}Icon`
@@ -52,14 +65,39 @@ const ghostColorClasses: Record<ThemeColor, string> = {
   primary: 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary',
 }
 
+const useCustomColor = computed(() => !!props.customColor && !props.plain)
+
 const colorClasses = computed(() => {
-  if (props.plain) return ''
+  if (props.plain || useCustomColor.value) return ''
 
   if (props.variant === 'ghost') {
     return ghostColorClasses[props.color as ThemeColor]
   }
 
   return getThemeColorClasses(props.color as ThemeColor)
+})
+
+const customColorStyle = computed(() => {
+  if (!useCustomColor.value) return {}
+
+  const color = props.customColor!
+  if (props.variant === 'ghost') {
+    return {
+      backgroundColor: `color-mix(in srgb, ${color} 10%, transparent)`,
+      color,
+    }
+  }
+  // Solid variant with custom color — colored background, contrasting icon + ring
+  const contrast = themeStore.isDark ? '#0C0C0C' : '#FFFFFF'
+  return {
+    backgroundColor: color,
+    borderColor: contrast,
+    color: contrast,
+  }
+})
+
+const shapeClass = computed(() => {
+  return props.shape === 'circle' ? 'rounded-full' : 'rounded-md'
 })
 
 const containerSizeClass = computed(() => {
@@ -89,9 +127,20 @@ const iconSizeClass = computed(() => {
 
 <template>
   <div
-    class="rounded-md flex items-center justify-center shrink-0"
-    :class="[containerSizeClass, colorClasses]"
+    class="flex items-center justify-center shrink-0"
+    :class="[containerSizeClass, colorClasses, shapeClass, { 'border-2': shape === 'circle' && useCustomColor }]"
+    :style="customColorStyle"
   >
-    <component :is="iconComponent as any" :class="iconSizeClass" />
+    <MakiIcon
+      v-if="isMaki"
+      :name="icon"
+      :size="size"
+      class="fill-current"
+    />
+    <component
+      v-else
+      :is="iconComponent as any"
+      :class="iconSizeClass"
+    />
   </div>
 </template>

@@ -57,24 +57,29 @@ export function useSearchResultsLayerService() {
         ? createResultsGeoJSON(currentResults)
         : EMPTY_SEARCH_RESULTS_GEOJSON
 
-    // Create the search results source with current data
-    try {
-      mapStrategy.addSource(SEARCH_RESULTS_SOURCE_ID, {
+    const mapInstance = mapStrategy.mapInstance
+
+    // Add source directly on the map instance (synchronous, bypasses the async
+    // style-load wrapper so source is guaranteed present before layer is added)
+    if (!mapInstance.getSource(SEARCH_RESULTS_SOURCE_ID)) {
+      mapInstance.addSource(SEARCH_RESULTS_SOURCE_ID, {
         type: 'geojson',
         data: currentGeoJSON,
       })
-      searchResultsSourceInitialized = true
-    } catch (error) {
-      // Source might already exist, update it instead
-      const source = mapStrategy.mapInstance.getSource(SEARCH_RESULTS_SOURCE_ID)
-      if (source) {
-        source.setData(currentGeoJSON)
-        searchResultsSourceInitialized = true
-      } else {
-        console.warn('Failed to add search results source:', error)
-        return
-      }
+    } else {
+      ;(mapInstance.getSource(SEARCH_RESULTS_SOURCE_ID) as any).setData(currentGeoJSON)
     }
+
+    // Add the symbol layer via the strategy so engine-specific conversions
+    // (e.g. Mapbox → MapLibre font translation) are applied automatically.
+    // Source is already present so the strategy's source-existence check passes.
+    if (!mapInstance.getLayer(SEARCH_RESULTS_LABELS_LAYER_ID)) {
+      const layer = createSearchResultsLayer()
+      layer.visible = currentResults.length > 0
+      mapStrategy.addLayer(layer)
+    }
+
+    searchResultsSourceInitialized = true
 
     // Set up reactivity for search results (only once)
     initializeSearchResultsReactivity(mapStrategy)
@@ -266,8 +271,10 @@ export function useSearchResultsLayerService() {
           },
           properties: {
             id: place.id,
-            name: hasName ? place.name.value : null,
+            // Omit `name` entirely when null so ['has', 'name'] filter works
+            ...(hasName ? { name: place.name.value } : {}),
             placeType: place.placeType.value,
+            category: place.icon?.category ?? 'default',
             hasLabel: hasName,
             sizerank: 10,
             class: 'place_like',

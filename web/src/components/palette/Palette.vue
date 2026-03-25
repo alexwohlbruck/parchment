@@ -29,6 +29,7 @@ import {
   XIcon,
   LoaderIcon,
 } from 'lucide-vue-next'
+import { ItemIcon } from '@/components/ui/item-icon'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { fuzzyFilter, noFilter } from '@/lib/utils'
 import { TransitionSlide } from '@morev/vue-transitions'
@@ -421,10 +422,19 @@ const filterFunction = computed(() => {
               />
 
               <template v-else>
+                <ItemIcon
+                  v-if="argumentOption.iconColor"
+                  :icon="argumentOption.iconName"
+                  :icon-pack="argumentOption.iconPack"
+                  :custom-color="argumentOption.iconColor"
+                  shape="circle"
+                  variant="solid"
+                  size="sm"
+                />
                 <component
-                  v-if="argumentOption.icon"
+                  v-else-if="argumentOption.icon"
                   :is="argumentOption.icon"
-                  class="size-5"
+                  class="size-5 opacity-50"
                 />
                 <div class="flex-1 flex flex-col">
                   <span class="font-semibold">{{ argumentOption.name }}</span>

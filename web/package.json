@@ -34,6 +34,7 @@
   "dependencies": {
     "@alexwohlbruck/vaul-vue": "^0.4.4",
     "@internationalized/date": "^3.5.4",
+    "@mapbox/maki": "^8.2.0",
     "@mdi/js": "^7.4.47",
     "@morev/vue-transitions": "^3.0.2",
     "@noble/ciphers": "^2.1.1",

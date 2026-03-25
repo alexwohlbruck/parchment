@@ -1,6 +1,7 @@
 import { CategoryResult } from '../types/search.types'
 import type { Language } from '../lib/i18n/i18n.types'
 import { getLanguageCode } from '../lib/i18n'
+import { getPlaceCategory, resolveIcon } from '../lib/place-categories'
 
 interface CachedCategoryData {
   categories: CategoryResult[]
@@ -115,6 +116,9 @@ export class CategoryService {
           }
         })
 
+        const rawIcon = preset.icon || 'maki-circle'
+        const resolved = resolveIcon(rawIcon)
+
         const category: CategoryResult = {
           id: presetId,
           type: 'category',
@@ -123,7 +127,10 @@ export class CategoryService {
             preset,
             presetTranslations[presetId],
           ),
-          icon: preset.icon || 'maki-circle',
+          icon: rawIcon,
+          iconName: resolved.icon,
+          iconPack: resolved.iconPack,
+          iconCategory: getPlaceCategory(presetId),
           tags: tags,
           addTags: preset.addTags,
           geometry: preset.geometry || ['point'],

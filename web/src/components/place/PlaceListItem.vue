@@ -4,78 +4,76 @@ import { useRouter } from 'vue-router'
 import { getPlaceRoute, formatAddress } from '@/lib/place.utils'
 import {
   getSearchResultIconName,
+  getSearchResultIconPack,
+  getSearchResultCategory,
   getSearchResultName,
 } from '@/lib/search.utils'
+import { getCategoryColor } from '@/lib/place-colors'
+import { useThemeStore } from '@/stores/theme.store'
 import { StarIcon, PhoneIcon, ClockIcon, MapPinIcon } from 'lucide-vue-next'
 import type { Place } from '@/types/place.types'
-import { H3, H4, H5, H6, P, Caption } from '@/components/ui/typography'
 import { Card, CardContent } from '@/components/ui/card'
 import { ItemIcon } from '@/components/ui/item-icon'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   place: Place
-}>()
+  showIcon?: boolean
+}>(), {
+  showIcon: true,
+})
 
 const router = useRouter()
+const themeStore = useThemeStore()
 
 const iconName = computed(() => getSearchResultIconName(props.place))
-const name = computed(() => getSearchResultName(props.place))
+const iconPack = computed(() => getSearchResultIconPack(props.place))
+const categoryColor = computed(() =>
+  getCategoryColor(getSearchResultCategory(props.place), themeStore.isDark),
+)
+const displayName = computed(() => getSearchResultName(props.place))
 const address = computed(() => formatAddress(props.place))
 
-// Check if we're showing place type as the name (because no actual name exists)
-const isUsingPlaceTypeAsName = computed(() => {
-  return !props.place.name.value
-})
+// True when the display name is the real OSM name (not the type/address fallback)
+const hasRealName = computed(() => !!props.place.name?.value)
 
-const rating = computed(() => {
-  return props.place.ratings?.rating?.value
-    ? props.place.ratings.rating.value * 5
-    : null
-})
-
-const reviewCount = computed(() => {
-  return props.place.ratings?.reviewCount?.value || null
-})
-
-const formattedRating = computed(() => {
-  if (!rating.value) return null
-  return rating.value.toFixed(1)
-})
-
-const phone = computed(() => {
-  return props.place.contactInfo?.phone?.value || null
-})
-
-// Only show place type if we have a real name (not using place type as name)
+// Show the place type as a subtitle only when a real name exists and the type is meaningful
 const placeType = computed(() => {
-  if (isUsingPlaceTypeAsName.value) return null
   const type = props.place.placeType?.value
   if (!type || type === 'place') return null
-  return type.charAt(0).toUpperCase() + type.slice(1)
+  const label = type.charAt(0).toUpperCase() + type.slice(1)
+  // Suppress if name IS the type (already shown as title)
+  return hasRealName.value ? label : null
 })
+
+// Only show the address when it adds info (differs from the display name)
+const showAddress = computed(() =>
+  !!address.value && address.value !== displayName.value,
+)
+
+const rating = computed(() =>
+  props.place.ratings?.rating?.value
+    ? props.place.ratings.rating.value * 5
+    : null,
+)
+const reviewCount = computed(() => props.place.ratings?.reviewCount?.value || null)
+const formattedRating = computed(() => rating.value?.toFixed(1) ?? null)
+const phone = computed(() => props.place.contactInfo?.phone?.value || null)
 
 const isOpen = computed(() => {
   const hours = props.place.openingHours?.value
   if (!hours) return null
-
   if (hours.isPermanentlyClosed) return false
   if (hours.isTemporarilyClosed) return false
   if (hours.isOpen24_7) return true
-
-  // For now, return null if we can't determine status
-  // TODO: Implement proper time-based open/closed logic
   return null
 })
 
 const hoursText = computed(() => {
   const hours = props.place.openingHours?.value
   if (!hours) return null
-
   if (hours.isPermanentlyClosed) return 'Permanently closed'
   if (hours.isTemporarilyClosed) return 'Temporarily closed'
   if (hours.isOpen24_7) return 'Open 24 hours'
-
-  // TODO: Calculate actual closing time based on current time and schedule
   return null
 })
 
@@ -86,97 +84,67 @@ function handleClick() {
 </script>
 
 <template>
-  <Card class="cursor-pointer" @click="handleClick">
-    <CardContent class="p-2">
-      <!-- Main Content -->
-      <div class="space-y-3">
-        <!-- Header with icon and name -->
-        <div class="flex items-center gap-3">
-          <ItemIcon
-            :icon="iconName"
-            size="md"
-            color="primary"
-            variant="ghost"
-          />
+  <Card class="cursor-pointer transition-colors hover:bg-muted/30" @click="handleClick">
+    <CardContent class="px-3 py-3">
+      <div class="flex items-start gap-3">
 
-          <div class="flex-1 flex flex-col">
-            <H6 class="truncate font-medium">
-              {{ name }}
-            </H6>
+        <!-- Left: category icon -->
+        <ItemIcon
+          v-if="showIcon"
+          :icon="iconName"
+          :icon-pack="iconPack"
+          size="sm"
+          :custom-color="categoryColor"
+          variant="solid"
+          shape="circle"
+          class="shrink-0 mt-0.5"
+        />
 
-            <!-- Place type badge -->
-            <div v-if="placeType" class="inline-flex">
-              <Caption class="text-xs font-medium text-muted-foreground">
-                {{ placeType }}
-              </Caption>
-            </div>
-          </div>
-        </div>
+        <!-- Right: all text content -->
+        <div class="flex-1 min-w-0 flex flex-col gap-1">
 
-        <!-- Rating and Reviews -->
-        <div v-if="rating || reviewCount" class="flex items-center gap-2">
-          <div class="flex items-center gap-1.5">
-            <div class="flex items-center gap-1">
-              <span class="text-sm font-semibold text-foreground">{{
-                formattedRating
-              }}</span>
-              <div class="flex gap-0.5">
-                <StarIcon
-                  v-for="i in 5"
-                  :key="i"
-                  class="w-3 h-3"
-                  :class="
-                    i <= Math.round(rating || 0)
-                      ? 'text-yellow-500 fill-yellow-500'
-                      : 'text-muted-foreground/30'
-                  "
-                />
-              </div>
-            </div>
-            <span v-if="reviewCount" class="text-xs text-muted-foreground">
-              {{ reviewCount.toLocaleString() }} reviews
+          <!-- Name + rating inline -->
+          <div class="flex items-center justify-between gap-2">
+            <span class="font-semibold text-sm text-foreground leading-snug truncate">
+              {{ displayName }}
             </span>
+            <div v-if="formattedRating" class="flex items-center gap-1 shrink-0">
+              <StarIcon class="w-3 h-3 text-yellow-500 fill-yellow-500" />
+              <span class="text-xs font-medium text-foreground">{{ formattedRating }}</span>
+              <span v-if="reviewCount" class="text-xs text-muted-foreground">({{ reviewCount.toLocaleString() }})</span>
+            </div>
           </div>
-        </div>
 
-        <!-- Status and Hours -->
-        <div
-          v-if="isOpen !== null || hoursText"
-          class="flex items-center gap-1.5"
-        >
-          <div class="flex items-center gap-1">
-            <ClockIcon class="w-3.5 h-3.5 text-muted-foreground" />
+          <!-- Type / hours row -->
+          <div
+            v-if="placeType || isOpen !== null || hoursText"
+            class="flex items-center gap-2 text-xs text-muted-foreground"
+          >
+            <span v-if="placeType">{{ placeType }}</span>
             <span
-              class="text-xs font-medium"
-              :class="
-                isOpen === true
-                  ? 'text-green-600'
-                  : isOpen === false
-                  ? 'text-red-600'
-                  : 'text-muted-foreground'
-              "
+              v-if="isOpen !== null || hoursText"
+              class="flex items-center gap-1"
+              :class="isOpen === true ? 'text-green-600' : isOpen === false ? 'text-red-500' : 'text-muted-foreground'"
             >
+              <ClockIcon class="w-3 h-3 shrink-0" />
               <span v-if="isOpen === true">Open now</span>
               <span v-else-if="isOpen === false">Closed</span>
               <span v-if="hoursText">{{ hoursText }}</span>
             </span>
           </div>
-        </div>
 
-        <!-- Address -->
-        <div v-if="address" class="flex items-start gap-1.5 ml-13">
-          <MapPinIcon
-            class="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0"
-          />
-          <span class="text-xs text-muted-foreground leading-relaxed">
-            {{ address }}
-          </span>
-        </div>
+          <!-- Address -->
+          <div v-if="showAddress" class="flex items-start gap-1.5 text-xs text-muted-foreground">
+            <MapPinIcon class="w-3 h-3 shrink-0 mt-[1px]" />
+            <span class="truncate">{{ address }}</span>
+          </div>
 
-        <!-- Phone -->
-        <div v-if="phone" class="flex items-center gap-1.5 ml-13">
-          <PhoneIcon class="w-3.5 h-3.5 text-muted-foreground" />
-          <span class="text-xs text-muted-foreground">{{ phone }}</span>
+          <!-- Phone -->
+          <div v-if="phone" class="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <PhoneIcon class="w-3 h-3 shrink-0" />
+            <span>{{ phone }}</span>
+          </div>
+
         </div>
       </div>
     </CardContent>

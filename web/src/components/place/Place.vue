@@ -15,6 +15,7 @@ import PlaceActions from './actions/PlaceActions.vue'
 import PlaceSources from './sources/PlaceSources.vue'
 import DetailsList from './details/DetailsList.vue'
 import PlaceWidgets from './widgets/PlaceWidgets.vue'
+import NearbyCategories from './NearbyCategories.vue'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 
 const props = defineProps<{
@@ -142,7 +143,9 @@ function handleBrandLogoError() {
         <!-- Skeleton loaders while full data loads -->
         <template v-if="loading">
           <!-- Gallery skeleton -->
-          <Skeleton class="ml-[-0.75rem] mr-[-0.75rem] w-[calc(100%+1.5rem)] h-48 rounded-lg" />
+          <Skeleton
+            class="ml-[-0.75rem] mr-[-0.75rem] w-[calc(100%+1.5rem)] h-48 rounded-lg"
+          />
           <!-- Details skeleton -->
           <div class="space-y-3">
             <Skeleton class="h-5 w-3/4" />
@@ -163,8 +166,9 @@ function handleBrandLogoError() {
             @imageLoaded="handlePlaceImageLoad"
             @imageError="handlePlaceImageError"
           />
-          <PlaceWidgets :place="place" />
           <DetailsList :place="place" />
+          <PlaceWidgets :place="place" />
+          <NearbyCategories :place="place" />
           <PlaceSources :place="place" />
         </template>
       </div>

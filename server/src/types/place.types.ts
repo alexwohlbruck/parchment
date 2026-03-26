@@ -150,6 +150,25 @@ export interface PlaceRelation {
 
 export enum WidgetType {
   TRANSIT = 'transit',
+  RELATED_PLACES = 'related_places',
+}
+
+export type RelatedPlacesStrategy = 'children' | 'parent' | 'admin'
+
+export interface RelatedParent {
+  id: string // OSM ID like "relation/123"
+  name: string
+  placeType: string // e.g., "Shopping Mall", "City"
+  icon?: PlaceIcon // Resolved icon for display
+  tags?: Record<string, string>
+}
+
+export interface RelatedPlacesData {
+  strategy: RelatedPlacesStrategy
+  children: Place[] // POIs inside this area (children strategy)
+  parents: RelatedParent[] // Containing areas (parent/admin strategy)
+  centerLat: number // Parent place center (for client-side distance display)
+  centerLng: number
 }
 
 export interface WidgetDescriptor {
@@ -163,6 +182,14 @@ export interface WidgetResponse<T = unknown> {
   type: WidgetType
   data: AttributedValue<T>
   sources: SourceReference[]
+}
+
+export interface NearbyCategory {
+  presetId: string // OSM preset ID, e.g. "amenity/cafe"
+  name: string // Display label, e.g. "Cafes"
+  icon?: string // Resolved icon name
+  iconPack?: 'lucide' | 'maki'
+  iconCategory?: PlaceCategory // For color theming
 }
 
 export type PlaceCategory =
@@ -218,6 +245,9 @@ export interface Place {
 
   // Widget descriptors for additional data sections
   widgets?: WidgetDescriptor[]
+
+  // Nearby category chips for contextual exploration
+  nearbyCategories?: NearbyCategory[]
 
   // Icon/category for display
   icon?: PlaceIcon

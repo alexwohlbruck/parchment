@@ -12,7 +12,7 @@ const props = withDefaults(
   defineProps<{
     icon?: string
     color?: ThemeColor
-    size?: 'sm' | 'md' | 'lg'
+    size?: 'xs' | 'sm' | 'md' | 'lg'
     variant?: 'solid' | 'ghost'
     plain?: boolean
     iconPack?: 'lucide' | 'maki'
@@ -102,6 +102,8 @@ const shapeClass = computed(() => {
 
 const containerSizeClass = computed(() => {
   switch (props.size) {
+    case 'xs':
+      return 'size-5'
     case 'sm':
       return 'size-8'
     case 'lg':
@@ -114,6 +116,8 @@ const containerSizeClass = computed(() => {
 
 const iconSizeClass = computed(() => {
   switch (props.size) {
+    case 'xs':
+      return 'size-3'
     case 'sm':
       return 'size-4'
     case 'lg':

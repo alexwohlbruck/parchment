@@ -422,4 +422,285 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
       >;
       out body meta qt;`.trim()
   }
+
+  /**
+   * Search for POIs matching given preset IDs within an OSM area (way or relation).
+   *
+   * Strategy (in order of preference):
+   * 1. Bounding box query — fast, reliable, no Overpass area pre-computation needed.
+   *    Slightly less precise (bbox corners may extend outside the real polygon).
+   * 2. Overpass `area()` query — exact polygon containment, but requires the Overpass
+   *    server to have pre-computed the area object, and public servers often time out.
+   *
+   * @param osmId - OSM ID in format "way/123" or "relation/456"
+   * @param presetIds - Array of OSM preset IDs like ["amenity/parking", "amenity/cafe"]
+   * @param options - Optional limit (default 30) and optional bounding box
+   * @returns Array of Place objects found within the area
+   */
+  async searchByCategoryInArea(
+    osmId: string,
+    presetIds: string[],
+    options?: {
+      limit?: number
+      bbox?: { south: number; west: number; north: number; east: number }
+    },
+  ): Promise<Place[]> {
+    if (!this.config.host) {
+      console.error('Overpass integration not properly configured')
+      return []
+    }
+
+    // Build tag filter lines for all preset IDs
+    const tagSets = presetIds
+      .map((pid) => this.mapPresetToOsmTags(pid))
+      .filter(Boolean) as Record<string, string>[]
+
+    if (!tagSets.length) return []
+
+    const maxResults = options?.limit || 30
+
+    // Prefer bbox query — much faster and doesn't require Overpass area pre-computation
+    if (options?.bbox) {
+      return this.searchByCategoryInBbox(tagSets, options.bbox, maxResults, osmId)
+    }
+
+    // Fall back to area() query when no bbox available
+    const [osmType, rawId] = osmId.split('/')
+    const numericId = parseInt(rawId, 10)
+    if (!numericId || (osmType !== 'way' && osmType !== 'relation')) {
+      console.debug(`🚫 [Overpass/Area] Cannot create area from ${osmId} (only way/relation supported)`)
+      return []
+    }
+
+    // Convert to Overpass area ID
+    // Relations: 3600000000 + id, Ways: 2400000000 + id
+    const areaId = osmType === 'relation'
+      ? 3600000000 + numericId
+      : 2400000000 + numericId
+
+    const unionLines = tagSets.flatMap((tags) => {
+      const tagFilters = Object.entries(tags)
+        .map(([key, value]) => `["${key}"="${value}"]`)
+        .join('')
+      return [
+        `node${tagFilters}(area.searchArea);`,
+        `way${tagFilters}(area.searchArea);`,
+      ]
+    })
+
+    const query = `[out:json][timeout:60];
+      area(id:${areaId})->.searchArea;
+      (
+        ${unionLines.join('\n        ')}
+      );
+      out body geom ${maxResults};`.trim()
+
+    try {
+      console.debug(`🌐 [Overpass/Area] Searching within area ${osmId} for ${presetIds.length} categories`)
+      const response = await axios.post(
+        this.config.host,
+        new URLSearchParams({ data: query }),
+        {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          timeout: 30000,
+        },
+      )
+
+      if (!response.data?.elements) return []
+      return this.elementsToPlaces(response.data.elements.slice(0, maxResults))
+    } catch (error) {
+      console.error(`❌ [Overpass/Area] Error executing area query for ${osmId}:`, error)
+      return []
+    }
+  }
+
+  /**
+   * Query POIs within a bounding box using a standard Overpass bbox filter.
+   * Fast and reliable — preferred over area() queries.
+   */
+  private async searchByCategoryInBbox(
+    tagSets: Record<string, string>[],
+    bbox: { south: number; west: number; north: number; east: number },
+    maxResults: number,
+    osmId: string,
+  ): Promise<Place[]> {
+    const bboxStr = `${bbox.south},${bbox.west},${bbox.north},${bbox.east}`
+
+    const unionLines = tagSets.flatMap((tags) => {
+      const tagFilters = Object.entries(tags)
+        .map(([key, value]) => `["${key}"="${value}"]`)
+        .join('')
+      return [
+        `node${tagFilters}(${bboxStr});`,
+        `way${tagFilters}(${bboxStr});`,
+      ]
+    })
+
+    const query = `[out:json][timeout:30];
+      (
+        ${unionLines.join('\n        ')}
+      );
+      out body geom ${maxResults};`.trim()
+
+    try {
+      console.debug(`🌐 [Overpass/Bbox] Searching within bbox of ${osmId} for ${tagSets.length} categories`)
+      const response = await axios.post(
+        this.config.host,
+        new URLSearchParams({ data: query }),
+        {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          timeout: 30000,
+        },
+      )
+
+      if (!response.data?.elements) return []
+      const places = this.elementsToPlaces(response.data.elements.slice(0, maxResults))
+      console.debug(`✅ [Overpass/Bbox] Found ${places.length} places within ${osmId}`)
+      return places
+    } catch (error) {
+      console.error(`❌ [Overpass/Bbox] Error executing bbox query for ${osmId}:`, error)
+      return []
+    }
+  }
+
+  /**
+   * Find all OSM areas spatially containing a given coordinate using is_in().
+   * Returns named, "interesting" containers (parks, campuses, malls, etc.) ordered
+   * from smallest (most specific) to largest — ideal for parent/admin strategy.
+   *
+   * This works purely on spatial containment, so it finds parents even when there
+   * is no explicit OSM relation membership (e.g. a playground inside a park way).
+   */
+  async findContainingAreas(
+    lat: number,
+    lng: number,
+  ): Promise<Array<{ id: string; name: string; placeType: string; tags: Record<string, string> }>> {
+    if (!this.config.host) return []
+
+    // is_in returns the smallest areas first (innermost to outermost)
+    const query = `[out:json][timeout:30];
+      is_in(${lat},${lng})->.a;
+      (
+        way(pivot.a);
+        relation(pivot.a);
+      );
+      out tags 30;`.trim()
+
+    try {
+      const response = await axios.post(
+        this.config.host,
+        new URLSearchParams({ data: query }),
+        {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          timeout: 15000,
+        },
+      )
+
+      if (!response.data?.elements) return []
+
+      const INTERESTING_KEYS = new Set(['leisure', 'amenity', 'shop', 'tourism', 'building', 'aeroway'])
+      const INTERESTING_LANDUSE = new Set(['commercial', 'retail', 'residential', 'industrial', 'education', 'military', 'religious'])
+
+      return (response.data.elements as any[])
+        .filter((el) => {
+          const tags: Record<string, string> = el.tags || {}
+          if (!tags.name) return false // must be named to be useful
+          // Skip pure admin boundaries
+          if (tags.boundary === 'administrative' || tags.admin_level) return false
+          const hasInterestingKey = Object.keys(tags).some((k) => INTERESTING_KEYS.has(k as any) && tags[k])
+          const isInterestingLanduse = !!(tags.landuse && INTERESTING_LANDUSE.has(tags.landuse))
+          return hasInterestingKey || isInterestingLanduse
+        })
+        .map((el) => {
+          const tags: Record<string, string> = el.tags || {}
+          const placeType = this.deriveContainerType(tags)
+          return {
+            id: `${el.type}/${el.id}`,
+            name: tags.name,
+            placeType,
+            tags,
+          }
+        })
+    } catch (error) {
+      console.error('❌ [Overpass/IsIn] Error fetching containing areas:', error)
+      return []
+    }
+  }
+
+  /** Derive a human-readable place type label from OSM tags. */
+  private deriveContainerType(tags: Record<string, string>): string {
+    // Aeroway / aviation
+    if (tags.aeroway === 'aerodrome') return 'Airport'
+    if (tags.aeroway === 'terminal') return 'Airport Terminal'
+    if (tags.aeroway === 'concourse') return 'Concourse'
+    if (tags.aeroway === 'hangar') return 'Hangar'
+    // Leisure
+    if (tags.leisure === 'park') return 'Park'
+    if (tags.leisure === 'nature_reserve') return 'Nature Reserve'
+    if (tags.leisure === 'sports_centre') return 'Sports Centre'
+    if (tags.leisure === 'stadium') return 'Stadium'
+    if (tags.leisure === 'golf_course') return 'Golf Course'
+    if (tags.leisure === 'marina') return 'Marina'
+    // Amenity
+    if (tags.amenity === 'university') return 'University'
+    if (tags.amenity === 'college') return 'College'
+    if (tags.amenity === 'school') return 'School'
+    if (tags.amenity === 'hospital') return 'Hospital'
+    if (tags.amenity === 'marketplace') return 'Marketplace'
+    if (tags.amenity === 'theatre') return 'Theatre'
+    if (tags.amenity === 'cinema') return 'Cinema'
+    // Shop
+    if (tags.shop === 'mall') return 'Shopping Mall'
+    if (tags.shop === 'supermarket') return 'Supermarket'
+    // Tourism
+    if (tags.tourism === 'theme_park') return 'Theme Park'
+    if (tags.tourism === 'attraction') return 'Attraction'
+    if (tags.tourism === 'zoo') return 'Zoo'
+    // Building — specific first, generic last
+    if (tags.building === 'university') return 'University Building'
+    if (tags.building === 'hospital') return 'Hospital Building'
+    if (tags.building === 'apartments') return 'Apartment Building'
+    if (tags.building === 'commercial') return 'Commercial Building'
+    if (tags.building === 'office') return 'Office Building'
+    if (tags.building === 'retail') return 'Retail Building'
+    if (tags.building === 'school') return 'School Building'
+    if (tags.building === 'terminal') return 'Terminal'
+    if (tags.building && tags.building !== 'yes') {
+      return tags.building.charAt(0).toUpperCase() + tags.building.slice(1).replace(/_/g, ' ')
+    }
+    // Landuse
+    if (tags.landuse === 'residential') return 'Residential Area'
+    if (tags.landuse === 'commercial') return 'Commercial Area'
+    if (tags.landuse === 'retail') return 'Retail Area'
+    if (tags.landuse === 'education') return 'Educational Campus'
+    if (tags.landuse === 'industrial') return 'Industrial Area'
+    if (tags.landuse === 'military') return 'Military Area'
+    // Generic fallbacks — avoid returning raw "yes" values
+    const raw = tags.amenity || tags.leisure || tags.aeroway || tags.shop || tags.tourism || tags.landuse
+    if (raw && raw !== 'yes') return raw.charAt(0).toUpperCase() + raw.slice(1).replace(/_/g, ' ')
+    if (tags.building) return 'Building'
+    return 'Area'
+  }
+
+  /**
+   * Convert raw Overpass elements to Place objects.
+   */
+  private elementsToPlaces(elements: any[]): Place[] {
+    const places: Place[] = []
+    for (const element of elements) {
+      try {
+        const center = calculateOSMCenter(element)
+        if (center) {
+          element.center = { lat: center.lat, lon: center.lng }
+        }
+        const place = this.adapter.placeInfo.adaptPlaceDetails(element)
+        if (place) {
+          places.push(place)
+        }
+      } catch (error) {
+        console.error('Error converting Overpass element to Place:', error)
+      }
+    }
+    return places
+  }
 }

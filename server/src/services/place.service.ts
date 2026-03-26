@@ -1035,8 +1035,11 @@ export async function lookupEnrichedPlaceById(
     const enrichmentTime = Date.now() - enrichmentStart
     console.log(`⏱️ [PERF] Step 3-4 - Parallel enrichment (Wiki + Address): ${enrichmentTime}ms`)
 
-    // Step 5: Resolve widget descriptors based on place data
+    // Step 5: Resolve nearby categories first, then widget descriptors
+    // (widget descriptors depend on nearbyCategories being populated)
     const { resolveWidgetDescriptors } = await import('./widget.service')
+    const { resolveNearbyCategories } = await import('../lib/nearby-categories')
+    place.nearbyCategories = resolveNearbyCategories(place)
     place.widgets = resolveWidgetDescriptors(place)
 
     // Step 6: Add bookmark information if user ID is provided

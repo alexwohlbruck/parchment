@@ -18,6 +18,10 @@ import type {
   PlaceIcon,
   WidgetDescriptor,
   WidgetResponse,
+  NearbyCategory,
+  RelatedPlacesData,
+  RelatedPlacesStrategy,
+  RelatedParent,
 } from '@server/types/place.types'
 
 import { WidgetType } from '@server/types/place.types'
@@ -42,6 +46,10 @@ export type {
   PlaceIcon,
   WidgetDescriptor,
   WidgetResponse,
+  NearbyCategory,
+  RelatedPlacesData,
+  RelatedPlacesStrategy,
+  RelatedParent,
 }
 
 export { WidgetType }

@@ -5,4 +5,7 @@ export const widgetComponents: Record<string, ReturnType<typeof defineAsyncCompo
   [WidgetType.TRANSIT]: defineAsyncComponent(
     () => import('./TransitWidget.vue'),
   ),
+  [WidgetType.RELATED_PLACES]: defineAsyncComponent(
+    () => import('./RelatedPlacesWidget.vue'),
+  ),
 }

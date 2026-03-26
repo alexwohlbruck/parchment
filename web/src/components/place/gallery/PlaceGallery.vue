@@ -15,14 +15,17 @@ const emit = defineEmits<{
 
 <template>
   <TransitionExpand>
-    <div v-if="place.photos && place.photos.length > 0" :class="cn('w-full relative', $attrs.class ?? '')">
+    <div
+      v-if="place.photos && place.photos.length > 0"
+      :class="cn('w-full relative', $attrs.class ?? '')"
+    >
       <div
         class="w-full overflow-x-auto touch-pan-x snap-x snap-mandatory flex gap-2 scrollbar-hidden pb-2 -mb-2"
       >
         <div
           v-for="(photo, index) in place.photos"
           :key="index"
-          class="h-48 flex-none snap-center relative first:ml-4 last:mr-4 rounded-lg overflow-hidden  shadow-md"
+          class="h-48 flex-none snap-center relative first:ml-3 last:mr-3 rounded-lg overflow-hidden shadow-md"
           :style="{ width: 'auto' }"
         >
           <div

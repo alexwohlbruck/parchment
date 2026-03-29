@@ -31,6 +31,7 @@ export type CommandArgument = {
   type: 'string' | 'number'
   getItems: (
     query?: string,
+    signal?: AbortSignal,
   ) => CommandArgumentOption[] | Promise<CommandArgumentOption[]>
   customItemComponent?: Component
 }

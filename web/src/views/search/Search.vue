@@ -22,6 +22,10 @@ import { useCategoryStore } from '@/stores/category.store'
 import { getCategoryColor } from '@/lib/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
 import { ItemIcon } from '@/components/ui/item-icon'
+import { useAuthService } from '@/services/auth.service'
+import { PermissionId } from '@/types/auth.types'
+import { SearchIcon } from 'lucide-vue-next'
+import { newViewFraction } from '@/lib/map-bounds.utils'
 
 const route = useRoute()
 const router = useRouter()
@@ -35,6 +39,13 @@ const SIGNIFICANT_MOVEMENT_THRESHOLD = 0.3 // If camera moves to new area, refre
 let lastRefreshBounds: MapBounds | null = null
 
 const { camera } = useMapCamera()
+
+const authService = useAuthService()
+const canAutoRefresh = computed(() => authService.hasPermission(PermissionId.SEARCH_AUTO_REFRESH))
+
+// True when the map has moved enough to warrant a new search, but the user
+// must manually confirm (shown as a "Search this area" button for non-premium users)
+const pendingAreaSearch = ref(false)
 
 const searchType = computed(() => {
   if (route.query.categoryId) return 'category'
@@ -53,6 +64,20 @@ const categoryData = computed(() => {
 
 const categoryIconName = computed(() => categoryData.value?.iconName ?? null)
 const categoryIconPack = computed<'maki' | 'lucide'>(() => categoryData.value?.iconPack ?? 'lucide')
+
+/**
+ * Human-readable title for the current category search.
+ * Priority: explicit route query → store lookup (async) → formatted categoryId fallback.
+ */
+const categoryTitle = computed((): string => {
+  if (route.query.categoryName) return route.query.categoryName as string
+  if (categoryData.value?.name) return categoryData.value.name
+  const id = route.query.categoryId as string
+  if (!id) return ''
+  // Format the last segment of the ID, e.g. "amenity/restaurant" → "Restaurant"
+  const lastPart = id.split('/').pop() || id
+  return lastPart.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+})
 
 const categoryIconColor = computed(() => {
   // Primary: from route query (set when navigating from palette)
@@ -110,45 +135,18 @@ function shouldMapRefresh(camera: MapCamera) {
     return true
   }
 
-  function calculateBoundsArea(bounds: MapBounds) {
-    const width = Math.abs(bounds.east - bounds.west)
-    const height = Math.abs(bounds.north - bounds.south)
-    return width * height
-  }
-
-  function calculateIntersectionArea(bounds1: MapBounds, bounds2: MapBounds) {
-    // Check if bounds overlap at all
-    if (
-      bounds1.east < bounds2.west ||
-      bounds1.west > bounds2.east ||
-      bounds1.north < bounds2.south ||
-      bounds1.south > bounds2.north
-    ) {
-      return 0
-    }
-
-    const intersection = {
-      north: Math.min(bounds1.north, bounds2.north),
-      south: Math.max(bounds1.south, bounds2.south),
-      east: Math.min(bounds1.east, bounds2.east),
-      west: Math.max(bounds1.west, bounds2.west),
-    }
-    return calculateBoundsArea(intersection)
-  }
-
-  const currentArea = calculateBoundsArea(bounds)
-  const intersectionArea = calculateIntersectionArea(lastRefreshBounds, bounds)
-
-  const newArea = currentArea - intersectionArea
-
-  const newViewPercentage = newArea / currentArea
-
-  return newViewPercentage > SIGNIFICANT_MOVEMENT_THRESHOLD
+  return newViewFraction(lastRefreshBounds, bounds) > SIGNIFICANT_MOVEMENT_THRESHOLD
 }
 
 useMapListener('moveend', () => {
-  if (shouldMapRefresh(camera.value)) {
+  if (!shouldMapRefresh(camera.value)) return
+
+  if (canAutoRefresh.value) {
+    // Premium: auto-refresh in the background
     debouncedMapRefresh(camera.value)
+  } else {
+    // Free tier: surface a manual "Search this area" prompt
+    pendingAreaSearch.value = true
   }
 })
 
@@ -161,6 +159,7 @@ function handleSearchResultClick(place: Place, event: any) {
 }
 
 async function performSearch() {
+  pendingAreaSearch.value = false
   searchStore.setSearchLoading(true)
   searchStore.setSearchError(null)
 
@@ -171,10 +170,7 @@ async function performSearch() {
   if (searchType.value === 'text') {
     searchStore.setSearchQuery(route.query.text as string)
   } else if (searchType.value === 'category') {
-    searchStore.setSearchQuery(
-      (route.query.categoryName as string) ||
-        (route.query.categoryId as string),
-    )
+    searchStore.setSearchQuery(categoryTitle.value)
   }
 
   const bounds = mapService.getBounds()
@@ -315,7 +311,7 @@ function handleFiltersChanged(filters: {
       <!-- Title + meta -->
       <div class="flex flex-col min-w-0">
         <h2 class="text-lg font-bold text-foreground tracking-tight leading-tight">
-          <span v-if="searchType === 'category'">{{ route.query.categoryName }}</span>
+          <span v-if="searchType === 'category'">{{ categoryTitle }}</span>
           <span v-else-if="route.query.overpassQuery">Advanced Search</span>
           <span v-else>Search Results</span>
         </h2>
@@ -324,6 +320,7 @@ function handleFiltersChanged(filters: {
             {{ searchStore.searchResults.length.toLocaleString() }}
             {{ searchStore.searchResults.length === 1 ? 'result' : 'results' }}
           </span>
+          <!-- Premium: auto-refresh spinner -->
           <div
             v-if="searchStore.isMapRefreshing"
             class="flex items-center gap-1 text-primary text-xs"
@@ -341,6 +338,26 @@ function handleFiltersChanged(filters: {
         @filters-changed="handleFiltersChanged"
       />
     </div>
+
+    <!-- "Search this area" — shown when map has moved and user lacks auto-refresh -->
+    <Transition
+      enter-active-class="transition-all duration-200 ease-out"
+      enter-from-class="opacity-0 -translate-y-1"
+      enter-to-class="opacity-100 translate-y-0"
+      leave-active-class="transition-all duration-150 ease-in"
+      leave-from-class="opacity-100 translate-y-0"
+      leave-to-class="opacity-0 -translate-y-1"
+    >
+      <div v-if="pendingAreaSearch && !searchStore.isLoading" class="flex justify-center">
+        <button
+          class="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium bg-primary text-primary-foreground shadow-md hover:bg-primary/90 active:scale-95 transition-all"
+          @click="performSearch"
+        >
+          <SearchIcon class="w-3.5 h-3.5" />
+          Search this area
+        </button>
+      </div>
+    </Transition>
 
     <!-- Error state (only show if no existing places to display) -->
     <ErrorMessage

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import type { Place, NearbyCategory } from '@/types/place.types'
@@ -9,6 +10,7 @@ const props = defineProps<{
   place: Partial<Place>
 }>()
 
+const { t } = useI18n()
 const router = useRouter()
 
 const categories = computed(() => props.place.nearbyCategories || [])
@@ -39,7 +41,7 @@ function handleCategoryClick(cat: NearbyCategory) {
 
 <template>
   <div v-if="categories.length" class="flex flex-col gap-2">
-    <h3 class="text-sm font-semibold text-muted-foreground">Find nearby</h3>
+    <h3 class="text-sm font-semibold text-muted-foreground">{{ t('place.nearby.findNearby') }}</h3>
     <div class="flex flex-wrap gap-1.5">
     <PlaceTypeChip
       v-for="cat in categories"

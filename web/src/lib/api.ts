@@ -180,6 +180,9 @@ api.interceptors.response.use(
     return response
   },
   error => {
+    // Cancelled requests (AbortController.abort()) are intentional — no toast
+    if (axios.isCancel(error)) return Promise.reject(error)
+
     const { title, description } = getErrorMessage(error)
 
     if (error.response?.status === 401) {

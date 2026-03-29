@@ -8,4 +8,7 @@ export const widgetComponents: Record<string, ReturnType<typeof defineAsyncCompo
   [WidgetType.RELATED_PLACES]: defineAsyncComponent(
     () => import('./RelatedPlacesWidget.vue'),
   ),
+  [WidgetType.OSM_TAGS]: defineAsyncComponent(
+    () => import('./OsmTagsWidget.vue'),
+  ),
 }

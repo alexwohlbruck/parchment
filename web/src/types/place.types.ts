@@ -24,7 +24,7 @@ import type {
   RelatedParent,
 } from '@server/types/place.types'
 
-import { WidgetType } from '@server/types/place.types'
+import { WidgetType, WidgetDataType } from '@server/types/place.types'
 
 // Re-export for use in client code
 export type {
@@ -52,7 +52,7 @@ export type {
   RelatedParent,
 }
 
-export { WidgetType }
+export { WidgetType, WidgetDataType }
 
 // TODO: Move out of types
 export function getPrimaryPhoto(place: Partial<Place> | null): PlacePhoto | null {

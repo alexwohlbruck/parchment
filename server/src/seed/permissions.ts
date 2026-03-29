@@ -62,4 +62,9 @@ export const permissions: {
     name: 'Delete map layers',
     description: 'Delete map layers and layer groups',
   },
+  {
+    id: PermissionId.SEARCH_AUTO_REFRESH,
+    name: 'Auto-refresh search results',
+    description: 'Search results automatically refresh as the map is panned — premium feature',
+  },
 ]

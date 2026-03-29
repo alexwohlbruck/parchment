@@ -2,6 +2,7 @@
 import { computed, ref, watch, onMounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onClickOutside, useMagicKeys, useDebounceFn } from '@vueuse/core'
+import { useAbortController } from '@/composables/useAbortController'
 import { useRoute, useRouter } from 'vue-router'
 import { useCommandService } from '@/services/command.service'
 import { CommandName, useCommandStore } from '@/stores/command.store'
@@ -79,6 +80,7 @@ const isDrawerOpen = computed(() => {
 // For async argument options
 const argumentOptions = ref<CommandArgumentOption[]>([])
 const loadingOptions = ref(false)
+const { nextSignal } = useAbortController()
 
 const container = ref<HTMLElement>()
 const commandPalette = ref<InstanceType<typeof Command>>()
@@ -212,12 +214,12 @@ async function onArgumentSelected(value: ArgumentType) {
 }
 
 // Load argument options with async support
-async function loadArgumentOptions() {
+async function loadArgumentOptions(signal?: AbortSignal) {
   if (!activeArgument.value) return
 
   loadingOptions.value = true
   try {
-    const items = activeArgument.value.getItems()
+    const items = activeArgument.value.getItems(undefined, signal)
     // Check if result is a Promise
     if (items instanceof Promise) {
       argumentOptions.value = await items
@@ -225,6 +227,8 @@ async function loadArgumentOptions() {
       argumentOptions.value = items
     }
   } catch (error) {
+    // Ignore cancellation — a newer request is already in flight
+    if (error instanceof DOMException && error.name === 'AbortError') return
     console.error('Error loading argument options:', error)
     argumentOptions.value = []
   } finally {
@@ -241,11 +245,12 @@ watch(activeArgument, async newArg => {
   }
 })
 
-// Create a debounced function for loading search options
+// Create a debounced function for loading search options.
+// nextSignal() cancels the previous in-flight autocomplete request before issuing a new one.
 const debouncedLoadOptions = useDebounceFn(async () => {
   // Load options if we're in search mode
   if (activeCommand.value?.id === CommandName.SEARCH && activeArgument.value) {
-    await loadArgumentOptions()
+    await loadArgumentOptions(nextSignal())
   }
 }, 300)
 

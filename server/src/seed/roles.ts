@@ -37,6 +37,7 @@ const alpha: Role = {
     PermissionId.LAYERS_READ,
     PermissionId.LAYERS_WRITE,
     PermissionId.LAYERS_DELETE,
+    PermissionId.SEARCH_AUTO_REFRESH,
     // Permission.USERS_READ,
     // Permission.ROLES_READ,
     // Permission.PERMISSIONS_READ,

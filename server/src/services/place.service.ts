@@ -456,7 +456,7 @@ export async function lookupPlacesByNameAndLocation(
       language,
     } = options || {}
 
-    const integrationRecords = integrationManager
+    const allIntegrationRecords = integrationManager
       .getConfiguredIntegrationsByCapability(
         autocomplete
           ? IntegrationCapabilityId.AUTOCOMPLETE
@@ -471,6 +471,14 @@ export async function lookupPlacesByNameAndLocation(
           sourceBlacklist.includes(source),
         )
       })
+
+    // For autocomplete, only use the single highest-priority integration.
+    // Querying multiple integrations in parallel means the slowest one determines
+    // total latency — unnecessary for typing-speed autocomplete where the primary
+    // integration (Barrelman) covers everything we need.
+    const integrationRecords = autocomplete
+      ? allIntegrationRecords.slice(0, 1)
+      : allIntegrationRecords
 
     if (integrationRecords.length === 0) {
       // TODO: Return useful error to client
@@ -487,6 +495,7 @@ export async function lookupPlacesByNameAndLocation(
           name,
           coordinates.lat,
           coordinates.lng,
+          { radius },
         )
       } else {
         return integration.capabilities.search?.searchPlaces(

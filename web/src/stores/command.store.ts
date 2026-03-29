@@ -125,17 +125,17 @@ export const useCommandStore = defineStore('command', () => {
             const categoryId = itemId.replace('category:', '')
             const categoryStore = useCategoryStore()
 
+            // Look up for optional enrichment (name, icon color), but navigate
+            // regardless — categoryId alone is enough for Search.vue to work.
             const category = categoryStore.getCategoryById(categoryId)
-            if (category) {
-              await router.push({
-                name: AppRoute.SEARCH_RESULTS,
-                query: {
-                  categoryId: category.id,
-                  categoryName: category.name,
-                  ...(category.iconCategory ? { categoryIconCategory: category.iconCategory } : {}),
-                },
-              })
-            }
+            await router.push({
+              name: AppRoute.SEARCH_RESULTS,
+              query: {
+                categoryId,
+                ...(category?.name ? { categoryName: category.name } : {}),
+                ...(category?.iconCategory ? { categoryIconCategory: category.iconCategory } : {}),
+              },
+            })
           } else {
             // Regular place navigation
             const route = getPlaceRoute(itemId)
@@ -147,7 +147,7 @@ export const useCommandStore = defineStore('command', () => {
             id: 'places',
             name: t('palette.commands.search.arguments.places.name'),
             type: 'string',
-            async getItems() {
+            async getItems(_query?: string, signal?: AbortSignal) {
               // Use the command service to get the current search query
               const { currentSearchQuery } = useCommandService()
               const searchText = currentSearchQuery.value
@@ -173,7 +173,9 @@ export const useCommandStore = defineStore('command', () => {
                       results.push({
                         value: `category:${category.id}`,
                         name: category.name,
-                        description: 'Category',
+                        description: category.description && !/^\S+=\S+$/.test(category.description)
+                          ? category.description
+                          : undefined,
                         iconName,
                         iconPack,
                         iconColor: getCategoryColor(iconCategory, isDark.value),
@@ -204,17 +206,25 @@ export const useCommandStore = defineStore('command', () => {
                     query: searchText,
                     lat,
                     lng,
-                  })
+                  }, signal)
 
-                // Add place results after categories (filter out category results to avoid duplicates)
+                // Add API results — includes both places and server-resolved categories.
+                // Deduplicate by value against any items already added (e.g. from client-side category search).
+                const existingValues = new Set(results.map((r: any) => r.value))
                 searchResults
-                  .filter(result => result.type !== 'category')
                   .forEach(result => {
+                    const itemValue = result.type === 'category'
+                      ? `category:${result.id}`
+                      : result.id
+                    if (existingValues.has(itemValue)) return // skip duplicate
+                    existingValues.add(itemValue)
                     const iconCategory = (result.iconCategory || 'default') as PlaceCategory
                     results.push({
-                      value: result.id,
+                      value: itemValue,
                       name: result.title,
-                      description: result.description,
+                      description: result.description && !/^\S+=\S+$/.test(result.description)
+                        ? result.description
+                        : undefined,
                       iconName: result.icon || 'MapPin',
                       iconPack: result.iconPack || 'lucide',
                       iconColor: getCategoryColor(iconCategory, isDark.value),

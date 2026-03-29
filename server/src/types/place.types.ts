@@ -151,6 +151,21 @@ export interface PlaceRelation {
 export enum WidgetType {
   TRANSIT = 'transit',
   RELATED_PLACES = 'related_places',
+  OSM_TAGS = 'osm_tags',
+}
+
+/**
+ * Widget data source types.
+ *
+ * STATIC — data is serialised into the descriptor at resolve time.
+ *   The client renders immediately with no extra round-trip.
+ *
+ * ASYNC — data is fetched from /places/widgets/:type after page load.
+ *   The client shows a skeleton placeholder while waiting.
+ */
+export enum WidgetDataType {
+  STATIC = 'static',
+  ASYNC = 'async',
 }
 
 export type RelatedPlacesStrategy = 'children' | 'parent' | 'admin'
@@ -169,12 +184,15 @@ export interface RelatedPlacesData {
   parents: RelatedParent[] // Containing areas (parent/admin strategy)
   centerLat: number // Parent place center (for client-side distance display)
   centerLng: number
+  hasMore?: boolean // Whether more children are available (for pagination)
+  offset?: number // Current offset (for client-side pagination)
 }
 
 export interface WidgetDescriptor {
   type: WidgetType
+  dataType: WidgetDataType
   title: string
-  estimatedHeight: number // px, for skeleton placeholder on client
+  estimatedHeight: number // px, for skeleton placeholder on client (only used for ASYNC widgets)
   params: Record<string, string | number | boolean>
 }
 
@@ -231,7 +249,10 @@ export interface Place {
   contactInfo: {
     phone: AttributedValue<string> | null
     email: AttributedValue<string> | null
+    /** Primary website URL (first / most prominent) */
     website: AttributedValue<string> | null
+    /** All website URLs associated with the place (primary + sub-keys like website:menu). Optional — only populated by integrations that have multi-URL data. */
+    websites?: AttributedValue<string[]> | null
     socials: Record<string, AttributedValue<string>>
   }
   openingHours: AttributedValue<OpeningHours> | null
@@ -242,6 +263,13 @@ export interface Place {
   }
   transit?: AttributedValue<TransitStopInfo> | null
   relations?: AttributedValue<PlaceRelation[]> | null
+
+  // Raw OSM tags (populated for OSM-sourced places)
+  tags?: Record<string, string>
+
+  // Short human-readable summary derived from tags (e.g. "6 bicycles · Covered")
+  // Generated server-side; used in search result list items
+  summary?: string | null
 
   // Widget descriptors for additional data sections
   widgets?: WidgetDescriptor[]

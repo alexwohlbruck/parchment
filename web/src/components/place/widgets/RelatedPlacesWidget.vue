@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import type {
   WidgetResponse,
@@ -10,13 +11,10 @@ import type {
 } from '@/types/place.types'
 import { getPlaceRoute } from '@/lib/place.utils'
 import PlaceListItem from '@/components/place/PlaceListItem.vue'
-import { Card, CardContent } from '@/components/ui/card'
-import { ItemIcon } from '@/components/ui/item-icon'
-import { ChevronRightIcon } from 'lucide-vue-next'
-import { getCategoryColor } from '@/lib/place-colors'
-import { useThemeStore } from '@/stores/theme.store'
+import { api } from '@/lib/api'
+import { WidgetType } from '@/types/place.types'
 
-const themeStore = useThemeStore()
+const { t } = useI18n()
 
 const props = defineProps<{
   data: WidgetResponse<RelatedPlacesData>
@@ -28,108 +26,166 @@ const router = useRouter()
 
 const relatedData = computed(() => props.data.data.value as RelatedPlacesData)
 const strategy = computed(() => relatedData.value.strategy)
-const children = computed(() => relatedData.value.children || [])
 const parents = computed(() => relatedData.value.parents || [])
 
-const hasResults = computed(
-  () => children.value.length > 0 || parents.value.length > 0,
+// ── Children pagination ─────────────────────────────────────────────────────
+
+const localChildren = ref<Place[]>([...(relatedData.value.children || [])])
+const isLoadingMore = ref(false)
+const hasMore = ref(relatedData.value.hasMore ?? false)
+const currentOffset = ref(localChildren.value.length)
+
+// Reset when the widget data changes (different place)
+watch(
+  () => props.data,
+  newData => {
+    const d = newData.data.value as RelatedPlacesData
+    localChildren.value = [...(d.children || [])]
+    hasMore.value = d.hasMore ?? false
+    currentOffset.value = localChildren.value.length
+  },
 )
 
-// Heading text
+async function loadMore() {
+  if (isLoadingMore.value || !hasMore.value) return
+  isLoadingMore.value = true
+  try {
+    const params = {
+      ...(props.descriptor.params as Record<string, string>),
+      offset: String(currentOffset.value),
+    }
+    const response = await api.get<WidgetResponse<RelatedPlacesData>>(
+      `/places/widgets/${WidgetType.RELATED_PLACES}`,
+      { params },
+    )
+    const newData = response.data.data.value as RelatedPlacesData
+    localChildren.value = [...localChildren.value, ...(newData.children || [])]
+    hasMore.value = newData.hasMore ?? false
+    currentOffset.value = localChildren.value.length
+  } catch {
+    // silently ignore — user can scroll back to retry
+  } finally {
+    isLoadingMore.value = false
+  }
+}
+
+// IntersectionObserver on sentinel element at right edge of scroll container
+const sentinelRef = ref<HTMLElement | null>(null)
+let observer: IntersectionObserver | null = null
+
+onMounted(() => {
+  observer = new IntersectionObserver(
+    entries => {
+      if (entries[0].isIntersecting) loadMore()
+    },
+    { threshold: 0.1 },
+  )
+  if (sentinelRef.value) observer.observe(sentinelRef.value)
+})
+
+// Re-attach observer when sentinelRef changes
+watch(sentinelRef, el => {
+  observer?.disconnect()
+  if (el) observer?.observe(el)
+})
+
+onUnmounted(() => observer?.disconnect())
+
+// ── Derived ─────────────────────────────────────────────────────────────────
+
+const hasResults = computed(
+  () => localChildren.value.length > 0 || parents.value.length > 0,
+)
+
 const headingText = computed(() => {
   switch (strategy.value) {
     case 'children': {
       const name = props.place.name?.value
-      return name ? `Inside ${name}` : 'Inside this place'
+      return name
+        ? t('place.related.insideName', { name })
+        : t('place.related.insideThisPlace')
     }
     case 'parent':
-      return 'Located in'
+      return t('place.related.locatedIn')
     case 'admin':
-      return 'Part of'
+      return t('place.related.partOf')
     default:
-      return 'Related Places'
+      return t('place.related.relatedPlaces')
   }
 })
 
-function navigateToParent(parent: RelatedParent) {
-  const route = getPlaceRoute(`osm/${parent.id}`)
-  router.push(route)
+/** Convert a lightweight RelatedParent into a minimal Place shape for PlaceListItem. */
+function parentToPlace(parent: RelatedParent): Place {
+  return {
+    id: parent.id,
+    name: parent.name
+      ? { value: parent.name, sourceId: '', timestamp: '' }
+      : null,
+    placeType: parent.placeType
+      ? { value: parent.placeType, sourceId: '', timestamp: '' }
+      : null,
+    icon: parent.icon ?? null,
+  } as unknown as Place
 }
 </script>
 
 <template>
-  <!-- Children strategy: fragment with heading + full-bleed gallery as top-level siblings,
-       same DOM level as PlaceGallery so the break-out behaves identically. -->
+  <!-- Children strategy -->
   <template v-if="hasResults && strategy === 'children'">
     <h3 class="text-sm font-semibold text-muted-foreground">
       {{ headingText }}
     </h3>
     <div class="ml-[-0.75rem] mr-[-0.75rem] w-[calc(100%+1.5rem)] relative">
       <div
-        class="w-full overflow-x-auto touch-pan-x snap-x snap-mandatory flex gap-2 scrollbar-hidden [&>*:first-child>*:first-child]:ml-3 [&>*:last-child>*:last-child]:mr-3"
+        class="w-full overflow-x-auto touch-pan-x snap-x snap-mandatory flex gap-3 scroll-px-3 scrollbar-hidden [&>*:first-child>*:first-child]:ml-3 [&>*:last-child>*:last-child]:mr-3"
       >
         <div
-          v-for="child in children"
+          v-for="child in localChildren"
           :key="child.id"
           class="w-64 flex-none snap-start"
         >
           <PlaceListItem :place="child" />
         </div>
+
+        <!-- Loading skeleton cards -->
+        <template v-if="isLoadingMore">
+          <div
+            v-for="i in 3"
+            :key="`skeleton-${i}`"
+            class="w-64 flex-none snap-start"
+          >
+            <div class="h-24 rounded-xl bg-muted animate-pulse mx-1" />
+          </div>
+        </template>
+
+        <!-- Sentinel: triggers loadMore when scrolled into view -->
+        <div
+          v-if="hasMore && !isLoadingMore"
+          ref="sentinelRef"
+          class="w-4 flex-none self-stretch"
+          aria-hidden="true"
+        />
       </div>
     </div>
   </template>
 
-  <!-- Parent / Admin strategy: heading + tappable cards in a normal wrapper -->
-  <div v-else-if="hasResults" class="flex flex-col gap-2">
+  <!-- Parent / Admin strategy: same horizontal scroll layout as children -->
+  <template v-else-if="hasResults">
     <h3 class="text-sm font-semibold text-muted-foreground">
       {{ headingText }}
     </h3>
-    <div class="flex flex-col gap-1.5">
-      <Card
-        v-for="parent in parents"
-        :key="parent.id"
-        class="cursor-pointer transition-colors hover:bg-muted/30"
-        @click="navigateToParent(parent)"
+    <div class="ml-[-0.75rem] mr-[-0.75rem] w-[calc(100%+1.5rem)] relative">
+      <div
+        class="w-full overflow-x-auto touch-pan-x snap-x snap-mandatory flex gap-3 scroll-px-3 scrollbar-hidden [&>*:first-child>*:first-child]:ml-3 [&>*:last-child>*:last-child]:mr-3"
       >
-        <CardContent class="px-3 py-3">
-          <div class="flex items-center gap-3">
-            <ItemIcon
-              :icon="parent.icon?.icon || 'Building'"
-              :icon-pack="parent.icon?.iconPack || 'lucide'"
-              :custom-color="
-                parent.icon
-                  ? getCategoryColor(parent.icon.category, themeStore.isDark)
-                  : undefined
-              "
-              class="shadow-sm"
-              size="sm"
-              variant="solid"
-              shape="circle"
-            />
-            <div class="flex-1 min-w-0">
-              <span
-                class="font-semibold text-sm text-foreground truncate block"
-              >
-                {{ parent.name }}
-              </span>
-              <span class="text-xs text-muted-foreground">
-                {{ parent.placeType }}
-              </span>
-            </div>
-            <ChevronRightIcon class="size-4 text-muted-foreground shrink-0" />
-          </div>
-        </CardContent>
-      </Card>
+        <div
+          v-for="parent in parents"
+          :key="parent.id"
+          class="w-64 flex-none snap-start"
+        >
+          <PlaceListItem :place="parentToPlace(parent)" />
+        </div>
+      </div>
     </div>
-  </div>
+  </template>
 </template>
-
-<style scoped>
-.overflow-x-auto::-webkit-scrollbar {
-  display: none;
-}
-.overflow-x-auto {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-</style>

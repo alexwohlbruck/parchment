@@ -44,8 +44,11 @@ export class OverpassAdapter {
       // Calculate center if not provided
       const center = calculateOSMCenter(data)
 
-      // Match tags to get preset and build icon
-      const presetMatch = matchTags(data.tags || {})
+      // Match tags to get preset and build icon.
+      // Ways and relations are area features — use 'area' geometry so presets like
+      // building/apartments are matched correctly instead of falling back to building_point.
+      const geometryHint = (data.type === 'way' || data.type === 'relation') ? 'area' : 'point'
+      const presetMatch = matchTags(data.tags || {}, geometryHint)
       const icon = buildPlaceIcon(presetMatch)
 
       return {
@@ -58,7 +61,7 @@ export class OverpassAdapter {
           sourceId: SOURCE.OSM,
         },
         placeType: {
-          value: getPlaceType(data.tags || {}) || 'unknown',
+          value: getPlaceType(data.tags || {}, 'en-US', geometryHint) || 'unknown',
           sourceId: SOURCE.OSM,
         },
         icon,

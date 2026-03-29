@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { createSharedComposable } from '@vueuse/core'
+import axios from 'axios'
 import { useAppService } from '@/services/app.service'
 import { api } from '@/lib/api'
 import type { Place } from '@/types/place.types'
@@ -33,6 +34,7 @@ function placeService() {
       lng?: number
       radius?: number
     },
+    signal?: AbortSignal,
   ) {
     loading.value = true
 
@@ -70,11 +72,13 @@ function placeService() {
 
       const response = await api.get<Place>('/places/details', {
         params: queryParams,
+        signal,
       })
 
       currentPlace.value = response.data
       return response.data
     } catch (e) {
+      if (axios.isCancel(e)) return null
       console.error('Error fetching place details:', e)
       toast.error(e instanceof Error ? e.message : 'An error occurred')
       currentPlace.value = null
@@ -141,6 +145,7 @@ function placeService() {
     lat: number,
     lng: number,
     options?: { radius?: number },
+    signal?: AbortSignal,
   ): Promise<Place | null> {
     loading.value = true
 
@@ -156,11 +161,13 @@ function placeService() {
 
       const response = await api.get<Place>('/places/details', {
         params: queryParams,
+        signal,
       })
 
       currentPlace.value = response.data
       return response.data
     } catch (e) {
+      if (axios.isCancel(e)) return null
       console.error('Error fetching place details by coordinates:', e)
       toast.error(e instanceof Error ? e.message : 'An error occurred')
       currentPlace.value = null

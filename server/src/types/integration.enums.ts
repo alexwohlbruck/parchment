@@ -19,6 +19,7 @@ export enum IntegrationId {
   OPENWEATHERMAP = 'openweathermap',
   /** Observability / log shipping. System-only; configures OTLP export (e.g. Axiom). */
   AXIOM = 'axiom',
+  BARRELMAN = 'barrelman',
 }
 
 export enum IntegrationCapabilityId {
@@ -35,4 +36,6 @@ export enum IntegrationCapabilityId {
   TRANSIT_DATA = 'transitData',
   WEATHER = 'weather',
   LOGGING = 'logging',
+  SPATIAL_CONTAINS = 'spatialContains',
+  SPATIAL_CHILDREN = 'spatialChildren',
 }

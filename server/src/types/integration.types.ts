@@ -122,6 +122,8 @@ export interface SearchCategoryCapability {
     bounds: MapBounds,
     options?: {
       limit?: number
+      /** Extra OSM tag key/value pairs to filter results beyond the primary category. */
+      filterTags?: Record<string, string>
     },
   ): Promise<Place[]>
 }
@@ -186,6 +188,14 @@ export interface WeatherCapability {
 /** Logging / observability (e.g. OTLP export to Axiom). No methods; config-only. */
 export interface LoggingCapability {}
 
+export interface SpatialContainsCapability {
+  getContainingAreas(lat: number, lng: number): Promise<Place[]>
+}
+
+export interface SpatialChildrenCapability {
+  getChildren(areaId: string, categories?: string[], limit?: number): Promise<Place[]>
+}
+
 // Integration capabilities container
 export interface IntegrationCapabilities {
   search?: SearchCapability
@@ -199,6 +209,8 @@ export interface IntegrationCapabilities {
   transitData?: TransitDataCapability
   weather?: WeatherCapability
   logging?: LoggingCapability
+  spatialContains?: SpatialContainsCapability
+  spatialChildren?: SpatialChildrenCapability
 }
 
 /**

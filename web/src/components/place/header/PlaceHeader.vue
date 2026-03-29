@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, nextTick, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   StarIcon,
   XIcon,
@@ -25,6 +26,7 @@ const props = defineProps<{
   place: Partial<Place>
 }>()
 
+const { t } = useI18n()
 const { isMobileScreen } = useResponsive()
 const themeStore = useThemeStore()
 const router = useRouter()
@@ -189,13 +191,36 @@ watch(
       </div>
 
       <div class="flex-1">
-        <h1 v-if="displayName" class="text-2xl font-semibold line-clamp-2">
-          {{ displayName }}
-        </h1>
-        <!-- Named place: show icon + type label as a clickable badge -->
+        <!-- Named place: h1 title, then icon + type label as a clickable badge below -->
+        <template v-if="placeName">
+          <h1 class="text-2xl font-semibold line-clamp-2">
+            {{ displayName }}
+          </h1>
+          <button
+            v-if="showPlaceType"
+            class="flex items-center gap-1.5 group rounded-md -mx-1 px-1 py-0.5 hover:bg-muted transition-colors"
+            :class="place?.icon?.presetId ? 'cursor-pointer' : 'cursor-default'"
+            @click="openCategorySearch"
+          >
+            <ItemIcon
+              :icon="placeIconName"
+              :icon-pack="placeIconPack"
+              :custom-color="placeCategoryColor"
+              size="xs"
+              variant="solid"
+              shape="circle"
+              class="!size-6 shadow-sm"
+            />
+            <span
+              class="text-sm text-muted-foreground group-hover:text-foreground transition-colors"
+              >{{ placeType }}</span
+            >
+          </button>
+        </template>
+        <!-- Unnamed place: icon left of title in a single clickable row -->
         <button
-          v-if="showPlaceType"
-          class="flex items-center gap-1.5 group rounded-md -mx-1 px-1 py-0.5 hover:bg-muted transition-colors"
+          v-else-if="displayName"
+          class="flex items-center gap-3 group rounded-md -mx-1 px-1 py-0.5 hover:bg-muted transition-colors text-left"
           :class="place?.icon?.presetId ? 'cursor-pointer' : 'cursor-default'"
           @click="openCategorySearch"
         >
@@ -206,28 +231,12 @@ watch(
             size="xs"
             variant="solid"
             shape="circle"
-            class="!size-6 shadow-sm"
+            class="!size-8 shadow-sm shrink-0"
           />
-          <span
-            class="text-sm text-muted-foreground group-hover:text-foreground transition-colors"
-            >{{ placeType }}</span
-          >
+          <h1 class="text-2xl font-semibold line-clamp-2">
+            {{ displayName }}
+          </h1>
         </button>
-        <!-- Unnamed place: show icon badge only (type is already the title) -->
-        <div
-          v-else-if="placeType && !placeName"
-          class="flex items-center gap-1.5"
-        >
-          <ItemIcon
-            :icon="placeIconName"
-            :icon-pack="placeIconPack"
-            :custom-color="placeCategoryColor"
-            size="sm"
-            variant="solid"
-            shape="circle"
-            class="!size-6"
-          />
-        </div>
         <div v-if="rating !== null" class="flex items-center gap-1 mt-1">
           <div class="flex">
             <StarIcon
@@ -284,11 +293,11 @@ watch(
       >
         <template v-if="isDescriptionExpanded">
           <ChevronUpIcon class="w-3 h-3" />
-          Show less
+          {{ t('place.header.showLess') }}
         </template>
         <template v-else>
           <ChevronDownIcon class="w-3 h-3" />
-          Show more
+          {{ t('place.header.showMore') }}
         </template>
       </button>
     </div>

@@ -18,20 +18,22 @@ import {
 import DetailItem from './DetailItem.vue'
 import PlaceHours from './PlaceHours.vue'
 import type { Place } from '@/types/place.types'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { getWifiStatus, parseCuisines } from '@/lib/place.utils'
 import { SOURCE } from '@/lib/constants'
 import { encode } from 'pluscodes'
 import PlaceSection from './PlaceSection.vue'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { ChevronDownIcon, ExternalLinkIcon } from 'lucide-vue-next'
-import { ref } from 'vue'
 import CopyButton from '@/components/CopyButton.vue'
 import { Button } from '@/components/ui/button'
 
 const props = defineProps<{
   place: Partial<Place>
 }>()
+
+const { t } = useI18n()
 
 const cuisines = computed(() => {
   if (!props.place) return null
@@ -51,8 +53,22 @@ const coordinates = computed(() => {
 })
 
 const phoneValue = computed(() => props.place?.contactInfo?.phone?.value)
-const websiteValue = computed(() => props.place?.contactInfo?.website?.value)
 const emailValue = computed(() => props.place?.contactInfo?.email?.value)
+
+/**
+ * All website URLs for the place: the typed websites[] array is preferred
+ * (populated by integrations with primary + sub-key URLs). Falls back to the
+ * single contactInfo.website field for backward compatibility.
+ */
+const websiteUrls = computed((): string[] => {
+  const all = props.place?.contactInfo?.websites?.value
+  if (all?.length) return all
+  const single = props.place?.contactInfo?.website?.value
+  return single ? [single] : []
+})
+
+/** Keep a single value accessor for old callers */
+const websiteValue = computed(() => websiteUrls.value[0] ?? null)
 
 const wifiStatus = computed(() => {
   if (!props.place) return null
@@ -111,15 +127,7 @@ const plusCode = computed(() => {
 const isAddressExpanded = ref(false)
 const isHoursExpanded = ref(false)
 
-const DAYS = [
-  'Sunday',
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-]
+const DAYS = computed(() => [0, 1, 2, 3, 4, 5, 6].map(i => t(`place.hours.days.${i}`)))
 
 function formatTime(time: string) {
   const [hours, minutes] = time.split(':').map(Number)
@@ -131,15 +139,13 @@ function formatTime(time: string) {
 function formatOpeningHours(hours: any) {
   if (!hours || !hours.rawText) return ''
 
-  if (hours.isPermanentlyClosed) return 'Permanently closed'
+  if (hours.isPermanentlyClosed) return t('place.hours.permanentlyClosed')
   if (hours.isTemporarilyClosed) {
     return hours.nextOpenDate
-      ? `Temporarily closed until ${new Date(
-          hours.nextOpenDate,
-        ).toLocaleDateString()}`
-      : 'Temporarily closed'
+      ? t('place.hours.temporarilyClosedUntil', { date: new Date(hours.nextOpenDate).toLocaleDateString() })
+      : t('place.hours.temporarilyClosed')
   }
-  if (hours.isOpen24_7) return 'Open 24/7'
+  if (hours.isOpen24_7) return t('place.hours.open247')
 
   return hours.rawText.split(';').join('\n')
 }
@@ -150,15 +156,15 @@ function getOpeningStatus(hours: any) {
   }
 
   if (hours.isPermanentlyClosed) {
-    return { status: 'Permanently closed', color: 'text-red-500' }
+    return { status: t('place.hours.permanentlyClosed'), color: 'text-red-500' }
   }
 
   if (hours.isTemporarilyClosed) {
-    return { status: 'Temporarily closed', color: 'text-orange-500' }
+    return { status: t('place.hours.temporarilyClosed'), color: 'text-orange-500' }
   }
 
   if (hours.isOpen24_7) {
-    return { status: 'Open 24/7', color: 'text-green-500' }
+    return { status: t('place.hours.open247'), color: 'text-green-500' }
   }
 
   if (hours.regularHours.length === 0) {
@@ -174,17 +180,17 @@ function getOpeningStatus(hours: any) {
 
   const todayHours = hours.regularHours.find((h: any) => h.day === currentDay)
   if (!todayHours) {
-    return { status: 'Closed today', color: 'text-red-500' }
+    return { status: t('place.hours.closedToday'), color: 'text-red-500' }
   }
 
   if (currentTime >= todayHours.open && currentTime <= todayHours.close) {
     return {
-      status: `Open until ${formatTime(todayHours.close)}`,
+      status: t('place.hours.openUntil', { time: formatTime(todayHours.close) }),
       color: 'text-green-500',
     }
   } else if (currentTime < todayHours.open) {
     return {
-      status: `Opens at ${formatTime(todayHours.open)}`,
+      status: t('place.hours.opensAt', { time: formatTime(todayHours.open) }),
       color: 'text-orange-500',
     }
   } else {
@@ -195,14 +201,14 @@ function getOpeningStatus(hours: any) {
       const nextDayHours = hours.regularHours.find((h: any) => h.day === nextDay)
       if (nextDayHours) {
         return {
-          status: `Opens ${DAYS[nextDay]} at ${formatTime(nextDayHours.open)}`,
+          status: t('place.hours.opensDay', { day: DAYS.value[nextDay], time: formatTime(nextDayHours.open) }),
           color: 'text-orange-500',
         }
       }
       nextDay = (nextDay + 1) % 7
       daysChecked++
     }
-    return { status: 'Closed', color: 'text-red-500' }
+    return { status: t('place.hours.closed'), color: 'text-red-500' }
   }
 }
 
@@ -288,7 +294,7 @@ function getFullAddress(address: any) {
                     <div class="flex opacity-0 group-hover:opacity-100 transition-opacity shrink-0" @click.stop>
                       <CopyButton
                         :text="place.address.value.formatted || getFullAddress(place.address.value)"
-                        message="Address copied to clipboard"
+                        :message="t('place.details.addressCopied')"
                       />
                       <a
                         v-if="osmUrl"
@@ -296,7 +302,7 @@ function getFullAddress(address: any) {
                         target="_blank"
                         rel="noopener noreferrer"
                         class="p-1 hover:bg-muted rounded"
-                        title="View on OpenStreetMap"
+                        :title="t('place.details.viewOnOpenStreetMap')"
                       >
                         <ExternalLinkIcon class="w-4 h-4 text-muted-foreground" />
                       </a>
@@ -325,7 +331,7 @@ function getFullAddress(address: any) {
                     :copyValue="formatCoordinates(coordinates.lat, coordinates.lng)"
                     :osmUrl="osmUrl"
                     :coordinates="coordinates"
-                    label="Coordinates"
+                    :label="t('place.details.coordinates')"
                   />
 
                   <!-- Plus Code -->
@@ -336,7 +342,7 @@ function getFullAddress(address: any) {
                     :copyValue="plusCode"
                     :osmUrl="osmUrl"
                     :coordinates="coordinates"
-                    label="Plus code"
+                    :label="t('place.details.plusCode')"
                   />
                 </div>
               </CollapsibleContent>
@@ -351,7 +357,7 @@ function getFullAddress(address: any) {
               :copyValue="place.address.value.formatted || getFullAddress(place.address.value)"
               :osmUrl="osmUrl"
               :coordinates="coordinates"
-              label="Address"
+              :label="t('place.details.address')"
             />
           </div>
           
@@ -375,7 +381,7 @@ function getFullAddress(address: any) {
                     <div class="flex opacity-0 group-hover:opacity-100 transition-opacity shrink-0" @click.stop>
                       <CopyButton
                         :text="formatOpeningHours(place.openingHours.value)"
-                        message="Hours copied to clipboard"
+                        :message="t('place.details.hoursCopied')"
                       />
                       <a
                         v-if="osmUrl"
@@ -383,7 +389,7 @@ function getFullAddress(address: any) {
                         target="_blank"
                         rel="noopener noreferrer"
                         class="p-1 hover:bg-muted rounded"
-                        title="View on OpenStreetMap"
+                        :title="t('place.details.viewOnOpenStreetMap')"
                       >
                         <ExternalLinkIcon class="w-4 h-4 text-muted-foreground" />
                       </a>
@@ -409,7 +415,7 @@ function getFullAddress(address: any) {
                       v-for="day in DAYS"
                       :key="day"
                       class="flex justify-between"
-                      :class="{ 'font-medium text-foreground': day === DAYS[new Date().getDay()] }"
+                      :class="{ 'font-medium text-foreground': DAYS.indexOf(day) === new Date().getDay() }"
                     >
                       <span>{{ day }}</span>
                       <span>
@@ -430,7 +436,7 @@ function getFullAddress(address: any) {
                             )
                           }}
                         </template>
-                        <template v-else>Closed</template>
+                        <template v-else>{{ t('place.hours.closed') }}</template>
                       </span>
                     </div>
                   </div>
@@ -461,19 +467,20 @@ function getFullAddress(address: any) {
             :copyValue="phoneValue"
             :osmUrl="osmUrl"
             :href="`tel:${phoneValue}`"
-            label="Phone number"
+            :label="t('place.details.phoneNumber')"
           />
 
-          <!-- Website -->
+          <!-- Websites (all URLs: primary + sub-key entries like website:menu) -->
           <DetailItem
-            v-if="websiteValue"
+            v-for="url in websiteUrls"
+            :key="url"
             :icon="LinkIcon"
-            :value="websiteValue"
+            :value="url"
             :osmUrl="osmUrl"
-            :copyValue="websiteValue"
-            :href="websiteValue"
+            :copyValue="url"
+            :href="url"
             target="_blank"
-            label="URL"
+            :label="t('place.details.website')"
           />
 
           <!-- Email -->
@@ -484,7 +491,7 @@ function getFullAddress(address: any) {
             :copyValue="emailValue"
             :osmUrl="osmUrl"
             :href="`mailto:${emailValue}`"
-            label="Email address"
+            :label="t('place.details.emailAddress')"
           />
         </div>
       </template>
@@ -518,11 +525,11 @@ function getFullAddress(address: any) {
           :value="wifiStatus.label"
           :copyValue="wifiStatus.password"
           :osmUrl="osmUrl"
-          label="WiFi password"
+          :label="t('place.details.wifiPassword')"
         >
           <template v-if="wifiStatus.ssid">
             <span class="text-muted-foreground text-sm">
-              Network: {{ wifiStatus.ssid }}
+              {{ t('place.details.wifiNetwork', { ssid: wifiStatus.ssid }) }}
             </span>
           </template>
         </DetailItem>
@@ -531,44 +538,38 @@ function getFullAddress(address: any) {
         <DetailItem
           v-if="outdoorSeating"
           :icon="TreesIcon"
-          value="Has outdoor seating"
+          :value="t('place.details.outdoorSeating')"
         />
 
         <!-- Wheelchair Access -->
         <DetailItem
           v-if="wheelchairAccess"
           :icon="AccessibilityIcon"
-          :value="
-            wheelchairAccess === 'yes'
-              ? 'Wheelchair accessible'
-              : 'Not wheelchair accessible'
-          "
+          :value="wheelchairAccess === 'yes'
+            ? t('place.details.wheelchairAccessible')
+            : t('place.details.notWheelchairAccessible')"
         />
 
         <!-- Smoking -->
         <DetailItem
           v-if="smokingStatus"
           :icon="CigaretteIcon"
-          :value="
-            smokingStatus === 'no'
-              ? 'No smoking'
-              : smokingStatus === 'outside'
-              ? 'Smoking allowed outside'
-              : 'Smoking allowed'
-          "
+          :value="smokingStatus === 'no'
+            ? t('place.details.noSmoking')
+            : smokingStatus === 'outside'
+            ? t('place.details.smokingOutside')
+            : t('place.details.smokingAllowed')"
         />
 
         <!-- Restroom Access -->
         <DetailItem
           v-if="restroomAccess || wheelchairRestroomAccess"
           :icon="ToiletIcon"
-          :value="
-            wheelchairRestroomAccess === 'yes'
-              ? 'Wheelchair accessible restroom'
-              : restroomAccess === 'yes'
-              ? 'Has restroom'
-              : 'No restroom'
-          "
+          :value="wheelchairRestroomAccess === 'yes'
+            ? t('place.details.wheelchairRestroom')
+            : restroomAccess === 'yes'
+            ? t('place.details.hasRestroom')
+            : t('place.details.noRestroom')"
         />
       </template>
     </PlaceSection>

@@ -275,238 +275,154 @@ export function createSearchResultsRoute(options: {
   }
 }
 
+// ── Per-type adapters ─────────────────────────────────────────────────────────
+
+/** Shared source field added to all sourced fields when converting from a search result. */
+function sourceField<T>(value: T) {
+  return { value, sourceId: 'search', timestamp: new Date().toISOString() }
+}
+
+/** Shared empty contact info block. */
+function emptyContactInfo() {
+  return { phone: null, email: null, website: null, socials: {} }
+}
+
 /**
- * Convert a SearchResult object to a Place object for rich display
+ * Convert a bookmark search result (with metadata.bookmark) to a Place.
+ */
+export function adaptBookmarkResult(result: any): Place {
+  const bookmark = result.metadata.bookmark
+  return {
+    id: result.id,
+    name: sourceField(result.title),
+    description: result.description ? sourceField(result.description) : null,
+    geometry: sourceField({
+      type: 'point',
+      center: { lat: bookmark.lat, lng: bookmark.lng },
+    }),
+    photos: [],
+    externalIds: bookmark.externalIds || {},
+    address: bookmark.address ? sourceField({ formatted: bookmark.address }) : null,
+    placeType: sourceField('bookmark'),
+    bookmark: {
+      id: bookmark.id,
+      name: result.title,
+      icon: result.icon || 'map-pin',
+      iconColor: result.color || 'rose',
+      presetType: bookmark.presetType,
+      lat: bookmark.lat,
+      lng: bookmark.lng,
+      address: bookmark.address,
+      externalIds: bookmark.externalIds,
+      userId: 'search-user',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+    contactInfo: emptyContactInfo(),
+    openingHours: null,
+    ratings: undefined,
+    amenities: {},
+    sources: [],
+    lastUpdated: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+  } as unknown as Place
+}
+
+/**
+ * Convert a current_location search result (with metadata.currentLocation) to a Place.
+ */
+export function adaptCurrentLocationResult(result: any): Place {
+  const location = result.metadata.currentLocation
+  return {
+    id: 'current-location',
+    name: sourceField(result.title),
+    description: null,
+    geometry: sourceField({
+      type: 'point',
+      center: { lat: location.lat, lng: location.lng },
+    }),
+    photos: [],
+    externalIds: {},
+    address: null,
+    placeType: sourceField('current_location'),
+    contactInfo: emptyContactInfo(),
+    openingHours: null,
+    ratings: undefined,
+    amenities: {},
+    sources: [],
+    lastUpdated: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+  } as unknown as Place
+}
+
+/**
+ * Convert a place search result (with metadata.place) to a Place.
+ */
+export function adaptPlaceResult(result: any): Place {
+  const place = result.metadata.place
+
+  const address = place.address
+    ? sourceField({ formatted: place.address })
+    : result.description
+      ? sourceField({ formatted: result.description })
+      : null
+
+  const contactInfo = {
+    phone: place.contactInfo?.phone ? sourceField(place.contactInfo.phone) : null,
+    email: place.contactInfo?.email ? sourceField(place.contactInfo.email) : null,
+    website: place.contactInfo?.website ? sourceField(place.contactInfo.website) : null,
+    socials: {},
+  }
+
+  const ratings = place.ratings
+    ? {
+        rating: place.ratings.rating ? sourceField(place.ratings.rating) : undefined,
+        reviewCount: place.ratings.reviewCount ? sourceField(place.ratings.reviewCount) : undefined,
+      }
+    : undefined
+
+  const amenities = place.amenities
+    ? Object.fromEntries(
+        Object.entries(place.amenities).map(([key, value]) => [key, sourceField(value)]),
+      )
+    : {}
+
+  return {
+    id: result.id,
+    name: sourceField(result.title),
+    description: result.description ? sourceField(result.description) : null,
+    geometry: sourceField({
+      type: 'point',
+      center: { lat: place.lat, lng: place.lng },
+    }),
+    photos: [],
+    externalIds: place.externalIds || {},
+    address,
+    placeType: sourceField(place.placeType || 'place'),
+    contactInfo,
+    openingHours: place.openingHours ? sourceField(place.openingHours) : null,
+    ratings,
+    amenities,
+    sources: [],
+    lastUpdated: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+  } as unknown as Place
+}
+
+/**
+ * Convert a SearchResult object to a Place object for rich display.
+ * Dispatches to the appropriate per-type adapter based on `result.type`.
  */
 export function searchResultToPlace(result: any): Place {
-  // Check if this is a SearchResult with metadata
   if (result.metadata) {
     if (result.type === 'bookmark' && result.metadata.bookmark) {
-      const bookmark = result.metadata.bookmark
-      return {
-        id: result.id,
-        name: {
-          value: result.title,
-          sourceId: 'search',
-          timestamp: new Date().toISOString(),
-        },
-        description: result.description
-          ? {
-              value: result.description,
-              sourceId: 'search',
-              timestamp: new Date().toISOString(),
-            }
-          : null,
-        geometry: {
-          value: {
-            type: 'point',
-            center: {
-              lat: bookmark.lat,
-              lng: bookmark.lng,
-            },
-          },
-          sourceId: 'search',
-          timestamp: new Date().toISOString(),
-        },
-        photos: [],
-        externalIds: bookmark.externalIds || {},
-        address: bookmark.address
-          ? {
-              value: { formatted: bookmark.address },
-              sourceId: 'search',
-              timestamp: new Date().toISOString(),
-            }
-          : null,
-        placeType: {
-          value: 'bookmark',
-          sourceId: 'search',
-          timestamp: new Date().toISOString(),
-        },
-        bookmark: {
-          id: bookmark.id,
-          name: result.title,
-          icon: result.icon || 'map-pin',
-          iconColor: result.color || 'rose',
-          presetType: bookmark.presetType,
-          lat: bookmark.lat,
-          lng: bookmark.lng,
-          address: bookmark.address,
-          externalIds: bookmark.externalIds,
-          userId: 'search-user', // Add required userId field
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        contactInfo: {
-          phone: null,
-          email: null,
-          website: null,
-          socials: {},
-        },
-        openingHours: null,
-        ratings: undefined,
-        amenities: {},
-        sources: [],
-        lastUpdated: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-      } as unknown as Place
+      return adaptBookmarkResult(result)
     }
-
     if (result.type === 'current_location' && result.metadata.currentLocation) {
-      const location = result.metadata.currentLocation
-      return {
-        id: 'current-location',
-        name: {
-          value: result.title,
-          sourceId: 'search',
-          timestamp: new Date().toISOString(),
-        },
-        description: null,
-        geometry: {
-          value: {
-            type: 'point',
-            center: {
-              lat: location.lat,
-              lng: location.lng,
-            },
-          },
-          sourceId: 'search',
-          timestamp: new Date().toISOString(),
-        },
-        photos: [],
-        externalIds: {},
-        address: null,
-        placeType: {
-          value: 'current_location',
-          sourceId: 'search',
-          timestamp: new Date().toISOString(),
-        },
-        contactInfo: {
-          phone: null,
-          email: null,
-          website: null,
-          socials: {},
-        },
-        openingHours: null,
-        ratings: undefined,
-        amenities: {},
-        sources: [],
-        lastUpdated: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-      } as unknown as Place
+      return adaptCurrentLocationResult(result)
     }
-
     if (result.type === 'place' && result.metadata.place) {
-      const place = result.metadata.place
-      return {
-        id: result.id,
-        name: {
-          value: result.title,
-          sourceId: 'search',
-          timestamp: new Date().toISOString(),
-        },
-        description: result.description
-          ? {
-              value: result.description,
-              sourceId: 'search',
-              timestamp: new Date().toISOString(),
-            }
-          : null,
-        geometry: {
-          value: {
-            type: 'point',
-            center: {
-              lat: place.lat,
-              lng: place.lng,
-            },
-          },
-          sourceId: 'search',
-          timestamp: new Date().toISOString(),
-        },
-        photos: [],
-        externalIds: place.externalIds || {},
-        address: place.address
-          ? {
-              value: { formatted: place.address },
-              sourceId: 'search',
-              timestamp: new Date().toISOString(),
-            }
-          : result.description
-            ? {
-                value: { formatted: result.description },
-                sourceId: 'search',
-                timestamp: new Date().toISOString(),
-              }
-            : null,
-        placeType: {
-          value: place.placeType || 'place',
-          sourceId: 'search',
-          timestamp: new Date().toISOString(),
-        },
-        contactInfo: {
-          phone: place.contactInfo?.phone
-            ? {
-                value: place.contactInfo.phone,
-                sourceId: 'search',
-                timestamp: new Date().toISOString(),
-              }
-            : null,
-          email: place.contactInfo?.email
-            ? {
-                value: place.contactInfo.email,
-                sourceId: 'search',
-                timestamp: new Date().toISOString(),
-              }
-            : null,
-          website: place.contactInfo?.website
-            ? {
-                value: place.contactInfo.website,
-                sourceId: 'search',
-                timestamp: new Date().toISOString(),
-              }
-            : null,
-          socials: {},
-        },
-        openingHours: place.openingHours
-          ? {
-              value: place.openingHours,
-              sourceId: 'search',
-              timestamp: new Date().toISOString(),
-            }
-          : null,
-        ratings: place.ratings
-          ? {
-              rating: place.ratings.rating
-                ? {
-                    value: place.ratings.rating,
-                    sourceId: 'search',
-                    timestamp: new Date().toISOString(),
-                  }
-                : undefined,
-              reviewCount: place.ratings.reviewCount
-                ? {
-                    value: place.ratings.reviewCount,
-                    sourceId: 'search',
-                    timestamp: new Date().toISOString(),
-                  }
-                : undefined,
-            }
-          : undefined,
-        amenities: place.amenities
-          ? Object.fromEntries(
-              Object.entries(place.amenities).map(([key, value]) => [
-                key,
-                {
-                  value,
-                  sourceId: 'search',
-                  timestamp: new Date().toISOString(),
-                },
-              ]),
-            )
-          : {},
-        sources: [],
-        lastUpdated: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-      } as unknown as Place
+      return adaptPlaceResult(result)
     }
   }
 

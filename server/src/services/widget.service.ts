@@ -1,13 +1,89 @@
 import type { Place, TransitDeparture, TransitStopInfo, WidgetDescriptor, WidgetResponse, SourceReference, RelatedPlacesData, RelatedPlacesStrategy, RelatedParent } from '../types/place.types'
-import { WidgetType } from '../types/place.types'
+import { WidgetType, WidgetDataType } from '../types/place.types'
+
 import { SOURCE } from '../lib/constants'
 import { integrationManager } from './integrations'
 import { IntegrationCapabilityId } from '../types/integration.types'
 import { TransitlandIntegration } from './integrations/transitland-integration'
 import { OverpassIntegration } from './integrations/overpass-integration'
+import { BarrelmanIntegration } from './integrations/barrelman-integration'
 import { matchTags } from '../lib/osm-presets'
 import { buildPlaceIcon } from '../lib/place-categories'
 import * as turf from '@turf/turf'
+
+// ─── Integration helpers ─────────────────────────────────────────────────────
+
+function getBarrelmanInstance(): BarrelmanIntegration | null {
+  const record = integrationManager
+    .getConfiguredIntegrationsByCapability(IntegrationCapabilityId.SPATIAL_CHILDREN)
+    .find((r) => r.integrationId === 'barrelman')
+  return record
+    ? (integrationManager.getCachedIntegrationInstance(record) as BarrelmanIntegration | null)
+    : null
+}
+
+function getBarrelmanContainsInstance(): BarrelmanIntegration | null {
+  const record = integrationManager
+    .getConfiguredIntegrationsByCapability(IntegrationCapabilityId.SPATIAL_CONTAINS)
+    .find((r) => r.integrationId === 'barrelman')
+  return record
+    ? (integrationManager.getCachedIntegrationInstance(record) as BarrelmanIntegration | null)
+    : null
+}
+
+function getOverpassInstance(): OverpassIntegration | null {
+  const record = integrationManager
+    .getConfiguredIntegrationsByCapability(IntegrationCapabilityId.SEARCH_CATEGORY)
+    .find((r) => r.integrationId === 'overpass')
+  return record
+    ? (integrationManager.getCachedIntegrationInstance(record) as OverpassIntegration | null)
+    : null
+}
+
+// ─── OSM Tag filtering ───────────────────────────────────────────────────────
+
+/** Tags already shown in other UI sections — don't repeat them */
+const EXCLUDE_OSM_TAG_KEYS = new Set([
+  // Names — shown in title
+  'name', 'old_name', 'alt_name', 'short_name', 'official_name', 'loc_name', 'int_name',
+  // Metadata / editorial
+  'source', 'created_by', 'note', 'fixme', 'FIXME', 'todo', 'description',
+  // Contact — shown in contact section
+  'phone', 'fax', 'email', 'website', 'url',
+  // Hours — shown in hours section
+  'opening_hours', 'service_times',
+  // External references
+  'wikidata', 'wikipedia', 'wikimedia_commons', 'is_in', 'geonames', 'image', 'mapillary',
+  // Primary type classification keys — these ARE the place type shown as the subtitle
+  // e.g. amenity=bicycle_parking is already "Bicycle Parking", shop=bakery is already "Bakery"
+  'amenity', 'shop', 'tourism', 'leisure', 'office', 'craft', 'healthcare',
+  'natural', 'historic', 'highway', 'railway', 'waterway', 'building',
+  'man_made', 'public_transport', 'landuse', 'boundary', 'type',
+  'emergency', 'power', 'military', 'sport', 'aeroway', 'place', 'barrier',
+])
+const EXCLUDE_OSM_TAG_PREFIXES = [
+  'addr:', 'source:', 'contact:', 'name:', 'old_name:', 'opening_hours:',
+  'alt_name:', 'official_name:', 'check_date', 'survey:date', 'disused:',
+  // website:* sub-keys (website:menu, website:facebook, etc.) are surfaced in the contact panel
+  'website:',
+]
+
+/** Wikidata QID pattern — these are reference IDs, not useful to display */
+const WIKIDATA_QID_RE = /^Q\d+$/
+
+/** Return a copy of tags with noise/redundant keys removed */
+function filterOsmTags(tags: Record<string, string>): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const [key, value] of Object.entries(tags)) {
+    if (EXCLUDE_OSM_TAG_KEYS.has(key)) continue
+    if (EXCLUDE_OSM_TAG_PREFIXES.some(p => key.startsWith(p))) continue
+    if (!value || value.trim() === '') continue
+    // Skip Wikidata QID values — they're external reference IDs, not readable info
+    if (WIKIDATA_QID_RE.test(value.trim())) continue
+    result[key] = value
+  }
+  return result
+}
 
 /**
  * Inspect a place and return the list of widget descriptors that apply.
@@ -17,13 +93,14 @@ import * as turf from '@turf/turf'
 export function resolveWidgetDescriptors(place: Place): WidgetDescriptor[] {
   const descriptors: WidgetDescriptor[] = []
 
-  // Transit widget: applicable if place has transit stop info with an onestop ID
+  // ── 1. Transit (ASYNC) ──────────────────────────────────────────────────────
   if (place.transit?.value?.onestopId) {
     const transit = place.transit.value
     const onestopIds = transit.onestopIds || [transit.onestopId]
 
     descriptors.push({
       type: WidgetType.TRANSIT,
+      dataType: WidgetDataType.ASYNC,
       title: transit.name || 'Transit Departures',
       estimatedHeight: 200,
       params: {
@@ -32,7 +109,37 @@ export function resolveWidgetDescriptors(place: Place): WidgetDescriptor[] {
     })
   }
 
-  // Related Places widget
+  // ── 2. OSM Tags (STATIC) ─────────────────────────────────────────────────
+  // Data is embedded in the descriptor — no extra API call needed.
+  {
+    const rawTags = place.tags
+    if (rawTags && Object.keys(rawTags).length > 0) {
+      const filtered = filterOsmTags(rawTags)
+      if (Object.keys(filtered).length > 0) {
+        // Pre-build the full WidgetResponse so the client can render immediately.
+        const staticResponse: WidgetResponse = {
+          type: WidgetType.OSM_TAGS,
+          data: {
+            value: filtered,
+            sourceId: SOURCE.OSM,
+            timestamp: new Date().toISOString(),
+          },
+          sources: [{ id: SOURCE.OSM, name: 'OpenStreetMap', url: 'https://www.openstreetmap.org' }],
+        }
+        descriptors.push({
+          type: WidgetType.OSM_TAGS,
+          dataType: WidgetDataType.STATIC,
+          title: 'Details',
+          estimatedHeight: 0, // not used — static widgets render without a skeleton
+          params: {
+            staticData: JSON.stringify(staticResponse),
+          },
+        })
+      }
+    }
+  }
+
+  // ── 3. Related Places (ASYNC) ────────────────────────────────────────────
   {
     const osmId = place.externalIds?.[SOURCE.OSM]
     const osmType = osmId?.split('/')[0]
@@ -40,37 +147,21 @@ export function resolveWidgetDescriptors(place: Place): WidgetDescriptor[] {
     const bounds = place.geometry?.value?.bounds
     const placeTypeLower = place.placeType?.value?.toLowerCase() || ''
 
-    const isAreaPlace = osmType === 'way' || osmType === 'relation'
+    const hasBounds = Boolean(place.geometry?.value?.bounds)
+    const isAreaPlace = osmType === 'way' || osmType === 'relation' || hasBounds
     const adminTypes = ['city', 'town', 'village', 'suburb', 'neighbourhood', 'borough', 'county', 'state', 'country']
     const isAdminPlace = adminTypes.includes(placeTypeLower)
 
     // A "container" is an area place with defined nearby categories (i.e. we know what to look for inside it)
-    const isContainerPlace = isAreaPlace && !isAdminPlace && Boolean(place.nearbyCategories?.length)
+    const hasNearbyCategories = Boolean(place.nearbyCategories?.length)
+    const isContainerPlace = isAreaPlace && hasNearbyCategories
 
-    if (isAdminPlace && osmId && center) {
-      // Admin strategy: show next-level-up administrative boundary
-      descriptors.push({
-        type: WidgetType.RELATED_PLACES,
-        title: 'Related Places',
-        estimatedHeight: 100,
-        params: {
-          strategy: 'admin' as RelatedPlacesStrategy,
-          osmId,
-          lat: String(center.lat),
-          lng: String(center.lng),
-          south: '', west: '', north: '', east: '',
-          presetIds: '',
-          placeId: place.id,
-        },
-      })
-    } else if (osmId && center) {
-      // Non-admin places can show BOTH children and parent simultaneously.
-      // e.g. a food hall inside a university shows "Inside: [restaurants]" AND "Located in: [university]"
-
+    if (osmId && center) {
+      // Children strategy: show interesting POIs inside this area
       if (isContainerPlace) {
-        // Children strategy: show interesting POIs inside this area
         descriptors.push({
           type: WidgetType.RELATED_PLACES,
+          dataType: WidgetDataType.ASYNC,
           title: 'Related Places',
           estimatedHeight: 110,
           params: {
@@ -84,26 +175,47 @@ export function resolveWidgetDescriptors(place: Place): WidgetDescriptor[] {
             east: String(bounds?.maxLng || ''),
             presetIds: place.nearbyCategories!.map((c) => c.presetId).join(','),
             placeId: place.id,
+            limit: '20',
+            offset: '0',
           },
         })
       }
 
-      // Parent strategy: show the containing area for any non-admin place
-      // (works for nodes AND area features like playgrounds, food halls, parks, etc.)
-      descriptors.push({
-        type: WidgetType.RELATED_PLACES,
-        title: 'Related Places',
-        estimatedHeight: 100,
-        params: {
-          strategy: 'parent' as RelatedPlacesStrategy,
-          osmId,
-          lat: String(center.lat),
-          lng: String(center.lng),
-          south: '', west: '', north: '', east: '',
-          presetIds: '',
-          placeId: place.id,
-        },
-      })
+      if (isAdminPlace) {
+        // Admin strategy: show next-level-up administrative boundary
+        descriptors.push({
+          type: WidgetType.RELATED_PLACES,
+          dataType: WidgetDataType.ASYNC,
+          title: 'Related Places',
+          estimatedHeight: 76,
+          params: {
+            strategy: 'admin' as RelatedPlacesStrategy,
+            osmId,
+            lat: String(center.lat),
+            lng: String(center.lng),
+            south: '', west: '', north: '', east: '',
+            presetIds: '',
+            placeId: place.id,
+          },
+        })
+      } else {
+        // Parent strategy: show the containing area for any non-admin place
+        descriptors.push({
+          type: WidgetType.RELATED_PLACES,
+          dataType: WidgetDataType.ASYNC,
+          title: 'Related Places',
+          estimatedHeight: 76,
+          params: {
+            strategy: 'parent' as RelatedPlacesStrategy,
+            osmId,
+            lat: String(center.lat),
+            lng: String(center.lng),
+            south: '', west: '', north: '', east: '',
+            presetIds: '',
+            placeId: place.id,
+          },
+        })
+      }
     }
   }
 
@@ -124,15 +236,12 @@ async function fetchTransitDepartures(
     SOURCE.TRANSITLAND,
     IntegrationCapabilityId.TRANSIT_DATA,
   )
+  const transitland = transitlandRecord
+    ? integrationManager.getCachedIntegrationInstance(transitlandRecord) as TransitlandIntegration | null
+    : null
 
-  if (!transitlandRecord) {
-    console.debug('🚫 [Widget/Transit] Transitland integration not configured')
-    return { departures: [], sources: [] }
-  }
-
-  const transitland = integrationManager.getCachedIntegrationInstance(transitlandRecord) as TransitlandIntegration
   if (!transitland) {
-    console.debug('🚫 [Widget/Transit] Transitland integration instance not found')
+    console.debug('🚫 [Widget/Transit] Transitland integration not configured')
     return { departures: [], sources: [] }
   }
 
@@ -212,6 +321,21 @@ export async function fetchWidgetData(
       return await fetchRelatedPlaces(params)
     }
 
+    case WidgetType.OSM_TAGS: {
+      const tags = params.tagsJson ? JSON.parse(params.tagsJson) as Record<string, string> : {}
+      return {
+        type: WidgetType.OSM_TAGS,
+        data: {
+          value: tags,
+          sourceId: SOURCE.OSM,
+          timestamp: new Date().toISOString(),
+        },
+        sources: Object.keys(tags).length > 0
+          ? [{ id: SOURCE.OSM, name: 'OpenStreetMap', url: 'https://www.openstreetmap.org' }]
+          : [],
+      }
+    }
+
     default:
       throw new Error(`Unknown widget type: ${type}`)
   }
@@ -231,6 +355,8 @@ async function fetchRelatedPlaces(
   const lng = parseFloat(params.lng || '0')
   const presetIds = (params.presetIds || '').split(',').filter(Boolean)
   const placeId = params.placeId || ''
+  const limit = parseInt(params.limit || '20', 10)
+  const offset = parseInt(params.offset || '0', 10)
 
   // Parse optional bounding box (passed from place.geometry.value.bounds)
   const south = params.south ? parseFloat(params.south) : undefined
@@ -243,11 +369,15 @@ async function fetchRelatedPlaces(
 
   let children: Place[] = []
   let parents: RelatedParent[] = []
+  let hasMore = false
 
   switch (strategy) {
-    case 'children':
-      children = await fetchChildrenInArea(osmId, presetIds, placeId, lat, lng, bbox)
+    case 'children': {
+      const result = await fetchChildrenInArea(osmId, presetIds, placeId, lat, lng, bbox, limit, offset)
+      children = result.children
+      hasMore = result.hasMore
       break
+    }
     case 'parent':
       parents = await fetchParentPlaces(osmId, lat, lng, false)
       break
@@ -259,7 +389,7 @@ async function fetchRelatedPlaces(
   return {
     type: WidgetType.RELATED_PLACES,
     data: {
-      value: { strategy, children, parents, centerLat: lat, centerLng: lng },
+      value: { strategy, children, parents, centerLat: lat, centerLng: lng, hasMore, offset },
       sourceId: SOURCE.OSM,
       timestamp: new Date().toISOString(),
     },
@@ -267,6 +397,88 @@ async function fetchRelatedPlaces(
       ? [{ id: SOURCE.OSM, name: 'OpenStreetMap', url: 'https://www.openstreetmap.org' }]
       : [],
   }
+}
+
+// ─── Children scoring helpers ────────────────────────────────────────────────
+
+/** OSM types too granular/noisy to show when unnamed. */
+const REQUIRE_NAME_TYPES = new Set([
+  'bench', 'picnic_table', 'waste_basket', 'waste_bin', 'recycling',
+  'bollard', 'fire_hydrant', 'street_lamp', 'manhole', 'post_box',
+  'information', 'guidepost', 'advertising', 'vending_machine',
+])
+
+/** Structural OSM types that are always shown even when unnamed. */
+const STRUCTURAL_TYPES = new Set([
+  'apartment building', 'apartment complex', 'building', 'residential building',
+  'commercial building', 'office building', 'dormitory',
+])
+
+/** Max number of unnamed non-structural items of the same type to include. */
+const MAX_UNNAMED_PER_TYPE = 2
+
+interface ScoredPlace {
+  place: Place
+  relevance: number
+  presetOrder: number
+  dist: number
+}
+
+/**
+ * Filter, score, sort, and deduplicate a flat list of candidate child places.
+ * Returns a ranked array ready for pagination.
+ */
+function scoreAndRankChildren(
+  places: Place[],
+  excludeId: string,
+  presetIds: string[],
+  centerLat: number,
+  centerLng: number,
+): Place[] {
+  const centerPoint = turf.point([centerLng, centerLat])
+
+  const scored: ScoredPlace[] = places
+    .filter((p) => p.id !== excludeId)
+    .filter((p) => {
+      const hasName = Boolean(p.name?.value)
+      if (hasName) return true
+      const addr = p.address?.value
+      if (addr?.street || addr?.housenumber || addr?.full) return true
+      const typeRaw = (p.placeType?.value || '').toLowerCase().replace(/\s+/g, '_')
+      return !REQUIRE_NAME_TYPES.has(typeRaw)
+    })
+    .map((p) => {
+      const hasName = Boolean(p.name?.value)
+      const addr = p.address?.value
+      const hasAddress = Boolean(addr?.street || addr?.housenumber || addr?.full)
+      const relevance = (hasName ? 2 : 0) + (hasAddress ? 1 : 0)
+
+      const presetId = p.icon?.presetId || ''
+      const idx = presetIds.findIndex((pid) => presetId === pid || presetId.startsWith(pid))
+      const presetOrder = idx === -1 ? presetIds.length : idx
+
+      const center = p.geometry?.value?.center
+      const dist = center
+        ? turf.distance(centerPoint, turf.point([center.lng, center.lat]), { units: 'meters' })
+        : Infinity
+
+      return { place: p, relevance, presetOrder, dist }
+    })
+
+  scored.sort((a, b) => b.relevance - a.relevance || a.presetOrder - b.presetOrder || a.dist - b.dist)
+
+  const typeCount = new Map<string, number>()
+  return scored
+    .filter(({ place, relevance }) => {
+      if (relevance > 0) return true
+      const typeKey = (place.placeType?.value || '').toLowerCase()
+      if (STRUCTURAL_TYPES.has(typeKey)) return true
+      const count = typeCount.get(typeKey) || 0
+      if (count >= MAX_UNNAMED_PER_TYPE) return false
+      typeCount.set(typeKey, count + 1)
+      return true
+    })
+    .map((s) => s.place)
 }
 
 /**
@@ -281,88 +493,40 @@ async function fetchChildrenInArea(
   centerLat: number,
   centerLng: number,
   bbox?: { south: number; west: number; north: number; east: number },
-): Promise<Place[]> {
-  const overpassRecord = integrationManager.getConfiguredIntegrationsByCapability(
-    IntegrationCapabilityId.SEARCH_CATEGORY,
-  ).find((r) => r.integrationId === 'overpass')
-
-  if (!overpassRecord) {
-    console.debug('🚫 [Widget/RelatedPlaces] Overpass integration not configured')
-    return []
+  limit = 20,
+  offset = 0,
+): Promise<{ children: Place[]; hasMore: boolean }> {
+  // Try Barrelman first
+  const barrelman = getBarrelmanInstance()
+  if (barrelman) {
+    try {
+      console.debug(`🌐 [Widget/RelatedPlaces] Fetching children via Barrelman for ${osmId} (limit=${limit}, offset=${offset})`)
+      const children = await barrelman.getChildren(osmId, presetIds, limit + 1, offset, centerLat, centerLng)
+      if (children.length || offset > 0) {
+        const hasMore = children.length > limit
+        const page = children.slice(0, limit).filter((p) => p.id !== excludePlaceId)
+        console.debug(`✅ [Widget/RelatedPlaces] Barrelman returned ${page.length} children (hasMore=${hasMore})`)
+        return { children: page, hasMore }
+      }
+    } catch (error) {
+      console.debug('⚠️ [Widget/RelatedPlaces] Barrelman children query failed, falling back to Overpass:', error)
+    }
   }
 
-  const overpass = integrationManager.getCachedIntegrationInstance(overpassRecord) as OverpassIntegration
+  // Fallback: Overpass
+  const overpass = getOverpassInstance()
   if (!overpass) {
-    console.debug('🚫 [Widget/RelatedPlaces] Overpass integration instance not found')
-    return []
+    console.debug('🚫 [Widget/RelatedPlaces] Overpass integration not configured')
+    return { children: [], hasMore: false }
   }
 
-  console.debug(`🌐 [Widget/RelatedPlaces] Fetching children in ${osmId} for ${presetIds.length} categories (bbox: ${bbox ? 'yes' : 'no'})`)
+  console.debug(`🌐 [Widget/RelatedPlaces] Fetching children in ${osmId} for ${presetIds.length} categories via Overpass (bbox: ${bbox ? 'yes' : 'no'})`)
   const places = await overpass.searchByCategoryInArea(osmId, presetIds, { limit: 50, bbox })
 
-  // Exclude the parent place itself
-  const withoutSelf = places.filter((p) => p.id !== excludePlaceId)
-
-  // Unnamed instances of these types are too granular to be useful on their own
-  const REQUIRE_NAME = new Set([
-    'bench', 'picnic_table', 'waste_basket', 'waste_bin', 'recycling',
-    'bollard', 'fire_hydrant', 'street_lamp', 'manhole', 'post_box',
-    'information', 'guidepost', 'advertising', 'vending_machine',
-  ])
-
-  const centerPoint = turf.point([centerLng, centerLat])
-  const scored = withoutSelf
-    .filter((p) => {
-      const hasName = Boolean(p.name?.value)
-      if (hasName) return true
-
-      const addr = p.address?.value
-      const hasAddress = Boolean(addr?.street || addr?.housenumber || addr?.full)
-      if (hasAddress) return true
-
-      // Unnamed with no address: only hide if it's a granular/noisy type
-      const typeRaw = (p.placeType?.value || '').toLowerCase().replace(/\s+/g, '_')
-      return !REQUIRE_NAME.has(typeRaw)
-    })
-    .map((p) => {
-      const hasName = Boolean(p.name?.value)
-      const addr = p.address?.value
-      const hasAddress = Boolean(addr?.street || addr?.housenumber || addr?.full)
-      // Relevance: named+addressed > named > addressed > unnamed
-      const relevance = (hasName ? 2 : 0) + (hasAddress ? 1 : 0)
-
-      const placeCenter = p.geometry?.value?.center
-      const dist = placeCenter
-        ? turf.distance(centerPoint, turf.point([placeCenter.lng, placeCenter.lat]), { units: 'meters' })
-        : Infinity
-
-      return { place: p, relevance, dist }
-    })
-
-  // Sort: highest relevance first, then closest
-  scored.sort((a, b) => b.relevance - a.relevance || a.dist - b.dist)
-
-  // For unnamed amenity-type items (parking racks, fountains, etc.), cap at 2 per type
-  // to avoid e.g. 7 identical "Bicycle Parking" entries. But structural types like
-  // buildings are all distinct physical places and should all be shown.
-  const STRUCTURAL_TYPES = new Set([
-    'apartment building', 'apartment complex', 'building', 'residential building',
-    'commercial building', 'office building', 'dormitory',
-  ])
-  const typeCount = new Map<string, number>()
-  const MAX_UNNAMED_AMENITY_PER_TYPE = 2
-
-  const deduped = scored.filter(({ place, relevance }) => {
-    if (relevance > 0) return true // named/addressed — always keep
-    const typeKey = (place.placeType?.value || '').toLowerCase()
-    if (STRUCTURAL_TYPES.has(typeKey)) return true // buildings always shown
-    const count = typeCount.get(typeKey) || 0
-    if (count >= MAX_UNNAMED_AMENITY_PER_TYPE) return false
-    typeCount.set(typeKey, count + 1)
-    return true
-  })
-
-  return deduped.slice(0, 20).map((s) => s.place)
+  const ranked = scoreAndRankChildren(places, excludePlaceId, presetIds, centerLat, centerLng)
+  const page = ranked.slice(offset, offset + limit)
+  const hasMore = ranked.length > offset + limit
+  return { children: page, hasMore }
 }
 
 /**
@@ -379,35 +543,62 @@ async function fetchParentPlaces(
 ): Promise<RelatedParent[]> {
   if (!osmId) return []
 
-  if (!adminOnly) {
-    // Parent strategy: use Overpass is_in for spatial containment
-    const overpassRecord = integrationManager.getConfiguredIntegrationsByCapability(
-      IntegrationCapabilityId.SEARCH_CATEGORY,
-    ).find((r) => r.integrationId === 'overpass')
-
-    if (overpassRecord) {
-      const overpass = integrationManager.getCachedIntegrationInstance(overpassRecord) as OverpassIntegration
-      if (overpass && lat && lng) {
-        try {
-          console.debug(`🌐 [Widget/Parent] Finding containers for (${lat},${lng}) via is_in`)
-          const containers = await overpass.findContainingAreas(lat, lng)
-          if (containers.length) {
-            // Filter out self-reference (is_in includes the element itself if it's an area)
-            const nonSelf = containers.filter((c) => c.id !== osmId)
-            console.debug(`✅ [Widget/Parent] Found ${nonSelf.length} containers via is_in (${containers.length - nonSelf.length} self-refs removed)`)
-            if (nonSelf.length) {
-              return nonSelf.map((c) => ({
-                id: c.id,
-                name: c.name,
-                placeType: c.placeType,
-                icon: buildPlaceIcon(matchTags(c.tags || {}, 'area')),
-                tags: c.tags,
-              }))
-            }
+  // Try Barrelman first for spatial contains queries
+  if (lat && lng) {
+    const barrelman = getBarrelmanContainsInstance()
+    if (barrelman) {
+      try {
+        console.debug(`🌐 [Widget/Parent] Finding containers via Barrelman for (${lat},${lng})`)
+        const containers = await barrelman.getContainingAreas(lat, lng, osmId)
+        if (containers.length) {
+          // Filter self-references: c.id is "osm/way/123", osmId is "way/123"
+          const nonSelf = containers.filter((c) => {
+            const cOsmId = c.externalIds?.[SOURCE.OSM] || ''
+            return cOsmId !== osmId && c.id !== osmId && c.id !== `osm/${osmId}`
+          })
+          console.debug(`✅ [Widget/Parent] Barrelman returned ${nonSelf.length} containers`)
+          if (nonSelf.length) {
+            return nonSelf.map((c) => ({
+              id: c.id,
+              name: c.name?.value || 'Unknown',
+              placeType: c.placeType?.value,
+              icon: c.icon,
+            }))
           }
-        } catch (error) {
-          console.error('❌ [Widget/Parent] is_in query failed, falling back to Nominatim:', error)
         }
+      } catch (error) {
+        console.debug('⚠️ [Widget/Parent] Barrelman contains query failed, falling back:', error)
+      }
+    }
+  }
+
+  if (!adminOnly) {
+    // Fallback: Overpass is_in for spatial containment
+    const overpass = getOverpassInstance()
+    if (overpass && lat && lng) {
+      try {
+        console.debug(`🌐 [Widget/Parent] Finding containers for (${lat},${lng}) via Overpass is_in`)
+        const containers = await overpass.findContainingAreas(lat, lng)
+        if (containers.length) {
+          // Filter out self-reference and building parts
+          const nonSelf = containers.filter((c) => {
+            if (c.id === osmId || c.id === `osm/${osmId}`) return false
+            if (c.tags?.['building:part']) return false
+            return true
+          })
+          console.debug(`✅ [Widget/Parent] Found ${nonSelf.length} containers via is_in (${containers.length - nonSelf.length} self-refs removed)`)
+          if (nonSelf.length) {
+            return nonSelf.map((c) => ({
+              id: c.id,
+              name: c.name,
+              placeType: c.placeType,
+              icon: buildPlaceIcon(matchTags(c.tags || {}, 'area')),
+              tags: c.tags,
+            }))
+          }
+        }
+      } catch (error) {
+        console.error('❌ [Widget/Parent] is_in query failed, falling back to Nominatim:', error)
       }
     }
   }

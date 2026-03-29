@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { getPlaceRoute, formatAddress } from '@/lib/place.utils'
 import {
@@ -22,6 +23,7 @@ const props = withDefaults(defineProps<{
   showIcon: true,
 })
 
+const { t } = useI18n()
 const router = useRouter()
 const themeStore = useThemeStore()
 
@@ -59,6 +61,20 @@ const reviewCount = computed(() => props.place.ratings?.reviewCount?.value || nu
 const formattedRating = computed(() => rating.value?.toFixed(1) ?? null)
 const phone = computed(() => props.place.contactInfo?.phone?.value || null)
 
+// ── Tag-derived summary (generated server-side) ───────────────────────────────
+
+const tagSummary = computed(() => (props.place as any).summary as string | null | undefined)
+
+const hasDetails = computed(() =>
+  !!(placeType.value || isOpen.value !== null || hoursText.value || showAddress.value || phone.value || tagSummary.value),
+)
+
+// Top-align icon only when content spans 3+ lines (address/phone/summary push it taller)
+const hasMultilineDetails = computed(() =>
+  !!(showAddress.value || phone.value || tagSummary.value ||
+    (placeType.value && (isOpen.value !== null || hoursText.value))),
+)
+
 const isOpen = computed(() => {
   const hours = props.place.openingHours?.value
   if (!hours) return null
@@ -71,9 +87,9 @@ const isOpen = computed(() => {
 const hoursText = computed(() => {
   const hours = props.place.openingHours?.value
   if (!hours) return null
-  if (hours.isPermanentlyClosed) return 'Permanently closed'
-  if (hours.isTemporarilyClosed) return 'Temporarily closed'
-  if (hours.isOpen24_7) return 'Open 24 hours'
+  if (hours.isPermanentlyClosed) return t('place.hours.permanentlyClosed')
+  if (hours.isTemporarilyClosed) return t('place.hours.temporarilyClosed')
+  if (hours.isOpen24_7) return t('place.hours.open24hours')
   return null
 })
 
@@ -85,8 +101,8 @@ function handleClick() {
 
 <template>
   <Card class="cursor-pointer transition-colors hover:bg-muted/30" @click="handleClick">
-    <CardContent class="px-3 py-3">
-      <div class="flex items-start gap-3">
+    <CardContent class="px-2 py-2">
+      <div class="flex gap-2" :class="hasMultilineDetails ? 'items-start' : 'items-center'">
 
         <!-- Left: category icon -->
         <ItemIcon
@@ -97,11 +113,11 @@ function handleClick() {
           :custom-color="categoryColor"
           variant="solid"
           shape="circle"
-          class="shrink-0 mt-0.5"
+          :class="['shrink-0', hasMultilineDetails ? 'mt-0.5' : '']"
         />
 
         <!-- Right: all text content -->
-        <div class="flex-1 min-w-0 flex flex-col gap-1">
+        <div class="flex-1 min-w-0 flex flex-col gap-0.5">
 
           <!-- Name + rating inline -->
           <div class="flex items-center justify-between gap-2">
@@ -127,10 +143,18 @@ function handleClick() {
               :class="isOpen === true ? 'text-green-600' : isOpen === false ? 'text-red-500' : 'text-muted-foreground'"
             >
               <ClockIcon class="w-3 h-3 shrink-0" />
-              <span v-if="isOpen === true">Open now</span>
-              <span v-else-if="isOpen === false">Closed</span>
+              <span v-if="isOpen === true">{{ t('place.listItem.openNow') }}</span>
+              <span v-else-if="isOpen === false">{{ t('place.hours.closed') }}</span>
               <span v-if="hoursText">{{ hoursText }}</span>
             </span>
+          </div>
+
+          <!-- Tag summary (server-generated) -->
+          <div
+            v-if="tagSummary"
+            class="text-xs text-muted-foreground leading-snug"
+          >
+            {{ tagSummary }}
           </div>
 
           <!-- Address -->

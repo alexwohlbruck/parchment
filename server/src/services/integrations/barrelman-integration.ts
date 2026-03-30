@@ -7,7 +7,7 @@ import type {
   AutocompleteCapability,
   SearchCategoryCapability,
   PlaceInfoCapability,
-  SpatialContainsCapability,
+  SpatialParentsCapability,
   SpatialChildrenCapability,
   MapBounds,
 } from '../../types/integration.types'
@@ -90,7 +90,7 @@ export class BarrelmanIntegration
     IntegrationCapabilityId.AUTOCOMPLETE,
     IntegrationCapabilityId.SEARCH_CATEGORY,
     IntegrationCapabilityId.PLACE_INFO,
-    IntegrationCapabilityId.SPATIAL_CONTAINS,
+    IntegrationCapabilityId.SPATIAL_PARENTS,
     IntegrationCapabilityId.SPATIAL_CHILDREN,
   ]
 
@@ -107,9 +107,9 @@ export class BarrelmanIntegration
     placeInfo: {
       getPlaceInfo: this.getPlaceInfo.bind(this),
     } as PlaceInfoCapability,
-    spatialContains: {
+    spatialParents: {
       getContainingAreas: this.getContainingAreas.bind(this),
-    } as SpatialContainsCapability,
+    } as SpatialParentsCapability,
     spatialChildren: {
       getChildren: this.getChildren.bind(this),
     } as SpatialChildrenCapability,

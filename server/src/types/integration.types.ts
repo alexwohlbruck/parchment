@@ -188,7 +188,7 @@ export interface WeatherCapability {
 /** Logging / observability (e.g. OTLP export to Axiom). No methods; config-only. */
 export interface LoggingCapability {}
 
-export interface SpatialContainsCapability {
+export interface SpatialParentsCapability {
   getContainingAreas(lat: number, lng: number): Promise<Place[]>
 }
 
@@ -209,7 +209,7 @@ export interface IntegrationCapabilities {
   transitData?: TransitDataCapability
   weather?: WeatherCapability
   logging?: LoggingCapability
-  spatialContains?: SpatialContainsCapability
+  spatialParents?: SpatialParentsCapability
   spatialChildren?: SpatialChildrenCapability
 }
 

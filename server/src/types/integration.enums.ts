@@ -36,6 +36,6 @@ export enum IntegrationCapabilityId {
   TRANSIT_DATA = 'transitData',
   WEATHER = 'weather',
   LOGGING = 'logging',
-  SPATIAL_CONTAINS = 'spatialContains',
+  SPATIAL_PARENTS = 'spatialParents',
   SPATIAL_CHILDREN = 'spatialChildren',
 }

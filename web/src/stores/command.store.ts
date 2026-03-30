@@ -231,6 +231,16 @@ export const useCommandStore = defineStore('command', () => {
                     })
                   })
 
+                // Stable sort: exact name matches first, then starts-with, then the rest
+                const q = searchText.toLowerCase()
+                results.sort((a, b) => {
+                  const aName = (a.name || '').toLowerCase()
+                  const bName = (b.name || '').toLowerCase()
+                  const aExact = aName === q ? 0 : aName.startsWith(q) ? 1 : 2
+                  const bExact = bName === q ? 0 : bName.startsWith(q) ? 1 : 2
+                  return aExact - bExact
+                })
+
                 return [
                   {
                     value: 'search-more-results',

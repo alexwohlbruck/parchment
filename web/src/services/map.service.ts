@@ -13,6 +13,7 @@ import {
   LayerType,
   MapSettings,
   LocateFlySpeed,
+  StartupLocation,
 } from '@/types/map.types'
 import type { Place } from '@/types/place.types'
 import { useMapStore } from '../stores/map.store'
@@ -331,10 +332,6 @@ function mapService() {
     // Ensure map container is properly sized after load
     resize()
 
-    // Locate user on startup if enabled
-    if (mapStore.settings.locateOnStartup) {
-      locateUser()
-    }
   }
 
   function onStyleLoad() {
@@ -392,6 +389,11 @@ function mapService() {
       }
 
       // Note: Waypoint markers are automatically managed by WaypointsLayer
+
+      // Trigger geolocation flyTo after style + layers are fully ready
+      if (mapStore.settings.startupLocation === StartupLocation.LOCATE_ME) {
+        locateUser()
+      }
     }
 
     // Start the initialization process
@@ -739,6 +741,17 @@ function mapService() {
   function updateMapPadding() {
     if (!mapStrategy || !mapContainer) {
       console.warn('Cannot update map padding: map not ready')
+      return
+    }
+
+    // If the map is currently animating (e.g. locate flyTo on startup), defer
+    // the padding update until the animation finishes to avoid interrupting it.
+    if (mapStrategy.mapInstance?.isMoving()) {
+      function onMoveEnd() {
+        mapEventBus.off('moveend', onMoveEnd)
+        updateMapPadding()
+      }
+      mapEventBus.on('moveend', onMoveEnd)
       return
     }
 

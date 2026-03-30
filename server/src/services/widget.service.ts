@@ -24,7 +24,7 @@ function getBarrelmanInstance(): BarrelmanIntegration | null {
 
 function getBarrelmanContainsInstance(): BarrelmanIntegration | null {
   const record = integrationManager
-    .getConfiguredIntegrationsByCapability(IntegrationCapabilityId.SPATIAL_CONTAINS)
+    .getConfiguredIntegrationsByCapability(IntegrationCapabilityId.SPATIAL_PARENTS)
     .find((r) => r.integrationId === 'barrelman')
   return record
     ? (integrationManager.getCachedIntegrationInstance(record) as BarrelmanIntegration | null)

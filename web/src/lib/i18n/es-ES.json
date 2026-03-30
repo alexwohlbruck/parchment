@@ -924,8 +924,13 @@
       },
       "location": {
         "title": "Ubicación",
-        "locateOnStartup": "Ubicarme al iniciar",
-        "locateOnStartupDescription": "Volar a tu ubicación cuando se carga el mapa",
+        "startupLocation": "Ubicación al iniciar",
+        "startupLocationDescription": "Elige qué ubicación se muestra cuando el mapa se carga por primera vez",
+        "startup": {
+          "locateMe": "Mi ubicación actual",
+          "lastVisited": "Última ubicación visitada",
+          "urlParams": "Desde la URL"
+        },
         "locateFlySpeed": "Velocidad de animación de ubicación",
         "speed": {
           "instant": "Instantáneo",
@@ -989,7 +994,9 @@
         "streetView": "Vista de calle",
         "transitData": "Datos de Tránsito",
         "weather": "Clima",
-        "logging": "Registro"
+        "logging": "Registro",
+        "spatialParents": "Áreas Contenedoras",
+        "spatialChildren": "Lugares Secundarios"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",
@@ -1009,7 +1016,8 @@
         "wikipedia": "Contenido gratuito de enciclopedia y descripciones de lugares",
         "wikimedia": "Repositorio gratuito de medios para imágenes de lugares",
         "openweathermap": "Datos meteorológicos e información de calidad del aire",
-        "axiom": "Enviar registros y trazas del servidor a Axiom para depuración y monitoreo"
+        "axiom": "Enviar registros y trazas del servidor a Axiom para depuración y monitoreo",
+        "barrelman": "Motor de búsqueda y espacial OSM autoalojado"
       }
     },
     "users": {

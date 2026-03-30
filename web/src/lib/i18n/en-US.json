@@ -961,8 +961,13 @@
       },
       "location": {
         "title": "Location",
-        "locateOnStartup": "Locate me on startup",
-        "locateOnStartupDescription": "Fly to your location when the map loads",
+        "startupLocation": "Startup location",
+        "startupLocationDescription": "Choose what location is shown when the map first loads",
+        "startup": {
+          "locateMe": "My current location",
+          "lastVisited": "Last visited location",
+          "urlParams": "From URL"
+        },
         "locateFlySpeed": "Locate animation speed",
         "speed": {
           "instant": "Instant",
@@ -1027,7 +1032,9 @@
         "streetView": "Street View",
         "transitData": "Transit Data",
         "weather": "Weather",
-        "logging": "Logging"
+        "logging": "Logging",
+        "spatialParents": "Spatial Parents",
+        "spatialChildren": "Spatial Children"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",
@@ -1048,7 +1055,8 @@
         "wikipedia": "Free encyclopedia content and place descriptions",
         "wikimedia": "Free media repository for place images",
         "openweathermap": "Weather data and air quality information",
-        "axiom": "Send server logs and traces to Axiom for debugging and monitoring"
+        "axiom": "Send server logs and traces to Axiom for debugging and monitoring",
+        "barrelman": "Self-hosted OSM search and spatial engine"
       }
     },
     "users": {

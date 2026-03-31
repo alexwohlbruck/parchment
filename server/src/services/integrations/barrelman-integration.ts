@@ -496,7 +496,7 @@ export class BarrelmanIntegration
     const radius = (Math.max(latDiff, lngDiff) * 111320) / 2
 
     const response = await axios.post(
-      `${this.config.host}/nearby`,
+      `${this.config.host}/search`,
       {
         lat,
         lng,
@@ -522,6 +522,35 @@ export class BarrelmanIntegration
       if (e.response?.status === 404) return null
       throw e
     }
+  }
+
+  async searchAlongRoute(
+    query: string | undefined,
+    route: { type: 'LineString'; coordinates: number[][] },
+    options?: {
+      buffer?: number
+      categories?: string[]
+      tags?: Record<string, string>
+      limit?: number
+      semantic?: boolean
+      autocomplete?: boolean
+    },
+  ): Promise<Place[]> {
+    const response = await axios.post(
+      `${this.config.host}/search`,
+      {
+        ...(query ? { query } : {}),
+        route,
+        buffer: options?.buffer,
+        categories: options?.categories,
+        tags: options?.tags,
+        limit: options?.limit || 20,
+        semantic: options?.semantic ?? false,
+        autocomplete: options?.autocomplete ?? false,
+      },
+      { headers: this.headers, timeout: 10000 },
+    )
+    return (response.data || []).map((r: any) => this.adaptPlace(r))
   }
 
   async getContainingAreas(lat: number, lng: number, exclude?: string): Promise<Place[]> {

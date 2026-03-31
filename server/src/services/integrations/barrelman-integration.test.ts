@@ -548,11 +548,11 @@ describe('BarrelmanIntegration', () => {
   describe('searchByCategory', () => {
     const bounds = { north: 37.78, south: 37.77, east: -122.41, west: -122.42 }
 
-    test('POSTs to /nearby with categories array', async () => {
+    test('POSTs to /search with categories array', async () => {
       mockAxiosPost.mockResolvedValueOnce({ data: [] })
       await integration.searchByCategory('amenity/cafe', bounds)
       expect(mockAxiosPost).toHaveBeenCalledWith(
-        'http://localhost:3100/nearby',
+        'http://localhost:3100/search',
         expect.objectContaining({ categories: ['amenity/cafe'] }),
         expect.any(Object),
       )

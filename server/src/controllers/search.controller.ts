@@ -9,6 +9,7 @@ import {
 } from '../types/integration.types'
 import { OverpassIntegration } from '../services/integrations/overpass-integration'
 import { categoryService } from '../services/category.service'
+import { categoryPalette } from '../lib/place-categories'
 
 const searchRouter = new Elysia({ prefix: '/search' })
   .use(requireAuth)
@@ -160,6 +161,19 @@ const searchRouter = new Elysia({ prefix: '/search' })
       detail: {
         tags: ['Search'],
         summary: 'Search by category/preset',
+      },
+    },
+  )
+
+  // Category palette — PlaceCategory definitions with display labels and theme colors.
+  // Must be declared before /categories/:categoryId so "palette" is not treated as an ID.
+  .get(
+    '/categories/palette',
+    () => ({ palette: categoryPalette }),
+    {
+      detail: {
+        tags: ['Search'],
+        summary: 'Get PlaceCategory definitions (labels + colors)',
       },
     },
   )

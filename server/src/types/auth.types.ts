@@ -12,6 +12,7 @@ export enum PermissionId {
   LAYERS_READ = 'layers:read',
   LAYERS_WRITE = 'layers:write',
   LAYERS_DELETE = 'layers:delete',
+  SEARCH_AUTO_REFRESH = 'search:auto_refresh',
 }
 
 export type PermissionRule =

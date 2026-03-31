@@ -12,14 +12,12 @@ import {
   HelpCircleIcon,
   LanguagesIcon,
   LogOutIcon,
-  MapPinIcon,
   PaletteIcon,
   SearchIcon,
   SettingsIcon,
   SunMoonIcon,
   TerminalIcon,
 } from 'lucide-vue-next'
-import * as LucideIcons from 'lucide-vue-next'
 import { useDark, useToggle } from '@vueuse/core'
 import { allColors, useThemeStore, allRadii } from '@/stores/theme.store'
 import { useMapStore } from '@/stores/map.store'
@@ -30,11 +28,11 @@ import { useAuthService } from '@/services/auth.service'
 import { MapEngine, MapProjection } from '@/types/map.types'
 import { useSearchService } from '@/services/search.service'
 import { useCommandService } from '@/services/command.service'
+import { getCategoryColor } from '@/lib/place-colors'
+import type { PlaceCategory } from '@/types/place.types'
 import { useCategoryStore } from '@/stores/category.store'
 import { appEventBus } from '@/lib/eventBus'
 
-import { formatAddress } from '@/lib/place.utils'
-import { Icon } from '@/types/app.types'
 import { AppRoute } from '@/router'
 import ColorCommandArgumentOption from '@/components/palette/custom-items/ColorCommandArgumentOption.vue'
 
@@ -54,22 +52,6 @@ export enum CommandName {
 
 // TODO: Move command options to separate file
 
-/**
- * Convert icon string name to Vue component
- */
-function getIconComponent(iconName?: string): Icon {
-  if (!iconName) return MapPinIcon
-
-  const fullName = iconName.endsWith('Icon') ? iconName : `${iconName}Icon`
-
-  const isValidIcon =
-    fullName !== 'icons' &&
-    typeof LucideIcons[fullName as keyof typeof LucideIcons] === 'function'
-
-  return isValidIcon
-    ? (LucideIcons[fullName as keyof typeof LucideIcons] as Icon)
-    : MapPinIcon
-}
 
 export const useCommandStore = defineStore('command', () => {
   const isDark = useDark()
@@ -143,16 +125,17 @@ export const useCommandStore = defineStore('command', () => {
             const categoryId = itemId.replace('category:', '')
             const categoryStore = useCategoryStore()
 
+            // Look up for optional enrichment (name, icon color), but navigate
+            // regardless — categoryId alone is enough for Search.vue to work.
             const category = categoryStore.getCategoryById(categoryId)
-            if (category) {
-              await router.push({
-                name: AppRoute.SEARCH_RESULTS,
-                query: {
-                  categoryId: category.id,
-                  categoryName: category.name,
-                },
-              })
-            }
+            await router.push({
+              name: AppRoute.SEARCH_RESULTS,
+              query: {
+                categoryId,
+                ...(category?.name ? { categoryName: category.name } : {}),
+                ...(category?.iconCategory ? { categoryIconCategory: category.iconCategory } : {}),
+              },
+            })
           } else {
             // Regular place navigation
             const route = getPlaceRoute(itemId)
@@ -164,7 +147,7 @@ export const useCommandStore = defineStore('command', () => {
             id: 'places',
             name: t('palette.commands.search.arguments.places.name'),
             type: 'string',
-            async getItems() {
+            async getItems(_query?: string, signal?: AbortSignal) {
               // Use the command service to get the current search query
               const { currentSearchQuery } = useCommandService()
               const searchText = currentSearchQuery.value
@@ -183,11 +166,19 @@ export const useCommandStore = defineStore('command', () => {
                     ) // Limit categories to 5
 
                     categories.forEach(category => {
+                      // Use server-resolved iconName/iconPack for consistent rendering
+                      const iconName = category.iconName || 'Tag'
+                      const iconPack = category.iconPack || 'lucide'
+                      const iconCategory = (category.iconCategory || 'default') as PlaceCategory
                       results.push({
                         value: `category:${category.id}`,
                         name: category.name,
-                        description: 'Category',
-                        icon: getIconComponent(category.icon || 'Tag'),
+                        description: category.description && !/^\S+=\S+$/.test(category.description)
+                          ? category.description
+                          : undefined,
+                        iconName,
+                        iconPack,
+                        iconColor: getCategoryColor(iconCategory, isDark.value),
                       })
                     })
                   }
@@ -215,19 +206,40 @@ export const useCommandStore = defineStore('command', () => {
                     query: searchText,
                     lat,
                     lng,
-                  })
+                  }, signal)
 
-                // Add place results after categories (filter out category results to avoid duplicates)
+                // Add API results — includes both places and server-resolved categories.
+                // Deduplicate by value against any items already added (e.g. from client-side category search).
+                const existingValues = new Set(results.map((r: any) => r.value))
                 searchResults
-                  .filter(result => result.type !== 'category')
                   .forEach(result => {
+                    const itemValue = result.type === 'category'
+                      ? `category:${result.id}`
+                      : result.id
+                    if (existingValues.has(itemValue)) return // skip duplicate
+                    existingValues.add(itemValue)
+                    const iconCategory = (result.iconCategory || 'default') as PlaceCategory
                     results.push({
-                      value: result.id,
+                      value: itemValue,
                       name: result.title,
-                      description: result.description,
-                      icon: getIconComponent(result.icon),
+                      description: result.description && !/^\S+=\S+$/.test(result.description)
+                        ? result.description
+                        : undefined,
+                      iconName: result.icon || 'MapPin',
+                      iconPack: result.iconPack || 'lucide',
+                      iconColor: getCategoryColor(iconCategory, isDark.value),
                     })
                   })
+
+                // Stable sort: exact name matches first, then starts-with, then the rest
+                const q = searchText.toLowerCase()
+                results.sort((a, b) => {
+                  const aName = (a.name || '').toLowerCase()
+                  const bName = (b.name || '').toLowerCase()
+                  const aExact = aName === q ? 0 : aName.startsWith(q) ? 1 : 2
+                  const bExact = bName === q ? 0 : bName.startsWith(q) ? 1 : 2
+                  return aExact - bExact
+                })
 
                 return [
                   {

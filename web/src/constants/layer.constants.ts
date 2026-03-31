@@ -63,18 +63,16 @@ export const SEARCH_RESULTS_LAYER_CONFIG: Omit<
     id: SEARCH_RESULTS_LABELS_LAYER_ID,
     type: MapboxLayerType.SYMBOL,
     source: SEARCH_RESULTS_SOURCE_ID,
-    minzoom: 6,
+    // Labels only appear when zoomed in close enough; at city-level zoom the
+    // dot markers alone are sufficient and labels would create clutter.
+    minzoom: 14,
     filter: ['has', 'name'],
     layout: {
       'symbol-z-elevate': true,
       'text-size': 13,
       'text-field': ['get', 'name'],
-      'text-font': [
-        ['concat', ['config', 'font'], ' Medium'],
-        'DIN Pro',
-        'Inter',
-        'Arial Unicode MS Bold',
-      ],
+      // Matches Mapbox Standard's native POI label font stack
+      'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
       'text-padding': ['interpolate', ['linear'], ['zoom'], 16, 6, 17, 4],
       'text-offset': [0, 1],
       'text-anchor': 'top',
@@ -83,25 +81,28 @@ export const SEARCH_RESULTS_LAYER_CONFIG: Omit<
       'symbol-sort-key': 1000,
     },
     paint: {
-      'text-halo-width': 2,
+      'text-halo-width': 1,
       'text-halo-blur': 0,
+      // Halo adapts to map light preset: dark halo in night/dusk, white in day/dawn
       'text-halo-color': [
-        'interpolate',
-        ['linear'],
-        ['measure-light', 'brightness'],
-        0.25,
-        'hsl(0, 0%, 5%)',
-        0.3,
-        'hsl(0, 0%, 100%)',
+        'interpolate', ['linear'], ['measure-light', 'brightness'],
+        0.25, '#0D0D0D',
+        0.3,  '#FFFFFF',
       ],
+      // Category-based text colors, matching Mapbox Standard POI label palette.
+      // Uses measure-light brightness so they automatically adapt to day/dusk/night presets.
       'text-color': [
-        'interpolate',
-        ['linear'],
-        ['measure-light', 'brightness'],
-        0.25,
-        'hsl(0, 0%, 95%)',
-        0.3,
-        'hsl(0, 0%, 15%)',
+        'match', ['get', 'category'],
+        'food_and_drink',         ['interpolate', ['linear'], ['measure-light', 'brightness'], 0.25, 'hsl(40, 95%, 70%)',   0.3, 'hsl(30, 100%, 48%)'],
+        'education',              ['interpolate', ['linear'], ['measure-light', 'brightness'], 0.25, 'hsl(30, 50%, 70%)',   0.3, 'hsl(30, 50%, 38%)'],
+        'medical',                ['interpolate', ['linear'], ['measure-light', 'brightness'], 0.25, 'hsl(0, 70%, 70%)',    0.3, 'hsl(0, 90%, 60%)'],
+        'sport_and_leisure',      ['interpolate', ['linear'], ['measure-light', 'brightness'], 0.25, 'hsl(190, 60%, 70%)', 0.3, 'hsl(190, 75%, 38%)'],
+        'store',                  ['interpolate', ['linear'], ['measure-light', 'brightness'], 0.25, 'hsl(210, 70%, 75%)', 0.3, 'hsl(210, 75%, 53%)'],
+        'arts_and_entertainment', ['interpolate', ['linear'], ['measure-light', 'brightness'], 0.25, 'hsl(320, 70%, 75%)', 0.3, 'hsl(320, 85%, 60%)'],
+        'commercial_services',    ['interpolate', ['linear'], ['measure-light', 'brightness'], 0.25, 'hsl(260, 70%, 75%)', 0.3, 'hsl(250, 75%, 60%)'],
+        'park',                   ['interpolate', ['linear'], ['measure-light', 'brightness'], 0.25, 'hsl(110, 55%, 65%)', 0.3, 'hsl(110, 70%, 28%)'],
+        // default
+        ['interpolate', ['linear'], ['measure-light', 'brightness'], 0.25, 'hsl(210, 20%, 70%)', 0.3, 'hsl(210, 20%, 43%)'],
       ],
     },
   },

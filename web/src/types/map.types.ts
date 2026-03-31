@@ -42,6 +42,12 @@ export enum LocateFlySpeed {
   SLOW = 'slow',
 }
 
+export enum StartupLocation {
+  LOCATE_ME = 'locateMe',
+  LAST_VISITED = 'lastVisited',
+  URL_PARAMS = 'urlParams',
+}
+
 export interface MapSettings {
   theme: MapTheme
   engine: MapEngine
@@ -56,7 +62,7 @@ export interface MapSettings {
   placeLabels: boolean
   hdRoads: boolean
   locateFlySpeed: LocateFlySpeed
-  locateOnStartup: boolean
+  startupLocation: StartupLocation
 }
 
 export type MapCamera = {

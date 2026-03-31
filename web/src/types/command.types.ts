@@ -10,6 +10,9 @@ export type PaletteItem = {
   description?: string
   keywords?: string
   icon?: Icon
+  iconName?: string
+  iconPack?: 'lucide' | 'maki'
+  iconColor?: string
 }
 
 export type Command = PaletteItem & {
@@ -28,6 +31,7 @@ export type CommandArgument = {
   type: 'string' | 'number'
   getItems: (
     query?: string,
+    signal?: AbortSignal,
   ) => CommandArgumentOption[] | Promise<CommandArgumentOption[]>
   customItemComponent?: Component
 }

@@ -13,7 +13,8 @@ import { useExternalLink } from '@/composables/useExternalLink'
 dayjs.extend(customParseFormat)
 
 const props = defineProps<{
-  place: Partial<Place>
+  place?: Partial<Place>
+  transitInfo?: TransitStopInfo // Direct data injection from widget system
 }>()
 
 const { t } = useI18n()
@@ -37,7 +38,7 @@ onUnmounted(() => {
 })
 
 const transitInfo = computed((): TransitStopInfo | null => {
-  return props.place.transit?.value || null
+  return props.transitInfo || props.place?.transit?.value || null
 })
 
 const hasTransitData = computed(() => {

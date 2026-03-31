@@ -161,7 +161,9 @@ const allLayers = computed(() => {
         <ToggleGroup
           type="single"
           :default-value="mapStore.settings.basemap"
-          @update:model-value="(basemap) => mapStore.setBasemap(basemap as Basemap)"
+          @update:model-value="
+            basemap => mapStore.setBasemap(basemap as Basemap)
+          "
           class="contents"
         >
           <ToggleGroupItem

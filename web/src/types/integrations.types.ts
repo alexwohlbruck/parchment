@@ -90,6 +90,14 @@ export const configSchemas: Record<
     // Wikimedia Commons doesn't require any configuration
   }),
 
+  barrelmanSchema: z.object({
+    host: z
+      .string()
+      .url('Please enter a valid URL')
+      .default('http://localhost:3001'),
+    apiKey: z.string().optional(),
+  }),
+
   axiomSchema: z.object({
     endpoint: z
       .string()

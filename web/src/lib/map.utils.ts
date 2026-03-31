@@ -22,10 +22,20 @@ const MAPBOX_LAYOUT_PROPERTIES = [
   'text-field',
   'text-size',
   'text-offset',
-  'text-font',
   'icon-image',
   'icon-size',
 ] as const
+
+// Font name translation table: Mapbox Standard → MapTiler/MapLibre equivalents
+// MapTiler Streets v2 ships Roboto + Noto Sans; use Medium weight to match DIN Pro Medium.
+const MAPBOX_TO_MAPLIBRE_FONTS: Record<string, string> = {
+  'DIN Pro Medium':         'Roboto Medium',
+  'DIN Pro':                'Roboto Regular',
+  'DIN Pro Bold':           'Roboto Bold',
+  'DIN Pro Italic':         'Roboto Italic',
+  'Arial Unicode MS Bold':  'Noto Sans Regular',
+  'Arial Unicode MS Regular': 'Noto Sans Regular',
+}
 
 // TODO: Fix any types
 export function mapboxLayerToMaplibreLayer(layer: Layer): MaplibreLayerType {
@@ -51,6 +61,14 @@ export function mapboxLayerToMaplibreLayer(layer: Layer): MaplibreLayerType {
         delete maplibreConfig.layout[prop]
       }
     })
+
+    // Translate text-font: replace Mapbox font names with MapTiler/MapLibre equivalents.
+    // Falls back to the original name if no mapping exists.
+    if (Array.isArray(maplibreConfig.layout['text-font'])) {
+      maplibreConfig.layout['text-font'] = maplibreConfig.layout['text-font'].map(
+        (font: string) => MAPBOX_TO_MAPLIBRE_FONTS[font] ?? font,
+      )
+    }
   }
 
   // Handle special source cases

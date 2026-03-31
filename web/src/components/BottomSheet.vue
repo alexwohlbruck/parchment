@@ -92,7 +92,7 @@ const manualBounds = computed<ManualBounds | null>(() => {
 
   // Use second-to-last snap point when fully expanded (for map padding)
   const point = isFullyExpanded.value
-    ? snapPoints.value.at(-2) ?? activeSnapPoint.value
+    ? (snapPoints.value.at(-2) ?? activeSnapPoint.value)
     : activeSnapPoint.value
 
   const height = snapPointToPixels(point)
@@ -183,9 +183,10 @@ const activeSnapPointIndex = computed(() => {
   return snapPoints.value.indexOf(activeSnapPoint.value)
 })
 
-const isFullyExpanded = computed(
-  () => activeSnapPoint.value === snapPoints.value.at(-1),
-)
+const isFullyExpanded = computed(() => {
+  if (props.fitContent) return props.open
+  return activeSnapPoint.value === snapPoints.value.at(-1)
+})
 
 // ==================== SNAP POINT SYNCING ====================
 
@@ -409,12 +410,12 @@ function handleAnimationEnd(open: boolean) {
           :class="
             cn('pb-[env(safe-area-inset-bottom)]', {
               'flex-1 h-[200vh]': !props.fitContent,
-              'overflow-y-auto': props.fitContent || isFullyExpanded,
-              'overflow-y-hidden': !props.fitContent && !isFullyExpanded,
+              'overflow-y-auto': isFullyExpanded,
+              'overflow-y-hidden': !isFullyExpanded,
             })
           "
           :style="{
-            touchAction: props.fitContent || isFullyExpanded ? 'pan-y' : 'none',
+            touchAction: isFullyExpanded ? 'pan-y' : 'none',
             overscrollBehavior: 'none',
           }"
           @touchstart="handleTouchStart"

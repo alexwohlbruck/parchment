@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { createSharedComposable } from '@vueuse/core'
+import axios from 'axios'
 import { api } from '@/lib/api'
 import {
   SearchResult,
@@ -40,6 +41,7 @@ function searchService() {
 
   async function search(
     options: SearchOptions,
+    signal?: AbortSignal,
   ): Promise<SearchResult[] | AutocompleteResult[]> {
     const {
       query = '',
@@ -76,12 +78,13 @@ function searchService() {
       params.autocomplete = autocomplete.toString()
 
       const response = autocomplete
-        ? await api.get<AutocompleteResponse>('/search', { params })
-        : await api.get<SearchResponse>('/search', { params })
+        ? await api.get<AutocompleteResponse>('/search', { params, signal })
+        : await api.get<SearchResponse>('/search', { params, signal })
 
       suggestions.value = response.data.results
       return response.data.results
     } catch (err) {
+      if (axios.isCancel(err)) return []
       console.error('Error in search:', err)
       error.value =
         err instanceof Error ? err.message : 'Unknown error occurred'
@@ -93,8 +96,9 @@ function searchService() {
 
   async function getAutocompleteSuggestions(
     options: SearchOptions,
+    signal?: AbortSignal,
   ): Promise<AutocompleteResult[]> {
-    const results = await search({ ...options, autocomplete: true })
+    const results = await search({ ...options, autocomplete: true }, signal)
     return results as AutocompleteResult[]
   }
 

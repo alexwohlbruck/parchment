@@ -1,38 +1,102 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, nextTick, watch } from 'vue'
-import { StarIcon, XIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
+import {
+  StarIcon,
+  XIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+} from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import type { Place } from '@/types/place.types'
 import { getLogoPhoto } from '@/types/place.types'
 import { useResponsive } from '@/lib/utils'
+import { ItemIcon } from '@/components/ui/item-icon'
+import {
+  getSearchResultIconName,
+  getSearchResultIconPack,
+  getSearchResultCategory,
+} from '@/lib/search.utils'
+import { getCategoryColor } from '@/lib/place-colors'
+import { useThemeStore } from '@/stores/theme.store'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
 
 const props = defineProps<{
   place: Partial<Place>
 }>()
 
+const { t } = useI18n()
 const { isMobileScreen } = useResponsive()
+const themeStore = useThemeStore()
+const router = useRouter()
+
+const placeIconName = computed(() =>
+  props.place ? getSearchResultIconName(props.place as Place) : 'MapPin',
+)
+const placeIconPack = computed(() =>
+  props.place
+    ? getSearchResultIconPack(props.place as Place)
+    : ('lucide' as const),
+)
+const placeCategoryColor = computed(() => {
+  const category = props.place
+    ? getSearchResultCategory(props.place as Place)
+    : ('default' as const)
+  return getCategoryColor(category, themeStore.isDark)
+})
 
 const placeName = computed(() => {
-  // Return the name if it exists, otherwise return null (don't show title)
+  // Return the name if it exists, fall back to place type for unnamed POIs
   return props.place?.name?.value || null
 })
 
+// For unnamed places, use the place type as the title
+const displayName = computed(() => {
+  return placeName.value || placeType.value || null
+})
+
+// Only show place type separately when there's a real name (avoid showing it twice)
+const showPlaceType = computed(() => {
+  return placeName.value && placeType.value
+})
+
 const placeType = computed(() => {
-  // Only show place type if we have a name
-  if (!props.place?.name?.value) {
-    return null
-  }
-  
   const type = props.place?.placeType?.value
-  
+
   // Filter out geometry types that shouldn't be displayed as place types
-  const geometryTypes = ['Point', 'LineString', 'Polygon', 'MultiPolygon', 'Line', 'Area', 'poi']
+  const geometryTypes = [
+    'Point',
+    'LineString',
+    'Polygon',
+    'MultiPolygon',
+    'Line',
+    'Area',
+    'poi',
+  ]
   if (!type || geometryTypes.includes(type)) {
     return null
   }
-  
+
   return type
 })
+
+function openCategorySearch() {
+  const presetId = props.place?.icon?.presetId
+  const typeName = placeType.value
+  if (!presetId || !typeName) return
+
+  router.push({
+    name: AppRoute.SEARCH_RESULTS,
+    query: {
+      categoryId: presetId,
+      categoryName: typeName,
+      ...(props.place?.icon?.category
+        ? { categoryIconCategory: props.place.icon.category }
+        : {}),
+    },
+  })
+}
 
 const rating = computed(() => props.place?.ratings?.rating?.value || null)
 const reviewCount = computed(
@@ -57,20 +121,20 @@ const emit = defineEmits<{
 // Check if description content overflows the max height
 const checkOverflow = async () => {
   if (!descriptionRef.value || !description.value) return
-  
+
   await nextTick()
-  
+
   // Temporarily expand to measure full height
   const element = descriptionRef.value
   const originalMaxHeight = element.style.maxHeight
   element.style.maxHeight = 'none'
-  
+
   const fullHeight = element.scrollHeight
   const maxHeight = 128 // 8rem = 128px (assuming 1rem = 16px)
-  
+
   // Restore original max height
   element.style.maxHeight = originalMaxHeight
-  
+
   showToggleButton.value = fullHeight > maxHeight
 }
 
@@ -79,9 +143,13 @@ onMounted(() => {
 })
 
 // Watch for description changes and recheck overflow
-watch(description, () => {
-  checkOverflow()
-}, { immediate: true })
+watch(
+  description,
+  () => {
+    checkOverflow()
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -123,12 +191,52 @@ watch(description, () => {
       </div>
 
       <div class="flex-1">
-        <h1 v-if="placeName" class="text-2xl font-semibold line-clamp-2">
-          {{ placeName }}
-        </h1>
-        <div v-if="placeType" class="text-sm text-muted-foreground">
-          {{ placeType }}
-        </div>
+        <!-- Named place: h1 title, then icon + type label as a clickable badge below -->
+        <template v-if="placeName">
+          <h1 class="text-2xl font-semibold line-clamp-2">
+            {{ displayName }}
+          </h1>
+          <button
+            v-if="showPlaceType"
+            class="flex items-center gap-1.5 group rounded-md -mx-1 px-1 py-0.5 hover:bg-muted transition-colors"
+            :class="place?.icon?.presetId ? 'cursor-pointer' : 'cursor-default'"
+            @click="openCategorySearch"
+          >
+            <ItemIcon
+              :icon="placeIconName"
+              :icon-pack="placeIconPack"
+              :custom-color="placeCategoryColor"
+              size="xs"
+              variant="solid"
+              shape="circle"
+              class="!size-6 shadow-sm"
+            />
+            <span
+              class="text-sm text-muted-foreground group-hover:text-foreground transition-colors"
+              >{{ placeType }}</span
+            >
+          </button>
+        </template>
+        <!-- Unnamed place: icon left of title in a single clickable row -->
+        <button
+          v-else-if="displayName"
+          class="flex items-center gap-3 group rounded-md -mx-1 px-1 py-0.5 hover:bg-muted transition-colors text-left"
+          :class="place?.icon?.presetId ? 'cursor-pointer' : 'cursor-default'"
+          @click="openCategorySearch"
+        >
+          <ItemIcon
+            :icon="placeIconName"
+            :icon-pack="placeIconPack"
+            :custom-color="placeCategoryColor"
+            size="xs"
+            variant="solid"
+            shape="circle"
+            class="!size-8 shadow-sm shrink-0"
+          />
+          <h1 class="text-2xl font-semibold line-clamp-2">
+            {{ displayName }}
+          </h1>
+        </button>
         <div v-if="rating !== null" class="flex items-center gap-1 mt-1">
           <div class="flex">
             <StarIcon
@@ -153,7 +261,7 @@ watch(description, () => {
     <!-- Description Section -->
     <div v-if="description">
       <!-- Collapsed view with max height -->
-      <div 
+      <div
         v-if="!isDescriptionExpanded"
         ref="descriptionRef"
         class="relative overflow-hidden"
@@ -162,21 +270,21 @@ watch(description, () => {
         <p class="text-sm text-muted-foreground leading-relaxed">
           {{ description }}
         </p>
-        
+
         <!-- Fade out gradient (only show when content overflows) -->
-        <div 
+        <div
           v-if="showToggleButton"
-          class="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background md:from-muted to-transparent pointer-events-none" 
+          class="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background md:from-muted to-transparent pointer-events-none"
         />
       </div>
-      
+
       <!-- Expanded view -->
       <div v-else>
         <p class="text-sm text-muted-foreground leading-relaxed">
           {{ description }}
         </p>
       </div>
-      
+
       <!-- Toggle button (only show if content overflows) -->
       <button
         v-if="showToggleButton"
@@ -185,14 +293,13 @@ watch(description, () => {
       >
         <template v-if="isDescriptionExpanded">
           <ChevronUpIcon class="w-3 h-3" />
-          Show less
+          {{ t('place.header.showLess') }}
         </template>
         <template v-else>
           <ChevronDownIcon class="w-3 h-3" />
-          Show more
+          {{ t('place.header.showMore') }}
         </template>
       </button>
     </div>
   </div>
 </template>
-

@@ -14,7 +14,17 @@ import type {
   TransitDeparture,
   TransitStopInfo,
   PlaceRelation,
+  PlaceCategory,
+  PlaceIcon,
+  WidgetDescriptor,
+  WidgetResponse,
+  NearbyCategory,
+  RelatedPlacesData,
+  RelatedPlacesStrategy,
+  RelatedParent,
 } from '@server/types/place.types'
+
+import { WidgetType, WidgetDataType } from '@server/types/place.types'
 
 // Re-export for use in client code
 export type {
@@ -32,7 +42,17 @@ export type {
   TransitDeparture,
   TransitStopInfo,
   PlaceRelation,
+  PlaceCategory,
+  PlaceIcon,
+  WidgetDescriptor,
+  WidgetResponse,
+  NearbyCategory,
+  RelatedPlacesData,
+  RelatedPlacesStrategy,
+  RelatedParent,
 }
+
+export { WidgetType, WidgetDataType }
 
 // TODO: Move out of types
 export function getPrimaryPhoto(place: Partial<Place> | null): PlacePhoto | null {

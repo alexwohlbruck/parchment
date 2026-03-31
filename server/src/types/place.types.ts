@@ -33,8 +33,9 @@ export interface PlaceGeometry {
     maxLat: number
     maxLng: number
   }
-  nodes?: Coordinates[] // For linestrings and polygon exterior rings
-  polygons?: Coordinates[][] // For multipolygons: array of polygon rings (first ring is exterior, subsequent are holes)
+  nodes?: Coordinates[] // For linestrings and simple polygon exterior rings
+  rings?: Coordinates[][] // For polygons with holes: array of rings (first is exterior, subsequent are holes)
+  polygons?: Coordinates[][][] // For multipolygons: array of polygons, each polygon is array of rings (first is exterior, subsequent are holes)
 }
 
 export interface PlacePhoto {
@@ -147,6 +148,86 @@ export interface PlaceRelation {
   tags?: Record<string, string> // Relevant OSM tags
 }
 
+export enum WidgetType {
+  TRANSIT = 'transit',
+  RELATED_PLACES = 'related_places',
+  OSM_TAGS = 'osm_tags',
+}
+
+/**
+ * Widget data source types.
+ *
+ * STATIC — data is serialised into the descriptor at resolve time.
+ *   The client renders immediately with no extra round-trip.
+ *
+ * ASYNC — data is fetched from /places/widgets/:type after page load.
+ *   The client shows a skeleton placeholder while waiting.
+ */
+export enum WidgetDataType {
+  STATIC = 'static',
+  ASYNC = 'async',
+}
+
+export type RelatedPlacesStrategy = 'children' | 'parent' | 'admin'
+
+export interface RelatedParent {
+  id: string // OSM ID like "relation/123"
+  name: string
+  placeType: string // e.g., "Shopping Mall", "City"
+  icon?: PlaceIcon // Resolved icon for display
+  tags?: Record<string, string>
+}
+
+export interface RelatedPlacesData {
+  strategy: RelatedPlacesStrategy
+  children: Place[] // POIs inside this area (children strategy)
+  parents: RelatedParent[] // Containing areas (parent/admin strategy)
+  centerLat: number // Parent place center (for client-side distance display)
+  centerLng: number
+  hasMore?: boolean // Whether more children are available (for pagination)
+  offset?: number // Current offset (for client-side pagination)
+}
+
+export interface WidgetDescriptor {
+  type: WidgetType
+  dataType: WidgetDataType
+  title: string
+  estimatedHeight: number // px, for skeleton placeholder on client (only used for ASYNC widgets)
+  params: Record<string, string | number | boolean>
+}
+
+export interface WidgetResponse<T = unknown> {
+  type: WidgetType
+  data: AttributedValue<T>
+  sources: SourceReference[]
+}
+
+export interface NearbyCategory {
+  presetId: string // OSM preset ID, e.g. "amenity/cafe"
+  name: string // Display label, e.g. "Cafes"
+  icon?: string // Resolved icon name
+  iconPack?: 'lucide' | 'maki'
+  iconCategory?: PlaceCategory // For color theming
+}
+
+export type PlaceCategory =
+  | 'food_and_drink'
+  | 'education'
+  | 'medical'
+  | 'sport_and_leisure'
+  | 'store'
+  | 'arts_and_entertainment'
+  | 'commercial_services'
+  | 'park'
+  | 'default'
+
+export interface PlaceIcon {
+  category: PlaceCategory
+  icon: string // e.g. 'restaurant', 'hospital', 'park'
+  iconPack: 'lucide' | 'maki'
+  presetId?: string // OSM preset ID, e.g. 'amenity/cafe'
+}
+
 export interface ContactInfo {
   phone?: string
   formattedPhone?: string
@@ -168,7 +249,10 @@ export interface Place {
   contactInfo: {
     phone: AttributedValue<string> | null
     email: AttributedValue<string> | null
+    /** Primary website URL (first / most prominent) */
     website: AttributedValue<string> | null
+    /** All website URLs associated with the place (primary + sub-keys like website:menu). Optional — only populated by integrations that have multi-URL data. */
+    websites?: AttributedValue<string[]> | null
     socials: Record<string, AttributedValue<string>>
   }
   openingHours: AttributedValue<OpeningHours> | null
@@ -179,6 +263,22 @@ export interface Place {
   }
   transit?: AttributedValue<TransitStopInfo> | null
   relations?: AttributedValue<PlaceRelation[]> | null
+
+  // Raw OSM tags (populated for OSM-sourced places)
+  tags?: Record<string, string>
+
+  // Short human-readable summary derived from tags (e.g. "6 bicycles · Covered")
+  // Generated server-side; used in search result list items
+  summary?: string | null
+
+  // Widget descriptors for additional data sections
+  widgets?: WidgetDescriptor[]
+
+  // Nearby category chips for contextual exploration
+  nearbyCategories?: NearbyCategory[]
+
+  // Icon/category for display
+  icon?: PlaceIcon
 
   // All sources that contributed data
   sources: SourceReference[]

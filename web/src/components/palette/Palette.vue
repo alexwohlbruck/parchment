@@ -2,6 +2,7 @@
 import { computed, ref, watch, onMounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onClickOutside, useMagicKeys, useDebounceFn } from '@vueuse/core'
+import { useAbortController } from '@/composables/useAbortController'
 import { useRoute, useRouter } from 'vue-router'
 import { useCommandService } from '@/services/command.service'
 import { CommandName, useCommandStore } from '@/stores/command.store'
@@ -29,6 +30,7 @@ import {
   XIcon,
   LoaderIcon,
 } from 'lucide-vue-next'
+import { ItemIcon } from '@/components/ui/item-icon'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { fuzzyFilter, noFilter } from '@/lib/utils'
 import { TransitionSlide } from '@morev/vue-transitions'
@@ -78,6 +80,7 @@ const isDrawerOpen = computed(() => {
 // For async argument options
 const argumentOptions = ref<CommandArgumentOption[]>([])
 const loadingOptions = ref(false)
+const { nextSignal } = useAbortController()
 
 const container = ref<HTMLElement>()
 const commandPalette = ref<InstanceType<typeof Command>>()
@@ -211,12 +214,12 @@ async function onArgumentSelected(value: ArgumentType) {
 }
 
 // Load argument options with async support
-async function loadArgumentOptions() {
+async function loadArgumentOptions(signal?: AbortSignal) {
   if (!activeArgument.value) return
 
   loadingOptions.value = true
   try {
-    const items = activeArgument.value.getItems()
+    const items = activeArgument.value.getItems(undefined, signal)
     // Check if result is a Promise
     if (items instanceof Promise) {
       argumentOptions.value = await items
@@ -224,6 +227,8 @@ async function loadArgumentOptions() {
       argumentOptions.value = items
     }
   } catch (error) {
+    // Ignore cancellation — a newer request is already in flight
+    if (error instanceof DOMException && error.name === 'AbortError') return
     console.error('Error loading argument options:', error)
     argumentOptions.value = []
   } finally {
@@ -240,11 +245,12 @@ watch(activeArgument, async newArg => {
   }
 })
 
-// Create a debounced function for loading search options
+// Create a debounced function for loading search options.
+// nextSignal() cancels the previous in-flight autocomplete request before issuing a new one.
 const debouncedLoadOptions = useDebounceFn(async () => {
   // Load options if we're in search mode
   if (activeCommand.value?.id === CommandName.SEARCH && activeArgument.value) {
-    await loadArgumentOptions()
+    await loadArgumentOptions(nextSignal())
   }
 }, 300)
 
@@ -421,10 +427,19 @@ const filterFunction = computed(() => {
               />
 
               <template v-else>
+                <ItemIcon
+                  v-if="argumentOption.iconColor"
+                  :icon="argumentOption.iconName"
+                  :icon-pack="argumentOption.iconPack"
+                  :custom-color="argumentOption.iconColor"
+                  shape="circle"
+                  variant="solid"
+                  size="sm"
+                />
                 <component
-                  v-if="argumentOption.icon"
+                  v-else-if="argumentOption.icon"
                   :is="argumentOption.icon"
-                  class="size-5"
+                  class="size-5 opacity-50"
                 />
                 <div class="flex-1 flex flex-col">
                   <span class="font-semibold">{{ argumentOption.name }}</span>

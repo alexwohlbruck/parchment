@@ -7,6 +7,8 @@ import type {
 } from '../../../types/place.types'
 import { SOURCE } from '../../../lib/constants'
 import { getPlaceType } from '../../../lib/place.utils'
+import { matchTags } from '../../../lib/osm-presets'
+import { buildPlaceIcon } from '../../../lib/place-categories'
 import { parseOpeningHoursForUnifiedFormat } from '../../../lib/place.utils'
 import { calculateOSMCenter } from '../../../util/geometry-conversion'
 import { extractTransitIdentifiers, isTransitStopType, createTransitInfo } from '../../../lib/transit-utils'
@@ -42,6 +44,13 @@ export class OverpassAdapter {
       // Calculate center if not provided
       const center = calculateOSMCenter(data)
 
+      // Match tags to get preset and build icon.
+      // Ways and relations are area features — use 'area' geometry so presets like
+      // building/apartments are matched correctly instead of falling back to building_point.
+      const geometryHint = (data.type === 'way' || data.type === 'relation') ? 'area' : 'point'
+      const presetMatch = matchTags(data.tags || {}, geometryHint)
+      const icon = buildPlaceIcon(presetMatch)
+
       return {
         id: primaryId,
         externalIds: {
@@ -52,9 +61,10 @@ export class OverpassAdapter {
           sourceId: SOURCE.OSM,
         },
         placeType: {
-          value: getPlaceType(data.tags || {}) || 'unknown',
+          value: getPlaceType(data.tags || {}, 'en-US', geometryHint) || 'unknown',
           sourceId: SOURCE.OSM,
         },
+        icon,
         geometry: {
           value: {
             type: 'point' as const,

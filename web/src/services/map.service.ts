@@ -13,6 +13,7 @@ import {
   LayerType,
   MapSettings,
   LocateFlySpeed,
+  StartupLocation,
 } from '@/types/map.types'
 import type { Place } from '@/types/place.types'
 import { useMapStore } from '../stores/map.store'
@@ -34,9 +35,10 @@ import { mapEventBus } from '@/lib/eventBus'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { AppRoute } from '@/router'
 import { useRouter } from 'vue-router'
-import { ref, toRaw, watch, Component } from 'vue'
+import { ref, toRaw, watch, computed, Component } from 'vue'
 import { storedLocale } from '@/lib/i18n'
 import { useGeolocationService } from '@/services/geolocation.service'
+import { useSearchStore } from '@/stores/search.store'
 
 const dark = useDark()
 
@@ -330,10 +332,6 @@ function mapService() {
     // Ensure map container is properly sized after load
     resize()
 
-    // Locate user on startup if enabled
-    if (mapStore.settings.locateOnStartup) {
-      locateUser()
-    }
   }
 
   function onStyleLoad() {
@@ -344,8 +342,6 @@ function mapService() {
         setTimeout(initializeAfterStyleLoad, 50)
         return
       }
-
-      setConfigProperties()
 
       // Sync client-side layer visibility with their group states
       const hasVisibleTransitLayers =
@@ -364,6 +360,15 @@ function mapService() {
       // Update polygon colors to match current theme
       placePolygonLayerService.updatePlacePolygonColors(mapStrategy)
 
+      // Initialize marker layers - they will automatically sync with store state
+      markerLayersService.initializeMarkerLayers(mapStrategy)
+
+      // Apply config properties AFTER all sources/layers are added,
+      // because setConfigProperties modifies the map style (e.g. removeImport)
+      // which can temporarily make isStyleLoaded() return false and cause
+      // deferred addSource calls to lose their layers.
+      setConfigProperties()
+
       // Apply transit map theme if transit layers are visible
       if (hasVisibleTransitLayers && mapStrategy) {
         const themeStore = useThemeStore()
@@ -373,9 +378,6 @@ function mapService() {
         )
         mapStrategy.setTransitLabels(!hasVisibleTransitLayers)
       }
-
-      // Initialize marker layers - they will automatically sync with store state
-      markerLayersService.initializeMarkerLayers(mapStrategy)
 
       // Show queued trips if any
       if (queuedTrips.value) {
@@ -387,6 +389,11 @@ function mapService() {
       }
 
       // Note: Waypoint markers are automatically managed by WaypointsLayer
+
+      // Trigger geolocation flyTo after style + layers are fully ready
+      if (mapStore.settings.startupLocation === StartupLocation.LOCATE_ME) {
+        locateUser()
+      }
     }
 
     // Start the initialization process
@@ -668,12 +675,16 @@ function mapService() {
     mapStore.settings.poiLabels = value ?? !mapStore.settings.poiLabels
   }
 
-  watch(
-    () => mapStore.settings.poiLabels,
-    value => {
-      mapStrategy?.setPoiLabels(value)
-    },
+  // POI labels are suppressed while search results are visible so they don't
+  // compete visually with the search result markers and labels.  When results
+  // are cleared the user's stored preference takes effect again automatically.
+  const searchStore = useSearchStore()
+  const effectivePoiLabels = computed(
+    () => mapStore.settings.poiLabels && !searchStore.hasResults,
   )
+  watch(effectivePoiLabels, value => {
+    mapStrategy?.setPoiLabels(value)
+  })
 
   function toggleRoadLabels(value?: boolean) {
     mapStore.settings.roadLabels = value ?? !mapStore.settings.roadLabels
@@ -730,6 +741,17 @@ function mapService() {
   function updateMapPadding() {
     if (!mapStrategy || !mapContainer) {
       console.warn('Cannot update map padding: map not ready')
+      return
+    }
+
+    // If the map is currently animating (e.g. locate flyTo on startup), defer
+    // the padding update until the animation finishes to avoid interrupting it.
+    if (mapStrategy.mapInstance?.isMoving()) {
+      function onMoveEnd() {
+        mapEventBus.off('moveend', onMoveEnd)
+        updateMapPadding()
+      }
+      mapEventBus.on('moveend', onMoveEnd)
       return
     }
 
@@ -1145,6 +1167,7 @@ function mapService() {
     },
 
     // Reactive state for conditional control visibility
+    isMapReady,
     isRotatedOrPitched,
     isCurrentlyRotating,
     isCurrentlyZooming,

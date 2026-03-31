@@ -18,6 +18,7 @@ export const SOURCE = {
   GRAPHHOPPER: 'graphhopper',
   GEOAPIFY: 'geoapify',
   TRANSITLAND: 'transitland',
+  OVERTURE: 'overture',
 } as const
 // TODO: Fix types for source and integration ids
 export type Source = (typeof SOURCE)[keyof typeof SOURCE]
@@ -35,6 +36,7 @@ export const SOURCE_PRIORITIES = {
   [SOURCE.GOOGLE]: 80,
   [SOURCE.WIKIPEDIA]: 78, // High priority for detailed descriptions
   [SOURCE.TRANSITLAND]: 77, // High priority for transit data
+  [SOURCE.OVERTURE]: 76, // Multi-source aggregated data (Overture Maps via Barrelman)
   [SOURCE.GEOAPIFY]: 75,
   [SOURCE.GRAPHHOPPER]: 72, // Routing provider - preferred routing engine
   [SOURCE.VALHALLA]: 70, // Routing provider - high priority for routing data
@@ -54,8 +56,9 @@ export const SOURCE_PRIORITIES = {
  * Higher value = higher priority
  */
 export const INTEGRATION_PRIORITIES: Partial<Record<IntegrationId, number>> = {
-  [IntegrationId.PELIAS]: 100, // Fast, self-hosted, good coverage for place info and search
-  [IntegrationId.NOMINATIM]: 90, // Free, rate-limited, good for geocoding
+  [IntegrationId.BARRELMAN]: 105, // Primary OSM engine — search, place info, spatial, tiles
+  [IntegrationId.PELIAS]: 100, // Fast, self-hosted, address geocoding (OpenAddresses)
+  [IntegrationId.NOMINATIM]: 90, // Free, rate-limited, geocoding fallback
   [IntegrationId.GOOGLE_MAPS]: 80, // Fast, paid, excellent coverage
   [IntegrationId.WIKIPEDIA]: 78, // Free, high-quality detailed descriptions
   [IntegrationId.TRANSITLAND]: 77, // Paid, authoritative transit data

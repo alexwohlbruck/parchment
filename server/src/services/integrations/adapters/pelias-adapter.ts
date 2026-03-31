@@ -6,6 +6,8 @@ import type {
   OpeningHours,
 } from '../../../types/place.types'
 import { getPlaceType } from '../../../lib/place.utils'
+import { matchTags } from '../../../lib/osm-presets'
+import { buildPlaceIcon } from '../../../lib/place-categories'
 import { SOURCE } from '../../../lib/constants'
 import { parseOsmHours } from '../../../lib/hours.utils'
 
@@ -238,9 +240,12 @@ export class PeliasAdapter {
       // Determine place type
       let placeType = props.layer || 'unknown'
 
+      let presetMatch = null
       if (props.addendum?.osm) {
         placeType = getPlaceType(props.addendum.osm)
+        presetMatch = matchTags(props.addendum.osm)
       }
+      const icon = buildPlaceIcon(presetMatch)
 
       // Extract coordinates
       const lng = feature.geometry.coordinates[0]
@@ -281,6 +286,7 @@ export class PeliasAdapter {
           value: placeType,
           sourceId: actualSource,
         },
+        icon,
         geometry: {
           value: geometry,
           sourceId: actualSource,

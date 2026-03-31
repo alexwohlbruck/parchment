@@ -15,6 +15,8 @@ import type {
   TravelMode,
 } from '../../../types/unified-routing.types'
 import { getPlaceType } from '../../../lib/place.utils'
+import { matchTags } from '../../../lib/osm-presets'
+import { buildPlaceIcon } from '../../../lib/place-categories'
 import { SOURCE } from '../../../lib/constants'
 import { getPresetFromGeoapifyCategory } from '../mappings/geoapify-preset-mapping'
 
@@ -167,9 +169,12 @@ export class GeoapifyAdapter {
       }
 
       const address = this.extractAddress(props)
-      const placeType = (props.datasource?.raw && typeof props.datasource.raw === 'object') 
-        ? getPlaceType(props.datasource.raw as Record<string, string>) 
-        : 'unknown'
+      const rawTags = (props.datasource?.raw && typeof props.datasource.raw === 'object')
+        ? props.datasource.raw as Record<string, string>
+        : null
+      const placeType = rawTags ? getPlaceType(rawTags) : 'unknown'
+      const presetMatch = rawTags ? matchTags(rawTags) : null
+      const icon = buildPlaceIcon(presetMatch)
 
       const osmId = getOsmId(feature)
       const externalIds: Record<string, string> = {}
@@ -205,6 +210,7 @@ export class GeoapifyAdapter {
           sourceId: sourceId,
           timestamp,
         },
+        icon,
         geometry: {
           value: geometry,
           sourceId: sourceId,

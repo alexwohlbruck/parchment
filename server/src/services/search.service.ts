@@ -18,19 +18,27 @@ import {
   MapBounds,
 } from '../types/integration.types'
 import { integrationManager } from './integrations'
+import { resolveIcon } from '../lib/place-categories'
 
 
 /**
  * Convert a CategoryResult/preset to a SearchResult
  */
 function convertPresetToSearchResult(preset: any): SearchResult {
+  // Resolve preset icon (usually maki-prefixed) to icon name + pack
+  const resolvedIcon = resolveIcon(preset.icon || 'maki-marker')
+
   return {
     id: preset.id,
     type: 'category',
     title: preset.name,
-    description:
-      preset.description || `Search for ${preset.name.toLowerCase()}`,
-    icon: preset.icon,
+    // Only use the description if it's human-readable — raw OSM tag fallbacks
+    // like "amenity=library" (key=value, no spaces) are not useful to show.
+    description: preset.description && !/^\S+=\S+$/.test(preset.description)
+      ? preset.description
+      : undefined,
+    icon: resolvedIcon.icon,
+    iconPack: resolvedIcon.iconPack,
     metadata: {
       category: {
         tags: preset.tags,
@@ -66,6 +74,8 @@ function convertToAutocompleteResult(result: SearchResult): AutocompleteResult {
     title: result.title,
     description: result.description,
     icon: result.icon,
+    iconPack: result.iconPack,
+    iconCategory: result.iconCategory,
     color: result.color,
     lat,
     lng,
@@ -146,14 +156,16 @@ function convertBookmarkToSearchResult(bookmark: Bookmark): SearchResult {
  * Convert a Place object to a SearchResult
  */
 function convertPlaceToSearchResult(place: Place): SearchResult {
+  const placeType = place.placeType?.value || ''
+
   // For places, use street address as description if we have both name and address
   // This helps distinguish between place names and address lookups
-  let description = ''
+  let address = ''
 
   if (place.address?.value) {
     // Use formatted address if available
     if (place.address.value.formatted) {
-      description = place.address.value.formatted
+      address = place.address.value.formatted
     } else {
       // Build formatted address from components (for Pelias results)
       const addr = place.address.value
@@ -170,16 +182,22 @@ function convertPlaceToSearchResult(place: Place): SearchResult {
       }
       if (addr.country) parts.push(addr.country)
 
-      description = parts.join(', ')
+      address = parts.join(', ')
     }
   }
+
+  const description = placeType && address
+    ? `${placeType} · ${address}`
+    : placeType || address
 
   return {
     id: place.id,
     type: 'place',
     title: place.name?.value || 'Unknown Place',
-    description: description,
-    icon: 'MapPin',
+    description,
+    icon: place.icon?.icon || 'MapPin',
+    iconPack: place.icon?.iconPack,
+    iconCategory: place.icon?.category,
     metadata: {
       place: place,
     },
@@ -210,7 +228,7 @@ export async function search(
     const presets = categoryService.searchCategories(
       query,
       language,
-      Math.min(10, maxResults),
+      Math.min(20, maxResults),
     )
     const presetResults = presets.map((preset) =>
       convertPresetToSearchResult(preset),
@@ -275,6 +293,44 @@ export interface CategorySearchOptions {
 }
 
 /**
+ * Derive the primary Barrelman category and extra OSM tag filters from a preset ID.
+ *
+ * The iD tagging schema uses hierarchical preset IDs like `amenity/restaurant/pizza`
+ * where the full tags are `{amenity:"restaurant", cuisine:"pizza"}`. Barrelman's DB only
+ * stores the primary category (`amenity/restaurant`), so we must:
+ *   1. Send the parent preset ID as the category filter
+ *   2. Pass the additional discriminating tags (cuisine=pizza) as a secondary filter
+ */
+function derivePresetFilter(presetId: string): {
+  categoryId: string
+  filterTags: Record<string, string>
+} {
+  const preset = categoryService.getCategoryById(presetId)
+  const presetTags = (preset?.tags || {}) as Record<string, string>
+
+  const parts = presetId.split('/')
+  if (parts.length <= 2) {
+    // Top-level preset (e.g. amenity/restaurant) — no extra filtering needed
+    return { categoryId: presetId, filterTags: {} }
+  }
+
+  // Sub-preset (e.g. amenity/restaurant/pizza): derive extra tags by diffing against parent
+  const parentId = `${parts[0]}/${parts[1]}`
+  const parentPreset = categoryService.getCategoryById(parentId)
+  const parentTags = (parentPreset?.tags || {}) as Record<string, string>
+
+  // Filter tags = tags the sub-preset adds beyond the parent (e.g. cuisine=pizza)
+  const filterTags: Record<string, string> = {}
+  for (const [key, value] of Object.entries(presetTags)) {
+    if (parentTags[key] !== value) {
+      filterTags[key] = value
+    }
+  }
+
+  return { categoryId: parentId, filterTags }
+}
+
+/**
  * Search by category/preset using available integrations
  */
 export async function searchByCategory(
@@ -299,20 +355,22 @@ export async function searchByCategory(
     integrationManager.getCachedIntegrationInstance(preferredIntegration)
 
   if (!integration) {
-    // TODO: Would this ever happen?
     return [] // TODO: Return useful error to client
   }
 
   const searchCapability = integration.capabilities.searchCategory
 
-  // TODO: This should never happen
   if (!searchCapability?.searchByCategory) {
     throw new Error(
       `Integration ${integration.integrationId} does not support category search`,
     )
   }
 
-  return await searchCapability.searchByCategory(presetId, options.bounds, {
+  // Resolve sub-preset IDs to parent category + filter tags
+  const { categoryId, filterTags } = derivePresetFilter(presetId)
+
+  return await searchCapability.searchByCategory(categoryId, options.bounds, {
     limit: options.limit,
+    filterTags: Object.keys(filterTags).length > 0 ? filterTags : undefined,
   })
 }

@@ -6,7 +6,7 @@ import { useAppStore } from '@/stores/app.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useCommandStore } from '@/stores/command.store'
 import { CommandName } from '@/stores/command.store'
-import { UnitSystem, LocateFlySpeed } from '@/types/map.types'
+import { UnitSystem, LocateFlySpeed, StartupLocation } from '@/types/map.types'
 import type { Locale } from '@/lib/i18n'
 import { updatePreferences } from '@/services/preferences.service'
 import { useMapStore } from '@/stores/map.store'
@@ -19,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import { Gauge, GaugeIcon, LanguagesIcon, Navigation2Icon } from 'lucide-vue-next'
 
 const appStore = useAppStore()
@@ -80,14 +79,31 @@ watch(
     <!-- Location behavior -->
     <SettingsSection :title="$t('settings.mapSettings.location.title')">
       <SettingsItem
-        :title="$t('settings.mapSettings.location.locateOnStartup')"
-        :description="$t('settings.mapSettings.location.locateOnStartupDescription')"
+        :title="$t('settings.mapSettings.location.startupLocation')"
+        :description="$t('settings.mapSettings.location.startupLocationDescription')"
         :icon="Navigation2Icon"
       >
-        <Switch
-          :model-value="settings.locateOnStartup"
-          @update:model-value="settings.locateOnStartup = !!$event"
-        />
+        <Select
+          :model-value="settings.startupLocation ?? StartupLocation.LAST_VISITED"
+          @update:model-value="settings.startupLocation = $event as StartupLocation"
+        >
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem :value="StartupLocation.LOCATE_ME">
+                {{ $t('settings.mapSettings.location.startup.locateMe') }}
+              </SelectItem>
+              <SelectItem :value="StartupLocation.LAST_VISITED">
+                {{ $t('settings.mapSettings.location.startup.lastVisited') }}
+              </SelectItem>
+              <SelectItem :value="StartupLocation.URL_PARAMS">
+                {{ $t('settings.mapSettings.location.startup.urlParams') }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
       </SettingsItem>
 
       <SettingsItem

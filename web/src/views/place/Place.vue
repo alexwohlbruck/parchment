@@ -5,6 +5,7 @@ import { useMapService } from '@/services/map.service'
 import { MarkerIds } from '@/types/map.types'
 import { LngLat } from 'mapbox-gl'
 import { usePlaceService } from '@/services/place.service'
+import { useAbortController } from '@/composables/useAbortController'
 import Place from '@/components/place/Place.vue'
 import { AppRoute } from '@/router'
 
@@ -13,6 +14,7 @@ const router = useRouter()
 const { currentPlace, loading, fetchPlaceDetails, fetchPlaceDetailsByCoordinates, clearPlace, setPartialPlace } =
   usePlaceService()
 const { flyTo, fitBounds, addMarker, removeAllMarkers, updatePlacePolygon } = useMapService()
+const { nextSignal } = useAbortController()
 
 async function loadPlace() {
   // Don't clear place - keep partial data visible during loading
@@ -63,14 +65,14 @@ async function loadPlace() {
     typeof id === 'string' &&
     !['provider', 'location'].includes(type)
   ) {
-    const place = await fetchPlaceDetails(`${type}/${id}`)
+    const place = await fetchPlaceDetails(`${type}/${id}`, 'osm', undefined, nextSignal())
     handlePlaceResult(place)
     return
   }
 
   // Case 2: Provider-specific ID
   if (typeof provider === 'string' && typeof placeId === 'string') {
-    const place = await fetchPlaceDetails(placeId, provider)
+    const place = await fetchPlaceDetails(placeId, provider, undefined, nextSignal())
     handlePlaceResult(place)
     return
   }
@@ -81,14 +83,14 @@ async function loadPlace() {
       lat: parseFloat(lat),
       lng: parseFloat(lng),
     }
-    
+
     // Immediately add marker and move camera for partial place data
     if (currentPlace.value?.geometry?.value?.center) {
       handlePlaceResult(currentPlace.value)
     }
-    
+
     // Use name-based search for more accurate results
-    const place = await fetchPlaceDetails(name, undefined, coordinates)
+    const place = await fetchPlaceDetails(name, undefined, coordinates, nextSignal())
     handlePlaceResult(place)
     return
   }
@@ -99,16 +101,18 @@ async function loadPlace() {
       lat: parseFloat(lat),
       lng: parseFloat(lng),
     }
-    
+
     // Immediately add marker and move camera for partial place data
     if (currentPlace.value?.geometry?.value?.center) {
       handlePlaceResult(currentPlace.value)
     }
-    
+
     // Load full enriched place details
     const place = await fetchPlaceDetailsByCoordinates(
       coordinates.lat,
       coordinates.lng,
+      undefined,
+      nextSignal(),
     )
     handlePlaceResult(place)
     return

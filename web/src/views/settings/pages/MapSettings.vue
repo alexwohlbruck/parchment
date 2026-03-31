@@ -16,6 +16,7 @@ import {
 import { CommandName } from '@/stores/command.store'
 
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { SettingsSection, SettingsItem } from '@/components/settings'
 import {
   Select,

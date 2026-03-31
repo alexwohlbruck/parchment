@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ChevronDownIcon, ExternalLinkIcon } from 'lucide-vue-next'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Button } from '@/components/ui/button'
@@ -11,6 +12,7 @@ defineProps<{
   place: Partial<Place>
 }>()
 
+const { t } = useI18n()
 const showTags = ref(false)
 
 function formatDate(dateString: string) {
@@ -47,9 +49,11 @@ function formatDate(dateString: string) {
                       v-if="source.updated"
                       class="text-xs text-muted-foreground text-start"
                     >
-                      Last updated
-                      {{ formatDate(source.updated) }}
-                      {{ source.updatedBy ? `by ${source.updatedBy}` : '' }}
+                      {{
+                        source.updatedBy
+                          ? t('place.sources.lastUpdatedBy', { date: formatDate(source.updated), updatedBy: source.updatedBy })
+                          : t('place.sources.lastUpdated', { date: formatDate(source.updated) })
+                      }}
                     </span>
                   </div>
                   <div class="flex items-center gap-1">
@@ -64,7 +68,7 @@ function formatDate(dateString: string) {
                         :href="source.url"
                         target="_blank"
                         rel="noopener noreferrer"
-                        :title="`View on ${source.name}`"
+                        :title="t('place.sources.viewOn', { name: source.name })"
                       >
                         <ExternalLinkIcon class="size-4" />
                       </a>
@@ -111,9 +115,11 @@ function formatDate(dateString: string) {
                   v-if="source.updated"
                   class="text-xs text-muted-foreground"
                 >
-                  Last updated
-                  {{ formatDate(source.updated) }}
-                  {{ source.updatedBy ? `by ${source.updatedBy}` : '' }}
+                  {{
+                    source.updatedBy
+                      ? t('place.sources.lastUpdatedBy', { date: formatDate(source.updated), updatedBy: source.updatedBy })
+                      : t('place.sources.lastUpdated', { date: formatDate(source.updated) })
+                  }}
                 </span>
               </div>
               <Button
@@ -126,7 +132,7 @@ function formatDate(dateString: string) {
                   :href="source.url"
                   target="_blank"
                   rel="noopener noreferrer"
-                  :title="`View on ${source.name}`"
+                  :title="t('place.sources.viewOn', { name: source.name })"
                 >
                   <ExternalLinkIcon class="size-4" />
                 </a>

@@ -456,7 +456,7 @@ export async function lookupPlacesByNameAndLocation(
       language,
     } = options || {}
 
-    const integrationRecords = integrationManager
+    const allIntegrationRecords = integrationManager
       .getConfiguredIntegrationsByCapability(
         autocomplete
           ? IntegrationCapabilityId.AUTOCOMPLETE
@@ -471,6 +471,14 @@ export async function lookupPlacesByNameAndLocation(
           sourceBlacklist.includes(source),
         )
       })
+
+    // For autocomplete, only use the single highest-priority integration.
+    // Querying multiple integrations in parallel means the slowest one determines
+    // total latency — unnecessary for typing-speed autocomplete where the primary
+    // integration (Barrelman) covers everything we need.
+    const integrationRecords = autocomplete
+      ? allIntegrationRecords.slice(0, 1)
+      : allIntegrationRecords
 
     if (integrationRecords.length === 0) {
       // TODO: Return useful error to client
@@ -487,6 +495,7 @@ export async function lookupPlacesByNameAndLocation(
           name,
           coordinates.lat,
           coordinates.lng,
+          { radius },
         )
       } else {
         return integration.capabilities.search?.searchPlaces(
@@ -1021,19 +1030,26 @@ export async function lookupEnrichedPlaceById(
       console.log(`⏱️ [PERF] Step 2 - Skipped third party search for Transitland transit stop`)
     }
 
-    // Step 3, 4 & 5: Enrich with Wiki data, transit data, and address data in parallel
+    // Step 3 & 4: Enrich with Wiki data and address data in parallel
+    // Transit departure data is now fetched separately via the widget system
     // Clone the place object for each enrichment to avoid race conditions
     const enrichmentStart = Date.now()
-    const [wikiEnrichedPlace, transitEnrichedPlace, addressEnrichedPlace] = await Promise.all([
+    const [wikiEnrichedPlace, addressEnrichedPlace] = await Promise.all([
       enrichPlaceWithWikiData(JSON.parse(JSON.stringify(place)), language),
-      enrichPlaceWithTransitData(JSON.parse(JSON.stringify(place))),
       enrichPlaceWithAddressData(JSON.parse(JSON.stringify(place)))
     ])
-    
+
     // Merge the results (wiki data takes precedence for conflicts)
-    place = mergePlaces(mergePlaces(wikiEnrichedPlace, transitEnrichedPlace), addressEnrichedPlace)
+    place = mergePlaces(wikiEnrichedPlace, addressEnrichedPlace)
     const enrichmentTime = Date.now() - enrichmentStart
-    console.log(`⏱️ [PERF] Step 3-5 - Parallel enrichment (Wiki + Transit + Address): ${enrichmentTime}ms`)
+    console.log(`⏱️ [PERF] Step 3-4 - Parallel enrichment (Wiki + Address): ${enrichmentTime}ms`)
+
+    // Step 5: Resolve nearby categories first, then widget descriptors
+    // (widget descriptors depend on nearbyCategories being populated)
+    const { resolveWidgetDescriptors } = await import('./widget.service')
+    const { resolveNearbyCategories } = await import('../lib/nearby-categories')
+    place.nearbyCategories = resolveNearbyCategories(place)
+    place.widgets = resolveWidgetDescriptors(place)
 
     // Step 6: Add bookmark information if user ID is provided
     if (userId && place) {

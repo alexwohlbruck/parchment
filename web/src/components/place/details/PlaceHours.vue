@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ClockIcon } from 'lucide-vue-next'
 import DetailItem from './DetailItem.vue'
 import type { OpeningHours } from '@/types/place.types'
@@ -9,17 +10,11 @@ const props = defineProps<{
   osmUrl?: string
 }>()
 
+const { t } = useI18n()
+
 const showHours = ref(false)
 
-const DAYS = [
-  'Sunday',
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-]
+const DAYS = computed(() => [0, 1, 2, 3, 4, 5, 6].map(i => t(`place.hours.days.${i}`)))
 
 const hasHoursData = computed(() => {
   const hours = props.hours
@@ -40,19 +35,22 @@ const openingStatus = computed(() => {
   }
 
   if (hours.isPermanentlyClosed) {
-    return { status: 'Permanently closed', color: 'text-red-500' }
+    return { status: t('place.hours.permanentlyClosed'), color: 'text-red-500' }
   }
 
   if (hours.isTemporarilyClosed) {
-    return { status: 'Temporarily closed', color: 'text-orange-500' }
+    return { status: t('place.hours.temporarilyClosed'), color: 'text-orange-500' }
   }
 
   if (hours.isOpen24_7) {
-    return { status: 'Open 24/7', color: 'text-green-500' }
+    return { status: t('place.hours.open247'), color: 'text-green-500' }
   }
 
   if (hours.regularHours.length === 0) {
-    return { status: '', color: '' }
+    // No parsed hours — show raw text if available so the row isn't blank
+    return hours.rawText
+      ? { status: hours.rawText.split(';').map(s => s.trim()).join(' · '), color: '' }
+      : { status: '', color: '' }
   }
 
   const now = new Date()
@@ -64,35 +62,34 @@ const openingStatus = computed(() => {
 
   const todayHours = hours.regularHours.find(h => h.day === currentDay)
   if (!todayHours) {
-    return { status: 'Closed today', color: 'text-red-500' }
+    return { status: t('place.hours.closedToday'), color: 'text-red-500' }
   }
 
   if (currentTime >= todayHours.open && currentTime <= todayHours.close) {
     return {
-      status: `Open until ${formatTime(todayHours.close)}`,
+      status: t('place.hours.openUntil', { time: formatTime(todayHours.close) }),
       color: 'text-green-500',
     }
   } else if (currentTime < todayHours.open) {
     return {
-      status: `Opens at ${formatTime(todayHours.open)}`,
+      status: t('place.hours.opensAt', { time: formatTime(todayHours.open) }),
       color: 'text-orange-500',
     }
   } else {
-    // Find next day's opening time
     let nextDay = (currentDay + 1) % 7
     let daysChecked = 0
     while (daysChecked < 7) {
       const nextDayHours = hours.regularHours.find(h => h.day === nextDay)
       if (nextDayHours) {
         return {
-          status: `Opens ${DAYS[nextDay]} at ${formatTime(nextDayHours.open)}`,
+          status: t('place.hours.opensDay', { day: DAYS.value[nextDay], time: formatTime(nextDayHours.open) }),
           color: 'text-orange-500',
         }
       }
       nextDay = (nextDay + 1) % 7
       daysChecked++
     }
-    return { status: 'Closed', color: 'text-red-500' }
+    return { status: t('place.hours.closed'), color: 'text-red-500' }
   }
 })
 
@@ -106,15 +103,13 @@ function formatTime(time: string) {
 function formatOpeningHours(hours: OpeningHours) {
   if (!hours || !hours.rawText) return ''
 
-  if (hours.isPermanentlyClosed) return 'Permanently closed'
+  if (hours.isPermanentlyClosed) return t('place.hours.permanentlyClosed')
   if (hours.isTemporarilyClosed) {
     return hours.nextOpenDate
-      ? `Temporarily closed until ${new Date(
-          hours.nextOpenDate,
-        ).toLocaleDateString()}`
-      : 'Temporarily closed'
+      ? t('place.hours.temporarilyClosedUntil', { date: new Date(hours.nextOpenDate).toLocaleDateString() })
+      : t('place.hours.temporarilyClosed')
   }
-  if (hours.isOpen24_7) return 'Open 24/7'
+  if (hours.isOpen24_7) return t('place.hours.open247')
 
   return hours.rawText.split(';').join('\n')
 }
@@ -122,7 +117,7 @@ function formatOpeningHours(hours: OpeningHours) {
 
 <template>
   <DetailItem
-    v-if="hasHoursData"
+    v-if="hasHoursData && openingStatus.status"
     :icon="ClockIcon"
     :osmUrl="osmUrl"
     :copyValue="formatOpeningHours(hours)"
@@ -135,36 +130,24 @@ function formatOpeningHours(hours: OpeningHours) {
           class="text-sm text-muted-foreground hover:text-foreground text-left"
           @click="showHours = !showHours"
         >
-          See hours
+          {{ t('place.hours.seeHours') }}
         </button>
       </div>
       <div v-show="showHours" class="text-sm text-muted-foreground mt-1">
         <div
-          v-for="day in DAYS"
+          v-for="(day, index) in DAYS"
           :key="day"
           class="flex justify-between"
-          :class="{ 'font-medium': day === DAYS[new Date().getDay()] }"
+          :class="{ 'font-medium': index === new Date().getDay() }"
         >
           <span>{{ day }}:</span>
           <span>
-            <template
-              v-if="hours.regularHours.find(h => h.day === DAYS.indexOf(day))"
-            >
-              {{
-                formatTime(
-                  hours.regularHours.find(h => h.day === DAYS.indexOf(day))!
-                    .open,
-                )
-              }}
+            <template v-if="hours.regularHours.find(h => h.day === index)">
+              {{ formatTime(hours.regularHours.find(h => h.day === index)!.open) }}
               -
-              {{
-                formatTime(
-                  hours.regularHours.find(h => h.day === DAYS.indexOf(day))!
-                    .close,
-                )
-              }}
+              {{ formatTime(hours.regularHours.find(h => h.day === index)!.close) }}
             </template>
-            <template v-else> Closed </template>
+            <template v-else>{{ t('place.hours.closed') }}</template>
           </span>
         </div>
       </div>

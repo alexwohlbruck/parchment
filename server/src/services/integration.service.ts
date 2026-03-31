@@ -57,6 +57,21 @@ const availableIntegrations: IntegrationDefinition[] = [
     scope: [IntegrationScope.SYSTEM],
   },
   {
+    id: IntegrationId.BARRELMAN,
+    name: 'Barrelman',
+    description: 'OSM geospatial engine — search, tiles, spatial queries',
+    color: '#1A73A7',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.BARRELMAN,
+      )
+    },
+    paid: false,
+    cloud: false,
+    configSchema: 'barrelmanSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
     id: IntegrationId.OVERPASS,
     name: 'Overpass API',
     description: 'OpenStreetMap data filtering and retrieval',

@@ -65,7 +65,8 @@ export function useLayersService() {
       // Convert reactive proxy to plain object to avoid proxy issues
       const plainLayer = toRaw(layer)
 
-      // Special handling for search results layer (handled by search results service)
+      // Special handling for search results layer: source + symbol layer are
+      // both added inside initializeSearchResultsLayer so they stay in sync.
       if (plainLayer.id === searchResultsService.createSearchResultsLayer().id) {
         searchResultsService.initializeSearchResultsLayer(mapStrategy)
         return

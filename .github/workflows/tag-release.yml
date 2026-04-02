@@ -25,7 +25,7 @@ jobs:
       tag: ${{ steps.version.outputs.TAG }}
       created: ${{ steps.check_tag.outputs.exists == 'false' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Extract version from package.json
         id: version

@@ -153,38 +153,7 @@ export const useCommandStore = defineStore('command', () => {
               const searchText = currentSearchQuery.value
 
               try {
-                const results: any[] = []
-
-                // First, search categories if we have a query and Overpass is available
-                if (searchText && searchText.length > 0) {
-                  const categoryStore = useCategoryStore()
-
-                  if (categoryStore.isOverpassAvailable) {
-                    const categories = categoryStore.searchCategories(
-                      searchText,
-                      5,
-                    ) // Limit categories to 5
-
-                    categories.forEach(category => {
-                      // Use server-resolved iconName/iconPack for consistent rendering
-                      const iconName = category.iconName || 'Tag'
-                      const iconPack = category.iconPack || 'lucide'
-                      const iconCategory = (category.iconCategory || 'default') as PlaceCategory
-                      results.push({
-                        value: `category:${category.id}`,
-                        name: category.name,
-                        description: category.description && !/^\S+=\S+$/.test(category.description)
-                          ? category.description
-                          : undefined,
-                        iconName,
-                        iconPack,
-                        iconColor: getCategoryColor(iconCategory, isDark.value),
-                      })
-                    })
-                  }
-                }
-
-                // Then search places
+                // Get map center for location-aware search
                 const mapStore = useMapStore()
                 const center = mapStore.mapCamera.center
 
@@ -201,44 +170,29 @@ export const useCommandStore = defineStore('command', () => {
                   lat = center.lat || 0
                 }
 
+                // The server returns categories and places interleaved by relevance score.
+                // Trust the server's ordering — no client-side category search or re-sort.
                 const searchResults =
                   await placeSearchService.getAutocompleteSuggestions({
                     query: searchText,
                     lat,
                     lng,
                   }, signal)
-
-                // Add API results — includes both places and server-resolved categories.
-                // Deduplicate by value against any items already added (e.g. from client-side category search).
-                const existingValues = new Set(results.map((r: any) => r.value))
-                searchResults
-                  .forEach(result => {
-                    const itemValue = result.type === 'category'
-                      ? `category:${result.id}`
-                      : result.id
-                    if (existingValues.has(itemValue)) return // skip duplicate
-                    existingValues.add(itemValue)
-                    const iconCategory = (result.iconCategory || 'default') as PlaceCategory
-                    results.push({
-                      value: itemValue,
-                      name: result.title,
-                      description: result.description && !/^\S+=\S+$/.test(result.description)
-                        ? result.description
-                        : undefined,
-                      iconName: result.icon || 'MapPin',
-                      iconPack: result.iconPack || 'lucide',
-                      iconColor: getCategoryColor(iconCategory, isDark.value),
-                    })
-                  })
-
-                // Stable sort: exact name matches first, then starts-with, then the rest
-                const q = searchText.toLowerCase()
-                results.sort((a, b) => {
-                  const aName = (a.name || '').toLowerCase()
-                  const bName = (b.name || '').toLowerCase()
-                  const aExact = aName === q ? 0 : aName.startsWith(q) ? 1 : 2
-                  const bExact = bName === q ? 0 : bName.startsWith(q) ? 1 : 2
-                  return aExact - bExact
+                const results = searchResults.map(result => {
+                  const itemValue = result.type === 'category'
+                    ? `category:${result.id}`
+                    : result.id
+                  const iconCategory = (result.iconCategory || 'default') as PlaceCategory
+                  return {
+                    value: itemValue,
+                    name: result.title,
+                    description: result.description && !/^\S+=\S+$/.test(result.description)
+                      ? result.description
+                      : undefined,
+                    iconName: result.icon || 'MapPin',
+                    iconPack: result.iconPack || 'lucide',
+                    iconColor: getCategoryColor(iconCategory, isDark.value),
+                  }
                 })
 
                 return [

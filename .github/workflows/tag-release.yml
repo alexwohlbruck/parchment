@@ -1,0 +1,42 @@
+# Automatically creates a vX.Y.Z tag when a release PR is merged into main.
+# The tag push triggers the full release workflow (release.yml).
+
+name: Tag Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  tag:
+    name: Create release tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from package.json
+        id: version
+        run: |
+          VERSION=$(grep '"version":' web/package.json | head -1 | sed 's/.*"version": "\(.*\)".*/\1/')
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "TAG=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag already exists
+        id: check_tag
+        run: |
+          if git ls-remote --tags origin "refs/tags/v${{ steps.version.outputs.VERSION }}" | grep -q .; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create and push tag
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.TAG }}" -m "Release ${{ steps.version.outputs.VERSION }}"
+          git push origin "${{ steps.version.outputs.TAG }}"
+          echo "Created tag ${{ steps.version.outputs.TAG }}"

@@ -1034,7 +1034,8 @@
         "weather": "Weather",
         "logging": "Logging",
         "spatialParents": "Spatial Parents",
-        "spatialChildren": "Spatial Children"
+        "spatialChildren": "Spatial Children",
+        "searchAlongRoute": "Search Along Route"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",

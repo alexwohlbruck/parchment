@@ -9,6 +9,7 @@ import type {
   PlaceInfoCapability,
   SpatialParentsCapability,
   SpatialChildrenCapability,
+  SearchAlongRouteCapability,
   MapBounds,
 } from '../../types/integration.types'
 import {
@@ -92,6 +93,7 @@ export class BarrelmanIntegration
     IntegrationCapabilityId.PLACE_INFO,
     IntegrationCapabilityId.SPATIAL_PARENTS,
     IntegrationCapabilityId.SPATIAL_CHILDREN,
+    IntegrationCapabilityId.SEARCH_ALONG_ROUTE,
   ]
 
   readonly capabilities = {
@@ -113,6 +115,9 @@ export class BarrelmanIntegration
     spatialChildren: {
       getChildren: this.getChildren.bind(this),
     } as SpatialChildrenCapability,
+    searchAlongRoute: {
+      searchAlongRoute: this.searchAlongRoute.bind(this),
+    } as SearchAlongRouteCapability,
   }
 
   // ── Lifecycle ──────────────────────────────────────────────
@@ -445,6 +450,9 @@ export class BarrelmanIntegration
     lng?: number,
     options?: { radius?: number; limit?: number },
   ): Promise<Place[]> {
+    // Barrelman searches globally for text queries (no spatial filter) and
+    // uses proximity re-rank to bias closer results. Radius is passed as a
+    // hint but does NOT act as a hard boundary.
     const response = await axios.post(
       `${this.config.host}/search`,
       {
@@ -468,14 +476,15 @@ export class BarrelmanIntegration
   ): Promise<Place[]> {
     // autocomplete: true disables the Ollama semantic layer entirely (it's too slow
     // for typing latency). Relies on parallel FTS + GIN-indexed trigram instead.
+    // Barrelman searches globally and uses proximity re-rank for location bias.
     const response = await axios.post(
       `${this.config.host}/search`,
       {
         query,
         lat,
         lng,
-        radius: options?.radius || 50000,
-        limit: options?.limit || 8,
+        radius: options?.radius,
+        limit: options?.limit || 10,
         semantic: false,
         autocomplete: true,
       },
@@ -525,9 +534,9 @@ export class BarrelmanIntegration
   }
 
   async searchAlongRoute(
-    query: string | undefined,
     route: { type: 'LineString'; coordinates: number[][] },
     options?: {
+      query?: string
       buffer?: number
       categories?: string[]
       tags?: Record<string, string>
@@ -539,7 +548,7 @@ export class BarrelmanIntegration
     const response = await axios.post(
       `${this.config.host}/search`,
       {
-        ...(query ? { query } : {}),
+        ...(options?.query ? { query: options.query } : {}),
         route,
         buffer: options?.buffer,
         categories: options?.categories,

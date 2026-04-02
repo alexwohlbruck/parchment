@@ -4,7 +4,7 @@
 get_current_version() {
     local file=$1
     local stored_version=$(grep '"version":' "$file" | sed 's/.*"version": "\(.*\)".*/\1/')
-    
+
     # If no version found, default to 1.0.0
     if [ -z "$stored_version" ]; then
         echo "1.0.0"
@@ -26,11 +26,11 @@ validate_version_format() {
 compare_versions() {
     local version1=$1
     local version2=$2
-    
+
     # Split versions into components
     IFS='.' read -r -a v1_parts <<< "$version1"
     IFS='.' read -r -a v2_parts <<< "$version2"
-    
+
     # Compare major version
     if [ "${v1_parts[0]}" -gt "${v2_parts[0]}" ]; then
         echo "greater"
@@ -39,7 +39,7 @@ compare_versions() {
         echo "less"
         return
     fi
-    
+
     # Compare minor version
     if [ "${v1_parts[1]}" -gt "${v2_parts[1]}" ]; then
         echo "greater"
@@ -48,7 +48,7 @@ compare_versions() {
         echo "less"
         return
     fi
-    
+
     # Compare patch version
     if [ "${v1_parts[2]}" -gt "${v2_parts[2]}" ]; then
         echo "greater"
@@ -57,7 +57,7 @@ compare_versions() {
         echo "less"
         return
     fi
-    
+
     echo "equal"
 }
 
@@ -65,12 +65,12 @@ compare_versions() {
 increment_version() {
     local version=$1
     local increment_type=$2
-    
+
     IFS='.' read -r -a version_parts <<< "$version"
     local major=${version_parts[0]}
     local minor=${version_parts[1]}
     local patch=${version_parts[2]}
-    
+
     case $increment_type in
         major)
             major=$((major + 1))
@@ -89,7 +89,7 @@ increment_version() {
             exit 1
             ;;
     esac
-    
+
     echo "$major.$minor.$patch"
 }
 
@@ -191,25 +191,32 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Ensure we are on the main branch
+# Ensure we are on the dev branch
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-if [ "$CURRENT_BRANCH" != "main" ]; then
-    echo "Error: Releases must be created from the 'main' branch."
+if [ "$CURRENT_BRANCH" != "dev" ]; then
+    echo "Error: Releases must be created from the 'dev' branch."
     echo "You are currently on '$CURRENT_BRANCH'."
-    echo "Switch to main and merge your changes first:"
-    echo "  git checkout main && git pull"
+    echo "Switch to dev first:"
+    echo "  git checkout dev"
     exit 1
 fi
 
 # Ensure we have the latest code from origin
-echo "Pulling latest changes from origin/main..."
-git fetch origin main
+echo "Pulling latest changes from origin/dev..."
+git fetch origin dev
 LOCAL_HEAD=$(git rev-parse HEAD)
-REMOTE_HEAD=$(git rev-parse origin/main)
+REMOTE_HEAD=$(git rev-parse origin/dev)
 if [ "$LOCAL_HEAD" != "$REMOTE_HEAD" ]; then
-    echo "Error: Your local main branch is not up to date with origin/main."
+    echo "Error: Your local dev branch is not up to date with origin/dev."
     echo "Please pull the latest changes before releasing:"
-    echo "  git pull origin main"
+    echo "  git pull origin dev"
+    exit 1
+fi
+
+# Check for gh CLI (needed to create PR)
+if ! command -v gh &> /dev/null; then
+    echo "Error: GitHub CLI (gh) is required to create pull requests."
+    echo "Install it: https://cli.github.com/"
     exit 1
 fi
 
@@ -254,17 +261,11 @@ fi
 # Show changelog and confirm
 echo ""
 if [ -f CHANGELOG.md ]; then
-    echo "--- CHANGELOG section for [$NEW_VERSION] ---"
-    CHANGELOG_SECTION=$(sed -n "/## \[$NEW_VERSION\]/,/^## /p" CHANGELOG.md | sed '$d' 2>/dev/null)
-    if [ -n "$CHANGELOG_SECTION" ]; then
-        echo "$CHANGELOG_SECTION"
-    else
-        echo "(No section for [$NEW_VERSION] yet. Top of CHANGELOG.md:)"
-        head -n 60 CHANGELOG.md
-    fi
+    echo "--- CHANGELOG.md ---"
+    cat CHANGELOG.md
     echo "---"
     echo ""
-    echo "Ensure there is a section for [$NEW_VERSION] before releasing. See CHANGELOG.md."
+    echo "This will be used as the PR description and release notes."
 fi
 read -r -p "Confirm changelog is updated for this release. Continue? [y/N] " reply
 if [[ ! "$reply" =~ ^[yY]$ ]]; then
@@ -272,12 +273,11 @@ if [[ ! "$reply" =~ ^[yY]$ ]]; then
     exit 0
 fi
 
-# Prompt for release title (used as GitHub Release name)
+# Prompt for release title (used as PR title and GitHub Release name)
 DEFAULT_RELEASE_TITLE="Release v$NEW_VERSION"
 echo ""
 read -r -p "Release title (press Enter for '$DEFAULT_RELEASE_TITLE'): " RELEASE_TITLE_INPUT
 RELEASE_TITLE="${RELEASE_TITLE_INPUT:-$DEFAULT_RELEASE_TITLE}"
-echo "$RELEASE_TITLE" > RELEASE_TITLE
 echo "Release title set to: $RELEASE_TITLE"
 
 # Update all version numbers in repo (including Android versionCode for Play Store)
@@ -287,53 +287,58 @@ update_tauri_conf "$NEW_VERSION"
 update_cargo_toml "$NEW_VERSION"
 update_tauri_android_version_code "$NEW_VERSION"
 
-# Docker images, Tauri apps, and store uploads are built by the release workflow on tag push (.github/workflows/release.yml)
-
 echo ""
-echo "Version update complete! Push the tag to trigger the release workflow (Docker, Tauri, app stores)."
+echo "Version files updated."
 
-# Stage version files and create tag
-VERSION_FILES="web/package.json server/package.json web/src-tauri/tauri.conf.json web/src-tauri/Cargo.toml CHANGELOG.md RELEASE_TITLE"
+# Stage version files and commit
+VERSION_FILES="web/package.json server/package.json web/src-tauri/tauri.conf.json web/src-tauri/Cargo.toml CHANGELOG.md"
 git add $VERSION_FILES 2>/dev/null || true
-if git status --short $VERSION_FILES 2>/dev/null | grep -q .; then
-    echo "Staged changes:"
-    git status --short $VERSION_FILES
+
+if ! git status --short $VERSION_FILES 2>/dev/null | grep -q .; then
+    echo "No version file changes to commit."
+    exit 1
+fi
+
+echo "Staged changes:"
+git status --short $VERSION_FILES
+echo ""
+read -r -p "Commit, push to dev, and create PR to main? [y/N] " reply
+if [[ ! "$reply" =~ ^[yY]$ ]]; then
+    echo "Aborted. Changes are staged but not committed."
+    echo "When ready, commit and run this script again."
+    exit 0
+fi
+
+# Commit and push to dev
+git commit -m "Release $NEW_VERSION" $VERSION_FILES
+echo "Committed release changes."
+
+git push origin dev
+echo "Pushed to origin/dev."
+
+# Create PR from dev -> main
+echo ""
+echo "Creating pull request..."
+CHANGELOG_BODY=$(cat CHANGELOG.md)
+PR_URL=$(gh pr create \
+    --base main \
+    --head dev \
+    --title "$RELEASE_TITLE" \
+    --body "$CHANGELOG_BODY" \
+    2>&1)
+
+if [ $? -eq 0 ]; then
     echo ""
-    read -r -p "Commit these changes and create tag v$NEW_VERSION? [y/N] " reply
-    if [[ "$reply" =~ ^[yY]$ ]]; then
-        git commit -m "Release $NEW_VERSION" $VERSION_FILES
-        if git rev-parse "v$NEW_VERSION" >/dev/null 2>&1; then
-            echo "Tag v$NEW_VERSION already exists. Skipping tag creation."
-        else
-            git tag -a "v$NEW_VERSION" -m "Release $NEW_VERSION"
-            echo "Created tag v$NEW_VERSION."
-        fi
-        echo ""
-        read -r -p "Push branch and tag to origin? (Triggers release workflow) [y/N] " reply
-        if [[ "$reply" =~ ^[yY]$ ]]; then
-            git push && git push origin "v$NEW_VERSION"
-            echo "Pushed. Release workflow will run."
-        else
-            echo "Skipped push. When ready: git push && git push origin v$NEW_VERSION"
-        fi
-    else
-        echo "Skipped commit and tag. When ready:"
-        echo "  git add -A && git commit -m \"Release $NEW_VERSION\" && git push"
-        echo "  git tag -a v$NEW_VERSION -m \"Release $NEW_VERSION\" && git push origin v$NEW_VERSION"
-    fi
+    echo "Pull request created: $PR_URL"
+    echo ""
+    echo "Next steps:"
+    echo "  1. Wait for CI checks to pass"
+    echo "  2. Merge the PR on GitHub"
+    echo "  3. The release workflow will automatically tag and build"
 else
-    echo "No version file changes to commit (or not in a git repo)."
-    if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && ! git rev-parse "v$NEW_VERSION" >/dev/null 2>&1; then
-        read -r -p "Create tag v$NEW_VERSION on current HEAD and push? [y/N] " reply
-        if [[ "$reply" =~ ^[yY]$ ]]; then
-            git tag -a "v$NEW_VERSION" -m "Release $NEW_VERSION"
-            read -r -p "Push tag to origin? (Triggers release workflow) [y/N] " reply
-            if [[ "$reply" =~ ^[yY]$ ]]; then
-                git push origin "v$NEW_VERSION"
-            fi
-        fi
-    else
-        echo "To create and push the tag manually:"
-        echo "  git tag -a v$NEW_VERSION -m \"Release $NEW_VERSION\" && git push origin v$NEW_VERSION"
-    fi
+    echo ""
+    echo "Failed to create PR: $PR_URL"
+    echo ""
+    echo "You can create it manually:"
+    echo "  gh pr create --base main --head dev --title \"$RELEASE_TITLE\""
 fi

@@ -196,6 +196,21 @@ export interface SpatialChildrenCapability {
   getChildren(areaId: string, categories?: string[], limit?: number): Promise<Place[]>
 }
 
+export interface SearchAlongRouteCapability {
+  searchAlongRoute(
+    route: { type: 'LineString'; coordinates: number[][] },
+    options?: {
+      query?: string
+      buffer?: number
+      categories?: string[]
+      tags?: Record<string, string>
+      limit?: number
+      semantic?: boolean
+      autocomplete?: boolean
+    },
+  ): Promise<Place[]>
+}
+
 // Integration capabilities container
 export interface IntegrationCapabilities {
   search?: SearchCapability
@@ -211,6 +226,7 @@ export interface IntegrationCapabilities {
   logging?: LoggingCapability
   spatialParents?: SpatialParentsCapability
   spatialChildren?: SpatialChildrenCapability
+  searchAlongRoute?: SearchAlongRouteCapability
 }
 
 /**

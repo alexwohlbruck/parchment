@@ -110,39 +110,37 @@ const CUSTOM_ALIASES: Record<string, string[]> = {
 }
 
 /**
- * Normalize a word for fuzzy comparison: lowercase, strip common suffixes.
- * Handles plural/gerund/past-tense variations so "bike racks" matches "bike rack".
+ * Check if two strings are a fuzzy prefix match — one is a prefix of the other
+ * and the length difference is small. Handles plurals in any language without
+ * hardcoded suffix rules:
+ *   "restaurants" ↔ "restaurant" (diff 1) ✓
+ *   "bibliothèques" ↔ "bibliothèque" (diff 1) ✓
+ *   "libraries" ↔ "library" — no prefix relation, but handled by _isFuzzyNearMatch
+ *   "bojangles" ↔ "bar" (diff 6, ratio 0.33) ✗
+ *
+ * Also checks near-matches where the beginning is shared and only the
+ * ending differs slightly (covers "-ies"/"-y", "-ção"/"-ções", etc.).
  */
-function normalizeWord(w: string): string {
-  return w
-    .toLowerCase()
-    .replace(/ies$/, 'y')   // parties → party
-    .replace(/ves$/, 'f')   // knives → knife
-    .replace(/ing$/, '')     // parking → park
-    .replace(/ed$/, '')      // parked → park
-    .replace(/s$/, '')       // racks → rack
-}
+function isFuzzyNearMatch(a: string, b: string): boolean {
+  const longer = a.length >= b.length ? a : b
+  const shorter = a.length >= b.length ? b : a
 
-/**
- * Score a query against a target string using word-level fuzzy matching.
- * Handles plurals, word order variations, and partial prefix matches.
- * Returns a score > 0 when the query words all appear in the target, 0 otherwise.
- */
-function wordOverlapScore(query: string, target: string): number {
-  const qWords = query.trim().split(/\s+/).map(normalizeWord).filter(Boolean)
-  const tWords = target.toLowerCase().split(/\s+/).map(normalizeWord).filter(Boolean)
-  if (qWords.length === 0 || tWords.length === 0) return 0
+  // Must be long enough to be meaningful (avoid matching "a" ↔ "abc")
+  if (shorter.length < 3) return false
 
-  // All query words must match (normalized) some target word via prefix
-  const allMatch = qWords.every((qw) =>
-    tWords.some((tw) => tw.startsWith(qw) || qw.startsWith(tw)),
-  )
+  // Ratio check: the shorter must be at least 70% of the longer
+  if (shorter.length / longer.length < 0.7) return false
 
-  if (!allMatch) return 0
+  // Simple prefix: one starts with the other, small diff
+  if (longer.startsWith(shorter)) return true
 
-  // More words matched = higher confidence; exact-length match = max confidence
-  const lengthRatio = Math.min(qWords.length, tWords.length) / Math.max(qWords.length, tWords.length)
-  return 60 * lengthRatio // base 60 for multi-word overlap, up to 60
+  // Shared-prefix near match: both share a long common prefix and only
+  // the tail differs. Covers "libraries"↔"library", "pharmacies"↔"pharmacy".
+  // Require at least 70% of the shorter string to match at the start.
+  const minShared = Math.ceil(shorter.length * 0.7)
+  let shared = 0
+  while (shared < shorter.length && shorter[shared] === longer[shared]) shared++
+  return shared >= minShared
 }
 
 interface CachedCategoryData {
@@ -239,7 +237,11 @@ export class CategoryService {
         // Add terms from translations if available
         const translationData = presetTranslations[presetId]
         if (translationData?.terms) {
-          aliases.push(...translationData.terms)
+          // terms is a comma-separated string, not an array
+          const termsArray = typeof translationData.terms === 'string'
+            ? translationData.terms.split(',').map((t: string) => t.trim()).filter(Boolean)
+            : translationData.terms
+          aliases.push(...termsArray)
         }
 
         // Add the English name if different from localized name
@@ -319,23 +321,12 @@ export class CategoryService {
 
   /**
    * Search categories by name and aliases.
-   * Scoring layers (highest → lowest):
-   *   1000 exact name match
-   *    800 exact alias match
-   *    500 name starts with query
-   *    400 alias starts with query
-   *    250 name has query at word boundary
-   *    200 alias has query at word boundary
-   *    150 exact tag-value match
-   *    100 name contains query anywhere
-   *     80 alias contains query anywhere
-   *     60 word-overlap fuzzy (handles plurals, word order, partial prefixes)
-   *     50 tag value contains query
+   * Simple substring matching — no fuzzy/stemming to avoid false positives.
    */
   searchCategories(
     query: string,
     language: Language = 'en',
-    maxResults: number = 20,
+    maxResults: number = 10,
   ): CategoryResult[] {
     if (!query || query.trim().length === 0) {
       return []
@@ -343,53 +334,54 @@ export class CategoryService {
 
     const categories = this.loadCategories(language)
     const searchTerm = query.toLowerCase().trim()
-    // Normalized variant strips plural/gerund suffixes so "restaurants" matches "Restaurant"
-    const normalizedTerm = normalizeWord(searchTerm)
-    // The set of terms to check: raw + normalized (deduplicated)
-    const terms = normalizedTerm !== searchTerm ? [searchTerm, normalizedTerm] : [searchTerm]
 
+    return this._scoreCategories(categories, searchTerm, maxResults)
+      .map((match) => match.category)
+  }
+
+  /**
+   * Search categories and return results with their relevance scores.
+   * Used by the search service to interleave categories with other result types.
+   */
+  searchCategoriesWithScores(
+    query: string,
+    language: Language = 'en',
+    maxResults: number = 10,
+  ): Array<{ category: CategoryResult; score: number }> {
+    if (!query || query.trim().length === 0) {
+      return []
+    }
+
+    const categories = this.loadCategories(language)
+    const searchTerm = query.toLowerCase().trim()
+
+    return this._scoreCategories(categories, searchTerm, maxResults)
+  }
+
+  /**
+   * Core scoring logic shared by searchCategories and searchCategoriesWithScores.
+   * Uses substring matching + language-agnostic fuzzy prefix matching for plurals.
+   */
+  private _scoreCategories(
+    categories: CategoryResult[],
+    searchTerm: string,
+    maxResults: number,
+  ): Array<{ category: CategoryResult; score: number }> {
     const matches: Array<{ category: CategoryResult; score: number }> = []
 
     for (const category of categories) {
       let score = 0
       const categoryNameLower = category.name.toLowerCase()
 
-      // ── Name checks (raw + normalized) ────────────────────────────────────
-      for (const term of terms) {
-        if (categoryNameLower === term) {
-          score = Math.max(score, term === searchTerm ? 1000 : 950) // slight penalty for normalized match
-        } else if (categoryNameLower.startsWith(term)) {
-          score = Math.max(score, term === searchTerm ? 500 : 475)
-        } else if (
-          categoryNameLower.includes(` ${term}`) ||
-          categoryNameLower.includes(`${term} `)
-        ) {
-          score = Math.max(score, term === searchTerm ? 250 : 225)
-        } else if (categoryNameLower.includes(term)) {
-          score = Math.max(score, term === searchTerm ? 100 : 90)
-        }
-      }
+      // Score against name
+      score = Math.max(score, this._scoreMatch(searchTerm, categoryNameLower, 1000, 500, 250, 100))
 
-      // ── Alias checks (raw + normalized) ───────────────────────────────────
+      // Score against aliases
       for (const alias of category.aliases || []) {
-        const aliasLower = alias.toLowerCase()
-        for (const term of terms) {
-          if (aliasLower === term) {
-            score = Math.max(score, term === searchTerm ? 800 : 760)
-          } else if (aliasLower.startsWith(term)) {
-            score = Math.max(score, term === searchTerm ? 400 : 380)
-          } else if (
-            aliasLower.includes(` ${term}`) ||
-            aliasLower.includes(`${term} `)
-          ) {
-            score = Math.max(score, term === searchTerm ? 200 : 180)
-          } else if (aliasLower.includes(term)) {
-            score = Math.max(score, term === searchTerm ? 80 : 72)
-          }
-        }
+        score = Math.max(score, this._scoreMatch(searchTerm, alias.toLowerCase(), 800, 400, 200, 80))
       }
 
-      // ── Tag value checks ──────────────────────────────────────────────────
+      // Score against tag values
       for (const tagValue of Object.values(category.tags)) {
         const tagLower = (tagValue as string).toLowerCase().replace(/_/g, ' ')
         if (tagLower === searchTerm) {
@@ -399,24 +391,6 @@ export class CategoryService {
         }
       }
 
-      // ── Word-overlap fuzzy (handles plurals, partial prefixes, word order) ─
-      // Runs for any query length (not just multi-word) so "restaurants" → "restaurant" works.
-      if (score === 0) {
-        const nameOverlap = wordOverlapScore(searchTerm, categoryNameLower)
-        score += nameOverlap
-
-        if (score === 0) {
-          for (const alias of category.aliases || []) {
-            const aliasOverlap = wordOverlapScore(searchTerm, alias.toLowerCase())
-            if (aliasOverlap > 0) {
-              score += aliasOverlap
-              break
-            }
-          }
-        }
-      }
-
-      // Boost score for shorter names (more specific/relevant)
       if (score > 0) {
         const lengthBonus = Math.max(0, 50 - category.name.length)
         score += lengthBonus
@@ -424,11 +398,35 @@ export class CategoryService {
       }
     }
 
-    // Sort by score (descending) and return top results
     return matches
       .sort((a, b) => b.score - a.score)
       .slice(0, maxResults)
-      .map((match) => match.category)
+  }
+
+  /**
+   * Score a query against a target string.
+   * Checks exact match, prefix, word boundary, substring, and fuzzy prefix.
+   * The fuzzy prefix check handles plurals in any language by checking if
+   * one string is a prefix of the other with ≤2 chars difference.
+   */
+  private _scoreMatch(
+    query: string,
+    target: string,
+    exactScore: number,
+    prefixScore: number,
+    wordBoundaryScore: number,
+    containsScore: number,
+  ): number {
+    if (target === query) return exactScore
+    if (target.startsWith(query)) return prefixScore
+    if (target.includes(` ${query}`) || target.includes(`${query} `)) return wordBoundaryScore
+    if (target.includes(query)) return containsScore
+
+    // Fuzzy near-match: handles plurals like "restaurants" ↔ "restaurant"
+    // without language-specific rules. Scored below exact substring.
+    if (isFuzzyNearMatch(query, target)) return Math.round(prefixScore * 0.9)
+
+    return 0
   }
 
   /**

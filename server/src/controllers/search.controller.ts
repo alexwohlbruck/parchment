@@ -119,6 +119,53 @@ const searchRouter = new Elysia({ prefix: '/search' })
     },
   )
 
+  .post(
+    '/route',
+    async ({ body, status }) => {
+      const { route, ...options } = body
+
+      try {
+        const results = await searchService.searchAlongRoute(route, options)
+
+        return {
+          route,
+          results,
+          totalCount: results.length,
+          executedAt: new Date().toISOString(),
+        }
+      } catch (err) {
+        console.error('Error executing route search:', err)
+        return status(500, {
+          message:
+            err instanceof Error
+              ? err.message
+              : 'Failed to execute route search',
+        })
+      }
+    },
+    {
+      body: t.Object({
+        route: t.Object({
+          type: t.Literal('LineString'),
+          coordinates: t.Array(
+            t.Array(t.Number(), { minItems: 2, maxItems: 2 }),
+          ),
+        }),
+        query: t.Optional(t.String()),
+        buffer: t.Optional(t.Number({ minimum: 100, maximum: 50000 })),
+        categories: t.Optional(t.Array(t.String())),
+        tags: t.Optional(t.Record(t.String(), t.String())),
+        limit: t.Optional(t.Number({ minimum: 1, maximum: 500 })),
+        semantic: t.Optional(t.Boolean()),
+        autocomplete: t.Optional(t.Boolean()),
+      }),
+      detail: {
+        tags: ['Search'],
+        summary: 'Search along a route corridor',
+      },
+    },
+  )
+
   // TODO: Remove client-side category cache. Return category suggestions in search endpoint
   .post(
     '/category',

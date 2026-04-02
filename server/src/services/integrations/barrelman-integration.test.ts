@@ -500,12 +500,13 @@ describe('BarrelmanIntegration', () => {
   // ── HTTP request parameters ────────────────────────────────────────────────
 
   describe('searchPlaces', () => {
-    test('POSTs to /search with semantic=true', async () => {
+    test('POSTs to /search with semantic=true and passes radius through', async () => {
       mockAxiosPost.mockResolvedValueOnce({ data: [] })
       await integration.searchPlaces('coffee', 37.7749, -122.4194, { radius: 1000, limit: 10 })
 
       expect(mockAxiosPost).toHaveBeenCalledWith(
         'http://localhost:3100/search',
+        // Radius is passed as a hint; Barrelman uses proximity re-rank, not hard spatial filter
         expect.objectContaining({ query: 'coffee', lat: 37.7749, lng: -122.4194, radius: 1000, limit: 10, semantic: true }),
         expect.any(Object),
       )
@@ -534,12 +535,22 @@ describe('BarrelmanIntegration', () => {
       )
     })
 
-    test('defaults radius to 50000m and limit to 8', async () => {
+    test('defaults limit to 10 and passes radius through', async () => {
       mockAxiosPost.mockResolvedValueOnce({ data: [] })
       await integration.getAutocomplete('test')
       expect(mockAxiosPost).toHaveBeenCalledWith(
         expect.any(String),
-        expect.objectContaining({ radius: 50000, limit: 8 }),
+        expect.objectContaining({ limit: 10 }),
+        expect.any(Object),
+      )
+    })
+
+    test('passes caller radius through without modification', async () => {
+      mockAxiosPost.mockResolvedValueOnce({ data: [] })
+      await integration.getAutocomplete('test', 37.7749, -122.4194, { radius: 5000 })
+      expect(mockAxiosPost).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ radius: 5000 }),
         expect.any(Object),
       )
     })
@@ -593,6 +604,51 @@ describe('BarrelmanIntegration', () => {
       await integration.searchByCategory('amenity/cafe', bounds)
       const body = (mockAxiosPost.mock.calls[0] as any)[1]
       expect(body.tags).toBeUndefined()
+    })
+  })
+
+  describe('searchAlongRoute', () => {
+    const route = {
+      type: 'LineString' as const,
+      coordinates: [[-80.8431, 35.2271], [-81.35, 35.7248]],
+    }
+
+    test('POSTs to /search with route geometry', async () => {
+      mockAxiosPost.mockResolvedValueOnce({ data: [] })
+      await integration.searchAlongRoute(route)
+      expect(mockAxiosPost).toHaveBeenCalledWith(
+        'http://localhost:3100/search',
+        expect.objectContaining({ route }),
+        expect.any(Object),
+      )
+    })
+
+    test('passes query and options when provided', async () => {
+      mockAxiosPost.mockResolvedValueOnce({ data: [] })
+      await integration.searchAlongRoute(route, {
+        query: 'bojangles',
+        buffer: 2000,
+        categories: ['amenity/restaurant'],
+        limit: 10,
+      })
+      expect(mockAxiosPost).toHaveBeenCalledWith(
+        'http://localhost:3100/search',
+        expect.objectContaining({
+          query: 'bojangles',
+          route,
+          buffer: 2000,
+          categories: ['amenity/restaurant'],
+          limit: 10,
+        }),
+        expect.any(Object),
+      )
+    })
+
+    test('returns adapted places', async () => {
+      mockAxiosPost.mockResolvedValueOnce({ data: [baseResult] })
+      const results = await integration.searchAlongRoute(route, { query: 'test' })
+      expect(results).toHaveLength(1)
+      expect(results[0].name?.value).toBe('Test Place')
     })
   })
 

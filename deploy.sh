@@ -191,6 +191,28 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Ensure we are on the main branch
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$CURRENT_BRANCH" != "main" ]; then
+    echo "Error: Releases must be created from the 'main' branch."
+    echo "You are currently on '$CURRENT_BRANCH'."
+    echo "Switch to main and merge your changes first:"
+    echo "  git checkout main && git pull"
+    exit 1
+fi
+
+# Ensure we have the latest code from origin
+echo "Pulling latest changes from origin/main..."
+git fetch origin main
+LOCAL_HEAD=$(git rev-parse HEAD)
+REMOTE_HEAD=$(git rev-parse origin/main)
+if [ "$LOCAL_HEAD" != "$REMOTE_HEAD" ]; then
+    echo "Error: Your local main branch is not up to date with origin/main."
+    echo "Please pull the latest changes before releasing:"
+    echo "  git pull origin main"
+    exit 1
+fi
+
 # Resolve new version
 if [ -n "$EXPLICIT_VERSION" ]; then
     if ! validate_version_format "$EXPLICIT_VERSION"; then

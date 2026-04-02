@@ -10,12 +10,17 @@ on:
   push:
     branches: [main]
 
+# The release workflow needs contents:write (GitHub Releases, tauri uploads)
+# and id-token:write (Docker Hub OIDC). These must be set at the top level
+# because workflow_call inherits the caller's top-level permissions.
+permissions:
+  contents: write
+  id-token: write
+
 jobs:
   tag:
     name: Create release tag
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     outputs:
       tag: ${{ steps.version.outputs.TAG }}
       created: ${{ steps.check_tag.outputs.exists == 'false' }}

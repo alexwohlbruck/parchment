@@ -1,5 +1,8 @@
-# Automatically creates a vX.Y.Z tag when a release PR is merged into main.
-# The tag push triggers the full release workflow (release.yml).
+# Automatically creates a vX.Y.Z tag when code is pushed to main,
+# then triggers the full release workflow.
+#
+# Tags pushed by GITHUB_TOKEN don't trigger `on: push: tags` workflows,
+# so we call release.yml directly via workflow_call instead.
 
 name: Tag Release
 
@@ -13,6 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      tag: ${{ steps.version.outputs.TAG }}
+      created: ${{ steps.check_tag.outputs.exists == 'false' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -26,7 +32,7 @@ jobs:
       - name: Check if tag already exists
         id: check_tag
         run: |
-          if git ls-remote --tags origin "refs/tags/v${{ steps.version.outputs.VERSION }}" | grep -q .; then
+          if git ls-remote --tags origin "refs/tags/${{ steps.version.outputs.TAG }}" | grep -q .; then
             echo "exists=true" >> $GITHUB_OUTPUT
           else
             echo "exists=false" >> $GITHUB_OUTPUT
@@ -40,3 +46,12 @@ jobs:
           git tag -a "${{ steps.version.outputs.TAG }}" -m "Release ${{ steps.version.outputs.VERSION }}"
           git push origin "${{ steps.version.outputs.TAG }}"
           echo "Created tag ${{ steps.version.outputs.TAG }}"
+
+  release:
+    name: Release
+    needs: tag
+    if: needs.tag.outputs.created == 'true'
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.tag.outputs.tag }}
+    secrets: inherit

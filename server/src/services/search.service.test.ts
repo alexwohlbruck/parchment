@@ -6,6 +6,7 @@ import { describe, test, expect, beforeEach, mock } from 'bun:test'
 const mockSearchBookmarks = mock(() => Promise.resolve([]))
 const mockLookupPlaces = mock(() => Promise.resolve([]))
 const mockSearchCategories = mock(() => [] as any[])
+const mockSearchCategoriesWithScores = mock(() => [] as any[])
 const mockGetCategoryById = mock((_id: string) => null as any)
 
 mock.module('./library/bookmarks.service', () => ({
@@ -19,6 +20,7 @@ mock.module('./place.service', () => ({
 mock.module('./category.service', () => ({
   categoryService: {
     searchCategories: mockSearchCategories,
+    searchCategoriesWithScores: mockSearchCategoriesWithScores,
     getCategoryById: mockGetCategoryById,
   },
 }))
@@ -38,6 +40,14 @@ mock.module('./integrations', () => ({
 import { search, searchByCategory } from './search.service'
 
 // ── Test fixtures ─────────────────────────────────────────────────────────────
+
+/** Helper: set up both category mocks so search() uses the scored version */
+function mockCategories(presets: any[]) {
+  mockSearchCategories.mockReturnValue(presets)
+  mockSearchCategoriesWithScores.mockReturnValue(
+    presets.map((p, i) => ({ category: p, score: 1000 - i * 100 })),
+  )
+}
 
 function makePreset(overrides: Record<string, any> = {}): any {
   return {
@@ -86,11 +96,13 @@ describe('search service', () => {
     mockSearchBookmarks.mockClear()
     mockLookupPlaces.mockClear()
     mockSearchCategories.mockClear()
+    mockSearchCategoriesWithScores.mockClear()
     mockGetCategoryById.mockClear()
     mockGetCachedIntegration.mockClear()
     mockGetConfiguredIntegrations.mockClear()
     // Safe defaults
     mockSearchCategories.mockReturnValue([])
+    mockSearchCategoriesWithScores.mockReturnValue([])
     mockSearchBookmarks.mockResolvedValue([])
     mockLookupPlaces.mockResolvedValue([])
     mockGetConfiguredIntegrations.mockReturnValue([])
@@ -101,43 +113,43 @@ describe('search service', () => {
 
   describe('convertPresetToSearchResult — raw tag filtering', () => {
     test('passes through human-readable descriptions unchanged', async () => {
-      mockSearchCategories.mockReturnValue([makePreset({ description: 'A place for coffee and pastries' })])
+      mockCategories([makePreset({ description: 'A place for coffee and pastries' })])
       const resp = await search('user-1', { query: 'cafe' }) as any
       expect(resp.results[0].description).toBe('A place for coffee and pastries')
     })
 
     test('strips raw "key=value" OSM tag descriptions (amenity=cafe)', async () => {
-      mockSearchCategories.mockReturnValue([makePreset({ description: 'amenity=cafe' })])
+      mockCategories([makePreset({ description: 'amenity=cafe' })])
       const resp = await search('user-1', { query: 'cafe' }) as any
       expect(resp.results[0].description).toBeUndefined()
     })
 
     test('strips raw tag descriptions with underscore values (amenity=library_dropoff)', async () => {
-      mockSearchCategories.mockReturnValue([makePreset({ description: 'amenity=library_dropoff' })])
+      mockCategories([makePreset({ description: 'amenity=library_dropoff' })])
       const resp = await search('user-1', { query: 'library' }) as any
       expect(resp.results[0].description).toBeUndefined()
     })
 
     test('strips raw natural=bay style descriptions', async () => {
-      mockSearchCategories.mockReturnValue([makePreset({ description: 'natural=bay' })])
+      mockCategories([makePreset({ description: 'natural=bay' })])
       const resp = await search('user-1', { query: 'bay' }) as any
       expect(resp.results[0].description).toBeUndefined()
     })
 
     test('allows descriptions with spaces (not raw tags)', async () => {
-      mockSearchCategories.mockReturnValue([makePreset({ description: 'Public library with books' })])
+      mockCategories([makePreset({ description: 'Public library with books' })])
       const resp = await search('user-1', { query: 'library' }) as any
       expect(resp.results[0].description).toBe('Public library with books')
     })
 
     test('undefined description stays undefined', async () => {
-      mockSearchCategories.mockReturnValue([makePreset({ description: undefined })])
+      mockCategories([makePreset({ description: undefined })])
       const resp = await search('user-1', { query: 'cafe' }) as any
       expect(resp.results[0].description).toBeUndefined()
     })
 
     test('sets result type to "category" and uses preset name as title', async () => {
-      mockSearchCategories.mockReturnValue([makePreset({ name: 'Library', id: 'amenity/library' })])
+      mockCategories([makePreset({ name: 'Library', id: 'amenity/library' })])
       const resp = await search('user-1', { query: 'library' }) as any
       expect(resp.results[0].type).toBe('category')
       expect(resp.results[0].title).toBe('Library')
@@ -212,8 +224,8 @@ describe('search service', () => {
   // ── search orchestration ───────────────────────────────────────────────────
 
   describe('search — result ordering and source selection', () => {
-    test('category results appear before place results', async () => {
-      mockSearchCategories.mockReturnValue([makePreset()])
+    test('high-relevance category results appear before place results', async () => {
+      mockCategories([makePreset()])
       mockLookupPlaces.mockResolvedValue([makePlace()])
       const resp = await search('user-1', { query: 'cafe', lat: 37.77, lng: -122.41 }) as any
       const types = resp.results.map((r: any) => r.type)
@@ -222,7 +234,7 @@ describe('search service', () => {
 
     test('skips category search when query is empty', async () => {
       await search('user-1', { query: '' })
-      expect(mockSearchCategories).not.toHaveBeenCalled()
+      expect(mockSearchCategoriesWithScores).not.toHaveBeenCalled()
     })
 
     test('skips external place search when lat/lng are not provided', async () => {
@@ -245,7 +257,7 @@ describe('search service', () => {
     })
 
     test('applies maxResults limit across all combined sources', async () => {
-      mockSearchCategories.mockReturnValue(
+      mockCategories(
         Array.from({ length: 5 }, (_, i) => makePreset({ id: `amenity/cat${i}`, name: `Cat ${i}` })),
       )
       mockLookupPlaces.mockResolvedValue(
@@ -256,7 +268,7 @@ describe('search service', () => {
     })
 
     test('totalCount reflects all results before limit is applied', async () => {
-      mockSearchCategories.mockReturnValue([makePreset()])
+      mockCategories([makePreset()])
       mockLookupPlaces.mockResolvedValue([makePlace(), makePlace({ id: 'osm/node/2' })])
       // Use non-zero lat/lng — lat:0 is falsy and would skip the external place search
       const resp = await search('user-1', { query: 'test', lat: 37.77, lng: -122.41, maxResults: 50 }) as any
@@ -271,7 +283,7 @@ describe('search service', () => {
 
   describe('search — autocomplete format', () => {
     test('returns lightweight results without metadata when autocomplete=true', async () => {
-      mockSearchCategories.mockReturnValue([makePreset()])
+      mockCategories([makePreset()])
       const resp = await search('user-1', { query: 'cafe', autocomplete: true }) as any
       expect(resp.results[0]).toHaveProperty('id')
       expect(resp.results[0]).toHaveProperty('type')
@@ -280,7 +292,7 @@ describe('search service', () => {
     })
 
     test('includes category metadata (tags) in autocomplete category results', async () => {
-      mockSearchCategories.mockReturnValue([makePreset({ tags: { amenity: 'cafe' } })])
+      mockCategories([makePreset({ tags: { amenity: 'cafe' } })])
       const resp = await search('user-1', { query: 'cafe', autocomplete: true }) as any
       expect(resp.results[0].category?.tags).toEqual({ amenity: 'cafe' })
     })

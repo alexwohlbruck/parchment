@@ -221,29 +221,44 @@ export async function search(
     autocomplete = false,
   } = options
 
-  const allResults: SearchResult[] = []
+  // Collect all results with normalized relevance scores (0-1) for interleaving
+  const scoredResults: Array<{ result: SearchResult; relevance: number }> = []
 
-  // Search presets/categories first (only for 1+ character queries) - these appear at the top
+  // Search presets/categories (only for 1+ character queries)
   if (query && query.length > 0) {
-    const presets = categoryService.searchCategories(
+    const scoredPresets = categoryService.searchCategoriesWithScores(
       query,
       language,
-      Math.min(20, maxResults),
+      Math.min(5, maxResults),
     )
-    const presetResults = presets.map((preset) =>
-      convertPresetToSearchResult(preset),
-    )
-    allResults.push(...presetResults)
+    for (const { category, score } of scoredPresets) {
+      // Normalize category score to 0-1 range (max raw score ~1050)
+      const relevance = Math.min(score / 1000, 1)
+      scoredResults.push({
+        result: convertPresetToSearchResult(category),
+        relevance,
+      })
+    }
   }
 
   // Search bookmarks using bookmarks service
   const userBookmarks = await searchBookmarksService(userId, query)
-  const bookmarkResults = userBookmarks.map(convertBookmarkToSearchResult)
-  allResults.push(...bookmarkResults)
+  for (let i = 0; i < userBookmarks.length; i++) {
+    // Bookmarks are pre-sorted by relevance; assign decreasing score
+    scoredResults.push({
+      result: convertBookmarkToSearchResult(userBookmarks[i]),
+      relevance: 1.0 - i * 0.05,
+    })
+  }
 
   // Search recent places (handles both empty query and fuzzy search)
   const recentPlaceResults = await searchRecentPlaces(userId, query)
-  allResults.push(...recentPlaceResults)
+  scoredResults.push(
+    ...recentPlaceResults.map((r, i) => ({
+      result: r,
+      relevance: 0.6 - i * 0.05,
+    })),
+  )
 
   // Search external places using place service (only for 1+ character queries)
   if (query && query.length > 0 && lat && lng) {
@@ -258,9 +273,20 @@ export async function search(
       },
     )
 
-    const placeResults = places.map(convertPlaceToSearchResult)
-    allResults.push(...placeResults)
+    for (let i = 0; i < places.length; i++) {
+      // Places are pre-sorted by relevance from the integration;
+      // assign decreasing score starting at 0.9 (slightly below exact category match)
+      scoredResults.push({
+        result: convertPlaceToSearchResult(places[i]),
+        relevance: 0.9 - i * 0.02,
+      })
+    }
   }
+
+  // Sort all results by relevance (descending) to interleave types naturally
+  scoredResults.sort((a, b) => b.relevance - a.relevance)
+
+  const allResults = scoredResults.map((s) => s.result)
 
   // Apply result limit
   const limitedResults = allResults.slice(0, maxResults)
@@ -373,4 +399,43 @@ export async function searchByCategory(
     limit: options.limit,
     filterTags: Object.keys(filterTags).length > 0 ? filterTags : undefined,
   })
+}
+
+/**
+ * Search along a route corridor using available integrations
+ */
+export interface RouteSearchOptions {
+  query?: string
+  buffer?: number
+  categories?: string[]
+  tags?: Record<string, string>
+  limit?: number
+  semantic?: boolean
+  autocomplete?: boolean
+}
+
+export async function searchAlongRoute(
+  route: { type: 'LineString'; coordinates: number[][] },
+  options: RouteSearchOptions = {},
+): Promise<Place[]> {
+  const integrationRecords =
+    integrationManager.getConfiguredIntegrationsByCapability(
+      IntegrationCapabilityId.SEARCH_ALONG_ROUTE,
+    )
+
+  const preferredIntegration = integrationRecords[0]
+  if (!preferredIntegration) return []
+
+  const integration =
+    integrationManager.getCachedIntegrationInstance(preferredIntegration)
+  if (!integration) return []
+
+  const capability = integration.capabilities.searchAlongRoute
+  if (!capability?.searchAlongRoute) {
+    throw new Error(
+      `Integration ${integration.integrationId} does not support route search`,
+    )
+  }
+
+  return await capability.searchAlongRoute(route, options)
 }

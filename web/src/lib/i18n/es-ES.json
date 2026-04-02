@@ -996,7 +996,8 @@
         "weather": "Clima",
         "logging": "Registro",
         "spatialParents": "Áreas Contenedoras",
-        "spatialChildren": "Lugares Secundarios"
+        "spatialChildren": "Lugares Secundarios",
+        "searchAlongRoute": "Buscar en la ruta"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",

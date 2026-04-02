@@ -38,4 +38,5 @@ export enum IntegrationCapabilityId {
   LOGGING = 'logging',
   SPATIAL_PARENTS = 'spatialParents',
   SPATIAL_CHILDREN = 'spatialChildren',
+  SEARCH_ALONG_ROUTE = 'searchAlongRoute',
 }

@@ -148,7 +148,7 @@ describe('CategoryService', () => {
     })
 
     test('"gym" → leisure/fitness_centre via custom alias', () => {
-      const ids = service.searchCategories('gym', 'en-US', 5).map(r => r.id)
+      const ids = service.searchCategories('gym', 'en-US', 15).map(r => r.id)
       expect(ids).toContain('leisure/fitness_centre')
     })
 

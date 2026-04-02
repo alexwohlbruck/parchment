@@ -513,20 +513,11 @@ export async function lookupPlacesByNameAndLocation(
         (result): result is Place => result !== null && result !== undefined,
       )
 
-    return mergePlacesCollection(results).sort((a, b) => {
-      // Sort by distance from coordinates
-      const distanceA = turf.distance(
-        turf.point([coordinates.lng, coordinates.lat]),
-        turf.point([a.geometry.value.center.lng, a.geometry.value.center.lat]),
-        { units: 'meters' },
-      )
-      const distanceB = turf.distance(
-        turf.point([coordinates.lng, coordinates.lat]),
-        turf.point([b.geometry.value.center.lng, b.geometry.value.center.lat]),
-        { units: 'meters' },
-      )
-      return distanceA - distanceB
-    })
+    // Preserve the order returned by integrations — they already rank results
+    // by text relevance × proximity.  Re-sorting by pure distance here would
+    // destroy that ranking (e.g. "Days Inn Near Carowinds" at 6 km beating
+    // "Carowinds" theme park at 16 km despite being a worse text match).
+    return mergePlacesCollection(results)
   } catch (error) {
     console.error('Error looking up places by name and coordinates:', error)
     return []

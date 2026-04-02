@@ -240,6 +240,20 @@ const rules: NearbyCategoryRule[] = [
       'shop/books',
     ],
   },
+  {
+    label: 'Buildings (generic)',
+    match: presetStartsWith('building', 'office'),
+    categories: [
+      'office',
+      'shop',
+      'amenity/restaurant',
+      'amenity/cafe',
+      'amenity/fast_food',
+      'amenity/toilets',
+      'amenity/drinking_water',
+      'amenity/parking',
+    ],
+  },
 ]
 
 // ─── Resolver ─────────────────────────────────────────────────────────────────

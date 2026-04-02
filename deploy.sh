@@ -300,7 +300,17 @@ if [[ ! "$reply" =~ ^[yY]$ ]]; then
 fi
 
 # Prompt for release title (used as PR title and GitHub Release name)
-DEFAULT_RELEASE_TITLE="Release v$NEW_VERSION"
+# For hotfix releases, default to the previous release title
+PREVIOUS_TITLE=""
+if [ -f RELEASE_TITLE ] && [ -s RELEASE_TITLE ]; then
+    PREVIOUS_TITLE="$(tr -d '\n' < RELEASE_TITLE)"
+fi
+
+if [ "$INCREMENT_TYPE" = "hotfix" ] && [ -n "$PREVIOUS_TITLE" ]; then
+    DEFAULT_RELEASE_TITLE="$PREVIOUS_TITLE"
+else
+    DEFAULT_RELEASE_TITLE="Release v$NEW_VERSION"
+fi
 echo ""
 read -r -p "Release title (press Enter for '$DEFAULT_RELEASE_TITLE'): " RELEASE_TITLE_INPUT
 RELEASE_TITLE="${RELEASE_TITLE_INPUT:-$DEFAULT_RELEASE_TITLE}"

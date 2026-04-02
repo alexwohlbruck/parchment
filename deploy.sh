@@ -13,60 +13,75 @@ get_current_version() {
     fi
 }
 
-# Function to validate version format (MAJOR.MINOR.PATCH)
+# Function to validate version format (MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-HOTFIX)
 validate_version_format() {
     local v=$1
-    if [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    if [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$ ]]; then
         return 0
     fi
     return 1
 }
 
-# Function to compare versions
+# Parse version into base (MAJOR.MINOR.PATCH) and hotfix number
+# e.g. "0.1.1-3" -> base="0.1.1", hotfix="3"
+# e.g. "0.1.1"   -> base="0.1.1", hotfix=""
+parse_version() {
+    local v=$1
+    VERSION_BASE="${v%%-*}"
+    if [[ "$v" == *-* ]]; then
+        VERSION_HOTFIX="${v##*-}"
+    else
+        VERSION_HOTFIX=""
+    fi
+}
+
+# Function to compare versions (supports hotfix suffix)
 compare_versions() {
     local version1=$1
     local version2=$2
 
-    # Split versions into components
-    IFS='.' read -r -a v1_parts <<< "$version1"
-    IFS='.' read -r -a v2_parts <<< "$version2"
+    parse_version "$version1"
+    local v1_base="$VERSION_BASE"
+    local v1_hotfix="${VERSION_HOTFIX:-0}"
 
-    # Compare major version
-    if [ "${v1_parts[0]}" -gt "${v2_parts[0]}" ]; then
+    parse_version "$version2"
+    local v2_base="$VERSION_BASE"
+    local v2_hotfix="${VERSION_HOTFIX:-0}"
+
+    # Split base versions into components
+    IFS='.' read -r -a v1_parts <<< "$v1_base"
+    IFS='.' read -r -a v2_parts <<< "$v2_base"
+
+    # Compare major, minor, patch
+    for i in 0 1 2; do
+        if [ "${v1_parts[$i]}" -gt "${v2_parts[$i]}" ]; then
+            echo "greater"
+            return
+        elif [ "${v1_parts[$i]}" -lt "${v2_parts[$i]}" ]; then
+            echo "less"
+            return
+        fi
+    done
+
+    # Base versions equal — compare hotfix
+    if [ "$v1_hotfix" -gt "$v2_hotfix" ]; then
         echo "greater"
-        return
-    elif [ "${v1_parts[0]}" -lt "${v2_parts[0]}" ]; then
+    elif [ "$v1_hotfix" -lt "$v2_hotfix" ]; then
         echo "less"
-        return
+    else
+        echo "equal"
     fi
-
-    # Compare minor version
-    if [ "${v1_parts[1]}" -gt "${v2_parts[1]}" ]; then
-        echo "greater"
-        return
-    elif [ "${v1_parts[1]}" -lt "${v2_parts[1]}" ]; then
-        echo "less"
-        return
-    fi
-
-    # Compare patch version
-    if [ "${v1_parts[2]}" -gt "${v2_parts[2]}" ]; then
-        echo "greater"
-        return
-    elif [ "${v1_parts[2]}" -lt "${v2_parts[2]}" ]; then
-        echo "less"
-        return
-    fi
-
-    echo "equal"
 }
 
 # Function to increment version
+# major/minor/patch strip any hotfix suffix and bump normally
+# hotfix appends or increments the -N suffix
 increment_version() {
     local version=$1
     local increment_type=$2
 
-    IFS='.' read -r -a version_parts <<< "$version"
+    parse_version "$version"
+    IFS='.' read -r -a version_parts <<< "$VERSION_BASE"
     local major=${version_parts[0]}
     local minor=${version_parts[1]}
     local patch=${version_parts[2]}
@@ -76,21 +91,27 @@ increment_version() {
             major=$((major + 1))
             minor=0
             patch=0
+            echo "$major.$minor.$patch"
             ;;
         minor)
             minor=$((minor + 1))
             patch=0
+            echo "$major.$minor.$patch"
             ;;
         patch)
             patch=$((patch + 1))
+            echo "$major.$minor.$patch"
+            ;;
+        hotfix)
+            local hotfix=${VERSION_HOTFIX:-0}
+            hotfix=$((hotfix + 1))
+            echo "$VERSION_BASE-$hotfix"
             ;;
         *)
-            echo "Invalid increment type. Use: major, minor, or patch"
+            echo "Invalid increment type. Use: major, minor, patch, or hotfix"
             exit 1
             ;;
     esac
-
-    echo "$major.$minor.$patch"
 }
 
 # Function to update version in package.json
@@ -114,14 +135,17 @@ update_cargo_toml() {
     sed -i '' '/^\[package\]/,/^\[/ s/^version = ".*"/version = "'$version'"/' "$file"
 }
 
-# Compute Android versionCode from MAJOR.MINOR.PATCH (must increase every Play Store upload)
+# Compute Android versionCode from version (must increase every Play Store upload)
+# Supports hotfix suffix: 0.1.1-2 -> 0*10000 + 1*100 + 1 = 101, then +2 for hotfix
 version_to_android_version_code() {
     local version=$1
-    IFS='.' read -r -a parts <<< "$version"
+    parse_version "$version"
+    IFS='.' read -r -a parts <<< "$VERSION_BASE"
     local major=${parts[0]:-0}
     local minor=${parts[1]:-0}
     local patch=${parts[2]:-0}
-    echo $(( major * 10000 + minor * 100 + patch ))
+    local hotfix=${VERSION_HOTFIX:-0}
+    echo $(( major * 100000 + minor * 1000 + patch * 10 + hotfix ))
 }
 
 # Update Android versionCode in tauri.conf.json (Play Store requires it to always increase)
@@ -150,10 +174,12 @@ show_usage() {
     echo "       $0 --version X.Y.Z [options]"
     echo ""
     echo "Examples:"
-    echo "  $0 patch              # Bump patch (e.g. 0.0.15 -> 0.0.16)"
-    echo "  $0 minor              # Bump minor (e.g. 0.0.15 -> 0.1.0)"
-    echo "  $0 major              # Bump major (e.g. 0.0.15 -> 1.0.0)"
+    echo "  $0 patch              # Bump patch (e.g. 0.1.1 -> 0.1.2)"
+    echo "  $0 minor              # Bump minor (e.g. 0.1.1 -> 0.2.0)"
+    echo "  $0 major              # Bump major (e.g. 0.1.1 -> 1.0.0)"
+    echo "  $0 hotfix             # Bump hotfix (e.g. 0.1.1 -> 0.1.1-1, 0.1.1-1 -> 0.1.1-2)"
     echo "  $0 --version 0.1.5    # Set exact version to 0.1.5"
+    echo "  $0 --version 0.1.1-3  # Set exact version with hotfix suffix"
     echo ""
     echo "Options:"
     echo "  --version X.Y.Z      Set exact version (MAJOR.MINOR.PATCH)"
@@ -176,7 +202,7 @@ while [[ $# -gt 0 ]]; do
             FORCE=true
             shift
             ;;
-        major|minor|patch)
+        major|minor|patch|hotfix)
             if [ -n "$INCREMENT_TYPE" ]; then
                 echo "Error: Only one of major, minor, patch, or --version may be specified."
                 show_usage
@@ -274,11 +300,24 @@ if [[ ! "$reply" =~ ^[yY]$ ]]; then
 fi
 
 # Prompt for release title (used as PR title and GitHub Release name)
-DEFAULT_RELEASE_TITLE="Release v$NEW_VERSION"
+# For hotfix releases, default to the previous release title
+PREVIOUS_TITLE=""
+if [ -f RELEASE_TITLE ] && [ -s RELEASE_TITLE ]; then
+    PREVIOUS_TITLE="$(tr -d '\n' < RELEASE_TITLE)"
+fi
+
+if [ "$INCREMENT_TYPE" = "hotfix" ] && [ -n "$PREVIOUS_TITLE" ]; then
+    DEFAULT_RELEASE_TITLE="$PREVIOUS_TITLE"
+else
+    DEFAULT_RELEASE_TITLE="Release v$NEW_VERSION"
+fi
 echo ""
 read -r -p "Release title (press Enter for '$DEFAULT_RELEASE_TITLE'): " RELEASE_TITLE_INPUT
 RELEASE_TITLE="${RELEASE_TITLE_INPUT:-$DEFAULT_RELEASE_TITLE}"
 echo "Release title set to: $RELEASE_TITLE"
+
+# Write release title to file (used by release.yml for GitHub Release name)
+echo "$RELEASE_TITLE" > RELEASE_TITLE
 
 # Update all version numbers in repo (including Android versionCode for Play Store)
 update_package_json "$NEW_VERSION" "web/package.json"
@@ -291,7 +330,7 @@ echo ""
 echo "Version files updated."
 
 # Stage version files and commit
-VERSION_FILES="web/package.json server/package.json web/src-tauri/tauri.conf.json web/src-tauri/Cargo.toml CHANGELOG.md"
+VERSION_FILES="web/package.json server/package.json web/src-tauri/tauri.conf.json web/src-tauri/Cargo.toml CHANGELOG.md RELEASE_TITLE"
 git add $VERSION_FILES 2>/dev/null || true
 
 if ! git status --short $VERSION_FILES 2>/dev/null | grep -q .; then
@@ -332,9 +371,8 @@ if [ $? -eq 0 ]; then
     echo "Pull request created: $PR_URL"
     echo ""
     echo "Next steps:"
-    echo "  1. Wait for CI checks to pass"
-    echo "  2. Merge the PR on GitHub"
-    echo "  3. The release workflow will automatically tag and build"
+    echo "  1. Review and merge the PR on GitHub"
+    echo "  2. Tag + release pipeline runs automatically after merge"
 else
     echo ""
     echo "Failed to create PR: $PR_URL"

@@ -16,9 +16,16 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
 
 env:
   REGISTRY: docker.io
+  # Resolve tag name from either trigger: tag push (github.ref_name) or workflow_call (inputs.tag)
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   test:
@@ -62,7 +69,7 @@ jobs:
 
       - name: Extract version
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: echo "VERSION=${RELEASE_TAG#v}" >> $GITHUB_OUTPUT
 
       - name: Build and push web
         uses: docker/build-push-action@v6
@@ -197,7 +204,7 @@ jobs:
             cat RELEASE_TITLE >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           else
-            echo "title=Release ${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "title=Release ${{ env.RELEASE_TAG }}" >> $GITHUB_OUTPUT
           fi
 
       - name: Prepare release notes
@@ -207,7 +214,7 @@ jobs:
           if [ -f CHANGELOG.md ]; then
             CHANGELOG=$(cat CHANGELOG.md)
           else
-            CHANGELOG="Release ${{ github.ref_name }}"
+            CHANGELOG="Release ${{ env.RELEASE_TAG }}"
           fi
           echo "body<<EOF" >> $GITHUB_OUTPUT
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
@@ -226,7 +233,7 @@ jobs:
           TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
         with:
           projectPath: web
-          tagName: ${{ github.ref_name }}
+          tagName: ${{ env.RELEASE_TAG }}
           releaseName: ${{ steps.release_title.outputs.title }}
           releaseBody: ${{ steps.changelog.outputs.body }}
           releaseDraft: false
@@ -294,7 +301,7 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ env.RELEASE_TAG }}
           files: web/src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
 
   publish-ios:
@@ -406,7 +413,7 @@ jobs:
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ env.RELEASE_TAG }}
           files: web/src-tauri/gen/apple/build/arm64/*.ipa
 
       - name: Upload to App Store Connect
@@ -445,11 +452,11 @@ jobs:
 
       - name: Extract version
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: echo "VERSION=${RELEASE_TAG#v}" >> $GITHUB_OUTPUT
 
       - name: Download app bundle
         run: |
-          gh release download ${{ github.ref_name }} -p "*.aab" -D android-aab
+          gh release download ${{ env.RELEASE_TAG }} -p "*.aab" -D android-aab
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -459,7 +466,7 @@ jobs:
           if [ -f CHANGELOG.md ]; then
             tail -n +7 CHANGELOG.md > play-release-notes/whatsnew-en-US
           else
-            echo "Release ${{ github.ref_name }}" > play-release-notes/whatsnew-en-US
+            echo "Release ${{ env.RELEASE_TAG }}" > play-release-notes/whatsnew-en-US
           fi
 
       - name: Upload to Google Play

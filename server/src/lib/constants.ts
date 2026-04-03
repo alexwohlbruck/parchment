@@ -70,6 +70,7 @@ export const INTEGRATION_PRIORITIES: Partial<Record<IntegrationId, number>> = {
   [IntegrationId.WIKIMEDIA]: 45, // Free, images, depends on Wikidata
 } as const
 
+// TODO: Refactor business status to common schema
 /**
  * Business status constants
  */

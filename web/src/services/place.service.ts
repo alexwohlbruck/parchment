@@ -6,6 +6,7 @@ import { api } from '@/lib/api'
 import type { Place } from '@/types/place.types'
 import type { Bookmark } from '@/types/library.types'
 import type { SourceId } from '@/types/place.types'
+import { SOURCE } from '@/lib/constants'
 import { useSearchStore } from '@/stores/search.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 
@@ -27,7 +28,7 @@ function placeService() {
    */
   async function fetchPlaceDetails(
     id: string,
-    source: SourceId = 'osm', // TODO: Use constants defs from server code
+    source: SourceId = SOURCE.OSM,
     options?: {
       name?: string
       lat?: number

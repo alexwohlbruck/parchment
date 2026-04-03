@@ -122,7 +122,7 @@ function handleSetupComplete() {
     </div>
 
     <!-- Needs Setup -->
-    <!-- TODO: Use standard stetings item component -->
+    <!-- TODO: Use standard settings item component -->
     <div
       v-else-if="!isSetupComplete"
       class="flex items-center justify-between gap-4"

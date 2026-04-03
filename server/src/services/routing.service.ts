@@ -128,7 +128,6 @@ export class RoutingService {
     }
   }
 
-  // TODO: Remove
   /**
    * Map legacy costing parameter to unified travel mode
    */

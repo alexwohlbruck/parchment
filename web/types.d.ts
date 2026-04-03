@@ -3,8 +3,6 @@ import '@tanstack/vue-table'
 
 export {}
 
-// TODO: This isn't file isn't being referenced, types not working
-
 declare module 'vue-router' {
   interface RouteMeta {
     auth?: boolean

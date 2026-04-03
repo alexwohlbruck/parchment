@@ -2,13 +2,13 @@
 import { H6 } from '@/components/ui/typography'
 import Caption from '@/components/ui/typography/Caption.vue'
 import Badge from '@/components/ui/badge/Badge.vue'
-// import { Component } from 'vue'
+import type { Component } from 'vue'
 
 interface Props {
   title: string
   description?: string
   block?: boolean
-  icon?: any // TODO: Fix this
+  icon?: Component
   badge?: string
   badgeVariant?: 'default' | 'primary' | 'secondary' | 'destructive' | 'outline'
 }

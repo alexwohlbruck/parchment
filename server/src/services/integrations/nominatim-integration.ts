@@ -61,6 +61,11 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
     placeInfo: {
       getPlaceInfo: this.getPlaceInfo.bind(this),
     } as PlaceInfoCapability,
+    cacheTtl: {
+      search: { searchPlaces: 4 * 3600 },
+      geocoding: { geocode: 4 * 3600, reverseGeocode: 24 * 3600 },
+      placeInfo: { getPlaceInfo: 24 * 3600 },
+    },
   }
   readonly sources = [SOURCE.OSM]
 

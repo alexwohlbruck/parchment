@@ -47,6 +47,9 @@ export class WikidataIntegration implements Integration<WikidataConfig> {
     placeInfo: {
       getPlaceInfo: this.getPlaceInfo.bind(this),
     } as PlaceInfoCapability,
+    cacheTtl: {
+      placeInfo: { getPlaceInfo: 12 * 3600 },
+    },
   }
   readonly sources = [SOURCE.WIKIDATA]
 

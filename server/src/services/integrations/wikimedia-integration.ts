@@ -46,6 +46,9 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
     placeInfo: {
       getPlaceInfo: this.getPlaceInfo.bind(this),
     } as PlaceInfoCapability,
+    cacheTtl: {
+      placeInfo: { getPlaceInfo: 24 * 3600 },
+    },
   }
   readonly sources = [SOURCE.WIKIMEDIA]
 

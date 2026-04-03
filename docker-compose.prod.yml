@@ -3,8 +3,19 @@ name: parchment
 volumes:
   server-db:
   server-data:
+  redis-data:
 
 services:
+  # Redis cache
+  parchment-redis:
+    container_name: parchment-redis
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
   # Parchment backend server DB
   parchment-db:
     container_name: parchment-db
@@ -32,12 +43,14 @@ services:
       GMAIL_EMAIL: ${GMAIL_EMAIL}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
       APP_TESTER_EMAIL: ${APP_TESTER_EMAIL}
+      REDIS_URL: redis://parchment-redis:6379
     ports:
       - "5000:5000"
     volumes:
       - server-data:/app/data
     depends_on:
       - parchment-db
+      - parchment-redis
     restart: unless-stopped
 
   # Web frontend (Vue)

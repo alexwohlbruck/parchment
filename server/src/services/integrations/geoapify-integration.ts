@@ -95,6 +95,13 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
         },
       },
     } as RoutingCapability,
+    cacheTtl: {
+      searchCategory: { searchByCategory: 4 * 3600 },
+      autocomplete: { getAutocomplete: 600 },
+      geocoding: { geocode: 4 * 3600, reverseGeocode: 24 * 3600 },
+      placeInfo: { getPlaceInfo: 24 * 3600 },
+      routing: { getRoute: 24 * 3600 },
+    },
   }
   // Note: Empty sources array - Geoapify is not a primary data source
   // It's used for geocoding, search, and routing, but place details come from OSM

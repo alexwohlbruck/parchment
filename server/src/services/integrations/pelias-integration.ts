@@ -57,6 +57,10 @@ export class PeliasIntegration implements Integration<PeliasConfig> {
     placeInfo: {
       getPlaceInfo: this.getPlaceInfo.bind(this),
     } as PlaceInfoCapability,
+    cacheTtl: {
+      search: { searchPlaces: 4 * 3600 },
+      autocomplete: { getAutocomplete: 600 },
+    },
   }
   readonly sources = [SOURCE.OSM, SOURCE.OPENADDRESSES]
 

@@ -45,6 +45,9 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
     placeInfo: {
       getPlaceInfo: this.getPlaceInfo.bind(this),
     } as PlaceInfoCapability,
+    cacheTtl: {
+      searchCategory: { searchByCategory: 4 * 3600 },
+    },
   }
 
   // Integration interface methods

@@ -79,6 +79,9 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
         },
       },
     } as RoutingCapability,
+    cacheTtl: {
+      routing: { getRoute: 24 * 3600 },
+    },
   }
 
   /**

@@ -100,6 +100,9 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
         },
       },
     } as RoutingCapability,
+    cacheTtl: {
+      routing: { getRoute: 24 * 3600 },
+    },
   }
 
   /**

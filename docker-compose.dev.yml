@@ -4,6 +4,7 @@ volumes:
   server-db:
   server:
   osm-data:
+  redis-data:
 
 networks:
   default:
@@ -23,6 +24,16 @@ services:
   #     - osm-db:/var/lib/postgresql/data
   #   ports:
   #     - '5433:5432'
+
+  # Redis cache
+  parchment-redis:
+    container_name: parchment-redis
+    image: redis:7-alpine
+    network_mode: host
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
 
   # Parchment backend server DB
   parchment-db:
@@ -53,8 +64,10 @@ services:
       GMAIL_EMAIL: ${GMAIL_EMAIL}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
       APP_TESTER_EMAIL: ${APP_TESTER_EMAIL}
+      REDIS_URL: redis://localhost:6379
     depends_on:
       - parchment-db
+      - parchment-redis
     volumes:
       - ./server:/app/server
       - /app/server/node_modules

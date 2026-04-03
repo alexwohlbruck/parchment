@@ -9,6 +9,7 @@ import {
 import { IntegrationRegistry } from './integration-registry'
 import { Source, INTEGRATION_PRIORITIES } from '../../lib/constants'
 import { initializeWithTest } from '../../lib/integration.utils'
+import { createCachedIntegrationProxy } from '../cache'
 
 /**
  * Cached integration that combines database record with integration instance
@@ -306,7 +307,9 @@ export class IntegrationManagerService {
     integration: IntegrationRecord,
   ): Integration<IntegrationConfig> | undefined {
     const cacheKey = this.getCacheKey(integration)
-    return this.integrationsCache.get(cacheKey)?.integration
+    const instance = this.integrationsCache.get(cacheKey)?.integration
+    if (!instance) return undefined
+    return createCachedIntegrationProxy(instance, integration.integrationId)
   }
 
   private getCacheKey(integration: IntegrationRecord): string {

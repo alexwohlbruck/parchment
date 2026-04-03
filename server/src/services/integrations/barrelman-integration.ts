@@ -118,6 +118,15 @@ export class BarrelmanIntegration
     searchAlongRoute: {
       searchAlongRoute: this.searchAlongRoute.bind(this),
     } as SearchAlongRouteCapability,
+    cacheTtl: {
+      search: { searchPlaces: 4 * 3600 },
+      autocomplete: { getAutocomplete: 600 },
+      searchCategory: { searchByCategory: 4 * 3600 },
+      placeInfo: { getPlaceInfo: 4 * 3600 },
+      searchAlongRoute: { searchAlongRoute: 4 * 3600 },
+      spatialParents: { getContainingAreas: 24 * 3600 },
+      spatialChildren: { getChildren: 24 * 3600 },
+    },
   }
 
   // ── Lifecycle ──────────────────────────────────────────────

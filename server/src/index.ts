@@ -27,6 +27,7 @@ import {
 import { initializeIntegrations } from './services/integration.service'
 import { getI18nInitOptions, detectLanguage } from './lib/i18n'
 import { initializeOsmPresets } from './lib/osm-presets'
+import { cacheService } from './services/cache'
 
 async function main() {
   try {
@@ -98,6 +99,7 @@ async function main() {
 
   try {
     logger.debug('i18n configured')
+    await cacheService.initialize()
     initializeOsmPresets()
     await initializeIntegrations()
     logger.info('Integrations initialized')

@@ -211,6 +211,11 @@ export interface SearchAlongRouteCapability {
   ): Promise<Place[]>
 }
 
+// Cache TTL configuration (seconds). 0 = do not cache.
+export interface CacheTtlConfig {
+  [methodName: string]: number
+}
+
 // Integration capabilities container
 export interface IntegrationCapabilities {
   search?: SearchCapability
@@ -227,6 +232,10 @@ export interface IntegrationCapabilities {
   spatialParents?: SpatialParentsCapability
   spatialChildren?: SpatialChildrenCapability
   searchAlongRoute?: SearchAlongRouteCapability
+  /** Per-capability cache TTLs in seconds. 0 = do not cache. Omit for default (1h). */
+  cacheTtl?: {
+    [capabilityName: string]: CacheTtlConfig
+  }
 }
 
 /**

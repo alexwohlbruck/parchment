@@ -32,6 +32,9 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
     placeInfo: {
       getPlaceInfo: this.getPlaceInfo.bind(this),
     } as PlaceInfoCapability,
+    cacheTtl: {
+      transitData: { getDepartures: 0 },
+    },
   }
   readonly sources = [SOURCE.TRANSITLAND]
 

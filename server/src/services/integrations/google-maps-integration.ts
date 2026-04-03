@@ -51,6 +51,11 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
       geocode: this.geocode.bind(this),
       reverseGeocode: this.reverseGeocode.bind(this),
     } as GeocodingCapability,
+    cacheTtl: {
+      search: { searchPlaces: 4 * 3600 },
+      placeInfo: { getPlaceInfo: 24 * 3600 },
+      geocoding: { geocode: 4 * 3600, reverseGeocode: 24 * 3600 },
+    },
   }
 
   // Integration interface methods

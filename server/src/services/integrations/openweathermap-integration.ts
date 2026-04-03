@@ -29,6 +29,9 @@ export class OpenWeatherMapIntegration implements Integration<OpenWeatherMapConf
     weather: {
       getWeather: this.getWeather.bind(this),
     } as WeatherCapability,
+    cacheTtl: {
+      weather: { getWeather: 0 },
+    },
   }
 
   protected config: OpenWeatherMapConfig = {

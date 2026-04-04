@@ -87,16 +87,16 @@ function formatDate(dateString: string) {
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <div class="mt-2 bg-muted/30 rounded-md p-3">
-                  <div class="space-y-2">
+                  <div class="space-y-1">
                     <div
-                      v-for="[key, value] in Object.entries(place.amenities || {})"
+                      v-for="[key, value] in Object.entries(place.tags || {})"
                       :key="key"
-                      class="flex items-start justify-between gap-3 text-sm"
+                      class="flex items-start justify-between gap-3 text-xs font-mono"
                     >
-                      <span class="font-medium text-muted-foreground min-w-0 flex-shrink-0">
-                        {{ key }} 
+                      <span class="text-muted-foreground min-w-0 flex-shrink-0">
+                        {{ key }}
                       </span>
-                      <span class="break-all text-right min-w-0">
+                      <span class="break-all text-right min-w-0 text-foreground">
                         {{ value }}
                       </span>
                     </div>

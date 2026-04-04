@@ -22,6 +22,9 @@ import type {
   RelatedPlacesData,
   RelatedPlacesStrategy,
   RelatedParent,
+  DisplayChip,
+  ChipSentiment,
+  ChipCategory,
 } from '@server/types/place.types'
 
 import { WidgetType, WidgetDataType } from '@server/types/place.types'
@@ -50,6 +53,9 @@ export type {
   RelatedPlacesData,
   RelatedPlacesStrategy,
   RelatedParent,
+  DisplayChip,
+  ChipSentiment,
+  ChipCategory,
 }
 
 export { WidgetType, WidgetDataType }

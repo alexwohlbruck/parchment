@@ -9,6 +9,8 @@ import { ExternalLinkIcon } from 'lucide-vue-next'
 import { formatWord } from '@/lib/string.utils'
 import { getOsmTagLabel, osmKeyToI18nKey } from '@/lib/osm-tag-labels'
 import { getOsmTagIcon } from '@/lib/osm-tag-icons'
+import { useAppStore } from '@/stores/app.store'
+import { FloorNumbering } from '@/types/map.types'
 
 const props = defineProps<{
   data: WidgetResponse<Record<string, string>>
@@ -17,6 +19,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const appStore = useAppStore()
 
 /** Translate an OSM tag key label, falling back to the English TAG_LABELS dict. */
 function tagLabel(key: string): string {
@@ -79,6 +82,14 @@ function formatValue(key: string, value: string): { text: string; href?: string 
     const u = new URL(value)
     if (u.protocol === 'http:' || u.protocol === 'https:') return { text: value, href: value }
   } catch { /* not a URL */ }
+
+  // Floor/level display — adjust for one-based numbering
+  if (key === 'level') {
+    const num = parseInt(value, 10)
+    if (!isNaN(num) && appStore.floorNumbering === FloorNumbering.ONE_BASED) {
+      return { text: String(num + 1) }
+    }
+  }
 
   // Date fields
   if (DATE_KEYS.has(key)) {
@@ -163,6 +174,8 @@ const groupedTags = computed((): TagGroup[] => {
   })
 })
 
+const hasListTags = computed(() => groupedTags.value.length > 0)
+
 /** Build a plain-text copy string for a tag group */
 function copyText(group: TagGroup): string {
   const lines: string[] = []
@@ -181,7 +194,7 @@ function tagCopyMessage(rootKey: string): string {
 </script>
 
 <template>
-  <PlaceSection v-if="groupedTags.length > 0">
+  <PlaceSection v-if="hasListTags">
     <template #main>
       <div class="space-y-3">
         <div

@@ -48,6 +48,11 @@ export enum StartupLocation {
   URL_PARAMS = 'urlParams',
 }
 
+export enum FloorNumbering {
+  ZERO_BASED = 'zero-based',
+  ONE_BASED = 'one-based',
+}
+
 export interface MapSettings {
   theme: MapTheme
   engine: MapEngine

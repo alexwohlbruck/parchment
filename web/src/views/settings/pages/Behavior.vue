@@ -6,7 +6,7 @@ import { useAppStore } from '@/stores/app.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useCommandStore } from '@/stores/command.store'
 import { CommandName } from '@/stores/command.store'
-import { UnitSystem, LocateFlySpeed, StartupLocation } from '@/types/map.types'
+import { UnitSystem, LocateFlySpeed, StartupLocation, FloorNumbering } from '@/types/map.types'
 import type { Locale } from '@/lib/i18n'
 import { updatePreferences } from '@/services/preferences.service'
 import { useMapStore } from '@/stores/map.store'
@@ -19,13 +19,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Gauge, GaugeIcon, LanguagesIcon, Navigation2Icon } from 'lucide-vue-next'
+import { Gauge, GaugeIcon, LanguagesIcon, Navigation2Icon, LayersIcon } from 'lucide-vue-next'
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const commandStore = useCommandStore()
 const mapStore = useMapStore()
-const { unitSystem } = storeToRefs(appStore)
+const { unitSystem, floorNumbering } = storeToRefs(appStore)
 const { settings } = storeToRefs(mapStore)
 const { locale } = useI18n()
 
@@ -130,6 +130,31 @@ watch(
               </SelectItem>
               <SelectItem :value="LocateFlySpeed.SLOW">
                 {{ $t('settings.mapSettings.location.speed.slow') }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </SettingsItem>
+    </SettingsSection>
+
+    <!-- Floor numbering preference -->
+    <SettingsSection :title="$t('settings.behavior.floorNumbering.title')">
+      <SettingsItem
+        :title="$t('settings.behavior.floorNumbering.system')"
+        :description="$t('settings.behavior.floorNumbering.description')"
+        :icon="LayersIcon"
+      >
+        <Select v-model="floorNumbering">
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem :value="FloorNumbering.ZERO_BASED">
+                {{ $t('settings.behavior.floorNumbering.zeroBased') }}
+              </SelectItem>
+              <SelectItem :value="FloorNumbering.ONE_BASED">
+                {{ $t('settings.behavior.floorNumbering.oneBased') }}
               </SelectItem>
             </SelectGroup>
           </SelectContent>

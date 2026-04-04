@@ -845,6 +845,13 @@
         "description": "Sistema de unidades preferido para temperatura, distancia y velocidad",
         "metric": "Métrico (°C, km, m/s)",
         "imperial": "Imperial (°F, mi, mph)"
+      },
+      "floorNumbering": {
+        "title": "Numeración de pisos",
+        "system": "Convención de numeración de pisos",
+        "description": "Cómo se muestran los números de piso. Base cero cuenta la planta baja como 0 (común en Europa). Base uno cuenta la planta baja como 1 (común en las Américas).",
+        "zeroBased": "Base cero (Planta baja = 0)",
+        "oneBased": "Base uno (Planta baja = 1)"
       }
     },
     "appearance": {

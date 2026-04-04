@@ -882,6 +882,13 @@
         "description": "Preferred unit system for temperature, distance, and speed",
         "metric": "Metric (°C, km, m/s)",
         "imperial": "Imperial (°F, mi, mph)"
+      },
+      "floorNumbering": {
+        "title": "Floor numbering",
+        "system": "Floor numbering convention",
+        "description": "How floor numbers are displayed. Zero-based counts ground floor as 0 (common in Europe). One-based counts ground floor as 1 (common in the Americas).",
+        "zeroBased": "Zero-based (Ground = 0)",
+        "oneBased": "One-based (Ground = 1)"
       }
     },
     "appearance": {

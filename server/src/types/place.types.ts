@@ -202,6 +202,34 @@ export interface WidgetResponse<T = unknown> {
   sources: SourceReference[]
 }
 
+export type ChipSentiment = 'positive' | 'negative' | 'neutral'
+
+export type ChipCategory =
+  | 'accessibility'
+  | 'cost'
+  | 'restrooms'
+  | 'internet'
+  | 'seating'
+  | 'smoking'
+  | 'food_service'
+  | 'offerings'
+  | 'water'
+  | 'family'
+  | 'lgbtq'
+  | 'payment'
+  | 'automation'
+  | 'diet'
+
+export interface DisplayChip {
+  key: string           // OSM tag key (e.g. 'wheelchair')
+  value: string         // OSM tag value (e.g. 'yes')
+  label: string         // Pre-computed display label (e.g. 'Accessible')
+  icon: string          // Lucide icon name (e.g. 'accessibility')
+  sentiment: ChipSentiment
+  section?: 'diet'      // Optional: route to a specific UI section
+  category?: ChipCategory // Grouping category for future UI use
+}
+
 export interface NearbyCategory {
   presetId: string // OSM preset ID, e.g. "amenity/cafe"
   name: string // Display label, e.g. "Cafes"
@@ -273,6 +301,9 @@ export interface Place {
 
   // Widget descriptors for additional data sections
   widgets?: WidgetDescriptor[]
+
+  // Server-computed display chips for amenity tags
+  displayChips?: DisplayChip[]
 
   // Nearby category chips for contextual exploration
   nearbyCategories?: NearbyCategory[]

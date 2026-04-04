@@ -211,6 +211,34 @@ export interface SearchAlongRouteCapability {
   ): Promise<Place[]>
 }
 
+export interface OsmNote {
+  id: number
+  lat: number
+  lng: number
+  status: 'open' | 'closed'
+  comments: OsmNoteComment[]
+  createdAt: string
+  closedAt?: string
+}
+
+export interface OsmNoteComment {
+  date: string
+  uid?: number
+  user?: string
+  action: 'opened' | 'commented' | 'closed' | 'reopened'
+  text: string
+}
+
+export interface OsmMapEditCapability {
+  createNote(lat: number, lng: number, text: string): Promise<OsmNote>
+  getNote(id: number): Promise<OsmNote>
+  commentOnNote(id: number, text: string): Promise<OsmNote>
+  closeNote(id: number, text?: string): Promise<OsmNote>
+  createChangeset(tags: Record<string, string>): Promise<number>
+  uploadChange(changesetId: number, osmChange: string): Promise<void>
+  closeChangeset(changesetId: number): Promise<void>
+}
+
 // Integration capabilities container
 export interface IntegrationCapabilities {
   search?: SearchCapability
@@ -227,6 +255,7 @@ export interface IntegrationCapabilities {
   spatialParents?: SpatialParentsCapability
   spatialChildren?: SpatialChildrenCapability
   searchAlongRoute?: SearchAlongRouteCapability
+  osmMapEdit?: OsmMapEditCapability
 }
 
 /**
@@ -291,6 +320,7 @@ export type IntegrationDefinition = {
   configSchema: string // Reference to schema name used on the client
   public?: boolean // Mark the integration as public/client-facing, keys will be exposed to all users
   scope: IntegrationScope[] // Defines where this integration can be configured
+  authType?: 'form' | 'oauth2' // Defaults to 'form'. OAuth2 integrations use redirect-based auth instead of config forms.
 }
 
 export enum IntegrationScope {

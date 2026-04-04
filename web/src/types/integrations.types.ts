@@ -107,4 +107,8 @@ export const configSchemas: Record<
     apiToken: z.string().min(1, 'API token is required'),
     dataset: z.string().min(1, 'Dataset name is required'),
   }),
+
+  openstreetmapOAuthSchema: z.object({
+    // No user-editable fields — config is managed by OAuth2 flow
+  }),
 }

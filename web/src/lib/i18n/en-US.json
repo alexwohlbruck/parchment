@@ -658,7 +658,8 @@
     "updateBanner": "New version available",
     "versionAvailable": "Version",
     "restartToUpdate": "Restart to update",
-    "later": "Later"
+    "later": "Later",
+    "osmContributions": "{count} contributions"
   },
   "place": {
     "transit": {
@@ -1016,6 +1017,11 @@
         "description": "Are you sure you want to delete the {name} integration?",
         "success": "{name} integration successfully deleted"
       },
+      "disconnect": {
+        "title": "Disconnect Integration",
+        "description": "Are you sure you want to disconnect the {name} integration?",
+        "success": "{name} integration successfully disconnected"
+      },
       "test": {
         "title": "Test Connection",
         "description": "You must test your connection before saving",
@@ -1042,7 +1048,8 @@
         "logging": "Logging",
         "spatialParents": "Spatial Parents",
         "spatialChildren": "Spatial Children",
-        "searchAlongRoute": "Search Along Route"
+        "searchAlongRoute": "Search Along Route",
+        "osmMapEdit": "Edit Map"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",
@@ -1064,7 +1071,16 @@
         "wikimedia": "Free media repository for place images",
         "openweathermap": "Weather data and air quality information",
         "axiom": "Send server logs and traces to Axiom for debugging and monitoring",
-        "barrelman": "Self-hosted OSM search and spatial engine"
+        "barrelman": "Self-hosted OSM search and spatial engine",
+        "openstreetmap": "Connect your OSM account to add notes, comments, and make quick edits"
+      },
+      "osm": {
+        "connected": "OpenStreetMap account connected successfully",
+        "disconnected": "OpenStreetMap account disconnected",
+        "authError": "Failed to connect OpenStreetMap account",
+        "disconnectError": "Failed to disconnect OpenStreetMap account",
+        "disconnect": "Disconnect",
+        "viewProfile": "View OSM profile"
       }
     },
     "users": {

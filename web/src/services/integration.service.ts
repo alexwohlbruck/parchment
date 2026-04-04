@@ -216,6 +216,18 @@ export function useIntegrationService() {
     }
   }
 
+  async function fetchOsmProfile() {
+    try {
+      const response = await api.get('/integrations/osm/profile')
+      // Refresh configured integrations to pick up updated config
+      await fetchConfiguredIntegrations()
+      return response.data
+    } catch (error) {
+      console.error('Failed to fetch OSM profile:', error)
+      return null
+    }
+  }
+
   return {
     isLoading,
     error,
@@ -227,5 +239,6 @@ export function useIntegrationService() {
     toggleCapability,
     fetchAvailableIntegrations,
     fetchConfiguredIntegrations,
+    fetchOsmProfile,
   }
 }

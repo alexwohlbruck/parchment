@@ -620,7 +620,8 @@
     "updateBanner": "Nueva versión disponible",
     "versionAvailable": "Versión",
     "restartToUpdate": "Reiniciar para actualizar",
-    "later": "Más tarde"
+    "later": "Más tarde",
+    "osmContributions": "{count} contribuciones"
   },
   "place": {
     "transit": {
@@ -979,6 +980,11 @@
         "description": "¿Estás seguro que quieres eliminar la integración {name}?",
         "success": "Integración {name} eliminada exitosamente"
       },
+      "disconnect": {
+        "title": "Desconectar Integración",
+        "description": "¿Estás seguro que quieres desconectar la integración {name}?",
+        "success": "Integración {name} desconectada exitosamente"
+      },
       "test": {
         "title": "Probar Conexión",
         "description": "Debes probar tu conexión antes de guardar",
@@ -1004,7 +1010,8 @@
         "logging": "Registro",
         "spatialParents": "Áreas Contenedoras",
         "spatialChildren": "Lugares Secundarios",
-        "searchAlongRoute": "Buscar en la ruta"
+        "searchAlongRoute": "Buscar en la ruta",
+        "osmMapEdit": "Editar Mapa"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",
@@ -1025,7 +1032,16 @@
         "wikimedia": "Repositorio gratuito de medios para imágenes de lugares",
         "openweathermap": "Datos meteorológicos e información de calidad del aire",
         "axiom": "Enviar registros y trazas del servidor a Axiom para depuración y monitoreo",
-        "barrelman": "Motor de búsqueda y espacial OSM autoalojado"
+        "barrelman": "Motor de búsqueda y espacial OSM autoalojado",
+        "openstreetmap": "Conecta tu cuenta OSM para agregar notas, comentarios y hacer ediciones rápidas"
+      },
+      "osm": {
+        "connected": "Cuenta de OpenStreetMap conectada exitosamente",
+        "disconnected": "Cuenta de OpenStreetMap desconectada",
+        "authError": "Error al conectar la cuenta de OpenStreetMap",
+        "disconnectError": "Error al desconectar la cuenta de OpenStreetMap",
+        "disconnect": "Desconectar",
+        "viewProfile": "Ver perfil de OSM"
       }
     },
     "users": {

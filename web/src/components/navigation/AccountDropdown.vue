@@ -13,6 +13,7 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth.store'
+import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useCommandStore, CommandName } from '@/stores/command.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useAuthService } from '@/services/auth.service'
@@ -53,6 +54,8 @@ const props = defineProps<{
 const { t, locale } = useI18n()
 const authStore = useAuthStore()
 const { me } = storeToRefs(authStore)
+const integrationsStore = useIntegrationsStore()
+const { osmProfile } = storeToRefs(integrationsStore)
 const commandStore = useCommandStore()
 const themeStore = useThemeStore()
 const { isDark } = storeToRefs(themeStore)
@@ -273,10 +276,20 @@ const menuItems = computed((): MenuItemDefinition[] => {
             </AvatarFallback>
           </Avatar>
           <div class="flex flex-col">
-            <span class="text-sm font-semibold">
+            <span class="text-sm font-semibold leading-tight">
               {{ me.firstName }} {{ me.lastName }}
             </span>
-            <span class="text-xs text-muted-foreground">{{ me.email }}</span>
+            <span class="text-xs text-muted-foreground leading-tight">{{ me.email }}</span>
+            <a
+              v-if="osmProfile?.osmChangesetCount != null && osmProfile?.osmDisplayName"
+              :href="`https://www.openstreetmap.org/user/${encodeURIComponent(osmProfile.osmDisplayName)}`"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-xs text-muted-foreground hover:text-foreground transition-colors leading-tight"
+              @click.stop
+            >
+              {{ t('profileMenu.osmContributions', { count: osmProfile.osmChangesetCount.toLocaleString() }) }}
+            </a>
           </div>
         </div>
       </div>

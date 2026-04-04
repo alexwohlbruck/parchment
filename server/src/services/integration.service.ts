@@ -252,6 +252,23 @@ const availableIntegrations: IntegrationDefinition[] = [
     configSchema: 'axiomSchema',
     scope: [IntegrationScope.SYSTEM],
   },
+  {
+    id: IntegrationId.OPENSTREETMAP,
+    name: 'OpenStreetMap',
+    description:
+      'Connect your OSM account to add notes, comments, and make quick edits',
+    color: '#7EBC6F',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.OPENSTREETMAP,
+      )
+    },
+    paid: false,
+    cloud: true,
+    configSchema: 'openstreetmapOAuthSchema',
+    authType: 'oauth2',
+    scope: [IntegrationScope.USER],
+  },
 ]
 
 export async function initializeIntegrations() {

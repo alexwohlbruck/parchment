@@ -224,7 +224,7 @@ export const useAppStore = defineStore('app', () => {
         [DialogType.Confirm]: ConfirmDialog,
         [DialogType.Prompt]: PromptDialog,
         [DialogType.AutoForm]: AutoformDialog,
-        [DialogType.Template]: ConfirmDialog, // TODO
+        [DialogType.Template]: ConfirmDialog, // TODO: Implement template dialog
         [DialogType.Drawer]: ProgrammaticDrawer,
       }
 

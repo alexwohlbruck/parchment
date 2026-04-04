@@ -37,7 +37,8 @@ export class RoutingService {
     let routingIntegrationRecord = routingIntegrations[0]
     if (preferences?.routingEngine) {
       const preferredIntegration = routingIntegrations.find(
-        (integration) => integration.integrationId === preferences.routingEngine,
+        (integration) =>
+          integration.integrationId === preferences.routingEngine,
       )
       if (preferredIntegration) {
         routingIntegrationRecord = preferredIntegration
@@ -87,34 +88,36 @@ export class RoutingService {
         optimize = 'balanced' // Balanced approach
       }
     }
-    
+
     const request: RouteRequest = {
       waypoints,
       mode,
       includeInstructions: true,
       includeGeometry: true,
-      language: (preferences as { language?: import('../lib/i18n').Language })?.language,
-      preferences: preferences ? {
-        optimize,
-        avoidTolls: preferences.avoidTolls,
-        avoidHighways: preferences.avoidHighways,
-        avoidFerries: preferences.avoidFerries,
-        avoidUnpaved: preferences.preferPavedPaths ? true : undefined,
-        maxWalkDistance: preferences.maxWalkingDistance,
-        maxTransfers: preferences.maxTransfers,
-        wheelchairAccessible: preferences.wheelchairAccessible,
-      } : {
-        optimize: 'time',
-      },
+      language: (preferences as { language?: import('../lib/i18n').Language })
+        ?.language,
+      preferences: preferences
+        ? {
+            optimize,
+            avoidTolls: preferences.avoidTolls,
+            avoidHighways: preferences.avoidHighways,
+            avoidFerries: preferences.avoidFerries,
+            avoidUnpaved: preferences.preferPavedPaths ? true : undefined,
+            maxWalkDistance: preferences.maxWalkingDistance,
+            maxTransfers: preferences.maxTransfers,
+            wheelchairAccessible: preferences.wheelchairAccessible,
+          }
+        : {
+            optimize: 'time',
+          },
     }
 
     console.log('Routing waypoints:', waypoints)
     console.log('Routing preferences:', request.preferences)
 
     try {
-      const result = await integrationInstance.capabilities.routing.getRoute(
-        request,
-      )
+      const result =
+        await integrationInstance.capabilities.routing.getRoute(request)
 
       // The result is now already in unified format
       return result
@@ -128,7 +131,7 @@ export class RoutingService {
     }
   }
 
-  // TODO: Remove
+  // TODO: Deprecate this map
   /**
    * Map legacy costing parameter to unified travel mode
    */

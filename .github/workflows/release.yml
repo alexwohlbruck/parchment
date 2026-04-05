@@ -499,6 +499,12 @@ jobs:
           name: ios-ipa
           path: ios-ipa
 
+      - name: Setup App Store Connect API key
+        if: ${{ env.APPLE_API_ISSUER != '' }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "${{ secrets.APPLE_API_KEY_CONTENT }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
+
       - name: Upload to App Store Connect
         if: ${{ env.APPLE_API_ISSUER != '' }}
         run: |

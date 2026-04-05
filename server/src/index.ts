@@ -23,6 +23,8 @@ import {
   sharing as sharingController,
   location as locationController,
   weather as weatherController,
+  osmOAuth as osmOAuthController,
+  notes as notesController,
 } from './controllers'
 import { initializeIntegrations } from './services/integration.service'
 import { getI18nInitOptions, detectLanguage } from './lib/i18n'
@@ -69,6 +71,8 @@ async function main() {
   app.use(sharingController)
   app.use(locationController)
   app.use(weatherController)
+  app.use(osmOAuthController)
+  app.use(notesController)
 
   app.onError(({ code, error }) => {
     if (code === 'NOT_FOUND') return 'Route not found :(' // TODO: i18n, proper error

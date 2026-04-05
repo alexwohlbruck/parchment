@@ -620,7 +620,8 @@
     "updateBanner": "Nueva versión disponible",
     "versionAvailable": "Versión",
     "restartToUpdate": "Reiniciar para actualizar",
-    "later": "Más tarde"
+    "later": "Más tarde",
+    "osmContributions": "{count} contribuciones"
   },
   "place": {
     "transit": {
@@ -979,6 +980,11 @@
         "description": "¿Estás seguro que quieres eliminar la integración {name}?",
         "success": "Integración {name} eliminada exitosamente"
       },
+      "disconnect": {
+        "title": "Desconectar Integración",
+        "description": "¿Estás seguro que quieres desconectar la integración {name}?",
+        "success": "Integración {name} desconectada exitosamente"
+      },
       "test": {
         "title": "Probar Conexión",
         "description": "Debes probar tu conexión antes de guardar",
@@ -1004,7 +1010,8 @@
         "logging": "Registro",
         "spatialParents": "Áreas Contenedoras",
         "spatialChildren": "Lugares Secundarios",
-        "searchAlongRoute": "Buscar en la ruta"
+        "searchAlongRoute": "Buscar en la ruta",
+        "osmMapEdit": "Editar Mapa"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",
@@ -1025,7 +1032,16 @@
         "wikimedia": "Repositorio gratuito de medios para imágenes de lugares",
         "openweathermap": "Datos meteorológicos e información de calidad del aire",
         "axiom": "Enviar registros y trazas del servidor a Axiom para depuración y monitoreo",
-        "barrelman": "Motor de búsqueda y espacial OSM autoalojado"
+        "barrelman": "Motor de búsqueda y espacial OSM autoalojado",
+        "openstreetmap": "Conecta tu cuenta OSM para agregar notas, comentarios y hacer ediciones rápidas"
+      },
+      "osm": {
+        "connected": "Cuenta de OpenStreetMap conectada exitosamente",
+        "disconnected": "Cuenta de OpenStreetMap desconectada",
+        "authError": "Error al conectar la cuenta de OpenStreetMap",
+        "disconnectError": "Error al desconectar la cuenta de OpenStreetMap",
+        "disconnect": "Desconectar",
+        "viewProfile": "Ver perfil de OSM"
       }
     },
     "users": {
@@ -1043,6 +1059,34 @@
     "system": {
       "title": "Sistema"
     }
+  },
+  "notes": {
+    "noteTitle": "Nota #{id}",
+    "open": "Abierta",
+    "closed": "Resuelta",
+    "anonymous": "Anónimo",
+    "comment": "Comentar",
+    "resolve": "Resolver",
+    "commentAndResolve": "Comentar y resolver",
+    "reopen": "Reactivar",
+    "commentPlaceholder": "Añadir un comentario...",
+    "viewOnOsm": "Ver en OpenStreetMap",
+    "commentAdded": "Comentario añadido",
+    "commentError": "Error al añadir comentario",
+    "noteClosed": "Nota resuelta",
+    "closeError": "Error al resolver la nota",
+    "noteReopened": "Nota reactivada",
+    "reopenError": "Error al reactivar la nota",
+    "actionClosed": "resolvió esta nota",
+    "actionReopened": "reactivó esta nota",
+    "layer": "Notas OSM",
+    "addNote": "Agregar nota",
+    "createNote": "Nueva Nota",
+    "createDescription": "Arrastra el marcador para ajustar la ubicación. Describe el problema o sugerencia a continuación.",
+    "createPlaceholder": "Describe lo que necesita atención en esta ubicación...",
+    "submitNote": "Enviar Nota",
+    "noteCreated": "Nota creada",
+    "createError": "Error al crear la nota"
   },
   "notFound": {
     "title": "404",

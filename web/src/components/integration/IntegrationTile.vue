@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { useI18n } from 'vue-i18n'
 import { cn } from '@/lib/utils'
-import { CloudIcon, HardDriveIcon, Trash2Icon, UserIcon } from 'lucide-vue-next'
+import { CloudIcon, HardDriveIcon, UserIcon, LogOutIcon } from 'lucide-vue-next'
 import {
   Integration,
   IntegrationDefinition,
@@ -11,12 +10,15 @@ import {
   IntegrationRecord,
   IntegrationScope,
 } from '@/types/integrations.types'
-import { computed } from 'vue'
+import { computed, h } from 'vue'
+import { Button } from '@/components/ui/button'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useAppService } from '@/services/app.service'
 import { useIntegrationService } from '@/services/integration.service'
 import { configSchemas } from '@/types/integrations.types'
 import IntegrationForm from '@/components/integration/IntegrationForm.vue'
+import OsmConnectedAccount from '@/components/integration/OsmConnectedAccount.vue'
+import { api } from '@/lib/api'
 
 const { t } = useI18n()
 const integrationsStore = useIntegrationsStore()
@@ -36,21 +38,85 @@ const emit = defineEmits<{
     integration: IntegrationDefinition,
     config?: IntegrationRecord,
   ): void
-  (
-    e: 'delete',
-    integration: IntegrationDefinition,
-    config?: IntegrationRecord,
-  ): void
 }>()
 
 function getInitial(name: string): string {
   return name[0].toUpperCase()
 }
 
+async function handleOAuthClick() {
+  const integration = props.integration
+  const config = props.configuration
+  const isConfigured = !!config
+
+  if (!isConfigured) {
+    // Redirect to OAuth authorization
+    try {
+      const response = await api.get('/integrations/osm/authorize')
+      const { url } = response.data
+      window.location.href = url
+    } catch (error) {
+      console.error('Failed to initiate OAuth flow:', error)
+      toast.error(t('settings.integrations.osm.authError'))
+    }
+    return
+  }
+
+  // Show connected account dialog
+  const dialogResult = await appService.componentDialog({
+    component: OsmConnectedAccount,
+    props: {
+      integration,
+      config,
+    },
+    footerPrepend: () =>
+      h(
+        Button,
+        {
+          variant: 'destructive-outline',
+          size: 'sm',
+          onClick: () => handleDisconnect(integration, config),
+        },
+        () => [
+          h(LogOutIcon, { class: 'size-4 mr-1' }),
+          t('settings.integrations.osm.disconnect'),
+        ],
+      ),
+    title: t('settings.integrations.edit', { name: integration.name }),
+    description: t(`settings.integrations.descriptions.${integration.id}`),
+    continueText: t('general.save'),
+    cancelText: t('general.cancel'),
+    onContinue: async formData => {
+      if (!formData) return false
+      try {
+        await integrationService.updateIntegration(config.id, {
+          capabilities: formData.capabilities,
+        })
+        return true
+      } catch (error) {
+        console.error('Failed to update integration:', error)
+        return false
+      }
+    },
+  })
+
+  if (dialogResult) {
+    toast.success(t('settings.integrations.success'), {
+      description: t('settings.integrations.updated', { name: integration.name }),
+    })
+  }
+}
+
 async function handleClick() {
   if (props.disabled) return
 
   const integration = props.integration
+
+  // OAuth integrations use a different flow
+  if (integration.authType === 'oauth2') {
+    return handleOAuthClick()
+  }
+
   const config = props.configuration
   const isConfigured = !!config
   const formSchema = configSchemas[integration.configSchema]
@@ -70,6 +136,21 @@ async function handleClick() {
       isConfigured,
       config,
     },
+    footerPrepend: isConfigured
+      ? () =>
+          h(
+            Button,
+            {
+              variant: 'destructive-outline',
+              size: 'sm',
+              onClick: () => handleDisconnect(integration, config),
+            },
+            () => [
+              h(LogOutIcon, { class: 'size-4 mr-1' }),
+              t('settings.integrations.osm.disconnect'),
+            ],
+          )
+      : undefined,
     title: isConfigured
       ? t('settings.integrations.edit', { name: integration.name })
       : t('settings.integrations.configure', { name: integration.name }),
@@ -114,36 +195,30 @@ async function handleClick() {
   }
 }
 
-async function handleDelete(event: Event) {
-  if (props.disabled) return
-  // Stop event propagation to prevent the card click handler from firing
-  event.stopPropagation()
-  const integration = props.integration
-  const config = props.configuration
-
-  if (!config) return
-
+async function handleDisconnect(
+  integration: IntegrationDefinition,
+  config: IntegrationRecord,
+) {
   const confirmed = await appService.confirm({
-    title: t('settings.integrations.delete.title'),
-    description: t('settings.integrations.delete.description', {
+    title: t('settings.integrations.disconnect.title'),
+    description: t('settings.integrations.disconnect.description', {
       name: integration.name,
-      config: config?.id,
     }),
-    continueText: t('general.delete'),
+    continueText: t('settings.integrations.osm.disconnect'),
     cancelText: t('general.cancel'),
     destructive: true,
     onContinue: async () => {
       try {
         await integrationService.deleteIntegration(config.id)
         toast.success(t('settings.integrations.success'), {
-          description: t('settings.integrations.delete.success', {
+          description: t('settings.integrations.disconnect.success', {
             name: integration.name,
-            config: config?.id,
           }),
         })
+        window.location.reload()
         return true
       } catch (error) {
-        console.error('Failed to delete integration:', error)
+        console.error('Failed to disconnect integration:', error)
         return false
       }
     },
@@ -227,15 +302,6 @@ const icon = computed(() => {
             class="size-3"
           />
         </span>
-        <Button
-          v-if="configuration && !disabled"
-          variant="destructive-outline"
-          size="icon"
-          class="ml-1 size-6"
-          @click="handleDelete"
-        >
-          <Trash2Icon class="size-3" />
-        </Button>
       </div>
     </div>
     <div class="px-4">

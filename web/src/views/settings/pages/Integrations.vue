@@ -1,17 +1,40 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import IntegrationsList from '@/components/integration/IntegrationsList.vue'
 import { LoaderCircleIcon } from 'lucide-vue-next'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useIntegrationService } from '@/services/integration.service'
+import { useAppService } from '@/services/app.service'
 
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 const integrationStore = useIntegrationsStore()
 const integrationService = useIntegrationService()
+const { toast } = useAppService()
+
+// Handle OAuth callback query params
+function handleOAuthCallback() {
+  const osmStatus = route.query.osm as string | undefined
+  if (!osmStatus) return
+
+  if (osmStatus === 'connected') {
+    toast.success(t('settings.integrations.osm.connected'))
+  } else if (osmStatus === 'error') {
+    const message = route.query.message as string | undefined
+    toast.error(message || t('settings.integrations.osm.authError'))
+  }
+
+  // Clear query params
+  router.replace({ query: {} })
+}
 
 // Fetch integrations when component is mounted
 onMounted(async () => {
+  handleOAuthCallback()
+
   try {
     // First fetch available integrations (metadata)
     await integrationService.fetchAvailableIntegrations()

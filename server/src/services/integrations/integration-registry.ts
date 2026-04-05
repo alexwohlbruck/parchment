@@ -16,6 +16,7 @@ import { WikimediaIntegration } from './wikimedia-integration'
 import { OpenWeatherMapIntegration } from './openweathermap-integration'
 import { AxiomIntegration } from './axiom-integration'
 import { BarrelmanIntegration } from './barrelman-integration'
+import { OpenStreetMapIntegration } from './openstreetmap-integration'
 
 /**
  * Registry for all integrations
@@ -47,6 +48,7 @@ export class IntegrationRegistry {
     this.registerIntegration(new WikimediaIntegration())
     this.registerIntegration(new OpenWeatherMapIntegration())
     this.registerIntegration(new BarrelmanIntegration())
+    this.registerIntegration(new OpenStreetMapIntegration())
   }
 
   /**

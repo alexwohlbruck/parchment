@@ -39,6 +39,7 @@ const iconMap: Record<string, any> = {
   [IntegrationId.WIKIPEDIA]: siWikipedia,
   [IntegrationId.WIKIMEDIA]: siWikimediacommons,
   [IntegrationId.OPENWEATHERMAP]: null, // Uses custom weather icon
+  [IntegrationId.OPENSTREETMAP]: siOpenstreetmap,
 }
 
 const getIcon = (integrationId: string) => {
@@ -147,6 +148,19 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     return hasToken && isEngineCapabilityActive
   })
 
+  // OSM profile data (derived from integration config)
+  const osmProfile = computed(() => {
+    const config = getIntegrationConfig(IntegrationId.OPENSTREETMAP) as any
+    if (!config) return null
+    return {
+      osmDisplayName: config.osmDisplayName as string | undefined,
+      osmProfileImageUrl: config.osmProfileImageUrl as string | undefined,
+      osmAccountCreated: config.osmAccountCreated as string | undefined,
+      osmChangesetCount: config.osmChangesetCount as number | undefined,
+      osmTraceCount: config.osmTraceCount as number | undefined,
+    }
+  })
+
   // Check if weather capability is configured and active
   const isWeatherActive = computed(() => {
     return isCapabilityActive(
@@ -194,6 +208,7 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     getIntegrationConfig,
     getIntegrationConfigValue,
     isCapabilityActive,
+    osmProfile,
     clearCache,
   }
 })

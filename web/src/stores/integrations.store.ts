@@ -40,6 +40,7 @@ const iconMap: Record<string, any> = {
   [IntegrationId.WIKIMEDIA]: siWikimediacommons,
   [IntegrationId.OPENWEATHERMAP]: null, // Uses custom weather icon
   [IntegrationId.OPENSTREETMAP]: siOpenstreetmap,
+  [IntegrationId.OPENSTREETMAP_ACCOUNT]: siOpenstreetmap,
 }
 
 const getIcon = (integrationId: string) => {
@@ -150,7 +151,7 @@ export const useIntegrationsStore = defineStore('integrations', () => {
 
   // OSM profile data (derived from integration config)
   const osmProfile = computed(() => {
-    const config = getIntegrationConfig(IntegrationId.OPENSTREETMAP) as any
+    const config = getIntegrationConfig(IntegrationId.OPENSTREETMAP_ACCOUNT) as any
     if (!config) return null
     return {
       osmDisplayName: config.osmDisplayName as string | undefined,

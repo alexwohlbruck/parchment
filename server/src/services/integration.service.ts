@@ -256,11 +256,23 @@ const availableIntegrations: IntegrationDefinition[] = [
     id: IntegrationId.OPENSTREETMAP,
     name: 'OpenStreetMap',
     description:
+      'Configure OSM OAuth application credentials for user authentication',
+    color: '#7EBC6F',
+    capabilities: [],
+    paid: false,
+    cloud: true,
+    configSchema: 'oauthConfigSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
+    id: IntegrationId.OPENSTREETMAP_ACCOUNT,
+    name: 'OpenStreetMap Account',
+    description:
       'Connect your OSM account to add notes, comments, and make quick edits',
     color: '#7EBC6F',
     get capabilities() {
       return integrationManager.getIntegrationCapabilities(
-        IntegrationId.OPENSTREETMAP,
+        IntegrationId.OPENSTREETMAP_ACCOUNT,
       )
     },
     paid: false,
@@ -268,6 +280,7 @@ const availableIntegrations: IntegrationDefinition[] = [
     configSchema: 'openstreetmapOAuthSchema',
     authType: 'oauth2',
     scope: [IntegrationScope.USER],
+    requiresSystemIntegration: IntegrationId.OPENSTREETMAP,
   },
 ]
 

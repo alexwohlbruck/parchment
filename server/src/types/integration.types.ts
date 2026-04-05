@@ -321,6 +321,7 @@ export type IntegrationDefinition = {
   public?: boolean // Mark the integration as public/client-facing, keys will be exposed to all users
   scope: IntegrationScope[] // Defines where this integration can be configured
   authType?: 'form' | 'oauth2' // Defaults to 'form'. OAuth2 integrations use redirect-based auth instead of config forms.
+  requiresSystemIntegration?: IntegrationId // This integration is only available when the referenced system integration is configured
 }
 
 export enum IntegrationScope {

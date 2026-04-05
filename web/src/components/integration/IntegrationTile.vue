@@ -316,7 +316,7 @@ const icon = computed(() => {
         }}
       </p>
     </div>
-    <div class="bg-muted/50 flex-1 border-t border-border">
+    <div v-if="integration.capabilities?.length > 0" class="bg-muted/50 flex-1 border-t border-border">
       <div class="flex flex-wrap gap-2 px-2 py-3">
         <span
           v-for="capability in integration.capabilities"

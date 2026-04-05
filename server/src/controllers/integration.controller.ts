@@ -83,6 +83,14 @@ app.use(requireAuth).get(
     // Filter integrations based on user permissions and scope
     const filteredIntegrations = allAvailableIntegrations.filter(
       (integration) => {
+        // Hide integrations whose system prerequisite isn't configured
+        if (
+          integration.requiresSystemIntegration &&
+          !configuredIntegrationIds.has(integration.requiresSystemIntegration)
+        ) {
+          return false
+        }
+
         // If integration has SYSTEM scope
         if (integration.scope.includes(IntegrationScope.SYSTEM)) {
           // If it's already configured, show to users with read permissions
@@ -300,6 +308,20 @@ app.use(requireAuth).post(
       }
     } else {
       return status(400, { message: t('errors.integration.invalidScope') })
+    }
+
+    // Enforce system prerequisite
+    if (definition.requiresSystemIntegration) {
+      const systemIntegrations = await getConfiguredIntegrations()
+      const hasPrerequisite = systemIntegrations.some(
+        (i) => i.integrationId === definition.requiresSystemIntegration,
+      )
+      if (!hasPrerequisite) {
+        return status(400, {
+          message:
+            'System prerequisite integration is not configured. An admin must configure it first.',
+        })
+      }
     }
 
     try {

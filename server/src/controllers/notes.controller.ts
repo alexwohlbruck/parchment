@@ -16,7 +16,7 @@ const { apiBase: OSM_API_BASE } = osmConfig
  */
 async function getOsmAccessToken(userId: string): Promise<string | null> {
   const integrations = await getConfiguredIntegrations(userId)
-  const osm = integrations.find(i => i.integrationId === IntegrationId.OPENSTREETMAP)
+  const osm = integrations.find(i => i.integrationId === IntegrationId.OPENSTREETMAP_ACCOUNT)
   return (osm?.config as any)?.accessToken ?? null
 }
 

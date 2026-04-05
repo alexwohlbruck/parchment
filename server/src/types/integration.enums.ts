@@ -21,6 +21,7 @@ export enum IntegrationId {
   AXIOM = 'axiom',
   BARRELMAN = 'barrelman',
   OPENSTREETMAP = 'openstreetmap',
+  OPENSTREETMAP_ACCOUNT = 'openstreetmap-account',
 }
 
 export enum IntegrationCapabilityId {

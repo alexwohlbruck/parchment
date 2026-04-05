@@ -13,9 +13,11 @@ import { createServerToken, validateServerToken } from '../services/token.servic
 import { IntegrationId, IntegrationScope } from '../types/integration.types'
 import { integrationManager } from '../services/integrations'
 
-const OSM_AUTH_ENDPOINT = 'https://www.openstreetmap.org/oauth2/authorize'
-const OSM_TOKEN_ENDPOINT = 'https://www.openstreetmap.org/oauth2/token'
-const OSM_API_BASE = 'https://api.openstreetmap.org/api/0.6'
+import { osmConfig } from '../config/osm.config'
+
+const OSM_AUTH_ENDPOINT = osmConfig.authEndpoint
+const OSM_TOKEN_ENDPOINT = osmConfig.tokenEndpoint
+const OSM_API_BASE = osmConfig.apiBase
 const OSM_SCOPES = ['read_prefs', 'write_notes', 'write_api'] // read_prefs needed to fetch display name during OAuth callback
 
 function getOsmClient() {

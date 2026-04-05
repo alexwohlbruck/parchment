@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { PencilLineIcon, CheckCircleIcon } from 'lucide-vue-next'
+import { MessageSquareIcon, CheckCircleIcon } from 'lucide-vue-next'
 import type { OsmNote } from '@/types/notes.types'
 
 const { note, isHovered } = defineProps<{
@@ -23,12 +23,10 @@ const emit = defineEmits<{
   >
     <div
       class="size-[22px] border-[1.5px] border-white dark:border-[#0C0C0C] rounded-full flex items-center justify-center shadow-md transition-all duration-150 ease-out cursor-pointer select-none"
-      :class="[
-        isHovered ? 'scale-[1.3] shadow-lg' : '',
-      ]"
+      :class="[isHovered ? 'scale-[1.3] shadow-lg' : '']"
       :style="{ backgroundColor: 'hsl(var(--primary))' }"
     >
-      <PencilLineIcon class="text-white dark:text-[#0C0C0C] size-3" />
+      <MessageSquareIcon class="text-white dark:text-[#0C0C0C] size-3" />
     </div>
     <CheckCircleIcon
       v-if="note.status === 'closed'"

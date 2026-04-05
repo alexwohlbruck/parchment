@@ -7,8 +7,9 @@ import {
   OsmNote,
   OsmNoteComment,
 } from '../types/integration.types'
+import { osmConfig } from '../config/osm.config'
 
-const OSM_API_BASE = 'https://api.openstreetmap.org/api/0.6'
+const { apiBase: OSM_API_BASE } = osmConfig
 
 /**
  * Look up the user's OSM access token from their configured integrations.
@@ -20,13 +21,17 @@ async function getOsmAccessToken(userId: string): Promise<string | null> {
 }
 
 /**
- * Adapt the raw OSM note properties into our OsmNote shape.
+ * Adapt a raw OSM GeoJSON Feature into our OsmNote shape.
+ * The OSM API returns notes as GeoJSON Features with lat/lng in
+ * geometry.coordinates and metadata in properties.
  */
-function adaptNote(props: any): OsmNote {
+function adaptNoteFeature(feature: any): OsmNote {
+  const props = feature.properties ?? feature
+  const coords = feature.geometry?.coordinates
   return {
     id: props.id,
-    lat: props.lat ?? props.geometry?.coordinates?.[1],
-    lng: props.lon ?? props.geometry?.coordinates?.[0],
+    lat: props.lat ?? coords?.[1],
+    lng: props.lon ?? coords?.[0],
     status: props.status,
     comments: (props.comments || []).map(
       (c: any): OsmNoteComment => ({
@@ -56,13 +61,8 @@ app.get(
         params: { bbox, limit, closed },
         headers: { Accept: 'application/json' },
       })
-      // OSM returns GeoJSON FeatureCollection, adapt each feature to OsmNote
       const features = response.data?.features || []
-      return features.map((feature: any) => adaptNote({
-        ...feature.properties,
-        lat: feature.geometry?.coordinates?.[1],
-        lon: feature.geometry?.coordinates?.[0],
-      }))
+      return features.map((feature: any) => adaptNoteFeature(feature))
     } catch (error: any) {
       const errorStatus = error.response?.status ?? 500
       return status(errorStatus, {
@@ -94,7 +94,7 @@ app.get(
         `${OSM_API_BASE}/notes/${params.id}.json`,
         { headers: { Accept: 'application/json' } },
       )
-      return adaptNote(response.data.properties)
+      return adaptNoteFeature(response.data)
     } catch (error: any) {
       const errorStatus = error.response?.status ?? 500
       return status(errorStatus, {
@@ -109,6 +109,51 @@ app.get(
     detail: {
       tags: ['Notes'],
       summary: 'Fetch a single OSM note by ID',
+    },
+  },
+)
+
+/**
+ * POST /notes/create — Create a new note (requires auth).
+ * Uses /create path to avoid conflict with GET /.
+ */
+app.use(requireAuth).post(
+  '/create',
+  async ({ body, user, status }) => {
+    const accessToken = await getOsmAccessToken(user.id)
+    if (!accessToken) {
+      return status(403, { message: 'No OSM integration configured. Connect your OSM account first.' })
+    }
+
+    try {
+      const response = await axios.post(
+        `${OSM_API_BASE}/notes.json`,
+        null,
+        {
+          params: { lat: body.lat, lon: body.lng, text: body.text },
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/json',
+          },
+        },
+      )
+      return adaptNoteFeature(response.data)
+    } catch (error: any) {
+      const errorStatus = error.response?.status ?? 500
+      return status(errorStatus, {
+        message: error.response?.data || error.message || 'Failed to create note',
+      })
+    }
+  },
+  {
+    body: t.Object({
+      lat: t.Number(),
+      lng: t.Number(),
+      text: t.String(),
+    }),
+    detail: {
+      tags: ['Notes'],
+      summary: 'Create a new OSM note',
     },
   },
 )
@@ -136,7 +181,7 @@ app.use(requireAuth).post(
           },
         },
       )
-      return adaptNote(response.data.properties)
+      return adaptNoteFeature(response.data)
     } catch (error: any) {
       const errorStatus = error.response?.status ?? 500
       return status(errorStatus, {
@@ -181,7 +226,7 @@ app.use(requireAuth).post(
           },
         },
       )
-      return adaptNote(response.data.properties)
+      return adaptNoteFeature(response.data)
     } catch (error: any) {
       const errorStatus = error.response?.status ?? 500
       return status(errorStatus, {
@@ -226,7 +271,7 @@ app.use(requireAuth).post(
           },
         },
       )
-      return adaptNote(response.data.properties)
+      return adaptNoteFeature(response.data)
     } catch (error: any) {
       const errorStatus = error.response?.status ?? 500
       return status(errorStatus, {
@@ -244,50 +289,6 @@ app.use(requireAuth).post(
     detail: {
       tags: ['Notes'],
       summary: 'Reopen an OSM note',
-    },
-  },
-)
-
-/**
- * POST /notes — Create a new note (requires auth).
- */
-app.use(requireAuth).post(
-  '/',
-  async ({ body, user, status }) => {
-    const accessToken = await getOsmAccessToken(user.id)
-    if (!accessToken) {
-      return status(403, { message: 'No OSM integration configured. Connect your OSM account first.' })
-    }
-
-    try {
-      const response = await axios.post(
-        `${OSM_API_BASE}/notes.json`,
-        null,
-        {
-          params: { lat: body.lat, lon: body.lng, text: body.text },
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Accept: 'application/json',
-          },
-        },
-      )
-      return adaptNote(response.data.properties)
-    } catch (error: any) {
-      const errorStatus = error.response?.status ?? 500
-      return status(errorStatus, {
-        message: error.response?.data || error.message || 'Failed to create note',
-      })
-    }
-  },
-  {
-    body: t.Object({
-      lat: t.Number(),
-      lng: t.Number(),
-      text: t.String(),
-    }),
-    detail: {
-      tags: ['Notes'],
-      summary: 'Create a new OSM note',
     },
   },
 )

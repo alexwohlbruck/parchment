@@ -13,7 +13,7 @@ import { Basemap, LayerType } from '@/types/map.types'
 import { storeToRefs } from 'pinia'
 import { toRaw } from 'vue'
 import * as LucideIcons from 'lucide-vue-next'
-import { PencilLineIcon } from 'lucide-vue-next'
+import { MessageSquareIcon } from 'lucide-vue-next'
 
 const layersStore = useLayersStore()
 const layersService = useLayersService()
@@ -231,11 +231,13 @@ const allLayers = computed(() => {
           variant="outline"
           aria-label="Toggle OSM Notes layer"
           :default-value="notesStore.isLayerVisible"
-          @update:model-value="(v: boolean) => notesStore.isLayerVisible = v"
+          @update:model-value="(v: boolean) => (notesStore.isLayerVisible = v)"
           class="flex flex-col items-center gap-2 p-3 h-16 justify-center text-center transition-all duration-200 hover:bg-accent/50 data-[state=on]:bg-primary/10 data-[state=on]:text-primary data-[state=on]:border-primary/50 group relative"
         >
           <div class="flex flex-col items-center gap-1 min-w-0 w-full">
-            <PencilLineIcon class="size-4 transition-colors group-data-[state=on]:text-primary" />
+            <MessageSquareIcon
+              class="size-4 transition-colors group-data-[state=on]:text-primary"
+            />
             <div class="font-medium text-xs leading-tight truncate w-full">
               {{ $t('notes.layer') }}
             </div>
@@ -244,7 +246,10 @@ const allLayers = computed(() => {
       </div>
 
       <!-- Empty State (no custom layers) -->
-      <div v-if="allLayers.length === 0" class="text-center py-4 text-muted-foreground">
+      <div
+        v-if="allLayers.length === 0"
+        class="text-center py-4 text-muted-foreground"
+      >
         <div class="text-sm">No layers available</div>
         <div class="text-xs mt-1">
           Enable layers in settings to see them here

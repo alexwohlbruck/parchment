@@ -19,6 +19,7 @@ import { useExternalLink } from '@/composables/useExternalLink'
 import { siOpenstreetmap, siGooglemaps, siApple } from 'simple-icons/icons'
 import {
   PencilIcon,
+  MessageSquarePlusIcon,
   CopyIcon,
   ArrowDownToDotIcon,
   ArrowUpFromDotIcon,
@@ -373,6 +374,24 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
       onSelect: fillWaypoint,
     })
   }
+
+  // Add note
+  items.push({
+    type: 'item',
+    id: 'add-note',
+    label: t('notes.addNote'),
+    icon: MessageSquarePlusIcon,
+    onSelect: () => {
+      if (!clickedLngLat.value) return
+      router.push({
+        name: AppRoute.NOTE_CREATE,
+        query: {
+          lat: clickedLngLat.value.lat.toString(),
+          lng: clickedLngLat.value.lng.toString(),
+        },
+      })
+    },
+  })
 
   const measureDistanceOnSelect = () => {
     const lngLat = clickedLngLat.value

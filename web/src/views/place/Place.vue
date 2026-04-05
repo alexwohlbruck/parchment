@@ -13,7 +13,7 @@ const route = useRoute()
 const router = useRouter()
 const { currentPlace, loading, fetchPlaceDetails, fetchPlaceDetailsByCoordinates, clearPlace, setPartialPlace } =
   usePlaceService()
-const { flyTo, fitBounds, addMarker, removeAllMarkers, updatePlacePolygon } = useMapService()
+const { flyTo, fitBounds, addMarker, removeMarker, updatePlacePolygon } = useMapService()
 const { nextSignal } = useAbortController()
 
 async function loadPlace() {
@@ -128,7 +128,7 @@ function handlePlaceResult(place: any) {
     const { lat, lng } = place.geometry.value.center
 
     if (lat && lng) {
-      removeAllMarkers()
+      removeMarker(MarkerIds.SELECTED_POI)
       addMarker(MarkerIds.SELECTED_POI, new LngLat(lng, lat))
 
       // Update polygon layer with place data
@@ -167,7 +167,7 @@ watch(
 )
 
 onUnmounted(() => {
-  removeAllMarkers()
+  removeMarker(MarkerIds.SELECTED_POI)
   // Clear polygon when leaving place view
   updatePlacePolygon(null)
 })

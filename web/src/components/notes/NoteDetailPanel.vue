@@ -1,27 +1,31 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
-import { AppRoute } from '@/router'
-import PanelLayout from '@/components/layouts/PanelLayout.vue'
+import DetailPanelLayout from '@/components/layouts/DetailPanelLayout.vue'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
-  XIcon,
-  PencilLineIcon,
+  MessageSquareIcon,
   ExternalLinkIcon,
   CheckCircleIcon,
   RotateCcwIcon,
   SendIcon,
 } from 'lucide-vue-next'
-import type { OsmNote, OsmNoteComment } from '@/types/notes.types'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from '@/components/ui/tooltip'
+import type { OsmNote } from '@/types/notes.types'
 import NoteComment from './NoteComment.vue'
 
 const props = defineProps<{
   note: OsmNote | null
   loading: boolean
   isAuthenticated: boolean
+  submittingAction: 'comment' | 'close' | 'reopen' | null
 }>()
 
 const emit = defineEmits<{
@@ -32,10 +36,8 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const router = useRouter()
 
 const commentText = ref('')
-const isSubmitting = ref(false)
 
 const noteStatus = computed(() => {
   if (!props.note) return null
@@ -56,15 +58,10 @@ const createdDate = computed(() => {
   })
 })
 
-async function submitComment() {
+function submitComment() {
   if (!commentText.value.trim()) return
-  isSubmitting.value = true
-  try {
-    emit('comment', commentText.value.trim())
-    commentText.value = ''
-  } finally {
-    isSubmitting.value = false
-  }
+  emit('comment', commentText.value.trim())
+  commentText.value = ''
 }
 
 function handleClose() {
@@ -79,122 +76,147 @@ function handleReopen() {
 </script>
 
 <template>
-  <PanelLayout>
-    <!-- Header -->
-    <div class="flex items-start justify-between gap-2 mb-4">
-      <div class="flex items-center gap-2 min-w-0">
-        <div class="relative shrink-0">
-          <div
-            class="size-8 rounded-full flex items-center justify-center"
-            :style="{ backgroundColor: 'hsl(var(--primary))' }"
-          >
-            <PencilLineIcon class="size-4 text-white" />
+  <div class="h-full flex flex-col">
+    <DetailPanelLayout
+      class="flex-1 min-h-0"
+      show-back-button
+      @back="emit('close')"
+    >
+      <template #title>
+        <div class="flex items-center gap-2">
+          <div class="relative shrink-0">
+            <div
+              class="size-7 rounded-full flex items-center justify-center"
+              :style="{ backgroundColor: 'hsl(var(--primary))' }"
+            >
+              <MessageSquareIcon class="size-3.5 text-white" />
+            </div>
+            <CheckCircleIcon
+              v-if="noteStatus === 'closed'"
+              class="absolute -bottom-0.5 -right-0.5 size-3 text-green-500 fill-white dark:fill-[#0C0C0C] drop-shadow-sm"
+            />
           </div>
-          <CheckCircleIcon
-            v-if="noteStatus === 'closed'"
-            class="absolute -bottom-0.5 -right-0.5 size-3.5 text-green-500 fill-white dark:fill-[#0C0C0C] drop-shadow-sm"
-          />
-        </div>
-        <div class="min-w-0">
-          <h2 class="text-lg font-semibold leading-tight">
+          <div class="min-w-0">
             <template v-if="loading">
               <Skeleton class="h-5 w-32" />
             </template>
             <template v-else>
-              {{ t('notes.noteTitle', { id: note?.id }) }}
+              <h1 class="text-lg font-semibold truncate">
+                {{ t('notes.noteTitle', { id: note?.id }) }}
+              </h1>
             </template>
-          </h2>
-          <div class="flex items-center gap-2 mt-0.5" v-if="!loading && note">
-            <span
-              class="text-xs px-1.5 py-0.5 rounded-full font-medium"
-              :class="
-                noteStatus === 'open'
-                  ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                  : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
-              "
-            >
-              {{ noteStatus === 'open' ? t('notes.open') : t('notes.closed') }}
-            </span>
-            <span class="text-xs text-muted-foreground">{{ createdDate }}</span>
           </div>
         </div>
-      </div>
-      <Button variant="ghost" size="icon" class="shrink-0 size-8" @click="emit('close')">
-        <XIcon class="size-4" />
-      </Button>
-    </div>
+      </template>
 
-    <!-- Loading state -->
-    <template v-if="loading">
-      <div class="space-y-3">
-        <Skeleton class="h-16 w-full" />
-        <Skeleton class="h-16 w-full" />
-      </div>
-    </template>
+      <template #actions>
+        <div class="flex items-center gap-2" v-if="!loading && note">
+          <span
+            class="text-xs px-1.5 py-0.5 rounded-full font-medium"
+            :class="
+              noteStatus === 'open'
+                ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
+            "
+          >
+            {{ noteStatus === 'open' ? t('notes.open') : t('notes.closed') }}
+          </span>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <a :href="osmNoteUrl" target="_blank" rel="noopener noreferrer">
+                  <Button variant="ghost" size="icon" class="size-8">
+                    <ExternalLinkIcon class="size-4" />
+                  </Button>
+                </a>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {{ t('notes.viewOnOsm') }}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      </template>
 
-    <!-- Comments thread -->
-    <template v-else-if="note">
-      <div class="flex-1 space-y-3 overflow-y-auto mb-4">
-        <NoteComment
-          v-for="(comment, index) in note.comments"
-          :key="index"
-          :comment="comment"
-        />
-      </div>
+      <!-- Loading state -->
+      <template v-if="loading">
+        <div class="space-y-3">
+          <Skeleton class="h-16 w-full" />
+          <Skeleton class="h-16 w-full" />
+        </div>
+      </template>
 
-      <!-- Actions -->
-      <div class="space-y-3 mt-auto">
-        <!-- View on OSM link -->
-        <a
-          :href="osmNoteUrl"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 transition-colors"
-        >
-          {{ t('notes.viewOnOsm') }}
-          <ExternalLinkIcon class="size-3" />
-        </a>
+      <!-- Note content -->
+      <template v-else-if="note">
+        <!-- Comments thread (scrollable area handled by DetailPanelLayout) -->
+        <div class="space-y-3">
+          <NoteComment
+            v-for="(comment, index) in note.comments"
+            :key="index"
+            :comment="comment"
+          />
+        </div>
+      </template>
+    </DetailPanelLayout>
 
-        <!-- Comment input (only if authenticated) -->
-        <template v-if="isAuthenticated">
-          <div class="space-y-2">
-            <Textarea
-              v-model="commentText"
-              :placeholder="t('notes.commentPlaceholder')"
-              :rows="2"
-              class="resize-none"
-            />
-            <div class="flex items-center gap-2">
-              <Button
-                size="sm"
-                @click="submitComment"
-                :disabled="!commentText.trim() || isSubmitting"
-              >
-                <SendIcon class="size-3.5 mr-1" />
-                {{ t('notes.comment') }}
-              </Button>
-              <Button
-                v-if="noteStatus === 'open'"
-                size="sm"
-                variant="outline"
-                @click="handleClose"
-              >
-                <CheckCircleIcon class="size-3.5 mr-1" />
-                {{ t('notes.resolve') }}
-              </Button>
-              <Button
-                v-else
-                size="sm"
-                variant="outline"
-                @click="handleReopen"
-              >
-                <RotateCcwIcon class="size-3.5 mr-1" />
-                {{ t('notes.reopen') }}
-              </Button>
-            </div>
+    <!-- Fixed footer -->
+    <div
+      v-if="!loading && note"
+      class="shrink-0 border-t border-border/50 bg-background/80 backdrop-blur-xl px-4 py-3 space-y-3"
+    >
+      <template v-if="isAuthenticated">
+        <!-- Open note: comment box + comment/resolve buttons -->
+        <div v-if="noteStatus === 'open'" class="space-y-2">
+          <Textarea
+            v-model="commentText"
+            :placeholder="t('notes.commentPlaceholder')"
+            :rows="2"
+            class="resize-none"
+          />
+          <div class="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              :icon="SendIcon"
+              :loading="submittingAction === 'comment'"
+              :disabled="!commentText.trim() || !!submittingAction"
+              @click="submitComment"
+            >
+              {{ t('notes.comment') }}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              :icon="CheckCircleIcon"
+              :loading="submittingAction === 'close'"
+              :disabled="!!submittingAction"
+              @click="handleClose"
+            >
+              {{
+                commentText.trim()
+                  ? t('notes.commentAndResolve')
+                  : t('notes.resolve')
+              }}
+            </Button>
           </div>
-        </template>
-      </div>
-    </template>
-  </PanelLayout>
+        </div>
+
+        <!-- Closed note: reopen button only -->
+        <div v-else>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            :icon="RotateCcwIcon"
+            :loading="submittingAction === 'reopen'"
+            :disabled="!!submittingAction"
+            @click="handleReopen"
+          >
+            {{ t('notes.reopen') }}
+          </Button>
+        </div>
+      </template>
+    </div>
+  </div>
 </template>

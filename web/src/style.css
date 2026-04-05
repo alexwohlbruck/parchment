@@ -5,8 +5,12 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
+  --font-sans:
+    var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
     'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+  --text-2xs: 0.625rem;
+  --text-2xs--line-height: calc(0.875 / 0.625);
 
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
@@ -62,8 +66,8 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
 
-  --shadow-switch: rgba(0, 0, 0, 0.3) 0px 0px 1px,
-    rgba(0, 0, 0, 0.2) 0px 1px 2px;
+  --shadow-switch:
+    rgba(0, 0, 0, 0.3) 0px 0px 1px, rgba(0, 0, 0, 0.2) 0px 1px 2px;
 
   --animate-accordion-down: accordion-down 0.2s ease-in-out;
   --animate-accordion-up: accordion-up 0.2s ease-in-out;

@@ -1063,10 +1063,11 @@
   "notes": {
     "noteTitle": "Nota #{id}",
     "open": "Abierta",
-    "closed": "Cerrada",
+    "closed": "Resuelta",
     "anonymous": "Anónimo",
     "comment": "Comentar",
     "resolve": "Resolver",
+    "commentAndResolve": "Comentar y resolver",
     "reopen": "Reactivar",
     "commentPlaceholder": "Añadir un comentario...",
     "viewOnOsm": "Ver en OpenStreetMap",
@@ -1078,7 +1079,14 @@
     "reopenError": "Error al reactivar la nota",
     "actionClosed": "resolvió esta nota",
     "actionReopened": "reactivó esta nota",
-    "layer": "Notas OSM"
+    "layer": "Notas OSM",
+    "addNote": "Agregar nota",
+    "createNote": "Nueva Nota",
+    "createDescription": "Arrastra el marcador para ajustar la ubicación. Describe el problema o sugerencia a continuación.",
+    "createPlaceholder": "Describe lo que necesita atención en esta ubicación...",
+    "submitNote": "Enviar Nota",
+    "noteCreated": "Nota creada",
+    "createError": "Error al crear la nota"
   },
   "notFound": {
     "title": "404",

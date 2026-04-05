@@ -8,6 +8,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { ExternalLinkIcon } from 'lucide-vue-next'
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 
 const props = defineProps<{
   integration: IntegrationDefinition
@@ -30,6 +31,10 @@ const capabilities = ref(
 
 const osmDisplayName = computed(
   () => (props.config?.config as any)?.osmDisplayName ?? 'Unknown',
+)
+
+const osmProfileImageUrl = computed(
+  () => (props.config?.config as any)?.osmProfileImageUrl as string | undefined,
 )
 
 const osmProfileUrl = computed(
@@ -59,12 +64,15 @@ defineExpose({ submit })
   <div class="space-y-6">
     <!-- Connected account info -->
     <div class="flex items-center gap-4 p-4 border border-border rounded-lg bg-muted/30">
-      <div
-        class="size-12 flex items-center justify-center rounded-full text-white font-bold text-lg"
-        :style="{ backgroundColor: integration.color }"
-      >
-        {{ osmDisplayName[0]?.toUpperCase() }}
-      </div>
+      <Avatar size="sm" shape="circle">
+        <AvatarImage v-if="osmProfileImageUrl" :src="osmProfileImageUrl" :alt="osmDisplayName" />
+        <AvatarFallback
+          class="text-white font-bold"
+          :style="{ backgroundColor: integration.color }"
+        >
+          {{ osmDisplayName[0]?.toUpperCase() }}
+        </AvatarFallback>
+      </Avatar>
       <div class="flex-1 min-w-0">
         <div class="font-medium truncate">{{ osmDisplayName }}</div>
         <a

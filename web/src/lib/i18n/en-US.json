@@ -1102,10 +1102,11 @@
   "notes": {
     "noteTitle": "Note #{id}",
     "open": "Open",
-    "closed": "Closed",
+    "closed": "Resolved",
     "anonymous": "Anonymous",
     "comment": "Comment",
     "resolve": "Resolve",
+    "commentAndResolve": "Comment & resolve",
     "reopen": "Reactivate",
     "commentPlaceholder": "Add a comment...",
     "viewOnOsm": "View on OpenStreetMap",
@@ -1117,7 +1118,14 @@
     "reopenError": "Failed to reactivate note",
     "actionClosed": "resolved this note",
     "actionReopened": "reactivated this note",
-    "layer": "OSM Notes"
+    "layer": "OSM Notes",
+    "addNote": "Add note",
+    "createNote": "New Note",
+    "createDescription": "Drag the marker to adjust the location. Describe the issue or suggestion below.",
+    "createPlaceholder": "Describe what needs attention at this location...",
+    "submitNote": "Submit Note",
+    "noteCreated": "Note created",
+    "createError": "Failed to create note"
   },
   "notFound": {
     "title": "404",

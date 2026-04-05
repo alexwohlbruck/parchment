@@ -10,8 +10,9 @@ import {
   OsmNoteComment,
 } from '../../types/integration.types'
 import { SOURCE } from '../../lib/constants'
+import { osmConfig } from '../../config/osm.config'
 
-const OSM_API_BASE = 'https://api.openstreetmap.org/api/0.6'
+const OSM_API_BASE = osmConfig.apiBase
 
 export interface OpenStreetMapConfig extends IntegrationConfig {
   accessToken: string

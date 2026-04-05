@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
+import { useIntegrationsStore } from '@/stores/integrations.store'
 import type { OsmNoteComment } from '@/types/notes.types'
 
 const props = defineProps<{
   comment: OsmNoteComment
 }>()
+
+const integrationsStore = useIntegrationsStore()
 
 const { t } = useI18n()
 
@@ -28,8 +31,19 @@ const initial = computed(() => {
   return displayName.value[0]?.toUpperCase() ?? '?'
 })
 
+const avatarUrl = computed(() => {
+  const profile = integrationsStore.osmProfile
+  if (!profile?.osmDisplayName || !profile?.osmProfileImageUrl) return null
+  if (props.comment.user === profile.osmDisplayName) {
+    return profile.osmProfileImageUrl
+  }
+  return null
+})
+
 const isAction = computed(() => {
-  return props.comment.action === 'closed' || props.comment.action === 'reopened'
+  return (
+    props.comment.action === 'closed' || props.comment.action === 'reopened'
+  )
 })
 
 const osmUserUrl = computed(() => {
@@ -40,8 +54,11 @@ const osmUserUrl = computed(() => {
 
 <template>
   <!-- System action (closed/reopened) -->
-  <div v-if="isAction && !comment.text" class="flex items-center gap-2 text-xs text-muted-foreground py-1">
-    <span class="h-px flex-1 bg-border" />
+  <div
+    v-if="isAction && !comment.text"
+    class="flex items-center gap-2 text-xs text-muted-foreground py-1"
+  >
+    <span class="h-px flex-1 bg-border border-border" />
     <span>
       <a
         v-if="osmUserUrl"
@@ -49,32 +66,48 @@ const osmUserUrl = computed(() => {
         target="_blank"
         rel="noopener noreferrer"
         class="font-medium hover:text-foreground transition-colors"
-      >{{ displayName }}</a>
+        >{{ displayName }}</a
+      >
       <span v-else class="font-medium">{{ displayName }}</span>
       {{ ' ' }}
-      {{ comment.action === 'closed' ? t('notes.actionClosed') : t('notes.actionReopened') }}
+      {{
+        comment.action === 'closed'
+          ? t('notes.actionClosed')
+          : t('notes.actionReopened')
+      }}
     </span>
-    <span class="h-px flex-1 bg-border" />
+    <span class="h-px flex-1 bg-border border-border" />
   </div>
 
-  <!-- Comment with text -->
-  <div v-else class="flex gap-2">
-    <Avatar size="xs" class="shrink-0 mt-0.5">
-      <AvatarFallback class="text-[10px]">{{ initial }}</AvatarFallback>
-    </Avatar>
-    <div class="flex-1 min-w-0">
-      <div class="flex items-baseline gap-1.5">
-        <a
-          v-if="osmUserUrl"
-          :href="osmUserUrl"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="text-sm font-medium hover:text-primary transition-colors"
-        >{{ displayName }}</a>
-        <span v-else class="text-sm font-medium">{{ displayName }}</span>
-        <span class="text-xs text-muted-foreground">{{ formattedDate }}</span>
+  <!-- Comment card -->
+  <div
+    v-else
+    class="rounded-lg border border-border bg-card text-card-foreground p-3"
+  >
+    <div class="flex gap-2">
+      <Avatar size="xs" class="shrink-0 mt-0.5">
+        <AvatarImage v-if="avatarUrl" :src="avatarUrl" :alt="displayName" />
+        <AvatarFallback class="text-[10px]">{{ initial }}</AvatarFallback>
+      </Avatar>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-baseline gap-1.5">
+          <a
+            v-if="osmUserUrl"
+            :href="osmUserUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-sm font-medium hover:text-primary transition-colors"
+            >{{ displayName }}</a
+          >
+          <span v-else class="text-sm font-medium">{{ displayName }}</span>
+          <span class="text-xs text-muted-foreground">{{ formattedDate }}</span>
+        </div>
+        <p
+          class="text-sm text-foreground mt-0.5 whitespace-pre-wrap break-words"
+        >
+          {{ comment.text }}
+        </p>
       </div>
-      <p class="text-sm text-foreground mt-0.5 whitespace-pre-wrap break-words">{{ comment.text }}</p>
     </div>
   </div>
 </template>

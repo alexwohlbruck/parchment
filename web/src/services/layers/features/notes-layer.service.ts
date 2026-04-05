@@ -1,13 +1,21 @@
 import { watch, toRaw } from 'vue'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
-import { useNotesStore } from '@/stores/notes.store'
+import { useNotesStore, parseBbox } from '@/stores/notes.store'
 import { useNotesService } from '@/services/notes.service'
 import type { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import NoteMapIcon from '@/components/map/NoteMapIcon.vue'
 import type { OsmNote } from '@/types/notes.types'
 
 const NOTE_MARKER_PREFIX = 'note-'
+const OSM_MAX_BBOX_AREA = 25 // square degrees
+const markerNoteStatus = new Map<string, string>()
+
+function isBboxTooLarge(bounds: { north: number; south: number; east: number; west: number }): boolean {
+  const width = Math.abs(bounds.east - bounds.west)
+  const height = Math.abs(bounds.north - bounds.south)
+  return width * height > OSM_MAX_BBOX_AREA
+}
 
 export function useNotesLayerService() {
   let reactivityInitialized = false
@@ -25,44 +33,59 @@ export function useNotesLayerService() {
     const notesStore = useNotesStore()
     const notesService = useNotesService()
 
+    function getCurrentViewportBbox(): string | null {
+      const bounds = mapStrategy.getBounds()
+      if (!bounds || isBboxTooLarge(bounds)) return null
+      return `${bounds.west},${bounds.south},${bounds.east},${bounds.north}`
+    }
+
+    function showNotesForCurrentView() {
+      const bbox = getCurrentViewportBbox()
+      if (!bbox) {
+        mapStrategy.removeMarkersByPrefix(NOTE_MARKER_PREFIX)
+        return
+      }
+      const visibleNotes = notesStore.getNotesInBbox(parseBbox(bbox))
+      updateNoteMarkers(mapStrategy, visibleNotes, router)
+    }
+
+    async function loadAndShowNotes() {
+      const bbox = getCurrentViewportBbox()
+      if (!bbox) {
+        mapStrategy.removeMarkersByPrefix(NOTE_MARKER_PREFIX)
+        return
+      }
+      await notesService.fetchNotesInBbox(bbox)
+      showNotesForCurrentView()
+    }
+
     // Watch layer visibility
     watch(
       () => notesStore.isLayerVisible,
       visible => {
         if (visible) {
-          // Fetch notes for current viewport
-          const bounds = mapStrategy.getBounds()
-          if (bounds) {
-            const bbox = `${bounds.west},${bounds.south},${bounds.east},${bounds.north}`
-            notesService.fetchNotesInBbox(bbox)
-          }
+          loadAndShowNotes()
         } else {
-          // Remove all note markers
           mapStrategy.removeMarkersByPrefix(NOTE_MARKER_PREFIX)
-          notesStore.notes = []
+          markerNoteStatus.clear()
         }
       },
     )
 
-    // Watch notes data and update markers
+    // Watch notes data changes (e.g. status updates from detail panel)
     watch(
       () => notesStore.notes,
-      notes => {
+      () => {
         if (!notesStore.isLayerVisible) return
-        updateNoteMarkers(mapStrategy, notes, router)
+        showNotesForCurrentView()
       },
       { deep: true },
     )
 
-    // Listen for map move to refresh notes
+    // Listen for map move to load & show notes
     mapStrategy.mapInstance.on('moveend', () => {
       if (!notesStore.isLayerVisible) return
-      const bounds = mapStrategy.getBounds()
-      if (!bounds) return
-      const bbox = `${bounds.west},${bounds.south},${bounds.east},${bounds.north}`
-      // Avoid refetching if bbox hasn't changed significantly
-      if (bbox === notesStore.lastBbox) return
-      notesService.fetchNotesInBbox(bbox)
+      loadAndShowNotes()
     })
   }
 
@@ -84,13 +107,21 @@ export function useNotesLayerService() {
     for (const markerId of existingMarkerIds) {
       if (!currentNoteIds.has(markerId)) {
         mapStrategy.removeMarker(markerId)
+        markerNoteStatus.delete(markerId)
       }
     }
 
     // Add/update markers
     for (const note of notes) {
       const markerId = `${NOTE_MARKER_PREFIX}${note.id}`
-      if (mapStrategy.hasMarker(markerId)) continue
+      const existingStatus = markerNoteStatus.get(markerId)
+      if (mapStrategy.hasMarker(markerId) && existingStatus === note.status) continue
+
+      // Remove and re-create if status changed
+      if (mapStrategy.hasMarker(markerId)) {
+        mapStrategy.removeMarker(markerId)
+      }
+      markerNoteStatus.set(markerId, note.status)
 
       mapStrategy.addVueMarker(
         markerId,

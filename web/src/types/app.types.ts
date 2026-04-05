@@ -1,5 +1,5 @@
 import { Globe2Icon } from 'lucide-vue-next'
-import { Component } from 'vue'
+import type { Component, VNode } from 'vue'
 import { ZodObject } from 'zod'
 
 export type Icon = typeof Globe2Icon
@@ -31,6 +31,7 @@ export interface ComponentDialogOptions extends BaseDialogOptions {
   props?: Record<string, any>
   destructive?: boolean
   onContinue?: (payload?: any) => Promise<any>
+  footerPrepend?: () => VNode | VNode[]
 }
 
 export interface ConfirmDialogOptions extends BaseDialogOptions {

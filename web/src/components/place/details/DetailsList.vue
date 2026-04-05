@@ -17,10 +17,11 @@ import {
 } from 'lucide-vue-next'
 import DetailItem from './DetailItem.vue'
 import PlaceHours from './PlaceHours.vue'
-import type { Place } from '@/types/place.types'
+import type { Place, DisplayChip } from '@/types/place.types'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getWifiStatus, parseCuisines } from '@/lib/place.utils'
+import { resolveIconByName } from '@/lib/osm-tag-icons'
 import { SOURCE } from '@/lib/constants'
 import { encode } from 'pluscodes'
 import PlaceSection from './PlaceSection.vue'
@@ -40,6 +41,15 @@ const cuisines = computed(() => {
   const amenity = props.place.amenities?.cuisine?.value as string
   return amenity ? parseCuisines(amenity) : null
 })
+
+/** Diet chips from server-computed displayChips (section === 'diet') */
+const dietChips = computed((): DisplayChip[] =>
+  (props.place?.displayChips ?? []).filter(c => c.section === 'diet')
+)
+
+const hasCuisineSection = computed(() =>
+  (cuisines.value && cuisines.value.length > 0) || dietChips.value.length > 0
+)
 
 const osmUrl = computed(() => {
   if (!props.place) return ''
@@ -498,17 +508,32 @@ function getFullAddress(address: any) {
     </PlaceSection>
 
     <!-- Food & Cuisine Card -->
-    <PlaceSection v-if="cuisines && cuisines.length > 0">
+    <PlaceSection v-if="hasCuisineSection">
       <template #main>
-        <div class="flex gap-3 items-center">
-          <UtensilsCrossedIcon class="size-4 text-muted-foreground shrink-0" />
-          <div class="flex flex-wrap gap-1">
+        <div class="space-y-2">
+          <!-- Cuisine chips -->
+          <div v-if="cuisines && cuisines.length > 0" class="flex gap-3 items-center">
+            <UtensilsCrossedIcon class="size-4 text-muted-foreground shrink-0" />
+            <div class="flex flex-wrap gap-1">
+              <span
+                v-for="cuisine in cuisines"
+                :key="cuisine"
+                class="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary transition-colors"
+              >
+                {{ cuisine }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Diet chips (server-computed) -->
+          <div v-if="dietChips.length > 0" class="flex flex-wrap gap-1.5" :class="{ 'ml-7': cuisines && cuisines.length > 0 }">
             <span
-              v-for="cuisine in cuisines"
-              :key="cuisine"
-              class="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary transition-colors"
+              v-for="chip in dietChips"
+              :key="`${chip.key}_${chip.value}`"
+              class="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-xs text-foreground"
             >
-              {{ cuisine }}
+              <component :is="resolveIconByName(chip.icon)" class="size-3" />
+              <span>{{ chip.label }}</span>
             </span>
           </div>
         </div>

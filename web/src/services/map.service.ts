@@ -22,6 +22,7 @@ import { useLayersService } from '@/services/layers/layers.service'
 import { usePlacePolygonLayerService } from '@/services/layers/features/place-polygon-layer.service'
 import { useSearchResultsLayerService } from '@/services/layers/features/search-results-layer.service'
 import { useMarkerLayersService } from '@/services/layers/markers/marker-layers.service'
+import { useNotesLayerService } from '@/services/layers/features/notes-layer.service'
 import { useAppStore } from '../stores/app.store'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useThemeStore } from '@/stores/theme.store'
@@ -57,6 +58,7 @@ function mapService() {
   const placePolygonLayerService = usePlacePolygonLayerService()
   const searchResultsLayerService = useSearchResultsLayerService()
   const markerLayersService = useMarkerLayersService()
+  const notesLayerService = useNotesLayerService()
   const appStore = useAppStore()
   const directionsStore = useDirectionsStore()
   const integrationsStore = useIntegrationsStore()
@@ -362,6 +364,9 @@ function mapService() {
 
       // Initialize marker layers - they will automatically sync with store state
       markerLayersService.initializeMarkerLayers(mapStrategy)
+
+      // Initialize notes layer for OSM notes overlay
+      notesLayerService.initializeNotesLayer(mapStrategy)
 
       // Apply config properties AFTER all sources/layers are added,
       // because setConfigProperties modifies the map style (e.g. removeImport)

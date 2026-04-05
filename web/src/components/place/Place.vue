@@ -16,6 +16,7 @@ import PlaceSources from './sources/PlaceSources.vue'
 import DetailsList from './details/DetailsList.vue'
 import PlaceWidgets from './widgets/PlaceWidgets.vue'
 import NearbyCategories from './NearbyCategories.vue'
+import PlaceDisplayChips from './PlaceDisplayChips.vue'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 
 const props = defineProps<{
@@ -131,6 +132,8 @@ function handleBrandLogoError() {
             @logoLoaded="handleBrandLogoLoad"
             @logoError="handleBrandLogoError"
           />
+
+          <PlaceDisplayChips :place="place" />
 
           <PlaceActions
             :place="place"

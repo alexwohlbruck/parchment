@@ -252,6 +252,23 @@ const availableIntegrations: IntegrationDefinition[] = [
     configSchema: 'axiomSchema',
     scope: [IntegrationScope.SYSTEM],
   },
+  {
+    id: IntegrationId.OPENSTREETMAP,
+    name: 'OpenStreetMap',
+    description:
+      'Connect your OSM account to add notes, comments, and make quick edits',
+    color: '#7EBC6F',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.OPENSTREETMAP,
+      )
+    },
+    paid: false,
+    cloud: true,
+    configSchema: 'openstreetmapOAuthSchema',
+    authType: 'oauth2',
+    scope: [IntegrationScope.USER],
+  },
 ]
 
 export async function initializeIntegrations() {
@@ -266,17 +283,21 @@ export async function initializeIntegrations() {
       systemIntegrations.map((i) => i.integrationId),
     )
 
-    // Initialize system integrations
-    for (const integration of systemIntegrations) {
-      try {
+    // Initialize system integrations in parallel
+    const systemResults = await Promise.allSettled(
+      systemIntegrations.map((integration) => {
         console.log(
           `Initializing system integration: ${integration.integrationId}`,
         )
-        await integrationManager.initializeIntegration(undefined, integration)
-      } catch (error) {
+        return integrationManager.initializeIntegration(undefined, integration)
+      }),
+    )
+    for (let i = 0; i < systemResults.length; i++) {
+      const result = systemResults[i]
+      if (result.status === 'rejected') {
         console.error(
-          `Failed to initialize system integration ${integration.integrationId}:`,
-          error,
+          `Failed to initialize system integration ${systemIntegrations[i].integrationId}:`,
+          result.reason,
         )
       }
     }
@@ -285,30 +306,43 @@ export async function initializeIntegrations() {
     const allUsers = await db.select().from(users)
     console.log(`Found ${allUsers.length} users`)
 
-    // Get user-specific integrations for each user
-    for (const user of allUsers) {
-      try {
+    // Initialize user-specific integrations in parallel
+    const userResults = await Promise.allSettled(
+      allUsers.map(async (user) => {
         const userIntegrations = await getConfiguredIntegrations(user.id)
         console.log(
           `Found ${userIntegrations.length} integrations for user ${user.id}`,
         )
 
-        // Initialize each user integration
-        for (const integration of userIntegrations) {
-          try {
+        const results = await Promise.allSettled(
+          userIntegrations.map((integration) => {
             console.log(
               `Initializing user integration: ${integration.integrationId} for user ${user.id}`,
             )
-            await integrationManager.initializeIntegration(user.id, integration)
-          } catch (error) {
+            return integrationManager.initializeIntegration(
+              user.id,
+              integration,
+            )
+          }),
+        )
+        for (let i = 0; i < results.length; i++) {
+          const result = results[i]
+          if (result.status === 'rejected') {
             console.error(
-              `Failed to initialize integration ${integration.integrationId} for user ${user.id}:`,
-              error,
+              `Failed to initialize integration ${userIntegrations[i].integrationId} for user ${user.id}:`,
+              result.reason,
             )
           }
         }
-      } catch (error) {
-        console.error(`Failed to get integrations for user ${user.id}:`, error)
+      }),
+    )
+    for (let i = 0; i < userResults.length; i++) {
+      const result = userResults[i]
+      if (result.status === 'rejected') {
+        console.error(
+          `Failed to get integrations for user ${allUsers[i].id}:`,
+          result.reason,
+        )
       }
     }
 

@@ -13,15 +13,17 @@ const allowedMethods: HTTPMethod[] = [
   'OPTIONS',
 ]
 
+const devOrigins =
+  process.env.NODE_ENV !== 'production'
+    ? [
+        'tauri://localhost',
+        'http://tauri.localhost',
+        'http://10.0.2.2:5173', // Android emulator
+      ]
+    : []
+
 const corsConfig: CORSConfig = {
-  origin: [
-    clientOrigin!,
-    clientHostname,
-    // TODO: Only add these in development environment
-    'tauri://localhost',
-    'http://tauri.localhost',
-    'http://10.0.2.2:5173', // Android emulator
-  ],
+  origin: [clientOrigin!, clientHostname, ...devOrigins],
   credentials: true,
   allowedHeaders: [
     'Content-Type',

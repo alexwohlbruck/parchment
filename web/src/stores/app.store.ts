@@ -2,7 +2,7 @@ import { DialogOptions, DialogType } from '@/types/app.types'
 import { defineStore } from 'pinia'
 import { Component, computed, ref, watch, markRaw } from 'vue'
 import { useWindowSize, useStorage } from '@vueuse/core'
-import { UnitSystem } from '@/types/map.types'
+import { UnitSystem, FloorNumbering } from '@/types/map.types'
 
 import ComponentDialog from '@/components/dialogs/ComponentDialog.vue'
 import ConfirmDialog from '@/components/dialogs/ConfirmDialog.vue'
@@ -224,7 +224,7 @@ export const useAppStore = defineStore('app', () => {
         [DialogType.Confirm]: ConfirmDialog,
         [DialogType.Prompt]: PromptDialog,
         [DialogType.AutoForm]: AutoformDialog,
-        [DialogType.Template]: ConfirmDialog, // TODO
+        [DialogType.Template]: ConfirmDialog, // TODO: Implement template dialog
         [DialogType.Drawer]: ProgrammaticDrawer,
       }
 
@@ -304,6 +304,9 @@ export const useAppStore = defineStore('app', () => {
   // Unit system preference (metric vs imperial)
   const unitSystem = useStorage<UnitSystem>('unit-system', UnitSystem.METRIC)
 
+  // Floor numbering preference (zero-based vs one-based)
+  const floorNumbering = useStorage<FloorNumbering>('floor-numbering', FloorNumbering.ZERO_BASED)
+
   return {
     dialogs,
     createDialog,
@@ -321,5 +324,6 @@ export const useAppStore = defineStore('app', () => {
     updateManualBounds,
     clearManualBounds,
     unitSystem,
+    floorNumbering,
   }
 })

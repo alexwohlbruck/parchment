@@ -61,6 +61,8 @@ async function submit() {
       </div>
 
       <DialogFooter class="flex flex-row gap-2">
+        <component :is="() => props.footerPrepend?.()" v-if="props.footerPrepend" />
+        <div class="flex-1" />
         <Button
           class="flex-1 sm:flex-none"
           variant="outline"

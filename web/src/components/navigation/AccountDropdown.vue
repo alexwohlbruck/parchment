@@ -13,9 +13,11 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth.store'
+import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useCommandStore, CommandName } from '@/stores/command.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useAuthService } from '@/services/auth.service'
+import { useIntegrationService } from '@/services/integration.service'
 import { APP_VERSION } from '@/lib/constants'
 import { appEventBus } from '@/lib/eventBus'
 import { fetchLatestRelease } from '@/composables/useGitHubReleases'
@@ -53,11 +55,14 @@ const props = defineProps<{
 const { t, locale } = useI18n()
 const authStore = useAuthStore()
 const { me } = storeToRefs(authStore)
+const integrationsStore = useIntegrationsStore()
+const { osmProfile } = storeToRefs(integrationsStore)
 const commandStore = useCommandStore()
 const themeStore = useThemeStore()
 const { isDark } = storeToRefs(themeStore)
 const { toggleDark } = themeStore
 const authService = useAuthService()
+const integrationService = useIntegrationService()
 
 const emit = defineEmits<{
   (e: 'update:open', value: boolean): void
@@ -67,6 +72,9 @@ const dropdownOpen = ref(false)
 
 watch(dropdownOpen, val => {
   emit('update:open', val)
+  if (val && osmProfile.value) {
+    integrationService.fetchOsmProfile()
+  }
 })
 const aboutDialogOpen = ref(false)
 const latestRelease = ref<GitHubReleaseSummary | null>(null)
@@ -273,10 +281,29 @@ const menuItems = computed((): MenuItemDefinition[] => {
             </AvatarFallback>
           </Avatar>
           <div class="flex flex-col">
-            <span class="text-sm font-semibold">
+            <span class="text-sm font-semibold leading-tight">
               {{ me.firstName }} {{ me.lastName }}
             </span>
-            <span class="text-xs text-muted-foreground">{{ me.email }}</span>
+            <span class="text-xs text-muted-foreground leading-tight">{{
+              me.email
+            }}</span>
+            <a
+              v-if="
+                osmProfile?.osmChangesetCount != null &&
+                osmProfile?.osmDisplayName
+              "
+              :href="`https://www.openstreetmap.org/user/${encodeURIComponent(osmProfile.osmDisplayName)}`"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="pt-0.5 text-2xs text-muted-foreground hover:text-foreground transition-colors leading-tight"
+              @click.stop
+            >
+              {{
+                t('profileMenu.osmContributions', {
+                  count: osmProfile.osmChangesetCount.toLocaleString(),
+                })
+              }}
+            </a>
           </div>
         </div>
       </div>

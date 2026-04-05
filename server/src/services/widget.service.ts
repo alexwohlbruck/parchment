@@ -1,4 +1,4 @@
-import type { Place, TransitDeparture, TransitStopInfo, WidgetDescriptor, WidgetResponse, SourceReference, RelatedPlacesData, RelatedPlacesStrategy, RelatedParent } from '../types/place.types'
+import type { Place, TransitDeparture, TransitStopInfo, WidgetDescriptor, WidgetResponse, SourceReference, RelatedPlacesData, RelatedPlacesStrategy, RelatedParent, DisplayChip } from '../types/place.types'
 import { WidgetType, WidgetDataType } from '../types/place.types'
 
 import { SOURCE } from '../lib/constants'
@@ -10,6 +10,7 @@ import { BarrelmanIntegration } from './integrations/barrelman-integration'
 import { matchTags } from '../lib/osm-presets'
 import { buildPlaceIcon } from '../lib/place-categories'
 import * as turf from '@turf/turf'
+import { resolveDisplayChips } from '../lib/display-chips'
 
 // ─── Integration helpers ─────────────────────────────────────────────────────
 
@@ -109,12 +110,19 @@ export function resolveWidgetDescriptors(place: Place): WidgetDescriptor[] {
     })
   }
 
-  // ── 2. OSM Tags (STATIC) ─────────────────────────────────────────────────
-  // Data is embedded in the descriptor — no extra API call needed.
+  // ── 2. OSM Tags (STATIC) + Display Chips ──────────────────────────────────
+  // Extract chip-eligible tags first, then embed remaining tags in the widget.
   {
     const rawTags = place.tags
     if (rawTags && Object.keys(rawTags).length > 0) {
-      const filtered = filterOsmTags(rawTags)
+      // Resolve display chips from raw tags
+      const { chips, remainingTags } = resolveDisplayChips(rawTags)
+      if (chips.length > 0) {
+        place.displayChips = chips
+      }
+
+      // Use remaining tags (chip keys removed) for the list-item widget
+      const filtered = filterOsmTags(remainingTags)
       if (Object.keys(filtered).length > 0) {
         // Pre-build the full WidgetResponse so the client can render immediately.
         const staticResponse: WidgetResponse = {

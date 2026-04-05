@@ -20,6 +20,7 @@ export enum IntegrationId {
   /** Observability / log shipping. System-only; configures OTLP export (e.g. Axiom). */
   AXIOM = 'axiom',
   BARRELMAN = 'barrelman',
+  OPENSTREETMAP = 'openstreetmap',
 }
 
 export enum IntegrationCapabilityId {
@@ -39,4 +40,5 @@ export enum IntegrationCapabilityId {
   SPATIAL_PARENTS = 'spatialParents',
   SPATIAL_CHILDREN = 'spatialChildren',
   SEARCH_ALONG_ROUTE = 'searchAlongRoute',
+  OSM_MAP_EDIT = 'osmMapEdit',
 }

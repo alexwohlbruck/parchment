@@ -4,6 +4,7 @@ import { Toggle } from '@/components/ui/toggle'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useMapStore } from '@/stores/map.store'
 import { useLayersStore } from '@/stores/layers.store'
+import { useNotesStore } from '@/stores/notes.store'
 import { useLayersService } from '@/services/layers/layers.service'
 import { useMapService } from '@/services/map.service'
 import { H6 } from '@/components/ui/typography'
@@ -12,11 +13,13 @@ import { Basemap, LayerType } from '@/types/map.types'
 import { storeToRefs } from 'pinia'
 import { toRaw } from 'vue'
 import * as LucideIcons from 'lucide-vue-next'
+import { PencilLineIcon } from 'lucide-vue-next'
 
 const layersStore = useLayersStore()
 const layersService = useLayersService()
 const mapStore = useMapStore()
 const mapService = useMapService()
+const notesStore = useNotesStore()
 const { layers, allLayerGroups, mainReorderableItems } =
   storeToRefs(layersStore)
 
@@ -191,7 +194,7 @@ const allLayers = computed(() => {
         Layers
       </H6>
 
-      <div v-if="allLayers.length > 0" class="grid grid-cols-2 gap-2">
+      <div class="grid grid-cols-2 gap-2">
         <Toggle
           v-for="item in allLayers"
           :key="item.id"
@@ -222,10 +225,26 @@ const allLayers = computed(() => {
             </div>
           </div>
         </Toggle>
+
+        <!-- OSM Notes toggle -->
+        <Toggle
+          variant="outline"
+          aria-label="Toggle OSM Notes layer"
+          :default-value="notesStore.isLayerVisible"
+          @update:model-value="(v: boolean) => notesStore.isLayerVisible = v"
+          class="flex flex-col items-center gap-2 p-3 h-16 justify-center text-center transition-all duration-200 hover:bg-accent/50 data-[state=on]:bg-primary/10 data-[state=on]:text-primary data-[state=on]:border-primary/50 group relative"
+        >
+          <div class="flex flex-col items-center gap-1 min-w-0 w-full">
+            <PencilLineIcon class="size-4 transition-colors group-data-[state=on]:text-primary" />
+            <div class="font-medium text-xs leading-tight truncate w-full">
+              {{ $t('notes.layer') }}
+            </div>
+          </div>
+        </Toggle>
       </div>
 
-      <!-- Empty State -->
-      <div v-else class="text-center py-8 text-muted-foreground">
+      <!-- Empty State (no custom layers) -->
+      <div v-if="allLayers.length === 0" class="text-center py-4 text-muted-foreground">
         <div class="text-sm">No layers available</div>
         <div class="text-xs mt-1">
           Enable layers in settings to see them here

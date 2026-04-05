@@ -45,6 +45,7 @@ export enum AppRoute {
   MAP_SETTINGS = 'mapSettings',
   USERS = 'users',
   INTEGRATIONS = 'integrations',
+  NOTE = 'note',
   FRIENDS = 'friends',
   FRIEND_DETAIL = 'friend-detail',
   NOT_FOUND = 'not-found',
@@ -118,6 +119,12 @@ const router = createRouter({
           path: '/place/coords/:lat/:lng',
           name: AppRoute.PLACE_COORDS,
           component: Place,
+        },
+        {
+          path: '/note/:id',
+          name: AppRoute.NOTE,
+          component: () => import('@/views/notes/NoteDetail.vue'),
+          props: true,
         },
         {
           path: '/library',

@@ -1099,6 +1099,26 @@
       "title": "System"
     }
   },
+  "notes": {
+    "noteTitle": "Note #{id}",
+    "open": "Open",
+    "closed": "Closed",
+    "anonymous": "Anonymous",
+    "comment": "Comment",
+    "resolve": "Resolve",
+    "reopen": "Reactivate",
+    "commentPlaceholder": "Add a comment...",
+    "viewOnOsm": "View on OpenStreetMap",
+    "commentAdded": "Comment added",
+    "commentError": "Failed to add comment",
+    "noteClosed": "Note resolved",
+    "closeError": "Failed to resolve note",
+    "noteReopened": "Note reactivated",
+    "reopenError": "Failed to reactivate note",
+    "actionClosed": "resolved this note",
+    "actionReopened": "reactivated this note",
+    "layer": "OSM Notes"
+  },
   "notFound": {
     "title": "404",
     "subtitle": "Wrong continent",

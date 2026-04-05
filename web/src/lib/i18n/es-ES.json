@@ -1060,6 +1060,26 @@
       "title": "Sistema"
     }
   },
+  "notes": {
+    "noteTitle": "Nota #{id}",
+    "open": "Abierta",
+    "closed": "Cerrada",
+    "anonymous": "Anónimo",
+    "comment": "Comentar",
+    "resolve": "Resolver",
+    "reopen": "Reactivar",
+    "commentPlaceholder": "Añadir un comentario...",
+    "viewOnOsm": "Ver en OpenStreetMap",
+    "commentAdded": "Comentario añadido",
+    "commentError": "Error al añadir comentario",
+    "noteClosed": "Nota resuelta",
+    "closeError": "Error al resolver la nota",
+    "noteReopened": "Nota reactivada",
+    "reopenError": "Error al reactivar la nota",
+    "actionClosed": "resolvió esta nota",
+    "actionReopened": "reactivó esta nota",
+    "layer": "Notas OSM"
+  },
   "notFound": {
     "title": "404",
     "subtitle": "Continente equivocado",

@@ -406,6 +406,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: '{tauri-*,android-*,ios-*}'
 
       - name: Set release title
         id: release_title

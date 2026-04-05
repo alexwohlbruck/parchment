@@ -489,6 +489,8 @@ jobs:
     name: Upload to App Store
     needs: [deploy-github-release]
     runs-on: macos-latest
+    env:
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
     steps:
       - name: Download iOS artifact
         uses: actions/download-artifact@v4
@@ -497,7 +499,7 @@ jobs:
           path: ios-ipa
 
       - name: Upload to App Store Connect
-        if: ${{ secrets.APPLE_API_ISSUER != '' }}
+        if: ${{ env.APPLE_API_ISSUER != '' }}
         run: |
           IPA_PATH=$(find ios-ipa -name "*.ipa" | head -1)
           if [ -z "$IPA_PATH" ]; then

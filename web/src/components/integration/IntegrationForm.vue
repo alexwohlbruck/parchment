@@ -303,48 +303,50 @@ defineExpose({ submit })
       </div>
     </div>
 
-    <div class="flex items-center justify-between">
-      <div class="block text-sm font-medium text-foreground">
-        {{ t('general.enabled') }}
-      </div>
-      <Switch
-        id="capability-all"
-        :model-value="allCapabilitiesEnabled"
-        @update:model-value="enabled => (allCapabilitiesEnabled = enabled)"
-        :disabled="isEnabledToggleDisabled"
-      />
-    </div>
-
-    <TransitionExpand :duration="300" :delay="150">
-      <div v-if="integration.capabilities?.length > 0" class="space-y-2">
+    <template v-if="integration.capabilities?.length > 0">
+      <div class="flex items-center justify-between">
         <div class="block text-sm font-medium text-foreground">
-          {{ t('settings.integrations.capabilities.title') }}
+          {{ t('general.enabled') }}
         </div>
-        <div class="space-y-3 p-3 border border-border rounded-md">
-          <div
-            v-for="capability in values.capabilities"
-            :key="capability.id"
-            class="flex items-center justify-between"
-          >
-            <div>
-              <Label
-                :for="`capability-${capability.id}`"
-                class="cursor-pointer"
-              >
-                {{ t(`settings.integrations.capabilities.${capability.id}`) }}
-              </Label>
+        <Switch
+          id="capability-all"
+          :model-value="allCapabilitiesEnabled"
+          @update:model-value="enabled => (allCapabilitiesEnabled = enabled)"
+          :disabled="isEnabledToggleDisabled"
+        />
+      </div>
+
+      <TransitionExpand :duration="300" :delay="150">
+        <div class="space-y-2">
+          <div class="block text-sm font-medium text-foreground">
+            {{ t('settings.integrations.capabilities.title') }}
+          </div>
+          <div class="space-y-3 p-3 border border-border rounded-md">
+            <div
+              v-for="capability in values.capabilities"
+              :key="capability.id"
+              class="flex items-center justify-between"
+            >
+              <div>
+                <Label
+                  :for="`capability-${capability.id}`"
+                  class="cursor-pointer"
+                >
+                  {{ t(`settings.integrations.capabilities.${capability.id}`) }}
+                </Label>
+              </div>
+              <Switch
+                :id="`capability-${capability.id}`"
+                :model-value="capability.active"
+                @update:model-value="
+                  enabled => toggleCapability(capability.id, enabled)
+                "
+                :disabled="isEnabledToggleDisabled"
+              />
             </div>
-            <Switch
-              :id="`capability-${capability.id}`"
-              :model-value="capability.active"
-              @update:model-value="
-                enabled => toggleCapability(capability.id, enabled)
-              "
-              :disabled="isEnabledToggleDisabled"
-            />
           </div>
         </div>
-      </div>
-    </TransitionExpand>
+      </TransitionExpand>
+    </template>
   </div>
 </template>

@@ -1033,7 +1033,8 @@
         "openweathermap": "Datos meteorológicos e información de calidad del aire",
         "axiom": "Enviar registros y trazas del servidor a Axiom para depuración y monitoreo",
         "barrelman": "Motor de búsqueda y espacial OSM autoalojado",
-        "openstreetmap": "Conecta tu cuenta OSM para agregar notas, comentarios y hacer ediciones rápidas"
+        "openstreetmap": "Configurar credenciales de la aplicación OAuth de OSM para la autenticación de usuarios",
+        "openstreetmap-account": "Conecta tu cuenta OSM para agregar notas, comentarios y hacer ediciones rápidas"
       },
       "osm": {
         "connected": "Cuenta de OpenStreetMap conectada exitosamente",

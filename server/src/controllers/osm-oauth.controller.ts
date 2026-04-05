@@ -21,13 +21,24 @@ const OSM_API_BASE = osmConfig.apiBase
 const OSM_SCOPES = ['read_prefs', 'write_notes', 'write_api'] // read_prefs needed to fetch display name during OAuth callback
 
 function getOsmClient() {
-  const clientId = process.env.OSM_OAUTH_CLIENT_ID
-  const clientSecret = process.env.OSM_OAUTH_CLIENT_SECRET
-  if (!clientId || !clientSecret) {
+  const systemIntegrations = integrationManager.getConfiguredIntegrations()
+  const osmSystem = systemIntegrations.find(
+    (i) => i.integrationId === IntegrationId.OPENSTREETMAP,
+  )
+
+  if (!osmSystem) {
     throw new Error(
-      'OSM OAuth2 credentials not configured. Set OSM_OAUTH_CLIENT_ID and OSM_OAUTH_CLIENT_SECRET.',
+      'OSM system integration not configured. An admin must configure OpenStreetMap OAuth application credentials.',
     )
   }
+
+  const { clientId, clientSecret } = osmSystem.config as any
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      'OSM OAuth2 credentials incomplete in system integration config.',
+    )
+  }
+
   return new arctic.OAuth2Client(
     clientId,
     clientSecret,
@@ -144,7 +155,7 @@ app.get(
       // Check if user already has an OSM integration and remove it
       const existingIntegrations = await getConfiguredIntegrations(userId)
       const existingOsm = existingIntegrations.find(
-        (i) => i.integrationId === IntegrationId.OPENSTREETMAP,
+        (i) => i.integrationId === IntegrationId.OPENSTREETMAP_ACCOUNT,
       )
       if (existingOsm) {
         await deleteIntegration(existingOsm.id, userId)
@@ -161,7 +172,7 @@ app.get(
         osmTraceCount: osmUser.traces?.count ?? 0,
       }
 
-      await createIntegration(userId, IntegrationId.OPENSTREETMAP, config)
+      await createIntegration(userId, IntegrationId.OPENSTREETMAP_ACCOUNT, config)
 
       set.redirect = `${redirectBase}?osm=connected`
     } catch (error: any) {
@@ -194,7 +205,7 @@ app.use(requireAuth).get(
     try {
       const userIntegrations = await getConfiguredIntegrations(user.id)
       const osmIntegration = userIntegrations.find(
-        (i) => i.integrationId === IntegrationId.OPENSTREETMAP,
+        (i) => i.integrationId === IntegrationId.OPENSTREETMAP_ACCOUNT,
       )
 
       if (!osmIntegration) {
@@ -267,7 +278,7 @@ app.use(requireAuth).post(
     try {
       const userIntegrations = await getConfiguredIntegrations(user.id)
       const osmIntegration = userIntegrations.find(
-        (i) => i.integrationId === IntegrationId.OPENSTREETMAP,
+        (i) => i.integrationId === IntegrationId.OPENSTREETMAP_ACCOUNT,
       )
 
       if (!osmIntegration) {

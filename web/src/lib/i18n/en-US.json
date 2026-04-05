@@ -1072,7 +1072,8 @@
         "openweathermap": "Weather data and air quality information",
         "axiom": "Send server logs and traces to Axiom for debugging and monitoring",
         "barrelman": "Self-hosted OSM search and spatial engine",
-        "openstreetmap": "Connect your OSM account to add notes, comments, and make quick edits"
+        "openstreetmap": "Configure OSM OAuth application credentials for user authentication",
+        "openstreetmap-account": "Connect your OSM account to add notes, comments, and make quick edits"
       },
       "osm": {
         "connected": "OpenStreetMap account connected successfully",

@@ -162,6 +162,13 @@
       "when": 1770503750125,
       "tag": "0022_new_oracle",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1775606400000,
+      "tag": "0023_rename_osm_integration",
+      "breakpoints": true
     }
   ]
 }

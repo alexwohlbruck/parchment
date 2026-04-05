@@ -60,6 +60,7 @@ export function useIntegrationService() {
     const response = await api.post('/integrations', requestData)
 
     await fetchConfiguredIntegrations()
+    await fetchAvailableIntegrations()
     await refreshLayersIfNeeded(integrationId)
     return response.data
   }
@@ -93,6 +94,7 @@ export function useIntegrationService() {
     await api.delete(`/integrations/${id}`)
 
     await fetchConfiguredIntegrations()
+    await fetchAvailableIntegrations()
     await refreshLayersIfNeeded(deleted?.integrationId)
     isLoading.value = false
 

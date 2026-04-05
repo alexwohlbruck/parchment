@@ -31,7 +31,7 @@ export class OpenStreetMapIntegration
 {
   private initialized = false
 
-  readonly integrationId = IntegrationId.OPENSTREETMAP
+  readonly integrationId = IntegrationId.OPENSTREETMAP_ACCOUNT
   readonly capabilityIds = [
     IntegrationCapabilityId.OSM_MAP_EDIT,
   ]

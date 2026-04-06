@@ -3,8 +3,10 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   IntegrationDefinition,
+  IntegrationId,
   IntegrationRecord,
 } from '@/types/integrations.types'
+import { useIntegrationsStore } from '@/stores/integrations.store'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { ExternalLinkIcon } from 'lucide-vue-next'
@@ -19,7 +21,12 @@ const emit = defineEmits<{
   (e: 'update:valid', valid: boolean): void
 }>()
 
+const DOCS_BASE = 'https://docs.parchment.app/usage/integrations'
+
 const { t } = useI18n()
+const integrationsStore = useIntegrationsStore()
+
+const docsUrl = `${DOCS_BASE}/${props.integration.id}`
 
 const capabilities = ref(
   props.integration.capabilities?.map(capId => ({
@@ -37,9 +44,11 @@ const osmProfileImageUrl = computed(
   () => (props.config?.config as any)?.osmProfileImageUrl as string | undefined,
 )
 
-const osmProfileUrl = computed(
-  () => `https://www.openstreetmap.org/user/${encodeURIComponent(osmDisplayName.value)}`,
-)
+const osmProfileUrl = computed(() => {
+  const osmConfig = integrationsStore.getIntegrationConfig(IntegrationId.OPENSTREETMAP)
+  const baseUrl = (osmConfig?.serverUrl as string) || 'https://www.openstreetmap.org'
+  return `${baseUrl}/user/${encodeURIComponent(osmDisplayName.value)}`
+})
 
 function toggleCapability(capabilityId: string, enabled: boolean) {
   const cap = capabilities.value.find(c => c.id === capabilityId)
@@ -62,6 +71,18 @@ defineExpose({ submit })
 
 <template>
   <div class="space-y-6">
+    <div class="flex items-center gap-1.5 text-sm text-muted-foreground">
+      <ExternalLinkIcon class="size-3.5 shrink-0" />
+      <a
+        :href="docsUrl"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="underline hover:text-foreground transition-colors"
+      >
+        {{ t('settings.integrations.viewDocs') }}
+      </a>
+    </div>
+
     <!-- Connected account info -->
     <div class="flex items-center gap-4 p-4 border border-border rounded-lg bg-muted/30">
       <Avatar size="sm" shape="circle">
@@ -112,5 +133,6 @@ defineExpose({ submit })
         </div>
       </div>
     </div>
+
   </div>
 </template>

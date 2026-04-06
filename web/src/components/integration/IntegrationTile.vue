@@ -50,11 +50,102 @@ async function handleOAuthClick() {
   const isConfigured = !!config
 
   if (!isConfigured) {
-    // Redirect to OAuth authorization
+    // Open OAuth authorization in a popup/new tab
     try {
       const response = await api.get('/integrations/osm/authorize')
       const { url } = response.data
-      window.location.href = url
+
+      const isDevMode = window.location.protocol === 'http:'
+
+      if (isDevMode) {
+        // Dev mode: OSM doesn't allow HTTP redirect URIs, so provide a console-based workaround.
+        // Open the auth URL - the redirect will fail, but the user can copy the URL from the browser.
+        window.open(url, '_blank')
+
+        // Register a global callback for the dev workaround
+        ;(window as any).__osmDevCallback = async (redirectUrl: string) => {
+          try {
+            const parsedUrl = new URL(redirectUrl)
+            const code = parsedUrl.searchParams.get('code')
+            const state = parsedUrl.searchParams.get('state')
+
+            if (!code || !state) {
+              console.error('Missing code or state in URL. Make sure you copied the full URL.')
+              return
+            }
+
+            // Call the callback endpoint directly - it returns HTML but the server-side
+            // still performs the token exchange and creates the integration record
+            const response = await api.get('/integrations/osm/callback', {
+              params: { code, state },
+              // Accept any response type since it returns HTML
+              transformResponse: [(data: any) => data],
+            })
+
+            // Parse the HTML response to check for success/error
+            const html = response.data as string
+            if (html.includes('"status":"error"')) {
+              const msgMatch = html.match(/"message":"([^"]*)"/)
+              const errorMsg = msgMatch?.[1] || 'OAuth callback failed'
+              console.error(`%c❌ ${errorMsg}`, 'color: red; font-weight: bold;')
+              toast.error(errorMsg)
+              return
+            }
+
+            toast.success(t('settings.integrations.osm.connected'))
+            await integrationService.fetchConfiguredIntegrations()
+            await integrationService.fetchAvailableIntegrations()
+
+            delete (window as any).__osmDevCallback
+            console.log('%c✅ OSM account connected successfully!', 'color: green; font-weight: bold;')
+          } catch (error: any) {
+            console.error('Dev OAuth callback failed:', error)
+            toast.error(error.message || t('settings.integrations.osm.authError'))
+          }
+        }
+
+        console.log(
+          '%c🔑 OSM OAuth Dev Mode',
+          'font-weight: bold; font-size: 14px;',
+        )
+        console.log(
+          'After authorizing on OSM, the redirect will fail because the\n' +
+          'redirect URI uses HTTPS but your local server runs on HTTP.\n\n' +
+          'Copy the full URL from the browser address bar (it will contain\n' +
+          '?code=...&state=... parameters) and run:\n\n' +
+          "  window.__osmDevCallback('PASTE_FULL_URL_HERE')\n",
+        )
+
+        toast.info(t('settings.integrations.osm.devCallbackInstructions'))
+      } else {
+        const popup = window.open(url, 'osm-oauth', 'width=600,height=700,popup=yes')
+
+        // Listen for the callback postMessage from the popup
+        const expectedOrigin = new URL(api.defaults.baseURL as string).origin
+        const onMessage = async (event: MessageEvent) => {
+          if (event.data?.type !== 'osm-oauth-callback') return
+          if (event.origin !== expectedOrigin) return
+          window.removeEventListener('message', onMessage)
+
+          if (event.data.status === 'connected') {
+            toast.success(t('settings.integrations.osm.connected'))
+            await integrationService.fetchConfiguredIntegrations()
+            await integrationService.fetchAvailableIntegrations()
+          } else {
+            toast.error(event.data.message || t('settings.integrations.osm.authError'))
+          }
+        }
+
+        window.addEventListener('message', onMessage)
+
+        // Clean up listener if popup is closed without completing
+        const checkClosed = setInterval(() => {
+          if (popup?.closed) {
+            clearInterval(checkClosed)
+            window.removeEventListener('message', onMessage)
+          }
+        }, 500)
+      }
     } catch (error) {
       console.error('Failed to initiate OAuth flow:', error)
       toast.error(t('settings.integrations.osm.authError'))
@@ -127,6 +218,19 @@ async function handleClick() {
     return
   }
 
+  // When editing, fetch full config (including secrets) via the detail endpoint
+  let fullConfig: IntegrationRecord | undefined = config
+  if (isConfigured && config) {
+    try {
+      const response = await api.get<IntegrationRecord>(`/integrations/${config.id}`)
+      fullConfig = response.data
+    } catch (err) {
+      console.error('Failed to fetch full integration config:', err)
+      toast.error('Failed to load integration configuration')
+      return
+    }
+  }
+
   // Show our custom IntegrationForm component in a dialog
   const dialogResult = await appService.componentDialog({
     component: IntegrationForm,
@@ -134,7 +238,7 @@ async function handleClick() {
       integration,
       schema: formSchema,
       isConfigured,
-      config,
+      config: fullConfig,
     },
     footerPrepend: isConfigured
       ? () =>
@@ -199,11 +303,30 @@ async function handleDisconnect(
   integration: IntegrationDefinition,
   config: IntegrationRecord,
 ) {
+  // Check for dependent integrations before deleting
+  let dependents: { id: string; integrationId: string; userId: string | null; name: string }[] = []
+  try {
+    const response = await api.get(`/integrations/${config.id}/dependents`)
+    dependents = response.data
+  } catch {
+    // If we can't check dependents (e.g. no permission), proceed with basic confirm
+  }
+
+  let description = t('settings.integrations.disconnect.description', {
+    name: integration.name,
+  })
+
+  if (dependents.length > 0) {
+    const names = [...new Set(dependents.map((d) => d.name))].join(', ')
+    description += '\n\n' + t('settings.integrations.disconnect.dependentsWarning', {
+      count: dependents.length,
+      names,
+    })
+  }
+
   const confirmed = await appService.confirm({
     title: t('settings.integrations.disconnect.title'),
-    description: t('settings.integrations.disconnect.description', {
-      name: integration.name,
-    }),
+    description,
     continueText: t('settings.integrations.osm.disconnect'),
     cancelText: t('general.cancel'),
     destructive: true,

@@ -7,9 +7,7 @@ import {
   OsmNote,
   OsmNoteComment,
 } from '../types/integration.types'
-import { osmConfig } from '../config/osm.config'
-
-const { apiBase: OSM_API_BASE } = osmConfig
+import { getOsmConfig } from '../config/osm.config'
 
 /**
  * Look up the user's OSM access token from their configured integrations.
@@ -47,6 +45,11 @@ function adaptNoteFeature(feature: any): OsmNote {
   }
 }
 
+function notesErrorStatus(error: any): number {
+  if (!error.response && error.message?.includes('not configured')) return 503
+  return error.response?.status ?? 500
+}
+
 const app = new Elysia({ prefix: '/notes' })
 
 /**
@@ -57,14 +60,14 @@ app.get(
   async ({ query, status }) => {
     try {
       const { bbox, limit = 100, closed = 7 } = query
-      const response = await axios.get(`${OSM_API_BASE}/notes.json`, {
+      const response = await axios.get(`${getOsmConfig().apiBase}/notes.json`, {
         params: { bbox, limit, closed },
         headers: { Accept: 'application/json' },
       })
       const features = response.data?.features || []
       return features.map((feature: any) => adaptNoteFeature(feature))
     } catch (error: any) {
-      const errorStatus = error.response?.status ?? 500
+      const errorStatus = notesErrorStatus(error)
       return status(errorStatus, {
         message: error.response?.data || error.message || 'Failed to fetch notes',
       })
@@ -91,12 +94,12 @@ app.get(
   async ({ params, status }) => {
     try {
       const response = await axios.get(
-        `${OSM_API_BASE}/notes/${params.id}.json`,
+        `${getOsmConfig().apiBase}/notes/${params.id}.json`,
         { headers: { Accept: 'application/json' } },
       )
       return adaptNoteFeature(response.data)
     } catch (error: any) {
-      const errorStatus = error.response?.status ?? 500
+      const errorStatus = notesErrorStatus(error)
       return status(errorStatus, {
         message: error.response?.data || error.message || 'Failed to fetch note',
       })
@@ -104,7 +107,7 @@ app.get(
   },
   {
     params: t.Object({
-      id: t.String(),
+      id: t.String({ pattern: '^[0-9]+$' }),
     }),
     detail: {
       tags: ['Notes'],
@@ -127,7 +130,7 @@ app.use(requireAuth).post(
 
     try {
       const response = await axios.post(
-        `${OSM_API_BASE}/notes.json`,
+        `${getOsmConfig().apiBase}/notes.json`,
         null,
         {
           params: { lat: body.lat, lon: body.lng, text: body.text },
@@ -139,7 +142,7 @@ app.use(requireAuth).post(
       )
       return adaptNoteFeature(response.data)
     } catch (error: any) {
-      const errorStatus = error.response?.status ?? 500
+      const errorStatus = notesErrorStatus(error)
       return status(errorStatus, {
         message: error.response?.data || error.message || 'Failed to create note',
       })
@@ -171,7 +174,7 @@ app.use(requireAuth).post(
 
     try {
       const response = await axios.post(
-        `${OSM_API_BASE}/notes/${params.id}/comment.json`,
+        `${getOsmConfig().apiBase}/notes/${params.id}/comment.json`,
         null,
         {
           params: { text: body.text },
@@ -183,7 +186,7 @@ app.use(requireAuth).post(
       )
       return adaptNoteFeature(response.data)
     } catch (error: any) {
-      const errorStatus = error.response?.status ?? 500
+      const errorStatus = notesErrorStatus(error)
       return status(errorStatus, {
         message: error.response?.data || error.message || 'Failed to comment on note',
       })
@@ -191,7 +194,7 @@ app.use(requireAuth).post(
   },
   {
     params: t.Object({
-      id: t.String(),
+      id: t.String({ pattern: '^[0-9]+$' }),
     }),
     body: t.Object({
       text: t.String(),
@@ -216,7 +219,7 @@ app.use(requireAuth).post(
 
     try {
       const response = await axios.post(
-        `${OSM_API_BASE}/notes/${params.id}/close.json`,
+        `${getOsmConfig().apiBase}/notes/${params.id}/close.json`,
         null,
         {
           params: body.text ? { text: body.text } : undefined,
@@ -228,7 +231,7 @@ app.use(requireAuth).post(
       )
       return adaptNoteFeature(response.data)
     } catch (error: any) {
-      const errorStatus = error.response?.status ?? 500
+      const errorStatus = notesErrorStatus(error)
       return status(errorStatus, {
         message: error.response?.data || error.message || 'Failed to close note',
       })
@@ -236,7 +239,7 @@ app.use(requireAuth).post(
   },
   {
     params: t.Object({
-      id: t.String(),
+      id: t.String({ pattern: '^[0-9]+$' }),
     }),
     body: t.Object({
       text: t.Optional(t.String()),
@@ -261,7 +264,7 @@ app.use(requireAuth).post(
 
     try {
       const response = await axios.post(
-        `${OSM_API_BASE}/notes/${params.id}/reopen.json`,
+        `${getOsmConfig().apiBase}/notes/${params.id}/reopen.json`,
         null,
         {
           params: body.text ? { text: body.text } : undefined,
@@ -273,7 +276,7 @@ app.use(requireAuth).post(
       )
       return adaptNoteFeature(response.data)
     } catch (error: any) {
-      const errorStatus = error.response?.status ?? 500
+      const errorStatus = notesErrorStatus(error)
       return status(errorStatus, {
         message: error.response?.data || error.message || 'Failed to reopen note',
       })
@@ -281,7 +284,7 @@ app.use(requireAuth).post(
   },
   {
     params: t.Object({
-      id: t.String(),
+      id: t.String({ pattern: '^[0-9]+$' }),
     }),
     body: t.Object({
       text: t.Optional(t.String()),

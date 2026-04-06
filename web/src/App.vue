@@ -96,10 +96,14 @@ onMounted(async () => {
   commandService.bindAllHotkeysToCommands()
   themeStore.initAccentColor()
   await authService.getAuthenticatedUser()
+
+  // Fetch configured integrations for all users (public fields only).
+  // This provides Mapbox token, OSM server URL, etc. to the client.
+  await integrationService.fetchConfiguredIntegrations()
+
   if (authStore.me) {
     // These calls return immediately if cached, refreshing data in background
     await integrationService.fetchAvailableIntegrations()
-    await integrationService.fetchConfiguredIntegrations()
     // Load existing layers first
     await layersStore.loadLayers()
     // Then populate any missing template layers

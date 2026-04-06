@@ -11,6 +11,7 @@ import {
 import { api } from '@/lib/api'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useLayersStore } from '@/stores/layers.store'
+import { useNotesStore } from '@/stores/notes.store'
 
 function hasMapLayerCapability(
   integration?:
@@ -38,6 +39,13 @@ export function useIntegrationService() {
         await layersStore.loadLayers()
       }
     } catch (e) {}
+  }
+
+  function clearNotesCacheIfNeeded(integrationId?: string) {
+    if (integrationId === IntegrationId.OPENSTREETMAP) {
+      const notesStore = useNotesStore()
+      notesStore.clearCache()
+    }
   }
 
   async function createIntegration(
@@ -81,6 +89,7 @@ export function useIntegrationService() {
     const configsAfterUpdate = Array.isArray(store.integrationConfigurations) ? store.integrationConfigurations : []
     const updated = configsAfterUpdate.find(i => i.id === id)
     await refreshLayersIfNeeded(updated?.integrationId)
+    clearNotesCacheIfNeeded(updated?.integrationId)
     return response.data
   }
 
@@ -96,6 +105,7 @@ export function useIntegrationService() {
     await fetchConfiguredIntegrations()
     await fetchAvailableIntegrations()
     await refreshLayersIfNeeded(deleted?.integrationId)
+    clearNotesCacheIfNeeded(deleted?.integrationId)
     isLoading.value = false
 
     return true

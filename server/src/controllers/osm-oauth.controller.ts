@@ -1,48 +1,62 @@
 import { Elysia, t } from 'elysia'
 import * as arctic from 'arctic'
 import axios from 'axios'
-import { getSession, requireAuth } from '../middleware/auth.middleware'
+import { eq, and } from 'drizzle-orm'
+import { requireAuth } from '../middleware/auth.middleware'
 import { serverOrigin, clientOrigin } from '../config/origins.config'
+import { db } from '../db'
+import { tokens } from '../schema/tokens.schema'
 import {
   createIntegration,
   deleteIntegration,
   updateIntegration,
   getConfiguredIntegrations,
 } from '../services/integration.service'
-import { createServerToken, validateServerToken } from '../services/token.service'
-import { IntegrationId, IntegrationScope } from '../types/integration.types'
-import { integrationManager } from '../services/integrations'
+import { IntegrationId } from '../types/integration.types'
+import { getOsmConfig } from '../config/osm.config'
+import { generateId } from '../util'
 
-import { osmConfig } from '../config/osm.config'
-
-const OSM_AUTH_ENDPOINT = osmConfig.authEndpoint
-const OSM_TOKEN_ENDPOINT = osmConfig.tokenEndpoint
-const OSM_API_BASE = osmConfig.apiBase
 const OSM_SCOPES = ['read_prefs', 'write_notes', 'write_api'] // read_prefs needed to fetch display name during OAuth callback
 
 function getOsmClient() {
-  const systemIntegrations = integrationManager.getConfiguredIntegrations()
-  const osmSystem = systemIntegrations.find(
-    (i) => i.integrationId === IntegrationId.OPENSTREETMAP,
-  )
-
-  if (!osmSystem) {
-    throw new Error(
-      'OSM system integration not configured. An admin must configure OpenStreetMap OAuth application credentials.',
-    )
-  }
-
-  const { clientId, clientSecret } = osmSystem.config as any
-  if (!clientId || !clientSecret) {
-    throw new Error(
-      'OSM OAuth2 credentials incomplete in system integration config.',
-    )
-  }
+  const config = getOsmConfig()
+  const redirectUri = config.redirectUri || `${serverOrigin}/integrations/osm/callback`
 
   return new arctic.OAuth2Client(
-    clientId,
-    clientSecret,
-    `${serverOrigin}/integrations/osm/callback`,
+    config.clientId,
+    config.clientSecret || null,
+    redirectUri,
+  )
+}
+
+/**
+ * Render a minimal HTML page that posts a message to the opener window and closes itself.
+ * Used as the OAuth callback response so the SPA isn't disrupted by a redirect.
+ */
+function oauthCallbackPage(result: { status: 'connected' | 'error'; message?: string }) {
+  // Sanitize message for safe inline script embedding:
+  // - Escape </ to prevent </script> breakout
+  // - Use only the status enum for the fallback URL message to avoid injection
+  const safeMessage = JSON.stringify({ type: 'osm-oauth-callback', ...result })
+    .replace(/</g, '\\u003c')
+  const safeOrigin = clientOrigin.replace(/'/g, "\\'")
+  const fallbackUrl = `${clientOrigin}/settings/integrations?osm=${encodeURIComponent(result.status)}${result.message ? `&message=${encodeURIComponent(result.message)}` : ''}`
+  const safeFallbackUrl = fallbackUrl.replace(/'/g, "\\'")
+  return new Response(
+    `<!DOCTYPE html>
+<html><head><title>Connecting...</title></head>
+<body>
+<script>
+  if (window.opener) {
+    window.opener.postMessage(${safeMessage}, '${safeOrigin}');
+    window.close();
+  } else {
+    window.location.href = '${safeFallbackUrl}';
+  }
+</script>
+<noscript>You can close this window.</noscript>
+</body></html>`,
+    { headers: { 'Content-Type': 'text/html' } },
   )
 }
 
@@ -59,11 +73,25 @@ app.use(requireAuth).get(
       const client = getOsmClient()
       const state = arctic.generateState()
 
-      // Store state → userId mapping using existing token service
-      await createServerToken('token', user.id, state, false)
+      // Store state → userId mapping with a 1-hour expiry (longer than the default
+      // 15 minutes to accommodate the dev-mode manual callback workaround)
+      // Clean up any existing OAuth state tokens for this user
+      await db
+        .delete(tokens)
+        .where(and(eq(tokens.userId, user.id), eq(tokens.type, 'token')))
 
+      await db.insert(tokens).values({
+        id: generateId(),
+        userId: user.id,
+        type: 'token',
+        value: state,
+        ephemeral: true,
+        expires: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+      })
+
+      const osmCfg = getOsmConfig()
       const url = client.createAuthorizationURL(
-        OSM_AUTH_ENDPOINT,
+        osmCfg.authEndpoint,
         state,
         OSM_SCOPES,
       )
@@ -85,34 +113,27 @@ app.use(requireAuth).get(
 
 /**
  * OAuth2 callback from OpenStreetMap.
- * This is a browser redirect — no API auth, authenticates via state token.
+ * Opens in a popup/new tab — posts result back to opener via postMessage.
+ * Falls back to redirect if there's no opener (e.g. popup was blocked).
  */
 app.get(
   '/callback',
-  async ({ query, set }) => {
+  async ({ query }) => {
     const { code, state } = query
-    const redirectBase = `${clientOrigin}/settings/integrations`
 
     if (!code || !state) {
-      set.redirect = `${redirectBase}?osm=error&message=${encodeURIComponent('Missing authorization code or state')}`
-      return
+      return oauthCallbackPage({ status: 'error', message: 'Missing authorization code or state' })
     }
 
     try {
       // Look up the state token to find the associated user
-      // The token service stores tokens per-user, so we need to find which user owns this state
-      const { db } = await import('../db')
-      const { tokens } = await import('../schema/tokens.schema')
-      const { eq, and } = await import('drizzle-orm')
-
       const matchingTokens = await db
         .select()
         .from(tokens)
         .where(and(eq(tokens.type, 'token'), eq(tokens.value, state)))
 
       if (matchingTokens.length === 0) {
-        set.redirect = `${redirectBase}?osm=error&message=${encodeURIComponent('Invalid or expired state parameter')}`
-        return
+        return oauthCallbackPage({ status: 'error', message: 'Invalid or expired state parameter' })
       }
 
       const stateToken = matchingTokens[0]
@@ -121,8 +142,7 @@ app.get(
       // Check expiry
       if (stateToken.expires && new Date(stateToken.expires) < new Date()) {
         await db.delete(tokens).where(eq(tokens.id, stateToken.id))
-        set.redirect = `${redirectBase}?osm=error&message=${encodeURIComponent('Authorization request expired')}`
-        return
+        return oauthCallbackPage({ status: 'error', message: 'Authorization request expired' })
       }
 
       // Clean up the state token
@@ -130,8 +150,9 @@ app.get(
 
       // Exchange authorization code for tokens
       const client = getOsmClient()
+      const osmCfg = getOsmConfig()
       const oauthTokens = await client.validateAuthorizationCode(
-        OSM_TOKEN_ENDPOINT,
+        osmCfg.tokenEndpoint,
         code,
         null,
       )
@@ -139,7 +160,7 @@ app.get(
       const accessToken = oauthTokens.accessToken()
 
       // Fetch OSM user details
-      const userResponse = await axios.get(`${OSM_API_BASE}/user/details.json`, {
+      const userResponse = await axios.get(`${osmCfg.apiBase}/user/details.json`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           Accept: 'application/json',
@@ -148,8 +169,7 @@ app.get(
 
       const osmUser = userResponse.data?.user
       if (!osmUser) {
-        set.redirect = `${redirectBase}?osm=error&message=${encodeURIComponent('Failed to fetch OSM user details')}`
-        return
+        return oauthCallbackPage({ status: 'error', message: 'Failed to fetch OSM user details' })
       }
 
       // Check if user already has an OSM integration and remove it
@@ -174,14 +194,14 @@ app.get(
 
       await createIntegration(userId, IntegrationId.OPENSTREETMAP_ACCOUNT, config)
 
-      set.redirect = `${redirectBase}?osm=connected`
+      return oauthCallbackPage({ status: 'connected' })
     } catch (error: any) {
       console.error('OSM OAuth2 callback error:', error)
       const message =
         error instanceof arctic.OAuth2RequestError
           ? `OAuth2 error: ${error.code}`
           : error.message || 'OAuth2 callback failed'
-      set.redirect = `${redirectBase}?osm=error&message=${encodeURIComponent(message)}`
+      return oauthCallbackPage({ status: 'error', message })
     }
   },
   {
@@ -217,7 +237,8 @@ app.use(requireAuth).get(
         return status(400, { message: 'No access token found' })
       }
 
-      const userResponse = await axios.get(`${OSM_API_BASE}/user/details.json`, {
+      const osmCfg = getOsmConfig()
+      const userResponse = await axios.get(`${osmCfg.apiBase}/user/details.json`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           Accept: 'application/json',

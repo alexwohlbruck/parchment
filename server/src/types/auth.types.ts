@@ -6,8 +6,9 @@ export enum PermissionId {
   ROLES_READ = 'roles:read',
   PERMISSIONS_READ = 'permissions:read',
   SYSTEM_READ = 'system:read', // TODO
-  INTEGRATIONS_READ = 'integrations:read',
+  INTEGRATIONS_READ_USER = 'integrations:read:user',
   INTEGRATIONS_WRITE_USER = 'integrations:write:user',
+  INTEGRATIONS_READ_SYSTEM = 'integrations:read:system',
   INTEGRATIONS_WRITE_SYSTEM = 'integrations:write:system',
   LAYERS_READ = 'layers:read',
   LAYERS_WRITE = 'layers:write',

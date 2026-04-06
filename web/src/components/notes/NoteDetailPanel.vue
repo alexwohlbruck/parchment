@@ -20,6 +20,8 @@ import {
 } from '@/components/ui/tooltip'
 import type { OsmNote } from '@/types/notes.types'
 import NoteComment from './NoteComment.vue'
+import { useIntegrationsStore } from '@/stores/integrations.store'
+import { IntegrationId } from '@server/types/integration.types'
 
 const props = defineProps<{
   note: OsmNote | null
@@ -36,6 +38,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const integrationsStore = useIntegrationsStore()
 
 const commentText = ref('')
 
@@ -44,9 +47,14 @@ const noteStatus = computed(() => {
   return props.note.status
 })
 
+const osmServerUrl = computed(() => {
+  const config = integrationsStore.getIntegrationConfig(IntegrationId.OPENSTREETMAP)
+  return (config?.serverUrl as string) || 'https://www.openstreetmap.org'
+})
+
 const osmNoteUrl = computed(() => {
   if (!props.note) return ''
-  return `https://www.openstreetmap.org/note/${props.note.id}`
+  return `${osmServerUrl.value}/note/${props.note.id}`
 })
 
 const createdDate = computed(() => {

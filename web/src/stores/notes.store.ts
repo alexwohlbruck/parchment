@@ -94,7 +94,6 @@ export const useNotesStore = defineStore('notes', () => {
   const isLayerVisible = useStorage<boolean>('notes-layer-visible', false)
   const lastBbox = ref<string | null>(null)
   const loadedTiles = ref<Record<string, number>>(cache.loadedTiles)
-
   const selectedNote = computed(() => {
     if (selectedNoteId.value === null) return null
     return notes.value.find(note => note.id === selectedNoteId.value) ?? null

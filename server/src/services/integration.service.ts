@@ -135,7 +135,7 @@ const availableIntegrations: IntegrationDefinition[] = [
     id: IntegrationId.MAPILLARY,
     name: 'Mapillary',
     description: 'Street-level imagery platform',
-    color: '#2B2B2B',
+    color: '#05CB63',
     get capabilities() {
       return integrationManager.getIntegrationCapabilities(
         IntegrationId.MAPILLARY,
@@ -196,7 +196,7 @@ const availableIntegrations: IntegrationDefinition[] = [
     id: IntegrationId.WIKIPEDIA,
     name: 'Wikipedia',
     description: 'Free encyclopedia content and place descriptions',
-    color: '#000000',
+    color: '#888',
     get capabilities() {
       return integrationManager.getIntegrationCapabilities(
         IntegrationId.WIKIPEDIA,
@@ -243,7 +243,7 @@ const availableIntegrations: IntegrationDefinition[] = [
     name: 'Axiom',
     description:
       'Send server logs and traces to Axiom for debugging and monitoring. Optional; leave unset for logs to stdout only.',
-    color: '#0A0A0A',
+    color: '#888',
     get capabilities() {
       return integrationManager.getIntegrationCapabilities(IntegrationId.AXIOM)
     },
@@ -292,7 +292,13 @@ const availableIntegrations: IntegrationDefinition[] = [
     paid: false,
     cloud: true,
     configSchema: 'openstreetmapOAuthSchema',
-    publicFields: ['osmDisplayName', 'osmProfileImageUrl', 'osmAccountCreated', 'osmChangesetCount', 'osmTraceCount'],
+    publicFields: [
+      'osmDisplayName',
+      'osmProfileImageUrl',
+      'osmAccountCreated',
+      'osmChangesetCount',
+      'osmTraceCount',
+    ],
     authType: 'oauth2',
     scope: [IntegrationScope.USER],
     requiresSystemIntegration: IntegrationId.OPENSTREETMAP,
@@ -661,7 +667,9 @@ export async function getDependentIntegrations(
   // Find all configured instances of those dependent definitions
   const allIntegrations = await db.select().from(integrations)
   return allIntegrations
-    .filter((record) => dependentIds.includes(record.integrationId as IntegrationId))
+    .filter((record) =>
+      dependentIds.includes(record.integrationId as IntegrationId),
+    )
     .map(parseIntegrationData)
 }
 

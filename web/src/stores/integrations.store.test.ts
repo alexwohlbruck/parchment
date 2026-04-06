@@ -243,6 +243,86 @@ describe('useIntegrationsStore', () => {
     })
   })
 
+  describe('allIntegrations', () => {
+    function makeDef(overrides: Partial<import('@server/types/integration.types').IntegrationDefinition> = {}) {
+      return {
+        id: 'test' as IntegrationId,
+        name: 'Test',
+        description: '',
+        color: '#000',
+        capabilities: [],
+        paid: false,
+        cloud: false,
+        configSchema: 'apiKeySchema',
+        scope: [],
+        ...overrides,
+      } as import('@server/types/integration.types').IntegrationDefinition
+    }
+
+    test('returns unconfigured integrations with no config', () => {
+      const store = useIntegrationsStore()
+      store.availableIntegrations = [
+        makeDef({ id: IntegrationId.MAPBOX, name: 'Mapbox' }),
+      ]
+      store.integrationConfigurations = []
+
+      expect(store.allIntegrations).toEqual([
+        { integration: expect.objectContaining({ id: IntegrationId.MAPBOX }) },
+      ])
+      expect(store.allIntegrations[0].config).toBeUndefined()
+    })
+
+    test('pairs configured integrations with their config records', () => {
+      const store = useIntegrationsStore()
+      store.availableIntegrations = [
+        makeDef({ id: IntegrationId.MAPBOX, name: 'Mapbox' }),
+      ]
+      store.integrationConfigurations = [
+        makeRecord({ id: 'rec-mapbox', integrationId: IntegrationId.MAPBOX }),
+      ]
+
+      expect(store.allIntegrations).toHaveLength(1)
+      expect(store.allIntegrations[0].config?.id).toBe('rec-mapbox')
+    })
+
+    test('creates multiple entries for integrations with multiple configs', () => {
+      const store = useIntegrationsStore()
+      store.availableIntegrations = [
+        makeDef({ id: IntegrationId.MAPBOX, name: 'Mapbox' }),
+      ]
+      store.integrationConfigurations = [
+        makeRecord({ id: 'rec-1', integrationId: IntegrationId.MAPBOX }),
+        makeRecord({ id: 'rec-2', integrationId: IntegrationId.MAPBOX }),
+      ]
+
+      expect(store.allIntegrations).toHaveLength(2)
+      expect(store.allIntegrations.map(i => i.config?.id)).toEqual(['rec-1', 'rec-2'])
+    })
+
+    test('returns empty array when data is null (not loaded)', () => {
+      const store = useIntegrationsStore()
+      store.availableIntegrations = null
+      store.integrationConfigurations = null
+
+      expect(store.allIntegrations).toEqual([])
+    })
+
+    test('mixes configured and unconfigured integrations', () => {
+      const store = useIntegrationsStore()
+      store.availableIntegrations = [
+        makeDef({ id: IntegrationId.MAPBOX, name: 'Mapbox' }),
+        makeDef({ id: IntegrationId.NOMINATIM, name: 'Nominatim' }),
+      ]
+      store.integrationConfigurations = [
+        makeRecord({ integrationId: IntegrationId.MAPBOX }),
+      ]
+
+      expect(store.allIntegrations).toHaveLength(2)
+      expect(store.allIntegrations[0].config).toBeDefined()
+      expect(store.allIntegrations[1].config).toBeUndefined()
+    })
+  })
+
   describe('clearCache', () => {
     test('resets both data sources to null', () => {
       const store = useIntegrationsStore()

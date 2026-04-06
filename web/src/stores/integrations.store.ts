@@ -102,6 +102,23 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     )
   })
 
+  // Unified list: each entry is { integration, config? }
+  // Configured integrations may appear multiple times (one per config record)
+  const allIntegrations = computed<
+    { integration: IntegrationDefinition; config?: IntegrationRecord }[]
+  >(() => {
+    const configs = safeConfigurationsArray()
+    return safeAvailableArray().flatMap(integration => {
+      const matchingConfigs = configs.filter(
+        c => c.integrationId === integration.id,
+      )
+      if (matchingConfigs.length > 0) {
+        return matchingConfigs.map(config => ({ integration, config }))
+      }
+      return [{ integration }]
+    })
+  })
+
   // Get the Mapbox access token from configured integrations
   const mapboxAccessToken = computed(() => {
     const mapboxConfig = safeConfigurationsArray().find(
@@ -201,6 +218,7 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     integrationConfigurations,
     unconfiguredIntegrations,
     availableIntegrations,
+    allIntegrations,
     configuredIntegrations,
     getConfigurationsForIntegration,
     mapboxAccessToken,

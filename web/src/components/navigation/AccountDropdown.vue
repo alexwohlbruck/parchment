@@ -87,7 +87,7 @@ onMounted(() => {
     latestRelease.value = release
   })
 })
-const API_DOCS_HREF = 'https://docs.parchment.app/docs/api'
+const API_DOCS_HREF = 'https://docs.parchment.app/api'
 
 // Language options from command store
 const languageOptions = computed(() =>

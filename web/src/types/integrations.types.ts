@@ -4,15 +4,66 @@ export * from '@server/types/integration.types'
 // Client-side types
 import { z } from 'zod'
 import { IntegrationDefinition } from '@server/types/integration.types'
+import { DependencyType, type Dependency, type Config } from '@/components/ui/auto-form/interface'
 
 // TODO: i18n translate error messages
+
+export interface SchemaConfig {
+  fieldConfig?: Config<any>
+  dependencies?: Dependency<any>[]
+}
+
+/** Per-schema field config and dependencies for AutoForm. */
+export const schemaConfigs: Partial<Record<string, SchemaConfig>> = {
+  openstreetmapSystemSchema: {
+    fieldConfig: {
+      server: {
+        label: 'Server',
+        description: 'Which OpenStreetMap instance to connect to',
+      },
+      customServerUrl: {
+        label: 'Custom Server URL',
+        inputProps: {
+          placeholder: 'https://your-osm-instance.example.com',
+        },
+      },
+      clientId: {
+        label: 'Client ID',
+      },
+      clientSecret: {
+        label: 'Client Secret',
+      },
+      redirectUri: {
+        label: 'Redirect URI',
+        description: 'Must match the redirect URI registered in your OSM OAuth app. HTTPS is required by OSM.',
+        inputProps: {
+          placeholder: 'https://your-server.example.com/integrations/osm/callback',
+        },
+      },
+    },
+    dependencies: [
+      {
+        sourceField: 'server',
+        targetField: 'customServerUrl',
+        type: DependencyType.HIDES,
+        when: (serverValue: string) => serverValue !== 'custom',
+      },
+      {
+        sourceField: 'server',
+        targetField: 'customServerUrl',
+        type: DependencyType.REQUIRES,
+        when: (serverValue: string) => serverValue === 'custom',
+      },
+    ],
+  },
+}
 
 export const configSchemas: Record<
   IntegrationDefinition['configSchema'],
   z.ZodTypeAny
 > = {
   apiKeySchema: z.object({
-    apiKey: z.string().min(1, 'API Key is required'),
+    apiKey: z.string().min(1, 'API Key is required').describe('public'),
   }),
 
   hostConfigSchema: z.object({
@@ -23,6 +74,17 @@ export const configSchemas: Record<
   oauthConfigSchema: z.object({
     clientId: z.string().min(1, 'Client ID is required'),
     clientSecret: z.string().min(1, 'Client Secret is required'),
+  }),
+
+  openstreetmapSystemSchema: z.object({
+    server: z
+      .enum(['production', 'sandbox', 'custom'])
+      .default('production')
+      .describe('public'),
+    customServerUrl: z.string().url('Please enter a valid URL').optional().describe('public'),
+    clientId: z.string().min(1, 'Client ID is required'),
+    clientSecret: z.string().optional(),
+    redirectUri: z.string().url('Please enter a valid URL').optional(),
   }),
 
   nominatimSchema: z.object({
@@ -48,7 +110,7 @@ export const configSchemas: Record<
   }),
 
   mapboxSchema: z.object({
-    accessToken: z.string().min(1, 'Access token is required'),
+    accessToken: z.string().min(1, 'Access token is required').describe('public'),
   }),
 
   valhallaSchema: z.object({
@@ -67,7 +129,7 @@ export const configSchemas: Record<
   ),
 
   mapillarySchema: z.object({
-    accessToken: z.string().min(1, 'Access token is required'),
+    accessToken: z.string().min(1, 'Access token is required').describe('public'),
   }),
 
   transitlandSchema: z.object({

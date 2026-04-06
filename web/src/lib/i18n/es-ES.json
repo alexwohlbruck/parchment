@@ -983,6 +983,7 @@
       "disconnect": {
         "title": "Desconectar Integración",
         "description": "¿Estás seguro que quieres desconectar la integración {name}?",
+        "dependentsWarning": "Esto también eliminará {count} integración(es) dependiente(s) ({names}) que dependen de ella.",
         "success": "Integración {name} desconectada exitosamente"
       },
       "test": {
@@ -1033,8 +1034,8 @@
         "openweathermap": "Datos meteorológicos e información de calidad del aire",
         "axiom": "Enviar registros y trazas del servidor a Axiom para depuración y monitoreo",
         "barrelman": "Motor de búsqueda y espacial OSM autoalojado",
-        "openstreetmap": "Configurar credenciales de la aplicación OAuth de OSM para la autenticación de usuarios",
-        "openstreetmap-account": "Conecta tu cuenta OSM para agregar notas, comentarios y hacer ediciones rápidas"
+        "openstreetmap": "Configurar credenciales OAuth de OSM",
+        "openstreetmap-account": "Agregar notas, comentarios y hacer ediciones rápidas"
       },
       "osm": {
         "connected": "Cuenta de OpenStreetMap conectada exitosamente",
@@ -1042,8 +1043,11 @@
         "authError": "Error al conectar la cuenta de OpenStreetMap",
         "disconnectError": "Error al desconectar la cuenta de OpenStreetMap",
         "disconnect": "Desconectar",
-        "viewProfile": "Ver perfil de OSM"
-      }
+        "viewProfile": "Ver perfil de OSM",
+        "configureOAuthApp": "Configurar aplicación OAuth en el servidor OSM",
+        "devCallbackInstructions": "Modo dev: Después de autorizar en el navegador, copia la URL de redirección completa y ejecuta window.__osmDevCallback('URL') en la consola"
+      },
+      "viewDocs": "Ver documentación"
     },
     "users": {
       "title": "Usuarios y Roles",

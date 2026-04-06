@@ -10,9 +10,7 @@ import {
   OsmNoteComment,
 } from '../../types/integration.types'
 import { SOURCE } from '../../lib/constants'
-import { osmConfig } from '../../config/osm.config'
-
-const OSM_API_BASE = osmConfig.apiBase
+import { getOsmConfig } from '../../config/osm.config'
 
 export interface OpenStreetMapConfig extends IntegrationConfig {
   accessToken: string
@@ -79,7 +77,7 @@ export class OpenStreetMapIntegration
     }
 
     try {
-      const response = await axios.get(`${OSM_API_BASE}/user/details.json`, {
+      const response = await axios.get(`${getOsmConfig().apiBase}/user/details.json`, {
         headers: this.getAuthHeaders(config.accessToken),
       })
       const user = response.data?.user
@@ -122,7 +120,7 @@ export class OpenStreetMapIntegration
   ): Promise<OsmNote> {
     this.ensureInitialized()
     const response = await axios.post(
-      `${OSM_API_BASE}/notes.json`,
+      `${getOsmConfig().apiBase}/notes.json`,
       null,
       {
         params: { lat, lon: lng, text },
@@ -134,7 +132,7 @@ export class OpenStreetMapIntegration
 
   private async getNote(id: number): Promise<OsmNote> {
     this.ensureInitialized()
-    const response = await axios.get(`${OSM_API_BASE}/notes/${id}.json`, {
+    const response = await axios.get(`${getOsmConfig().apiBase}/notes/${id}.json`, {
       headers: this.getAuthHeaders(),
     })
     return this.adaptNote(response.data.properties)
@@ -143,7 +141,7 @@ export class OpenStreetMapIntegration
   private async commentOnNote(id: number, text: string): Promise<OsmNote> {
     this.ensureInitialized()
     const response = await axios.post(
-      `${OSM_API_BASE}/notes/${id}/comment.json`,
+      `${getOsmConfig().apiBase}/notes/${id}/comment.json`,
       null,
       {
         params: { text },
@@ -156,7 +154,7 @@ export class OpenStreetMapIntegration
   private async closeNote(id: number, text?: string): Promise<OsmNote> {
     this.ensureInitialized()
     const response = await axios.post(
-      `${OSM_API_BASE}/notes/${id}/close.json`,
+      `${getOsmConfig().apiBase}/notes/${id}/close.json`,
       null,
       {
         params: text ? { text } : undefined,
@@ -177,7 +175,7 @@ export class OpenStreetMapIntegration
       .join('')
     const body = `<osm><changeset>${tagsXml}</changeset></osm>`
 
-    const response = await axios.put(`${OSM_API_BASE}/changeset/create`, body, {
+    const response = await axios.put(`${getOsmConfig().apiBase}/changeset/create`, body, {
       headers: {
         ...this.getAuthHeaders(),
         'Content-Type': 'text/xml',
@@ -192,7 +190,7 @@ export class OpenStreetMapIntegration
   ): Promise<void> {
     this.ensureInitialized()
     await axios.post(
-      `${OSM_API_BASE}/changeset/${changesetId}/upload`,
+      `${getOsmConfig().apiBase}/changeset/${changesetId}/upload`,
       osmChange,
       {
         headers: {
@@ -206,7 +204,7 @@ export class OpenStreetMapIntegration
   private async closeChangeset(changesetId: number): Promise<void> {
     this.ensureInitialized()
     await axios.put(
-      `${OSM_API_BASE}/changeset/${changesetId}/close`,
+      `${getOsmConfig().apiBase}/changeset/${changesetId}/close`,
       null,
       { headers: this.getAuthHeaders() },
     )

@@ -1020,6 +1020,7 @@
       "disconnect": {
         "title": "Disconnect Integration",
         "description": "Are you sure you want to disconnect the {name} integration?",
+        "dependentsWarning": "This will also remove {count} dependent integration(s) ({names}) that rely on it.",
         "success": "{name} integration successfully disconnected"
       },
       "test": {
@@ -1072,8 +1073,8 @@
         "openweathermap": "Weather data and air quality information",
         "axiom": "Send server logs and traces to Axiom for debugging and monitoring",
         "barrelman": "Self-hosted OSM search and spatial engine",
-        "openstreetmap": "Configure OSM OAuth application credentials for user authentication",
-        "openstreetmap-account": "Connect your OSM account to add notes, comments, and make quick edits"
+        "openstreetmap": "Configure OSM OAuth",
+        "openstreetmap-account": "Add notes, comments, and make quick edits"
       },
       "osm": {
         "connected": "OpenStreetMap account connected successfully",
@@ -1081,8 +1082,11 @@
         "authError": "Failed to connect OpenStreetMap account",
         "disconnectError": "Failed to disconnect OpenStreetMap account",
         "disconnect": "Disconnect",
-        "viewProfile": "View OSM profile"
-      }
+        "viewProfile": "View OSM profile",
+        "configureOAuthApp": "Configure OAuth application on OSM server",
+        "devCallbackInstructions": "Dev mode: After authorizing in the browser, copy the full redirect URL and run window.__osmDevCallback('URL') in the console"
+      },
+      "viewDocs": "View documentation"
     },
     "users": {
       "title": "Users & Roles",

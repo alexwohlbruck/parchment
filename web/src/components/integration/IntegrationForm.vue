@@ -5,6 +5,7 @@ import { useIntegrationService } from '@/services/integration.service'
 import {
   IntegrationDefinition,
   IntegrationRecord,
+  schemaConfigs,
 } from '@/types/integrations.types'
 import { ZodObject } from 'zod'
 import { AutoForm } from '@/components/ui/auto-form'
@@ -16,6 +17,8 @@ import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import * as z from 'zod'
 import { TransitionExpand } from '@morev/vue-transitions'
+import { useServerUrl } from '@/lib/api'
+import { ExternalLinkIcon } from 'lucide-vue-next'
 
 const props = defineProps<{
   integration: IntegrationDefinition
@@ -31,7 +34,31 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const { toast } = useAppService()
 const integrationService = useIntegrationService()
+const serverUrl = useServerUrl()
 const formRef = ref(null)
+
+const DOCS_BASE = 'https://docs.parchment.app/usage/integrations'
+
+const docsUrl = computed(() => {
+  return `${DOCS_BASE}/${props.integration.id}`
+})
+
+const isOsmSystemSchema = computed(
+  () => props.integration.configSchema === 'openstreetmapSystemSchema',
+)
+
+const defaultRedirectUri = computed(() => {
+  const base = serverUrl.value
+  // OSM requires HTTPS redirect URIs. In dev mode (http://localhost),
+  // use https:// so the URI is accepted by OSM for registration.
+  // The dev workaround handles the redirect failure.
+  const httpsBase = base.replace(/^http:\/\//, 'https://')
+  return `${httpsBase}/integrations/osm/callback`
+})
+
+const currentSchemaConfig = computed(() =>
+  schemaConfigs[props.integration.configSchema] ?? {},
+)
 
 interface FormValues {
   config: Record<string, any>
@@ -267,6 +294,13 @@ onMounted(() => {
       validateConfigForm()
     }, 0)
   }
+
+  // Pre-fill default redirect URI for new OSM system integrations
+  if (isOsmSystemSchema.value && !props.isConfigured) {
+    setTimeout(() => {
+      configForm.setFieldValue('redirectUri', defaultRedirectUri.value)
+    }, 0)
+  }
 })
 
 defineExpose({ submit })
@@ -274,11 +308,25 @@ defineExpose({ submit })
 
 <template>
   <div class="space-y-6">
+    <div class="flex items-center gap-1.5 text-sm text-muted-foreground">
+      <ExternalLinkIcon class="size-3.5 shrink-0" />
+      <a
+        :href="docsUrl"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="underline hover:text-foreground transition-colors"
+      >
+        {{ t('settings.integrations.viewDocs') }}
+      </a>
+    </div>
+
     <!-- TODO: Add "show secrets" toggle to text fields -->
     <AutoForm
       ref="formRef"
       :schema="schema"
       :form="configForm"
+      :field-config="currentSchemaConfig.fieldConfig"
+      :dependencies="currentSchemaConfig.dependencies"
       class="space-y-4"
     />
 

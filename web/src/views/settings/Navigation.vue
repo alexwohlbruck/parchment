@@ -56,7 +56,12 @@ const pages: {
     id: 'integrations',
     to: '/settings/integrations',
     icon: BlocksIcon,
-    permissions: PermissionId.INTEGRATIONS_READ,
+    permissions: {
+      any: [
+        PermissionId.INTEGRATIONS_READ_USER,
+        PermissionId.INTEGRATIONS_READ_SYSTEM,
+      ],
+    },
   },
   {
     id: 'users',

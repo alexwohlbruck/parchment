@@ -27,6 +27,7 @@ import {
   notes as notesController,
 } from './controllers'
 import { initializeIntegrations } from './services/integration.service'
+import { syncPermissionsAndRoles } from './seed/sync-permissions'
 import { getI18nInitOptions, detectLanguage } from './lib/i18n'
 import { initializeOsmPresets } from './lib/osm-presets'
 
@@ -102,6 +103,8 @@ async function main() {
 
   try {
     logger.debug('i18n configured')
+    await syncPermissionsAndRoles()
+    logger.info('Permissions and roles synced')
     initializeOsmPresets()
     await initializeIntegrations()
     logger.info('Integrations initialized')

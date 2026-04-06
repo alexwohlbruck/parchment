@@ -32,14 +32,20 @@ export const permissions: {
     name: 'Read system status data',
   },
   {
-    id: PermissionId.INTEGRATIONS_READ,
-    name: 'View integrations',
+    id: PermissionId.INTEGRATIONS_READ_USER,
+    name: 'Read User Integrations',
+    description: 'View user-scoped integration configurations',
   },
   {
     id: PermissionId.INTEGRATIONS_WRITE_USER,
     name: 'Write User Integrations',
     description:
       'Create, update, and delete user-scoped integration configurations',
+  },
+  {
+    id: PermissionId.INTEGRATIONS_READ_SYSTEM,
+    name: 'Read System Integrations',
+    description: 'View system-wide integration configurations in settings',
   },
   {
     id: PermissionId.INTEGRATIONS_WRITE_SYSTEM,

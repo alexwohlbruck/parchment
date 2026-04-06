@@ -25,7 +25,7 @@ const availableIntegrations: IntegrationDefinition[] = [
     paid: true,
     cloud: true,
     configSchema: 'mapboxSchema',
-    public: true,
+    publicFields: ['accessToken'],
     scope: [IntegrationScope.SYSTEM],
   },
   {
@@ -144,7 +144,7 @@ const availableIntegrations: IntegrationDefinition[] = [
     paid: false,
     cloud: true,
     configSchema: 'mapillarySchema',
-    public: true,
+    publicFields: ['accessToken'],
     scope: [IntegrationScope.SYSTEM],
   },
   {
@@ -235,7 +235,7 @@ const availableIntegrations: IntegrationDefinition[] = [
     paid: true,
     cloud: true,
     configSchema: 'apiKeySchema',
-    public: true,
+    publicFields: ['apiKey'],
     scope: [IntegrationScope.SYSTEM],
   },
   {
@@ -261,7 +261,21 @@ const availableIntegrations: IntegrationDefinition[] = [
     capabilities: [],
     paid: false,
     cloud: true,
-    configSchema: 'oauthConfigSchema',
+    configSchema: 'openstreetmapSystemSchema',
+    resolvePublicConfig: (config) => {
+      const server = config.server || 'production'
+      const OSM_SERVERS: Record<string, string> = {
+        production: 'https://www.openstreetmap.org',
+        sandbox: 'https://master.apis.dev.openstreetmap.org',
+      }
+      let serverUrl: string
+      if (server === 'custom' && config.customServerUrl) {
+        serverUrl = config.customServerUrl.replace(/\/+$/, '')
+      } else {
+        serverUrl = OSM_SERVERS[server] || OSM_SERVERS.production
+      }
+      return { serverUrl }
+    },
     scope: [IntegrationScope.SYSTEM],
   },
   {
@@ -278,6 +292,7 @@ const availableIntegrations: IntegrationDefinition[] = [
     paid: false,
     cloud: true,
     configSchema: 'openstreetmapOAuthSchema',
+    publicFields: ['osmDisplayName', 'osmProfileImageUrl', 'osmAccountCreated', 'osmChangesetCount', 'osmTraceCount'],
     authType: 'oauth2',
     scope: [IntegrationScope.USER],
     requiresSystemIntegration: IntegrationId.OPENSTREETMAP,
@@ -448,25 +463,32 @@ export async function getAvailableIntegrations(): Promise<
   return availableIntegrations
 }
 
-export async function getPublicIntegrations(): Promise<any[]> {
-  // Get system-wide integrations only (public integrations are typically system-wide)
-  const systemIntegrations = await getConfiguredIntegrations()
+/**
+ * Extract only the public fields from an integration's config,
+ * based on the `publicFields` list in its definition.
+ * If the definition provides a `resolvePublicConfig` callback,
+ * it takes precedence over the raw field list.
+ * Returns an empty object when the definition has no public fields.
+ */
+export function extractPublicConfig(
+  config: Record<string, any>,
+  definition: IntegrationDefinition | undefined,
+): Record<string, any> {
+  if (!definition) return {}
 
-  // Filter to only include public integrations
-  const publicIntegrations = systemIntegrations.filter((integration) => {
-    const definition = availableIntegrations.find(
-      (def) => def.id === integration.integrationId,
-    )
-    return definition?.public === true
-  })
+  // Use custom resolver if provided
+  if (definition.resolvePublicConfig) {
+    return definition.resolvePublicConfig(config)
+  }
 
-  // Return integrations with their config exposed (since they're public)
-  return publicIntegrations.map((integration) => ({
-    id: integration.id,
-    integrationId: integration.integrationId,
-    config: integration.config,
-    capabilities: integration.capabilities, // Include capabilities for client-side filtering
-  }))
+  if (!definition.publicFields?.length) return {}
+  const result: Record<string, any> = {}
+  for (const key of definition.publicFields) {
+    if (key in config) {
+      result[key] = config[key]
+    }
+  }
+  return result
 }
 
 export async function getIntegration(
@@ -621,6 +643,28 @@ export async function updateIntegration(
   return updatedIntegration
 }
 
+/**
+ * Find all configured integrations that depend on the given integration ID
+ * via `requiresSystemIntegration`. Returns records across all users.
+ */
+export async function getDependentIntegrations(
+  integrationId: IntegrationId,
+): Promise<IntegrationRecord[]> {
+  // Find definitions that depend on this integration
+  const dependentDefinitions = availableIntegrations.filter(
+    (def) => def.requiresSystemIntegration === integrationId,
+  )
+  if (dependentDefinitions.length === 0) return []
+
+  const dependentIds = dependentDefinitions.map((def) => def.id)
+
+  // Find all configured instances of those dependent definitions
+  const allIntegrations = await db.select().from(integrations)
+  return allIntegrations
+    .filter((record) => dependentIds.includes(record.integrationId as IntegrationId))
+    .map(parseIntegrationData)
+}
+
 export async function deleteIntegration(
   id: string,
   userId?: string,
@@ -642,7 +686,19 @@ export async function deleteIntegration(
     throw new Error(`Integration with ID ${id} not found`)
   }
 
-  await db.delete(integrations).where(eq(integrations.id, id))
+  const record = parseIntegrationData(result[0])
+
+  // Cascade-delete dependent integrations (e.g. user OSM accounts when
+  // the system OSM integration is removed)
+  const dependents = await getDependentIntegrations(
+    record.integrationId as IntegrationId,
+  )
+  for (const dep of dependents) {
+    await db.delete(integrations).where(eq(integrations.id, dep.id))
+    integrationManager.removeIntegration(dep.userId ?? undefined, dep.id)
+  }
+
+  await db.delete(integrations).where(whereCondition)
 
   integrationManager.removeIntegration(userId, id)
 }

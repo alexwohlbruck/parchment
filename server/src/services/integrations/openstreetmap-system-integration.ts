@@ -6,9 +6,14 @@ import type {
 } from '../../types/integration.types'
 import { IntegrationId, IntegrationCapabilityId } from '../../types/integration.enums'
 
+export type OsmServerOption = 'production' | 'sandbox' | 'custom'
+
 export interface OpenStreetMapSystemConfig extends IntegrationConfig {
   clientId: string
-  clientSecret: string
+  clientSecret?: string
+  server?: OsmServerOption
+  customServerUrl?: string
+  redirectUri?: string
 }
 
 /**
@@ -25,7 +30,7 @@ export class OpenStreetMapSystemIntegration
   readonly capabilities: IntegrationCapabilities = {}
 
   validateConfig(config: OpenStreetMapSystemConfig): boolean {
-    return !!(config?.clientId?.trim() && config?.clientSecret?.trim())
+    return !!config?.clientId?.trim()
   }
 
   async testConnection(
@@ -34,7 +39,7 @@ export class OpenStreetMapSystemIntegration
     if (!this.validateConfig(config)) {
       return {
         success: false,
-        message: 'Client ID and Client Secret are required',
+        message: 'Client ID is required',
       }
     }
     // OAuth app credentials can't be validated without a full user flow,

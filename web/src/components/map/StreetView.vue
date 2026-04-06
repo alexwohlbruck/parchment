@@ -9,13 +9,15 @@ import { cn } from '@/lib/utils'
 import { TransitionFade } from '@morev/vue-transitions'
 import { Loader2Icon } from 'lucide-vue-next'
 import { updatePegmanData } from '@/lib/pegman.utils'
-import { api } from '@/lib/api'
+import { useIntegrationsStore } from '@/stores/integrations.store'
+import { IntegrationId } from '@server/types/integration.types'
 
 let viewer: Viewer | null = null
 const container = ref()
 const loading = ref(false)
 
 const mapService = useMapService()
+const integrationsStore = useIntegrationsStore()
 
 const props = defineProps<{
   pipSwapped: boolean
@@ -24,14 +26,11 @@ const props = defineProps<{
 const router = useRouter()
 const route = useRoute()
 
-async function getMapillaryAccessToken(): Promise<string | undefined> {
-  try {
-    const { data } = await api.get('/integrations/public')
-    const mapillary = (data as any[]).find(i => i.integrationId === 'mapillary')
-    return mapillary?.config?.accessToken
-  } catch (e) {
-    return undefined
-  }
+function getMapillaryAccessToken(): string | undefined {
+  return integrationsStore.getIntegrationConfigValue(
+    IntegrationId.MAPILLARY,
+    'accessToken',
+  ) as string | undefined
 }
 
 async function updatePegman(viewer: Viewer) {
@@ -54,7 +53,7 @@ onMounted(async () => {
   if (!container.value) return
 
   const token =
-    (await getMapillaryAccessToken()) ||
+    getMapillaryAccessToken() ||
     import.meta.env.VITE_MAPILLARY_ACCESS_TOKEN
 
   const options: ViewerOptions = {

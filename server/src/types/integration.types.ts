@@ -318,7 +318,8 @@ export type IntegrationDefinition = {
   paid: boolean
   cloud: boolean
   configSchema: string // Reference to schema name used on the client
-  public?: boolean // Mark the integration as public/client-facing, keys will be exposed to all users
+  publicFields?: string[] // Config field names safe to expose to all users (including unauthenticated)
+  resolvePublicConfig?: (config: Record<string, any>) => Record<string, any> // Optional override to compute public config from raw config
   scope: IntegrationScope[] // Defines where this integration can be configured
   authType?: 'form' | 'oauth2' // Defaults to 'form'. OAuth2 integrations use redirect-based auth instead of config forms.
   requiresSystemIntegration?: IntegrationId // This integration is only available when the referenced system integration is configured

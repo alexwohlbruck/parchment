@@ -19,7 +19,8 @@ const user: Role = {
   name: 'User',
   description: 'A user that can view and browse the map',
   permissions: [
-    PermissionId.INTEGRATIONS_READ,
+    PermissionId.INTEGRATIONS_READ_USER,
+    PermissionId.INTEGRATIONS_WRITE_USER,
     PermissionId.LAYERS_READ,
     PermissionId.LAYERS_WRITE,
   ],
@@ -31,8 +32,9 @@ const alpha: Role = {
   description:
     'A privileged user that is able to read all data in the app, but has limited write permissions',
   permissions: [
-    PermissionId.INTEGRATIONS_READ,
+    PermissionId.INTEGRATIONS_READ_USER,
     PermissionId.INTEGRATIONS_WRITE_USER,
+    PermissionId.INTEGRATIONS_READ_SYSTEM,
     PermissionId.SYSTEM_READ,
     PermissionId.LAYERS_READ,
     PermissionId.LAYERS_WRITE,

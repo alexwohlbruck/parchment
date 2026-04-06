@@ -17,6 +17,7 @@ import {
 } from '@/types/map.types'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { useStorage } from '@vueuse/core'
+import { STORAGE_KEYS } from '@/lib/storage'
 
 const emitter = mitt<MapEvents>()
 
@@ -63,17 +64,36 @@ export const useMapStore = defineStore('map', () => {
     mapStrategy = map
   }
 
-  const settings = useStorage<MapSettings>('map', defaultSettings)
-  const controlSettings = useStorage<MapControlSettings>(
-    'map-controls',
-    getDefaultControlSettings(),
-  )
+  interface MapState {
+    settings: MapSettings
+    controls: MapControlSettings
+    camera: MapCamera
+  }
 
-  const mapCamera = useStorage<MapCamera>('map-camera', {
-    center: [-44.808291513887866, 21.851187958608364],
-    zoom: 2,
-    bearing: 0,
-    pitch: 0,
+  const state = useStorage<MapState>(STORAGE_KEYS.MAP, {
+    settings: defaultSettings,
+    controls: getDefaultControlSettings(),
+    camera: {
+      center: [-44.808291513887866, 21.851187958608364],
+      zoom: 2,
+      bearing: 0,
+      pitch: 0,
+    },
+  })
+
+  const settings = computed({
+    get: () => state.value.settings,
+    set: (v: MapSettings) => { state.value.settings = v },
+  })
+
+  const controlSettings = computed({
+    get: () => state.value.controls,
+    set: (v: MapControlSettings) => { state.value.controls = v },
+  })
+
+  const mapCamera = computed({
+    get: () => state.value.camera,
+    set: (v: MapCamera) => { state.value.camera = v },
   })
 
   function setMapCamera(camera: MapCamera) {

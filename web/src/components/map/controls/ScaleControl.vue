@@ -6,14 +6,14 @@ import type { LngLat } from '@/types/map.types'
 import { MapProjection, ControlVisibility, UnitSystem } from '@/types/map.types'
 import { useMapService } from '@/services/map.service'
 import { useMapStore } from '@/stores/map.store'
-import { useAppStore } from '@/stores/app.store'
+import { usePreferencesStore } from '@/stores/preferences.store'
 import { useResponsive } from '@/lib/utils'
 
 const mapService = useMapService()
 const mapStore = useMapStore()
-const appStore = useAppStore()
+const preferencesStore = usePreferencesStore()
 const { controlSettings } = storeToRefs(mapStore)
-const { unitSystem } = storeToRefs(appStore)
+const { unitSystem } = storeToRefs(preferencesStore)
 const { camera, onCameraMove } = useMapCamera()
 const { isMobileScreen, isMediumScreen } = useResponsive()
 

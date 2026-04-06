@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed } from 'vue'
 import { useStorage } from '@vueuse/core'
 import type { Collection, Bookmark } from '@/types/library.types'
+import { STORAGE_KEYS } from '@/lib/storage'
 import { useBookmarksStore } from './bookmarks.store'
 
 interface NormalizedCollection extends Omit<Collection, 'places'> {
@@ -11,7 +12,7 @@ interface NormalizedCollection extends Omit<Collection, 'places'> {
 // TODO: Use pinia-orm to normalize collections and bookmarks data
 
 export const useCollectionsStore = defineStore('collections', () => {
-  const collections = useStorage<NormalizedCollection[]>('collections', [])
+  const collections = useStorage<NormalizedCollection[]>(STORAGE_KEYS.COLLECTIONS, [])
 
   const getCollectionById = computed(() => {
     return (id: string) => {

@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/lib/api'
 import { CategoryResult } from '@/types/search.types'
 import { useAppDataCache } from '@/lib/app-data-cache'
+import { STORAGE_KEYS } from '@/lib/storage'
 
 // ---------------------------------------------------------------------------
 // Scoring helpers (mirrors server/src/services/category.service.ts logic)
@@ -153,7 +154,7 @@ export const useCategoryStore = defineStore('category', () => {
   )
 
   function getCache(language: string) {
-    return useAppDataCache<CategoryResult[]>(`parchment-categories-${language}`, {
+    return useAppDataCache<CategoryResult[]>(STORAGE_KEYS.cache.categories(language), {
       schemaVersion: SCHEMA_VERSION,
       maxAgeHours: 24,
     })

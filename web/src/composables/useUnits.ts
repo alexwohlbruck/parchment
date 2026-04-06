@@ -1,13 +1,13 @@
 import convert from 'convert'
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useAppStore } from '@/stores/app.store'
+import { usePreferencesStore } from '@/stores/preferences.store'
 import { UnitSystem } from '@/types/map.types'
 
 // TODO: See if we can replace this with a prebuilt library solution
 
 export function useUnits() {
-  const { unitSystem } = storeToRefs(useAppStore())
+  const { unitSystem } = storeToRefs(usePreferencesStore())
   const isMetric = computed(() => unitSystem.value === UnitSystem.METRIC)
 
   return {

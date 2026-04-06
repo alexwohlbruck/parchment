@@ -13,6 +13,22 @@ import { setActivePinia, createPinia } from 'pinia'
 import { useNotesStore, parseBbox, bboxToString } from './notes.store'
 import type { OsmNote } from '@/types/notes.types'
 
+// Mock localStorage for test environment
+const localStorageMock = (() => {
+  let store: Record<string, string> = {}
+  return {
+    getItem: (key: string) => store[key] ?? null,
+    setItem: (key: string, value: string) => { store[key] = value },
+    removeItem: (key: string) => { delete store[key] },
+    clear: () => { store = {} },
+    get length() { return Object.keys(store).length },
+    key: (i: number) => Object.keys(store)[i] ?? null,
+  }
+})()
+if (typeof globalThis.localStorage === 'undefined') {
+  Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock })
+}
+
 function makeNote(overrides: Partial<OsmNote> = {}): OsmNote {
   return {
     id: 1,

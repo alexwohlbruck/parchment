@@ -23,6 +23,7 @@ import {
 } from 'lucide-vue-next'
 import { RoutingPreferences, RoutingEngine, SelectedMode } from '@/types/multimodal.types'
 import { useIntegrationsStore } from '@/stores/integrations.store'
+import { useDirectionsStore } from '@/stores/directions.store'
 import { useUnits } from '@/composables/useUnits'
 
 const { t } = useI18n()
@@ -55,6 +56,7 @@ function updatePreference<K extends keyof RoutingPreferences>(
 
 // Routing engines state - get from integrations store
 const integrationsStore = useIntegrationsStore()
+const directionsStore = useDirectionsStore()
 
 // Get routing engines from configured integrations
 const routingEngines = computed(() => {
@@ -189,13 +191,10 @@ const activeTab = ref<string>('walking')
 
 // Initialize tab based on current mode
 onMounted(() => {
-  // Always sync to current mode first
   if (props.selectedMode !== 'multi') {
     activeTab.value = modeToTab[props.selectedMode] || 'walking'
   } else {
-    // For multi mode, use last opened tab from localStorage
-    const saved = localStorage.getItem('routingPreferencesTab')
-    activeTab.value = saved || 'walking'
+    activeTab.value = directionsStore.preferencesTab || 'walking'
   }
 })
 
@@ -203,13 +202,10 @@ onMounted(() => {
 watch(
   () => props.selectedMode,
   (newMode) => {
-    // Always sync to current mode
     if (newMode !== 'multi') {
       activeTab.value = modeToTab[newMode] || 'walking'
     } else {
-      // For multi mode, use last opened tab from localStorage
-      const saved = localStorage.getItem('routingPreferencesTab')
-      activeTab.value = saved || 'walking'
+      activeTab.value = directionsStore.preferencesTab || 'walking'
     }
   },
   { immediate: false }
@@ -220,7 +216,7 @@ function handleTabChange(value: string | number) {
   const tabValue = String(value)
   activeTab.value = tabValue
   if (props.selectedMode === 'multi') {
-    localStorage.setItem('routingPreferencesTab', tabValue)
+    directionsStore.preferencesTab = tabValue
   }
 }
 </script>

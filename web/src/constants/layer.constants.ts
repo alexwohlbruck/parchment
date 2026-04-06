@@ -6,9 +6,8 @@ import {
 } from '@/types/map.types'
 import type { Layer, LayerGroup } from '@/types/map.types'
 import { cssHslToHex } from '@/lib/utils'
-import { useStorage } from '@vueuse/core'
-import { DEFAULT_SERVER_URL } from '@/lib/constants'
 import { computed } from 'vue'
+import { appStorage } from '@/stores/app.store'
 
 // Dynamic color functions for reactive theme updates
 export function getPlacePolygonFillColor(): string {
@@ -30,18 +29,12 @@ export const PLACE_POLYGON_SOURCE_ID = 'place-polygon-source-internal'
 export const PLACE_POLYGON_FILL_LAYER_ID = 'place-polygon-fill-internal'
 export const PLACE_POLYGON_STROKE_LAYER_ID = 'place-polygon-stroke-internal'
 
-// Reactive server URL
-export const serverUrl = useStorage(
-  'parchment-selected-server',
-  DEFAULT_SERVER_URL,
-)
-
 // Reactive helper function to build API proxy URLs
 export const buildProxyUrl = computed(() => {
   return (endpoint: string): string => {
-    const baseUrl = serverUrl.value.endsWith('/')
-      ? serverUrl.value.slice(0, -1)
-      : serverUrl.value
+    const baseUrl = appStorage.value.selectedServer.endsWith('/')
+      ? appStorage.value.selectedServer.slice(0, -1)
+      : appStorage.value.selectedServer
     return `${baseUrl}/proxy/${endpoint}`
   }
 })

@@ -9,7 +9,7 @@ import { ExternalLinkIcon } from 'lucide-vue-next'
 import { formatWord } from '@/lib/string.utils'
 import { getOsmTagLabel, osmKeyToI18nKey } from '@/lib/osm-tag-labels'
 import { getOsmTagIcon } from '@/lib/osm-tag-icons'
-import { useAppStore } from '@/stores/app.store'
+import { usePreferencesStore } from '@/stores/preferences.store'
 import { FloorNumbering } from '@/types/map.types'
 
 const props = defineProps<{
@@ -19,7 +19,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const appStore = useAppStore()
+const preferencesStore = usePreferencesStore()
 
 /** Translate an OSM tag key label, falling back to the English TAG_LABELS dict. */
 function tagLabel(key: string): string {
@@ -86,7 +86,7 @@ function formatValue(key: string, value: string): { text: string; href?: string 
   // Floor/level display — adjust for one-based numbering
   if (key === 'level') {
     const num = parseInt(value, 10)
-    if (!isNaN(num) && appStore.floorNumbering === FloorNumbering.ONE_BASED) {
+    if (!isNaN(num) && preferencesStore.floorNumbering === FloorNumbering.ONE_BASED) {
       return { text: String(num + 1) }
     }
   }

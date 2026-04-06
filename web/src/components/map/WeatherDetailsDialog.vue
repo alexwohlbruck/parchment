@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useAppStore } from '@/stores/app.store'
+import { usePreferencesStore } from '@/stores/preferences.store'
 import { UnitSystem } from '@/types/map.types'
 import { storeToRefs } from 'pinia'
 import type { WeatherData } from '@server/types/integration.types'
@@ -40,8 +40,8 @@ const emit = defineEmits<{
   'update:open': [value: boolean]
 }>()
 
-const appStore = useAppStore()
-const { unitSystem } = storeToRefs(appStore)
+const preferencesStore = usePreferencesStore()
+const { unitSystem } = storeToRefs(preferencesStore)
 
 // Get weather icon based on condition
 const getWeatherIcon = (weather: WeatherData | null): LucideIcon => {

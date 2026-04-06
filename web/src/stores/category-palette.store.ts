@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { api } from '@/lib/api'
 import { useAppDataCache } from '@/lib/app-data-cache'
+import { STORAGE_KEYS } from '@/lib/storage'
 import type { PlaceCategory } from '@/types/place.types'
 
 export interface PlaceCategoryDefinition {
@@ -27,7 +28,7 @@ const FALLBACK_PALETTE: PlaceCategoryDefinition[] = [
 const SCHEMA_VERSION = 1
 
 export const useCategoryPaletteStore = defineStore('categoryPalette', () => {
-  const cache = useAppDataCache<PlaceCategoryDefinition[]>('parchment-category-palette', {
+  const cache = useAppDataCache<PlaceCategoryDefinition[]>(STORAGE_KEYS.cache.CATEGORY_PALETTE, {
     schemaVersion: SCHEMA_VERSION,
     maxAgeHours: 168, // 1 week — colors rarely change
   })

@@ -7,7 +7,7 @@ import {
   type IntegrationDefinition,
   type IntegrationRecord,
 } from '@server/types/integration.types'
-import { jsonSerializer } from '@/lib/storage'
+import { STORAGE_KEYS, jsonSerializer } from '@/lib/storage'
 import {
   siFoursquare,
   siGooglemaps,
@@ -48,22 +48,26 @@ const getIcon = (integrationId: string) => {
 }
 
 export const useIntegrationsStore = defineStore('integrations', () => {
-  // Use null as default to distinguish "never fetched" from "fetched but empty"
-  // null = not initialized, [] = initialized but no integrations
-  // Must specify serializer explicitly because null default causes vueuse to
-  // pick the "any" serializer which corrupts objects via String()
-  const integrationConfigurations = useStorage<IntegrationRecord[] | null>(
-    'integration-configurations',
-    null,
+  interface IntegrationsState {
+    configs: IntegrationRecord[] | null
+    available: IntegrationDefinition[] | null
+  }
+
+  const stored = useStorage<IntegrationsState>(
+    STORAGE_KEYS.INTEGRATIONS,
+    { configs: null, available: null },
     undefined,
     { serializer: jsonSerializer },
   )
-  const availableIntegrations = useStorage<IntegrationDefinition[] | null>(
-    'available-integrations',
-    null,
-    undefined,
-    { serializer: jsonSerializer },
-  )
+
+  const integrationConfigurations = computed({
+    get: () => stored.value.configs,
+    set: (v: IntegrationRecord[] | null) => { stored.value.configs = v },
+  })
+  const availableIntegrations = computed({
+    get: () => stored.value.available,
+    set: (v: IntegrationDefinition[] | null) => { stored.value.available = v },
+  })
   
   // Helper to safely get array value (handles corrupted cache data)
   const safeConfigurationsArray = () => 

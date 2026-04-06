@@ -2,7 +2,7 @@ import type { Ref } from 'vue'
 import { api } from '@/lib/api'
 import { storedLocale } from '@/lib/i18n'
 import type { Locale } from '@/lib/i18n'
-import { useAppStore } from '@/stores/app.store'
+import { usePreferencesStore } from '@/stores/preferences.store'
 import { UnitSystem } from '@/types/map.types'
 
 export interface UserPreferences {
@@ -30,8 +30,8 @@ export async function syncPreferencesFromBackend(): Promise<void> {
   try {
     const { data } = await api.get<UserPreferences>('/users/me/preferences')
     storedLocale.value = toLocale(data.language)
-    const appStore = useAppStore()
-    ;((appStore.unitSystem as unknown) as { value: UnitSystem }).value = toUnitSystem(data.unitSystem)
+    const preferencesStore = usePreferencesStore()
+    preferencesStore.unitSystem = toUnitSystem(data.unitSystem)
   } catch {
     // Not authenticated or network error – keep current local values
   }
@@ -50,8 +50,8 @@ export async function updatePreferences(updates: {
   if (updates.unitSystem !== undefined) body.unitSystem = updates.unitSystem
   const { data } = await api.put<UserPreferences>('/users/me/preferences', body)
   storedLocale.value = toLocale(data.language)
-  const appStore = useAppStore()
-  ;((appStore.unitSystem as unknown) as { value: UnitSystem }).value = toUnitSystem(data.unitSystem)
+  const preferencesStore = usePreferencesStore()
+  preferencesStore.unitSystem = toUnitSystem(data.unitSystem)
   return data
 }
 

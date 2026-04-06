@@ -15,8 +15,8 @@ import { UnitSystem } from '@/types/map.types'
 
 const mockUnitSystem = ref<UnitSystem>(UnitSystem.METRIC)
 
-vi.mock('@/stores/app.store', () => ({
-  useAppStore: () => ({
+vi.mock('@/stores/preferences.store', () => ({
+  usePreferencesStore: () => ({
     unitSystem: mockUnitSystem,
   }),
 }))

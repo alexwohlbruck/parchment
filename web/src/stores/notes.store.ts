@@ -2,9 +2,9 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useStorage } from '@vueuse/core'
 import type { OsmNote } from '@/types/notes.types'
+import { STORAGE_KEYS, jsonSerializer } from '@/lib/storage'
 
 const CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
-const CACHE_KEY = 'notes-cache'
 const MAX_CACHED_NOTES = 500
 
 /**
@@ -19,28 +19,13 @@ interface NotesCache {
   updatedAt: number
 }
 
-function loadCache(): NotesCache {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY)
-    if (!raw) return { notes: {}, loadedTiles: {}, updatedAt: 0 }
-    const cache: NotesCache = JSON.parse(raw)
-    if (Date.now() - cache.updatedAt > CACHE_TTL) {
-      localStorage.removeItem(CACHE_KEY)
-      return { notes: {}, loadedTiles: {}, updatedAt: 0 }
-    }
-    return cache
-  } catch {
-    return { notes: {}, loadedTiles: {}, updatedAt: 0 }
-  }
+interface NotesState {
+  layerVisible: boolean
+  cache: NotesCache
 }
 
-function saveCache(cache: NotesCache) {
-  cache.updatedAt = Date.now()
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cache))
-  } catch {
-    localStorage.removeItem(CACHE_KEY)
-  }
+function emptyCache(): NotesCache {
+  return { notes: {}, loadedTiles: {}, updatedAt: 0 }
 }
 
 export interface Bbox {
@@ -86,14 +71,34 @@ function tileToBbox(tile: string): Bbox {
 }
 
 export const useNotesStore = defineStore('notes', () => {
-  const cache = loadCache()
+  const stored = useStorage<NotesState>(
+    STORAGE_KEYS.NOTES,
+    { layerVisible: false, cache: emptyCache() },
+    undefined,
+    { serializer: jsonSerializer },
+  )
 
-  const notes = ref<OsmNote[]>(Object.values(cache.notes))
+  // Validate cache TTL on load
+  function getValidCache(): NotesCache {
+    const c = stored.value.cache
+    if (!c || Date.now() - c.updatedAt > CACHE_TTL) {
+      const empty = emptyCache()
+      stored.value.cache = empty
+      return empty
+    }
+    return c
+  }
+
+  const validCache = getValidCache()
+  const notes = ref<OsmNote[]>(Object.values(validCache.notes))
   const selectedNoteId = ref<number | null>(null)
   const isLoading = ref(false)
-  const isLayerVisible = useStorage<boolean>('notes-layer-visible', false)
+  const isLayerVisible = computed({
+    get: () => stored.value.layerVisible,
+    set: (v: boolean) => { stored.value.layerVisible = v },
+  })
   const lastBbox = ref<string | null>(null)
-  const loadedTiles = ref<Record<string, number>>(cache.loadedTiles)
+  const loadedTiles = ref<Record<string, number>>(validCache.loadedTiles)
   const selectedNote = computed(() => {
     if (selectedNoteId.value === null) return null
     return notes.value.find(note => note.id === selectedNoteId.value) ?? null
@@ -155,7 +160,6 @@ export const useNotesStore = defineStore('notes', () => {
       notes.value[index] = updatedNote
     } else {
       notes.value.push(updatedNote)
-      // Enforce cap after adding
       if (notes.value.length > MAX_CACHED_NOTES) {
         notes.value.sort((a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -171,17 +175,17 @@ export const useNotesStore = defineStore('notes', () => {
     for (const note of notes.value) {
       noteMap[note.id] = note
     }
-    saveCache({
+    stored.value.cache = {
       notes: noteMap,
       loadedTiles: loadedTiles.value,
       updatedAt: Date.now(),
-    })
+    }
   }
 
   function clearCache() {
     notes.value = []
     loadedTiles.value = {}
-    localStorage.removeItem(CACHE_KEY)
+    stored.value.cache = emptyCache()
   }
 
   /** Get cached notes that fall within a given bbox */

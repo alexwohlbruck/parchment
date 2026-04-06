@@ -3,6 +3,7 @@ import { useStorage } from '@vueuse/core'
 import { watch, type Ref } from 'vue'
 import enUS from './en-US.json'
 import esES from './es-ES.json'
+import { STORAGE_KEYS } from '@/lib/storage'
 
 type TranslationsSchema = typeof enUS
 export type Locale = 'en-US' | 'es-ES'
@@ -17,7 +18,7 @@ const getBrowserLocale = (): Locale => {
 }
 
 // Create reactive storage for locale
-export const storedLocale = useStorage<Locale>('locale', getBrowserLocale())
+export const storedLocale = useStorage<Locale>(STORAGE_KEYS.LOCALE, getBrowserLocale())
 
 export const i18n = createI18n<[TranslationsSchema | any], Locale>({
   legacy: false,

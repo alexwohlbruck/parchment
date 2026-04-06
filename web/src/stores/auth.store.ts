@@ -8,12 +8,12 @@ import { isTauri } from '@/lib/api'
 import { auth as deviceStore } from '@/lib/device-store'
 import { api } from '@/lib/api'
 import { useStorage } from '@vueuse/core'
-import { jsonSerializer } from '@/lib/storage'
+import { STORAGE_KEYS, jsonSerializer } from '@/lib/storage'
 
 export const useAuthStore = defineStore('auth', () => {
   const router = useRouter()
 
-  const cachedUser = useStorage<User | null>('parchment-user', null, undefined, {
+  const cachedUser = useStorage<User | null>(STORAGE_KEYS.USER, null, undefined, {
     serializer: jsonSerializer,
   })
   

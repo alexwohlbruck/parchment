@@ -21,7 +21,7 @@ import {
 } from '@/lib/measure.utils'
 import type { UnitSystem as MeasureUnitSystem } from '@/lib/measure.utils'
 import { storeToRefs } from 'pinia'
-import { useAppStore } from '@/stores/app.store'
+import { usePreferencesStore } from '@/stores/preferences.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { UnitSystem } from '@/types/map.types'
 import type { LngLat } from '@/types/map.types'
@@ -43,10 +43,10 @@ import {
 
 const mapService = useMapService()
 const mapToolsStore = useMapToolsStore()
-const appStore = useAppStore()
+const preferencesStore = usePreferencesStore()
 const themeStore = useThemeStore()
 const { t, locale } = useI18n()
-const { unitSystem } = storeToRefs(appStore)
+const { unitSystem } = storeToRefs(preferencesStore)
 const { radiusCenter, radiusEdgePoint, radiusMeters, radiusConfirmed } =
   storeToRefs(mapToolsStore)
 const {

@@ -34,7 +34,7 @@ import { computed, ref } from 'vue'
 import { useWeatherService } from '@/services/weather.service'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useMapStore } from '@/stores/map.store'
-import { useAppStore } from '@/stores/app.store'
+import { usePreferencesStore } from '@/stores/preferences.store'
 import { Button } from '@/components/ui/button'
 import { ControlVisibility, UnitSystem } from '@/types/map.types'
 import { storeToRefs } from 'pinia'
@@ -62,11 +62,11 @@ import {
 const weatherService = useWeatherService()
 const integrationsStore = useIntegrationsStore()
 const mapStore = useMapStore()
-const appStore = useAppStore()
+const preferencesStore = usePreferencesStore()
 
 const { weather, loading } = weatherService
 const { controlSettings } = storeToRefs(mapStore)
-const { unitSystem } = storeToRefs(appStore)
+const { unitSystem } = storeToRefs(preferencesStore)
 
 const showDetailsDialog = ref(false)
 

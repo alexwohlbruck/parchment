@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, type WritableComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import * as z from 'zod'
 import { useForm, useIsFormValid } from 'vee-validate'
@@ -7,8 +7,8 @@ import { toTypedSchema } from '@vee-validate/zod'
 import { useAuthService } from '@/services/auth.service'
 import { useAppService } from '@/services/app.service'
 import { isTauri, setServerUrl, useServerUrl } from '@/lib/api'
-import { useStorage } from '@vueuse/core'
 import { DEFAULT_SERVER_URL } from '@/lib/constants'
+import { appStorage } from '@/stores/app.store'
 
 const { t } = useI18n()
 
@@ -40,9 +40,10 @@ const isLoading = ref(false)
 
 const selectedServer = useServerUrl()
 
-const savedServers = useStorage<string[]>('parchment-servers', [
-  DEFAULT_SERVER_URL,
-])
+const savedServers = computed({
+  get: () => appStorage.value.servers,
+  set: (v: string[]) => { appStorage.value.servers = v },
+})
 
 onMounted(async () => {
   try {

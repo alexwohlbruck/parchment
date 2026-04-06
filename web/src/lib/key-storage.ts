@@ -5,19 +5,7 @@
  * The seed is stored locally and never sent to the server.
  */
 
-import { useStorage } from '@vueuse/core'
-
-const SEED_KEY = 'parchment-identity-seed'
-
-// Reactive storage - initialized lazily
-let seedStorage: ReturnType<typeof useStorage<string | null>> | null = null
-
-function getSeedStorage() {
-  if (!seedStorage) {
-    seedStorage = useStorage<string | null>(SEED_KEY, null)
-  }
-  return seedStorage
-}
+import { appStorage } from '@/stores/app.store'
 
 /**
  * Store the identity seed
@@ -29,7 +17,7 @@ export async function storeSeed(seed: Uint8Array): Promise<void> {
   for (let i = 0; i < seed.length; i++) {
     binaryString += String.fromCharCode(seed[i])
   }
-  getSeedStorage().value = btoa(binaryString)
+  appStorage.value.identitySeed = btoa(binaryString)
 }
 
 /**
@@ -38,7 +26,7 @@ export async function storeSeed(seed: Uint8Array): Promise<void> {
  */
 export async function getSeed(): Promise<Uint8Array | null> {
   try {
-    const stored = getSeedStorage().value
+    const stored = appStorage.value.identitySeed
     if (!stored) {
       return null
     }
@@ -72,7 +60,7 @@ export async function hasIdentity(): Promise<boolean> {
  * Clear the stored identity (logout/reset)
  */
 export async function clearIdentity(): Promise<void> {
-  getSeedStorage().value = null
+  appStorage.value.identitySeed = null
 }
 
 /**

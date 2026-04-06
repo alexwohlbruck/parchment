@@ -4,6 +4,7 @@ import { type Theme, themes } from '@/lib/registry/themes'
 import { type Style, styles } from '@/lib/registry/styles'
 import { defineStore } from 'pinia'
 import { useDark } from '@vueuse/core'
+import { STORAGE_KEYS } from '@/lib/storage'
 
 interface Config {
   accentColor: Theme['name']
@@ -43,7 +44,7 @@ export const allColors: Color[] = [
 export const allRadii = [0, 0.25, 0.5, 0.75, 1]
 
 export const useThemeStore = defineStore('theme', () => {
-  const config = useStorage<Config>('config', {
+  const config = useStorage<Config>(STORAGE_KEYS.THEME, {
     accentColor: 'zinc',
     radius: 0.5,
     style: styles[0].name,

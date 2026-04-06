@@ -5,7 +5,7 @@ import { LayerType } from '@/types/map.types'
 import { useLayersService } from '@/services/layers/layers.service'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useStorage } from '@vueuse/core'
-import { jsonSerializer } from '@/lib/storage'
+import { STORAGE_KEYS, jsonSerializer } from '@/lib/storage'
 import {
   CORE_LAYERS,
   CORE_LAYER_IDS,
@@ -14,8 +14,8 @@ import {
   CLIENT_SIDE_LAYERS,
   CLIENT_SIDE_LAYER_GROUP_TEMPLATES,
   LAYER_INTEGRATION_REQUIREMENTS,
-  serverUrl,
 } from '@/constants/layer.constants'
+import { appStorage } from '@/stores/app.store'
 // Helper function to generate IDs
 function generateId(): string {
   return `layer-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
@@ -25,18 +25,33 @@ export const useLayersStore = defineStore('layers', () => {
   const layersService = useLayersService()
   const integrationsStore = useIntegrationsStore()
 
-  const cachedUserLayers = useStorage<Layer[] | null>(
-    'parchment-user-layers',
-    null,
+  interface LayersState {
+    userLayers: Layer[] | null
+    layerGroups: LayerGroup[] | null
+    clientLayerGroups: Record<string, boolean>
+    clientLayers: Record<string, boolean>
+  }
+
+  const stored = useStorage<LayersState>(
+    STORAGE_KEYS.LAYERS,
+    {
+      userLayers: null,
+      layerGroups: null,
+      clientLayerGroups: {},
+      clientLayers: {},
+    },
     undefined,
     { serializer: jsonSerializer },
   )
-  const cachedLayerGroups = useStorage<LayerGroup[] | null>(
-    'parchment-layer-groups',
-    null,
-    undefined,
-    { serializer: jsonSerializer },
-  )
+
+  const cachedUserLayers = computed({
+    get: () => stored.value.userLayers,
+    set: (v: Layer[] | null) => { stored.value.userLayers = v },
+  })
+  const cachedLayerGroups = computed({
+    get: () => stored.value.layerGroups,
+    set: (v: LayerGroup[] | null) => { stored.value.layerGroups = v },
+  })
 
   const userLayers = ref<Layer[]>(
     Array.isArray(cachedUserLayers.value) ? cachedUserLayers.value : [],
@@ -47,17 +62,15 @@ export const useLayersStore = defineStore('layers', () => {
   const isSyncing = ref(false) // Track when syncing with server
   const isLoadingLayers = ref(false) // Track initial layer load
 
-  // Persistent storage for client-side layer group visibility states
-  const clientSideGroupVisibility = useStorage<Record<string, boolean>>(
-    'parchment-client-layer-groups',
-    {},
-  )
+  const clientSideGroupVisibility = computed({
+    get: () => stored.value.clientLayerGroups,
+    set: (v: Record<string, boolean>) => { stored.value.clientLayerGroups = v },
+  })
 
-  // Persistent storage for client-side layer visibility states
-  const clientSideLayerVisibility = useStorage<Record<string, boolean>>(
-    'parchment-client-layers',
-    {},
-  )
+  const clientSideLayerVisibility = computed({
+    get: () => stored.value.clientLayers,
+    set: (v: Record<string, boolean>) => { stored.value.clientLayers = v },
+  })
 
   // Core layers that are always present (hidden from user)
   const coreLayers = computed(() => {
@@ -649,7 +662,7 @@ export const useLayersStore = defineStore('layers', () => {
   }
 
   // Watch for server URL changes and update existing proxy layers
-  watch(serverUrl, async (newUrl, oldUrl) => {
+  watch(() => appStorage.value.selectedServer, async (newUrl, oldUrl) => {
     if (newUrl !== oldUrl) {
       console.log('Server URL changed, updating proxy layers...')
 

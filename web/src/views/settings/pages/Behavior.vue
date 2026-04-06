@@ -2,7 +2,7 @@
 import { storeToRefs } from 'pinia'
 import { watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useAppStore } from '@/stores/app.store'
+import { usePreferencesStore } from '@/stores/preferences.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useCommandStore } from '@/stores/command.store'
 import { CommandName } from '@/stores/command.store'
@@ -21,11 +21,11 @@ import {
 } from '@/components/ui/select'
 import { Gauge, GaugeIcon, LanguagesIcon, Navigation2Icon, LayersIcon } from 'lucide-vue-next'
 
-const appStore = useAppStore()
+const preferencesStore = usePreferencesStore()
 const authStore = useAuthStore()
 const commandStore = useCommandStore()
 const mapStore = useMapStore()
-const { unitSystem, floorNumbering } = storeToRefs(appStore)
+const { unitSystem, floorNumbering } = storeToRefs(preferencesStore)
 const { settings } = storeToRefs(mapStore)
 const { locale } = useI18n()
 

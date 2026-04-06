@@ -2,7 +2,30 @@ import { DialogOptions, DialogType } from '@/types/app.types'
 import { defineStore } from 'pinia'
 import { Component, computed, ref, watch, markRaw } from 'vue'
 import { useWindowSize, useStorage } from '@vueuse/core'
-import { UnitSystem, FloorNumbering } from '@/types/map.types'
+import { STORAGE_KEYS, jsonSerializer } from '@/lib/storage'
+import { DEFAULT_SERVER_URL } from '@/lib/constants'
+
+/**
+ * Shared reactive storage for app-level config.
+ * Exported at module scope so api.ts / key-storage.ts can use it
+ * without calling useAppStore() (which requires Pinia).
+ */
+export interface AppStorage {
+  selectedServer: string
+  identitySeed: string | null
+  servers: string[]
+}
+
+export const appStorage = useStorage<AppStorage>(
+  STORAGE_KEYS.APP,
+  {
+    selectedServer: DEFAULT_SERVER_URL,
+    identitySeed: null,
+    servers: [DEFAULT_SERVER_URL],
+  },
+  undefined,
+  { serializer: jsonSerializer },
+)
 
 import ComponentDialog from '@/components/dialogs/ComponentDialog.vue'
 import ConfirmDialog from '@/components/dialogs/ConfirmDialog.vue'
@@ -301,12 +324,6 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  // Unit system preference (metric vs imperial)
-  const unitSystem = useStorage<UnitSystem>('unit-system', UnitSystem.METRIC)
-
-  // Floor numbering preference (zero-based vs one-based)
-  const floorNumbering = useStorage<FloorNumbering>('floor-numbering', FloorNumbering.ZERO_BASED)
-
   return {
     dialogs,
     createDialog,
@@ -323,7 +340,5 @@ export const useAppStore = defineStore('app', () => {
     debugObstructingComponents,
     updateManualBounds,
     clearManualBounds,
-    unitSystem,
-    floorNumbering,
   }
 })

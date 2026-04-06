@@ -2,10 +2,11 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useStorage } from '@vueuse/core'
 import type { Bookmark } from '@/types/library.types'
+import { STORAGE_KEYS } from '@/lib/storage'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 
 export const useBookmarksStore = defineStore('bookmarks', () => {
-  const bookmarks = useStorage<Bookmark[]>('bookmarks', [])
+  const bookmarks = useStorage<Bookmark[]>(STORAGE_KEYS.BOOKMARKS, [])
   const collectionsStore = useCollectionsStore()
   const getBookmarkById = computed(() => {
     return (id: string) => bookmarks.value.find(place => place.id === id)

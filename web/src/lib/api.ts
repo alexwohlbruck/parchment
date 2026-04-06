@@ -2,11 +2,11 @@ import { capitalize } from '@/filters/text.filters'
 import axios, { AxiosError } from 'axios'
 import { useI18n } from 'vue-i18n'
 import { toast } from 'vue-sonner'
-import { useStorage } from '@vueuse/core'
 import { watchEffect, ref, computed } from 'vue'
 import { DEFAULT_SERVER_URL, APP_NAME_SHORT } from '@/lib/constants'
 import router, { AppRoute } from '@/router'
 import { i18n, storedLocale } from '@/lib/i18n'
+import { appStorage } from '@/stores/app.store'
 
 // Detect Tauri environment using the Tauri API
 // Try to use @tauri-apps/api/os for reliable detection
@@ -90,20 +90,17 @@ export async function getIsTauri(): Promise<boolean> {
   return _isTauriPromise
 }
 
-// Reactive server URL from localStorage, defaults to api.parchment.app
-const serverUrl = useStorage('parchment-selected-server', DEFAULT_SERVER_URL)
-
 /** Request timeout (ms). Prevents "loads forever" when the server doesn't respond. */
 const REQUEST_TIMEOUT_MS = 15000
 
 export const api = axios.create({
   withCredentials: !isTauri, // Only use credentials for web
-  baseURL: serverUrl.value,
+  baseURL: appStorage.value.selectedServer,
   timeout: REQUEST_TIMEOUT_MS,
 })
 
 watchEffect(() => {
-  api.defaults.baseURL = serverUrl.value
+  api.defaults.baseURL = appStorage.value.selectedServer
 })
 
 // Send locale to backend for localized responses (e.g. weather, directions, place names)
@@ -116,14 +113,17 @@ api.interceptors.request.use(config => {
  * Set the server URL
  */
 export function setServerUrl(url: string): void {
-  serverUrl.value = url
+  appStorage.value.selectedServer = url
 }
 
 /**
- * Get the reactive server URL ref
+ * Get the current server URL
  */
 export function useServerUrl() {
-  return serverUrl
+  return computed({
+    get: () => appStorage.value.selectedServer,
+    set: (v: string) => { appStorage.value.selectedServer = v },
+  })
 }
 
 function getErrorMessage(error: AxiosError): {

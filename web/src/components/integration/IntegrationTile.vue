@@ -19,6 +19,12 @@ import { configSchemas } from '@/types/integrations.types'
 import IntegrationForm from '@/components/integration/IntegrationForm.vue'
 import OsmConnectedAccount from '@/components/integration/OsmConnectedAccount.vue'
 import { api } from '@/lib/api'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 const { t } = useI18n()
 const integrationsStore = useIntegrationsStore()
@@ -70,7 +76,9 @@ async function handleOAuthClick() {
             const state = parsedUrl.searchParams.get('state')
 
             if (!code || !state) {
-              console.error('Missing code or state in URL. Make sure you copied the full URL.')
+              console.error(
+                'Missing code or state in URL. Make sure you copied the full URL.',
+              )
               return
             }
 
@@ -87,7 +95,10 @@ async function handleOAuthClick() {
             if (html.includes('"status":"error"')) {
               const msgMatch = html.match(/"message":"([^"]*)"/)
               const errorMsg = msgMatch?.[1] || 'OAuth callback failed'
-              console.error(`%c❌ ${errorMsg}`, 'color: red; font-weight: bold;')
+              console.error(
+                `%c❌ ${errorMsg}`,
+                'color: red; font-weight: bold;',
+              )
               toast.error(errorMsg)
               return
             }
@@ -97,10 +108,15 @@ async function handleOAuthClick() {
             await integrationService.fetchAvailableIntegrations()
 
             delete (window as any).__osmDevCallback
-            console.log('%c✅ OSM account connected successfully!', 'color: green; font-weight: bold;')
+            console.log(
+              '%c✅ OSM account connected successfully!',
+              'color: green; font-weight: bold;',
+            )
           } catch (error: any) {
             console.error('Dev OAuth callback failed:', error)
-            toast.error(error.message || t('settings.integrations.osm.authError'))
+            toast.error(
+              error.message || t('settings.integrations.osm.authError'),
+            )
           }
         }
 
@@ -110,15 +126,19 @@ async function handleOAuthClick() {
         )
         console.log(
           'After authorizing on OSM, the redirect will fail because the\n' +
-          'redirect URI uses HTTPS but your local server runs on HTTP.\n\n' +
-          'Copy the full URL from the browser address bar (it will contain\n' +
-          '?code=...&state=... parameters) and run:\n\n' +
-          "  window.__osmDevCallback('PASTE_FULL_URL_HERE')\n",
+            'redirect URI uses HTTPS but your local server runs on HTTP.\n\n' +
+            'Copy the full URL from the browser address bar (it will contain\n' +
+            '?code=...&state=... parameters) and run:\n\n' +
+            "  window.__osmDevCallback('PASTE_FULL_URL_HERE')\n",
         )
 
         toast.info(t('settings.integrations.osm.devCallbackInstructions'))
       } else {
-        const popup = window.open(url, 'osm-oauth', 'width=600,height=700,popup=yes')
+        const popup = window.open(
+          url,
+          'osm-oauth',
+          'width=600,height=700,popup=yes',
+        )
 
         // Listen for the callback postMessage from the popup
         const expectedOrigin = new URL(api.defaults.baseURL as string).origin
@@ -132,7 +152,9 @@ async function handleOAuthClick() {
             await integrationService.fetchConfiguredIntegrations()
             await integrationService.fetchAvailableIntegrations()
           } else {
-            toast.error(event.data.message || t('settings.integrations.osm.authError'))
+            toast.error(
+              event.data.message || t('settings.integrations.osm.authError'),
+            )
           }
         }
 
@@ -193,7 +215,9 @@ async function handleOAuthClick() {
 
   if (dialogResult) {
     toast.success(t('settings.integrations.success'), {
-      description: t('settings.integrations.updated', { name: integration.name }),
+      description: t('settings.integrations.updated', {
+        name: integration.name,
+      }),
     })
   }
 }
@@ -222,7 +246,9 @@ async function handleClick() {
   let fullConfig: IntegrationRecord | undefined = config
   if (isConfigured && config) {
     try {
-      const response = await api.get<IntegrationRecord>(`/integrations/${config.id}`)
+      const response = await api.get<IntegrationRecord>(
+        `/integrations/${config.id}`,
+      )
       fullConfig = response.data
     } catch (err) {
       console.error('Failed to fetch full integration config:', err)
@@ -304,7 +330,12 @@ async function handleDisconnect(
   config: IntegrationRecord,
 ) {
   // Check for dependent integrations before deleting
-  let dependents: { id: string; integrationId: string; userId: string | null; name: string }[] = []
+  let dependents: {
+    id: string
+    integrationId: string
+    userId: string | null
+    name: string
+  }[] = []
   try {
     const response = await api.get(`/integrations/${config.id}/dependents`)
     dependents = response.data
@@ -317,11 +348,13 @@ async function handleDisconnect(
   })
 
   if (dependents.length > 0) {
-    const names = [...new Set(dependents.map((d) => d.name))].join(', ')
-    description += '\n\n' + t('settings.integrations.disconnect.dependentsWarning', {
-      count: dependents.length,
-      names,
-    })
+    const names = [...new Set(dependents.map(d => d.name))].join(', ')
+    description +=
+      '\n\n' +
+      t('settings.integrations.disconnect.dependentsWarning', {
+        count: dependents.length,
+        names,
+      })
   }
 
   const confirmed = await appService.confirm({
@@ -366,6 +399,28 @@ const isIntegrationEnabled = computed(() => {
   return props.integration.capabilities.some(isCapabilityEnabled)
 })
 
+const statusColors = computed(() => {
+  if (!props.configuration) {
+    return {
+      bg: '#FCA5A5',
+      border: '#EF4444',
+      label: t('settings.integrations.filter.notConnected'),
+    }
+  }
+  if (!isIntegrationEnabled.value) {
+    return {
+      bg: '#FDE68A',
+      border: '#EAB308',
+      label: t('settings.integrations.filter.disabled'),
+    }
+  }
+  return {
+    bg: '#80FFA4',
+    border: '#57D17A',
+    label: t('settings.integrations.filter.connected'),
+  }
+})
+
 const icon = computed(() => {
   return integrationsStore.getIcon(props.integration.id)
 })
@@ -376,58 +431,85 @@ const icon = computed(() => {
     :class="
       cn(
         'flex flex-col gap-3 hover:bg-muted/50 transition-colors cursor-pointer relative',
-        {
-          grayscale: !isIntegrationEnabled,
-        },
       )
     "
     @click="handleClick"
   >
     <div class="flex items-start justify-between pt-4 px-4">
-      <div
-        class="size-12 flex items-center justify-center rounded-lg shadow-md"
-        :style="{ backgroundColor: integration.color }"
-      >
-        <svg
-          v-if="icon"
-          class="size-7 text-white"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          v-html="icon.svg"
-        />
-        <span v-else class="text-white font-medium text-lg">
-          {{ getInitial(integration.name) }}
-        </span>
-      </div>
-      <div class="flex gap-1 items-center">
-        <span
-          v-if="integration.paid"
-          class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300 font-semibold"
+      <div class="relative">
+        <div
+          class="integration-icon size-12 flex items-center justify-center rounded-lg shadow-xs border"
+          :style="`--integration-color: ${integration.color}`"
         >
-          $
-        </span>
-        <span
-          v-if="integration.cloud"
-          class="text-[10px] p-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 font-semibold flex items-center gap-0.5"
-        >
-          <CloudIcon class="size-3" />
-        </span>
-        <span
-          v-if="integration.scope"
-          class="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-100 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 font-semibold flex items-center gap-0.5"
-        >
-          <UserIcon
-            v-if="integration.scope.includes(IntegrationScope.USER)"
-            class="size-3"
+          <svg
+            v-if="icon"
+            class="integration-icon-fg size-7"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            v-html="icon.svg"
           />
-          <HardDriveIcon
-            v-if="integration.scope.includes(IntegrationScope.SYSTEM)"
-            class="size-3"
-          />
-        </span>
+          <span v-else class="integration-icon-fg font-medium text-lg">
+            {{ getInitial(integration.name) }}
+          </span>
+        </div>
       </div>
+      <TooltipProvider>
+        <div class="flex gap-1 items-center">
+          <Tooltip v-if="integration.paid">
+            <TooltipTrigger as-child>
+              <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300 font-semibold">
+                $
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" :side-offset="4">
+              {{ t('settings.integrations.filter.paid') }}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip v-if="integration.cloud">
+            <TooltipTrigger as-child>
+              <span class="text-[10px] p-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 font-semibold flex items-center gap-0.5">
+                <CloudIcon class="size-3" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" :side-offset="4">
+              {{ t('settings.integrations.filter.cloud') }}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip v-if="integration.scope">
+            <TooltipTrigger as-child>
+              <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-100 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 font-semibold flex items-center gap-0.5">
+                <UserIcon
+                  v-if="integration.scope.includes(IntegrationScope.USER)"
+                  class="size-3"
+                />
+                <HardDriveIcon
+                  v-if="integration.scope.includes(IntegrationScope.SYSTEM)"
+                  class="size-3"
+                />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" :side-offset="4">
+              {{ integration.scope.map(s => t(`settings.integrations.filter.${s}`)).join(', ') }}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <span
+                class="size-2 rounded-full border-[1.75px]"
+                :style="{
+                  backgroundColor: statusColors.bg,
+                  borderColor: statusColors.border,
+                }"
+              />
+            </TooltipTrigger>
+            <TooltipContent side="top" :side-offset="4">
+              {{ statusColors.label }}
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
     </div>
-    <div class="px-4">
+    <div class="px-4 flex-1">
       <h4 class="font-medium">{{ integration.name }}</h4>
       <p class="text-sm text-muted-foreground line-clamp-2">
         {{
@@ -439,31 +521,52 @@ const icon = computed(() => {
         }}
       </p>
     </div>
-    <div v-if="integration.capabilities?.length > 0" class="bg-muted/50 flex-1 border-t border-border">
-      <div class="flex flex-wrap gap-2 px-2 py-3">
+    <div
+      v-if="integration.capabilities?.length > 0"
+      class="bg-muted/50 border-t border-border mt-auto"
+    >
+      <div
+        class="flex flex-nowrap gap-2 px-2 py-3 overflow-x-auto scrollbar-hidden"
+      >
         <span
           v-for="capability in integration.capabilities"
           :key="capability"
-          class="text-xs px-2 py-0.5 rounded-full bg-primary/5 text-primary font-semibold inline-flex items-center gap-1"
+          :class="[
+            'text-xs px-2 py-0.5 rounded-full font-medium inline-flex items-center whitespace-nowrap shrink-0',
+            isCapabilityEnabled(capability)
+              ? 'bg-primary-100 text-primary-800 dark:bg-primary-800 dark:text-primary-200'
+              : 'bg-muted text-muted-foreground',
+          ]"
         >
-          <svg
-            v-if="isCapabilityEnabled(capability)"
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            width="12"
-            height="12"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="3"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="size-3"
-          >
-            <path d="M20 6 9 17l-5-5" />
-          </svg>
           {{ t(`settings.integrations.capabilities.${capability}`) }}
         </span>
       </div>
     </div>
   </Card>
 </template>
+
+<style scoped>
+.integration-icon {
+  background-color: oklch(
+    from var(--integration-color) calc(l + 0.5) calc(c - 0.08) h
+  );
+  border-color: oklch(
+    from var(--integration-color) calc(l - 0.2) calc(c + 0.05) h / 0.1
+  );
+}
+.integration-icon-fg {
+  color: oklch(from var(--integration-color) calc(l - 0.2) calc(c + 0.05) h);
+}
+
+:is(.dark *) .integration-icon {
+  background-color: oklch(
+    from var(--integration-color) calc(l - 0.35) calc(c - 0.05) h
+  );
+  border-color: oklch(
+    from var(--integration-color) calc(l + 0.25) calc(c - 0.05) h / 0.1
+  );
+}
+:is(.dark *) .integration-icon-fg {
+  color: oklch(from var(--integration-color) calc(l + 0.25) calc(c - 0.05) h);
+}
+</style>

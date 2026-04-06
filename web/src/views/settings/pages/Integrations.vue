@@ -611,7 +611,7 @@ onMounted(async () => {
                 <DropdownMenuRadioGroup
                   :model-value="sortField"
                   @update:model-value="
-                    (v: string) => (sortField = v as SortField)
+                    (v) => (sortField = v as SortField)
                   "
                 >
                   <DropdownMenuRadioItem

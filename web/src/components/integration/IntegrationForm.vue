@@ -39,6 +39,15 @@ const formRef = ref(null)
 
 const DOCS_BASE = 'https://docs.parchment.app/usage/integrations'
 
+/** Trim all string values in a flat config object */
+function trimConfigStrings(config: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = {}
+  for (const [key, value] of Object.entries(config)) {
+    result[key] = typeof value === 'string' ? value.trim() : value
+  }
+  return result
+}
+
 const docsUrl = computed(() => {
   return `${DOCS_BASE}/${props.integration.id}`
 })
@@ -198,7 +207,7 @@ async function testConnection() {
   try {
     const result = await integrationService.testIntegrationConfig(
       props.integration.id,
-      configForm.values,
+      trimConfigStrings(configForm.values),
     )
 
     testResult.value = result
@@ -222,7 +231,7 @@ async function submit() {
   if (!isValid.value) return null
 
   return {
-    config: configForm.values,
+    config: trimConfigStrings(configForm.values),
     capabilities: values.capabilities.map(cap => ({
       id: cap.id,
       active: cap.active,

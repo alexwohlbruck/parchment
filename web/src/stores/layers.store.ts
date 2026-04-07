@@ -169,7 +169,7 @@ export const useLayersStore = defineStore('layers', () => {
 
   // Sync client-side layer visibility with their group visibility on initialization
   function syncClientSideLayerVisibility() {
-    let hasVisibleTransitLayers = false
+    let hasVisibleFadeBasemapLayers = false
 
     for (const group of clientSideLayerGroups.value) {
       if (group.visible) {
@@ -184,15 +184,15 @@ export const useLayersStore = defineStore('layers', () => {
             clientSideLayerVisibility.value[layer.id] = true
           }
 
-          // Check if this is a transit layer
-          if (layer.type === LayerType.TRANSIT) {
-            hasVisibleTransitLayers = true
+          // Check if this layer or its group requests basemap fading
+          if (layer.fadeBasemap || group.fadeBasemap) {
+            hasVisibleFadeBasemapLayers = true
           }
         }
       }
     }
 
-    return hasVisibleTransitLayers
+    return hasVisibleFadeBasemapLayers
   }
 
   // UI display computed properties (show both client-side and user layers, hide core layers)

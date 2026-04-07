@@ -2063,6 +2063,7 @@ export const CLIENT_SIDE_LAYER_GROUP_TEMPLATES = computed(
       icon: 'TrainIcon',
       showInLayerSelector: true,
       visible: false,
+      fadeBasemap: true,
       order: 1,
     },
   ],

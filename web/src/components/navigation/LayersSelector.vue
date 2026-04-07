@@ -46,6 +46,7 @@ async function toggleLayerVisibility(layerId: string, visible: boolean) {
     layersStore,
     mapService.mapStrategy,
     visible,
+    allLayerGroups.value,
   )
 }
 

@@ -114,6 +114,7 @@ const layerSchema = computed(() => {
     z.object({
       name: z.string().min(1, 'required').default(''),
       showInLayerSelector: z.boolean().default(true),
+      fadeBasemap: z.boolean().default(false),
       // TODO: Add field for layer type
       type: z.nativeEnum(LayerType).default(LayerType.CUSTOM),
       visible: z.boolean().default(true),
@@ -343,6 +344,16 @@ defineExpose({
       <FormField name="showInLayerSelector" v-slot="{ value, handleChange }">
         <FormItem>
           <SettingsItem :title="$t('layers.meta.fields.showInLayerSelector')">
+            <FormControl>
+              <Switch :model-value="value" @update:model-value="handleChange" />
+            </FormControl>
+          </SettingsItem>
+        </FormItem>
+      </FormField>
+
+      <FormField name="fadeBasemap" v-slot="{ value, handleChange }">
+        <FormItem>
+          <SettingsItem :title="$t('layers.meta.fields.fadeBasemap')">
             <FormControl>
               <Switch :model-value="value" @update:model-value="handleChange" />
             </FormControl>

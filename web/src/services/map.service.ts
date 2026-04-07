@@ -88,10 +88,26 @@ function mapService() {
   // Debounced padding update to prevent excessive calls
   let paddingUpdateTimeout: ReturnType<typeof setTimeout> | null = null
 
-  // Watch for theme changes to update polygon colors
+  // Watch for theme changes to update polygon colors and basemap fade
   watch([accentColor, isDark], () => {
     if (mapStrategy && isMapReady.value) {
       placePolygonLayerService.updatePlacePolygonColors(mapStrategy)
+
+      // Re-evaluate basemap fade when dark mode changes
+      const fadeBasemapGroupIds = new Set(
+        layersStore.allLayerGroups
+          .filter(g => g.fadeBasemap && g.visible)
+          .map(g => g.id),
+      )
+      const hasFadeBasemapLayers = layers.value.some(
+        l => (l.fadeBasemap || (l.groupId && fadeBasemapGroupIds.has(l.groupId))) && l.visible,
+      )
+      if (hasFadeBasemapLayers) {
+        const shouldUseFaded = !themeStore.isDark
+        mapStrategy.setMapColorTheme(
+          shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT,
+        )
+      }
     }
   })
 
@@ -346,7 +362,7 @@ function mapService() {
       }
 
       // Sync client-side layer visibility with their group states
-      const hasVisibleTransitLayers =
+      const hasVisibleFadeBasemapLayers =
         layersStore.syncClientSideLayerVisibility()
 
       // Include search results layer with regular layers
@@ -374,14 +390,21 @@ function mapService() {
       // deferred addSource calls to lose their layers.
       setConfigProperties()
 
-      // Apply transit map theme if transit layers are visible
-      if (hasVisibleTransitLayers && mapStrategy) {
+      // Apply faded basemap if any fadeBasemap layers are visible
+      if (hasVisibleFadeBasemapLayers && mapStrategy) {
         const themeStore = useThemeStore()
-        const shouldUseFaded = hasVisibleTransitLayers && !themeStore.isDark
+        const shouldUseFaded = !themeStore.isDark
         mapStrategy.setMapColorTheme(
           shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT,
         )
-        mapStrategy.setTransitLabels(!hasVisibleTransitLayers)
+      }
+
+      // Hide native transit labels if any transit layers are visible
+      const hasVisibleTransitLayers = layers.value.some(
+        l => l.type === LayerType.TRANSIT && l.visible,
+      )
+      if (hasVisibleTransitLayers && mapStrategy) {
+        mapStrategy.setTransitLabels(false)
       }
 
       // Show queued trips if any

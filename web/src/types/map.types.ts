@@ -213,6 +213,7 @@ export interface Layer {
   engine: MapEngine[]
   showInLayerSelector: boolean
   visible: boolean
+  fadeBasemap?: boolean
   icon?: string | null
   order: number
   groupId: string | null
@@ -239,6 +240,7 @@ export interface LayerGroup {
   name: string
   showInLayerSelector: boolean
   visible: boolean
+  fadeBasemap?: boolean
   icon?: string
   order: number
   userId: string

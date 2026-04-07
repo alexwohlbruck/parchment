@@ -35,7 +35,7 @@ const emit = defineEmits<{
 const editing = computed(() => !!props.groupId)
 const group = computed(() =>
   props.groupId
-    ? layersStore.layerGroups.find(g => g.id === props.groupId)
+    ? layersStore.allLayerGroups.find(g => g.id === props.groupId)
     : null,
 )
 
@@ -44,6 +44,7 @@ const layerGroupSchema = computed(() => {
     z.object({
       name: z.string().min(1, 'Name is required'),
       showInLayerSelector: z.boolean().default(true),
+      fadeBasemap: z.boolean().default(false),
       visible: z.boolean().default(true),
       icon: z.string().default('FolderIcon'),
       iconColor: z.string().default('blue'),
@@ -54,6 +55,7 @@ const layerGroupSchema = computed(() => {
 interface LayerGroupFormValues {
   name: string
   showInLayerSelector: boolean
+  fadeBasemap: boolean
   visible: boolean
   icon: string
   iconColor: string
@@ -65,6 +67,7 @@ const { handleSubmit, values, meta, setFieldValue, resetForm } =
     initialValues: {
       name: '',
       showInLayerSelector: true,
+      fadeBasemap: false,
       visible: true,
       icon: 'FolderIcon',
       iconColor: 'blue',
@@ -80,6 +83,7 @@ watch(
         values: {
           name: currentGroup.name,
           showInLayerSelector: currentGroup.showInLayerSelector,
+          fadeBasemap: currentGroup.fadeBasemap ?? false,
           visible: currentGroup.visible,
           icon: currentGroup.icon,
           iconColor: 'blue', // Default since we don't store color in LayerGroup
@@ -96,6 +100,7 @@ const onSubmit = handleSubmit(values => {
     layersStore.updateLayerGroup(props.groupId, {
       name: values.name,
       showInLayerSelector: values.showInLayerSelector,
+      fadeBasemap: values.fadeBasemap,
       visible: values.visible,
       icon: values.icon === 'FolderIcon' ? undefined : values.icon,
     })
@@ -104,6 +109,7 @@ const onSubmit = handleSubmit(values => {
     layersStore.addLayerGroup({
       name: values.name,
       showInLayerSelector: values.showInLayerSelector,
+      fadeBasemap: values.fadeBasemap,
       visible: values.visible,
       icon: values.icon === 'FolderIcon' ? undefined : values.icon,
       order: layersStore.layerGroups.length,
@@ -135,6 +141,16 @@ defineExpose({
       <FormField name="showInLayerSelector" v-slot="{ value, handleChange }">
         <FormItem>
           <SettingsItem :title="t('layers.meta.fields.showInLayerSelector')">
+            <FormControl>
+              <Switch :model-value="value" @update:model-value="handleChange" />
+            </FormControl>
+          </SettingsItem>
+        </FormItem>
+      </FormField>
+
+      <FormField name="fadeBasemap" v-slot="{ value, handleChange }">
+        <FormItem>
+          <SettingsItem :title="t('layers.meta.fields.fadeBasemap')">
             <FormControl>
               <Switch :model-value="value" @update:model-value="handleChange" />
             </FormControl>

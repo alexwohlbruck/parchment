@@ -233,6 +233,7 @@
         "id": "ID de la capa",
         "name": "Nombre",
         "showInLayerSelector": "Mostrar en selector de capas",
+        "fadeBasemap": "Atenuar mapa base",
         "type": {
           "title": "Tipo de capa",
           "values": {

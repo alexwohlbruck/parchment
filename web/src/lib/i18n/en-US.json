@@ -246,6 +246,7 @@
         "icon": "Layer Icon",
         "iconPlaceholder": "Choose an icon",
         "showInLayerSelector": "Show in layer selector",
+        "fadeBasemap": "Fade basemap",
         "type": {
           "title": "Layer Type",
           "values": {

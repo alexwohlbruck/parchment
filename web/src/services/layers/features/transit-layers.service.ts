@@ -94,56 +94,18 @@ export function useTransitLayersService() {
       }
     }
 
-    // Set map color theme and transit labels based on transit layer visibility
+    // Apply basemap fade and transit label visibility
     if (mapStrategy) {
-      applyTransitMapTheme(mapStrategy, newState)
-    }
-  }
-
-  /**
-   * Check if any transit layers are visible
-   */
-  function checkTransitLayersVisibility(
-    layers: Layer[],
-    layerConfigId?: string,
-    newState?: boolean,
-  ): boolean {
-    return layers.some(l => {
-      if (l.type !== LayerType.TRANSIT) return false
-
-      // If this is the layer being updated, use the new state
-      if (layerConfigId && l.configuration.id === layerConfigId) {
-        return newState ?? false
-      }
-
-      // Otherwise use current visibility
-      return l.visible
-    })
-  }
-
-  /**
-   * Apply map color theme based on transit visibility and theme
-   */
-  function applyTransitMapTheme(
-    mapStrategy: MapStrategy,
-    hasVisibleTransitLayers: boolean,
-    hideTransitLabels: boolean = true,
-  ) {
-    // Only apply faded effect in light mode when transit layers are visible
-    const shouldUseFaded = hasVisibleTransitLayers && !themeStore.isDark
-    mapStrategy.setMapColorTheme(
-      shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT,
-    )
-
-    if (hideTransitLabels) {
-      mapStrategy.setTransitLabels(!hasVisibleTransitLayers) // Hide default transit labels when our layers are active
+      const shouldUseFaded = newState && !themeStore.isDark
+      mapStrategy.setMapColorTheme(
+        shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT,
+      )
+      mapStrategy.setTransitLabels(!newState)
     }
   }
 
   return {
     addTransitStopClickHandlers,
     toggleTransitLayers,
-    checkTransitLayersVisibility,
-    applyTransitMapTheme,
   }
 }

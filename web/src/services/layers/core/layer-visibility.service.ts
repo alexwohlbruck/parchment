@@ -1,6 +1,6 @@
 /**
  * Layer Visibility Service
- * 
+ *
  * Manages layer visibility state and map integration for showing/hiding layers.
  * Handles both individual layers and layer groups.
  */
@@ -40,6 +40,7 @@ export function useLayerVisibilityService() {
     layersStore: any,
     mapStrategy?: MapStrategy,
     state?: boolean,
+    allLayerGroups?: LayerGroup[],
   ) {
     const layer = layers.find(l => l.configuration.id === layerConfigId)
     if (!layer) return
@@ -57,7 +58,24 @@ export function useLayerVisibilityService() {
     // Then update map visualization
     toggleLayerVisibility(layerConfigId, newState, mapStrategy)
 
-    // Handle special layer types (transit layers need theme updates)
+    // Check if this layer or its group has fadeBasemap
+    const layerGroup = layer.groupId && allLayerGroups
+      ? allLayerGroups.find(g => g.id === layer.groupId)
+      : undefined
+    const hasFadeBasemap = layer.fadeBasemap || layerGroup?.fadeBasemap
+
+    // Handle fadeBasemap layers
+    if (hasFadeBasemap && mapStrategy) {
+      const hasVisibleFadeBasemapLayers = checkFadeBasemapVisibility(
+        layers,
+        layerConfigId,
+        newState,
+        allLayerGroups,
+      )
+      applyFadedBasemap(mapStrategy, hasVisibleFadeBasemapLayers)
+    }
+
+    // Handle transit-specific logic (case layer toggle, transit label hiding)
     if (layer.type === LayerType.TRANSIT && mapStrategy) {
       // For Transitland layers, also toggle the case layer
       if (layer.configuration.id === 'transitland') {
@@ -74,13 +92,13 @@ export function useLayerVisibilityService() {
         }
       }
 
-      // Apply map color theme and transit labels based on transit layer visibility
-      const hasVisibleTransitLayers = checkTransitLayersVisibility(
-        layers,
-        layerConfigId,
-        newState,
-      )
-      applyTransitMapTheme(mapStrategy, hasVisibleTransitLayers)
+      // Hide native transit labels when our transit layers are active
+      const hasVisibleTransitLayers = layers.some(l => {
+        if (l.type !== LayerType.TRANSIT) return false
+        if (l.configuration.id === layerConfigId) return newState
+        return l.visible
+      })
+      mapStrategy.setTransitLabels(!hasVisibleTransitLayers)
     }
   }
 
@@ -105,7 +123,8 @@ export function useLayerVisibilityService() {
     // Find all layers in this group from the provided layers array
     const groupLayers = layers.filter(l => l.groupId === group.id)
 
-    // Check if this group contains transit layers
+    // Check if this group or its layers have fadeBasemap or transit layers
+    const hasFadeBasemapLayers = group.fadeBasemap || groupLayers.some(l => l.fadeBasemap)
     const hasTransitLayers = groupLayers.some(l => l.type === LayerType.TRANSIT)
 
     // Update each layer's visibility
@@ -120,22 +139,24 @@ export function useLayerVisibilityService() {
       toggleLayerVisibility(layer.configuration.id, visible, mapStrategy)
     }
 
-    // Apply map color theme if this group contains transit layers
-    if (hasTransitLayers && mapStrategy) {
-      // Check if any transit layers will be visible after this group toggle
-      const hasVisibleTransitLayers = layers.some(l => {
-        if (l.type !== LayerType.TRANSIT) return false
-
-        // If this layer is in the group being toggled, use the new visibility state
-        if (l.groupId === group.id) {
-          return visible
-        }
-
-        // Otherwise use current visibility
+    // Apply basemap fade if this group or its layers have fadeBasemap
+    if (hasFadeBasemapLayers && mapStrategy) {
+      const hasVisibleFadeBasemapLayers = layers.some(l => {
+        if (!l.fadeBasemap && !(group.fadeBasemap && l.groupId === group.id)) return false
+        if (l.groupId === group.id) return visible
         return l.visible
       })
+      applyFadedBasemap(mapStrategy, hasVisibleFadeBasemapLayers)
+    }
 
-      applyTransitMapTheme(mapStrategy, hasVisibleTransitLayers)
+    // Handle transit label visibility separately
+    if (hasTransitLayers && mapStrategy) {
+      const hasVisibleTransitLayers = layers.some(l => {
+        if (l.type !== LayerType.TRANSIT) return false
+        if (l.groupId === group.id) return visible
+        return l.visible
+      })
+      mapStrategy.setTransitLabels(!hasVisibleTransitLayers)
     }
   }
 
@@ -174,15 +195,21 @@ export function useLayerVisibilityService() {
   // ============================================================================
 
   /**
-   * Check if any transit layers are visible
+   * Check if any fadeBasemap layers are visible
    */
-  function checkTransitLayersVisibility(
+  function checkFadeBasemapVisibility(
     layers: Layer[],
     layerConfigId?: string,
     newState?: boolean,
+    allLayerGroups?: LayerGroup[],
   ): boolean {
+    const fadeBasemapGroupIds = allLayerGroups
+      ? new Set(allLayerGroups.filter(g => g.fadeBasemap).map(g => g.id))
+      : new Set<string>()
+
     return layers.some(l => {
-      if (l.type !== LayerType.TRANSIT) return false
+      const hasFade = l.fadeBasemap || (l.groupId && fadeBasemapGroupIds.has(l.groupId))
+      if (!hasFade) return false
 
       // If this is the layer being updated, use the new state
       if (layerConfigId && l.configuration.id === layerConfigId) {
@@ -195,22 +222,17 @@ export function useLayerVisibilityService() {
   }
 
   /**
-   * Apply map color theme based on transit visibility
+   * Apply basemap fade effect based on fadeBasemap layer visibility
    */
-  function applyTransitMapTheme(
+  function applyFadedBasemap(
     mapStrategy: MapStrategy,
-    hasVisibleTransitLayers: boolean,
-    hideTransitLabels: boolean = true,
+    hasVisibleFadeBasemapLayers: boolean,
   ) {
-    // Only apply faded effect in light mode when transit layers are visible
-    const shouldUseFaded = hasVisibleTransitLayers && !themeStore.isDark
+    // Only apply faded effect in light mode when fadeBasemap layers are visible
+    const shouldUseFaded = hasVisibleFadeBasemapLayers && !themeStore.isDark
     mapStrategy.setMapColorTheme(
       shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT,
     )
-
-    if (hideTransitLabels) {
-      mapStrategy.setTransitLabels(!hasVisibleTransitLayers) // Hide default transit labels when our layers are active
-    }
   }
 
   return {
@@ -219,7 +241,7 @@ export function useLayerVisibilityService() {
     toggleLayerGroupVisibility,
     setLayerShownInSelector,
     setGroupShownInSelector,
-    checkTransitLayersVisibility,
-    applyTransitMapTheme,
+    checkFadeBasemapVisibility,
+    applyFadedBasemap,
   }
 }

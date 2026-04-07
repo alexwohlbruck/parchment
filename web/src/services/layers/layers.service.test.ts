@@ -54,6 +54,8 @@ vi.mock('./core/layer-visibility.service', () => ({
     toggleLayerGroupVisibility: vi.fn(),
     setLayerShownInSelector: vi.fn(),
     setGroupShownInSelector: vi.fn(),
+    checkFadeBasemapVisibility: vi.fn(),
+    applyFadedBasemap: vi.fn(),
   }),
 }))
 

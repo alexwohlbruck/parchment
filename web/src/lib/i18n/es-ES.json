@@ -948,6 +948,13 @@
           "slow": "Lento"
         }
       },
+      "style": {
+        "title": "Estilo",
+        "mapStyle": "Estilo del mapa",
+        "descriptionMaplibre": "Estilo visual del mapa",
+        "descriptionMapbox": "Mapbox usa su propio estilo estándar",
+        "placeholder": "Elige un estilo"
+      },
       "basemaps": {
         "title": "Mapas base",
         "new": "Nuevo mapa base",
@@ -1013,7 +1020,8 @@
         "spatialParents": "Áreas Contenedoras",
         "spatialChildren": "Lugares Secundarios",
         "searchAlongRoute": "Buscar en la ruta",
-        "osmMapEdit": "Editar Mapa"
+        "osmMapEdit": "Editar Mapa",
+        "tileServer": "Servidor de teselas"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",

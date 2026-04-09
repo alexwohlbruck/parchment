@@ -8,6 +8,7 @@ import { Place } from '@/types/place.types'
 // import { LayerSpecification, VectorSourceSpecification } from 'mapbox-gl'
 
 export type Basemap = 'standard' | 'satellite' | 'hybrid'
+export type MapStyleId = 'osm-liberty' | 'osm-openmaptiles'
 
 export enum MapEngine {
   MAPBOX = 'mapbox',
@@ -57,6 +58,7 @@ export interface MapSettings {
   theme: MapTheme
   engine: MapEngine
   basemap: Basemap
+  mapStyle: MapStyleId
   camera?: MapCamera
   projection: MapProjection
   terrain3d: boolean

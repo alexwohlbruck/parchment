@@ -34,6 +34,8 @@ import { parseOsmHours } from '../../lib/hours.utils'
 export interface BarrelmanConfig extends IntegrationConfig {
   host: string
   apiKey?: string
+  /** Public tile key — sent to client for authenticated tile requests */
+  tileKey?: string
 }
 
 /**
@@ -94,6 +96,7 @@ export class BarrelmanIntegration
     IntegrationCapabilityId.SPATIAL_PARENTS,
     IntegrationCapabilityId.SPATIAL_CHILDREN,
     IntegrationCapabilityId.SEARCH_ALONG_ROUTE,
+    IntegrationCapabilityId.TILE_SERVER,
   ]
 
   readonly capabilities = {

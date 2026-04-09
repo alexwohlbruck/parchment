@@ -16,6 +16,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import {
   Basemap,
   MapTheme,
+  MapStyleId,
   MapSettings,
   Layer,
   MapCamera,
@@ -31,8 +32,12 @@ import { Directions, TripsResponse } from '@/types/directions.types'
 import { decodeShape } from '@/lib/utils'
 import colors from 'tailwindcss/colors'
 import { mapEventBus } from '@/lib/eventBus'
-import { mapboxLayerToMaplibreLayer } from '@/lib/map.utils'
+import {
+  mapboxLayerToMaplibreLayer,
+  parsePlanetilerOsmId,
+} from '@/lib/map.utils'
 import { useMapStore } from '@/stores/map.store'
+import { useMapToolsStore } from '@/stores/map-tools.store'
 import { createPegmanLayers, updatePegmanData } from '@/lib/pegman.utils'
 import { MapLayerGroup, TripGroup } from '@/lib/layer-group'
 import { Component, watch } from 'vue'
@@ -41,95 +46,16 @@ import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
 import InstructionPointMarker from '@/components/map/InstructionPointMarker.vue'
 import { useAppStore } from '@/stores/app.store'
 import { useThemeStore } from '@/stores/theme.store'
-
-const basemapUrls = {
-  light: `https://api.maptiler.com/maps/streets-v2/style.json?key=${
-    import.meta.env.VITE_MAPTILER_API_KEY
-  }`,
-  dark: `https://api.maptiler.com/maps/streets-v2-dark/style.json?key=${
-    import.meta.env.VITE_MAPTILER_API_KEY
-  }`,
-  hybrid: `https://api.maptiler.com/maps/hybrid/style.json?key=${
-    import.meta.env.VITE_MAPTILER_API_KEY
-  }`,
-  satellite: `https://api.maptiler.com/maps/satellite/style.json?key=${
-    import.meta.env.VITE_MAPTILER_API_KEY
-  }`,
-}
-
-function rgbToHex(rgb: string): string {
-  const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i)
-  if (!m) return '#04CB63'
-  const r = Number(m[1]).toString(16).padStart(2, '0')
-  const g = Number(m[2]).toString(16).padStart(2, '0')
-  const b = Number(m[3]).toString(16).padStart(2, '0')
-  return `#${r}${g}${b}`
-}
-function hexToHsl(hex: string) {
-  hex = hex.replace('#', '')
-  const bigint = parseInt(hex, 16)
-  const r = (bigint >> 16) & 255
-  const g = (bigint >> 8) & 255
-  const b = bigint & 255
-  const rP = r / 255
-  const gP = g / 255
-  const bP = b / 255
-  const max = Math.max(rP, gP, bP)
-  const min = Math.min(rP, gP, bP)
-  let h = 0
-  let s = 0
-  const l = (max + min) / 2
-  if (max !== min) {
-    const d = max - min
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
-    switch (max) {
-      case rP:
-        h = (gP - bP) / d + (gP < bP ? 6 : 0)
-        break
-      case gP:
-        h = (bP - rP) / d + 2
-        break
-      case bP:
-        h = (rP - gP) / d + 4
-        break
-    }
-    h /= 6
-  }
-  return { h: h * 360, s: s * 100, l: l * 100 }
-}
-function hslToHex(h: number, s: number, l: number) {
-  h /= 360
-  s /= 100
-  l /= 100
-  const hue2rgb = (p: number, q: number, t: number) => {
-    if (t < 0) t += 1
-    if (t > 1) t -= 1
-    if (t < 1 / 6) return p + (q - p) * 6 * t
-    if (t < 1 / 2) return q
-    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
-    return p
-  }
-  let r: number, g: number, b: number
-  if (s === 0) {
-    r = g = b = l
-  } else {
-    const q = l < 0.5 ? l * (1 + s) : l + s - l * s
-    const p = 2 * l - q
-    r = hue2rgb(p, q, h + 1 / 3)
-    g = hue2rgb(p, q, h)
-    b = hue2rgb(p, q, h - 1 / 3)
-  }
-  const toHex = (x: number) => {
-    const v = Math.round(x * 255)
-    return v.toString(16).padStart(2, '0')
-  }
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
-}
-function adjustLightness(hex: string, delta: number) {
-  const { h, s, l } = hexToHsl(hex)
-  const newL = Math.max(0, Math.min(100, l + delta))
-  return hslToHex(h, s, newL)
-}
+import { buildMapStyle, buildSatelliteStyle } from '@/lib/basemap-style'
+import {
+  type BasemapStyleConfig,
+  getStyleConfig,
+  styleConfigs,
+} from '@/lib/basemap-style-config'
+import {
+  rgbToHex,
+  adjustLightness,
+} from '@/lib/utils'
 function getPrimaryThemeHex(): string {
   try {
     const span = document.createElement('span')
@@ -179,10 +105,25 @@ export class MaplibreStrategy extends MapStrategy {
   layerGroups: Map<string, MapLayerGroup> = new Map()
   private streetViewLayerIds: Set<string> = new Set()
   private unwatchTheme?: () => void
+  private tileServerUrl?: string
+  private tileKey?: string
+  private currentBasemap: Basemap = 'standard'
+  private clickDebounceTimer: number | null = null
+  private poiHandlerCleanup: (() => void) | null = null
+  private styleConfig: BasemapStyleConfig
 
-  constructor(container, options: MapSettings, accessToken?: string) {
+  constructor(
+    container: string | HTMLElement,
+    options: MapSettings,
+    accessToken?: string,
+    tileServerUrl?: string,
+    tileKey?: string,
+  ) {
     super(container, options, accessToken)
-
+    this.tileServerUrl = tileServerUrl
+    this.tileKey = tileKey
+    // Resolve the style config for the persisted map style
+    this.styleConfig = getStyleConfig(options.mapStyle ?? 'osm-liberty')
     const { center, zoom, bearing, pitch } = options.camera || {}
 
     this.mapInstance = new MaplibreMap({
@@ -193,6 +134,22 @@ export class MaplibreStrategy extends MapStrategy {
       pitch,
       zoom,
       attributionControl: false,
+      transformRequest: (url, resourceType) => {
+        // Add auth header for tile requests to the barrelman tile proxy
+        if (
+          this.tileKey &&
+          this.tileServerUrl &&
+          url.startsWith(this.tileServerUrl)
+        ) {
+          return {
+            url,
+            headers: {
+              Authorization: `Bearer ${this.tileKey}`,
+            },
+          }
+        }
+        return { url }
+      },
     })
 
     // Add geolocate control but hide it off-screen
@@ -230,8 +187,9 @@ export class MaplibreStrategy extends MapStrategy {
       mapEventBus.emit('load', this.mapInstance)
     })
     this.mapInstance.on('style.load', () => {
+      this.styleConfig = getStyleConfig(this.options.mapStyle ?? 'osm-liberty')
+      this.setupPoiHandlers()
       mapEventBus.emit('style.load', this.mapInstance)
-      this.setMapTheme(this.options.theme)
     })
     this.mapInstance.on('move', () => {
       mapEventBus.emit('move', {
@@ -250,10 +208,18 @@ export class MaplibreStrategy extends MapStrategy {
       })
     })
     this.mapInstance.on('click', e => {
-      mapEventBus.emit('click', {
-        lngLat: e.lngLat,
-        point: e.point,
-      })
+      // Debounce to allow POI click handler to fire first and cancel this
+      if (this.clickDebounceTimer) {
+        clearTimeout(this.clickDebounceTimer)
+      }
+
+      this.clickDebounceTimer = window.setTimeout(() => {
+        mapEventBus.emit('click', {
+          lngLat: e.lngLat,
+          point: e.point,
+        })
+        this.clickDebounceTimer = null
+      }, 50)
     })
     this.mapInstance.on('contextmenu', e => {
       e.preventDefault()
@@ -453,138 +419,120 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   setPoiLabels(value: boolean) {
-    // TODO: Rework this
-    const poiLayers = this.mapInstance.getStyle().layers.filter(layer => {
-      return (
-        layer.id.includes('poi') ||
-        layer.id.includes('point_of_interest') ||
-        layer.id.includes('place')
-      )
-    })
-
-    poiLayers.forEach(layer => {
-      this.mapInstance.setLayoutProperty(
-        layer.id,
-        'visibility',
-        value ? 'visible' : 'none',
-      )
-    })
+    this.setLayerGroupVisibility(this.styleConfig.poiLayerIds, value)
   }
 
   setRoadLabels(value: boolean) {
-    // TODO: Rework this
-    const roadLabelLayers = this.mapInstance.getStyle().layers.filter(layer => {
-      return (
-        layer.id.includes('road-label') ||
-        layer.id.includes('road-name') ||
-        layer.id.includes('road-number')
-      )
-    })
-
-    roadLabelLayers.forEach(layer => {
-      this.mapInstance.setLayoutProperty(
-        layer.id,
-        'visibility',
-        value ? 'visible' : 'none',
-      )
-    })
+    this.setLayerGroupVisibility(this.styleConfig.roadLabelLayerIds, value)
   }
 
   setTransitLabels(value: boolean) {
-    // TODO: Rework this
-    const transitLayers = this.mapInstance.getStyle().layers.filter(layer => {
-      return (
-        layer.id.includes('transit') ||
-        layer.id.includes('railway') ||
-        layer.id.includes('subway') ||
-        layer.id.includes('bus') ||
-        layer.id.includes('airport')
-      )
-    })
-
-    transitLayers.forEach(layer => {
-      this.mapInstance.setLayoutProperty(
-        layer.id,
-        'visibility',
-        value ? 'visible' : 'none',
-      )
-    })
+    this.setLayerGroupVisibility(this.styleConfig.transitLayerIds, value)
   }
 
   setPlaceLabels(value: boolean) {
-    // TODO: Rework this
-    const placeLayers = this.mapInstance.getStyle().layers.filter(layer => {
-      return (
-        layer.id.includes('place-label') ||
-        layer.id.includes('country-label') ||
-        layer.id.includes('state-label') ||
-        layer.id.includes('settlement-label') ||
-        layer.id.includes('city-label')
-      )
-    })
-
-    placeLayers.forEach(layer => {
-      this.mapInstance.setLayoutProperty(
-        layer.id,
-        'visibility',
-        value ? 'visible' : 'none',
-      )
-    })
+    this.setLayerGroupVisibility(this.styleConfig.placeLabelLayerIds, value)
   }
 
-  setMap3dTerrain(value: boolean) {
+  setMap3dTerrain(_value: boolean) {
     // TODO: Need to find a free 3D DEM source
   }
 
   setMap3dObjects(value: boolean) {
-    const buildingsLayerId = 'Building 3D'
-    const buildingsLayer = this.mapInstance.getLayer(buildingsLayerId)
-    if (!buildingsLayer) {
-      return
-    }
+    const {
+      buildingLayerId,
+      buildingHeightProperty,
+      buildingMinHeightProperty,
+    } = this.styleConfig
+    if (!buildingLayerId || !this.mapInstance.getLayer(buildingLayerId)) return
+
     if (value) {
       this.mapInstance.setPaintProperty(
-        buildingsLayerId,
+        buildingLayerId,
         'fill-extrusion-height',
-        ['get', 'render_height'],
+        ['coalesce', ['get', buildingHeightProperty], 0],
       )
       this.mapInstance.setPaintProperty(
-        buildingsLayerId,
+        buildingLayerId,
         'fill-extrusion-base',
-        ['get', 'render_min_height'],
+        ['coalesce', ['get', buildingMinHeightProperty], 0],
       )
     } else {
       this.mapInstance.setPaintProperty(
-        buildingsLayerId,
+        buildingLayerId,
         'fill-extrusion-height',
         0,
       )
       this.mapInstance.setPaintProperty(
-        buildingsLayerId,
+        buildingLayerId,
         'fill-extrusion-base',
         0,
       )
     }
   }
 
+  private setLayerGroupVisibility(layerIds: string[], visible: boolean) {
+    layerIds.forEach(id => {
+      if (this.mapInstance.getLayer(id)) {
+        this.mapInstance.setLayoutProperty(
+          id,
+          'visibility',
+          visible ? 'visible' : 'none',
+        )
+      }
+    })
+  }
+
   getBasemapFromTheme() {
-    return this.options.theme === 'dark' ? basemapUrls.dark : basemapUrls.light
+    if (!this.tileServerUrl) {
+      // Fallback: minimal empty style when no tile server is configured
+      return { version: 8 as const, sources: {}, layers: [] }
+    }
+    const theme = this.options.theme === 'dark' ? 'dark' : 'light'
+    return buildMapStyle({
+      tileServerUrl: this.tileServerUrl,
+      theme,
+      tileKey: this.tileKey,
+      mapStyle: this.options.mapStyle,
+    })
   }
 
   setMapTheme(theme: MapTheme) {
     this.options.theme = theme
-    this.mapInstance.setStyle(this.getBasemapFromTheme())
+    this.mapInstance.setStyle(this.buildCurrentStyle())
   }
 
   setBasemap(basemap: Basemap) {
-    const themeMap: {
-      [key in Basemap]: string
-    } = {
-      standard: this.getBasemapFromTheme(),
-      satellite: basemapUrls.satellite,
-      hybrid: basemapUrls.hybrid,
+    this.currentBasemap = basemap
+    this.mapInstance.setStyle(this.buildCurrentStyle())
+  }
+
+  setMapStyle(styleId: MapStyleId) {
+    this.options.mapStyle = styleId
+    this.styleConfig = getStyleConfig(styleId)
+    this.mapInstance.setStyle(this.buildCurrentStyle())
+  }
+
+  private buildCurrentStyle() {
+    if (!this.tileServerUrl) {
+      return { version: 8 as const, sources: {}, layers: [] }
     }
-    this.mapInstance.setStyle(themeMap[basemap])
+    const theme = this.options.theme === 'dark' ? 'dark' : 'light'
+    const styleOpts = {
+      tileServerUrl: this.tileServerUrl,
+      theme: theme as 'light' | 'dark',
+      tileKey: this.tileKey,
+      mapStyle: this.options.mapStyle,
+    }
+
+    switch (this.currentBasemap) {
+      case 'satellite':
+        return buildSatelliteStyle({ ...styleOpts, hybrid: false })
+      case 'hybrid':
+        return buildSatelliteStyle({ ...styleOpts, hybrid: true })
+      default:
+        return buildMapStyle(styleOpts)
+    }
   }
 
   setMapLanguage(locale: string): boolean {
@@ -668,10 +616,12 @@ export class MaplibreStrategy extends MapStrategy {
   toggleLayerVisibility(layerId: string, visible: boolean) {
     // Check if layer exists before trying to toggle visibility
     if (!this.mapInstance.getLayer(layerId)) {
-      console.warn(`Cannot toggle visibility: layer '${layerId}' does not exist in map`)
+      console.warn(
+        `Cannot toggle visibility: layer '${layerId}' does not exist in map`,
+      )
       return
     }
-    
+
     this.mapInstance.setLayoutProperty(
       layerId,
       'visibility',
@@ -714,6 +664,10 @@ export class MaplibreStrategy extends MapStrategy {
 
   destroy() {
     try {
+      this.poiHandlerCleanup?.()
+      this.poiHandlerCleanup = null
+      this.unwatchTheme?.()
+
       // Remove the map instance
       if (this.mapInstance) {
         // Check if the map's canvas still exists before removing
@@ -891,6 +845,86 @@ export class MaplibreStrategy extends MapStrategy {
         padding,
         duration: 1000,
       })
+    }
+  }
+
+  /**
+   * POI interaction.
+   *
+   * Both hover and click handlers are registered once and persist
+   * across setStyle() calls. MapLibre's per-layer delegates (mouseenter,
+   * mouseleave, click) internally use mousemove + queryRenderedFeatures
+   * and call getLayer() on each event to filter to existing layers.
+   * This means they automatically adapt when the style changes —
+   * old layer IDs return nothing from getLayer() and are skipped,
+   * new layer IDs are picked up as soon as they exist.
+   *
+   * We register delegates for ALL known POI layer IDs across all
+   * styles. Only the ones present in the current style will fire.
+   */
+  private setupPoiHandlers() {
+    if (this.poiHandlerCleanup) return
+    if (!this.tileServerUrl) return
+
+    // Collect all POI layer IDs from all style configs so delegates
+    // work regardless of which style is active.
+    const allPoiLayerIds = [
+      ...new Set(
+        Object.values(styleConfigs).flatMap(c => c.poiLayerIds),
+      ),
+    ]
+
+    const canvas = this.mapInstance.getCanvas()
+    let hoverCount = 0
+
+    const onEnter = () => {
+      if (hoverCount++ === 0) canvas.style.cursor = 'pointer'
+    }
+    const onLeave = () => {
+      hoverCount = Math.max(0, hoverCount - 1)
+      if (hoverCount === 0) canvas.style.cursor = ''
+    }
+
+    const handleClick = (layerEvent: any) => {
+      if (useMapToolsStore().activeTool === 'measure') return
+
+      const feature = layerEvent.features?.[0]
+      if (!feature?.id) return
+
+      const { osmId, poiType } = parsePlanetilerOsmId(feature.id)
+      if (poiType === 'unknown') return
+
+      // Cancel the debounced generic click so we don't double-fire
+      if (this.clickDebounceTimer) {
+        clearTimeout(this.clickDebounceTimer)
+        this.clickDebounceTimer = null
+      }
+
+      const poiName = feature.properties?.name
+      mapEventBus.emit('click', {
+        lngLat: layerEvent.lngLat,
+        point: layerEvent.point,
+        poi: {
+          osmId,
+          poiType,
+          name: typeof poiName === 'string' ? poiName : undefined,
+        },
+      })
+    }
+
+    for (const id of allPoiLayerIds) {
+      this.mapInstance.on('mouseenter', id, onEnter)
+      this.mapInstance.on('mouseleave', id, onLeave)
+      this.mapInstance.on('click', id, handleClick)
+    }
+
+    this.poiHandlerCleanup = () => {
+      for (const id of allPoiLayerIds) {
+        this.mapInstance.off('mouseenter', id, onEnter)
+        this.mapInstance.off('mouseleave', id, onLeave)
+        this.mapInstance.off('click', id, handleClick)
+      }
+      canvas.style.cursor = ''
     }
   }
 

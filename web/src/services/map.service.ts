@@ -28,6 +28,7 @@ import { useDirectionsStore } from '@/stores/directions.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { IntegrationId } from '@server/types/integration.types'
+import { configSchemas } from '@/types/integrations.types'
 import { createSharedComposable, useDark } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { MapboxStrategy } from '@/components/map/map-providers/mapbox.strategy'
@@ -131,8 +132,28 @@ function mapService() {
     switch (mapEngine) {
       case MapEngine.MAPBOX:
         return new MapboxStrategy(container, options, accessToken, languageCode)
-      case MapEngine.MAPLIBRE:
-        return new MaplibreStrategy(container, options, accessToken)
+      case MapEngine.MAPLIBRE: {
+        // Resolve tile server URL and key from Barrelman integration config.
+        // Parse through the zod schema to apply defaults (e.g. host defaults
+        // to http://localhost:5001 when the integration is configured but
+        // the host field was never explicitly set).
+        const barrelmanRawConfig =
+          integrationsStore.getIntegrationConfig(IntegrationId.BARRELMAN) ?? {}
+        const barrelmanConfig = configSchemas.barrelmanSchema.safeParse(barrelmanRawConfig)
+        const barrelmanHost = barrelmanConfig.success
+          ? (barrelmanConfig.data as { host?: string }).host
+          : 'http://localhost:5001'
+        const tileKey = barrelmanConfig.success
+          ? (barrelmanConfig.data as { tileKey?: string }).tileKey
+          : undefined
+        return new MaplibreStrategy(
+          container,
+          options,
+          accessToken,
+          barrelmanHost,
+          tileKey,
+        )
+      }
     }
   }
 
@@ -907,6 +928,15 @@ function mapService() {
     () => mapStore.settings.basemap,
     basemap => {
       mapStrategy?.setBasemap(basemap)
+    },
+  )
+
+  watch(
+    () => mapStore.settings.mapStyle,
+    styleId => {
+      if (styleId) {
+        mapStrategy?.setMapStyle(styleId)
+      }
     },
   )
 

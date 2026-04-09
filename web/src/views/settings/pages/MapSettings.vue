@@ -8,6 +8,7 @@ import { useMapStore } from '@/stores/map.store'
 import { useCommandStore } from '@/stores/command.store'
 import {
   type Layer,
+  type MapStyleId,
   MapEngine,
   MapProjection,
   ControlVisibility,
@@ -57,11 +58,7 @@ const { settings, controlSettings } = storeToRefs(mapStore)
 const engineCommand = commandStore.useCommand(CommandName.CHOOSE_MAP_ENGINE)
 const projectionCommand = commandStore.useCommand(CommandName.MAP_PROJECTION)
 
-const basemap = computed(() => {
-  return settings.value.engine === MapEngine.MAPBOX
-    ? 'mapbox-standard'
-    : 'maptiler'
-})
+const isMaplibre = computed(() => settings.value.engine === MapEngine.MAPLIBRE)
 </script>
 
 <template>
@@ -380,22 +377,36 @@ const basemap = computed(() => {
       </SettingsItem>
     </SettingsSection>
 
-    <SettingsSection :title="$t('settings.mapSettings.basemaps.title')">
-      <template v-slot:actions>
-        <Button disabled variant="outline">
-          <PlusIcon class="size-4 mr-2" />
-          {{ $t('settings.mapSettings.basemaps.new') }}
-        </Button>
-      </template>
-
-      <SettingsItem :title="$t('settings.mapSettings.basemaps.basemap')">
-        <Select disabled v-model="basemap">
+    <SettingsSection :title="$t('settings.mapSettings.style.title')">
+      <SettingsItem
+        :title="$t('settings.mapSettings.style.mapStyle')"
+        :description="
+          isMaplibre
+            ? $t('settings.mapSettings.style.descriptionMaplibre')
+            : $t('settings.mapSettings.style.descriptionMapbox')
+        "
+        :icon="MapIcon"
+      >
+        <Select
+          :model-value="
+            isMaplibre ? settings.mapStyle : 'mapbox-standard'
+          "
+          :disabled="!isMaplibre"
+          @update:model-value="
+            v => mapStore.setMapStyle(v as MapStyleId)
+          "
+        >
           <SelectTrigger class="w-fit">
-            <SelectValue placeholder="Choose an option" />
+            <SelectValue :placeholder="$t('settings.mapSettings.style.placeholder')" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="mapbox-standard">Mapbox Standard</SelectItem>
-            <SelectItem value="maptiler">Maptiler</SelectItem>
+            <SelectItem v-if="!isMaplibre" value="mapbox-standard">
+              Mapbox Standard
+            </SelectItem>
+            <SelectItem value="osm-liberty">OSM Liberty</SelectItem>
+            <SelectItem value="osm-openmaptiles">
+              OSM OpenMapTiles
+            </SelectItem>
           </SelectContent>
         </Select>
       </SettingsItem>

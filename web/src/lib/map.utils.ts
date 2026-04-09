@@ -19,15 +19,17 @@ const MAPBOX_PAINT_PROPERTIES = [
 // List of Mapbox layout properties that are not supported by Maplibre
 const MAPBOX_LAYOUT_PROPERTIES = [
   'symbol-placement',
+  'symbol-z-elevate',
   'text-field',
   'text-size',
   'text-offset',
+  'text-spacing',
   'icon-image',
   'icon-size',
 ] as const
 
-// Font name translation table: Mapbox Standard → MapTiler/MapLibre equivalents
-// MapTiler Streets v2 ships Roboto + Noto Sans; use Medium weight to match DIN Pro Medium.
+// Font name translation table: Mapbox Standard → MapLibre (OSM Liberty) equivalents
+// OSM Liberty uses Roboto + Noto Sans via CDN glyphs.
 const MAPBOX_TO_MAPLIBRE_FONTS: Record<string, string> = {
   'DIN Pro Medium':         'Roboto Medium',
   'DIN Pro':                'Roboto Regular',
@@ -35,6 +37,62 @@ const MAPBOX_TO_MAPLIBRE_FONTS: Record<string, string> = {
   'DIN Pro Italic':         'Roboto Italic',
   'Arial Unicode MS Bold':  'Noto Sans Regular',
   'Arial Unicode MS Regular': 'Noto Sans Regular',
+}
+
+/**
+ * Recursively strip Mapbox-only expressions that MapLibre doesn't understand.
+ * - `measure-light`: replaced with its "day" fallback (the last value in the
+ *   interpolation, i.e. the highest-brightness stop).
+ * - `config`: replaced with a sensible default string.
+ * Returns the cleaned value, or the original if no Mapbox expressions found.
+ */
+function stripMapboxExpressions(value: unknown): unknown {
+  if (!Array.isArray(value)) return value
+
+  const [op, ...rest] = value
+
+  // ['measure-light', 'brightness'] → not directly useful, but it appears
+  // inside interpolate expressions.  We handle it at the interpolate level.
+  if (op === 'measure-light') {
+    // Return a neutral brightness value (day mode = high brightness)
+    return 1
+  }
+
+  // ['config', 'font'] → return default font family
+  if (op === 'config') {
+    return 'Roboto'
+  }
+
+  // ['concat', ...args] with config inside → evaluate with defaults
+  if (op === 'concat') {
+    const resolved = rest.map(a => stripMapboxExpressions(a))
+    // If all parts resolved to strings, return the concatenated result
+    if (resolved.every(v => typeof v === 'string')) {
+      return resolved.join('')
+    }
+  }
+
+  // ['interpolate', ['linear'], ['measure-light', ...], stop1, val1, stop2, val2]
+  // → use the last value (highest brightness = day mode)
+  if (op === 'interpolate' && Array.isArray(rest[1]) && rest[1][0] === 'measure-light') {
+    const lastVal = value[value.length - 1]
+    return stripMapboxExpressions(lastVal)
+  }
+
+  // Recurse into all array elements
+  return value.map(v => stripMapboxExpressions(v))
+}
+
+/**
+ * Clean a paint or layout object by stripping Mapbox-only expressions
+ * from all property values.
+ */
+function stripMapboxExpressionsFromObject(obj: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = {}
+  for (const [key, val] of Object.entries(obj)) {
+    result[key] = stripMapboxExpressions(val)
+  }
+  return result
 }
 
 // TODO: Fix any types
@@ -45,29 +103,36 @@ export function mapboxLayerToMaplibreLayer(layer: Layer): MaplibreLayerType {
     type: configuration.type,
   }
 
-  // Remove Mapbox-specific paint properties
+  // Remove Mapbox-specific paint properties, then strip unsupported expressions
   if (maplibreConfig.paint) {
     MAPBOX_PAINT_PROPERTIES.forEach(prop => {
       if (prop in maplibreConfig.paint) {
         delete maplibreConfig.paint[prop]
       }
     })
+    maplibreConfig.paint = stripMapboxExpressionsFromObject(maplibreConfig.paint)
   }
 
-  // Remove Mapbox-specific layout properties
+  // Remove Mapbox-specific layout properties, then strip unsupported expressions
   if (maplibreConfig.layout) {
     MAPBOX_LAYOUT_PROPERTIES.forEach(prop => {
       if (prop in maplibreConfig.layout) {
         delete maplibreConfig.layout[prop]
       }
     })
+    maplibreConfig.layout = stripMapboxExpressionsFromObject(maplibreConfig.layout)
 
-    // Translate text-font: replace Mapbox font names with MapTiler/MapLibre equivalents.
-    // Falls back to the original name if no mapping exists.
+    // Translate text-font: replace Mapbox font names with MapLibre equivalents.
+    // Handle both flat arrays (['DIN Pro', ...]) and arrays that contained
+    // expressions which were resolved to strings by stripMapboxExpressions.
     if (Array.isArray(maplibreConfig.layout['text-font'])) {
-      maplibreConfig.layout['text-font'] = maplibreConfig.layout['text-font'].map(
-        (font: string) => MAPBOX_TO_MAPLIBRE_FONTS[font] ?? font,
-      )
+      maplibreConfig.layout['text-font'] = maplibreConfig.layout['text-font']
+        .filter((entry: unknown) => typeof entry === 'string')
+        .map((font: string) => MAPBOX_TO_MAPLIBRE_FONTS[font] ?? font)
+      // Ensure at least one font remains
+      if (maplibreConfig.layout['text-font'].length === 0) {
+        maplibreConfig.layout['text-font'] = ['Roboto Medium', 'Noto Sans Regular']
+      }
     }
   }
 
@@ -104,6 +169,33 @@ export function parseMapboxToOsmId(featureId: string | number): {
 
   return {
     osmId,
+    poiType: poiTypeCodeMap[typeCode] || 'unknown',
+  }
+}
+
+/**
+ * Parse a Planetiler/OpenMapTiles MVT feature ID into an OSM ID and type.
+ * Planetiler encodes as: feature.id = osm_id * 10 + type_code
+ * where type_code: 1=node, 2=way, 3=relation
+ */
+export function parsePlanetilerOsmId(featureId: string | number): {
+  osmId: string
+  poiType: 'node' | 'way' | 'relation' | 'unknown'
+} {
+  const id = typeof featureId === 'string' ? parseInt(featureId, 10) : featureId
+  if (isNaN(id) || id <= 0) return { osmId: '0', poiType: 'unknown' }
+
+  const typeCode = id % 10
+  const osmId = Math.floor(id / 10)
+
+  const poiTypeCodeMap: Record<number, 'node' | 'way' | 'relation'> = {
+    1: 'node',
+    2: 'way',
+    3: 'relation',
+  }
+
+  return {
+    osmId: String(osmId),
     poiType: poiTypeCodeMap[typeCode] || 'unknown',
   }
 }

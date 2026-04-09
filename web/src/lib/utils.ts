@@ -242,6 +242,8 @@ export function rgbToHex(rgb: string): string {
 
 export function hexToHsl(hex: string) {
   hex = hex.replace('#', '')
+  // Expand 3-char shorthand (e.g. "abc" → "aabbcc")
+  if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2]
   const bigint = parseInt(hex, 16)
   const r = (bigint >> 16) & 255
   const g = (bigint >> 8) & 255

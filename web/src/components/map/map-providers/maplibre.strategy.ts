@@ -208,6 +208,15 @@ export class MaplibreStrategy extends MapStrategy {
       })
     })
     this.mapInstance.on('click', e => {
+      // DEBUG: log all features under click point
+      const features = this.mapInstance.queryRenderedFeatures(e.point)
+      if (features.length) {
+        console.log('[map click]', features.map(f => ({
+          layer: f.layer.id,
+          properties: f.properties,
+        })))
+      }
+
       // Debounce to allow POI click handler to fire first and cancel this
       if (this.clickDebounceTimer) {
         clearTimeout(this.clickDebounceTimer)
@@ -592,15 +601,19 @@ export class MaplibreStrategy extends MapStrategy {
       this.mapInstance.removeLayer(configuration.id)
     }
     if (!existingLayer || overwrite) {
-      this.mapInstance.addLayer({
-        ...(configuration as any),
-        layout: {
-          ...configuration.layout,
-          visibility: layer.visible ? 'visible' : 'none',
-        },
-      })
-      if (layer.type === LayerType.STREET_VIEW) {
-        this.streetViewLayerIds.add(configuration.id)
+      try {
+        this.mapInstance.addLayer({
+          ...(configuration as any),
+          layout: {
+            ...configuration.layout,
+            visibility: layer.visible ? 'visible' : 'none',
+          },
+        })
+        if (layer.type === LayerType.STREET_VIEW) {
+          this.streetViewLayerIds.add(configuration.id)
+        }
+      } catch (error) {
+        console.error(`Failed to add layer '${configuration.id}':`, error)
       }
     }
   }

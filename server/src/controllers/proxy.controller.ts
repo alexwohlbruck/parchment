@@ -157,4 +157,58 @@ app.get(
   },
 )
 
+// Proxy Barrelman tile requests (bicycle_ways, bicycle_routes, etc.)
+// Forwards to Barrelman's /tiles endpoint with tileKey auth
+app.get(
+  '/barrelman/:source/:z/:x/:y',
+  async ({ params }) => {
+    try {
+      const systemIntegration = integrationManager
+        .getConfiguredIntegrations()
+        .find((i) => i.integrationId === IntegrationId.BARRELMAN)
+
+      if (!systemIntegration || !systemIntegration.config?.host) {
+        return new Response('Barrelman not configured', { status: 501 })
+      }
+
+      const { host, tileKey } = systemIntegration.config as {
+        host: string
+        tileKey?: string
+      }
+      const { source, z, x, y } = params
+      const tileUrl = new URL(`/tiles/${source}/${z}/${x}/${y}`, host)
+      if (tileKey) tileUrl.searchParams.set('token', tileKey)
+
+      const response = await fetch(tileUrl.toString())
+
+      if (!response.ok) {
+        console.error(
+          `Barrelman tile proxy: ${response.status} ${response.statusText}`,
+        )
+        return new Response('Upstream error', { status: response.status })
+      }
+
+      const data = await response.arrayBuffer()
+
+      return new Response(data, {
+        headers: {
+          'Content-Type':
+            response.headers.get('content-type') ||
+            'application/x-protobuf',
+          'Cache-Control': 'public, max-age=86400',
+        },
+      })
+    } catch (error) {
+      console.error('Barrelman tile proxy error:', error, 'params:', params)
+      return new Response('Proxy error', { status: 500 })
+    }
+  },
+  {
+    detail: {
+      tags: ['Proxy'],
+      summary: 'Proxy Barrelman tile requests',
+    },
+  },
+)
+
 export default app

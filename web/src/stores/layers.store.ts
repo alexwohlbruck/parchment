@@ -95,12 +95,9 @@ export const useLayersStore = defineStore('layers', () => {
           ...layerTemplate,
           id: layerId,
           userId: 'client',
-          groupId:
-            layerTemplate.groupId === 'Mapillary'
-              ? 'client-mapillary'
-              : layerTemplate.groupId === 'Transit'
-                ? 'client-transit'
-                : layerTemplate.groupId,
+          groupId: layerTemplate.groupId
+            ? `client-${layerTemplate.groupId.toLowerCase()}`
+            : layerTemplate.groupId,
           // Use persistent visibility state, fallback to template default
           visible:
             clientSideLayerVisibility.value[layerId] ?? layerTemplate.visible,
@@ -291,7 +288,14 @@ export const useLayersStore = defineStore('layers', () => {
 
   // TODO: Create template "store" where users can import pre-made layers from the community
   // Populate user's account with template layers (replaces server-side populate endpoint)
+  let _populatingTemplates = false
   async function populateUserLayerTemplates() {
+    // Guard against re-entrancy (HMR, double-mount, etc.)
+    if (_populatingTemplates) return
+    _populatingTemplates = true
+    try { return await _populateUserLayerTemplatesInner() } finally { _populatingTemplates = false }
+  }
+  async function _populateUserLayerTemplatesInner() {
     // First, create layer groups that don't exist
     const existingGroupNames = new Set(layerGroups.value.map(g => g.name))
 
@@ -314,37 +318,64 @@ export const useLayersStore = defineStore('layers', () => {
     // Reload groups to get the created IDs
     await loadLayers()
 
-    // Then create layers that don't exist
-    const existingConfigIds = new Set(
-      userLayers.value.map(l => l.configuration?.id).filter(Boolean),
+    // Then create or update layers from templates
+    const existingLayersByConfigId = new Map(
+      userLayers.value
+        .filter(l => l.configuration?.id)
+        .map(l => [l.configuration.id, l]),
     )
+    const handledConfigIds = new Set<string>()
 
     for (const layerTemplate of USER_LAYER_TEMPLATES.value) {
       const configId = layerTemplate.configuration?.id
-      if (configId && !existingConfigIds.has(configId)) {
-        // Check integration requirements
-        const requiredIntegration =
-          LAYER_INTEGRATION_REQUIREMENTS[
-            configId as keyof typeof LAYER_INTEGRATION_REQUIREMENTS
-          ]
-        const hasRequiredIntegration =
-          !requiredIntegration ||
-          integrationsStore.configuredIntegrations.some(
-            i => i.id.toLowerCase() === requiredIntegration,
-          )
+      if (!configId) continue
 
-        if (hasRequiredIntegration) {
-          // Find group ID if this layer belongs to a group
-          let groupId: string | null = null
-          if (layerTemplate.groupId) {
-            const group = layerGroups.value.find(
-              g => g.name === layerTemplate.groupId,
-            )
-            groupId = group?.id || null
-          }
+      // Skip if we already handled this configId in this run
+      if (handledConfigIds.has(configId)) continue
+      handledConfigIds.add(configId)
 
-          await addLayer({
-            ...layerTemplate,
+      // Check integration requirements
+      const requiredIntegration =
+        LAYER_INTEGRATION_REQUIREMENTS[
+          configId as keyof typeof LAYER_INTEGRATION_REQUIREMENTS
+        ]
+      const hasRequiredIntegration =
+        !requiredIntegration ||
+        integrationsStore.configuredIntegrations.some(
+          i => i.id.toLowerCase() === requiredIntegration,
+        )
+
+      if (!hasRequiredIntegration) continue
+
+      // Find group ID if this layer belongs to a group
+      let groupId: string | null = null
+      if (layerTemplate.groupId) {
+        const group = layerGroups.value.find(
+          g => g.name === layerTemplate.groupId,
+        )
+        groupId = group?.id || null
+      }
+
+      const existingLayer = existingLayersByConfigId.get(configId)
+      if (!existingLayer) {
+        // Layer doesn't exist yet — create it
+        await addLayer({
+          ...layerTemplate,
+          groupId,
+        })
+      } else {
+        // Layer exists — sync template-managed fields (configuration, engine)
+        // while preserving user-controlled fields (visible, order)
+        const templateConfig = JSON.stringify(layerTemplate.configuration)
+        const existingConfig = JSON.stringify(existingLayer.configuration)
+        const engineChanged =
+          JSON.stringify(layerTemplate.engine) !==
+          JSON.stringify(existingLayer.engine)
+
+        if (templateConfig !== existingConfig || engineChanged) {
+          await updateLayer(existingLayer.id, {
+            configuration: layerTemplate.configuration,
+            engine: layerTemplate.engine,
             groupId,
           })
         }

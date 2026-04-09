@@ -17,15 +17,12 @@ const MAPBOX_PAINT_PROPERTIES = [
 ] as const
 
 // List of Mapbox layout properties that are not supported by Maplibre
+// NOTE: Only include truly Mapbox-only properties here. Standard MapLibre
+// properties like symbol-placement, text-field, text-size etc. are valid
+// and should NOT be stripped — their Mapbox expression values (config,
+// measure-light) are already handled by stripMapboxExpressions().
 const MAPBOX_LAYOUT_PROPERTIES = [
-  'symbol-placement',
   'symbol-z-elevate',
-  'text-field',
-  'text-size',
-  'text-offset',
-  'text-spacing',
-  'icon-image',
-  'icon-size',
 ] as const
 
 // Font name translation table: Mapbox Standard → MapLibre (OSM Liberty) equivalents
@@ -128,11 +125,17 @@ export function mapboxLayerToMaplibreLayer(layer: Layer): MaplibreLayerType {
     if (Array.isArray(maplibreConfig.layout['text-font'])) {
       maplibreConfig.layout['text-font'] = maplibreConfig.layout['text-font']
         .filter((entry: unknown) => typeof entry === 'string')
-        .map((font: string) => MAPBOX_TO_MAPLIBRE_FONTS[font] ?? font)
+        .map((font: string) => MAPBOX_TO_MAPLIBRE_FONTS[font] ?? 'Roboto Regular')
       // Ensure at least one font remains
       if (maplibreConfig.layout['text-font'].length === 0) {
-        maplibreConfig.layout['text-font'] = ['Roboto Medium', 'Noto Sans Regular']
+        maplibreConfig.layout['text-font'] = ['Roboto Regular']
       }
+    } else if (maplibreConfig.type === 'symbol') {
+      // No text-font specified — inject a known-good default so MapLibre doesn't
+      // fall back to the basemap style's default (e.g. "Open Sans Regular") which
+      // may not exist on the glyph server.
+      if (!maplibreConfig.layout) maplibreConfig.layout = {}
+      maplibreConfig.layout['text-font'] = ['Roboto Regular']
     }
   }
 

@@ -31,8 +31,8 @@ export interface BasemapStyleOptions {
 /**
  * Build a tile URL for our basemap proxy with optional auth token and cache-buster.
  */
-function buildTileUrl(tileServerUrl: string, tileKey?: string): string {
-  const base = `${tileServerUrl}/tiles/basemap/{z}/{x}/{y}`
+function buildTileUrl(tileServerUrl: string, tileKey?: string, source: string = 'basemap'): string {
+  const base = `${tileServerUrl}/tiles/${source}/{z}/{x}/{y}`
   const params = new URLSearchParams()
   if (tileKey) params.set('token', tileKey)
   params.set('v', _cacheBuster)

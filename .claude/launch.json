@@ -7,6 +7,13 @@
       "runtimeArgs": ["run", "--cwd", "web", "dev"],
       "port": 5173,
       "autoPort": false
+    },
+    {
+      "name": "parchment-server",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "--cwd", "server", "dev"],
+      "port": 5000,
+      "autoPort": false
     }
   ]
 }

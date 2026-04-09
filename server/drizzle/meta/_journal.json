@@ -169,6 +169,13 @@
       "when": 1775606400000,
       "tag": "0023_rename_osm_integration",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1775764090864,
+      "tag": "0024_layers_unified_model",
+      "breakpoints": true
     }
   ]
 }

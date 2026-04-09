@@ -34,7 +34,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 const appService = useAppService()
 const layersStore = useLayersStore()
 const layersService = useLayersService()
-const { mainReorderableItems, groupsWithLayers } = storeToRefs(layersStore)
+const { mainReorderableItems, groupsWithLayers, groupTree } = storeToRefs(layersStore)
 const { t } = useI18n()
 const { isDragActive } = useDragState()
 
@@ -86,10 +86,22 @@ function openLayerGroupConfigDialog(groupId?: string) {
 }
 
 async function restoreDefaults() {
-  const count = await layersStore.populateUserLayerTemplates()
+  const result = await layersStore.restoreDefaults()
   appService.toast.success(
-    t('layers.restoreDefaults.success', { count }),
+    t('layers.restoreDefaults.success', { count: result.restoredLayers + result.restoredGroups }),
   )
+}
+
+function findGroupTreeNode(groupId: string, nodes?: any[]): any {
+  const searchNodes = nodes ?? groupTree.value
+  for (const node of searchNodes) {
+    if (node.id === groupId) return node
+    if (node.children?.length) {
+      const found = findGroupTreeNode(groupId, node.children)
+      if (found) return found
+    }
+  }
+  return null
 }
 
 function toggleGroup(groupId: string) {
@@ -214,8 +226,8 @@ async function handleMainChange(evt: any) {
               <!-- Layer Group -->
               <LayerGroupItem
                 v-if="!('groupId' in element)"
-                :group="groupsWithLayers.find(g => g.id === element.id)!"
-                :expanded="expandedGroups.has(element.id)"
+                :group="findGroupTreeNode(element.id) ?? groupsWithLayers.find(g => g.id === element.id)!"
+                :expanded-groups="expandedGroups"
                 @toggle-expanded="toggleGroup"
               />
 

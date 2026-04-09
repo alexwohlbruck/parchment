@@ -54,6 +54,9 @@ export function useLayersService() {
     reorderLayers,
     moveLayer,
     moveLayerGroup,
+    getDefaultTemplates,
+    initializeDefaults,
+    restoreDefaults,
   } = crudService
 
   // ============================================================================
@@ -148,6 +151,11 @@ export function useLayersService() {
     reorderLayers,
     moveLayer,
     moveLayerGroup,
+
+    // Default layer operations
+    getDefaultTemplates,
+    initializeDefaults,
+    restoreDefaults,
 
     // Map integration
     initializeLayers,

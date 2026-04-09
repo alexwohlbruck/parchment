@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLayersStore } from '@/stores/layers.store'
 import { useLayersService } from '@/services/layers/layers.service'
@@ -38,12 +39,19 @@ import {
   TooltipContent,
 } from '@/components/ui/tooltip'
 
-interface Props {
-  group: LayerGroupWithLayers
-  expanded: boolean
+interface GroupTreeNode extends LayerGroupWithLayers {
+  children?: GroupTreeNode[]
 }
 
-const props = defineProps<Props>()
+interface Props {
+  group: GroupTreeNode
+  expandedGroups: Set<string>
+  depth?: number
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  depth: 0,
+})
 
 const emit = defineEmits<{
   toggleExpanded: [groupId: string]
@@ -55,19 +63,29 @@ const layersService = useLayersService()
 const appService = useAppService()
 const mapService = useMapService()
 
+const expanded = computed(() => props.expandedGroups.has(props.group.id))
+
+// Filter out sub-layers for UI display, use a ref so vuedraggable can modify it
+const displayLayers = ref<Layer[]>([])
+watch(
+  () => props.group.layers,
+  (layers) => {
+    displayLayers.value = (layers ?? []).filter(l => !l.isSubLayer)
+  },
+  { immediate: true, deep: true },
+)
+
+const childGroups = computed(() => props.group.children ?? [])
+
 function isDefaultGroup(id: string, name: string): boolean {
   return id?.startsWith('reserved:') || name === 'Mapillary'
 }
 
-// Helper function to convert icon string name to Vue component
 function getIconComponent(iconName?: string | null) {
   if (!iconName) return null
-
   const fullName = iconName.endsWith('Icon') ? iconName : `${iconName}Icon`
-
   const icon = LucideIcons[fullName as keyof typeof LucideIcons]
   const isValidIcon = fullName !== 'icons' && typeof icon === 'function'
-
   return isValidIcon ? (icon as any) : null
 }
 
@@ -100,28 +118,25 @@ function handleToggleExpanded() {
   emit('toggleExpanded', props.group.id)
 }
 
-// Simple drag handler for group layers
 async function handleGroupLayersChange(evt: any) {
   if (evt.added) {
-    // Layer dropped into this group
     const layerId = evt.added.element.id
     const newIndex = evt.added.newIndex
     await layersStore.handleLayerMove(layerId, props.group.id, newIndex)
   } else if (!evt.added && !evt.removed) {
-    // Pure reorder within group
-    await layersStore.handleGroupReorder(props.group.id, props.group.layers)
+    await layersStore.handleGroupReorder(props.group.id, displayLayers.value)
   }
 }
 
 function handleUngroupLayer(layerId: string) {
-  // Move layer to ungrouped at the end
-  layersStore.handleLayerMove(layerId, null, 999) // Large number to put at end
+  layersStore.handleLayerMove(layerId, null, 999)
 }
 </script>
 
 <template>
   <div
     class="border border-border rounded-lg bg-background transition-colors select-none"
+    :class="depth > 0 ? 'ml-4' : ''"
   >
     <Collapsible :open="expanded">
       <div class="flex items-center p-2 rounded-t-lg">
@@ -148,7 +163,7 @@ function handleUngroupLayer(layerId: string) {
             <span
               class="inline-flex items-center justify-center h-5 w-6 rounded bg-muted text-muted-foreground text-xs tabular-nums"
             >
-              {{ group.layers.length }}
+              {{ layersStore.getGroupTotalLayerCount(group.id) }}
             </span>
             <Tooltip v-if="!isDefaultGroup(group.id, group.name)">
               <TooltipTrigger as-child>
@@ -199,11 +214,24 @@ function handleUngroupLayer(layerId: string) {
         </DropdownMenu>
       </div>
 
-      <!-- Group Layers -->
+      <!-- Group Content -->
       <CollapsibleContent>
         <div class="border-t border-border">
+          <!-- Child Groups (recursive) -->
+          <div v-if="childGroups.length" class="p-1 space-y-1">
+            <LayerGroupItem
+              v-for="child in childGroups"
+              :key="`group-${child.id}`"
+              :group="child"
+              :expanded-groups="expandedGroups"
+              :depth="depth + 1"
+              @toggle-expanded="(id: string) => emit('toggleExpanded', id)"
+            />
+          </div>
+
+          <!-- Layers (excluding sub-layers) -->
           <draggable
-            v-model="group.layers"
+            v-model="displayLayers"
             v-bind="groupDragOptions"
             @start="onDragStart"
             @end="onDragEnd"

@@ -208,6 +208,12 @@ export enum LayerType {
   FRIENDS = 'friends',
 }
 
+export enum LayerCategory {
+  CORE = 'core',
+  DEFAULT = 'default',
+  CUSTOM = 'custom',
+}
+
 export interface Layer {
   id: string
   name: string
@@ -232,6 +238,12 @@ export interface Layer {
     slot?: string
     [key: string]: any
   }
+  // New unified layer model fields
+  category?: LayerCategory
+  defaultTemplateId?: string | null
+  isSubLayer?: boolean
+  enabled?: boolean
+  integrationId?: string | null
   userId?: string
   createdAt?: string
   updatedAt?: string
@@ -245,6 +257,10 @@ export interface LayerGroup {
   fadeBasemap?: boolean
   icon?: string
   order: number
+  // New unified layer model fields
+  category?: LayerCategory
+  defaultTemplateId?: string | null
+  parentGroupId?: string | null
   userId: string
   createdAt: string
   updatedAt: string

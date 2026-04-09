@@ -97,22 +97,57 @@ export function useLayerCrudService() {
     return data
   }
 
+  // ============================================================================
+  // DEFAULT LAYER OPERATIONS
+  // ============================================================================
+
+  async function getDefaultTemplates() {
+    const { data } = await api.get<{
+      layers: any[]
+      groups: any[]
+    }>('/library/layers/defaults')
+    return data
+  }
+
+  async function initializeDefaults() {
+    const { data } = await api.post<{
+      success: boolean
+      layersCreated: number
+      groupsCreated: number
+    }>('/library/layers/initialize-defaults')
+    return data
+  }
+
+  async function restoreDefaults() {
+    const { data } = await api.post<{
+      success: boolean
+      restoredLayers: number
+      restoredGroups: number
+    }>('/library/layers/restore-defaults')
+    return data
+  }
+
   return {
     // Layer operations
     getLayers,
     createLayer,
     updateLayer,
     deleteLayer,
-    
+
     // Layer group operations
     getLayerGroups,
     createLayerGroup,
     updateLayerGroup,
     deleteLayerGroup,
-    
+
     // Reordering operations
     reorderLayers,
     moveLayer,
     moveLayerGroup,
+
+    // Default layer operations
+    getDefaultTemplates,
+    initializeDefaults,
+    restoreDefaults,
   }
 }

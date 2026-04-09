@@ -18,7 +18,7 @@ export class FriendLocationsLayer extends BaseMarkerLayer {
   constructor() {
     const layersStore = useLayersStore()
     const isEnabled = computed(() => {
-      const layer = layersStore.clientSideLayers.find(
+      const layer = layersStore.layers.find(
         l => l.configuration?.id === 'friends-locations'
       )
       return layer?.visible ?? false

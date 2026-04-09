@@ -82,10 +82,16 @@ app
         engine: t.Optional(t.Array(t.String())),
         showInLayerSelector: t.Optional(t.Boolean()),
         visible: t.Optional(t.Boolean()),
+        fadeBasemap: t.Optional(t.Boolean()),
         icon: t.Optional(t.String()),
         order: t.Number(),
         groupId: t.Optional(t.Union([t.String(), t.Null()])),
         configuration: t.Any(),
+        category: t.Optional(t.String()),
+        defaultTemplateId: t.Optional(t.Union([t.String(), t.Null()])),
+        isSubLayer: t.Optional(t.Boolean()),
+        enabled: t.Optional(t.Boolean()),
+        integrationId: t.Optional(t.Union([t.String(), t.Null()])),
       }),
       detail: {
         tags: ['Layers'],
@@ -117,10 +123,16 @@ app
         engine: t.Optional(t.Array(t.String())),
         showInLayerSelector: t.Optional(t.Boolean()),
         visible: t.Optional(t.Boolean()),
+        fadeBasemap: t.Optional(t.Boolean()),
         icon: t.Optional(t.String()),
         order: t.Optional(t.Number()),
         groupId: t.Optional(t.Union([t.String(), t.Null()])),
         configuration: t.Optional(t.Any()),
+        category: t.Optional(t.String()),
+        defaultTemplateId: t.Optional(t.Union([t.String(), t.Null()])),
+        isSubLayer: t.Optional(t.Boolean()),
+        enabled: t.Optional(t.Boolean()),
+        integrationId: t.Optional(t.Union([t.String(), t.Null()])),
       }),
       detail: {
         tags: ['Layers'],
@@ -183,8 +195,12 @@ app
         name: t.String(),
         showInLayerSelector: t.Optional(t.Boolean()),
         visible: t.Optional(t.Boolean()),
+        fadeBasemap: t.Optional(t.Boolean()),
         icon: t.Optional(t.String()),
         order: t.Number(),
+        category: t.Optional(t.String()),
+        defaultTemplateId: t.Optional(t.Union([t.String(), t.Null()])),
+        parentGroupId: t.Optional(t.Union([t.String(), t.Null()])),
       }),
       detail: {
         tags: ['Layers'],
@@ -214,8 +230,12 @@ app
         name: t.Optional(t.String()),
         showInLayerSelector: t.Optional(t.Boolean()),
         visible: t.Optional(t.Boolean()),
+        fadeBasemap: t.Optional(t.Boolean()),
         icon: t.Optional(t.String()),
         order: t.Optional(t.Number()),
+        category: t.Optional(t.String()),
+        defaultTemplateId: t.Optional(t.Union([t.String(), t.Null()])),
+        parentGroupId: t.Optional(t.Union([t.String(), t.Null()])),
       }),
       detail: {
         tags: ['Layers'],
@@ -330,21 +350,217 @@ app
   .post(
     '/layers/restore-defaults',
     async ({ user }) => {
-      const userLayers = await layersService.getLayers(user.id)
-      const tombstones = userLayers.filter((l) =>
-        l.name?.startsWith('__tombstone__:'),
+      const { DEFAULT_LAYER_TEMPLATES, DEFAULT_GROUP_TEMPLATES } = await import(
+        '../../constants/default-layers'
       )
-      let count = 0
-      for (const t of tombstones) {
-        await layersService.deleteLayer(t.id, user.id)
-        count++
+
+      const defaultGroupNames = new Set(DEFAULT_GROUP_TEMPLATES.map((g) => g.name))
+      const defaultLayerConfigIds = new Set(
+        DEFAULT_LAYER_TEMPLATES.map((l) => l.configuration?.id).filter(Boolean),
+      )
+
+      // Delete all user layers/groups that were cloned from defaults
+      const userLayers = await layersService.getLayers(user.id)
+      const userGroups = await layersService.getLayerGroups(user.id)
+
+      let layerCount = 0
+      let groupCount = 0
+
+      // Delete default layers (by templateId or by matching configuration.id)
+      for (const layer of userLayers) {
+        if (
+          layer.defaultTemplateId ||
+          layer.name?.startsWith('__tombstone__:') ||
+          defaultLayerConfigIds.has(layer.configuration?.id)
+        ) {
+          await layersService.deleteLayer(layer.id, user.id)
+          layerCount++
+        }
       }
-      return { success: true, restored: count }
+
+      // Delete default groups (by templateId or by matching name)
+      for (const group of userGroups) {
+        if (group.defaultTemplateId || defaultGroupNames.has(group.name)) {
+          await layersService.deleteLayerGroup(group.id, user.id)
+          groupCount++
+        }
+      }
+
+      return { success: true, restoredLayers: layerCount, restoredGroups: groupCount }
     },
     {
       detail: {
         tags: ['Layers'],
-        summary: 'Restore default layers',
+        summary: 'Restore default layers by removing user overrides',
+      },
+    },
+  )
+
+// Get default layer templates (no auth required for caching)
+app
+  .get(
+    '/layers/defaults',
+    async () => {
+      const { DEFAULT_LAYER_TEMPLATES, DEFAULT_GROUP_TEMPLATES } = await import(
+        '../../constants/default-layers'
+      )
+      return {
+        layers: DEFAULT_LAYER_TEMPLATES,
+        groups: DEFAULT_GROUP_TEMPLATES,
+      }
+    },
+    {
+      detail: {
+        tags: ['Layers'],
+        summary: 'Get default layer templates',
+      },
+    },
+  )
+
+// Initialize default layers for a user (called on first login or when requesting defaults)
+app
+  .use(requireAuth)
+  .use(permissions(PermissionId.LAYERS_WRITE))
+  .post(
+    '/layers/initialize-defaults',
+    async ({ user }) => {
+      const { DEFAULT_LAYER_TEMPLATES, DEFAULT_GROUP_TEMPLATES, resolveProxyUrls } = await import(
+        '../../constants/default-layers'
+      )
+
+      const existingLayers = await layersService.getLayers(user.id)
+      const existingGroups = await layersService.getLayerGroups(user.id)
+
+      // Build a set of already-provisioned template IDs
+      const existingLayerTemplateIds = new Set(
+        existingLayers.map((l) => l.defaultTemplateId).filter(Boolean),
+      )
+      const existingGroupTemplateIds = new Set(
+        existingGroups.map((g) => g.defaultTemplateId).filter(Boolean),
+      )
+
+      // Determine server URL for proxy URL resolution
+      // Use the request origin or a default
+      const serverUrl = process.env.SERVER_URL || 'http://localhost:5000'
+
+      // Create missing groups first (layers reference group IDs)
+      const groupIdMap: Record<string, string> = {} // templateId -> actual DB id
+      let groupsCreated = 0
+
+      for (const groupTemplate of DEFAULT_GROUP_TEMPLATES) {
+        // 1. Match by defaultTemplateId
+        if (existingGroupTemplateIds.has(groupTemplate.templateId)) {
+          const existing = existingGroups.find(
+            (g) => g.defaultTemplateId === groupTemplate.templateId,
+          )
+          if (existing) groupIdMap[groupTemplate.templateId] = existing.id
+          continue
+        }
+
+        // 2. Fall back to name match — adopt old groups that lack defaultTemplateId
+        const nameMatch = existingGroups.find(
+          (g) => g.name === groupTemplate.name && !g.defaultTemplateId,
+        )
+        if (nameMatch) {
+          await layersService.updateLayerGroup(nameMatch.id, user.id, {
+            defaultTemplateId: groupTemplate.templateId,
+            category: 'default',
+          })
+          groupIdMap[groupTemplate.templateId] = nameMatch.id
+          continue
+        }
+
+        // 3. No match — create new group
+        const group = await layersService.createLayerGroup({
+          name: groupTemplate.name,
+          showInLayerSelector: groupTemplate.showInLayerSelector,
+          visible: groupTemplate.visible,
+          fadeBasemap: groupTemplate.fadeBasemap ?? false,
+          icon: groupTemplate.icon ?? null,
+          order: groupTemplate.order,
+          category: 'default',
+          defaultTemplateId: groupTemplate.templateId,
+          parentGroupId: groupTemplate.parentGroupId ?? null,
+          userId: user.id,
+        })
+        groupIdMap[groupTemplate.templateId] = group.id
+        groupsCreated++
+      }
+
+      // Also map any existing groups by templateId
+      for (const group of existingGroups) {
+        if (group.defaultTemplateId) {
+          groupIdMap[group.defaultTemplateId] = group.id
+        }
+      }
+
+      // Create missing layers
+      let layersCreated = 0
+      for (const layerTemplate of DEFAULT_LAYER_TEMPLATES) {
+        // 1. Match by defaultTemplateId
+        if (existingLayerTemplateIds.has(layerTemplate.templateId)) {
+          continue
+        }
+
+        // 2. Fall back to configuration.id match — adopt old layers lacking defaultTemplateId
+        const configIdMatch = existingLayers.find(
+          (l) =>
+            l.configuration?.id === layerTemplate.configuration?.id &&
+            !l.defaultTemplateId,
+        )
+        if (configIdMatch) {
+          const actualGroupId = layerTemplate.groupId
+            ? groupIdMap[layerTemplate.groupId] ?? configIdMatch.groupId
+            : configIdMatch.groupId
+          await layersService.updateLayer(configIdMatch.id, user.id, {
+            defaultTemplateId: layerTemplate.templateId,
+            category: 'default',
+            isSubLayer: layerTemplate.isSubLayer,
+            integrationId: layerTemplate.integrationId ?? null,
+            groupId: actualGroupId,
+          })
+          continue
+        }
+
+        // 3. No match — create new layer
+        // Resolve the actual group ID from the template group reference
+        const actualGroupId = layerTemplate.groupId
+          ? groupIdMap[layerTemplate.groupId] ?? null
+          : null
+
+        // Resolve proxy URLs in configuration
+        const resolvedConfig = resolveProxyUrls(
+          layerTemplate.configuration,
+          serverUrl,
+        )
+
+        await layersService.createLayer({
+          name: layerTemplate.name,
+          type: layerTemplate.type ?? 'custom',
+          engine: layerTemplate.engine ?? ['mapbox', 'maplibre'],
+          showInLayerSelector: layerTemplate.showInLayerSelector,
+          visible: layerTemplate.visible,
+          fadeBasemap: layerTemplate.fadeBasemap ?? false,
+          icon: layerTemplate.icon ?? null,
+          order: layerTemplate.order,
+          groupId: actualGroupId,
+          configuration: resolvedConfig,
+          category: 'default',
+          defaultTemplateId: layerTemplate.templateId,
+          isSubLayer: layerTemplate.isSubLayer,
+          enabled: true,
+          integrationId: layerTemplate.integrationId ?? null,
+          userId: user.id,
+        })
+        layersCreated++
+      }
+
+      return { success: true, layersCreated, groupsCreated }
+    },
+    {
+      detail: {
+        tags: ['Layers'],
+        summary: 'Initialize default layers for the current user',
       },
     },
   )

@@ -2,13 +2,13 @@
  * Layer Visibility Service
  *
  * Manages layer visibility state and map integration for showing/hiding layers.
- * Handles both individual layers and layer groups.
+ * Visibility is ephemeral UI state — only updated in memory and on the map,
+ * never persisted to the server.
  */
 
 import type { Layer, LayerGroup } from '@/types/map.types'
 import { LayerType, MapColorTheme } from '@/types/map.types'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
-import { toRaw } from 'vue'
 import { useThemeStore } from '@/stores/theme.store'
 
 export function useLayerVisibilityService() {
@@ -32,9 +32,9 @@ export function useLayerVisibilityService() {
   }
 
   /**
-   * Set visibility for a layer (updates store and map)
+   * Set visibility for a layer (updates in-memory store and map — no server call)
    */
-  async function setLayerVisibility(
+  function setLayerVisibility(
     layerConfigId: Layer['configuration']['id'],
     layers: Layer[],
     layersStore: any,
@@ -47,15 +47,10 @@ export function useLayerVisibilityService() {
 
     const newState = state ?? !layer.visible
 
-    // For client-side layers, only update visibility in memory (no server update)
-    if (layer.id.startsWith('client-')) {
-      layersStore.updateLayerVisibility(layer.id, newState)
-    } else {
-      // For user layers, update server via store updater (which persists and updates store)
-      await layersStore.updateLayer(layer.id, { visible: newState })
-    }
+    // Update in-memory store only (no HTTP request)
+    layersStore.updateLayerVisibility(layer.id, newState)
 
-    // Then update map visualization
+    // Update map visualization
     toggleLayerVisibility(layerConfigId, newState, mapStrategy)
 
     // Check if this layer or its group has fadeBasemap
@@ -83,11 +78,7 @@ export function useLayerVisibilityService() {
           l => l.configuration.id === 'transitland-case',
         )
         if (caseLayer) {
-          if (caseLayer.id.startsWith('client-')) {
-            layersStore.updateLayerVisibility(caseLayer.id, newState)
-          } else {
-            await layersStore.updateLayer(caseLayer.id, { visible: newState })
-          }
+          layersStore.updateLayerVisibility(caseLayer.id, newState)
           toggleLayerVisibility('transitland-case', newState, mapStrategy)
         }
       }
@@ -103,47 +94,52 @@ export function useLayerVisibilityService() {
   }
 
   /**
-   * Toggle visibility for all layers in a group
+   * Toggle visibility for all layers in a group (in-memory only — no server calls)
    */
-  async function toggleLayerGroupVisibility(
+  function toggleLayerGroupVisibility(
     group: LayerGroup,
     visible: boolean,
     layersStore: any,
     layers: Layer[],
     mapStrategy?: MapStrategy,
+    allLayerGroups?: LayerGroup[],
   ) {
-    // For client-side groups, only update visibility in memory
-    if (group.id.startsWith('client-')) {
-      layersStore.toggleLayerGroupVisibility(group.id, visible)
-    } else {
-      // Update the group's own visible state on the server
-      await layersStore.updateLayerGroup(group.id, { visible })
+    // Collect this group and all descendant group IDs
+    const affectedGroupIds = new Set<string>([group.id])
+    if (allLayerGroups) {
+      function collectChildGroupIds(parentId: string) {
+        for (const g of allLayerGroups!) {
+          if (g.parentGroupId === parentId && !affectedGroupIds.has(g.id)) {
+            affectedGroupIds.add(g.id)
+            layersStore.toggleLayerGroupVisibility(g.id, visible)
+            collectChildGroupIds(g.id)
+          }
+        }
+      }
+      collectChildGroupIds(group.id)
     }
 
-    // Find all layers in this group from the provided layers array
-    const groupLayers = layers.filter(l => l.groupId === group.id)
+    // Update group visibility in-memory
+    layersStore.toggleLayerGroupVisibility(group.id, visible)
+
+    // Find all layers in this group and its descendant groups
+    const groupLayers = layers.filter(l => l.groupId && affectedGroupIds.has(l.groupId))
 
     // Check if this group or its layers have fadeBasemap or transit layers
     const hasFadeBasemapLayers = group.fadeBasemap || groupLayers.some(l => l.fadeBasemap)
     const hasTransitLayers = groupLayers.some(l => l.type === LayerType.TRANSIT)
 
-    // Update each layer's visibility
+    // Update each layer's visibility in-memory (including sub-layers)
     for (const layer of groupLayers) {
-      if (layer.id.startsWith('client-')) {
-        // For client-side layers, only update in memory
-        layersStore.updateLayerVisibility(layer.id, visible)
-      } else {
-        // For user layers, update on server
-        await layersStore.updateLayer(layer.id, { visible })
-      }
+      layersStore.updateLayerVisibility(layer.id, visible)
       toggleLayerVisibility(layer.configuration.id, visible, mapStrategy)
     }
 
     // Apply basemap fade if this group or its layers have fadeBasemap
     if (hasFadeBasemapLayers && mapStrategy) {
       const hasVisibleFadeBasemapLayers = layers.some(l => {
-        if (!l.fadeBasemap && !(group.fadeBasemap && l.groupId === group.id)) return false
-        if (l.groupId === group.id) return visible
+        if (!l.fadeBasemap && !(group.fadeBasemap && l.groupId && affectedGroupIds.has(l.groupId))) return false
+        if (l.groupId && affectedGroupIds.has(l.groupId)) return visible
         return l.visible
       })
       applyFadedBasemap(mapStrategy, hasVisibleFadeBasemapLayers)
@@ -153,7 +149,7 @@ export function useLayerVisibilityService() {
     if (hasTransitLayers && mapStrategy) {
       const hasVisibleTransitLayers = layers.some(l => {
         if (l.type !== LayerType.TRANSIT) return false
-        if (l.groupId === group.id) return visible
+        if (l.groupId && affectedGroupIds.has(l.groupId)) return visible
         return l.visible
       })
       mapStrategy.setTransitLabels(!hasVisibleTransitLayers)
@@ -161,7 +157,7 @@ export function useLayerVisibilityService() {
   }
 
   /**
-   * Set show-in-selector state for a layer (does not affect map visibility)
+   * Set show-in-selector state for a layer (this IS a definition change — persists to server)
    */
   async function setLayerShownInSelector(
     layerConfigId: Layer['configuration']['id'],
@@ -177,7 +173,7 @@ export function useLayerVisibilityService() {
   }
 
   /**
-   * Set show-in-selector state for a group
+   * Set show-in-selector state for a group (this IS a definition change — persists to server)
    */
   async function setGroupShownInSelector(
     group: LayerGroup,

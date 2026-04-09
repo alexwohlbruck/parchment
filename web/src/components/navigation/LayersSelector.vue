@@ -59,6 +59,7 @@ async function toggleLayerGroupVisibility(groupId: string, visible: boolean) {
       layersStore,
       layers.value,
       mapService.mapStrategy,
+      allLayerGroups.value,
     )
   }
 }
@@ -84,9 +85,9 @@ const filteredGroups = computed(() => {
   })
 })
 
-// Get layer count for each group
+// Get total layer count for a group (including sub-layers and descendant groups)
 function getGroupLayerCount(groupId: string): number {
-  return layers.value.filter(l => toRaw(l)?.groupId === groupId).length
+  return layersStore.getGroupTotalLayerCount(groupId)
 }
 
 // Combine in the exact custom order from mainReorderableItems

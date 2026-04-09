@@ -1,0 +1,51 @@
+import { DefaultLayerGroupTemplate } from '../../types/layers.types'
+
+export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
+  {
+    templateId: 'default:group:cycling',
+    name: 'Cycling',
+    icon: 'BikeIcon',
+    showInLayerSelector: true,
+    visible: false,
+    order: 0,
+    parentGroupId: null,
+  },
+  {
+    templateId: 'default:group:mapillary',
+    name: 'Mapillary',
+    icon: 'CameraIcon',
+    showInLayerSelector: true,
+    visible: false,
+    order: 1,
+    parentGroupId: null,
+  },
+  {
+    templateId: 'default:group:transit',
+    name: 'Transit',
+    icon: 'TrainIcon',
+    showInLayerSelector: true,
+    visible: false,
+    fadeBasemap: true,
+    order: 2,
+    parentGroupId: null,
+  },
+  {
+    templateId: 'default:group:loom-transit',
+    name: 'Loom Transit',
+    icon: 'TrainIcon',
+    showInLayerSelector: true,
+    visible: false,
+    order: 3,
+    parentGroupId: null,
+    integrationId: 'loom',
+  },
+  {
+    templateId: 'default:group:terrain',
+    name: 'Terrain',
+    icon: 'MountainSnowIcon',
+    showInLayerSelector: true,
+    visible: false,
+    order: 4,
+    parentGroupId: null,
+  },
+]

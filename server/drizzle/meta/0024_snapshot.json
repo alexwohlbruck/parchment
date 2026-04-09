@@ -1,6 +1,6 @@
 {
-  "id": "589c8c49-4822-4691-a38e-b1d20090bbbd",
-  "prevId": "c8d14d90-5e10-40c7-a796-a5bc11c2e249",
+  "id": "a4e55719-6556-4187-924d-c9c5ac7b71bd",
+  "prevId": "589c8c49-4822-4691-a38e-b1d20090bbbd",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -283,6 +283,13 @@
           "notNull": true,
           "default": true
         },
+        "fade_basemap": {
+          "name": "fade_basemap",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "icon": {
           "name": "icon",
           "type": "text",
@@ -294,6 +301,25 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'custom'"
+        },
+        "default_template_id": {
+          "name": "default_template_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parent_group_id": {
+          "name": "parent_group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "user_id": {
           "name": "user_id",
@@ -382,6 +408,13 @@
           "notNull": true,
           "default": true
         },
+        "fade_basemap": {
+          "name": "fade_basemap",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "icon": {
           "name": "icon",
           "type": "text",
@@ -405,6 +438,39 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'custom'"
+        },
+        "default_template_id": {
+          "name": "default_template_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_sub_layer": {
+          "name": "is_sub_layer",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "integration_id": {
+          "name": "integration_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "user_id": {
           "name": "user_id",

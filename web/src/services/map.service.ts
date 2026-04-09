@@ -382,9 +382,16 @@ function mapService() {
         return
       }
 
-      // Sync client-side layer visibility with their group states
-      const hasVisibleFadeBasemapLayers =
-        layersStore.syncClientSideLayerVisibility()
+      // Check if any fadeBasemap layers are visible
+      const hasVisibleFadeBasemapLayers = layers.value.some(l => {
+        if (!l.visible) return false
+        if (l.fadeBasemap) return true
+        if (l.groupId) {
+          const group = layersStore.allLayerGroups.find(g => g.id === l.groupId)
+          return group?.fadeBasemap ?? false
+        }
+        return false
+      })
 
       // Include search results layer with regular layers
       const allLayers = [

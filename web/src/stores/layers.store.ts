@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Layer, LayerGroup, LayerGroupWithLayers } from '@/types/map.types'
-import { LayerType } from '@/types/map.types'
 import { useLayersService } from '@/services/layers/layers.service'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useStorage } from '@vueuse/core'
@@ -9,17 +8,8 @@ import { jsonSerializer } from '@/lib/storage'
 import {
   CORE_LAYERS,
   CORE_LAYER_IDS,
-  USER_LAYER_TEMPLATES,
-  USER_LAYER_GROUP_TEMPLATES,
-  CLIENT_SIDE_LAYERS,
-  CLIENT_SIDE_LAYER_GROUP_TEMPLATES,
-  LAYER_INTEGRATION_REQUIREMENTS,
   serverUrl,
 } from '@/constants/layer.constants'
-// Helper function to generate IDs
-function generateId(): string {
-  return `layer-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
-}
 
 export const useLayersStore = defineStore('layers', () => {
   const layersService = useLayersService()
@@ -44,20 +34,8 @@ export const useLayersStore = defineStore('layers', () => {
   const layerGroups = ref<LayerGroup[]>(
     Array.isArray(cachedLayerGroups.value) ? cachedLayerGroups.value : [],
   )
-  const isSyncing = ref(false) // Track when syncing with server
-  const isLoadingLayers = ref(false) // Track initial layer load
-
-  // Persistent storage for client-side layer group visibility states
-  const clientSideGroupVisibility = useStorage<Record<string, boolean>>(
-    'parchment-client-layer-groups',
-    {},
-  )
-
-  // Persistent storage for client-side layer visibility states
-  const clientSideLayerVisibility = useStorage<Record<string, boolean>>(
-    'parchment-client-layers',
-    {},
-  )
+  const isSyncing = ref(false)
+  const isLoadingLayers = ref(false)
 
   // Core layers that are always present (hidden from user)
   const coreLayers = computed(() => {
@@ -70,189 +48,101 @@ export const useLayersStore = defineStore('layers', () => {
     }))
   })
 
-  // Client-side layers that are never persisted to database
-  const clientSideLayers = computed(() => {
-    // Filter by integration requirements
-    return CLIENT_SIDE_LAYERS.value
-      .filter(layer => {
-        const configId = layer.configuration?.id
-        if (!configId) return true
-
-        const requiredIntegration =
-          LAYER_INTEGRATION_REQUIREMENTS[
-            configId as keyof typeof LAYER_INTEGRATION_REQUIREMENTS
-          ]
-        if (!requiredIntegration) return true
-
-        // Check if required integration is configured
-        return integrationsStore.configuredIntegrations.some(
-          integration => integration.id.toLowerCase() === requiredIntegration,
-        )
-      })
-      .map((layerTemplate, index) => {
-        const layerId = `client-${layerTemplate.configuration.id}`
-        return {
-          ...layerTemplate,
-          id: layerId,
-          userId: 'client',
-          groupId: layerTemplate.groupId
-            ? `client-${layerTemplate.groupId.toLowerCase()}`
-            : layerTemplate.groupId,
-          // Use persistent visibility state, fallback to template default
-          visible:
-            clientSideLayerVisibility.value[layerId] ?? layerTemplate.visible,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
-      })
-  })
-
-  // Client-side layer groups that are never persisted to database
-  const clientSideLayerGroups = computed(() => {
-    return CLIENT_SIDE_LAYER_GROUP_TEMPLATES.value
-      .filter(group => {
-        // Only show groups that have at least one visible layer
-        return clientSideLayers.value.some(
-          layer => layer.groupId === `client-${group.name.toLowerCase()}`,
-        )
-      })
-      .map((groupTemplate, index) => {
-        const groupId = `client-${groupTemplate.name.toLowerCase()}`
-        return {
-          ...groupTemplate,
-          id: groupId,
-          userId: 'client',
-          // Use persistent visibility state, fallback to template default
-          visible:
-            clientSideGroupVisibility.value[groupId] ?? groupTemplate.visible,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
-      })
-  })
-
-  // All layers (core + client-side + user layers), filtered by integrations
-  const layers = computed(() => {
-    // Filter user layers based on integration requirements
-    const filteredUserLayers = (
-      Array.isArray(userLayers.value) ? userLayers.value : []
-    ).filter(layer => {
-      const configId = layer.configuration?.id
-      if (!configId) return true
-
-      const requiredIntegration =
-        LAYER_INTEGRATION_REQUIREMENTS[
-          configId as keyof typeof LAYER_INTEGRATION_REQUIREMENTS
-        ]
-      if (!requiredIntegration) return true
-
-      // Check if required integration is configured
+  // Filter user layers by integration availability
+  const filteredUserLayers = computed(() => {
+    const arr = Array.isArray(userLayers.value) ? userLayers.value : []
+    return arr.filter(layer => {
+      if (!layer.integrationId) return true
       return integrationsStore.configuredIntegrations.some(
-        integration => integration.id.toLowerCase() === requiredIntegration,
+        i => i.id.toLowerCase() === layer.integrationId!.toLowerCase(),
       )
     })
-
-    return [
-      ...coreLayers.value,
-      ...clientSideLayers.value,
-      ...filteredUserLayers,
-    ]
   })
 
-  // All layer groups (client-side + user groups)
-  const allLayerGroups = computed(() => {
-    return [...clientSideLayerGroups.value, ...layerGroups.value]
-  })
+  // All layers (core + user layers filtered by integration)
+  const layers = computed(() => [
+    ...coreLayers.value,
+    ...filteredUserLayers.value,
+  ])
 
-  // Sync client-side layer visibility with their group visibility on initialization
-  function syncClientSideLayerVisibility() {
-    let hasVisibleFadeBasemapLayers = false
+  // All layer groups (user groups only now, no more client-side groups)
+  const allLayerGroups = computed(() => layerGroups.value)
 
-    for (const group of clientSideLayerGroups.value) {
-      if (group.visible) {
-        // If group is visible, ensure all its layers are also visible
-        const groupLayers = clientSideLayers.value.filter(
-          l => l.groupId === group.id,
-        )
-        for (const layer of groupLayers) {
-          if (!layer.visible) {
-            // Update both the layer state and localStorage
-            layer.visible = true
-            clientSideLayerVisibility.value[layer.id] = true
-          }
-
-          // Check if this layer or its group requests basemap fading
-          if (layer.fadeBasemap || group.fadeBasemap) {
-            hasVisibleFadeBasemapLayers = true
-          }
-        }
-      }
-    }
-
-    return hasVisibleFadeBasemapLayers
+  // Nested group tree
+  interface GroupTreeNode extends LayerGroup {
+    layers: Layer[]
+    children: GroupTreeNode[]
   }
 
-  // UI display computed properties (show both client-side and user layers, hide core layers)
+  function buildGroupNode(group: LayerGroup): GroupTreeNode {
+    return {
+      ...group,
+      layers: filteredUserLayers.value
+        .filter(l => l.groupId === group.id)
+        .sort((a, b) => a.order - b.order),
+      children: layerGroups.value
+        .filter(g => g.parentGroupId === group.id)
+        .sort((a, b) => a.order - b.order)
+        .map(buildGroupNode),
+    }
+  }
+
+  const groupTree = computed(() => {
+    const topLevel = layerGroups.value.filter(g => !g.parentGroupId)
+    return topLevel.sort((a, b) => a.order - b.order).map(buildGroupNode)
+  })
+
+  // UI display computed properties
+
+  // Get total layer count for a group including all descendants (sub-layers included)
+  function getGroupTotalLayerCount(groupId: string): number {
+    const directLayers = filteredUserLayers.value.filter(l => l.groupId === groupId)
+    const childGroups = layerGroups.value.filter(g => g.parentGroupId === groupId)
+    return directLayers.length + childGroups.reduce((sum, g) => sum + getGroupTotalLayerCount(g.id), 0)
+  }
+
+  // For the settings/library panel: show ALL layers and groups (except sub-layers)
   const ungroupedLayers = computed(() => {
-    const clientUngrouped = clientSideLayers.value.filter(
-      layer => !layer.groupId && layer.showInLayerSelector,
-    )
-    const userUngrouped = (
-      Array.isArray(userLayers.value) ? userLayers.value : []
-    ).filter(layer => !layer.groupId && layer.showInLayerSelector)
-    return [...clientUngrouped, ...userUngrouped].sort(
-      (a, b) => a.order - b.order,
-    )
+    return filteredUserLayers.value
+      .filter(layer => !layer.groupId && !layer.isSubLayer)
+      .sort((a, b) => a.order - b.order)
   })
 
   const sortedGroups = computed(() =>
-    allLayerGroups.value.sort((a, b) => a.order - b.order),
+    allLayerGroups.value.slice().sort((a, b) => a.order - b.order),
   )
 
   const groupsWithLayers = computed<LayerGroupWithLayers[]>(() =>
     sortedGroups.value.map(group => ({
       ...group,
-      layers: [...clientSideLayers.value, ...userLayers.value]
+      layers: filteredUserLayers.value
         .filter(
-          layer => layer.groupId === group.id && layer.showInLayerSelector,
+          layer => layer.groupId === group.id && !layer.isSubLayer,
         )
         .sort((a, b) => a.order - b.order),
     })),
   )
 
-  // Mixed list of ungrouped layers and groups for main reordering (excludes client-side items)
+  // Mixed list of ungrouped layers and top-level groups for the settings panel reordering
   const mainReorderableItems = computed(() => {
-    const userUngrouped = (
-      Array.isArray(userLayers.value) ? userLayers.value : []
-    ).filter(layer => !layer.groupId && layer.showInLayerSelector)
-    const userGroups = layerGroups.value.filter(
-      group => group.showInLayerSelector,
+    const userUngrouped = filteredUserLayers.value.filter(
+      layer => !layer.groupId && !layer.isSubLayer,
     )
-    const clientUngrouped = clientSideLayers.value.filter(
-      layer => !layer.groupId && layer.showInLayerSelector,
-    )
-    const clientGroups = clientSideLayerGroups.value.filter(
-      group => group.showInLayerSelector,
-    )
+    const topLevelGroups = layerGroups.value.filter(g => !g.parentGroupId)
 
-    const items: (Layer | LayerGroup)[] = [
-      ...clientUngrouped,
-      ...clientGroups,
-      ...userUngrouped,
-      ...userGroups,
-    ]
+    const items: (Layer | LayerGroup)[] = [...userUngrouped, ...topLevelGroups]
     return items.sort((a, b) => a.order - b.order)
   })
 
-  // Load layers and groups from server (user layers only)
-  // If cached data exists (is array), returns immediately and the fetch updates cache in background
+  // ============================================================================
+  // LOADING
+  // ============================================================================
+
   async function loadLayers() {
-    // Array (even empty) = cached, null/other = never fetched
     const hasCachedData =
       Array.isArray(cachedUserLayers.value) ||
       Array.isArray(cachedLayerGroups.value)
 
-    // If we have cached data, don't block - fetch will update in background
     if (hasCachedData) {
       Promise.all([layersService.getLayers(), layersService.getLayerGroups()])
         .then(([layersData, groupsData]) => {
@@ -277,8 +167,6 @@ export const useLayersStore = defineStore('layers', () => {
 
       userLayers.value = layersData
       layerGroups.value = groupsData
-
-      // Update cache
       cachedUserLayers.value = layersData
       cachedLayerGroups.value = groupsData
     } finally {
@@ -286,114 +174,62 @@ export const useLayersStore = defineStore('layers', () => {
     }
   }
 
-  // TODO: Create template "store" where users can import pre-made layers from the community
-  // Populate user's account with template layers (replaces server-side populate endpoint)
-  let _populatingTemplates = false
-  async function populateUserLayerTemplates() {
-    // Guard against re-entrancy (HMR, double-mount, etc.)
-    if (_populatingTemplates) return
-    _populatingTemplates = true
-    try { return await _populateUserLayerTemplatesInner() } finally { _populatingTemplates = false }
-  }
-  async function _populateUserLayerTemplatesInner() {
-    // First, create layer groups that don't exist
-    const existingGroupNames = new Set(layerGroups.value.map(g => g.name))
-
-    for (const groupTemplate of USER_LAYER_GROUP_TEMPLATES.value) {
-      if (!existingGroupNames.has(groupTemplate.name)) {
-        // Check if this group requires integrations
-        const hasRequiredIntegration =
-          groupTemplate.name === 'Mapillary'
-            ? integrationsStore.configuredIntegrations.some(
-                i => i.id.toLowerCase() === 'mapillary',
-              )
-            : true
-
-        if (hasRequiredIntegration) {
-          await addLayerGroup(groupTemplate)
-        }
+  /**
+   * Initialize default layers for a new user (or provision missing defaults).
+   * Called once on app startup after loadLayers.
+   */
+  async function initializeDefaults() {
+    try {
+      const result = await layersService.initializeDefaults()
+      if (result.layersCreated > 0 || result.groupsCreated > 0) {
+        // Defaults were provisioned - reload to pick them up
+        const [layersData, groupsData] = await Promise.all([
+          layersService.getLayers(),
+          layersService.getLayerGroups(),
+        ])
+        userLayers.value = layersData
+        layerGroups.value = groupsData
+        cachedUserLayers.value = layersData
+        cachedLayerGroups.value = groupsData
       }
-    }
-
-    // Reload groups to get the created IDs
-    await loadLayers()
-
-    // Then create or update layers from templates
-    const existingLayersByConfigId = new Map(
-      userLayers.value
-        .filter(l => l.configuration?.id)
-        .map(l => [l.configuration.id, l]),
-    )
-    const handledConfigIds = new Set<string>()
-
-    for (const layerTemplate of USER_LAYER_TEMPLATES.value) {
-      const configId = layerTemplate.configuration?.id
-      if (!configId) continue
-
-      // Skip if we already handled this configId in this run
-      if (handledConfigIds.has(configId)) continue
-      handledConfigIds.add(configId)
-
-      // Check integration requirements
-      const requiredIntegration =
-        LAYER_INTEGRATION_REQUIREMENTS[
-          configId as keyof typeof LAYER_INTEGRATION_REQUIREMENTS
-        ]
-      const hasRequiredIntegration =
-        !requiredIntegration ||
-        integrationsStore.configuredIntegrations.some(
-          i => i.id.toLowerCase() === requiredIntegration,
-        )
-
-      if (!hasRequiredIntegration) continue
-
-      // Find group ID if this layer belongs to a group
-      let groupId: string | null = null
-      if (layerTemplate.groupId) {
-        const group = layerGroups.value.find(
-          g => g.name === layerTemplate.groupId,
-        )
-        groupId = group?.id || null
-      }
-
-      const existingLayer = existingLayersByConfigId.get(configId)
-      if (!existingLayer) {
-        // Layer doesn't exist yet — create it
-        await addLayer({
-          ...layerTemplate,
-          groupId,
-        })
-      } else {
-        // Layer exists — sync template-managed fields (configuration, engine)
-        // while preserving user-controlled fields (visible, order)
-        const templateConfig = JSON.stringify(layerTemplate.configuration)
-        const existingConfig = JSON.stringify(existingLayer.configuration)
-        const engineChanged =
-          JSON.stringify(layerTemplate.engine) !==
-          JSON.stringify(existingLayer.engine)
-
-        if (templateConfig !== existingConfig || engineChanged) {
-          await updateLayer(existingLayer.id, {
-            configuration: layerTemplate.configuration,
-            engine: layerTemplate.engine,
-            groupId,
-          })
-        }
-      }
+      return result
+    } catch (error) {
+      console.error('Failed to initialize default layers:', error)
+      return { success: false, layersCreated: 0, groupsCreated: 0 }
     }
   }
 
-  // Helper to sync userLayers to cache
+  /**
+   * Restore default layers by removing user's cloned overrides.
+   */
+  async function restoreDefaults() {
+    try {
+      const result = await layersService.restoreDefaults()
+      // Re-initialize defaults after removing overrides
+      await initializeDefaults()
+      return result
+    } catch (error) {
+      console.error('Failed to restore defaults:', error)
+      return { success: false, restoredLayers: 0, restoredGroups: 0 }
+    }
+  }
+
+  // ============================================================================
+  // CACHE SYNC HELPERS
+  // ============================================================================
+
   function syncLayersToCache() {
     cachedUserLayers.value = [...userLayers.value]
   }
 
-  // Helper to sync layerGroups to cache
   function syncGroupsToCache() {
     cachedLayerGroups.value = [...layerGroups.value]
   }
 
-  // Layer operations (user layers only)
+  // ============================================================================
+  // LAYER CRUD
+  // ============================================================================
+
   async function addLayer(
     layer: Omit<Layer, 'id' | 'userId' | 'createdAt' | 'updatedAt'>,
   ) {
@@ -404,12 +240,8 @@ export const useLayersStore = defineStore('layers', () => {
   }
 
   async function updateLayer(id: string, updates: Partial<Layer>) {
-    // Don't allow updating core or client-side layers
-    if (
-      Object.values(CORE_LAYER_IDS).includes(id as any) ||
-      id.startsWith('client-')
-    ) {
-      console.warn('Cannot update core or client-side layer:', id)
+    if (Object.values(CORE_LAYER_IDS).includes(id as any)) {
+      console.warn('Cannot update core layer:', id)
       return
     }
 
@@ -423,12 +255,8 @@ export const useLayersStore = defineStore('layers', () => {
   }
 
   async function removeLayer(id: string) {
-    // Don't allow removing core or client-side layers
-    if (
-      Object.values(CORE_LAYER_IDS).includes(id as any) ||
-      id.startsWith('client-')
-    ) {
-      console.warn('Cannot remove core or client-side layer:', id)
+    if (Object.values(CORE_LAYER_IDS).includes(id as any)) {
+      console.warn('Cannot remove core layer:', id)
       return
     }
 
@@ -439,7 +267,10 @@ export const useLayersStore = defineStore('layers', () => {
     syncLayersToCache()
   }
 
-  // Layer group operations
+  // ============================================================================
+  // LAYER GROUP CRUD
+  // ============================================================================
+
   async function addLayerGroup(
     group: Omit<LayerGroup, 'id' | 'userId' | 'createdAt' | 'updatedAt'>,
   ) {
@@ -465,19 +296,14 @@ export const useLayersStore = defineStore('layers', () => {
     syncGroupsToCache()
   }
 
-  // Optimistic visibility updates
+  // ============================================================================
+  // VISIBILITY (OPTIMISTIC)
+  // ============================================================================
+
   function updateLayerVisibility(layerId: string, visible: boolean) {
-    // Handle core, client-side, and user layers
     const layer = layers.value.find(l => l.id === layerId)
     if (layer) {
-      // For client-side layers, we need to maintain their state in memory
-      // since they're never persisted to the database
       layer.visible = visible
-
-      // Persist visibility state for client-side layers
-      if (layerId.startsWith('client-')) {
-        clientSideLayerVisibility.value[layerId] = visible
-      }
     }
   }
 
@@ -485,42 +311,25 @@ export const useLayersStore = defineStore('layers', () => {
     const group = allLayerGroups.value.find(g => g.id === groupId)
     if (group) {
       group.visible = visible
-
-      // Persist visibility state for client-side groups
-      if (groupId.startsWith('client-')) {
-        clientSideGroupVisibility.value[groupId] = visible
-      }
     }
   }
 
-  // Optimistic drag and drop handlers - update UI immediately, sync with server in background
-  async function handleMainReorder(newItems: (Layer | LayerGroup)[]) {
-    console.log('=== Frontend handleMainReorder ===')
-    console.log(
-      'newItems received (in order):',
-      newItems.map((item, index) => ({
-        arrayIndex: index,
-        id: item.id,
-        name: 'name' in item ? item.name : 'Unknown',
-        currentOrderProperty: item.order,
-        type: 'groupId' in item ? 'layer' : 'group',
-      })),
-    )
+  // ============================================================================
+  // DRAG AND DROP / REORDERING
+  // ============================================================================
 
-    // Optimistically update local state immediately
+  async function handleMainReorder(newItems: (Layer | LayerGroup)[]) {
     const updates: { id: string; order: number; groupId?: string | null }[] = []
 
     newItems.forEach((item, index) => {
       if ('groupId' in item) {
-        // It's a layer - update local state (user layers only)
         const layer = userLayers.value.find(l => l.id === item.id)
         if (layer) {
           layer.order = index
-          layer.groupId = null // Main list only contains ungrouped layers
+          layer.groupId = null
         }
         updates.push({ id: item.id, order: index, groupId: null })
       } else {
-        // It's a group - update local state
         const group = layerGroups.value.find(g => g.id === item.id)
         if (group) {
           group.order = index
@@ -529,14 +338,10 @@ export const useLayersStore = defineStore('layers', () => {
       }
     })
 
-    console.log('Updates to send:', updates)
-
-    // Sync with server in background
     await syncReorderWithServer(updates)
   }
 
   async function handleUngroupedReorder(newLayers: Layer[]) {
-    // Optimistically update local state (user layers only)
     newLayers.forEach((layer, index) => {
       const localLayer = userLayers.value.find(l => l.id === layer.id)
       if (localLayer) {
@@ -551,12 +356,10 @@ export const useLayersStore = defineStore('layers', () => {
       groupId: null,
     }))
 
-    // Sync with server in background
     await syncReorderWithServer(updates)
   }
 
   async function handleGroupReorder(groupId: string, newLayers: Layer[]) {
-    // Optimistically update local state (user layers only)
     newLayers.forEach((layer, index) => {
       const localLayer = userLayers.value.find(l => l.id === layer.id)
       if (localLayer) {
@@ -571,7 +374,6 @@ export const useLayersStore = defineStore('layers', () => {
       groupId,
     }))
 
-    // Sync with server in background
     await syncReorderWithServer(updates)
   }
 
@@ -580,81 +382,49 @@ export const useLayersStore = defineStore('layers', () => {
     newGroupId: string | null,
     newIndex: number,
   ) {
-    console.log('=== Optimistic handleLayerMove ===')
-    console.log(
-      'Moving layer:',
-      layerId,
-      'to group:',
-      newGroupId,
-      'at index:',
-      newIndex,
-    )
-
-    // Find the layer being moved (user layers only)
     const movingLayer = userLayers.value.find(l => l.id === layerId)
-    if (!movingLayer) {
-      console.error('Layer not found:', layerId)
-      return
-    }
+    if (!movingLayer) return
 
     const oldGroupId = movingLayer.groupId
-    console.log('Moving from group:', oldGroupId, 'to group:', newGroupId)
 
-    // Get target group layers (excluding the moving layer)
     const targetLayers = newGroupId
-      ? (Array.isArray(userLayers.value) ? userLayers.value : []).filter(
+      ? userLayers.value.filter(
           l => l.groupId === newGroupId && l.id !== layerId,
         )
-      : (Array.isArray(userLayers.value) ? userLayers.value : []).filter(
-          l => !l.groupId && l.id !== layerId,
-        )
+      : userLayers.value.filter(l => !l.groupId && l.id !== layerId)
 
-    console.log('Target group has', targetLayers.length, 'existing layers')
-
-    // Sort target layers by current order
     targetLayers.sort((a, b) => a.order - b.order)
 
-    // Insert moving layer at target position
     const reorderedLayers = [...targetLayers]
     reorderedLayers.splice(newIndex, 0, movingLayer)
 
-    // Optimistically update local state immediately
     movingLayer.groupId = newGroupId
     reorderedLayers.forEach((layer, index) => {
       layer.order = index
       layer.groupId = newGroupId
     })
 
-    // If layer came from a different group, reorder the old group
     if (oldGroupId !== newGroupId && oldGroupId !== null) {
       const oldGroupLayers = userLayers.value
         .filter(l => l.groupId === oldGroupId)
         .sort((a, b) => a.order - b.order)
-
       oldGroupLayers.forEach((layer, index) => {
         layer.order = index
       })
     }
 
-    console.log('Optimistic update complete')
-
-    // Sync with server in background
     isSyncing.value = true
     try {
       await layersService.moveLayer(layerId, newGroupId, newIndex)
-      console.log('Server sync successful')
-      // Sync optimistic updates to cache
       syncLayersToCache()
     } catch (error) {
       console.error('Failed to sync layer move with server:', error)
-      // On error, refresh from server to restore correct state
       await loadLayers()
     } finally {
       isSyncing.value = false
     }
   }
 
-  // Private helper function for syncing reorder operations
   async function syncReorderWithServer(
     updates: { id: string; order: number; groupId?: string | null }[],
   ) {
@@ -662,29 +432,25 @@ export const useLayersStore = defineStore('layers', () => {
     try {
       const success = await layersService.reorderLayers(updates)
       if (success) {
-        console.log('Reorder sync successful')
-        // Sync optimistic updates to cache
         syncLayersToCache()
         syncGroupsToCache()
       } else {
-        console.error('Reorder sync failed')
         await loadLayers()
       }
     } catch (error) {
       console.error('Failed to sync reorder with server:', error)
-      // On error, refresh from server to restore correct state
       await loadLayers()
     } finally {
       isSyncing.value = false
     }
   }
 
-  // Watch for server URL changes and update existing proxy layers
+  // ============================================================================
+  // SERVER URL CHANGE WATCHER
+  // ============================================================================
+
   watch(serverUrl, async (newUrl, oldUrl) => {
     if (newUrl !== oldUrl) {
-      console.log('Server URL changed, updating proxy layers...')
-
-      // Find layers that use proxy endpoints and need updating
       const layersToUpdate = (
         Array.isArray(userLayers.value) ? userLayers.value : []
       ).filter(layer => {
@@ -700,7 +466,6 @@ export const useLayersStore = defineStore('layers', () => {
         return false
       })
 
-      // Update each layer's configuration
       for (const layer of layersToUpdate) {
         if (
           typeof layer.configuration.source === 'object' &&
@@ -719,7 +484,6 @@ export const useLayersStore = defineStore('layers', () => {
               },
             },
           })
-          console.log(`Updated proxy URLs for layer: ${layer.configuration.id}`)
         }
       }
     }
@@ -735,21 +499,23 @@ export const useLayersStore = defineStore('layers', () => {
 
   return {
     // State
-    layers, // All layers (core + client-side + user)
-    userLayers, // Only user layers
-    coreLayers, // Only core layers
-    clientSideLayers, // Only client-side layers
-    layerGroups, // Only user layer groups
-    allLayerGroups, // Both client-side and user groups
+    layers,
+    userLayers,
+    coreLayers,
+    layerGroups,
+    allLayerGroups,
     isSyncing,
     isLoadingLayers,
     // Computed
     ungroupedLayers,
     groupsWithLayers,
     mainReorderableItems,
+    groupTree,
+    getGroupTotalLayerCount,
     // Data operations
     loadLayers,
-    populateUserLayerTemplates,
+    initializeDefaults,
+    restoreDefaults,
     addLayer,
     updateLayer,
     removeLayer,
@@ -764,8 +530,7 @@ export const useLayersStore = defineStore('layers', () => {
     handleUngroupedReorder,
     handleGroupReorder,
     handleLayerMove,
-    // Sync functions
-    syncClientSideLayerVisibility,
+    // Cache
     clearCache,
   }
 })

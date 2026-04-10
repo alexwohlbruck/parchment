@@ -198,7 +198,7 @@ const allLayers = computed(() => {
       <div class="grid grid-cols-2 gap-2">
         <Toggle
           v-for="item in allLayers"
-          :key="item.id"
+          :key="`${item.id}-${item.visible}`"
           variant="outline"
           :aria-label="`Toggle ${item.name} ${
             item.type === 'group' ? 'group' : 'layer'
@@ -229,6 +229,7 @@ const allLayers = computed(() => {
 
         <!-- OSM Notes toggle -->
         <Toggle
+          :key="`notes-${notesStore.isLayerVisible}`"
           variant="outline"
           aria-label="Toggle OSM Notes layer"
           :default-value="notesStore.isLayerVisible"

@@ -1,5 +1,10 @@
 // This file re-exports from the split layers modules for backward compatibility.
 // New code should import directly from '@/constants/layers' or its sub-modules.
+//
+// NB: the default layer definitions (cycling, transit, mapillary, friends,
+// user templates, layer groups, integration requirements) used to live here.
+// They were all moved server-side into `server/src/constants/default-layers/*`
+// as part of the clone-on-modify refactor and are fetched via `/layers/defaults`.
 export {
   // Helpers
   getPlacePolygonFillColor,
@@ -39,17 +44,4 @@ export {
   EMPTY_RADIUS_GEOJSON,
   RADIUS_FILL_LAYER_SPEC,
   RADIUS_LINE_LAYER_SPEC,
-  // Domain layers
-  FRIENDS_LAYER,
-  MAPILLARY_LAYERS,
-  TRANSIT_LAYERS,
-  CYCLING_LAYERS,
-  CLIENT_SIDE_LAYERS,
-  // User templates
-  USER_LAYER_TEMPLATES,
-  // Groups
-  CLIENT_SIDE_LAYER_GROUP_TEMPLATES,
-  USER_LAYER_GROUP_TEMPLATES,
-  // Integration requirements
-  LAYER_INTEGRATION_REQUIREMENTS,
 } from './layers'

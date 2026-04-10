@@ -67,6 +67,10 @@ export function useTransitLayersService() {
 
   /**
    * Toggle visibility for all transit layers
+   *
+   * Also updates the visibility of any parent groups so that the layer
+   * selector UI (which reads `group.visible`) stays in sync when transit
+   * layers are toggled externally.
    */
   async function toggleTransitLayers(
     layers: Layer[],
@@ -80,6 +84,8 @@ export function useTransitLayersService() {
       layer => layer.type === LayerType.TRANSIT,
     )
 
+    const affectedGroupIds = new Set<string>()
+
     for (const layer of transitLayers) {
       // Visibility is ephemeral UI state — always route through the store's
       // local override map (localStorage-backed) rather than the server CRUD
@@ -87,9 +93,18 @@ export function useTransitLayersService() {
       // not a goal for visibility.
       layersStore.updateLayerVisibility(layer.id, newState)
 
+      if (layer.groupId) {
+        affectedGroupIds.add(layer.groupId)
+      }
+
       if (mapStrategy) {
         mapStrategy.toggleLayerVisibility(layer.configuration.id, newState)
       }
+    }
+
+    // Keep parent groups in sync so the layer selector reflects the change.
+    for (const groupId of affectedGroupIds) {
+      layersStore.toggleLayerGroupVisibility(groupId, newState)
     }
 
     // Apply basemap fade and transit label visibility

@@ -1,9 +1,9 @@
-import { Layer, LayerGroup } from '../schema/layers.schema'
+import { Layer, LayerGroup, LayerType, MapEngine } from '../schema/layers.schema'
 
 export interface CreateLayerParams {
   name: string
-  type?: string
-  engine?: string[]
+  type?: LayerType
+  engine?: MapEngine[]
   showInLayerSelector?: boolean
   visible?: boolean
   fadeBasemap?: boolean
@@ -39,12 +39,14 @@ export interface ReorderParams {
   }[]
 }
 
-// Default layer template (for the server-side registry)
+// Default layer template (for the server-side registry).
+// `type` MUST be one of the `LayerType` enum values — several client features
+// (street view control, transit basemap fade, etc.) branch on it.
 export interface DefaultLayerTemplate {
   templateId: string
   name: string
-  type?: string
-  engine?: string[]
+  type: LayerType
+  engine?: MapEngine[]
   showInLayerSelector: boolean
   visible: boolean
   fadeBasemap?: boolean

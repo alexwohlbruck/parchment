@@ -1,11 +1,12 @@
 import { DefaultLayerTemplate } from '../../types/layers.types'
+import { LayerType } from '../../schema/layers.schema'
 
 export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Transitland Route Active (hitbox/hover layer)
   {
     templateId: 'default:transitland-route-active',
     name: 'Route Active',
-    type: 'transit',
+    type: LayerType.TRANSIT,
     engine: ['mapbox', 'maplibre'],
     icon: 'TrainIcon',
     showInLayerSelector: false,
@@ -46,7 +47,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:transitland-rail-outline',
     name: 'Rail Outline',
-    type: 'transit',
+    type: LayerType.TRANSIT,
     engine: ['mapbox', 'maplibre'],
     icon: 'TrainIcon',
     showInLayerSelector: false,
@@ -83,7 +84,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:transitland-rail',
     name: 'Rail',
-    type: 'transit',
+    type: LayerType.TRANSIT,
     engine: ['mapbox', 'maplibre'],
     icon: 'TrainIcon',
     showInLayerSelector: false,
@@ -119,7 +120,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:transitland-bus-low-outline',
     name: 'Bus Low Outline',
-    type: 'transit',
+    type: LayerType.TRANSIT,
     engine: ['mapbox', 'maplibre'],
     icon: 'TrainIcon',
     showInLayerSelector: false,
@@ -160,7 +161,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:transitland-bus-low',
     name: 'Bus Low',
-    type: 'transit',
+    type: LayerType.TRANSIT,
     engine: ['mapbox', 'maplibre'],
     icon: 'TrainIcon',
     showInLayerSelector: false,
@@ -200,7 +201,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:transitland-bus-medium-outline',
     name: 'Bus Medium Outline',
-    type: 'transit',
+    type: LayerType.TRANSIT,
     engine: ['mapbox', 'maplibre'],
     icon: 'TrainIcon',
     showInLayerSelector: false,
@@ -242,7 +243,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:transitland-bus-medium',
     name: 'Bus Medium',
-    type: 'transit',
+    type: LayerType.TRANSIT,
     engine: ['mapbox', 'maplibre'],
     icon: 'TrainIcon',
     showInLayerSelector: false,
@@ -283,7 +284,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:transitland-tram-outline',
     name: 'Tram Outline',
-    type: 'transit',
+    type: LayerType.TRANSIT,
     engine: ['mapbox', 'maplibre'],
     icon: 'TrainIcon',
     showInLayerSelector: false,
@@ -320,7 +321,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:transitland-tram',
     name: 'Tram',
-    type: 'transit',
+    type: LayerType.TRANSIT,
     engine: ['mapbox', 'maplibre'],
     icon: 'TrainIcon',
     showInLayerSelector: true,
@@ -356,7 +357,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:transitland-metro-outline',
     name: 'Metro Outline',
-    type: 'transit',
+    type: LayerType.TRANSIT,
     engine: ['mapbox', 'maplibre'],
     icon: 'TrainIcon',
     showInLayerSelector: false,
@@ -393,7 +394,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:transitland-metro',
     name: 'Metro',
-    type: 'transit',
+    type: LayerType.TRANSIT,
     engine: ['mapbox', 'maplibre'],
     icon: 'TrainIcon',
     showInLayerSelector: true,
@@ -429,7 +430,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:transitland-other-outline',
     name: 'Other Routes Outline',
-    type: 'transit',
+    type: LayerType.TRANSIT,
     engine: ['mapbox', 'maplibre'],
     icon: 'TrainIcon',
     showInLayerSelector: false,
@@ -486,7 +487,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:transitland-other',
     name: 'Other Routes',
-    type: 'transit',
+    type: LayerType.TRANSIT,
     engine: ['mapbox', 'maplibre'],
     icon: 'TrainIcon',
     showInLayerSelector: true,
@@ -533,7 +534,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:transitland-tram-labels',
     name: 'Tram Labels',
-    type: 'transit',
+    type: LayerType.TRANSIT,
     engine: ['mapbox', 'maplibre'],
     icon: 'TrainIcon',
     showInLayerSelector: false,
@@ -631,7 +632,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:transitland-metro-labels',
     name: 'Metro Labels',
-    type: 'transit',
+    type: LayerType.TRANSIT,
     engine: ['mapbox', 'maplibre'],
     icon: 'TrainIcon',
     showInLayerSelector: false,
@@ -729,7 +730,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:transitland-rail-labels',
     name: 'Rail Labels',
-    type: 'transit',
+    type: LayerType.TRANSIT,
     engine: ['mapbox', 'maplibre'],
     icon: 'TrainIcon',
     showInLayerSelector: false,
@@ -827,7 +828,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:transitland-bus-medium-labels',
     name: 'Bus Medium Labels',
-    type: 'transit',
+    type: LayerType.TRANSIT,
     engine: ['mapbox', 'maplibre'],
     icon: 'TrainIcon',
     showInLayerSelector: false,
@@ -932,7 +933,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:transitland-other-labels',
     name: 'Other Routes Labels',
-    type: 'transit',
+    type: LayerType.TRANSIT,
     engine: ['mapbox', 'maplibre'],
     icon: 'TrainIcon',
     showInLayerSelector: false,
@@ -1030,7 +1031,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:transitland-stops',
     name: 'Transit Stops',
-    type: 'transit',
+    type: LayerType.TRANSIT,
     engine: ['mapbox', 'maplibre'],
     icon: 'TrainIcon',
     showInLayerSelector: true,
@@ -1087,7 +1088,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:transitland-stops-labels',
     name: 'Transit Stop Labels',
-    type: 'transit',
+    type: LayerType.TRANSIT,
     engine: ['mapbox', 'maplibre'],
     icon: 'TrainIcon',
     showInLayerSelector: false,

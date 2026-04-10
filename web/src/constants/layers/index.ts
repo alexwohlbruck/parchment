@@ -1,13 +1,11 @@
-import {
-  LayerType,
-  MapEngine,
-  MapboxLayerType,
-  SourceType,
-} from '@/types/map.types'
-import type { Layer, LayerGroup } from '@/types/map.types'
-import { computed } from 'vue'
+// Barrel re-exports for the client-side layer constants that survived the
+// server-side defaults refactor. The modules for cycling / transit /
+// mapillary / friends / user templates / integration requirements / layer
+// group templates were all deleted — their authoritative source now lives
+// in `server/src/constants/default-layers/*` and is fetched via the
+// `/layers/defaults` endpoint.
 
-// Re-export helpers
+// Helpers
 export {
   getPlacePolygonFillColor,
   getPlacePolygonStrokeColor,
@@ -15,7 +13,7 @@ export {
   buildProxyUrl,
 } from './helpers'
 
-// Re-export core layers
+// Core layers (client-only: search results, place polygons, etc.)
 export {
   SEARCH_RESULTS_LAYER_ID,
   SEARCH_RESULTS_SOURCE_ID,
@@ -33,7 +31,7 @@ export {
   CORE_LAYERS,
 } from './core-layers'
 
-// Re-export tool layers
+// Tool layers (measure, radius)
 export {
   MEASURE_SOURCE_ID,
   MEASURE_LAYER_ID,
@@ -53,36 +51,3 @@ export {
   RADIUS_FILL_LAYER_SPEC,
   RADIUS_LINE_LAYER_SPEC,
 } from './tool-layers'
-
-// Re-export domain layers
-export { FRIENDS_LAYER } from './friends-layer'
-export { MAPILLARY_LAYERS } from './mapillary-layers'
-export { TRANSIT_LAYERS } from './transit-layers'
-export { CYCLING_LAYERS } from './cycling-layers'
-
-// Re-export user templates
-export { USER_LAYER_TEMPLATES } from './user-layer-templates'
-
-// Re-export groups
-export {
-  CLIENT_SIDE_LAYER_GROUP_TEMPLATES,
-  USER_LAYER_GROUP_TEMPLATES,
-} from './layer-groups'
-
-// Re-export integration requirements
-export { LAYER_INTEGRATION_REQUIREMENTS } from './integration-requirements'
-
-// Composed computed: all client-side layers (never persisted to database, always reactive)
-import { FRIENDS_LAYER } from './friends-layer'
-import { MAPILLARY_LAYERS } from './mapillary-layers'
-import { TRANSIT_LAYERS } from './transit-layers'
-import { CYCLING_LAYERS } from './cycling-layers'
-
-export const CLIENT_SIDE_LAYERS = computed(
-  (): Omit<Layer, 'id' | 'userId' | 'createdAt' | 'updatedAt'>[] => [
-    FRIENDS_LAYER,
-    ...MAPILLARY_LAYERS.value,
-    ...TRANSIT_LAYERS.value,
-    ...CYCLING_LAYERS.value,
-  ],
-)

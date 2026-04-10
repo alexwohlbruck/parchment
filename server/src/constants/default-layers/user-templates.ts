@@ -1,11 +1,12 @@
 import { DefaultLayerTemplate } from '../../types/layers.types'
+import { LayerType } from '../../schema/layers.schema'
 
 export const USER_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Loom Transit layers
   {
     templateId: 'default:loom-light-rail',
     name: 'Loom Light Rail',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     showInLayerSelector: true,
     visible: false,
@@ -41,7 +42,7 @@ export const USER_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:loom-tram',
     name: 'Loom Tram',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     showInLayerSelector: true,
     visible: false,
@@ -77,7 +78,7 @@ export const USER_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:loom-rail-commuter',
     name: 'Loom Rail (Commuter)',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     showInLayerSelector: true,
     visible: false,
@@ -113,7 +114,7 @@ export const USER_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:loom-rail',
     name: 'Loom Rail (Long Distance)',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     showInLayerSelector: true,
     visible: false,
@@ -151,7 +152,7 @@ export const USER_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:traffic',
     name: 'Mapbox traffic',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox'],
     showInLayerSelector: true,
     visible: false,
@@ -196,7 +197,7 @@ export const USER_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:hillshade',
     name: 'Hillshade',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox'],
     showInLayerSelector: true,
     visible: false,
@@ -225,7 +226,7 @@ export const USER_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:contours',
     name: 'Contours',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox'],
     showInLayerSelector: true,
     visible: false,
@@ -259,7 +260,7 @@ export const USER_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:contour-labels',
     name: 'Contour Labels',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox'],
     showInLayerSelector: true,
     visible: false,

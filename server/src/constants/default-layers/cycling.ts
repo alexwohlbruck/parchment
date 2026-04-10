@@ -1,4 +1,5 @@
 import { DefaultLayerTemplate } from '../../types/layers.types'
+import { LayerType } from '../../schema/layers.schema'
 
 /**
  * Cycling default layer templates.
@@ -14,7 +15,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:bicycle-routes',
     name: 'Bike Routes',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
@@ -80,7 +81,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:bicycle-cycleways-casing',
     name: 'Cycleways Casing',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
@@ -135,7 +136,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:bicycle-cycleways',
     name: 'Cycleways Paved',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
@@ -200,7 +201,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:bicycle-cycleways-unpaved',
     name: 'Cycleways Unpaved',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
@@ -267,7 +268,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:bicycle-tracks',
     name: 'Cycle Tracks',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
@@ -315,7 +316,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:bicycle-lanes-casing',
     name: 'Bike Lanes Casing',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
@@ -370,7 +371,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:bicycle-lanes',
     name: 'Bike Lanes',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
@@ -419,7 +420,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:bicycle-shared-lanes-casing',
     name: 'Shared Lanes Casing',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
@@ -485,7 +486,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:bicycle-shared-lanes',
     name: 'Shared Lanes',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
@@ -545,7 +546,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:bicycle-paths',
     name: 'Bicycle Paths Paved',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
@@ -610,7 +611,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:bicycle-paths-unpaved-casing',
     name: 'Bicycle Paths Unpaved Casing',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
@@ -683,7 +684,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:bicycle-paths-unpaved',
     name: 'Bicycle Paths Unpaved',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
@@ -750,7 +751,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:bicycle-roads',
     name: 'Bicycle Roads',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
@@ -808,7 +809,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:bicycle-permitted-casing',
     name: 'Bicycle Permitted Casing',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
@@ -863,7 +864,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:bicycle-permitted',
     name: 'Bicycle Permitted',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
@@ -912,7 +913,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:bicycle-proposed-casing',
     name: 'Proposed Bikeways Casing',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
@@ -967,7 +968,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:bicycle-proposed',
     name: 'Proposed Bikeways',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
@@ -1015,7 +1016,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:bicycle-construction-casing',
     name: 'Under Construction Casing',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
@@ -1070,7 +1071,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:bicycle-construction',
     name: 'Under Construction',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
@@ -1118,7 +1119,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:bicycle-routes-labels',
     name: 'Bike Routes Labels',
-    type: 'custom',
+    type: LayerType.CUSTOM,
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,

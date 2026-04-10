@@ -9,10 +9,15 @@ import {
 } from 'drizzle-orm/pg-core'
 import { users } from './users.schema'
 
+// Keep these values in lock-step with `LayerType` in
+// `web/src/types/map.types.ts`. They are the wire values for the `layers.type`
+// column and for default-layer template JSON, and several client features
+// (street view control, transit basemap fade, etc.) branch on them.
 export const LayerType = {
   CUSTOM: 'custom',
-  STREET_VIEW: 'street_view',
+  STREET_VIEW: 'street-view',
   TRANSIT: 'transit',
+  FRIENDS: 'friends',
 } as const
 
 export const MapEngine = {

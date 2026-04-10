@@ -1,10 +1,11 @@
 import { DefaultLayerTemplate } from '../../types/layers.types'
+import { LayerType } from '../../schema/layers.schema'
 
 export const MAPILLARY_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:mapillary-overview',
     name: 'Mapillary Overview',
-    type: 'street-view',
+    type: LayerType.STREET_VIEW,
     engine: ['mapbox', 'maplibre'],
     showInLayerSelector: true,
     visible: false,
@@ -39,7 +40,7 @@ export const MAPILLARY_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:mapillary-sequence',
     name: 'Mapillary Sequences',
-    type: 'street-view',
+    type: LayerType.STREET_VIEW,
     engine: ['mapbox', 'maplibre'],
     showInLayerSelector: true,
     visible: false,
@@ -81,7 +82,7 @@ export const MAPILLARY_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:mapillary-image',
     name: 'Mapillary Images',
-    type: 'street-view',
+    type: LayerType.STREET_VIEW,
     engine: ['mapbox', 'maplibre'],
     showInLayerSelector: true,
     visible: false,

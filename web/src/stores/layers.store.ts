@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Layer, LayerGroup, LayerGroupWithLayers } from '@/types/map.types'
+import { LayerType, MapEngine } from '@/types/map.types'
 import {
   useLayerCrudService,
   type DefaultUserStateRow,
@@ -199,8 +200,12 @@ export const useLayersStore = defineStore('layers', () => {
     return {
       id: template.templateId,
       name: template.name,
-      type: template.type ?? 'custom',
-      engine: template.engine ?? ['mapbox', 'maplibre'],
+      // `type` is the `LayerType` enum value carried straight from the
+      // server template. Features like the street view control, transit
+      // label fade, and friends handling all branch on this value, so we
+      // must not normalize or downcast it to 'custom' here.
+      type: template.type ?? LayerType.CUSTOM,
+      engine: template.engine ?? [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
       showInLayerSelector: template.showInLayerSelector,
       visible: visibilityOverride ?? state?.visible ?? template.visible,
       fadeBasemap: template.fadeBasemap ?? false,

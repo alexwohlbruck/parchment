@@ -103,7 +103,7 @@ export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
   },
   {
     templateId: 'default:group:mapillary',
-    name: 'Mapillary',
+    name: 'Street imagery',
     icon: 'CameraIcon',
     showInLayerSelector: true,
     visible: false,

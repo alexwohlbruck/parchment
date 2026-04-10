@@ -28,6 +28,7 @@ import { useDirectionsStore } from '@/stores/directions.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { IntegrationId } from '@server/types/integration.types'
+import { configSchemas } from '@/types/integrations.types'
 import { createSharedComposable, useDark } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { MapboxStrategy } from '@/components/map/map-providers/mapbox.strategy'
@@ -131,8 +132,28 @@ function mapService() {
     switch (mapEngine) {
       case MapEngine.MAPBOX:
         return new MapboxStrategy(container, options, accessToken, languageCode)
-      case MapEngine.MAPLIBRE:
-        return new MaplibreStrategy(container, options, accessToken)
+      case MapEngine.MAPLIBRE: {
+        // Resolve tile server URL and key from Barrelman integration config.
+        // Parse through the zod schema to apply defaults (e.g. host defaults
+        // to http://localhost:5001 when the integration is configured but
+        // the host field was never explicitly set).
+        const barrelmanRawConfig =
+          integrationsStore.getIntegrationConfig(IntegrationId.BARRELMAN) ?? {}
+        const barrelmanConfig = configSchemas.barrelmanSchema.safeParse(barrelmanRawConfig)
+        const barrelmanHost = barrelmanConfig.success
+          ? (barrelmanConfig.data as { host?: string }).host
+          : 'http://localhost:5001'
+        const tileKey = barrelmanConfig.success
+          ? (barrelmanConfig.data as { tileKey?: string }).tileKey
+          : undefined
+        return new MaplibreStrategy(
+          container,
+          options,
+          accessToken,
+          barrelmanHost,
+          tileKey,
+        )
+      }
     }
   }
 
@@ -191,6 +212,28 @@ function mapService() {
     )
     mapStore.setMapStrategy(mapStrategy)
 
+    bindMapEvents()
+
+    return mapStrategy
+  }
+
+  // Tracks per-zoom state that is closed over by a 'move' listener.
+  // Scoped to the module so that rebinding on engine switch resets it cleanly.
+  let previousZoom: number | null = null
+
+  /**
+   * Bind all mapEventBus listeners used by the service.
+   *
+   * This is split out of initializeMap() so setMapEngine() can call it after
+   * recreating the strategy. Without this, switching engines leaves the bus
+   * with no listeners (destroy() unbinds them) — which is why layers were
+   * "forgotten" after an engine switch: onStyleLoad() never fired, so
+   * initializeLayers() was never called on the new map.
+   *
+   * All listeners registered here must also be removed by unbindMapEvents()
+   * in destroy(), otherwise we'll accumulate duplicates across engine swaps.
+   */
+  function bindMapEvents() {
     mapEventBus.on('load', async () => {
       onMapLoad()
     })
@@ -231,7 +274,7 @@ function mapService() {
     })
 
     // Track zoom state for conditional control visibility
-    let previousZoom: number | null = null
+    previousZoom = null
     mapEventBus.on('move', data => {
       const { zoom } = data
       if (previousZoom !== null && Math.abs(zoom - previousZoom) > 0.01) {
@@ -300,8 +343,20 @@ function mapService() {
         },
       })
     })
+  }
 
-    return mapStrategy
+  /**
+   * Symmetric counterpart to bindMapEvents(). Must unbind every event that
+   * bindMapEvents() subscribed to — otherwise each engine switch will leak
+   * a stale listener that still references the destroyed strategy.
+   */
+  function unbindMapEvents() {
+    mapEventBus.off('load')
+    mapEventBus.off('style.load')
+    mapEventBus.off('move')
+    mapEventBus.off('moveend')
+    mapEventBus.off('click')
+    mapEventBus.off('click:mapillary-image')
   }
 
   // null = jumpTo (instant), undefined = Mapbox default flyTo (distance-based, no cap), number = fixed ms
@@ -361,9 +416,16 @@ function mapService() {
         return
       }
 
-      // Sync client-side layer visibility with their group states
-      const hasVisibleFadeBasemapLayers =
-        layersStore.syncClientSideLayerVisibility()
+      // Check if any fadeBasemap layers are visible
+      const hasVisibleFadeBasemapLayers = layers.value.some(l => {
+        if (!l.visible) return false
+        if (l.fadeBasemap) return true
+        if (l.groupId) {
+          const group = layersStore.allLayerGroups.find(g => g.id === l.groupId)
+          return group?.fadeBasemap ?? false
+        }
+        return false
+      })
 
       // Include search results layer with regular layers
       const allLayers = [
@@ -643,6 +705,11 @@ function mapService() {
       currentLanguage,
     )
     mapStore.setMapStrategy(mapStrategy)
+
+    // Re-bind bus listeners for the new strategy. destroy() above removed
+    // all listeners, so without this the new map would never fire
+    // onMapLoad / onStyleLoad and layers would never be re-registered.
+    bindMapEvents()
   }
 
   /**
@@ -911,6 +978,15 @@ function mapService() {
   )
 
   watch(
+    () => mapStore.settings.mapStyle,
+    styleId => {
+      if (styleId) {
+        mapStrategy?.setMapStyle(styleId)
+      }
+    },
+  )
+
+  watch(
     () => directionsStore.directions,
     directions => {
       if (directions) {
@@ -982,11 +1058,8 @@ function mapService() {
       searchResultsLayerService.removeSearchResultsLayer(mapStrategy)
     }
 
-    // Remove event listeners
-    // TODO: Automatically remove all listeners without explicitly naming them
-    mapEventBus.off('load')
-    mapEventBus.off('style.load')
-    mapEventBus.off('move')
+    // Remove every listener registered by bindMapEvents().
+    unbindMapEvents()
     mapStrategy?.destroy() // Remove map instance
   }
 

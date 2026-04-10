@@ -16,6 +16,10 @@ export function useStreetViewLayersService() {
 
   /**
    * Toggle visibility for all street view layers
+   *
+   * Also updates the visibility of any parent groups so that the layer
+   * selector UI (which reads `group.visible`) stays in sync with the
+   * external street-view control button.
    */
   async function toggleStreetViewLayers(
     layers: Layer[],
@@ -29,18 +33,25 @@ export function useStreetViewLayersService() {
       layer => layer.type === LayerType.STREET_VIEW,
     )
 
+    const affectedGroupIds = new Set<string>()
+
     for (const layer of streetViewLayers) {
-      if (layer.id.startsWith('client-')) {
-        // For client-side layers, only update in memory
-        layersStore.updateLayerVisibility(layer.id, newState)
-      } else {
-        // For user layers, update on server
-        await layersStore.updateLayer(layer.id, { visible: newState })
+      // Visibility lives in the local override map (localStorage-backed),
+      // not on the server. See layers.store.ts `updateLayerVisibility`.
+      layersStore.updateLayerVisibility(layer.id, newState)
+
+      if (layer.groupId) {
+        affectedGroupIds.add(layer.groupId)
       }
-      
+
       if (mapStrategy) {
         mapStrategy.toggleLayerVisibility(layer.configuration.id, newState)
       }
+    }
+
+    // Keep parent groups in sync so the layer selector reflects the change.
+    for (const groupId of affectedGroupIds) {
+      layersStore.toggleLayerGroupVisibility(groupId, newState)
     }
   }
 

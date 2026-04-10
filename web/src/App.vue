@@ -104,10 +104,8 @@ onMounted(async () => {
   if (authStore.me) {
     // These calls return immediately if cached, refreshing data in background
     await integrationService.fetchAvailableIntegrations()
-    // Load existing layers first
+    // Load user-owned layers + default templates + user state sidecar
     await layersStore.loadLayers()
-    // Then populate any missing template layers
-    await layersStore.populateUserLayerTemplates()
     // Initialize categories and palette (returns from cache instantly if available)
     categoryStore.init()
     categoryPaletteStore.loadPalette()

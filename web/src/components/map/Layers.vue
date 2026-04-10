@@ -34,7 +34,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 const appService = useAppService()
 const layersStore = useLayersStore()
 const layersService = useLayersService()
-const { mainReorderableItems, groupsWithLayers } = storeToRefs(layersStore)
+const { mainReorderableItems, groupsWithLayers, groupTree } = storeToRefs(layersStore)
 const { t } = useI18n()
 const { isDragActive } = useDragState()
 
@@ -46,14 +46,19 @@ const expandedGroups = ref(new Set<string>())
 // Local draggable array that syncs with the store but allows vuedraggable to modify it
 const draggableItems = ref<(Layer | LayerGroup)[]>([])
 
-// Sync with store data when it changes
+// Sync with store data when it changes. We intentionally do NOT use
+// `deep: true` here: `mainReorderableItems` is a computed that already
+// rebuilds (new array identity) whenever the underlying layers/groups
+// change, so a shallow watch fires on every meaningful update. A deep
+// watch forces Vue to walk every reactive proxy on every micro-change
+// (e.g. toggling visibility) and was causing multi-second hangs.
 watch(
   mainReorderableItems,
   newItems => {
     draggableItems.value = [...newItems]
   },
-  { immediate: true, deep: true },
-) // Added deep: true to watch for property changes
+  { immediate: true },
+)
 
 // Drag and drop composable
 const {
@@ -86,10 +91,38 @@ function openLayerGroupConfigDialog(groupId?: string) {
 }
 
 async function restoreDefaults() {
-  const count = await layersStore.populateUserLayerTemplates()
+  const result = await layersStore.restoreDefaults()
   appService.toast.success(
-    t('layers.restoreDefaults.success', { count }),
+    t('layers.restoreDefaults.success', { count: result.restoredLayers + result.restoredGroups }),
   )
+}
+
+function findGroupTreeNode(groupId: string, nodes?: any[]): any {
+  const searchNodes = nodes ?? groupTree.value
+  for (const node of searchNodes) {
+    if (node.id === groupId) return node
+    if (node.children?.length) {
+      const found = findGroupTreeNode(groupId, node.children)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+function getGroupForElement(element: LayerGroup): any {
+  const treeNode = findGroupTreeNode(element.id)
+  if (treeNode) return treeNode
+  const gwl = groupsWithLayers.value.find(g => g.id === element.id)
+  if (gwl) return { ...gwl, children: [] }
+  // Fallback: construct a minimal group node. Hitting this branch means the
+  // element is in the draggable array but the store's merged pipeline no
+  // longer knows about it — usually a stale reactive snapshot during a move.
+  // Warn so we notice if it starts firing consistently (indicates a desync).
+  console.warn(
+    '[Layers] getGroupForElement fallback: group not found in merged state',
+    element.id,
+  )
+  return { ...element, layers: [], children: [] }
 }
 
 function toggleGroup(groupId: string) {
@@ -100,44 +133,23 @@ function toggleGroup(groupId: string) {
   }
 }
 
-// Simple drag handlers
+// Drag handler for the main list (mixed layers + groups)
 async function handleMainChange(evt: any) {
-  console.log('=== Frontend handleMainChange ===')
-  console.log('Event:', evt)
-
   if (evt.added) {
-    // Layer dropped from group to main list - handle via layer move
-    const layerId = evt.added.element.id
+    const element = evt.added.element
     const newIndex = evt.added.newIndex
-    console.log('Added event - moving layer to main list:', layerId, newIndex)
-    await layersStore.handleLayerMove(layerId, null, newIndex)
+
+    if ('groupId' in element) {
+      // Layer dropped from a group to the main (ungrouped) list
+      await layersStore.handleLayerMove(element.id, null, newIndex)
+    } else {
+      // Group dropped from a parent group to the top level
+      await layersStore.handleGroupMove(element.id, null, newIndex)
+    }
   } else if (evt.moved) {
-    // Item was reordered within the main list
-    const { element, newIndex } = evt.moved
-    console.log(
-      'Moved event - reordering within main list:',
-      element.id,
-      'to index',
-      newIndex,
-    )
-
-    // Use the current draggableItems array which has been updated by vuedraggable
-    console.log(
-      'Current draggableItems order:',
-      draggableItems.value.map((item, idx) => ({
-        id: item.id,
-        name: 'name' in item ? item.name : 'Unknown',
-        arrayIndex: idx,
-      })),
-    )
-
-    await layersStore.handleMainReorder(draggableItems.value)
-  } else if (!evt.added && !evt.removed && !evt.moved) {
-    // This should handle other reorder cases if any
-    console.log('General reorder event - using current draggableItems')
+    // Item reordered within the main list
     await layersStore.handleMainReorder(draggableItems.value)
   }
-  console.log('=== End Frontend handleMainChange ===')
 }
 </script>
 
@@ -214,8 +226,8 @@ async function handleMainChange(evt: any) {
               <!-- Layer Group -->
               <LayerGroupItem
                 v-if="!('groupId' in element)"
-                :group="groupsWithLayers.find(g => g.id === element.id)!"
-                :expanded="expandedGroups.has(element.id)"
+                :group="getGroupForElement(element)"
+                :expanded-groups="expandedGroups"
                 @toggle-expanded="toggleGroup"
               />
 

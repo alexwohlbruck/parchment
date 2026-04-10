@@ -1,0 +1,1 @@
+ALTER TABLE "layer_groups" ADD COLUMN IF NOT EXISTS "integration_id" text;

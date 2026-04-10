@@ -8,6 +8,7 @@ import {
   MapEvents,
   MapCamera,
   MapTheme,
+  MapStyleId,
   Pegman,
   MapProjection,
   MapControlSettings,
@@ -25,6 +26,7 @@ const defaultSettings: MapSettings = {
   engine: MapEngine.MAPBOX,
   projection: MapProjection.GLOBE,
   basemap: 'standard',
+  mapStyle: 'osm-liberty',
   terrain3d: false,
   objects3d: true,
   poiLabels: true,
@@ -84,6 +86,10 @@ export const useMapStore = defineStore('map', () => {
     settings.value.basemap = basemap
   }
 
+  function setMapStyle(styleId: MapStyleId) {
+    settings.value.mapStyle = styleId
+  }
+
   // Event methods
   function on<K extends keyof MapEvents>(
     event: K,
@@ -120,6 +126,7 @@ export const useMapStore = defineStore('map', () => {
     mapCamera,
     setMapCamera,
     setBasemap,
+    setMapStyle,
     on,
     off,
     emit,

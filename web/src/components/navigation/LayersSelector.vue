@@ -59,6 +59,7 @@ async function toggleLayerGroupVisibility(groupId: string, visible: boolean) {
       layersStore,
       layers.value,
       mapService.mapStrategy,
+      allLayerGroups.value,
     )
   }
 }
@@ -84,9 +85,9 @@ const filteredGroups = computed(() => {
   })
 })
 
-// Get layer count for each group
+// Get total layer count for a group (including sub-layers and descendant groups)
 function getGroupLayerCount(groupId: string): number {
-  return layers.value.filter(l => toRaw(l)?.groupId === groupId).length
+  return layersStore.getGroupTotalLayerCount(groupId)
 }
 
 // Combine in the exact custom order from mainReorderableItems
@@ -99,10 +100,9 @@ const allLayers = computed(() => {
         if (!group) return null
         // Only include groups that should show and have at least one non-street-view layer
         if (!group.showInLayerSelector) return null
-        const groupHasNonStreetLayer = layers.value.some(
-          l => toRaw(l)?.groupId === group.id,
-        )
-        if (!groupHasNonStreetLayer) return null
+        // Check if group has any layers (directly or in descendant subgroups)
+        const hasLayers = getGroupLayerCount(group.id) > 0
+        if (!hasLayers) return null
         return {
           type: 'group' as const,
           id: group.id,
@@ -198,7 +198,7 @@ const allLayers = computed(() => {
       <div class="grid grid-cols-2 gap-2">
         <Toggle
           v-for="item in allLayers"
-          :key="item.id"
+          :key="`${item.id}-${item.visible}`"
           variant="outline"
           :aria-label="`Toggle ${item.name} ${
             item.type === 'group' ? 'group' : 'layer'
@@ -229,6 +229,7 @@ const allLayers = computed(() => {
 
         <!-- OSM Notes toggle -->
         <Toggle
+          :key="`notes-${notesStore.isLayerVisible}`"
           variant="outline"
           aria-label="Toggle OSM Notes layer"
           :default-value="notesStore.isLayerVisible"

@@ -30,12 +30,12 @@ function friendLocationsLayerComposable() {
   const mapService = useMapService()
   const router = useRouter()
 
-  const { clientSideLayers } = storeToRefs(layersStore)
+  const { layers } = storeToRefs(layersStore)
   const { isSetupComplete } = storeToRefs(identityStore)
 
   // Find the friends layer
   const friendsLayer = computed(() => {
-    return clientSideLayers.value.find(
+    return layers.value.find(
       l => l.configuration?.id === 'friends-locations'
     )
   })

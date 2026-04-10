@@ -56,6 +56,8 @@ const availableIntegrations: IntegrationDefinition[] = [
     configSchema: 'peliasSchema',
     scope: [IntegrationScope.SYSTEM],
   },
+  // TODO: Add dynamic API and access key management to Barrelman,
+  // with a UI to create, rotate, and revoke keys.
   {
     id: IntegrationId.BARRELMAN,
     name: 'Barrelman',
@@ -69,6 +71,7 @@ const availableIntegrations: IntegrationDefinition[] = [
     paid: false,
     cloud: false,
     configSchema: 'barrelmanSchema',
+    publicFields: ['host', 'tileKey'],
     scope: [IntegrationScope.SYSTEM],
   },
   {

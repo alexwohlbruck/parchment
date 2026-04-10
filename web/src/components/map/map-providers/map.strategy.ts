@@ -3,6 +3,7 @@ import {
   Layer,
   MapCamera,
   MapSettings,
+  MapStyleId,
   MapProjection,
   MapTheme,
   MapColorTheme,
@@ -136,6 +137,7 @@ export class MapStrategy {
   setMapTheme(theme: MapTheme) {}
   setMapColorTheme(theme: MapColorTheme) {}
   setBasemap(basemap: Basemap) {}
+  setMapStyle(styleId: MapStyleId) {}
   setHdRoads(value: boolean) {}
   setMapLanguage(locale: string): boolean {
     return false // Default: no reinitialization needed

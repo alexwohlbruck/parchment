@@ -985,6 +985,13 @@
           "slow": "Slow"
         }
       },
+      "style": {
+        "title": "Style",
+        "mapStyle": "Map style",
+        "descriptionMaplibre": "Visual style for the map",
+        "descriptionMapbox": "Mapbox uses its own standard style",
+        "placeholder": "Choose a style"
+      },
       "basemaps": {
         "title": "Basemaps",
         "new": "New basemap",
@@ -1076,7 +1083,8 @@
         "spatialParents": "Spatial Parents",
         "spatialChildren": "Spatial Children",
         "searchAlongRoute": "Search Along Route",
-        "osmMapEdit": "Edit Map"
+        "osmMapEdit": "Edit Map",
+        "tileServer": "Tile Server"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",

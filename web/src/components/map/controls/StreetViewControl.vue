@@ -50,11 +50,12 @@ async function onToggle() {
   <transition name="fade">
     <div v-if="isVisible">
       <Toggle
+        :key="`street-view-${isStreetViewLayerVisible}`"
         variant="outline"
         size="icon"
         class="size-11"
-        @click="onToggle"
         :default-value="isStreetViewLayerVisible"
+        @update:model-value="onToggle"
       >
         <PersonStandingIcon class="size-6" />
       </Toggle>

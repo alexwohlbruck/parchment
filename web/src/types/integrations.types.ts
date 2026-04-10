@@ -156,8 +156,9 @@ export const configSchemas: Record<
     host: z
       .string()
       .url('Please enter a valid URL')
-      .default('http://localhost:3001'),
+      .default('http://localhost:5001'),
     apiKey: z.string().optional(),
+    tileKey: z.string().optional(),
   }),
 
   axiomSchema: z.object({

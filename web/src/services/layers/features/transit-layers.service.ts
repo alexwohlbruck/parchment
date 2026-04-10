@@ -81,13 +81,11 @@ export function useTransitLayersService() {
     )
 
     for (const layer of transitLayers) {
-      if (layer.id.startsWith('client-')) {
-        // For client-side layers, only update in memory
-        layersStore.updateLayerVisibility(layer.id, newState)
-      } else {
-        // For user layers, update on server
-        await layersStore.updateLayer(layer.id, { visible: newState })
-      }
+      // Visibility is ephemeral UI state — always route through the store's
+      // local override map (localStorage-backed) rather than the server CRUD
+      // path. This keeps toggles cheap and cross-device sync is intentionally
+      // not a goal for visibility.
+      layersStore.updateLayerVisibility(layer.id, newState)
 
       if (mapStrategy) {
         mapStrategy.toggleLayerVisibility(layer.configuration.id, newState)

@@ -208,11 +208,13 @@ export enum LayerType {
   FRIENDS = 'friends',
 }
 
-export enum LayerCategory {
-  CORE = 'core',
-  DEFAULT = 'default',
-  CUSTOM = 'custom',
-}
+/**
+ * Origin describes where a layer/group's canonical definition lives.
+ * - 'default': projected from a server-side template (no DB row per user)
+ * - 'custom':  user-created or cloned-from-default DB row, fully user-owned
+ * - 'core':    hardcoded client-side layer (search results, place polygons, etc.)
+ */
+export type LayerOrigin = 'default' | 'custom' | 'core'
 
 export interface Layer {
   id: string
@@ -238,12 +240,14 @@ export interface Layer {
     slot?: string
     [key: string]: any
   }
-  // New unified layer model fields
-  category?: LayerCategory
-  defaultTemplateId?: string | null
   isSubLayer?: boolean
   enabled?: boolean
   integrationId?: string | null
+  // Synthesized on the client when composing default templates + user state.
+  // Never set for core layers or fresh custom layers.
+  origin?: LayerOrigin
+  // Set on a DB row when it was created by cloning a default template.
+  clonedFromTemplateId?: string | null
   userId?: string
   createdAt?: string
   updatedAt?: string
@@ -257,10 +261,10 @@ export interface LayerGroup {
   fadeBasemap?: boolean
   icon?: string
   order: number
-  // New unified layer model fields
-  category?: LayerCategory
-  defaultTemplateId?: string | null
   parentGroupId?: string | null
+  integrationId?: string | null
+  origin?: LayerOrigin
+  clonedFromTemplateId?: string | null
   userId: string
   createdAt: string
   updatedAt: string

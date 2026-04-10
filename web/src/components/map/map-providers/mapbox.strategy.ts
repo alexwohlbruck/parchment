@@ -618,7 +618,15 @@ export class MapboxStrategy extends MapStrategy {
 
   addLayer(layer: Layer, overwrite: boolean = false) {
     const themedLayer = applyThemedStreetViewStyling(layer)
-    const { configuration } = themedLayer
+    // Deep clone the configuration before we mutate it. For non-street-view
+    // layers applyThemedStreetViewStyling returns the original layer, so
+    // `themedLayer.configuration` is still a reference into the store.
+    // Mutating `configuration.source` below (object → string) would corrupt
+    // the store's layer, and the next style reload would see a dangling
+    // source string instead of the original inline source spec — causing
+    // the layer to silently disappear. JSON clone (rather than structuredClone)
+    // because Pinia proxies may contain values structuredClone can't copy.
+    const configuration: any = JSON.parse(JSON.stringify(themedLayer.configuration))
 
     // Handle source if it exists in the configuration
     if (typeof configuration.source === 'object') {

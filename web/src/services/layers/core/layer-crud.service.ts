@@ -1,16 +1,45 @@
 /**
  * Layer CRUD Service
- * 
- * Handles basic Create, Read, Update, Delete operations for layers and layer groups.
- * This service communicates with the backend API for persistence.
+ *
+ * Handles Create, Read, Update, Delete operations for user-owned layers and
+ * layer groups, plus the default-template state sidecar and clone operations.
+ *
+ * Important: the server returns ONLY user-owned rows from /library/layers.
+ * Default templates are fetched separately via getDefaultTemplates() and
+ * composed with the user state in the store.
  */
 
 import { api } from '@/lib/api'
 import type { Layer, LayerGroup } from '@/types/map.types'
 
+export type DefaultStateType = 'layer' | 'group'
+
+export interface DefaultUserStateRow {
+  userId: string
+  templateId: string
+  type: DefaultStateType
+  hidden: boolean
+  visible: boolean | null
+  order: number | null
+  enabled: boolean | null
+  groupId: string | null
+  parentGroupId: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DefaultStatePatch {
+  hidden?: boolean
+  visible?: boolean | null
+  order?: number | null
+  enabled?: boolean | null
+  groupId?: string | null
+  parentGroupId?: string | null
+}
+
 export function useLayerCrudService() {
   // ============================================================================
-  // LAYER CRUD OPERATIONS
+  // USER-OWNED LAYER CRUD
   // ============================================================================
 
   async function getLayers() {
@@ -35,7 +64,7 @@ export function useLayerCrudService() {
   }
 
   // ============================================================================
-  // LAYER GROUP CRUD OPERATIONS
+  // USER-OWNED LAYER GROUP CRUD
   // ============================================================================
 
   async function getLayerGroups() {
@@ -63,7 +92,7 @@ export function useLayerCrudService() {
   }
 
   // ============================================================================
-  // REORDERING OPERATIONS
+  // REORDERING
   // ============================================================================
 
   async function reorderLayers(
@@ -90,15 +119,20 @@ export function useLayerCrudService() {
     return data
   }
 
-  async function moveLayerGroup(groupId: string, targetOrder: number) {
+  async function moveLayerGroup(
+    groupId: string,
+    targetOrder: number,
+    targetParentGroupId?: string | null,
+  ) {
     const { data } = await api.put(`/library/layers/groups/${groupId}/move`, {
       targetOrder,
+      targetParentGroupId,
     })
     return data
   }
 
   // ============================================================================
-  // DEFAULT LAYER OPERATIONS
+  // DEFAULT TEMPLATES + STATE SIDECAR + CLONE/RESTORE
   // ============================================================================
 
   async function getDefaultTemplates() {
@@ -109,45 +143,88 @@ export function useLayerCrudService() {
     return data
   }
 
-  async function initializeDefaults() {
-    const { data } = await api.post<{
-      success: boolean
-      layersCreated: number
-      groupsCreated: number
-    }>('/library/layers/initialize-defaults')
+  async function getDefaultUserState() {
+    const { data } = await api.get<DefaultUserStateRow[]>(
+      '/library/layers/default-state',
+    )
+    return data
+  }
+
+  async function upsertDefaultUserState(
+    templateId: string,
+    type: DefaultStateType,
+    patch: DefaultStatePatch,
+  ) {
+    const { data } = await api.put<DefaultUserStateRow>(
+      '/library/layers/default-state',
+      { templateId, type, ...patch },
+    )
+    return data
+  }
+
+  async function clearDefaultUserState(
+    templateId: string,
+    type: DefaultStateType,
+  ) {
+    await api.delete('/library/layers/default-state', {
+      data: { templateId, type },
+    } as any)
+  }
+
+  async function cloneDefaultLayer(
+    templateId: string,
+    patch: Partial<Layer> = {},
+  ) {
+    const { data } = await api.post<Layer>('/library/layers/default-clone/layer', {
+      templateId,
+      patch,
+    })
+    return data
+  }
+
+  async function cloneDefaultGroup(
+    templateId: string,
+    patch: Partial<LayerGroup> = {},
+  ) {
+    const { data } = await api.post<LayerGroup>(
+      '/library/layers/default-clone/group',
+      { templateId, patch },
+    )
     return data
   }
 
   async function restoreDefaults() {
-    const { data } = await api.post<{
-      success: boolean
-      restoredLayers: number
-      restoredGroups: number
-    }>('/library/layers/restore-defaults')
+    const { data } = await api.post<{ success: boolean; cleared: number }>(
+      '/library/layers/restore-defaults',
+    )
     return data
   }
 
   return {
-    // Layer operations
+    // Layer CRUD
     getLayers,
     createLayer,
     updateLayer,
     deleteLayer,
 
-    // Layer group operations
+    // Layer group CRUD
     getLayerGroups,
     createLayerGroup,
     updateLayerGroup,
     deleteLayerGroup,
 
-    // Reordering operations
+    // Reordering
     reorderLayers,
     moveLayer,
     moveLayerGroup,
 
-    // Default layer operations
+    // Default templates + state + clone
     getDefaultTemplates,
-    initializeDefaults,
+    getDefaultUserState,
+    upsertDefaultUserState,
+    clearDefaultUserState,
+    cloneDefaultLayer,
+    cloneDefaultGroup,
     restoreDefaults,
   }
 }

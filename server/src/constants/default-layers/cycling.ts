@@ -1,5 +1,14 @@
 import { DefaultLayerTemplate } from '../../types/layers.types'
 
+/**
+ * Cycling default layer templates.
+ *
+ * Convention: layer `order` values are spaced in intervals of 10 within each
+ * subgroup (110, 120, 130, …) so that user-driven reorders can slot new
+ * templates or clones between existing ones without immediately needing a
+ * full re-index. When adjusting values, keep the spacing consistent so the
+ * client-side sort stays predictable.
+ */
 export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // ── Bicycle routes (relations: icn, ncn, rcn, lcn) ─────────
   {
@@ -8,11 +17,11 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     type: 'custom',
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
-    showInLayerSelector: true,
+    showInLayerSelector: false,
     visible: false,
-    order: 11,
-    groupId: 'default:group:cycling',
-    isSubLayer: false,
+    order: 110,
+    groupId: 'default:group:cycling:bike-routes',
+    isSubLayer: true,
     integrationId: 'barrelman',
     configuration: {
       id: 'bicycle-routes',
@@ -70,15 +79,15 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Dedicated cycleways (highway=cycleway) — casing (outline)
   {
     templateId: 'default:bicycle-cycleways-casing',
-    name: 'Cycleways',
+    name: 'Cycleways Casing',
     type: 'custom',
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
-    showInLayerSelector: true,
+    showInLayerSelector: false,
     visible: false,
-    order: 3,
-    groupId: 'default:group:cycling',
-    isSubLayer: false,
+    order: 30,
+    groupId: 'default:group:cycling:cycleways',
+    isSubLayer: true,
     integrationId: 'barrelman',
     configuration: {
       id: 'bicycle-cycleways-casing',
@@ -125,14 +134,14 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Dedicated cycleways — fill (paved)
   {
     templateId: 'default:bicycle-cycleways',
-    name: 'Cycleways',
+    name: 'Cycleways Paved',
     type: 'custom',
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
     visible: false,
-    order: 3,
-    groupId: 'default:group:cycling',
+    order: 31,
+    groupId: 'default:group:cycling:cycleways',
     isSubLayer: true,
     integrationId: 'barrelman',
     configuration: {
@@ -190,14 +199,14 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Dedicated cycleways — fill (unpaved surfaces)
   {
     templateId: 'default:bicycle-cycleways-unpaved',
-    name: 'Cycleways',
+    name: 'Cycleways Unpaved',
     type: 'custom',
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
     visible: false,
-    order: 3,
-    groupId: 'default:group:cycling',
+    order: 32,
+    groupId: 'default:group:cycling:cycleways',
     isSubLayer: true,
     integrationId: 'barrelman',
     configuration: {
@@ -261,11 +270,11 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     type: 'custom',
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
-    showInLayerSelector: true,
+    showInLayerSelector: false,
     visible: false,
-    order: 4,
-    groupId: 'default:group:cycling',
-    isSubLayer: false,
+    order: 40,
+    groupId: 'default:group:cycling:cycle-tracks',
+    isSubLayer: true,
     integrationId: 'barrelman',
     configuration: {
       id: 'bicycle-tracks',
@@ -305,14 +314,14 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Bike lanes — casing
   {
     templateId: 'default:bicycle-lanes-casing',
-    name: 'Bike Lanes',
+    name: 'Bike Lanes Casing',
     type: 'custom',
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
     visible: false,
-    order: 5,
-    groupId: 'default:group:cycling',
+    order: 50,
+    groupId: 'default:group:cycling:bike-lanes',
     isSubLayer: true,
     integrationId: 'barrelman',
     configuration: {
@@ -364,11 +373,11 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     type: 'custom',
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
-    showInLayerSelector: true,
+    showInLayerSelector: false,
     visible: false,
-    order: 5,
-    groupId: 'default:group:cycling',
-    isSubLayer: false,
+    order: 51,
+    groupId: 'default:group:cycling:bike-lanes',
+    isSubLayer: true,
     integrationId: 'barrelman',
     configuration: {
       id: 'bicycle-lanes',
@@ -409,14 +418,14 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Shared lanes (sharrows, shoulders, bus-lanes) — casing
   {
     templateId: 'default:bicycle-shared-lanes-casing',
-    name: 'Shared Lanes',
+    name: 'Shared Lanes Casing',
     type: 'custom',
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
     visible: false,
-    order: 5,
-    groupId: 'default:group:cycling',
+    order: 52,
+    groupId: 'default:group:cycling:shared-lanes',
     isSubLayer: true,
     integrationId: 'barrelman',
     configuration: {
@@ -479,11 +488,11 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     type: 'custom',
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
-    showInLayerSelector: true,
+    showInLayerSelector: false,
     visible: false,
-    order: 5,
-    groupId: 'default:group:cycling',
-    isSubLayer: false,
+    order: 53,
+    groupId: 'default:group:cycling:shared-lanes',
+    isSubLayer: true,
     integrationId: 'barrelman',
     configuration: {
       id: 'bicycle-shared-lanes',
@@ -535,15 +544,15 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Bicycle paths (footway/path with bicycle=designated) — paved
   {
     templateId: 'default:bicycle-paths',
-    name: 'Bicycle Paths',
+    name: 'Bicycle Paths Paved',
     type: 'custom',
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
-    showInLayerSelector: true,
+    showInLayerSelector: false,
     visible: false,
-    order: 6,
-    groupId: 'default:group:cycling',
-    isSubLayer: false,
+    order: 60,
+    groupId: 'default:group:cycling:bicycle-paths',
+    isSubLayer: true,
     integrationId: 'barrelman',
     configuration: {
       id: 'bicycle-paths',
@@ -600,14 +609,14 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Bicycle paths — unpaved casing
   {
     templateId: 'default:bicycle-paths-unpaved-casing',
-    name: 'Bicycle Paths',
+    name: 'Bicycle Paths Unpaved Casing',
     type: 'custom',
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
     visible: false,
-    order: 6,
-    groupId: 'default:group:cycling',
+    order: 61,
+    groupId: 'default:group:cycling:bicycle-paths',
     isSubLayer: true,
     integrationId: 'barrelman',
     configuration: {
@@ -673,14 +682,14 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Bicycle paths — unpaved
   {
     templateId: 'default:bicycle-paths-unpaved',
-    name: 'Bicycle Paths',
+    name: 'Bicycle Paths Unpaved',
     type: 'custom',
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
     visible: false,
-    order: 6,
-    groupId: 'default:group:cycling',
+    order: 62,
+    groupId: 'default:group:cycling:bicycle-paths',
     isSubLayer: true,
     integrationId: 'barrelman',
     configuration: {
@@ -744,11 +753,11 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     type: 'custom',
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
-    showInLayerSelector: true,
+    showInLayerSelector: false,
     visible: false,
-    order: 7,
-    groupId: 'default:group:cycling',
-    isSubLayer: false,
+    order: 70,
+    groupId: 'default:group:cycling:bicycle-roads',
+    isSubLayer: true,
     integrationId: 'barrelman',
     configuration: {
       id: 'bicycle-roads',
@@ -798,14 +807,14 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Bicycle permitted — casing
   {
     templateId: 'default:bicycle-permitted-casing',
-    name: 'Bicycle Permitted',
+    name: 'Bicycle Permitted Casing',
     type: 'custom',
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
     visible: false,
-    order: 8,
-    groupId: 'default:group:cycling',
+    order: 80,
+    groupId: 'default:group:cycling:bicycle-permitted',
     isSubLayer: true,
     integrationId: 'barrelman',
     configuration: {
@@ -857,11 +866,11 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     type: 'custom',
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
-    showInLayerSelector: true,
+    showInLayerSelector: false,
     visible: false,
-    order: 8,
-    groupId: 'default:group:cycling',
-    isSubLayer: false,
+    order: 81,
+    groupId: 'default:group:cycling:bicycle-permitted',
+    isSubLayer: true,
     integrationId: 'barrelman',
     configuration: {
       id: 'bicycle-permitted',
@@ -902,14 +911,14 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Proposed — casing
   {
     templateId: 'default:bicycle-proposed-casing',
-    name: 'Proposed Bikeways',
+    name: 'Proposed Bikeways Casing',
     type: 'custom',
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
     visible: false,
-    order: 10,
-    groupId: 'default:group:cycling',
+    order: 100,
+    groupId: 'default:group:cycling:proposed-bikeways',
     isSubLayer: true,
     integrationId: 'barrelman',
     configuration: {
@@ -961,11 +970,11 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     type: 'custom',
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
-    showInLayerSelector: true,
+    showInLayerSelector: false,
     visible: false,
-    order: 10,
-    groupId: 'default:group:cycling',
-    isSubLayer: false,
+    order: 101,
+    groupId: 'default:group:cycling:proposed-bikeways',
+    isSubLayer: true,
     integrationId: 'barrelman',
     configuration: {
       id: 'bicycle-proposed',
@@ -1005,14 +1014,14 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Under construction — casing
   {
     templateId: 'default:bicycle-construction-casing',
-    name: 'Proposed Bikeways',
+    name: 'Under Construction Casing',
     type: 'custom',
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
     visible: false,
-    order: 10,
-    groupId: 'default:group:cycling',
+    order: 102,
+    groupId: 'default:group:cycling:proposed-bikeways',
     isSubLayer: true,
     integrationId: 'barrelman',
     configuration: {
@@ -1060,14 +1069,14 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Under construction bikeways
   {
     templateId: 'default:bicycle-construction',
-    name: 'Proposed Bikeways',
+    name: 'Under Construction',
     type: 'custom',
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
     visible: false,
-    order: 10,
-    groupId: 'default:group:cycling',
+    order: 103,
+    groupId: 'default:group:cycling:proposed-bikeways',
     isSubLayer: true,
     integrationId: 'barrelman',
     configuration: {
@@ -1108,14 +1117,14 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Bicycle route labels
   {
     templateId: 'default:bicycle-routes-labels',
-    name: 'Bike Routes',
+    name: 'Bike Routes Labels',
     type: 'custom',
     engine: ['mapbox', 'maplibre'],
     icon: 'BikeIcon',
     showInLayerSelector: false,
     visible: false,
-    order: 11,
-    groupId: 'default:group:cycling',
+    order: 999,
+    groupId: 'default:group:cycling:bike-routes',
     isSubLayer: true,
     integrationId: 'barrelman',
     configuration: {
@@ -1155,10 +1164,12 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       layout: {
         'symbol-placement': 'line',
         'text-field': ['coalesce', ['get', 'ref'], ['get', 'name']],
+        'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+        'text-transform': 'uppercase',
+        'text-letter-spacing': 0.01,
         'text-size': ['interpolate', ['linear'], ['zoom'], 10, 10, 14, 13],
         'text-max-angle': 30,
         'text-padding': 30,
-        'text-letter-spacing': 0.05,
       },
     },
   },

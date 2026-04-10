@@ -100,10 +100,9 @@ const allLayers = computed(() => {
         if (!group) return null
         // Only include groups that should show and have at least one non-street-view layer
         if (!group.showInLayerSelector) return null
-        const groupHasNonStreetLayer = layers.value.some(
-          l => toRaw(l)?.groupId === group.id,
-        )
-        if (!groupHasNonStreetLayer) return null
+        // Check if group has any layers (directly or in descendant subgroups)
+        const hasLayers = getGroupLayerCount(group.id) > 0
+        if (!hasLayers) return null
         return {
           type: 'group' as const,
           id: group.id,

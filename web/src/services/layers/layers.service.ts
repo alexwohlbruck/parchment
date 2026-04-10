@@ -55,7 +55,11 @@ export function useLayersService() {
     moveLayer,
     moveLayerGroup,
     getDefaultTemplates,
-    initializeDefaults,
+    getDefaultUserState,
+    upsertDefaultUserState,
+    clearDefaultUserState,
+    cloneDefaultLayer,
+    cloneDefaultGroup,
     restoreDefaults,
   } = crudService
 
@@ -154,7 +158,11 @@ export function useLayersService() {
 
     // Default layer operations
     getDefaultTemplates,
-    initializeDefaults,
+    getDefaultUserState,
+    upsertDefaultUserState,
+    clearDefaultUserState,
+    cloneDefaultLayer,
+    cloneDefaultGroup,
     restoreDefaults,
 
     // Map integration

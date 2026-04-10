@@ -30,14 +30,10 @@ export function useStreetViewLayersService() {
     )
 
     for (const layer of streetViewLayers) {
-      if (layer.id.startsWith('client-')) {
-        // For client-side layers, only update in memory
-        layersStore.updateLayerVisibility(layer.id, newState)
-      } else {
-        // For user layers, update on server
-        await layersStore.updateLayer(layer.id, { visible: newState })
-      }
-      
+      // Visibility lives in the local override map (localStorage-backed),
+      // not on the server. See layers.store.ts `updateLayerVisibility`.
+      layersStore.updateLayerVisibility(layer.id, newState)
+
       if (mapStrategy) {
         mapStrategy.toggleLayerVisibility(layer.configuration.id, newState)
       }

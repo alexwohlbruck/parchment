@@ -94,11 +94,16 @@ function stripMapboxExpressionsFromObject(obj: Record<string, any>): Record<stri
 
 // TODO: Fix any types
 export function mapboxLayerToMaplibreLayer(layer: Layer): MaplibreLayerType {
-  const { configuration } = { ...layer }
-  const maplibreConfig: any = {
-    ...configuration,
-    type: configuration.type,
-  }
+  // IMPORTANT: deep clone the configuration before mutating. A shallow spread
+  // preserves references to nested paint/layout/source objects, which means
+  // the `delete` statements below would permanently strip Mapbox-only keys
+  // from the original layer object — so switching back to Mapbox after a
+  // MapLibre pass would silently lose properties like `line-emissive-strength`.
+  // We use JSON clone rather than structuredClone because layers come from a
+  // Pinia store whose reactive proxies may contain values that structuredClone
+  // refuses to copy (functions, symbols, etc.). Layer configs are plain JSON
+  // data so JSON.parse/JSON.stringify is a safe round-trip.
+  const maplibreConfig: any = JSON.parse(JSON.stringify(layer.configuration))
 
   // Remove Mapbox-specific paint properties, then strip unsupported expressions
   if (maplibreConfig.paint) {

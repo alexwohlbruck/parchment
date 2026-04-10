@@ -124,11 +124,16 @@ export class MaplibreStrategy extends MapStrategy {
     this.tileKey = tileKey
     // Resolve the style config for the persisted map style
     this.styleConfig = getStyleConfig(options.mapStyle ?? 'osm-liberty')
+    // Seed currentBasemap from the persisted map settings so that engine
+    // swaps preserve satellite/hybrid mode. Without this, a fresh strategy
+    // instance always started on 'standard' and only picked up the real
+    // basemap after the user re-toggled it.
+    this.currentBasemap = options.basemap ?? 'standard'
     const { center, zoom, bearing, pitch } = options.camera || {}
 
     this.mapInstance = new MaplibreMap({
       container,
-      style: this.getBasemapFromTheme(),
+      style: this.buildCurrentStyle(),
       center: center as LngLatLike,
       bearing,
       pitch,
@@ -186,6 +191,14 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.on('load', () => {
       mapEventBus.emit('load', this.mapInstance)
     })
+    // Style load fires on the initial style load AND on every subsequent
+    // setStyle() call (theme change, basemap change, map style change). We
+    // use this single listener to re-emit to the mapEventBus so that
+    // map.service re-registers all custom layers after the style is replaced.
+    //
+    // Note: setupPoiHandlers() is idempotent — it early-returns if handlers
+    // are already attached, because MapLibre's layer-scoped delegates use
+    // getLayer() on each event and automatically adapt to style changes.
     this.mapInstance.on('style.load', () => {
       this.styleConfig = getStyleConfig(this.options.mapStyle ?? 'osm-liberty')
       this.setupPoiHandlers()
@@ -208,15 +221,6 @@ export class MaplibreStrategy extends MapStrategy {
       })
     })
     this.mapInstance.on('click', e => {
-      // DEBUG: log all features under click point
-      const features = this.mapInstance.queryRenderedFeatures(e.point)
-      if (features.length) {
-        console.log('[map click]', features.map(f => ({
-          layer: f.layer.id,
-          properties: f.properties,
-        })))
-      }
-
       // Debounce to allow POI click handler to fire first and cancel this
       if (this.clickDebounceTimer) {
         clearTimeout(this.clickDebounceTimer)
@@ -508,18 +512,34 @@ export class MaplibreStrategy extends MapStrategy {
 
   setMapTheme(theme: MapTheme) {
     this.options.theme = theme
-    this.mapInstance.setStyle(this.buildCurrentStyle())
+    this.reloadStyle()
   }
 
   setBasemap(basemap: Basemap) {
     this.currentBasemap = basemap
-    this.mapInstance.setStyle(this.buildCurrentStyle())
+    this.reloadStyle()
   }
 
   setMapStyle(styleId: MapStyleId) {
     this.options.mapStyle = styleId
     this.styleConfig = getStyleConfig(styleId)
-    this.mapInstance.setStyle(this.buildCurrentStyle())
+    this.reloadStyle()
+  }
+
+  /**
+   * Swap the map style and fire style.load so downstream services can
+   * re-register their custom layers.
+   *
+   * CRITICAL: we pass `{ diff: false }` to force a full style replacement.
+   * MapLibre's default diff mode compares the old style against the new one
+   * and issues `removeLayer`/`removeSource` operations for anything that
+   * isn't in the new style — which silently wipes every layer we added
+   * manually (bicycle, transit, mapillary, …) without firing `style.load`.
+   * With `diff: false` a brand-new Style is created, which reliably fires
+   * `style.load` and lets our re-registration pipeline run.
+   */
+  private reloadStyle() {
+    this.mapInstance.setStyle(this.buildCurrentStyle(), { diff: false })
   }
 
   private buildCurrentStyle() {

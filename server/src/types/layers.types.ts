@@ -11,11 +11,10 @@ export interface CreateLayerParams {
   order: number
   groupId?: string | null
   configuration: any
-  category?: string
-  defaultTemplateId?: string | null
   isSubLayer?: boolean
   enabled?: boolean
   integrationId?: string | null
+  clonedFromTemplateId?: string | null
   userId: string
 }
 
@@ -26,9 +25,9 @@ export interface CreateLayerGroupParams {
   fadeBasemap?: boolean
   icon?: string | null
   order: number
-  category?: string
-  defaultTemplateId?: string | null
   parentGroupId?: string | null
+  integrationId?: string | null
+  clonedFromTemplateId?: string | null
   userId: string
 }
 

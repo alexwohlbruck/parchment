@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useLayersStore } from '@/stores/layers.store'
 import { useLayersService } from '@/services/layers/layers.service'
 import { useAppService } from '@/services/app.service'
-import type { LayerGroupWithLayers, Layer } from '@/types/map.types'
+import type { LayerGroupWithLayers, LayerGroup, Layer } from '@/types/map.types'
 import { useDragAndDrop } from '@/composables/useDragAndDrop'
 import * as LucideIcons from 'lucide-vue-next'
 import LayerItemComponent from './LayerItem.vue'
@@ -65,17 +65,50 @@ const mapService = useMapService()
 
 const expanded = computed(() => props.expandedGroups.has(props.group.id))
 
-// Filter out sub-layers for UI display, use a ref so vuedraggable can modify it
-const displayLayers = ref<Layer[]>([])
+const childGroups = computed(() => props.group.children ?? [])
+
+// Build mixed items list: child groups + layers, sorted by order.
+// The group tree is recomputed in the store whenever its inputs change, so
+// `props.group.layers`/`props.group.children` already get fresh array
+// identities on every meaningful update. A shallow watch is sufficient —
+// `deep: true` was forcing Vue to traverse every layer/group proxy per
+// LayerGroupItem instance on every reactive tick and was a major source
+// of UI hangs when many groups were mounted.
+const mixedItems = ref<(Layer | LayerGroup)[]>([])
+
 watch(
-  () => props.group.layers,
-  (layers) => {
-    displayLayers.value = (layers ?? []).filter(l => !l.isSubLayer)
+  [() => props.group.layers, () => props.group.children],
+  () => {
+    const layers = props.group.layers ?? []
+    const groups = props.group.children ?? []
+    const items: (Layer | LayerGroup)[] = [...layers, ...groups]
+    mixedItems.value = items.sort((a, b) => a.order - b.order)
   },
-  { immediate: true, deep: true },
+  { immediate: true },
 )
 
-const childGroups = computed(() => props.group.children ?? [])
+function isLayer(item: Layer | LayerGroup): item is Layer {
+  return 'groupId' in item
+}
+
+function isGroup(item: Layer | LayerGroup): item is LayerGroup {
+  return !('groupId' in item)
+}
+
+function getItemKey(item: Layer | LayerGroup): string {
+  // Never use `Date.now()` as a fallback: vuedraggable uses this key to
+  // diff list items, and a changing key would unmount/remount the row on
+  // every render (breaking drag state and tanking perf). An item without
+  // an id is a real bug — surface it with a warn and use a stable sentinel.
+  if (isLayer(item)) {
+    if (!item.id) {
+      console.warn('[LayerGroupItem] layer item is missing an id', item)
+      return 'layer-unknown'
+    }
+    return item.id
+  }
+  return `group-${item.id}`
+}
 
 function isDefaultGroup(id: string, name: string): boolean {
   return id?.startsWith('reserved:') || name === 'Mapillary'
@@ -92,12 +125,16 @@ function getIconComponent(iconName?: string | null) {
 const { groupDragOptions, onDragStart, onDragEnd, onDragMove, getLayerKey } =
   useDragAndDrop()
 
-function getGroupVisibility(): boolean {
+// NB: this switch reflects whether the group appears in the layer selector
+// (i.e. `showInLayerSelector`), not the group's map visibility. It's
+// deliberately named to avoid confusion with the toggle used by
+// `LayersSelector.vue` which drives on-map visibility.
+function getGroupEnabledForSelector(): boolean {
   return props.group.showInLayerSelector
 }
 
-async function updateGroupVisibility(visible: boolean) {
-  await layersService.setGroupShownInSelector(props.group, layersStore, visible)
+async function updateGroupEnabledForSelector(enabled: boolean) {
+  await layersService.setGroupShownInSelector(props.group, layersStore, enabled)
 }
 
 function openLayerGroupConfigDialog() {
@@ -118,25 +155,45 @@ function handleToggleExpanded() {
   emit('toggleExpanded', props.group.id)
 }
 
-async function handleGroupLayersChange(evt: any) {
+// Handle drag changes for the mixed items list
+async function handleMixedChange(evt: any) {
   if (evt.added) {
-    const layerId = evt.added.element.id
+    const element = evt.added.element
     const newIndex = evt.added.newIndex
-    await layersStore.handleLayerMove(layerId, props.group.id, newIndex)
-  } else if (!evt.added && !evt.removed) {
-    await layersStore.handleGroupReorder(props.group.id, displayLayers.value)
+
+    if (isLayer(element)) {
+      // Layer dropped into this group
+      await layersStore.handleLayerMove(element.id, props.group.id, newIndex)
+    } else {
+      // Group dropped into this group as a child
+      await layersStore.handleGroupMove(element.id, props.group.id, newIndex)
+    }
+  } else if (evt.moved) {
+    // Reorder within this group
+    await layersStore.handleMixedGroupReorder(props.group.id, mixedItems.value)
   }
 }
 
 function handleUngroupLayer(layerId: string) {
   layersStore.handleLayerMove(layerId, null, 999)
 }
+
+// Find a child group tree node by ID for recursive rendering.
+// Falls back to a stub with empty layers/children so the type stays
+// consistent if the tree node is momentarily missing during updates.
+function findChildTreeNode(group: LayerGroup): GroupTreeNode {
+  const found = childGroups.value.find(c => c.id === group.id) as
+    | GroupTreeNode
+    | undefined
+  if (found) return found
+  return { ...group, layers: [], children: [] }
+}
 </script>
 
 <template>
   <div
     class="border border-border rounded-lg bg-background transition-colors select-none"
-    :class="depth > 0 ? 'ml-4' : ''"
+    :class="depth > 0 ? 'mt-1' : ''"
   >
     <Collapsible :open="expanded">
       <div class="flex items-center p-2 rounded-t-lg">
@@ -147,19 +204,19 @@ function handleUngroupLayer(layerId: string) {
         >
           <ChevronRightIcon
             v-if="!expanded"
-            class="size-3 text-muted-foreground"
+            class="size-3 text-muted-foreground shrink-0"
           />
-          <ChevronDownIcon v-else class="size-3 text-muted-foreground" />
+          <ChevronDownIcon v-else class="size-3 text-muted-foreground shrink-0" />
 
           <!-- Group Icon & Name -->
           <component
             v-if="getIconComponent(group.icon)"
             :is="getIconComponent(group.icon)"
-            class="size-4"
+            class="size-4 shrink-0"
           />
-          <FolderIcon v-else class="size-4" />
-          <span class="text-sm font-medium">{{ group.name }}</span>
-          <div class="ml-auto flex items-center gap-2">
+          <FolderIcon v-else class="size-4 shrink-0" />
+          <span class="text-sm font-medium truncate">{{ group.name }}</span>
+          <div class="ml-auto flex items-center gap-2 shrink-0">
             <span
               class="inline-flex items-center justify-center h-5 w-6 rounded bg-muted text-muted-foreground text-xs tabular-nums"
             >
@@ -178,10 +235,10 @@ function handleUngroupLayer(layerId: string) {
           </div>
         </CollapsibleTrigger>
 
-        <!-- Group Visibility Toggle -->
+        <!-- Group "Show in layer selector" toggle (NOT on-map visibility). -->
         <Switch
-          :model-value="getGroupVisibility()"
-          @update:model-value="updateGroupVisibility"
+          :model-value="getGroupEnabledForSelector()"
+          @update:model-value="updateGroupEnabledForSelector"
           @click.stop
           @mousedown.stop
           class="mx-2"
@@ -214,36 +271,34 @@ function handleUngroupLayer(layerId: string) {
         </DropdownMenu>
       </div>
 
-      <!-- Group Content -->
+      <!-- Group Content: Mixed draggable of layers + child groups -->
       <CollapsibleContent>
         <div class="border-t border-border">
-          <!-- Child Groups (recursive) -->
-          <div v-if="childGroups.length" class="p-1 space-y-1">
-            <LayerGroupItem
-              v-for="child in childGroups"
-              :key="`group-${child.id}`"
-              :group="child"
-              :expanded-groups="expandedGroups"
-              :depth="depth + 1"
-              @toggle-expanded="(id: string) => emit('toggleExpanded', id)"
-            />
-          </div>
-
-          <!-- Layers (excluding sub-layers) -->
           <draggable
-            v-model="displayLayers"
+            v-model="mixedItems"
             v-bind="groupDragOptions"
             @start="onDragStart"
             @end="onDragEnd"
             @move="onDragMove"
-            @change="handleGroupLayersChange"
-            :item-key="getLayerKey"
-            class="min-h-[40px] draggable-container"
+            @change="handleMixedChange"
+            :item-key="getItemKey"
+            class="min-h-[32px] draggable-container p-1 space-y-1"
             tag="div"
           >
             <template #item="{ element }">
               <div class="draggable-item">
+                <!-- Child Group (recursive) -->
+                <LayerGroupItem
+                  v-if="isGroup(element)"
+                  :group="findChildTreeNode(element)"
+                  :expanded-groups="expandedGroups"
+                  :depth="depth + 1"
+                  @toggle-expanded="(id: string) => emit('toggleExpanded', id)"
+                />
+
+                <!-- Layer -->
                 <LayerItemComponent
+                  v-else
                   :key="getLayerKey(element)"
                   :layer="element"
                   :group-id="group.id"

@@ -15,6 +15,7 @@ export enum TravelMode {
   TRANSIT = 'transit',
   MOTORCYCLE = 'motorcycle',
   TRUCK = 'truck',
+  WHEELCHAIR = 'wheelchair',
 }
 
 // Waypoint types for different use cases
@@ -50,6 +51,8 @@ export interface VehicleConfig {
   height?: number // meters
   width?: number // meters
   weight?: number // kg
+  length?: number // meters
+  axleLoad?: number // kg
 
   // Preferences
   avoidTolls?: boolean
@@ -65,18 +68,40 @@ export interface RoutingPreferences {
   alternatives?: boolean
   maxAlternatives?: number
 
-  // Avoidances
+  // ── Range preferences (0-1 float, 5 stops: 0, 0.25, 0.5, 0.75, 1.0) ──
+  // Higher values = more willingness to use that feature
+  highways?: number       // driving: 0=avoid highways, 1=prefer highways
+  tolls?: number          // driving: 0=avoid tolls, 1=don't care
+  ferries?: number        // all modes: 0=avoid ferries, 1=prefer ferries
+  hills?: number          // walking/cycling: 0=avoid hills, 1=prefer hills
+  surfaceQuality?: number // cycling: 0=any surface, 1=paved only
+  litPaths?: number       // walking: 0=don't care, 1=strongly prefer lit
+  safetyVsSpeed?: number  // cycling: 0=safest (prefer paths), 1=fastest (prefer roads)
+
+  // ── Boolean preferences ──
+  shortest?: boolean
+  preferHOV?: boolean
+  wheelchairAccessible?: boolean
+
+  // ── Numeric/enum preferences ──
+  cyclingSpeed?: number   // kph (5-60)
+  walkingSpeed?: number   // kph (0.5-10)
+  bicycleType?: 'Road' | 'Hybrid' | 'City' | 'Cross' | 'Mountain'
+
+  // ── Transit ──
+  maxWalkDistance?: number  // meters
+  maxTransfers?: number
+
+  // ── Legacy boolean fields (deprecated — kept for backward compat) ──
   avoidTolls?: boolean
   avoidHighways?: boolean
   avoidFerries?: boolean
   avoidUnpaved?: boolean
 
-  // Transit options
-  maxWalkDistance?: number
-  maxTransfers?: number
-  wheelchairAccessible?: boolean
+  // ── Advanced: raw custom_model JSON override ──
+  customModelOverride?: string  // JSON string — if set, replaces auto-generated custom_model
 
-  // Provider-specific options
+  // ── Provider-specific escape hatch ──
   providerOptions?: Record<string, any>
 }
 
@@ -131,6 +156,33 @@ export interface RouteInstruction {
   roadClass?: string // classification of the road
 }
 
+/** Per-edge attributes mapped to distance along the route */
+export interface RouteEdgeSegment {
+  startDistance: number     // meters from leg start
+  endDistance: number       // meters from leg start
+  surface?: string          // asphalt | concrete | paved | gravel | dirt | sand | compacted | etc.
+  roadClass?: string        // motorway | trunk | primary | secondary | tertiary | residential | cycleway | footway | track | path | steps | etc.
+  roadEnvironment?: string  // road | ferry | bridge | tunnel
+  roadAccess?: string       // destination | delivery | private | no | etc.
+  bikeNetwork?: string      // international | national | regional | local | other
+  getOffBike?: boolean      // whether cyclist must dismount
+  smoothness?: string       // excellent | good | intermediate | bad | very_bad | horrible
+  trackType?: string        // grade1 | grade2 | grade3 | grade4 | grade5
+  cycleway?: string         // track | lane | separate | no
+  averageSlope?: number     // signed decimal percent (positive = uphill)
+  maxSlope?: number         // signed decimal percent
+  averageSpeed?: number     // km/h — actual routing speed used
+
+  // Legacy fields (Valhalla compat — will be removed)
+  use?: string
+  cycleLane?: string
+  shoulder?: boolean
+  speedLimit?: number
+  laneCount?: number
+  weightedGrade?: number
+  meanElevation?: number
+}
+
 export interface RouteLeg {
   startWaypoint: RouteWaypoint
   endWaypoint: RouteWaypoint
@@ -152,6 +204,9 @@ export interface RouteLeg {
   totalElevationLoss?: number // total meters descended
   maxElevation?: number // highest point on this leg
   minElevation?: number // lowest point on this leg
+
+  // Per-edge surface/road/safety data
+  edgeSegments?: RouteEdgeSegment[]
 
   // Traffic
   durationInTraffic?: number
@@ -321,6 +376,9 @@ export interface TimelineSegment {
   totalElevationLoss?: number // meters
   maxElevation?: number // meters
   minElevation?: number // meters
+
+  // Per-edge surface/road/safety data
+  edgeSegments?: RouteEdgeSegment[]
 
   // Transit specific (for future use)
   lineName?: string

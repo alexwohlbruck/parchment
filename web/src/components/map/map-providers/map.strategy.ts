@@ -236,4 +236,5 @@ export class MapStrategy {
   // Trip visualization methods
   setTrips(trips: TripsResponse, visibleTripIds: Set<string>) {}
   unsetTrips() {}
+  setRouteProfile(profile: import('@/lib/route-profile-colors').RouteProfileType | null) {}
 }

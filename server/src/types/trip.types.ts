@@ -1,7 +1,7 @@
 // Multimodal Trip Planner Types
 // Based on detailed requirements specification
 
-import { Coordinate, RouteInstruction } from './unified-routing.types'
+import { Coordinate, RouteInstruction, RouteEdgeSegment } from './unified-routing.types'
 import type { Language } from '../lib/i18n/i18n.types'
 
 // =============================================================================
@@ -35,6 +35,7 @@ export type SelectedMode =
   | 'driving'
   | 'biking'
   | 'transit'
+  | 'wheelchair'
 
 export type WaypointType = 'origin' | 'destination' | 'via'
 
@@ -83,20 +84,42 @@ export interface AccessPoint {
 }
 
 export interface RoutingPreferences {
-  avoidHighways?: boolean
-  avoidTolls?: boolean
+  // Range preferences (0-1 floats)
+  highways?: number
+  tolls?: number
+  ferries?: number
+  hills?: number
+  surfaceQuality?: number
+  litPaths?: number
+  safetyVsSpeed?: number // 0=safest (prefer paths), 1=fastest (prefer roads)
+
+  // Boolean preferences
+  shortest?: boolean
   preferHOV?: boolean
-  avoidFerries?: boolean
-  preferLitPaths?: boolean
-  preferPavedPaths?: boolean
-  avoidHills?: boolean
-  safetyVsEfficiency?: number // 0 (fastest) to 1 (safest)
+  wheelchairAccessible?: boolean
+
+  // Numeric/enum preferences
+  cyclingSpeed?: number // kph
+  walkingSpeed?: number // kph
+  bicycleType?: string
+
+  // Transit
   maxWalkingDistance?: number // meters
   maxTransfers?: number
-  wheelchairAccessible?: boolean
+
+  // UI state
   useKnownVehicleLocations?: boolean
   useKnownParkingLocations?: boolean
-  routingEngine?: string // Preferred routing engine integration ID
+  routingEngine?: string
+
+  // Legacy boolean fields (backward compat)
+  avoidHighways?: boolean
+  avoidTolls?: boolean
+  avoidFerries?: boolean
+  avoidHills?: boolean
+  preferLitPaths?: boolean
+  preferPavedPaths?: boolean
+  safetyVsEfficiency?: number
 }
 
 // =============================================================================
@@ -136,6 +159,8 @@ export interface TripSegment {
   totalElevationLoss?: number // meters
   maxElevation?: number // meters
   minElevation?: number // meters
+  // Per-edge surface/road/safety data
+  edgeSegments?: RouteEdgeSegment[]
 }
 
 export interface TripStats {

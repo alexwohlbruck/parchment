@@ -68,40 +68,56 @@ export interface RoutingCapability {
   metadata?: RoutingCapabilityMetadata
 }
 
+// Support level for each routing preference
+// 'range' = engine supports 0-1 float values (render as 5-stop slider)
+// 'boolean' = engine only supports on/off (render as toggle switch)
+// false = engine does not support this preference
+export type PreferenceSupportLevel = 'range' | 'boolean' | false
+
 // Metadata describing routing engine capabilities
 export interface RoutingCapabilityMetadata {
-  // Supported routing preferences
+  // Supported routing preferences with support levels
   supportedPreferences: {
-    avoidHighways?: boolean
-    avoidTolls?: boolean
-    avoidFerries?: boolean
-    avoidUnpaved?: boolean
-    avoidHills?: boolean
-    preferHOV?: boolean
-    preferLitPaths?: boolean
-    preferPavedPaths?: boolean
-    safetyVsEfficiency?: boolean
-    maxWalkDistance?: boolean
-    maxTransfers?: boolean
-    wheelchairAccessible?: boolean
+    // Range preferences (0-1 float, displayed as 5-stop slider or boolean toggle)
+    highways?: PreferenceSupportLevel      // driving: use_highways
+    tolls?: PreferenceSupportLevel         // driving: use_tolls
+    ferries?: PreferenceSupportLevel       // all modes: use_ferry
+    hills?: PreferenceSupportLevel         // walking/cycling: use_hills
+    surfaceQuality?: PreferenceSupportLevel // cycling: avoid_bad_surfaces
+    litPaths?: PreferenceSupportLevel      // walking: use_lit
+    safetyVsSpeed?: PreferenceSupportLevel // cycling: use_roads
+
+    // Boolean preferences
+    shortest?: PreferenceSupportLevel
+    preferHOV?: PreferenceSupportLevel
+    wheelchairAccessible?: PreferenceSupportLevel
+
+    // Numeric/enum preferences
+    cyclingSpeed?: PreferenceSupportLevel
+    walkingSpeed?: PreferenceSupportLevel
+    bicycleType?: PreferenceSupportLevel
+
+    // Transit
+    maxWalkDistance?: PreferenceSupportLevel
+    maxTransfers?: PreferenceSupportLevel
   }
-  
+
   // Supported travel modes
-  supportedModes: string[] // e.g., ['driving', 'walking', 'cycling', 'transit']
-  
+  supportedModes: string[]
+
   // Route optimization types supported
-  supportedOptimizations?: string[] // e.g., ['time', 'distance', 'balanced']
-  
+  supportedOptimizations?: string[]
+
   // Additional features
   features?: {
-    alternatives?: boolean // Can provide alternative routes
-    traffic?: boolean // Supports traffic data
-    elevation?: boolean // Provides elevation data
-    instructions?: boolean // Provides turn-by-turn instructions
-    matrix?: boolean // Supports distance/time matrix
-    transit?: boolean // Supports transit routing
+    alternatives?: boolean
+    traffic?: boolean
+    elevation?: boolean
+    instructions?: boolean
+    matrix?: boolean
+    transit?: boolean
   }
-  
+
   // Limits
   limits?: {
     maxWaypoints?: number

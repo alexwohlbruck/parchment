@@ -1,6 +1,8 @@
 // Frontend types for multimodal trip planning
 // Mirrors the backend types but adapted for frontend use
 
+import type { RouteEdgeSegment } from './directions.types'
+
 export type VehicleType =
   | 'car'
   | 'bike'
@@ -28,6 +30,7 @@ export type SelectedMode =
   | 'driving'
   | 'biking'
   | 'transit'
+  | 'wheelchair'
 
 export type WaypointType = 'origin' | 'destination' | 'via'
 
@@ -75,37 +78,72 @@ export interface AccessPoint {
 }
 
 export interface RoutingPreferences {
+  // ── Range preferences (0-1 float, displayed as 5-stop slider) ──
+  // Higher values = more willingness to use that feature
+  highways?: number       // driving: 0=avoid, 1=prefer
+  tolls?: number          // driving: 0=avoid, 1=don't care
+  ferries?: number        // all modes: 0=avoid, 1=prefer
+  hills?: number          // walking/cycling: 0=avoid, 1=prefer
+  surfaceQuality?: number // cycling: 0=any surface, 1=paved only
+  litPaths?: number       // walking: 0=don't care, 1=strongly prefer lit
+  safetyVsSpeed?: number  // cycling: 0=safest (paths), 1=fastest (roads)
+
+  // ── Boolean preferences ──
+  shortest?: boolean
+  preferHOV?: boolean
+  wheelchairAccessible?: boolean
+
+  // ── Numeric/enum preferences ──
+  cyclingSpeed?: number   // kph (5-60)
+  walkingSpeed?: number   // kph (0.5-10)
+  bicycleType?: string    // Road, Hybrid, City, Cross, Mountain
+
+  // ── Transit ──
+  maxWalkingDistance?: number // meters
+  maxTransfers?: number
+
+  // ── UI state (not sent to routing engine) ──
+  useKnownVehicleLocations?: boolean
+  useKnownParkingLocations?: boolean
+  routingEngine?: string
+
+  // ── Advanced: raw custom_model JSON override ──
+  customModelOverride?: string  // JSON string — if set, replaces auto-generated custom_model
+
+  // ── Legacy boolean fields (deprecated — kept for backward compat with localStorage) ──
   avoidHighways?: boolean
   avoidTolls?: boolean
-  preferHOV?: boolean
   avoidFerries?: boolean
   preferLitPaths?: boolean
   preferPavedPaths?: boolean
   avoidHills?: boolean
-  safetyVsEfficiency?: number // 0 (fastest) to 1 (safest)
-  maxWalkingDistance?: number // meters
-  maxTransfers?: number
-  wheelchairAccessible?: boolean
-  useKnownVehicleLocations?: boolean
-  useKnownParkingLocations?: boolean
-  routingEngine?: string // Preferred routing engine integration ID
+  safetyVsEfficiency?: number
 }
+
+// Support level for each routing preference
+// 'range' = engine supports 0-1 float values (render as 5-stop slider)
+// 'boolean' = engine only supports on/off (render as toggle switch)
+// false = engine does not support this preference
+export type PreferenceSupportLevel = 'range' | 'boolean' | false
 
 // Routing engine capability metadata
 export interface RoutingEngineMetadata {
   supportedPreferences: {
-    avoidHighways?: boolean
-    avoidTolls?: boolean
-    avoidFerries?: boolean
-    avoidUnpaved?: boolean
-    avoidHills?: boolean
-    preferHOV?: boolean
-    preferLitPaths?: boolean
-    preferPavedPaths?: boolean
-    safetyVsEfficiency?: boolean
-    maxWalkDistance?: boolean
-    maxTransfers?: boolean
-    wheelchairAccessible?: boolean
+    highways?: PreferenceSupportLevel
+    tolls?: PreferenceSupportLevel
+    ferries?: PreferenceSupportLevel
+    hills?: PreferenceSupportLevel
+    surfaceQuality?: PreferenceSupportLevel
+    litPaths?: PreferenceSupportLevel
+    safetyVsSpeed?: PreferenceSupportLevel
+    shortest?: PreferenceSupportLevel
+    preferHOV?: PreferenceSupportLevel
+    wheelchairAccessible?: PreferenceSupportLevel
+    cyclingSpeed?: PreferenceSupportLevel
+    walkingSpeed?: PreferenceSupportLevel
+    bicycleType?: PreferenceSupportLevel
+    maxWalkDistance?: PreferenceSupportLevel
+    maxTransfers?: PreferenceSupportLevel
   }
   supportedModes: string[]
   supportedOptimizations?: string[]
@@ -157,6 +195,11 @@ export interface TripSegment {
   cost?: CurrencyAmount
   co2?: number // grams
   details?: SegmentDetails
+  edgeSegments?: RouteEdgeSegment[]
+  totalElevationGain?: number
+  totalElevationLoss?: number
+  maxElevation?: number
+  minElevation?: number
 }
 
 export interface TripStats {

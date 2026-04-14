@@ -193,6 +193,7 @@ function directionsService() {
             totalElevationLoss: seg.totalElevationLoss,
             maxElevation: seg.maxElevation,
             minElevation: seg.minElevation,
+            edgeSegments: seg.edgeSegments,
           }),
         )
       }
@@ -213,6 +214,7 @@ function directionsService() {
           totalElevationLoss: segment.totalElevationLoss,
           maxElevation: segment.maxElevation,
           minElevation: segment.minElevation,
+          edgeSegments: segment.edgeSegments,
         },
       ]
     })

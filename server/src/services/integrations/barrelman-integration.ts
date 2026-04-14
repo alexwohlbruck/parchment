@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { buildGraphHopperCustomModel, getSnapPreventions } from '../../lib/graphhopper-custom-model'
 import type {
   Integration,
   IntegrationConfig,
@@ -10,12 +11,20 @@ import type {
   SpatialParentsCapability,
   SpatialChildrenCapability,
   SearchAlongRouteCapability,
+  RoutingCapability,
   MapBounds,
 } from '../../types/integration.types'
 import {
   IntegrationCapabilityId,
   IntegrationId,
 } from '../../types/integration.types'
+import type {
+  RouteRequest,
+  UnifiedRoute,
+} from '../../types/unified-routing.types'
+import { TravelMode, WaypointType } from '../../types/unified-routing.types'
+import { getLanguageCode } from '../../lib/i18n'
+import { BarrelmanGraphHopperAdapter } from './adapters/barrelman-graphhopper-adapter'
 import type {
   Place,
   PlaceGeometry,
@@ -88,6 +97,8 @@ export class BarrelmanIntegration
 
   readonly integrationId = IntegrationId.BARRELMAN
   readonly sources = [SOURCE.OSM]
+  private graphhopperAdapter = new BarrelmanGraphHopperAdapter()
+
   readonly capabilityIds: IntegrationCapabilityId[] = [
     IntegrationCapabilityId.SEARCH,
     IntegrationCapabilityId.AUTOCOMPLETE,
@@ -97,6 +108,7 @@ export class BarrelmanIntegration
     IntegrationCapabilityId.SPATIAL_CHILDREN,
     IntegrationCapabilityId.SEARCH_ALONG_ROUTE,
     IntegrationCapabilityId.TILE_SERVER,
+    IntegrationCapabilityId.ROUTING,
   ]
 
   readonly capabilities = {
@@ -121,6 +133,49 @@ export class BarrelmanIntegration
     searchAlongRoute: {
       searchAlongRoute: this.searchAlongRoute.bind(this),
     } as SearchAlongRouteCapability,
+    routing: {
+      getRoute: this.getRoute.bind(this),
+      metadata: {
+        supportedPreferences: {
+          // Range preferences (GraphHopper supports via custom_model)
+          highways: 'range',
+          tolls: 'range',
+          ferries: 'range',
+          hills: 'range',
+          surfaceQuality: 'range',
+          litPaths: 'range',
+          safetyVsSpeed: 'range',
+
+          // Boolean preferences
+          shortest: 'boolean',
+          preferHOV: false,             // GH has no HOV data
+          wheelchairAccessible: false,  // Use dedicated wheelchair mode instead
+
+          // Numeric/enum preferences
+          cyclingSpeed: 'range',
+          walkingSpeed: 'range',
+          bicycleType: 'range',
+
+          // Transit — kept for future custom planner
+          maxWalkDistance: 'range',
+          maxTransfers: 'range',
+        },
+        supportedModes: ['driving', 'walking', 'cycling', 'motorcycle', 'truck', 'wheelchair'],
+        supportedOptimizations: ['time', 'distance'],
+        features: {
+          alternatives: true,
+          traffic: false,
+          elevation: true,
+          instructions: true,
+          matrix: true,
+          transit: false,
+        },
+        limits: {
+          maxWaypoints: 20,
+          maxAlternatives: 3,
+        },
+      },
+    } as RoutingCapability,
   }
 
   // ── Lifecycle ──────────────────────────────────────────────
@@ -594,5 +649,107 @@ export class BarrelmanIntegration
       timeout: 10000,
     })
     return (response.data || []).map((r: any) => this.adaptPlace(r))
+  }
+
+  // ── Routing (GraphHopper via Barrelman proxy) ──────────────────
+
+  /**
+   * Route between waypoints using GraphHopper proxied through Barrelman.
+   * Requires `apiKey` in config for authentication.
+   */
+  private async getRoute(request: RouteRequest): Promise<UnifiedRoute> {
+    if (!this.config.apiKey) {
+      throw new Error('Barrelman API key is required for routing')
+    }
+
+    if (request.waypoints.length < 2) {
+      throw new Error('At least 2 waypoints are required for routing')
+    }
+
+    const host = this.config.host.replace(/\/$/, '')
+    const url = `${host}/route`
+
+    const lang = request.language ? getLanguageCode(request.language) : 'en'
+
+    // Build GraphHopper request body
+    const snapPreventions = getSnapPreventions(request.mode)
+    const requestBody: Record<string, any> = {
+      points: request.waypoints.map((wp) => [wp.coordinate.lng, wp.coordinate.lat]),
+      profile: this.mapTravelModeToProfile(request.mode),
+      elevation: true,
+      points_encoded: false,
+      instructions: request.includeInstructions ?? true,
+      locale: lang,
+      // Prevent origin/dest from snapping directly onto motorways, tunnels, etc.
+      // so the router joins them via proper on-/off-ramps.
+      ...(snapPreventions && { snap_preventions: snapPreventions }),
+      // Request all path details for enriched response
+      details: [
+        'surface', 'road_class', 'road_environment', 'road_access',
+        'bike_network', 'get_off_bike', 'smoothness', 'track_type',
+        'average_slope', 'max_slope', 'average_speed',
+      ],
+    }
+
+    // Alternatives
+    if (request.preferences?.alternatives) {
+      requestBody.algorithm = 'alternative_route'
+      requestBody['alternative_route.max_paths'] = request.preferences.maxAlternatives ?? 3
+    }
+
+    // Apply custom_model for preference-based routing
+    const customModel = this.buildCustomModel(request)
+    if (customModel) {
+      requestBody.custom_model = customModel
+    }
+
+    try {
+      const response = await axios.post(url, requestBody, {
+        headers: this.headers,
+        timeout: 30_000,
+      })
+
+      return this.graphhopperAdapter.adaptRouteResponse(response.data, request)
+    } catch (error: any) {
+      if (error.response) {
+        const status = error.response.status
+        const detail = error.response.data?.message ?? error.response.statusText
+        throw new Error(`Barrelman routing error (${status}): ${detail}`)
+      }
+      throw new Error(
+        `Barrelman routing error: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`,
+      )
+    }
+  }
+
+  // ── GraphHopper profile mapping ───────────────────────────────
+
+  private mapTravelModeToProfile(mode: TravelMode): string {
+    switch (mode) {
+      case TravelMode.DRIVING:
+        return 'car'
+      case TravelMode.CYCLING:
+        return 'bike'
+      case TravelMode.WALKING:
+        return 'foot'
+      case TravelMode.MOTORCYCLE:
+        return 'car' // GraphHopper doesn't have a separate motorcycle profile
+      case TravelMode.TRUCK:
+        return 'car' // Use car with custom_model constraints for truck
+      case TravelMode.WHEELCHAIR:
+        return 'foot' // Use foot profile with custom_model to avoid stairs, curbs, etc.
+      default:
+        throw new Error(`Unsupported travel mode: ${mode}`)
+    }
+  }
+
+  /**
+   * Build a GraphHopper custom_model from unified routing preferences.
+   * Delegates to the shared utility in lib/graphhopper-custom-model.ts
+   */
+  private buildCustomModel(request: RouteRequest): Record<string, any> | undefined {
+    return buildGraphHopperCustomModel(request.mode, request.preferences)
   }
 }

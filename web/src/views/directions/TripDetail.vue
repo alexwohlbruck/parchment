@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { H5, H6, Caption, P } from '@/components/ui/typography'
 import {
+  AccessibilityIcon,
   ArrowLeftIcon,
   ClockIcon,
   FootprintsIcon,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
 import type { RouteInstruction } from '@/types/directions.types'
+import type { RouteProfileType } from '@/lib/route-profile-colors'
 import ElevationChart from '@/components/directions/ElevationChart.vue'
 import { useUnits } from '@/composables/useUnits'
 
@@ -59,6 +61,7 @@ const modeIcons = {
   biking: BikeIcon, // Alias for cycling
   transit: TrainIcon,
   truck: TruckIcon,
+  wheelchair: AccessibilityIcon,
 } as const
 
 // Mode colors mapping
@@ -69,6 +72,7 @@ const modeColors = {
   biking: 'bg-green-500', // Alias for cycling
   transit: 'bg-gray-500',
   truck: 'bg-orange-500',
+  wheelchair: 'bg-teal-500',
 } as const
 
 // Watch for trip changes and update map visibility (immediate: true covers mount; do not also call in onMounted or we double-call setTrips and the route disappears)
@@ -84,6 +88,8 @@ watch(
 
 // Restore all trips when leaving the component
 function goBack() {
+  // Reset map route coloring to default (travel-mode based)
+  mapService.setRouteProfile(null)
   // Note: showAllTrips automatically clears instruction markers via selectedTripId
   mapService.showAllTrips()
   // Navigate back to directions view, preserving the trips data
@@ -136,6 +142,11 @@ const formatTime = (date: Date): string => {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+// Sync route profile coloring with the map
+function onRouteProfileChange(profile: RouteProfileType | null) {
+  mapService.setRouteProfile(profile)
 }
 
 const formatCurrency = (cost: { currency: string; amount: number }): string => {
@@ -225,15 +236,19 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
                   v-if="
                     segment.geometry &&
                     (segment.totalElevationGain ||
-                      segment.totalElevationLoss) &&
-                    (segment.mode === 'walking' || segment.mode === 'cycling')
+                      segment.totalElevationLoss ||
+                      segment.edgeSegments?.length) &&
+                    (segment.mode === 'walking' || segment.mode === 'cycling' || segment.mode === 'driving' || segment.mode === 'wheelchair')
                   "
                   :geometry="segment.geometry"
                   :total-elevation-gain="segment.totalElevationGain"
                   :total-elevation-loss="segment.totalElevationLoss"
                   :max-elevation="segment.maxElevation"
                   :min-elevation="segment.minElevation"
+                  :edge-segments="segment.edgeSegments"
+                  :mode="segment.mode"
                   class="mb-3"
+                  @update:route-profile="onRouteProfileChange"
                 />
 
                 <!-- Instructions List - Left aligned under the icon -->

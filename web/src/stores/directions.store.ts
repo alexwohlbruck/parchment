@@ -34,19 +34,32 @@ export const useDirectionsStore = defineStore('directions', () => {
   const selectedTripId = ref<string | null>(null) // Track which trip is currently shown on map
 
   const defaultPreferences: RoutingPreferences = {
-    avoidHighways: false,
-    avoidTolls: false,
+    // Range preferences — 0.5 is neutral for most
+    highways: 0.5,
+    tolls: 0.5,
+    ferries: 0.5,
+    hills: 0.5,
+    surfaceQuality: 0.25,
+    litPaths: 0,
+    safetyVsSpeed: 0.5,
+
+    // Boolean preferences
+    shortest: false,
     preferHOV: false,
-    avoidFerries: false,
-    preferLitPaths: false,
-    preferPavedPaths: false,
-    avoidHills: false,
-    safetyVsEfficiency: 0.5,
+    wheelchairAccessible: false,
+
+    // Numeric/enum preferences (undefined = use engine default)
+    cyclingSpeed: undefined,
+    walkingSpeed: undefined,
+    bicycleType: undefined,
+
+    // Transit
     maxWalkingDistance: 1000,
     maxTransfers: 3,
-    wheelchairAccessible: false,
-    useKnownVehicleLocations: true, // Default to enabled
-    useKnownParkingLocations: true, // Default to enabled
+
+    // UI state
+    useKnownVehicleLocations: true,
+    useKnownParkingLocations: true,
   }
 
   // Load from localStorage with defaults merged

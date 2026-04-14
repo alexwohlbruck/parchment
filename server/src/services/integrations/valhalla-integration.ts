@@ -43,27 +43,30 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
       getRoute: this.getRoute.bind(this),
       metadata: {
         supportedPreferences: {
-          // Auto/driving preferences
-          avoidHighways: true, // use_highways
-          avoidTolls: true, // use_tolls
-          avoidFerries: true, // use_ferry
-          avoidUnpaved: true, // exclude_unpaved (auto/bus/truck)
-          preferHOV: true, // include_hov2, include_hov3, include_hot
-          
-          // Bicycle preferences
-          avoidHills: true, // use_hills (bicycle/pedestrian/motor_scooter)
-          preferPavedPaths: true, // avoid_bad_surfaces (bicycle)
-          
-          // Pedestrian preferences
-          preferLitPaths: true, // use_lit (pedestrian)
-          wheelchairAccessible: true, // type: wheelchair (pedestrian)
-          maxWalkDistance: true, // max_distance, transit_start_end_max_distance
-          
-          // Not supported by Valhalla
-          safetyVsEfficiency: false,
-          maxTransfers: false, // Only for transit which isn't fully supported
+          // Range preferences (Valhalla supports 0-1 floats natively)
+          highways: 'range',
+          tolls: 'range',
+          ferries: 'range',
+          hills: 'range',
+          surfaceQuality: 'range',
+          litPaths: 'range',
+          safetyVsSpeed: 'range',
+
+          // Boolean preferences
+          shortest: 'boolean',
+          preferHOV: 'boolean',
+          wheelchairAccessible: 'boolean',
+
+          // Numeric/enum preferences
+          cyclingSpeed: 'range',
+          walkingSpeed: 'range',
+          bicycleType: 'full',
+
+          // Transit
+          maxWalkDistance: 'full',
+          maxTransfers: false,
         },
-        supportedModes: ['driving', 'walking', 'cycling', 'motorcycle', 'truck'],
+        supportedModes: ['driving', 'walking', 'cycling', 'motorcycle', 'truck', 'wheelchair'],
         supportedOptimizations: ['time', 'distance'],
         features: {
           alternatives: true, // alternates parameter
@@ -285,87 +288,189 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
     const preferences = request.preferences
     const vehicle = request.vehicle
 
+    // ── Auto / Driving ───────────────────────────────────────────
     if (request.mode === TravelMode.DRIVING) {
-      options.auto = {
-        // Use values: 0 (avoid) to 1 (favor)
-        use_tolls: preferences?.avoidTolls ? 0 : 0.5,
-        use_highways: preferences?.avoidHighways ? 0 : 0.5,
-        use_ferry: preferences?.avoidFerries ? 0 : 0.5,
-      }
+      const auto: Record<string, any> = {}
 
-      // HOV preferences
+      // Range preferences (new numeric fields, fallback to legacy booleans)
+      if (preferences?.tolls !== undefined)
+        auto.use_tolls = preferences.tolls
+      else if (preferences?.avoidTolls !== undefined)
+        auto.use_tolls = preferences.avoidTolls ? 0 : 0.5
+
+      if (preferences?.highways !== undefined)
+        auto.use_highways = preferences.highways
+      else if (preferences?.avoidHighways !== undefined)
+        auto.use_highways = preferences.avoidHighways ? 0 : 0.5
+
+      if (preferences?.ferries !== undefined)
+        auto.use_ferry = preferences.ferries
+      else if (preferences?.avoidFerries !== undefined)
+        auto.use_ferry = preferences.avoidFerries ? 0 : 0.5
+
+      if (preferences?.avoidUnpaved)
+        auto.exclude_unpaved = true
+
+      // HOV lanes
       if (preferences?.preferHOV) {
-        options.auto.include_hov2 = true
-        options.auto.include_hov3 = true
-        options.auto.include_hot = true
+        auto.include_hov2 = true
+        auto.include_hov3 = true
+        auto.include_hot = true
       }
 
-      // Unpaved roads
-      if (preferences?.avoidUnpaved) {
-        options.auto.exclude_unpaved = true
-      }
+      // Vehicle physical dimensions
+      if (vehicle?.height) auto.height = vehicle.height
+      if (vehicle?.width) auto.width = vehicle.width
+      if (vehicle?.weight) auto.weight = vehicle.weight
 
-      // Vehicle dimensions
-      if (vehicle) {
-        if (vehicle.height) options.auto.height = vehicle.height
-        if (vehicle.width) options.auto.width = vehicle.width
-        if (vehicle.weight) options.auto.weight = vehicle.weight
-        if (vehicle.length) options.auto.length = vehicle.length
-      }
-    } else if (request.mode === TravelMode.CYCLING) {
-      options.bicycle = {
-        use_ferry: preferences?.avoidFerries ? 0 : 0.5,
-      }
+      // Top speed cap
+      if (preferences?.providerOptions?.topSpeed)
+        auto.top_speed = preferences.providerOptions.topSpeed
 
-      // Hills preference (0 = avoid hills, 1 = don't fear hills)
-      if (preferences?.avoidHills !== undefined) {
-        options.bicycle.use_hills = preferences.avoidHills ? 0 : 0.5
-      }
+      if (Object.keys(auto).length) options.auto = auto
+    }
 
-      // Bad surfaces / prefer paved paths (0-1, higher = avoid bad surfaces more)
-      if (preferences?.preferPavedPaths) {
-        options.bicycle.avoid_bad_surfaces = 0.8
-      }
+    // ── Truck ────────────────────────────────────────────────────
+    if (request.mode === TravelMode.TRUCK) {
+      const truck: Record<string, any> = {}
 
-      if (preferences?.providerOptions?.cyclingSpeed) {
-        options.bicycle.cycling_speed = preferences.providerOptions.cyclingSpeed
-      }
-    } else if (request.mode === TravelMode.WALKING) {
-      options.pedestrian = {}
+      if (preferences?.tolls !== undefined)
+        truck.use_tolls = preferences.tolls
+      else if (preferences?.avoidTolls !== undefined)
+        truck.use_tolls = preferences.avoidTolls ? 0 : 0.5
 
-      // Hills preference (0 = avoid hills, 1 = don't fear hills)
-      if (preferences?.avoidHills !== undefined) {
-        options.pedestrian.use_hills = preferences.avoidHills ? 0 : 0.5
-      }
+      if (preferences?.highways !== undefined)
+        truck.use_highways = preferences.highways
+      else if (preferences?.avoidHighways !== undefined)
+        truck.use_highways = preferences.avoidHighways ? 0 : 0.5
 
-      // Lit paths preference (0 = indifferent, 1 = avoid unlit)
-      if (preferences?.preferLitPaths) {
-        options.pedestrian.use_lit = 1
-      }
+      if (preferences?.ferries !== undefined)
+        truck.use_ferry = preferences.ferries
+      else if (preferences?.avoidFerries !== undefined)
+        truck.use_ferry = preferences.avoidFerries ? 0 : 0.5
 
-      // Wheelchair accessibility
-      if (preferences?.wheelchairAccessible) {
-        options.pedestrian.type = 'wheelchair'
-      }
+      if (preferences?.avoidUnpaved)
+        truck.exclude_unpaved = true
 
-      // Max walking distance (in km)
+      // Vehicle constraints
+      if (vehicle?.height) truck.height = vehicle.height
+      if (vehicle?.width) truck.width = vehicle.width
+      if (vehicle?.weight) truck.weight = vehicle.weight
+      if (vehicle?.length) truck.length = vehicle.length
+      if (vehicle?.axleLoad) truck.axle_load = vehicle.axleLoad
+      if (preferences?.providerOptions?.hazmat) truck.hazmat = true
+
+      if (Object.keys(truck).length) options.truck = truck
+    }
+
+    // ── Bicycle ──────────────────────────────────────────────────
+    if (request.mode === TravelMode.CYCLING) {
+      const bicycle: Record<string, any> = {}
+
+      // Range preferences (new numeric fields, fallback to legacy booleans)
+      if (preferences?.ferries !== undefined)
+        bicycle.use_ferry = preferences.ferries
+      else if (preferences?.avoidFerries !== undefined)
+        bicycle.use_ferry = preferences.avoidFerries ? 0 : 0.5
+
+      if (preferences?.hills !== undefined)
+        bicycle.use_hills = preferences.hills
+      else if (preferences?.avoidHills !== undefined)
+        bicycle.use_hills = preferences.avoidHills ? 0 : 0.5
+
+      // Surface quality: 0=any surface, 1=paved only → maps to avoid_bad_surfaces directly
+      if (preferences?.surfaceQuality !== undefined)
+        bicycle.avoid_bad_surfaces = preferences.surfaceQuality
+      else if (preferences?.preferPavedPaths)
+        bicycle.avoid_bad_surfaces = 0.8
+
+      // Safety vs Speed → use_roads (0=safest/prefer paths, 1=fastest/prefer roads)
+      if (preferences?.safetyVsSpeed !== undefined)
+        bicycle.use_roads = preferences.safetyVsSpeed
+      else if (preferences?.providerOptions?.useRoads !== undefined)
+        bicycle.use_roads = preferences.providerOptions.useRoads
+
+      // Cycling speed override (kph)
+      if (preferences?.cyclingSpeed)
+        bicycle.cycling_speed = preferences.cyclingSpeed
+      else if (preferences?.providerOptions?.cyclingSpeed)
+        bicycle.cycling_speed = preferences.providerOptions.cyclingSpeed
+
+      // Bicycle type: Road, Hybrid, Mountain, Cross, BMX
+      if (preferences?.bicycleType)
+        bicycle.bicycle_type = preferences.bicycleType
+      else if (preferences?.providerOptions?.bicycleType)
+        bicycle.bicycle_type = preferences.providerOptions.bicycleType
+
+      // Lower the penalty for service roads / driveways so the router
+      // considers cutting through them as shortcuts to bike lanes.
+      bicycle.service_penalty = 0
+      bicycle.service_factor = 0
+
+      // Allow bicycle routing on pedestrian-only paths (sidewalks, footways)
+      // with a penalty. 0=disallow (Valhalla default), 1=no penalty.
+      bicycle.use_pedestrian_paths = 0.5
+
+      if (Object.keys(bicycle).length) options.bicycle = bicycle
+    }
+
+    // ── Pedestrian / Walking ─────────────────────────────────────
+    if (request.mode === TravelMode.WALKING) {
+      const pedestrian: Record<string, any> = {}
+
+      if (preferences?.hills !== undefined)
+        pedestrian.use_hills = preferences.hills
+      else if (preferences?.avoidHills !== undefined)
+        pedestrian.use_hills = preferences.avoidHills ? 0 : 0.5
+
+      if (preferences?.litPaths !== undefined)
+        pedestrian.use_lit = preferences.litPaths
+      else if (preferences?.providerOptions?.preferLitPaths)
+        pedestrian.use_lit = 1
+
+      // Walking speed override (kph)
+      if (preferences?.walkingSpeed)
+        pedestrian.walking_speed = preferences.walkingSpeed
+      else if (preferences?.providerOptions?.walkingSpeed)
+        pedestrian.walking_speed = preferences.providerOptions.walkingSpeed
+
+      // Wheelchair mode
+      if (preferences?.wheelchairAccessible)
+        pedestrian.type = 'wheelchair'
+
+      // Max walking distance (meters → km for Valhalla)
       if (preferences?.maxWalkDistance) {
-        options.pedestrian.max_distance = preferences.maxWalkDistance / 1000
-        options.pedestrian.transit_start_end_max_distance =
-          preferences.maxWalkDistance
-        options.pedestrian.transit_transfer_max_distance =
-          preferences.maxWalkDistance
+        pedestrian.max_distance = preferences.maxWalkDistance / 1000
+        pedestrian.transit_start_end_max_distance = preferences.maxWalkDistance
+        pedestrian.transit_transfer_max_distance = preferences.maxWalkDistance
       }
 
-      if (preferences?.providerOptions?.walkingSpeed) {
-        options.pedestrian.walking_speed =
-          preferences.providerOptions.walkingSpeed
-      }
-    } else if (request.mode === TravelMode.MOTORCYCLE) {
-      options.motorcycle = {
-        use_highways: preferences?.avoidHighways ? 0 : 0.5,
-        use_ferry: preferences?.avoidFerries ? 0 : 0.5,
-      }
+      if (Object.keys(pedestrian).length) options.pedestrian = pedestrian
+    }
+
+    // ── Motorcycle ───────────────────────────────────────────────
+    if (request.mode === TravelMode.MOTORCYCLE) {
+      const motorcycle: Record<string, any> = {}
+
+      if (preferences?.highways !== undefined)
+        motorcycle.use_highways = preferences.highways
+      else if (preferences?.avoidHighways !== undefined)
+        motorcycle.use_highways = preferences.avoidHighways ? 0 : 0.5
+
+      if (preferences?.ferries !== undefined)
+        motorcycle.use_ferry = preferences.ferries
+      else if (preferences?.avoidFerries !== undefined)
+        motorcycle.use_ferry = preferences.avoidFerries ? 0 : 0.5
+
+      if (preferences?.tolls !== undefined)
+        motorcycle.use_tolls = preferences.tolls
+      else if (preferences?.avoidTolls !== undefined)
+        motorcycle.use_tolls = preferences.avoidTolls ? 0 : 0.5
+
+      if (preferences?.providerOptions?.useTrails !== undefined)
+        motorcycle.use_trails = preferences.providerOptions.useTrails
+
+      if (Object.keys(motorcycle).length) options.motorcycle = motorcycle
     }
 
     return Object.keys(options).length > 0 ? options : undefined

@@ -7,6 +7,7 @@ import {
   TravelMode,
   WaypointType,
   RouteWaypoint,
+  RoutingPreferences,
 } from '../types/unified-routing.types'
 
 export class RoutingService {
@@ -20,7 +21,7 @@ export class RoutingService {
   async getRoute(
     locations: Location[],
     costing: string = 'auto',
-    preferences?: any,
+    preferences?: RoutingPreferences & { routingEngine?: string; language?: import('../lib/i18n').Language },
   ): Promise<UnifiedRoute> {
     // Get configured routing integrations
     const routingIntegrations =
@@ -76,19 +77,6 @@ export class RoutingService {
     // Convert costing to travel mode
     const mode = this.mapCostingToTravelMode(costing)
 
-    // Build unified route request with preferences
-    // Map safetyVsEfficiency (0=fastest, 1=safest) to optimize strategy
-    let optimize: 'time' | 'distance' | 'balanced' = 'time'
-    if (preferences?.safetyVsEfficiency !== undefined) {
-      if (preferences.safetyVsEfficiency < 0.33) {
-        optimize = 'time' // Fast routes
-      } else if (preferences.safetyVsEfficiency > 0.66) {
-        optimize = 'distance' // Shorter routes (potentially safer)
-      } else {
-        optimize = 'balanced' // Balanced approach
-      }
-    }
-
     const request: RouteRequest = {
       waypoints,
       mode,
@@ -98,22 +86,41 @@ export class RoutingService {
         ?.language,
       preferences: preferences
         ? {
-            optimize,
+            optimize: preferences.shortest ? 'distance' : 'time',
+
+            // Range preferences — pass through directly (0-1 floats)
+            highways: preferences.highways,
+            tolls: preferences.tolls,
+            ferries: preferences.ferries,
+            hills: preferences.hills,
+            surfaceQuality: preferences.surfaceQuality,
+            litPaths: preferences.litPaths,
+            safetyVsSpeed: preferences.safetyVsSpeed,
+
+            // Boolean preferences
+            shortest: preferences.shortest,
+            preferHOV: preferences.preferHOV,
+            wheelchairAccessible: preferences.wheelchairAccessible,
+
+            // Numeric/enum preferences
+            cyclingSpeed: preferences.cyclingSpeed,
+            walkingSpeed: preferences.walkingSpeed,
+            bicycleType: preferences.bicycleType,
+
+            // Transit
+            maxWalkDistance: preferences.maxWalkingDistance,
+            maxTransfers: preferences.maxTransfers,
+
+            // Legacy boolean fallback (for old clients)
             avoidTolls: preferences.avoidTolls,
             avoidHighways: preferences.avoidHighways,
             avoidFerries: preferences.avoidFerries,
             avoidUnpaved: preferences.preferPavedPaths ? true : undefined,
-            maxWalkDistance: preferences.maxWalkingDistance,
-            maxTransfers: preferences.maxTransfers,
-            wheelchairAccessible: preferences.wheelchairAccessible,
           }
         : {
             optimize: 'time',
           },
     }
-
-    console.log('Routing waypoints:', waypoints)
-    console.log('Routing preferences:', request.preferences)
 
     try {
       const result =
@@ -155,6 +162,8 @@ export class RoutingService {
         return TravelMode.TRUCK
       case 'transit':
         return TravelMode.TRANSIT
+      case 'wheelchair':
+        return TravelMode.WHEELCHAIR
       default:
         return TravelMode.DRIVING
     }

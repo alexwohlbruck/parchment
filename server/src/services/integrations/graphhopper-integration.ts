@@ -262,7 +262,11 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
         calc_points: request.includeGeometry ?? true,
         points_encoded: false, // Use GeoJSON format for easier parsing
         elevation: true, // Enable elevation data
-        details: ['road_class', 'surface', 'toll', 'road_environment'], // Request useful path details
+        // Request useful path details. average_speed is the actual speed the
+        // router used for weighting (derived from OSM maxspeed tag or road-class
+        // default). max_speed is the OSM-tagged limit when present (often null
+        // for US urban roads). Both feed the frontend Speed chart.
+        details: ['road_class', 'surface', 'toll', 'road_environment', 'average_speed', 'max_speed'],
         // Prevent origin/dest from snapping directly onto motorways, tunnels, etc.
         // so the router joins them via proper on-/off-ramps.
         ...(snapPreventions && { snap_preventions: snapPreventions }),
@@ -708,6 +712,8 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
     const roadClassDetails = details.road_class || []
     const surfaceDetails = details.surface || []
     const roadEnvDetails = details.road_environment || []
+    const avgSpeedDetails = details.average_speed || []
+    const maxSpeedDetails = details.max_speed || []
 
     if (roadClassDetails.length === 0 && surfaceDetails.length === 0) return []
 
@@ -716,7 +722,7 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
 
     // 2. Collect all unique breakpoints from all detail arrays
     const breakpoints = new Set<number>()
-    for (const arr of [roadClassDetails, surfaceDetails, roadEnvDetails]) {
+    for (const arr of [roadClassDetails, surfaceDetails, roadEnvDetails, avgSpeedDetails, maxSpeedDetails]) {
       for (const [start, end] of arr) {
         breakpoints.add(start)
         breakpoints.add(end)
@@ -741,16 +747,42 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
       const roadClass = this.lookupDetailValue(roadClassDetails, startIdx) || 'unknown'
       const roadEnv = this.lookupDetailValue(roadEnvDetails, startIdx) || 'road'
 
+      // average_speed: the routing speed GraphHopper used (km/h). Always present.
+      // max_speed: the OSM-tagged limit (km/h). Often null when OSM has no
+      // maxspeed tag — leave speedLimit undefined in that case so downstream
+      // UI can distinguish "unknown limit" from an actual value.
+      const avgSpeed = this.lookupDetailNumber(avgSpeedDetails, startIdx)
+      const maxSpeed = this.lookupDetailNumber(maxSpeedDetails, startIdx)
+
       segments.push({
         startDistance: Math.round(startDist),
         endDistance: Math.round(endDist),
         surface: this.normalizeGraphHopperSurface(surface),
         roadClass: this.normalizeGraphHopperRoadClass(roadClass),
         use: this.normalizeGraphHopperUse(roadEnv, roadClass),
+        ...(avgSpeed !== undefined && { averageSpeed: avgSpeed }),
+        ...(maxSpeed !== undefined && { speedLimit: maxSpeed }),
       })
     }
 
     return segments
+  }
+
+  /**
+   * Look up a numeric value covering a given point index in a GraphHopper
+   * detail array. Returns undefined for missing ranges or non-numeric /
+   * null values (e.g. OSM edges without a maxspeed tag).
+   */
+  private lookupDetailNumber(
+    details: Array<[number, number, any]>,
+    pointIndex: number,
+  ): number | undefined {
+    for (const [start, end, value] of details) {
+      if (pointIndex >= start && pointIndex < end) {
+        return typeof value === 'number' ? value : undefined
+      }
+    }
+    return undefined
   }
 
   /**

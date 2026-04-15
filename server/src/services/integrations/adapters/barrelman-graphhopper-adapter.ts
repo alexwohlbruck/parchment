@@ -83,6 +83,7 @@ export class BarrelmanGraphHopperAdapter {
         averageSlope: seg.averageSlope,
         maxSlope: seg.maxSlope,
         averageSpeed: seg.averageSpeed,
+        speedLimit: seg.speedLimit,
       }))
 
     const bbox = path.bbox || [0, 0, 0, 0]

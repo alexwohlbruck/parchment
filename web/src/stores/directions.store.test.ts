@@ -70,8 +70,8 @@ describe('useDirectionsStore', () => {
     test('starts with default routing preferences', () => {
       const store = useDirectionsStore()
       
-      expect(store.routingPreferences.avoidHighways).toBe(false)
-      expect(store.routingPreferences.avoidTolls).toBe(false)
+      expect(store.routingPreferences.highways).toBe(0.5)
+      expect(store.routingPreferences.tolls).toBe(0.5)
       expect(store.routingPreferences.maxWalkingDistance).toBe(1000)
       expect(store.routingPreferences.useKnownVehicleLocations).toBe(true)
     })

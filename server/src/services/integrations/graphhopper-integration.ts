@@ -20,7 +20,10 @@ import {
   Coordinate,
 } from '../../types/unified-routing.types'
 import { getLanguageCode } from '../../lib/i18n'
-import { buildGraphHopperCustomModel, getSnapPreventions } from '../../lib/graphhopper-custom-model'
+import {
+  buildGraphHopperCustomModel,
+  getSnapPreventions,
+} from '../../lib/graphhopper-custom-model'
 import type {
   GraphHopperConfig,
   GraphHopperRouteRequest,
@@ -32,7 +35,7 @@ import { GraphHopperAdapter } from './adapters/graphhopper-adapter'
 /**
  * GraphHopper integration for routing
  * Supports both GraphHopper API and self-hosted instances
- * 
+ *
  * Features implemented:
  * - Basic routing with multiple waypoints
  * - Turn-by-turn instructions
@@ -41,7 +44,7 @@ import { GraphHopperAdapter } from './adapters/graphhopper-adapter'
  * - Route details (road class, surface, tolls, ferries)
  * - Custom models for route preferences (avoid highways, tolls, ferries, unpaved roads)
  * - Distance influence for shortest vs fastest routes
- * 
+ *
  * Additional GraphHopper features that could be added:
  * - point_hints: Street name hints for better waypoint snapping
  * - curbsides: Specify approach side (useful for pickups/dropoffs)
@@ -72,7 +75,7 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
           ferries: 'range',
           hills: 'range',
           surfaceQuality: 'range',
-          litPaths: false,          // TODO: enable after graph cache rebuild with 'lit' encoded value
+          litPaths: false, // TODO: enable after graph cache rebuild with 'lit' encoded value
           safetyVsSpeed: 'range',
 
           // Boolean preferences
@@ -89,7 +92,14 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
           maxWalkDistance: false,
           maxTransfers: false,
         },
-        supportedModes: ['driving', 'walking', 'cycling', 'motorcycle', 'truck', 'wheelchair'],
+        supportedModes: [
+          'driving',
+          'walking',
+          'cycling',
+          'motorcycle',
+          'truck',
+          'wheelchair',
+        ],
         supportedOptimizations: ['time', 'distance', 'balanced'], // distance/balanced require paid/self-hosted
         features: {
           alternatives: true, // alternative_route algorithm (works in free tier)
@@ -189,7 +199,7 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
       }
 
       // Check if response contains GraphHopper info data (version, profiles, bbox)
-      const data = await response.json() as Record<string, any>
+      const data = (await response.json()) as Record<string, any>
       if (data && data.version && data.profiles) {
         return { success: true }
       } else {
@@ -216,8 +226,8 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
     // Either host (self-hosted) or apiKey (GraphHopper API) must be provided
     return Boolean(
       config &&
-        ((config.host && typeof config.host === 'string') ||
-          (config.apiKey && typeof config.apiKey === 'string')),
+      ((config.host && typeof config.host === 'string') ||
+        (config.apiKey && typeof config.apiKey === 'string')),
     )
   }
 
@@ -250,7 +260,9 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
       const baseUrl = this.getBaseUrl(this.config)
       const url = `${baseUrl}/route`
 
-      const locale = request.language ? getLanguageCode(request.language) : undefined
+      const locale = request.language
+        ? getLanguageCode(request.language)
+        : undefined
       const snapPreventions = getSnapPreventions(request.mode)
       const requestBody: GraphHopperRouteRequest = {
         profile: this.mapTravelModeToProfile(request.mode),
@@ -266,7 +278,14 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
         // router used for weighting (derived from OSM maxspeed tag or road-class
         // default). max_speed is the OSM-tagged limit when present (often null
         // for US urban roads). Both feed the frontend Speed chart.
-        details: ['road_class', 'surface', 'toll', 'road_environment', 'average_speed', 'max_speed'],
+        details: [
+          'road_class',
+          'surface',
+          'toll',
+          'road_environment',
+          'average_speed',
+          'max_speed',
+        ],
         // Prevent origin/dest from snapping directly onto motorways, tunnels, etc.
         // so the router joins them via proper on-/off-ramps.
         ...(snapPreventions && { snap_preventions: snapPreventions }),
@@ -366,14 +385,18 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
     const preferences = request.preferences
     if (!preferences) return
 
-    const isSelfHosted = Boolean(this.config.host && !this.config.host.includes('graphhopper.com'))
+    const isSelfHosted = Boolean(
+      this.config.host && !this.config.host.includes('graphhopper.com'),
+    )
 
     // Build custom_model from preferences (shared logic with Barrelman)
     const customModel = buildGraphHopperCustomModel(request.mode, preferences)
 
     if (customModel) {
       if (!isSelfHosted) {
-        console.warn('GraphHopper: Custom model features require paid plan or self-hosted instance. Skipping custom_model.')
+        console.warn(
+          'GraphHopper: Custom model features require paid plan or self-hosted instance. Skipping custom_model.',
+        )
       } else {
         // custom_model requires flexible mode. Our config uses LM (no CH),
         // so ch.disable is technically a no-op, but include it for safety
@@ -520,7 +543,7 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
     min: number | undefined
   } {
     const elevations = geometry
-      .map(coord => coord.elevation)
+      .map((coord) => coord.elevation)
       .filter((elev): elev is number => elev !== undefined)
 
     if (elevations.length === 0) {
@@ -558,7 +581,9 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
   /**
    * Extract route characteristics from GraphHopper details
    */
-  private extractRouteCharacteristics(details?: Record<string, Array<[number, number, any]>>): {
+  private extractRouteCharacteristics(
+    details?: Record<string, Array<[number, number, any]>>,
+  ): {
     hasTolls: boolean
     hasHighways: boolean
     hasFerries: boolean
@@ -573,20 +598,22 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
 
     // Check for tolls
     if (details.toll) {
-      characteristics.hasTolls = details.toll.some(([, , value]) => value === true || value === 'yes')
+      characteristics.hasTolls = details.toll.some(
+        ([, , value]) => value === true || value === 'yes',
+      )
     }
 
     // Check for highways/motorways
     if (details.road_class) {
       characteristics.hasHighways = details.road_class.some(
-        ([, , value]) => value === 'motorway' || value === 'trunk'
+        ([, , value]) => value === 'motorway' || value === 'trunk',
       )
     }
 
     // Check for ferries
     if (details.road_environment) {
       characteristics.hasFerries = details.road_environment.some(
-        ([, , value]) => value === 'ferry'
+        ([, , value]) => value === 'ferry',
       )
     }
 
@@ -722,7 +749,13 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
 
     // 2. Collect all unique breakpoints from all detail arrays
     const breakpoints = new Set<number>()
-    for (const arr of [roadClassDetails, surfaceDetails, roadEnvDetails, avgSpeedDetails, maxSpeedDetails]) {
+    for (const arr of [
+      roadClassDetails,
+      surfaceDetails,
+      roadEnvDetails,
+      avgSpeedDetails,
+      maxSpeedDetails,
+    ]) {
       for (const [start, end] of arr) {
         breakpoints.add(start)
         breakpoints.add(end)
@@ -738,13 +771,18 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
       const endIdx = sortedBreakpoints[i + 1]
 
       const startDist = cumulativeDistances[startIdx] ?? 0
-      const endDist = cumulativeDistances[endIdx] ?? cumulativeDistances[cumulativeDistances.length - 1] ?? 0
+      const endDist =
+        cumulativeDistances[endIdx] ??
+        cumulativeDistances[cumulativeDistances.length - 1] ??
+        0
 
       // Skip zero-length segments
       if (endDist <= startDist) continue
 
-      const surface = this.lookupDetailValue(surfaceDetails, startIdx) || 'unknown'
-      const roadClass = this.lookupDetailValue(roadClassDetails, startIdx) || 'unknown'
+      const surface =
+        this.lookupDetailValue(surfaceDetails, startIdx) || 'unknown'
+      const roadClass =
+        this.lookupDetailValue(roadClassDetails, startIdx) || 'unknown'
       const roadEnv = this.lookupDetailValue(roadEnvDetails, startIdx) || 'road'
 
       // average_speed: the routing speed GraphHopper used (km/h). Always present.
@@ -804,7 +842,12 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
    * TODO: Extract to a shared utility (e.g. server/src/lib/geo-utils.ts) —
    * this duplicates logic that may also be needed by other integrations.
    */
-  private haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  private haversineDistance(
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number,
+  ): number {
     const R = 6371000 // Earth radius in meters
     const dLat = ((lat2 - lat1) * Math.PI) / 180
     const dLng = ((lng2 - lng1) * Math.PI) / 180
@@ -899,7 +942,10 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
       tunnel: 'road',
       ford: 'road',
     }
-    if (envMap[roadEnv.toLowerCase()] && envMap[roadEnv.toLowerCase()] !== 'road') {
+    if (
+      envMap[roadEnv.toLowerCase()] &&
+      envMap[roadEnv.toLowerCase()] !== 'road'
+    ) {
       return envMap[roadEnv.toLowerCase()]
     }
 
@@ -933,9 +979,7 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
       totalElevationLoss: path.descend,
       departureTime: request.departureTime,
       arrivalTime: request.departureTime
-        ? new Date(
-            request.departureTime.getTime() + Math.round(path.time),
-          )
+        ? new Date(request.departureTime.getTime() + Math.round(path.time))
         : undefined,
     }
   }

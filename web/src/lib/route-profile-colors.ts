@@ -1,18 +1,19 @@
 /**
- * Color mappings for route surface, road type, incline, bike network,
- * stress level, and speed profiles.
+ * Color mappings for route surface, incline, and bike-friendliness profiles.
  * Shared between the elevation chart and the map route visualization.
+ *
+ * Each profile is driven by a single GraphHopper path-detail field:
+ *   - surface:  `surface` encoded value
+ *   - incline:  `average_slope` encoded value
+ *   - stress:   `bike_priority` encoded value (cycling only)
  */
 
 import type { TravelMode } from '@/types/directions.types'
 
 export type RouteProfileType =
   | 'surface'
-  | 'types'
   | 'incline'
-  | 'bike_network'
   | 'stress'
-  | 'speed'
 
 export interface ProfileCategory {
   label: string
@@ -34,12 +35,9 @@ export interface ProfileTabDef {
  * include the current travel mode.
  */
 export const PROFILE_TABS: ProfileTabDef[] = [
-  { id: 'stress',       label: 'Stress',       modes: ['cycling'] as TravelMode[] },
-  { id: 'types',        label: 'Road type',    modes: ['cycling', 'walking', 'driving', 'wheelchair'] as TravelMode[] },
-  { id: 'surface',      label: 'Surface',      modes: ['cycling', 'walking', 'driving', 'wheelchair'] as TravelMode[] },
-  { id: 'incline',      label: 'Incline',      modes: ['cycling', 'walking', 'wheelchair'] as TravelMode[] },
-  { id: 'bike_network', label: 'Bike network', modes: ['cycling'] as TravelMode[] },
-  { id: 'speed',        label: 'Speed',        modes: ['cycling', 'walking', 'driving', 'wheelchair'] as TravelMode[] },
+  { id: 'stress',  label: 'Bike friendly', modes: ['cycling'] as TravelMode[] },
+  { id: 'surface', label: 'Surface',       modes: ['cycling', 'walking', 'driving', 'wheelchair'] as TravelMode[] },
+  { id: 'incline', label: 'Incline',       modes: ['cycling', 'walking', 'wheelchair'] as TravelMode[] },
 ]
 
 // ── Surface categories ──────────────────────────────────────────────
@@ -56,29 +54,6 @@ export const SURFACE_CATEGORIES: Record<string, ProfileCategory> = {
   unknown: { label: 'Unknown', color: '#9ca3af', caseColor: '#6b7280', group: 'unknown' },
 }
 
-// ── Road type categories ────────────────────────────────────────────
-
-export const ROAD_TYPE_CATEGORIES: Record<string, ProfileCategory> = {
-  cycleway: { label: 'Bike path', color: '#22c55e', caseColor: '#15803d', group: 'bike_infra' },
-  mountain_bike: { label: 'Bike path', color: '#22c55e', caseColor: '#15803d', group: 'bike_infra' },
-  footway: { label: 'Footpath', color: '#86efac', caseColor: '#4ade80', group: 'ped_infra' },
-  sidewalk: { label: 'Sidewalk', color: '#86efac', caseColor: '#4ade80', group: 'ped_infra' },
-  steps: { label: 'Steps', color: '#86efac', caseColor: '#4ade80', group: 'ped_infra' },
-  track: { label: 'Track', color: '#a3e635', caseColor: '#65a30d', group: 'track' },
-  living_street: { label: 'Quiet street', color: '#3b82f6', caseColor: '#1d4ed8', group: 'low_traffic' },
-  residential: { label: 'Quiet street', color: '#3b82f6', caseColor: '#1d4ed8', group: 'low_traffic' },
-  service_other: { label: 'Quiet street', color: '#3b82f6', caseColor: '#1d4ed8', group: 'low_traffic' },
-  unclassified: { label: 'Street', color: '#93c5fd', caseColor: '#3b82f6', group: 'moderate' },
-  tertiary: { label: 'Street', color: '#eab308', caseColor: '#a16207', group: 'moderate' },
-  secondary: { label: 'Busy road', color: '#f97316', caseColor: '#c2410c', group: 'busy' },
-  primary: { label: 'Busy road', color: '#ef4444', caseColor: '#b91c1c', group: 'busy' },
-  trunk: { label: 'Highway', color: '#dc2626', caseColor: '#991b1b', group: 'highway' },
-  motorway: { label: 'Highway', color: '#991b1b', caseColor: '#7f1d1d', group: 'highway' },
-  ferry: { label: 'Ferry', color: '#06b6d4', caseColor: '#0891b2', group: 'ferry' },
-  road: { label: 'Road', color: '#9ca3af', caseColor: '#6b7280', group: 'unknown' },
-  unknown: { label: 'Unknown', color: '#9ca3af', caseColor: '#6b7280', group: 'unknown' },
-}
-
 // ── Incline categories ──────────────────────────────────────────────
 
 export const INCLINE_CATEGORIES: Record<string, ProfileCategory> = {
@@ -92,59 +67,34 @@ export const INCLINE_CATEGORIES: Record<string, ProfileCategory> = {
   unknown:      { label: 'Unknown',          color: '#9ca3af', caseColor: '#6b7280', group: 'unknown' },
 }
 
-// ── Bike network categories ─────────────────────────────────────────
-
-export const BIKE_NETWORK_CATEGORIES: Record<string, ProfileCategory> = {
-  international: { label: 'International', color: '#7c3aed', caseColor: '#5b21b6', group: 'international' },
-  national:      { label: 'National',      color: '#2563eb', caseColor: '#1d4ed8', group: 'national' },
-  regional:      { label: 'Regional',      color: '#0891b2', caseColor: '#0e7490', group: 'regional' },
-  local:         { label: 'Local',         color: '#22c55e', caseColor: '#15803d', group: 'local' },
-  other:         { label: 'None',          color: '#9ca3af', caseColor: '#6b7280', group: 'none' },
-  unknown:       { label: 'None',          color: '#9ca3af', caseColor: '#6b7280', group: 'none' },
-}
-
-// ── Stress level categories ─────────────────────────────────────────
-// Computed from road_class + bike_network + surface + getOffBike
+// ── Bike-friendliness categories ────────────────────────────────────
+// Driven by GraphHopper's `bike_priority` encoded value (0–1, higher =
+// friendlier). We keep the STRESS_CATEGORIES name + type-id 'stress'
+// internally so existing map/layer code doesn't need to rename, but the
+// semantics are flipped: "very_low" friendliness = red (worst),
+// "very_high" = green (best).
 
 export const STRESS_CATEGORIES: Record<string, ProfileCategory> = {
-  very_low:  { label: 'Very low',  color: '#22c55e', caseColor: '#15803d', group: 'very_low' },
-  low:       { label: 'Low',       color: '#86efac', caseColor: '#4ade80', group: 'low' },
-  moderate:  { label: 'Moderate',  color: '#eab308', caseColor: '#a16207', group: 'moderate' },
-  high:      { label: 'High',      color: '#f97316', caseColor: '#c2410c', group: 'high' },
-  very_high: { label: 'Very high', color: '#ef4444', caseColor: '#b91c1c', group: 'very_high' },
-  unknown:   { label: 'Unknown',   color: '#9ca3af', caseColor: '#6b7280', group: 'unknown' },
-}
-
-// ── Speed categories ────────────────────────────────────────────────
-
-export const SPEED_CATEGORIES: Record<string, ProfileCategory> = {
-  very_slow: { label: '< 10 km/h',   color: '#ef4444', caseColor: '#b91c1c', group: 'very_slow' },
-  slow:      { label: '10–15 km/h',   color: '#f97316', caseColor: '#c2410c', group: 'slow' },
-  moderate:  { label: '15–20 km/h',   color: '#eab308', caseColor: '#a16207', group: 'moderate' },
-  fast:      { label: '20–25 km/h',   color: '#22c55e', caseColor: '#15803d', group: 'fast' },
-  very_fast: { label: '> 25 km/h',    color: '#3b82f6', caseColor: '#1d4ed8', group: 'very_fast' },
-  unknown:   { label: 'Unknown',      color: '#9ca3af', caseColor: '#6b7280', group: 'unknown' },
+  very_high: { label: 'Very friendly', color: '#22c55e', caseColor: '#15803d', group: 'very_high' },
+  high:      { label: 'Friendly',      color: '#86efac', caseColor: '#4ade80', group: 'high' },
+  moderate:  { label: 'Moderate',      color: '#eab308', caseColor: '#a16207', group: 'moderate' },
+  low:       { label: 'Low',           color: '#f97316', caseColor: '#c2410c', group: 'low' },
+  very_low:  { label: 'Unfriendly',    color: '#ef4444', caseColor: '#b91c1c', group: 'very_low' },
+  unknown:   { label: 'Unknown',       color: '#9ca3af', caseColor: '#6b7280', group: 'unknown' },
 }
 
 // ── Category map by profile type ────────────────────────────────────
 
 export const CATEGORY_MAPS: Record<RouteProfileType, Record<string, ProfileCategory>> = {
   surface: SURFACE_CATEGORIES,
-  types: ROAD_TYPE_CATEGORIES,
   incline: INCLINE_CATEGORIES,
-  bike_network: BIKE_NETWORK_CATEGORIES,
   stress: STRESS_CATEGORIES,
-  speed: SPEED_CATEGORIES,
 }
 
 // ── Lookup helpers ──────────────────────────────────────────────────
 
 export function getSurfaceCategory(surface: string): ProfileCategory {
   return SURFACE_CATEGORIES[surface] || SURFACE_CATEGORIES.unknown
-}
-
-export function getRoadTypeCategory(use: string, roadClass: string): ProfileCategory {
-  return ROAD_TYPE_CATEGORIES[use] || ROAD_TYPE_CATEGORIES[roadClass] || ROAD_TYPE_CATEGORIES.unknown
 }
 
 /** Classify an average slope (%) into an incline bucket */
@@ -159,73 +109,32 @@ export function getInclineCategory(averageSlope: number | undefined): ProfileCat
   return INCLINE_CATEGORIES.steep_down
 }
 
-/** Look up bike network tier */
-export function getBikeNetworkCategory(bikeNetwork: string | undefined): ProfileCategory {
-  if (!bikeNetwork) return BIKE_NETWORK_CATEGORIES.unknown
-  return BIKE_NETWORK_CATEGORIES[bikeNetwork] || BIKE_NETWORK_CATEGORIES.unknown
-}
-
 /**
- * Compute a stress level from available edge attributes.
- * Heuristic scoring (0-100), then bucketed.
+ * Classify a bike-friendliness level from GraphHopper's `bike_priority`
+ * encoded value (higher = friendlier; empirically ~0.4–1.3).
+ *
+ * Observed GH values for the `bike` profile:
+ *   cycleway                  1.2–1.3
+ *   residential / quiet road  1.1–1.2
+ *   tertiary                  1.0–1.1
+ *   footway (dismount)        0.9
+ *   secondary                 0.7–0.9
+ *   primary / trunk           ≤ 0.6
+ *
+ * `get_off_bike` edges are forced to the worst bucket regardless of the
+ * raw bike_priority value, since they require dismounting.
  */
 export function getStressCategory(
-  use: string | undefined,
-  roadClass: string | undefined,
-  bikeNetwork: string | undefined,
-  surface: string | undefined,
+  bikePriority: number | undefined,
   getOffBike: boolean | undefined,
 ): ProfileCategory {
-  if (getOffBike) return STRESS_CATEGORIES.very_high
-
-  let score = 50 // neutral baseline
-
-  // Road type is the biggest factor
-  const rc = (use && use !== 'road') ? use : (roadClass || '')
-  switch (rc) {
-    case 'cycleway': score -= 35; break
-    case 'footway': case 'steps': score -= 20; break
-    case 'track': score -= 15; break
-    case 'living_street': score -= 25; break
-    case 'residential': case 'service_other': score -= 15; break
-    case 'unclassified': score -= 5; break
-    case 'tertiary': score += 5; break
-    case 'secondary': score += 15; break
-    case 'primary': score += 25; break
-    case 'trunk': case 'motorway': score += 40; break
-  }
-
-  // Bike network membership reduces stress
-  switch (bikeNetwork) {
-    case 'international': case 'national': score -= 15; break
-    case 'regional': score -= 10; break
-    case 'local': score -= 5; break
-  }
-
-  // Poor surfaces increase stress
-  const surfaceCat = getSurfaceCategory(surface || 'unknown')
-  switch (surfaceCat.group) {
-    case 'trail': score += 10; break
-    case 'unpaved': score += 5; break
-  }
-
-  // Clamp and bucket
-  score = Math.max(0, Math.min(100, score))
-  if (score <= 15) return STRESS_CATEGORIES.very_low
-  if (score <= 35) return STRESS_CATEGORIES.low
-  if (score <= 55) return STRESS_CATEGORIES.moderate
-  if (score <= 75) return STRESS_CATEGORIES.high
-  return STRESS_CATEGORIES.very_high
-}
-
-/** Classify routing speed (km/h) into a bucket */
-export function getSpeedCategory(averageSpeed: number | undefined): ProfileCategory {
-  if (averageSpeed == null) return SPEED_CATEGORIES.unknown
-  if (averageSpeed < 10) return SPEED_CATEGORIES.very_slow
-  if (averageSpeed < 15) return SPEED_CATEGORIES.slow
-  if (averageSpeed < 20) return SPEED_CATEGORIES.moderate
-  if (averageSpeed < 25) return SPEED_CATEGORIES.fast
-  return SPEED_CATEGORIES.very_fast
+  if (getOffBike) return STRESS_CATEGORIES.very_low
+  if (bikePriority == null) return STRESS_CATEGORIES.unknown
+  if (bikePriority >= 1.2) return STRESS_CATEGORIES.very_high
+  if (bikePriority >= 1.0) return STRESS_CATEGORIES.high
+  if (bikePriority >= 0.9) return STRESS_CATEGORIES.moderate
+  if (bikePriority >= 0.7) return STRESS_CATEGORIES.low
+  return STRESS_CATEGORIES.very_low
 }
 
 // ── Generic edge → category resolver ────────────────────────────────
@@ -240,34 +149,24 @@ export function getEdgeCategory(
   switch (profile) {
     case 'surface':
       return getSurfaceCategory(edge.surface || 'unknown')
-    case 'types':
-      return getRoadTypeCategory(edge.use || 'road', edge.roadClass || 'unknown')
     case 'incline':
       return getInclineCategory(edge.averageSlope)
-    case 'bike_network':
-      return getBikeNetworkCategory(edge.bikeNetwork)
     case 'stress':
-      return getStressCategory(edge.use, edge.roadClass, edge.bikeNetwork, edge.surface, edge.getOffBike)
-    case 'speed':
-      return getSpeedCategory(edge.averageSpeed)
+      return getStressCategory(edge.bikePriority, edge.getOffBike)
     default:
       return { label: 'Unknown', color: '#9ca3af', caseColor: '#6b7280', group: 'unknown' }
   }
 }
 
 /**
- * Check whether a category resolves to the "unknown" bucket
+ * Check whether a category resolves to the "unknown" bucket (surface profile only).
+ * For other profiles, "unknown" is determined per-edge via getEdgeCategory.
  */
-export function isUnknownEdge(profile: RouteProfileType, surface: string, use: string, roadClass: string): boolean {
+export function isUnknownEdge(profile: RouteProfileType, surface: string): boolean {
   if (profile === 'surface') {
     const cat = SURFACE_CATEGORIES[surface]
     return !cat || cat.group === 'unknown'
   }
-  if (profile === 'types') {
-    const cat = ROAD_TYPE_CATEGORIES[use] || ROAD_TYPE_CATEGORIES[roadClass]
-    return !cat || cat.group === 'unknown'
-  }
-  // For other profiles, "unknown" is determined per-edge via getEdgeCategory
   return false
 }
 
@@ -275,60 +174,48 @@ export function isUnknownEdge(profile: RouteProfileType, surface: string, use: s
  * Get color for an edge segment based on the active profile.
  * An optional `fallback` can be supplied; if the edge is "unknown" the fallback is returned instead.
  *
- * Overload 1 (legacy): pass individual fields — works for surface/types profiles.
+ * Overload 1 (legacy): pass `surface` string — works for the surface profile only.
  * Overload 2: pass the full RouteEdgeSegment — works for ALL profiles.
  */
 export function getEdgeColor(
   profile: RouteProfileType,
   surfaceOrEdge: string | RouteEdgeSegment,
-  use?: string,
-  roadClass?: string,
   fallback?: string,
 ): string {
   // Full-edge overload
   if (typeof surfaceOrEdge === 'object') {
     const edge = surfaceOrEdge
-    const fb = use as string | undefined // 2nd arg becomes fallback in this overload
     const cat = getEdgeCategory(profile, edge)
-    if (fb && cat.group === 'unknown') return fb
+    if (fallback && cat.group === 'unknown') return fallback
     return cat.color
   }
-  // Legacy string overload (surface/types only)
+  // Legacy string overload (surface only)
   const surface = surfaceOrEdge
-  if (fallback && isUnknownEdge(profile, surface, use ?? '', roadClass ?? '')) return fallback
-  if (profile === 'surface') {
-    return getSurfaceCategory(surface).color
-  }
-  return getRoadTypeCategory(use ?? '', roadClass ?? '').color
+  if (fallback && isUnknownEdge(profile, surface)) return fallback
+  return getSurfaceCategory(surface).color
 }
 
 /**
  * Get case (border) color for an edge segment based on the active profile.
  * An optional `fallback` can be supplied; if the edge is "unknown" the fallback is returned instead.
  *
- * Overload 1 (legacy): pass individual fields — works for surface/types profiles.
+ * Overload 1 (legacy): pass `surface` string — works for the surface profile only.
  * Overload 2: pass the full RouteEdgeSegment — works for ALL profiles.
  */
 export function getEdgeCaseColor(
   profile: RouteProfileType,
   surfaceOrEdge: string | RouteEdgeSegment,
-  use?: string,
-  roadClass?: string,
   fallback?: string,
 ): string {
   // Full-edge overload
   if (typeof surfaceOrEdge === 'object') {
     const edge = surfaceOrEdge
-    const fb = use as string | undefined
     const cat = getEdgeCategory(profile, edge)
-    if (fb && cat.group === 'unknown') return fb
+    if (fallback && cat.group === 'unknown') return fallback
     return cat.caseColor
   }
-  // Legacy string overload (surface/types only)
+  // Legacy string overload (surface only)
   const surface = surfaceOrEdge
-  if (fallback && isUnknownEdge(profile, surface, use ?? '', roadClass ?? '')) return fallback
-  if (profile === 'surface') {
-    return getSurfaceCategory(surface).caseColor
-  }
-  return getRoadTypeCategory(use ?? '', roadClass ?? '').caseColor
+  if (fallback && isUnknownEdge(profile, surface)) return fallback
+  return getSurfaceCategory(surface).caseColor
 }

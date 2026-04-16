@@ -875,6 +875,17 @@ export class MapboxStrategy extends MapStrategy {
     }
   }
 
+  setSegmentRouteProfile(
+    tripId: string,
+    segmentIndex: number,
+    profile: import('@/lib/route-profile-colors').RouteProfileType | null,
+  ) {
+    const group = this.layerGroups.get(`trip-${tripId}`)
+    if (group instanceof TripGroup) {
+      group.setSegmentRouteProfile(segmentIndex, profile)
+    }
+  }
+
   private fitMapToTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
     const visibleTrips = trips.trips.filter(trip => visibleTripIds.has(trip.id))
     if (visibleTrips.length === 0) return

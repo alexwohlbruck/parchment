@@ -237,4 +237,9 @@ export class MapStrategy {
   setTrips(trips: TripsResponse, visibleTripIds: Set<string>) {}
   unsetTrips() {}
   setRouteProfile(profile: import('@/lib/route-profile-colors').RouteProfileType | null) {}
+  setSegmentRouteProfile(
+    tripId: string,
+    segmentIndex: number,
+    profile: import('@/lib/route-profile-colors').RouteProfileType | null,
+  ) {}
 }

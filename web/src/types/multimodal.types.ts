@@ -96,7 +96,7 @@ export interface RoutingPreferences {
   // ── Numeric/enum preferences ──
   cyclingSpeed?: number   // kph (5-60)
   walkingSpeed?: number   // kph (0.5-10)
-  bicycleType?: string    // Road, Hybrid, City, Cross, Mountain
+  bicycleType?: string    // Road, City, Mountain
 
   // ── Transit ──
   maxWalkingDistance?: number // meters

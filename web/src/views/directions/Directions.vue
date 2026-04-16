@@ -34,7 +34,7 @@ dayjs.extend(duration)
 const directionsService = useDirectionsService()
 const directionsStore = useDirectionsStore()
 
-const { waypoints, trips, selectedMode, isLoading, routingPreferences } =
+const { waypoints, trips, selectedMode, isLoading } =
   storeToRefs(directionsStore)
 
 const showPreferences = ref(false)
@@ -146,7 +146,6 @@ useMapListener(
 
           <template #content="{ close }">
             <RoutingPreferences
-              v-model="routingPreferences"
               :selected-mode="selectedMode"
               @close="close"
             />

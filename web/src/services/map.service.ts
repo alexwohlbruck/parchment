@@ -1241,6 +1241,11 @@ function mapService() {
     showDefaultTrip,
     setRouteProfile: (profile: import('@/lib/route-profile-colors').RouteProfileType | null) =>
       mapStrategy?.setRouteProfile(profile),
+    setSegmentRouteProfile: (
+      tripId: string,
+      segmentIndex: number,
+      profile: import('@/lib/route-profile-colors').RouteProfileType | null,
+    ) => mapStrategy?.setSegmentRouteProfile(tripId, segmentIndex, profile),
     // Expose mapStrategy for layers service
     get mapStrategy() {
       return mapStrategy

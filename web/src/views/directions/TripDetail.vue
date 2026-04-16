@@ -3,13 +3,18 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useMapService } from '@/services/map.service'
-import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
-import { H5, H6, Caption, P } from '@/components/ui/typography'
+import { Card } from '@/components/ui/card'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { Caption, P } from '@/components/ui/typography'
 import {
   AccessibilityIcon,
   ArrowLeftIcon,
+  ChevronDownIcon,
   ClockIcon,
   FootprintsIcon,
   CarFrontIcon,
@@ -139,14 +144,20 @@ const formatDistanceDisplay = (meters: number | undefined): string => {
 
 const formatTime = (date: Date): string => {
   return new Date(date).toLocaleTimeString([], {
-    hour: '2-digit',
+    hour: 'numeric',
     minute: '2-digit',
   })
 }
 
-// Sync route profile coloring with the map
-function onRouteProfileChange(profile: RouteProfileType | null) {
-  mapService.setRouteProfile(profile)
+// Sync route profile coloring with the map — scoped to the segment that changed,
+// so switching the Road type / Surface / Incline / Speed / Stress / Bike network
+// tab on one segment doesn't stomp the other segments' coloring.
+function onRouteProfileChange(
+  segmentIndex: number,
+  profile: RouteProfileType | null,
+) {
+  if (!trip.value) return
+  mapService.setSegmentRouteProfile(trip.value.id, segmentIndex, profile)
 }
 
 const formatCurrency = (cost: { currency: string; amount: number }): string => {
@@ -155,6 +166,62 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
     currency: cost.currency,
   }).format(cost.amount)
 }
+
+// Collapsible instructions: show this many steps always; the rest collapses
+const PREVIEW_COUNT = 3
+
+// ── Route waypoints (origin / via / destination) ────────────────────
+// Derives a display list from the trip request's waypoints. Origin gets the
+// trip's startTime and destination the trip's endTime; via stops have no
+// known time (backend segments don't expose per-waypoint arrival times).
+interface RouteWaypointDisplay {
+  id: string
+  role: 'origin' | 'via' | 'destination'
+  displayName: string
+  time: Date | null
+}
+
+const routeWaypoints = computed<RouteWaypointDisplay[]>(() => {
+  const waypoints = directionsStore.trips?.request?.waypoints
+  const t = trip.value
+  if (!waypoints || waypoints.length === 0 || !t) return []
+
+  let viaCounter = 0
+  return waypoints.map((wp, i) => {
+    const isOrigin = i === 0
+    const isDestination = i === waypoints.length - 1
+    const role: 'origin' | 'via' | 'destination' = isOrigin
+      ? 'origin'
+      : isDestination
+        ? 'destination'
+        : 'via'
+
+    const fallbackName = isOrigin
+      ? 'Origin'
+      : isDestination
+        ? 'Destination'
+        : `Stop ${++viaCounter}`
+
+    return {
+      id: wp.id || `wp-${i}`,
+      role,
+      displayName: wp.name?.trim() || fallbackName,
+      time: isOrigin ? t.startTime : isDestination ? t.endTime : null,
+    }
+  })
+})
+
+// Only skip the timeline for the degenerate 2-waypoint case where BOTH
+// waypoints have no user-provided name (nothing to say beyond what the
+// main title already shows).
+const showItinerary = computed(() => {
+  const wps = routeWaypoints.value
+  if (wps.length === 0) return false
+  if (wps.length > 2) return true
+  return wps.some(
+    wp => wp.displayName !== 'Origin' && wp.displayName !== 'Destination',
+  )
+})
 </script>
 
 <template>
@@ -173,167 +240,309 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
     <div v-else-if="trip" class="p-4 space-y-4">
       <!-- Trip Overview with Back Button -->
       <div class="flex items-center gap-1">
-        <Button variant="ghost" size="sm" @click="goBack">
-          <ArrowLeftIcon class="size-4" />
+        <Button
+          variant="ghost"
+          size="icon"
+          class="shrink-0 -ml-2 mt-0.5"
+          @click="goBack"
+        >
+          <ArrowLeftIcon class="size-5" />
         </Button>
 
         <div class="flex-1 min-w-0">
-          <H5 class="text-muted-foreground mb-1">
-            {{ formatDuration(trip.summary.totalDuration) }} •
-            {{ formatDistanceDisplay(trip.summary.totalDistance) }}
-          </H5>
-
-          <div class="flex items-center gap-4 text-sm text-muted-foreground">
-            <span class="flex items-center gap-1">
-              <ClockIcon class="size-3" />
-              {{ formatTime(trip.startTime) }} - {{ formatTime(trip.endTime) }}
+          <div class="flex items-baseline gap-2 leading-tight">
+            <span class="text-3xl font-bold tracking-tight text-foreground">
+              {{ formatDuration(trip.summary.totalDuration) }}
             </span>
-            <span v-if="trip.cost?.total" class="flex items-center gap-1">
+            <span class="text-sm text-muted-foreground">
+              {{ formatDistanceDisplay(trip.summary.totalDistance) }}
+            </span>
+          </div>
+
+          <div
+            v-if="trip.cost?.total || trip.co2Emissions"
+            class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground"
+          >
+            <span
+              v-if="trip.cost?.total"
+              class="inline-flex items-center gap-1"
+            >
               💰 {{ formatCurrency(trip.cost.total) }}
             </span>
-            <span v-if="trip.co2Emissions" class="flex items-center gap-1">
+            <span
+              v-if="trip.co2Emissions"
+              class="inline-flex items-center gap-1"
+            >
               🌱 {{ trip.co2Emissions.toFixed(1) }}kg CO₂
             </span>
           </div>
         </div>
       </div>
 
-      <!-- Instructions -->
-      <Card>
-        <CardContent class="p-4">
-          <div class="space-y-6">
-            <div v-for="(segment, index) in trip.segments" :key="segment.id">
-              <div class="flex flex-col">
-                <!-- Segment Header -->
-                <div class="flex items-center gap-3 mb-3">
-                  <!-- Segment Icon -->
-                  <div
-                    :class="[
-                      'flex items-center justify-center size-8 rounded-full text-white shrink-0',
-                      modeColors[segment.mode] || 'bg-gray-500',
-                    ]"
-                  >
-                    <component
-                      :is="modeIcons[segment.mode] || FootprintsIcon"
-                      class="size-4"
-                    />
-                  </div>
+      <!-- Itinerary timeline: origin → (stops) → destination with timestamps -->
+      <Card v-if="showItinerary" class="p-4">
+        <div class="flex flex-col">
+          <div
+            v-for="(wp, i) in routeWaypoints"
+            :key="wp.id"
+            class="flex items-stretch gap-3"
+          >
+            <!-- Dot + connector column -->
+            <div class="flex flex-col items-center shrink-0 w-3">
+              <div
+                class="shrink-0 rounded-full mt-1.5"
+                :class="
+                  wp.role === 'via'
+                    ? 'size-2 border-2 border-muted-foreground bg-background'
+                    : 'size-3 bg-primary'
+                "
+              />
+              <div
+                v-if="i < routeWaypoints.length - 1"
+                class="flex-1 w-px bg-border my-1 min-h-3"
+              />
+            </div>
+            <!-- Content -->
+            <div
+              class="flex-1 min-w-0 flex items-baseline gap-2"
+              :class="{ 'pb-4': i < routeWaypoints.length - 1 }"
+            >
+              <span
+                v-if="wp.time"
+                class="shrink-0 text-sm font-medium text-foreground tabular-nums"
+              >
+                {{ formatTime(wp.time) }}
+              </span>
+              <span
+                v-else
+                class="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
+              >
+                Stop
+              </span>
+              <span class="truncate text-sm text-foreground">
+                {{ wp.displayName }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </Card>
 
-                  <!-- Segment Info -->
-                  <div class="flex items-center gap-4">
-                    <H6 class="capitalize">
-                      {{ segment.mode }}
-                    </H6>
-                    <Caption class="text-muted-foreground">
-                      {{ formatDuration(segment.duration) }} •
-                      {{ formatDistanceDisplay(segment.distance) }}
-                    </Caption>
-                  </div>
-                </div>
+      <!-- Segments -->
+      <div class="space-y-3">
+        <Card
+          v-for="(segment, index) in trip.segments"
+          :key="segment.id"
+          class="p-4 space-y-4"
+        >
+          <!-- Segment Header -->
+          <div class="flex items-start gap-2.5">
+            <div
+              :class="[
+                'flex items-center justify-center size-7 rounded-full text-white shrink-0',
+                modeColors[segment.mode] || 'bg-gray-500',
+              ]"
+            >
+              <component
+                :is="modeIcons[segment.mode] || FootprintsIcon"
+                class="size-3.5"
+              />
+            </div>
 
-                <!-- Elevation Chart (only for walking and cycling) -->
-                <ElevationChart
-                  v-if="
-                    segment.geometry &&
-                    (segment.totalElevationGain ||
-                      segment.totalElevationLoss ||
-                      segment.edgeSegments?.length) &&
-                    (segment.mode === 'walking' || segment.mode === 'cycling' || segment.mode === 'driving' || segment.mode === 'wheelchair')
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <span class="text-sm font-semibold capitalize text-foreground">
+                  {{ segment.mode }}
+                </span>
+                <span class="text-sm text-muted-foreground">
+                  {{ formatDuration(segment.duration) }} ·
+                  {{ formatDistanceDisplay(segment.distance) }}
+                </span>
+              </div>
+              <div
+                v-if="segment.startTime && segment.endTime"
+                class="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground tabular-nums"
+              >
+                <ClockIcon class="size-3" />
+                {{ formatTime(segment.startTime) }} –
+                {{ formatTime(segment.endTime) }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Elevation chart + profile dropdown (walking / cycling / wheelchair with edge data) -->
+          <ElevationChart
+            v-if="
+              segment.geometry &&
+              (segment.totalElevationGain ||
+                segment.totalElevationLoss ||
+                segment.edgeSegments?.length) &&
+              (segment.mode === 'walking' ||
+                segment.mode === 'cycling' ||
+                segment.mode === 'wheelchair')
+            "
+            :segment-index="index"
+            :geometry="segment.geometry"
+            :max-elevation="segment.maxElevation"
+            :min-elevation="segment.minElevation"
+            :edge-segments="segment.edgeSegments"
+            :mode="segment.mode"
+            :total-elevation-gain="segment.totalElevationGain"
+            :total-elevation-loss="segment.totalElevationLoss"
+            @update:route-profile="onRouteProfileChange"
+          />
+
+          <!-- Instructions: preview of first N + collapsible rest + "Show more" -->
+          <Collapsible v-if="segment.instructions?.length" v-slot="{ open }">
+            <!-- Preview (always visible) with fade when collapsed & more remain -->
+            <div class="relative">
+              <div class="space-y-0.5">
+                <div
+                  v-for="(
+                    instruction, instrIndex
+                  ) in segment.instructions.slice(0, PREVIEW_COUNT)"
+                  :key="instrIndex"
+                  class="flex items-start gap-3 rounded-lg p-2 -mx-2 transition-colors cursor-pointer"
+                  :class="{
+                    'bg-muted':
+                      hoveredInstructionKey ===
+                      getInstructionKey(index, instrIndex),
+                    'hover:bg-muted/50':
+                      hoveredInstructionKey !==
+                      getInstructionKey(index, instrIndex),
+                  }"
+                  @mouseenter="
+                    onInstructionHover(index, instrIndex, instruction)
                   "
-                  :geometry="segment.geometry"
-                  :total-elevation-gain="segment.totalElevationGain"
-                  :total-elevation-loss="segment.totalElevationLoss"
-                  :max-elevation="segment.maxElevation"
-                  :min-elevation="segment.minElevation"
-                  :edge-segments="segment.edgeSegments"
-                  :mode="segment.mode"
-                  class="mb-3"
-                  @update:route-profile="onRouteProfileChange"
-                />
-
-                <!-- Instructions List - Left aligned under the icon -->
-                <div class="flex">
-                  <div class="flex-1">
-                    <!-- Instructions List -->
-                    <div v-if="segment.instructions?.length">
-                      <div
-                        v-for="(
-                          instruction, instrIndex
-                        ) in segment.instructions"
-                        :key="instrIndex"
-                        class="flex items-center text-sm hover:bg-muted/50 rounded-lg p-2 pl-0 transition-colors cursor-pointer"
-                        :class="{
-                          'bg-muted':
-                            hoveredInstructionKey ===
-                            getInstructionKey(index, instrIndex),
-                        }"
-                        @mouseenter="
-                          onInstructionHover(index, instrIndex, instruction)
-                        "
-                        @mouseleave="onInstructionLeave"
-                      >
-                        <div
-                          class="shrink-0 w-6 h-6 mr-2 rounded-full flex items-center justify-center text-xs font-medium"
-                        >
-                          {{ instrIndex + 1 }}
-                        </div>
-                        <div class="flex-1">
-                          <P class="text-sm text-foreground leading-relaxed">
-                            {{
-                              typeof instruction === 'string'
-                                ? instruction
-                                : instruction.text
-                            }}
-                          </P>
-                          <!-- Additional instruction details for full RouteInstruction objects -->
-                          <div
-                            v-if="
-                              typeof instruction === 'object' &&
-                              (instruction.distance || instruction.streetName)
-                            "
-                            class="flex items-center gap-3 mt-1 text-xs text-muted-foreground"
-                          >
-                            <span
-                              v-if="instruction.streetName"
-                              class="font-medium"
-                            >
-                              {{ instruction.streetName }}
-                            </span>
-                            <span
-                              v-if="instruction.distance"
-                              class="flex items-center gap-1"
-                            >
-                              <span>{{
-                                formatDistanceDisplay(instruction.distance)
-                              }}</span>
-                            </span>
-                            <span
-                              v-if="instruction.duration"
-                              class="flex items-center gap-1"
-                            >
-                              <span>{{
-                                formatDuration(instruction.duration)
-                              }}</span>
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- No instructions message -->
-                    <div v-else class="text-sm text-muted-foreground italic">
-                      No detailed instructions available for this segment.
+                  @mouseleave="onInstructionLeave"
+                >
+                  <div
+                    class="shrink-0 size-6 rounded-full flex items-center justify-center text-xs font-medium text-muted-foreground"
+                  >
+                    {{ instrIndex + 1 }}
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <P class="text-sm text-foreground leading-snug">
+                      {{
+                        typeof instruction === 'string'
+                          ? instruction
+                          : instruction.text
+                      }}
+                    </P>
+                    <div
+                      v-if="
+                        typeof instruction === 'object' &&
+                        (instruction.distance || instruction.streetName)
+                      "
+                      class="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground"
+                    >
+                      <span v-if="instruction.streetName" class="font-medium">
+                        {{ instruction.streetName }}
+                      </span>
+                      <span v-if="instruction.distance">
+                        {{ formatDistanceDisplay(instruction.distance) }}
+                      </span>
+                      <span v-if="instruction.duration">
+                        {{ formatDuration(instruction.duration) }}
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
-
-              <!-- Separator between segments (except last one) -->
-              <Separator v-if="index < trip.segments.length - 1" class="my-6" />
+              <!-- Fade gradient mask over the bottom of the preview when collapsed -->
+              <div
+                v-if="!open && segment.instructions.length > PREVIEW_COUNT"
+                class="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-card to-transparent"
+              />
             </div>
+
+            <!-- Remaining steps (collapsible) -->
+            <CollapsibleContent
+              v-if="segment.instructions.length > PREVIEW_COUNT"
+            >
+              <div class="space-y-0.5 pt-0.5">
+                <div
+                  v-for="(instruction, i) in segment.instructions.slice(
+                    PREVIEW_COUNT,
+                  )"
+                  :key="i + PREVIEW_COUNT"
+                  class="flex items-start gap-3 rounded-lg p-2 -mx-2 transition-colors cursor-pointer"
+                  :class="{
+                    'bg-muted':
+                      hoveredInstructionKey ===
+                      getInstructionKey(index, i + PREVIEW_COUNT),
+                    'hover:bg-muted/50':
+                      hoveredInstructionKey !==
+                      getInstructionKey(index, i + PREVIEW_COUNT),
+                  }"
+                  @mouseenter="
+                    onInstructionHover(index, i + PREVIEW_COUNT, instruction)
+                  "
+                  @mouseleave="onInstructionLeave"
+                >
+                  <div
+                    class="shrink-0 size-6 rounded-full flex items-center justify-center text-xs font-medium text-muted-foreground"
+                  >
+                    {{ i + PREVIEW_COUNT + 1 }}
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <P class="text-sm text-foreground leading-snug">
+                      {{
+                        typeof instruction === 'string'
+                          ? instruction
+                          : instruction.text
+                      }}
+                    </P>
+                    <div
+                      v-if="
+                        typeof instruction === 'object' &&
+                        (instruction.distance || instruction.streetName)
+                      "
+                      class="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground"
+                    >
+                      <span v-if="instruction.streetName" class="font-medium">
+                        {{ instruction.streetName }}
+                      </span>
+                      <span v-if="instruction.distance">
+                        {{ formatDistanceDisplay(instruction.distance) }}
+                      </span>
+                      <span v-if="instruction.duration">
+                        {{ formatDuration(instruction.duration) }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CollapsibleContent>
+
+            <!-- Show more / less trigger -->
+            <CollapsibleTrigger
+              v-if="segment.instructions.length > PREVIEW_COUNT"
+              as-child
+            >
+              <Button
+                variant="ghost"
+                size="sm"
+                class="w-full mt-1 text-primary hover:text-primary h-8"
+              >
+                {{
+                  open
+                    ? 'Show less'
+                    : `Show ${segment.instructions.length - PREVIEW_COUNT} more`
+                }}
+                <ChevronDownIcon
+                  class="size-4 ml-1 transition-transform"
+                  :class="{ 'rotate-180': open }"
+                />
+              </Button>
+            </CollapsibleTrigger>
+          </Collapsible>
+
+          <!-- No instructions message -->
+          <div v-else class="text-sm text-muted-foreground italic">
+            No detailed instructions available for this segment.
           </div>
-        </CardContent>
-      </Card>
+        </Card>
+      </div>
     </div>
 
     <!-- No Trip Found -->

@@ -9,6 +9,7 @@ import { TripsResponse, WaypointType } from '@/types/directions.types'
 import { LngLat } from 'mapbox-gl'
 import type { Place } from '@/types/place.types'
 import { useGeocodingService } from './geocoding.service'
+import { getSearchResultName } from '@/lib/search.utils'
 
 const MIN_WAYPOINTS = 2
 
@@ -82,7 +83,9 @@ function directionsService() {
           )
         : []
 
-      // Build API request
+      // Build API request. Use getSearchResultName so reverse-geocoded
+      // map-clicks (which often have no place.name but do have an address)
+      // still produce a useful label — same helper the waypoint input uses.
       const request = {
         waypoints: validWaypoints.map((wp, i) => ({
           location: { lat: wp.lngLat!.lat, lng: wp.lngLat!.lng },
@@ -92,7 +95,7 @@ function directionsService() {
               : i === validWaypoints.length - 1
                 ? 'destination'
                 : 'via',
-          label: wp.place?.name?.value || '',
+          label: wp.place ? getSearchResultName(wp.place as Place) : '',
         })),
         selectedMode: selectedMode.value,
         availableVehicles,
@@ -112,7 +115,7 @@ function directionsService() {
               i === 0 || i === validWaypoints.length - 1
                 ? WaypointType.STOP
                 : WaypointType.VIA,
-            name: wp.place?.name?.value || '',
+            name: wp.place ? getSearchResultName(wp.place as Place) : '',
           })),
           availableVehicles: availableVehicles.map(v => v.type),
           maxOptions: 5,

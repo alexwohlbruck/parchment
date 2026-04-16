@@ -2,7 +2,19 @@
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import * as turf from '@turf/turf'
 import { useUnits } from '@/composables/useUnits'
-import { Card, CardContent } from '@/components/ui/card'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Button } from '@/components/ui/button'
+import {
+  ChevronDownIcon,
+  ArrowUpRightIcon,
+  ArrowDownRightIcon,
+} from 'lucide-vue-next'
 import type { RouteEdgeSegment, TravelMode } from '@/types/directions.types'
 import {
   type RouteProfileType,
@@ -12,19 +24,22 @@ import {
 } from '@/lib/route-profile-colors'
 
 interface Props {
+  /** Index of this segment within the trip — used to scope map updates */
+  segmentIndex: number
   geometry: Array<{ lat: number; lng: number; elevation?: number }>
-  totalElevationGain?: number
-  totalElevationLoss?: number
   maxElevation?: number
   minElevation?: number
   edgeSegments?: RouteEdgeSegment[]
   /** Travel mode — controls which profile tabs are shown */
   mode?: TravelMode | string
+  /** Shown inline with the summary title */
+  totalElevationGain?: number
+  totalElevationLoss?: number
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<{
-  (e: 'update:routeProfile', profile: RouteProfileType | null): void
+  (e: 'update:routeProfile', segmentIndex: number, profile: RouteProfileType | null): void
 }>()
 const { formatDistance, formatElevation } = useUnits()
 
@@ -40,9 +55,9 @@ const visibleTabs = computed(() => {
 /** Pick the best default tab for the current mode */
 function defaultProfileForMode(mode?: string): RouteProfileType {
   const available = visibleTabs.value.map(t => t.id)
-  // Cycling → stress first; others → first available (road type)
+  // Cycling → stress first; others → first available (surface)
   if (mode === 'cycling' && available.includes('stress')) return 'stress'
-  return available[0] || 'types'
+  return available[0] || 'surface'
 }
 
 const activeProfile = ref<RouteProfileType>(defaultProfileForMode(props.mode))
@@ -55,10 +70,16 @@ watch(() => props.mode, (mode) => {
   }
 })
 
-// Emit profile changes to parent (for map coloring sync)
+// Emit profile changes to parent (for map coloring sync).
+// Scoped to this segment so multi-segment trips don't stomp each other.
 watch(activeProfile, (profile) => {
-  emit('update:routeProfile', profile)
+  emit('update:routeProfile', props.segmentIndex, profile)
 }, { immediate: true })
+
+// Label of the currently-active profile tab (for the dropdown trigger)
+const activeLabel = computed(
+  () => visibleTabs.value.find(t => t.id === activeProfile.value)?.label ?? '',
+)
 
 // ── Chart data ──────────────────────────────────────────────────────
 
@@ -387,11 +408,8 @@ function summarize(stats: StatItem[], mixedLabel: string): string {
 
 const MIXED_LABELS: Record<RouteProfileType, string> = {
   surface: 'Mixed surfaces',
-  types: 'Mixed types',
   incline: 'Varied terrain',
-  bike_network: 'Mixed networks',
-  stress: 'Mixed stress',
-  speed: 'Mixed speeds',
+  stress: 'Mixed friendliness',
 }
 
 const activeSummary = computed(() =>
@@ -400,46 +418,33 @@ const activeSummary = computed(() =>
 </script>
 
 <template>
-  <Card v-if="showChart" class="overflow-hidden">
-    <CardContent class="p-0">
-      <!-- Header: elevation stats -->
-      <div
-        v-if="hasElevationData || hasEdgeData"
-        class="px-4 pt-2.5 pb-1"
-      >
-        <div class="flex items-center gap-4 text-sm">
-          <div v-if="totalElevationGain" class="flex items-center gap-1.5">
-            <span class="text-muted-foreground">&nearr;</span>
-            <span class="font-medium">{{ formatElevation(totalElevationGain) }}</span>
-          </div>
-          <div v-if="totalElevationLoss" class="flex items-center gap-1.5">
-            <span class="text-muted-foreground">&searr;</span>
-            <span class="font-medium">{{ formatElevation(totalElevationLoss) }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Profile tabs (own row, scrollable) -->
-      <div v-if="hasEdgeData && visibleTabs.length > 1" class="px-4 pb-2">
-        <div class="flex items-center gap-0.5 bg-muted rounded-md p-0.5 w-fit max-w-full overflow-x-auto">
-          <button
-            v-for="tab in visibleTabs"
-            :key="tab.id"
-            class="px-2.5 py-1 text-[11px] font-medium rounded transition-colors whitespace-nowrap"
-            :class="activeProfile === tab.id
-              ? 'bg-background shadow-sm text-foreground'
-              : 'text-muted-foreground hover:text-foreground'"
-            @click="activeProfile = tab.id"
+  <div v-if="showChart" class="space-y-2">
+    <!-- Summary header: title + elevation chips + (optional) profile dropdown -->
+    <div
+      v-if="hasEdgeData || totalElevationGain || totalElevationLoss"
+      class="flex items-start justify-between gap-3"
+    >
+      <div class="min-w-0 flex-1">
+        <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+          <p v-if="hasEdgeData" class="text-sm font-medium text-foreground">
+            {{ activeSummary }}
+          </p>
+          <span
+            v-if="totalElevationGain"
+            class="inline-flex items-baseline gap-0.5 text-xs text-muted-foreground"
           >
-            {{ tab.label }}
-          </button>
+            <ArrowUpRightIcon class="size-3 self-center" />
+            {{ formatElevation(totalElevationGain) }}
+          </span>
+          <span
+            v-if="totalElevationLoss"
+            class="inline-flex items-baseline gap-0.5 text-xs text-muted-foreground"
+          >
+            <ArrowDownRightIcon class="size-3 self-center" />
+            {{ formatElevation(totalElevationLoss) }}
+          </span>
         </div>
-      </div>
-
-      <!-- Summary stats (above chart) -->
-      <div v-if="hasEdgeData" class="px-4 pb-2 pt-0.5">
-        <p class="text-xs font-medium text-foreground mb-1.5">{{ activeSummary }}</p>
-        <div class="flex flex-wrap gap-x-4 gap-y-1">
+        <div v-if="hasEdgeData" class="mt-1 flex flex-wrap gap-x-3 gap-y-1">
           <div
             v-for="stat in activeStats"
             :key="stat.key"
@@ -455,79 +460,96 @@ const activeSummary = computed(() =>
           </div>
         </div>
       </div>
+      <DropdownMenu v-if="hasEdgeData && visibleTabs.length > 1">
+        <DropdownMenuTrigger as-child>
+          <Button variant="outline" size="sm" class="shrink-0 h-7 px-2.5 text-xs">
+            {{ activeLabel }}
+            <ChevronDownIcon class="size-3.5 ml-1 -mr-0.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" class="w-44">
+          <DropdownMenuRadioGroup v-model="activeProfile">
+            <DropdownMenuRadioItem
+              v-for="tab in visibleTabs"
+              :key="tab.id"
+              :value="tab.id"
+            >
+              {{ tab.label }}
+            </DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
 
-      <!-- Chart area -->
-      <div
-        v-if="hasElevationData"
-        ref="chartContainerRef"
-        class="relative cursor-crosshair select-none"
-        @mousemove="onMouseMove"
-        @mouseleave="onMouseLeave"
+    <!-- Chart area -->
+    <div
+      v-if="hasElevationData"
+      ref="chartContainerRef"
+      class="relative cursor-crosshair select-none rounded-lg bg-muted/30 overflow-hidden"
+      @mousemove="onMouseMove"
+      @mouseleave="onMouseLeave"
+    >
+      <!-- SVG chart -->
+      <svg
+        :width="containerWidth"
+        :height="CHART_HEIGHT"
+        class="w-full block"
+        :viewBox="`0 0 ${containerWidth} ${CHART_HEIGHT}`"
+        preserveAspectRatio="none"
       >
-        <!-- SVG chart -->
-        <svg
-          :width="containerWidth"
-          :height="CHART_HEIGHT"
-          class="w-full block"
-          :viewBox="`0 0 ${containerWidth} ${CHART_HEIGHT}`"
-          preserveAspectRatio="none"
-        >
-          <!-- Colored fill areas -->
-          <path
-            v-for="(seg, i) in coloredPaths"
-            :key="'fill-' + i + '-' + activeProfile"
-            :d="seg.fillD"
-            :fill="seg.color"
-            opacity="0.12"
-          />
-          <!-- Colored line segments -->
-          <path
-            v-for="(seg, i) in coloredPaths"
-            :key="'line-' + i + '-' + activeProfile"
-            :d="seg.d"
-            :stroke="seg.color"
-            stroke-width="2.5"
-            fill="none"
-            stroke-linejoin="round"
-            stroke-linecap="round"
-            vector-effect="non-scaling-stroke"
-          />
-        </svg>
-
-        <!-- Floating Y-axis label -->
-        <div class="absolute left-2 top-2 z-20 pointer-events-none">
-          <div
-            v-if="maxElevation !== undefined"
-            class="px-2 py-0.5 bg-background/90 backdrop-blur-sm rounded-full text-[10px] text-foreground font-medium shadow-sm border"
-          >
-            {{ formatElevation(maxElevation) }}
-          </div>
-        </div>
-
-        <!-- Floating X-axis labels -->
-        <div class="absolute bottom-1.5 left-2 right-2 flex justify-between pointer-events-none z-20">
-          <div class="px-2 py-0.5 bg-background/90 backdrop-blur-sm rounded-full text-[10px] text-foreground font-medium shadow-sm border">
-            0
-          </div>
-          <div
-            v-if="totalDistance > 0"
-            class="px-2 py-0.5 bg-background/90 backdrop-blur-sm rounded-full text-[10px] text-foreground font-medium shadow-sm border"
-          >
-            {{ formatDistance(totalDistance) }}
-          </div>
-        </div>
-
-        <!-- Crosshair line -->
-        <div
-          v-if="mouseX !== null"
-          class="absolute top-0 bottom-0 w-px bg-foreground/25 pointer-events-none z-10"
-          :style="{ left: mouseX + 'px' }"
+        <!-- Colored fill areas -->
+        <path
+          v-for="(seg, i) in coloredPaths"
+          :key="'fill-' + i + '-' + activeProfile"
+          :d="seg.fillD"
+          :fill="seg.color"
+          opacity="0.12"
         />
+        <!-- Colored line segments -->
+        <path
+          v-for="(seg, i) in coloredPaths"
+          :key="'line-' + i + '-' + activeProfile"
+          :d="seg.d"
+          :stroke="seg.color"
+          stroke-width="2.5"
+          fill="none"
+          stroke-linejoin="round"
+          stroke-linecap="round"
+          vector-effect="non-scaling-stroke"
+        />
+      </svg>
 
+      <!-- Floating Y-axis label -->
+      <div class="absolute left-2 top-2 z-20 pointer-events-none">
+        <div
+          v-if="maxElevation !== undefined"
+          class="px-2 py-0.5 bg-background/90 backdrop-blur-sm rounded-full text-[10px] text-foreground font-medium shadow-sm border"
+        >
+          {{ formatElevation(maxElevation) }}
+        </div>
       </div>
 
-    </CardContent>
-  </Card>
+      <!-- Floating X-axis labels -->
+      <div class="absolute bottom-1.5 left-2 right-2 flex justify-between pointer-events-none z-20">
+        <div class="px-2 py-0.5 bg-background/90 backdrop-blur-sm rounded-full text-[10px] text-foreground font-medium shadow-sm border">
+          0
+        </div>
+        <div
+          v-if="totalDistance > 0"
+          class="px-2 py-0.5 bg-background/90 backdrop-blur-sm rounded-full text-[10px] text-foreground font-medium shadow-sm border"
+        >
+          {{ formatDistance(totalDistance) }}
+        </div>
+      </div>
+
+      <!-- Crosshair line -->
+      <div
+        v-if="mouseX !== null"
+        class="absolute top-0 bottom-0 w-px bg-foreground/25 pointer-events-none z-10"
+        :style="{ left: mouseX + 'px' }"
+      />
+    </div>
+  </div>
 
   <!-- Tooltip teleported to body so it's never clipped by parent overflow -->
   <Teleport to="body">

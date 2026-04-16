@@ -688,6 +688,7 @@ export class BarrelmanIntegration
         'surface', 'road_class', 'road_environment', 'road_access',
         'bike_network', 'get_off_bike', 'smoothness', 'track_type',
         'average_slope', 'max_slope', 'average_speed', 'max_speed',
+        'bike_priority',
       ],
     }
 

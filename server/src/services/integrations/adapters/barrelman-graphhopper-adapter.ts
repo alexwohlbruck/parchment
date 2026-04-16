@@ -84,6 +84,8 @@ export class BarrelmanGraphHopperAdapter {
         maxSlope: seg.maxSlope,
         averageSpeed: seg.averageSpeed,
         speedLimit: seg.speedLimit,
+        bikePriority: seg.bikePriority,
+        crossing: seg.crossing,
       }))
 
     const bbox = path.bbox || [0, 0, 0, 0]

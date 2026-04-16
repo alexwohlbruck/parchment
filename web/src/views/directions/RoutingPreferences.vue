@@ -31,33 +31,52 @@ import type {
   SelectedMode,
 } from '@/types/multimodal.types'
 import { useIntegrationsStore } from '@/stores/integrations.store'
+import {
+  useDirectionsStore,
+  GENERAL_KEY_SET,
+  type ModeKey,
+} from '@/stores/directions.store'
+import { storeToRefs } from 'pinia'
 import { useUnits } from '@/composables/useUnits'
 
 const { t } = useI18n()
 const { isMetric, convert } = useUnits()
 
 const props = defineProps<{
-  modelValue: RoutingPreferences
   selectedMode: SelectedMode
 }>()
 
 const emit = defineEmits<{
-  'update:modelValue': [value: RoutingPreferences]
   close: []
 }>()
 
-const preferences = computed({
-  get: () => props.modelValue,
-  set: value => emit('update:modelValue', value),
+// Preferences are stored as a split structure: general (shared across modes)
+// + per-mode slices. The active tab determines which slice gets written to
+// when the user adjusts a mode-specific preference.
+const directionsStore = useDirectionsStore()
+const { generalPreferences, modePreferences } = storeToRefs(directionsStore)
+
+/**
+ * Merged read view for the current tab: general prefs overlaid with the
+ * active mode's slice. This preserves the existing template bindings that
+ * read `preferences.<key>`.
+ */
+const preferences = computed<Partial<RoutingPreferences>>(() => {
+  const mode = activeTab.value as ModeKey
+  return {
+    ...generalPreferences.value,
+    ...(modePreferences.value[mode] || {}),
+  }
 })
 
 function updatePreference<K extends keyof RoutingPreferences>(
   key: K,
   value: RoutingPreferences[K],
 ) {
-  preferences.value = {
-    ...preferences.value,
-    [key]: value,
+  if (GENERAL_KEY_SET.has(key as string)) {
+    directionsStore.setGeneralPreference(key, value)
+  } else {
+    directionsStore.setModePreference(activeTab.value as ModeKey, key, value)
   }
 }
 
@@ -132,7 +151,7 @@ type StopLabels = [string, string, string, string, string]
 
 const stopLabels: Record<string, StopLabels> = {
   safetyVsSpeed: ['Safest', 'Safer', 'Balanced', 'Faster', 'Fastest'],
-  hills: ['Avoid', 'Prefer flat', 'Neutral', 'Some OK', 'Prefer hills'],
+  hills: ['Avoid', 'Prefer flat', 'Neutral', 'Some OK', "Don't mind hills"],
   ferries: ['Avoid', 'Prefer not', 'Neutral', 'OK', 'Prefer'],
   surfaceQuality: [
     'Any surface',
@@ -361,6 +380,25 @@ const customModelError = computed(() => {
           />
         </div>
       </div>
+
+      <!-- Ferries (applies to all modes) -->
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <Label class="text-sm font-normal">Ferries</Label>
+          <span class="text-xs text-muted-foreground">{{
+            getHintLabel('ferries', preferences.ferries ?? 0.5)
+          }}</span>
+        </div>
+        <Slider
+          :model-value="[preferences.ferries ?? 0.5]"
+          :min="0"
+          :max="1"
+          :step="0.01"
+          @update:model-value="
+            val => val && updatePreference('ferries', val[0])
+          "
+        />
+      </div>
     </div>
 
     <Separator />
@@ -455,36 +493,6 @@ const customModelError = computed(() => {
           </div>
         </div>
 
-        <!-- Ferries -->
-        <div v-if="isSupported('ferries')">
-          <template v-if="isRange('ferries')">
-            <div class="flex items-center justify-between mb-2">
-              <Label class="text-sm font-normal">Ferries</Label>
-              <span class="text-xs text-muted-foreground">{{
-                getHintLabel('ferries', preferences.ferries ?? 0.5)
-              }}</span>
-            </div>
-            <Slider
-              :model-value="[preferences.ferries ?? 0.5]"
-              :min="0"
-              :max="1"
-              :step="0.01"
-              @update:model-value="
-                val => val && updatePreference('ferries', val[0])
-              "
-            />
-          </template>
-          <div v-else class="flex items-center justify-between">
-            <Label class="text-sm font-normal">Avoid ferries</Label>
-            <Switch
-              :model-value="(preferences.ferries ?? 0.5) < 0.5"
-              @update:model-value="
-                val => updatePreference('ferries', val ? 0 : 0.5)
-              "
-            />
-          </div>
-        </div>
-
         <!-- Walking Speed -->
         <div v-if="isSupported('walkingSpeed')" class="space-y-2">
           <div class="flex items-center justify-between">
@@ -519,6 +527,29 @@ const customModelError = computed(() => {
 
       <!-- ═══════════════════ Cycling ═══════════════════ -->
       <TabsContent value="biking" class="py-4 px-2 space-y-5 mt-0">
+        <!-- Bicycle Type -->
+        <div
+          v-if="isSupported('bicycleType')"
+          class="flex items-center justify-between"
+        >
+          <Label class="text-sm font-normal">Bicycle type</Label>
+          <Select
+            :model-value="preferences.bicycleType || 'City'"
+            @update:model-value="
+              val => updatePreference('bicycleType', val as string)
+            "
+          >
+            <SelectTrigger class="h-8 w-[120px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Road" class="text-xs">Road</SelectItem>
+              <SelectItem value="City" class="text-xs">City</SelectItem>
+              <SelectItem value="Mountain" class="text-xs">Mountain</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         <!-- Safety vs Speed -->
         <div v-if="isSupported('safetyVsSpeed')">
           <template v-if="isRange('safetyVsSpeed')">
@@ -609,61 +640,6 @@ const customModelError = computed(() => {
           </div>
         </div>
 
-        <!-- Ferries -->
-        <div v-if="isSupported('ferries')">
-          <template v-if="isRange('ferries')">
-            <div class="flex items-center justify-between mb-2">
-              <Label class="text-sm font-normal">Ferries</Label>
-              <span class="text-xs text-muted-foreground">{{
-                getHintLabel('ferries', preferences.ferries ?? 0.5)
-              }}</span>
-            </div>
-            <Slider
-              :model-value="[preferences.ferries ?? 0.5]"
-              :min="0"
-              :max="1"
-              :step="0.01"
-              @update:model-value="
-                val => val && updatePreference('ferries', val[0])
-              "
-            />
-          </template>
-          <div v-else class="flex items-center justify-between">
-            <Label class="text-sm font-normal">Avoid ferries</Label>
-            <Switch
-              :model-value="(preferences.ferries ?? 0.5) < 0.5"
-              @update:model-value="
-                val => updatePreference('ferries', val ? 0 : 0.5)
-              "
-            />
-          </div>
-        </div>
-
-        <!-- Bicycle Type -->
-        <div
-          v-if="isSupported('bicycleType')"
-          class="flex items-center justify-between"
-        >
-          <Label class="text-sm font-normal">Bicycle type</Label>
-          <Select
-            :model-value="preferences.bicycleType || 'Hybrid'"
-            @update:model-value="
-              val => updatePreference('bicycleType', val as string)
-            "
-          >
-            <SelectTrigger class="h-8 w-[120px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Road" class="text-xs">Road</SelectItem>
-              <SelectItem value="Hybrid" class="text-xs">Hybrid</SelectItem>
-              <SelectItem value="City" class="text-xs">City</SelectItem>
-              <SelectItem value="Cross" class="text-xs">Cross</SelectItem>
-              <SelectItem value="Mountain" class="text-xs">Mountain</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
         <!-- Cycling Speed -->
         <div v-if="isSupported('cyclingSpeed')" class="space-y-2">
           <div class="flex items-center justify-between">
@@ -715,19 +691,6 @@ const customModelError = computed(() => {
               val => updatePreference('maxTransfers', Number(val))
             "
           />
-        </div>
-
-        <!-- Ferries -->
-        <div v-if="isSupported('ferries')">
-          <div class="flex items-center justify-between">
-            <Label class="text-sm font-normal">Avoid ferries</Label>
-            <Switch
-              :model-value="(preferences.ferries ?? 0.5) < 0.5"
-              @update:model-value="
-                val => updatePreference('ferries', val ? 0 : 0.5)
-              "
-            />
-          </div>
         </div>
 
         <div
@@ -806,36 +769,6 @@ const customModelError = computed(() => {
           </div>
         </div>
 
-        <!-- Ferries -->
-        <div v-if="isSupported('ferries')">
-          <template v-if="isRange('ferries')">
-            <div class="flex items-center justify-between mb-2">
-              <Label class="text-sm font-normal">Ferries</Label>
-              <span class="text-xs text-muted-foreground">{{
-                getHintLabel('ferries', preferences.ferries ?? 0.5)
-              }}</span>
-            </div>
-            <Slider
-              :model-value="[preferences.ferries ?? 0.5]"
-              :min="0"
-              :max="1"
-              :step="0.01"
-              @update:model-value="
-                val => val && updatePreference('ferries', val[0])
-              "
-            />
-          </template>
-          <div v-else class="flex items-center justify-between">
-            <Label class="text-sm font-normal">Avoid ferries</Label>
-            <Switch
-              :model-value="(preferences.ferries ?? 0.5) < 0.5"
-              @update:model-value="
-                val => updatePreference('ferries', val ? 0 : 0.5)
-              "
-            />
-          </div>
-        </div>
-
         <!-- HOV -->
         <div
           v-if="isSupported('preferHOV')"
@@ -857,11 +790,11 @@ const customModelError = computed(() => {
             <div class="flex items-center justify-between mb-2">
               <Label class="text-sm font-normal">Hills</Label>
               <span class="text-xs text-muted-foreground">{{
-                getHintLabel('hills', preferences.hills ?? 0)
+                getHintLabel('hills', preferences.hills ?? 0.5)
               }}</span>
             </div>
             <Slider
-              :model-value="[preferences.hills ?? 0]"
+              :model-value="[preferences.hills ?? 0.5]"
               :min="0"
               :max="1"
               :step="0.01"
@@ -873,7 +806,7 @@ const customModelError = computed(() => {
           <div v-else class="flex items-center justify-between">
             <Label class="text-sm font-normal">Avoid hills</Label>
             <Switch
-              :model-value="(preferences.hills ?? 0) < 0.5"
+              :model-value="(preferences.hills ?? 0.5) < 0.5"
               @update:model-value="
                 val => updatePreference('hills', val ? 0 : 0.5)
               "
@@ -889,12 +822,12 @@ const customModelError = computed(() => {
               <span class="text-xs text-muted-foreground">{{
                 getHintLabel(
                   'surfaceQuality',
-                  preferences.surfaceQuality ?? 0.75,
+                  preferences.surfaceQuality ?? 0.25,
                 )
               }}</span>
             </div>
             <Slider
-              :model-value="[preferences.surfaceQuality ?? 0.75]"
+              :model-value="[preferences.surfaceQuality ?? 0.25]"
               :min="0"
               :max="1"
               :step="0.01"
@@ -906,39 +839,9 @@ const customModelError = computed(() => {
           <div v-else class="flex items-center justify-between">
             <Label class="text-sm font-normal">Prefer paved paths</Label>
             <Switch
-              :model-value="(preferences.surfaceQuality ?? 0.75) > 0.5"
+              :model-value="(preferences.surfaceQuality ?? 0.25) > 0.5"
               @update:model-value="
                 val => updatePreference('surfaceQuality', val ? 1 : 0.25)
-              "
-            />
-          </div>
-        </div>
-
-        <!-- Ferries -->
-        <div v-if="isSupported('ferries')">
-          <template v-if="isRange('ferries')">
-            <div class="flex items-center justify-between mb-2">
-              <Label class="text-sm font-normal">Ferries</Label>
-              <span class="text-xs text-muted-foreground">{{
-                getHintLabel('ferries', preferences.ferries ?? 0.5)
-              }}</span>
-            </div>
-            <Slider
-              :model-value="[preferences.ferries ?? 0.5]"
-              :min="0"
-              :max="1"
-              :step="0.01"
-              @update:model-value="
-                val => val && updatePreference('ferries', val[0])
-              "
-            />
-          </template>
-          <div v-else class="flex items-center justify-between">
-            <Label class="text-sm font-normal">Avoid ferries</Label>
-            <Switch
-              :model-value="(preferences.ferries ?? 0.5) < 0.5"
-              @update:model-value="
-                val => updatePreference('ferries', val ? 0 : 0.5)
               "
             />
           </div>

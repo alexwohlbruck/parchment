@@ -165,32 +165,67 @@ export class MapLayerGroup {
 export class TripGroup extends MapLayerGroup {
   trip: Trip
   private sources: Set<string> = new Set() // Track all sources created by this group
-  private _routeProfile: RouteProfileType | null = null
+  private _routeProfiles: Map<number, RouteProfileType | null> = new Map()
 
   constructor(map: MapStrategy, trip: Trip, routeProfile?: RouteProfileType | null) {
     super(map, `trip-${trip.id}`)
     this.trip = trip
-    this._routeProfile = routeProfile ?? null
+    if (routeProfile != null) {
+      trip.segments.forEach((_, i) => this._routeProfiles.set(i, routeProfile))
+    }
     this.cleanupExistingResources() // Ensure no remnants exist before building
     this.build()
   }
 
   /**
-   * Get the current route profile coloring mode
+   * Get the route profile for a specific segment
    */
-  get routeProfile(): RouteProfileType | null {
-    return this._routeProfile
+  getSegmentRouteProfile(segmentIndex: number): RouteProfileType | null {
+    return this._routeProfiles.get(segmentIndex) ?? null
   }
 
   /**
-   * Update route profile coloring and rebuild layers
+   * Set the route profile for a single segment and rebuild only that segment's layers.
+   */
+  setSegmentRouteProfile(segmentIndex: number, profile: RouteProfileType | null): void {
+    const current = this._routeProfiles.get(segmentIndex) ?? null
+    if (current === profile) return
+    this._routeProfiles.set(segmentIndex, profile)
+    this._rebuildSegment(segmentIndex)
+  }
+
+  /**
+   * Trip-wide convenience: apply the same profile (or null) to every segment.
    */
   setRouteProfile(profile: RouteProfileType | null): void {
-    if (this._routeProfile === profile) return
-    this._routeProfile = profile
-    this.destroy()
-    this.cleanupExistingResources()
-    this.build()
+    this.trip.segments.forEach((_, i) => this.setSegmentRouteProfile(i, profile))
+  }
+
+  /**
+   * Tear down a single segment's layers + source and re-add with current profile.
+   * Uses this.removeLayer (which updates the group's internal layers Map),
+   * NOT this.map.removeLayer directly.
+   */
+  private _rebuildSegment(segmentIndex: number): void {
+    const segment = this.trip.segments[segmentIndex]
+    if (!segment?.geometry) return
+
+    const layerId = `${this.id}-segment-layer-${segmentIndex}`
+    const caseLayerId = `${this.id}-segment-case-layer-${segmentIndex}`
+    const sourceId = `${this.id}-segment-${segmentIndex}`
+
+    // Targeted teardown
+    this.removeLayer(layerId)
+    this.removeLayer(caseLayerId)
+    try {
+      this.map.removeSource(sourceId)
+    } catch (e) {
+      // Source might not exist yet — fine
+    }
+    this.sources.delete(sourceId)
+
+    // Rebuild using the new profile for this segment
+    this._addSegmentLayer(segment, segmentIndex)
   }
 
   /**
@@ -313,9 +348,11 @@ export class TripGroup extends MapLayerGroup {
   private _addSegmentLayer(segment: TripSegment, segmentIndex: number): void {
     if (!segment.geometry) return
 
+    const profile = this._routeProfiles.get(segmentIndex) ?? null
+
     // If route profile coloring is active and we have edge segments, render per-edge colored sub-layers
-    if (this._routeProfile && segment.edgeSegments && segment.edgeSegments.length > 0) {
-      this._addEdgeColoredLayers(segment, segmentIndex)
+    if (profile && segment.edgeSegments && segment.edgeSegments.length > 0) {
+      this._addEdgeColoredLayers(segment, segmentIndex, profile)
       return
     }
 
@@ -404,10 +441,13 @@ export class TripGroup extends MapLayerGroup {
    * Uses a single GeoJSON source with lineMetrics and a `step` expression
    * on `line-progress` — no gaps, no splitting into sub-layers.
    */
-  private _addEdgeColoredLayers(segment: TripSegment, segmentIndex: number): void {
+  private _addEdgeColoredLayers(
+    segment: TripSegment,
+    segmentIndex: number,
+    profile: RouteProfileType,
+  ): void {
     const geometry = segment.geometry!
     const edgeSegments = segment.edgeSegments!
-    const profile = this._routeProfile!
     const defaultColor = this._getSegmentColor(segment)
     const defaultCaseColor = this._getSegmentCaseColor(segment)
 

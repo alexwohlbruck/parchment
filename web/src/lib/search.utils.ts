@@ -91,15 +91,32 @@ export function getSearchResultName(place: Place): string {
     return place.name.value
   }
 
-  // For unnamed places, prefer the type label (e.g. "Drinking Water") over address
+  // For unnamed places, prefer the type label (e.g. "Drinking Water") over
+  // address — but skip geometry-type fallbacks like "Point" / "Area" /
+  // "Polygon" that some integrations (Overpass, Nominatim) emit when no
+  // real category is available. Those should fall through to the address.
   const type = place.placeType?.value
-  if (type && type !== 'place') {
+  if (type && !GENERIC_PLACE_TYPES.has(type)) {
     return type.charAt(0).toUpperCase() + type.slice(1)
   }
 
   // Last resort: formatted address
   return formatAddress(place)
 }
+
+// Pseudo-types that some reverse-geocoding integrations return when they
+// can't resolve a real category — treat these as "no useful type" so
+// display code falls through to the formatted address.
+const GENERIC_PLACE_TYPES = new Set([
+  'place',
+  'Point',
+  'LineString',
+  'Polygon',
+  'MultiPolygon',
+  'Line',
+  'Area',
+  'poi',
+])
 
 /**
  * Get the description for a search result

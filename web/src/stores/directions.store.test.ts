@@ -67,13 +67,42 @@ describe('useDirectionsStore', () => {
       expect(store.selectedMode).toBe('car')
     })
 
-    test('starts with default routing preferences', () => {
+    test('starts with default routing preferences for biking (default mode)', () => {
       const store = useDirectionsStore()
-      
+
+      // selectedMode defaults to 'multi', which resolves to biking's slice
+      // for the merged view
+      expect(store.routingPreferences.ferries).toBe(0.5)
+      expect(store.routingPreferences.hills).toBe(0.5)
+      expect(store.routingPreferences.useKnownVehicleLocations).toBe(true)
+    })
+
+    test('mode-scoped defaults differ per mode', () => {
+      const store = useDirectionsStore()
+
+      expect(store.modePreferences.walking.hills).toBe(0.5)
+      expect(store.modePreferences.biking.hills).toBe(0.5)
+      expect(store.modePreferences.wheelchair.hills).toBe(0)
+      expect(store.modePreferences.biking.surfaceQuality).toBe(0.25)
+      expect(store.modePreferences.wheelchair.surfaceQuality).toBe(0.75)
+      expect(store.modePreferences.driving.highways).toBe(0.5)
+      expect(store.modePreferences.transit.maxWalkingDistance).toBe(1000)
+    })
+
+    test('merged routingPreferences tracks selectedMode', () => {
+      const store = useDirectionsStore()
+
+      store.selectedMode = 'walking'
+      expect(store.routingPreferences.hills).toBe(0.5)
+      expect(store.routingPreferences.ferries).toBe(0.5)
+
+      store.selectedMode = 'wheelchair'
+      expect(store.routingPreferences.hills).toBe(0)
+      expect(store.routingPreferences.surfaceQuality).toBe(0.75)
+
+      store.selectedMode = 'driving'
       expect(store.routingPreferences.highways).toBe(0.5)
       expect(store.routingPreferences.tolls).toBe(0.5)
-      expect(store.routingPreferences.maxWalkingDistance).toBe(1000)
-      expect(store.routingPreferences.useKnownVehicleLocations).toBe(true)
     })
   })
 
@@ -239,19 +268,40 @@ describe('useDirectionsStore', () => {
     })
   })
 
-  describe('setRoutingPreferences', () => {
-    test('updates routing preferences', () => {
+  describe('setGeneralPreference', () => {
+    test('updates a general preference shared across all modes', () => {
       const store = useDirectionsStore()
-      const prefs = {
-        ...store.routingPreferences,
-        avoidHighways: true,
-        avoidTolls: true,
-      }
 
-      store.setRoutingPreferences(prefs)
+      store.setGeneralPreference('ferries', 0)
 
-      expect(store.routingPreferences.avoidHighways).toBe(true)
-      expect(store.routingPreferences.avoidTolls).toBe(true)
+      expect(store.generalPreferences.ferries).toBe(0)
+      // General prefs show up in the merged view regardless of mode
+      store.selectedMode = 'walking'
+      expect(store.routingPreferences.ferries).toBe(0)
+      store.selectedMode = 'driving'
+      expect(store.routingPreferences.ferries).toBe(0)
+    })
+  })
+
+  describe('setModePreference', () => {
+    test('updates a mode-scoped preference only on that mode', () => {
+      const store = useDirectionsStore()
+
+      store.setModePreference('walking', 'hills', 0)
+
+      expect(store.modePreferences.walking.hills).toBe(0)
+      // Biking should NOT be affected — modes are independent
+      expect(store.modePreferences.biking.hills).toBe(0.5)
+    })
+
+    test('walking and biking hills stay independent', () => {
+      const store = useDirectionsStore()
+
+      store.setModePreference('walking', 'hills', 0.2)
+      store.setModePreference('biking', 'hills', 0.8)
+
+      expect(store.modePreferences.walking.hills).toBe(0.2)
+      expect(store.modePreferences.biking.hills).toBe(0.8)
     })
   })
 
@@ -266,17 +316,52 @@ describe('useDirectionsStore', () => {
       expect(localStorageMock.getItem('selectedMode')).toBe('biking')
     })
 
-    test('saves routingPreferences to localStorage on change', async () => {
+    test('saves general preferences to localStorage on change', async () => {
       const store = useDirectionsStore()
 
-      store.routingPreferences.avoidHighways = true
+      store.setGeneralPreference('ferries', 0)
       await nextTick()
       await nextTick() // Wait for watcher to trigger
-      
+
       const stored = localStorageMock.getItem('routingPreferences')
       expect(stored).toBeTruthy()
       const parsed = JSON.parse(stored!)
-      expect(parsed.avoidHighways).toBe(true)
+      expect(parsed.general.ferries).toBe(0)
+    })
+
+    test('saves mode preferences to localStorage on change', async () => {
+      const store = useDirectionsStore()
+
+      store.setModePreference('biking', 'hills', 0.1)
+      await nextTick()
+      await nextTick()
+
+      const stored = localStorageMock.getItem('routingPreferences')
+      expect(stored).toBeTruthy()
+      const parsed = JSON.parse(stored!)
+      expect(parsed.mode.biking.hills).toBe(0.1)
+      // Walking slice unchanged
+      expect(parsed.mode.walking.hills).toBe(0.5)
+    })
+
+    test('migrates legacy flat format from localStorage', () => {
+      localStorageMock.setItem(
+        'routingPreferences',
+        JSON.stringify({
+          ferries: 0.25,
+          hills: 0.2,
+          highways: 0.75,
+        }),
+      )
+
+      const store = useDirectionsStore()
+
+      // General key lands in general
+      expect(store.generalPreferences.ferries).toBe(0.25)
+      // Non-general keys get applied to every mode (best-effort migration)
+      expect(store.modePreferences.walking.hills).toBe(0.2)
+      expect(store.modePreferences.biking.hills).toBe(0.2)
+      expect(store.modePreferences.driving.highways).toBe(0.75)
     })
   })
 })

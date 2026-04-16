@@ -86,7 +86,7 @@ export interface RoutingPreferences {
   // ── Numeric/enum preferences ──
   cyclingSpeed?: number   // kph (5-60)
   walkingSpeed?: number   // kph (0.5-10)
-  bicycleType?: 'Road' | 'Hybrid' | 'City' | 'Cross' | 'Mountain'
+  bicycleType?: 'Road' | 'City' | 'Mountain'
 
   // ── Transit ──
   maxWalkDistance?: number  // meters
@@ -172,6 +172,8 @@ export interface RouteEdgeSegment {
   averageSlope?: number     // signed decimal percent (positive = uphill)
   maxSlope?: number         // signed decimal percent
   averageSpeed?: number     // km/h — actual routing speed used
+  bikePriority?: number     // 0–1 — GraphHopper's bike-friendliness (higher = safer/friendlier)
+  crossing?: string         // GH Crossing EV: MISSING | TRAFFIC_SIGNALS | MARKED | UNMARKED | UNCONTROLLED | RAILWAY | RAILWAY_BARRIER
 
   // Legacy fields (Valhalla compat — will be removed)
   use?: string

@@ -828,6 +828,14 @@ export class MaplibreStrategy extends MapStrategy {
     }
   }
 
+  setRouteProfile(profile: import('@/lib/route-profile-colors').RouteProfileType | null) {
+    for (const [groupId, group] of this.layerGroups.entries()) {
+      if (groupId.startsWith('trip-') && group instanceof TripGroup) {
+        group.setRouteProfile(profile)
+      }
+    }
+  }
+
   private fitMapToTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
     const visibleTrips = trips.trips.filter(trip => visibleTripIds.has(trip.id))
     if (visibleTrips.length === 0) return

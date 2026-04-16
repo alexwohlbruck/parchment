@@ -347,7 +347,8 @@
       "walking": "Walking",
       "cycling": "Cycling",
       "transit": "Transit",
-      "driving": "Driving"
+      "driving": "Driving",
+      "wheelchair": "Wheelchair"
     },
     "preferences": {
       "general": "General Options",
@@ -355,6 +356,7 @@
       "cycling": "Cycling Options",
       "transit": "Transit Options",
       "driving": "Driving Options",
+      "wheelchair": "Wheelchair Options",
       "routingEngine": "Routing Engine",
       "useKnownVehicleLocations": "Use known vehicle locations",
       "useKnownParkingLocations": "Use known parking locations"

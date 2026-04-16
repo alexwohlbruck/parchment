@@ -14,11 +14,13 @@ import {
   RouteWaypoint,
   Route,
   RouteLeg,
+  RouteEdgeSegment,
   RouteInstruction,
   RouteSummary,
   Coordinate,
 } from '../../types/unified-routing.types'
 import { getLanguageCode } from '../../lib/i18n'
+import { buildGraphHopperCustomModel, getSnapPreventions } from '../../lib/graphhopper-custom-model'
 import type {
   GraphHopperConfig,
   GraphHopperRouteRequest,
@@ -64,27 +66,30 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
       getRoute: this.getRoute.bind(this),
       metadata: {
         supportedPreferences: {
-          // Auto/driving preferences
-          avoidHighways: true, // via custom_model (requires paid/self-hosted)
-          avoidTolls: true, // via custom_model (requires paid/self-hosted)
-          avoidFerries: true, // via snap_preventions (works in free tier)
-          avoidUnpaved: true, // via custom_model (requires paid/self-hosted)
-          preferHOV: false, // Not directly supported
+          // Range preferences (0-1 sliders) — require self-hosted or paid plan for custom_model
+          highways: 'range',
+          tolls: 'range',
+          ferries: 'range',
+          hills: 'range',
+          surfaceQuality: 'range',
+          litPaths: false,          // TODO: enable after graph cache rebuild with 'lit' encoded value
+          safetyVsSpeed: 'range',
 
-          // Bicycle preferences
-          avoidHills: true, // via custom_model (requires paid/self-hosted)
-          preferPavedPaths: true, // via custom_model (requires paid/self-hosted)
+          // Boolean preferences
+          shortest: 'boolean',
+          preferHOV: false,
+          wheelchairAccessible: false,
 
-          // Pedestrian preferences
-          preferLitPaths: false, // Not directly supported
-          wheelchairAccessible: false, // Not directly supported
-          maxWalkDistance: false, // Not applicable
+          // Numeric/enum preferences
+          cyclingSpeed: 'range',
+          walkingSpeed: 'range',
+          bicycleType: 'range',
 
-          // General preferences
-          safetyVsEfficiency: true, // via distance_influence in custom_model (requires paid/self-hosted)
-          maxTransfers: false, // Not applicable
+          // Transit
+          maxWalkDistance: false,
+          maxTransfers: false,
         },
-        supportedModes: ['driving', 'walking', 'cycling', 'motorcycle', 'truck'],
+        supportedModes: ['driving', 'walking', 'cycling', 'motorcycle', 'truck', 'wheelchair'],
         supportedOptimizations: ['time', 'distance', 'balanced'], // distance/balanced require paid/self-hosted
         features: {
           alternatives: true, // alternative_route algorithm (works in free tier)
@@ -147,32 +152,21 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
 
     try {
       const baseUrl = this.getBaseUrl(config)
-      const url = `${baseUrl}/route`
 
-      // Make a simple test request with two points
-      const testRequest: GraphHopperRouteRequest = {
-        profile: 'car',
-        points: [
-          [11.539421, 48.118477], // Munich example
-          [11.559023, 48.12228],
-        ],
-        instructions: false,
-        calc_points: false,
-      }
-
+      // Use /info endpoint for connection test — it works for both self-hosted
+      // (regional data) and GraphHopper API without needing valid coordinates.
+      const infoUrl = `${baseUrl}/info`
       const queryParams = new URLSearchParams()
       if (config.apiKey) {
         queryParams.append('key', config.apiKey)
       }
-
-      const requestUrl = `${url}${queryParams.toString() ? '?' + queryParams.toString() : ''}`
+      const requestUrl = `${infoUrl}${queryParams.toString() ? '?' + queryParams.toString() : ''}`
 
       const response = await fetch(requestUrl, {
-        method: 'POST',
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(testRequest),
       })
 
       if (!response.ok) {
@@ -194,9 +188,9 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
         }
       }
 
-      // Check if response contains GraphHopper-specific data
-      const data: GraphHopperRouteResponse = await response.json()
-      if (data && data.paths && data.paths.length > 0) {
+      // Check if response contains GraphHopper info data (version, profiles, bbox)
+      const data = await response.json() as Record<string, any>
+      if (data && data.version && data.profiles) {
         return { success: true }
       } else {
         return {
@@ -257,6 +251,7 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
       const url = `${baseUrl}/route`
 
       const locale = request.language ? getLanguageCode(request.language) : undefined
+      const snapPreventions = getSnapPreventions(request.mode)
       const requestBody: GraphHopperRouteRequest = {
         profile: this.mapTravelModeToProfile(request.mode),
         points: request.waypoints.map((waypoint) => [
@@ -267,7 +262,14 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
         calc_points: request.includeGeometry ?? true,
         points_encoded: false, // Use GeoJSON format for easier parsing
         elevation: true, // Enable elevation data
-        details: ['road_class', 'surface', 'toll', 'road_environment'], // Request useful path details
+        // Request useful path details. average_speed is the actual speed the
+        // router used for weighting (derived from OSM maxspeed tag or road-class
+        // default). max_speed is the OSM-tagged limit when present (often null
+        // for US urban roads). Both feed the frontend Speed chart.
+        details: ['road_class', 'surface', 'toll', 'road_environment', 'average_speed', 'max_speed'],
+        // Prevent origin/dest from snapping directly onto motorways, tunnels, etc.
+        // so the router joins them via proper on-/off-ramps.
+        ...(snapPreventions && { snap_preventions: snapPreventions }),
         ...(locale && { locale }),
       }
 
@@ -343,97 +345,41 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
         return 'motorcycle'
       case TravelMode.TRUCK:
         return 'truck'
+      case TravelMode.WHEELCHAIR:
+        return 'foot' // Use foot profile with custom_model constraints
       default:
         throw new Error(`Unsupported travel mode for GraphHopper: ${mode}`)
     }
   }
 
   /**
-   * Apply routing preferences to GraphHopper request
-   * Note: Custom models require flexible mode (ch.disable=true) which is not available in free tier
+   * Apply routing preferences to GraphHopper request.
+   * Uses the shared buildGraphHopperCustomModel() utility for custom_model generation.
+   *
+   * Note: Custom models require flexible mode (ch.disable=true) which is not
+   * available in the free GraphHopper API tier.
    */
   private applyPreferences(
     requestBody: GraphHopperRouteRequest,
     request: RouteRequest,
   ): void {
     const preferences = request.preferences
-
     if (!preferences) return
 
-    // Check if we need flexible mode (custom model features)
-    const needsFlexibleMode = 
-      preferences.optimize === 'distance' ||
-      preferences.optimize === 'balanced' ||
-      preferences.avoidHighways ||
-      preferences.avoidTolls ||
-      preferences.avoidUnpaved
-
-    // Only apply custom model features if we're not using the free API
-    // Free API doesn't support ch.disable=true
     const isSelfHosted = Boolean(this.config.host && !this.config.host.includes('graphhopper.com'))
-    
-    if (needsFlexibleMode && !isSelfHosted) {
-      console.warn('GraphHopper: Custom model features require paid plan or self-hosted instance. Using basic routing.')
-    }
 
-    // Handle optimization preference (only if self-hosted or paid)
-    if (preferences.optimize && isSelfHosted) {
-      if (preferences.optimize === 'distance') {
-        // Use custom model to prefer shorter routes
+    // Build custom_model from preferences (shared logic with Barrelman)
+    const customModel = buildGraphHopperCustomModel(request.mode, preferences)
+
+    if (customModel) {
+      if (!isSelfHosted) {
+        console.warn('GraphHopper: Custom model features require paid plan or self-hosted instance. Skipping custom_model.')
+      } else {
+        // custom_model requires flexible mode. Our config uses LM (no CH),
+        // so ch.disable is technically a no-op, but include it for safety
+        // in case CH profiles are added later.
         requestBody['ch.disable'] = true
-        requestBody.custom_model = {
-          distance_influence: 200, // Higher value prefers shorter routes
-        }
-      } else if (preferences.optimize === 'balanced') {
-        requestBody['ch.disable'] = true
-        requestBody.custom_model = {
-          distance_influence: 100, // Balanced between time and distance
-        }
-      }
-      // 'time' is the default, no need to set anything
-    }
-
-    // Handle avoidances via custom model (only if self-hosted or paid)
-    const avoidances: string[] = []
-
-    if (preferences.avoidHighways && isSelfHosted) {
-      avoidances.push('road_class == MOTORWAY')
-    }
-
-    if (preferences.avoidTolls && isSelfHosted) {
-      // Note: GraphHopper can provide toll info via details, but avoiding requires custom model
-      avoidances.push('toll == true')
-    }
-
-    if (preferences.avoidFerries) {
-      // Use snap_preventions for ferries (works in free tier)
-      if (!requestBody.snap_preventions) {
-        requestBody.snap_preventions = []
-      }
-      requestBody.snap_preventions.push('ferry')
-    }
-
-    if (preferences.avoidUnpaved && isSelfHosted) {
-      avoidances.push('road_class == TRACK')
-      avoidances.push('surface == UNPAVED')
-    }
-
-    // Apply avoidances to custom model (only if self-hosted or paid)
-    if (avoidances.length > 0 && isSelfHosted) {
-      requestBody['ch.disable'] = true
-      if (!requestBody.custom_model) {
-        requestBody.custom_model = {}
-      }
-      if (!requestBody.custom_model.priority) {
-        requestBody.custom_model.priority = []
-      }
-
-      // Add priority rules to avoid certain road types
-      for (const condition of avoidances) {
-        requestBody.custom_model.priority.push({
-          if: condition,
-          multiply_by: '0', // Avoid completely
-        })
+        requestBody.custom_model = customModel
       }
     }
 
@@ -540,6 +486,9 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
     // Calculate elevation statistics from geometry
     const elevationStats = this.calculateElevationStats(geometry)
 
+    // Build edge segments from path details
+    const edgeSegments = this.buildEdgeSegments(path.details, geometry)
+
     return [
       {
         startWaypoint,
@@ -556,6 +505,7 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
         totalElevationLoss: elevationStats.totalLoss,
         maxElevation: elevationStats.max,
         minElevation: elevationStats.min,
+        edgeSegments,
       },
     ]
   }
@@ -745,6 +695,225 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
       default:
         return undefined
     }
+  }
+
+  /**
+   * Build edge segments from GraphHopper path details
+   * Converts GraphHopper's [startPointIndex, endPointIndex, value] format
+   * into distance-based RouteEdgeSegment[] for the frontend
+   */
+  private buildEdgeSegments(
+    details: Record<string, Array<[number, number, any]>> | undefined,
+    geometry: Coordinate[],
+  ): RouteEdgeSegment[] {
+    if (!details) return []
+
+    // Need at least road_class or surface to build meaningful segments
+    const roadClassDetails = details.road_class || []
+    const surfaceDetails = details.surface || []
+    const roadEnvDetails = details.road_environment || []
+    const avgSpeedDetails = details.average_speed || []
+    const maxSpeedDetails = details.max_speed || []
+
+    if (roadClassDetails.length === 0 && surfaceDetails.length === 0) return []
+
+    // 1. Build cumulative distance array from geometry
+    const cumulativeDistances = this.buildCumulativeDistances(geometry)
+
+    // 2. Collect all unique breakpoints from all detail arrays
+    const breakpoints = new Set<number>()
+    for (const arr of [roadClassDetails, surfaceDetails, roadEnvDetails, avgSpeedDetails, maxSpeedDetails]) {
+      for (const [start, end] of arr) {
+        breakpoints.add(start)
+        breakpoints.add(end)
+      }
+    }
+    const sortedBreakpoints = Array.from(breakpoints).sort((a, b) => a - b)
+
+    // 3. For each interval [bp[i], bp[i+1]], look up the value from each detail array
+    const segments: RouteEdgeSegment[] = []
+
+    for (let i = 0; i < sortedBreakpoints.length - 1; i++) {
+      const startIdx = sortedBreakpoints[i]
+      const endIdx = sortedBreakpoints[i + 1]
+
+      const startDist = cumulativeDistances[startIdx] ?? 0
+      const endDist = cumulativeDistances[endIdx] ?? cumulativeDistances[cumulativeDistances.length - 1] ?? 0
+
+      // Skip zero-length segments
+      if (endDist <= startDist) continue
+
+      const surface = this.lookupDetailValue(surfaceDetails, startIdx) || 'unknown'
+      const roadClass = this.lookupDetailValue(roadClassDetails, startIdx) || 'unknown'
+      const roadEnv = this.lookupDetailValue(roadEnvDetails, startIdx) || 'road'
+
+      // average_speed: the routing speed GraphHopper used (km/h). Always present.
+      // max_speed: the OSM-tagged limit (km/h). Often null when OSM has no
+      // maxspeed tag — leave speedLimit undefined in that case so downstream
+      // UI can distinguish "unknown limit" from an actual value.
+      const avgSpeed = this.lookupDetailNumber(avgSpeedDetails, startIdx)
+      const maxSpeed = this.lookupDetailNumber(maxSpeedDetails, startIdx)
+
+      segments.push({
+        startDistance: Math.round(startDist),
+        endDistance: Math.round(endDist),
+        surface: this.normalizeGraphHopperSurface(surface),
+        roadClass: this.normalizeGraphHopperRoadClass(roadClass),
+        use: this.normalizeGraphHopperUse(roadEnv, roadClass),
+        ...(avgSpeed !== undefined && { averageSpeed: avgSpeed }),
+        ...(maxSpeed !== undefined && { speedLimit: maxSpeed }),
+      })
+    }
+
+    return segments
+  }
+
+  /**
+   * Look up a numeric value covering a given point index in a GraphHopper
+   * detail array. Returns undefined for missing ranges or non-numeric /
+   * null values (e.g. OSM edges without a maxspeed tag).
+   */
+  private lookupDetailNumber(
+    details: Array<[number, number, any]>,
+    pointIndex: number,
+  ): number | undefined {
+    for (const [start, end, value] of details) {
+      if (pointIndex >= start && pointIndex < end) {
+        return typeof value === 'number' ? value : undefined
+      }
+    }
+    return undefined
+  }
+
+  /**
+   * Build cumulative distance array from geometry coordinates (Haversine)
+   */
+  private buildCumulativeDistances(geometry: Coordinate[]): number[] {
+    const distances: number[] = [0]
+    for (let i = 1; i < geometry.length; i++) {
+      const prev = geometry[i - 1]
+      const curr = geometry[i]
+      const d = this.haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng)
+      distances.push(distances[i - 1] + d)
+    }
+    return distances
+  }
+
+  /**
+   * Haversine distance in meters between two coordinates
+   * TODO: Extract to a shared utility (e.g. server/src/lib/geo-utils.ts) —
+   * this duplicates logic that may also be needed by other integrations.
+   */
+  private haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371000 // Earth radius in meters
+    const dLat = ((lat2 - lat1) * Math.PI) / 180
+    const dLng = ((lng2 - lng1) * Math.PI) / 180
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLng / 2) ** 2
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  }
+
+  /**
+   * Look up which value covers a given point index in a GraphHopper detail array
+   * Detail format: [startPointIndex, endPointIndex, value]
+   */
+  private lookupDetailValue(
+    details: Array<[number, number, any]>,
+    pointIndex: number,
+  ): string | undefined {
+    for (const [start, end, value] of details) {
+      if (pointIndex >= start && pointIndex < end) {
+        return String(value)
+      }
+    }
+    return undefined
+  }
+
+  /**
+   * Normalize GraphHopper surface values to our standard set
+   */
+  private normalizeGraphHopperSurface(surface: string): string {
+    const map: Record<string, string> = {
+      asphalt: 'paved_smooth',
+      concrete: 'paved_smooth',
+      paved: 'paved',
+      paving_stones: 'paved',
+      cobblestone: 'paved_rough',
+      'cobblestone:flattened': 'paved_rough',
+      sett: 'paved_rough',
+      compacted: 'compacted',
+      fine_gravel: 'compacted',
+      gravel: 'gravel',
+      dirt: 'dirt',
+      earth: 'dirt',
+      mud: 'dirt',
+      sand: 'dirt',
+      grass: 'path',
+      grass_paver: 'path',
+      wood: 'path',
+      metal: 'paved',
+      unpaved: 'gravel',
+      ground: 'dirt',
+      unknown: 'unknown',
+      missing: 'unknown',
+      other: 'unknown',
+    }
+    return map[surface.toLowerCase()] || 'unknown'
+  }
+
+  /**
+   * Normalize GraphHopper road_class values to our standard set
+   */
+  private normalizeGraphHopperRoadClass(roadClass: string): string {
+    const map: Record<string, string> = {
+      motorway: 'motorway',
+      trunk: 'trunk',
+      primary: 'primary',
+      secondary: 'secondary',
+      tertiary: 'tertiary',
+      unclassified: 'unclassified',
+      residential: 'residential',
+      service: 'service_other',
+      living_street: 'residential',
+      track: 'unclassified',
+      cycleway: 'residential',
+      footway: 'residential',
+      path: 'unclassified',
+      steps: 'residential',
+      other: 'unknown',
+    }
+    return map[roadClass.toLowerCase()] || 'unknown'
+  }
+
+  /**
+   * Normalize GraphHopper road_environment + road_class into a "use" category
+   */
+  private normalizeGraphHopperUse(roadEnv: string, roadClass: string): string {
+    // Road environment takes priority for special types
+    const envMap: Record<string, string> = {
+      ferry: 'ferry',
+      bridge: 'road',
+      tunnel: 'road',
+      ford: 'road',
+    }
+    if (envMap[roadEnv.toLowerCase()] && envMap[roadEnv.toLowerCase()] !== 'road') {
+      return envMap[roadEnv.toLowerCase()]
+    }
+
+    // Fall back to road class for use determination
+    const classMap: Record<string, string> = {
+      cycleway: 'cycleway',
+      footway: 'footway',
+      path: 'footway',
+      steps: 'steps',
+      track: 'track',
+      living_street: 'living_street',
+      service: 'service_other',
+    }
+    return classMap[roadClass.toLowerCase()] || 'road'
   }
 
   /**

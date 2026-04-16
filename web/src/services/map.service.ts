@@ -1239,6 +1239,8 @@ function mapService() {
     showOnlyWaypoints,
     showTripOnHover,
     showDefaultTrip,
+    setRouteProfile: (profile: import('@/lib/route-profile-colors').RouteProfileType | null) =>
+      mapStrategy?.setRouteProfile(profile),
     // Expose mapStrategy for layers service
     get mapStrategy() {
       return mapStrategy

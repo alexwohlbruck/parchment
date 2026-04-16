@@ -61,7 +61,7 @@ const availableIntegrations: IntegrationDefinition[] = [
   {
     id: IntegrationId.BARRELMAN,
     name: 'Barrelman',
-    description: 'OSM geospatial engine — search, tiles, spatial queries',
+    description: 'OSM geospatial engine — search, tiles, spatial queries, routing',
     color: '#1A73A7',
     get capabilities() {
       return integrationManager.getIntegrationCapabilities(

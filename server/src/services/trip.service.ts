@@ -97,6 +97,9 @@ export class TripService {
       case 'transit':
         // Transit (can include walking to/from transit)
         return ['walking'] // TODO: Add transit when implemented
+      case 'wheelchair':
+        // Wheelchair — single mode, uses foot profile with custom_model
+        return ['wheelchair']
       default:
         // Default to all modes if not specified
         return ['walking', 'driving', 'biking']
@@ -202,6 +205,8 @@ export class TripService {
           availableVehicles,
           preferences,
         )
+      case 'wheelchair':
+        return this.planWheelchairSegment(from, to, state, preferences)
       default:
         return null
     }
@@ -254,6 +259,7 @@ export class TripService {
         totalElevationLoss: leg.totalElevationLoss,
         maxElevation: leg.maxElevation,
         minElevation: leg.minElevation,
+        edgeSegments: leg.edgeSegments,
       }
 
       return {
@@ -267,6 +273,66 @@ export class TripService {
       }
     } catch (error) {
       console.error('Walking route failed:', error)
+      return null
+    }
+  }
+
+  /**
+   * Plan wheelchair segment — uses foot profile with accessibility custom_model
+   */
+  private async planWheelchairSegment(
+    from: Waypoint,
+    to: Waypoint,
+    state: SegmentState,
+    preferences: any,
+  ): Promise<{ segment: TripSegment; state: SegmentState } | null> {
+    try {
+      const route = await routingService.getRoute(
+        [
+          { type: 'coordinates', value: [from.location.lat, from.location.lng] },
+          { type: 'coordinates', value: [to.location.lat, to.location.lng] },
+        ],
+        'wheelchair',
+        preferences,
+      )
+
+      if (!route.routes.length) return null
+
+      const leg = route.routes[0].legs[0]
+      if (leg.duration < 60) return null
+
+      const segment: TripSegment = {
+        segmentIndex: 0,
+        mode: 'wheelchair',
+        start: from,
+        end: to,
+        startTime: state.currentTime,
+        endTime: new Date(
+          new Date(state.currentTime).getTime() + leg.duration * 1000,
+        ).toISOString(),
+        duration: leg.duration,
+        distance: leg.distance,
+        geometry: leg.geometry,
+        instructions: leg.instructions,
+        co2: 0,
+        totalElevationGain: leg.totalElevationGain,
+        totalElevationLoss: leg.totalElevationLoss,
+        maxElevation: leg.maxElevation,
+        minElevation: leg.minElevation,
+        edgeSegments: leg.edgeSegments,
+      }
+
+      return {
+        segment,
+        state: {
+          currentTime: segment.endTime,
+          currentLocation: to.location,
+          currentMode: 'wheelchair',
+          parkedVehicles: state.parkedVehicles,
+        },
+      }
+    } catch (error) {
+      console.error('Wheelchair route failed:', error)
       return null
     }
   }
@@ -343,6 +409,7 @@ export class TripService {
         totalElevationLoss: walkLeg.totalElevationLoss,
         maxElevation: walkLeg.maxElevation,
         minElevation: walkLeg.minElevation,
+        edgeSegments: walkLeg.edgeSegments,
       }
 
       const driveSegment: TripSegment = {
@@ -365,6 +432,7 @@ export class TripService {
         totalElevationLoss: driveLeg.totalElevationLoss,
         maxElevation: driveLeg.maxElevation,
         minElevation: driveLeg.minElevation,
+        edgeSegments: driveLeg.edgeSegments,
       }
 
       return {
@@ -428,6 +496,7 @@ export class TripService {
         totalElevationLoss: leg.totalElevationLoss,
         maxElevation: leg.maxElevation,
         minElevation: leg.minElevation,
+        edgeSegments: leg.edgeSegments,
       }
 
       return {
@@ -517,6 +586,7 @@ export class TripService {
         totalElevationLoss: walkLeg.totalElevationLoss,
         maxElevation: walkLeg.maxElevation,
         minElevation: walkLeg.minElevation,
+        edgeSegments: walkLeg.edgeSegments,
       }
 
       const bikeSegment: TripSegment = {
@@ -538,6 +608,7 @@ export class TripService {
         totalElevationLoss: bikeLeg.totalElevationLoss,
         maxElevation: bikeLeg.maxElevation,
         minElevation: bikeLeg.minElevation,
+        edgeSegments: bikeLeg.edgeSegments,
       }
 
       return {
@@ -600,6 +671,7 @@ export class TripService {
         totalElevationLoss: leg.totalElevationLoss,
         maxElevation: leg.maxElevation,
         minElevation: leg.minElevation,
+        edgeSegments: leg.edgeSegments,
       }
 
       return {

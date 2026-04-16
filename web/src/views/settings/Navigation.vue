@@ -60,6 +60,7 @@ const pages: {
       any: [
         PermissionId.INTEGRATIONS_READ_USER,
         PermissionId.INTEGRATIONS_READ_SYSTEM,
+        PermissionId.INTEGRATIONS_WRITE_SYSTEM,
       ],
     },
   },

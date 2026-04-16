@@ -307,6 +307,12 @@ export const useAppStore = defineStore('app', () => {
   // Floor numbering preference (zero-based vs one-based)
   const floorNumbering = useStorage<FloorNumbering>('floor-numbering', FloorNumbering.ZERO_BASED)
 
+  // Width (px) of the peek-out area left by the collapsed left drawer's
+  // floating buttons. Map widgets in the top-left should add this much
+  // horizontal buffer to avoid being covered. 0 when drawer is expanded or
+  // not mounted.
+  const leftSheetOverlayWidth = ref(0)
+
   return {
     dialogs,
     createDialog,
@@ -325,5 +331,6 @@ export const useAppStore = defineStore('app', () => {
     clearManualBounds,
     unitSystem,
     floorNumbering,
+    leftSheetOverlayWidth,
   }
 })

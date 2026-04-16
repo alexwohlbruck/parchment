@@ -54,6 +54,27 @@ const isBottomSheetView = computed(() => {
   const isNotDialog = !route.meta.dialog
   return isSubview && isNotDialog
 })
+
+// Map of child routes to their logical parent routes.
+// Missing entries are treated as top-level drawer views (back = close drawer).
+const parentRouteMap: Partial<Record<string, AppRoute>> = {
+  [AppRoute.TRIP]: AppRoute.DIRECTIONS,
+  [AppRoute.COLLECTION]: AppRoute.LIBRARY_COLLECTIONS,
+  [AppRoute.FRIEND_DETAIL]: AppRoute.FRIENDS,
+}
+
+const parentRoute = computed(() => {
+  return parentRouteMap[route.name as string] ?? null
+})
+const canGoBack = computed(() => !!parentRoute.value)
+
+function handleBack() {
+  if (parentRoute.value) {
+    router.push({ name: parentRoute.value })
+  } else {
+    router.push({ name: AppRoute.MAP })
+  }
+}
 const pipSwapped = ref(false)
 const mountTeleports = ref(false)
 const streetView = ref(false)
@@ -90,6 +111,20 @@ function onOpenChange(value: boolean) {
 // Detect if left sidebar is visible
 const isDrawerOpen = computed(() => {
   return appStore.obstructingComponentsMap.has('left-sheet')
+})
+
+// When the left drawer is collapsed, its floating buttons peek out over the
+// top-left of the map. Reserve matching horizontal space so widgets like the
+// weather + scale controls don't get covered. The widgets' outer container
+// already provides 0.5rem (8px) of left padding via p-2/safe-area-inset, so
+// subtract it — that way the gap from the sidenav to the expand button and
+// from the button to the first widget both equal the button column's p-2
+// (matching the widgets' own gap-2).
+const topLeftBufferStyle = computed(() => {
+  const overlay = appStore.leftSheetOverlayWidth
+  return {
+    paddingLeft: `${Math.max(0, overlay - 8)}px`,
+  }
 })
 
 onMounted(() => {
@@ -201,7 +236,9 @@ defineExpose({
       <TransitionSlide no-opacity :offset="['-130%', 0]">
         <LeftSheet
           v-if="!route.meta.dialog && isBottomSheetView"
+          :can-go-back="canGoBack"
           @close="() => router.push({ name: AppRoute.MAP })"
+          @back="handleBack"
         >
           <router-view />
         </LeftSheet>
@@ -246,7 +283,8 @@ defineExpose({
             <transition-slide appear no-opacity :offset="[0, '-130%']">
               <div
                 v-if="isNavTransitioning"
-                class="pointer-events-auto flex gap-2 items-start"
+                class="pointer-events-auto flex gap-2 items-start transition-[padding] duration-300 ease-out"
+                :style="topLeftBufferStyle"
               >
                 <WeatherControl />
                 <ScaleControl />

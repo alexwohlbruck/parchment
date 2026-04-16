@@ -85,11 +85,7 @@ function handleReopen() {
 
 <template>
   <div class="h-full flex flex-col">
-    <DetailPanelLayout
-      class="flex-1 min-h-0"
-      show-back-button
-      @back="emit('close')"
-    >
+    <DetailPanelLayout class="flex-1 min-h-0">
       <template #title>
         <div class="flex items-center gap-2">
           <div class="relative shrink-0">

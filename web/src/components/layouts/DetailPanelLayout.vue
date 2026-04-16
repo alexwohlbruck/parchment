@@ -45,7 +45,7 @@ const emit = defineEmits<{
     </div>
 
     <!-- Content -->
-    <div class="flex-1 overflow-y-auto py-4">
+    <div class="flex-1 overflow-y-auto pt-2 pb-4">
       <div class="px-4">
         <slot />
       </div>

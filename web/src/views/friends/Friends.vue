@@ -66,7 +66,7 @@ function handleSetupIdentity() {
 
 <template>
   <PanelLayout>
-    <!-- Main Content -->
+    <h1 class="text-2xl font-semibold mb-3">Friends</h1>
     <Tabs default-value="friends" class="flex-1 flex flex-col gap-4">
       <TabsList class="w-full">
         <TabsTrigger value="friends" class="flex-1 gap-2">

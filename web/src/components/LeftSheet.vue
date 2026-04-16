@@ -1,38 +1,45 @@
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted, onMounted } from 'vue'
 import { useElementBounding } from '@vueuse/core'
 import { Card } from '@/components/ui/card'
 import { useObstructingComponent } from '@/composables/useObstructingComponent'
 import { useHotkeys } from '@/composables/useHotkeys'
 import { useAppStore } from '@/stores/app.store'
-import { Button } from '@/components/ui/button'
-import {
-  ArrowLeftIcon,
-  XIcon,
-  PanelLeftCloseIcon,
-  PanelLeftOpenIcon,
-} from 'lucide-vue-next'
+import SheetActionButtons from '@/components/SheetActionButtons.vue'
 
-const props = defineProps<{
+defineProps<{
   canGoBack?: boolean
 }>()
 
 const emit = defineEmits<{
-  (e: 'close'): void
   (e: 'back'): void
+  (e: 'home'): void
 }>()
 
 const appStore = useAppStore()
 const sheet = ref<HTMLElement | null>(null)
-const buttonColumn = ref<HTMLElement | null>(null)
+const buttonColumnEl = ref<HTMLElement | null>(null)
 const hidden = ref(false)
 const trackingEnabled = computed(() => !hidden.value)
+
+// Keep local hidden in sync with the store so DesktopNavigation can open
+// the drawer by writing to appStore.leftSheetHidden.
+watch(
+  () => appStore.leftSheetHidden,
+  val => { hidden.value = val },
+)
+watch(hidden, val => { appStore.leftSheetHidden = val })
+onMounted(() => { appStore.leftSheetHidden = false })
+onUnmounted(() => { appStore.leftSheetHidden = false })
 
 useObstructingComponent(sheet, 'left-sheet', undefined, trackingEnabled)
 
 // Measure the button column so map widgets can reserve matching space when
 // the drawer is collapsed (only the expand button is visible then).
-const { width: buttonColumnWidth } = useElementBounding(buttonColumn)
+// We wrap SheetActionButtons in a plain div so useElementBounding always
+// receives a proper DOM element (TransitionGroup components expose a fragment
+// as $el which lacks getBoundingClientRect).
+const { width: buttonColumnWidth } = useElementBounding(buttonColumnEl)
 
 watch(
   [hidden, buttonColumnWidth],
@@ -46,19 +53,10 @@ onUnmounted(() => {
   appStore.leftSheetOverlayWidth = 0
 })
 
-function onPrimaryClick() {
-  if (props.canGoBack) emit('back')
-  else emit('close')
-}
-
-function toggleHidden() {
-  hidden.value = !hidden.value
-}
-
 useHotkeys([
   {
     key: 'esc',
-    handler: onPrimaryClick,
+    handler: () => emit('back'),
   },
 ])
 </script>
@@ -75,39 +73,14 @@ useHotkeys([
       <slot />
     </Card>
 
-    <div
-      ref="buttonColumn"
-      class="flex flex-col gap-2 p-2 pointer-events-auto"
-    >
-      <Transition
-        enter-active-class="transition-all duration-200 ease-out"
-        leave-active-class="transition-all duration-200 ease-in"
-        enter-from-class="opacity-0 -translate-x-2 scale-90"
-        leave-to-class="opacity-0 -translate-x-2 scale-90"
-      >
-        <Button
-          v-if="!hidden"
-          variant="outline"
-          size="icon-sm"
-          class="rounded-full shadow-md bg-background"
-          @click="onPrimaryClick"
-          :description="canGoBack ? 'Back' : 'Close'"
-        >
-          <ArrowLeftIcon v-if="canGoBack" class="size-4" />
-          <XIcon v-else class="size-4" />
-        </Button>
-      </Transition>
-
-      <Button
-        variant="outline"
-        size="icon-sm"
-        class="rounded-full shadow-md bg-background"
-        @click="toggleHidden"
-        :description="hidden ? 'Show panel' : 'Hide panel'"
-      >
-        <PanelLeftOpenIcon v-if="hidden" class="size-4" />
-        <PanelLeftCloseIcon v-else class="size-4" />
-      </Button>
+    <div ref="buttonColumnEl">
+      <SheetActionButtons
+        v-model:hidden="hidden"
+        :can-go-back="canGoBack"
+        direction="left"
+        @back="emit('back')"
+        @home="emit('home')"
+      />
     </div>
   </div>
 </template>

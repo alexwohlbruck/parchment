@@ -17,6 +17,7 @@ import ScaleControl from '@/components/map/controls/ScaleControl.vue'
 import AttributionControl from '@/components/map/controls/AttributionControl.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
 import LeftSheet from '@/components/LeftSheet.vue'
+import SheetActionButtons from '@/components/SheetActionButtons.vue'
 import StreetViewPip from '@/components/map/StreetViewPip.vue'
 import { useMapService } from '@/services/map.service'
 import { useLayersStore } from '@/stores/layers.store'
@@ -55,26 +56,52 @@ const isBottomSheetView = computed(() => {
   return isSubview && isNotDialog
 })
 
-// Map of child routes to their logical parent routes.
-// Missing entries are treated as top-level drawer views (back = close drawer).
-const parentRouteMap: Partial<Record<string, AppRoute>> = {
-  [AppRoute.TRIP]: AppRoute.DIRECTIONS,
-  [AppRoute.COLLECTION]: AppRoute.LIBRARY_COLLECTIONS,
-  [AppRoute.FRIEND_DETAIL]: AppRoute.FRIENDS,
+// Back button mirrors browser-back behavior. vue-router stores the previous
+// path in window.history.state.back. Show the back arrow only when going back
+// would land on another drawer view — if the previous entry is the root path
+// (or missing), the button visually becomes a "close drawer" X instead.
+const canGoBack = ref(false)
+
+function refreshCanGoBack() {
+  const back = window.history.state?.back as string | null | undefined
+  canGoBack.value = !!back && back !== '/'
 }
 
-const parentRoute = computed(() => {
-  return parentRouteMap[route.name as string] ?? null
-})
-const canGoBack = computed(() => !!parentRoute.value)
+watch(() => route.fullPath, refreshCanGoBack, { immediate: true })
 
+// Only called when canGoBack is true — the back button is hidden otherwise.
 function handleBack() {
-  if (parentRoute.value) {
-    router.push({ name: parentRoute.value })
-  } else {
-    router.push({ name: AppRoute.MAP })
-  }
+  router.back()
 }
+
+// Always navigates to map root — wired to the dedicated close button.
+function handleHome() {
+  router.push({ name: AppRoute.MAP })
+}
+
+// Mobile bottom sheet snap state. The user collapses / expands by dragging
+// the handle (no dedicated toggle button on mobile), but we still track the
+// index so we can reset to the default snap point whenever a new drawer
+// view opens.
+const MOBILE_SNAP_POINTS: (number | string)[] = ['125px', 0.5, 1]
+const MOBILE_DEFAULT_SNAP_INDEX = 1
+const bottomSheetSnapIndex = ref(MOBILE_DEFAULT_SNAP_INDEX)
+
+const bottomSheetActiveSnapPoint = computed<number | string | null>(
+  () => MOBILE_SNAP_POINTS[bottomSheetSnapIndex.value] ?? null,
+)
+
+function onBottomSheetSnapIndexChange(idx: number) {
+  if (idx >= 0) bottomSheetSnapIndex.value = idx
+}
+
+watch(
+  () => route.name,
+  () => {
+    bottomSheetSnapIndex.value = MOBILE_DEFAULT_SNAP_INDEX
+  },
+)
+
 const pipSwapped = ref(false)
 const mountTeleports = ref(false)
 const streetView = ref(false)
@@ -221,12 +248,23 @@ defineExpose({
         parent-id="map"
         :open="bottomSheetOpen"
         @update:open="onOpenChange"
-        :default-snap-point-index="1"
+        :custom-snap-points="MOBILE_SNAP_POINTS"
+        :default-snap-point-index="MOBILE_DEFAULT_SNAP_INDEX"
+        :active-snap-point="bottomSheetActiveSnapPoint"
+        @update:active-snap-point-index="onBottomSheetSnapIndexChange"
         dismissable
         show-drag-handle
-        show-close-button
         obstructing-key="map-content-sheet"
       >
+        <template #actions>
+          <SheetActionButtons
+            :can-go-back="canGoBack"
+            direction="bottom"
+            class="pointer-events-auto"
+            @back="handleBack"
+            @home="handleHome"
+          />
+        </template>
         <router-view />
       </bottom-sheet>
     </template>
@@ -237,8 +275,8 @@ defineExpose({
         <LeftSheet
           v-if="!route.meta.dialog && isBottomSheetView"
           :can-go-back="canGoBack"
-          @close="() => router.push({ name: AppRoute.MAP })"
           @back="handleBack"
+          @home="handleHome"
         >
           <router-view />
         </LeftSheet>

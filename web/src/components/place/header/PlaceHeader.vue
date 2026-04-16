@@ -190,7 +190,7 @@ watch(
         />
       </div>
 
-      <div class="flex-1">
+      <div class="flex-1 pr-20 md:pr-0">
         <!-- Named place: h1 title, then icon + type label as a clickable badge below -->
         <template v-if="placeName">
           <h1 class="text-2xl font-semibold line-clamp-2">

@@ -383,27 +383,42 @@ function handleAnimationEnd(open: boolean) {
         }"
         :data-vaul-no-drag="!isAtTop ? '' : undefined"
       >
+        <!-- Header: absolutely positioned so it never displaces content.
+             Individual views add their own top padding/title to clear it. -->
         <div
-          v-if="props.showDragHandle || props.showCloseButton"
+          v-if="props.showDragHandle || $slots.actions"
           ref="headerRef"
-          class="flex justify-between items-center flex-shrink-0"
+          class="absolute top-0 left-0 right-0 z-10 grid grid-cols-[1fr_auto_1fr] items-start pointer-events-none"
         >
-          <div
-            v-if="props.showDragHandle"
-            class="flex-1 flex justify-center py-4"
-          >
-            <DrawerHandle class="h-1 w-16 rounded-full bg-muted-foreground" />
+          <!-- Col 1: left spacer -->
+          <div />
+
+          <!-- Col 2: drag handle (centered) -->
+          <div class="flex justify-center pb-1.5 pt-2">
+            <DrawerHandle
+              v-if="props.showDragHandle"
+              class="h-1 w-16 rounded-full bg-muted-foreground"
+            />
           </div>
-          <DrawerClose v-if="props.showCloseButton" as-child>
-            <Button
-              variant="secondary"
-              size="icon-xs"
-              class="rounded-full hover:bg-muted transition-colors absolute top-2 right-2 z-50"
-            >
-              <X class="size-3.5" />
-            </Button>
-          </DrawerClose>
+
+          <!-- Col 3: actions slot (right-aligned) -->
+          <div
+            class="flex items-center justify-end pt-3 pr-2 pointer-events-auto"
+          >
+            <slot name="actions" />
+          </div>
         </div>
+
+        <!-- Close button: absolutely positioned so it never affects flow -->
+        <DrawerClose v-if="props.showCloseButton" as-child>
+          <Button
+            variant="secondary"
+            size="icon-sm"
+            class="rounded-full absolute top-2 right-2 z-50"
+          >
+            <X class="size-4" />
+          </Button>
+        </DrawerClose>
 
         <div
           ref="scrollContainer"

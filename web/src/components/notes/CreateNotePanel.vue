@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { XIcon, MessageSquareIcon, SendIcon } from 'lucide-vue-next'
+import { MessageSquareIcon, SendIcon } from 'lucide-vue-next'
 
 const props = defineProps<{
   lat: number
@@ -13,7 +13,6 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  close: []
   submit: [text: string]
 }>()
 
@@ -25,7 +24,7 @@ const text = ref('')
 <template>
   <PanelLayout>
     <!-- Header -->
-    <div class="flex items-start justify-between gap-2 mb-4">
+    <div class="flex items-start gap-2 mb-4">
       <div class="flex items-center gap-2 min-w-0">
         <div
           class="size-8 rounded-full flex items-center justify-center shrink-0"
@@ -42,14 +41,6 @@ const text = ref('')
           </span>
         </div>
       </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        class="shrink-0 size-8"
-        @click="emit('close')"
-      >
-        <XIcon class="size-4" />
-      </Button>
     </div>
 
     <p class="text-sm text-muted-foreground mb-3">

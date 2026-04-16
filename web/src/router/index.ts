@@ -96,7 +96,7 @@ const router = createRouter({
           }),
         },
         {
-          path: '/trip/:id',
+          path: '/directions/trip/:id',
           name: AppRoute.TRIP,
           component: TripDetail,
           props: true,

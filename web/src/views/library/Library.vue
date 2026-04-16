@@ -52,6 +52,7 @@ function handleTabChange(tabId) {
 
 <template>
   <PanelLayout>
+    <h1 class="text-2xl font-semibold mb-3">Library</h1>
     <Tabs
       :model-value="tabValue"
       @update:model-value="handleTabChange"

@@ -313,6 +313,10 @@ export const useAppStore = defineStore('app', () => {
   // not mounted.
   const leftSheetOverlayWidth = ref(0)
 
+  // Shared hidden state for the desktop LeftSheet so DesktopNavigation can
+  // open the drawer when a nav link is clicked while it is collapsed.
+  const leftSheetHidden = ref(false)
+
   return {
     dialogs,
     createDialog,
@@ -332,5 +336,6 @@ export const useAppStore = defineStore('app', () => {
     unitSystem,
     floorNumbering,
     leftSheetOverlayWidth,
+    leftSheetHidden,
   }
 })

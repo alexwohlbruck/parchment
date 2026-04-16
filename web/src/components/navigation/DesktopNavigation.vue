@@ -170,6 +170,20 @@ interface MenuItemDefinition {
   spacer?: boolean
 }
 
+function handleNavClick(to: string) {
+  const isCurrentRoute = router.currentRoute.value.path.startsWith(to)
+  if (appStore.leftSheetHidden) {
+    // Always reopen the drawer
+    appStore.leftSheetHidden = false
+    // Only navigate if it's a different route
+    if (!isCurrentRoute) {
+      router.push(to)
+    }
+  } else {
+    router.push(to)
+  }
+}
+
 function openPalette(withSearch = false) {
   paletteDialogOpen.value = true
   if (withSearch) {
@@ -455,32 +469,29 @@ const items = computed<MenuItemDefinition[]>(() => [
                     <Button
                       variant="ghost"
                       class="w-full flex px-3 justify-center gap-3 hover:bg-primary/5 hover:text-primary"
-                      as-child
-                      :to="subitem.to"
                       :class="
-                        router.currentRoute.value.path === subitem.to
+                        router.currentRoute.value.path.startsWith(subitem.to)
                           ? 'bg-primary/10 text-primary'
                           : ''
                       "
+                      @click="handleNavClick(subitem.to)"
                     >
-                      <router-link :to="subitem.to">
-                        <component :is="subitem.icon" class="size-5" />
+                      <component :is="subitem.icon" class="size-5" />
 
-                        <div v-if="!mini" class="flex flex-1 gap-1 text-nowrap">
-                          <div class="flex-1">
-                            {{ subitem.label }}
-                          </div>
-
-                          <Kbd
-                            v-if="
-                              (subitem as any).hotkey ||
-                              (subitem as any).commandId
-                            "
-                            :hotkey="(subitem as any).hotkey"
-                            :command-id="(subitem as any).commandId"
-                          ></Kbd>
+                      <div v-if="!mini" class="flex flex-1 gap-1 text-nowrap">
+                        <div class="flex-1">
+                          {{ subitem.label }}
                         </div>
-                      </router-link>
+
+                        <Kbd
+                          v-if="
+                            (subitem as any).hotkey ||
+                            (subitem as any).commandId
+                          "
+                          :hotkey="(subitem as any).hotkey"
+                          :command-id="(subitem as any).commandId"
+                        ></Kbd>
+                      </div>
                     </Button>
                   </TooltipTrigger>
 

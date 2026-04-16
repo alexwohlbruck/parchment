@@ -10,6 +10,9 @@ import BookmarkList from '@/components/library/BookmarkList.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
 import CollectionContextMenu from '@/components/library/CollectionContextMenu.vue'
 import DetailPanelLayout from '@/components/layouts/DetailPanelLayout.vue'
+// NOTE: the in-view back button was removed — the drawer (LeftSheet /
+// BottomSheet) now provides navigation controls. Route-change cleanup, if
+// any, should live in onBeforeRouteLeave or the store.
 
 const route = useRoute()
 const router = useRouter()
@@ -46,10 +49,6 @@ onMounted(async () => {
   loading.value = false
 })
 
-function goBack() {
-  router.push({ name: AppRoute.LIBRARY_COLLECTIONS })
-}
-
 function handleCollectionEdit() {
   collectionsService.fetchCollectionById(id)
 }
@@ -66,11 +65,7 @@ function handleCollectionDelete() {
     </div>
   </div>
 
-  <DetailPanelLayout
-    v-else-if="collection"
-    show-back-button
-    @back="goBack"
-  >
+  <DetailPanelLayout v-else-if="collection">
     <template #title>
       <div class="flex items-center gap-2">
         <ItemIcon

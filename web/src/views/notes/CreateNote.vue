@@ -70,7 +70,6 @@ async function handleSubmit(text: string) {
     :lat="lat"
     :lng="lng"
     :is-submitting="isSubmitting"
-    @close="router.push({ name: AppRoute.MAP })"
     @submit="handleSubmit"
   />
 </template>

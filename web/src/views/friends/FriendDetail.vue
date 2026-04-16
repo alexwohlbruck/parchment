@@ -228,11 +228,6 @@ async function handleRemoveFriend() {
   }
 }
 
-// Go back
-function goBack() {
-  router.push({ name: AppRoute.FRIENDS })
-}
-
 onMounted(async () => {
   await friendsStore.loadAll()
   await loadLocationConfig()
@@ -260,12 +255,7 @@ watch([isLoading, friend], ([loading, f]) => {
   </div>
 
   <!-- Content -->
-  <DetailPanelLayout
-    v-else-if="friend"
-    :title="displayName"
-    show-back-button
-    @back="goBack"
-  >
+  <DetailPanelLayout v-else-if="friend" :title="displayName">
     <template #actions>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

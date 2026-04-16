@@ -28,6 +28,8 @@ import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import { Button } from '@/components/ui/button'
 import ResponsivePopover from '@/components/responsive/ResponsivePopover.vue'
 import { ref } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
+import { AppRoute } from '@/router'
 
 dayjs.extend(duration)
 
@@ -38,6 +40,13 @@ const { waypoints, trips, selectedMode, isLoading } =
   storeToRefs(directionsStore)
 
 const showPreferences = ref(false)
+
+onBeforeRouteLeave(to => {
+  // Keep trips alive when drilling into a trip detail — TripDetail needs them.
+  if (to.name === AppRoute.TRIP) return
+  directionsService.clearWaypoints()
+  directionsStore.unsetTrips()
+})
 
 const modes: Array<{ type: SelectedMode; icon: any; label: string }> = [
   {
@@ -108,6 +117,7 @@ useMapListener(
 <template>
   <PanelLayout>
     <div class="space-y-3 flex flex-col">
+      <h1 class="text-2xl font-semibold">Directions</h1>
       <div class="flex items-center gap-2">
         <Tabs v-model="selectedMode" class="flex-1">
           <TabsList class="w-full flex">

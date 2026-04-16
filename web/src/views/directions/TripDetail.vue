@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useDirectionsStore } from '@/stores/directions.store'
+import { useDirectionsService } from '@/services/directions.service'
 import { useMapService } from '@/services/map.service'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -13,7 +14,6 @@ import {
 import { Caption, P } from '@/components/ui/typography'
 import {
   AccessibilityIcon,
-  ArrowLeftIcon,
   ChevronDownIcon,
   ClockIcon,
   FootprintsIcon,
@@ -31,6 +31,7 @@ import { useUnits } from '@/composables/useUnits'
 const route = useRoute()
 const router = useRouter()
 const directionsStore = useDirectionsStore()
+const directionsService = useDirectionsService()
 const mapService = useMapService()
 const { formatDistance } = useUnits()
 
@@ -92,14 +93,19 @@ watch(
 )
 
 // Restore all trips when leaving the component
-function goBack() {
-  // Reset map route coloring to default (travel-mode based)
+// Map/trip cleanup when the user navigates away from this detail view
+// (via the drawer's back/close/home controls or any other route change).
+onBeforeRouteLeave(to => {
   mapService.setRouteProfile(null)
-  // Note: showAllTrips automatically clears instruction markers via selectedTripId
-  mapService.showAllTrips()
-  // Navigate back to directions view, preserving the trips data
-  router.push({ name: AppRoute.DIRECTIONS })
-}
+  if (to.name === AppRoute.DIRECTIONS) {
+    // Going back to the directions list — restore all routes
+    mapService.showAllTrips()
+  } else {
+    // Closing entirely — clear routes and waypoint markers
+    directionsService.clearWaypoints()
+    directionsStore.unsetTrips()
+  }
+})
 
 // Handle hovering instructions
 function onInstructionHover(
@@ -238,17 +244,8 @@ const showItinerary = computed(() => {
 
     <!-- Trip Content -->
     <div v-else-if="trip" class="p-4 space-y-4">
-      <!-- Trip Overview with Back Button -->
+      <!-- Trip Overview -->
       <div class="flex items-center gap-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          class="shrink-0 -ml-2 mt-0.5"
-          @click="goBack"
-        >
-          <ArrowLeftIcon class="size-5" />
-        </Button>
-
         <div class="flex-1 min-w-0">
           <div class="flex items-baseline gap-2 leading-tight">
             <span class="text-3xl font-bold tracking-tight text-foreground">

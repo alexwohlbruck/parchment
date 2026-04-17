@@ -51,6 +51,16 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function updateManualBounds(key: string, bounds: ManualBounds) {
+    const existing = manualBoundsMap.value.get(key)
+    if (
+      existing &&
+      existing.x === bounds.x &&
+      existing.y === bounds.y &&
+      existing.width === bounds.width &&
+      existing.height === bounds.height
+    ) {
+      return
+    }
     manualBoundsMap.value.set(key, bounds)
     refreshObstructingComponents()
   }

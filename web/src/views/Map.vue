@@ -270,17 +270,23 @@ defineExpose({
     </template>
 
     <!-- Desktop left sheet container -->
+    <!--
+      LeftSheet is permanently mounted on desktop. Its `show` prop drives
+      a reactive animation (via useTransition) that slides the element
+      on/off screen and publishes bounds each frame so the map padding
+      stays in lockstep with the visual slide. The router-view inside the
+      slot handles proper mount/unmount of the content views (Place,
+      Directions, etc.) via their route lifecycle — no component leaks.
+    -->
     <template v-else>
-      <TransitionSlide no-opacity :offset="['-130%', 0]">
-        <LeftSheet
-          v-if="!route.meta.dialog && isBottomSheetView"
-          :can-go-back="canGoBack"
-          @back="handleBack"
-          @home="handleHome"
-        >
-          <router-view />
-        </LeftSheet>
-      </TransitionSlide>
+      <LeftSheet
+        :show="!route.meta.dialog && isBottomSheetView"
+        :can-go-back="canGoBack"
+        @back="handleBack"
+        @home="handleHome"
+      >
+        <router-view />
+      </LeftSheet>
     </template>
 
     <!-- Map canvas -->
@@ -431,3 +437,6 @@ defineExpose({
   padding-right: calc(0.5rem + env(safe-area-inset-right));
 }
 </style>
+
+
+

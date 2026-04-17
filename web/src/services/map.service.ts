@@ -24,6 +24,7 @@ import { useSearchResultsLayerService } from '@/services/layers/features/search-
 import { useMarkerLayersService } from '@/services/layers/markers/marker-layers.service'
 import { useNotesLayerService } from '@/services/layers/features/notes-layer.service'
 import { useAppStore } from '../stores/app.store'
+import { calculateFitPadding, type Padding } from '@/lib/map-padding'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
@@ -44,13 +45,6 @@ import { useSearchStore } from '@/stores/search.store'
 
 const dark = useDark()
 
-// TODO: Move to constants file
-// Constants for map padding behavior
-const MAP_PADDING_CONFIG = {
-  CHANGE_THRESHOLD: 5, // pixels
-  TRANSITION_DELAY: 150, // ms - delay for UI transitions
-  INIT_DELAY: 100, // ms - delay for map initialization
-} as const
 
 function mapService() {
   const mapStore = useMapStore()
@@ -85,9 +79,6 @@ function mapService() {
   let rotatingHideTimeout: ReturnType<typeof setTimeout> | null = null
   let zoomingHideTimeout: ReturnType<typeof setTimeout> | null = null
   const CONTROL_HIDE_DELAY = 1500 // ms before hiding controls after interaction stops
-
-  // Debounced padding update to prevent excessive calls
-  let paddingUpdateTimeout: ReturnType<typeof setTimeout> | null = null
 
   // Watch for theme changes to update polygon colors and basemap fade
   watch([accentColor, isDark], () => {
@@ -534,49 +525,28 @@ function mapService() {
       }
     }
 
-    // Calculate padding values
+    // Calculate padding values, then cap each side at 50% of its dimension
+    // so the vanishing point never crosses the viewport midpoint. Concrete
+    // reason: the mobile bottom sheet can expand to 100% of the screen,
+    // but we never want to pin the map's effective center below the middle
+    // of the viewport — past 50% the drawer is just reading content, and
+    // the map's displayed center should stop where it is.
+    const halfW = mapWidth / 2
+    const halfH = mapHeight / 2
     const padding = {
-      left: Math.max(0, visibleArea.x),
-      top: Math.max(0, visibleArea.y),
-      right: Math.max(0, mapWidth - (visibleArea.x + visibleArea.width)),
-      bottom: Math.max(0, mapHeight - (visibleArea.y + visibleArea.height)),
+      left: Math.min(halfW, Math.max(0, visibleArea.x)),
+      top: Math.min(halfH, Math.max(0, visibleArea.y)),
+      right: Math.min(
+        halfW,
+        Math.max(0, mapWidth - (visibleArea.x + visibleArea.width)),
+      ),
+      bottom: Math.min(
+        halfH,
+        Math.max(0, mapHeight - (visibleArea.y + visibleArea.height)),
+      ),
     }
 
     return { padding, isFullyVisible: false }
-  }
-
-  /**
-   * Check if two padding objects are significantly different
-   */
-  function hasPaddingChanged(
-    oldPadding: MapCamera['padding'],
-    newPadding: MapCamera['padding'],
-  ): boolean {
-    if (!oldPadding || !newPadding) return true
-
-    const threshold = MAP_PADDING_CONFIG.CHANGE_THRESHOLD
-    return (
-      Math.abs((oldPadding.left || 0) - (newPadding.left || 0)) > threshold ||
-      Math.abs((oldPadding.top || 0) - (newPadding.top || 0)) > threshold ||
-      Math.abs((oldPadding.right || 0) - (newPadding.right || 0)) > threshold ||
-      Math.abs((oldPadding.bottom || 0) - (newPadding.bottom || 0)) > threshold
-    )
-  }
-
-  /**
-   * Debounced update of map padding
-   */
-  function debouncedUpdateMapPadding(
-    delay: number = MAP_PADDING_CONFIG.TRANSITION_DELAY,
-  ) {
-    if (paddingUpdateTimeout) {
-      clearTimeout(paddingUpdateTimeout)
-    }
-
-    paddingUpdateTimeout = setTimeout(() => {
-      updateMapPadding()
-      paddingUpdateTimeout = null
-    }, delay)
   }
 
   // Helper function to adjust camera center based on visible map area
@@ -618,58 +588,136 @@ function mapService() {
     mapStrategy.jumpTo(adjustedCamera)
   }
 
-  function fitBounds(
+  // Tracks the in-flight fitBounds so we can cancel/re-fire if the
+  // `visibleMapArea` keeps changing (e.g. the mobile bottom sheet is still
+  // animating open when the caller fits).
+  let pendingFit: {
+    bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }
+    options: any
+    lastRefitKey: string
+    stopWatch: (() => void) | null
+    stopTimer: any
+    settleTimer: any
+  } | null = null
+
+  function _fitBoundsNow(
     bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
-    options?: any,
+    options: any,
   ) {
-    if (!mapStrategy) return
+    if (!mapStrategy || !mapContainer) return
 
-    // Calculate existing map padding to account for obstructing UI elements
-    const paddingInfo = calculateMapPadding()
-    const basePadding = paddingInfo?.padding || {
-      top: 0,
-      bottom: 0,
-      left: 0,
-      right: 0,
-    }
+    // Obstruction-aware, viewport-proportional padding. Callers can pass
+    // `options.padding` (number or per-side object) for ADDITIONAL margin
+    // on top of the computed one — useful for cases that want an extra
+    // buffer around the fitted content beyond the default breathing room.
+    const basePadding = calculateFitPadding(
+      appStore.visibleMapArea,
+      mapContainer.clientWidth,
+      mapContainer.clientHeight,
+    )
 
-    // Handle different padding input formats from options
-    let additionalPadding = { top: 50, bottom: 50, left: 50, right: 50 } // Default
-
-    if (options?.padding) {
+    let extraPadding: Padding = { top: 0, right: 0, bottom: 0, left: 0 }
+    if (options?.padding !== undefined) {
       if (typeof options.padding === 'number') {
-        // Uniform padding
-        additionalPadding = {
-          top: options.padding,
-          bottom: options.padding,
-          left: options.padding,
-          right: options.padding,
-        }
+        const v = options.padding
+        extraPadding = { top: v, right: v, bottom: v, left: v }
       } else if (typeof options.padding === 'object') {
-        // Object padding - merge with defaults
-        additionalPadding = {
-          top: options.padding.top ?? 50,
-          bottom: options.padding.bottom ?? 50,
-          left: options.padding.left ?? 50,
-          right: options.padding.right ?? 50,
+        extraPadding = {
+          top: options.padding.top ?? 0,
+          right: options.padding.right ?? 0,
+          bottom: options.padding.bottom ?? 0,
+          left: options.padding.left ?? 0,
         }
       }
     }
 
-    // Combine base padding (from UI obstructions) with additional padding
-    const combinedPadding = {
-      top: (basePadding.top || 0) + additionalPadding.top,
-      bottom: (basePadding.bottom || 0) + additionalPadding.bottom,
-      left: (basePadding.left || 0) + additionalPadding.left,
-      right: (basePadding.right || 0) + additionalPadding.right,
-    }
-
     const finalOptions = {
+      // Cap at building-level zoom so fitting to a tiny geometry (single
+      // POI polygon, short route segment) doesn't rocket past street
+      // level. Callers can override via `options.maxZoom`.
+      maxZoom: 19,
       ...options,
-      padding: combinedPadding,
+      padding: {
+        top: basePadding.top + extraPadding.top,
+        right: basePadding.right + extraPadding.right,
+        bottom: basePadding.bottom + extraPadding.bottom,
+        left: basePadding.left + extraPadding.left,
+      },
     }
 
     mapStrategy.fitBounds(bounds, finalOptions)
+  }
+
+  function fitBounds(
+    bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
+    options?: any,
+  ) {
+    if (!mapStrategy || !mapContainer) return
+
+    // Fire once against the current visibleMapArea. If a drawer is still
+    // animating (mobile bottom sheet opening, desktop left sheet sliding
+    // in), we also queue a deferred "final" re-fit: we let the drawer
+    // settle, then fit again against the final padding. Unlike flyTo
+    // (which only sets center + zoom and lets the runtime `setPadding`
+    // watcher shift the visual center later), fitBounds bakes the
+    // padding into the resolved camera — if we only fit once against a
+    // partial area, the polygon lands off-center in the final state.
+    _fitBoundsNow(bounds, options)
+
+    // Tear down any in-flight pending re-fit from a previous call.
+    if (pendingFit?.stopWatch) pendingFit.stopWatch()
+    if (pendingFit?.stopTimer) clearTimeout(pendingFit.stopTimer)
+    if (pendingFit?.settleTimer) clearTimeout(pendingFit.settleTimer)
+
+    const areaKey = (a: typeof appStore.visibleMapArea) =>
+      `${Math.round(a.x)}_${Math.round(a.y)}_${Math.round(a.width)}_${Math.round(a.height)}`
+    const initialKey = areaKey(appStore.visibleMapArea)
+
+    // Watch for visibleMapArea changes for a settle window. On each
+    // change, reset a stability timer; when the timer fires (no change
+    // for SETTLE_MS), re-fit if the area moved meaningfully from the
+    // initial call. Re-fitting mid-animation would interrupt the in-
+    // flight Mapbox camera animation and cause a visible jerk, so we
+    // only re-fit once things are still.
+    const SETTLE_MS = 120
+    const MAX_WAIT_MS = 600
+
+    const triggerSettledRefit = () => {
+      if (!pendingFit) return
+      const currentKey = areaKey(appStore.visibleMapArea)
+      if (currentKey !== pendingFit.lastRefitKey) {
+        pendingFit.lastRefitKey = currentKey
+        _fitBoundsNow(pendingFit.bounds, pendingFit.options)
+      }
+      // Keep watching in case another drawer animation starts; the
+      // maxWait timer below caps total work.
+    }
+
+    const stopWatch = watch(
+      () => appStore.visibleMapArea,
+      () => {
+        if (!pendingFit) return
+        if (pendingFit.settleTimer) clearTimeout(pendingFit.settleTimer)
+        pendingFit.settleTimer = setTimeout(triggerSettledRefit, SETTLE_MS)
+      },
+      { deep: true, flush: 'post' },
+    )
+
+    const stopTimer = setTimeout(() => {
+      if (!pendingFit) return
+      if (pendingFit.settleTimer) clearTimeout(pendingFit.settleTimer)
+      pendingFit.stopWatch?.()
+      pendingFit = null
+    }, MAX_WAIT_MS)
+
+    pendingFit = {
+      bounds,
+      options,
+      lastRefitKey: initialKey,
+      stopWatch,
+      stopTimer,
+      settleTimer: null,
+    }
   }
 
   function setMapEngine(mapEngine: MapEngine) {
@@ -830,82 +878,29 @@ function mapService() {
   }
 
   /**
-   * Update map padding to keep orbit point centered in unobstructed area
-   * Uses easeTo with padding to smoothly adjust the map's effective viewport
+   * Update map padding to keep the vanishing point inside the unobstructed
+   * area. Applied with setPadding (no camera animation) so changes happen
+   * frame-by-frame and stay synchronized with any UI transition driving the
+   * bounds change (drawer slide, sheet drag, etc.).
    */
   function updateMapPadding() {
-    if (!mapStrategy || !mapContainer) {
-      console.warn('Cannot update map padding: map not ready')
-      return
-    }
-
-    // If the map is currently animating (e.g. locate flyTo on startup), defer
-    // the padding update until the animation finishes to avoid interrupting it.
-    if (mapStrategy.mapInstance?.isMoving()) {
-      function onMoveEnd() {
-        mapEventBus.off('moveend', onMoveEnd)
-        updateMapPadding()
-      }
-      mapEventBus.on('moveend', onMoveEnd)
-      return
-    }
+    if (!mapStrategy || !mapContainer || !isMapReady.value) return
 
     const paddingResult = calculateMapPadding()
+    if (!paddingResult) return
 
-    if (!paddingResult) {
-      console.warn('Cannot calculate map padding: invalid dimensions')
-      return
-    }
-
-    // Apply the padding using flyTo for smooth transition
-    mapStrategy.flyTo({
-      padding: paddingResult.padding,
-    })
+    mapStrategy.mapInstance?.setPadding(paddingResult.padding as any)
   }
 
-  // Watch for changes in the visible map area and automatically adjust padding
-  watch(
-    () => appStore.visibleMapArea,
-    (newVisibleArea, oldVisibleArea) => {
-      // Only update if the map is ready and we have valid areas
-      if (
-        !isMapReady.value ||
-        !mapStrategy ||
-        !newVisibleArea ||
-        !oldVisibleArea
-      ) {
-        return
-      }
-
-      // Calculate old and new padding to check for significant changes
-      const oldPaddingResult = calculateMapPadding()
-      if (!oldPaddingResult) return
-
-      // Use a more sophisticated change detection based on actual padding values
-      const hasSignificantChange =
-        Math.abs(newVisibleArea.x - oldVisibleArea.x) >
-          MAP_PADDING_CONFIG.CHANGE_THRESHOLD ||
-        Math.abs(newVisibleArea.y - oldVisibleArea.y) >
-          MAP_PADDING_CONFIG.CHANGE_THRESHOLD ||
-        Math.abs(newVisibleArea.width - oldVisibleArea.width) >
-          MAP_PADDING_CONFIG.CHANGE_THRESHOLD ||
-        Math.abs(newVisibleArea.height - oldVisibleArea.height) >
-          MAP_PADDING_CONFIG.CHANGE_THRESHOLD
-
-      if (hasSignificantChange) {
-        // Use debounced update to prevent excessive calls during animations
-        debouncedUpdateMapPadding()
-      }
-    },
-    { deep: true },
-  )
+  // Watch for changes in the visible map area and apply padding immediately.
+  watch(() => appStore.visibleMapArea, updateMapPadding, {
+    deep: true,
+    flush: 'post',
+  })
 
   // Also update padding when map becomes ready
   watch(isMapReady, ready => {
-    if (ready) {
-      // Use init delay to ensure map is fully initialized
-      debouncedUpdateMapPadding(MAP_PADDING_CONFIG.INIT_DELAY)
-    }
+    if (ready) updateMapPadding()
   })
 
   watch(dark, newDark => {
@@ -1037,10 +1032,6 @@ function mapService() {
     isCurrentlyZooming.value = false
 
     // Clear any pending timeouts
-    if (paddingUpdateTimeout) {
-      clearTimeout(paddingUpdateTimeout)
-      paddingUpdateTimeout = null
-    }
     if (rotatingHideTimeout) {
       clearTimeout(rotatingHideTimeout)
       rotatingHideTimeout = null
@@ -1048,6 +1039,12 @@ function mapService() {
     if (zoomingHideTimeout) {
       clearTimeout(zoomingHideTimeout)
       zoomingHideTimeout = null
+    }
+    if (pendingFit) {
+      pendingFit.stopWatch?.()
+      if (pendingFit.stopTimer) clearTimeout(pendingFit.stopTimer)
+      if (pendingFit.settleTimer) clearTimeout(pendingFit.settleTimer)
+      pendingFit = null
     }
 
     // Destroy marker layers

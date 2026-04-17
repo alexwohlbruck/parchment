@@ -138,10 +138,11 @@ function handlePlaceResult(place: any) {
       if (place.geometry.value.bounds && ['polygon', 'multipolygon', 'linestring'].includes(place.geometry.value.type)) {
         // For geometries with bounds data, fit the view to the geometry area with padding
         // The map service will automatically account for obstructing UI elements
+        // `map.service.fitBounds` computes a viewport-proportional,
+        // obstruction-aware padding and caps maxZoom at 19 by default.
         fitBounds(place.geometry.value.bounds, {
-          padding: 50, // Additional padding around the geometry bounds
           duration: 1200,
-          easing: (t) => t * (2 - t) // easeOutQuad for smooth animation
+          easing: (t) => t * (2 - t), // easeOutQuad for smooth animation
         })
       } else {
         // For points or geometries without bounds, use traditional flyTo with appropriate zoom

@@ -4,8 +4,8 @@
     {
       "name": "parchment-web",
       "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "--cwd", "web", "dev"],
-      "port": 5173,
+      "runtimeArgs": ["run", "--cwd", "web", "dev", "--port", "5174"],
+      "port": 5174,
       "autoPort": false
     },
     {

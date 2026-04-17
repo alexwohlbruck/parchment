@@ -45,6 +45,7 @@ import { createVueMarkerElement } from '@/lib/vue-marker.utils'
 import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
 import InstructionPointMarker from '@/components/map/InstructionPointMarker.vue'
 import { useAppStore } from '@/stores/app.store'
+import { calculateFitPadding } from '@/lib/map-padding'
 import { useThemeStore } from '@/stores/theme.store'
 import { buildMapStyle, buildSatelliteStyle } from '@/lib/basemap-style'
 import {
@@ -859,41 +860,32 @@ export class MaplibreStrategy extends MapStrategy {
       })
     })
 
-    if (!bounds.isEmpty()) {
-      // Get the visible map area from app store to calculate proper padding
-      const appStore = useAppStore()
-      const visibleArea = appStore.visibleMapArea
-
-      // Calculate padding based on the visible map area
-      // This ensures the trip routes are centered within the unobstructed area
-      const mapWidth = this.container.clientWidth
-      const mapHeight = this.container.clientHeight
-
-      let padding:
-        | number
-        | { left: number; top: number; right: number; bottom: number } = 200 // Increased default padding
-
-      if (mapWidth && mapHeight && visibleArea) {
-        // Calculate padding values to center content in the visible area with generous margins
-        padding = {
-          left: Math.max(150, visibleArea.x + 50),
-          top: Math.max(150, visibleArea.y + 50),
-          right: Math.max(
-            150,
-            mapWidth - (visibleArea.x + visibleArea.width) + 50,
-          ),
-          bottom: Math.max(
-            150,
-            mapHeight - (visibleArea.y + visibleArea.height) + 50,
-          ),
-        }
+    // Extend by the request waypoints too — route geometry is snapped to
+    // the road graph and may diverge from the user-specified waypoint
+    // (e.g. a POI pinned slightly off the nearest road). Including the
+    // waypoints guarantees every pin stays in view after the fit.
+    trips.request?.waypoints?.forEach(wp => {
+      const c = wp?.coordinate
+      if (c && typeof c.lat === 'number' && typeof c.lng === 'number') {
+        bounds.extend([c.lng, c.lat])
       }
+    })
 
-      this.mapInstance.fitBounds(bounds, {
-        padding,
-        duration: 1000,
-      })
-    }
+    if (bounds.isEmpty()) return
+
+    const appStore = useAppStore()
+    const padding = calculateFitPadding(
+      appStore.visibleMapArea,
+      this.container.clientWidth,
+      this.container.clientHeight,
+    )
+
+    this.mapInstance.fitBounds(bounds, {
+      padding,
+      duration: 1000,
+      // Building-level cap so a very short route doesn't zoom past street level.
+      maxZoom: 19,
+    })
   }
 
   /**

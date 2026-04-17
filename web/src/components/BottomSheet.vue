@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from 'vue'
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { cn } from '@/lib/utils'
 import { useWindowSize, useScroll, useScreenSafeArea } from '@vueuse/core'
 import { useObstructingComponent } from '@/composables/useObstructingComponent'
@@ -8,7 +8,6 @@ import { type ManualBounds } from '@/stores/app.store'
 import { useHotkeys } from '@/composables/useHotkeys'
 import { useDrawerCoordination } from '@/composables/useDrawerCoordination'
 import {
-  DrawerTrigger,
   DrawerRoot,
   DrawerContent,
   DrawerOverlay,
@@ -58,7 +57,6 @@ const emit = defineEmits<{
   (e: 'update:activeSnapPointIndex', index: number): void
 }>()
 
-const open = ref(props.open)
 const sheet = ref<HTMLElement | null>(null)
 const drawerContentRef = ref<InstanceType<typeof DrawerContent> | null>(null)
 const scrollContainer = ref<HTMLElement | null>(null)
@@ -84,28 +82,175 @@ function snapPointToPixels(point: SnapPoint): number {
 }
 
 // ==================== OBSTRUCTING BOUNDS ====================
+//
+// Three-phase bounds tracking driven by Vaul's lifecycle events:
+//   - Idle (no drag, no transition in flight) → publish the TARGET bounds
+//     derived from `activeSnapPoint`. Publishing the target (rather than
+//     whatever the element currently measures) is essential on programmatic
+//     open so consumers that call flyTo at open time — e.g. Place.vue
+//     flying to a marker — compute their camera center against the FINAL
+//     padding, otherwise the marker lands mid-canvas instead of mid-
+//     visible-area.
+//   - Dragging (Vaul @drag firing, before @release) → publish the live
+//     element rect every frame via rAF, so the map vanishing point tracks
+//     the finger.
+//   - Animating (between @release / programmatic open-close and
+//     @animation-end) → keep publishing the live element rect every frame
+//     so the vanishing point rides the Vaul snap-to-position CSS transition
+//     smoothly. Without this, padding snaps to target instantly while the
+//     drawer is still mid-transition.
+//
+// Fully-expanded snap point is capped to the second-to-last snap point so
+// the padding doesn't eat the entire canvas when the drawer is at 100%.
 
-const shouldTrack = computed(() => props.open && props.trackObstructing)
+const isDragging = ref(false)
+const isAnimating = ref(false)
+const liveBounds = ref<ManualBounds | null>(null)
+const useLiveBounds = computed(() => isDragging.value || isAnimating.value)
 
-const manualBounds = computed<ManualBounds | null>(() => {
-  if (!props.trackObstructing || activeSnapPoint.value === null) return null
+function getElementBounds(): ManualBounds | null {
+  // drawerContentRef.$el can be a Comment placeholder while the Vaul portal
+  // is mounting — guard before calling getBoundingClientRect.
+  const raw = drawerContentRef.value?.$el as
+    | { getBoundingClientRect?: () => DOMRect }
+    | null
+    | undefined
+  if (!raw || typeof raw.getBoundingClientRect !== 'function') return null
+  const r = raw.getBoundingClientRect()
+  if (r.width <= 0 || r.height <= 0) return null
+  return { x: r.left, y: r.top, width: r.width, height: r.height }
+}
 
-  // Use second-to-last snap point when fully expanded (for map padding)
-  const point = isFullyExpanded.value
-    ? (snapPoints.value.at(-2) ?? activeSnapPoint.value)
-    : activeSnapPoint.value
-
+function snapPointBounds(point: SnapPoint | null): ManualBounds | null {
+  if (point === null) return null
   const height = snapPointToPixels(point)
-
   return {
     x: 0,
     y: windowHeight.value - height,
     width: windowWidth.value,
     height,
   }
+}
+
+// BottomSheet publishes its real obstruction rect — the 50% map-padding cap
+// lives in map.service so it applies consistently during drag and programmatic
+// motion, rather than being gated on `isFullyExpanded` (which is sticky
+// during drag because Vaul only commits activeSnapPoint on @release and was
+// causing drag bounds to be frozen at the cap while the drawer visibly moved).
+
+const manualBounds = computed<ManualBounds | null>(() => {
+  if (!props.trackObstructing) return null
+  // Fully closed + no animation in flight → drawer is off-screen, clear
+  // bounds so the map padding drops to zero.
+  if (!props.open && !isAnimating.value) return null
+  // Drag, snap-back, open, or close animation → live bounds so the
+  // vanishing point tracks the drawer's actual position.
+  if (liveBounds.value) return liveBounds.value
+  return snapPointBounds(activeSnapPoint.value)
 })
 
-useObstructingComponent(sheet, props.obstructingKey, manualBounds, shouldTrack)
+useObstructingComponent(sheet, props.obstructingKey, manualBounds)
+
+// Mirror DrawerContent's $el into `sheet` for the composable.
+watch(
+  () => drawerContentRef.value?.$el as HTMLElement | undefined,
+  el => {
+    sheet.value = el ?? null
+  },
+  { immediate: true, flush: 'post' },
+)
+
+// rAF loop — runs only while the drawer is dragging or mid-animation.
+// Self-cancels once both flags go false.
+let rafId = 0
+function tickLiveBounds() {
+  if (!useLiveBounds.value) {
+    rafId = 0
+    return
+  }
+  liveBounds.value = getElementBounds()
+  rafId = requestAnimationFrame(tickLiveBounds)
+}
+function startLiveTracking() {
+  liveBounds.value = getElementBounds()
+  if (rafId === 0) rafId = requestAnimationFrame(tickLiveBounds)
+}
+function stopLiveTracking() {
+  if (rafId) {
+    cancelAnimationFrame(rafId)
+    rafId = 0
+  }
+  liveBounds.value = null
+}
+
+// ---- Vaul event wiring ----
+
+// Vaul fires @drag repeatedly during a user drag. We keep the rAF warm on
+// every call (idempotent — startLiveTracking won't schedule a second loop
+// if one is already running) so the first drag frame after a programmatic
+// open always lands live bounds.
+function onVaulDrag(_percentageDragged: number) {
+  isDragging.value = true
+  startLiveTracking()
+}
+
+// Vaul fires @release when the user ends a drag. Vaul then runs the CSS
+// transition to snap the drawer to the nearest allowed snap point. We flip
+// from drag mode to animation mode so the rAF keeps ticking through the
+// transition, and let @animation-end clear it.
+function onVaulRelease() {
+  handleVaulRelease()
+  isDragging.value = false
+  isAnimating.value = true
+  startLiveTracking()
+}
+
+// Programmatic open / close also triggers a CSS transition on the drawer.
+// Flag animation so the live tracker runs until @animation-end.
+watch(
+  () => props.open,
+  () => {
+    isAnimating.value = true
+    startLiveTracking()
+  },
+)
+
+// Backup pointer-based drag detection. Vaul's @drag has a small movement
+// threshold before it fires, and the first drag gesture after the open
+// animation can miss a frame or two. Arm drag mode optimistically on any
+// pointerdown inside the drawer — Vaul will confirm with @release /
+// @animation-end which clear it. Taps (pointerdown without significant
+// movement) just cause a handful of cheap rAF ticks.
+//
+// We walk the DOM with closest('[data-vaul-drawer]') instead of checking
+// sheet.value.contains(target), because sheet.value is populated by a
+// post-flush watch on drawerContentRef.$el and can still be null on the
+// first pointerdown of the first open — that race was what broke the
+// first drag after opening the sheet.
+function onPointerDown(e: PointerEvent) {
+  const target = e.target as HTMLElement | null
+  if (!target || !target.closest('[data-vaul-drawer]')) return
+  isDragging.value = true
+  startLiveTracking()
+}
+function onPointerEnd() {
+  // Tap / release — clear the optimistic drag flag. If a real drag
+  // occurred, @release has already fired and set isAnimating so the rAF
+  // keeps ticking until @animation-end.
+  isDragging.value = false
+}
+
+onMounted(() => {
+  window.addEventListener('pointerdown', onPointerDown, true)
+  window.addEventListener('pointerup', onPointerEnd, true)
+  window.addEventListener('pointercancel', onPointerEnd, true)
+})
+onUnmounted(() => {
+  window.removeEventListener('pointerdown', onPointerDown, true)
+  window.removeEventListener('pointerup', onPointerEnd, true)
+  window.removeEventListener('pointercancel', onPointerEnd, true)
+  if (rafId) cancelAnimationFrame(rafId)
+})
 
 const { y: scrollY } = useScroll(scrollContainer)
 const isAtTop = computed(() => scrollY.value === 0)
@@ -334,8 +479,12 @@ function handleTouchEnd() {
 }
 
 function handleAnimationEnd(open: boolean) {
+  // Clear the animation flag so obstructing bounds switch back to the
+  // target snap point (flyTo callers can read stable padding again).
+  isAnimating.value = false
+  stopLiveTracking()
+
   if (!open) {
-    console.log('handleAnimationEnd', open)
     setTimeout(() => {
       activeSnapPoint.value =
         snapPoints.value[props.defaultSnapPointIndex] ?? null
@@ -348,7 +497,8 @@ function handleAnimationEnd(open: boolean) {
   <DrawerRoot
     :open="props.open"
     @update:open="handleOpenChange"
-    @release="handleVaulRelease"
+    @drag="onVaulDrag"
+    @release="onVaulRelease"
     @animation-end="handleAnimationEnd"
     :modal="modal"
     :should-scale-background="true"

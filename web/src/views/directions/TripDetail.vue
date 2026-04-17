@@ -92,14 +92,18 @@ watch(
   { immediate: true },
 )
 
-// Restore all trips when leaving the component
 // Map/trip cleanup when the user navigates away from this detail view
 // (via the drawer's back/close/home controls or any other route change).
 onBeforeRouteLeave(to => {
   mapService.setRouteProfile(null)
   if (to.name === AppRoute.DIRECTIONS) {
-    // Going back to the directions list — restore all routes
-    mapService.showAllTrips()
+    // Going back to the directions list — keep the currently-viewed trip
+    // as the visible one (remember the last selection) instead of
+    // re-rendering all trips or resetting to the default. setVisibleTrips
+    // is idempotent; we call it explicitly so selectedTripId stays in sync.
+    if (tripId.value) {
+      mapService.setVisibleTrips([tripId.value])
+    }
   } else {
     // Closing entirely — clear routes and waypoint markers
     directionsService.clearWaypoints()

@@ -760,10 +760,7 @@ export class MaplibreStrategy extends MapStrategy {
     if (draggable && dragOptions) {
       const el = marker.getElement()
       if (el) {
-        el.style.cursor = 'grab'
-        marker.on('dragstart', () => {
-          el.style.cursor = 'grabbing'
-        })
+        el.style.cursor = 'move'
       }
       if (dragOptions.onDrag) {
         marker.on('drag', () => {
@@ -772,7 +769,6 @@ export class MaplibreStrategy extends MapStrategy {
         })
       }
       marker.on('dragend', () => {
-        if (el) el.style.cursor = 'grab'
         const pos = marker.getLngLat()
         dragOptions.onDragEnd({ lng: pos.lng, lat: pos.lat })
       })

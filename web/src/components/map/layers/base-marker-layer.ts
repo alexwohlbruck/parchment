@@ -20,6 +20,11 @@ export interface MarkerLayerConfig {
   zIndex?: number
 }
 
+export interface MarkerDragOptions {
+  onDragEnd: (lngLat: LngLat) => void
+  onDrag?: (lngLat: LngLat) => void
+}
+
 export interface MarkerData {
   /** Unique identifier for this marker within the layer */
   id: string
@@ -27,10 +32,19 @@ export interface MarkerData {
   lngLat: LngLat
   /** Props to pass to the Vue component */
   props: Record<string, any>
+  /** Optional drag handlers. When provided, marker becomes draggable. */
+  dragOptions?: MarkerDragOptions
 }
 
 export interface MapMarkerAPI {
-  addVueMarker(id: string, lngLat: LngLat, component: Component, props: Record<string, any>, zIndex?: number): void
+  addVueMarker(
+    id: string,
+    lngLat: LngLat,
+    component: Component,
+    props: Record<string, any>,
+    zIndex?: number,
+    dragOptions?: MarkerDragOptions,
+  ): void
   removeMarker(id: string): void
   hasMarker(id: string): boolean
 }
@@ -135,7 +149,8 @@ export abstract class BaseMarkerLayer {
         markerData.lngLat,
         this.component,
         markerData.props,
-        this.zIndex
+        this.zIndex,
+        markerData.dragOptions,
       )
     })
 

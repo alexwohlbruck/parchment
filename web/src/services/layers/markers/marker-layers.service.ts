@@ -8,6 +8,7 @@
 import type { LngLat } from '@/types/map.types'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { WaypointsLayer } from '@/components/map/layers/waypoints-layer'
+import type { MarkerDragOptions } from '@/components/map/layers/base-marker-layer'
 import { FriendLocationsLayer } from '@/components/map/layers/friend-locations-layer'
 import { TripInstructionsLayer } from '@/components/map/layers/trip-instructions-layer'
 import { UserLocationLayer } from '@/components/map/layers/user-location-layer'
@@ -46,7 +47,16 @@ export function useMarkerLayersService() {
         component: Component,
         props: Record<string, any>,
         zIndex?: number,
-      ) => mapStrategy?.addVueMarker(id, lngLat, component, props, zIndex),
+        dragOptions?: MarkerDragOptions,
+      ) =>
+        mapStrategy?.addVueMarker(
+          id,
+          lngLat,
+          component,
+          props,
+          zIndex,
+          dragOptions,
+        ),
       removeMarker: (id: string) => mapStrategy?.removeMarker(id),
       hasMarker: (id: string) => mapStrategy?.hasMarker(id) ?? false,
     }

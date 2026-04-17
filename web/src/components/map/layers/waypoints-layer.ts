@@ -6,10 +6,12 @@
 
 import { BaseMarkerLayer, type MarkerData } from './base-marker-layer'
 import { useDirectionsStore } from '@/stores/directions.store'
+import { useDirectionsService } from '@/services/directions.service'
 import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
 
 export class WaypointsLayer extends BaseMarkerLayer {
   private directionsStore = useDirectionsStore()
+  private directionsService = useDirectionsService()
 
   constructor() {
     super({
@@ -37,6 +39,11 @@ export class WaypointsLayer extends BaseMarkerLayer {
               : index === waypoints.length - 1
               ? 'destination'
               : 'waypoint',
+          },
+          dragOptions: {
+            onDragEnd: (lngLat) => {
+              this.directionsService.moveWaypoint(index, lngLat)
+            },
           },
         }
       })

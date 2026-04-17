@@ -280,6 +280,22 @@ function directionsService() {
     store.setWaypoint(index, waypoint)
   }
 
+  /**
+   * Move an existing waypoint to a new location (e.g. from dragging its
+   * marker on the map). Clears prior place info so we reverse-geocode the new
+   * coordinates. Safe to call with an out-of-range index — it's a no-op.
+   */
+  async function moveWaypoint(
+    index: number,
+    lngLat: { lng: number; lat: number },
+  ) {
+    if (index < 0 || index >= waypoints.value.length) return
+    await setWaypointWithGeocoding(index, {
+      lngLat: new LngLat(lngLat.lng, lngLat.lat),
+      place: null,
+    })
+  }
+
   function setWaypoints(wps: Waypoint[]) {
     store.setWaypoints(wps)
   }
@@ -383,6 +399,7 @@ function directionsService() {
     clearWaypoints,
     removeWaypoint,
     addWaypoint,
+    moveWaypoint,
     directionsFrom,
     directionsTo,
     getCurrentLocationWaypoint,

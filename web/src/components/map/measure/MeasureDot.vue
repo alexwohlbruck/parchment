@@ -18,7 +18,7 @@ function onClick(e: MouseEvent | KeyboardEvent) {
 
 <template>
   <div
-    class="measure-dot relative flex size-4 cursor-grab items-center justify-center transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+    class="measure-dot relative flex size-4 cursor-move items-center justify-center transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
     role="button"
     tabindex="0"
     @click="onClick"

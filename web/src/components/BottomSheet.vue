@@ -32,7 +32,15 @@ const props = withDefaults(
     defaultSnapPointIndex?: number
     customSnapPoints?: (number | string)[]
     obstructingKey?: string
-    trackObstructing?: boolean
+    /**
+     * When true, the sheet publishes its bounds to the app store so the
+     * map shifts its padding (and therefore its visual center) to stay
+     * inside the unoccluded area as the sheet slides / drags. Opt-in:
+     * only the top-level nav sheet (the one hosting `<router-view />`)
+     * should set this. Nested / popover-style sheets should stay off so
+     * they don't nudge the map on every open.
+     */
+    adjustMapPadding?: boolean
     parentId?: string
     zIndexOffset?: number
     respectSafeArea?: boolean
@@ -44,7 +52,7 @@ const props = withDefaults(
     peekHeight: '125px',
     obstructingKey: 'bottom-sheet',
     defaultSnapPointIndex: 0,
-    trackObstructing: true,
+    adjustMapPadding: false,
     zIndexOffset: 0,
     respectSafeArea: true,
   },
@@ -139,7 +147,7 @@ function snapPointBounds(point: SnapPoint | null): ManualBounds | null {
 // causing drag bounds to be frozen at the cap while the drawer visibly moved).
 
 const manualBounds = computed<ManualBounds | null>(() => {
-  if (!props.trackObstructing) return null
+  if (!props.adjustMapPadding) return null
   // Fully closed + no animation in flight → drawer is off-screen, clear
   // bounds so the map padding drops to zero.
   if (!props.open && !isAnimating.value) return null

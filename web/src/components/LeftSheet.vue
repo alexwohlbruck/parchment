@@ -135,10 +135,16 @@ watch(
   { immediate: true },
 )
 
+// Esc closes the drawer. Gated on `show` because LeftSheet is permanently
+// mounted — without the guard, pressing esc on the map root (with no
+// subview open) would still fire and trigger a home navigation.
 useHotkeys([
   {
     key: 'esc',
-    handler: () => emit('back'),
+    handler: () => {
+      if (!props.show) return
+      emit('home')
+    },
   },
 ])
 </script>

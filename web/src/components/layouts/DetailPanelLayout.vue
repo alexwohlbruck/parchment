@@ -22,7 +22,7 @@ const emit = defineEmits<{
     <div
       class="sticky top-0 z-10 bg-background/80 backdrop-blur-xl border-b border-border/50"
     >
-      <div class="flex items-center gap-3 px-4 py-2">
+      <div class="flex items-center gap-3 px-4 py-3">
         <Button
           v-if="showBackButton"
           variant="ghost"

@@ -2,6 +2,7 @@
 import { computed, ref, watch, provide, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { AppRoute } from '@/router'
 import { Card } from '@/components/ui/card'
 import Palette from '@/components/palette/Palette.vue'
 import DashboardHome from '@/components/dashboard/DashboardHome.vue'
@@ -45,6 +46,22 @@ watch(isFullyExpanded, newVal => {
     paletteRef.value?.resetPalette()
   }
 })
+
+// Minimize the nav sheet whenever a map subview opens (place, directions, etc.)
+// so the content sheet isn't stacked on top of the expanded nav.
+const isMapSubview = computed(
+  () =>
+    route.matched.length > 1 &&
+    route.name !== AppRoute.MAP &&
+    !route.meta.dialog,
+)
+
+watch(
+  () => route.fullPath,
+  () => {
+    if (isMapSubview.value) minimizeSheet()
+  },
+)
 </script>
 
 <template>
@@ -52,7 +69,6 @@ watch(isFullyExpanded, newVal => {
     open
     :peek-height="PEEK_HEIGHT"
     :dismissable="false"
-    :trackObstructing="false"
     :z-index-offset="-10"
     v-model:active-snap-point="activeSnapPoint"
     v-model:active-snap-point-index="activeSnapPointIndex"

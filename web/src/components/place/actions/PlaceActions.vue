@@ -87,7 +87,7 @@ const hasOsmId = computed(() => {
         :peek-height="'400px'"
         modal
         :z-index-offset="10"
-        mobile-content-class="pt-0 px-1"
+        mobile-content-class="pt-5 pb-2 px-1"
       >
         <template #trigger>
           <Button

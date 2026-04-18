@@ -57,7 +57,7 @@ const { isMobileScreen, internalOpen, handleOpenChange } = useResponsiveOverlay(
       :dismissable="true"
       obstructing-key="responsive-dialog"
     >
-      <div :class="props.noPadding ? 'p-0' : 'p-4'">
+      <div :class="props.noPadding ? 'p-0' : 'pt-5 pb-4 px-4'">
         <div v-if="props.title || props.description" class="mb-4">
           <h2 v-if="props.title" class="text-lg font-semibold">
             {{ props.title }}

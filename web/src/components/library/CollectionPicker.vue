@@ -199,8 +199,11 @@ function openCreateCollectionDialog() {
 
 <template>
   <div class="flex flex-col gap-2">
+    <h2 class="px-3 text-base font-semibold">
+      {{ t('library.actions.addToCollection') }}
+    </h2>
     <div
-      class="px-2"
+      class="px-3"
       @click.stop="preventPropagation"
       @keydown.stop="handleKeydown"
     >
@@ -220,7 +223,7 @@ function openCreateCollectionDialog() {
 
     <div
       v-if="sortedAndFilteredCollections.length > 0"
-      class="max-h-[200px] overflow-y-auto px-1 flex flex-col gap-1"
+      class="max-h-[240px] overflow-y-auto px-2 flex flex-col"
     >
       <template
         v-for="(collection, index) in sortedAndFilteredCollections"
@@ -228,7 +231,7 @@ function openCreateCollectionDialog() {
       >
         <Button
           variant="ghost"
-          class="w-full justify-start h-auto px-2 py-1.5 text-sm font-normal flex items-center gap-2"
+          class="w-full justify-start h-auto min-h-11 px-3 py-2 text-sm font-normal flex items-center gap-2"
           :disabled="isTogglingCollection"
           @click.prevent.stop="toggleCollection(collection.id)"
         >
@@ -283,7 +286,7 @@ function openCreateCollectionDialog() {
 
     <Separator />
 
-    <div class="px-1 flex">
+    <div class="px-2 flex">
       <Button
         variant="ghost"
         class="w-full justify-start h-auto px-2 py-1.5 text-sm font-normal flex items-center gap-2"

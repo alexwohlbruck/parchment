@@ -13,17 +13,26 @@ const allowedMethods: HTTPMethod[] = [
   'OPTIONS',
 ]
 
-const devOrigins =
+// Tauri webview origins — must be allowed in production too, since the
+// mobile/desktop apps load from these schemes regardless of build mode.
+// - iOS / macOS / Windows / Linux: `tauri://localhost`
+// - Android: `http://tauri.localhost` (and `https://tauri.localhost` on newer Tauri versions)
+const tauriOrigins = [
+  'tauri://localhost',
+  'http://tauri.localhost',
+  'https://tauri.localhost',
+]
+
+// Permissive localhost matcher for development: covers the Vite dev server on
+// any port (5173, 5174 for the Claude Code preview, etc.) and the Android
+// emulator's host alias (10.0.2.2).
+const devOriginMatchers =
   process.env.NODE_ENV !== 'production'
-    ? [
-        'tauri://localhost',
-        'http://tauri.localhost',
-        'http://10.0.2.2:5173', // Android emulator
-      ]
+    ? [/^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?$/]
     : []
 
 const corsConfig: CORSConfig = {
-  origin: [clientOrigin!, clientHostname, ...devOrigins],
+  origin: [clientOrigin!, clientHostname, ...tauriOrigins, ...devOriginMatchers],
   credentials: true,
   allowedHeaders: [
     'Content-Type',

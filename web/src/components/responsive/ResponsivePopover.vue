@@ -88,7 +88,7 @@ watch(
       obstructing-key="responsive-popover"
       :z-index-offset="props.zIndexOffset"
     >
-      <div :class="props.mobileContentClass || 'p-4'">
+      <div :class="props.mobileContentClass || 'pt-5 pb-4 px-4'">
         <slot name="content" :close="() => handleMobileOpenChange(false)" />
       </div>
     </BottomSheet>

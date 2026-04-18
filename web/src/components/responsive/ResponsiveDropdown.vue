@@ -212,11 +212,11 @@ function handleItemClick(item: MenuItem, event?: Event) {
       obstructing-key="responsive-dropdown"
       @update:open="handleOpenChange"
     >
-      <div v-if="SafeCustomComponent">
+      <div v-if="SafeCustomComponent" class="pt-5 pb-2">
         <component :is="SafeCustomComponent" v-bind="customProps" />
       </div>
 
-      <div v-else>
+      <div v-else class="pt-5 pb-2">
         <!-- Header slot -->
         <slot name="header" />
 
@@ -234,7 +234,7 @@ function handleItemClick(item: MenuItem, event?: Event) {
             v-for="(item, itemIndex) in items"
             :key="item.id || itemIndex"
           >
-            <Separator v-if="item.type === 'separator'" class="my-1.5" />
+            <Separator v-if="item.type === 'separator'" class="my-2" />
 
             <!-- Label with optional custom component -->
             <template v-else-if="item.type === 'label'">
@@ -259,7 +259,7 @@ function handleItemClick(item: MenuItem, event?: Event) {
             <Button
               v-else-if="item.type === 'item'"
               variant="ghost"
-              class="w-full h-auto px-3 py-2.5 gap-2"
+              class="w-full h-auto min-h-11 px-3 py-2 gap-2 "
               :class="[
                 item.trailing ? 'justify-between' : 'justify-start',
                 {
@@ -297,7 +297,7 @@ function handleItemClick(item: MenuItem, event?: Event) {
             <Button
               v-else-if="item.type === 'submenu'"
               variant="ghost"
-              class="w-full justify-between h-auto px-3 py-2.5"
+              class="w-full justify-between h-auto min-h-11 px-3 py-2 "
               :class="{
                 'opacity-50 cursor-not-allowed': item.disabled,
               }"
@@ -335,14 +335,14 @@ function handleItemClick(item: MenuItem, event?: Event) {
         :obstructing-key="`responsive-dropdown-submenu-${index}`"
         @update:open="(val: boolean) => handleSubmenuOpenChange(index, val)"
       >
-        <div v-if="entry.submenu.customComponent">
+        <div v-if="entry.submenu.customComponent" class="pt-5 pb-2">
           <component
             :is="markRaw(entry.submenu.customComponent)"
             v-bind="entry.submenu.customProps"
           />
         </div>
 
-        <div v-else>
+        <div v-else class="pt-5 pb-2">
           <!-- Submenu header with back button -->
           <div class="flex items-center gap-2 mb-2 mx-1">
             <Button
@@ -363,7 +363,7 @@ function handleItemClick(item: MenuItem, event?: Event) {
               v-for="(subItem, subIndex) in entry.submenu.items"
               :key="subItem.id || subIndex"
             >
-              <Separator v-if="subItem.type === 'separator'" class="my-1.5" />
+              <Separator v-if="subItem.type === 'separator'" class="my-2" />
 
               <div
                 v-else-if="subItem.type === 'label'"
@@ -375,7 +375,7 @@ function handleItemClick(item: MenuItem, event?: Event) {
               <Button
                 v-else-if="subItem.type === 'item'"
                 variant="ghost"
-                class="w-full h-auto px-3 py-2.5 gap-2"
+                class="w-full h-auto min-h-11 px-3 py-2 gap-2 "
                 :class="[
                   subItem.trailing ? 'justify-between' : 'justify-start',
                   {
@@ -413,7 +413,7 @@ function handleItemClick(item: MenuItem, event?: Event) {
               <Button
                 v-else-if="subItem.type === 'submenu'"
                 variant="ghost"
-                class="w-full justify-between h-auto px-3 py-2.5"
+                class="w-full justify-between h-auto min-h-11 px-3 py-2 "
                 :class="{
                   'opacity-50 cursor-not-allowed': subItem.disabled,
                 }"
@@ -426,7 +426,7 @@ function handleItemClick(item: MenuItem, event?: Event) {
                     :is="subItem.icon"
                     class="size-4 shrink-0"
                   />
-                  <span>{{ subItem.label }}!</span>
+                  <span>{{ subItem.label }}</span>
                 </span>
                 <ChevronRight class="size-4 shrink-0 text-muted-foreground" />
               </Button>

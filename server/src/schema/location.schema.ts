@@ -5,7 +5,6 @@ import {
   timestamp,
   boolean,
   integer,
-  numeric,
   jsonb,
   index,
   unique,
@@ -82,8 +81,6 @@ export const locationSharingRelationships = pgTable(
     viewerFederatedId: text('viewer_federated_id'), // Format: user@server.com
     status: text('status').default('pending').notNull(), // 'pending' | 'active' | 'blocked' | 'expired'
     isCrossServer: boolean('is_cross_server').default(false).notNull(),
-    sharedKeyEncrypted: text('shared_key_encrypted'), // Encrypted shared key (encrypted with viewer's public key)
-    keyExchangeVersion: integer('key_exchange_version').default(1).notNull(),
     expiresAt: timestamp('expires_at'), // Null for indefinite sharing, timestamp for time-limited
     sharedProperties: jsonb('shared_properties')
       .$type<{
@@ -117,52 +114,6 @@ export type LocationSharingRelationship =
   typeof locationSharingRelationships.$inferSelect
 export type NewLocationSharingRelationship =
   typeof locationSharingRelationships.$inferInsert
-
-// ============================================================================
-// Location Events - Encrypted location storage (history log)
-// ============================================================================
-
-export const locationEvents = pgTable(
-  'location_event',
-  {
-    id: text('id').primaryKey(), // UUID v7
-    userId: text('user_id')
-      .references(() => users.id, { onDelete: 'cascade' })
-      .notNull(),
-    relationshipId: text('relationship_id')
-      .references(() => locationSharingRelationships.id, {
-        onDelete: 'cascade',
-      })
-      .notNull(),
-    encryptedData: text('encrypted_data').notNull(), // Base64-encoded encrypted JSON of full location event
-    encryptionVersion: integer('encryption_version').default(1).notNull(),
-    entityType: text('entity_type').default('person').notNull(), // 'person' | 'device'
-    entityId: text('entity_id'), // ID of tracked device if entity_type is 'device'
-    approximateTimestamp: timestamp('approximate_timestamp').notNull(), // Rounded to nearest minute for queries
-    approximateLat: numeric('approximate_lat', { precision: 10, scale: 4 }), // ~100m precision
-    approximateLng: numeric('approximate_lng', { precision: 10, scale: 4 }), // ~100m precision
-    trackingMode: text('tracking_mode').default('battery-efficient').notNull(), // 'high-accuracy' | 'battery-efficient'
-    deviceId: text('device_id').references(() => userDevices.id, {
-      onDelete: 'set null',
-    }),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-  },
-  (table) => [
-    index('idx_location_user_relationship_timestamp').on(
-      table.userId,
-      table.relationshipId,
-      table.approximateTimestamp,
-    ),
-    index('idx_location_user_timestamp').on(
-      table.userId,
-      table.approximateTimestamp,
-    ),
-    index('idx_location_entity').on(table.entityType, table.entityId),
-  ],
-)
-
-export type LocationEvent = typeof locationEvents.$inferSelect
-export type NewLocationEvent = typeof locationEvents.$inferInsert
 
 // ============================================================================
 // Tracked Devices - Third-party device tracking (Tile, cars, etc.)
@@ -251,30 +202,6 @@ export type EncryptedLocation = typeof encryptedLocations.$inferSelect
 export type NewEncryptedLocation = typeof encryptedLocations.$inferInsert
 
 // ============================================================================
-// Location History (Personal) - Encrypted with personal key
-// ============================================================================
-
-export const locationHistory = pgTable(
-  'location_history',
-  {
-    id: text('id').primaryKey(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    encryptedLocation: text('encrypted_location').notNull(), // E2EE with personal key
-    nonce: text('nonce').notNull(),
-    timestamp: timestamp('timestamp').notNull(),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-  },
-  (table) => [
-    index('idx_location_history_user_time').on(table.userId, table.timestamp),
-  ],
-)
-
-export type LocationHistory = typeof locationHistory.$inferSelect
-export type NewLocationHistory = typeof locationHistory.$inferInsert
-
-// ============================================================================
 // Federated Servers - For cross-server federation
 // ============================================================================
 
@@ -315,7 +242,7 @@ export const userDevicesRelations = relations(userDevices, ({ one }) => ({
 
 export const locationSharingRelationshipsRelations = relations(
   locationSharingRelationships,
-  ({ one, many }) => ({
+  ({ one }) => ({
     sharer: one(users, {
       fields: [locationSharingRelationships.sharerId],
       references: [users.id],
@@ -326,24 +253,8 @@ export const locationSharingRelationshipsRelations = relations(
       references: [users.id],
       relationName: 'viewer',
     }),
-    locationEvents: many(locationEvents),
   }),
 )
-
-export const locationEventsRelations = relations(locationEvents, ({ one }) => ({
-  user: one(users, {
-    fields: [locationEvents.userId],
-    references: [users.id],
-  }),
-  relationship: one(locationSharingRelationships, {
-    fields: [locationEvents.relationshipId],
-    references: [locationSharingRelationships.id],
-  }),
-  device: one(userDevices, {
-    fields: [locationEvents.deviceId],
-    references: [userDevices.id],
-  }),
-}))
 
 export const trackedDevicesRelations = relations(trackedDevices, ({ one }) => ({
   user: one(users, {
@@ -371,16 +282,6 @@ export const encryptedLocationsRelations = relations(
   ({ one }) => ({
     user: one(users, {
       fields: [encryptedLocations.userId],
-      references: [users.id],
-    }),
-  }),
-)
-
-export const locationHistoryRelations = relations(
-  locationHistory,
-  ({ one }) => ({
-    user: one(users, {
-      fields: [locationHistory.userId],
       references: [users.id],
     }),
   }),

@@ -6,17 +6,13 @@ import { useLocationService } from '@/services/location.service'
 import { useGeolocationService } from '@/services/geolocation.service'
 import {
   encryptLocationForFriend,
-  encryptLocation,
-  derivePersonalKey,
   importPublicKey,
   type LocationData,
 } from '@/lib/federation-crypto'
-import { getSeed } from '@/lib/key-storage'
 
 interface BroadcastConfig {
   enabled: boolean
   intervalMs: number
-  includeHistory: boolean
 }
 
 /**
@@ -38,7 +34,6 @@ export function useE2eeLocationBroadcast() {
   const lastBroadcastTime = ref<Date | null>(null)
   const broadcastError = ref<string | null>(null)
   const intervalMs = ref(60000) // Default 1 minute
-  const includeHistory = ref(true)
 
   // Internal state
   let broadcastIntervalId: ReturnType<typeof setInterval> | null = null
@@ -149,7 +144,6 @@ export function useE2eeLocationBroadcast() {
 
   /**
    * Broadcast current location to all friends with sharing enabled
-   * Uses single API call for both friend broadcasts and personal history
    */
   async function broadcast() {
     if (!currentLocation || !encryptionPrivateKey.value) {
@@ -204,31 +198,8 @@ export function useE2eeLocationBroadcast() {
         }
       }
 
-      // Prepare history encryption if enabled
-      let historyData:
-        | { encryptedLocation: string; nonce: string; timestamp: Date }
-        | undefined
-
-      if (includeHistory.value) {
-        try {
-          const seed = await getSeed()
-          if (seed) {
-            const personalKey = derivePersonalKey(seed)
-            const encrypted = encryptLocation(locationData, personalKey)
-            historyData = {
-              encryptedLocation: encrypted.ciphertext,
-              nonce: encrypted.nonce,
-              timestamp: new Date(locationData.timestamp),
-            }
-          }
-        } catch (error) {
-          console.error('Failed to encrypt history:', error)
-        }
-      }
-
-      // Single API call for both broadcast and history
       if (encryptedLocations.length > 0) {
-        await locationService.updateLocation(encryptedLocations, historyData)
+        await locationService.updateLocation(encryptedLocations)
       }
 
       lastBroadcastTime.value = new Date()
@@ -251,8 +222,6 @@ export function useE2eeLocationBroadcast() {
     }
 
     if (config?.intervalMs) intervalMs.value = config.intervalMs
-    if (config?.includeHistory !== undefined)
-      includeHistory.value = config.includeHistory
 
     await loadFriendsWithSharing()
     await initBatteryMonitor()
@@ -330,7 +299,6 @@ export function useE2eeLocationBroadcast() {
     lastBroadcastTime,
     broadcastError,
     intervalMs,
-    includeHistory,
     friendsWithSharing,
 
     // Actions

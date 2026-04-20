@@ -27,7 +27,6 @@ import ParchmentLogo from '@/assets/parchment.svg?component'
 import AccountDropdown from '@/components/navigation/AccountDropdown.vue'
 import {
   CornerUpRightIcon,
-  HistoryIcon,
   CloudOffIcon,
   UsersRoundIcon,
   SettingsIcon,
@@ -230,12 +229,6 @@ const items = computed<MenuItemDefinition[]>(() => [
         icon: LibraryIcon,
         // hotkey: ['l'],
         to: '/library',
-      },
-      {
-        label: t('timeline.title'),
-        icon: HistoryIcon,
-        // hotkey: ['t'],
-        to: '/timeline',
       },
       {
         label: t('offlineMaps.title'),

@@ -198,7 +198,7 @@ export function buildSignableMessage(
 
 /**
  * Derive a personal encryption key from the user's seed
- * Used for encrypting personal data like location history
+ * Used for encrypting personal data (saved places, search history, etc.)
  * @param seed - 32-byte user seed
  * @returns 32-byte AES key
  */
@@ -363,7 +363,7 @@ export interface LocationData {
 }
 
 /**
- * Encrypt location data with personal key (for location history)
+ * Encrypt location data with personal key (for personal, non-shared data)
  * @param location - Location data object
  * @param personalKey - 32-byte personal encryption key
  * @returns Encrypted data

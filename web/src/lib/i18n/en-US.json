@@ -461,9 +461,6 @@
       "collection": "Loading collection..."
     }
   },
-  "timeline": {
-    "title": "Timeline"
-  },
   "services": {
     "bookmarks": {
       "fetchError": "Failed to fetch bookmarks",

@@ -197,6 +197,13 @@
       "when": 1775793912868,
       "tag": "0027_quiet_puma",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1776720314221,
+      "tag": "0028_remove_location_history",
+      "breakpoints": true
     }
   ]
 }

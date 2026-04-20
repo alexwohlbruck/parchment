@@ -37,19 +37,13 @@ vi.mock('@/stores/friends.store', () => ({
 }))
 
 const mockGetE2eeConfigs = vi.fn()
-const mockBroadcastLocation = vi.fn()
-const mockStoreE2eeHistory = vi.fn()
+const mockUpdateLocation = vi.fn()
 
 vi.mock('@/services/location.service', () => ({
   useLocationService: () => ({
     getE2eeConfigs: mockGetE2eeConfigs,
-    broadcastLocation: mockBroadcastLocation,
-    storeE2eeHistory: mockStoreE2eeHistory,
+    updateLocation: mockUpdateLocation,
   }),
-}))
-
-vi.mock('@/lib/key-storage', () => ({
-  getSeed: vi.fn(() => Promise.resolve(null)),
 }))
 
 // Mock geolocation service
@@ -109,8 +103,7 @@ describe('useE2eeLocationBroadcast', () => {
     mockIsSetupComplete.value = false
 
     mockGetE2eeConfigs.mockResolvedValue([])
-    mockBroadcastLocation.mockResolvedValue({ success: true })
-    mockStoreE2eeHistory.mockResolvedValue('history-id')
+    mockUpdateLocation.mockResolvedValue({ success: true })
 
     // Reset geolocation mock state
     mockIsSupported.value = true

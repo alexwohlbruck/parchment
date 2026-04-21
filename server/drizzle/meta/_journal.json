@@ -246,6 +246,13 @@
       "when": 1776794712081,
       "tag": "0034_segment_stats",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1776794882827,
+      "tag": "0035_passkey_prf_slots",
+      "breakpoints": true
     }
   ]
 }

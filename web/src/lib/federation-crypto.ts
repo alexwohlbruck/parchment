@@ -178,8 +178,9 @@ export function importPublicKey(base64Key: string): Uint8Array {
 }
 
 /**
- * Build a canonical message string for signing
- * Ensures consistent format for signature verification
+ * Build a canonical message string for signing (v1, legacy).
+ * Retained for message types that have not yet been migrated to v2.
+ * New code should use buildSignableMessageV2.
  */
 export function buildSignableMessage(
   type: string,
@@ -190,6 +191,46 @@ export function buildSignableMessage(
     type,
     ...sortedPayload,
   })
+}
+
+/**
+ * v2 federation envelope: covers nonce, timestamp, and protocol_version so a
+ * signature binds the complete message intent. The server recomputes this
+ * string and verifies against the same Ed25519 signature.
+ */
+export interface SignableEnvelopeV2 {
+  protocol_version: number
+  message_type: string
+  message_version: number
+  from: string
+  to: string
+  nonce: string
+  timestamp: string
+  payload: Record<string, unknown>
+}
+
+export function buildSignableMessageV2(env: SignableEnvelopeV2): string {
+  return JSON.stringify(
+    sortObjectKeys({
+      protocol_version: env.protocol_version,
+      message_type: env.message_type,
+      message_version: env.message_version,
+      from: env.from,
+      to: env.to,
+      nonce: env.nonce,
+      timestamp: env.timestamp,
+      payload: env.payload,
+    }),
+  )
+}
+
+/**
+ * Generate a 16-byte random nonce, base64-encoded. Used by the v2 envelope.
+ */
+export function generateNonce(): string {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  return bytesToBase64(bytes)
 }
 
 // ============================================================================

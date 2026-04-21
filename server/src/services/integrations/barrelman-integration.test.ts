@@ -53,13 +53,33 @@ describe('BarrelmanIntegration', () => {
   })
 
   describe('testConnection', () => {
-    test('succeeds when health endpoint returns { status: "ok" }', async () => {
-      mockAxiosGet.mockResolvedValueOnce({ data: { status: 'ok' } })
+    test('calls /health/auth (not /health) so bad keys surface', async () => {
+      mockAxiosGet.mockResolvedValueOnce({ data: { status: 'ok', authenticated: true } })
+      await integration.testConnection({ host: 'http://api.example.com' })
+      expect(mockAxiosGet.mock.calls[0][0]).toBe('http://api.example.com/health/auth')
+    })
+
+    test('sends Bearer Authorization when apiKey is configured', async () => {
+      mockAxiosGet.mockResolvedValueOnce({ data: { status: 'ok', authenticated: true } })
+      await integration.testConnection({ host: 'http://api.example.com', apiKey: 'secret' })
+      const [, config] = mockAxiosGet.mock.calls[0]
+      expect(config.headers.Authorization).toBe('Bearer secret')
+    })
+
+    test('omits Authorization header when no apiKey (dev mode)', async () => {
+      mockAxiosGet.mockResolvedValueOnce({ data: { status: 'ok', authenticated: true } })
+      await integration.testConnection({ host: 'http://api.example.com' })
+      const [, config] = mockAxiosGet.mock.calls[0]
+      expect(config.headers.Authorization).toBeUndefined()
+    })
+
+    test('succeeds when endpoint returns { status: "ok" }', async () => {
+      mockAxiosGet.mockResolvedValueOnce({ data: { status: 'ok', authenticated: true } })
       const result = await integration.testConnection({ host: 'http://api.example.com' })
       expect(result.success).toBe(true)
     })
 
-    test('fails when health endpoint returns non-ok status', async () => {
+    test('fails when endpoint returns non-ok status', async () => {
       mockAxiosGet.mockResolvedValueOnce({ data: { status: 'degraded' } })
       const result = await integration.testConnection({ host: 'http://api.example.com' })
       expect(result.success).toBe(false)
@@ -72,6 +92,27 @@ describe('BarrelmanIntegration', () => {
       expect(result.message).toContain('Host is required')
       // Should not even make a network request
       expect(mockAxiosGet).not.toHaveBeenCalled()
+    })
+
+    test('reports "Invalid API key" on 401 when apiKey was provided', async () => {
+      const err: any = new Error('Request failed')
+      err.response = { status: 401 }
+      mockAxiosGet.mockRejectedValueOnce(err)
+      const result = await integration.testConnection({
+        host: 'http://api.example.com',
+        apiKey: 'wrong',
+      })
+      expect(result.success).toBe(false)
+      expect(result.message).toBe('Invalid API key')
+    })
+
+    test('reports "API key required" on 401 when apiKey was missing', async () => {
+      const err: any = new Error('Request failed')
+      err.response = { status: 401 }
+      mockAxiosGet.mockRejectedValueOnce(err)
+      const result = await integration.testConnection({ host: 'http://api.example.com' })
+      expect(result.success).toBe(false)
+      expect(result.message).toBe('API key required')
     })
 
     test('fails gracefully on network error', async () => {

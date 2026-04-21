@@ -201,23 +201,9 @@ export const encryptedLocations = pgTable(
 export type EncryptedLocation = typeof encryptedLocations.$inferSelect
 export type NewEncryptedLocation = typeof encryptedLocations.$inferInsert
 
-// ============================================================================
-// Federated Servers - For cross-server federation
-// ============================================================================
-
-export const federatedServers = pgTable('federated_server', {
-  id: text('id').primaryKey(),
-  serverUrl: text('server_url').notNull().unique(), // Base URL of federated server
-  serverName: text('server_name'), // Human-readable name
-  publicKey: text('public_key'), // For server-to-server authentication
-  verified: boolean('verified').default(false).notNull(),
-  lastContactedAt: timestamp('last_contacted_at'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-})
-
-export type FederatedServer = typeof federatedServers.$inferSelect
-export type NewFederatedServer = typeof federatedServers.$inferInsert
+// Federated server tracking is handled by `federated_server_keys` in
+// federation.schema.ts. The legacy `federated_server` table declared here
+// was never wired up and is dropped in the Part B migration.
 
 // ============================================================================
 // Relations

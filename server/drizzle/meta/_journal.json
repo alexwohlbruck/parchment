@@ -204,6 +204,13 @@
       "when": 1776720314221,
       "tag": "0028_remove_location_history",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1776722050848,
+      "tag": "0029_federation_hardening",
+      "breakpoints": true
     }
   ]
 }

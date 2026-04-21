@@ -184,10 +184,10 @@ app.use(requireAuth).delete(
  */
 app.use(requireAuth).delete(
   '/:handle',
-  async ({ user, params: { handle }, status, t }) => {
-    // URL decode the handle since it contains @
+  async ({ user, params: { handle }, query, status }) => {
     const decodedHandle = decodeURIComponent(handle)
-    const result = await removeFriend(user.id, decodedHandle)
+    const revokeSignature = query?.revoke_signature as string | undefined
+    const result = await removeFriend(user.id, decodedHandle, revokeSignature)
 
     if (!result.success) {
       return status(400, { message: result.error || 'Failed to remove friend' })
@@ -198,6 +198,9 @@ app.use(requireAuth).delete(
   {
     params: t.Object({
       handle: t.String(),
+    }),
+    query: t.Object({
+      revoke_signature: t.Optional(t.String()),
     }),
     detail: {
       tags: ['Friends'],

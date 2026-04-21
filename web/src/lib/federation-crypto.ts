@@ -11,6 +11,11 @@ import { sha512, sha256 } from '@noble/hashes/sha2.js'
 import { hkdf } from '@noble/hashes/hkdf.js'
 import { gcm } from '@noble/ciphers/aes.js'
 import { randomBytes } from '@noble/ciphers/utils.js'
+import {
+  encryptEnvelopeBytes,
+  decryptEnvelopeBytes,
+  type AAD,
+} from './crypto-envelope'
 
 // Configure ed25519 to use sha512
 ed.hashes.sha512 = (...m) => sha512(ed.etc.concatBytes(...m))
@@ -384,6 +389,175 @@ export function decryptFromFriend(
   )
   const aesKey = deriveAesKeyFromSharedSecret(sharedSecret, context)
   return decrypt(ciphertext, nonce, aesKey)
+}
+
+// ============================================================================
+// ECIES forward-secret friend sharing (v2)
+// ============================================================================
+//
+// v1 used static DH: every ciphertext between (Alice, Bob) shared the same
+// AES key derived from their long-term X25519 pair. If either long-term
+// private leaks later, every past ciphertext decrypts.
+//
+// v2 (ECIES): the sender generates an ephemeral X25519 keypair per message,
+// does ECDH with the recipient's long-term encryption key, and discards the
+// ephemeral private immediately. The blob is signed with the sender's
+// long-term Ed25519 key so the recipient can authenticate it. AAD binds
+// sender, recipient, relationship, and timestamp — blocking cross-context
+// replay.
+//
+// Not Double Ratchet: a recipient long-term compromise still reveals past
+// ciphertexts that an attacker captured on the wire. The handoff spec
+// deliberately trades that for simplicity at 60s broadcast cadence.
+//
+// Wire layout:
+//   [ephemeral_pub: 32B] [envelope_v2: variable] [signature: 64B Ed25519]
+// Signature covers ephemeral_pub || envelope_v2.
+
+const ECIES_KEY_CONTEXT = 'parchment-ecies-v1'
+const EPHEMERAL_PUB_LEN = 32
+const ED25519_SIG_LEN = 64
+
+export interface FriendShareBinding {
+  senderId: string // full handle e.g. "alice@a.example"
+  recipientId: string
+  relationshipId: string
+  timestamp: string // RFC 3339
+}
+
+function buildFriendShareAAD(b: FriendShareBinding): AAD {
+  return {
+    userId: b.recipientId,
+    recordType: 'friend-share-v2',
+    recordId: b.relationshipId,
+    // Pack sender + recipient + timestamp into keyContext so the AAD struct
+    // stays fixed-shape. AES-GCM binds the entire concatenation; any mismatch
+    // fails decrypt.
+    keyContext: `${ECIES_KEY_CONTEXT}|from=${b.senderId}|to=${b.recipientId}|ts=${b.timestamp}`,
+  }
+}
+
+/**
+ * Encrypt a plaintext string for a friend under ECIES. Returns the full blob
+ * as base64.
+ */
+export async function encryptForFriendV2(params: {
+  plaintext: string
+  mySigningPrivateKey: Uint8Array
+  friendEncryptionPublicKey: Uint8Array
+  binding: FriendShareBinding
+}): Promise<string> {
+  const ephemeralPriv = crypto.getRandomValues(new Uint8Array(32))
+  try {
+    const ephemeralPub = x25519.getPublicKey(ephemeralPriv)
+
+    const sharedSecret = x25519.getSharedSecret(
+      ephemeralPriv,
+      params.friendEncryptionPublicKey,
+    )
+    const aesKey = hkdf(
+      sha256,
+      sharedSecret,
+      undefined,
+      new TextEncoder().encode(ECIES_KEY_CONTEXT),
+      32,
+    )
+
+    const aad = buildFriendShareAAD(params.binding)
+    const envelope = encryptEnvelopeBytes({
+      plaintext: new TextEncoder().encode(params.plaintext),
+      key: aesKey,
+      aad,
+    })
+
+    const toSign = new Uint8Array(ephemeralPub.length + envelope.length)
+    toSign.set(ephemeralPub, 0)
+    toSign.set(envelope, ephemeralPub.length)
+    const signature = await ed.signAsync(toSign, params.mySigningPrivateKey)
+
+    const blob = new Uint8Array(
+      ephemeralPub.length + envelope.length + signature.length,
+    )
+    blob.set(ephemeralPub, 0)
+    blob.set(envelope, ephemeralPub.length)
+    blob.set(signature, ephemeralPub.length + envelope.length)
+
+    return bytesToBase64(blob)
+  } finally {
+    // Hygiene: zero the ephemeral private. JS makes no memory-wipe
+    // guarantees, but this communicates intent and helps some runtimes.
+    ephemeralPriv.fill(0)
+  }
+}
+
+/**
+ * Decrypt a v2 ECIES blob. Verifies sender's long-term signature and AAD;
+ * throws on any failure.
+ */
+export function decryptForFriendV2(params: {
+  blob: string
+  myEncryptionPrivateKey: Uint8Array
+  senderSigningPublicKey: Uint8Array
+  binding: FriendShareBinding
+}): string {
+  const raw = base64ToBytes(params.blob)
+  if (raw.length < EPHEMERAL_PUB_LEN + ED25519_SIG_LEN) {
+    throw new Error('ECIES blob too short')
+  }
+
+  const ephemeralPub = raw.slice(0, EPHEMERAL_PUB_LEN)
+  const envelope = raw.slice(EPHEMERAL_PUB_LEN, raw.length - ED25519_SIG_LEN)
+  const signature = raw.slice(raw.length - ED25519_SIG_LEN)
+
+  const signedBytes = new Uint8Array(ephemeralPub.length + envelope.length)
+  signedBytes.set(ephemeralPub, 0)
+  signedBytes.set(envelope, ephemeralPub.length)
+  if (!ed.verify(signature, signedBytes, params.senderSigningPublicKey)) {
+    throw new Error('ECIES signature invalid — sender authentication failed')
+  }
+
+  const sharedSecret = x25519.getSharedSecret(
+    params.myEncryptionPrivateKey,
+    ephemeralPub,
+  )
+  const aesKey = hkdf(
+    sha256,
+    sharedSecret,
+    undefined,
+    new TextEncoder().encode(ECIES_KEY_CONTEXT),
+    32,
+  )
+
+  const aad = buildFriendShareAAD(params.binding)
+  const plaintext = decryptEnvelopeBytes({ envelope, key: aesKey, aad })
+  return new TextDecoder().decode(plaintext)
+}
+
+/**
+ * Encrypt LocationData for a friend under ECIES (v2). Convenience over
+ * encryptForFriendV2 for the common location-broadcast case.
+ */
+export async function encryptLocationForFriendV2(params: {
+  location: LocationData
+  mySigningPrivateKey: Uint8Array
+  friendEncryptionPublicKey: Uint8Array
+  binding: FriendShareBinding
+}): Promise<string> {
+  return encryptForFriendV2({
+    plaintext: JSON.stringify(params.location),
+    mySigningPrivateKey: params.mySigningPrivateKey,
+    friendEncryptionPublicKey: params.friendEncryptionPublicKey,
+    binding: params.binding,
+  })
+}
+
+export function decryptLocationFromFriendV2(params: {
+  blob: string
+  myEncryptionPrivateKey: Uint8Array
+  senderSigningPublicKey: Uint8Array
+  binding: FriendShareBinding
+}): LocationData {
+  return JSON.parse(decryptForFriendV2(params)) as LocationData
 }
 
 // ============================================================================

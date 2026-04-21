@@ -5,10 +5,21 @@ import { useFriendsStore } from '@/stores/friends.store'
 import { useLocationService } from '@/services/location.service'
 import { useGeolocationService } from '@/services/geolocation.service'
 import {
-  encryptLocationForFriend,
+  encryptLocationForFriendV2,
   importPublicKey,
+  type FriendShareBinding,
   type LocationData,
 } from '@/lib/federation-crypto'
+
+/**
+ * Derive a canonical relationshipId from the two parties' handles. Both
+ * sender and recipient compute the same value independently — sort so the
+ * order doesn't depend on who's encrypting.
+ */
+function buildRelationshipId(a: string, b: string): string {
+  const [first, second] = a < b ? [a, b] : [b, a]
+  return `${first}::${second}`
+}
 
 interface BroadcastConfig {
   enabled: boolean
@@ -25,7 +36,8 @@ export function useE2eeLocationBroadcast() {
   const locationService = useLocationService()
   const geolocation = useGeolocationService()
 
-  const { isSetupComplete, encryptionPrivateKey } = storeToRefs(identityStore)
+  const { isSetupComplete, encryptionPrivateKey, signingPrivateKey, handle } =
+    storeToRefs(identityStore)
   const { friends } = storeToRefs(friendsStore)
 
   // State
@@ -146,7 +158,12 @@ export function useE2eeLocationBroadcast() {
    * Broadcast current location to all friends with sharing enabled
    */
   async function broadcast() {
-    if (!currentLocation || !encryptionPrivateKey.value) {
+    if (
+      !currentLocation ||
+      !encryptionPrivateKey.value ||
+      !signingPrivateKey.value ||
+      !handle.value
+    ) {
       return
     }
 
@@ -172,26 +189,43 @@ export function useE2eeLocationBroadcast() {
         timestamp: currentLocation.timestamp,
       }
 
-      // Encrypt location for each friend
+      // v2 wire shape: `encryptedLocation` carries the ECIES blob base64;
+      // `nonce` is repurposed to carry the RFC 3339 sentAt timestamp that
+      // the AAD binds (receivers recompute AAD using this value). The old
+      // AES-GCM nonce now lives inside the v2 envelope.
       const encryptedLocations: Array<{
         forFriendHandle: string
         encryptedLocation: string
         nonce: string
       }> = []
 
+      const senderHandle = handle.value
+      const signingPriv = signingPrivateKey.value
+
       for (const friend of friendsWithSharing.value) {
         try {
+          const sentAt = new Date().toISOString()
+          const binding: FriendShareBinding = {
+            senderId: senderHandle,
+            recipientId: friend.friendHandle,
+            relationshipId: buildRelationshipId(
+              senderHandle,
+              friend.friendHandle,
+            ),
+            timestamp: sentAt,
+          }
           const friendPublicKey = importPublicKey(friend.encryptionKey)
-          const encrypted = encryptLocationForFriend(
-            locationData,
-            encryptionPrivateKey.value,
-            friendPublicKey,
-          )
+          const blob = await encryptLocationForFriendV2({
+            location: locationData,
+            mySigningPrivateKey: signingPriv,
+            friendEncryptionPublicKey: friendPublicKey,
+            binding,
+          })
 
           encryptedLocations.push({
             forFriendHandle: friend.friendHandle,
-            encryptedLocation: encrypted.ciphertext,
-            nonce: encrypted.nonce,
+            encryptedLocation: blob,
+            nonce: sentAt,
           })
         } catch (error) {
           console.error(`Failed to encrypt for ${friend.friendHandle}:`, error)

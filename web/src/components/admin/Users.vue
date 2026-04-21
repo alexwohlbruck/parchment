@@ -45,10 +45,11 @@ const columns = computed<ColumnDef<User>[]>(() => {
     })
   }
 
-  // Name column (always visible)
+  // Alias column (display names are metadata-encrypted; admins see the
+  // alias + email only, since they don't hold the user's seed).
   baseColumns.push({
-    header: 'Name',
-    accessorFn: data => `${data.firstName} ${data.lastName}`,
+    header: 'Alias',
+    accessorFn: data => data.alias ?? '—',
   })
 
   // Email column (desktop only)
@@ -111,12 +112,13 @@ async function getUsers() {
 }
 
 async function inviteUser() {
+  // Names are metadata-encrypted at rest and can only be set by the invitee
+  // post-login (the admin doesn't hold the user's seed). Admin provides
+  // email + role + optional picture only.
   const schema = z.object({
-    firstName: z.string().describe('First name'), // TODO: i18n
-    lastName: z.string(),
     email: z.string().email(),
     role: z.enum(['user', 'alpha', 'admin']).default('user'),
-    picture: z.string().url(),
+    picture: z.string().url().optional(),
   })
 
   const user = (await appService.promptForm({

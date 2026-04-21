@@ -8,8 +8,11 @@ import { userPreferences } from './user-preferences.schema'
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
   email: text('email').unique().notNull(),
-  firstName: text('first_name'),
-  lastName: text('last_name'),
+  // Display name is metadata-encrypted at rest (Part C.4). The server stores
+  // only opaque base64 v2 envelopes; only the user's own client can decrypt.
+  // Admin and federation callers see null here.
+  firstNameEncrypted: text('first_name_encrypted'),
+  lastNameEncrypted: text('last_name_encrypted'),
   picture: text('picture'),
   alias: text('alias').unique(),              // Federation handle alias (unique per server)
   signingKey: text('signing_key'),            // Ed25519 public key (base64)

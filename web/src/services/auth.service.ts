@@ -1,6 +1,7 @@
 import { api, isTauri } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
 import { useIntegrationService } from '@/services/integration.service'
+import { useUserService } from '@/services/user.service'
 import { clearAllUserCaches } from '@/services/cache.service'
 import { syncPreferencesFromBackend } from '@/services/preferences.service'
 import { createSharedComposable } from '@vueuse/core'
@@ -20,6 +21,7 @@ function setAuthHeader(token: string | null) {
 function authService() {
   const authStore = useAuthStore()
   const integrationService = useIntegrationService()
+  const userService = useUserService()
 
   async function loadToken() {
     if (isTauri) {
@@ -57,10 +59,11 @@ function authService() {
 
       // Validate session in background - update store when response arrives
       sessionPromise
-        .then(response => {
+        .then(async response => {
           const { user, token: sessionId } = response?.data ?? {}
           if (user) {
-            authStore.updateUser(user)
+            const decrypted = await userService.decryptDisplayNames(user)
+            authStore.updateUser(decrypted)
             setAuthHeader(sessionId)
             getPermissions()
           } else {
@@ -83,7 +86,8 @@ function authService() {
     const { user, token: sessionId } = response?.data ?? {}
 
     if (user) {
-      setAuthenticatedUser(user, sessionId)
+      const decrypted = await userService.decryptDisplayNames(user)
+      setAuthenticatedUser(decrypted, sessionId)
     }
     return { user }
   }
@@ -91,7 +95,7 @@ function authService() {
   async function setAuthenticatedUser(user: User, sessionId: Session['id']) {
     // Set auth header first so integration fetches are authenticated
     setAuthHeader(sessionId)
-    
+
     // Fetch integrations and preferences before navigating to the map
     await Promise.all([
       integrationService.fetchAvailableIntegrations(),
@@ -123,7 +127,8 @@ function authService() {
       await deviceStore.setToken(sessionId)
     }
 
-    setAuthenticatedUser(user, sessionId)
+    const decrypted = await userService.decryptDisplayNames(user)
+    setAuthenticatedUser(decrypted, sessionId)
     return response
   }
 
@@ -185,7 +190,8 @@ function authService() {
     )
 
     if (user) {
-      setAuthenticatedUser(user, sessionId)
+      const decrypted = await userService.decryptDisplayNames(user)
+      setAuthenticatedUser(decrypted, sessionId)
     }
   }
 

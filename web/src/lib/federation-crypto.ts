@@ -259,6 +259,22 @@ export function derivePersonalKey(seed: Uint8Array): Uint8Array {
 }
 
 /**
+ * Derive the metadata encryption key from the user's seed.
+ * Separate HKDF context (parchment-metadata-v1) keeps it domain-separated
+ * from the personal key — a misconfiguration that reused one key for
+ * both buckets would fail AEAD rather than silently cross-decrypting.
+ */
+export function deriveMetadataKey(seed: Uint8Array): Uint8Array {
+  return hkdf(
+    sha256,
+    seed,
+    undefined,
+    new TextEncoder().encode('parchment-metadata-v1'),
+    32,
+  )
+}
+
+/**
  * Derive a collection-specific encryption key
  * Each collection gets a unique key derived from the user's seed + collection ID
  * @param seed - 32-byte user seed

@@ -15,6 +15,8 @@ import {
   updateUserAlias,
   updateUserKeys,
   getUserIdentity,
+  updateUserDisplayProfile,
+  fetchUser,
 } from '../services/user.service'
 import {
   getOrCreateUserPreferences,
@@ -36,8 +38,9 @@ app.use(permissions(PermissionId.USERS_READ)).get(
       .select({
         id: users.id,
         email: users.email,
-        firstName: users.firstName,
-        lastName: users.lastName,
+        // Display names are metadata-encrypted and not readable by admins.
+        // Admin consoles show email + alias only.
+        alias: users.alias,
         picture: users.picture,
         roles: sql`json_agg(json_build_object(
             'id', ${roles.id},
@@ -80,13 +83,16 @@ app.use(permissions(PermissionId.USERS_READ)).get(
 app.use(permissions(PermissionId.USERS_CREATE)).post(
   '/',
   async ({ body }) => {
-    // TODO: Require new permission to add users with elevated privileges
+    // Admin invite: email + optional role only. First/last name are
+    // metadata-encrypted and can only be set by the user after login via
+    // PATCH /users/me/profile — admins don't hold the user's seed.
 
     const result = await db
       .insert(users)
       .values({
         id: generateId(),
-        ...body,
+        email: body.email,
+        picture: body.picture,
       })
       .returning()
 
@@ -113,8 +119,6 @@ app.use(permissions(PermissionId.USERS_CREATE)).post(
   },
   {
     body: t.Object({
-      firstName: t.String(),
-      lastName: t.String(),
       email: t.String({
         format: 'email',
       }),
@@ -238,6 +242,58 @@ app.use(requireAuth).put(
     detail: {
       tags: ['Users', 'Federation'],
       description: 'Register or update federation public keys',
+    },
+  },
+)
+
+/**
+ * Get current user's metadata-encrypted display profile.
+ * Returns opaque envelopes — only the user's own client can decrypt them.
+ */
+app.use(requireAuth).get(
+  '/me/profile',
+  async ({ user, status, t }) => {
+    const row = await fetchUser(user.id)
+    if (!row) return status(404, { message: t('errors.notFound.user') })
+    return {
+      firstNameEncrypted: row.firstNameEncrypted,
+      lastNameEncrypted: row.lastNameEncrypted,
+      picture: row.picture,
+    }
+  },
+  {
+    detail: {
+      tags: ['Users'],
+      description:
+        'Get current user metadata-encrypted display profile envelopes',
+    },
+  },
+)
+
+/**
+ * Update current user's metadata-encrypted display profile.
+ * Each field is a base64 v2 envelope produced client-side via the
+ * metadata-crypto module. The server never sees cleartext.
+ */
+app.use(requireAuth).patch(
+  '/me/profile',
+  async ({ user, body, set }) => {
+    await updateUserDisplayProfile(user.id, {
+      firstNameEncrypted: body.firstNameEncrypted ?? undefined,
+      lastNameEncrypted: body.lastNameEncrypted ?? undefined,
+    })
+    set.status = 200
+    return { success: true }
+  },
+  {
+    body: t.Object({
+      firstNameEncrypted: t.Optional(t.Union([t.String(), t.Null()])),
+      lastNameEncrypted: t.Optional(t.Union([t.String(), t.Null()])),
+    }),
+    detail: {
+      tags: ['Users'],
+      description:
+        'Update current user metadata-encrypted display profile envelopes',
     },
   },
 )

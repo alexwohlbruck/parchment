@@ -211,6 +211,13 @@
       "when": 1776722050848,
       "tag": "0029_federation_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1776792946622,
+      "tag": "0030_metadata_encryption_names",
+      "breakpoints": true
     }
   ]
 }

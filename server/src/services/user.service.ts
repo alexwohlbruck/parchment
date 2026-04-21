@@ -97,6 +97,28 @@ export async function updateUserKeys(
 }
 
 /**
+ * Update the metadata-encrypted display profile fields. The server never
+ * sees cleartext — each value is an opaque base64 v2 envelope encrypted
+ * under the user's metadata key. Passing `null` clears the stored value.
+ */
+export async function updateUserDisplayProfile(
+  userId: string,
+  fields: {
+    firstNameEncrypted?: string | null
+    lastNameEncrypted?: string | null
+  },
+): Promise<void> {
+  const update: Record<string, unknown> = { updatedAt: new Date() }
+  if ('firstNameEncrypted' in fields) {
+    update.firstNameEncrypted = fields.firstNameEncrypted
+  }
+  if ('lastNameEncrypted' in fields) {
+    update.lastNameEncrypted = fields.lastNameEncrypted
+  }
+  await db.update(users).set(update).where(eq(users.id, userId))
+}
+
+/**
  * Get a user's public identity info
  */
 export async function getUserIdentity(userId: string): Promise<{

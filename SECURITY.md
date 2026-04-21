@@ -273,11 +273,20 @@ injected as environment variables:
 | `SERVER_IDENTITY_PRIVATE_KEY` | Ed25519 seed for this server's federation identity (signs S2S requests, published pubkey at `.well-known/parchment-server`) | Yes |
 | `PARCHMENT_INTEGRATION_ENCRYPTION_KEY` | AES-256 master key for third-party integration credentials at rest | Yes |
 
-Generate either with:
+Generate two **independent** values — one per env var:
 
 ```bash
-openssl rand -base64 32
+openssl rand -base64 32  # → SERVER_IDENTITY_PRIVATE_KEY
+openssl rand -base64 32  # → PARCHMENT_INTEGRATION_ENCRYPTION_KEY
 ```
+
+**They must NOT share the same bytes.** One is an Ed25519 signing seed
+whose public half is published at `.well-known/parchment-server`; the
+other is an AES-256 key for symmetric encryption of server-held secrets.
+Reusing key material across signing and encryption primitives is a
+classic cryptographic anti-pattern and defeats rotation independence
+(you might want to rotate one without breaking every peer's pin of the
+other).
 
 **No cloud or key-management service is required.** The code holds these
 as 32-byte buffers in process memory; where you get the 32 bytes from is

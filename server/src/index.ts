@@ -28,6 +28,7 @@ import {
   personalBlob as personalBlobController,
   segmentStats as segmentStatsController,
   wrappedMasterKeys as wrappedMasterKeysController,
+  deviceTransfer as deviceTransferController,
 } from './controllers'
 import { initializeIntegrations } from './services/integration.service'
 import { syncPermissionsAndRoles } from './seed/sync-permissions'
@@ -80,6 +81,7 @@ async function main() {
   app.use(personalBlobController)
   app.use(segmentStatsController)
   app.use(wrappedMasterKeysController)
+  app.use(deviceTransferController)
 
   app.onError(({ code, error }) => {
     if (code === 'NOT_FOUND') return 'Route not found :(' // TODO: i18n, proper error

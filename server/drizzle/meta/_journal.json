@@ -260,6 +260,13 @@
       "when": 1776795004788,
       "tag": "0036_km_version",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1776795189936,
+      "tag": "0037_device_transfer",
+      "breakpoints": true
     }
   ]
 }

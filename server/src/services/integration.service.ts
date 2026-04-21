@@ -400,6 +400,28 @@ export async function initializeIntegrations() {
 }
 
 // Helper functions
+
+// Track integration-ids we've already warned about this process so startup
+// logs don't repeat the same "unreadable row" error per row.
+const unreadableRowsWarned = new Set<string>()
+
+function warnUnreadableIntegration(row: IntegrationRow): void {
+  const key = row.id
+  if (unreadableRowsWarned.has(key)) return
+  unreadableRowsWarned.add(key)
+  logger.warn(
+    {
+      integrationId: row.integrationId,
+      id: row.id,
+      keyVersion: row.configKeyVersion,
+    },
+    'Integration config is unreadable — encrypted under a key the server ' +
+      'no longer has. Usually means PARCHMENT_INTEGRATION_ENCRYPTION_KEY ' +
+      'changed or was ephemeral. Delete the row (DELETE FROM integrations ' +
+      'WHERE id = …) and reconfigure through the UI.',
+  )
+}
+
 /**
  * Decrypt a raw DB row's config ciphertext + parse capabilities into an
  * in-memory `IntegrationRecord` with cleartext config.
@@ -407,8 +429,14 @@ export async function initializeIntegrations() {
  * The DB column stores ciphertext only; this function is the single read-
  * path choke point. The returned `config` must NEVER be persisted or
  * logged — it holds third-party credentials.
+ *
+ * Returns null if the row cannot be decrypted (e.g., the encryption key
+ * changed). Callers that just wrote the row (create/update) should treat
+ * null as an invariant violation; read-path callers filter nulls out.
  */
-export function parseIntegrationData(row: IntegrationRow): IntegrationRecord {
+export function parseIntegrationData(
+  row: IntegrationRow,
+): IntegrationRecord | null {
   let config: Record<string, any>
   try {
     config = decryptIntegrationConfig({
@@ -416,13 +444,9 @@ export function parseIntegrationData(row: IntegrationRow): IntegrationRecord {
       nonce: row.configNonce,
       keyVersion: row.configKeyVersion,
     }) as Record<string, any>
-  } catch (error) {
-    // Don't log the config — only the row id, so operators can find it.
-    logger.error(
-      { integrationId: row.integrationId, id: row.id },
-      'Failed to decrypt integration config',
-    )
-    config = {}
+  } catch {
+    warnUnreadableIntegration(row)
+    return null
   }
 
   const cleanedConfig = cleanConfig(config)
@@ -488,7 +512,12 @@ export async function getConfiguredIntegrations(
       .where(eq(integrations.userId, userId))
   }
 
-  return userIntegrations.map(parseIntegrationData)
+  // Filter out unreadable rows (e.g. encryption key changed) so callers
+  // never see half-initialized records. The dropped rows are already
+  // logged by parseIntegrationData via warnUnreadableIntegration.
+  return userIntegrations
+    .map(parseIntegrationData)
+    .filter((r): r is IntegrationRecord => r !== null)
 }
 
 export async function getAvailableIntegrations(): Promise<
@@ -611,6 +640,12 @@ export async function createIntegration(
   const result = await db.insert(integrations).values(values).returning()
 
   const newIntegration = parseIntegrationData(result[0])
+  if (!newIntegration) {
+    // We just wrote this row — if decrypt fails, the KMS key is gone mid-flight.
+    throw new Error(
+      'Integration written but could not be decrypted — check that PARCHMENT_INTEGRATION_ENCRYPTION_KEY is stable',
+    )
+  }
 
   await integrationManager.initializeIntegration(userId, newIntegration)
 
@@ -705,6 +740,7 @@ export async function getDependentIntegrations(
       dependentIds.includes(record.integrationId as IntegrationId),
     )
     .map(parseIntegrationData)
+    .filter((r): r is IntegrationRecord => r !== null)
 }
 
 export async function deleteIntegration(
@@ -728,13 +764,15 @@ export async function deleteIntegration(
     throw new Error(`Integration with ID ${id} not found`)
   }
 
+  // `record` may be null if the row can't be decrypted — that's fine, we're
+  // about to delete it. Fall back to the raw integrationId from the row.
   const record = parseIntegrationData(result[0])
+  const integrationIdForCascade = (record?.integrationId ??
+    result[0].integrationId) as IntegrationId
 
   // Cascade-delete dependent integrations (e.g. user OSM accounts when
   // the system OSM integration is removed)
-  const dependents = await getDependentIntegrations(
-    record.integrationId as IntegrationId,
-  )
+  const dependents = await getDependentIntegrations(integrationIdForCascade)
   for (const dep of dependents) {
     await db.delete(integrations).where(eq(integrations.id, dep.id))
     integrationManager.removeIntegration(dep.userId ?? undefined, dep.id)

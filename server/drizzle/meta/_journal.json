@@ -239,6 +239,13 @@
       "when": 1776794542678,
       "tag": "0033_library_encryption",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1776794712081,
+      "tag": "0034_segment_stats",
+      "breakpoints": true
     }
   ]
 }

@@ -26,6 +26,7 @@ import {
   osmOAuth as osmOAuthController,
   notes as notesController,
   personalBlob as personalBlobController,
+  segmentStats as segmentStatsController,
 } from './controllers'
 import { initializeIntegrations } from './services/integration.service'
 import { syncPermissionsAndRoles } from './seed/sync-permissions'
@@ -76,6 +77,7 @@ async function main() {
   app.use(osmOAuthController)
   app.use(notesController)
   app.use(personalBlobController)
+  app.use(segmentStatsController)
 
   app.onError(({ code, error }) => {
     if (code === 'NOT_FOUND') return 'Route not found :(' // TODO: i18n, proper error

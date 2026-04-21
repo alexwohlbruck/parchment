@@ -4,6 +4,7 @@ import {
   timestamp,
   jsonb,
   boolean,
+  integer,
   primaryKey,
 } from 'drizzle-orm/pg-core'
 import { users } from './users.schema'
@@ -54,7 +55,35 @@ export const collections = pgTable('collections', {
     .references(() => users.id, { onDelete: 'cascade' }),
   isPublic: boolean('is_public').default(false).notNull(),
   isDefault: boolean('is_default').default(false).notNull(),
-  isSensitive: boolean('is_sensitive').default(false).notNull(), // E2EE sensitive mode
+  isSensitive: boolean('is_sensitive').default(false).notNull(), // E2EE sensitive mode (legacy)
+  // Part C.5c: encrypted metadata envelope (base64 v2 crypto-envelope).
+  // When populated, this supersedes the cleartext columns above. Migration
+  // to drop the cleartext columns happens once all UI consumers read the
+  // decrypted envelope.
+  metadataEncrypted: text('metadata_encrypted'),
+  metadataKeyVersion: integer('metadata_key_version').notNull().default(1),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+/**
+ * Custom canvases — user-created map overlays (future collab feature).
+ * Fully encrypted from day 1. Metadata (name, description, style) lives
+ * in the envelope; body content lives in a separate encrypted_canvas_state
+ * table (not in this PR).
+ *
+ * Multi-user collab (sealing the canvas key to collaborators' X25519 pubs
+ * via ECIES) is tracked as a follow-up — see SECURITY.md §canvases.
+ */
+export const canvases = pgTable('canvases', {
+  id: text('id').primaryKey().notNull(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  metadataEncrypted: text('metadata_encrypted').notNull(),
+  metadataKeyVersion: integer('metadata_key_version').notNull().default(1),
+  // Reserved for future Yjs / CRDT document format version; not in use yet.
+  futureCrdtFormatVersion: integer('future_crdt_format_version'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
@@ -95,3 +124,4 @@ export type Bookmark = typeof bookmarks.$inferSelect
 export type Collection = typeof collections.$inferSelect
 export type BookmarkCollection = typeof bookmarksCollections.$inferSelect
 export type EncryptedPoint = typeof encryptedPoints.$inferSelect
+export type Canvas = typeof canvases.$inferSelect

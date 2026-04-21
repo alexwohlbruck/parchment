@@ -232,6 +232,13 @@
       "when": 1776794360592,
       "tag": "0032_personal_blobs",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1776794542678,
+      "tag": "0033_library_encryption",
+      "breakpoints": true
     }
   ]
 }

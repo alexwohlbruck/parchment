@@ -218,6 +218,13 @@
       "when": 1776792946622,
       "tag": "0030_metadata_encryption_names",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1776793797176,
+      "tag": "0031_integration_kms",
+      "breakpoints": true
     }
   ]
 }

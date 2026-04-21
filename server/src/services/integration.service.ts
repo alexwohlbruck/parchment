@@ -1,7 +1,11 @@
 import { db } from '../db'
 import { eq, and, isNull, or } from 'drizzle-orm'
 import { generateId } from '../util'
-import { integrations, IntegrationRecord } from '../schema/integrations.schema'
+import {
+  integrations,
+  IntegrationRecord,
+  IntegrationRow,
+} from '../schema/integrations.schema'
 import {
   IntegrationCapability,
   IntegrationDefinition,
@@ -11,6 +15,11 @@ import {
 } from '../types/integration.types'
 import { integrationManager } from './integrations'
 import { users } from '../schema/users.schema'
+import {
+  encryptIntegrationConfig,
+  decryptIntegrationConfig,
+} from '../lib/integration-kms'
+import { logger } from '../lib/logger'
 
 // Available integration definitions
 const availableIntegrations: IntegrationDefinition[] = [
@@ -391,15 +400,28 @@ export async function initializeIntegrations() {
 }
 
 // Helper functions
-export function parseIntegrationData(
-  record: IntegrationRecord,
-): IntegrationRecord {
+/**
+ * Decrypt a raw DB row's config ciphertext + parse capabilities into an
+ * in-memory `IntegrationRecord` with cleartext config.
+ *
+ * The DB column stores ciphertext only; this function is the single read-
+ * path choke point. The returned `config` must NEVER be persisted or
+ * logged — it holds third-party credentials.
+ */
+export function parseIntegrationData(row: IntegrationRow): IntegrationRecord {
   let config: Record<string, any>
-
   try {
-    config = JSON.parse(record.config as any)
+    config = decryptIntegrationConfig({
+      ciphertext: row.configCiphertext,
+      nonce: row.configNonce,
+      keyVersion: row.configKeyVersion,
+    }) as Record<string, any>
   } catch (error) {
-    console.error('Failed to parse integration config:', error)
+    // Don't log the config — only the row id, so operators can find it.
+    logger.error(
+      { integrationId: row.integrationId, id: row.id },
+      'Failed to decrypt integration config',
+    )
     config = {}
   }
 
@@ -407,20 +429,23 @@ export function parseIntegrationData(
 
   let capabilities: IntegrationCapability[]
   try {
-    capabilities = JSON.parse(record.capabilities as any)
+    capabilities = JSON.parse(row.capabilities as any)
   } catch (error) {
-    console.error('Failed to parse integration capabilities:', error)
+    logger.error(
+      { integrationId: row.integrationId, id: row.id, err: error },
+      'Failed to parse integration capabilities',
+    )
     capabilities = []
   }
 
   return {
-    id: record.id,
-    userId: record.userId,
-    integrationId: record.integrationId as IntegrationId,
+    id: row.id,
+    userId: row.userId,
+    integrationId: row.integrationId as IntegrationId,
     capabilities,
     config: cleanedConfig,
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   }
 }
 
@@ -566,12 +591,15 @@ export async function createIntegration(
     }))
 
   const cleanedConfig = cleanConfig(config)
+  const encrypted = encryptIntegrationConfig(cleanedConfig)
 
   const values: any = {
     id: generateId(),
     integrationId,
     capabilities: JSON.stringify(capabilities),
-    config: JSON.stringify(cleanedConfig),
+    configCiphertext: encrypted.ciphertext,
+    configNonce: encrypted.nonce,
+    configKeyVersion: encrypted.keyVersion,
     createdAt: new Date(),
     updatedAt: new Date(),
   }
@@ -619,7 +647,10 @@ export async function updateIntegration(
       )
     }
 
-    updateData.config = JSON.stringify(cleanConfig(updates.config))
+    const encrypted = encryptIntegrationConfig(cleanConfig(updates.config))
+    updateData.configCiphertext = encrypted.ciphertext
+    updateData.configNonce = encrypted.nonce
+    updateData.configKeyVersion = encrypted.keyVersion
   }
 
   if (updates.capabilities) {

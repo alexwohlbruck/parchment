@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, integer } from 'drizzle-orm/pg-core'
 import { users } from './users.schema'
 import {
   IntegrationId,
@@ -9,7 +9,12 @@ export const integrations = pgTable('integrations', {
   id: text('id').primaryKey(),
   userId: text('user_id').references(() => users.id),
   integrationId: text('integration_id').$type<IntegrationId>().notNull(),
-  config: text('config').$type<Record<string, any>>().notNull(), // JSON string
+  // Integration config (API keys, bearer tokens, etc.) is encrypted at rest
+  // under the server's KMS key. Cleartext only exists in process memory at
+  // call time. See server/src/lib/integration-kms.ts for the wrapper.
+  configCiphertext: text('config_ciphertext').notNull(), // base64 (ciphertext || gcm tag)
+  configNonce: text('config_nonce').notNull(), // base64 (12B AES-GCM nonce)
+  configKeyVersion: integer('config_key_version').notNull().default(1),
   capabilities: text('capabilities')
     .$type<
       {
@@ -22,4 +27,29 @@ export const integrations = pgTable('integrations', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
-export type IntegrationRecord = typeof integrations.$inferSelect
+/**
+ * Raw DB row shape — encrypted config columns. Internal to the integration
+ * service's read path; other modules should NEVER operate on this type
+ * directly. Use `IntegrationRecord` for the decrypted in-memory shape.
+ */
+export type IntegrationRow = typeof integrations.$inferSelect
+
+import type {
+  IntegrationId as _IntegrationId,
+  IntegrationCapabilityId as _IntegrationCapabilityId,
+} from '../types/integration.enums'
+
+/**
+ * In-memory decrypted integration — what service functions return and what
+ * integration adapters consume. `config` is cleartext and MUST NOT be
+ * persisted or logged.
+ */
+export interface IntegrationRecord {
+  id: string
+  userId: string | null
+  integrationId: _IntegrationId
+  capabilities: { id: _IntegrationCapabilityId; active: boolean }[]
+  config: Record<string, any>
+  createdAt: Date
+  updatedAt: Date
+}

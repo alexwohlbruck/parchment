@@ -9,8 +9,8 @@
  *
  * We deliberately do NOT import `@noble/ciphers` here — the server has no
  * business decrypting user payloads. If that ever becomes necessary (e.g.
- * KMS-encrypted server-side secrets), it goes in a separate module with an
- * explicit threat-model justification.
+ * server-side encrypted secrets that the server itself has to decrypt),
+ * it goes in a separate module with an explicit threat-model justification.
  *
  * The web client's crypto-envelope.ts is the authoritative implementation;
  * this file is a strict subset.

@@ -10,8 +10,9 @@ export const integrations = pgTable('integrations', {
   userId: text('user_id').references(() => users.id),
   integrationId: text('integration_id').$type<IntegrationId>().notNull(),
   // Integration config (API keys, bearer tokens, etc.) is encrypted at rest
-  // under the server's KMS key. Cleartext only exists in process memory at
-  // call time. See server/src/lib/integration-kms.ts for the wrapper.
+  // under the server's master encryption key (PARCHMENT_INTEGRATION_ENCRYPTION_KEY
+  // env var). Cleartext only exists in process memory at call time.
+  // See server/src/lib/integration-encryption.ts for the wrapper.
   configCiphertext: text('config_ciphertext').notNull(), // base64 (ciphertext || gcm tag)
   configNonce: text('config_nonce').notNull(), // base64 (12B AES-GCM nonce)
   configKeyVersion: integer('config_key_version').notNull().default(1),

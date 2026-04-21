@@ -53,9 +53,9 @@ Parchment database but **not** the server's running process memory.
   device names, saved place details, third-party API credentials, seeds,
   collection/canvas metadata.
 - Gates: AES-256-GCM envelopes under per-user / per-record keys; integration
-  credentials under the server KMS key (separate env var, not in the DB);
-  user metadata (first/last name) under the user's personal key derived from
-  their seed, which the server never holds.
+  credentials under the server's master encryption key (separate env var,
+  not in the DB); user metadata (first/last name) under the user's personal
+  key derived from their seed, which the server never holds.
 
 ### B. Single-server compromise
 An attacker gets RCE on the Parchment server (process memory access, can
@@ -67,9 +67,12 @@ read env, can intercept live traffic in-flight).
   opaque because the server has no user seeds.
 - Gates preventing total loss: user master keys (K_m / seed) never leave the
   client; wrapped-K_m slots are encrypted under passkey-PRF outputs the
-  server cannot reproduce; the server key for integration KMS can be
-  supplied by an external secrets manager (AWS KMS / GCP KMS / Vault)
-  such that even memory capture doesn't yield persistent decrypt capability.
+  server cannot reproduce. The integration master encryption key itself is
+  a plain env var in the default config; operators who want hardware- or
+  service-isolated key storage can unseal it from a hosted key service
+  (AWS KMS, GCP KMS, HashiCorp Vault, etc.) before startup — the code
+  treats the env var as opaque 32 bytes regardless of origin. No cloud
+  dependency is required.
 
 ### C. Hostile peer federation server
 An attacker runs `evil.example.com` and Alice on `parchment.example.com`
@@ -122,7 +125,7 @@ server, and between federation peers.
 | Canvas metadata | `canvases.metadata_encrypted` (v2 envelope) | HKDF(seed, `canvas:<id>`) | User-E2EE per canvas |
 | Search history (blob) | `encrypted_user_blobs` (type `search-history`) | Personal key = HKDF(seed, `parchment-personal-v1`) | User-E2EE |
 | Friend-key pins (blob) | `encrypted_user_blobs` (type `friend-pins`) | Personal key | User-E2EE |
-| Third-party integration creds | `integrations.config_ciphertext` (AES-GCM) | Server KMS key from `PARCHMENT_INTEGRATION_KMS_KEY` | Server-held (see §integrations) |
+| Third-party integration creds | `integrations.config_ciphertext` (AES-GCM) | Server master key from `PARCHMENT_INTEGRATION_ENCRYPTION_KEY` | Server-held (see §integrations) |
 | Passkey-PRF wrapped K_m | `wrapped_master_keys.wrapped_km` + signed slot | AES under HKDF(PRF output, `parchment-prf-wrap-v1`) | Bound to a specific passkey |
 | Device-transfer sealed seed | `device_transfer_sessions.sealed_seed` (≤60s TTL) | ECIES between receiver/sender ephemeral X25519s | One-shot, sender-signed |
 
@@ -170,8 +173,11 @@ need to be usable by a scheduled server-side worker. That requires the
 server to hold decryption-capable key material, which is the opposite of
 E2EE. We accept this trade-off for these specific features and:
 
-- Store credentials encrypted at rest under `PARCHMENT_INTEGRATION_KMS_KEY`
-  (AES-256-GCM, separate from the database, loaded from env at boot).
+- Store credentials encrypted at rest under the server's master encryption
+  key (`PARCHMENT_INTEGRATION_ENCRYPTION_KEY`, AES-256-GCM, separate from
+  the database, loaded from env at boot). This is a plain 32-byte value —
+  no cloud service required. Operators on AWS/GCP/Vault can substitute an
+  envelope-decrypt at boot; the rest of the code is indifferent.
 - Decrypt only in-process at fetch time. Do not cache cleartext on disk.
 - Do not persist tracker locations server-side — relay in memory to the
   connected client over the existing WebSocket/SSE path.
@@ -256,6 +262,45 @@ Ops posture:
 - Differential-privacy noise on published aggregates is a hook for later
   — not added to the MVP ingest path. When public APIs expose segment
   stats, Laplace noise should be applied at read time.
+
+## Server-side key material (operator guide)
+
+Parchment has exactly two server-side keys, both plain 32-byte values
+injected as environment variables:
+
+| Env var | What it protects | Required in prod |
+|---------|------------------|------------------|
+| `SERVER_IDENTITY_PRIVATE_KEY` | Ed25519 seed for this server's federation identity (signs S2S requests, published pubkey at `.well-known/parchment-server`) | Yes |
+| `PARCHMENT_INTEGRATION_ENCRYPTION_KEY` | AES-256 master key for third-party integration credentials at rest | Yes |
+
+Generate either with:
+
+```bash
+openssl rand -base64 32
+```
+
+**No cloud or key-management service is required.** The code holds these
+as 32-byte buffers in process memory; where you get the 32 bytes from is
+an operational choice:
+
+- **Simplest:** plain env var injection from your process supervisor /
+  docker-compose / systemd unit. Works fine.
+- **Hardened (optional):** unseal from a hosted service — AWS KMS,
+  GCP KMS, HashiCorp Vault, 1Password, Bitwarden, whatever you already
+  run — as part of startup, and inject the decrypted value as the env
+  var. The code is indifferent to the source.
+
+In development (NODE_ENV != "production"), if either env var is missing
+the server generates an ephemeral random value and logs a warning. Any
+data encrypted under an ephemeral key becomes unreadable after restart,
+so persist real values before saving anything you care about.
+
+Neither key should ever be committed, logged, or transmitted. Rotation
+for `PARCHMENT_INTEGRATION_ENCRYPTION_KEY` is via the `config_key_version`
+column — deploy a new key, a background worker re-encrypts rows and bumps
+versions (worker not yet shipped; primitives in place). Rotation for
+`SERVER_IDENTITY_PRIVATE_KEY` breaks pinning on all peers until re-pin
+out of band — do it only when you mean it.
 
 ## K_m rotation (Part C.7)
 

@@ -78,7 +78,8 @@ Cannot:
 If an attacker gets code execution on a Parchment server:
 - They see in-memory decryption of integration credentials during
   active bridge-mode fetches. Mitigated (not eliminated) by the
-  external-secrets-manager deploy pattern for `PARCHMENT_INTEGRATION_KMS_KEY`.
+  external-secrets-manager deploy pattern for
+  `PARCHMENT_INTEGRATION_ENCRYPTION_KEY` (which is otherwise a plain env var).
 - They see inbound S2S requests while the process handles them — but
   user-E2EE bodies stay ciphertext because the server has no user seed.
 - They can forge OUTBOUND S2S requests impersonating this server — but

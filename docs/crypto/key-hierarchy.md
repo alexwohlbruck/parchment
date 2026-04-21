@@ -4,9 +4,11 @@ Every symmetric key in Parchment is derived from one of two roots:
 
 1. The user's **master key / seed K_m** (32 bytes of CSPRNG) — the thing
    a user backs up. Only the user's devices ever hold K_m in the clear.
-2. The server's **integration KMS key** (32 bytes) — held only by the
-   Parchment server process. Used for credentials the server must be
-   able to decrypt (bridge-mode third-party integrations).
+2. The server's **integration master encryption key** (32 bytes) — held
+   only by the Parchment server process in memory, sourced from the
+   `PARCHMENT_INTEGRATION_ENCRYPTION_KEY` env var. Used for credentials
+   the server must be able to decrypt (bridge-mode third-party
+   integrations). No cloud dependency — it's a plain 32-byte value.
 
 All derivations use HKDF-SHA256 with distinct `info` strings so that a
 compromise of one derived key cannot be used to forge another.
@@ -44,22 +46,28 @@ wrap K_m itself:
 | Purpose | Source | Usage |
 |---------|--------|-------|
 | Server identity (Ed25519) | `SERVER_IDENTITY_PRIVATE_KEY` env var (32B base64 seed) | Signs outbound S2S requests; verified by peers against pinned pub |
-| Integration KMS (AES-256) | `PARCHMENT_INTEGRATION_KMS_KEY` env var (32B base64) | Encrypts `integrations.config_ciphertext` |
+| Integration master key (AES-256) | `PARCHMENT_INTEGRATION_ENCRYPTION_KEY` env var (32B base64) | Encrypts `integrations.config_ciphertext` |
 
-In production both server-side keys should be supplied by a real secrets
-manager (AWS KMS / GCP KMS / Vault) that unwraps them at boot. The code
-treats the env-var input as opaque 32-byte key material regardless of
-origin.
+Both are plain 32-byte random values. Generate with
+`openssl rand -base64 32` and inject via your deployment's normal env-var
+mechanism. **No cloud or key-management service is required.** Operators
+who prefer one — AWS KMS, GCP KMS, HashiCorp Vault, etc. — can unseal
+the value from that service before startup and inject the resulting 32
+bytes as the env var; the code is indifferent to the source.
+
+In development (NODE_ENV != "production"), if either env var is missing
+the server generates an ephemeral random value and logs a warning. Data
+encrypted under an ephemeral key becomes unreadable after restart.
 
 ## Rotation
 
 - **K_m rotation** (Part C.7): advances `users.km_version`. Every
   user-encrypted record carries the version it was written under. Full
   rotation re-encrypts all data and re-seals every wrapped slot.
-- **Integration KMS rotation**: `integrations.config_key_version` tracks
-  which key encrypted each row. A background worker (not yet shipped)
-  can re-encrypt rows in batches while the process holds both old and
-  new keys.
+- **Integration master-key rotation**: `integrations.config_key_version`
+  tracks which key encrypted each row. A background worker (not yet
+  shipped) can re-encrypt rows in batches while the process holds both
+  old and new keys.
 - **Server identity rotation**: presents a new pubkey via
   `.well-known/parchment-server`. Peers that pinned the old key will
   hard-reject until re-pinned out of band (intentional — see
@@ -72,4 +80,4 @@ origin.
 - `web/src/lib/passkey-prf.ts` — PRF salt + wrap-key derivation
 - `web/src/lib/device-transfer.ts` — transfer ECDH + SAS
 - `server/src/lib/server-identity.ts` — server Ed25519 identity
-- `server/src/lib/integration-kms.ts` — server AES KMS wrapper
+- `server/src/lib/integration-encryption.ts` — server AES master key wrapper

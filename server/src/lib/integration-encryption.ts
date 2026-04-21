@@ -1,14 +1,21 @@
 /**
- * Integration-credential KMS.
+ * Integration-credential encryption.
  *
  * Third-party integration credentials (bearer tokens, API keys, OAuth
  * refresh tokens) MUST NOT sit in the DB as cleartext. They're decrypted
  * in-process at call time and never persisted unencrypted.
  *
  * This module wraps a single master AES-256-GCM key loaded from the
- * `PARCHMENT_INTEGRATION_KMS_KEY` environment variable. For production,
- * that env var should be injected by a real KMS (AWS KMS envelope-decrypt,
- * GCP KMS, Vault, etc.) — this code treats it as opaque 32 bytes of key
+ * `PARCHMENT_INTEGRATION_ENCRYPTION_KEY` environment variable. That env
+ * var is the whole mechanism — no external dependency, no AWS, no cloud
+ * service. Just put a good 32-byte random value in your environment:
+ *
+ *     openssl rand -base64 32
+ *
+ * Operators who WANT a hosted key-management service (AWS KMS, GCP KMS,
+ * HashiCorp Vault, etc.) can still use one by configuring their deploy to
+ * unseal the value from that service BEFORE the process starts and inject
+ * it as the env var. The code here treats the input as opaque 32-byte key
  * material regardless of origin.
  *
  * The key is held in process memory for the life of the server. Callers
@@ -25,7 +32,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
 import { logger } from './logger'
 
-const KEY_ENV_VAR = 'PARCHMENT_INTEGRATION_KMS_KEY'
+const KEY_ENV_VAR = 'PARCHMENT_INTEGRATION_ENCRYPTION_KEY'
 const CURRENT_KEY_VERSION = 1
 const NONCE_LEN = 12
 const TAG_LEN = 16
@@ -58,8 +65,9 @@ function loadMasterKey(): Buffer {
   if (process.env.NODE_ENV === 'production') {
     throw new Error(
       `${KEY_ENV_VAR} is required in production. Provide a base64-encoded ` +
-        `32-byte AES-256 key (e.g. \`openssl rand -base64 32\`) via a secrets ` +
-        `manager, or unseal via AWS KMS / GCP KMS / Vault before startup.`,
+        `32-byte AES-256 key (\`openssl rand -base64 32\`) directly, or ` +
+        `unseal it from a hosted key service (AWS KMS / GCP KMS / Vault) ` +
+        `before startup.`,
     )
   }
 
@@ -84,7 +92,7 @@ export interface EncryptedBlob {
 }
 
 /**
- * Encrypt a JSON-serializable object under the master KMS key.
+ * Encrypt a JSON-serializable object under the master encryption key.
  * Returns base64-encoded components suitable for text columns.
  */
 export function encryptIntegrationConfig(
@@ -141,7 +149,7 @@ export function getCurrentKeyVersion(): number {
   return CURRENT_KEY_VERSION
 }
 
-export const integrationKmsInternals = {
+export const integrationEncryptionInternals = {
   resetCache: () => {
     cachedKey = null
   },

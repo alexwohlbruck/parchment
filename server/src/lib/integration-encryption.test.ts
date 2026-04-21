@@ -1,5 +1,5 @@
 /**
- * Tests for the integration-credential KMS wrapper.
+ * Tests for the integration-credential encryption wrapper.
  *
  * Round-trip correctness, tamper detection, and key-version gating.
  * We can't unit-test the "prod must have env var" branch without mutating
@@ -11,31 +11,32 @@ import {
   encryptIntegrationConfig,
   decryptIntegrationConfig,
   getCurrentKeyVersion,
-  integrationKmsInternals,
-} from './integration-kms'
+  integrationEncryptionInternals,
+} from './integration-encryption'
 
-const originalKey = process.env.PARCHMENT_INTEGRATION_KMS_KEY
+const originalKey = process.env.PARCHMENT_INTEGRATION_ENCRYPTION_KEY
 const originalNodeEnv = process.env.NODE_ENV
 
 beforeEach(() => {
-  integrationKmsInternals.resetCache()
+  integrationEncryptionInternals.resetCache()
 })
 
 afterEach(() => {
-  if (originalKey === undefined) delete process.env.PARCHMENT_INTEGRATION_KMS_KEY
-  else process.env.PARCHMENT_INTEGRATION_KMS_KEY = originalKey
+  if (originalKey === undefined)
+    delete process.env.PARCHMENT_INTEGRATION_ENCRYPTION_KEY
+  else process.env.PARCHMENT_INTEGRATION_ENCRYPTION_KEY = originalKey
   if (originalNodeEnv === undefined) delete process.env.NODE_ENV
   else process.env.NODE_ENV = originalNodeEnv
-  integrationKmsInternals.resetCache()
+  integrationEncryptionInternals.resetCache()
 })
 
 function setTestKey() {
   // 32 bytes of 0x42.
   const key = Buffer.alloc(32, 0x42).toString('base64')
-  process.env.PARCHMENT_INTEGRATION_KMS_KEY = key
+  process.env.PARCHMENT_INTEGRATION_ENCRYPTION_KEY = key
 }
 
-describe('integration-kms', () => {
+describe('integration-encryption', () => {
   test('round-trips a config object', () => {
     setTestKey()
     const config = {
@@ -80,10 +81,11 @@ describe('integration-kms', () => {
     const blob = encryptIntegrationConfig({ apiKey: 'secret' })
 
     // Swap in a different key and try to decrypt.
-    process.env.PARCHMENT_INTEGRATION_KMS_KEY = Buffer.alloc(32, 0x99).toString(
-      'base64',
-    )
-    integrationKmsInternals.resetCache()
+    process.env.PARCHMENT_INTEGRATION_ENCRYPTION_KEY = Buffer.alloc(
+      32,
+      0x99,
+    ).toString('base64')
+    integrationEncryptionInternals.resetCache()
 
     expect(() => decryptIntegrationConfig(blob)).toThrow()
   })
@@ -97,26 +99,27 @@ describe('integration-kms', () => {
   })
 
   test('rejects a wrong-length env key', () => {
-    process.env.PARCHMENT_INTEGRATION_KMS_KEY = Buffer.alloc(16, 0).toString(
-      'base64',
-    )
-    integrationKmsInternals.resetCache()
+    process.env.PARCHMENT_INTEGRATION_ENCRYPTION_KEY = Buffer.alloc(
+      16,
+      0,
+    ).toString('base64')
+    integrationEncryptionInternals.resetCache()
     expect(() => encryptIntegrationConfig({ x: 1 })).toThrow(/32-byte/)
   })
 
   test('production requires env key', () => {
-    delete process.env.PARCHMENT_INTEGRATION_KMS_KEY
+    delete process.env.PARCHMENT_INTEGRATION_ENCRYPTION_KEY
     process.env.NODE_ENV = 'production'
-    integrationKmsInternals.resetCache()
+    integrationEncryptionInternals.resetCache()
     expect(() => encryptIntegrationConfig({ x: 1 })).toThrow(
       /required in production/,
     )
   })
 
   test('dev generates an ephemeral key with warning', () => {
-    delete process.env.PARCHMENT_INTEGRATION_KMS_KEY
+    delete process.env.PARCHMENT_INTEGRATION_ENCRYPTION_KEY
     process.env.NODE_ENV = 'development'
-    integrationKmsInternals.resetCache()
+    integrationEncryptionInternals.resetCache()
     // Should not throw; generates an in-memory key.
     const blob = encryptIntegrationConfig({ x: 1 })
     expect(decryptIntegrationConfig(blob)).toEqual({ x: 1 })

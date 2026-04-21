@@ -18,7 +18,7 @@ import { users } from '../schema/users.schema'
 import {
   encryptIntegrationConfig,
   decryptIntegrationConfig,
-} from '../lib/integration-kms'
+} from '../lib/integration-encryption'
 import { logger } from '../lib/logger'
 
 // Available integration definitions

@@ -304,6 +304,15 @@ the server generates an ephemeral random value and logs a warning. Any
 data encrypted under an ephemeral key becomes unreadable after restart,
 so persist real values before saving anything you care about.
 
+**If you run the server in Docker**, setting the values in your local
+`.env` isn't enough on its own — the compose file explicitly lists which
+env vars to forward into the container. The dev / prod compose files in
+this repo already include `SERVER_IDENTITY_PRIVATE_KEY` and
+`PARCHMENT_INTEGRATION_ENCRYPTION_KEY` in their `environment:` blocks,
+so values in your `.env` at the repo root will be picked up by compose
+substitution (`${VAR_NAME}`) and passed through. If you fork or customize
+the compose file, make sure both vars stay in the forwarded list.
+
 Neither key should ever be committed, logged, or transmitted. Rotation
 for `PARCHMENT_INTEGRATION_ENCRYPTION_KEY` is via the `config_key_version`
 column — deploy a new key, a background worker re-encrypts rows and bumps

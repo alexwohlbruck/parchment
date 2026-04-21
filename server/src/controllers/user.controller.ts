@@ -19,6 +19,10 @@ import {
   fetchUser,
 } from '../services/user.service'
 import {
+  getUserKmVersion,
+  advanceKmVersion,
+} from '../services/km-rotation.service'
+import {
   getOrCreateUserPreferences,
   updateUserPreferences,
 } from '../services/user-preferences.service'
@@ -294,6 +298,55 @@ app.use(requireAuth).patch(
       tags: ['Users'],
       description:
         'Update current user metadata-encrypted display profile envelopes',
+    },
+  },
+)
+
+/**
+ * Read the current master-key version. Clients compare this against the
+ * kmVersion on any record they're reading to detect a rotation in progress.
+ */
+app.use(requireAuth).get(
+  '/me/km-version',
+  async ({ user, status }) => {
+    const v = await getUserKmVersion(user.id)
+    if (v === null) return status(404, { message: 'User not found' })
+    return { kmVersion: v }
+  },
+  {
+    detail: {
+      tags: ['Users', 'KmRotation'],
+      description: 'Get current master-key version (Part C.7)',
+    },
+  },
+)
+
+/**
+ * Advance kmVersion after a client-orchestrated rotation. The client MUST
+ * have already re-encrypted all its data under the new seed and re-sealed
+ * every passkey-PRF slot BEFORE calling this — bumping the counter first
+ * would strand any device that hadn't rotated yet.
+ */
+app.use(requireAuth).post(
+  '/me/km-version/advance',
+  async ({ user, body, status }) => {
+    const next = await advanceKmVersion({
+      userId: user.id,
+      expectedCurrent: body.expectedCurrent,
+    })
+    if (next === null) {
+      return status(409, {
+        message:
+          'kmVersion mismatch — another device rotated first or user not found',
+      })
+    }
+    return { kmVersion: next }
+  },
+  {
+    body: t.Object({ expectedCurrent: t.Number() }),
+    detail: {
+      tags: ['Users', 'KmRotation'],
+      description: 'Advance master-key version after client-side rotation',
     },
   },
 )

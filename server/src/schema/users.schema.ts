@@ -1,5 +1,5 @@
 import { relations } from 'drizzle-orm'
-import { pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, integer } from 'drizzle-orm/pg-core'
 import { usersToRoles } from './users-roles.schema'
 import { friendships } from './friendships.schema'
 import { friendInvitations } from './friend-invitations.schema'
@@ -17,6 +17,10 @@ export const users = pgTable('users', {
   alias: text('alias').unique(),              // Federation handle alias (unique per server)
   signingKey: text('signing_key'),            // Ed25519 public key (base64)
   encryptionKey: text('encryption_key'),      // X25519 public key (base64)
+  // Master-key version (Part C.7). Every user-owned encrypted record stores
+  // the kmVersion it was written under. On rotation, a background job re-
+  // encrypts all rows and bumps this counter.
+  kmVersion: integer('km_version').notNull().default(1),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })

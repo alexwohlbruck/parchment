@@ -253,6 +253,13 @@
       "when": 1776794882827,
       "tag": "0035_passkey_prf_slots",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1776795004788,
+      "tag": "0036_km_version",
+      "breakpoints": true
     }
   ]
 }

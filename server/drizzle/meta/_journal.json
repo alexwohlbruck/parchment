@@ -225,6 +225,13 @@
       "when": 1776793797176,
       "tag": "0031_integration_kms",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1776794360592,
+      "tag": "0032_personal_blobs",
+      "breakpoints": true
     }
   ]
 }

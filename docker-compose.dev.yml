@@ -53,10 +53,9 @@ services:
       GMAIL_EMAIL: ${GMAIL_EMAIL}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
       APP_TESTER_EMAIL: ${APP_TESTER_EMAIL}
-      # Crypto keys (two INDEPENDENT base64-encoded 32-byte values).
+      # Crypto keys — two INDEPENDENT base64 32-byte values, REQUIRED.
+      # The server refuses to start without these (no ephemeral fallback).
       # Generate each with: openssl rand -base64 32
-      # If unset, the server generates ephemeral keys at boot, meaning any
-      # data encrypted this session becomes unreadable after restart.
       SERVER_IDENTITY_PRIVATE_KEY: ${SERVER_IDENTITY_PRIVATE_KEY}
       PARCHMENT_INTEGRATION_ENCRYPTION_KEY: ${PARCHMENT_INTEGRATION_ENCRYPTION_KEY}
     depends_on:

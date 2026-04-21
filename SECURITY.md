@@ -299,10 +299,12 @@ an operational choice:
   run — as part of startup, and inject the decrypted value as the env
   var. The code is indifferent to the source.
 
-In development (NODE_ENV != "production"), if either env var is missing
-the server generates an ephemeral random value and logs a warning. Any
-data encrypted under an ephemeral key becomes unreadable after restart,
-so persist real values before saving anything you care about.
+**The server refuses to start if either env var is unset** — in every
+environment, not just production. An ephemeral key silently lost at
+restart is worse than a hard boot failure, so we fail loud. The error
+message points at this file and includes the `openssl rand -base64 32`
+command. Set both values once, commit to `.env` (locally) or your
+secrets manager (in prod), and the server starts clean.
 
 **If you run the server in Docker**, setting the values in your local
 `.env` isn't enough on its own — the compose file explicitly lists which

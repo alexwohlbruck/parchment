@@ -107,21 +107,20 @@ describe('integration-encryption', () => {
     expect(() => encryptIntegrationConfig({ x: 1 })).toThrow(/32-byte/)
   })
 
-  test('production requires env key', () => {
+  test('missing env var throws in production', () => {
     delete process.env.PARCHMENT_INTEGRATION_ENCRYPTION_KEY
     process.env.NODE_ENV = 'production'
     integrationEncryptionInternals.resetCache()
-    expect(() => encryptIntegrationConfig({ x: 1 })).toThrow(
-      /required in production/,
-    )
+    expect(() => encryptIntegrationConfig({ x: 1 })).toThrow(/is not set/)
   })
 
-  test('dev generates an ephemeral key with warning', () => {
+  test('missing env var also throws in development (no silent ephemeral fallback)', () => {
+    // Ephemeral fallback was removed — silently generating a key on first
+    // boot and losing every integration credential on the next restart is
+    // a footgun. Fail loud instead.
     delete process.env.PARCHMENT_INTEGRATION_ENCRYPTION_KEY
     process.env.NODE_ENV = 'development'
     integrationEncryptionInternals.resetCache()
-    // Should not throw; generates an in-memory key.
-    const blob = encryptIntegrationConfig({ x: 1 })
-    expect(decryptIntegrationConfig(blob)).toEqual({ x: 1 })
+    expect(() => encryptIntegrationConfig({ x: 1 })).toThrow(/is not set/)
   })
 })

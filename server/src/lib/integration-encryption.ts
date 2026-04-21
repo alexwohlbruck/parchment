@@ -30,7 +30,6 @@
  */
 
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
-import { logger } from './logger'
 
 const KEY_ENV_VAR = 'PARCHMENT_INTEGRATION_ENCRYPTION_KEY'
 const CURRENT_KEY_VERSION = 1
@@ -51,37 +50,25 @@ function loadMasterKey(): Buffer {
   if (cachedKey) return cachedKey
 
   const raw = process.env[KEY_ENV_VAR]
-  if (raw) {
-    const bytes = base64ToBytes(raw.trim())
-    if (bytes.length !== 32) {
-      throw new Error(
-        `${KEY_ENV_VAR} must be a base64-encoded 32-byte AES-256 key, got ${bytes.length} bytes`,
-      )
-    }
-    cachedKey = Buffer.from(bytes)
-    return cachedKey
-  }
-
-  if (process.env.NODE_ENV === 'production') {
+  if (!raw) {
     throw new Error(
-      `${KEY_ENV_VAR} is required in production. Provide a base64-encoded ` +
-        `32-byte AES-256 key (\`openssl rand -base64 32\`) directly, or ` +
-        `unseal it from a hosted key service (AWS KMS / GCP KMS / Vault) ` +
-        `before startup.`,
+      `${KEY_ENV_VAR} is not set. Generate a base64-encoded 32-byte AES-256 ` +
+        `key with \`openssl rand -base64 32\` and put the value in your ` +
+        `server/.env (or forward it through your process supervisor / ` +
+        `docker-compose environment). See SECURITY.md §server-side-key-material ` +
+        `for details.\n\n` +
+        `The server refuses to start without this — an ephemeral key would ` +
+        `silently lose every integration credential on the next restart.`,
     )
   }
 
-  const generated = randomBytes(32)
-  logger.warn(
-    {
-      envVar: KEY_ENV_VAR,
-      hint: generated.toString('base64'),
-    },
-    `${KEY_ENV_VAR} not set; generated ephemeral dev key. Any integration ` +
-      `credentials you save now will be unreadable after restart. Set the env ` +
-      `var to keep them.`,
-  )
-  cachedKey = generated
+  const bytes = base64ToBytes(raw.trim())
+  if (bytes.length !== 32) {
+    throw new Error(
+      `${KEY_ENV_VAR} must be a base64-encoded 32-byte AES-256 key, got ${bytes.length} bytes`,
+    )
+  }
+  cachedKey = Buffer.from(bytes)
   return cachedKey
 }
 

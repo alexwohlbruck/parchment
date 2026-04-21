@@ -53,6 +53,23 @@ describe('server identity', () => {
     delete process.env.SERVER_IDENTITY_PRIVATE_KEY
   })
 
+  test('throws when env var is missing — no silent ephemeral fallback', () => {
+    const originalEnv = process.env.NODE_ENV
+    const originalKey = process.env.SERVER_IDENTITY_PRIVATE_KEY
+    try {
+      delete process.env.SERVER_IDENTITY_PRIVATE_KEY
+      process.env.NODE_ENV = 'development'
+      serverIdentityInternals.resetCache()
+      expect(() => getServerIdentity()).toThrow(/is not set/)
+    } finally {
+      if (originalKey !== undefined)
+        process.env.SERVER_IDENTITY_PRIVATE_KEY = originalKey
+      if (originalEnv !== undefined) process.env.NODE_ENV = originalEnv
+      else delete process.env.NODE_ENV
+      serverIdentityInternals.resetCache()
+    }
+  })
+
   test('signs and verifies with the server key', async () => {
     const seed = new Uint8Array(32)
     for (let i = 0; i < 32; i++) seed[i] = i + 1

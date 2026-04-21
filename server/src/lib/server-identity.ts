@@ -9,8 +9,6 @@
 
 import * as ed from '@noble/ed25519'
 import { sha512 } from '@noble/hashes/sha2.js'
-import { logger } from './logger'
-
 ed.hashes.sha512 = (...m) => sha512(ed.etc.concatBytes(...m))
 
 const PROTOCOL_VERSION = 2
@@ -45,38 +43,32 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(s)
 }
 
-function loadOrGenerateSeed(): Uint8Array {
+function loadSeed(): Uint8Array {
   const envSeed = process.env.SERVER_IDENTITY_PRIVATE_KEY
-  if (envSeed) {
-    const bytes = base64ToBytes(envSeed.trim())
-    if (bytes.length !== 32) {
-      throw new Error(
-        'SERVER_IDENTITY_PRIVATE_KEY must be a base64-encoded 32-byte seed',
-      )
-    }
-    return bytes
-  }
-
-  if (process.env.NODE_ENV === 'production') {
+  if (!envSeed) {
     throw new Error(
-      'SERVER_IDENTITY_PRIVATE_KEY is required in production. Generate one with ' +
-        '`openssl rand -base64 32` and set it in your environment.',
+      'SERVER_IDENTITY_PRIVATE_KEY is not set. Generate a fresh Ed25519 ' +
+        'seed with `openssl rand -base64 32` and put the value in your ' +
+        'server/.env (or forward it through your process supervisor). ' +
+        'See SECURITY.md §server-side-key-material for details.\n\n' +
+        'The server refuses to start without this — an ephemeral identity ' +
+        'would silently break federation TOFU pins across every restart.',
     )
   }
-
-  const seed = crypto.getRandomValues(new Uint8Array(32))
-  logger.warn(
-    { hint: bytesToBase64(seed) },
-    'SERVER_IDENTITY_PRIVATE_KEY not set; generated ephemeral key for dev. ' +
-      'Set it in .env to keep the same server identity across restarts.',
-  )
-  return seed
+  const bytes = base64ToBytes(envSeed.trim())
+  if (bytes.length !== 32) {
+    throw new Error(
+      `SERVER_IDENTITY_PRIVATE_KEY must be a base64-encoded 32-byte seed, ` +
+        `got ${bytes.length} bytes`,
+    )
+  }
+  return bytes
 }
 
 export function getServerIdentity(): ServerIdentity {
   if (cached) return cached
 
-  const privateKey = loadOrGenerateSeed()
+  const privateKey = loadSeed()
   const publicKey = ed.getPublicKey(privateKey)
   cached = {
     privateKey,

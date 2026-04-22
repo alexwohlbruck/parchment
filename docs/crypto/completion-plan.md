@@ -102,36 +102,61 @@ rotatable but nothing actually rotates them.
 **Rough shape:** orchestrator service + progress UI + trigger hooks.
 Edge cases around partial-rotation recovery add complexity. ~3 sessions.
 
-### 4. Web seed unlock flow (replace `localStorage` persistence)
-**Why it's P0:** today the seed sits in browser `localStorage` for the
-convenience of not making users re-authenticate every tab open. That's
-the weak spot — any XSS bug, any filesystem-level read, any
-badly-scoped browser extension can exfiltrate the seed and decrypt all
-the user's past and future E2EE data.
+### 4. Wrap browser/mobile `localStorage` seed under a revocable device secret
+**Why it's P0:** a maps app must open instantly. Forcing passkey-PRF or
+a typed recovery key on every cold-open is wrong for the use case —
+users expect their map to be there the moment the tab loads, same as
+Google/Apple Maps. So the seed HAS to persist in browser storage.
 
-**Fix:** keep the seed in *memory only* on web. On next tab open, unlock
-via passkey-PRF (#1) or the typed recovery key as a fallback. Reference
-implementations: Signal Web (QR link), Proton/Bitwarden (password +
-Argon2), Matrix/Element (passkey-PRF + passphrase).
+Today it persists as plain base64 in `localStorage`. The hardening:
+**wrap it under a key derived from a server-held "device secret" that
+can be rotated.**
+
+Pattern:
+1. On first successful unlock on a device, client asks server
+   `POST /users/me/devices/:deviceId/wrap-secret`. Server generates a
+   random 32-byte secret, stores it keyed by `(userId, deviceId)`,
+   returns it to the client.
+2. Client derives `wrapKey = HKDF(deviceSecret, "parchment-seed-wrap-v1")`,
+   encrypts seed with AES-GCM, writes the envelope to `localStorage`.
+   Discards the cleartext `deviceSecret` from memory after deriving.
+3. On every cold-open: GET the device secret, derive the key, unwrap the
+   seed, hold in memory.
+4. "Sign out of all devices" → server rotates `(userId, *)` device
+   secrets. Every cached seed on every device becomes unusable on next
+   open → each device forces a re-unlock via passkey / recovery key.
+
+**Properties this gives us:**
+- Cold-open is still instant (one small GET + one AES-GCM decrypt).
+- `localStorage` dump alone is useless — attacker also needs the session
+  cookie to fetch the device secret.
+- Server-side revocation works (sign-out-all wipes the network).
+- XSS in the page can still fetch the secret and unwrap — unavoidable
+  on browser without architectural isolation. Same-origin scripts can
+  always read cookies + fetch same-origin endpoints. This gap is
+  documented as a known limitation; the hardening is against passive
+  filesystem reads and "grep the disk for secrets" attacks, not active
+  page compromise.
+
+**Companion feature: opt-in paranoid mode.**
+In Settings → Security, a toggle: "Require passkey on every app open."
+When on, skip the `localStorage` cache entirely and use passkey-PRF
+unlock every cold-open (flow from P0 #1). Off by default — for users
+who care more about maximum security than instant-open.
 
 **What's needed:**
-- Remove `localStorage` persistence of the seed in `key-storage.ts` for
-  the browser + mobile-Tauri paths. Desktop Tauri (OS keychain) stays.
-- Add an explicit "unlock" step at tab open:
-  - If any passkey-PRF slot is enrolled → prompt passkey, unwrap K_m.
-  - Otherwise → prompt for typed recovery key.
-- Hold the seed in a module-scoped variable, cleared on sign-out or
-  tab close.
-- Session persistence option: after unlock, offer "remember on this
-  device for X days" that stores the seed wrapped under a session-token-
-  derived key in `sessionStorage` — dies with the tab group, survives a
-  reload.
+- New server endpoint: `GET/POST /users/me/devices/:deviceId/wrap-secret`
+  + rotate endpoint for sign-out-all.
+- Client change to `key-storage.ts`: wrap/unwrap around the current
+  `localStorage` put/get. Boot flow fetches the secret once on startup.
+- Desktop Tauri path unchanged (OS keychain already secure).
+- Settings UI for the paranoid-mode toggle.
 
-**Dependency:** really only useful once #1 (passkey enrollment) ships,
-because otherwise every session = typing 44 chars of base64.
+**Dependency:** paranoid mode depends on P0 #1 (passkey enrollment).
+The wrap-secret itself is independent — can ship first.
 
-**Rough shape:** ~1 session. Touches `key-storage.ts`,
-`auth.service.ts`, plus a new unlock modal component.
+**Rough shape:** ~1-2 sessions. Small server-side addition, client wrap
+code, settings toggle.
 
 ### 5. Display-name set/edit form
 **Why it's P0:** today, the UI shows empty names because the self-serve
@@ -230,14 +255,13 @@ Rough order (each item branches off a fresh PR):
 
 1. **Display-name form** — smallest, quickest win. Gives the UI something
    to show so testing other features feels less weird.
-2. **Collections encrypted read-through** — unblocks the most-used feature
-   (saved places). Schema drop + UI sweep.
-3. **Passkey-PRF enrollment UI** — recovery option #1. Prerequisite for
-   good rotation UX (rotation triggers after slot removal).
-4. **Web seed unlock flow** — removes the `localStorage` persistence that
-   is the single biggest smell in the current implementation. Depends
-   on #3 for the unlock UX not being "type 44 chars every session."
-5. **K_m rotation orchestrator** — security-critical, depends on #3.
+2. **Wrap seed under revocable device secret** (#4) — independent;
+   closes the biggest passive-attack surface on web without any UX hit.
+3. **Collections encrypted read-through** — unblocks the most-used
+   feature (saved places). Schema drop + UI sweep.
+4. **Passkey-PRF enrollment UI** — recovery option #1. Prerequisite for
+   good rotation UX and for opt-in paranoid mode.
+5. **K_m rotation orchestrator** — security-critical, depends on #4.
 6. **Device-to-device transfer UI** — recovery option #2. Can land in
    parallel with rotation work.
 7. **Mobile OS-keystore** — platform hardening. Probably the last major

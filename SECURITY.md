@@ -73,36 +73,57 @@ lives depends on where you are:
 | Browser / regular web | `localStorage` | ⚠ Vulnerable to XSS. Any process with filesystem access can read it. OK for dev, not OK as a long-term user-facing posture |
 | Tauri on iOS / Android | Falls through to the webview's `localStorage` | ⚠ Same caveats as browser. Stored in app data dir, readable with filesystem access. Mobile OS-keystore integration is a tracked follow-up (see Deferred items). |
 
-**Is the mobile / web fallback acceptable?** Short answer: no, not
-long-term. Here's what production E2EE apps do on web, for reference
-when we finish this:
+**Is the current localStorage fallback acceptable?** In its current form
+(plain base64), no. But we need to fix it without breaking the core UX:
+**Parchment is a maps app and cold-open must be instant.** Requiring a
+passkey tap or typed key on every tab-open is wrong for the use case —
+users expect the map the moment the tab loads.
 
-- **Signal / WhatsApp Web** don't persist the seed at all. They link to
-  a phone via QR; each web session is a thin client proxying through
-  the phone. The seed stays on the authenticated mobile device.
-- **Proton Mail, Bitwarden, 1Password** store an encrypted copy of the
-  seed on the server, unlocked client-side with a master password run
-  through a strong KDF (Argon2id / PBKDF2 with high iteration count).
-  The password never leaves the client.
-- **Matrix / Element** use "Secure Secret Storage" — server holds an
-  encrypted copy of cross-signing keys, unlocked by a passphrase OR a
-  WebAuthn PRF passkey.
+So the seed has to persist on the device. The realistic design (shipped
+in P0 #4 of [completion-plan.md](docs/crypto/completion-plan.md)):
 
-The canonical fix for Parchment web is **don't persist the seed in
-`localStorage`**. Keep it in memory for the session only; on next tab
-open, unlock via:
+- Keep `localStorage` persistence → instant open.
+- **Wrap** the persisted seed under a key derived from a **revocable
+  server-held "device secret."** Cold-open = one small fetch + one
+  AES-GCM decrypt. Still effectively instant.
+- `localStorage` at rest holds ciphertext. A passive filesystem read
+  without the session cookie yields nothing useful.
+- Server-side revocation is the kill-switch: "sign out of all devices"
+  rotates the device secrets → every cached seed on the network becomes
+  unreadable → each device forces a re-unlock.
+- Desktop Tauri stays on OS keychain (hardware-backed, OS-login
+  protected). Already secure.
+- Mobile Tauri webview inherits the same wrap pattern; a future native
+  Keystore/Keychain plugin (tracked in Reserved below) adds biometric
+  gating on top.
 
-1. **Passkey-PRF** (primitives shipped — see Part C.6 and
-   [completion-plan.md](docs/crypto/completion-plan.md) §1). User taps a
-   passkey, client derives unwrap key, decrypts the server-stored
-   wrapped K_m, holds the seed in memory. No passkey available → fall
-   back to #2.
-2. **Typed base64 recovery key** as the ultimate fallback (tier 4 in
-   [recovery.md](docs/crypto/recovery.md)).
+**What this doesn't protect against:** active XSS in the page. A script
+running in the Parchment origin can fetch the device secret and unwrap
+the seed — same-origin scripts can always read cookies and call
+same-origin endpoints. Architectural mitigations (origin isolation,
+iframed secret store) are possible but require significant restructuring
+and aren't planned.
 
-Mobile Tauri webview hits the same problem plus needs a native
-Keychain/Keystore plugin for the *next* tier of protection — tracked
-as a Reserved item below.
+**Opt-in "paranoid mode"**: a Settings toggle for users who want to
+trade instant-open for strictly-in-memory seeds. When enabled, no
+persistence — each cold-open unlocks via passkey-PRF or typed recovery
+key. Off by default.
+
+### How production E2EE apps handle this, for reference
+
+- **Signal / WhatsApp Web**: don't persist the seed at all. QR link
+  from a phone each session; web is a thin proxy. High security, heavy
+  UX cost. Not the right model for a maps app.
+- **Proton Mail, Bitwarden, 1Password**: server stores an encrypted
+  copy of the seed, unlocked client-side with a master password run
+  through Argon2id / PBKDF2. Users type the password each session.
+  Good for password managers where re-auth is expected.
+- **Matrix / Element**: "Secure Secret Storage" — server holds
+  encrypted cross-signing keys, unlocked by a passphrase or WebAuthn
+  PRF passkey. Similar ceremony per session.
+- **Parchment** (this plan): Matrix-style server-held wrap secret, but
+  fetched automatically on cold-open instead of requiring user
+  interaction. Trade-off documented above.
 
 ## Feature status snapshot
 

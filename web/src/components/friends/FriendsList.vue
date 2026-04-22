@@ -25,7 +25,7 @@ const locationBroadcast = useE2eeLocationBroadcast()
 const friendLocations = useFriendLocations()
 
 const { friends, isLoading } = storeToRefs(friendsStore)
-const { isSetupComplete } = storeToRefs(identityStore)
+const { isSetupComplete, needsImport } = storeToRefs(identityStore)
 
 const emit = defineEmits<{
   addFriend: []
@@ -165,18 +165,25 @@ onUnmounted(() => {
       </Button>
     </div>
 
-    <!-- Setup Required -->
+    <!-- Setup required. Distinguish "you have an identity to restore"
+         from "you don't have one yet" so the button copy matches the
+         dialog the click will open — one of those gens a new seed,
+         the other imports the existing one. -->
     <div
       v-if="!isSetupComplete"
       class="flex flex-col items-center justify-center py-8 text-center"
     >
       <Users class="h-12 w-12 text-muted-foreground mb-4" />
       <p class="text-muted-foreground mb-4">
-        {{ t('friends.empty.setupRequired') }}
+        {{
+          needsImport
+            ? 'Your account has a federation identity — restore it here to connect with friends.'
+            : t('friends.empty.setupRequired')
+        }}
       </p>
-      <Button @click="emit('setupIdentity')">{{
-        t('friends.identity.setupButton')
-      }}</Button>
+      <Button @click="emit('setupIdentity')">
+        {{ needsImport ? 'Restore identity' : t('friends.identity.setupButton') }}
+      </Button>
     </div>
 
     <!-- Loading -->

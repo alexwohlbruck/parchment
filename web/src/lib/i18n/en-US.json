@@ -603,16 +603,16 @@
       }
     },
     "security": {
-      "title": "Security & recovery",
-      "description": "Back up, rotate, or move your identity between devices",
+      "title": "Encryption keys",
+      "description": "Your private keys encrypt your data end-to-end. Back them up, rotate them, or set them up on another device.",
       "recoveryKey": "Recovery key",
-      "recoveryKeyDescription": "A master key you can save to restore access",
+      "recoveryKeyDescription": "A backup of your encryption keys. Save it to restore access if you lose every device.",
       "viewKey": "View key",
-      "rotateKeys": "Rotate all keys",
-      "rotateKeysDescription": "Swap your master key and re-encrypt everything",
+      "rotateKeys": "Rotate encryption keys",
+      "rotateKeysDescription": "Generate new encryption keys and re-encrypt your data under them.",
       "rotate": "Rotate",
       "setupAnotherDevice": "Set up another device",
-      "setupAnotherDeviceDescription": "Sign in on a new phone or browser without re-doing recovery",
+      "setupAnotherDeviceDescription": "Share your encryption keys with a new phone or browser so it can read your encrypted data.",
       "setupAction": "Set up"
     },
     "recoveryKey": {

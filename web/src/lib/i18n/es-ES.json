@@ -563,16 +563,16 @@
       }
     },
     "security": {
-      "title": "Seguridad y recuperación",
-      "description": "Respalda, rota o mueve tu identidad entre dispositivos",
+      "title": "Claves de cifrado",
+      "description": "Tus claves privadas cifran tus datos de extremo a extremo. Respáldalas, rótalas o configúralas en otro dispositivo.",
       "recoveryKey": "Clave de recuperación",
-      "recoveryKeyDescription": "Una clave maestra que puedes guardar para restaurar el acceso",
+      "recoveryKeyDescription": "Un respaldo de tus claves de cifrado. Guárdala para restaurar el acceso si pierdes todos los dispositivos.",
       "viewKey": "Ver clave",
-      "rotateKeys": "Rotar todas las claves",
-      "rotateKeysDescription": "Cambia tu clave maestra y vuelve a cifrar todo",
+      "rotateKeys": "Rotar claves de cifrado",
+      "rotateKeysDescription": "Genera nuevas claves de cifrado y vuelve a cifrar tus datos con ellas.",
       "rotate": "Rotar",
       "setupAnotherDevice": "Configurar otro dispositivo",
-      "setupAnotherDeviceDescription": "Inicia sesión en otro teléfono o navegador sin rehacer la recuperación",
+      "setupAnotherDeviceDescription": "Comparte tus claves de cifrado con un teléfono o navegador nuevo para que pueda leer tus datos cifrados.",
       "setupAction": "Configurar"
     },
     "recoveryKey": {

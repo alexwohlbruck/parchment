@@ -597,7 +597,9 @@ export const useIdentityStore = defineStore('identity', () => {
    * user's PRF-enabled passkeys. Session must already exist. On success,
    * sets hasLocalIdentity + localKeys and refreshes the server identity.
    */
-  async function unlockWithPasskey(): Promise<{
+  async function unlockWithPasskey(
+    prefetched?: { credentialId: string; prfOutput: Uint8Array },
+  ): Promise<{
     success: boolean
     cancelled?: boolean
     error?: string
@@ -607,6 +609,7 @@ export const useIdentityStore = defineStore('identity', () => {
     try {
       await unlockSeedWithPasskey({
         assertPasskeyForPrf: authService.assertPasskeyForPrf,
+        prefetched,
       })
       hasLocalIdentity.value = true
       localKeys.value = await getLocalIdentity()
@@ -641,14 +644,14 @@ export const useIdentityStore = defineStore('identity', () => {
    *   'cancelled'   — user cancelled the biometric prompt
    *   'failed'      — unlock error (user can retry manually in Settings)
    */
-  async function autoUnlockAfterSignIn(): Promise<
-    'unlocked' | 'not-needed' | 'cancelled' | 'failed'
-  > {
+  async function autoUnlockAfterSignIn(
+    prefetched?: { credentialId: string; prfOutput: Uint8Array },
+  ): Promise<'unlocked' | 'not-needed' | 'cancelled' | 'failed'> {
     await initialize()
     if (hasLocalIdentity.value) return 'not-needed'
     await refreshSlotAvailability()
     if (!hasAnyPasskeySlot.value) return 'not-needed'
-    const result = await unlockWithPasskey()
+    const result = await unlockWithPasskey(prefetched)
     if (result.cancelled) return 'cancelled'
     return result.success ? 'unlocked' : 'failed'
   }

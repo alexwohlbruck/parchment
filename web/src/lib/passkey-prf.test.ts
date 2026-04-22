@@ -27,17 +27,15 @@ function bytesOf(byte: number, len = 32): Uint8Array {
 }
 
 describe('derivePrfSalt', () => {
-  test('deterministic for a given userId', () => {
-    const a = derivePrfSalt('user-1')
-    const b = derivePrfSalt('user-1')
+  // App-constant salt (see passkey-prf.ts for rationale). Deliberately
+  // not user-specific so the server can include the PRF extension in
+  // pre-auth sign-in options without knowing the user yet — lets
+  // sign-in + seed unwrap happen with one biometric.
+  test('is deterministic and 32 bytes', () => {
+    const a = derivePrfSalt()
+    const b = derivePrfSalt()
     expect(Array.from(a)).toEqual(Array.from(b))
     expect(a.length).toBe(32)
-  })
-
-  test('different userIds → different salts', () => {
-    const a = derivePrfSalt('user-1')
-    const b = derivePrfSalt('user-2')
-    expect(Array.from(a)).not.toEqual(Array.from(b))
   })
 })
 

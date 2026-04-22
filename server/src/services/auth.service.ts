@@ -199,15 +199,32 @@ export async function generateWebauthnOptions(
           ...(regOptions.extensions ?? {}),
           prf: {
             eval: {
-              first: bytesToBase64url(derivePrfSalt(userId)),
+              first: bytesToBase64url(derivePrfSalt()),
             },
           },
         },
       }
     case 'authenticate':
-      return await generateAuthenticationOptions({
+      // Include the PRF extension in SIGN-IN options too so a
+      // recovery-enabled authenticator can evaluate PRF in-band
+      // during the sign-in tap. If we get a PRF output back, the
+      // client unwraps the user's seed without a second biometric.
+      // Safe because the salt is constant (not user-specific) — we
+      // don't need to know who's signing in yet.
+      const authOptions = await generateAuthenticationOptions({
         rpID,
       })
+      return {
+        ...authOptions,
+        extensions: {
+          ...(authOptions.extensions ?? {}),
+          prf: {
+            eval: {
+              first: bytesToBase64url(derivePrfSalt()),
+            },
+          },
+        },
+      }
   }
 }
 
@@ -253,7 +270,7 @@ export async function generatePrfEnrollOptionsForCredential(
       ...(baseOptions.extensions ?? {}),
       prf: {
         eval: {
-          first: bytesToBase64url(derivePrfSalt(userId)),
+          first: bytesToBase64url(derivePrfSalt()),
         },
       },
     },
@@ -296,7 +313,7 @@ export async function generatePrfAssertionOptions(userId: User['id']) {
       ...(baseOptions.extensions ?? {}),
       prf: {
         eval: {
-          first: bytesToBase64url(derivePrfSalt(userId)),
+          first: bytesToBase64url(derivePrfSalt()),
         },
       },
     },

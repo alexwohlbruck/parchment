@@ -7,7 +7,10 @@ import { clearAllUserCaches } from '@/services/cache.service'
 import { syncPreferencesFromBackend } from '@/services/preferences.service'
 import { createSharedComposable } from '@vueuse/core'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
-import { hydratePrfExtensionInPlace } from '@/lib/passkey-prf-support'
+import {
+  hydratePrfExtensionInPlace,
+  extractPrfOutputFromAssertion,
+} from '@/lib/passkey-prf-support'
 import { Session } from '@/types/session.types'
 import { PermissionId, PermissionRule, User } from '@/types/auth.types'
 import { auth as deviceStore } from '@/lib/device-store'
@@ -232,6 +235,11 @@ function authService() {
     const { data: options } = await api.post(
       `auth/passkeys/authenticate/options`,
     )
+    // Server now includes the PRF extension in sign-in options (see
+    // `generateWebauthnOptions('authenticate')`). simplewebauthn-browser
+    // v10 doesn't hydrate extension base64url fields; do it before
+    // startAuthentication so Chrome accepts the BufferSource.
+    hydratePrfExtensionInPlace(options)
 
     let attestationResponse
     try {
@@ -250,12 +258,26 @@ function authService() {
 
     if (user) {
       await setAuthenticatedUser(user, sessionId)
-      // Auto-restore encrypted data if the user has recovery enabled
-      // on any passkey. Fire-and-forget so nothing blocks the user
-      // from using the app — if it fails, they can still restore
-      // manually from Settings. Runs in the background with its own
-      // toast so the second biometric prompt isn't surprising.
-      void autoUnlockAfterSignIn()
+      // Pull the PRF output off the same assertion we just used to
+      // sign in. Capable authenticators (iCloud Keychain, Chrome 132+,
+      // modern Android) return it in-band — one biometric covers both
+      // sign-in AND seed unwrap. When missing, autoUnlockAfterSignIn
+      // falls back to a fresh PRF assertion (two-tap path).
+      const prfOutput = extractPrfOutputFromAssertion(
+        attestationResponse as {
+          clientExtensionResults?: {
+            prf?: {
+              results?: {
+                first?: ArrayBuffer | ArrayBufferView | string
+              }
+            }
+          }
+        },
+      )
+      const prefetched = prfOutput
+        ? { credentialId: attestationResponse.id, prfOutput }
+        : undefined
+      void autoUnlockAfterSignIn(prefetched)
     }
   }
 
@@ -265,7 +287,9 @@ function authService() {
    * server's slot into a local seed. The user sees a muted info toast
    * explaining why the second prompt is happening.
    */
-  async function autoUnlockAfterSignIn() {
+  async function autoUnlockAfterSignIn(
+    prefetched?: { credentialId: string; prfOutput: Uint8Array },
+  ) {
     // Imports are dynamic to avoid circular init between auth and
     // identity stores (identity store calls useAuthService()).
     const { useIdentityStore } = await import('@/stores/identity.store')
@@ -277,19 +301,27 @@ function authService() {
       .t
 
     const identityStore = useIdentityStore()
-    // Settle a beat so the post-sign-in UI finishes rendering before
-    // the second biometric sheet pops.
-    await new Promise((resolve) => setTimeout(resolve, 250))
 
-    const heads = toast.info(t('auth.passkey.restoringTitle'), {
-      description: t('auth.passkey.restoringDescription'),
-      duration: 12000,
-    })
+    // Only show the "tap again" heads-up when we actually need a
+    // second biometric (no PRF came back in the sign-in assertion).
+    // With the fast path (in-band PRF), sign-in and unwrap collapse
+    // into one ceremony — no toast spam, no second prompt.
+    const needsSecondTap = !prefetched
+    let heads: string | number | undefined
+    if (needsSecondTap) {
+      await new Promise((resolve) => setTimeout(resolve, 250))
+      heads = toast.info(t('auth.passkey.restoringTitle'), {
+        description: t('auth.passkey.restoringDescription'),
+        duration: 12000,
+      })
+    }
 
     try {
-      const result = await identityStore.autoUnlockAfterSignIn()
-      toast.dismiss(heads)
-      if (result === 'unlocked') {
+      const result = await identityStore.autoUnlockAfterSignIn(prefetched)
+      if (heads !== undefined) toast.dismiss(heads)
+      if (result === 'unlocked' && needsSecondTap) {
+        // Only toast success when we'd previously bothered the user
+        // with a second prompt — otherwise the unwrap is invisible.
         toast.success(t('auth.passkey.restoredSuccess'))
       }
       if (result === 'failed') {
@@ -297,7 +329,7 @@ function authService() {
       }
       // 'not-needed' and 'cancelled' fall through silently.
     } catch {
-      toast.dismiss(heads)
+      if (heads !== undefined) toast.dismiss(heads)
       // Swallow — manual restore in Settings is always available.
     }
   }

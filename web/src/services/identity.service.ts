@@ -486,6 +486,18 @@ export async function enrollExistingPasskeyAsSlot(params: {
  */
 export async function unlockSeedWithPasskey(params: {
   assertPasskeyForPrf: () => Promise<unknown>
+  /**
+   * Optional: if the caller ALREADY has a PRF output + credentialId
+   * from an earlier ceremony (e.g. from the sign-in assertion itself
+   * now that PRF is wired into the authenticate options), pass them
+   * here to skip the biometric tap entirely. If the pre-captured
+   * output can't open any slot (wrong credential), we still fall back
+   * to a fresh assertion rather than failing hard.
+   */
+  prefetched?: {
+    credentialId: string
+    prfOutput: Uint8Array
+  }
 }): Promise<Uint8Array> {
   const serverIdentity = await fetchIdentityFromServer()
   if (!serverIdentity?.signingKey) {
@@ -496,17 +508,29 @@ export async function unlockSeedWithPasskey(params: {
     throw new Error('No passkey recovery slots available for this account')
   }
 
-  const assertion = (await params.assertPasskeyForPrf()) as {
-    id: string
-    clientExtensionResults?: {
-      prf?: {
-        results?: {
-          first?: ArrayBuffer | ArrayBufferView | string
+  let credentialId: string
+  let prfOutput: Uint8Array | null = null
+
+  if (
+    params.prefetched &&
+    slots.some((s) => s.credentialId === params.prefetched!.credentialId)
+  ) {
+    credentialId = params.prefetched.credentialId
+    prfOutput = params.prefetched.prfOutput
+  } else {
+    const assertion = (await params.assertPasskeyForPrf()) as {
+      id: string
+      clientExtensionResults?: {
+        prf?: {
+          results?: {
+            first?: ArrayBuffer | ArrayBufferView | string
+          }
         }
       }
     }
+    prfOutput = extractPrfOutputFromAssertion(assertion)
+    credentialId = assertion.id
   }
-  const prfOutput = extractPrfOutputFromAssertion(assertion)
   if (!prfOutput) {
     throw new Error(
       "This passkey doesn't support PRF, or your browser didn't return " +
@@ -514,8 +538,8 @@ export async function unlockSeedWithPasskey(params: {
     )
   }
 
-  // The tapped passkey's id is on the assertion; match it to a slot.
-  const slot = slots.find((s) => s.credentialId === assertion.id)
+  // Match tapped credential to a slot.
+  const slot = slots.find((s) => s.credentialId === credentialId)
   if (!slot) {
     throw new Error(
       'The passkey you tapped has no recovery slot. Use a different ' +

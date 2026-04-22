@@ -40,23 +40,30 @@ import {
   buildSignableMessage,
 } from './federation-crypto'
 
-export const PRF_SALT_CONTEXT = 'parchment-prf-salt-v1'
+export const PRF_SALT_CONTEXT = 'parchment-prf-salt-v2'
 export const PRF_WRAP_KEY_CONTEXT = 'parchment-prf-wrap-v1'
 export const CURRENT_WRAP_ALGO = 'aes-256-gcm-prf-v1'
 
 /**
- * Per-user PRF salt. Fed to WebAuthn as `prf.eval.first` so that the
- * authenticator derives a user-bound PRF output.
+ * Constant PRF salt. Same bytes for every user + every credential on
+ * this app. Fed to WebAuthn as `prf.eval.first`. The PRF output is
+ * still per-credential (the authenticator HMACs with the credential's
+ * secret), but the salt is app-constant so the server can include the
+ * extension in sign-in options without knowing which user is signing
+ * in yet — collapsing sign-in + unwrap into one biometric tap. Salt
+ * constancy is fine: WebAuthn credentials are RP-scoped, and slot
+ * signatures bind credential → user at the wrap layer.
  */
-export function derivePrfSalt(userId: string): Uint8Array {
-  const ikm = new TextEncoder().encode(userId)
-  return hkdf(
-    sha256,
-    ikm,
-    undefined,
-    new TextEncoder().encode(PRF_SALT_CONTEXT),
-    32,
-  )
+const PRF_SALT = hkdf(
+  sha256,
+  new TextEncoder().encode('parchment'),
+  undefined,
+  new TextEncoder().encode(PRF_SALT_CONTEXT),
+  32,
+)
+
+export function derivePrfSalt(): Uint8Array {
+  return PRF_SALT
 }
 
 /**

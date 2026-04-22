@@ -194,19 +194,12 @@ async function handleUseExistingPasskey() {
 }
 
 async function handleAddRecoveryPasskey() {
-  const name = await appService.prompt({
-    title: 'Name this passkey',
-    label: 'Passkey name',
-    inputProps: {
-      placeholder: 'Eg. Chrome, iCloud Keychain, YubiKey',
-    },
-  })
-  if (!name) return
-
+  // No name prompt — server auto-names from AAGUID (iCloud Keychain,
+  // 1Password, …) or falls back to "{OS} · {Browser}".
   passkeyBusy.value = true
   error.value = null
   try {
-    const result = await identityStore.enrollPasskey(name, {
+    const result = await identityStore.enrollPasskey('', {
       onSecondTapNeeded: () => {
         // Second ceremony — show the reason inline so the user doesn't
         // think the second prompt is a duplicate/error.

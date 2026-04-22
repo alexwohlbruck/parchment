@@ -130,26 +130,17 @@ const columns = computed<ColumnDef<Passkey>[]>(() => {
 })
 
 async function addPasskey() {
-  const name = await appService.prompt({
-    title: 'Create a passkey',
-    label: 'Passkey name',
-    inputProps: {
-      placeholder: 'Eg. Keychain, Chrome, LastPass, Bitwarden',
-    },
-  })
-  if (!name) return
+  // No name prompt — the server auto-names from the AAGUID (iCloud
+  // Keychain, 1Password, etc.) or falls back to "{OS} · {Browser}".
+  // Passing an empty name here lets the server pick.
 
-  // If the user has a local identity already, enroll the passkey AND a
-  // PRF recovery slot in one flow — that's the point of P0 #1. If no
-  // local identity (shouldn't happen from Settings, but be safe), just
-  // register the passkey as sign-in-only.
   if (identityStore.hasLocalIdentity) {
-    // If the first ceremony doesn't emit a PRF output (happens on
-    // older/cross-device authenticators), we need a second biometric
-    // tap for recovery enrollment. Warn the user before Chrome
-    // surprises them with another prompt.
+    // Enroll passkey AND its PRF recovery slot in one flow. If the
+    // first ceremony doesn't emit a PRF output (older cross-device
+    // authenticators), a second biometric tap is needed — warn via
+    // toast so the extra prompt doesn't feel random.
     let secondTapToastId: string | number | undefined
-    const result = await identityStore.enrollPasskey(name, {
+    const result = await identityStore.enrollPasskey('', {
       onSecondTapNeeded: () => {
         secondTapToastId = toast.info('One more tap to finish setup.', {
           duration: 8000,
@@ -174,8 +165,8 @@ async function addPasskey() {
     return
   }
 
-  // Fallback: no identity yet. Standard sign-in-only registration.
-  const { passkey } = await authService.registerPasskey(name)
+  // Fallback: no identity yet. Sign-in-only registration, still auto-named.
+  const { passkey } = await authService.registerPasskey('')
   passkeys.value = [...passkeys.value, passkey]
 }
 

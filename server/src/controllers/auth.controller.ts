@@ -39,6 +39,7 @@ import {
 import { generateId } from '../util'
 import { detectLanguage, getI18nInitOptions } from '../lib/i18n'
 import { makeUserRateLimit } from '../middleware/rate-limit.middleware'
+import { passkeyNameFromAAGUID } from '../lib/passkey-aaguid'
 
 // Rate limits on the PRF-options endpoints. These hand out WebAuthn
 // challenges that an attacker with a valid session cookie could
@@ -138,11 +139,11 @@ app.group('/passkeys', (app) => {
 
     app.use(requireAuth).post(
       '/verify',
-      async ({ body, set, user, cookie: { challenge }, status, t }) => {
+      async ({ body, set, user, cookie: { challenge }, status, t, request }) => {
         if (!user) return (set.status = 401)
         if (!challenge.value) return (set.status = 400) // TODO: Check this is how to break out with error in Elysia, make better error
 
-        const payload = body as RegistrationResponseJSON & { name: string }
+        const payload = body as RegistrationResponseJSON & { name?: string }
 
         const verification = await verifyRegistrationResponse({
           response: payload,
@@ -172,14 +173,27 @@ app.group('/passkeys', (app) => {
           counter,
           credentialDeviceType,
           credentialBackedUp,
+          aaguid,
         } = registrationInfo
+
+        // Auto-name the passkey from its AAGUID (identifies the
+        // authenticator make — "iCloud Keychain", "1Password", etc.) so
+        // the user never has to think up a name. Falls back to
+        // "{OS} · {Browser}" if the AAGUID is unknown. The client can
+        // still override by passing `name`, but the UI stopped prompting
+        // as of the "auto-name passkeys" change.
+        const derivedName = passkeyNameFromAAGUID(
+          aaguid,
+          request.headers.get('user-agent') ?? undefined,
+        )
+        const finalName = payload.name?.trim() || derivedName
 
         const passkey: Partial<Passkey> = (
           await db
             .insert(passkeys)
             .values({
               id: credentialID,
-              name: payload.name,
+              name: finalName,
               publicKey: Buffer.from(credentialPublicKey).toString('base64'),
               userId: user.id,
               counter,
@@ -202,7 +216,7 @@ app.group('/passkeys', (app) => {
           description: 'Verify webauthn passkey registration.',
         },
         body: t.Object({
-          name: t.String(),
+          name: t.Optional(t.String()),
           id: t.String(),
           rawId: t.String(),
           response: t.Object({

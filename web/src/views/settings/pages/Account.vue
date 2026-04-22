@@ -157,7 +157,7 @@ async function saveName() {
           <Button
             v-if="!isEditingName"
             variant="destructive-outline"
-            @click="authService.signOut()"
+            @click="authService.confirmAndSignOut()"
           >
             Sign out
           </Button>

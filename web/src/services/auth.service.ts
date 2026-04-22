@@ -1,6 +1,7 @@
 import { api, isTauri } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
 import { useIdentityStore } from '@/stores/identity.store'
+import { useAppService } from '@/services/app.service'
 import { useIntegrationService } from '@/services/integration.service'
 import { clearAllUserCaches } from '@/services/cache.service'
 import { syncPreferencesFromBackend } from '@/services/preferences.service'
@@ -10,6 +11,7 @@ import { hydratePrfExtensionInPlace } from '@/lib/passkey-prf-support'
 import { Session } from '@/types/session.types'
 import { PermissionId, PermissionRule, User } from '@/types/auth.types'
 import { auth as deviceStore } from '@/lib/device-store'
+import { i18n } from '@/lib/i18n'
 
 function setAuthHeader(token: string | null) {
   if (token) {
@@ -147,6 +149,27 @@ function authService() {
 
     authStore.unsetAuthenticatedUser()
     return response
+  }
+
+  /**
+   * Prompt the user to confirm, then sign out if they agree. Shared by
+   * every user-facing sign-out entry point (account menu, settings
+   * page, command palette) so the dialog copy stays consistent and a
+   * stray click never logs someone out mid-task.
+   */
+  async function confirmAndSignOut() {
+    const appService = useAppService()
+    // Cast avoids vue-i18n's "excessively deep" inference on the
+    // global typed schema — this call site is fine at runtime.
+    const t = (i18n.global as unknown as { t: (key: string) => string }).t
+    const confirmed = await appService.confirm({
+      title: t('palette.commands.signOut.confirmTitle'),
+      description: t('palette.commands.signOut.confirmDescription'),
+      destructive: true,
+      continueText: t('palette.commands.signOut.name'),
+    })
+    if (!confirmed) return
+    await signOut()
   }
 
   async function registerPasskey(name: string) {
@@ -307,6 +330,7 @@ function authService() {
     verifyEmail,
     signIn,
     signOut,
+    confirmAndSignOut,
     registerPasskey,
     assertPasskeyForPrf,
     assertExistingPasskeyForPrf,

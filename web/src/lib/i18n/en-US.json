@@ -184,7 +184,9 @@
       "signOut": {
         "name": "Sign out",
         "description": "Sign out of your account",
-        "keywords": "logout exit account user"
+        "keywords": "logout exit account user",
+        "confirmTitle": "Sign out?",
+        "confirmDescription": "You'll need to sign in again to access your account. Your encrypted data stays safe."
       }
     }
   },
@@ -604,7 +606,7 @@
     },
     "security": {
       "title": "Encryption keys",
-      "description": "Your private keys encrypt your data end-to-end. Back them up, rotate them, or set them up on another device.",
+      "description": "Your private keys encrypt your data end-to-end",
       "recoveryKey": "Recovery key",
       "recoveryKeyDescription": "A backup of your encryption keys. Save it to restore access if you lose every device.",
       "viewKey": "View key",

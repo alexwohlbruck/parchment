@@ -139,7 +139,10 @@ function handleClose() {
             {{ t('friends.rotateKeys.subDescription') }}
           </p>
 
-          <Alert variant="destructive">
+          <!-- Warning, not destructive — this is a pre-action caveat,
+               not an error. The red destructive button still signals
+               severity for the action itself. -->
+          <Alert variant="warning">
             <AlertTriangle class="h-4 w-4" />
             <AlertTitle>{{ t('friends.rotateKeys.beforeYouContinue') }}</AlertTitle>
             <AlertDescription>
@@ -196,7 +199,10 @@ function handleClose() {
         </DialogHeader>
 
         <div v-if="slotWarnings.length" class="flex flex-col gap-2 py-4">
-          <Alert variant="destructive">
+          <!-- Warning, not destructive — rotation itself succeeded;
+               just some slots failed to re-secure. That's an
+               actionable caveat, not a failure state. -->
+          <Alert variant="warning">
             <AlertTriangle class="h-4 w-4" />
             <AlertTitle>{{ t('friends.rotateKeys.notResecuredTitle') }}</AlertTitle>
             <AlertDescription>

@@ -197,6 +197,11 @@ async function addPasskey() {
       },
     })
     if (secondTapToastId !== undefined) toast.dismiss(secondTapToastId)
+    if (result.cancelled) {
+      // User hit Cancel on the biometric prompt. They know. Don't
+      // spam them with an error toast — just bail.
+      return
+    }
     if (!result.success) {
       toast.error(result.error ?? "Couldn't add passkey")
       return
@@ -223,6 +228,10 @@ async function enableRecovery(credentialId: string) {
   busyCredentialId.value = credentialId
   try {
     const result = await identityStore.enrollExistingPasskey(credentialId)
+    if (result.cancelled) {
+      // Cancellation is a user choice, not a failure. No toast.
+      return
+    }
     if (result.success && result.slotCreated) {
       toast.success('Recovery on. Use this passkey on any device.')
     } else if (result.success && !result.slotCreated) {

@@ -186,8 +186,9 @@ function close() {
       </DialogHeader>
 
       <div class="py-4">
-        <!-- Not setup warning -->
-        <Alert v-if="!isSetupComplete" variant="destructive" class="mb-4">
+        <!-- Pre-action warning, not an error — the user just needs to
+             set up identity first. Informational, amber-tinted. -->
+        <Alert v-if="!isSetupComplete" variant="warning" class="mb-4">
           <AlertDescription>
             {{ t('friends.shareDialog.identityRequired') }}
           </AlertDescription>

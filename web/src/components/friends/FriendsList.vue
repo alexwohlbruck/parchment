@@ -224,16 +224,18 @@ onUnmounted(() => {
 
       <div class="flex-1"></div>
 
-      <!-- E2EE notice (shows when any location sharing is enabled) -->
+      <!-- E2EE notice (shows when any location sharing is enabled).
+           Lets the `variant="success"` shade ladder handle the green
+           tint — no more hardcoded green overrides. -->
       <TransitionFade>
         <Alert
           variant="success"
           v-if="hasAnyLocationSharing"
-          class="flex items-center gap-3 px-4 py-3 rounded-lg bg-green-500/10 border-green-500/50"
+          class="flex items-center gap-3"
         >
           <Shield class="size-4 shrink-0" />
           <div>
-            <p class="font-semibold text-sm text-green-700 dark:text-green-400">
+            <p class="font-semibold text-sm">
               {{ t('friends.e2ee.title') }}
             </p>
             <p class="text-xs">

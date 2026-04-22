@@ -174,6 +174,11 @@ async function handleUseExistingPasskey() {
   error.value = null
   try {
     const result = await identityStore.enrollExistingPasskey(candidate.id)
+    if (result.cancelled) {
+      // User cancelled the biometric prompt — stay on this step so
+      // they can retry. No inline error (they know they cancelled).
+      return
+    }
     if (result.success && result.slotCreated) {
       setupStep.value = 'complete'
       setTimeout(() => {
@@ -207,6 +212,11 @@ async function handleAddRecoveryPasskey() {
         passkeyBusy.value = true
       },
     })
+    if (result.cancelled) {
+      // User cancelled. Stay on this step so they can retry with a
+      // different passkey or skip to recovery-key only.
+      return
+    }
     if (result.success && result.slotCreated) {
       setupStep.value = 'complete'
       setTimeout(() => {
@@ -237,6 +247,7 @@ function handleSkipPasskey() {
 async function handleUnlockWithPasskey() {
   error.value = null
   const result = await identityStore.unlockWithPasskey()
+  if (result.cancelled) return
   if (result.success) {
     importStep.value = 'complete'
     setTimeout(() => {
@@ -356,7 +367,10 @@ async function copyRecoveryKey() {
           </DialogHeader>
 
           <div class="flex flex-col gap-4 py-4">
-            <Alert variant="destructive">
+            <!-- Warning, not destructive — this is a heads-up about a
+                 future consequence if the user loses everything, not
+                 an error state or imminent danger. -->
+            <Alert variant="warning">
               <AlertTriangle class="h-4 w-4" />
               <AlertTitle>Important</AlertTitle>
               <AlertDescription>

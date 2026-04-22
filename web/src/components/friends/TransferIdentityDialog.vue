@@ -572,7 +572,11 @@ function backToChoose() {
           </template>
 
           <template v-else-if="receiveStage === 'confirm-sas'">
-            <Alert>
+            <!-- Warning: the user must cross-check the SAS against a
+                 MITM attempt. Calling out "cancel if they don't match"
+                 is a security-critical instruction, not a casual
+                 info blurb. -->
+            <Alert variant="warning">
               <AlertTitle>Verify the 6-digit code matches</AlertTitle>
               <AlertDescription>
                 Compare the code below with the one shown on your other
@@ -593,7 +597,7 @@ function backToChoose() {
           </template>
 
           <template v-else-if="receiveStage === 'done'">
-            <Alert class="border-green-500 text-green-600">
+            <Alert variant="success">
               <Check class="h-4 w-4" />
               <AlertDescription>
                 Identity restored on this device.
@@ -696,7 +700,10 @@ function backToChoose() {
           </template>
 
           <template v-else-if="sendStage === 'uploaded'">
-            <Alert>
+            <!-- Same reasoning as the receiver: the SAS match is a
+                 security-critical step, so warning (amber) beats a
+                 neutral info. -->
+            <Alert variant="warning">
               <AlertTitle>Verify codes match</AlertTitle>
               <AlertDescription>
                 Your new device should now show the same 6-digit code. If

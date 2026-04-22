@@ -58,6 +58,7 @@ async function syncWithPasskey() {
   syncError.value = null
   try {
     const result = await identityStore.unlockWithPasskey()
+    if (result.cancelled) return
     if (!result.success) {
       syncError.value = result.error ?? "Couldn't sync. Try again."
     }
@@ -137,8 +138,9 @@ function handleSetupComplete() {
 <template>
   <div class="flex flex-col gap-6 w-full">
     <!-- Stale device banner. Another device rotated the account keys;
-         this device is still on the old seed. Tap a passkey to sync. -->
-    <Alert v-if="isStale" variant="destructive">
+         this device is still on the old seed. Warning (not destructive)
+         — nothing is broken, the user just needs to re-auth to sync. -->
+    <Alert v-if="isStale" variant="warning">
       <AlertTriangle class="h-4 w-4" />
       <AlertTitle>{{ t('friends.identity.staleTitle') }}</AlertTitle>
       <AlertDescription>

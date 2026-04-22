@@ -32,11 +32,27 @@ import {
 import { getSeed } from '@/lib/key-storage'
 
 /**
+ * True if the given error is a user-cancelled WebAuthn prompt (closed
+ * the biometric sheet, hit escape, tapped outside, etc.). Callers
+ * should generally *skip* error toasts for this case — the user
+ * intentionally backed out and already knows.
+ */
+function isUserCancellation(err: unknown): boolean {
+  return (
+    err instanceof Error &&
+    (err.name === 'NotAllowedError' || err.name === 'AbortError')
+  )
+}
+
+/**
  * Map WebAuthn DOMException names to short, plain-English messages.
+ * The `Cancelled. Try again.` string is intentionally friendly — if a
+ * caller DOES decide to surface it (e.g. inline in a dialog where the
+ * user should retry, not as a toast), this is what they show.
  */
 function friendlyWebAuthnError(err: unknown): string {
   if (err instanceof Error) {
-    if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
+    if (isUserCancellation(err)) {
       return 'Cancelled. Try again.'
     }
     if (err.name === 'InvalidStateError') {
@@ -339,6 +355,11 @@ export const useIdentityStore = defineStore('identity', () => {
   ): Promise<{
     success: boolean
     slotCreated: boolean
+    /** True when the outer WebAuthn ceremony was aborted by the user
+     *  (hit cancel on the biometric prompt). Separated from generic
+     *  errors so callers can skip the "something went wrong" toast
+     *  for a deliberate cancel. */
+    cancelled?: boolean
     error?: string
   }> {
     const authStore = useAuthStore()
@@ -409,6 +430,7 @@ export const useIdentityStore = defineStore('identity', () => {
       return {
         success: false,
         slotCreated: false,
+        cancelled: isUserCancellation(err),
         error: friendlyWebAuthnError(err),
       }
     }
@@ -426,6 +448,7 @@ export const useIdentityStore = defineStore('identity', () => {
   async function enrollExistingPasskey(credentialId: string): Promise<{
     success: boolean
     slotCreated: boolean
+    cancelled?: boolean
     error?: string
   }> {
     const authStore = useAuthStore()
@@ -478,12 +501,17 @@ export const useIdentityStore = defineStore('identity', () => {
       return {
         success: true,
         slotCreated: result.slotCreated,
+        // `assertion-failed` is what the PRF helper reports when the
+        // WebAuthn prompt was cancelled. Surface it as a cancellation
+        // so the caller can skip the error toast.
+        cancelled: result.reason === 'assertion-failed',
         error,
       }
     } catch (err) {
       return {
         success: false,
         slotCreated: false,
+        cancelled: isUserCancellation(err),
         error: friendlyWebAuthnError(err),
       }
     }
@@ -571,6 +599,7 @@ export const useIdentityStore = defineStore('identity', () => {
    */
   async function unlockWithPasskey(): Promise<{
     success: boolean
+    cancelled?: boolean
     error?: string
   }> {
     const authService = useAuthService()
@@ -591,6 +620,7 @@ export const useIdentityStore = defineStore('identity', () => {
     } catch (err) {
       return {
         success: false,
+        cancelled: isUserCancellation(err),
         error: err instanceof Error ? err.message : 'Unlock failed',
       }
     } finally {

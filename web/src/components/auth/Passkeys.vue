@@ -48,7 +48,7 @@ const columns = computed<ColumnDef<Passkey>[]>(() => {
       accessorKey: 'name',
     },
     {
-      header: 'Backed Up',
+      header: 'Synced',
       accessorFn: info => (info.backedUp ? t('general.yes') : t('general.no')),
     },
   ]
@@ -56,15 +56,16 @@ const columns = computed<ColumnDef<Passkey>[]>(() => {
   // Only include created column on non-mobile devices
   if (!isTabletScreen.value) {
     baseColumns.push({
-      header: 'Created',
-      accessorFn: info => dayjs(info.createdAt as string).format('LLL'),
+      header: 'Added',
+      accessorFn: info => dayjs(info.createdAt as string).format('ll'),
     })
   }
 
   // Recovery column. Shown only when the user has a local identity —
   // without it, slot enrollment would have nothing to wrap. Rows with an
-  // existing slot get a green "Enabled" badge; rows without show an
-  // "Enable" button that runs a PRF assertion on just that credential.
+  // existing slot get a prominent green "Recovery on" badge; rows without
+  // show a neutral "Turn on" button that runs a PRF assertion for that
+  // specific credential.
   baseColumns.push({
     id: 'recovery',
     header: 'Recovery',
@@ -80,10 +81,10 @@ const columns = computed<ColumnDef<Passkey>[]>(() => {
       if (enabled) {
         return h(
           Badge,
-          { variant: 'secondary', class: 'gap-1' },
+          { variant: 'success', class: 'gap-1' },
           () => [
             h(ShieldCheck, { class: 'h-3 w-3' }),
-            'Enabled',
+            'Recovery on',
           ],
         )
       }
@@ -100,22 +101,29 @@ const columns = computed<ColumnDef<Passkey>[]>(() => {
           isBusy
             ? h(Spinner, { class: 'h-4 w-4 mr-2' })
             : h(Shield, { class: 'h-4 w-4 mr-2' }),
-          'Enable',
+          'Turn on',
         ],
       )
     },
   })
 
+  // Delete action sits in its own trailing column with explicit left
+  // padding so it doesn't look like a sibling of the Recovery action —
+  // reducing the risk of a mis-click that blows away a working passkey.
   baseColumns.push({
     id: 'delete',
     cell: ({ row }) =>
-      h(Button, {
-        variant: 'destructive-outline',
-        size: 'icon',
-        icon: Trash2Icon,
-        description: 'Delete passkey',
-        onClick: () => deletePasskey(row.original.id),
-      }),
+      h(
+        'div',
+        { class: 'flex justify-end pl-4' },
+        h(Button, {
+          variant: 'destructive-outline',
+          size: 'icon',
+          icon: Trash2Icon,
+          description: 'Delete passkey',
+          onClick: () => deletePasskey(row.original.id),
+        }),
+      ),
   })
 
   return baseColumns

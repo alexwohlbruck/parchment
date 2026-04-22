@@ -55,81 +55,72 @@ const columns = computed<ColumnDef<Session>[]>(() => {
       header: 'Device',
       cell: ({ row }) => {
         const parsed = row.original.userAgentParsed
-        if (!parsed) return 'Unknown' // TODO: i18n
-        const { vendor, model } = parsed.getDevice()
-        const { name: osName, version: osVersion } = parsed.getOS()
-        return h('div', {}, [
-          h('span', {}, `${vendor} ${model}`),
-          h('br'),
-          h('span', { class: 'text-gray-500' }, `${osName} ${osVersion}`),
+        const osName = parsed?.getOS().name
+        const browserName = parsed?.getBrowser().name
+        // Collapse the noisy vendor/model/OS-version line into a clean
+        // "macOS · Chrome" style summary. Apple pins OS version on the
+        // web anyway, so showing the exact version is misleading.
+        const label = [osName, browserName].filter(Boolean).join(' · ') || 'Unknown'
+        const isCurrent = row.original.id === currentSessionId.value
+        return h('div', { class: 'flex items-center gap-2' }, [
+          h('span', {}, label),
+          isCurrent
+            ? h(Badge, { variant: 'success', class: 'text-xs' }, () => 'This device')
+            : null,
         ])
-      },
-    },
-    {
-      id: 'browser',
-      header: 'Browser',
-      accessorFn: info => {
-        const parsed = info.userAgentParsed
-        if (!parsed) return 'Unknown' // TODO: i18n
-        const { name, version } = parsed.getBrowser()
-        return `${name} ${version}`
       },
     },
   ]
 
-  // Only include created column on non-mobile devices
+  // Only include "signed in" column on non-mobile devices. Date-only
+  // (`ll` → "Apr 22, 2026") is enough — the seconds-granular timestamp
+  // was meaningless for users and clustered everything on the same day.
   if (!isTabletScreen.value) {
     baseColumns.push({
-      id: 'created',
-      header: 'Created',
-      accessorFn: info => dayjs(info.createdAt as string).format('LLL'),
+      id: 'signedInAt',
+      header: 'Signed in',
+      accessorFn: info => dayjs(info.createdAt as string).format('ll'),
     })
   }
 
-  baseColumns.push(
-    // {
-    //   id: 'expires',
-    //   header: 'Expires',
-    //   accessorFn: info => dayjs(info.expiresAt as string).format('LLL'),
-    // },
-    {
-      id: 'currentSession',
-      cell: ({ row }) =>
-        row.original.id === currentSessionId.value
-          ? h(Badge, { class: 'chip', variant: 'outline' }, 'Current')
-          : '',
-    },
-    {
-      id: 'delete',
-      cell: ({ row }) =>
+  baseColumns.push({
+    id: 'delete',
+    cell: ({ row }) =>
+      h(
+        'div',
+        { class: 'flex justify-end pl-4' },
         h(Button, {
           variant: 'destructive-outline',
           size: 'icon',
           icon: Trash2Icon,
-          description: 'Delete session',
+          description: 'Sign out this session',
           onClick: () => deleteSession(row.original.id),
         }),
-    },
-  )
+      ),
+  })
 
   return baseColumns
 })
 
 async function deleteSession(sessionId: Session['id']) {
   const session = sessions.value.find(session => session.id === sessionId)!
-  const browser = session.userAgentParsed.getBrowser().name
-  const device = session.userAgentParsed.getDevice().model
+  const parsed = session.userAgentParsed
+  const browser = parsed?.getBrowser().name ?? 'this browser'
+  const osName = parsed?.getOS().name ?? 'this device'
+  const isCurrent = sessionId === currentSessionId.value
 
   const confirmed = await appService.confirm({
-    title: 'Delete this session?',
-    description: `You will be signed out of ${browser} on your ${device}`,
+    title: isCurrent ? 'Sign out of this device?' : `Sign out of ${browser} on ${osName}?`,
+    description: isCurrent
+      ? "You're signed in here — continuing will sign you out immediately."
+      : `You'll sign out ${browser} on ${osName}. You can sign back in later.`,
     destructive: true,
-    continueText: 'Delete',
+    continueText: 'Sign out',
   })
 
   if (confirmed) {
     await authService.deleteSession(sessionId)
-    if (sessionId === currentSessionId.value) {
+    if (isCurrent) {
       authService.signOut()
     }
   }

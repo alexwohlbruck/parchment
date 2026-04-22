@@ -122,6 +122,15 @@ const displayedKey = computed(() => {
   return pendingRecoveryKey.value
 })
 
+// Chunk the base64 key into groups of 5 for human readability when
+// copying it off-screen or typing it into another device. The raw
+// (un-chunked) value is what gets copied to the clipboard.
+const formattedKey = computed(() => {
+  const k = displayedKey.value
+  if (!k) return ''
+  return k.match(/.{1,5}/g)?.join(' ') ?? k
+})
+
 async function handleConfirmSetup() {
   if (!hasSavedKey.value) return
 
@@ -346,19 +355,21 @@ function handleClose() {
 
             <div class="flex flex-col gap-2">
               <Label>Your Recovery Key</Label>
-              <div class="flex gap-2">
-                <Code class="flex-1 p-3 text-sm font-mono break-all">
-                  {{ displayedKey || 'Generating...' }}
-                </Code>
+              <Code
+                class="p-3 text-sm font-mono whitespace-pre-wrap break-words leading-relaxed select-all"
+              >
+                {{ formattedKey || 'Generating...' }}
+              </Code>
+              <div v-if="displayedKey" class="flex gap-2">
                 <CopyButton
-                  v-if="displayedKey"
                   :text="displayedKey"
                   variant="outline"
+                  message="Recovery key copied. Paste it into your password manager."
                 />
+                <span class="text-xs text-muted-foreground self-center">
+                  Like a master password. Keep it secret and safe.
+                </span>
               </div>
-              <p class="text-xs text-muted-foreground">
-                This key is like a password. Keep it secret and safe.
-              </p>
             </div>
 
             <div class="flex items-center gap-2">
@@ -647,22 +658,29 @@ function handleClose() {
 
           <Alert variant="destructive">
             <AlertTriangle class="h-4 w-4" />
+            <AlertTitle>Keep this secret</AlertTitle>
             <AlertDescription>
-              Anyone with this key can impersonate your identity!
+              Anyone with this key can sign in as you on any device.
             </AlertDescription>
           </Alert>
 
           <div class="flex flex-col gap-2">
             <Label>Recovery Key</Label>
-            <div class="flex gap-2">
-              <Code class="flex-1 p-3 text-sm font-mono break-all">
-                {{ existingRecoveryKey || 'Loading...' }}
-              </Code>
+            <Code
+              class="p-3 text-sm font-mono whitespace-pre-wrap break-words leading-relaxed select-all"
+            >
+              {{ formattedKey || 'Loading...' }}
+            </Code>
+            <div v-if="existingRecoveryKey" class="flex gap-2">
               <CopyButton
-                v-if="existingRecoveryKey"
                 :text="existingRecoveryKey"
                 variant="outline"
+                message="Recovery key copied. Paste it into your password manager."
               />
+              <span class="text-xs text-muted-foreground self-center">
+                Save this in a password manager or print it — you'll need it if
+                you lose every device.
+              </span>
             </div>
           </div>
         </div>

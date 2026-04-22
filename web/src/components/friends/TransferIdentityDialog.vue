@@ -253,7 +253,12 @@ async function pollOnce() {
       senderEphemeralPub: string | null
       sealedSeed: string | null
       senderSignature: string | null
-    }>(`/device-transfer/${sessionId.value}`)
+    }>(`/device-transfer/${sessionId.value}`, {
+      // 425 is the expected "payload not uploaded yet" signal during
+      // polling; 404 can occur briefly between session create and the
+      // server's read-after-write. Neither is user-actionable.
+      silentStatuses: [404, 425],
+    } as Parameters<typeof api.get>[1])
 
     const { senderEphemeralPub, sealedSeed, senderSignature } = response.data
     if (senderEphemeralPub && sealedSeed && senderSignature) {

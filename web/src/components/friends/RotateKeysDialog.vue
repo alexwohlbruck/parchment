@@ -115,27 +115,28 @@ function handleClose() {
             Rotate all keys
           </DialogTitle>
           <DialogDescription>
-            This generates a new master key and re-encrypts all your data. You
-            will need to tap each of your registered passkeys so we can
-            re-secure them against the new key.
+            This generates a new master key and re-encrypts everything under
+            it. You'll need to tap each registered passkey once to re-secure
+            it against the new key.
           </DialogDescription>
         </DialogHeader>
 
         <div class="flex flex-col gap-4 py-4">
           <Alert variant="destructive">
             <AlertTriangle class="h-4 w-4" />
-            <AlertTitle>Do not close this tab</AlertTitle>
+            <AlertTitle>Keep this tab open</AlertTitle>
             <AlertDescription>
-              If rotation is interrupted you may need to sign in again on this
-              device. Make sure you have at least one passkey registered, or
-              your recovery key on hand, before continuing.
+              The rotation won't corrupt your data if it fails — it's
+              all-or-nothing on the server. But any passkey you don't tap
+              before finishing won't work for recovery afterward, so have at
+              least one passkey or your recovery key ready.
             </AlertDescription>
           </Alert>
         </div>
 
         <DialogFooter class="gap-2">
           <Button variant="outline" @click="handleClose">Cancel</Button>
-          <Button @click="handleConfirm">
+          <Button variant="destructive" @click="handleConfirm">
             <RefreshCw class="h-4 w-4 mr-2" />
             Rotate keys
           </Button>

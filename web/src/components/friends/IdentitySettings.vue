@@ -133,13 +133,10 @@ function handleSetupComplete() {
 </script>
 
 <template>
-  <SettingsSection
-    title="Federation Identity"
-    description="Your identity for connecting with friends across servers"
-  >
+  <div class="flex flex-col gap-6 w-full">
     <!-- Stale device banner. Another device rotated the account keys;
          this device is still on the old seed. Tap a passkey to sync. -->
-    <Alert v-if="isStale" variant="destructive" class="mb-4">
+    <Alert v-if="isStale" variant="destructive">
       <AlertTriangle class="h-4 w-4" />
       <AlertTitle>This device is out of sync</AlertTitle>
       <AlertDescription>
@@ -148,11 +145,7 @@ function handleSetupComplete() {
           this device — until you do, your saved data here won't match what's
           on your other devices.
         </p>
-        <Button
-          size="sm"
-          :disabled="isSyncing"
-          @click="syncWithPasskey"
-        >
+        <Button size="sm" :disabled="isSyncing" @click="syncWithPasskey">
           <Spinner v-if="isSyncing" class="h-4 w-4 mr-2" />
           <Fingerprint v-else class="h-4 w-4 mr-2" />
           Sync with passkey
@@ -162,153 +155,170 @@ function handleSetupComplete() {
     </Alert>
 
     <!-- Loading State -->
-    <div v-if="isLoading" class="flex justify-center py-4">
-      <Spinner class="h-6 w-6" />
-    </div>
+    <SettingsSection
+      v-if="isLoading"
+      title="Federation Identity"
+      description="Your identity for connecting with friends across servers"
+    >
+      <div class="flex justify-center py-4">
+        <Spinner class="h-6 w-6" />
+      </div>
+    </SettingsSection>
 
     <!-- Needs Import (has server keys but no local) -->
-    <div
+    <SettingsSection
       v-else-if="needsImport"
-      class="flex items-center justify-between gap-4"
+      title="Federation Identity"
+      description="Your identity for connecting with friends across servers"
     >
-      <div class="flex items-start gap-3 text-muted-foreground">
-        <Download class="h-5 w-5 mt-0.5 shrink-0" />
-        <p class="text-sm">
-          Your identity exists on this server, but you need to import your
-          recovery key to use it on this device.
-        </p>
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex items-start gap-3 text-muted-foreground">
+          <Download class="h-5 w-5 mt-0.5 shrink-0" />
+          <p class="text-sm">
+            Your identity exists on this server, but you need to import your
+            recovery key to use it on this device.
+          </p>
+        </div>
+        <Button @click="openImportDialog" class="shrink-0">
+          <Download class="h-4 w-4 mr-2" />
+          Import Recovery Key
+        </Button>
       </div>
-      <Button @click="openImportDialog" class="shrink-0">
-        <Download class="h-4 w-4 mr-2" />
-        Import Recovery Key
-      </Button>
-    </div>
+    </SettingsSection>
 
     <!-- Needs Setup -->
-    <!-- TODO: Use standard settings item component -->
-    <div
+    <SettingsSection
       v-else-if="!isSetupComplete"
-      class="flex items-center justify-between gap-4"
+      title="Federation Identity"
+      description="Your identity for connecting with friends across servers"
     >
-      <div class="flex items-center gap-3 text-muted-foreground">
-        <Key class="h-5 w-5 mt-0.5 shrink-0" />
-        <p class="text-sm">
-          Set up your federation identity to connect with friends and share data
-          securely across Parchment servers.
-        </p>
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3 text-muted-foreground">
+          <Key class="h-5 w-5 mt-0.5 shrink-0" />
+          <p class="text-sm">
+            Set up your federation identity to connect with friends and share
+            data securely across Parchment servers.
+          </p>
+        </div>
+        <Button @click="openSetupDialog" class="shrink-0" variant="outline">
+          <Key class="h-4 w-4 mr-2" />
+          Set Up Identity
+        </Button>
       </div>
-      <Button @click="openSetupDialog" class="shrink-0" variant="outline">
-        <Key class="h-4 w-4 mr-2" />
-        Set Up Identity
-      </Button>
-    </div>
+    </SettingsSection>
 
-    <!-- Identity Configured -->
+    <!-- Identity Configured — split into two sections so the safe
+         identity attributes (what I am) don't share visual weight with
+         the high-stakes security actions (things that nuke data). -->
     <template v-else>
-      <!-- Handle Display -->
-      <SettingsItem
-        title="Handle"
-        description="Your unique identifier for federation"
-        :icon="User"
+      <SettingsSection
+        title="Federation Identity"
+        description="How other people find and verify you"
       >
-        <Badge v-if="handle" variant="secondary" class="font-mono">
-          {{ handle }}
-        </Badge>
-        <span v-else class="text-muted-foreground">Not set</span>
-      </SettingsItem>
-
-      <!-- Alias Editor -->
-      <SettingsItem
-        title="Username"
-        description="Your username (alias) on this server"
-        :icon="User"
-        :block="isEditingAlias"
-      >
-        <div v-if="isEditingAlias" class="flex flex-col gap-2">
-          <div class="flex gap-2">
-            <Input
-              v-model="aliasInput"
-              placeholder="username"
-              class="w-40"
-              @keyup.enter="saveAlias"
-              @keyup.escape="cancelEditAlias"
-            />
-            <Button
-              size="sm"
-              :disabled="!isValidAlias || !aliasChanged || isSavingAlias"
-              @click="saveAlias"
-            >
-              <Spinner v-if="isSavingAlias" class="h-4 w-4" />
-              <Check v-else class="h-4 w-4" />
-            </Button>
-            <Button size="sm" variant="outline" @click="cancelEditAlias">
-              Cancel
-            </Button>
+        <!-- Username editor. Full handle (alias@server) renders as a
+             hint underneath — no separate row for "Handle" + "Not set". -->
+        <SettingsItem
+          title="Username"
+          description="Your unique name on this server"
+          :icon="User"
+          :block="isEditingAlias"
+        >
+          <div v-if="isEditingAlias" class="flex flex-col gap-2">
+            <div class="flex gap-2">
+              <Input
+                v-model="aliasInput"
+                placeholder="username"
+                class="w-40"
+                @keyup.enter="saveAlias"
+                @keyup.escape="cancelEditAlias"
+              />
+              <Button
+                size="sm"
+                :disabled="!isValidAlias || !aliasChanged || isSavingAlias"
+                @click="saveAlias"
+              >
+                <Spinner v-if="isSavingAlias" class="h-4 w-4" />
+                <Check v-else class="h-4 w-4" />
+              </Button>
+              <Button size="sm" variant="outline" @click="cancelEditAlias">
+                Cancel
+              </Button>
+            </div>
+            <p v-if="aliasError" class="text-xs text-destructive">
+              {{ aliasError }}
+            </p>
+            <p v-else-if="!isValidAlias" class="text-xs text-muted-foreground">
+              3-30 characters, letters, numbers, underscores only
+            </p>
           </div>
-          <p v-if="aliasError" class="text-xs text-destructive">
-            {{ aliasError }}
-          </p>
-          <p v-else-if="!isValidAlias" class="text-xs text-muted-foreground">
-            3-30 characters, letters, numbers, underscores only
-          </p>
-        </div>
-        <div v-else class="flex items-center gap-2">
-          <span class="font-mono">{{ alias || 'Not set' }}</span>
-          <Button size="sm" variant="outline" @click="startEditAlias">
-            {{ alias ? 'Edit' : 'Set' }}
+          <div v-else class="flex flex-col items-end gap-1">
+            <div class="flex items-center gap-2">
+              <Badge v-if="handle" variant="secondary" class="font-mono">
+                {{ handle }}
+              </Badge>
+              <span v-else class="text-muted-foreground text-sm">Not set</span>
+              <Button size="sm" variant="outline" @click="startEditAlias">
+                {{ alias ? 'Edit' : 'Set' }}
+              </Button>
+            </div>
+            <span
+              v-if="handle"
+              class="text-xs text-muted-foreground"
+            >Share this with friends so they can add you.</span>
+          </div>
+        </SettingsItem>
+
+        <!-- Server — the domain part of the handle, shown plainly. -->
+        <SettingsItem
+          title="Server"
+          description="The server hosting your identity"
+          :icon="Globe"
+        >
+          <Badge variant="secondary" class="font-mono">{{ domain }}</Badge>
+        </SettingsItem>
+      </SettingsSection>
+
+      <SettingsSection
+        title="Security & recovery"
+        description="Back up, rotate, or move your identity between devices"
+      >
+        <!-- Recovery Key -->
+        <SettingsItem
+          title="Recovery key"
+          description="A master key you can save to restore access"
+          :icon="Key"
+        >
+          <Button variant="outline" size="sm" @click="openViewDialog">
+            View key
           </Button>
-        </div>
-      </SettingsItem>
+        </SettingsItem>
 
-      <!-- Domain -->
-      <SettingsItem
-        title="Server"
-        description="The server hosting your identity"
-        :icon="Globe"
-      >
-        <span class="font-mono text-muted-foreground">{{ domain }}</span>
-      </SettingsItem>
-
-      <!-- Recovery Key -->
-      <SettingsItem
-        title="Recovery Key"
-        description="View your recovery key for backup"
-        :icon="Key"
-      >
-        <Button variant="outline" size="sm" @click="openViewDialog">
-          View Key
-        </Button>
-      </SettingsItem>
-
-      <!-- Rotate Keys -->
-      <SettingsItem
-        title="Rotate all keys"
-        description="Generate a new master key and re-encrypt everything. Use after removing a passkey or responding to a suspected compromise."
-        :icon="RefreshCw"
-      >
-        <Button
-          variant="outline"
-          size="sm"
-          @click="showRotateDialog = true"
+        <!-- Rotate Keys -->
+        <SettingsItem
+          title="Rotate all keys"
+          description="Swap your master key and re-encrypt everything"
+          :icon="RefreshCw"
         >
-          Rotate keys
-        </Button>
-      </SettingsItem>
+          <Button variant="outline" size="sm" @click="showRotateDialog = true">
+            Rotate
+          </Button>
+        </SettingsItem>
 
-      <!-- Transfer identity -->
-      <SettingsItem
-        title="Transfer to another device"
-        description="Move your identity to a new phone or browser by scanning a QR code. Both devices must be signed in to this account."
-        :icon="Smartphone"
-      >
-        <Button
-          variant="outline"
-          size="sm"
-          @click="showTransferDialog = true"
+        <!-- Transfer identity -->
+        <SettingsItem
+          title="Transfer to another device"
+          description="Move your identity to a new phone or browser"
+          :icon="Smartphone"
         >
-          Transfer
-        </Button>
-      </SettingsItem>
+          <Button
+            variant="outline"
+            size="sm"
+            @click="showTransferDialog = true"
+          >
+            Transfer
+          </Button>
+        </SettingsItem>
+      </SettingsSection>
     </template>
 
     <!-- Recovery Key Dialog -->
@@ -323,5 +333,5 @@ function handleSetupComplete() {
 
     <!-- Transfer Identity Dialog -->
     <TransferIdentityDialog v-model:open="showTransferDialog" />
-  </SettingsSection>
+  </div>
 </template>

@@ -547,7 +547,7 @@ async function copyRecoveryKey() {
               @click="openTransferDialog"
             >
               <Smartphone class="h-4 w-4 mr-2" />
-              Transfer from another device
+              Pair with your other device
             </Button>
             <Button
               variant="ghost"

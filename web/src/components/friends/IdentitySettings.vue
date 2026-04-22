@@ -304,10 +304,14 @@ function handleSetupComplete() {
           </Button>
         </SettingsItem>
 
-        <!-- Transfer identity -->
+        <!-- Add identity to another device. Note: despite the
+             "Transfer" internal naming (kept to match the device-
+             transfer protocol), the seed stays on THIS device too —
+             both ends can use it after the handshake. The user-facing
+             label reflects that. -->
         <SettingsItem
-          title="Transfer to another device"
-          description="Move your identity to a new phone or browser"
+          title="Set up another device"
+          description="Sign in on a new phone or browser without re-doing recovery"
           :icon="Smartphone"
         >
           <Button
@@ -315,7 +319,7 @@ function handleSetupComplete() {
             size="sm"
             @click="showTransferDialog = true"
           >
-            Transfer
+            Set up
           </Button>
         </SettingsItem>
       </SettingsSection>

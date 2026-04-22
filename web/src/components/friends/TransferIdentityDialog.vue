@@ -492,10 +492,11 @@ function backToChoose() {
         <DialogHeader>
           <DialogTitle class="flex items-center gap-2">
             <Smartphone class="h-5 w-5" />
-            Transfer identity
+            Set up another device
           </DialogTitle>
           <DialogDescription>
-            Move your identity between two devices. Pick which one this is.
+            Sign in on a new phone or browser. Both devices stay signed
+            in — this one doesn't lose anything.
           </DialogDescription>
         </DialogHeader>
 
@@ -512,7 +513,7 @@ function backToChoose() {
             <div class="flex flex-col items-start gap-0.5">
               <span class="font-semibold">This is my current device</span>
               <span class="text-xs text-muted-foreground font-normal">
-                Scan the QR on the new device to send your identity there
+                Scan the QR on the new device to share your identity with it
               </span>
             </div>
           </Button>
@@ -545,8 +546,8 @@ function backToChoose() {
             Scan this with your other device
           </DialogTitle>
           <DialogDescription>
-            On your signed-in device, open Transfer → This is my current
-            device, then scan this QR.
+            On your signed-in device, open Set up another device → This
+            is my current device, then scan this QR.
           </DialogDescription>
         </DialogHeader>
 

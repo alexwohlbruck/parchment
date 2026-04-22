@@ -8,11 +8,12 @@ import { userPreferences } from './user-preferences.schema'
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
   email: text('email').unique().notNull(),
-  // Display name is metadata-encrypted at rest (Part C.4). The server stores
-  // only opaque base64 v2 envelopes; only the user's own client can decrypt.
-  // Admin and federation callers see null here.
-  firstNameEncrypted: text('first_name_encrypted'),
-  lastNameEncrypted: text('last_name_encrypted'),
+  // Display names are intentionally cleartext: they're not sensitive and
+  // they're used by federation peers, friends, and admin surfaces to show
+  // who a user is. If you need to protect a specific user's real name, use
+  // an alias instead. See SECURITY.md for the scope of what IS encrypted.
+  firstName: text('first_name'),
+  lastName: text('last_name'),
   picture: text('picture'),
   alias: text('alias').unique(),              // Federation handle alias (unique per server)
   signingKey: text('signing_key'),            // Ed25519 public key (base64)

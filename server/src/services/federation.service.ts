@@ -128,6 +128,8 @@ export async function resolveLocalUser(
       alias: users.alias,
       signingKey: users.signingKey,
       encryptionKey: users.encryptionKey,
+      firstName: users.firstName,
+      lastName: users.lastName,
       picture: users.picture,
     })
     .from(users)
@@ -140,15 +142,15 @@ export async function resolveLocalUser(
 
   const serverOrigin = origins.serverOrigin
 
-  // Display name is metadata-encrypted and not disclosed to federation peers.
-  // Remote clients see only the alias until a future per-friend metadata
-  // exchange lands (see Part C.4 follow-up).
+  const nameParts = [user[0].firstName, user[0].lastName].filter(Boolean)
+  const displayName = nameParts.length > 0 ? nameParts.join(' ') : undefined
+
   return {
     handle: buildHandle(user[0].alias),
     signingKey: user[0].signingKey,
     encryptionKey: user[0].encryptionKey || '',
     inbox: `${serverOrigin}/federation/inbox`,
-    name: undefined,
+    name: displayName,
     picture: user[0].picture || undefined,
   }
 }

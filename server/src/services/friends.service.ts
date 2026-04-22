@@ -437,20 +437,28 @@ export async function getFriends(userId: string): Promise<Friendship[]> {
   for (const friendship of allFriendships) {
     const parsed = parseHandle(friendship.friendHandle)
 
-    // For local friends, refresh just the picture (cleartext) — the display
-    // name is metadata-encrypted and not readable by us. Clients render the
-    // alias when no decryptable name is available.
+    // For local friends, refresh name + picture straight from the users
+    // table — both are cleartext now (see SECURITY.md).
     if (parsed && parsed.domain === serverDomain) {
       const [localUser] = await db
-        .select({ picture: users.picture })
+        .select({
+          firstName: users.firstName,
+          lastName: users.lastName,
+          picture: users.picture,
+        })
         .from(users)
         .where(eq(users.alias, parsed.alias))
         .limit(1)
 
       if (localUser) {
+        const displayName =
+          localUser.firstName && localUser.lastName
+            ? `${localUser.firstName} ${localUser.lastName}`
+            : localUser.firstName || parsed.alias
+
         result.push({
           ...friendship,
-          friendName: null,
+          friendName: displayName,
           friendPicture: localUser.picture,
         })
         continue

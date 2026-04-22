@@ -102,24 +102,51 @@ rotatable but nothing actually rotates them.
 **Rough shape:** orchestrator service + progress UI + trigger hooks.
 Edge cases around partial-rotation recovery add complexity. ~3 sessions.
 
-### 4. Display-name set/edit form
-**Why it's P0:** today, every user's display name is blank. The encrypted
-*write* path exists (`setMyDisplayName(...)`), just nothing calls it.
+### 4. Web seed unlock flow (replace `localStorage` persistence)
+**Why it's P0:** today the seed sits in browser `localStorage` for the
+convenience of not making users re-authenticate every tab open. That's
+the weak spot — any XSS bug, any filesystem-level read, any
+badly-scoped browser extension can exfiltrate the seed and decrypt all
+the user's past and future E2EE data.
 
-**Primitives ready:** `web/src/services/user.service.ts` — `setMyDisplayName`,
-`getMyProfile`, `updateMyProfile`. Server endpoints: GET / PATCH
-`/users/me/profile`.
+**Fix:** keep the seed in *memory only* on web. On next tab open, unlock
+via passkey-PRF (#1) or the typed recovery key as a fallback. Reference
+implementations: Signal Web (QR link), Proton/Bitwarden (password +
+Argon2), Matrix/Element (passkey-PRF + passphrase).
+
+**What's needed:**
+- Remove `localStorage` persistence of the seed in `key-storage.ts` for
+  the browser + mobile-Tauri paths. Desktop Tauri (OS keychain) stays.
+- Add an explicit "unlock" step at tab open:
+  - If any passkey-PRF slot is enrolled → prompt passkey, unwrap K_m.
+  - Otherwise → prompt for typed recovery key.
+- Hold the seed in a module-scoped variable, cleared on sign-out or
+  tab close.
+- Session persistence option: after unlock, offer "remember on this
+  device for X days" that stores the seed wrapped under a session-token-
+  derived key in `sessionStorage` — dies with the tab group, survives a
+  reload.
+
+**Dependency:** really only useful once #1 (passkey enrollment) ships,
+because otherwise every session = typing 44 chars of base64.
+
+**Rough shape:** ~1 session. Touches `key-storage.ts`,
+`auth.service.ts`, plus a new unlock modal component.
+
+### 5. Display-name set/edit form
+**Why it's P0:** today, the UI shows empty names because the self-serve
+edit form was never wired. Names are cleartext, so this is purely a
+missing form.
 
 **What's needed:**
 - Settings → Account screen: editable "First name" and "Last name" fields.
-- Submit encrypts locally (`setMyDisplayName`), uploads envelopes via
-  PATCH.
-- Refresh the in-store `me` object with the newly-set decrypted values.
+- Submit PATCHes `/users/me/profile`.
+- Refresh the in-store `me` object with the new values.
 - Inline validation (max length, trimming).
 
 **Rough shape:** ~half a session. Small form + save handler.
 
-### 5. Collections UI read-through encrypted columns
+### 6. Collections UI read-through encrypted columns
 **Why it's P0:** we have `metadata_encrypted` columns on `collections` AND
 the legacy cleartext columns. All UI still reads cleartext. New
 collections are being created without encrypted metadata. The end state
@@ -141,7 +168,7 @@ is: UI reads the encrypted envelope, drops the legacy columns.
 **Rough shape:** UI sweep + schema drop + migration script if any dev
 collections exist. ~1-2 sessions.
 
-### 6. Mobile Tauri OS-keystore
+### 7. Mobile Tauri OS-keystore
 **Why it's P0 for mobile users:** today mobile seeds sit in WebView
 `localStorage` — same security as regular browser (low). The E2EE
 promise doesn't hold on mobile until this lands.
@@ -170,13 +197,13 @@ a lot of it platform-specific debugging.
 
 ## P1 — Important but not blocking
 
-### 7. Search history UI wiring
+### 8. Search history UI wiring
 The primitive (`recordSearchEntry` / `getSearchHistory`) exists and is
 tested. Nothing in the search input calls `recordSearchEntry`. Adding
 typeahead from decrypted history is maybe half a session of work. Not
 blocking — just a feature that's currently invisible.
 
-### 8. Cross-device friend-pin sync via personal-blob
+### 9. Cross-device friend-pin sync via personal-blob
 Pins live only on one device today. On a new device you start fresh
 (every friend re-TOFU's), which temporarily weakens the anti-server-
 key-swap story. Infrastructure ready (`web/src/lib/personal-blob.ts`);
@@ -186,11 +213,11 @@ needs a wrapper service that packs/unpacks the pin list. ~half session.
 
 ## P2 — Polish / cleanup
 
-### 9. Remove legacy v1 crypto paths
+### 10. Remove legacy v1 crypto paths
 `encryptForFriend` / `decryptLocationFromFriend` (static-DH) are still
 exported but no longer called anywhere. Sweep + delete.
 
-### 10. Production secrets-manager wiring
+### 11. Production secrets-manager wiring
 Optional hardening — unseal `SERVER_IDENTITY_PRIVATE_KEY` and
 `PARCHMENT_INTEGRATION_ENCRYPTION_KEY` from a real KMS / Vault at boot.
 Env-var injection is fine for hobby / self-host deploys.
@@ -202,15 +229,18 @@ Env-var injection is fine for hobby / self-host deploys.
 Rough order (each item branches off a fresh PR):
 
 1. **Display-name form** — smallest, quickest win. Gives the UI something
-   to show so testing other crypto features feels less weird.
+   to show so testing other features feels less weird.
 2. **Collections encrypted read-through** — unblocks the most-used feature
    (saved places). Schema drop + UI sweep.
 3. **Passkey-PRF enrollment UI** — recovery option #1. Prerequisite for
    good rotation UX (rotation triggers after slot removal).
-4. **K_m rotation orchestrator** — security-critical, depends on slots.
-5. **Device-to-device transfer UI** — recovery option #2. Can land in
+4. **Web seed unlock flow** — removes the `localStorage` persistence that
+   is the single biggest smell in the current implementation. Depends
+   on #3 for the unlock UX not being "type 44 chars every session."
+5. **K_m rotation orchestrator** — security-critical, depends on #3.
+6. **Device-to-device transfer UI** — recovery option #2. Can land in
    parallel with rotation work.
-6. **Mobile OS-keystore** — platform hardening. Probably the last major
+7. **Mobile OS-keystore** — platform hardening. Probably the last major
    piece; can be deferred until mobile is ready for users.
 
 Parallel tracks: search history wiring + friend-pin sync can happen

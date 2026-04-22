@@ -21,10 +21,8 @@ export type User = {
   id: string
   email: string
   emailVerified: boolean
-  // Display name is metadata-encrypted at rest (Part C.4). The client
-  // decrypts these envelopes for display; admin/federation paths see null.
-  firstName?: string | null
-  lastName?: string | null
+  firstName?: string
+  lastName?: string
   alias?: string | null
   picture?: string
   roles?: Role[]

@@ -274,6 +274,13 @@
       "when": 1776836027669,
       "tag": "0038_drop_segment_stats",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1776836938458,
+      "tag": "0039_revert_name_encryption",
+      "breakpoints": true
     }
   ]
 }

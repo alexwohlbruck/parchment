@@ -36,9 +36,10 @@ violate one of these, it doesn't ship.
    with the trust trade-off.
 
 "Sensitive" means: locations, place identifiers tied to a user, trip routes,
-search queries, friend handles, device names, display names. It does **not**
-include: user email (needed for OTP routing), profile picture URL, federation
-public keys, opaque relationship IDs, session tokens.
+search queries, friend handles, device names. It does **not** include: user
+email (needed for OTP routing), display names (shown to friends + peers on
+purpose), profile picture URL, federation public keys, opaque relationship
+IDs, session tokens.
 
 ## Crypto primitives in plain English
 
@@ -51,7 +52,7 @@ is what each building block actually does. Detail lives in the linked
 | **v2 ciphertext envelope + AAD** | A standard "encrypted package" format with a version stamp (so we can upgrade later without breaking old data), a fresh random value each time (same plaintext produces different ciphertext), and a label the encryption is bound to. If anyone flips a bit in the ciphertext OR messes with the label, decryption refuses to open the package. |
 | **Tauri OS-keychain seed storage** | Your master recovery key gets stored in your OS's native password vault — Apple Keychain, Windows Credential Manager, Linux libsecret — instead of a plain file. Hardware-protected on modern Macs. |
 | **ECIES forward-secret friend shares** | For each message sent to a friend, generate a brand-new throwaway key, use it once, then destroy it. If your long-term key leaks later, messages you sent before the leak stay secret. |
-| **Metadata encryption key + wrapper** | A separate key — derived from your master seed — just for encrypting profile fields like first/last name. Domain-separated so a bug in one system can't accidentally decrypt data from another. |
+| **Metadata encryption key + wrapper** | A separate key — derived from your master seed — available for encrypting any user-owned metadata that we decide is sensitive enough to protect (e.g. device names when that ships). Domain-separated so a bug in one system can't accidentally decrypt data from another. |
 | **Personal-blob sync channel** | Generic "here's a client-encrypted blob, hold onto it for me" service. The server stores opaque bytes with no idea what's inside. Used for search history, will be used for friend pins and direct-integration creds. |
 | **Per-collection / per-canvas keys** | Each collection and canvas gets its own unique key. A compromised key for one folder doesn't expose others. Cheap — single HKDF call each. Makes future per-collection sharing / revocation possible. |
 | **Passkey-PRF wrapped K_m** | A passkey can secretly derive a value that's reproducible only with that exact passkey. We use that value to encrypt your master key, store the encrypted copy on the server. New device + passkey = can recover master key. Signed so a hacked server can't slip you a fake wrapped key. |
@@ -72,12 +73,36 @@ lives depends on where you are:
 | Browser / regular web | `localStorage` | ⚠ Vulnerable to XSS. Any process with filesystem access can read it. OK for dev, not OK as a long-term user-facing posture |
 | Tauri on iOS / Android | Falls through to the webview's `localStorage` | ⚠ Same caveats as browser. Stored in app data dir, readable with filesystem access. Mobile OS-keystore integration is a tracked follow-up (see Deferred items). |
 
-**Is the mobile / web fallback acceptable?** For the threat model above
-(no XSS bugs; device-theft assumes an unlocked device), it's a
-short-term compromise. For a real E2EE product long-term, mobile should
-use platform keystores — Android Keystore / iOS Keychain — through a
-Tauri plugin. The upstream blocker is validating Passkey PRF behavior
-in Tauri's mobile webview per the original plan.
+**Is the mobile / web fallback acceptable?** Short answer: no, not
+long-term. Here's what production E2EE apps do on web, for reference
+when we finish this:
+
+- **Signal / WhatsApp Web** don't persist the seed at all. They link to
+  a phone via QR; each web session is a thin client proxying through
+  the phone. The seed stays on the authenticated mobile device.
+- **Proton Mail, Bitwarden, 1Password** store an encrypted copy of the
+  seed on the server, unlocked client-side with a master password run
+  through a strong KDF (Argon2id / PBKDF2 with high iteration count).
+  The password never leaves the client.
+- **Matrix / Element** use "Secure Secret Storage" — server holds an
+  encrypted copy of cross-signing keys, unlocked by a passphrase OR a
+  WebAuthn PRF passkey.
+
+The canonical fix for Parchment web is **don't persist the seed in
+`localStorage`**. Keep it in memory for the session only; on next tab
+open, unlock via:
+
+1. **Passkey-PRF** (primitives shipped — see Part C.6 and
+   [completion-plan.md](docs/crypto/completion-plan.md) §1). User taps a
+   passkey, client derives unwrap key, decrypts the server-stored
+   wrapped K_m, holds the seed in memory. No passkey available → fall
+   back to #2.
+2. **Typed base64 recovery key** as the ultimate fallback (tier 4 in
+   [recovery.md](docs/crypto/recovery.md)).
+
+Mobile Tauri webview hits the same problem plus needs a native
+Keychain/Keystore plugin for the *next* tier of protection — tracked
+as a Reserved item below.
 
 ## Feature status snapshot
 
@@ -98,7 +123,6 @@ code is correct; the form/UI/consumer is what's missing.
 
 | Feature | Primitives | What's missing |
 |---|---|---|
-| User display name (first/last) | Metadata encryption key, v2 envelope | Form to let a user set their own name; the encrypted read path exists |
 | Search history | Personal-blob channel, v2 envelope, personal key | `recordSearchEntry()` exists; search input doesn't call it |
 | Saved places / collections (feature 5) | Per-collection key, v2 envelope | UI reads legacy cleartext columns; needs sweep to read encrypted envelope |
 | Custom canvases (feature 6, single-user) | Per-canvas key, v2 envelope | No canvas UI |
@@ -112,6 +136,7 @@ code is correct; the form/UI/consumer is what's missing.
 |---|---|
 | Email | Needed to route OTP sign-in |
 | Federation alias (`alice@server`) | Routing identifier |
+| Display names (first/last) | Shown to friends and federation peers on purpose — so receiving a friend invite says "John Smith" not a raw alias. Not sensitive enough to warrant encryption here; the alias is available for users who want pseudonymity. |
 | Federation public keys | Public by definition |
 | Profile picture URL | User chose to point at a public URL |
 | Session tokens | Bounded by TTL + CSRF defenses |
@@ -122,7 +147,7 @@ code is correct; the form/UI/consumer is what's missing.
 - Frequently visited places (feature 3) — explicitly deferred
 - Multi-user canvas collaboration — extend per-canvas key sealing; big protocol work
 - Yjs / CRDT document encryption — downstream of multi-user collab
-- Device-name / device-type encryption — same pattern as first/last name
+- Device-name / device-type encryption — would use the metadata-crypto primitive
 - Location-sharing config opaque `relationship_id` refactor
 - Per-relationship encrypted config blob
 - Key Transparency log — field reserved, not yet populated
@@ -143,13 +168,13 @@ Parchment database but **not** the server's running process memory.
   relationship IDs, session tokens, encrypted blobs, encrypted metadata,
   federation nonces, pinned peer-server keys, friend-invitation rows
   (references by handle).
-- What they do NOT see: locations, search history, friend display names,
-  device names, saved place details, third-party API credentials, seeds,
-  collection/canvas metadata.
+- What they do NOT see: locations, search history, device names, saved
+  place details, third-party API credentials, seeds, collection/canvas
+  metadata.
 - Gates: AES-256-GCM envelopes under per-user / per-record keys; integration
   credentials under the server's master encryption key (separate env var,
-  not in the DB); user metadata (first/last name) under the user's personal
-  key derived from their seed, which the server never holds.
+  not in the DB). User display names are intentionally cleartext — see
+  the "Plaintext by design" table below for the trade-off.
 
 ### B. Single-server compromise
 An attacker gets RCE on the Parchment server (process memory access, can
@@ -211,7 +236,6 @@ server, and between federation peers.
 | Data | Storage shape | Key | Scope |
 |------|---------------|-----|-------|
 | User identity seed (32B) | OS keychain (desktop) or localStorage (browser/mobile) | — | Client only |
-| User first/last name | `users.first_name_encrypted`, `users.last_name_encrypted` | Metadata key = HKDF(seed, `parchment-metadata-v1`) | User-E2EE |
 | Live friend location | `encrypted_locations.encrypted_location` (ECIES v2 blob) | Ephemeral X25519 → HKDF(`parchment-ecies-v1`) | Per-message forward-secret, sender-signed |
 | Collection metadata | `collections.metadata_encrypted` (v2 envelope) | HKDF(seed, `parchment-collection-<id>`) | User-E2EE per collection |
 | Canvas metadata | `canvases.metadata_encrypted` (v2 envelope) | HKDF(seed, `canvas:<id>`) | User-E2EE per canvas |

@@ -249,7 +249,56 @@ function authService() {
     )
 
     if (user) {
-      setAuthenticatedUser(user, sessionId)
+      await setAuthenticatedUser(user, sessionId)
+      // Auto-restore encrypted data if the user has recovery enabled
+      // on any passkey. Fire-and-forget so nothing blocks the user
+      // from using the app — if it fails, they can still restore
+      // manually from Settings. Runs in the background with its own
+      // toast so the second biometric prompt isn't surprising.
+      void autoUnlockAfterSignIn()
+    }
+  }
+
+  /**
+   * Background restore after a passkey sign-in. Prompts the user's
+   * biometric a second time via the PRF ceremony and unwraps the
+   * server's slot into a local seed. The user sees a muted info toast
+   * explaining why the second prompt is happening.
+   */
+  async function autoUnlockAfterSignIn() {
+    // Imports are dynamic to avoid circular init between auth and
+    // identity stores (identity store calls useAuthService()).
+    const { useIdentityStore } = await import('@/stores/identity.store')
+    const { toast } = await import('vue-sonner')
+    const { i18n: i18nInstance } = await import('@/lib/i18n')
+    // Cast to dodge vue-i18n's "excessively deep" inference for the
+    // typed schema.
+    const t = (i18nInstance.global as unknown as { t: (key: string) => string })
+      .t
+
+    const identityStore = useIdentityStore()
+    // Settle a beat so the post-sign-in UI finishes rendering before
+    // the second biometric sheet pops.
+    await new Promise((resolve) => setTimeout(resolve, 250))
+
+    const heads = toast.info(t('auth.passkey.restoringTitle'), {
+      description: t('auth.passkey.restoringDescription'),
+      duration: 12000,
+    })
+
+    try {
+      const result = await identityStore.autoUnlockAfterSignIn()
+      toast.dismiss(heads)
+      if (result === 'unlocked') {
+        toast.success(t('auth.passkey.restoredSuccess'))
+      }
+      if (result === 'failed') {
+        toast.warning(t('auth.passkey.restoreFailed'))
+      }
+      // 'not-needed' and 'cancelled' fall through silently.
+    } catch {
+      toast.dismiss(heads)
+      // Swallow — manual restore in Settings is always available.
     }
   }
 

@@ -628,6 +628,31 @@ export const useIdentityStore = defineStore('identity', () => {
     }
   }
 
+  /**
+   * Called right after a successful passkey sign-in. If the user has
+   * wrapped-key slots on the server but no local seed (typical "signed
+   * in on a new device" state), automatically run the PRF assertion so
+   * their encrypted data is ready the moment they land on the map —
+   * no manual "Restore identity" click needed.
+   *
+   * Returns:
+   *   'unlocked'    — seed restored, ready to go
+   *   'not-needed'  — local seed already present or no server slots
+   *   'cancelled'   — user cancelled the biometric prompt
+   *   'failed'      — unlock error (user can retry manually in Settings)
+   */
+  async function autoUnlockAfterSignIn(): Promise<
+    'unlocked' | 'not-needed' | 'cancelled' | 'failed'
+  > {
+    await initialize()
+    if (hasLocalIdentity.value) return 'not-needed'
+    await refreshSlotAvailability()
+    if (!hasAnyPasskeySlot.value) return 'not-needed'
+    const result = await unlockWithPasskey()
+    if (result.cancelled) return 'cancelled'
+    return result.success ? 'unlocked' : 'failed'
+  }
+
   return {
     // State
     identity,
@@ -667,6 +692,7 @@ export const useIdentityStore = defineStore('identity', () => {
     enrollPasskey,
     enrollExistingPasskey,
     unlockWithPasskey,
+    autoUnlockAfterSignIn,
     rotateKeys,
     resetIdentity,
   }

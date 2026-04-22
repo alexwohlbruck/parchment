@@ -1187,6 +1187,12 @@
     },
     "server": {
       "addCustom": "Añadir servidor personalizado..."
+    },
+    "passkey": {
+      "restoringTitle": "Restaurando tus datos…",
+      "restoringDescription": "Toca tu clave de acceso una vez más para desbloquear tus datos cifrados.",
+      "restoredSuccess": "Tus datos están listos.",
+      "restoreFailed": "No se pudieron restaurar tus datos — inténtalo de nuevo desde Configuración → Claves de cifrado."
     }
   }
 }

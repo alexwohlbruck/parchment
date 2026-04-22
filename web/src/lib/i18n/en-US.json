@@ -1248,6 +1248,12 @@
     },
     "server": {
       "addCustom": "Add custom server..."
+    },
+    "passkey": {
+      "restoringTitle": "Restoring your data…",
+      "restoringDescription": "Tap your passkey one more time to unlock your encrypted data.",
+      "restoredSuccess": "Your data is ready.",
+      "restoreFailed": "Couldn't restore your data — try again from Settings → Encryption keys."
     }
   }
 }

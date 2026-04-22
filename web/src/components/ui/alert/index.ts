@@ -11,17 +11,20 @@ export const alertVariants = cva(
     variants: {
       variant: {
         default: 'bg-card text-card-foreground',
-        // Tinted-bg pattern: light-50 background + dark-800 foreground.
-        // Feels softer than the old card-bg + saturated-text combo while
-        // still reading as the status color at a glance. Shades come
-        // from the color-mix ladder in style.css.
+        // Tinted-bg pattern:
+        //   light mode → -50 background + -800 foreground
+        //   dark mode  → -950/50 background + -200 foreground
+        // Inverting the shade ladder plus dropping bg opacity to 50%
+        // keeps the alert readable on a dark canvas without the
+        // foreground text punching through too loud. Border opacity
+        // bumps from 20 → 40 in dark for the same reason.
         destructive:
-          'text-destructive-800 bg-destructive-50 border-destructive/20 dark:border-destructive/30 [&>svg]:text-current *:data-[slot=alert-description]:text-destructive-800/90',
+          'text-destructive-800 bg-destructive-50 border-destructive/20 [&>svg]:text-current *:data-[slot=alert-description]:text-destructive-800/90 dark:text-destructive-200 dark:bg-destructive-950/50 dark:border-destructive/40 dark:*:data-[slot=alert-description]:text-destructive-200/90',
         success:
-          'text-success-800 bg-success-50 border-success/20 dark:border-success/30 [&>svg]:text-current *:data-[slot=alert-description]:text-success-800/90',
+          'text-success-800 bg-success-50 border-success/20 [&>svg]:text-current *:data-[slot=alert-description]:text-success-800/90 dark:text-success-200 dark:bg-success-950/50 dark:border-success/40 dark:*:data-[slot=alert-description]:text-success-200/90',
         warning:
-          'text-warning-800 bg-warning-50 border-warning/20 dark:border-warning/30 [&>svg]:text-current *:data-[slot=alert-description]:text-warning-800/90',
-        info: 'text-info-800 bg-info-50 border-info/20 dark:border-info/30 [&>svg]:text-current *:data-[slot=alert-description]:text-info-800/90',
+          'text-warning-800 bg-warning-50 border-warning/20 [&>svg]:text-current *:data-[slot=alert-description]:text-warning-800/90 dark:text-warning-200 dark:bg-warning-950/50 dark:border-warning/40 dark:*:data-[slot=alert-description]:text-warning-200/90',
+        info: 'text-info-800 bg-info-50 border-info/20 [&>svg]:text-current *:data-[slot=alert-description]:text-info-800/90 dark:text-info-200 dark:bg-info-950/50 dark:border-info/40 dark:*:data-[slot=alert-description]:text-info-200/90',
       },
     },
     defaultVariants: {

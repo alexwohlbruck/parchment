@@ -157,12 +157,12 @@ onUnmounted(() => {
       <p class="text-sm text-muted-foreground max-w-xs">
         {{
           needsImport
-            ? 'Your account has a federation identity — restore it here to connect with friends.'
+            ? t('friends.identity.restoreIdentityDescription')
             : t('friends.empty.setupRequired')
         }}
       </p>
       <Button @click="emit('setupIdentity')">
-        {{ needsImport ? 'Restore identity' : t('friends.identity.setupButton') }}
+        {{ needsImport ? t('friends.identity.restoreIdentity') : t('friends.identity.setupButton') }}
       </Button>
     </div>
 
@@ -192,8 +192,11 @@ onUnmounted(() => {
     <template v-else>
       <div class="flex items-center justify-between">
         <span class="text-xs text-muted-foreground">
-          {{ friends.length }}
-          {{ friends.length === 1 ? 'friend' : 'friends' }}
+          {{
+            friends.length === 1
+              ? t('friends.countOne', { n: friends.length })
+              : t('friends.countMany', { n: friends.length })
+          }}
         </span>
         <Button
           variant="outline"

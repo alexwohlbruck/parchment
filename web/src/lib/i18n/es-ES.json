@@ -471,6 +471,8 @@
     "cancel": "Cancelar",
     "done": "Listo",
     "locationSharing": "Compartir ubicación",
+    "countOne": "{n} amigo",
+    "countMany": "{n} amigos",
     "invitations": {
       "title": "Invitaciones pendientes",
       "incoming": "Recibidas",
@@ -500,12 +502,14 @@
     "identity": {
       "title": "Identidad federada",
       "description": "Tu identidad para conectar con amigos en otros servidores",
+      "configuredDescription": "Cómo otras personas te encuentran y verifican",
       "handle": "Identificador",
       "handleDescription": "Tu identificador único para federación",
       "username": "Nombre de usuario",
-      "usernameDescription": "Tu nombre de usuario (alias) en este servidor",
+      "usernameDescription": "Tu nombre único en este servidor",
       "server": "Servidor",
       "serverDescription": "El servidor que aloja tu identidad",
+      "shareHandleHint": "Comparte esto con amigos para que puedan añadirte.",
       "notSet": "No configurado",
       "edit": "Editar",
       "set": "Configurar",
@@ -518,7 +522,25 @@
       "viewKey": "Ver clave",
       "aliasHint": "3-30 caracteres, letras, números y guiones bajos",
       "updateFailed": "Error al actualizar alias",
-      "setupInvitations": "Configura tu identidad para ver invitaciones."
+      "setupInvitations": "Configura tu identidad para ver invitaciones.",
+      "restoreIdentity": "Restaurar identidad",
+      "restoreIdentityDescription": "Tu cuenta tiene una identidad federada — restáurala aquí para conectar con amigos.",
+      "staleTitle": "Este dispositivo está desincronizado",
+      "staleDescription": "Tus claves se rotaron en otro dispositivo. Toca una clave de acceso para sincronizar este dispositivo — hasta que lo hagas, tus datos guardados aquí no coincidirán con los de tus otros dispositivos.",
+      "syncWithPasskey": "Sincronizar con clave de acceso"
+    },
+    "security": {
+      "title": "Seguridad y recuperación",
+      "description": "Respalda, rota o mueve tu identidad entre dispositivos",
+      "recoveryKey": "Clave de recuperación",
+      "recoveryKeyDescription": "Una clave maestra que puedes guardar para restaurar el acceso",
+      "viewKey": "Ver clave",
+      "rotateKeys": "Rotar todas las claves",
+      "rotateKeysDescription": "Cambia tu clave maestra y vuelve a cifrar todo",
+      "rotate": "Rotar",
+      "setupAnotherDevice": "Configurar otro dispositivo",
+      "setupAnotherDeviceDescription": "Inicia sesión en otro teléfono o navegador sin rehacer la recuperación",
+      "setupAction": "Configurar"
     },
     "recoveryKey": {
       "setupTitle": "Configurar identidad",

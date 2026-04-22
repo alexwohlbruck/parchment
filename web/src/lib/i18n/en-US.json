@@ -511,6 +511,8 @@
     "cancel": "Cancel",
     "done": "Done",
     "locationSharing": "Location sharing",
+    "countOne": "{n} friend",
+    "countMany": "{n} friends",
     "invitations": {
       "title": "Pending Invitations",
       "incoming": "Incoming",
@@ -540,12 +542,14 @@
     "identity": {
       "title": "Federation Identity",
       "description": "Your identity for connecting with friends across servers",
+      "configuredDescription": "How other people find and verify you",
       "handle": "Handle",
       "handleDescription": "Your unique identifier for federation",
       "username": "Username",
-      "usernameDescription": "Your username (alias) on this server",
+      "usernameDescription": "Your unique name on this server",
       "server": "Server",
       "serverDescription": "The server hosting your identity",
+      "shareHandleHint": "Share this with friends so they can add you.",
       "notSet": "Not set",
       "edit": "Edit",
       "set": "Set",
@@ -558,7 +562,25 @@
       "viewKey": "View Key",
       "aliasHint": "3-30 characters, letters, numbers, underscores only",
       "updateFailed": "Failed to update alias",
-      "setupInvitations": "Set up your identity to see invitations."
+      "setupInvitations": "Set up your identity to see invitations.",
+      "restoreIdentity": "Restore identity",
+      "restoreIdentityDescription": "Your account has a federation identity — restore it here to connect with friends.",
+      "staleTitle": "This device is out of sync",
+      "staleDescription": "Your keys were rotated on another device. Tap a passkey to sync this device — until you do, your saved data here won't match what's on your other devices.",
+      "syncWithPasskey": "Sync with passkey"
+    },
+    "security": {
+      "title": "Security & recovery",
+      "description": "Back up, rotate, or move your identity between devices",
+      "recoveryKey": "Recovery key",
+      "recoveryKeyDescription": "A master key you can save to restore access",
+      "viewKey": "View key",
+      "rotateKeys": "Rotate all keys",
+      "rotateKeysDescription": "Swap your master key and re-encrypt everything",
+      "rotate": "Rotate",
+      "setupAnotherDevice": "Set up another device",
+      "setupAnotherDeviceDescription": "Sign in on a new phone or browser without re-doing recovery",
+      "setupAction": "Set up"
     },
     "recoveryKey": {
       "setupTitle": "Set Up Identity",

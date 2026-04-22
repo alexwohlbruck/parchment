@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useI18n } from 'vue-i18n'
 import { useIdentityStore } from '@/stores/identity.store'
 import { SettingsSection, SettingsItem } from '@/components/settings'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
+import { Code } from '@/components/ui/code'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import RecoveryKeyDialog from './RecoveryKeyDialog.vue'
@@ -25,6 +26,7 @@ import {
   AlertTriangle,
 } from 'lucide-vue-next'
 
+const { t } = useI18n()
 const identityStore = useIdentityStore()
 const {
   identity,
@@ -138,17 +140,13 @@ function handleSetupComplete() {
          this device is still on the old seed. Tap a passkey to sync. -->
     <Alert v-if="isStale" variant="destructive">
       <AlertTriangle class="h-4 w-4" />
-      <AlertTitle>This device is out of sync</AlertTitle>
+      <AlertTitle>{{ t('friends.identity.staleTitle') }}</AlertTitle>
       <AlertDescription>
-        <p class="mb-3">
-          Your keys were rotated on another device. Tap a passkey to sync
-          this device — until you do, your saved data here won't match what's
-          on your other devices.
-        </p>
+        <p class="mb-3">{{ t('friends.identity.staleDescription') }}</p>
         <Button size="sm" :disabled="isSyncing" @click="syncWithPasskey">
           <Spinner v-if="isSyncing" class="h-4 w-4 mr-2" />
           <Fingerprint v-else class="h-4 w-4 mr-2" />
-          Sync with passkey
+          {{ t('friends.identity.syncWithPasskey') }}
         </Button>
         <p v-if="syncError" class="text-xs mt-2">{{ syncError }}</p>
       </AlertDescription>
@@ -157,8 +155,8 @@ function handleSetupComplete() {
     <!-- Loading State -->
     <SettingsSection
       v-if="isLoading"
-      title="Federation Identity"
-      description="Your identity for connecting with friends across servers"
+      :title="t('friends.identity.title')"
+      :description="t('friends.identity.description')"
     >
       <div class="flex justify-center py-4">
         <Spinner class="h-6 w-6" />
@@ -168,20 +166,19 @@ function handleSetupComplete() {
     <!-- Needs Import (has server keys but no local) -->
     <SettingsSection
       v-else-if="needsImport"
-      title="Federation Identity"
-      description="Your identity for connecting with friends across servers"
+      :title="t('friends.identity.title')"
+      :description="t('friends.identity.description')"
     >
       <div class="flex items-center justify-between gap-4">
         <div class="flex items-start gap-3 text-muted-foreground">
           <Download class="h-5 w-5 mt-0.5 shrink-0" />
           <p class="text-sm">
-            Your identity exists on this server, but you need to import your
-            recovery key to use it on this device.
+            {{ t('friends.identity.importDescription') }}
           </p>
         </div>
         <Button @click="openImportDialog" class="shrink-0">
           <Download class="h-4 w-4 mr-2" />
-          Import Recovery Key
+          {{ t('friends.identity.importButton') }}
         </Button>
       </div>
     </SettingsSection>
@@ -189,20 +186,19 @@ function handleSetupComplete() {
     <!-- Needs Setup -->
     <SettingsSection
       v-else-if="!isSetupComplete"
-      title="Federation Identity"
-      description="Your identity for connecting with friends across servers"
+      :title="t('friends.identity.title')"
+      :description="t('friends.identity.description')"
     >
       <div class="flex items-center justify-between gap-4">
         <div class="flex items-center gap-3 text-muted-foreground">
           <Key class="h-5 w-5 mt-0.5 shrink-0" />
           <p class="text-sm">
-            Set up your federation identity to connect with friends and share
-            data securely across Parchment servers.
+            {{ t('friends.identity.setupDescription') }}
           </p>
         </div>
         <Button @click="openSetupDialog" class="shrink-0" variant="outline">
           <Key class="h-4 w-4 mr-2" />
-          Set Up Identity
+          {{ t('friends.identity.setupButton') }}
         </Button>
       </div>
     </SettingsSection>
@@ -212,14 +208,14 @@ function handleSetupComplete() {
          the high-stakes security actions (things that nuke data). -->
     <template v-else>
       <SettingsSection
-        title="Federation Identity"
-        description="How other people find and verify you"
+        :title="t('friends.identity.title')"
+        :description="t('friends.identity.configuredDescription')"
       >
         <!-- Username editor. Full handle (alias@server) renders as a
              hint underneath — no separate row for "Handle" + "Not set". -->
         <SettingsItem
-          title="Username"
-          description="Your unique name on this server"
+          :title="t('friends.identity.username')"
+          :description="t('friends.identity.usernameDescription')"
           :icon="User"
           :block="isEditingAlias"
         >
@@ -241,7 +237,7 @@ function handleSetupComplete() {
                 <Check v-else class="h-4 w-4" />
               </Button>
               <Button size="sm" variant="outline" @click="cancelEditAlias">
-                Cancel
+                {{ t('friends.cancel') }}
               </Button>
             </div>
             <p v-if="aliasError" class="text-xs text-destructive">
@@ -253,54 +249,51 @@ function handleSetupComplete() {
           </div>
           <div v-else class="flex flex-col items-end gap-1">
             <div class="flex items-center gap-2">
-              <Badge v-if="handle" variant="secondary" class="font-mono">
-                {{ handle }}
-              </Badge>
-              <span v-else class="text-muted-foreground text-sm">Not set</span>
+              <Code v-if="handle">{{ handle }}</Code>
               <Button size="sm" variant="outline" @click="startEditAlias">
-                {{ alias ? 'Edit' : 'Set' }}
+                {{ alias ? t('friends.identity.edit') : t('friends.identity.set') }}
               </Button>
             </div>
             <span
               v-if="handle"
               class="text-xs text-muted-foreground"
-            >Share this with friends so they can add you.</span>
+            >{{ t('friends.identity.shareHandleHint') }}</span>
           </div>
         </SettingsItem>
 
         <!-- Server — the domain part of the handle, shown plainly. -->
         <SettingsItem
-          title="Server"
-          description="The server hosting your identity"
+          :title="t('friends.identity.server')"
+          :description="t('friends.identity.serverDescription')"
           :icon="Globe"
         >
-          <Badge variant="secondary" class="font-mono">{{ domain }}</Badge>
+          <Code>{{ domain }}</Code>
         </SettingsItem>
       </SettingsSection>
 
       <SettingsSection
-        title="Security & recovery"
-        description="Back up, rotate, or move your identity between devices"
+        :title="t('friends.security.title')"
+        :description="t('friends.security.description')"
       >
         <!-- Recovery Key -->
         <SettingsItem
-          title="Recovery key"
-          description="A master key you can save to restore access"
+          :title="t('friends.security.recoveryKey')"
+          :description="t('friends.security.recoveryKeyDescription')"
           :icon="Key"
         >
           <Button variant="outline" size="sm" @click="openViewDialog">
-            View key
+            {{ t('friends.security.viewKey') }}
           </Button>
         </SettingsItem>
 
         <!-- Rotate Keys -->
         <SettingsItem
-          title="Rotate all keys"
-          description="Swap your master key and re-encrypt everything"
+          :title="t('friends.security.rotateKeys')"
+          :description="t('friends.security.rotateKeysDescription')"
           :icon="RefreshCw"
         >
           <Button variant="outline" size="sm" @click="showRotateDialog = true">
-            Rotate
+            {{ t('friends.security.rotate') }}
           </Button>
         </SettingsItem>
 
@@ -310,8 +303,8 @@ function handleSetupComplete() {
              both ends can use it after the handshake. The user-facing
              label reflects that. -->
         <SettingsItem
-          title="Set up another device"
-          description="Sign in on a new phone or browser without re-doing recovery"
+          :title="t('friends.security.setupAnotherDevice')"
+          :description="t('friends.security.setupAnotherDeviceDescription')"
           :icon="Smartphone"
         >
           <Button
@@ -319,7 +312,7 @@ function handleSetupComplete() {
             size="sm"
             @click="showTransferDialog = true"
           >
-            Set up
+            {{ t('friends.security.setupAction') }}
           </Button>
         </SettingsItem>
       </SettingsSection>

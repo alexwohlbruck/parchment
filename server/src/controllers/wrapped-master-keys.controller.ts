@@ -9,9 +9,13 @@ import { requireAuth } from '../middleware/auth.middleware'
  *
  * Server stores opaque rows. Clients verify `slotSignature` on read using
  * the user's long-term Ed25519 public key before trusting `wrappedKm`.
+ *
+ * Mounted under `/users` to match the convention on every other
+ * `/users/me/...` endpoint in the app. Prior to this prefix the routes
+ * lived at `/me/wrapped-keys` which 404'd from every client caller.
  */
 
-const app = new Elysia()
+const app = new Elysia({ prefix: '/users' })
 
 app.use(requireAuth).get(
   '/me/wrapped-keys',

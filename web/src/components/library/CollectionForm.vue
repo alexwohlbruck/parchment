@@ -65,10 +65,10 @@ onMounted(() => {
   if (props.collection) {
     resetForm({
       values: {
-        name: props.collection.name,
+        name: props.collection.name ?? '',
         description: props.collection.description || '',
-        icon: props.collection.icon,
-        iconColor: props.collection.iconColor,
+        icon: props.collection.icon ?? 'Bookmark',
+        iconColor: props.collection.iconColor ?? 'blue',
         isPublic: props.collection.isPublic,
         isDefault: props.collection.isDefault || false,
       },
@@ -113,10 +113,10 @@ watch(
     if (newCollection) {
       resetForm({
         values: {
-          name: newCollection.name,
+          name: newCollection.name ?? '',
           description: newCollection.description || '',
-          icon: newCollection.icon,
-          iconColor: newCollection.iconColor,
+          icon: newCollection.icon ?? 'Bookmark',
+          iconColor: newCollection.iconColor ?? 'blue',
           isPublic: newCollection.isPublic,
           isDefault: newCollection.isDefault || false,
         },

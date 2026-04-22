@@ -47,19 +47,13 @@ function loadSeed(): Uint8Array {
   const envSeed = process.env.SERVER_IDENTITY_PRIVATE_KEY
   if (!envSeed) {
     throw new Error(
-      'SERVER_IDENTITY_PRIVATE_KEY is not set. Generate a fresh Ed25519 ' +
-        'seed with `openssl rand -base64 32` and put the value in your ' +
-        'server/.env (or forward it through your process supervisor). ' +
-        'See SECURITY.md §server-side-key-material for details.\n\n' +
-        'The server refuses to start without this — an ephemeral identity ' +
-        'would silently break federation TOFU pins across every restart.',
+      'SERVER_IDENTITY_PRIVATE_KEY is not set. Add it to server/.env: run `openssl rand -base64 32` and paste the output.',
     )
   }
   const bytes = base64ToBytes(envSeed.trim())
   if (bytes.length !== 32) {
     throw new Error(
-      `SERVER_IDENTITY_PRIVATE_KEY must be a base64-encoded 32-byte seed, ` +
-        `got ${bytes.length} bytes`,
+      `SERVER_IDENTITY_PRIVATE_KEY must be 32 bytes (base64). Got ${bytes.length}.`,
     )
   }
   return bytes

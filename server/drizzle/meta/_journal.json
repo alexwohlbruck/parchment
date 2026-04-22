@@ -281,6 +281,20 @@
       "when": 1776836938458,
       "tag": "0039_revert_name_encryption",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1776838321785,
+      "tag": "0040_minor_scarlet_witch",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1776874540809,
+      "tag": "0041_mixed_wallflower",
+      "breakpoints": true
     }
   ]
 }

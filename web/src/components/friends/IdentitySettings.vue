@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useIdentityStore } from '@/stores/identity.store'
 import { SettingsSection, SettingsItem } from '@/components/settings'
@@ -8,9 +8,22 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import RecoveryKeyDialog from './RecoveryKeyDialog.vue'
-import { Key, User, Globe, Check, AlertCircle, Download } from 'lucide-vue-next'
+import RotateKeysDialog from './RotateKeysDialog.vue'
+import TransferIdentityDialog from './TransferIdentityDialog.vue'
+import {
+  Key,
+  User,
+  Globe,
+  Check,
+  AlertCircle,
+  Download,
+  RefreshCw,
+  Smartphone,
+  Fingerprint,
+  AlertTriangle,
+} from 'lucide-vue-next'
 
 const identityStore = useIdentityStore()
 const {
@@ -21,6 +34,8 @@ const {
   isSetupComplete,
   needsImport,
   isLoading,
+  isStale,
+  rotateKeysRequestCounter,
 } = storeToRefs(identityStore)
 
 const aliasInput = ref('')
@@ -30,10 +45,34 @@ const aliasError = ref<string | null>(null)
 
 const showRecoveryDialog = ref(false)
 const recoveryDialogMode = ref<'setup' | 'import' | 'view'>('setup')
+const showRotateDialog = ref(false)
+const showTransferDialog = ref(false)
+
+const isSyncing = ref(false)
+const syncError = ref<string | null>(null)
+
+async function syncWithPasskey() {
+  isSyncing.value = true
+  syncError.value = null
+  try {
+    const result = await identityStore.unlockWithPasskey()
+    if (!result.success) {
+      syncError.value = result.error ?? "Couldn't sync. Try again."
+    }
+  } finally {
+    isSyncing.value = false
+  }
+}
 
 onMounted(async () => {
   await identityStore.initialize()
   aliasInput.value = alias.value || ''
+})
+
+// Any component calling `identityStore.requestRotateKeys()` bumps this
+// counter; open the rotate dialog in response.
+watch(rotateKeysRequestCounter, () => {
+  showRotateDialog.value = true
 })
 
 const isValidAlias = computed(() => {
@@ -98,6 +137,30 @@ function handleSetupComplete() {
     title="Federation Identity"
     description="Your identity for connecting with friends across servers"
   >
+    <!-- Stale device banner. Another device rotated the account keys;
+         this device is still on the old seed. Tap a passkey to sync. -->
+    <Alert v-if="isStale" variant="destructive" class="mb-4">
+      <AlertTriangle class="h-4 w-4" />
+      <AlertTitle>This device is out of sync</AlertTitle>
+      <AlertDescription>
+        <p class="mb-3">
+          Your keys were rotated on another device. Tap a passkey to sync
+          this device — until you do, your saved data here won't match what's
+          on your other devices.
+        </p>
+        <Button
+          size="sm"
+          :disabled="isSyncing"
+          @click="syncWithPasskey"
+        >
+          <Spinner v-if="isSyncing" class="h-4 w-4 mr-2" />
+          <Fingerprint v-else class="h-4 w-4 mr-2" />
+          Sync with passkey
+        </Button>
+        <p v-if="syncError" class="text-xs mt-2">{{ syncError }}</p>
+      </AlertDescription>
+    </Alert>
+
     <!-- Loading State -->
     <div v-if="isLoading" class="flex justify-center py-4">
       <Spinner class="h-6 w-6" />
@@ -216,6 +279,36 @@ function handleSetupComplete() {
           View Key
         </Button>
       </SettingsItem>
+
+      <!-- Rotate Keys -->
+      <SettingsItem
+        title="Rotate all keys"
+        description="Generate a new master key and re-encrypt everything. Use after removing a passkey or responding to a suspected compromise."
+        :icon="RefreshCw"
+      >
+        <Button
+          variant="outline"
+          size="sm"
+          @click="showRotateDialog = true"
+        >
+          Rotate keys
+        </Button>
+      </SettingsItem>
+
+      <!-- Transfer identity -->
+      <SettingsItem
+        title="Transfer to another device"
+        description="Move your identity to a new phone or browser by scanning a QR code. Both devices must be signed in to this account."
+        :icon="Smartphone"
+      >
+        <Button
+          variant="outline"
+          size="sm"
+          @click="showTransferDialog = true"
+        >
+          Transfer
+        </Button>
+      </SettingsItem>
     </template>
 
     <!-- Recovery Key Dialog -->
@@ -224,5 +317,11 @@ function handleSetupComplete() {
       :mode="recoveryDialogMode"
       @complete="handleSetupComplete"
     />
+
+    <!-- Rotate Keys Dialog -->
+    <RotateKeysDialog v-model:open="showRotateDialog" />
+
+    <!-- Transfer Identity Dialog -->
+    <TransferIdentityDialog v-model:open="showTransferDialog" />
   </SettingsSection>
 </template>

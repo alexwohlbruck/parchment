@@ -52,20 +52,14 @@ function loadMasterKey(): Buffer {
   const raw = process.env[KEY_ENV_VAR]
   if (!raw) {
     throw new Error(
-      `${KEY_ENV_VAR} is not set. Generate a base64-encoded 32-byte AES-256 ` +
-        `key with \`openssl rand -base64 32\` and put the value in your ` +
-        `server/.env (or forward it through your process supervisor / ` +
-        `docker-compose environment). See SECURITY.md §server-side-key-material ` +
-        `for details.\n\n` +
-        `The server refuses to start without this — an ephemeral key would ` +
-        `silently lose every integration credential on the next restart.`,
+      `${KEY_ENV_VAR} is not set. Add it to server/.env: run \`openssl rand -base64 32\` and paste the output.`,
     )
   }
 
   const bytes = base64ToBytes(raw.trim())
   if (bytes.length !== 32) {
     throw new Error(
-      `${KEY_ENV_VAR} must be a base64-encoded 32-byte AES-256 key, got ${bytes.length} bytes`,
+      `${KEY_ENV_VAR} must be 32 bytes (base64). Got ${bytes.length}.`,
     )
   }
   cachedKey = Buffer.from(bytes)

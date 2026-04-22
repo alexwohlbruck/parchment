@@ -1,0 +1,696 @@
+<script setup lang="ts">
+/**
+ * Device-to-device identity transfer dialog.
+ *
+ * Two-sided flow:
+ *   - RECEIVER (new device): creates a session, renders a QR with
+ *     {sessionId, receiverEphemeralPub}, polls the server for the sender's
+ *     sealed payload, verifies the SAS match with the user, then unseals
+ *     the seed and stores it locally.
+ *   - SENDER (existing device): scans the receiver's QR via camera,
+ *     derives the 6-digit SAS, generates its sender-ephemeral keypair,
+ *     seals the seed, uploads. Shows SAS so the user can cross-check
+ *     against the new device's screen.
+ *
+ * The sealed payload is AES-GCM bound to both ephemeral pubs + sessionId,
+ * signed with the sender's long-term Ed25519 identity key. A MITM who
+ * proxies the QR cannot unseal; a MITM who swaps keys on the wire cannot
+ * forge the signature.
+ */
+
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import QRCode from 'qrcode'
+import jsQR from 'jsqr'
+import { storeToRefs } from 'pinia'
+import { api } from '@/lib/api'
+import { useIdentityStore } from '@/stores/identity.store'
+import { useAuthStore } from '@/stores/auth.store'
+import { getSeed, storeSeed } from '@/lib/key-storage'
+import {
+  generateEphemeralKeypair,
+  deriveSAS,
+  sealSeedForTransfer,
+  openTransferredSeed,
+  type SealedTransferPayload,
+} from '@/lib/device-transfer'
+import {
+  deriveAllKeys,
+  importPublicKey,
+  bytesToBase64,
+  base64ToBytes,
+} from '@/lib/federation-crypto'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Spinner } from '@/components/ui/spinner'
+import {
+  Smartphone,
+  QrCode,
+  Camera,
+  AlertTriangle,
+  Check,
+  ArrowLeft,
+} from 'lucide-vue-next'
+
+interface Props {
+  open: boolean
+  /**
+   * If the caller is the NEW DEVICE restoring an identity, they already
+   * know that's their role — pass `'receive'` to skip the chooser. From
+   * Settings (sender side) we pass nothing and let the user pick.
+   */
+  initialMode?: 'choose' | 'receive' | 'send'
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  initialMode: 'choose',
+})
+const emit = defineEmits<{
+  'update:open': [value: boolean]
+  complete: []
+}>()
+
+const identityStore = useIdentityStore()
+const authStore = useAuthStore()
+const { me } = storeToRefs(authStore)
+
+type Mode = 'choose' | 'receive' | 'send'
+type ReceiveStage =
+  | 'creating'
+  | 'showing-qr'
+  | 'awaiting-upload'
+  | 'confirm-sas'
+  | 'unsealing'
+  | 'done'
+  | 'error'
+type SendStage =
+  | 'scanning'
+  | 'sealing'
+  | 'uploaded'
+  | 'error'
+
+const mode = ref<Mode>(props.initialMode)
+const error = ref<string | null>(null)
+
+// --- Receiver state ---
+const receiveStage = ref<ReceiveStage>('creating')
+const receiverKeypair = ref<{
+  privateKey: Uint8Array
+  publicKey: Uint8Array
+} | null>(null)
+const sessionId = ref<string | null>(null)
+const qrDataUrl = ref<string | null>(null)
+const pollingTimer = ref<number | null>(null)
+const pollingDeadlineTimer = ref<number | null>(null)
+const receivedPayload = ref<SealedTransferPayload | null>(null)
+const computedSasReceive = ref<string | null>(null)
+
+// Server enforces a 60s TTL on device-transfer sessions. Match that on
+// the client so the receiver's polling gives up with a clear message
+// instead of looping forever and eventually showing a 404.
+const TRANSFER_SESSION_TTL_MS = 60_000
+
+// --- Sender state ---
+const sendStage = ref<SendStage>('scanning')
+const videoEl = ref<HTMLVideoElement | null>(null)
+const canvasEl = ref<HTMLCanvasElement | null>(null)
+const mediaStream = ref<MediaStream | null>(null)
+const scanRafId = ref<number | null>(null)
+const computedSasSend = ref<string | null>(null)
+
+const isOpen = computed({
+  get: () => props.open,
+  set: (value) => emit('update:open', value),
+})
+
+watch(
+  () => props.open,
+  (open) => {
+    if (open) {
+      resetAllState()
+      mode.value = props.initialMode
+      if (mode.value === 'receive') void startReceive()
+      if (mode.value === 'send') void startSend()
+    } else {
+      cleanup()
+    }
+  },
+)
+
+onBeforeUnmount(cleanup)
+
+function resetAllState() {
+  error.value = null
+  receiveStage.value = 'creating'
+  receiverKeypair.value = null
+  sessionId.value = null
+  qrDataUrl.value = null
+  receivedPayload.value = null
+  computedSasReceive.value = null
+  sendStage.value = 'scanning'
+  computedSasSend.value = null
+}
+
+function cleanup() {
+  if (pollingTimer.value !== null) {
+    clearInterval(pollingTimer.value)
+    pollingTimer.value = null
+  }
+  if (pollingDeadlineTimer.value !== null) {
+    clearTimeout(pollingDeadlineTimer.value)
+    pollingDeadlineTimer.value = null
+  }
+  if (scanRafId.value !== null) {
+    cancelAnimationFrame(scanRafId.value)
+    scanRafId.value = null
+  }
+  if (mediaStream.value) {
+    for (const track of mediaStream.value.getTracks()) track.stop()
+    mediaStream.value = null
+  }
+}
+
+function closeDialog() {
+  isOpen.value = false
+}
+
+// --------------------------------------------------------------------------
+// Receiver flow
+// --------------------------------------------------------------------------
+
+async function startReceive() {
+  resetAllState()
+  mode.value = 'receive'
+  receiveStage.value = 'creating'
+  error.value = null
+
+  try {
+    const kp = generateEphemeralKeypair()
+    receiverKeypair.value = kp
+
+    const pubB64 = bytesToBase64(kp.publicKey)
+    const response = await api.post<{ sessionId: string; expiresAt: string }>(
+      '/device-transfer',
+      { receiverEphemeralPub: pubB64 },
+    )
+    sessionId.value = response.data.sessionId
+
+    const qrPayload = JSON.stringify({
+      v: 1,
+      sessionId: sessionId.value,
+      receiverPub: pubB64,
+    })
+    qrDataUrl.value = await QRCode.toDataURL(qrPayload, {
+      errorCorrectionLevel: 'M',
+      width: 320,
+      margin: 2,
+    })
+
+    receiveStage.value = 'awaiting-upload'
+    startPolling()
+  } catch (err) {
+    error.value =
+      err instanceof Error ? err.message : 'Could not start transfer session'
+    receiveStage.value = 'error'
+  }
+}
+
+function startPolling() {
+  if (pollingTimer.value !== null) clearInterval(pollingTimer.value)
+  if (pollingDeadlineTimer.value !== null)
+    clearTimeout(pollingDeadlineTimer.value)
+  pollingTimer.value = window.setInterval(() => void pollOnce(), 2000)
+  pollingDeadlineTimer.value = window.setTimeout(() => {
+    // Matches the server-side session TTL. Past this point the server
+    // will 404 every request; bail with a user-facing message instead
+    // of spinning forever.
+    if (receiveStage.value === 'awaiting-upload') {
+      if (pollingTimer.value !== null) {
+        clearInterval(pollingTimer.value)
+        pollingTimer.value = null
+      }
+      error.value =
+        'Transfer session expired. Close this and try again — each session is good for 60 seconds.'
+      receiveStage.value = 'error'
+    }
+  }, TRANSFER_SESSION_TTL_MS)
+  void pollOnce()
+}
+
+async function pollOnce() {
+  if (!sessionId.value) return
+  try {
+    const response = await api.get<{
+      sessionId: string
+      receiverEphemeralPub: string
+      senderEphemeralPub: string | null
+      sealedSeed: string | null
+      senderSignature: string | null
+    }>(`/device-transfer/${sessionId.value}`)
+
+    const { senderEphemeralPub, sealedSeed, senderSignature } = response.data
+    if (senderEphemeralPub && sealedSeed && senderSignature) {
+      if (pollingTimer.value !== null) {
+        clearInterval(pollingTimer.value)
+        pollingTimer.value = null
+      }
+      receivedPayload.value = {
+        senderEphemeralPub,
+        sealedSeed,
+        senderSignature,
+      }
+      computedSasReceive.value = deriveSAS(
+        receiverKeypair.value!.publicKey,
+        base64ToBytes(senderEphemeralPub),
+        sessionId.value,
+      )
+      receiveStage.value = 'confirm-sas'
+    }
+  } catch (err: unknown) {
+    const status = (err as { response?: { status?: number } })?.response?.status
+    // 425 = payload not uploaded yet (the server tells us to retry). Keep polling.
+    if (status === 425) return
+    if (pollingTimer.value !== null) {
+      clearInterval(pollingTimer.value)
+      pollingTimer.value = null
+    }
+    error.value =
+      err instanceof Error ? err.message : 'Error polling transfer session'
+    receiveStage.value = 'error'
+  }
+}
+
+async function handleConfirmSasMatches() {
+  if (!receivedPayload.value || !receiverKeypair.value || !sessionId.value) {
+    error.value = 'Missing transfer state'
+    receiveStage.value = 'error'
+    return
+  }
+
+  receiveStage.value = 'unsealing'
+  error.value = null
+
+  try {
+    // Verify against the server's advertised identity pubkey.
+    const serverIdentity = await api.get<{ signingKey: string | null }>(
+      '/users/me/identity',
+    )
+    if (!serverIdentity.data.signingKey) {
+      throw new Error(
+        "Server has no federation identity to verify the sender's signature.",
+      )
+    }
+    const senderIdentityPub = importPublicKey(serverIdentity.data.signingKey)
+
+    const seed = openTransferredSeed({
+      payload: receivedPayload.value,
+      receiverEphemeralPrivate: receiverKeypair.value.privateKey,
+      receiverEphemeralPublic: receiverKeypair.value.publicKey,
+      sessionId: sessionId.value,
+      senderIdentityPublicKey: senderIdentityPub,
+    })
+
+    // Double-check: unwrapped seed's derived signing key must match the
+    // server's published one. If not, something's wrong — refuse to store.
+    const derived = deriveAllKeys(seed)
+    const derivedPub = bytesToBase64(derived.signing.publicKey)
+    if (derivedPub !== serverIdentity.data.signingKey) {
+      throw new Error(
+        'Transferred seed does not derive the expected federation identity.',
+      )
+    }
+
+    await storeSeed(seed)
+    // Trigger identity store refresh so the UI reflects "signed in with identity".
+    await identityStore.initialize()
+    receiveStage.value = 'done'
+    setTimeout(() => {
+      emit('complete')
+      closeDialog()
+    }, 1500)
+  } catch (err) {
+    error.value =
+      err instanceof Error ? err.message : 'Failed to open transferred seed'
+    receiveStage.value = 'error'
+  }
+}
+
+async function handleCancelTransfer() {
+  if (sessionId.value) {
+    try {
+      await api.delete(`/device-transfer/${sessionId.value}`)
+    } catch {
+      // Best-effort. TTL will clean up regardless.
+    }
+  }
+  closeDialog()
+}
+
+// --------------------------------------------------------------------------
+// Sender flow
+// --------------------------------------------------------------------------
+
+async function startSend() {
+  resetAllState()
+  mode.value = 'send'
+  sendStage.value = 'scanning'
+  error.value = null
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment' },
+      audio: false,
+    })
+    mediaStream.value = stream
+    // Wait a tick for the video element to mount before attaching.
+    await new Promise((r) => requestAnimationFrame(r))
+    if (videoEl.value) {
+      videoEl.value.srcObject = stream
+      await videoEl.value.play()
+      scanLoop()
+    }
+  } catch (err) {
+    error.value =
+      err instanceof Error
+        ? `Camera unavailable: ${err.message}`
+        : 'Could not access the camera'
+    sendStage.value = 'error'
+  }
+}
+
+function scanLoop() {
+  if (
+    !videoEl.value ||
+    !canvasEl.value ||
+    videoEl.value.readyState < videoEl.value.HAVE_METADATA
+  ) {
+    scanRafId.value = requestAnimationFrame(scanLoop)
+    return
+  }
+  const video = videoEl.value
+  const canvas = canvasEl.value
+  canvas.width = video.videoWidth
+  canvas.height = video.videoHeight
+  const ctx = canvas.getContext('2d')
+  if (!ctx) {
+    scanRafId.value = requestAnimationFrame(scanLoop)
+    return
+  }
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+  const result = jsQR(imageData.data, canvas.width, canvas.height)
+  if (result && result.data) {
+    onScanResult(result.data)
+    return
+  }
+  scanRafId.value = requestAnimationFrame(scanLoop)
+}
+
+async function onScanResult(raw: string) {
+  // Stop the camera immediately — we're done scanning regardless of
+  // whether parsing succeeds; if it fails, the user can cancel + retry.
+  cleanup()
+
+  let parsed: { v?: number; sessionId?: string; receiverPub?: string }
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    error.value = 'The scanned QR is not a valid Parchment transfer code.'
+    sendStage.value = 'error'
+    return
+  }
+  if (!parsed.sessionId || !parsed.receiverPub) {
+    error.value = 'The scanned QR is missing transfer session data.'
+    sendStage.value = 'error'
+    return
+  }
+
+  sendStage.value = 'sealing'
+  try {
+    const seed = await getSeed()
+    if (!seed) {
+      throw new Error('This device has no identity seed to transfer.')
+    }
+    const senderKp = generateEphemeralKeypair()
+    const receiverPub = base64ToBytes(parsed.receiverPub)
+
+    // Compute SAS for display BEFORE we upload so we know what to show.
+    computedSasSend.value = deriveSAS(
+      receiverPub,
+      senderKp.publicKey,
+      parsed.sessionId,
+    )
+
+    // Use the current local seed's signing key to sign the handshake —
+    // this is the sender's long-term Ed25519 identity key.
+    const localKeys = deriveAllKeys(seed)
+    const payload = await sealSeedForTransfer({
+      seed,
+      senderEphemeralPrivate: senderKp.privateKey,
+      senderEphemeralPublic: senderKp.publicKey,
+      receiverEphemeralPublic: receiverPub,
+      sessionId: parsed.sessionId,
+      senderIdentityPrivateKey: localKeys.signing.privateKey,
+    })
+
+    await api.post(`/device-transfer/${parsed.sessionId}/upload`, payload)
+    sendStage.value = 'uploaded'
+  } catch (err) {
+    error.value =
+      err instanceof Error ? err.message : 'Failed to seal + upload the seed'
+    sendStage.value = 'error'
+  }
+}
+
+function backToChoose() {
+  cleanup()
+  resetAllState()
+  mode.value = 'choose'
+}
+</script>
+
+<template>
+  <Dialog v-model:open="isOpen">
+    <DialogContent class="sm:max-w-md">
+      <!-- Chooser -->
+      <template v-if="mode === 'choose'">
+        <DialogHeader>
+          <DialogTitle class="flex items-center gap-2">
+            <Smartphone class="h-5 w-5" />
+            Transfer identity
+          </DialogTitle>
+          <DialogDescription>
+            Move your identity between devices with a QR-code handshake. Both
+            devices must be signed in to the same account.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div class="flex flex-col gap-3 py-4">
+          <Button
+            variant="outline"
+            class="justify-start h-auto py-3"
+            @click="startReceive"
+          >
+            <QrCode class="h-5 w-5 mr-3" />
+            <div class="flex flex-col items-start">
+              <span class="font-semibold">Receive on this device</span>
+              <span class="text-xs text-muted-foreground">
+                Show a QR that your other device will scan
+              </span>
+            </div>
+          </Button>
+
+          <Button
+            variant="outline"
+            class="justify-start h-auto py-3"
+            :disabled="!identityStore.hasLocalIdentity"
+            @click="startSend"
+          >
+            <Camera class="h-5 w-5 mr-3" />
+            <div class="flex flex-col items-start">
+              <span class="font-semibold">Send from this device</span>
+              <span class="text-xs text-muted-foreground">
+                Scan the QR shown on your new device
+              </span>
+            </div>
+          </Button>
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" @click="closeDialog">Cancel</Button>
+        </DialogFooter>
+      </template>
+
+      <!-- Receiver -->
+      <template v-else-if="mode === 'receive'">
+        <DialogHeader>
+          <DialogTitle class="flex items-center gap-2">
+            <QrCode class="h-5 w-5" />
+            Scan this with your other device
+          </DialogTitle>
+          <DialogDescription>
+            Open Parchment on your signed-in device, go to Settings → Account →
+            Transfer identity → Send, and point its camera at this code.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div class="flex flex-col items-center gap-4 py-4">
+          <template v-if="receiveStage === 'creating'">
+            <Spinner class="h-8 w-8" />
+            <p class="text-sm text-muted-foreground">
+              Preparing secure transfer…
+            </p>
+          </template>
+
+          <template v-else-if="receiveStage === 'awaiting-upload' && qrDataUrl">
+            <img
+              :src="qrDataUrl"
+              alt="Device transfer QR code"
+              class="w-72 h-72 border rounded"
+            />
+            <div class="flex items-center gap-2 text-sm text-muted-foreground">
+              <Spinner class="h-4 w-4" />
+              Waiting for the other device…
+            </div>
+          </template>
+
+          <template v-else-if="receiveStage === 'confirm-sas'">
+            <Alert>
+              <AlertTitle>Verify the 6-digit code matches</AlertTitle>
+              <AlertDescription>
+                Compare the code below with the one shown on your other
+                device. If they're different, cancel — someone may be
+                intercepting the transfer.
+              </AlertDescription>
+            </Alert>
+            <div class="text-5xl font-mono tracking-widest">
+              {{ computedSasReceive }}
+            </div>
+          </template>
+
+          <template v-else-if="receiveStage === 'unsealing'">
+            <Spinner class="h-8 w-8" />
+            <p class="text-sm text-muted-foreground">
+              Unsealing your identity…
+            </p>
+          </template>
+
+          <template v-else-if="receiveStage === 'done'">
+            <Alert class="border-green-500 text-green-600">
+              <Check class="h-4 w-4" />
+              <AlertDescription>
+                Identity restored on this device.
+              </AlertDescription>
+            </Alert>
+          </template>
+
+          <Alert v-if="error" variant="destructive">
+            <AlertTriangle class="h-4 w-4" />
+            <AlertDescription>{{ error }}</AlertDescription>
+          </Alert>
+        </div>
+
+        <DialogFooter class="gap-2">
+          <Button
+            v-if="props.initialMode === 'choose'"
+            variant="ghost"
+            :icon="ArrowLeft"
+            @click="backToChoose"
+          >
+            Back
+          </Button>
+          <Button
+            v-if="receiveStage === 'confirm-sas'"
+            @click="handleConfirmSasMatches"
+          >
+            <Check class="h-4 w-4 mr-2" />
+            Codes match — unlock
+          </Button>
+          <Button
+            v-if="receiveStage !== 'done' && receiveStage !== 'unsealing'"
+            variant="outline"
+            @click="handleCancelTransfer"
+          >
+            Cancel
+          </Button>
+        </DialogFooter>
+      </template>
+
+      <!-- Sender -->
+      <template v-else-if="mode === 'send'">
+        <DialogHeader>
+          <DialogTitle class="flex items-center gap-2">
+            <Camera class="h-5 w-5" />
+            Scan your new device
+          </DialogTitle>
+          <DialogDescription>
+            Point the camera at the QR code shown on your new device.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div class="flex flex-col items-center gap-4 py-4">
+          <template v-if="sendStage === 'scanning'">
+            <div class="relative w-full aspect-square bg-black rounded overflow-hidden">
+              <video
+                ref="videoEl"
+                class="w-full h-full object-cover"
+                playsinline
+                muted
+              />
+              <canvas ref="canvasEl" class="hidden" />
+            </div>
+            <p class="text-sm text-muted-foreground">
+              Looking for a Parchment transfer QR…
+            </p>
+          </template>
+
+          <template v-else-if="sendStage === 'sealing'">
+            <Spinner class="h-8 w-8" />
+            <p class="text-sm text-muted-foreground">
+              Encrypting and uploading…
+            </p>
+          </template>
+
+          <template v-else-if="sendStage === 'uploaded'">
+            <Alert>
+              <AlertTitle>Verify codes match</AlertTitle>
+              <AlertDescription>
+                Your new device should now show the same 6-digit code. If
+                yes, tap "Codes match" on the new device to finish.
+              </AlertDescription>
+            </Alert>
+            <div class="text-5xl font-mono tracking-widest">
+              {{ computedSasSend }}
+            </div>
+          </template>
+
+          <Alert v-if="error" variant="destructive">
+            <AlertTriangle class="h-4 w-4" />
+            <AlertDescription>{{ error }}</AlertDescription>
+          </Alert>
+        </div>
+
+        <DialogFooter class="gap-2">
+          <Button
+            v-if="props.initialMode === 'choose'"
+            variant="ghost"
+            :icon="ArrowLeft"
+            @click="backToChoose"
+          >
+            Back
+          </Button>
+          <Button variant="outline" @click="closeDialog">
+            {{ sendStage === 'uploaded' ? 'Done' : 'Cancel' }}
+          </Button>
+        </DialogFooter>
+      </template>
+    </DialogContent>
+  </Dialog>
+</template>

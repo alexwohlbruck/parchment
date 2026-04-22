@@ -83,3 +83,22 @@ export async function deletePersonalBlob(
       ),
     )
 }
+
+/**
+ * List every blob type the user has stored. Used by the client-side K_m
+ * rotation orchestrator so it knows which blobs need to be decrypted under
+ * the old seed and re-encrypted under the new one. Server returns types +
+ * kmVersion only; never the ciphertext.
+ */
+export async function listPersonalBlobTypes(
+  userId: string,
+): Promise<Array<{ blobType: string; kmVersion: number }>> {
+  const rows = await db
+    .select({
+      blobType: encryptedUserBlobs.blobType,
+      kmVersion: encryptedUserBlobs.kmVersion,
+    })
+    .from(encryptedUserBlobs)
+    .where(eq(encryptedUserBlobs.userId, userId))
+  return rows
+}

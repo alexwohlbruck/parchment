@@ -15,15 +15,23 @@ export interface Bookmark {
 
 export interface Collection {
   id: string
-  name: string
-  description?: string
-  icon: string
-  iconColor: string
   userId: string
   isPublic: boolean
   isDefault?: boolean
   createdAt: string
   updatedAt: string
+
+  // Opaque encrypted metadata envelope as returned by the server.
+  metadataEncrypted?: string | null
+  metadataKeyVersion?: number
+
+  // Decrypted metadata fields. Populated client-side after fetch by
+  // the collections service; NEVER sent back to the server in cleartext.
+  // Use `collection.name` / `.description` / etc. for display.
+  name?: string
+  description?: string
+  icon?: string
+  iconColor?: string
 }
 
 export interface BookmarkCollection {

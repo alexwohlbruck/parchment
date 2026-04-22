@@ -13,7 +13,11 @@ import { sessions } from '../schema/sessions.schema'
 import {
   createSession,
   destroySession,
+  destroyAllSessions,
+  destroyOtherSessions,
   generateWebauthnOptions,
+  generatePrfAssertionOptions,
+  generatePrfEnrollOptionsForCredential,
   rpID,
   sendEmailVerificationCode,
   getPermissions,
@@ -319,6 +323,48 @@ app.group('/passkeys', (app) => {
     },
   )
 
+  app.use(requireAuth).post(
+    '/prf-assert/options',
+    async ({ user }) => {
+      return await generatePrfAssertionOptions(user.id)
+    },
+    {
+      detail: {
+        tags: ['Auth', 'Crypto'],
+        summary:
+          'Return WebAuthn authentication options with the PRF extension ' +
+          "eval'd against the current user's salt, restricted to " +
+          "credentials that have a wrapped-master-key slot. Used to " +
+          'unwrap K_m on a new device after sign-in.',
+      },
+    },
+  )
+
+  app.use(requireAuth).post(
+    '/:credentialId/prf-enroll/options',
+    async ({ user, params, status }) => {
+      const options = await generatePrfEnrollOptionsForCredential(
+        user.id,
+        params.credentialId,
+      )
+      if (!options) {
+        return status(404, { message: 'Passkey not found' })
+      }
+      return options
+    },
+    {
+      params: t.Object({ credentialId: t.String() }),
+      detail: {
+        tags: ['Auth', 'Crypto'],
+        summary:
+          'Return WebAuthn authentication options to enable recovery on ' +
+          'an already-registered passkey. Scoped to one credential; if ' +
+          "the authenticator emits a PRF output, the client POSTs a new " +
+          'wrapped-K_m slot for it.',
+      },
+    },
+  )
+
   app.use(requireAuth).delete(
     '/:passkeyId',
     async ({ user, set, params: { passkeyId } }) => {
@@ -394,6 +440,54 @@ app.group('/sessions', (app) => {
       detail: {
         tags: ['Auth'],
         description: 'Sign out a user.',
+      },
+    },
+  )
+
+  app.use(requireAuth).delete(
+    '/all',
+    async ({ user, cookie, set }) => {
+      await destroyAllSessions(user.id)
+      // Drop the current cookie too so the caller doesn't keep a stale
+      // session id locally after the DB rows are gone.
+      const sessionCookie = cookie['auth_session']
+      if (sessionCookie) {
+        sessionCookie.path = '/'
+        sessionCookie.remove()
+      }
+      set.status = 204
+    },
+    {
+      detail: {
+        tags: ['Auth'],
+        description:
+          'Sign out of every device. Destroys all session rows and rotates ' +
+          'every per-device wrap secret so any cached seed envelope on any ' +
+          'device is immediately unusable.',
+      },
+    },
+  )
+
+  app.use(requireAuth).delete(
+    '/others',
+    async ({ user, session, body, set }) => {
+      await destroyOtherSessions(user.id, session.id, body.deviceId)
+      set.status = 204
+    },
+    {
+      body: t.Object({
+        deviceId: t.String({
+          minLength: 8,
+          maxLength: 64,
+          pattern: '^[a-zA-Z0-9-]+$',
+        }),
+      }),
+      detail: {
+        tags: ['Auth'],
+        description:
+          "Sign out of every OTHER device. Keeps the caller's session " +
+          "and wrap secret intact; rotates every other device's wrap " +
+          'secret and deletes every other session row.',
       },
     },
   )

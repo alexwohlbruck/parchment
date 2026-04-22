@@ -44,22 +44,23 @@ export const bookmarks = pgTable(
   }),
 )
 
+/**
+ * Collections (user-defined bookmark folders). Metadata
+ * (name / description / icon / iconColor) is fully E2EE under a per-
+ * collection AES key derived from the user's seed. The server stores
+ * only the ciphertext envelope; it never sees the plaintext metadata.
+ *
+ * `isPublic`, `isDefault`, `isSensitive` stay cleartext because the
+ * server needs them for access control and feed/discovery behaviour.
+ */
 export const collections = pgTable('collections', {
   id: text('id').primaryKey().notNull(),
-  name: text('name'),
-  description: text('description'),
-  icon: text('icon').notNull().default('folder'),
-  iconColor: text('icon_color').notNull().default('#3B82F6'),
   userId: text('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   isPublic: boolean('is_public').default(false).notNull(),
   isDefault: boolean('is_default').default(false).notNull(),
   isSensitive: boolean('is_sensitive').default(false).notNull(), // E2EE sensitive mode (legacy)
-  // Part C.5c: encrypted metadata envelope (base64 v2 crypto-envelope).
-  // When populated, this supersedes the cleartext columns above. Migration
-  // to drop the cleartext columns happens once all UI consumers read the
-  // decrypted envelope.
   metadataEncrypted: text('metadata_encrypted'),
   metadataKeyVersion: integer('metadata_key_version').notNull().default(1),
   createdAt: timestamp('created_at').defaultNow().notNull(),

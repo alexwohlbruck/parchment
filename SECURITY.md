@@ -70,32 +70,31 @@ lives depends on where you are:
 | Platform | Backing store | Security |
 |----------|---------------|----------|
 | Desktop Tauri (macOS / Windows / Linux) | Native OS keychain (Apple Keychain, Credential Manager, libsecret) via the `keyring` crate | ✓ Protected by OS login; hardware-backed on modern Macs |
-| Browser / regular web | `localStorage` | ⚠ Vulnerable to XSS. Any process with filesystem access can read it. OK for dev, not OK as a long-term user-facing posture |
-| Tauri on iOS / Android | Falls through to the webview's `localStorage` | ⚠ Same caveats as browser. Stored in app data dir, readable with filesystem access. Mobile OS-keystore integration is a tracked follow-up (see Deferred items). |
+| Browser / regular web | `localStorage`, wrapped under a server-held device secret | ✓ Ciphertext at rest; passive filesystem read yields no usable seed. Server-side revocation via sign-out-all. XSS still a concern (see below). |
+| Tauri on iOS / Android | Webview `localStorage`, same wrap as browser | ✓ Same ciphertext-at-rest protection. Future native Keystore/Keychain plugin (tracked in Reserved below) would add biometric gating on top. |
 
-**Is the current localStorage fallback acceptable?** In its current form
-(plain base64), no. But we need to fix it without breaking the core UX:
-**Parchment is a maps app and cold-open must be instant.** Requiring a
-passkey tap or typed key on every tab-open is wrong for the use case —
-users expect the map the moment the tab loads.
+**How the wrap works** (shipped — see `web/src/lib/key-storage.ts`,
+`server/src/services/device-wrap-secrets.service.ts`):
 
-So the seed has to persist on the device. The realistic design (shipped
-in P0 #4 of [completion-plan.md](docs/crypto/completion-plan.md)):
-
-- Keep `localStorage` persistence → instant open.
-- **Wrap** the persisted seed under a key derived from a **revocable
-  server-held "device secret."** Cold-open = one small fetch + one
-  AES-GCM decrypt. Still effectively instant.
-- `localStorage` at rest holds ciphertext. A passive filesystem read
-  without the session cookie yields nothing useful.
-- Server-side revocation is the kill-switch: "sign out of all devices"
-  rotates the device secrets → every cached seed on the network becomes
-  unreadable → each device forces a re-unlock.
+- On first use, the client generates a random `deviceId` (UUID, stored
+  alongside the seed in `localStorage` — not sensitive) and GETs
+  `/users/me/devices/:deviceId/wrap-secret`. The server lazily creates a
+  32-byte random secret keyed by `(userId, deviceId)` and returns it.
+- The client derives a wrap key via
+  `HKDF-SHA256(secret, "parchment-seed-wrap-v1") → 32B` and uses it to
+  encrypt the seed as a v2 AEAD envelope with AAD
+  `{userId: deviceId, recordType: "seed-wrap", recordId: "local",
+  keyContext: "parchment-seed-wrap-v1"}`.
+- The wrap key is cached in memory for the session but never persisted.
+  The raw server secret is discarded after deriving.
+- Cold-open cost: one authenticated GET + one AES-GCM decrypt —
+  effectively instant.
+- "Sign out of all devices" (`DELETE /auth/sessions/all`) deletes every
+  session row for the user and rotates every `device_wrap_secrets` row
+  they own. Every cached envelope on every device then fails AEAD on
+  next open, clears itself, and routes the user back through unlock.
 - Desktop Tauri stays on OS keychain (hardware-backed, OS-login
-  protected). Already secure.
-- Mobile Tauri webview inherits the same wrap pattern; a future native
-  Keystore/Keychain plugin (tracked in Reserved below) adds biometric
-  gating on top.
+  protected). Already secure, unchanged.
 
 **What this doesn't protect against:** active XSS in the page. A script
 running in the Parchment origin can fetch the device secret and unwrap
@@ -137,6 +136,7 @@ and what's still plaintext.
 | Third-party integration credentials at rest (feature 1b, 4-bridge) | Server master encryption key | Server must hold API keys to call scheduled third-party fetches; encryption protects DB-dump leaks |
 | Cross-server federation | Server identity signing, TOFU pinning, replay protection, canonical v2 envelope | Anti-MITM; anti-replay; hostile-peer defense |
 | Identity seed on desktop | Tauri OS-keychain | Hardware-backed, OS-login protected |
+| Identity seed on browser / mobile webview | v2 envelope wrapped under server-held per-device secret (`parchment-seed-wrap-v1`) | Ciphertext at rest; sign-out-all rotates secrets → every cached seed unreadable |
 
 ### Primitives shipped, user-facing wiring missing
 These look plaintext or blank from a user's point of view — the crypto

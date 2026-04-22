@@ -8,11 +8,12 @@
  *      Secure Enclave. First call on macOS pops the standard "allow
  *      keychain access" prompt; Always Allow silences further prompts.
  *
- *   2. Everywhere else (browser, mobile Tauri webview) → localStorage.
- *      This is unchanged from the pre-C.2 behavior. The plan to move
- *      mobile onto the platform keystore is tracked as a follow-up
- *      (Part C notes: "Tauri mobile after PRF validated in target
- *      webviews").
+ *   2. Everywhere else (browser, mobile Tauri webview) → localStorage,
+ *      BUT the seed bytes are never written in the clear. The seed is
+ *      wrapped as a v2 envelope under a key derived (HKDF
+ *      `parchment-seed-wrap-v1`) from a server-held per-device secret
+ *      that rotates when the user signs out of all devices. Cold-open
+ *      cost: one small authenticated GET + one AES-GCM decrypt.
  *
  * Callers see the same async API regardless of backend — getSeed,
  * storeSeed, hasIdentity, clearIdentity, verifySeedMatchesRecoveryKey
@@ -22,15 +23,28 @@
  */
 
 import { useStorage } from '@vueuse/core'
+import { hkdf } from '@noble/hashes/hkdf.js'
+import { sha256 } from '@noble/hashes/sha2.js'
+import { api } from './api'
+import {
+  encryptEnvelopeBytes,
+  decryptEnvelopeBytes,
+  type AAD,
+} from './crypto-envelope'
+import { base64ToBytes, bytesToBase64 } from './federation-crypto'
+import { getOrCreateDeviceId } from './device-id'
 
 const SEED_KEY = 'parchment-identity-seed'
+const WRAP_KEY_CONTEXT = 'parchment-seed-wrap-v1'
 
 // ---------------------------------------------------------------------------
 // Backend interface
 // ---------------------------------------------------------------------------
 
+type BackendName = 'localStorage-wrapped' | 'localStorage-plain' | 'tauri-keychain'
+
 interface StorageBackend {
-  name: 'localStorage' | 'tauri-keychain'
+  name: BackendName
   set(key: string, value: string): Promise<void>
   get(key: string): Promise<string | null>
   delete(key: string): Promise<void>
@@ -38,7 +52,8 @@ interface StorageBackend {
 
 // ---------------------------------------------------------------------------
 // localStorage backend (via VueUse so existing reactive consumers keep
-// working in the browser path).
+// working in the browser path). Wrapping happens at the public API layer
+// above this, so the backend itself still just handles opaque strings.
 // ---------------------------------------------------------------------------
 
 let seedStorage: ReturnType<typeof useStorage<string | null>> | null = null
@@ -48,7 +63,7 @@ function getSeedStorage() {
 }
 
 const localStorageBackend: StorageBackend = {
-  name: 'localStorage',
+  name: 'localStorage-wrapped',
   async set(key, value) {
     if (key === SEED_KEY) getSeedStorage().value = value
     else localStorage.setItem(key, value)
@@ -138,33 +153,148 @@ function getBackend(): Promise<StorageBackend> {
 }
 
 // ---------------------------------------------------------------------------
+// Wrap-secret fetch + HKDF derive. Only used on the localStorage backend.
+// ---------------------------------------------------------------------------
+
+class WrapSecretUnavailableError extends Error {
+  readonly reason: unknown
+  constructor(reason: unknown) {
+    super('device wrap secret unavailable')
+    this.name = 'WrapSecretUnavailableError'
+    this.reason = reason
+  }
+}
+
+class WrapSecretRotatedError extends Error {
+  constructor() {
+    super('device wrap secret has been rotated; cached envelope unreadable')
+    this.name = 'WrapSecretRotatedError'
+  }
+}
+
+let cachedWrapKey: { deviceId: string; key: Uint8Array } | null = null
+
+async function fetchWrapSecret(deviceId: string): Promise<Uint8Array> {
+  try {
+    const response = await api.get<{ secret: string }>(
+      `users/me/devices/${deviceId}/wrap-secret`,
+    )
+    return base64ToBytes(response.data.secret)
+  } catch (err) {
+    throw new WrapSecretUnavailableError(err)
+  }
+}
+
+async function deriveWrapKey(): Promise<Uint8Array> {
+  const deviceId = getOrCreateDeviceId()
+  if (cachedWrapKey && cachedWrapKey.deviceId === deviceId) {
+    return cachedWrapKey.key
+  }
+  const secret = await fetchWrapSecret(deviceId)
+  const key = hkdf(
+    sha256,
+    secret,
+    undefined,
+    new TextEncoder().encode(WRAP_KEY_CONTEXT),
+    32,
+  )
+  cachedWrapKey = { deviceId, key }
+  return key
+}
+
+function buildWrapAad(): AAD {
+  return {
+    userId: getOrCreateDeviceId(),
+    recordType: 'seed-wrap',
+    recordId: 'local',
+    keyContext: WRAP_KEY_CONTEXT,
+  }
+}
+
+async function wrapSeed(seed: Uint8Array): Promise<Uint8Array> {
+  const key = await deriveWrapKey()
+  return encryptEnvelopeBytes({ plaintext: seed, key, aad: buildWrapAad() })
+}
+
+async function unwrapSeed(envelopeBytes: Uint8Array): Promise<Uint8Array> {
+  const key = await deriveWrapKey()
+  try {
+    return decryptEnvelopeBytes({
+      envelope: envelopeBytes,
+      key,
+      aad: buildWrapAad(),
+    })
+  } catch {
+    // AEAD fail — secret was rotated (or envelope is corrupt). Drop the
+    // cached key so the next call refetches cleanly.
+    cachedWrapKey = null
+    throw new WrapSecretRotatedError()
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Public async API — unchanged signatures, unchanged semantics for callers.
 // ---------------------------------------------------------------------------
 
 export async function storeSeed(seed: Uint8Array): Promise<void> {
-  let binaryString = ''
-  for (let i = 0; i < seed.length; i++) {
-    binaryString += String.fromCharCode(seed[i])
-  }
   const backend = await getBackend()
-  await backend.set(SEED_KEY, btoa(binaryString))
+  if (backend.name === 'tauri-keychain') {
+    await backend.set(SEED_KEY, bytesToBase64(seed))
+    return
+  }
+  // localStorage-wrapped: encrypt under device wrap key before persisting.
+  const envelope = await wrapSeed(seed)
+  await backend.set(SEED_KEY, bytesToBase64(envelope))
 }
 
 export async function getSeed(): Promise<Uint8Array | null> {
+  const backend = await getBackend()
+  const stored = await backend.get(SEED_KEY)
+  if (!stored) return null
+
   try {
-    const backend = await getBackend()
-    const stored = await backend.get(SEED_KEY)
-    if (!stored) return null
+    if (backend.name === 'tauri-keychain') {
+      return decodeRawSeed(stored)
+    }
 
-    const binaryString = atob(stored)
-    if (binaryString.length !== 32) return null
+    // localStorage-wrapped path: everything we've ever written from
+    // `storeSeed` since wrap-secret shipped is a v2 envelope. No
+    // legacy plain-seed fallback — that widened the attack surface
+    // (a 32-byte blob planted by XSS would have been accepted as
+    // the seed) and is obsolete now that every new install wraps.
+    const bytes = base64ToBytes(stored)
 
-    const seed = new Uint8Array(32)
-    for (let i = 0; i < 32; i++) seed[i] = binaryString.charCodeAt(i)
-    return seed
-  } catch {
+    try {
+      const unwrapped = await unwrapSeed(bytes)
+      if (unwrapped.length !== 32) return null
+      return unwrapped
+    } catch (err) {
+      if (err instanceof WrapSecretRotatedError) {
+        // Stored envelope is permanently unreadable — clear it so the app
+        // falls through to setup/sign-in cleanly.
+        await backend.delete(SEED_KEY)
+      }
+      // Either rotated (envelope cleared) or temporarily unavailable
+      // (network / 401). Either way return null; don't wipe the envelope
+      // in the unavailable case so a future call can still unwrap.
+      return null
+    }
+  } catch (err) {
+    // Unexpected failure (base64 decode error, backend read error,
+    // etc.) — distinct from the well-known WrapSecretRotated /
+    // WrapSecretUnavailable paths above. Surface in the console so
+    // future debugging isn't chasing silent nulls.
+    console.warn('[key-storage] getSeed failed unexpectedly', err)
     return null
   }
+}
+
+function decodeRawSeed(stored: string): Uint8Array | null {
+  const binaryString = atob(stored)
+  if (binaryString.length !== 32) return null
+  const seed = new Uint8Array(32)
+  for (let i = 0; i < 32; i++) seed[i] = binaryString.charCodeAt(i)
+  return seed
 }
 
 export async function hasIdentity(): Promise<boolean> {
@@ -203,12 +333,15 @@ export async function verifySeedMatchesRecoveryKey(
 }
 
 /**
- * Returns which backend is currently active. Useful for diagnostics + UI
- * ("Your identity is stored in your system keychain" vs localStorage).
+ * Returns which backend is currently active. Useful for diagnostics + UI.
+ * Possible values:
+ *   - `tauri-keychain` — desktop OS keychain
+ *   - `localStorage-wrapped` — browser / mobile webview; seed is v2-envelope
+ *     wrapped under a server-held device secret
+ *   - `localStorage-plain` — reserved for legacy detection; not currently
+ *     returned by any live backend
  */
-export async function getActiveStorageBackend(): Promise<
-  StorageBackend['name']
-> {
+export async function getActiveStorageBackend(): Promise<BackendName> {
   return (await getBackend()).name
 }
 
@@ -217,5 +350,6 @@ export const _internals = {
   resetBackendCache: () => {
     cachedBackend = null
     seedStorage = null
+    cachedWrapKey = null
   },
 }

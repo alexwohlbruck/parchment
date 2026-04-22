@@ -29,6 +29,7 @@ compromise of one derived key cannot be used to forge another.
 | Device-transfer AES | `parchment-device-transfer-v1` | HKDF(ECDH(my_eph, their_eph)) | Seed transfer to a new device |
 | Device-transfer SAS | `parchment-device-sas-v1` | HKDF(sort(both_pubs) \|\| sessionId) → 4B → %1e6 | Short Authentication String for human verification |
 | Safety number | `parchment-safety-v1` | HKDF(sort(both_signing_pubs)) → 8B → %1e12 | 12-digit peer verification |
+| Browser/mobile seed-wrap | `parchment-seed-wrap-v1` | HKDF(per-device server secret) → 32B AES key | Wraps the `localStorage`-persisted seed; server-revocable via sign-out-all |
 
 ## PRF-wrapped keys (Part C.6)
 

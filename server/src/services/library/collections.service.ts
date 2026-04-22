@@ -52,11 +52,12 @@ export async function ensureDefaultCollection(userId: string) {
     return existingDefault
   }
 
+  // Default collection is created with no encrypted metadata — the client
+  // writes an envelope via `updateCollection` the first time it loads the
+  // user's library and sees the `isDefault` row without metadata. This
+  // avoids the server needing any plaintext knowledge of display strings.
   const newCollection: NewCollection = {
     id: generateId(),
-    name: null,
-    icon: 'Bookmark',
-    iconColor: 'blue',
     isPublic: false,
     isDefault: true,
     userId: userId,
@@ -73,10 +74,8 @@ export async function ensureDefaultCollection(userId: string) {
 export async function createCollection(params: CreateCollectionParams) {
   const newCollection: NewCollection = {
     id: generateId(),
-    name: params.name,
-    description: params.description,
-    icon: params.icon || 'Bookmark',
-    iconColor: params.iconColor || 'blue',
+    metadataEncrypted: params.metadataEncrypted,
+    metadataKeyVersion: params.metadataKeyVersion ?? 1,
     isPublic: params.isPublic || false,
     isDefault: false, // Ensure new collections are not default
     userId: params.userId,

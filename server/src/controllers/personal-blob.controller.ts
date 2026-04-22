@@ -4,6 +4,7 @@ import {
   getPersonalBlob,
   putPersonalBlob,
   deletePersonalBlob,
+  listPersonalBlobTypes,
 } from '../services/personal-blob.service'
 
 /**
@@ -15,6 +16,22 @@ import {
 const app = new Elysia()
 
 const ALLOWED_TYPE_PATTERN = /^[a-zA-Z0-9._:-]{1,64}$/
+
+app.use(requireAuth).get(
+  '/me/blobs',
+  async ({ user }) => {
+    const rows = await listPersonalBlobTypes(user.id)
+    return { blobs: rows }
+  },
+  {
+    detail: {
+      tags: ['PersonalBlob'],
+      description:
+        'List every personal-blob type the caller has stored, plus its ' +
+        'current kmVersion. Used by the client-side rotation orchestrator.',
+    },
+  },
+)
 
 app.use(requireAuth).get(
   '/me/blobs/:type',

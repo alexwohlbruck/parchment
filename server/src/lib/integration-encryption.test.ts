@@ -104,7 +104,7 @@ describe('integration-encryption', () => {
       0,
     ).toString('base64')
     integrationEncryptionInternals.resetCache()
-    expect(() => encryptIntegrationConfig({ x: 1 })).toThrow(/32-byte/)
+    expect(() => encryptIntegrationConfig({ x: 1 })).toThrow(/32 bytes/)
   })
 
   test('missing env var throws in production', () => {

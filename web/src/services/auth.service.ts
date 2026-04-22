@@ -5,6 +5,7 @@ import { clearAllUserCaches } from '@/services/cache.service'
 import { syncPreferencesFromBackend } from '@/services/preferences.service'
 import { createSharedComposable } from '@vueuse/core'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
+import { hydratePrfExtensionInPlace } from '@/lib/passkey-prf-support'
 import { Session } from '@/types/session.types'
 import { PermissionId, PermissionRule, User } from '@/types/auth.types'
 import { auth as deviceStore } from '@/lib/device-store'
@@ -144,24 +145,57 @@ function authService() {
   async function registerPasskey(name: string) {
     const { data: options } = await api.post(`auth/passkeys/register/options`)
 
-    let attestationResponse
-    try {
-      attestationResponse = await startRegistration(options)
-    } catch (error: any) {
-      console.error(error)
-      if (error.name === 'InvalidStateError') {
-        // TODO:
-      } else {
-        // TODO: Generic error
-      }
-    }
+    // Server includes `extensions.prf.eval.first` as a base64url string.
+    // simplewebauthn-browser v10 doesn't convert extension binary fields,
+    // so Chrome would reject a string where it expects a BufferSource.
+    // Convert in place first.
+    hydratePrfExtensionInPlace(options)
+
+    // If the ceremony throws (user cancelled, duplicate credential,
+    // unsupported browser, malformed options) we MUST abort before
+    // POSTing verify — posting a body without the attestation response
+    // gives a misleading 422. Rethrow so the caller can surface it.
+    const attestationResponse = await startRegistration(options)
 
     const { data: passkey } = await api.post(`auth/passkeys/register/verify`, {
       ...attestationResponse,
       name,
     })
 
-    return passkey
+    return { passkey, attestationResponse }
+  }
+
+  /**
+   * Request a PRF-enabled authentication ceremony and return the raw
+   * assertion response. Caller extracts the PRF output from
+   * `clientExtensionResults.prf.results.first`. Session must already
+   * exist (the endpoint is authenticated).
+   *
+   * NOTE on `hydratePrfExtensionInPlace`: simplewebauthn-browser v10
+   * doesn't recurse into `extensions.prf.eval` to convert base64url →
+   * ArrayBuffer the way it does for `challenge`, so we do it ourselves
+   * before dispatching the ceremony; otherwise Chrome rejects the
+   * malformed input and the user sees a "cancelled" error.
+   */
+  async function assertPasskeyForPrf() {
+    const { data: options } = await api.post('auth/passkeys/prf-assert/options')
+    hydratePrfExtensionInPlace(options)
+    const assertionResponse = await startAuthentication(options, false)
+    return assertionResponse
+  }
+
+  /**
+   * Same as `assertPasskeyForPrf`, but scoped to a specific credentialId
+   * the user already owns. Used to light up PRF-based recovery on a
+   * pre-existing passkey without registering a new one.
+   */
+  async function assertExistingPasskeyForPrf(credentialId: string) {
+    const { data: options } = await api.post(
+      `auth/passkeys/${encodeURIComponent(credentialId)}/prf-enroll/options`,
+    )
+    hydratePrfExtensionInPlace(options)
+    const assertionResponse = await startAuthentication(options, false)
+    return assertionResponse
   }
 
   async function signInWithPasskey(eager: boolean) {
@@ -210,6 +244,18 @@ function authService() {
   }
 
   /**
+   * Sign out of every other device. Sends the current deviceId so the
+   * server can exempt it from the wrap-secret rotation — otherwise the
+   * caller's own seed envelope would fail AEAD on next open and
+   * require a re-unlock.
+   */
+  async function signOutOtherDevices() {
+    const { getOrCreateDeviceId } = await import('@/lib/device-id')
+    const deviceId = getOrCreateDeviceId()
+    await api.delete('/auth/sessions/others', { data: { deviceId } })
+  }
+
+  /**
    * Take a permissions rule object and determine if user has permission
    */
   function hasPermission(rule: PermissionRule) {
@@ -255,11 +301,14 @@ function authService() {
     signIn,
     signOut,
     registerPasskey,
+    assertPasskeyForPrf,
+    assertExistingPasskeyForPrf,
     signInWithPasskey,
     getPasskeys,
     deletePasskey,
     getSessions,
     deleteSession,
+    signOutOtherDevices,
     hasPermission,
     hasAllPermissions,
     hasAnyPermission,

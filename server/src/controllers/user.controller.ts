@@ -17,9 +17,12 @@ import {
   getUserIdentity,
   updateUserDisplayProfile,
 } from '../services/user.service'
+import { resetUserIdentity } from '../services/identity-reset.service'
 import {
   getUserKmVersion,
   advanceKmVersion,
+  commitRotation,
+  RotationConflict,
 } from '../services/km-rotation.service'
 import {
   getOrCreateUserPreferences,
@@ -167,6 +170,47 @@ app.use(permissions(PermissionId.PERMISSIONS_READ)).get(
 )
 
 /**
+ * Reset the current user's encrypted data and federation identity.
+ *
+ * Last-resort escape hatch when the user has lost their recovery key
+ * AND has no working passkey slot AND no other device to transfer
+ * from. Wipes everything encrypted under the old seed (collections,
+ * personal blobs, wrapped-master-key slots, device-wrap secrets,
+ * friend relationships — because old signatures don't verify under
+ * new keys) and nulls the federation identity columns so the user
+ * can run a fresh setup on the next call to `PUT /users/me/keys`.
+ *
+ * Requires `confirm: 'erase-all-my-data'` in the body — a deliberate
+ * speed-bump against accidental calls.
+ */
+app.use(requireAuth).post(
+  '/me/identity/reset',
+  async ({ user, body, status }) => {
+    if (body.confirm !== 'erase-all-my-data') {
+      return status(400, {
+        message:
+          'Confirmation required. Pass `{ "confirm": "erase-all-my-data" }`.',
+      })
+    }
+    await resetUserIdentity(user.id)
+    return { success: true }
+  },
+  {
+    body: t.Object({
+      confirm: t.Literal('erase-all-my-data'),
+    }),
+    detail: {
+      tags: ['Users', 'Federation'],
+      description:
+        "Last-resort: wipe all of this user's encrypted data and clear " +
+        'the federation identity so they can re-run identity setup. ' +
+        'Session + passkeys survive; everything encrypted under the old ' +
+        'seed is gone. Irreversible.',
+    },
+  },
+)
+
+/**
  * Get current user's federation identity
  */
 app.use(requireAuth).get(
@@ -300,6 +344,9 @@ app.use(requireAuth).get(
  * have already re-encrypted all its data under the new seed and re-sealed
  * every passkey-PRF slot BEFORE calling this — bumping the counter first
  * would strand any device that hadn't rotated yet.
+ *
+ * LEGACY: new rotations should use `/me/km-version/commit` which applies
+ * the full post-rotation state atomically. Kept for any in-flight caller.
  */
 app.use(requireAuth).post(
   '/me/km-version/advance',
@@ -320,7 +367,87 @@ app.use(requireAuth).post(
     body: t.Object({ expectedCurrent: t.Number() }),
     detail: {
       tags: ['Users', 'KmRotation'],
-      description: 'Advance master-key version after client-side rotation',
+      description:
+        '[legacy] Advance master-key version only. Prefer /commit for ' +
+        'atomic post-rotation updates.',
+    },
+  },
+)
+
+/**
+ * Atomic rotation commit. Caller sends the full post-rotation state —
+ * new public keys, re-encrypted personal blobs, re-encrypted collection
+ * envelopes, re-sealed wrapped-master-key slots — along with
+ * `expectedCurrent` (their view of kmVersion). The server applies it
+ * all inside one DB transaction gated by a CAS check: if another device
+ * rotated first, we reject with 409 and NOTHING is written, leaving
+ * the winning device's state intact.
+ *
+ * This is the correctness fix for the previous race where client-side
+ * rotation did sequential PUTs (PUT keys → PUT each blob → POST each
+ * slot → CAS advance). If the CAS failed after those PUTs, the server
+ * already had the loser's public keys and mixed data.
+ */
+app.use(requireAuth).post(
+  '/me/km-version/commit',
+  async ({ user, body, status, t }) => {
+    try {
+      const nextKmVersion = await commitRotation({
+        userId: user.id,
+        expectedCurrent: body.expectedCurrent,
+        signingKey: body.signingKey,
+        encryptionKey: body.encryptionKey,
+        blobs: body.blobs,
+        collections: body.collections,
+        slots: body.slots,
+      })
+      return { kmVersion: nextKmVersion }
+    } catch (err) {
+      if (err instanceof RotationConflict) {
+        return status(409, { message: err.message })
+      }
+      throw err
+    }
+  },
+  {
+    body: t.Object({
+      expectedCurrent: t.Number(),
+      signingKey: t.String(),
+      encryptionKey: t.String(),
+      blobs: t.Optional(
+        t.Array(
+          t.Object({
+            blobType: t.String(),
+            encryptedBlob: t.String(),
+          }),
+        ),
+      ),
+      collections: t.Optional(
+        t.Array(
+          t.Object({
+            id: t.String(),
+            metadataEncrypted: t.String(),
+          }),
+        ),
+      ),
+      slots: t.Optional(
+        t.Array(
+          t.Object({
+            credentialId: t.String(),
+            wrappedKm: t.String(),
+            wrapAlgo: t.Optional(t.String()),
+            slotSignature: t.String(),
+          }),
+        ),
+      ),
+    }),
+    detail: {
+      tags: ['Users', 'KmRotation'],
+      description:
+        'Atomic rotation commit. Applies new public keys, re-encrypted ' +
+        'blobs, re-encrypted collection envelopes, and re-sealed slots ' +
+        'in a single transaction gated by a CAS on kmVersion. 409 on ' +
+        'conflict — nothing is written.',
     },
   },
 )

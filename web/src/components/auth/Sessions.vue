@@ -11,12 +11,13 @@ import { useAppService } from '@/services/app.service'
 import { useAuthService } from '@/services/auth.service'
 import { useAuthStore } from '@/stores/auth.store'
 import { useResponsive } from '@/lib/utils'
+import { toast } from 'vue-sonner'
 
 import { Session as OriginalSession } from '@/types/session.types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { H4 } from '@/components/ui/typography'
-import { Trash2Icon } from 'lucide-vue-next'
+import { Trash2Icon, LogOutIcon } from 'lucide-vue-next'
 import DataTable from '@/components/table/DataTable.vue'
 import { SettingsSection } from '@/components/settings'
 dayjs.extend(localizedFormat)
@@ -133,6 +134,34 @@ async function deleteSession(sessionId: Session['id']) {
     }
   }
 }
+
+const hasOtherSessions = computed(() =>
+  sessions.value.some(s => s.id !== currentSessionId.value),
+)
+const isSigningOutOthers = ref(false)
+
+async function signOutOthers() {
+  const confirmed = await appService.confirm({
+    title: 'Sign out other devices?',
+    description: "You'll stay signed in here. Recommended if a device was lost or stolen.",
+    destructive: true,
+    continueText: 'Sign out',
+  })
+  if (!confirmed) return
+
+  isSigningOutOthers.value = true
+  try {
+    await authService.signOutOtherDevices()
+    await authService.getSessions()
+    toast.success('Signed out of other devices.')
+  } catch (err) {
+    toast.error(
+      err instanceof Error ? err.message : "Couldn't sign out other devices.",
+    )
+  } finally {
+    isSigningOutOthers.value = false
+  }
+}
 </script>
 
 <template>
@@ -140,6 +169,17 @@ async function deleteSession(sessionId: Session['id']) {
     :title="$t('settings.account.sessions.title')"
     :frame="false"
   >
+    <template v-if="hasOtherSessions" v-slot:actions>
+      <Button
+        variant="destructive-outline"
+        :icon="LogOutIcon"
+        :disabled="isSigningOutOthers"
+        @click="signOutOthers"
+      >
+        Sign out other devices
+      </Button>
+    </template>
+
     <DataTable class="w-full" :columns="columns" :data="sessions"></DataTable>
   </SettingsSection>
 </template>

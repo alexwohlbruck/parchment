@@ -20,7 +20,8 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     },
   )
 
-  // Create a new collection
+  // Create a new collection. Metadata (name/description/icon/iconColor)
+  // is E2EE — client encrypts locally, server only stores the envelope.
   .post(
     '/',
     async ({ body, user }) => {
@@ -33,10 +34,8 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     },
     {
       body: t.Object({
-        name: t.String(),
-        description: t.Optional(t.String()),
-        icon: t.Optional(t.String()),
-        iconColor: t.Optional(t.String()),
+        metadataEncrypted: t.String(),
+        metadataKeyVersion: t.Optional(t.Number()),
         isPublic: t.Optional(t.Boolean()),
       }),
       detail: {
@@ -102,7 +101,8 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     },
   )
 
-  // Update an existing collection
+  // Update an existing collection. Accepts the encrypted metadata
+  // envelope (replaces whatever was there) and/or the `isPublic` flag.
   .put(
     '/:id',
     async ({ params: { id }, body, user }) => {
@@ -121,10 +121,8 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         id: t.String(),
       }),
       body: t.Object({
-        name: t.Optional(t.String()),
-        description: t.Optional(t.String()),
-        icon: t.Optional(t.String()),
-        iconColor: t.Optional(t.String()),
+        metadataEncrypted: t.Optional(t.String()),
+        metadataKeyVersion: t.Optional(t.Number()),
         isPublic: t.Optional(t.Boolean()),
       }),
       detail: {

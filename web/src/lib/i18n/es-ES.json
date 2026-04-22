@@ -180,7 +180,7 @@
         "description": "Cerrar sesión de tu cuenta",
         "keywords": "logout salir cuenta usuario",
         "confirmTitle": "¿Cerrar sesión?",
-        "confirmDescription": "Tendrás que iniciar sesión de nuevo para acceder a tu cuenta. Tus datos cifrados permanecen seguros."
+        "confirmDescription": "Asegúrate de haber guardado tu clave de recuperación — la necesitarás, o una clave de acceso, para volver a iniciar sesión."
       }
     }
   },

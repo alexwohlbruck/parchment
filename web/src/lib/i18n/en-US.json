@@ -186,7 +186,7 @@
         "description": "Sign out of your account",
         "keywords": "logout exit account user",
         "confirmTitle": "Sign out?",
-        "confirmDescription": "You'll need to sign in again to access your account. Your encrypted data stays safe."
+        "confirmDescription": "Make sure you have your recovery key saved — you'll need it or a passkey to sign back in."
       }
     }
   },

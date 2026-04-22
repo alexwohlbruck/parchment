@@ -569,6 +569,39 @@
       "staleDescription": "Your keys were rotated on another device. Tap a passkey to sync this device — until you do, your saved data here won't match what's on your other devices.",
       "syncWithPasskey": "Sync with passkey"
     },
+    "rotateKeys": {
+      "title": "Rotate all keys",
+      "description": "Swap your master key for a new one and re-encrypt everything under it.",
+      "subDescription": "You'll tap each registered passkey once so we can re-secure it against the new key.",
+      "beforeYouContinue": "Before you continue",
+      "warning": {
+        "keepOpen": "Keep this tab open until it finishes.",
+        "tapEach": "Any passkey you don't tap before finishing won't work for recovery afterward — have at least one passkey or your recovery key ready.",
+        "failsSafe": "If rotation fails partway, nothing changes on the server."
+      },
+      "action": "Rotate keys",
+      "runningTitle": "Rotating keys",
+      "runningDescription": "Don't close this tab. We'll let you know when it's safe to continue.",
+      "doneTitle": "Keys rotated",
+      "doneDescription": "Your data has been re-encrypted under a new master key.",
+      "notResecuredTitle": "Some passkeys were not re-secured",
+      "failedTitle": "Rotation failed",
+      "failedFallback": "Rotation failed",
+      "close": "Close",
+      "slotWarning": "Passkey {id}… was not re-secured ({reason}). It will no longer work for recovery — remove and re-add it.",
+      "unknownReason": "unknown",
+      "progress": {
+        "preparing": "Preparing…",
+        "starting": "Starting rotation…",
+        "listing": "Listing your encrypted data…",
+        "reencryptBlob": "Re-encrypting {type} ({index}/{total})",
+        "reencryptCollection": "Re-encrypting collection {index} of {total}",
+        "resealingSlot": "Tap your passkey to re-secure slot {index} of {total}",
+        "committing": "Finalizing — saving everything at once…",
+        "storingSeed": "Updating this device…",
+        "done": "Done — now on key version {version}"
+      }
+    },
     "security": {
       "title": "Security & recovery",
       "description": "Back up, rotate, or move your identity between devices",

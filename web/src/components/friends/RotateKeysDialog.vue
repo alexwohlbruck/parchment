@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useIdentityStore } from '@/stores/identity.store'
 import type { RotationPhase } from '@/lib/km-rotation'
 import {
@@ -22,6 +23,7 @@ interface Props {
 const props = defineProps<Props>()
 const emit = defineEmits<{ 'update:open': [value: boolean] }>()
 
+const { t } = useI18n()
 const identityStore = useIdentityStore()
 
 type UiStep = 'confirm' | 'running' | 'done' | 'error'
@@ -50,24 +52,34 @@ watch(
 
 const progressMessage = computed(() => {
   const p = phase.value
-  if (!p) return 'Preparing…'
+  if (!p) return t('friends.rotateKeys.progress.preparing')
   switch (p.kind) {
     case 'starting':
-      return 'Starting rotation…'
+      return t('friends.rotateKeys.progress.starting')
     case 'listing-data':
-      return 'Listing your encrypted data…'
+      return t('friends.rotateKeys.progress.listing')
     case 'reencrypt-blob':
-      return `Re-encrypting ${p.blobType} (${p.index}/${p.total})`
+      return t('friends.rotateKeys.progress.reencryptBlob', {
+        type: p.blobType,
+        index: p.index,
+        total: p.total,
+      })
     case 'reencrypt-collection':
-      return `Re-encrypting collection ${p.index} of ${p.total}`
+      return t('friends.rotateKeys.progress.reencryptCollection', {
+        index: p.index,
+        total: p.total,
+      })
     case 'resealing-slot':
-      return `Tap your passkey to re-secure slot ${p.index} of ${p.total}`
+      return t('friends.rotateKeys.progress.resealingSlot', {
+        index: p.index,
+        total: p.total,
+      })
     case 'committing':
-      return 'Finalizing — saving everything at once…'
+      return t('friends.rotateKeys.progress.committing')
     case 'storing-seed':
-      return 'Updating this device…'
+      return t('friends.rotateKeys.progress.storingSeed')
     case 'done':
-      return `Done — now on key version ${p.newKmVersion}`
+      return t('friends.rotateKeys.progress.done', { version: p.newKmVersion })
   }
 })
 
@@ -88,14 +100,17 @@ async function handleConfirm() {
       for (const s of result.slotResults) {
         if (!s.ok) {
           slotWarnings.value.push(
-            `Passkey ${s.credentialId.slice(0, 8)}… was not re-secured (${s.reason ?? 'unknown'}). It will no longer work for recovery — remove and re-add it.`,
+            t('friends.rotateKeys.slotWarning', {
+              id: s.credentialId.slice(0, 8),
+              reason: s.reason ?? t('friends.rotateKeys.unknownReason'),
+            }),
           )
         }
       }
     }
     step.value = 'done'
   } else {
-    error.value = result.error ?? 'Rotation failed'
+    error.value = result.error ?? t('friends.rotateKeys.failedFallback')
     step.value = 'error'
   }
 }
@@ -112,44 +127,36 @@ function handleClose() {
         <DialogHeader>
           <DialogTitle class="flex items-center gap-2">
             <RefreshCw class="h-5 w-5" />
-            Rotate all keys
+            {{ t('friends.rotateKeys.title') }}
           </DialogTitle>
           <DialogDescription>
-            Swap your master key for a new one and re-encrypt everything
-            under it.
+            {{ t('friends.rotateKeys.description') }}
           </DialogDescription>
         </DialogHeader>
 
         <div class="flex flex-col gap-3 py-2">
           <p class="text-sm text-muted-foreground">
-            You'll tap each registered passkey once so we can re-secure it
-            against the new key.
+            {{ t('friends.rotateKeys.subDescription') }}
           </p>
 
           <Alert variant="destructive">
             <AlertTriangle class="h-4 w-4" />
-            <AlertTitle>Before you continue</AlertTitle>
+            <AlertTitle>{{ t('friends.rotateKeys.beforeYouContinue') }}</AlertTitle>
             <AlertDescription>
               <ul class="list-disc pl-4 space-y-1 text-xs mt-1">
-                <li>Keep this tab open until it finishes.</li>
-                <li>
-                  Any passkey you don't tap before finishing won't work for
-                  recovery afterward — have at least one passkey or your
-                  recovery key ready.
-                </li>
-                <li>
-                  If rotation fails partway, nothing changes on the server.
-                </li>
+                <li>{{ t('friends.rotateKeys.warning.keepOpen') }}</li>
+                <li>{{ t('friends.rotateKeys.warning.tapEach') }}</li>
+                <li>{{ t('friends.rotateKeys.warning.failsSafe') }}</li>
               </ul>
             </AlertDescription>
           </Alert>
         </div>
 
         <DialogFooter class="gap-2">
-          <Button variant="outline" @click="handleClose">Cancel</Button>
+          <Button variant="outline" @click="handleClose">{{ t('friends.cancel') }}</Button>
           <Button variant="destructive" @click="handleConfirm">
             <RefreshCw class="h-4 w-4 mr-2" />
-            Rotate keys
+            {{ t('friends.rotateKeys.action') }}
           </Button>
         </DialogFooter>
       </template>
@@ -158,11 +165,10 @@ function handleClose() {
         <DialogHeader>
           <DialogTitle class="flex items-center gap-2">
             <Spinner class="h-5 w-5" />
-            Rotating keys
+            {{ t('friends.rotateKeys.runningTitle') }}
           </DialogTitle>
           <DialogDescription>
-            Don't close this tab. We'll let you know when it's safe to
-            continue.
+            {{ t('friends.rotateKeys.runningDescription') }}
           </DialogDescription>
         </DialogHeader>
 
@@ -182,17 +188,17 @@ function handleClose() {
         <DialogHeader>
           <DialogTitle class="flex items-center gap-2">
             <Check class="h-5 w-5 text-green-600" />
-            Keys rotated
+            {{ t('friends.rotateKeys.doneTitle') }}
           </DialogTitle>
           <DialogDescription>
-            Your data has been re-encrypted under a new master key.
+            {{ t('friends.rotateKeys.doneDescription') }}
           </DialogDescription>
         </DialogHeader>
 
         <div v-if="slotWarnings.length" class="flex flex-col gap-2 py-4">
           <Alert variant="destructive">
             <AlertTriangle class="h-4 w-4" />
-            <AlertTitle>Some passkeys were not re-secured</AlertTitle>
+            <AlertTitle>{{ t('friends.rotateKeys.notResecuredTitle') }}</AlertTitle>
             <AlertDescription>
               <ul class="list-disc pl-4 space-y-1 text-xs">
                 <li v-for="(w, i) in slotWarnings" :key="i">{{ w }}</li>
@@ -202,7 +208,7 @@ function handleClose() {
         </div>
 
         <DialogFooter>
-          <Button @click="handleClose">Done</Button>
+          <Button @click="handleClose">{{ t('friends.done') }}</Button>
         </DialogFooter>
       </template>
 
@@ -210,7 +216,7 @@ function handleClose() {
         <DialogHeader>
           <DialogTitle class="flex items-center gap-2">
             <AlertTriangle class="h-5 w-5 text-destructive" />
-            Rotation failed
+            {{ t('friends.rotateKeys.failedTitle') }}
           </DialogTitle>
         </DialogHeader>
 
@@ -221,7 +227,7 @@ function handleClose() {
         </div>
 
         <DialogFooter>
-          <Button @click="handleClose">Close</Button>
+          <Button @click="handleClose">{{ t('friends.rotateKeys.close') }}</Button>
         </DialogFooter>
       </template>
     </DialogContent>

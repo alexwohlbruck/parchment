@@ -529,6 +529,39 @@
       "staleDescription": "Tus claves se rotaron en otro dispositivo. Toca una clave de acceso para sincronizar este dispositivo — hasta que lo hagas, tus datos guardados aquí no coincidirán con los de tus otros dispositivos.",
       "syncWithPasskey": "Sincronizar con clave de acceso"
     },
+    "rotateKeys": {
+      "title": "Rotar todas las claves",
+      "description": "Cambia tu clave maestra por una nueva y vuelve a cifrar todo bajo ella.",
+      "subDescription": "Tocarás cada clave de acceso registrada una vez para volver a asegurarla con la nueva clave.",
+      "beforeYouContinue": "Antes de continuar",
+      "warning": {
+        "keepOpen": "Mantén esta pestaña abierta hasta que termine.",
+        "tapEach": "Cualquier clave de acceso que no toques antes de finalizar no funcionará para recuperación después — ten al menos una clave de acceso o tu clave de recuperación a mano.",
+        "failsSafe": "Si la rotación falla a mitad, nada cambia en el servidor."
+      },
+      "action": "Rotar claves",
+      "runningTitle": "Rotando claves",
+      "runningDescription": "No cierres esta pestaña. Te avisaremos cuando sea seguro continuar.",
+      "doneTitle": "Claves rotadas",
+      "doneDescription": "Tus datos han sido vueltos a cifrar con una nueva clave maestra.",
+      "notResecuredTitle": "Algunas claves de acceso no se volvieron a asegurar",
+      "failedTitle": "La rotación falló",
+      "failedFallback": "La rotación falló",
+      "close": "Cerrar",
+      "slotWarning": "La clave de acceso {id}… no se volvió a asegurar ({reason}). Ya no funcionará para recuperación — elimínala y agrégala de nuevo.",
+      "unknownReason": "desconocido",
+      "progress": {
+        "preparing": "Preparando…",
+        "starting": "Iniciando rotación…",
+        "listing": "Listando tus datos cifrados…",
+        "reencryptBlob": "Volviendo a cifrar {type} ({index}/{total})",
+        "reencryptCollection": "Volviendo a cifrar colección {index} de {total}",
+        "resealingSlot": "Toca tu clave de acceso para volver a asegurar el slot {index} de {total}",
+        "committing": "Finalizando — guardando todo a la vez…",
+        "storingSeed": "Actualizando este dispositivo…",
+        "done": "Hecho — ahora en la versión de clave {version}"
+      }
+    },
     "security": {
       "title": "Seguridad y recuperación",
       "description": "Respalda, rota o mueve tu identidad entre dispositivos",

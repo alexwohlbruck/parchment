@@ -45,34 +45,6 @@ export async function getUserKmVersion(userId: string): Promise<number | null> {
   return row[0].kmVersion
 }
 
-/**
- * Advance a user's kmVersion IFF it matches the caller's expected current
- * version. Returns the new version on success, null on contention.
- *
- * Kept for compatibility with the legacy rotation flow (sequential PUTs +
- * this advance at the end). The current rotation orchestrator uses
- * `commitRotation` below instead, which does the full commit atomically.
- */
-export async function advanceKmVersion(params: {
-  userId: string
-  expectedCurrent: number
-}): Promise<number | null> {
-  const row = await db
-    .select({ kmVersion: users.kmVersion })
-    .from(users)
-    .where(eq(users.id, params.userId))
-    .limit(1)
-  if (!row[0]) return null
-  if (row[0].kmVersion !== params.expectedCurrent) return null
-
-  const next = params.expectedCurrent + 1
-  await db
-    .update(users)
-    .set({ kmVersion: next, updatedAt: new Date() })
-    .where(eq(users.id, params.userId))
-  return next
-}
-
 // ---------------------------------------------------------------------------
 // Atomic commit
 // ---------------------------------------------------------------------------

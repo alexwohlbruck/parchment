@@ -38,6 +38,23 @@ import {
 } from '@simplewebauthn/server/script/deps'
 import { generateId } from '../util'
 import { detectLanguage, getI18nInitOptions } from '../lib/i18n'
+import { makeUserRateLimit } from '../middleware/rate-limit.middleware'
+
+// Rate limits on the PRF-options endpoints. These hand out WebAuthn
+// challenges that an attacker with a valid session cookie could
+// otherwise burn in a loop (either to waste authenticator state or as
+// part of a side-channel probe). Keep both well under the expected
+// per-user ceiling of "one tap every few seconds."
+const prfAssertRateLimit = makeUserRateLimit({
+  name: 'prf-assert-options',
+  limit: 30,
+  windowMs: 60_000,
+})
+const prfEnrollRateLimit = makeUserRateLimit({
+  name: 'prf-enroll-options',
+  limit: 30,
+  windowMs: 60_000,
+})
 
 const app = new Elysia({ prefix: '/auth' })
 
@@ -323,47 +340,53 @@ app.group('/passkeys', (app) => {
     },
   )
 
-  app.use(requireAuth).post(
-    '/prf-assert/options',
-    async ({ user }) => {
-      return await generatePrfAssertionOptions(user.id)
-    },
-    {
-      detail: {
-        tags: ['Auth', 'Crypto'],
-        summary:
-          'Return WebAuthn authentication options with the PRF extension ' +
-          "eval'd against the current user's salt, restricted to " +
-          "credentials that have a wrapped-master-key slot. Used to " +
-          'unwrap K_m on a new device after sign-in.',
+  app
+    .use(requireAuth)
+    .use(prfAssertRateLimit)
+    .post(
+      '/prf-assert/options',
+      async ({ user }) => {
+        return await generatePrfAssertionOptions(user.id)
       },
-    },
-  )
+      {
+        detail: {
+          tags: ['Auth', 'Crypto'],
+          summary:
+            'Return WebAuthn authentication options with the PRF extension ' +
+            "eval'd against the current user's salt, restricted to " +
+            "credentials that have a wrapped-master-key slot. Used to " +
+            'unwrap K_m on a new device after sign-in.',
+        },
+      },
+    )
 
-  app.use(requireAuth).post(
-    '/:credentialId/prf-enroll/options',
-    async ({ user, params, status }) => {
-      const options = await generatePrfEnrollOptionsForCredential(
-        user.id,
-        params.credentialId,
-      )
-      if (!options) {
-        return status(404, { message: 'Passkey not found' })
-      }
-      return options
-    },
-    {
-      params: t.Object({ credentialId: t.String() }),
-      detail: {
-        tags: ['Auth', 'Crypto'],
-        summary:
-          'Return WebAuthn authentication options to enable recovery on ' +
-          'an already-registered passkey. Scoped to one credential; if ' +
-          "the authenticator emits a PRF output, the client POSTs a new " +
-          'wrapped-K_m slot for it.',
+  app
+    .use(requireAuth)
+    .use(prfEnrollRateLimit)
+    .post(
+      '/:credentialId/prf-enroll/options',
+      async ({ user, params, status }) => {
+        const options = await generatePrfEnrollOptionsForCredential(
+          user.id,
+          params.credentialId,
+        )
+        if (!options) {
+          return status(404, { message: 'Passkey not found' })
+        }
+        return options
       },
-    },
-  )
+      {
+        params: t.Object({ credentialId: t.String() }),
+        detail: {
+          tags: ['Auth', 'Crypto'],
+          summary:
+            'Return WebAuthn authentication options to enable recovery on ' +
+            'an already-registered passkey. Scoped to one credential; if ' +
+            "the authenticator emits a PRF output, the client POSTs a new " +
+            'wrapped-K_m slot for it.',
+        },
+      },
+    )
 
   app.use(requireAuth).delete(
     '/:passkeyId',

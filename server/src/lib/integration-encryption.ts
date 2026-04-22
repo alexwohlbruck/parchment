@@ -62,8 +62,30 @@ function loadMasterKey(): Buffer {
       `${KEY_ENV_VAR} must be 32 bytes (base64). Got ${bytes.length}.`,
     )
   }
+
+  // Guard against the operator reusing the same 32 bytes for the Ed25519
+  // server-identity seed and this AES-256 key. Different primitives must
+  // not share key material — classic anti-pattern that defeats rotation
+  // independence and weakens both.
+  const identityRaw = process.env.SERVER_IDENTITY_PRIVATE_KEY
+  if (identityRaw && identityRaw.trim() === raw.trim()) {
+    throw new Error(
+      `${KEY_ENV_VAR} must differ from SERVER_IDENTITY_PRIVATE_KEY. Generate two independent values with \`openssl rand -base64 32\`.`,
+    )
+  }
+
   cachedKey = Buffer.from(bytes)
   return cachedKey
+}
+
+/**
+ * Boot-time assertion that the integration master key is present and
+ * valid. Called from `index.ts` before the HTTP listener starts, so an
+ * operator misconfiguration fails loud at startup instead of at first
+ * integration call.
+ */
+export function assertIntegrationKeyConfigured(): void {
+  loadMasterKey()
 }
 
 export interface EncryptedBlob {

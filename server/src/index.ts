@@ -34,8 +34,22 @@ import { initializeIntegrations } from './services/integration.service'
 import { syncPermissionsAndRoles } from './seed/sync-permissions'
 import { getI18nInitOptions, detectLanguage } from './lib/i18n'
 import { initializeOsmPresets } from './lib/osm-presets'
+import { getServerIdentity } from './lib/server-identity'
+import { assertIntegrationKeyConfigured } from './lib/integration-encryption'
 
 async function main() {
+  // Fail loud at boot if crypto env vars are missing or invalid — an
+  // ephemeral value picked up later silently is worse than a hard boot
+  // failure. Both calls throw the same descriptive error the lazy paths
+  // would have, just earlier.
+  try {
+    getServerIdentity()
+    assertIntegrationKeyConfigured()
+  } catch (error) {
+    logger.error({ err: error }, 'Crypto env-var check failed at startup')
+    process.exit(1)
+  }
+
   try {
     const observabilityConfig = await getObservabilityConfig()
     await initOtel(observabilityConfig)

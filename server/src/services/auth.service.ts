@@ -119,7 +119,8 @@ export async function destroyOtherSessions(
  * @returns Whether email was successfully sent
  */
 export async function sendEmailVerificationCode(email: string, code: string) {
-  console.log(email, code)
+  // Never log the code — aggregated server logs (Grafana Loki,
+  // CloudWatch, etc.) are a sign-in-bypass surface if OTPs appear.
   await sendMail({
     to: email,
     from: 'onboarding',

@@ -138,19 +138,27 @@ and what's still plaintext.
 | Identity seed on desktop | Tauri OS-keychain | Hardware-backed, OS-login protected |
 | Identity seed on browser / mobile webview | v2 envelope wrapped under server-held per-device secret (`parchment-seed-wrap-v1`) | Ciphertext at rest; sign-out-all rotates secrets → every cached seed unreadable |
 
-### Primitives shipped, user-facing wiring missing
-These look plaintext or blank from a user's point of view — the crypto
-code is correct; the form/UI/consumer is what's missing.
+### Encrypted, live, but UI-wiring still thin
+These have working crypto + working flows, but the front-door UI that
+users will actually see is still minimal.
 
-| Feature | Primitives | What's missing |
+| Feature | Primitives | What's thin |
 |---|---|---|
 | Search history | Personal-blob channel, v2 envelope, personal key | `recordSearchEntry()` exists; search input doesn't call it |
-| Saved places / collections (feature 5) | Per-collection key, v2 envelope | UI reads legacy cleartext columns; needs sweep to read encrypted envelope |
-| Custom canvases (feature 6, single-user) | Per-canvas key, v2 envelope | No canvas UI |
+| Saved places / collections (feature 5) | Per-collection key, v2 envelope | Server-side legacy cleartext columns dropped (migration 0041); UI reads encrypted envelope |
+| Custom canvases (feature 6, single-user) | Per-canvas key, v2 envelope | No canvas UI yet |
 | Direct-mode integrations (feature 4 non-bridge) | Personal-blob channel, personal key | No per-integration "bridge vs direct" UI toggle |
-| Passkey-PRF recovery | Passkey-PRF wrap/unwrap, signed slots, v2 envelope | No UI to enroll / list / remove slots |
-| Device-to-device transfer | ECIES, SAS, sender signature | No QR display / camera scan UI, no biometric gate |
-| Master-key rotation | K_m version counter + CAS | No orchestrator — primitives exist, no worker yet |
+
+### Shipped end-to-end
+Crypto + orchestration + user-facing UI all in place.
+
+| Feature | What exists |
+|---|---|
+| Passkey-PRF recovery | Enroll (new passkey or promote existing), list, delete slots in Settings → Passkeys. PRF support detected per-passkey; unsupported passkeys show a clear "can't be used for recovery" hint |
+| Device-to-device transfer | QR send/receive pair in Settings → Identity. Ed25519-signed handshake, SAS digit comparison, ≤60s server relay TTL, one-shot sealed-seed consumption |
+| Master-key rotation | Client orchestrator (`web/src/lib/km-rotation.ts`) builds the full post-rotation state (new keys, re-encrypted blobs + collections, re-sealed slots) and commits atomically via `POST /users/me/km-version/commit`. Server runs a single DB transaction gated by CAS on `kmVersion` — if another device rotated first, the commit 409s and nothing is written |
+| Sign out of all / other devices | `DELETE /auth/sessions/all` and `DELETE /auth/sessions/others`. Sign-out-all also rotates every `device_wrap_secrets` row, atomically revoking every browser/mobile cached seed |
+| Identity reset (last resort) | `POST /users/me/identity/reset` with typed confirmation. Single DB transaction wipes every user-encrypted data row and nulls the federation identity; user can re-run setup |
 
 ### Plaintext by design (not a bug)
 | Field | Why cleartext |
@@ -425,12 +433,15 @@ an operational choice:
   run — as part of startup, and inject the decrypted value as the env
   var. The code is indifferent to the source.
 
-**The server refuses to start if either env var is unset** — in every
-environment, not just production. An ephemeral key silently lost at
-restart is worse than a hard boot failure, so we fail loud. The error
-message points at this file and includes the `openssl rand -base64 32`
-command. Set both values once, commit to `.env` (locally) or your
-secrets manager (in prod), and the server starts clean.
+**The server refuses to start if either env var is unset or invalid**
+— in every environment, not just production. `server/src/index.ts`
+calls `getServerIdentity()` and `assertIntegrationKeyConfigured()`
+before the HTTP listener starts, so an ephemeral key silently lost at
+restart becomes a hard boot failure instead of a latent time-bomb.
+Startup also rejects the case where both env vars hold the same 32
+bytes — a classic anti-pattern that defeats rotation independence. The
+error message points at this file and includes the
+`openssl rand -base64 32` command.
 
 **If you run the server in Docker**, setting the values in your local
 `.env` isn't enough on its own — the compose file explicitly lists which
@@ -452,38 +463,60 @@ out of band — do it only when you mean it.
 
 The user's master key (seed) can be rotated for any of:
 - A passkey slot is removed (invalidate anything that slot might have seen).
-- User-requested "rotate keys" in settings.
+- User-requested "rotate keys" in Settings → Identity.
 - Compromise-response playbook.
 
-Rotation is client-orchestrated:
-1. Client decrypts all its user-encrypted data under the old seed.
-2. Client generates a new seed.
-3. Client re-encrypts all data under the new seed, tagging each record
-   with the new `kmVersion`.
-4. Client re-seals every `wrapped_master_keys` slot under the new seed.
-5. Client calls `POST /users/me/km-version/advance` with the expected
-   current version. Server advances iff CAS matches, otherwise rejects
-   (another device rotated first).
+Rotation is client-orchestrated, atomically committed server-side. The
+full flow lives in `web/src/lib/km-rotation.ts` and
+`server/src/services/km-rotation.service.ts`:
 
-While rotation is in flight, devices may see a mix of old and new
-`kmVersion` rows. Readers must handle both. The server's `users.km_version`
-column is the authoritative "current" version.
+1. Client reads `kmVersion` (server's view).
+2. Client generates a new seed + new Ed25519/X25519 public keys.
+3. Client lists every personal blob, re-decrypts under the old seed,
+   re-encrypts under the new personal key, tags each with the new
+   `kmVersion`.
+4. Client lists every collection, re-decrypts + re-encrypts the
+   metadata envelope under the new per-collection key.
+5. For each registered passkey slot, client runs a PRF assertion and
+   rebuilds a fresh wrapped-K_m slot signed under the new identity key.
+6. Client calls `POST /users/me/km-version/commit` with the full
+   post-rotation state (new pubkeys + rebuilt blobs + rebuilt
+   collections + rebuilt slots + `expectedCurrent`).
+7. Server opens a single DB transaction. It re-reads `kmVersion` and
+   aborts with 409 if it no longer equals `expectedCurrent` (another
+   device rotated first — **nothing is written**). Otherwise it writes
+   the new pubkeys, upserts every blob, updates every collection
+   (scoped to this user), upserts every slot, and bumps `kmVersion`,
+   all inside the same transaction.
+8. Only after a successful 200 does the client persist the new seed
+   locally (so a crash mid-commit leaves the old working seed on disk
+   rather than a post-rotation seed pointing at pre-rotation server
+   state).
 
-Full batch re-encrypt worker is not yet implemented; the primitives
-(`km-rotation.service.ts`) are shipped.
+There is no window where the server has mixed-version state for a
+single user. Readers still tolerate `kmVersion` on records vs the
+user's current `kmVersion` only for cross-device staleness detection.
 
 ## Recovery
 
-Four tiers, in order of fallback:
-1. **OS keychain** on desktop Tauri (primary). See Part C.2.
-2. **Passkey-PRF wrapped K_m slots** — any registered passkey can unwrap
-   the seed on a new device. See Part C.6.
-3. **Device-to-device transfer** — existing-device-assisted pairing with
-   SAS + biometric + signed handshake, via the `/device-transfer/*`
-   endpoints. See Part C.8.
-4. **Typed base64 recovery key** (last resort) — the user prints or
-   password-manager-saves the 32-byte seed as base64. Lose this and the
-   account's encrypted data is unrecoverable.
+Five tiers, in order of fallback:
+1. **OS keychain** on desktop Tauri (primary on desktop).
+2. **Wrapped localStorage seed** on browser / mobile webview — cold-open
+   unwraps automatically via the server-held device-wrap secret. Only
+   the legitimate signed-in user can fetch the secret; "sign out of all
+   devices" rotates every secret and atomically revokes every cached
+   seed.
+3. **Passkey-PRF wrapped K_m slots** — any registered passkey with PRF
+   support can unwrap the seed on a new device.
+4. **Device-to-device transfer** — existing-device-assisted pairing
+   with SAS digit comparison + sender-signed handshake + ≤60s server
+   relay + one-shot sealed-seed delivery, via `/device-transfer/*`.
+5. **Typed base64 recovery key** (last resort) — the user prints or
+   password-manager-saves the 32-byte seed as base64.
+6. **Identity reset** (nuclear) — `POST /users/me/identity/reset` with
+   typed confirmation. Deletes every user-encrypted row and nulls the
+   federation identity. All previously-encrypted data is gone forever;
+   the user can immediately run setup fresh and keep the account.
 
 See [docs/crypto/recovery.md](docs/crypto/recovery.md) for flow details.
 
@@ -493,17 +526,16 @@ Each of these is real work, broken out for visibility rather than hidden:
 
 - Wiring the search-history UI into the search input. Crypto + sync
   exists; UI hook-up is a follow-up.
-- Full collections UI migration to read the encrypted metadata envelope
-  and drop the legacy cleartext columns.
 - Multi-user canvas collaboration (key sharing + revocation ceremony).
 - Yjs document-level encryption for real-time canvas collab.
 - Device-name + type encryption (`user_device.device_name`, `.device_type`).
-- Location-sharing-config opaque `relationship_id` refactor (Part C.4 item).
+- Location-sharing-config opaque `relationship_id` refactor.
 - Direct-mode integration path (feature 4 non-bridge) — the personal-blob
   channel is shipped; the per-integration UI toggle is not.
-- Full K_m rotation batch-re-encrypt worker.
-- UI for passkey-PRF slot management (enroll / remove / list).
-- UI for device-to-device transfer (QR display + scan).
+- Paranoid-mode Settings toggle (no localStorage wrap; passkey-only cold
+  open). Primitives all exist; the toggle + branch doesn't.
+- Mobile-native keystore plugin (Android Keystore / iOS Keychain) to
+  gate the seed behind biometric on top of the current webview-wrap.
 - Anonymous trip-data contribution path (see §navigational-trip-data).
 - Key-transparency anchor — `.well-known/parchment-server` reserves the
   `key_transparency_anchor` field; CONIKS / Key Transparency log

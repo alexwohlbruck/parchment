@@ -20,7 +20,6 @@ import {
 import { resetUserIdentity } from '../services/identity-reset.service'
 import {
   getUserKmVersion,
-  advanceKmVersion,
   commitRotation,
   RotationConflict,
 } from '../services/km-rotation.service'
@@ -335,41 +334,6 @@ app.use(requireAuth).get(
     detail: {
       tags: ['Users', 'KmRotation'],
       description: 'Get current master-key version (Part C.7)',
-    },
-  },
-)
-
-/**
- * Advance kmVersion after a client-orchestrated rotation. The client MUST
- * have already re-encrypted all its data under the new seed and re-sealed
- * every passkey-PRF slot BEFORE calling this — bumping the counter first
- * would strand any device that hadn't rotated yet.
- *
- * LEGACY: new rotations should use `/me/km-version/commit` which applies
- * the full post-rotation state atomically. Kept for any in-flight caller.
- */
-app.use(requireAuth).post(
-  '/me/km-version/advance',
-  async ({ user, body, status }) => {
-    const next = await advanceKmVersion({
-      userId: user.id,
-      expectedCurrent: body.expectedCurrent,
-    })
-    if (next === null) {
-      return status(409, {
-        message:
-          'kmVersion mismatch — another device rotated first or user not found',
-      })
-    }
-    return { kmVersion: next }
-  },
-  {
-    body: t.Object({ expectedCurrent: t.Number() }),
-    detail: {
-      tags: ['Users', 'KmRotation'],
-      description:
-        '[legacy] Advance master-key version only. Prefer /commit for ' +
-        'atomic post-rotation updates.',
     },
   },
 )

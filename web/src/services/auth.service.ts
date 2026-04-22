@@ -1,5 +1,6 @@
 import { api, isTauri } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
+import { useIdentityStore } from '@/stores/identity.store'
 import { useIntegrationService } from '@/services/integration.service'
 import { clearAllUserCaches } from '@/services/cache.service'
 import { syncPreferencesFromBackend } from '@/services/preferences.service'
@@ -134,10 +135,16 @@ function authService() {
       await deviceStore.clearToken()
     }
     setAuthHeader(null)
-    
-    // Clear all cached user data
+
+    // Clear all cached user data + the wrapped seed envelope and
+    // device-id in localStorage. Without this, the next user to sign
+    // in on the same browser would see the previous user's seed:
+    // everything would decrypt with the wrong personal key and the
+    // stale-device banner would trigger on every session.
     clearAllUserCaches()
-    
+    const identityStore = useIdentityStore()
+    await identityStore.clear()
+
     authStore.unsetAuthenticatedUser()
     return response
   }

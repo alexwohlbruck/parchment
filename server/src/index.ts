@@ -26,7 +26,6 @@ import {
   osmOAuth as osmOAuthController,
   notes as notesController,
   personalBlob as personalBlobController,
-  segmentStats as segmentStatsController,
   wrappedMasterKeys as wrappedMasterKeysController,
   deviceTransfer as deviceTransferController,
 } from './controllers'
@@ -79,7 +78,6 @@ async function main() {
   app.use(osmOAuthController)
   app.use(notesController)
   app.use(personalBlobController)
-  app.use(segmentStatsController)
   app.use(wrappedMasterKeysController)
   app.use(deviceTransferController)
 

@@ -267,6 +267,13 @@
       "when": 1776795189936,
       "tag": "0037_device_transfer",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1776836027669,
+      "tag": "0038_drop_segment_stats",
+      "breakpoints": true
     }
   ]
 }

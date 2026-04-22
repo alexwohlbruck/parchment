@@ -15,6 +15,9 @@ Cross-references:
 - [docs/crypto/federation-trust.md](docs/crypto/federation-trust.md) — what
   each federation actor sees
 - [docs/crypto/recovery.md](docs/crypto/recovery.md) — the four recovery tiers
+- [docs/crypto/completion-plan.md](docs/crypto/completion-plan.md) —
+  remaining UI + orchestration work needed for a fully usable E2EE
+  product (primitives are shipped; UI is mostly what's left)
 
 ## Inviolable rules
 
@@ -37,6 +40,97 @@ search queries, friend handles, device names, display names. It does **not**
 include: user email (needed for OTP routing), profile picture URL, federation
 public keys, opaque relationship IDs, session tokens.
 
+## Crypto primitives in plain English
+
+For anyone reading this who doesn't come from a crypto background, here
+is what each building block actually does. Detail lives in the linked
+`docs/crypto/*` pages; this table is a pointer.
+
+| Primitive | What it actually does |
+|---|---|
+| **v2 ciphertext envelope + AAD** | A standard "encrypted package" format with a version stamp (so we can upgrade later without breaking old data), a fresh random value each time (same plaintext produces different ciphertext), and a label the encryption is bound to. If anyone flips a bit in the ciphertext OR messes with the label, decryption refuses to open the package. |
+| **Tauri OS-keychain seed storage** | Your master recovery key gets stored in your OS's native password vault — Apple Keychain, Windows Credential Manager, Linux libsecret — instead of a plain file. Hardware-protected on modern Macs. |
+| **ECIES forward-secret friend shares** | For each message sent to a friend, generate a brand-new throwaway key, use it once, then destroy it. If your long-term key leaks later, messages you sent before the leak stay secret. |
+| **Metadata encryption key + wrapper** | A separate key — derived from your master seed — just for encrypting profile fields like first/last name. Domain-separated so a bug in one system can't accidentally decrypt data from another. |
+| **Personal-blob sync channel** | Generic "here's a client-encrypted blob, hold onto it for me" service. The server stores opaque bytes with no idea what's inside. Used for search history, will be used for friend pins and direct-integration creds. |
+| **Per-collection / per-canvas keys** | Each collection and canvas gets its own unique key. A compromised key for one folder doesn't expose others. Cheap — single HKDF call each. Makes future per-collection sharing / revocation possible. |
+| **Passkey-PRF wrapped K_m** | A passkey can secretly derive a value that's reproducible only with that exact passkey. We use that value to encrypt your master key, store the encrypted copy on the server. New device + passkey = can recover master key. Signed so a hacked server can't slip you a fake wrapped key. |
+| **Device-to-device transfer** | New phone shows a QR code, old phone scans it, both derive a 6-digit code from the handshake. You check the codes match on both screens (human proof). Old phone asks for biometric, hands over the master key via a one-shot server relay that self-destructs after 60s. |
+| **Server-side master encryption key** | One AES key held in the server's memory (from env var). Third-party API keys the server needs to call on schedule (e.g. Mapbox) are encrypted under this key before hitting disk. Database dump = useless ciphertext. |
+| **Federation: server identity, S2S signing, TOFU pinning, replay protection** | Every message between Parchment servers is signed. Servers pin each other's identity keys on first contact. Unexpected key changes = hard reject. Duplicate messages within 5 minutes = rejected. |
+| **Client-side friend-key pins + 12-digit safety numbers** | Your device remembers each friend's actual keys. If a hostile server tries to swap in a fake key, your device catches it. The 12-digit safety number is a human-checkable fingerprint — read it to your friend over the phone; match = verified. |
+| **K_m version counter + CAS rotation** | When you rotate your master key, every record is tagged with the version that encrypted it. Compare-and-swap stops two devices from rotating at once and corrupting each other. |
+
+## Recovery-key storage by platform
+
+The master seed is the most important secret in the system. Where it
+lives depends on where you are:
+
+| Platform | Backing store | Security |
+|----------|---------------|----------|
+| Desktop Tauri (macOS / Windows / Linux) | Native OS keychain (Apple Keychain, Credential Manager, libsecret) via the `keyring` crate | ✓ Protected by OS login; hardware-backed on modern Macs |
+| Browser / regular web | `localStorage` | ⚠ Vulnerable to XSS. Any process with filesystem access can read it. OK for dev, not OK as a long-term user-facing posture |
+| Tauri on iOS / Android | Falls through to the webview's `localStorage` | ⚠ Same caveats as browser. Stored in app data dir, readable with filesystem access. Mobile OS-keystore integration is a tracked follow-up (see Deferred items). |
+
+**Is the mobile / web fallback acceptable?** For the threat model above
+(no XSS bugs; device-theft assumes an unlocked device), it's a
+short-term compromise. For a real E2EE product long-term, mobile should
+use platform keystores — Android Keystore / iOS Keychain — through a
+Tauri plugin. The upstream blocker is validating Passkey PRF behavior
+in Tauri's mobile webview per the original plan.
+
+## Feature status snapshot
+
+For each feature, what's currently built, what's currently encrypted,
+and what's still plaintext.
+
+### Encrypted and live in the app
+| Feature | Primitives | Why |
+|---|---|---|
+| Live location sharing (feature 1a) | ECIES v2, v2 envelope, federation protocol | Per-message forward secrecy; AAD binding blocks replay |
+| Third-party integration credentials at rest (feature 1b, 4-bridge) | Server master encryption key | Server must hold API keys to call scheduled third-party fetches; encryption protects DB-dump leaks |
+| Cross-server federation | Server identity signing, TOFU pinning, replay protection, canonical v2 envelope | Anti-MITM; anti-replay; hostile-peer defense |
+| Identity seed on desktop | Tauri OS-keychain | Hardware-backed, OS-login protected |
+
+### Primitives shipped, user-facing wiring missing
+These look plaintext or blank from a user's point of view — the crypto
+code is correct; the form/UI/consumer is what's missing.
+
+| Feature | Primitives | What's missing |
+|---|---|---|
+| User display name (first/last) | Metadata encryption key, v2 envelope | Form to let a user set their own name; the encrypted read path exists |
+| Search history | Personal-blob channel, v2 envelope, personal key | `recordSearchEntry()` exists; search input doesn't call it |
+| Saved places / collections (feature 5) | Per-collection key, v2 envelope | UI reads legacy cleartext columns; needs sweep to read encrypted envelope |
+| Custom canvases (feature 6, single-user) | Per-canvas key, v2 envelope | No canvas UI |
+| Direct-mode integrations (feature 4 non-bridge) | Personal-blob channel, personal key | No per-integration "bridge vs direct" UI toggle |
+| Passkey-PRF recovery | Passkey-PRF wrap/unwrap, signed slots, v2 envelope | No UI to enroll / list / remove slots |
+| Device-to-device transfer | ECIES, SAS, sender signature | No QR display / camera scan UI, no biometric gate |
+| Master-key rotation | K_m version counter + CAS | No orchestrator — primitives exist, no worker yet |
+
+### Plaintext by design (not a bug)
+| Field | Why cleartext |
+|---|---|
+| Email | Needed to route OTP sign-in |
+| Federation alias (`alice@server`) | Routing identifier |
+| Federation public keys | Public by definition |
+| Profile picture URL | User chose to point at a public URL |
+| Session tokens | Bounded by TTL + CSRF defenses |
+| Opaque relationship IDs | No semantic content |
+| Friend-invitation rows (handle pair) | Required for server-side routing |
+
+### Reserved for future
+- Frequently visited places (feature 3) — explicitly deferred
+- Multi-user canvas collaboration — extend per-canvas key sealing; big protocol work
+- Yjs / CRDT document encryption — downstream of multi-user collab
+- Device-name / device-type encryption — same pattern as first/last name
+- Location-sharing config opaque `relationship_id` refactor
+- Per-relationship encrypted config blob
+- Key Transparency log — field reserved, not yet populated
+- Cross-device friend-pin sync via personal-blob channel
+- Mobile Tauri OS-keystore (Android Keystore / iOS Keychain)
+- Anonymous trip-data contribution path (design pending — see §navigational-trip-data)
+- Production secrets-manager wiring for server keys (optional hardening)
+
 ## Threat model
 
 We design for the following threats, in descending likelihood and impact:
@@ -48,7 +142,7 @@ Parchment database but **not** the server's running process memory.
 - What they see: email addresses, picture URLs, public keys, opaque
   relationship IDs, session tokens, encrypted blobs, encrypted metadata,
   federation nonces, pinned peer-server keys, friend-invitation rows
-  (references by handle), aggregate segment-stat counts.
+  (references by handle).
 - What they do NOT see: locations, search history, friend display names,
   device names, saved place details, third-party API credentials, seeds,
   collection/canvas metadata.
@@ -111,8 +205,6 @@ server, and between federation peers.
 - What they do NOT see: ciphertexts inside TLS — they're already opaque to
   the server; payload contents inside TLS are the concern of specific
   features, not the wire.
-- Caveat: the aggregate-segment-stats endpoint (Part C.5d) is unauthenticated
-  but transits TLS. See §aggregates below for its specific posture.
 
 ## What's encrypted, at what scope
 
@@ -143,7 +235,6 @@ server, and between federation peers.
 - **Friend invitation rows** (`friend_invitations`): the (fromHandle,
   toHandle) pair is visible to both home servers — this is a necessary
   consequence of how federation routing works.
-- **Aggregate segment stats**: designed to be non-attributable; see §aggregates.
 
 ## Feature-by-feature detail
 
@@ -236,32 +327,22 @@ audit but cannot be re-opened.
 Yjs/CRDT integration: reserved field `canvases.future_crdt_format_version`
 anticipates this; no code yet.
 
-### Navigational trip data + aggregates (feature 7) {#aggregates}
+### Navigational trip data (feature 7)
 **Active trips** stay client-local: state lives in RAM (and in encrypted
 local scratch on desktop) for the duration of the trip, then is discarded
 unless the user explicitly saves it into a collection (→ feature 5 path,
 user-E2EE).
 
-**Opt-in aggregate contribution** is off by default. When enabled, after
-a trip the client computes coarse buckets per segment — `(segmentId,
-speedBucket_10kmh, hourOfWeek_0to167)` — dedupes, shuffles, and posts
-anonymously to `/segment-stats/contribute`. The server increments
-running counts in `segment_stats`; individual contributions are never
-stored.
-
-Ops posture:
-- The contribute endpoint is **unauthenticated** by design; sending a
-  session cookie would attribute the contribution to a user.
-- Request-level logging on this route must be disabled in deployment.
-  The standard request logger currently logs all routes; setting up a
-  selective-skip filter is a deploy-time task. See `server/src/middleware/
-  logger.middleware.ts`.
-- A zero-log relay / onion ingress in front of this endpoint is an
-  operational hardening that should land before the feature is exposed to
-  real users. Tracked as a follow-up.
-- Differential-privacy noise on published aggregates is a hook for later
-  — not added to the MVP ingest path. When public APIs expose segment
-  stats, Laplace noise should be applied at read time.
+**Anonymous trip contribution** (future design): if and when Parchment
+adds a community-contribution path to improve traffic data, uploads must
+be un-linkable to the contributing user — no session cookies, no stable
+device identifiers, routed through a zero-log relay, and scrubbed of
+anything that could correlate contributions over time. The specific wire
+format (full traces, coarse bucketed observations, or something in
+between) is deliberately unspecified here — we removed the earlier
+bucketing primitive because the design wasn't final yet. Whatever ships
+here, it must not allow the server to attribute a contribution to a
+user, and it must be opt-in.
 
 ## Server-side key material (operator guide)
 
@@ -378,8 +459,7 @@ Each of these is real work, broken out for visibility rather than hidden:
 - Full K_m rotation batch-re-encrypt worker.
 - UI for passkey-PRF slot management (enroll / remove / list).
 - UI for device-to-device transfer (QR display + scan).
-- Zero-log relay in front of `/segment-stats/contribute`.
-- Selective request-log filter that skips `/segment-stats/contribute`.
+- Anonymous trip-data contribution path (see §navigational-trip-data).
 - Key-transparency anchor — `.well-known/parchment-server` reserves the
   `key_transparency_anchor` field; CONIKS / Key Transparency log
   integration is out of scope for now.

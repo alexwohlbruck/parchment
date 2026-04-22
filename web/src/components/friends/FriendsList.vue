@@ -144,37 +144,17 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-2 h-full">
-    <!-- Header -->
-    <div class="flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <Users class="h-5 w-5" />
-        <h3 class="font-semibold">{{ t('friends.title') }}</h3>
-        <span v-if="friends.length" class="text-sm text-muted-foreground">
-          ({{ friends.length }})
-        </span>
-      </div>
-      <Button
-        v-if="isSetupComplete"
-        variant="outline"
-        size="sm"
-        @click="emit('addFriend')"
-      >
-        <UserPlus class="h-4 w-4 mr-2" />
-        {{ t('friends.addFriend') }}
-      </Button>
-    </div>
-
+  <div class="flex flex-col gap-3 h-full">
     <!-- Setup required. Distinguish "you have an identity to restore"
          from "you don't have one yet" so the button copy matches the
          dialog the click will open — one of those gens a new seed,
          the other imports the existing one. -->
     <div
       v-if="!isSetupComplete"
-      class="flex flex-col items-center justify-center py-8 text-center"
+      class="flex-1 flex flex-col items-center justify-center py-6 text-center gap-4"
     >
-      <Users class="h-12 w-12 text-muted-foreground mb-4" />
-      <p class="text-muted-foreground mb-4">
+      <Users class="h-10 w-10 text-muted-foreground" />
+      <p class="text-sm text-muted-foreground max-w-xs">
         {{
           needsImport
             ? 'Your account has a federation identity — restore it here to connect with friends.'
@@ -187,27 +167,44 @@ onUnmounted(() => {
     </div>
 
     <!-- Loading -->
-    <div v-else-if="isLoading" class="flex justify-center py-8">
+    <div v-else-if="isLoading" class="flex-1 flex items-center justify-center">
       <Spinner class="h-6 w-6" />
     </div>
 
     <!-- Empty State -->
     <div
       v-else-if="isEmpty"
-      class="flex flex-col items-center justify-center py-8 text-center"
+      class="flex-1 flex flex-col items-center justify-center py-6 text-center gap-4"
     >
-      <Users class="h-12 w-12 text-muted-foreground mb-4" />
-      <p class="text-muted-foreground mb-4">
+      <Users class="h-10 w-10 text-muted-foreground" />
+      <p class="text-sm text-muted-foreground">
         {{ t('friends.empty.title') }}
       </p>
-      <Button variant="outline" @click="emit('addFriend')">
+      <Button @click="emit('addFriend')">
         <UserPlus class="h-4 w-4 mr-2" />
         {{ t('friends.addFirstFriend') }}
       </Button>
     </div>
 
-    <!-- Friends List -->
+    <!-- Friends List. No redundant inline "Friends" header — the parent
+         tab already labels this section. The Add-Friend action sits as
+         a compact right-aligned button with the count beside it. -->
     <template v-else>
+      <div class="flex items-center justify-between">
+        <span class="text-xs text-muted-foreground">
+          {{ friends.length }}
+          {{ friends.length === 1 ? 'friend' : 'friends' }}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          @click="emit('addFriend')"
+        >
+          <UserPlus class="h-4 w-4 mr-2" />
+          {{ t('friends.addFriend') }}
+        </Button>
+      </div>
+
       <div class="flex flex-col gap-2">
         <FriendCard
           v-for="friend in friends"

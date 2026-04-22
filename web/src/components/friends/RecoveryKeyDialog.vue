@@ -25,11 +25,13 @@ import {
   Key,
   AlertTriangle,
   Check,
+  Copy,
   Download,
   AtSign,
   Fingerprint,
   Smartphone,
 } from 'lucide-vue-next'
+import { toast } from 'vue-sonner'
 import TransferIdentityDialog from './TransferIdentityDialog.vue'
 
 type Mode = 'setup' | 'import' | 'view'
@@ -68,6 +70,8 @@ const isOpen = computed({
 const recoveryKeyInput = ref('')
 const existingRecoveryKey = ref<string | null>(null)
 const hasSavedKey = ref(false)
+const recoveryCopied = ref(false)
+let recoveryCopiedTimeout: ReturnType<typeof setTimeout> | null = null
 const error = ref<string | null>(null)
 const setupStep = ref<SetupStep>('generate')
 const importStep = ref<ImportStep>('choose')
@@ -318,6 +322,21 @@ function handleClose() {
   setupStep.value = 'generate'
   importStep.value = 'choose'
   hasSavedKey.value = false
+}
+
+// Copy the recovery key with an inline button-state change (Copy →
+// Copied) on top of the existing toast. The inline feedback matters
+// because "did it actually copy?" anxiety is highest for a one-time
+// backup secret.
+async function copyRecoveryKey() {
+  if (!existingRecoveryKey.value) return
+  await navigator.clipboard.writeText(existingRecoveryKey.value)
+  toast.success('Recovery key copied. Paste it into your password manager.')
+  recoveryCopied.value = true
+  if (recoveryCopiedTimeout) clearTimeout(recoveryCopiedTimeout)
+  recoveryCopiedTimeout = setTimeout(() => {
+    recoveryCopied.value = false
+  }, 2000)
 }
 </script>
 
@@ -630,30 +649,30 @@ function handleClose() {
         <DialogHeader>
           <DialogTitle class="flex items-center gap-2">
             <Key class="h-5 w-5" />
-            Your Recovery Key
+            Your recovery key
           </DialogTitle>
           <DialogDescription>
-            This is your federation identity recovery key. Keep it safe and
-            never share it with anyone.
+            A backup for your account. Save it somewhere safe.
           </DialogDescription>
         </DialogHeader>
 
-        <div class="flex flex-col gap-4 py-4">
-          <!-- Federation ID -->
-          <div v-if="handle" class="flex flex-col gap-2">
-            <Label>Your Federation ID</Label>
-            <div class="flex gap-2">
+        <div class="flex flex-col gap-4 py-2">
+          <!-- Federation ID — shown above the recovery key when the user
+               has set an alias, since they're frequently looked at
+               together (share-with-friend + save-for-self). -->
+          <div v-if="handle" class="flex flex-col gap-1.5">
+            <Label class="text-xs text-muted-foreground font-normal">
+              Your federation ID — share with friends
+            </Label>
+            <div class="flex gap-2 items-stretch">
               <Code
-                class="flex-1 p-3 text-sm font-mono flex items-center gap-2"
+                class="flex-1 px-3 py-2 text-sm font-mono flex items-center gap-2"
               >
                 <AtSign class="h-4 w-4 text-muted-foreground shrink-0" />
                 {{ handle }}
               </Code>
               <CopyButton :text="handle" variant="outline" />
             </div>
-            <p class="text-xs text-muted-foreground">
-              Share this with friends so they can add you.
-            </p>
           </div>
 
           <Alert variant="destructive">
@@ -664,29 +683,33 @@ function handleClose() {
             </AlertDescription>
           </Alert>
 
-          <div class="flex flex-col gap-2">
-            <Label>Recovery Key</Label>
+          <div class="flex flex-col gap-1.5">
+            <Label class="text-xs text-muted-foreground font-normal">
+              Recovery key — save in a password manager or print it
+            </Label>
             <Code
               class="p-3 text-sm font-mono whitespace-pre-wrap break-words leading-relaxed select-all"
             >
               {{ formattedKey || 'Loading...' }}
             </Code>
-            <div v-if="existingRecoveryKey" class="flex gap-2">
-              <CopyButton
-                :text="existingRecoveryKey"
-                variant="outline"
-                message="Recovery key copied. Paste it into your password manager."
+            <Button
+              v-if="existingRecoveryKey"
+              variant="outline"
+              class="self-start mt-1"
+              @click="copyRecoveryKey"
+            >
+              <component
+                :is="recoveryCopied ? Check : Copy"
+                class="h-4 w-4 mr-2"
+                :class="recoveryCopied ? 'text-green-600' : ''"
               />
-              <span class="text-xs text-muted-foreground self-center">
-                Save this in a password manager or print it — you'll need it if
-                you lose every device.
-              </span>
-            </div>
+              {{ recoveryCopied ? 'Copied' : 'Copy to clipboard' }}
+            </Button>
           </div>
         </div>
 
         <DialogFooter>
-          <Button @click="handleClose"> Done </Button>
+          <Button @click="handleClose">Done</Button>
         </DialogFooter>
       </template>
     </DialogContent>

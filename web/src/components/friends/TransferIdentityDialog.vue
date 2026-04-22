@@ -484,7 +484,10 @@ function backToChoose() {
 <template>
   <Dialog v-model:open="isOpen">
     <DialogContent class="sm:max-w-md">
-      <!-- Chooser -->
+      <!-- Chooser — framed as a question about this device's role so
+           the user picks correctly the first time. The active (has
+           identity) device defaults to "Send"; the blank device has
+           only "Receive" available. -->
       <template v-if="mode === 'choose'">
         <DialogHeader>
           <DialogTitle class="flex items-center gap-2">
@@ -492,37 +495,38 @@ function backToChoose() {
             Transfer identity
           </DialogTitle>
           <DialogDescription>
-            Move your identity between devices with a QR-code handshake. Both
-            devices must be signed in to the same account.
+            Move your identity between two devices. Pick which one this is.
           </DialogDescription>
         </DialogHeader>
 
-        <div class="flex flex-col gap-3 py-4">
+        <div class="flex flex-col gap-2 py-2">
+          <!-- "Send" FIRST when this device has the identity — it's the
+               more likely action when the user is signed in here. -->
           <Button
+            v-if="identityStore.hasLocalIdentity"
             variant="outline"
-            class="justify-start h-auto py-3"
-            @click="startReceive"
+            class="justify-start h-auto py-3 text-left"
+            @click="startSend"
           >
-            <QrCode class="h-5 w-5 mr-3" />
-            <div class="flex flex-col items-start">
-              <span class="font-semibold">Receive on this device</span>
-              <span class="text-xs text-muted-foreground">
-                Show a QR that your other device will scan
+            <Camera class="h-5 w-5 mr-3 shrink-0" />
+            <div class="flex flex-col items-start gap-0.5">
+              <span class="font-semibold">This is my current device</span>
+              <span class="text-xs text-muted-foreground font-normal">
+                Scan the QR on the new device to send your identity there
               </span>
             </div>
           </Button>
 
           <Button
             variant="outline"
-            class="justify-start h-auto py-3"
-            :disabled="!identityStore.hasLocalIdentity"
-            @click="startSend"
+            class="justify-start h-auto py-3 text-left"
+            @click="startReceive"
           >
-            <Camera class="h-5 w-5 mr-3" />
-            <div class="flex flex-col items-start">
-              <span class="font-semibold">Send from this device</span>
-              <span class="text-xs text-muted-foreground">
-                Scan the QR shown on your new device
+            <QrCode class="h-5 w-5 mr-3 shrink-0" />
+            <div class="flex flex-col items-start gap-0.5">
+              <span class="font-semibold">This is my new device</span>
+              <span class="text-xs text-muted-foreground font-normal">
+                Show a QR for your current device to scan
               </span>
             </div>
           </Button>
@@ -541,8 +545,8 @@ function backToChoose() {
             Scan this with your other device
           </DialogTitle>
           <DialogDescription>
-            Open Parchment on your signed-in device, go to Settings → Account →
-            Transfer identity → Send, and point its camera at this code.
+            On your signed-in device, open Transfer → This is my current
+            device, then scan this QR.
           </DialogDescription>
         </DialogHeader>
 
@@ -642,7 +646,13 @@ function backToChoose() {
 
         <div class="flex flex-col items-center gap-4 py-4">
           <template v-if="sendStage === 'scanning'">
-            <div class="relative w-full aspect-square bg-black rounded overflow-hidden">
+            <!-- Camera preview with a dimmed overlay + transparent
+                 square in the center. The square is the framing guide
+                 — users aim the QR at it. Corner L-brackets show the
+                 exact target bounds without obscuring the QR. -->
+            <div
+              class="relative w-full aspect-square bg-black rounded overflow-hidden"
+            >
               <video
                 ref="videoEl"
                 class="w-full h-full object-cover"
@@ -650,9 +660,30 @@ function backToChoose() {
                 muted
               />
               <canvas ref="canvasEl" class="hidden" />
+              <div
+                class="pointer-events-none absolute inset-0 flex items-center justify-center"
+              >
+                <div
+                  class="relative w-2/3 aspect-square"
+                  style="box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);"
+                >
+                  <div
+                    class="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-white rounded-tl-md"
+                  />
+                  <div
+                    class="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-white rounded-tr-md"
+                  />
+                  <div
+                    class="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-white rounded-bl-md"
+                  />
+                  <div
+                    class="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-white rounded-br-md"
+                  />
+                </div>
+              </div>
             </div>
             <p class="text-sm text-muted-foreground">
-              Looking for a Parchment transfer QR…
+              Point the camera at the QR on your new device.
             </p>
           </template>
 

@@ -20,10 +20,17 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { SettingsSection } from '@/components/settings'
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import {
   PlusIcon,
   Trash2Icon,
   ShieldCheck,
   Shield,
+  HelpCircle,
 } from 'lucide-vue-next'
 
 dayjs.extend(localizedFormat)
@@ -41,6 +48,44 @@ const passkeys = ref<Passkey[]>([])
 // that row, disable the others' buttons so we don't pile up ceremonies.
 const busyCredentialId = ref<string | null>(null)
 
+// Reusable renderer for a column header with an info-icon tooltip.
+// "Synced" in particular is jargon without the explanation — whether
+// the passkey rides along with the user's password-manager cloud
+// (iCloud, 1Password sync, etc.) vs. being pinned to the single device
+// that created it. Using `h()` here lets us put Reka UI components
+// inside an otherwise-string tanstack header.
+function headerWithHelp(label: string, hint: string) {
+  return () =>
+    h(
+      TooltipProvider,
+      { delayDuration: 100 },
+      () =>
+        h(Tooltip, null, () => [
+          h(
+            TooltipTrigger,
+            { asChild: true },
+            () =>
+              h(
+                'span',
+                { class: 'inline-flex items-center gap-1 cursor-help' },
+                [
+                  label,
+                  h(HelpCircle, {
+                    class: 'h-3 w-3 text-muted-foreground',
+                    'aria-label': `About ${label}`,
+                  }),
+                ],
+              ),
+          ),
+          h(
+            TooltipContent,
+            { side: 'top', class: 'max-w-xs text-xs' },
+            () => hint,
+          ),
+        ]),
+    )
+}
+
 const columns = computed<ColumnDef<Passkey>[]>(() => {
   const baseColumns: ColumnDef<Passkey>[] = [
     {
@@ -48,7 +93,11 @@ const columns = computed<ColumnDef<Passkey>[]>(() => {
       accessorKey: 'name',
     },
     {
-      header: 'Synced',
+      id: 'synced',
+      header: headerWithHelp(
+        'Synced',
+        'Yes means this passkey rides along with your password manager (iCloud Keychain, 1Password, Google) across your other devices. No means it lives only on the device that created it.',
+      ),
       accessorFn: info => (info.backedUp ? t('general.yes') : t('general.no')),
     },
   ]

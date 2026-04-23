@@ -341,6 +341,22 @@ const availableIntegrations: IntegrationDefinition[] = [
     scope: [IntegrationScope.USER],
     requiresSystemIntegration: IntegrationId.OPENSTREETMAP,
   },
+  {
+    id: IntegrationId.DAWARICH,
+    name: 'Dawarich',
+    description: 'Self-hosted location history',
+    color: '#2F5DFF',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.DAWARICH,
+      )
+    },
+    paid: false,
+    cloud: false,
+    configSchema: 'dawarichSchema',
+    scope: [IntegrationScope.USER],
+    supportedSchemes: ['user-e2ee'],
+  },
 ]
 
 export async function initializeIntegrations() {

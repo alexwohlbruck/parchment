@@ -22,6 +22,8 @@ export enum IntegrationId {
   BARRELMAN = 'barrelman',
   OPENSTREETMAP = 'openstreetmap',
   OPENSTREETMAP_ACCOUNT = 'openstreetmap-account',
+  /** Dawarich self-hosted location history. Phase-1 plumbing-only: no capabilities yet. */
+  DAWARICH = 'dawarich',
 }
 
 export enum IntegrationCapabilityId {

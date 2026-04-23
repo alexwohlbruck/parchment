@@ -517,15 +517,20 @@ app.get(
       userPermissions,
       PermissionId.INTEGRATIONS_WRITE_SYSTEM,
     )
+    const canWriteUser = hasPermission(
+      userPermissions,
+      PermissionId.INTEGRATIONS_WRITE_USER,
+    )
 
-    if (!canWriteSystem) {
+    if (!canWriteSystem && !canWriteUser) {
       return status(403, {
         message: t('errors.auth.insufficientPermissions'),
       })
     }
 
-    // Find the integration record
-    let integration = await getIntegration(id)
+    // Look up user integrations first, fall back to system. Required for
+    // any user-scoped integration (Dawarich, OSM account) to be found.
+    let integration = await getIntegration(id, user.id)
     if (!integration) {
       return status(404, { message: t('errors.notFound.integration') })
     }

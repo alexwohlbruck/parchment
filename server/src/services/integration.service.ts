@@ -439,9 +439,12 @@ export function parseIntegrationData(
 ): IntegrationRecord | null {
   let config: Record<string, any>
   try {
+    // NOTE: ciphertext/nonce can be null for scheme='user-e2ee' rows.
+    // The user-e2ee branch is introduced in the next commit; for now all rows
+    // use scheme='server-key' (default) and the columns are populated.
     config = decryptIntegrationConfig({
-      ciphertext: row.configCiphertext,
-      nonce: row.configNonce,
+      ciphertext: row.configCiphertext!,
+      nonce: row.configNonce!,
       keyVersion: row.configKeyVersion,
     }) as Record<string, any>
   } catch {
@@ -466,6 +469,7 @@ export function parseIntegrationData(
     id: row.id,
     userId: row.userId,
     integrationId: row.integrationId as IntegrationId,
+    scheme: row.scheme,
     capabilities,
     config: cleanedConfig,
     createdAt: row.createdAt,

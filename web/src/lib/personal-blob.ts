@@ -111,3 +111,32 @@ export async function deleteBlob(blobType: string): Promise<void> {
     throw err
   }
 }
+
+/**
+ * Decrypt a v2 envelope that was delivered alongside some other response
+ * (e.g. inline in the integrations hydrate) instead of fetched separately.
+ * Uses the same AAD binding as saveBlob/loadBlob so envelopes produced by
+ * either path are interchangeable.
+ *
+ * Returns null if the seed is unavailable or decryption fails — callers
+ * treat that as "no usable blob" and carry on.
+ */
+export async function decryptBlobEnvelope<T>(
+  blobType: string,
+  userId: string,
+  envelope: string,
+): Promise<T | null> {
+  const seed = await getSeed()
+  if (!seed) return null
+  try {
+    const key = derivePersonalKey(seed)
+    const plaintext = decryptEnvelopeString({
+      envelope,
+      key,
+      aad: buildBlobAAD({ userId, blobType }),
+    })
+    return JSON.parse(plaintext) as T
+  } catch {
+    return null
+  }
+}

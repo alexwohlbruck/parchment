@@ -174,4 +174,15 @@ export const configSchemas: Record<
   openstreetmapOAuthSchema: z.object({
     // No user-editable fields — config is managed by OAuth2 flow
   }),
+
+  dawarichSchema: z.object({
+    url: z
+      .string()
+      .url('Please enter a valid URL')
+      .describe('Base URL of your Dawarich instance, e.g. https://dawarich.example.com'),
+    apiToken: z
+      .string()
+      .min(1, 'API token is required')
+      .describe('API token from your Dawarich account'),
+  }),
 }

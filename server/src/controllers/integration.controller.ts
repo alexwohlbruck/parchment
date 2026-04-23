@@ -10,12 +10,14 @@ import {
   getIntegrationDefinition,
   extractPublicConfig,
   getDependentIntegrations,
+  IntegrationSchemeConflictError,
 } from '../services/integration.service'
 import {
   IntegrationId,
   IntegrationCapabilityId,
   IntegrationCapability,
   IntegrationScope,
+  IntegrationScheme,
 } from '../types/integration.types'
 import { requireAuth, getSession } from '../middleware/auth.middleware'
 import { PermissionId } from '../types/auth.types'
@@ -60,6 +62,7 @@ app.use(getSession).get(
       return {
         id: integration.id,
         integrationId: integration.integrationId,
+        scheme: integration.scheme,
         config: publicConfig,
         capabilities: enhancedCapabilities,
         name: definition?.name,
@@ -96,7 +99,11 @@ app.use(getSession).get(
             id: integration.id,
             userId: integration.userId,
             integrationId: integration.integrationId,
+            scheme: integration.scheme,
             config: publicConfig,
+            // user-e2ee rows carry the client-encrypted config as an opaque
+            // envelope; the client decrypts it locally on hydrate.
+            encryptedConfig: integration.encryptedConfig,
             capabilities: enhancedCapabilities,
             name: definition?.name,
           })
@@ -276,7 +283,9 @@ app.post(
       PermissionId.INTEGRATIONS_WRITE_SYSTEM,
     )
 
-    const { integrationId, config, capabilities } = body
+    const { integrationId, config, capabilities, scheme } = body
+    const effectiveScheme: IntegrationScheme =
+      (scheme as IntegrationScheme | undefined) ?? 'server-key'
 
     // Verify the integration ID is valid
     const validId = Object.values(IntegrationId).includes(
@@ -291,6 +300,15 @@ app.post(
     if (!definition) {
       return status(400, {
         message: t('errors.notFound.integrationDefinition'),
+      })
+    }
+
+    // Scheme must be one the definition opts into. Defaults to ['server-key']
+    // for integrations that haven't declared supportedSchemes.
+    const supportedSchemes = definition.supportedSchemes ?? ['server-key']
+    if (!supportedSchemes.includes(effectiveScheme)) {
+      return status(400, {
+        message: t('errors.integration.unsupportedScheme'),
       })
     }
 
@@ -346,10 +364,16 @@ app.post(
         integrationId as IntegrationId,
         config,
         processedCapabilities,
+        effectiveScheme,
       )
 
       return integration
     } catch (err: any) {
+      if (err instanceof IntegrationSchemeConflictError) {
+        return status(409, {
+          message: t('errors.integration.schemeAlreadyConfigured'),
+        })
+      }
       return status(400, {
         message: err.message || 'Failed to create integration',
       })
@@ -358,6 +382,8 @@ app.post(
   {
     body: t.Object({
       integrationId: t.String(),
+      // Config may be empty for scheme='user-e2ee' — the ciphertext lives in
+      // the personal-blob channel and is uploaded separately by the client.
       config: t.Record(t.String(), t.Any()),
       capabilities: t.Optional(
         t.Array(
@@ -367,6 +393,7 @@ app.post(
           }),
         ),
       ),
+      scheme: t.Optional(t.String()),
     }),
     detail: {
       tags: ['Integrations'],

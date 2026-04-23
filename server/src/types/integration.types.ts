@@ -1,7 +1,10 @@
 import { Place, TransitDeparture } from './place.types'
 import { Source } from '../lib/constants'
 import { IntegrationId, IntegrationCapabilityId } from './integration.enums'
-import type { IntegrationRecord } from '../schema/integrations.schema'
+import type {
+  IntegrationRecord,
+  IntegrationScheme,
+} from '../schema/integrations.schema'
 import {
   RouteRequest,
   MatrixRequest,
@@ -9,7 +12,12 @@ import {
   UnifiedRoute,
 } from './unified-routing.types'
 
-export { IntegrationId, IntegrationCapabilityId, IntegrationRecord }
+export {
+  IntegrationId,
+  IntegrationCapabilityId,
+  IntegrationRecord,
+  IntegrationScheme,
+}
 
 // Capability interfaces
 
@@ -337,6 +345,7 @@ export type IntegrationDefinition = {
   publicFields?: string[] // Config field names safe to expose to all users (including unauthenticated)
   resolvePublicConfig?: (config: Record<string, any>) => Record<string, any> // Optional override to compute public config from raw config
   scope: IntegrationScope[] // Defines where this integration can be configured
+  supportedSchemes?: IntegrationScheme[] // Which config-encryption schemes this integration accepts. Defaults to ['server-key'] for all existing integrations.
   authType?: 'form' | 'oauth2' // Defaults to 'form'. OAuth2 integrations use redirect-based auth instead of config forms.
   requiresSystemIntegration?: IntegrationId // This integration is only available when the referenced system integration is configured
 }

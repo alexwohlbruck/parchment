@@ -5,7 +5,9 @@ import {
   integrations,
   IntegrationRecord,
   IntegrationRow,
+  IntegrationScheme,
 } from '../schema/integrations.schema'
+import { encryptedUserBlobs } from '../schema/personal-blobs.schema'
 import {
   IntegrationCapability,
   IntegrationDefinition,
@@ -20,6 +22,30 @@ import {
   decryptIntegrationConfig,
 } from '../lib/integration-encryption'
 import { logger } from '../lib/logger'
+import { getPersonalBlobsByTypePrefix } from './personal-blob.service'
+
+// Personal-blob type namespace for user-e2ee integration configs.
+// Shape: 'integration-config:<integrationId>' — e.g. 'integration-config:dawarich'.
+export const INTEGRATION_CONFIG_BLOB_PREFIX = 'integration-config:'
+export const integrationConfigBlobType = (integrationId: string) =>
+  `${INTEGRATION_CONFIG_BLOB_PREFIX}${integrationId}`
+
+/**
+ * Thrown when a create would violate the (userId, integrationId, scheme)
+ * uniqueness constraint. The controller maps this to HTTP 409.
+ */
+export class IntegrationSchemeConflictError extends Error {
+  readonly integrationId: string
+  readonly scheme: IntegrationScheme
+  constructor(integrationId: string, scheme: IntegrationScheme) {
+    super(
+      `Integration ${integrationId} is already configured with scheme ${scheme}`,
+    )
+    this.name = 'IntegrationSchemeConflictError'
+    this.integrationId = integrationId
+    this.scheme = scheme
+  }
+}
 
 // Available integration definitions
 const availableIntegrations: IntegrationDefinition[] = [
@@ -356,12 +382,20 @@ export async function initializeIntegrations() {
     const userResults = await Promise.allSettled(
       allUsers.map(async (user) => {
         const userIntegrations = await getConfiguredIntegrations(user.id)
+        // user-e2ee configs aren't visible server-side; there's no adapter
+        // to initialize. They hydrate in the client store on sign-in.
+        const serverKeyIntegrations = userIntegrations.filter(
+          (i) => i.scheme === 'server-key',
+        )
         console.log(
-          `Found ${userIntegrations.length} integrations for user ${user.id}`,
+          `Found ${serverKeyIntegrations.length} server-key integrations for user ${user.id}` +
+            (userIntegrations.length !== serverKeyIntegrations.length
+              ? ` (+${userIntegrations.length - serverKeyIntegrations.length} user-e2ee skipped)`
+              : ''),
         )
 
         const results = await Promise.allSettled(
-          userIntegrations.map((integration) => {
+          serverKeyIntegrations.map((integration) => {
             console.log(
               `Initializing user integration: ${integration.integrationId} for user ${user.id}`,
             )
@@ -375,7 +409,7 @@ export async function initializeIntegrations() {
           const result = results[i]
           if (result.status === 'rejected') {
             console.error(
-              `Failed to initialize integration ${userIntegrations[i].integrationId} for user ${user.id}:`,
+              `Failed to initialize integration ${serverKeyIntegrations[i].integrationId} for user ${user.id}:`,
               result.reason,
             )
           }
@@ -437,22 +471,26 @@ function warnUnreadableIntegration(row: IntegrationRow): void {
 export function parseIntegrationData(
   row: IntegrationRow,
 ): IntegrationRecord | null {
-  let config: Record<string, any>
-  try {
-    // NOTE: ciphertext/nonce can be null for scheme='user-e2ee' rows.
-    // The user-e2ee branch is introduced in the next commit; for now all rows
-    // use scheme='server-key' (default) and the columns are populated.
-    config = decryptIntegrationConfig({
-      ciphertext: row.configCiphertext!,
-      nonce: row.configNonce!,
-      keyVersion: row.configKeyVersion,
-    }) as Record<string, any>
-  } catch {
-    warnUnreadableIntegration(row)
-    return null
+  // For user-e2ee rows the server never sees cleartext. The config lives in
+  // encrypted_user_blobs and is decrypted client-side. We return `config: {}`
+  // here; the controller attaches `encryptedConfig` for the client.
+  let cleanedConfig: Record<string, any>
+  if (row.scheme === 'user-e2ee') {
+    cleanedConfig = {}
+  } else {
+    let config: Record<string, any>
+    try {
+      config = decryptIntegrationConfig({
+        ciphertext: row.configCiphertext!,
+        nonce: row.configNonce!,
+        keyVersion: row.configKeyVersion,
+      }) as Record<string, any>
+    } catch {
+      warnUnreadableIntegration(row)
+      return null
+    }
+    cleanedConfig = cleanConfig(config)
   }
-
-  const cleanedConfig = cleanConfig(config)
 
   let capabilities: IntegrationCapability[]
   try {
@@ -519,9 +557,28 @@ export async function getConfiguredIntegrations(
   // Filter out unreadable rows (e.g. encryption key changed) so callers
   // never see half-initialized records. The dropped rows are already
   // logged by parseIntegrationData via warnUnreadableIntegration.
-  return userIntegrations
+  const records = userIntegrations
     .map(parseIntegrationData)
     .filter((r): r is IntegrationRecord => r !== null)
+
+  // For user-e2ee rows, attach the encrypted blob in one batched fetch so the
+  // client can decrypt it locally. Only runs when the caller is authenticated
+  // (system-scope fetches don't have a user to look up blobs for).
+  if (userId && records.some((r) => r.scheme === 'user-e2ee')) {
+    const blobs = await getPersonalBlobsByTypePrefix(
+      userId,
+      INTEGRATION_CONFIG_BLOB_PREFIX,
+    )
+    const byType = new Map(blobs.map((b) => [b.blobType, b.encryptedBlob]))
+    for (const rec of records) {
+      if (rec.scheme !== 'user-e2ee') continue
+      const blobType = integrationConfigBlobType(rec.integrationId)
+      const ciphertext = byType.get(blobType)
+      if (ciphertext) rec.encryptedConfig = ciphertext
+    }
+  }
+
+  return records
 }
 
 export async function getAvailableIntegrations(): Promise<
@@ -596,6 +653,7 @@ export async function createIntegration(
   integrationId: IntegrationId,
   config: Record<string, any>,
   customCapabilities?: IntegrationCapability[],
+  scheme: IntegrationScheme = 'server-key',
 ): Promise<IntegrationRecord> {
   const integrationDef = availableIntegrations.find(
     (integration) => integration.id === integrationId,
@@ -605,15 +663,41 @@ export async function createIntegration(
     throw new Error(`Integration with ID ${integrationId} not found`)
   }
 
-  const testResult = await integrationManager.testIntegration(
-    integrationId,
-    config,
-  )
-
-  if (!testResult.success) {
+  const supportedSchemes: IntegrationScheme[] =
+    integrationDef.supportedSchemes ?? ['server-key']
+  if (!supportedSchemes.includes(scheme)) {
     throw new Error(
-      testResult.message || `Failed to test integration: ${integrationId}`,
+      `Integration ${integrationId} does not support scheme ${scheme}`,
     )
+  }
+
+  if (scheme === 'user-e2ee') {
+    if (!userId) {
+      throw new Error(
+        'Scheme user-e2ee requires a user — system-scope integrations must use server-key',
+      )
+    }
+    if (config && Object.keys(config).length > 0) {
+      // Server never sees e2ee config. The client posts the metadata row, then
+      // uploads the encrypted blob via PUT /me/blobs/integration-config:<id>.
+      throw new Error(
+        'Scheme user-e2ee must be created with no config — post the encrypted blob separately',
+      )
+    }
+  }
+
+  // Only server-key creates run through the connection-test path. E2EE configs
+  // aren't visible server-side; the client handles validation before saving.
+  if (scheme === 'server-key') {
+    const testResult = await integrationManager.testIntegration(
+      integrationId,
+      config,
+    )
+    if (!testResult.success) {
+      throw new Error(
+        testResult.message || `Failed to test integration: ${integrationId}`,
+      )
+    }
   }
 
   const capabilities =
@@ -623,25 +707,41 @@ export async function createIntegration(
       active: true,
     }))
 
-  const cleanedConfig = cleanConfig(config)
-  const encrypted = encryptIntegrationConfig(cleanedConfig)
-
   const values: any = {
     id: generateId(),
     integrationId,
+    scheme,
     capabilities: JSON.stringify(capabilities),
-    configCiphertext: encrypted.ciphertext,
-    configNonce: encrypted.nonce,
-    configKeyVersion: encrypted.keyVersion,
     createdAt: new Date(),
     updatedAt: new Date(),
   }
+
+  if (scheme === 'server-key') {
+    const cleanedConfig = cleanConfig(config)
+    const encrypted = encryptIntegrationConfig(cleanedConfig)
+    values.configCiphertext = encrypted.ciphertext
+    values.configNonce = encrypted.nonce
+    values.configKeyVersion = encrypted.keyVersion
+  }
+  // user-e2ee: configCiphertext/configNonce stay NULL; configKeyVersion keeps
+  // its column default (1) and is meaningless for this scheme.
 
   if (userId) {
     values.userId = userId
   }
 
-  const result = await db.insert(integrations).values(values).returning()
+  let result
+  try {
+    result = await db.insert(integrations).values(values).returning()
+  } catch (err: any) {
+    // Postgres unique_violation = 23505. Postgres.js surfaces it on .code;
+    // drizzle may wrap via .cause depending on the driver. Check both.
+    const code = err?.code ?? err?.cause?.code
+    if (code === '23505') {
+      throw new IntegrationSchemeConflictError(integrationId, scheme)
+    }
+    throw err
+  }
 
   const newIntegration = parseIntegrationData(result[0])
   if (!newIntegration) {
@@ -651,7 +751,11 @@ export async function createIntegration(
     )
   }
 
-  await integrationManager.initializeIntegration(userId, newIntegration)
+  // Only server-key rows feed the adapter cache; e2ee configs aren't visible
+  // server-side and have no adapter to initialize.
+  if (scheme === 'server-key') {
+    await integrationManager.initializeIntegration(userId, newIntegration)
+  }
 
   return newIntegration
 }
@@ -675,6 +779,16 @@ export async function updateIntegration(
   }
 
   if (updates.config) {
+    if (currentIntegration.scheme === 'user-e2ee') {
+      // E2EE configs are re-encrypted on the client and uploaded via
+      // PUT /me/blobs/integration-config:<id>. The integrations row holds
+      // only metadata; config updates through this endpoint would fan out
+      // into two writes the server can't keep consistent.
+      throw new Error(
+        'Scheme user-e2ee configs must be updated via PUT /me/blobs',
+      )
+    }
+
     const testResult = await integrationManager.testIntegration(
       currentIntegration.integrationId,
       updates.config,
@@ -717,7 +831,9 @@ export async function updateIntegration(
     throw new Error('Failed to retrieve updated integration')
   }
 
-  await integrationManager.initializeIntegration(userId, updatedIntegration)
+  if (updatedIntegration.scheme === 'server-key') {
+    await integrationManager.initializeIntegration(userId, updatedIntegration)
+  }
 
   return updatedIntegration
 }
@@ -768,11 +884,12 @@ export async function deleteIntegration(
     throw new Error(`Integration with ID ${id} not found`)
   }
 
+  const row = result[0]
   // `record` may be null if the row can't be decrypted — that's fine, we're
   // about to delete it. Fall back to the raw integrationId from the row.
-  const record = parseIntegrationData(result[0])
+  const record = parseIntegrationData(row)
   const integrationIdForCascade = (record?.integrationId ??
-    result[0].integrationId) as IntegrationId
+    row.integrationId) as IntegrationId
 
   // Cascade-delete dependent integrations (e.g. user OSM accounts when
   // the system OSM integration is removed)
@@ -782,7 +899,24 @@ export async function deleteIntegration(
     integrationManager.removeIntegration(dep.userId ?? undefined, dep.id)
   }
 
-  await db.delete(integrations).where(whereCondition)
+  if (row.scheme === 'user-e2ee' && row.userId) {
+    // Atomically clear both the metadata row and the personal-blob ciphertext.
+    // A partial delete would leave an orphan blob only the client could GC.
+    const blobType = integrationConfigBlobType(row.integrationId)
+    await db.transaction(async (tx) => {
+      await tx.delete(integrations).where(whereCondition!)
+      await tx
+        .delete(encryptedUserBlobs)
+        .where(
+          and(
+            eq(encryptedUserBlobs.userId, row.userId!),
+            eq(encryptedUserBlobs.blobType, blobType),
+          ),
+        )
+    })
+  } else {
+    await db.delete(integrations).where(whereCondition)
+  }
 
   integrationManager.removeIntegration(userId, id)
 }

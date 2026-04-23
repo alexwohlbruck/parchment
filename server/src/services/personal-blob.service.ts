@@ -6,7 +6,7 @@
  * envelope; accept GET, return the envelope.
  */
 
-import { and, eq } from 'drizzle-orm'
+import { and, eq, like } from 'drizzle-orm'
 import { db } from '../db'
 import { encryptedUserBlobs } from '../schema/personal-blobs.schema'
 
@@ -100,5 +100,39 @@ export async function listPersonalBlobTypes(
     })
     .from(encryptedUserBlobs)
     .where(eq(encryptedUserBlobs.userId, userId))
+  return rows
+}
+
+/**
+ * Fetch every blob whose type starts with the given prefix, returning the
+ * ciphertext + nonce alongside the type. Used by the integrations read path
+ * to hydrate all 'integration-config:*' blobs in one scan. Index hits the
+ * `(userId, blobType)` composite PK — no table scan.
+ */
+export async function getPersonalBlobsByTypePrefix(
+  userId: string,
+  prefix: string,
+): Promise<
+  Array<{
+    blobType: string
+    encryptedBlob: string
+    nonce: string
+    kmVersion: number
+  }>
+> {
+  const rows = await db
+    .select({
+      blobType: encryptedUserBlobs.blobType,
+      encryptedBlob: encryptedUserBlobs.encryptedBlob,
+      nonce: encryptedUserBlobs.nonce,
+      kmVersion: encryptedUserBlobs.kmVersion,
+    })
+    .from(encryptedUserBlobs)
+    .where(
+      and(
+        eq(encryptedUserBlobs.userId, userId),
+        like(encryptedUserBlobs.blobType, `${prefix}%`),
+      ),
+    )
   return rows
 }

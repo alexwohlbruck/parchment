@@ -1,9 +1,17 @@
 import { describe, test, expect } from 'bun:test'
 
 // Import the function directly — it's a pure function with no DB dependencies
-import { extractPublicConfig } from './integration.service'
+import {
+  extractPublicConfig,
+  parseIntegrationData,
+  integrationConfigBlobType,
+  INTEGRATION_CONFIG_BLOB_PREFIX,
+  IntegrationSchemeConflictError,
+} from './integration.service'
 import { IntegrationScope } from '../types/integration.types'
 import type { IntegrationDefinition } from '../types/integration.types'
+import type { IntegrationRow } from '../schema/integrations.schema'
+import { IntegrationId } from '../types/integration.enums'
 
 function makeDefinition(
   overrides: Partial<IntegrationDefinition> = {},
@@ -174,5 +182,86 @@ describe('extractPublicConfig', () => {
     expect(result).not.toHaveProperty('clientId')
     expect(result).not.toHaveProperty('clientSecret')
     expect(result).not.toHaveProperty('redirectUri')
+  })
+})
+
+describe('integration scheme helpers', () => {
+  test('integrationConfigBlobType composes the namespaced blob type', () => {
+    expect(integrationConfigBlobType('dawarich')).toBe(
+      'integration-config:dawarich',
+    )
+    expect(integrationConfigBlobType('mapbox')).toBe(
+      'integration-config:mapbox',
+    )
+    expect(integrationConfigBlobType('dawarich').startsWith(
+      INTEGRATION_CONFIG_BLOB_PREFIX,
+    )).toBe(true)
+  })
+
+  test('IntegrationSchemeConflictError carries integrationId and scheme', () => {
+    const err = new IntegrationSchemeConflictError('dawarich', 'user-e2ee')
+    expect(err).toBeInstanceOf(Error)
+    expect(err.name).toBe('IntegrationSchemeConflictError')
+    expect(err.integrationId).toBe('dawarich')
+    expect(err.scheme).toBe('user-e2ee')
+    expect(err.message).toContain('dawarich')
+    expect(err.message).toContain('user-e2ee')
+  })
+})
+
+describe('parseIntegrationData scheme branching', () => {
+  function makeRow(overrides: Partial<IntegrationRow> = {}): IntegrationRow {
+    return {
+      id: 'row-1',
+      userId: 'user-1',
+      integrationId: IntegrationId.DAWARICH,
+      scheme: 'user-e2ee',
+      configCiphertext: null,
+      configNonce: null,
+      configKeyVersion: 1,
+      capabilities: JSON.stringify([]) as any,
+      createdAt: new Date('2026-04-23T00:00:00Z'),
+      updatedAt: new Date('2026-04-23T00:00:00Z'),
+      ...overrides,
+    }
+  }
+
+  test('user-e2ee rows return empty config without attempting decrypt', () => {
+    // If this function tried to decrypt null ciphertext, it would throw and
+    // the record would be returned as null. Asserting a non-null record with
+    // config={} proves the scheme branch skipped decrypt entirely.
+    const row = makeRow({
+      configCiphertext: null,
+      configNonce: null,
+    })
+    const record = parseIntegrationData(row)
+    expect(record).not.toBeNull()
+    expect(record!.scheme).toBe('user-e2ee')
+    expect(record!.config).toEqual({})
+    expect(record!.integrationId).toBe(IntegrationId.DAWARICH)
+  })
+
+  test('user-e2ee rows preserve metadata fields from the row', () => {
+    const row = makeRow({
+      id: 'custom-id',
+      userId: 'user-42',
+      capabilities: JSON.stringify([
+        { id: 'search' as any, active: true },
+      ]) as any,
+    })
+    const record = parseIntegrationData(row)
+    expect(record).not.toBeNull()
+    expect(record!.id).toBe('custom-id')
+    expect(record!.userId).toBe('user-42')
+    expect(record!.capabilities).toEqual([
+      { id: 'search' as any, active: true },
+    ])
+  })
+
+  test('malformed capabilities JSON on user-e2ee rows degrades to empty list', () => {
+    const row = makeRow({ capabilities: 'not-json' as any })
+    const record = parseIntegrationData(row)
+    expect(record).not.toBeNull()
+    expect(record!.capabilities).toEqual([])
   })
 })

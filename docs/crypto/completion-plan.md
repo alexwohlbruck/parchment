@@ -268,6 +268,20 @@ Pins live only on one device today. On a new device you start fresh
 key-swap story. Infrastructure ready (`web/src/lib/personal-blob.ts`);
 needs a wrapper service that packs/unpacks the pin list. ~half session.
 
+### 10. Dual-scheme integrations (server-key + user-e2ee) — **PHASE 1 SHIPPED**
+Integration configs can now be encrypted either under the server master
+key (existing system integrations: Mapbox, OSM, etc.) or under the
+user's personal key (new: Dawarich). The `integrations` table carries a
+`scheme` column and a `supportedSchemes` field on each definition picks
+which modes it accepts. User-e2ee configs live in
+`encrypted_user_blobs` under `integration-config:<integrationId>` — K_m
+rotation sweeps them automatically via the personal-blob channel.
+
+Phase 1 ships the plumbing + Dawarich as a plumbing-only integration
+(no capabilities, no upstream calls). Phase 2 (server-as-passthrough
+with bearer-per-request headers, for CORS-blocked or public-API
+use cases) remains TODO — design is documented in the handoff plan.
+
 ---
 
 ## P2 — Polish / cleanup

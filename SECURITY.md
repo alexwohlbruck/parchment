@@ -147,7 +147,7 @@ users will actually see is still minimal.
 | Search history | Personal-blob channel, v2 envelope, personal key | `recordSearchEntry()` exists; search input doesn't call it |
 | Saved places / collections (feature 5) | Per-collection key, v2 envelope | Server-side legacy cleartext columns dropped (migration 0041); UI reads encrypted envelope |
 | Custom canvases (feature 6, single-user) | Per-canvas key, v2 envelope | No canvas UI yet |
-| Direct-mode integrations (feature 4 non-bridge) | Personal-blob channel, personal key | No per-integration "bridge vs direct" UI toggle |
+| Direct-mode integrations (feature 4 non-bridge) | Personal-blob channel (`integration-config:<id>`), personal key, dual-scheme `integrations.scheme` column | Dawarich shipped as plumbing-only (no capabilities yet); passthrough endpoint for bearer-per-request deferred to phase 2 |
 
 ### Shipped end-to-end
 Crypto + orchestration + user-facing UI all in place.
@@ -334,9 +334,28 @@ require the user to be present at each fetch, defeating the purpose.
 Direct mode (feature 4, non-bridge): where a 3rd-party supports CORS +
 bearer auth, the user can opt for direct client→API calls with the
 credential held locally (encrypted under the personal key, synced via the
-personal-blob channel). Implementation lives behind a per-integration
-toggle surfaced in the UI. See `docs/crypto/direct-integration.md`
-(pending follow-up).
+personal-blob channel).
+
+**Two-scheme matrix** — every `integrations` row carries a `scheme`
+column selecting its crypto model:
+
+| Scheme | Where ciphertext lives | Who can decrypt | When to use |
+|---|---|---|---|
+| `server-key` (existing) | `integrations.config_ciphertext`, AES-GCM under `PARCHMENT_INTEGRATION_ENCRYPTION_KEY` | Server (in-process) | System integrations (Mapbox, OSM, etc.) and user integrations where the server needs to call the third party without the user present (scheduled fetches) |
+| `user-e2ee` (new) | `encrypted_user_blobs` under `blob_type='integration-config:<integrationId>'`, v2 envelope under personal key | Client only | User integrations whose credentials should never reach the server — currently Dawarich |
+
+Each `IntegrationDefinition` opts into one or more schemes via
+`supportedSchemes` (default `['server-key']`). Attempting to create a
+row under an unsupported scheme → HTTP 400. The (userId, integrationId,
+scheme) unique constraint ensures at most one config per user per
+scheme.
+
+Disconnecting a `user-e2ee` integration deletes both the metadata row
+AND the personal blob inside a single DB transaction, so there's no way
+to leave an orphan ciphertext the user can't clean up.
+
+**Phase 2** (server-as-passthrough with a bearer-per-request header) is
+designed but not yet shipped — see the crypto handoff plan.
 
 ### Search history (feature 2)
 Client maintains the full history in memory; after each new entry, a

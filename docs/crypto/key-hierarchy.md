@@ -19,7 +19,7 @@ compromise of one derived key cannot be used to forge another.
 |---------|-------------|------------|-------|
 | Ed25519 signing | `parchment-signing-v1` | 32B output → ed25519 seed | Federation signatures, client intents |
 | X25519 encryption (long-term) | `parchment-encryption-v1` | 32B output → x25519 secret | ECDH with friends' long-term pubs, ECIES recipient |
-| Personal AES key | `parchment-personal-v1` | 32B output | Search history blobs, friend-pin blobs, metadata-crypto default |
+| Personal AES key | `parchment-personal-v1` | 32B output | Search history blobs, friend-pin blobs, user-e2ee integration configs (`integration-config:<id>`), metadata-crypto default |
 | Metadata AES key | `parchment-metadata-v1` | 32B output | Display-profile field encryption |
 | Per-collection AES key | `parchment-collection-<id>` | 32B output | Collection metadata |
 | Per-canvas AES key | `parchment-collection-canvas:<id>` | 32B output | Canvas metadata (reuses deriveCollectionKey with `canvas:<id>`) |

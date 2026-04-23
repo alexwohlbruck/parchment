@@ -5,10 +5,12 @@ import { useIntegrationService } from '@/services/integration.service'
 import {
   IntegrationDefinition,
   IntegrationRecord,
+  IntegrationScheme,
   schemaConfigs,
 } from '@/types/integrations.types'
 import { ZodObject } from 'zod'
 import { AutoForm } from '@/components/ui/auto-form'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
@@ -18,14 +20,18 @@ import { toTypedSchema } from '@vee-validate/zod'
 import * as z from 'zod'
 import { TransitionExpand } from '@morev/vue-transitions'
 import { useServerUrl } from '@/lib/api'
-import { ExternalLinkIcon } from 'lucide-vue-next'
+import { ExternalLinkIcon, ShieldCheckIcon } from 'lucide-vue-next'
 
-const props = defineProps<{
-  integration: IntegrationDefinition
-  config?: IntegrationRecord
-  schema: ZodObject<any>
-  isConfigured: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    integration: IntegrationDefinition
+    config?: IntegrationRecord
+    schema: ZodObject<any>
+    isConfigured: boolean
+    scheme?: IntegrationScheme
+  }>(),
+  { scheme: 'server-key' },
+)
 
 const emit = defineEmits<{
   (e: 'update:valid', valid: boolean): void
@@ -328,6 +334,13 @@ defineExpose({ submit })
         {{ t('settings.integrations.viewDocs') }}
       </a>
     </div>
+
+    <Alert v-if="scheme === 'user-e2ee'" variant="info">
+      <ShieldCheckIcon class="size-4" />
+      <AlertDescription>
+        {{ t('settings.integrations.scheme.endToEnd.formNote') }}
+      </AlertDescription>
+    </Alert>
 
     <!-- TODO: Add "show secrets" toggle to text fields -->
     <AutoForm

@@ -1103,7 +1103,14 @@
         "axiom": "Enviar registros y trazas del servidor a Axiom para depuración y monitoreo",
         "barrelman": "Motor de búsqueda y espacial OSM autoalojado",
         "openstreetmap": "Configurar credenciales OAuth de OSM",
-        "openstreetmap-account": "Agregar notas, comentarios y hacer ediciones rápidas"
+        "openstreetmap-account": "Agregar notas, comentarios y hacer ediciones rápidas",
+        "dawarich": "Conecta tu instancia autoalojada de Dawarich — cifrada en tu dispositivo"
+      },
+      "scheme": {
+        "endToEnd": {
+          "formNote": "Cifrado de extremo a extremo. Tu URL y token de API se cifran en este dispositivo antes de subirse — el servidor de Parchment nunca los ve."
+        },
+        "setupRequired": "Configura tus claves de cifrado en Configuración → Claves de cifrado antes de configurar esta integración."
       },
       "osm": {
         "connected": "Cuenta de OpenStreetMap conectada exitosamente",

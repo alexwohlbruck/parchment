@@ -1164,7 +1164,14 @@
         "axiom": "Send server logs and traces to Axiom for debugging and monitoring",
         "barrelman": "Self-hosted OSM search and spatial engine",
         "openstreetmap": "Configure OSM OAuth",
-        "openstreetmap-account": "Add notes, comments, and make quick edits"
+        "openstreetmap-account": "Add notes, comments, and make quick edits",
+        "dawarich": "Connect your self-hosted Dawarich instance — encrypted on your device"
+      },
+      "scheme": {
+        "endToEnd": {
+          "formNote": "End-to-end encrypted. Your URL and API token are encrypted on this device before upload — the Parchment server never sees them."
+        },
+        "setupRequired": "Set up your encryption keys in Settings → Encryption keys before configuring this integration."
       },
       "osm": {
         "connected": "OpenStreetMap account connected successfully",

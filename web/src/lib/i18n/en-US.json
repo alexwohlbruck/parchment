@@ -404,7 +404,8 @@
           "plural": "collections"
         },
         "default": "Bookmarks",
-        "manage": "Manage collections"
+        "manage": "Manage collections",
+        "untitled": "Untitled collection"
       },
       "routes": {
         "title": {
@@ -1400,6 +1401,55 @@
     "subtitle": "Wrong continent",
     "message": "Even Columbus was a better navigator.",
     "action": "Return to Spain"
+  },
+  "sharing": {
+    "title": "Share \"{name}\"",
+    "description": "Manage who can access this collection",
+    "searchPlaceholder": "Add people by handle",
+    "addAction": "Add",
+    "noFriendsMatch": "No friends match your search",
+    "peopleWithAccess": "People with access",
+    "role": {
+      "owner": "Owner",
+      "viewer": "Viewer",
+      "editor": "Editor"
+    },
+    "generalAccess": {
+      "title": "General access",
+      "restricted": {
+        "title": "Restricted",
+        "description": "Only invited people can open this collection.",
+        "enableAction": "Create link"
+      },
+      "anyoneWithLink": {
+        "title": "Anyone with the link",
+        "description": "Anyone on the internet with the link can view.",
+        "copyAction": "Copy link",
+        "revokeAction": "Revoke link"
+      },
+      "e2ee": {
+        "title": "End-to-end encrypted",
+        "description": "Only invited friends can decrypt this collection. Public link unavailable.",
+        "switchAction": "Switch to server-stored encryption"
+      }
+    },
+    "publicLink": {
+      "copied": "Link copied to clipboard"
+    },
+    "schemeSwitch": {
+      "comingSoon": "Scheme switch is coming in a follow-up release"
+    },
+    "errors": {
+      "loadFailed": "Failed to load shares",
+      "createFailed": "Failed to share",
+      "revokeFailed": "Failed to remove access",
+      "roleChangeFailed": "Failed to change role",
+      "publicLinkFailed": "Failed to create public link",
+      "publicLinkRevokeFailed": "Failed to revoke public link",
+      "copyFailed": "Copy failed — select and copy the link manually",
+      "identityRequired": "Set up your encryption keys in Settings before sharing",
+      "missingFriendKey": "This friend's keys aren't synced yet; try again in a moment"
+    }
   },
   "auth": {
     "signIn": {

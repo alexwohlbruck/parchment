@@ -368,7 +368,8 @@
           "plural": "colecciones"
         },
         "default": "Marcadores",
-        "manage": "Gestionar colecciones"
+        "manage": "Gestionar colecciones",
+        "untitled": "Colección sin título"
       },
       "routes": {
         "title": {
@@ -1342,6 +1343,55 @@
     "subtitle": "Continente equivocado",
     "message": "Incluso Colón fue un mejor navegante.",
     "action": "Volver a España"
+  },
+  "sharing": {
+    "title": "Compartir \"{name}\"",
+    "description": "Gestiona quién puede acceder a esta colección",
+    "searchPlaceholder": "Añadir personas por identificador",
+    "addAction": "Añadir",
+    "noFriendsMatch": "Ningún amigo coincide con tu búsqueda",
+    "peopleWithAccess": "Personas con acceso",
+    "role": {
+      "owner": "Propietario",
+      "viewer": "Lector",
+      "editor": "Editor"
+    },
+    "generalAccess": {
+      "title": "Acceso general",
+      "restricted": {
+        "title": "Restringido",
+        "description": "Sólo las personas invitadas pueden abrir esta colección.",
+        "enableAction": "Crear enlace"
+      },
+      "anyoneWithLink": {
+        "title": "Cualquier persona con el enlace",
+        "description": "Cualquier persona en internet con el enlace puede ver.",
+        "copyAction": "Copiar enlace",
+        "revokeAction": "Revocar enlace"
+      },
+      "e2ee": {
+        "title": "Cifrado de extremo a extremo",
+        "description": "Sólo los amigos invitados pueden descifrar esta colección. El enlace público no está disponible.",
+        "switchAction": "Cambiar a cifrado gestionado por el servidor"
+      }
+    },
+    "publicLink": {
+      "copied": "Enlace copiado al portapapeles"
+    },
+    "schemeSwitch": {
+      "comingSoon": "El cambio de esquema llegará en una versión posterior"
+    },
+    "errors": {
+      "loadFailed": "No se pudieron cargar los recursos compartidos",
+      "createFailed": "No se pudo compartir",
+      "revokeFailed": "No se pudo eliminar el acceso",
+      "roleChangeFailed": "No se pudo cambiar el rol",
+      "publicLinkFailed": "No se pudo crear el enlace público",
+      "publicLinkRevokeFailed": "No se pudo revocar el enlace público",
+      "copyFailed": "Error al copiar — selecciona y copia el enlace manualmente",
+      "identityRequired": "Configura tus claves de cifrado en Ajustes antes de compartir",
+      "missingFriendKey": "Las claves de este amigo aún no están sincronizadas; inténtalo en un momento"
+    }
   },
   "auth": {
     "signIn": {

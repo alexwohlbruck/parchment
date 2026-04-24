@@ -380,10 +380,31 @@ id via HKDF. The storage transition leaves the old cleartext columns in
 place temporarily until all UI reads switch to the encrypted envelope —
 tracked as a follow-up PR.
 
-Sensitive-points (the items themselves) flow through the existing
-`encrypted_points` table for sensitive-mode collections today. The plan
-is to unify all collections onto this path; the schema step landed in
-Part C.5c, the UI migration is next.
+Points (the items themselves) live in one of two storage paths depending
+on the collection's `scheme`:
+- `server-key`: cleartext `bookmarks` rows, server-indexed for search + spatial queries.
+- `user-e2ee`: ciphertext `encrypted_points` rows under a per-collection AES key (derived from seed + collection id + version via HKDF).
+
+Scheme is a first-class column on `collections` (backfilled from the
+legacy `is_sensitive` boolean). Users switch schemes via an explicit,
+confirmed action — never silently. See
+[docs/crypto/collection-sharing.md](docs/crypto/collection-sharing.md)
+for the full matrix + scheme-switch semantics.
+
+**Collection sharing (Google-Docs-style).** Every non-owner share carries
+a `role` (`viewer` / `editor`); ownership is implicit on the collection's
+`user_id` column. Collections carry a `resharing_policy` (`owner-only` by
+default; `editors-can-share` optional). Public-link sharing is available
+for `server-key` collections: 32 random bytes stored in
+`collections.public_token`, resolved via unauthenticated
+`GET /public/collections/:token` with per-IP rate limits.
+`user-e2ee` collections cannot mint public links (no anonymous-visitor
+keys to unwrap the content with) — the UI disables the button with an
+explainer. Revoking a `user-e2ee` share should be followed by a
+`rotate-key` call (client orchestrator
+[`web/src/lib/collection-rotation.ts`](web/src/lib/collection-rotation.ts))
+so the revoked recipient's cached key can no longer decrypt new
+content.
 
 ### Custom maps / canvases (feature 6)
 New table `canvases` with fully encrypted metadata from day 1. Canvas

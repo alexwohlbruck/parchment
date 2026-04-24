@@ -282,6 +282,22 @@ Phase 1 ships the plumbing + Dawarich as a plumbing-only integration
 with bearer-per-request headers, for CORS-blocked or public-API
 use cases) remains TODO — design is documented in the handoff plan.
 
+### 11. Collection sharing with dual-scheme + public links — **SHIPPED**
+Google-Docs-style share dialog for collections. Owners can add friends
+(viewer/editor roles), mint tokenized public links (server-key only), and
+switch collections between `server-key` and `user-e2ee` schemes
+bidirectionally — every transition is a single DB transaction with
+atomic ciphertext swap. Resharing policy configurable per collection.
+E2EE revoke path is wired to a `rotate-key` orchestrator so revoking
+a friend actually rotates the collection key and drops their rewrap.
+
+Cross-server server-key shares (live read-through) remain queued as a
+follow-up; cross-server user-e2ee shares work today via the existing
+federation snapshot mechanism extended to carry `role`.
+
+See [collection-sharing.md](collection-sharing.md) for the full matrix,
+security guarantees, and implementation pointers.
+
 ---
 
 ## P2 — Polish / cleanup

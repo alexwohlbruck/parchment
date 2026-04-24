@@ -1364,13 +1364,27 @@
         "title": "Cifrado de extremo a extremo",
         "description": "Sólo los amigos invitados pueden descifrar esta colección. El enlace público no está disponible.",
         "switchAction": "Cambiar a cifrado gestionado por el servidor"
+      },
+      "serverKey": {
+        "switchAction": "Cambiar a cifrado de extremo a extremo"
       }
     },
     "publicLink": {
       "copied": "Enlace copiado al portapapeles"
     },
     "schemeSwitch": {
-      "comingSoon": "El cambio de esquema llegará en una versión posterior"
+      "upgradeConfirm": {
+        "title": "¿Cambiar a cifrado de extremo a extremo?",
+        "description": "Cada lugar guardado en esta colección se volverá a cifrar con tu clave personal. El servidor de Parchment ya no podrá leerlos. Cualquier enlace público será revocado. Los amigos con acceso se volverán a compartir con la nueva clave.",
+        "continueText": "Cambiar a extremo a extremo"
+      },
+      "downgradeConfirm": {
+        "title": "¿Cambiar a cifrado gestionado por el servidor?",
+        "description": "El servidor de Parchment podrá leer cada lugar guardado en esta colección. Los amigos con acceso se volverán a compartir con el nuevo esquema. Esto no se puede deshacer sin volver a cambiar y cifrar.",
+        "continueText": "Cambiar a gestionado por el servidor"
+      },
+      "success": "Esquema de cifrado cambiado",
+      "failed": "No se pudo cambiar el esquema de cifrado"
     },
     "errors": {
       "loadFailed": "No se pudieron cargar los recursos compartidos",

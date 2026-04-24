@@ -133,6 +133,19 @@ const hasPublicLink = computed(() => !!props.publicToken)
           </Button>
         </div>
       </div>
+
+      <!-- Upgrade affordance: server-key → user-e2ee. Placed below the
+           public-link block so the "make it more private" hint is visible
+           but not competing with the main share configuration. -->
+      <Button
+        variant="link"
+        size="sm"
+        class="px-0 h-auto text-xs"
+        :disabled="disabled"
+        @click="emit('request-scheme-switch')"
+      >
+        {{ t('sharing.generalAccess.serverKey.switchAction') }}
+      </Button>
     </template>
   </section>
 </template>

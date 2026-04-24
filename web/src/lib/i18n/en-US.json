@@ -1422,13 +1422,27 @@
         "title": "End-to-end encrypted",
         "description": "Only invited friends can decrypt this collection. Public link unavailable.",
         "switchAction": "Switch to server-stored encryption"
+      },
+      "serverKey": {
+        "switchAction": "Switch to end-to-end encryption"
       }
     },
     "publicLink": {
       "copied": "Link copied to clipboard"
     },
     "schemeSwitch": {
-      "comingSoon": "Scheme switch is coming in a follow-up release"
+      "upgradeConfirm": {
+        "title": "Switch to end-to-end encryption?",
+        "description": "Every saved place in this collection will be re-encrypted under your personal key. The Parchment server will no longer be able to read them. Any public link will be revoked. Friends with access will be re-shared under the new key.",
+        "continueText": "Switch to end-to-end"
+      },
+      "downgradeConfirm": {
+        "title": "Switch to server-stored encryption?",
+        "description": "The Parchment server will be able to read every saved place in this collection. Friends with access will be re-shared under the new scheme. This cannot be undone without switching back and re-encrypting.",
+        "continueText": "Switch to server-stored"
+      },
+      "success": "Encryption scheme switched",
+      "failed": "Failed to switch encryption scheme"
     },
     "errors": {
       "loadFailed": "Failed to load shares",

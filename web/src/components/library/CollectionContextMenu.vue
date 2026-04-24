@@ -32,6 +32,21 @@ const emit = defineEmits<{
 // tear down the dialog state. `isShareOpen` toggles independently.
 const isShareOpen = ref(false)
 
+/**
+ * Refetch the collections list after the share dialog emits `changed`.
+ * A scheme switch or public-link mint changes fields on the collection
+ * row (scheme, public_token, metadataKeyVersion) that the dialog reads
+ * on next open — stale data would misrepresent current state to the
+ * user.
+ */
+async function onShareChanged() {
+  try {
+    await collectionsService.fetchCollections()
+  } catch (err) {
+    console.error('Failed to refresh collections after share change', err)
+  }
+}
+
 const { t } = useI18n()
 const collectionsService = useCollectionsService()
 const appService = useAppService()
@@ -151,5 +166,6 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
   <ShareDialog
     v-model:open="isShareOpen"
     :collection="collection"
+    @changed="onShareChanged"
   />
 </template>

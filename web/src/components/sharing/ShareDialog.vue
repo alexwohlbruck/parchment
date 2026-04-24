@@ -22,7 +22,8 @@ import GeneralAccessSection from './GeneralAccessSection.vue'
 import { useFriendsStore } from '@/stores/friends.store'
 import { useIdentityStore } from '@/stores/identity.store'
 import { useAuthStore } from '@/stores/auth.store'
-import { useServerUrl } from '@/lib/api'
+import { useAppService } from '@/services/app.service'
+import { useServerUrl, api } from '@/lib/api'
 import {
   listSharesForResource,
   createShare,
@@ -33,6 +34,10 @@ import {
   type OutgoingShare,
 } from '@/services/sharing.service'
 import { encryptForFriend, importPublicKey } from '@/lib/federation-crypto'
+import {
+  upgradeCollectionToE2ee,
+  downgradeCollectionToServerKey,
+} from '@/lib/collection-scheme-switch'
 import type { Collection, ShareRole } from '@/types/library.types'
 
 /**
@@ -66,6 +71,7 @@ const serverUrl = useServerUrl()
 const friendsStore = useFriendsStore()
 const identityStore = useIdentityStore()
 const authStore = useAuthStore()
+const appService = useAppService()
 const { friends } = storeToRefs(friendsStore)
 const { encryptionPrivateKey, isSetupComplete } = storeToRefs(identityStore)
 
@@ -270,10 +276,100 @@ async function onCopyPublicLink() {
   }
 }
 
-function onRequestSchemeSwitch() {
-  // Phase 7 wires this up. For now surface a TODO toast so the user
-  // knows the button works but the scheme-switch flow isn't shipped yet.
-  toast.info(t('sharing.schemeSwitch.comingSoon'))
+/**
+ * Trigger the bidirectional scheme switch.
+ *
+ * Currently this only surfaces via the "Switch to server-stored" affordance
+ * inside the e2ee General Access panel, meaning it's always a DOWNGRADE
+ * direction (user-e2ee → server-key). An UPGRADE affordance lives on the
+ * server-key panel; both converge here.
+ */
+async function onRequestSchemeSwitch() {
+  if (!isSetupComplete.value || !encryptionPrivateKey.value) {
+    toast.warning(t('sharing.errors.identityRequired'))
+    return
+  }
+
+  const ownerUserId = authStore.me?.id
+  if (!ownerUserId) return
+
+  const goingToE2ee = props.collection.scheme === 'server-key'
+
+  // Both directions are transactional on the server and can't be trivially
+  // undone without running the reverse migration. The downgrade is louder
+  // (trust escalation to the server) but both deserve a confirm step.
+  const confirmed = await appService.confirm({
+    title: goingToE2ee
+      ? t('sharing.schemeSwitch.upgradeConfirm.title')
+      : t('sharing.schemeSwitch.downgradeConfirm.title'),
+    description: goingToE2ee
+      ? t('sharing.schemeSwitch.upgradeConfirm.description')
+      : t('sharing.schemeSwitch.downgradeConfirm.description'),
+    continueText: goingToE2ee
+      ? t('sharing.schemeSwitch.upgradeConfirm.continueText')
+      : t('sharing.schemeSwitch.downgradeConfirm.continueText'),
+    destructive: !goingToE2ee,
+  })
+  if (!confirmed) return
+
+  mutating.value = true
+  try {
+    // Fetch the current bookmarks or encrypted points so the orchestrator
+    // can transform them under the new scheme. Both endpoints are
+    // idempotent reads — fine to call even on a large collection.
+    const { data: detail } = await api.get(
+      `/library/collections/${props.collection.id}`,
+    )
+
+    // Map the existing shares into the shape the orchestrator expects.
+    // Recipient public keys come from the friends store — every remaining
+    // friend-share must have the recipient's long-term X25519 pub cached.
+    const remainingShares = activeShares.value
+      .map((s) => {
+        const friend = friends.value.find(
+          (f) => f.friendHandle === s.recipientHandle,
+        )
+        if (!friend?.friendEncryptionKey) return null
+        return {
+          id: s.id,
+          recipientHandle: s.recipientHandle,
+          recipientEncryptionKey: friend.friendEncryptionKey,
+        }
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null)
+
+    if (goingToE2ee) {
+      await upgradeCollectionToE2ee({
+        collection: props.collection,
+        ownerUserId,
+        currentBookmarks: detail.bookmarks ?? [],
+        remainingShares,
+        ownerEncryptionPrivateKey: encryptionPrivateKey.value,
+      })
+    } else {
+      const { data: pointsResp } = await api.get(
+        `/library/collections/${props.collection.id}/encrypted-points`,
+      )
+      await downgradeCollectionToServerKey({
+        collection: props.collection,
+        ownerUserId,
+        currentPoints: pointsResp.points ?? [],
+        remainingShares,
+        ownerEncryptionPrivateKey: encryptionPrivateKey.value,
+      })
+    }
+
+    toast.success(t('sharing.schemeSwitch.success'))
+    emit('changed')
+    // The collection passed in as a prop is now stale (scheme flipped).
+    // Close the dialog — the parent will refetch on the `changed` event.
+    emit('update:open', false)
+  } catch (err) {
+    console.error('Scheme switch failed', err)
+    toast.error(t('sharing.schemeSwitch.failed'))
+  } finally {
+    mutating.value = false
+  }
 }
 
 function close() {

@@ -15,6 +15,7 @@ export interface Bookmark {
 
 export type CollectionScheme = 'server-key' | 'user-e2ee'
 export type ResharingPolicy = 'owner-only' | 'editors-can-share'
+export type ShareRole = 'viewer' | 'editor'
 
 export interface Collection {
   id: string

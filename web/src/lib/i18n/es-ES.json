@@ -1347,6 +1347,9 @@
       "viewer": "Lector",
       "editor": "Editor"
     },
+    "owner": {
+      "identityIncomplete": "Completa la configuración de identidad en Ajustes"
+    },
     "generalAccess": {
       "title": "Acceso general",
       "restricted": {

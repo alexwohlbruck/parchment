@@ -84,20 +84,42 @@ const mutating = ref(false)
 // UI reflects server state without a full dialog refetch.
 const publicToken = ref<string | null>(props.collection.publicToken ?? null)
 
-// Derive the display fields for the owner row. Prefers full name +
-// email, with graceful fallbacks when the profile is partial.
+// Derive display fields for the owner row. The subtitle uses the
+// federated handle (alias@server) — never the email. Email is a private
+// contact and shouldn't be surfaced in a share UI; the federation handle
+// is what other participants address the user by, and keeps the owner
+// row visually consistent with friend rows below it.
+const serverDomain = computed(() => {
+  try {
+    return new URL(serverUrl.value).host
+  } catch {
+    return ''
+  }
+})
+
+const ownerHandle = computed(() => {
+  const me = authStore.me
+  if (!me?.alias) return ''
+  const domain = serverDomain.value
+  return domain ? `${me.alias}@${domain}` : me.alias
+})
+
 const ownerDisplayName = computed(() => {
   const me = authStore.me
   if (!me) return ''
   const full = [me.firstName, me.lastName].filter(Boolean).join(' ').trim()
   if (full) return full
-  return me.alias ?? me.email ?? me.id ?? ''
+  // No real name set yet — fall back to the alias (local part of the
+  // federated handle). As a last resort, use the opaque user id so the
+  // row still renders something.
+  return me.alias ?? me.id ?? ''
 })
 
 const ownerSubtitle = computed(() => {
-  const me = authStore.me
-  if (!me) return ''
-  return me.email ?? me.alias ?? ''
+  // Prefer the federated handle. If the user hasn't completed identity
+  // setup (no alias), render a placeholder instead of exposing the raw
+  // id or email — the owner recognizes it as "finish identity setup."
+  return ownerHandle.value || t('sharing.owner.identityIncomplete')
 })
 
 const ownerPicture = computed(() => authStore.me?.picture ?? null)

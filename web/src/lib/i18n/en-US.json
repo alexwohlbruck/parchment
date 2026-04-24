@@ -1405,6 +1405,9 @@
       "viewer": "Viewer",
       "editor": "Editor"
     },
+    "owner": {
+      "identityIncomplete": "Finish identity setup in Settings"
+    },
     "generalAccess": {
       "title": "General access",
       "restricted": {

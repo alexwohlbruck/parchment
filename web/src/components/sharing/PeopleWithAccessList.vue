@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -12,7 +12,6 @@ import {
 } from '@/components/ui/select'
 import { XIcon } from 'lucide-vue-next'
 import type { ShareRole } from '@/types/library.types'
-import type { OutgoingShare } from '@/services/sharing.service'
 
 /**
  * One-row representation used by the dialog. Keeps the list component
@@ -22,12 +21,22 @@ import type { OutgoingShare } from '@/services/sharing.service'
 export interface AccessRow {
   /** Unique per-row key; share.id for shares, 'owner' for the owner row. */
   key: string
-  handle: string
+  /** Primary display name — "Alex Wohlbruck" when we have it, otherwise
+   *  the local-part of the handle, otherwise the raw id as a last resort. */
+  name: string
+  /** Secondary line — the email for the owner, federation handle for
+   *  friends, or the raw id if we have nothing better. */
+  subtitle: string
+  /** Optional avatar image URL. Falls back to initials when absent. */
+  picture?: string | null
   /** Owner rows render with no role dropdown and no remove button. */
   isOwner: boolean
   role: ShareRole | 'owner'
   /** Original share id, only present for non-owner rows. */
   shareId?: string
+  /** Federation handle (alias@server). Only set on non-owner rows; used
+   *  by the parent to reissue the share when the role changes. */
+  handle?: string
 }
 
 const props = defineProps<{
@@ -43,12 +52,17 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-function initials(handle: string): string {
-  return handle.split('@')[0]?.slice(0, 2).toUpperCase() ?? '?'
-}
-
-function displayName(handle: string): string {
-  return handle.split('@')[0] ?? handle
+function initials(name: string): string {
+  // Pull up to two initials from whatever we were given — the caller
+  // already picked the best display name, so "Alex Wohlbruck" yields AW
+  // and "alice@server" yields AL. Falls back to "?" for empty input.
+  const trimmed = name.trim()
+  if (!trimmed) return '?'
+  const parts = trimmed.split(/\s+/)
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase()
+  }
+  return trimmed.slice(0, 2).toUpperCase()
 }
 
 const roleOptions = computed(() => [
@@ -65,11 +79,12 @@ const roleOptions = computed(() => [
       class="flex items-center gap-3 py-2"
     >
       <Avatar class="size-9">
-        <AvatarFallback>{{ initials(row.handle) }}</AvatarFallback>
+        <AvatarImage v-if="row.picture" :src="row.picture" />
+        <AvatarFallback>{{ initials(row.name) }}</AvatarFallback>
       </Avatar>
       <div class="flex-1 min-w-0">
-        <p class="text-sm font-medium truncate">{{ displayName(row.handle) }}</p>
-        <p class="text-xs text-muted-foreground truncate">{{ row.handle }}</p>
+        <p class="text-sm font-medium truncate">{{ row.name }}</p>
+        <p class="text-xs text-muted-foreground truncate">{{ row.subtitle }}</p>
       </div>
       <span
         v-if="row.isOwner"

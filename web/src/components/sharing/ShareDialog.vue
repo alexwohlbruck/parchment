@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
@@ -83,19 +84,28 @@ const mutating = ref(false)
 // UI reflects server state without a full dialog refetch.
 const publicToken = ref<string | null>(props.collection.publicToken ?? null)
 
-const ownerHandle = computed(() => {
-  // Owner is always the authenticated user for collections they own.
-  // The auth store exposes `alias`; full handle construction
-  // (alias@server) isn't plumbed through yet — alias alone is enough
-  // signal for the dialog's owner row. Falls back to user id so the
-  // row always renders something.
-  return authStore.me?.alias ?? authStore.me?.id ?? ''
+// Derive the display fields for the owner row. Prefers full name +
+// email, with graceful fallbacks when the profile is partial.
+const ownerDisplayName = computed(() => {
+  const me = authStore.me
+  if (!me) return ''
+  const full = [me.firstName, me.lastName].filter(Boolean).join(' ').trim()
+  if (full) return full
+  return me.alias ?? me.email ?? me.id ?? ''
 })
+
+const ownerSubtitle = computed(() => {
+  const me = authStore.me
+  if (!me) return ''
+  return me.email ?? me.alias ?? ''
+})
+
+const ownerPicture = computed(() => authStore.me?.picture ?? null)
 
 // Refetch shares + sync public-token state each time the dialog opens.
 watch(
   () => props.open,
-  async (open) => {
+  async open => {
     if (!open) return
     publicToken.value = props.collection.publicToken ?? null
     await refreshShares()
@@ -105,13 +115,10 @@ watch(
 async function refreshShares() {
   loading.value = true
   try {
-    const list = await listSharesForResource(
-      'collection',
-      props.collection.id,
-    )
+    const list = await listSharesForResource('collection', props.collection.id)
     // Filter out revoked rows — they shouldn't appear in the UI. The
     // server keeps them for audit but this dialog is a live access list.
-    shares.value = list.filter((s) => s.status !== 'revoked')
+    shares.value = list.filter(s => s.status !== 'revoked')
   } catch (err) {
     console.error('Failed to load shares', err)
     toast.error(t('sharing.errors.loadFailed'))
@@ -125,27 +132,40 @@ const activeShares = computed(() => shares.value)
 const rows = computed<AccessRow[]>(() => {
   const ownerRow: AccessRow = {
     key: 'owner',
-    handle: ownerHandle.value,
+    name: ownerDisplayName.value,
+    subtitle: ownerSubtitle.value,
+    picture: ownerPicture.value,
     isOwner: true,
     role: 'owner',
   }
-  const shareRows: AccessRow[] = activeShares.value.map((s) => ({
-    key: s.id,
-    handle: s.recipientHandle,
-    isOwner: false,
-    role: s.role,
-    shareId: s.id,
-  }))
+  const shareRows: AccessRow[] = activeShares.value.map(s => {
+    // Look up the friend record so we can surface their real name +
+    // avatar instead of just the raw federation handle. When a recipient
+    // isn't a friend of the current viewer (shouldn't normally happen,
+    // but defensive), we fall back to the handle as the name.
+    const friend = friends.value.find(f => f.friendHandle === s.recipientHandle)
+    const handleLocal = s.recipientHandle.split('@')[0] ?? s.recipientHandle
+    return {
+      key: s.id,
+      name: friend?.friendName || handleLocal,
+      subtitle: s.recipientHandle,
+      picture: friend?.friendPicture ?? null,
+      isOwner: false,
+      role: s.role,
+      shareId: s.id,
+      handle: s.recipientHandle,
+    }
+  })
   return [ownerRow, ...shareRows]
 })
 
 // Friends not yet in the share list — the "Add people" dropdown.
 const filteredFriends = computed(() => {
   const existingHandles = new Set(
-    activeShares.value.map((s) => s.recipientHandle),
+    activeShares.value.map(s => s.recipientHandle),
   )
   const q = searchQuery.value.trim().toLowerCase()
-  return friends.value.filter((f) => {
+  return friends.value.filter(f => {
     if (existingHandles.has(f.friendHandle)) return false
     if (!q) return true
     return f.friendHandle.toLowerCase().includes(q)
@@ -162,7 +182,7 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
     toast.warning(t('sharing.errors.identityRequired'))
     return
   }
-  const friend = friends.value.find((f) => f.friendHandle === friendHandle)
+  const friend = friends.value.find(f => f.friendHandle === friendHandle)
   if (!friend?.friendEncryptionKey) {
     toast.error(t('sharing.errors.missingFriendKey'))
     return
@@ -209,7 +229,7 @@ async function onChangeRole(row: AccessRow, newRole: ShareRole) {
   // since the service doesn't yet expose an update-role endpoint. The
   // outgoing share history on the server will reflect the prior role as
   // revoked. Followup: add a dedicated PATCH /sharing/:id endpoint.
-  if (!row.shareId) return
+  if (!row.shareId || !row.handle) return
   mutating.value = true
   try {
     await revokeShare(row.shareId)
@@ -325,9 +345,9 @@ async function onRequestSchemeSwitch() {
     // Recipient public keys come from the friends store — every remaining
     // friend-share must have the recipient's long-term X25519 pub cached.
     const remainingShares = activeShares.value
-      .map((s) => {
+      .map(s => {
         const friend = friends.value.find(
-          (f) => f.friendHandle === s.recipientHandle,
+          f => f.friendHandle === s.recipientHandle,
         )
         if (!friend?.friendEncryptionKey) return null
         return {
@@ -417,10 +437,26 @@ const collectionName = computed(
           :disabled="mutating"
           @click="addShare(friend.friendHandle)"
         >
-          <span class="text-sm font-medium truncate">
-            {{ friend.friendHandle }}
-          </span>
-          <span class="text-xs text-muted-foreground ml-auto">
+          <Avatar class="size-7 shrink-0">
+            <AvatarImage
+              v-if="friend.friendPicture"
+              :src="friend.friendPicture"
+            />
+            <AvatarFallback>{{
+              (friend.friendName || friend.friendHandle)
+                .slice(0, 2)
+                .toUpperCase()
+            }}</AvatarFallback>
+          </Avatar>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-medium truncate">
+              {{ friend.friendName || friend.friendHandle.split('@')[0] }}
+            </div>
+            <div class="text-xs text-muted-foreground truncate">
+              {{ friend.friendHandle }}
+            </div>
+          </div>
+          <span class="text-xs text-muted-foreground ml-auto shrink-0">
             {{ t('sharing.addAction') }}
           </span>
         </button>

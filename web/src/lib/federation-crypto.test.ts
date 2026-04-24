@@ -31,9 +31,6 @@ import {
   decrypt,
   encryptForFriend,
   decryptFromFriend,
-  encryptLocationForFriend,
-  decryptLocationFromFriend,
-  type LocationData,
   type KeyPair,
 } from './federation-crypto'
 
@@ -498,116 +495,6 @@ describe('Friend-to-Friend E2EE', () => {
   })
 })
 
-describe('Location Encryption', () => {
-  let aliceEncryption: KeyPair
-  let bobEncryption: KeyPair
-
-  beforeAll(() => {
-    const aliceSeed = generateSeed()
-    const bobSeed = generateSeed()
-    aliceEncryption = deriveEncryptionKeyPair(aliceSeed)
-    bobEncryption = deriveEncryptionKeyPair(bobSeed)
-  })
-
-  const sampleLocation: LocationData = {
-    lat: 37.7749,
-    lng: -122.4194,
-    accuracy: 10,
-    altitude: 15,
-    speed: 5.5,
-    heading: 180,
-    timestamp: Date.now(),
-  }
-
-  test('encrypts and decrypts location data for friend', () => {
-    // Alice shares her location with Bob
-    const encrypted = encryptLocationForFriend(
-      sampleLocation,
-      aliceEncryption.privateKey,
-      bobEncryption.publicKey,
-    )
-
-    expect(encrypted.ciphertext).toBeTruthy()
-    expect(encrypted.nonce).toBeTruthy()
-
-    // Bob decrypts Alice's location
-    const decrypted = decryptLocationFromFriend(
-      encrypted.ciphertext,
-      encrypted.nonce,
-      bobEncryption.privateKey,
-      aliceEncryption.publicKey,
-    )
-
-    expect(decrypted.lat).toBe(sampleLocation.lat)
-    expect(decrypted.lng).toBe(sampleLocation.lng)
-    expect(decrypted.accuracy).toBe(sampleLocation.accuracy)
-    expect(decrypted.timestamp).toBe(sampleLocation.timestamp)
-  })
-
-  test('preserves all location fields', () => {
-    const encrypted = encryptLocationForFriend(
-      sampleLocation,
-      aliceEncryption.privateKey,
-      bobEncryption.publicKey,
-    )
-
-    const decrypted = decryptLocationFromFriend(
-      encrypted.ciphertext,
-      encrypted.nonce,
-      bobEncryption.privateKey,
-      aliceEncryption.publicKey,
-    )
-
-    expect(decrypted).toEqual(sampleLocation)
-  })
-
-  test('handles minimal location data', () => {
-    const minimalLocation: LocationData = {
-      lat: 0,
-      lng: 0,
-      timestamp: 0,
-    }
-
-    const encrypted = encryptLocationForFriend(
-      minimalLocation,
-      aliceEncryption.privateKey,
-      bobEncryption.publicKey,
-    )
-
-    const decrypted = decryptLocationFromFriend(
-      encrypted.ciphertext,
-      encrypted.nonce,
-      bobEncryption.privateKey,
-      aliceEncryption.publicKey,
-    )
-
-    expect(decrypted.lat).toBe(0)
-    expect(decrypted.lng).toBe(0)
-    expect(decrypted.timestamp).toBe(0)
-  })
-
-  test('third party cannot read location', () => {
-    const charlieSeed = generateSeed()
-    const charlieEncryption = deriveEncryptionKeyPair(charlieSeed)
-
-    const encrypted = encryptLocationForFriend(
-      sampleLocation,
-      aliceEncryption.privateKey,
-      bobEncryption.publicKey,
-    )
-
-    // Charlie cannot decrypt
-    expect(() =>
-      decryptLocationFromFriend(
-        encrypted.ciphertext,
-        encrypted.nonce,
-        charlieEncryption.privateKey,
-        aliceEncryption.publicKey,
-      ),
-    ).toThrow()
-  })
-})
-
 describe('End-to-End Federation Workflow', () => {
   test('complete friend invite signing and verification flow', async () => {
     // Alice creates identity
@@ -674,46 +561,6 @@ describe('End-to-End Federation Workflow', () => {
     expect(decrypted).toBe(secretMessage)
   })
 
-  test('complete location sharing flow', async () => {
-    // Alice and Bob are already friends
-    const aliceSeed = generateSeed()
-    const bobSeed = generateSeed()
-    const aliceKeys = deriveAllKeys(aliceSeed)
-    const bobKeys = deriveAllKeys(bobSeed)
-
-    // Alice's device captures location
-    const aliceLocation: LocationData = {
-      lat: 37.7749,
-      lng: -122.4194,
-      accuracy: 5,
-      timestamp: Date.now(),
-    }
-
-    // Alice encrypts her location for Bob
-    const encrypted = encryptLocationForFriend(
-      aliceLocation,
-      aliceKeys.encryption.privateKey,
-      bobKeys.encryption.publicKey,
-    )
-
-    // Simulate network transmission (ciphertext and nonce as strings)
-    const networkPayload = {
-      encryptedLocation: encrypted.ciphertext,
-      nonce: encrypted.nonce,
-      from: 'alice@parchment.app',
-      to: 'bob@other.server',
-    }
-
-    // Bob's client receives and decrypts
-    const receivedLocation = decryptLocationFromFriend(
-      networkPayload.encryptedLocation,
-      networkPayload.nonce,
-      bobKeys.encryption.privateKey,
-      aliceKeys.encryption.publicKey,
-    )
-
-    expect(receivedLocation.lat).toBeCloseTo(aliceLocation.lat, 4)
-    expect(receivedLocation.lng).toBeCloseTo(aliceLocation.lng, 4)
-    expect(receivedLocation.accuracy).toBe(aliceLocation.accuracy)
-  })
+  // Location sharing end-to-end tests moved to federation-crypto-ecies.test.ts,
+  // which covers the v2 ECIES encrypt/decrypt path that actually ships.
 })

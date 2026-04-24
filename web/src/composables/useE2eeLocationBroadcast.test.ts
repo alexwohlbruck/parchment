@@ -14,7 +14,6 @@ import {
   generateSeed,
   deriveAllKeys,
   exportPublicKey,
-  decryptLocationFromFriend,
   importPublicKey,
 } from '@/lib/federation-crypto'
 
@@ -270,72 +269,9 @@ describe('useE2eeLocationBroadcast', () => {
     })
   })
 
-  describe('Encryption Integration', () => {
-    test('broadcasts produce decryptable locations', async () => {
-      // This test verifies the encryption format is correct
-      // by checking that a broadcast location can be decrypted
-
-      // Alice is sharing with Bob
-      const alicePrivateKey = aliceKeys.encryption.privateKey
-      const bobPublicKey = bobKeys.encryption.publicKey
-
-      // Import the encryption function
-      const { encryptLocationForFriend } = await import('@/lib/federation-crypto')
-
-      // Simulate what broadcast does
-      const locationData = {
-        lat: 37.7749,
-        lng: -122.4194,
-        accuracy: 10,
-        timestamp: Date.now(),
-      }
-
-      const encrypted = encryptLocationForFriend(
-        locationData,
-        alicePrivateKey,
-        bobPublicKey,
-      )
-
-      // Bob should be able to decrypt
-      const decrypted = decryptLocationFromFriend(
-        encrypted.ciphertext,
-        encrypted.nonce,
-        bobKeys.encryption.privateKey,
-        aliceKeys.encryption.publicKey,
-      )
-
-      expect(decrypted.lat).toBeCloseTo(locationData.lat, 4)
-      expect(decrypted.lng).toBeCloseTo(locationData.lng, 4)
-      expect(decrypted.accuracy).toBe(10)
-    })
-
-    test('encrypted data cannot be decrypted by third party', async () => {
-      const { encryptLocationForFriend } = await import('@/lib/federation-crypto')
-
-      const locationData = {
-        lat: 37.7749,
-        lng: -122.4194,
-        timestamp: Date.now(),
-      }
-
-      // Alice encrypts for Bob
-      const encrypted = encryptLocationForFriend(
-        locationData,
-        aliceKeys.encryption.privateKey,
-        bobKeys.encryption.publicKey,
-      )
-
-      // Charlie cannot decrypt
-      expect(() =>
-        decryptLocationFromFriend(
-          encrypted.ciphertext,
-          encrypted.nonce,
-          charlieKeys.encryption.privateKey,
-          aliceKeys.encryption.publicKey,
-        ),
-      ).toThrow()
-    })
-  })
+  // Encryption integration tests for broadcast live in
+  // federation-crypto-ecies.test.ts, which covers the v2 ECIES path that
+  // actually ships.
 
   describe('Geolocation Errors', () => {
     test('handles geolocation not supported', async () => {
@@ -393,75 +329,8 @@ describe('useE2eeLocationBroadcast', () => {
   })
 })
 
-describe('Location Data Format', () => {
-  test('LocationData includes all optional fields', async () => {
-    const fullLocation = {
-      lat: 37.7749,
-      lng: -122.4194,
-      accuracy: 10,
-      altitude: 15,
-      speed: 5.5,
-      heading: 180,
-      timestamp: Date.now(),
-    }
-
-    // Verify all fields can be encrypted/decrypted
-    const aliceKeys = deriveAllKeys(generateSeed())
-    const bobKeys = deriveAllKeys(generateSeed())
-
-    const { encryptLocationForFriend } = await import('@/lib/federation-crypto')
-
-    const encrypted = encryptLocationForFriend(
-      fullLocation,
-      aliceKeys.encryption.privateKey,
-      bobKeys.encryption.publicKey,
-    )
-
-    const decrypted = decryptLocationFromFriend(
-      encrypted.ciphertext,
-      encrypted.nonce,
-      bobKeys.encryption.privateKey,
-      aliceKeys.encryption.publicKey,
-    )
-
-    expect(decrypted.lat).toBe(fullLocation.lat)
-    expect(decrypted.lng).toBe(fullLocation.lng)
-    expect(decrypted.accuracy).toBe(fullLocation.accuracy)
-    expect(decrypted.altitude).toBe(fullLocation.altitude)
-    expect(decrypted.speed).toBe(fullLocation.speed)
-    expect(decrypted.heading).toBe(fullLocation.heading)
-    expect(decrypted.timestamp).toBe(fullLocation.timestamp)
-  })
-
-  test('LocationData works with minimal fields', async () => {
-    const minimalLocation = {
-      lat: 0,
-      lng: 0,
-      timestamp: 0,
-    }
-
-    const aliceKeys = deriveAllKeys(generateSeed())
-    const bobKeys = deriveAllKeys(generateSeed())
-
-    const { encryptLocationForFriend } = await import('@/lib/federation-crypto')
-
-    const encrypted = encryptLocationForFriend(
-      minimalLocation,
-      aliceKeys.encryption.privateKey,
-      bobKeys.encryption.publicKey,
-    )
-
-    const decrypted = decryptLocationFromFriend(
-      encrypted.ciphertext,
-      encrypted.nonce,
-      bobKeys.encryption.privateKey,
-      aliceKeys.encryption.publicKey,
-    )
-
-    expect(decrypted.lat).toBe(0)
-    expect(decrypted.lng).toBe(0)
-    expect(decrypted.accuracy).toBeUndefined()
-    expect(decrypted.altitude).toBeUndefined()
-  })
-})
+// Location data format is a pure shape type now (no v1 encrypt/decrypt
+// behavior to exercise). Keeping a single round-trip assertion would
+// duplicate the v2 ECIES tests in federation-crypto-ecies.test.ts, so
+// this describe block was removed rather than ported.
 

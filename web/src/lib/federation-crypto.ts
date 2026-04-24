@@ -589,6 +589,17 @@ export function decryptLocationFromFriendV2(params: {
 // Location-specific encryption helpers
 // ============================================================================
 
+/**
+ * Shape of a location sample shared between friends. Kept here because the
+ * v2 encrypt/decrypt helpers in this file + consumers in
+ * `useFriendLocations.ts` / `useE2eeLocationBroadcast.ts` all import it.
+ *
+ * The v1 encrypt/decrypt functions that used to live here
+ * (`encryptLocation`, `decryptLocation`, `encryptLocationForFriend`,
+ * `decryptLocationFromFriend`) have been removed — all production flows go
+ * through `encryptLocationForFriendV2` / `decryptLocationFromFriendV2` with
+ * proper AAD binding.
+ */
 export interface LocationData {
   lat: number
   lng: number
@@ -600,79 +611,6 @@ export interface LocationData {
   battery?: number // 0-1 representing battery percentage
   batteryCharging?: boolean
   timestamp: number
-}
-
-/**
- * Encrypt location data with personal key (for personal, non-shared data)
- * @param location - Location data object
- * @param personalKey - 32-byte personal encryption key
- * @returns Encrypted data
- */
-export function encryptLocation(
-  location: LocationData,
-  personalKey: Uint8Array,
-): EncryptedData {
-  return encrypt(JSON.stringify(location), personalKey)
-}
-
-/**
- * Decrypt location data
- * @param ciphertext - Base64-encoded ciphertext
- * @param nonce - Base64-encoded nonce
- * @param key - 32-byte encryption key
- * @returns Decrypted location data
- */
-export function decryptLocation(
-  ciphertext: string,
-  nonce: string,
-  key: Uint8Array,
-): LocationData {
-  const plaintext = decrypt(ciphertext, nonce, key)
-  return JSON.parse(plaintext) as LocationData
-}
-
-/**
- * Encrypt location data for a friend (for location sharing)
- * @param location - Location data object
- * @param myPrivateKey - Your X25519 private key
- * @param friendPublicKey - Friend's X25519 public key
- * @returns Encrypted data
- */
-export function encryptLocationForFriend(
-  location: LocationData,
-  myPrivateKey: Uint8Array,
-  friendPublicKey: Uint8Array,
-): EncryptedData {
-  return encryptForFriend(
-    JSON.stringify(location),
-    myPrivateKey,
-    friendPublicKey,
-    'parchment-location-v1',
-  )
-}
-
-/**
- * Decrypt location data from a friend
- * @param ciphertext - Base64-encoded ciphertext
- * @param nonce - Base64-encoded nonce
- * @param myPrivateKey - Your X25519 private key
- * @param friendPublicKey - Friend's X25519 public key
- * @returns Decrypted location data
- */
-export function decryptLocationFromFriend(
-  ciphertext: string,
-  nonce: string,
-  myPrivateKey: Uint8Array,
-  friendPublicKey: Uint8Array,
-): LocationData {
-  const plaintext = decryptFromFriend(
-    ciphertext,
-    nonce,
-    myPrivateKey,
-    friendPublicKey,
-    'parchment-location-v1',
-  )
-  return JSON.parse(plaintext) as LocationData
 }
 
 // ============================================================================

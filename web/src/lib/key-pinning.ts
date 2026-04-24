@@ -19,6 +19,7 @@ import {
   importPublicKey,
   bytesToBase64,
   base64ToBytes,
+  compareBytes,
 } from './federation-crypto'
 import { hkdf } from '@noble/hashes/hkdf.js'
 import { sha256 } from '@noble/hashes/sha2.js'
@@ -208,14 +209,6 @@ export function deriveSafetyNumber(
   const mod = 10n ** 12n
   const num = (n % mod).toString().padStart(12, '0')
   return `${num.slice(0, 3)} ${num.slice(3, 6)} ${num.slice(6, 9)} ${num.slice(9, 12)}`
-}
-
-function compareBytes(a: Uint8Array, b: Uint8Array): number {
-  const len = Math.min(a.length, b.length)
-  for (let i = 0; i < len; i++) {
-    if (a[i] !== b[i]) return a[i] - b[i]
-  }
-  return a.length - b.length
 }
 
 // Re-exported for internal convenience — keeps module boundaries clear.

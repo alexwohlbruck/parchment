@@ -243,6 +243,15 @@ export function generateNonce(): string {
 // ============================================================================
 
 /**
+ * HKDF `info` context for the personal encryption key. Also used as the
+ * v2-envelope `keyContext` when building AAD for personal-blob ciphertexts
+ * (search history, friend pins, user-e2ee integration configs, etc.).
+ * Consumers that craft AAD by hand should import this constant — never
+ * hard-code the string — so HKDF and AAD stay in lock-step.
+ */
+export const PERSONAL_KEY_CONTEXT = 'parchment-personal-v1'
+
+/**
  * Derive a personal encryption key from the user's seed
  * Used for encrypting personal data (saved places, search history, etc.)
  * @param seed - 32-byte user seed
@@ -253,7 +262,7 @@ export function derivePersonalKey(seed: Uint8Array): Uint8Array {
     sha256,
     seed,
     undefined,
-    new TextEncoder().encode('parchment-personal-v1'),
+    new TextEncoder().encode(PERSONAL_KEY_CONTEXT),
     32,
   )
 }
@@ -685,6 +694,20 @@ export function bytesToBase64(bytes: Uint8Array): string {
     binaryString += String.fromCharCode(bytes[i])
   }
   return btoa(binaryString)
+}
+
+/**
+ * Lexicographic byte comparison — shorter prefix wins ties. Used to produce a
+ * canonical ordering when two parties must agree on input ordering to derive
+ * the same symmetric value (SAS digits, safety numbers). Not constant-time;
+ * inputs are public keys, not secrets.
+ */
+export function compareBytes(a: Uint8Array, b: Uint8Array): number {
+  const len = Math.min(a.length, b.length)
+  for (let i = 0; i < len; i++) {
+    if (a[i] !== b[i]) return a[i] - b[i]
+  }
+  return a.length - b.length
 }
 
 function sortObjectKeys(obj: unknown): unknown {

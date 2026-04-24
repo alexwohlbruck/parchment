@@ -32,6 +32,7 @@ import {
   deriveAllKeys,
   derivePersonalKey,
   exportPublicKey,
+  PERSONAL_KEY_CONTEXT,
   type DerivedKeys,
 } from '@/lib/federation-crypto'
 import {
@@ -49,8 +50,6 @@ import {
 } from '@/lib/passkey-prf'
 import { extractPrfOutputFromAssertion } from '@/lib/passkey-prf-support'
 import { storeSeed } from '@/lib/key-storage'
-
-const PERSONAL_KEY_CONTEXT = 'parchment-personal-v1'
 
 interface BlobListEntry {
   blobType: string

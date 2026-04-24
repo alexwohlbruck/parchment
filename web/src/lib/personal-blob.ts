@@ -19,10 +19,9 @@ import {
   decryptEnvelopeString,
   type AAD,
 } from './crypto-envelope'
-import { derivePersonalKey } from './federation-crypto'
+import { derivePersonalKey, PERSONAL_KEY_CONTEXT } from './federation-crypto'
 import { getSeed } from './key-storage'
 
-const PERSONAL_KEY_CONTEXT = 'parchment-personal-v1'
 const KM_VERSION_CURRENT = 1
 
 function buildBlobAAD(params: {

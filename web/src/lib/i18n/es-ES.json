@@ -616,15 +616,6 @@
       "addFriendsPrompt": "Añade amigos para empezar a compartir tu ubicación.",
       "e2eeNotice": "Tu ubicación se cifra en tu dispositivo antes de enviarse. Solo los amigos que elijas pueden descifrar y ver tu ubicación. El servidor nunca ve tus coordenadas reales."
     },
-    "shareDialog": {
-      "title": "Compartir {name}",
-      "description": "Selecciona amigos con quienes compartir este {type}. Los datos estarán cifrados de extremo a extremo.",
-      "identityRequired": "Necesitas configurar tu identidad antes de compartir.",
-      "noFriends": "Añade amigos para compartir con ellos.",
-      "alreadyShared": "Compartido",
-      "e2eeNotice": "Compartir con cifrado de extremo a extremo",
-      "shareButton": "Compartir con {count} amigo(s)"
-    },
     "detail": {
       "justNow": "Ahora mismo",
       "minutesAgo": "Hace {count}m",

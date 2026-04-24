@@ -650,15 +650,6 @@
       "addFriendsPrompt": "Add friends to start sharing your location.",
       "e2eeNotice": "Your location is encrypted on your device before being sent. Only the friends you choose can decrypt and see your location. The server never sees your actual coordinates."
     },
-    "shareDialog": {
-      "title": "Share {name}",
-      "description": "Select friends to share this {type} with. Data will be end-to-end encrypted.",
-      "identityRequired": "You need to set up your identity before sharing.",
-      "noFriends": "Add friends to share with them.",
-      "alreadyShared": "Shared",
-      "e2eeNotice": "End-to-end encrypted sharing",
-      "shareButton": "Share with {count} friend(s)"
-    },
     "detail": {
       "justNow": "Just now",
       "minutesAgo": "{count}m ago",

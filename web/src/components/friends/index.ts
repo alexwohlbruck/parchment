@@ -5,5 +5,4 @@ export { default as AddFriendDialog } from './AddFriendDialog.vue'
 export { default as RecoveryKeyDialog } from './RecoveryKeyDialog.vue'
 export { default as IdentitySettings } from './IdentitySettings.vue'
 export { default as LocationSharingSettings } from './LocationSharingSettings.vue'
-export { default as ShareWithFriendDialog } from './ShareWithFriendDialog.vue'
 

@@ -15,8 +15,13 @@ import {
 } from '@/lib/library-crypto'
 import {
   decryptFromFriend,
+  encryptForFriend,
   importPublicKey,
 } from '@/lib/federation-crypto'
+import {
+  listSharesForResource,
+  updateShareEnvelope,
+} from '@/services/sharing.service'
 import { useAuthStore } from '@/stores/auth.store'
 
 // TODO: i18n error messages
@@ -333,6 +338,84 @@ export const useCollectionsService = createSharedComposable(() => {
     }
   }
 
+  /**
+   * Reissue the ECIES share envelope for every recipient of a collection
+   * so their clients see the new metadata (name/icon/description) on
+   * next decrypt.
+   *
+   * The incoming realtime event is K_m-encrypted (readable only by the
+   * owner), so recipients' UIs can't re-render the new name just from
+   * the event. Recomputing + pushing fresh envelopes is the way to
+   * propagate metadata changes without a full share-dialog round-trip.
+   */
+  async function reissueShareEnvelopes(
+    collectionId: string,
+    meta: {
+      name?: string
+      description?: string
+      icon?: string
+      iconColor?: string
+      scheme: Collection['scheme']
+    },
+  ): Promise<void> {
+    const myEncPriv = identityStore.encryptionPrivateKey
+    if (!myEncPriv) return
+
+    let shares: Awaited<ReturnType<typeof listSharesForResource>>
+    try {
+      shares = await listSharesForResource('collection', collectionId)
+    } catch {
+      return
+    }
+    if (shares.length === 0) return
+
+    const payload = JSON.stringify({
+      collectionId,
+      scheme: meta.scheme,
+      metadata: {
+        name: meta.name,
+        description: meta.description,
+        icon: meta.icon,
+        iconColor: meta.iconColor,
+      },
+    })
+
+    // Parallelize. One failure shouldn't stop the rest — a single
+    // unreachable friend shouldn't block other recipients from seeing
+    // the new name.
+    await Promise.all(
+      shares
+        .filter((s) => s.status !== 'revoked')
+        .map(async (share) => {
+          const friend = friendsStore.friends.find(
+            (f) => f.friendHandle === share.recipientHandle,
+          )
+          if (!friend?.friendEncryptionKey) return
+          try {
+            const encrypted = encryptForFriend(
+              payload,
+              myEncPriv,
+              importPublicKey(friend.friendEncryptionKey),
+              'parchment-share-collection-v1',
+            )
+            await updateShareEnvelope({
+              recipientHandle: share.recipientHandle,
+              resourceType: 'collection',
+              resourceId: collectionId,
+              encryptedData: encrypted.ciphertext,
+              nonce: encrypted.nonce,
+            })
+          } catch (err) {
+            console.warn(
+              '[collections] failed to reissue envelope for',
+              share.recipientHandle,
+              err,
+            )
+          }
+        }),
+    )
+  }
+
   async function updateCollection(id: string, updates: Partial<Collection>) {
     try {
       // If the caller changed any display field, rebuild + encrypt the
@@ -366,6 +449,25 @@ export const useCollectionsService = createSharedComposable(() => {
       )
 
       collectionsStore.updateCollection(hydrated)
+
+      // If the owner changed metadata on a shared collection, reissue
+      // every friend's share envelope with the new plaintext baked in.
+      // Without this, recipients keep their old (stale) share envelope
+      // and never see the rename — the server's realtime payload is
+      // K_m-encrypted and can't be decrypted by them.
+      if (metadataChanged) {
+        // Fire-and-forget: failures here shouldn't block the local
+        // update. Worst case a recipient sees the old name until their
+        // next re-share.
+        void reissueShareEnvelopes(id, {
+          name: hydrated.name,
+          description: hydrated.description,
+          icon: hydrated.icon,
+          iconColor: hydrated.iconColor,
+          scheme: hydrated.scheme,
+        })
+      }
+
       toast.success(t('services.collections.updateSuccess'))
       return hydrated
     } catch (error) {

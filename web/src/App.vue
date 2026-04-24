@@ -14,6 +14,15 @@ import { useResponsive } from '@/lib/utils'
 import { isTauri } from '@/lib/api'
 import { useExternalLink } from '@/composables/useExternalLink'
 import { useFriendLocationsLayer } from '@/composables/useFriendLocationsLayer'
+import {
+  connect as realtimeConnect,
+  disconnect as realtimeDisconnect,
+} from '@/lib/realtime'
+// Side-effect import: each store that cares about realtime calls
+// `registerRealtimeHandlers` at import time, so we just need to make sure
+// those modules run. A dedicated bootstrap file keeps the side-effect
+// imports in one obvious place.
+import '@/lib/realtime-bootstrap'
 
 import DesktopNav from '@/components/navigation/DesktopNavigation.vue'
 import MobileNav from '@/components/navigation/MobileNavigation.vue'
@@ -111,6 +120,10 @@ onMounted(async () => {
     categoryPaletteStore.loadPalette()
     // Initialize friend locations layer (watches visibility and polls accordingly)
     friendLocationsLayer.initialize()
+    // Open the realtime WebSocket now that the user is known. Disconnects
+    // and reconnects across signin/signout are handled by the watcher
+    // below.
+    realtimeConnect()
   }
 
   // Add global click handler for external links
@@ -122,7 +135,20 @@ onUnmounted(() => {
   document.removeEventListener('click', handleExternalLinkClick, true)
   // Cleanup friend locations layer
   friendLocationsLayer.cleanup()
+  // Close the realtime socket. Any open socket for a stale session is
+  // worse than no socket.
+  realtimeDisconnect()
 })
+
+// Tie realtime lifecycle to auth lifecycle. Signing out closes the socket;
+// signing in (or getting auth'd after an initial anonymous load) opens it.
+watch(
+  () => authStore.me?.id,
+  (id, previous) => {
+    if (id && !previous) realtimeConnect()
+    else if (!id && previous) realtimeDisconnect()
+  },
+)
 
 function afterNavTransition(value: boolean) {
   if (viewRef.value?.navTransitioning) {

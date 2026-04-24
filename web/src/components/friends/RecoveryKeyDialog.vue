@@ -34,6 +34,10 @@ import {
 } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import TransferIdentityDialog from './TransferIdentityDialog.vue'
+import {
+  useBusyOperation,
+  useDialogCompletion,
+} from '@/composables/useDialogCompletion'
 
 type Mode = 'setup' | 'import' | 'view'
 type SetupStep =
@@ -80,6 +84,12 @@ const importStep = ref<ImportStep>('choose')
 const passkeyBusy = ref(false)
 const showTransferDialog = ref(false)
 const existingPasskeys = ref<Passkey[]>([])
+
+// Short hold-open + emit('complete') after a successful step so the
+// celebratory frame is visible before the dialog dismisses.
+const dismissWithCompletion = useDialogCompletion(isOpen, emit)
+// Wraps a passkey ceremony in the busy + error lifecycle. See composable.
+const runPasskeyBusy = useBusyOperation(passkeyBusy, error)
 
 // The first passkey without a recovery slot — the candidate we'd try to
 // "promote" via a PRF assertion. `undefined` means the user has none
@@ -172,9 +182,7 @@ async function handleUseExistingPasskey() {
   const candidate = promotionCandidate.value
   if (!candidate) return
 
-  passkeyBusy.value = true
-  error.value = null
-  try {
+  await runPasskeyBusy(async () => {
     const result = await identityStore.enrollExistingPasskey(candidate.id)
     if (result.cancelled) {
       // User cancelled the biometric prompt — stay on this step so
@@ -183,10 +191,7 @@ async function handleUseExistingPasskey() {
     }
     if (result.success && result.slotCreated) {
       setupStep.value = 'complete'
-      setTimeout(() => {
-        isOpen.value = false
-        emit('complete')
-      }, 1500)
+      dismissWithCompletion()
     } else {
       // Most common reason: this authenticator didn't evaluate PRF (e.g.
       // a passkey registered by an older Chrome without the extension).
@@ -195,17 +200,13 @@ async function handleUseExistingPasskey() {
         result.error ??
         t('settings.identity.recoveryKey.passkeyOffer.cannotUseError')
     }
-  } finally {
-    passkeyBusy.value = false
-  }
+  })
 }
 
 async function handleAddRecoveryPasskey() {
   // No name prompt — server auto-names from AAGUID (iCloud Keychain,
   // 1Password, …) or falls back to "{OS} · {Browser}".
-  passkeyBusy.value = true
-  error.value = null
-  try {
+  await runPasskeyBusy(async () => {
     const result = await identityStore.enrollPasskey('', {
       onSecondTapNeeded: () => {
         // Second ceremony — show the reason inline so the user doesn't
@@ -221,10 +222,7 @@ async function handleAddRecoveryPasskey() {
     }
     if (result.success && result.slotCreated) {
       setupStep.value = 'complete'
-      setTimeout(() => {
-        isOpen.value = false
-        emit('complete')
-      }, 1500)
+      dismissWithCompletion()
     } else {
       // Passkey may have been registered as sign-in only; surface the
       // reason but still let them finish — the recovery key path is
@@ -233,17 +231,12 @@ async function handleAddRecoveryPasskey() {
         result.error ??
         t('settings.identity.recoveryKey.passkeyOffer.enableFailedError')
     }
-  } finally {
-    passkeyBusy.value = false
-  }
+  })
 }
 
 function handleSkipPasskey() {
   setupStep.value = 'complete'
-  setTimeout(() => {
-    isOpen.value = false
-    emit('complete')
-  }, 1500)
+  dismissWithCompletion()
 }
 
 async function handleUnlockWithPasskey() {
@@ -252,10 +245,7 @@ async function handleUnlockWithPasskey() {
   if (result.cancelled) return
   if (result.success) {
     importStep.value = 'complete'
-    setTimeout(() => {
-      isOpen.value = false
-      emit('complete')
-    }, 1500)
+    dismissWithCompletion()
   } else {
     error.value = result.error || t('settings.identity.recoveryKey.import.unlockFailed')
   }
@@ -271,10 +261,7 @@ async function handleImport() {
 
   if (result.success) {
     importStep.value = 'complete'
-    setTimeout(() => {
-      isOpen.value = false
-      emit('complete')
-    }, 1500)
+    dismissWithCompletion()
   } else {
     error.value = result.error || t('settings.identity.recoveryKey.import.invalidKey')
   }

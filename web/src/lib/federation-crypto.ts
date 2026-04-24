@@ -293,14 +293,17 @@ export function deriveMetadataKey(seed: Uint8Array): Uint8Array {
 export function deriveCollectionKey(
   seed: Uint8Array,
   collectionId: string,
+  keyVersion: number = 1,
 ): Uint8Array {
-  return hkdf(
-    sha256,
-    seed,
-    undefined,
-    new TextEncoder().encode(`parchment-collection-${collectionId}`),
-    32,
-  )
+  // Version 1 keeps the legacy `parchment-collection-${id}` HKDF context for
+  // backward compatibility with collections created before key rotation was
+  // introduced. Higher versions append `-v${n}` so rotation produces a fresh,
+  // independent key that old-revoked share recipients cannot derive.
+  const info =
+    keyVersion === 1
+      ? `parchment-collection-${collectionId}`
+      : `parchment-collection-${collectionId}-v${keyVersion}`
+  return hkdf(sha256, seed, undefined, new TextEncoder().encode(info), 32)
 }
 
 /**

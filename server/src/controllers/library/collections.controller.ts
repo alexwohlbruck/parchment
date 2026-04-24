@@ -188,6 +188,68 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     },
   )
 
+  // Rotate the collection's encryption key. Atomic transaction that
+  // swaps metadata + every encrypted point + every remaining share's
+  // rewrapped envelope, and deletes revoked recipients' shares. Owner
+  // only. See `rotateCollectionKey` in the service for the full contract.
+  //
+  // The client stages the whole rotation under a fresh key before
+  // calling this endpoint — the server never touches plaintext.
+  .post(
+    '/:id/rotate-key',
+    async ({ params: { id }, body, user, set }) => {
+      try {
+        const updated = await collectionsService.rotateCollectionKey({
+          collectionId: id,
+          userId: user.id,
+          newMetadataEncrypted: body.newMetadataEncrypted,
+          newMetadataKeyVersion: body.newMetadataKeyVersion,
+          newEncryptedPoints: body.newEncryptedPoints,
+          updatedShareEnvelopes: body.updatedShareEnvelopes,
+          revokeRecipientHandles: body.revokeRecipientHandles,
+        })
+        if (!updated) {
+          set.status = 404
+          return { error: 'Collection not found' }
+        }
+        return updated
+      } catch (err) {
+        if (err instanceof collectionsService.RotationVersionError) {
+          set.status = 400
+          return { error: err.message }
+        }
+        throw err
+      }
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: t.Object({
+        newMetadataEncrypted: t.String(),
+        newMetadataKeyVersion: t.Number(),
+        newEncryptedPoints: t.Array(
+          t.Object({
+            id: t.Optional(t.String()),
+            encryptedData: t.String(),
+            nonce: t.String(),
+          }),
+        ),
+        updatedShareEnvelopes: t.Array(
+          t.Object({
+            recipientHandle: t.String(),
+            encryptedData: t.String(),
+            nonce: t.String(),
+          }),
+        ),
+        revokeRecipientHandles: t.Array(t.String()),
+      }),
+      detail: {
+        tags: ['Library'],
+        summary:
+          'Rotate the collection key: re-encrypt content, rewrap remaining shares, drop revoked',
+      },
+    },
+  )
+
   // Mint a public-link token on a collection. Owner only, server-key
   // only. Returns the token on success; 400 for user-e2ee; 404 if the
   // caller doesn't own the collection.

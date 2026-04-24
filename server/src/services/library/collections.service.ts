@@ -1,5 +1,10 @@
 import { db } from '../../db'
-import { collections, bookmarksCollections } from '../../schema/library.schema'
+import {
+  collections,
+  bookmarksCollections,
+  encryptedPoints,
+} from '../../schema/library.schema'
+import { shares, incomingShares } from '../../schema/shares.schema'
 import { and, eq, count, sql } from 'drizzle-orm'
 import {
   CreateCollectionParams,
@@ -166,6 +171,184 @@ export async function getBookmarksInCollection(
     )
 
   return bookmarks
+}
+
+// ===== Collection key rotation (revoke-on-e2ee) =====
+
+/**
+ * Payload the owner's client sends after building the new rotation locally.
+ *
+ * `metadataKeyVersion` is the NEW version (typically old + 1). Every
+ * ciphertext (collection metadata + all encrypted points + every remaining
+ * friend-share envelope) is already encrypted under the new key by the
+ * owner's device. The server's only job is to atomically swap them in.
+ *
+ * `revokeRecipientHandles` are the handles whose shares must be deleted in
+ * the same transaction — that's the actual "revoke" operation. Anyone not
+ * listed gets their `shares.encryptedData` updated to the new rewrapped
+ * value from `updatedShareEnvelopes`.
+ */
+export interface RotateCollectionKeyParams {
+  collectionId: string
+  userId: string
+  newMetadataEncrypted: string
+  newMetadataKeyVersion: number
+  newEncryptedPoints: Array<{
+    id?: string // reuse existing id when possible; mint a fresh one when null
+    encryptedData: string
+    nonce: string
+  }>
+  updatedShareEnvelopes: Array<{
+    recipientHandle: string
+    encryptedData: string
+    nonce: string
+  }>
+  revokeRecipientHandles: string[]
+}
+
+/**
+ * Thrown when the caller's metadataKeyVersion doesn't move forward (would
+ * cause rotation to silently no-op). Controllers map this to 400.
+ */
+export class RotationVersionError extends Error {
+  constructor(current: number, proposed: number) {
+    super(
+      `New metadataKeyVersion ${proposed} must be greater than current ${current}`,
+    )
+    this.name = 'RotationVersionError'
+  }
+}
+
+/**
+ * Apply a complete collection-key rotation in a single transaction.
+ *
+ * Every write (metadata, points, share envelopes, revoked shares) is staged
+ * by the client under the NEW key before calling this endpoint. The server
+ * never sees plaintext and doesn't need to understand key derivation — it
+ * just swaps ciphertext rows atomically so no caller ever observes a
+ * half-rotated collection.
+ *
+ * Owner-only. No-op + null if the collection doesn't exist or isn't owned
+ * by `userId`.
+ */
+export async function rotateCollectionKey(
+  params: RotateCollectionKeyParams,
+): Promise<Collection | null> {
+  return await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select()
+      .from(collections)
+      .where(
+        and(
+          eq(collections.id, params.collectionId),
+          eq(collections.userId, params.userId),
+        ),
+      )
+      .limit(1)
+    if (!current) return null
+
+    if (params.newMetadataKeyVersion <= current.metadataKeyVersion) {
+      throw new RotationVersionError(
+        current.metadataKeyVersion,
+        params.newMetadataKeyVersion,
+      )
+    }
+
+    // 1. Swap the collection metadata envelope + version. Also clears any
+    //    public-link token — public links are only valid on server-key
+    //    collections, and a rotation usually accompanies a scheme or
+    //    membership change where the old token's trust context no longer
+    //    applies.
+    const [updatedCollection] = await tx
+      .update(collections)
+      .set({
+        metadataEncrypted: params.newMetadataEncrypted,
+        metadataKeyVersion: params.newMetadataKeyVersion,
+        publicToken: null,
+        publicRole: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(collections.id, params.collectionId))
+      .returning()
+
+    // 2. Re-seed the encrypted_points table with the new ciphertexts.
+    //    Simplest correct sequence: delete all, reinsert. The client
+    //    supplies new ids (or we mint).
+    await tx
+      .delete(encryptedPoints)
+      .where(eq(encryptedPoints.collectionId, params.collectionId))
+
+    if (params.newEncryptedPoints.length > 0) {
+      await tx.insert(encryptedPoints).values(
+        params.newEncryptedPoints.map((p) => ({
+          id: p.id ?? generateId(),
+          collectionId: params.collectionId,
+          userId: params.userId,
+          encryptedData: p.encryptedData,
+          nonce: p.nonce,
+        })),
+      )
+    }
+
+    // 3. Update each remaining share's outbound envelope (rewrapped key).
+    for (const env of params.updatedShareEnvelopes) {
+      await tx
+        .update(shares)
+        .set({
+          encryptedData: env.encryptedData,
+          nonce: env.nonce,
+        })
+        .where(
+          and(
+            eq(shares.userId, params.userId),
+            eq(shares.resourceType, 'collection'),
+            eq(shares.resourceId, params.collectionId),
+            eq(shares.recipientHandle, env.recipientHandle),
+          ),
+        )
+
+      // Mirror on same-server recipients' incoming_shares.
+      await tx
+        .update(incomingShares)
+        .set({
+          encryptedData: env.encryptedData,
+          nonce: env.nonce,
+        })
+        .where(
+          and(
+            eq(incomingShares.resourceType, 'collection'),
+            eq(incomingShares.resourceId, params.collectionId),
+            eq(incomingShares.senderHandle, env.recipientHandle),
+          ),
+        )
+    }
+
+    // 4. Delete revoked shares entirely. Both outgoing (owner side) and
+    //    incoming (recipient side) rows go in one sweep.
+    for (const revoked of params.revokeRecipientHandles) {
+      await tx
+        .delete(shares)
+        .where(
+          and(
+            eq(shares.userId, params.userId),
+            eq(shares.resourceType, 'collection'),
+            eq(shares.resourceId, params.collectionId),
+            eq(shares.recipientHandle, revoked),
+          ),
+        )
+      await tx
+        .delete(incomingShares)
+        .where(
+          and(
+            eq(incomingShares.resourceType, 'collection'),
+            eq(incomingShares.resourceId, params.collectionId),
+            eq(incomingShares.senderHandle, revoked),
+          ),
+        )
+    }
+
+    return updatedCollection ?? null
+  })
 }
 
 // ===== Public Link Sharing =====

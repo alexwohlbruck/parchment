@@ -55,7 +55,23 @@ app.use(requireAuth).get(
  */
 app.use(requireAuth).post(
   '/',
-  async ({ body, user }) => {
+  async ({ body, user, status }) => {
+    const role = body.role ?? 'viewer'
+
+    // For collection shares, enforce that the caller is allowed to share
+    // (owner, or editor when resharing_policy permits). Other resource
+    // types don't yet have a policy layer — owner check stays implicit
+    // in the service.
+    if (body.resourceType === 'collection') {
+      const { allowed } = await sharingService.canShareCollection(
+        user.id,
+        body.resourceId,
+      )
+      if (!allowed) {
+        return status(403, { message: 'Not permitted to share this collection' })
+      }
+    }
+
     const share = await sharingService.createShare({
       userId: user.id,
       recipientHandle: body.recipientHandle,
@@ -63,6 +79,7 @@ app.use(requireAuth).post(
       resourceId: body.resourceId,
       encryptedData: body.encryptedData,
       nonce: body.nonce,
+      role,
     })
     return share
   },
@@ -78,6 +95,9 @@ app.use(requireAuth).post(
       resourceId: t.String(),
       encryptedData: t.Optional(t.String()),
       nonce: t.Optional(t.String()),
+      role: t.Optional(
+        t.Union([t.Literal('viewer'), t.Literal('editor')]),
+      ),
     }),
     detail: {
       tags: ['Sharing'],
@@ -94,7 +114,7 @@ app.use(requireAuth).post(
   async ({ params, user, status }) => {
     const revoked = await sharingService.revokeShare(user.id, params.shareId)
     if (!revoked) {
-      return status(404, { message: t('errors.notFound.share') })
+      return status(404, { message: 'Share not found' })
     }
     return { success: true }
   },
@@ -117,7 +137,7 @@ app.use(requireAuth).delete(
   async ({ params, user, status }) => {
     const deleted = await sharingService.deleteShare(user.id, params.shareId)
     if (!deleted) {
-      return status(404, { message: t('errors.notFound.share') })
+      return status(404, { message: 'Share not found' })
     }
     return { success: true }
   },
@@ -181,7 +201,7 @@ app.use(requireAuth).post(
       params.shareId,
     )
     if (!share) {
-      return status(404, { message: t('errors.notFound.share') })
+      return status(404, { message: 'Share not found' })
     }
     return share
   },
@@ -207,7 +227,7 @@ app.use(requireAuth).post(
       params.shareId,
     )
     if (!rejected) {
-      return status(404, { message: t('errors.notFound.share') })
+      return status(404, { message: 'Share not found' })
     }
     return { success: true }
   },
@@ -233,7 +253,7 @@ app.use(requireAuth).delete(
       params.shareId,
     )
     if (!deleted) {
-      return status(404, { message: t('errors.notFound.share') })
+      return status(404, { message: 'Share not found' })
     }
     return { success: true }
   },

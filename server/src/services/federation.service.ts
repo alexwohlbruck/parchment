@@ -71,6 +71,13 @@ export interface FederationMessage {
   resourceType?: string
   resourceId?: string
   encryptedData?: string
+  // RESOURCE_SHARE — role the sender granted on the shared resource. A
+  // malicious peer CANNOT silently upgrade 'viewer' to 'editor' because
+  // the role rides in the payload/top-level which is covered by the
+  // client signature on v2 messages. For v1 flat messages this field is
+  // not yet in the signed surface — migrating RESOURCE_SHARE to v2 is
+  // tracked as a follow-up.
+  role?: 'viewer' | 'editor'
 }
 
 export interface RemoteUserInfo {
@@ -449,6 +456,7 @@ export async function processFederationMessage(
       const nonce = pick('nonce') as string | undefined
       const resourceType = pick('resourceType') as string | undefined
       const resourceId = pick('resourceId') as string | undefined
+      const role = pick('role') as string | undefined
       if (!encryptedData || !nonce || !resourceType || !resourceId) {
         return { success: false, error: 'Missing resource data' }
       }
@@ -461,6 +469,7 @@ export async function processFederationMessage(
         encryptedData,
         nonce,
         message.signature,
+        role === 'editor' ? 'editor' : 'viewer',
       )
     }
     default:

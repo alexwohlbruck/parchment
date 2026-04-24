@@ -13,7 +13,9 @@ import {
   NewShare,
   IncomingShare,
   NewIncomingShare,
+  ShareRole,
 } from '../schema/shares.schema'
+import { collections } from '../schema/library.schema'
 import { friendships } from '../schema/friendships.schema'
 import { users } from '../schema/users.schema'
 import { generateId } from '../util'
@@ -26,6 +28,8 @@ import { parseHandle } from '../lib/crypto'
 
 export type ResourceType = 'collection' | 'route' | 'map' | 'layer'
 
+export type { ShareRole }
+
 export interface CreateShareParams {
   userId: string
   recipientHandle: string
@@ -33,6 +37,7 @@ export interface CreateShareParams {
   resourceId: string
   encryptedData?: string
   nonce?: string
+  role?: ShareRole
 }
 
 // ============================================================================
@@ -59,6 +64,8 @@ export async function createShare(params: CreateShareParams): Promise<Share> {
     }
   }
 
+  const role: ShareRole = params.role ?? 'viewer'
+
   const newShare: NewShare = {
     id: generateId(),
     userId: params.userId,
@@ -68,6 +75,7 @@ export async function createShare(params: CreateShareParams): Promise<Share> {
     resourceId: params.resourceId,
     encryptedData: params.encryptedData || null,
     nonce: params.nonce || null,
+    role,
     status: 'pending',
   }
 
@@ -90,6 +98,7 @@ export async function createShare(params: CreateShareParams): Promise<Share> {
       resourceId: params.resourceId,
       encryptedData: params.encryptedData,
       nonce: params.nonce,
+      role,
     })
   }
 
@@ -166,6 +175,7 @@ interface CreateIncomingShareParams {
   encryptedData: string
   nonce: string
   signature?: string
+  role?: ShareRole
 }
 
 /**
@@ -183,6 +193,7 @@ export async function createIncomingShare(
     encryptedData: params.encryptedData,
     nonce: params.nonce,
     signature: params.signature || null,
+    role: params.role ?? 'viewer',
     status: 'pending',
   }
 
@@ -299,6 +310,7 @@ async function sendShareToRemote(share: Share): Promise<boolean> {
       resourceId: share.resourceId,
       encryptedData: share.encryptedData || undefined,
       nonce: share.nonce || undefined,
+      role: share.role,
     })
 
     return true
@@ -362,6 +374,7 @@ export async function handleIncomingResourceShare(
   encryptedData: string,
   nonce: string,
   signature: string,
+  role?: ShareRole,
 ): Promise<{ success: boolean; error?: string }> {
   const { getLocalUserIdByAlias } = await import('./user.service')
   const { isFriend } = await import('./friends.service')
@@ -376,6 +389,11 @@ export async function handleIncomingResourceShare(
     return { success: false, error: 'Not a friend' }
   }
 
+  // Default to 'viewer' for messages from older senders that don't emit a
+  // role field. Sender-controlled role is covered by the signed envelope
+  // (see federation-canonical.ts) so a peer can't silently upgrade it.
+  const effectiveRole: ShareRole = role === 'editor' ? 'editor' : 'viewer'
+
   await createIncomingShare({
     userId: localUserId,
     senderHandle: senderHandle,
@@ -384,7 +402,84 @@ export async function handleIncomingResourceShare(
     encryptedData: encryptedData,
     nonce: nonce,
     signature: signature,
+    role: effectiveRole,
   })
 
   return { success: true }
+}
+
+// ============================================================================
+// Access-check helpers (for write-gate enforcement)
+// ============================================================================
+
+/**
+ * The effective role a user has on a collection. Owners always get
+ * `'owner'` regardless of any explicit share row. Non-members return null.
+ */
+export type EffectiveRole = 'owner' | 'editor' | 'viewer'
+
+/**
+ * Resolve a user's effective role on a given collection.
+ *
+ * Checks ownership first (always wins), then looks for an `accepted`
+ * incoming_shares row. Returns null if the user has no access at all.
+ *
+ * Used by controllers that need to decide whether to allow a write, or
+ * to compute the right set of write-enabled UI elements on the client.
+ */
+export async function getEffectiveRoleOnCollection(
+  userId: string,
+  collectionId: string,
+): Promise<EffectiveRole | null> {
+  const [collection] = await db
+    .select()
+    .from(collections)
+    .where(eq(collections.id, collectionId))
+    .limit(1)
+  if (!collection) return null
+
+  if (collection.userId === userId) return 'owner'
+
+  // Recipient side: look up the accepted incoming share. We match on
+  // resource_id + resource_type + user (the recipient).
+  const [share] = await db
+    .select()
+    .from(incomingShares)
+    .where(
+      and(
+        eq(incomingShares.userId, userId),
+        eq(incomingShares.resourceType, 'collection'),
+        eq(incomingShares.resourceId, collectionId),
+        eq(incomingShares.status, 'accepted'),
+      ),
+    )
+    .limit(1)
+  if (!share) return null
+
+  return share.role === 'editor' ? 'editor' : 'viewer'
+}
+
+/**
+ * Can this user create a new share on this collection?
+ *
+ * Owner can always share. Editors can share only when the collection's
+ * resharingPolicy is `editors-can-share`. Viewers can never share.
+ */
+export async function canShareCollection(
+  userId: string,
+  collectionId: string,
+): Promise<{ allowed: boolean; asRole: EffectiveRole | null }> {
+  const [collection] = await db
+    .select()
+    .from(collections)
+    .where(eq(collections.id, collectionId))
+    .limit(1)
+  if (!collection) return { allowed: false, asRole: null }
+
+  const role = await getEffectiveRoleOnCollection(userId, collectionId)
+  if (role === 'owner') return { allowed: true, asRole: 'owner' }
+  if (role === 'editor' && collection.resharingPolicy === 'editors-can-share') {
+    return { allowed: true, asRole: 'editor' }
+  }
+  return { allowed: false, asRole: role }
 }

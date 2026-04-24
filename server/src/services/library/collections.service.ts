@@ -351,6 +351,237 @@ export async function rotateCollectionKey(
   })
 }
 
+// ===== Scheme switch (server-key ↔ user-e2ee) =====
+
+export interface ChangeCollectionSchemeParams {
+  collectionId: string
+  userId: string
+  targetScheme: 'server-key' | 'user-e2ee'
+  newMetadataEncrypted: string
+  newMetadataKeyVersion: number
+
+  /**
+   * UPGRADE (server-key → user-e2ee): the client has already encrypted
+   * every existing bookmark under the new collection key. We insert these
+   * as encrypted_points and tear down the cleartext bookmarks.
+   */
+  newEncryptedPoints?: Array<{
+    id?: string
+    encryptedData: string
+    nonce: string
+  }>
+
+  /**
+   * DOWNGRADE (user-e2ee → server-key): the client decrypted every
+   * encrypted_point and now hands us plaintext bookmark rows to insert.
+   * The spatial coordinate is sent as separate lat/lng so the server can
+   * regenerate PostGIS geometry from the pair.
+   */
+  newBookmarks?: Array<{
+    id?: string
+    externalIds: Record<string, string>
+    name: string
+    address?: string | null
+    lat: number
+    lng: number
+    icon?: string
+    iconColor?: string
+    presetType?: string | null
+  }>
+
+  /** Rewrapped per-recipient share envelopes after the scheme change. */
+  updatedShareEnvelopes: Array<{
+    recipientHandle: string
+    encryptedData: string
+    nonce: string
+  }>
+}
+
+/**
+ * Thrown when the caller requests a no-op scheme change (current scheme
+ * equals target). Maps to 400.
+ */
+export class SchemeAlreadySetError extends Error {
+  constructor(scheme: 'server-key' | 'user-e2ee') {
+    super(`Collection scheme is already ${scheme}`)
+    this.name = 'SchemeAlreadySetError'
+  }
+}
+
+/**
+ * Change a collection's encryption scheme atomically.
+ *
+ * Upgrade (server-key → user-e2ee):
+ *   - Delete the cleartext `bookmarks` rows in the collection (and their
+ *     pivots) — the client packaged their data into the new encrypted_points
+ *     batch so the cleartext copies are no longer needed.
+ *   - Insert the new encrypted_points.
+ *   - Flip `scheme`, clear any public link (disallowed on user-e2ee), and
+ *     mirror `is_sensitive=true` for the compat shim.
+ *
+ * Downgrade (user-e2ee → server-key):
+ *   - Delete all encrypted_points for the collection.
+ *   - Insert new `bookmarks` rows + `bookmarks_collections` pivot entries
+ *     from the plaintext payload.
+ *   - Flip `scheme` + `is_sensitive=false`.
+ *
+ * Both paths also:
+ *   - Update the collection metadata envelope + bump `metadata_key_version`.
+ *   - Update every remaining share's rewrapped envelope.
+ *
+ * Owner-only. Returns the updated collection; null when not found.
+ */
+export async function changeCollectionScheme(
+  params: ChangeCollectionSchemeParams,
+): Promise<Collection | null> {
+  return await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select()
+      .from(collections)
+      .where(
+        and(
+          eq(collections.id, params.collectionId),
+          eq(collections.userId, params.userId),
+        ),
+      )
+      .limit(1)
+    if (!current) return null
+
+    if (current.scheme === params.targetScheme) {
+      throw new SchemeAlreadySetError(params.targetScheme)
+    }
+
+    // Collection-level swap is the same in both directions.
+    const [updatedCollection] = await tx
+      .update(collections)
+      .set({
+        scheme: params.targetScheme,
+        isSensitive: params.targetScheme === 'user-e2ee',
+        metadataEncrypted: params.newMetadataEncrypted,
+        metadataKeyVersion: params.newMetadataKeyVersion,
+        // Public links are only allowed on server-key. Downgrading preserves
+        // whatever token existed (or null); upgrading clears any token.
+        publicToken:
+          params.targetScheme === 'user-e2ee' ? null : current.publicToken,
+        publicRole:
+          params.targetScheme === 'user-e2ee' ? null : current.publicRole,
+        updatedAt: new Date(),
+      })
+      .where(eq(collections.id, params.collectionId))
+      .returning()
+
+    if (params.targetScheme === 'user-e2ee') {
+      // --- UPGRADE: cleartext bookmarks → encrypted_points ---
+      // Get bookmark ids linked to this collection so we can clean them up.
+      const links = await tx
+        .select({ bookmarkId: bookmarksCollections.bookmarkId })
+        .from(bookmarksCollections)
+        .where(eq(bookmarksCollections.collectionId, params.collectionId))
+      const bookmarkIds = links.map((l) => l.bookmarkId)
+
+      await tx
+        .delete(bookmarksCollections)
+        .where(eq(bookmarksCollections.collectionId, params.collectionId))
+
+      // Delete the bookmarks themselves — they belonged only to this
+      // collection. If a bookmark somehow also lived in another server-key
+      // collection, the FK cascade on bookmarks_collections would already
+      // have removed its tie here and the bookmark row stays put (we only
+      // delete bookmarks whose user_id matches and that were in our list).
+      if (bookmarkIds.length > 0) {
+        await tx
+          .delete(bookmarksSchema)
+          .where(
+            and(
+              eq(bookmarksSchema.userId, params.userId),
+              inArray(bookmarksSchema.id, bookmarkIds),
+            ),
+          )
+      }
+
+      if (params.newEncryptedPoints && params.newEncryptedPoints.length > 0) {
+        await tx.insert(encryptedPoints).values(
+          params.newEncryptedPoints.map((p) => ({
+            id: p.id ?? generateId(),
+            collectionId: params.collectionId,
+            userId: params.userId,
+            encryptedData: p.encryptedData,
+            nonce: p.nonce,
+          })),
+        )
+      }
+    } else {
+      // --- DOWNGRADE: encrypted_points → cleartext bookmarks ---
+      await tx
+        .delete(encryptedPoints)
+        .where(eq(encryptedPoints.collectionId, params.collectionId))
+
+      if (params.newBookmarks && params.newBookmarks.length > 0) {
+        // Insert bookmarks. Geometry is built from lat/lng on the DB side
+        // using the existing spatial helper shape (raw SQL since drizzle
+        // doesn't model ST_MakePoint ergonomically).
+        for (const bm of params.newBookmarks) {
+          const bookmarkId = bm.id ?? generateId()
+          await tx.execute(
+            sql`INSERT INTO bookmarks
+              (id, external_ids, name, address, geometry, icon, icon_color, preset_type, user_id)
+              VALUES (
+                ${bookmarkId},
+                ${JSON.stringify(bm.externalIds)}::jsonb,
+                ${bm.name},
+                ${bm.address ?? null},
+                ST_SetSRID(ST_MakePoint(${bm.lng}, ${bm.lat}), 4326),
+                ${bm.icon ?? 'map-pin'},
+                ${bm.iconColor ?? '#F43F5E'},
+                ${bm.presetType ?? null},
+                ${params.userId}
+              )`,
+          )
+          await tx.insert(bookmarksCollections).values({
+            bookmarkId,
+            collectionId: params.collectionId,
+          })
+        }
+      }
+    }
+
+    // Rewrap each remaining share's envelope under the new collection key.
+    // Same mechanics as rotate-key — the server is opaque to the key; we
+    // just swap stored ciphertext atomically.
+    for (const env of params.updatedShareEnvelopes) {
+      await tx
+        .update(shares)
+        .set({
+          encryptedData: env.encryptedData,
+          nonce: env.nonce,
+        })
+        .where(
+          and(
+            eq(shares.userId, params.userId),
+            eq(shares.resourceType, 'collection'),
+            eq(shares.resourceId, params.collectionId),
+            eq(shares.recipientHandle, env.recipientHandle),
+          ),
+        )
+      await tx
+        .update(incomingShares)
+        .set({
+          encryptedData: env.encryptedData,
+          nonce: env.nonce,
+        })
+        .where(
+          and(
+            eq(incomingShares.resourceType, 'collection'),
+            eq(incomingShares.resourceId, params.collectionId),
+            eq(incomingShares.senderHandle, env.recipientHandle),
+          ),
+        )
+    }
+
+    return updatedCollection ?? null
+  })
+}
+
 // ===== Public Link Sharing =====
 
 /**

@@ -188,6 +188,85 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     },
   )
 
+  // Change a collection's encryption scheme atomically. The client
+  // packages the whole migration (re-encrypted or decrypted point set
+  // under the new scheme + rewrapped share envelopes + new metadata
+  // envelope) and the server applies it in one transaction. Owner only.
+  .post(
+    '/:id/change-scheme',
+    async ({ params: { id }, body, user, set }) => {
+      try {
+        const updated = await collectionsService.changeCollectionScheme({
+          collectionId: id,
+          userId: user.id,
+          targetScheme: body.targetScheme,
+          newMetadataEncrypted: body.newMetadataEncrypted,
+          newMetadataKeyVersion: body.newMetadataKeyVersion,
+          newEncryptedPoints: body.newEncryptedPoints,
+          newBookmarks: body.newBookmarks,
+          updatedShareEnvelopes: body.updatedShareEnvelopes,
+        })
+        if (!updated) {
+          set.status = 404
+          return { error: 'Collection not found' }
+        }
+        return updated
+      } catch (err) {
+        if (err instanceof collectionsService.SchemeAlreadySetError) {
+          set.status = 400
+          return { error: err.message }
+        }
+        throw err
+      }
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: t.Object({
+        targetScheme: t.Union([
+          t.Literal('server-key'),
+          t.Literal('user-e2ee'),
+        ]),
+        newMetadataEncrypted: t.String(),
+        newMetadataKeyVersion: t.Number(),
+        newEncryptedPoints: t.Optional(
+          t.Array(
+            t.Object({
+              id: t.Optional(t.String()),
+              encryptedData: t.String(),
+              nonce: t.String(),
+            }),
+          ),
+        ),
+        newBookmarks: t.Optional(
+          t.Array(
+            t.Object({
+              id: t.Optional(t.String()),
+              externalIds: t.Record(t.String(), t.String()),
+              name: t.String(),
+              address: t.Optional(t.Nullable(t.String())),
+              lat: t.Number(),
+              lng: t.Number(),
+              icon: t.Optional(t.String()),
+              iconColor: t.Optional(t.String()),
+              presetType: t.Optional(t.Nullable(t.String())),
+            }),
+          ),
+        ),
+        updatedShareEnvelopes: t.Array(
+          t.Object({
+            recipientHandle: t.String(),
+            encryptedData: t.String(),
+            nonce: t.String(),
+          }),
+        ),
+      }),
+      detail: {
+        tags: ['Library'],
+        summary: 'Change a collection\'s encryption scheme',
+      },
+    },
+  )
+
   // Rotate the collection's encryption key. Atomic transaction that
   // swaps metadata + every encrypted point + every remaining share's
   // rewrapped envelope, and deletes revoked recipients' shares. Owner

@@ -738,10 +738,8 @@ onMounted(async () => {
                       />
                     </button>
                   </DropdownMenuRadioItem>
-                  <!-- TODO: Implement date modified sort -->
                   <DropdownMenuRadioItem
                     value="dateModified"
-                    disabled
                     class="flex items-center justify-between pr-1.5"
                   >
                     <span>{{

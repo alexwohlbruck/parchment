@@ -65,19 +65,10 @@ app.post(
     let user = await fetchUserByEmail(email)
 
     if (!user) {
-      // For now, we will have an invite-only system. When the app is opened up to GP, we will use this code to create an account for new users
-      return status(404, { message: t('errors.notFound.user') }) // TODO: i18n
-      // const userId = generateId()
-      // user = (
-      //   await db
-      //     .insert(users)
-      //     .values({
-      //       id: userId,
-      //       email,
-      //     })
-      //     .returning()
-      // )[0]
-      // await populateDefaultLayers(userId)
+      // Invite-only today. Open-signup flow (auto-create user + seed default
+      // layers) will replace this branch when we're ready to accept new
+      // signups without an explicit invite.
+      return status(404, { message: t('errors.notFound.user') })
     }
 
     const isAppTester = user.email === process.env.APP_TESTER_EMAIL

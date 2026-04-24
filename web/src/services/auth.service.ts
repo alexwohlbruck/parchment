@@ -241,13 +241,10 @@ function authService() {
     // startAuthentication so Chrome accepts the BufferSource.
     hydratePrfExtensionInPlace(options)
 
-    let attestationResponse
-    try {
-      attestationResponse = await startAuthentication(options, eager)
-    } catch (error) {
-      // TODO
-      throw error
-    }
+    // startAuthentication throws for user cancels (NotAllowedError) the same
+    // way it does for real failures. Callers that want to distinguish should
+    // inspect the rethrown error's name/code — we just propagate it here.
+    const attestationResponse = await startAuthentication(options, eager)
 
     const {
       data: { user, token: sessionId },

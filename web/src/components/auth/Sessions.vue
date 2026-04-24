@@ -45,9 +45,6 @@ const sessions = computed(() => {
   return originalSessions.value.map(parseUAString)
 })
 
-// TODO: Store session in a pinia store
-// TODO: Create computed getter with UAParser results
-
 const columns = computed<ColumnDef<Session>[]>(() => {
   const baseColumns: ColumnDef<Session>[] = [
     {

@@ -1062,6 +1062,11 @@
         "error": "Error al probar la conexión",
         "validation_error": "Por favor corrige los errores de validación antes de probar"
       },
+      "filter": {
+        "encryption": "Cifrado",
+        "serverManaged": "Gestionado por el servidor",
+        "endToEnd": "Cifrado de extremo a extremo"
+      },
       "capabilities": {
         "mapLayer": "Capa de mapa",
         "search": "Buscar",

@@ -17,6 +17,7 @@ import {
   UsersIcon,
   LinkIcon,
   PuzzleIcon,
+  ShieldCheckIcon,
 } from 'lucide-vue-next'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useIntegrationService } from '@/services/integration.service'
@@ -63,6 +64,7 @@ const costFilter = ref<string[]>([])
 const hostingFilter = ref<string[]>([])
 const scopeFilter = ref<string[]>([])
 const statusFilter = ref<string[]>([])
+const encryptionFilter = ref<string[]>([])
 
 // Sort
 type SortField = 'popularity' | 'alphabetical' | 'dateModified'
@@ -84,10 +86,17 @@ const filterRefs: Record<string, Ref<string[]>> = {
   hosting: hostingFilter,
   scope: scopeFilter,
   status: statusFilter,
+  encryption: encryptionFilter,
 }
 
 // Filters where values are mutually exclusive (single-select toggle)
-const exclusiveFilters = new Set(['cost', 'hosting', 'scope', 'status'])
+const exclusiveFilters = new Set([
+  'cost',
+  'hosting',
+  'scope',
+  'status',
+  'encryption',
+])
 
 // Toggle a filter value on/off
 function toggleFilter(filter: string, value: string) {
@@ -159,6 +168,16 @@ const activeFilterChips = computed<ActiveFilter[]>(() => {
           : t('settings.integrations.filter.notConnected'),
     })
   }
+  for (const v of encryptionFilter.value) {
+    chips.push({
+      key: `encryption:${v}`,
+      category: 'encryption',
+      label:
+        v === 'e2ee'
+          ? t('settings.integrations.filter.endToEnd')
+          : t('settings.integrations.filter.serverManaged'),
+    })
+  }
   for (const v of selectedCapabilities.value) {
     chips.push({
       key: `cap:${v}`,
@@ -175,6 +194,7 @@ function clearAllFilters() {
   hostingFilter.value = []
   scopeFilter.value = []
   statusFilter.value = []
+  encryptionFilter.value = []
   selectedCapabilities.value = []
 }
 
@@ -230,6 +250,19 @@ const filteredIntegrations = computed(() => {
     items = items.filter(({ config }) =>
       statusFilter.value.every(v => (v === 'connected' ? !!config : !config)),
     )
+  }
+
+  // Encryption filter — matches by supportedSchemes on the integration.
+  // Default is ['server-key'] for integrations that haven't declared otherwise.
+  if (encryptionFilter.value.length > 0) {
+    items = items.filter(({ integration }) => {
+      const supported = integration.supportedSchemes ?? ['server-key']
+      return encryptionFilter.value.every(v =>
+        v === 'e2ee'
+          ? supported.includes('user-e2ee')
+          : supported.includes('server-key'),
+      )
+    })
   }
 
   // Search filter (fuzzy)
@@ -576,6 +609,55 @@ onMounted(async () => {
                       />
                       <span v-else class="size-4 mr-2" />
                       {{ t('settings.integrations.filter.notConnected') }}
+                    </DropdownMenuItem>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+
+                <!-- Encryption submenu -->
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <ShieldCheckIcon
+                      class="size-4 mr-2 text-muted-foreground"
+                    />
+                    {{ t('settings.integrations.filter.encryption') }}
+                    <Badge
+                      v-if="encryptionFilter.length > 0"
+                      variant="primary"
+                      class="ml-auto px-1.5 py-0 text-[10px] min-w-5 justify-center"
+                    >
+                      {{ encryptionFilter.length }}
+                    </Badge>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    <DropdownMenuItem
+                      @select="
+                        (e: Event) => {
+                          e.preventDefault()
+                          toggleFilter('encryption', 'server')
+                        }
+                      "
+                    >
+                      <CheckIcon
+                        v-if="encryptionFilter.includes('server')"
+                        class="size-4 mr-2"
+                      />
+                      <span v-else class="size-4 mr-2" />
+                      {{ t('settings.integrations.filter.serverManaged') }}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      @select="
+                        (e: Event) => {
+                          e.preventDefault()
+                          toggleFilter('encryption', 'e2ee')
+                        }
+                      "
+                    >
+                      <CheckIcon
+                        v-if="encryptionFilter.includes('e2ee')"
+                        class="size-4 mr-2"
+                      />
+                      <span v-else class="size-4 mr-2" />
+                      {{ t('settings.integrations.filter.endToEnd') }}
                     </DropdownMenuItem>
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>

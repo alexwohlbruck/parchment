@@ -1085,7 +1085,10 @@
         "status": "Status",
         "connected": "Connected",
         "notConnected": "Not connected",
-        "disabled": "Disabled"
+        "disabled": "Disabled",
+        "encryption": "Encryption",
+        "serverManaged": "Server-managed",
+        "endToEnd": "End-to-end encrypted"
       },
       "sort": {
         "label": "Sort",
@@ -1165,7 +1168,7 @@
         "barrelman": "Self-hosted OSM search and spatial engine",
         "openstreetmap": "Configure OSM OAuth",
         "openstreetmap-account": "Add notes, comments, and make quick edits",
-        "dawarich": "Connect your self-hosted Dawarich instance — encrypted on your device"
+        "dawarich": "Private, encrypted location history tracking"
       },
       "scheme": {
         "endToEnd": {

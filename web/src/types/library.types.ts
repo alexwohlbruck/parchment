@@ -13,11 +13,28 @@ export interface Bookmark {
   updatedAt: string
 }
 
+export type CollectionScheme = 'server-key' | 'user-e2ee'
+export type ResharingPolicy = 'owner-only' | 'editors-can-share'
+
 export interface Collection {
   id: string
   userId: string
   isPublic: boolean
   isDefault?: boolean
+  // Deprecated: use `scheme` instead. Kept on the type so legacy code
+  // that reads it compiles; removing it is a follow-up once all
+  // client code migrates.
+  isSensitive?: boolean
+  // Encryption scheme of the collection. Determines whether bookmarks
+  // live in the cleartext `bookmarks` table or in `encrypted_points`,
+  // and whether public-link shares are allowed.
+  scheme: CollectionScheme
+  // Who (besides the owner) can issue shares on this collection.
+  resharingPolicy: ResharingPolicy
+  // Set when a public-link share exists. Only present for server-key
+  // collections; user-e2ee collections can never have a public link.
+  publicToken?: string | null
+  publicRole?: 'viewer' | null
   createdAt: string
   updatedAt: string
 

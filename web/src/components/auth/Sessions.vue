@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, h, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
 import UAParser from 'ua-parser-js'
@@ -22,6 +23,7 @@ import DataTable from '@/components/table/DataTable.vue'
 import { SettingsSection } from '@/components/settings'
 dayjs.extend(localizedFormat)
 
+const { t } = useI18n()
 const authService = useAuthService()
 const authStore = useAuthStore()
 const appService = useAppService()
@@ -49,7 +51,7 @@ const columns = computed<ColumnDef<Session>[]>(() => {
   const baseColumns: ColumnDef<Session>[] = [
     {
       id: 'device',
-      header: 'Device',
+      header: t('settings.auth.sessions.columns.device'),
       cell: ({ row }) => {
         const parsed = row.original.userAgentParsed
         const osName = parsed?.getOS().name
@@ -57,12 +59,12 @@ const columns = computed<ColumnDef<Session>[]>(() => {
         // Collapse the noisy vendor/model/OS-version line into a clean
         // "macOS · Chrome" style summary. Apple pins OS version on the
         // web anyway, so showing the exact version is misleading.
-        const label = [osName, browserName].filter(Boolean).join(' · ') || 'Unknown'
+        const label = [osName, browserName].filter(Boolean).join(' · ') || t('settings.auth.sessions.unknownDevice')
         const isCurrent = row.original.id === currentSessionId.value
         return h('div', { class: 'flex items-center gap-2' }, [
           h('span', {}, label),
           isCurrent
-            ? h(Badge, { variant: 'success', class: 'text-xs' }, () => 'This device')
+            ? h(Badge, { variant: 'success', class: 'text-xs' }, () => t('settings.auth.sessions.thisDevice'))
             : null,
         ])
       },
@@ -75,7 +77,7 @@ const columns = computed<ColumnDef<Session>[]>(() => {
   if (!isTabletScreen.value) {
     baseColumns.push({
       id: 'signedInAt',
-      header: 'Signed in',
+      header: t('settings.auth.sessions.columns.signedIn'),
       accessorFn: info => dayjs(info.createdAt as string).format('ll'),
     })
   }
@@ -90,7 +92,7 @@ const columns = computed<ColumnDef<Session>[]>(() => {
           variant: 'destructive-outline',
           size: 'icon',
           icon: Trash2Icon,
-          description: 'Sign out this session',
+          description: t('settings.auth.sessions.signOutThisSession'),
           onClick: () => deleteSession(row.original.id),
         }),
       ),
@@ -102,17 +104,19 @@ const columns = computed<ColumnDef<Session>[]>(() => {
 async function deleteSession(sessionId: Session['id']) {
   const session = sessions.value.find(session => session.id === sessionId)!
   const parsed = session.userAgentParsed
-  const browser = parsed?.getBrowser().name ?? 'this browser'
-  const osName = parsed?.getOS().name ?? 'this device'
+  const browser = parsed?.getBrowser().name ?? t('settings.auth.sessions.thisBrowser')
+  const osName = parsed?.getOS().name ?? t('settings.auth.sessions.thisDeviceFallback')
   const isCurrent = sessionId === currentSessionId.value
 
   const confirmed = await appService.confirm({
-    title: isCurrent ? 'Sign out of this device?' : `Sign out of ${browser} on ${osName}?`,
+    title: isCurrent
+      ? t('settings.auth.sessions.deleteCurrentTitle')
+      : t('settings.auth.sessions.deleteOtherTitle', { browser, osName }),
     description: isCurrent
-      ? "You're signed in here — continuing will sign you out immediately."
-      : `You'll sign out ${browser} on ${osName}. You can sign back in later.`,
+      ? t('settings.auth.sessions.deleteCurrentDescription')
+      : t('settings.auth.sessions.deleteOtherDescription', { browser, osName }),
     destructive: true,
-    continueText: 'Sign out',
+    continueText: t('settings.auth.sessions.signOutAction'),
   })
 
   if (confirmed) {
@@ -130,10 +134,10 @@ const isSigningOutOthers = ref(false)
 
 async function signOutOthers() {
   const confirmed = await appService.confirm({
-    title: 'Sign out other devices?',
-    description: "You'll stay signed in here. Recommended if a device was lost or stolen.",
+    title: t('settings.auth.sessions.signOutOthersTitle'),
+    description: t('settings.auth.sessions.signOutOthersDescription'),
     destructive: true,
-    continueText: 'Sign out',
+    continueText: t('settings.auth.sessions.signOutAction'),
   })
   if (!confirmed) return
 
@@ -141,10 +145,10 @@ async function signOutOthers() {
   try {
     await authService.signOutOtherDevices()
     await authService.getSessions()
-    toast.success('Signed out of other devices.')
+    toast.success(t('settings.auth.sessions.signOutOthersSuccess'))
   } catch (err) {
     toast.error(
-      err instanceof Error ? err.message : "Couldn't sign out other devices.",
+      err instanceof Error ? err.message : t('settings.auth.sessions.signOutOthersFailed'),
     )
   } finally {
     isSigningOutOthers.value = false
@@ -164,7 +168,7 @@ async function signOutOthers() {
         :disabled="isSigningOutOthers"
         @click="signOutOthers"
       >
-        Sign out other devices
+        {{ t('settings.auth.sessions.signOutOtherDevices') }}
       </Button>
     </template>
 

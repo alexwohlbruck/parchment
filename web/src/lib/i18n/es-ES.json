@@ -11,6 +11,7 @@
     "delete": "Eliminar",
     "confirm": "Confirmar",
     "close": "Cerrar",
+    "done": "Listo",
     "back": "Atrás",
     "save": "Guardar",
     "share": "Compartir",
@@ -893,6 +894,169 @@
       },
       "passkeys": {
         "title": "Claves de acceso"
+      }
+    },
+    "identity": {
+      "recoveryKey": {
+        "setup": {
+          "title": "Configurar identidad federada",
+          "description": "Tu clave de recuperación es tu último recurso para volver a entrar si pierdes todos los dispositivos. Guárdala en un lugar seguro — un gestor de contraseñas es ideal. En el siguiente paso te ofreceremos configurar una clave de acceso para la recuperación diaria.",
+          "importantTitle": "Importante",
+          "importantDescription": "Si pierdes esta clave Y todas las claves de acceso, tendrás que crear una nueva identidad y volver a añadir a todos tus amigos.",
+          "keyLabel": "Tu clave de recuperación",
+          "generating": "Generando...",
+          "keyCopiedToast": "Clave de recuperación copiada. Pégala en tu gestor de contraseñas.",
+          "masterPasswordHint": "Como una contraseña maestra. Mantenla en secreto y a salvo.",
+          "confirmSavedLabel": "He guardado mi clave de recuperación en un lugar seguro",
+          "failedFallback": "Error de configuración"
+        },
+        "passkeyOffer": {
+          "title": "¿Añadir una clave de acceso para recuperación?",
+          "description": "Las claves de acceso te permiten recuperar tu identidad en un nuevo dispositivo con un solo toque, sin necesidad de clave de recuperación. Siempre puedes añadir más desde Configuración.",
+          "alertDescription": "Tu clave de recuperación ya está a salvo. Añadir una clave de acceso es opcional pero muy recomendable.",
+          "existingLabel": "Ya tienes una clave de acceso:",
+          "existingHint": "Tócala abajo para habilitar la recuperación. Algunos navegadores o claves de acceso antiguas no pueden hacerlo — si no funciona, usa \"Añadir nueva\" en su lugar.",
+          "useExisting": "Usar \"{name}\" para recuperación",
+          "addNewInstead": "Añadir una nueva clave de acceso en su lugar",
+          "addPasskey": "Añadir clave de acceso",
+          "skipForNow": "Omitir por ahora",
+          "cannotUseError": "Esta clave de acceso no se puede usar para recuperación. Prueba añadiendo una nueva.",
+          "enableFailedError": "No se pudo habilitar la recuperación con clave de acceso. Aún puedes terminar la configuración usando tu clave de recuperación."
+        },
+        "complete": {
+          "title": "Identidad configurada",
+          "message": "¡Identidad configurada correctamente!",
+          "federationId": "Tu ID de federación: {handle}"
+        },
+        "import": {
+          "chooseTitle": "Restaurar tu identidad",
+          "chooseDescription": "Toca una de tus claves de acceso registradas para recuperar tu identidad en este dispositivo.",
+          "unlockWithPasskey": "Desbloquear con clave de acceso",
+          "pairWithOtherDevice": "Emparejar con tu otro dispositivo",
+          "useRecoveryKeyInstead": "Usar clave de recuperación en su lugar",
+          "unlockFailed": "No se pudo desbloquear con la clave de acceso",
+          "typeKeyTitle": "Importar clave de recuperación",
+          "typeKeyDescription": "Introduce tu clave de recuperación para restaurar tu identidad en este dispositivo.",
+          "recoveryKeyLabel": "Clave de recuperación",
+          "recoveryKeyPlaceholder": "Pega aquí tu clave de recuperación",
+          "invalidKey": "Clave de recuperación inválida",
+          "importAction": "Importar",
+          "lostKeyLink": "¿Perdiste tu clave de recuperación?",
+          "completeTitle": "Identidad restaurada",
+          "completeMessage": "¡Identidad restaurada correctamente!"
+        },
+        "reset": {
+          "confirmTitle": "¿Restablecer tu cuenta?",
+          "confirmDescription": "Esto borra permanentemente todos tus datos cifrados en esta cuenta — lugares guardados, colecciones, amigos y ajustes de compartición. Tu correo y claves de acceso permanecen, así que puedes seguir iniciando sesión. Esto no se puede deshacer.",
+          "typePromptTitle": "Escribe RESET para confirmar",
+          "typePromptLabel": "Confirmación",
+          "failedFallback": "Error al restablecer. Por favor, inténtalo de nuevo."
+        },
+        "view": {
+          "title": "Tu clave de recuperación",
+          "description": "Un respaldo para tu cuenta. Guárdala en un lugar seguro.",
+          "federationIdLabel": "Tu ID de federación — compártelo con amigos",
+          "keepSecretTitle": "Mantén esto en secreto",
+          "keepSecretDescription": "Cualquiera con esta clave puede iniciar sesión como tú en cualquier dispositivo.",
+          "keyLabel": "Clave de recuperación — guárdala en un gestor de contraseñas o imprímela",
+          "copied": "Copiado",
+          "copyToClipboard": "Copiar al portapapeles"
+        }
+      },
+      "transferDevice": {
+        "choose": {
+          "title": "Configurar otro dispositivo",
+          "description": "Inicia sesión en un nuevo teléfono o navegador. Ambos dispositivos permanecerán conectados — este no pierde nada.",
+          "currentDeviceLabel": "Este es mi dispositivo actual",
+          "currentDeviceHint": "Escanea el QR del nuevo dispositivo para compartir tu identidad con él",
+          "newDeviceLabel": "Este es mi nuevo dispositivo",
+          "newDeviceHint": "Muestra un QR para que tu dispositivo actual lo escanee"
+        },
+        "receive": {
+          "title": "Escanea esto con tu otro dispositivo",
+          "description": "En tu dispositivo con sesión iniciada, abre Configurar otro dispositivo → Este es mi dispositivo actual, luego escanea este QR.",
+          "preparing": "Preparando transferencia segura…",
+          "qrAlt": "Código QR de transferencia de dispositivo",
+          "waiting": "Esperando al otro dispositivo…",
+          "verifyTitle": "Verifica que el código de 6 dígitos coincida",
+          "verifyDescription": "Compara el código de abajo con el que se muestra en tu otro dispositivo. Si son diferentes, cancela — alguien podría estar interceptando la transferencia.",
+          "unsealing": "Abriendo tu identidad…",
+          "doneMessage": "Identidad restaurada en este dispositivo.",
+          "codesMatchAction": "Los códigos coinciden — desbloquear"
+        },
+        "send": {
+          "title": "Escanea tu nuevo dispositivo",
+          "description": "Apunta la cámara al código QR mostrado en tu nuevo dispositivo.",
+          "viewfinderHint": "Apunta la cámara al QR en tu nuevo dispositivo.",
+          "sealing": "Cifrando y subiendo…",
+          "verifyTitle": "Verifica que los códigos coincidan",
+          "verifyDescription": "Tu nuevo dispositivo debería mostrar ahora el mismo código de 6 dígitos. Si es así, toca \"Los códigos coinciden\" en el nuevo dispositivo para finalizar."
+        },
+        "errors": {
+          "sessionStart": "No se pudo iniciar la sesión de transferencia",
+          "sessionExpired": "La sesión de transferencia expiró. Cierra esto e inténtalo de nuevo — cada sesión dura 60 segundos.",
+          "polling": "Error al consultar la sesión de transferencia",
+          "missingState": "Falta estado de transferencia",
+          "noServerIdentity": "El servidor no tiene una identidad federada para verificar la firma del remitente.",
+          "seedMismatch": "La semilla transferida no deriva la identidad federada esperada.",
+          "openFailed": "Error al abrir la semilla transferida",
+          "cameraUnavailable": "Cámara no disponible: {message}",
+          "cameraAccess": "No se pudo acceder a la cámara",
+          "invalidQr": "El QR escaneado no es un código de transferencia de Parchment válido.",
+          "missingQrData": "Al QR escaneado le faltan datos de la sesión de transferencia.",
+          "noSeed": "Este dispositivo no tiene una semilla de identidad para transferir.",
+          "sealUploadFailed": "Error al cifrar y subir la semilla"
+        }
+      }
+    },
+    "auth": {
+      "passkeys": {
+        "addPasskey": "Añadir clave de acceso",
+        "columns": {
+          "name": "Nombre",
+          "synced": "Sincronizada",
+          "syncedHint": "Sí significa que esta clave de acceso viaja con tu gestor de contraseñas (iCloud Keychain, 1Password, Google) entre tus otros dispositivos. No significa que solo existe en el dispositivo que la creó.",
+          "added": "Añadida",
+          "recovery": "Recuperación",
+          "aboutLabel": "Acerca de {label}"
+        },
+        "setupIdentityFirst": "Configura primero tu identidad",
+        "recoveryOn": "Recuperación activada",
+        "turnOn": "Activar",
+        "deleteAction": "Eliminar clave de acceso",
+        "secondTapToast": "Un toque más para terminar la configuración.",
+        "addErrorFallback": "No se pudo añadir la clave de acceso",
+        "addSuccess": "Clave de acceso añadida. Puedes usarla en cualquier dispositivo.",
+        "addNoRecoveryFallback": "Clave de acceso añadida, pero no se puede usar para recuperación.",
+        "recoveryOnSuccess": "Recuperación activada. Usa esta clave de acceso en cualquier dispositivo.",
+        "cannotUseForRecovery": "Esta clave de acceso no se puede usar para recuperación.",
+        "recoveryFailedFallback": "No se pudo activar la recuperación.",
+        "deleteConfirmTitle": "¿Eliminar esta clave de acceso?",
+        "deleteConfirmDescription": "Ya no podrás usar esta clave de acceso para iniciar sesión en ningún dispositivo.",
+        "refreshKeysTitle": "¿Actualizar claves de cuenta?",
+        "refreshKeysDescription": "Si este dispositivo se perdió, actualiza para mantener tus datos a salvo. Tocarás tus otras claves de acceso.",
+        "refreshKeysAction": "Actualizar"
+      },
+      "sessions": {
+        "columns": {
+          "device": "Dispositivo",
+          "signedIn": "Sesión iniciada"
+        },
+        "thisDevice": "Este dispositivo",
+        "unknownDevice": "Desconocido",
+        "thisBrowser": "este navegador",
+        "thisDeviceFallback": "este dispositivo",
+        "signOutThisSession": "Cerrar esta sesión",
+        "signOutOtherDevices": "Cerrar sesión en otros dispositivos",
+        "deleteCurrentTitle": "¿Cerrar sesión en este dispositivo?",
+        "deleteOtherTitle": "¿Cerrar sesión de {browser} en {osName}?",
+        "deleteCurrentDescription": "Has iniciado sesión aquí — continuar te cerrará la sesión de inmediato.",
+        "deleteOtherDescription": "Cerrarás la sesión de {browser} en {osName}. Podrás volver a iniciar sesión más tarde.",
+        "signOutAction": "Cerrar sesión",
+        "signOutOthersTitle": "¿Cerrar sesión en otros dispositivos?",
+        "signOutOthersDescription": "Seguirás con la sesión iniciada aquí. Recomendado si un dispositivo se perdió o fue robado.",
+        "signOutOthersSuccess": "Sesión cerrada en otros dispositivos.",
+        "signOutOthersFailed": "No se pudo cerrar sesión en otros dispositivos."
       }
     },
     "behavior": {

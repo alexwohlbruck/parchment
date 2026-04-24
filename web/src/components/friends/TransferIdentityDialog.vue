@@ -19,6 +19,7 @@
  */
 
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import QRCode from 'qrcode'
 import jsQR from 'jsqr'
 import { storeToRefs } from 'pinia'
@@ -77,6 +78,7 @@ const emit = defineEmits<{
   complete: []
 }>()
 
+const { t } = useI18n()
 const identityStore = useIdentityStore()
 const authStore = useAuthStore()
 const { me } = storeToRefs(authStore)
@@ -217,7 +219,7 @@ async function startReceive() {
     startPolling()
   } catch (err) {
     error.value =
-      err instanceof Error ? err.message : 'Could not start transfer session'
+      err instanceof Error ? err.message : t('settings.identity.transferDevice.errors.sessionStart')
     receiveStage.value = 'error'
   }
 }
@@ -236,8 +238,7 @@ function startPolling() {
         clearInterval(pollingTimer.value)
         pollingTimer.value = null
       }
-      error.value =
-        'Transfer session expired. Close this and try again — each session is good for 60 seconds.'
+      error.value = t('settings.identity.transferDevice.errors.sessionExpired')
       receiveStage.value = 'error'
     }
   }, TRANSFER_SESSION_TTL_MS)
@@ -287,14 +288,14 @@ async function pollOnce() {
       pollingTimer.value = null
     }
     error.value =
-      err instanceof Error ? err.message : 'Error polling transfer session'
+      err instanceof Error ? err.message : t('settings.identity.transferDevice.errors.polling')
     receiveStage.value = 'error'
   }
 }
 
 async function handleConfirmSasMatches() {
   if (!receivedPayload.value || !receiverKeypair.value || !sessionId.value) {
-    error.value = 'Missing transfer state'
+    error.value = t('settings.identity.transferDevice.errors.missingState')
     receiveStage.value = 'error'
     return
   }
@@ -309,7 +310,7 @@ async function handleConfirmSasMatches() {
     )
     if (!serverIdentity.data.signingKey) {
       throw new Error(
-        "Server has no federation identity to verify the sender's signature.",
+        t('settings.identity.transferDevice.errors.noServerIdentity'),
       )
     }
     const senderIdentityPub = importPublicKey(serverIdentity.data.signingKey)
@@ -328,7 +329,7 @@ async function handleConfirmSasMatches() {
     const derivedPub = bytesToBase64(derived.signing.publicKey)
     if (derivedPub !== serverIdentity.data.signingKey) {
       throw new Error(
-        'Transferred seed does not derive the expected federation identity.',
+        t('settings.identity.transferDevice.errors.seedMismatch'),
       )
     }
 
@@ -342,7 +343,7 @@ async function handleConfirmSasMatches() {
     }, 1500)
   } catch (err) {
     error.value =
-      err instanceof Error ? err.message : 'Failed to open transferred seed'
+      err instanceof Error ? err.message : t('settings.identity.transferDevice.errors.openFailed')
     receiveStage.value = 'error'
   }
 }
@@ -384,8 +385,8 @@ async function startSend() {
   } catch (err) {
     error.value =
       err instanceof Error
-        ? `Camera unavailable: ${err.message}`
-        : 'Could not access the camera'
+        ? t('settings.identity.transferDevice.errors.cameraUnavailable', { message: err.message })
+        : t('settings.identity.transferDevice.errors.cameraAccess')
     sendStage.value = 'error'
   }
 }
@@ -427,12 +428,12 @@ async function onScanResult(raw: string) {
   try {
     parsed = JSON.parse(raw)
   } catch {
-    error.value = 'The scanned QR is not a valid Parchment transfer code.'
+    error.value = t('settings.identity.transferDevice.errors.invalidQr')
     sendStage.value = 'error'
     return
   }
   if (!parsed.sessionId || !parsed.receiverPub) {
-    error.value = 'The scanned QR is missing transfer session data.'
+    error.value = t('settings.identity.transferDevice.errors.missingQrData')
     sendStage.value = 'error'
     return
   }
@@ -441,7 +442,7 @@ async function onScanResult(raw: string) {
   try {
     const seed = await getSeed()
     if (!seed) {
-      throw new Error('This device has no identity seed to transfer.')
+      throw new Error(t('settings.identity.transferDevice.errors.noSeed'))
     }
     const senderKp = generateEphemeralKeypair()
     const receiverPub = base64ToBytes(parsed.receiverPub)
@@ -469,7 +470,7 @@ async function onScanResult(raw: string) {
     sendStage.value = 'uploaded'
   } catch (err) {
     error.value =
-      err instanceof Error ? err.message : 'Failed to seal + upload the seed'
+      err instanceof Error ? err.message : t('settings.identity.transferDevice.errors.sealUploadFailed')
     sendStage.value = 'error'
   }
 }
@@ -492,11 +493,10 @@ function backToChoose() {
         <DialogHeader>
           <DialogTitle class="flex items-center gap-2">
             <Smartphone class="h-5 w-5" />
-            Set up another device
+            {{ t('settings.identity.transferDevice.choose.title') }}
           </DialogTitle>
           <DialogDescription>
-            Sign in on a new phone or browser. Both devices stay signed
-            in — this one doesn't lose anything.
+            {{ t('settings.identity.transferDevice.choose.description') }}
           </DialogDescription>
         </DialogHeader>
 
@@ -511,9 +511,9 @@ function backToChoose() {
           >
             <Camera class="h-5 w-5 mr-3 shrink-0" />
             <div class="flex flex-col items-start gap-0.5">
-              <span class="font-semibold">This is my current device</span>
+              <span class="font-semibold">{{ t('settings.identity.transferDevice.choose.currentDeviceLabel') }}</span>
               <span class="text-xs text-muted-foreground font-normal">
-                Scan the QR on the new device to share your identity with it
+                {{ t('settings.identity.transferDevice.choose.currentDeviceHint') }}
               </span>
             </div>
           </Button>
@@ -525,16 +525,16 @@ function backToChoose() {
           >
             <QrCode class="h-5 w-5 mr-3 shrink-0" />
             <div class="flex flex-col items-start gap-0.5">
-              <span class="font-semibold">This is my new device</span>
+              <span class="font-semibold">{{ t('settings.identity.transferDevice.choose.newDeviceLabel') }}</span>
               <span class="text-xs text-muted-foreground font-normal">
-                Show a QR for your current device to scan
+                {{ t('settings.identity.transferDevice.choose.newDeviceHint') }}
               </span>
             </div>
           </Button>
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" @click="closeDialog">Cancel</Button>
+          <Button variant="ghost" @click="closeDialog">{{ t('general.cancel') }}</Button>
         </DialogFooter>
       </template>
 
@@ -543,11 +543,10 @@ function backToChoose() {
         <DialogHeader>
           <DialogTitle class="flex items-center gap-2">
             <QrCode class="h-5 w-5" />
-            Scan this with your other device
+            {{ t('settings.identity.transferDevice.receive.title') }}
           </DialogTitle>
           <DialogDescription>
-            On your signed-in device, open Set up another device → This
-            is my current device, then scan this QR.
+            {{ t('settings.identity.transferDevice.receive.description') }}
           </DialogDescription>
         </DialogHeader>
 
@@ -555,19 +554,19 @@ function backToChoose() {
           <template v-if="receiveStage === 'creating'">
             <Spinner class="h-8 w-8" />
             <p class="text-sm text-muted-foreground">
-              Preparing secure transfer…
+              {{ t('settings.identity.transferDevice.receive.preparing') }}
             </p>
           </template>
 
           <template v-else-if="receiveStage === 'awaiting-upload' && qrDataUrl">
             <img
               :src="qrDataUrl"
-              alt="Device transfer QR code"
+              :alt="t('settings.identity.transferDevice.receive.qrAlt')"
               class="w-72 h-72 border rounded"
             />
             <div class="flex items-center gap-2 text-sm text-muted-foreground">
               <Spinner class="h-4 w-4" />
-              Waiting for the other device…
+              {{ t('settings.identity.transferDevice.receive.waiting') }}
             </div>
           </template>
 
@@ -577,11 +576,9 @@ function backToChoose() {
                  is a security-critical instruction, not a casual
                  info blurb. -->
             <Alert variant="warning">
-              <AlertTitle>Verify the 6-digit code matches</AlertTitle>
+              <AlertTitle>{{ t('settings.identity.transferDevice.receive.verifyTitle') }}</AlertTitle>
               <AlertDescription>
-                Compare the code below with the one shown on your other
-                device. If they're different, cancel — someone may be
-                intercepting the transfer.
+                {{ t('settings.identity.transferDevice.receive.verifyDescription') }}
               </AlertDescription>
             </Alert>
             <div class="text-5xl font-mono tracking-widest">
@@ -592,7 +589,7 @@ function backToChoose() {
           <template v-else-if="receiveStage === 'unsealing'">
             <Spinner class="h-8 w-8" />
             <p class="text-sm text-muted-foreground">
-              Unsealing your identity…
+              {{ t('settings.identity.transferDevice.receive.unsealing') }}
             </p>
           </template>
 
@@ -600,7 +597,7 @@ function backToChoose() {
             <Alert variant="success">
               <Check class="h-4 w-4" />
               <AlertDescription>
-                Identity restored on this device.
+                {{ t('settings.identity.transferDevice.receive.doneMessage') }}
               </AlertDescription>
             </Alert>
           </template>
@@ -618,21 +615,21 @@ function backToChoose() {
             :icon="ArrowLeft"
             @click="backToChoose"
           >
-            Back
+            {{ t('general.back') }}
           </Button>
           <Button
             v-if="receiveStage === 'confirm-sas'"
             @click="handleConfirmSasMatches"
           >
             <Check class="h-4 w-4 mr-2" />
-            Codes match — unlock
+            {{ t('settings.identity.transferDevice.receive.codesMatchAction') }}
           </Button>
           <Button
             v-if="receiveStage !== 'done' && receiveStage !== 'unsealing'"
             variant="outline"
             @click="handleCancelTransfer"
           >
-            Cancel
+            {{ t('general.cancel') }}
           </Button>
         </DialogFooter>
       </template>
@@ -642,10 +639,10 @@ function backToChoose() {
         <DialogHeader>
           <DialogTitle class="flex items-center gap-2">
             <Camera class="h-5 w-5" />
-            Scan your new device
+            {{ t('settings.identity.transferDevice.send.title') }}
           </DialogTitle>
           <DialogDescription>
-            Point the camera at the QR code shown on your new device.
+            {{ t('settings.identity.transferDevice.send.description') }}
           </DialogDescription>
         </DialogHeader>
 
@@ -688,14 +685,14 @@ function backToChoose() {
               </div>
             </div>
             <p class="text-sm text-muted-foreground">
-              Point the camera at the QR on your new device.
+              {{ t('settings.identity.transferDevice.send.viewfinderHint') }}
             </p>
           </template>
 
           <template v-else-if="sendStage === 'sealing'">
             <Spinner class="h-8 w-8" />
             <p class="text-sm text-muted-foreground">
-              Encrypting and uploading…
+              {{ t('settings.identity.transferDevice.send.sealing') }}
             </p>
           </template>
 
@@ -704,10 +701,9 @@ function backToChoose() {
                  security-critical step, so warning (amber) beats a
                  neutral info. -->
             <Alert variant="warning">
-              <AlertTitle>Verify codes match</AlertTitle>
+              <AlertTitle>{{ t('settings.identity.transferDevice.send.verifyTitle') }}</AlertTitle>
               <AlertDescription>
-                Your new device should now show the same 6-digit code. If
-                yes, tap "Codes match" on the new device to finish.
+                {{ t('settings.identity.transferDevice.send.verifyDescription') }}
               </AlertDescription>
             </Alert>
             <div class="text-5xl font-mono tracking-widest">
@@ -728,10 +724,10 @@ function backToChoose() {
             :icon="ArrowLeft"
             @click="backToChoose"
           >
-            Back
+            {{ t('general.back') }}
           </Button>
           <Button variant="outline" @click="closeDialog">
-            {{ sendStage === 'uploaded' ? 'Done' : 'Cancel' }}
+            {{ sendStage === 'uploaded' ? t('general.done') : t('general.cancel') }}
           </Button>
         </DialogFooter>
       </template>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { useIdentityStore } from '@/stores/identity.store'
 import { useAppService } from '@/services/app.service'
@@ -56,6 +57,7 @@ const emit = defineEmits<{
   complete: []
 }>()
 
+const { t } = useI18n()
 const identityStore = useIdentityStore()
 const appService = useAppService()
 const authService = useAuthService()
@@ -150,7 +152,7 @@ async function handleConfirmSetup() {
     // present "Use your existing passkey" as the primary action.
     void refreshExistingPasskeyList()
   } else {
-    error.value = result.error || 'Setup failed'
+    error.value = result.error || t('settings.identity.recoveryKey.setup.failedFallback')
   }
 }
 
@@ -191,7 +193,7 @@ async function handleUseExistingPasskey() {
       // Leave the user on the offer step and surface the reason.
       error.value =
         result.error ??
-        "This passkey can't be used for recovery. Try adding a new one."
+        t('settings.identity.recoveryKey.passkeyOffer.cannotUseError')
     }
   } finally {
     passkeyBusy.value = false
@@ -229,7 +231,7 @@ async function handleAddRecoveryPasskey() {
       // already saved.
       error.value =
         result.error ??
-        'Could not enable passkey recovery. You can still finish setup using your recovery key.'
+        t('settings.identity.recoveryKey.passkeyOffer.enableFailedError')
     }
   } finally {
     passkeyBusy.value = false
@@ -255,7 +257,7 @@ async function handleUnlockWithPasskey() {
       emit('complete')
     }, 1500)
   } else {
-    error.value = result.error || 'Could not unlock with passkey'
+    error.value = result.error || t('settings.identity.recoveryKey.import.unlockFailed')
   }
 }
 
@@ -274,7 +276,7 @@ async function handleImport() {
       emit('complete')
     }, 1500)
   } else {
-    error.value = result.error || 'Invalid recovery key'
+    error.value = result.error || t('settings.identity.recoveryKey.import.invalidKey')
   }
 }
 
@@ -285,19 +287,16 @@ async function handleResetIdentity() {
   // everything; the confirm dialog gives the user a chance to bail
   // before the typed prompt appears.
   const confirmed = await appService.confirm({
-    title: 'Reset your account?',
-    description:
-      'This permanently erases all your encrypted data on this account — ' +
-      'saved places, collections, friends, and sharing settings. Your ' +
-      'email and passkeys stay, so you can keep signing in. This can\'t be undone.',
+    title: t('settings.identity.recoveryKey.reset.confirmTitle'),
+    description: t('settings.identity.recoveryKey.reset.confirmDescription'),
     destructive: true,
-    continueText: 'Continue',
+    continueText: t('general.continue'),
   })
   if (!confirmed) return
 
   const typed = await appService.prompt({
-    title: 'Type RESET to confirm',
-    label: 'Confirmation',
+    title: t('settings.identity.recoveryKey.reset.typePromptTitle'),
+    label: t('settings.identity.recoveryKey.reset.typePromptLabel'),
     inputProps: { placeholder: 'RESET' },
   })
   if (typed?.trim().toUpperCase() !== 'RESET') return
@@ -305,7 +304,7 @@ async function handleResetIdentity() {
   error.value = null
   const result = await identityStore.resetIdentity()
   if (!result.success) {
-    error.value = result.error ?? 'Reset failed. Please try again.'
+    error.value = result.error ?? t('settings.identity.recoveryKey.reset.failedFallback')
     return
   }
   isOpen.value = false
@@ -335,7 +334,7 @@ function handleClose() {
 async function copyRecoveryKey() {
   if (!existingRecoveryKey.value) return
   await navigator.clipboard.writeText(existingRecoveryKey.value)
-  toast.success('Recovery key copied. Paste it into your password manager.')
+  toast.success(t('settings.identity.recoveryKey.setup.keyCopiedToast'))
   recoveryCopied.value = true
   if (recoveryCopiedTimeout) clearTimeout(recoveryCopiedTimeout)
   recoveryCopiedTimeout = setTimeout(() => {
@@ -356,13 +355,10 @@ async function copyRecoveryKey() {
           <DialogHeader>
             <DialogTitle class="flex items-center gap-2">
               <Key class="h-5 w-5" />
-              Set Up Federation Identity
+              {{ t('settings.identity.recoveryKey.setup.title') }}
             </DialogTitle>
             <DialogDescription>
-              Your recovery key is your last-resort way back in if you lose
-              every device. Save it somewhere safe — a password manager is
-              ideal. We'll offer to set up a passkey for everyday recovery
-              in the next step.
+              {{ t('settings.identity.recoveryKey.setup.description') }}
             </DialogDescription>
           </DialogHeader>
 
@@ -372,28 +368,27 @@ async function copyRecoveryKey() {
                  an error state or imminent danger. -->
             <Alert variant="warning">
               <AlertTriangle class="h-4 w-4" />
-              <AlertTitle>Important</AlertTitle>
+              <AlertTitle>{{ t('settings.identity.recoveryKey.setup.importantTitle') }}</AlertTitle>
               <AlertDescription>
-                If you lose this key AND every passkey, you will need to
-                create a new identity and re-add all your friends.
+                {{ t('settings.identity.recoveryKey.setup.importantDescription') }}
               </AlertDescription>
             </Alert>
 
             <div class="flex flex-col gap-2">
-              <Label>Your Recovery Key</Label>
+              <Label>{{ t('settings.identity.recoveryKey.setup.keyLabel') }}</Label>
               <Code
                 class="p-3 text-sm font-mono whitespace-pre-wrap break-words leading-relaxed select-all"
               >
-                {{ formattedKey || 'Generating...' }}
+                {{ formattedKey || t('settings.identity.recoveryKey.setup.generating') }}
               </Code>
               <div v-if="displayedKey" class="flex gap-2">
                 <CopyButton
                   :text="displayedKey"
                   variant="outline"
-                  message="Recovery key copied. Paste it into your password manager."
+                  :message="t('settings.identity.recoveryKey.setup.keyCopiedToast')"
                 />
                 <span class="text-xs text-muted-foreground self-center">
-                  Like a master password. Keep it secret and safe.
+                  {{ t('settings.identity.recoveryKey.setup.masterPasswordHint') }}
                 </span>
               </div>
             </div>
@@ -405,7 +400,7 @@ async function copyRecoveryKey() {
                 :disabled="!displayedKey"
               />
               <Label for="saved" class="text-sm cursor-pointer">
-                I have saved my recovery key in a secure location
+                {{ t('settings.identity.recoveryKey.setup.confirmSavedLabel') }}
               </Label>
             </div>
 
@@ -415,13 +410,13 @@ async function copyRecoveryKey() {
           </div>
 
           <DialogFooter class="gap-2">
-            <Button variant="outline" @click="handleClose"> Cancel </Button>
+            <Button variant="outline" @click="handleClose"> {{ t('general.cancel') }} </Button>
             <Button
               :disabled="!hasSavedKey || isLoading"
               @click="handleConfirmSetup"
             >
               <Spinner v-if="isLoading" class="h-4 w-4 mr-2" />
-              Continue
+              {{ t('general.continue') }}
             </Button>
           </DialogFooter>
         </template>
@@ -431,12 +426,10 @@ async function copyRecoveryKey() {
           <DialogHeader>
             <DialogTitle class="flex items-center gap-2">
               <Fingerprint class="h-5 w-5" />
-              Add a passkey for recovery?
+              {{ t('settings.identity.recoveryKey.passkeyOffer.title') }}
             </DialogTitle>
             <DialogDescription>
-              Passkeys let you recover your identity on a new device with a
-              single tap, no recovery key required. You can always add more
-              later from Settings.
+              {{ t('settings.identity.recoveryKey.passkeyOffer.description') }}
             </DialogDescription>
           </DialogHeader>
 
@@ -444,8 +437,7 @@ async function copyRecoveryKey() {
             <Alert>
               <Fingerprint class="h-4 w-4" />
               <AlertDescription>
-                Your recovery key is already safe. Adding a passkey is
-                optional but strongly recommended.
+                {{ t('settings.identity.recoveryKey.passkeyOffer.alertDescription') }}
               </AlertDescription>
             </Alert>
 
@@ -457,13 +449,11 @@ async function copyRecoveryKey() {
               class="rounded-md border p-3 flex flex-col gap-2"
             >
               <div class="text-sm">
-                <span class="font-semibold">You already have a passkey:</span>
+                <span class="font-semibold">{{ t('settings.identity.recoveryKey.passkeyOffer.existingLabel') }}</span>
                 <span class="ml-1 font-mono">{{ promotionCandidate.name }}</span>
               </div>
               <p class="text-xs text-muted-foreground">
-                Tap it below to enable recovery on it. Some browsers or older
-                passkeys can't do this — if it doesn't work, use "Add new"
-                instead.
+                {{ t('settings.identity.recoveryKey.passkeyOffer.existingHint') }}
               </p>
             </div>
 
@@ -481,7 +471,7 @@ async function copyRecoveryKey() {
             >
               <Spinner v-if="passkeyBusy" class="h-4 w-4 mr-2" />
               <Fingerprint v-else class="h-4 w-4 mr-2" />
-              Use "{{ promotionCandidate.name }}" for recovery
+              {{ t('settings.identity.recoveryKey.passkeyOffer.useExisting', { name: promotionCandidate.name }) }}
             </Button>
             <Button
               :variant="promotionCandidate ? 'outline' : 'default'"
@@ -489,7 +479,7 @@ async function copyRecoveryKey() {
               :disabled="passkeyBusy"
               @click="handleAddRecoveryPasskey"
             >
-              {{ promotionCandidate ? 'Add a new passkey instead' : 'Add passkey' }}
+              {{ promotionCandidate ? t('settings.identity.recoveryKey.passkeyOffer.addNewInstead') : t('settings.identity.recoveryKey.passkeyOffer.addPasskey') }}
             </Button>
             <Button
               variant="ghost"
@@ -497,7 +487,7 @@ async function copyRecoveryKey() {
               :disabled="passkeyBusy"
               @click="handleSkipPasskey"
             >
-              Skip for now
+              {{ t('settings.identity.recoveryKey.passkeyOffer.skipForNow') }}
             </Button>
           </DialogFooter>
         </template>
@@ -507,16 +497,16 @@ async function copyRecoveryKey() {
           <DialogHeader>
             <DialogTitle class="flex items-center gap-2">
               <Check class="h-5 w-5 text-green-600" />
-              Identity set up
+              {{ t('settings.identity.recoveryKey.complete.title') }}
             </DialogTitle>
           </DialogHeader>
           <div class="flex flex-col gap-4 py-4">
             <Alert class="border-green-500 text-green-600">
               <Check class="h-4 w-4" />
               <AlertDescription>
-                Identity set up successfully!
+                {{ t('settings.identity.recoveryKey.complete.message') }}
                 <span v-if="handle" class="block mt-1 font-mono text-xs">
-                  Your Federation ID: {{ handle }}
+                  {{ t('settings.identity.recoveryKey.complete.federationId', { handle }) }}
                 </span>
               </AlertDescription>
             </Alert>
@@ -531,11 +521,10 @@ async function copyRecoveryKey() {
           <DialogHeader>
             <DialogTitle class="flex items-center gap-2">
               <Fingerprint class="h-5 w-5" />
-              Restore your identity
+              {{ t('settings.identity.recoveryKey.import.chooseTitle') }}
             </DialogTitle>
             <DialogDescription>
-              Tap one of your registered passkeys to recover your identity on
-              this device.
+              {{ t('settings.identity.recoveryKey.import.chooseDescription') }}
             </DialogDescription>
           </DialogHeader>
 
@@ -553,7 +542,7 @@ async function copyRecoveryKey() {
             >
               <Spinner v-if="isLoading" class="h-4 w-4 mr-2" />
               <Fingerprint v-else class="h-4 w-4 mr-2" />
-              Unlock with passkey
+              {{ t('settings.identity.recoveryKey.import.unlockWithPasskey') }}
             </Button>
             <Button
               variant="outline"
@@ -561,14 +550,14 @@ async function copyRecoveryKey() {
               @click="openTransferDialog"
             >
               <Smartphone class="h-4 w-4 mr-2" />
-              Pair with your other device
+              {{ t('settings.identity.recoveryKey.import.pairWithOtherDevice') }}
             </Button>
             <Button
               variant="ghost"
               class="w-full"
               @click="importStep = 'type-key'"
             >
-              Use recovery key instead
+              {{ t('settings.identity.recoveryKey.import.useRecoveryKeyInstead') }}
             </Button>
           </DialogFooter>
         </template>
@@ -578,20 +567,20 @@ async function copyRecoveryKey() {
           <DialogHeader>
             <DialogTitle class="flex items-center gap-2">
               <Download class="h-5 w-5" />
-              Import Recovery Key
+              {{ t('settings.identity.recoveryKey.import.typeKeyTitle') }}
             </DialogTitle>
             <DialogDescription>
-              Enter your recovery key to restore your identity on this device.
+              {{ t('settings.identity.recoveryKey.import.typeKeyDescription') }}
             </DialogDescription>
           </DialogHeader>
 
           <div class="flex flex-col gap-4 py-4">
             <div class="flex flex-col gap-2">
-              <Label for="recoveryKey">Recovery Key</Label>
+              <Label for="recoveryKey">{{ t('settings.identity.recoveryKey.import.recoveryKeyLabel') }}</Label>
               <Input
                 id="recoveryKey"
                 v-model="recoveryKeyInput"
-                placeholder="Paste your recovery key here"
+                :placeholder="t('settings.identity.recoveryKey.import.recoveryKeyPlaceholder')"
                 :disabled="isLoading"
               />
             </div>
@@ -608,15 +597,15 @@ async function copyRecoveryKey() {
                 variant="ghost"
                 @click="importStep = 'choose'"
               >
-                Back
+                {{ t('general.back') }}
               </Button>
-              <Button variant="outline" @click="handleClose"> Cancel </Button>
+              <Button variant="outline" @click="handleClose"> {{ t('general.cancel') }} </Button>
               <Button
                 :disabled="!recoveryKeyInput.trim() || isLoading"
                 @click="handleImport"
               >
                 <Spinner v-if="isLoading" class="h-4 w-4 mr-2" />
-                Import
+                {{ t('settings.identity.recoveryKey.import.importAction') }}
               </Button>
             </div>
             <button
@@ -624,7 +613,7 @@ async function copyRecoveryKey() {
               class="text-xs text-muted-foreground hover:text-destructive underline underline-offset-2 text-center w-full pt-2"
               @click="handleResetIdentity"
             >
-              Lost your recovery key?
+              {{ t('settings.identity.recoveryKey.import.lostKeyLink') }}
             </button>
           </DialogFooter>
         </template>
@@ -634,16 +623,16 @@ async function copyRecoveryKey() {
           <DialogHeader>
             <DialogTitle class="flex items-center gap-2">
               <Check class="h-5 w-5 text-green-600" />
-              Identity restored
+              {{ t('settings.identity.recoveryKey.import.completeTitle') }}
             </DialogTitle>
           </DialogHeader>
           <div class="flex flex-col gap-4 py-4">
             <Alert class="border-green-500 text-green-600">
               <Check class="h-4 w-4" />
               <AlertDescription>
-                Identity restored successfully!
+                {{ t('settings.identity.recoveryKey.import.completeMessage') }}
                 <span v-if="handle" class="block mt-1 font-mono text-xs">
-                  Your Federation ID: {{ handle }}
+                  {{ t('settings.identity.recoveryKey.complete.federationId', { handle }) }}
                 </span>
               </AlertDescription>
             </Alert>
@@ -656,10 +645,10 @@ async function copyRecoveryKey() {
         <DialogHeader>
           <DialogTitle class="flex items-center gap-2">
             <Key class="h-5 w-5" />
-            Your recovery key
+            {{ t('settings.identity.recoveryKey.view.title') }}
           </DialogTitle>
           <DialogDescription>
-            A backup for your account. Save it somewhere safe.
+            {{ t('settings.identity.recoveryKey.view.description') }}
           </DialogDescription>
         </DialogHeader>
 
@@ -669,7 +658,7 @@ async function copyRecoveryKey() {
                together (share-with-friend + save-for-self). -->
           <div v-if="handle" class="flex flex-col gap-1.5">
             <Label class="text-xs text-muted-foreground font-normal">
-              Your federation ID — share with friends
+              {{ t('settings.identity.recoveryKey.view.federationIdLabel') }}
             </Label>
             <div class="flex gap-2 items-stretch">
               <Code
@@ -684,20 +673,20 @@ async function copyRecoveryKey() {
 
           <Alert variant="destructive">
             <AlertTriangle class="h-4 w-4" />
-            <AlertTitle>Keep this secret</AlertTitle>
+            <AlertTitle>{{ t('settings.identity.recoveryKey.view.keepSecretTitle') }}</AlertTitle>
             <AlertDescription>
-              Anyone with this key can sign in as you on any device.
+              {{ t('settings.identity.recoveryKey.view.keepSecretDescription') }}
             </AlertDescription>
           </Alert>
 
           <div class="flex flex-col gap-1.5">
             <Label class="text-xs text-muted-foreground font-normal">
-              Recovery key — save in a password manager or print it
+              {{ t('settings.identity.recoveryKey.view.keyLabel') }}
             </Label>
             <Code
               class="p-3 text-sm font-mono whitespace-pre-wrap break-words leading-relaxed select-all"
             >
-              {{ formattedKey || 'Loading...' }}
+              {{ formattedKey || t('general.loading') }}
             </Code>
             <Button
               v-if="existingRecoveryKey"
@@ -710,13 +699,13 @@ async function copyRecoveryKey() {
                 class="h-4 w-4 mr-2"
                 :class="recoveryCopied ? 'text-green-600' : ''"
               />
-              {{ recoveryCopied ? 'Copied' : 'Copy to clipboard' }}
+              {{ recoveryCopied ? t('settings.identity.recoveryKey.view.copied') : t('settings.identity.recoveryKey.view.copyToClipboard') }}
             </Button>
           </div>
         </div>
 
         <DialogFooter>
-          <Button @click="handleClose">Done</Button>
+          <Button @click="handleClose">{{ t('general.done') }}</Button>
         </DialogFooter>
       </template>
     </DialogContent>

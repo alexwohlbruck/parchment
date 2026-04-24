@@ -72,7 +72,7 @@ function headerWithHelp(label: string, hint: string) {
                   label,
                   h(HelpCircle, {
                     class: 'h-3 w-3 text-muted-foreground',
-                    'aria-label': `About ${label}`,
+                    'aria-label': t('settings.auth.passkeys.columns.aboutLabel', { label }),
                   }),
                 ],
               ),
@@ -89,14 +89,14 @@ function headerWithHelp(label: string, hint: string) {
 const columns = computed<ColumnDef<Passkey>[]>(() => {
   const baseColumns: ColumnDef<Passkey>[] = [
     {
-      header: 'Name',
+      header: t('settings.auth.passkeys.columns.name'),
       accessorKey: 'name',
     },
     {
       id: 'synced',
       header: headerWithHelp(
-        'Synced',
-        'Yes means this passkey rides along with your password manager (iCloud Keychain, 1Password, Google) across your other devices. No means it lives only on the device that created it.',
+        t('settings.auth.passkeys.columns.synced'),
+        t('settings.auth.passkeys.columns.syncedHint'),
       ),
       accessorFn: info => (info.backedUp ? t('general.yes') : t('general.no')),
     },
@@ -105,7 +105,7 @@ const columns = computed<ColumnDef<Passkey>[]>(() => {
   // Only include created column on non-mobile devices
   if (!isTabletScreen.value) {
     baseColumns.push({
-      header: 'Added',
+      header: t('settings.auth.passkeys.columns.added'),
       accessorFn: info => dayjs(info.createdAt as string).format('ll'),
     })
   }
@@ -117,13 +117,13 @@ const columns = computed<ColumnDef<Passkey>[]>(() => {
   // specific credential.
   baseColumns.push({
     id: 'recovery',
-    header: 'Recovery',
+    header: t('settings.auth.passkeys.columns.recovery'),
     cell: ({ row }) => {
       if (!hasLocalIdentity.value) {
         return h(
           'span',
           { class: 'text-xs text-muted-foreground' },
-          'Set up identity first',
+          t('settings.auth.passkeys.setupIdentityFirst'),
         )
       }
       const enabled = passkeySlotCredentialIds.value.has(row.original.id)
@@ -133,7 +133,7 @@ const columns = computed<ColumnDef<Passkey>[]>(() => {
           { variant: 'success', class: 'gap-1' },
           () => [
             h(ShieldCheck, { class: 'h-3 w-3' }),
-            'Recovery on',
+            t('settings.auth.passkeys.recoveryOn'),
           ],
         )
       }
@@ -150,7 +150,7 @@ const columns = computed<ColumnDef<Passkey>[]>(() => {
           isBusy
             ? h(Spinner, { class: 'h-4 w-4 mr-2' })
             : h(Shield, { class: 'h-4 w-4 mr-2' }),
-          'Turn on',
+          t('settings.auth.passkeys.turnOn'),
         ],
       )
     },
@@ -169,7 +169,7 @@ const columns = computed<ColumnDef<Passkey>[]>(() => {
           variant: 'destructive-outline',
           size: 'icon',
           icon: Trash2Icon,
-          description: 'Delete passkey',
+          description: t('settings.auth.passkeys.deleteAction'),
           onClick: () => deletePasskey(row.original.id),
         }),
       ),
@@ -191,7 +191,7 @@ async function addPasskey() {
     let secondTapToastId: string | number | undefined
     const result = await identityStore.enrollPasskey('', {
       onSecondTapNeeded: () => {
-        secondTapToastId = toast.info('One more tap to finish setup.', {
+        secondTapToastId = toast.info(t('settings.auth.passkeys.secondTapToast'), {
           duration: 8000,
         })
       },
@@ -203,15 +203,14 @@ async function addPasskey() {
       return
     }
     if (!result.success) {
-      toast.error(result.error ?? "Couldn't add passkey")
+      toast.error(result.error ?? t('settings.auth.passkeys.addErrorFallback'))
       return
     }
     if (result.slotCreated) {
-      toast.success('Passkey added. You can use it on any device.')
+      toast.success(t('settings.auth.passkeys.addSuccess'))
     } else {
       toast.warning(
-        result.error ??
-          "Passkey added, but it can't be used for recovery.",
+        result.error ?? t('settings.auth.passkeys.addNoRecoveryFallback'),
       )
     }
     await getPasskeys()
@@ -233,11 +232,11 @@ async function enableRecovery(credentialId: string) {
       return
     }
     if (result.success && result.slotCreated) {
-      toast.success('Recovery on. Use this passkey on any device.')
+      toast.success(t('settings.auth.passkeys.recoveryOnSuccess'))
     } else if (result.success && !result.slotCreated) {
-      toast.warning(result.error ?? "This passkey can't be used for recovery.")
+      toast.warning(result.error ?? t('settings.auth.passkeys.cannotUseForRecovery'))
     } else {
-      toast.error(result.error ?? "Couldn't turn on recovery.")
+      toast.error(result.error ?? t('settings.auth.passkeys.recoveryFailedFallback'))
     }
   } finally {
     busyCredentialId.value = null
@@ -246,11 +245,10 @@ async function enableRecovery(credentialId: string) {
 
 async function deletePasskey(passkeyId: string) {
   const confirmed = await appService.confirm({
-    title: 'Delete this passkey?',
-    description:
-      'You will no longer be able to use this passkey to sign in on any device.',
+    title: t('settings.auth.passkeys.deleteConfirmTitle'),
+    description: t('settings.auth.passkeys.deleteConfirmDescription'),
     destructive: true,
-    continueText: 'Delete',
+    continueText: t('general.delete'),
   })
 
   if (!confirmed) return
@@ -264,12 +262,10 @@ async function deletePasskey(passkeyId: string) {
   // server-side DB dump), offer to rotate the master key. The user can
   // also rotate later from Identity settings.
   if (identityStore.isSetupComplete) {
-    toast('Refresh account keys?', {
-      description:
-        "If this device was lost, refresh to keep your data safe. " +
-        "You'll tap your other passkeys.",
+    toast(t('settings.auth.passkeys.refreshKeysTitle'), {
+      description: t('settings.auth.passkeys.refreshKeysDescription'),
       action: {
-        label: 'Refresh',
+        label: t('settings.auth.passkeys.refreshKeysAction'),
         onClick: () => identityStore.requestRotateKeys(),
       },
       duration: 15000,
@@ -305,7 +301,7 @@ watch(passkeyListVersion, async () => {
   >
     <template v-slot:actions>
       <Button @click="addPasskey()" variant="outline" :icon="PlusIcon">
-        Add passkey
+        {{ t('settings.auth.passkeys.addPasskey') }}
       </Button>
     </template>
 

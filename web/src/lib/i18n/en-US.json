@@ -929,6 +929,169 @@
         "title": "Passkeys"
       }
     },
+    "identity": {
+      "recoveryKey": {
+        "setup": {
+          "title": "Set Up Federation Identity",
+          "description": "Your recovery key is your last-resort way back in if you lose every device. Save it somewhere safe — a password manager is ideal. We'll offer to set up a passkey for everyday recovery in the next step.",
+          "importantTitle": "Important",
+          "importantDescription": "If you lose this key AND every passkey, you will need to create a new identity and re-add all your friends.",
+          "keyLabel": "Your Recovery Key",
+          "generating": "Generating...",
+          "keyCopiedToast": "Recovery key copied. Paste it into your password manager.",
+          "masterPasswordHint": "Like a master password. Keep it secret and safe.",
+          "confirmSavedLabel": "I have saved my recovery key in a secure location",
+          "failedFallback": "Setup failed"
+        },
+        "passkeyOffer": {
+          "title": "Add a passkey for recovery?",
+          "description": "Passkeys let you recover your identity on a new device with a single tap, no recovery key required. You can always add more later from Settings.",
+          "alertDescription": "Your recovery key is already safe. Adding a passkey is optional but strongly recommended.",
+          "existingLabel": "You already have a passkey:",
+          "existingHint": "Tap it below to enable recovery on it. Some browsers or older passkeys can't do this — if it doesn't work, use \"Add new\" instead.",
+          "useExisting": "Use \"{name}\" for recovery",
+          "addNewInstead": "Add a new passkey instead",
+          "addPasskey": "Add passkey",
+          "skipForNow": "Skip for now",
+          "cannotUseError": "This passkey can't be used for recovery. Try adding a new one.",
+          "enableFailedError": "Could not enable passkey recovery. You can still finish setup using your recovery key."
+        },
+        "complete": {
+          "title": "Identity set up",
+          "message": "Identity set up successfully!",
+          "federationId": "Your Federation ID: {handle}"
+        },
+        "import": {
+          "chooseTitle": "Restore your identity",
+          "chooseDescription": "Tap one of your registered passkeys to recover your identity on this device.",
+          "unlockWithPasskey": "Unlock with passkey",
+          "pairWithOtherDevice": "Pair with your other device",
+          "useRecoveryKeyInstead": "Use recovery key instead",
+          "unlockFailed": "Could not unlock with passkey",
+          "typeKeyTitle": "Import Recovery Key",
+          "typeKeyDescription": "Enter your recovery key to restore your identity on this device.",
+          "recoveryKeyLabel": "Recovery Key",
+          "recoveryKeyPlaceholder": "Paste your recovery key here",
+          "invalidKey": "Invalid recovery key",
+          "importAction": "Import",
+          "lostKeyLink": "Lost your recovery key?",
+          "completeTitle": "Identity restored",
+          "completeMessage": "Identity restored successfully!"
+        },
+        "reset": {
+          "confirmTitle": "Reset your account?",
+          "confirmDescription": "This permanently erases all your encrypted data on this account — saved places, collections, friends, and sharing settings. Your email and passkeys stay, so you can keep signing in. This can't be undone.",
+          "typePromptTitle": "Type RESET to confirm",
+          "typePromptLabel": "Confirmation",
+          "failedFallback": "Reset failed. Please try again."
+        },
+        "view": {
+          "title": "Your recovery key",
+          "description": "A backup for your account. Save it somewhere safe.",
+          "federationIdLabel": "Your federation ID — share with friends",
+          "keepSecretTitle": "Keep this secret",
+          "keepSecretDescription": "Anyone with this key can sign in as you on any device.",
+          "keyLabel": "Recovery key — save in a password manager or print it",
+          "copied": "Copied",
+          "copyToClipboard": "Copy to clipboard"
+        }
+      },
+      "transferDevice": {
+        "choose": {
+          "title": "Set up another device",
+          "description": "Sign in on a new phone or browser. Both devices stay signed in — this one doesn't lose anything.",
+          "currentDeviceLabel": "This is my current device",
+          "currentDeviceHint": "Scan the QR on the new device to share your identity with it",
+          "newDeviceLabel": "This is my new device",
+          "newDeviceHint": "Show a QR for your current device to scan"
+        },
+        "receive": {
+          "title": "Scan this with your other device",
+          "description": "On your signed-in device, open Set up another device → This is my current device, then scan this QR.",
+          "preparing": "Preparing secure transfer…",
+          "qrAlt": "Device transfer QR code",
+          "waiting": "Waiting for the other device…",
+          "verifyTitle": "Verify the 6-digit code matches",
+          "verifyDescription": "Compare the code below with the one shown on your other device. If they're different, cancel — someone may be intercepting the transfer.",
+          "unsealing": "Unsealing your identity…",
+          "doneMessage": "Identity restored on this device.",
+          "codesMatchAction": "Codes match — unlock"
+        },
+        "send": {
+          "title": "Scan your new device",
+          "description": "Point the camera at the QR code shown on your new device.",
+          "viewfinderHint": "Point the camera at the QR on your new device.",
+          "sealing": "Encrypting and uploading…",
+          "verifyTitle": "Verify codes match",
+          "verifyDescription": "Your new device should now show the same 6-digit code. If yes, tap \"Codes match\" on the new device to finish."
+        },
+        "errors": {
+          "sessionStart": "Could not start transfer session",
+          "sessionExpired": "Transfer session expired. Close this and try again — each session is good for 60 seconds.",
+          "polling": "Error polling transfer session",
+          "missingState": "Missing transfer state",
+          "noServerIdentity": "Server has no federation identity to verify the sender's signature.",
+          "seedMismatch": "Transferred seed does not derive the expected federation identity.",
+          "openFailed": "Failed to open transferred seed",
+          "cameraUnavailable": "Camera unavailable: {message}",
+          "cameraAccess": "Could not access the camera",
+          "invalidQr": "The scanned QR is not a valid Parchment transfer code.",
+          "missingQrData": "The scanned QR is missing transfer session data.",
+          "noSeed": "This device has no identity seed to transfer.",
+          "sealUploadFailed": "Failed to seal + upload the seed"
+        }
+      }
+    },
+    "auth": {
+      "passkeys": {
+        "addPasskey": "Add passkey",
+        "columns": {
+          "name": "Name",
+          "synced": "Synced",
+          "syncedHint": "Yes means this passkey rides along with your password manager (iCloud Keychain, 1Password, Google) across your other devices. No means it lives only on the device that created it.",
+          "added": "Added",
+          "recovery": "Recovery",
+          "aboutLabel": "About {label}"
+        },
+        "setupIdentityFirst": "Set up identity first",
+        "recoveryOn": "Recovery on",
+        "turnOn": "Turn on",
+        "deleteAction": "Delete passkey",
+        "secondTapToast": "One more tap to finish setup.",
+        "addErrorFallback": "Couldn't add passkey",
+        "addSuccess": "Passkey added. You can use it on any device.",
+        "addNoRecoveryFallback": "Passkey added, but it can't be used for recovery.",
+        "recoveryOnSuccess": "Recovery on. Use this passkey on any device.",
+        "cannotUseForRecovery": "This passkey can't be used for recovery.",
+        "recoveryFailedFallback": "Couldn't turn on recovery.",
+        "deleteConfirmTitle": "Delete this passkey?",
+        "deleteConfirmDescription": "You will no longer be able to use this passkey to sign in on any device.",
+        "refreshKeysTitle": "Refresh account keys?",
+        "refreshKeysDescription": "If this device was lost, refresh to keep your data safe. You'll tap your other passkeys.",
+        "refreshKeysAction": "Refresh"
+      },
+      "sessions": {
+        "columns": {
+          "device": "Device",
+          "signedIn": "Signed in"
+        },
+        "thisDevice": "This device",
+        "unknownDevice": "Unknown",
+        "thisBrowser": "this browser",
+        "thisDeviceFallback": "this device",
+        "signOutThisSession": "Sign out this session",
+        "signOutOtherDevices": "Sign out other devices",
+        "deleteCurrentTitle": "Sign out of this device?",
+        "deleteOtherTitle": "Sign out of {browser} on {osName}?",
+        "deleteCurrentDescription": "You're signed in here — continuing will sign you out immediately.",
+        "deleteOtherDescription": "You'll sign out {browser} on {osName}. You can sign back in later.",
+        "signOutAction": "Sign out",
+        "signOutOthersTitle": "Sign out other devices?",
+        "signOutOthersDescription": "You'll stay signed in here. Recommended if a device was lost or stolen.",
+        "signOutOthersSuccess": "Signed out of other devices.",
+        "signOutOthersFailed": "Couldn't sign out other devices."
+      }
+    },
     "behavior": {
       "title": "Behavior",
       "language": {

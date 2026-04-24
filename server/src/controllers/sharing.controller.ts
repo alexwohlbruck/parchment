@@ -156,6 +156,47 @@ app.use(requireAuth).post(
 )
 
 /**
+ * Replace the envelope (encryptedData + nonce) on an existing share.
+ * Called by the owner after updating collection metadata so recipients
+ * see the new name/icon on their next refetch.
+ */
+app.use(requireAuth).put(
+  '/envelope',
+  async ({ body, user, status }) => {
+    const updated = await sharingService.updateShareEnvelope(
+      user.id,
+      body.recipientHandle,
+      body.resourceType as any,
+      body.resourceId,
+      body.encryptedData,
+      body.nonce,
+    )
+    if (!updated) {
+      return status(404, { message: 'Share not found' })
+    }
+    return updated
+  },
+  {
+    body: t.Object({
+      recipientHandle: t.String(),
+      resourceType: t.Union([
+        t.Literal('collection'),
+        t.Literal('route'),
+        t.Literal('map'),
+        t.Literal('layer'),
+      ]),
+      resourceId: t.String(),
+      encryptedData: t.String(),
+      nonce: t.String(),
+    }),
+    detail: {
+      tags: ['Sharing'],
+      summary: 'Replace an existing share envelope (metadata refresh)',
+    },
+  },
+)
+
+/**
  * Update the role on an existing share (viewer ↔ editor). Preferred over
  * the revoke+recreate pattern since the unique index on the outgoing row
  * would otherwise collide on re-insert.

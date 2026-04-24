@@ -12,6 +12,7 @@ import { db } from '../db'
 import { users } from '../schema/users.schema'
 import { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { buildHandle } from './federation.service'
+import { emit } from './realtime/emit'
 
 function lower(email: AnyPgColumn): SQL {
   return sql`lower(${email})`
@@ -75,6 +76,12 @@ export async function updateUserAlias(
     .set({ alias, updatedAt: new Date() })
     .where(eq(users.id, userId))
 
+  await emit.userProfile(
+    'user:profile-updated',
+    { id: userId, alias },
+    userId,
+  )
+
   return { success: true }
 }
 
@@ -112,6 +119,12 @@ export async function updateUserDisplayProfile(
   if ('firstName' in fields) update.firstName = fields.firstName
   if ('lastName' in fields) update.lastName = fields.lastName
   await db.update(users).set(update).where(eq(users.id, userId))
+
+  await emit.userProfile(
+    'user:profile-updated',
+    { id: userId, ...fields },
+    userId,
+  )
 }
 
 /**

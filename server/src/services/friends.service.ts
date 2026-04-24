@@ -25,6 +25,7 @@ import {
 import { getUserHandle, getUserIdentity } from './user.service'
 import { parseHandle } from '../lib/crypto'
 import { generateId } from '../util'
+import { emit } from './realtime/emit'
 
 // Re-export for external use
 export { getUserHandle }
@@ -152,6 +153,14 @@ export async function sendFriendInvitation(
       signature,
     })
 
+    // Both users should see the new pending invitation immediately.
+    await emit.friendship(
+      'friend-invitation:created',
+      outgoingInvitation[0],
+      fromUserId,
+      { userId: localRecipient[0].id },
+    )
+
     return { success: true, invitation: outgoingInvitation[0] }
   } else {
     // Remote invitation - send via federation
@@ -185,6 +194,15 @@ export async function sendFriendInvitation(
         signature,
       })
       .returning()
+
+    // Only the sender sees the new outgoing-invitation row on our server;
+    // the remote side stores its own copy when federation delivers.
+    await emit.friendship(
+      'friend-invitation:created',
+      invitation[0],
+      fromUserId,
+      { handle: toHandle },
+    )
 
     return { success: true, invitation: invitation[0] }
   }
@@ -300,6 +318,15 @@ export async function acceptFriendInvitation(
     await sendFederationMessage(sender.inbox, message)
   }
 
+  // Tell both sides the friendship now exists. Partner may be local (we
+  // looked them up above) or remote (federation).
+  await emit.friendship(
+    'friendship:created',
+    { fromHandle: inv.fromHandle, toHandle: myHandle },
+    userId,
+    { handle: inv.fromHandle },
+  )
+
   return { success: true }
 }
 
@@ -365,6 +392,13 @@ export async function rejectFriendInvitation(
     }
   }
 
+  await emit.friendship(
+    'friend-invitation:rejected',
+    { id: invitationId, fromHandle: inv.fromHandle, toHandle: inv.toHandle },
+    userId,
+    { handle: inv.fromHandle },
+  )
+
   return { success: true }
 }
 
@@ -411,6 +445,13 @@ export async function cancelFriendInvitation(
         ),
       )
   }
+
+  await emit.friendship(
+    'friend-invitation:cancelled',
+    { id: invitationId, fromHandle: inv.fromHandle, toHandle: inv.toHandle },
+    userId,
+    { handle: inv.toHandle },
+  )
 
   return { success: true }
 }
@@ -570,6 +611,13 @@ export async function removeFriend(
   }
 
   await cleanupLocationSharingForFriend(userId, friendHandle)
+
+  await emit.friendship(
+    'friendship:removed',
+    { userId, friendHandle },
+    userId,
+    { handle: friendHandle },
+  )
 
   return { success: true }
 }

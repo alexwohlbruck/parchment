@@ -46,6 +46,7 @@ export type FederationMessageType =
   | 'LOCATION_REQUEST'
   | 'RESOURCE_SHARE'
   | 'RELATIONSHIP_REVOKE'
+  | 'REALTIME_EVENT'
 
 /**
  * v2 federation message envelope. All new messages MUST use this shape.
@@ -470,6 +471,25 @@ export async function processFederationMessage(
         nonce,
         message.signature,
         role === 'editor' ? 'editor' : 'viewer',
+      )
+    }
+    case 'REALTIME_EVENT': {
+      const eventType = pick('eventType') as string | undefined
+      const eventPayload = pick('eventPayload')
+      const recipientAliases = pick('recipientAliases') as
+        | string[]
+        | undefined
+      if (!eventType || !Array.isArray(recipientAliases)) {
+        return { success: false, error: 'Missing realtime event fields' }
+      }
+      const { handleIncomingRealtimeEvent } = await import(
+        './realtime/federation-inbound'
+      )
+      return handleIncomingRealtimeEvent(
+        message.from,
+        eventType,
+        eventPayload,
+        recipientAliases,
       )
     }
     default:

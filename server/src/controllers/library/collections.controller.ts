@@ -188,6 +188,57 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     },
   )
 
+  // Mint a public-link token on a collection. Owner only, server-key
+  // only. Returns the token on success; 400 for user-e2ee; 404 if the
+  // caller doesn't own the collection.
+  .post(
+    '/:id/public-link',
+    async ({ params: { id }, user, set }) => {
+      try {
+        const result = await collectionsService.createPublicLink(id, user.id)
+        if (!result) {
+          set.status = 404
+          return { error: 'Collection not found' }
+        }
+        return result
+      } catch (err) {
+        if (err instanceof collectionsService.PublicLinkNotAllowedOnE2eeError) {
+          set.status = 400
+          return { error: err.message }
+        }
+        throw err
+      }
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      detail: {
+        tags: ['Library'],
+        summary: 'Mint a public-link token for this collection',
+      },
+    },
+  )
+
+  // Revoke the public-link token. Owner only. Idempotent: 204 even if
+  // no token was set.
+  .delete(
+    '/:id/public-link',
+    async ({ params: { id }, user, set }) => {
+      const revoked = await collectionsService.revokePublicLink(id, user.id)
+      if (!revoked) {
+        set.status = 404
+        return { error: 'Collection not found' }
+      }
+      set.status = 204
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      detail: {
+        tags: ['Library'],
+        summary: 'Revoke the public-link token for this collection',
+      },
+    },
+  )
+
   // Get encrypted points in a collection
   .get(
     '/:id/encrypted-points',

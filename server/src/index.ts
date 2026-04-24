@@ -29,6 +29,7 @@ import {
   wrappedMasterKeys as wrappedMasterKeysController,
   deviceTransfer as deviceTransferController,
   deviceWrapSecrets as deviceWrapSecretsController,
+  publicController,
 } from './controllers'
 import { initializeIntegrations } from './services/integration.service'
 import { syncPermissionsAndRoles } from './seed/sync-permissions'
@@ -96,6 +97,7 @@ async function main() {
   app.use(wrappedMasterKeysController)
   app.use(deviceTransferController)
   app.use(deviceWrapSecretsController)
+  app.use(publicController)
 
   app.onError(({ code, error }) => {
     if (code === 'NOT_FOUND') return 'Route not found :(' // TODO: i18n, proper error

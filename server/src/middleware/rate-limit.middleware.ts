@@ -116,3 +116,36 @@ export function makeUserRateLimit({
       }
     })
 }
+
+/**
+ * Per-IP rate-limit plugin for unauthenticated endpoints (public share
+ * resolvers, anonymous browsing, etc.). Each invocation gets its own
+ * bucket map so different endpoints can carry independent budgets.
+ *
+ * IP is resolved from the standard proxy headers (X-Forwarded-For,
+ * X-Real-IP) with a fallback to a sentinel string. Abusers sharing a
+ * proxy will share a bucket — acceptable since the shared-pool case
+ * tends to be corporate NAT, not a deliberate workaround.
+ */
+export function makeIpRateLimit({
+  name,
+  limit,
+  windowMs = 60_000,
+}: {
+  name: string
+  limit: number
+  windowMs?: number
+}) {
+  const buckets = new Map<string, Bucket>()
+  return (app: Elysia) =>
+    app.onBeforeHandle((ctx) => {
+      const ip = sourceIp(ctx.request)
+      if (!allow(buckets, ip, limit, windowMs)) {
+        const path = new URL(ctx.request.url).pathname
+        logger.warn({ ip, path, name }, 'IP rate limit exceeded')
+        ctx.set.status = 429
+        ctx.set.headers['Retry-After'] = String(Math.ceil(windowMs / 1000))
+        return { message: 'Rate limit exceeded' }
+      }
+    })
+}

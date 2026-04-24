@@ -19,6 +19,30 @@ export {
   IntegrationScheme,
 }
 
+/**
+ * Shape returned by `GET /integrations/configured` per integration row.
+ *
+ * Covers both system rows (userId/encryptedConfig absent) and user rows
+ * (userId always present; encryptedConfig present only when the row is
+ * scheme='user-e2ee' and the caller owns it).
+ *
+ * `config` holds only the integration's `publicFields` — never secrets.
+ */
+export interface ConfiguredIntegrationDto {
+  id: string
+  integrationId: IntegrationId
+  scheme: IntegrationScheme
+  name?: string
+  config: Record<string, any>
+  capabilities: Array<{
+    id: IntegrationCapabilityId
+    active: boolean
+    metadata: unknown
+  }>
+  userId?: string | null
+  encryptedConfig?: string
+}
+
 // Capability interfaces
 
 export interface SearchCapability {

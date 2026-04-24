@@ -18,6 +18,8 @@ import {
   IntegrationCapability,
   IntegrationScope,
   IntegrationScheme,
+  ConfiguredIntegrationDto,
+  IntegrationRecord,
 } from '../types/integration.types'
 import { requireAuth, getSession } from '../middleware/auth.middleware'
 import { PermissionId } from '../types/auth.types'
@@ -41,25 +43,26 @@ app.use(getSession).get(
   async ({ user }) => {
     const { integrationManager } = await import('../services/integrations')
 
-    // Always include system integrations with public fields
-    const systemIntegrations = await getConfiguredIntegrations()
-
-    const result: any[] = systemIntegrations.map((integration) => {
+    // Build the public-facing view of one integration row. Shared between the
+    // system and user branches — the only difference is that user rows carry
+    // userId + (for user-e2ee) the opaque encryptedConfig envelope.
+    const toDto = (
+      integration: IntegrationRecord,
+      includeUserFields: boolean,
+    ): ConfiguredIntegrationDto => {
       const definition = getIntegrationDefinition(integration.integrationId)
       const publicConfig = extractPublicConfig(
         (integration.config || {}) as Record<string, any>,
         definition,
       )
-
-      // Get the integration instance to access capability metadata
       const instance =
         integrationManager.getCachedIntegrationInstance(integration)
-      const enhancedCapabilities = integration.capabilities.map((cap) => {
-        const capabilityMetadata = instance?.capabilities[cap.id]?.metadata
-        return { ...cap, metadata: capabilityMetadata || null }
-      })
+      const enhancedCapabilities = integration.capabilities.map((cap) => ({
+        ...cap,
+        metadata: instance?.capabilities[cap.id]?.metadata ?? null,
+      }))
 
-      return {
+      const dto: ConfiguredIntegrationDto = {
         id: integration.id,
         integrationId: integration.integrationId,
         scheme: integration.scheme,
@@ -67,46 +70,31 @@ app.use(getSession).get(
         capabilities: enhancedCapabilities,
         name: definition?.name,
       }
-    })
+      if (includeUserFields) {
+        dto.userId = integration.userId
+        // user-e2ee rows carry the client-encrypted config as an opaque
+        // envelope; the client decrypts it locally on hydrate.
+        dto.encryptedConfig = integration.encryptedConfig
+      }
+      return dto
+    }
 
-    // If authenticated, also include user integrations
+    // Always include system integrations with public fields.
+    const systemIntegrations = await getConfiguredIntegrations()
+    const result: ConfiguredIntegrationDto[] = systemIntegrations.map((i) =>
+      toDto(i, false),
+    )
+
     if (user) {
       const userPermissions = await getPermissions(user.id)
       const canReadUser = hasPermission(
         userPermissions,
         PermissionId.INTEGRATIONS_READ_USER,
       )
-
       if (canReadUser) {
         const userIntegrations = await getConfiguredIntegrations(user.id)
         for (const integration of userIntegrations) {
-          const definition = getIntegrationDefinition(
-            integration.integrationId,
-          )
-          const publicConfig = extractPublicConfig(
-            (integration.config || {}) as Record<string, any>,
-            definition,
-          )
-
-          const instance =
-            integrationManager.getCachedIntegrationInstance(integration)
-          const enhancedCapabilities = integration.capabilities.map((cap) => {
-            const capabilityMetadata = instance?.capabilities[cap.id]?.metadata
-            return { ...cap, metadata: capabilityMetadata || null }
-          })
-
-          result.push({
-            id: integration.id,
-            userId: integration.userId,
-            integrationId: integration.integrationId,
-            scheme: integration.scheme,
-            config: publicConfig,
-            // user-e2ee rows carry the client-encrypted config as an opaque
-            // envelope; the client decrypts it locally on hydrate.
-            encryptedConfig: integration.encryptedConfig,
-            capabilities: enhancedCapabilities,
-            name: definition?.name,
-          })
+          result.push(toDto(integration, true))
         }
       }
     }

@@ -24,6 +24,7 @@ import {
 import { requireAuth, getSession } from '../middleware/auth.middleware'
 import { PermissionId } from '../types/auth.types'
 import { hasPermission, getPermissions } from '../services/auth.service'
+import { logger } from '../lib/logger'
 
 const app = new Elysia({ prefix: '/integrations' })
 
@@ -356,15 +357,22 @@ app.post(
       )
 
       return integration
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof IntegrationSchemeConflictError) {
         return status(409, {
           message: t('errors.integration.schemeAlreadyConfigured'),
         })
       }
-      return status(400, {
-        message: err.message || 'Failed to create integration',
-      })
+      // Known Error throws from the service carry human-facing messages
+      // (validation, not-found, test-failed) — surface as 400. Non-Error
+      // throws are unexpected (DB / runtime bugs): log + generic 500 so
+      // we don't echo internal details to the caller.
+      if (err instanceof Error) {
+        logger.warn({ err, integrationId }, 'createIntegration failed')
+        return status(400, { message: err.message })
+      }
+      logger.error({ err }, 'createIntegration unexpected non-Error throw')
+      return status(500, { message: 'Failed to create integration' })
     }
   },
   {
@@ -462,10 +470,13 @@ app.put(
 
       const updatedIntegration = await updateIntegration(id, userId, updates)
       return updatedIntegration
-    } catch (err: any) {
-      return status(400, {
-        message: err.message || 'Failed to update integration',
-      })
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        logger.warn({ err, id }, 'updateIntegration failed')
+        return status(400, { message: err.message })
+      }
+      logger.error({ err }, 'updateIntegration unexpected non-Error throw')
+      return status(500, { message: 'Failed to update integration' })
     }
   },
   {
@@ -621,10 +632,13 @@ app.delete(
 
       set.status = 204
       return null
-    } catch (err: any) {
-      return status(400, {
-        message: err.message || 'Failed to delete integration',
-      })
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        logger.warn({ err, id }, 'deleteIntegration failed')
+        return status(400, { message: err.message })
+      }
+      logger.error({ err }, 'deleteIntegration unexpected non-Error throw')
+      return status(500, { message: 'Failed to delete integration' })
     }
   },
   {
@@ -698,10 +712,13 @@ app.post(
         config,
       )
       return result
-    } catch (err: any) {
-      return status(400, {
-        message: err.message || 'Failed to test integration',
-      })
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        logger.warn({ err, integrationId }, 'testIntegrationConfig failed')
+        return status(400, { message: err.message })
+      }
+      logger.error({ err }, 'testIntegrationConfig unexpected non-Error throw')
+      return status(500, { message: 'Failed to test integration' })
     }
   },
   {

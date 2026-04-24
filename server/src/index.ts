@@ -30,8 +30,10 @@ import {
   deviceTransfer as deviceTransferController,
   deviceWrapSecrets as deviceWrapSecretsController,
   publicController,
+  realtime as realtimeController,
 } from './controllers'
 import { initializeIntegrations } from './services/integration.service'
+import { bootstrapRealtime } from './services/realtime/bootstrap'
 import { syncPermissionsAndRoles } from './seed/sync-permissions'
 import { getI18nInitOptions, detectLanguage } from './lib/i18n'
 import { initializeOsmPresets } from './lib/osm-presets'
@@ -98,6 +100,11 @@ async function main() {
   app.use(deviceTransferController)
   app.use(deviceWrapSecretsController)
   app.use(publicController)
+  app.use(realtimeController)
+
+  // Wire realtime subscribers (local WS fanout, and — in Phase 4 —
+  // federation forwarding). Must run before the first write path emits.
+  bootstrapRealtime()
 
   app.onError(({ code, error }) => {
     if (code === 'NOT_FOUND') return 'Route not found :(' // TODO: i18n, proper error

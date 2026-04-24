@@ -114,6 +114,22 @@ export async function updateShareRole(
   return data
 }
 
+/**
+ * Replace the envelope of an existing share. Used when collection
+ * metadata changes — the owner iterates their shares and reissues each
+ * one with the updated plaintext baked into a fresh ECIES blob.
+ */
+export async function updateShareEnvelope(input: {
+  recipientHandle: string
+  resourceType: 'collection' | 'route' | 'map' | 'layer'
+  resourceId: string
+  encryptedData: string
+  nonce: string
+}): Promise<OutgoingShare> {
+  const { data } = await api.put<OutgoingShare>('/sharing/envelope', input)
+  return data
+}
+
 /** Mint a public-link token on a collection. Server rejects user-e2ee. */
 export async function createPublicLink(
   collectionId: string,

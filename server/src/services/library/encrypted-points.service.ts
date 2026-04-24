@@ -6,6 +6,7 @@ import {
 } from '../../schema/library.schema'
 import { and, eq } from 'drizzle-orm'
 import { generateId } from '../../util'
+import { emit } from '../realtime/emit'
 
 export interface NewEncryptedPointParams {
   collectionId: string
@@ -102,6 +103,8 @@ export async function createEncryptedPoint(
     })
     .returning()
 
+  await emit.collection('encrypted-point:created', point, params.collectionId)
+
   return point
 }
 
@@ -126,6 +129,14 @@ export async function updateEncryptedPoint(
     )
     .returning()
 
+  if (updated) {
+    await emit.collection(
+      'encrypted-point:updated',
+      updated,
+      updated.collectionId,
+    )
+  }
+
   return updated || null
 }
 
@@ -142,6 +153,15 @@ export async function deleteEncryptedPoint(
       and(eq(encryptedPoints.id, id), eq(encryptedPoints.userId, userId)),
     )
     .returning()
+
+  const deleted = result[0]
+  if (deleted) {
+    await emit.collection(
+      'encrypted-point:deleted',
+      { id: deleted.id, collectionId: deleted.collectionId },
+      deleted.collectionId,
+    )
+  }
 
   return result.length > 0
 }

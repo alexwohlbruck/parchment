@@ -100,12 +100,20 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
       }
 
       try {
-        // If the caller is reassigning collections, every target collection
-        // they're writing to must be owner or editor. This covers both
-        // additions and removals — removing a bookmark from a collection is
-        // a write on that collection.
+        // If the caller is reassigning collections, both the additions AND
+        // the removals require editor+ on the respective collections.
+        // Without checking the diff, a viewer could send
+        // `collectionIds: []` and silently unlink the bookmark from a
+        // collection they only have read access to. So: compute the
+        // current set, diff against the new set, and gate on the union.
         if (body.collectionIds) {
-          await assertCanWriteCollections(user.id, body.collectionIds)
+          const currentIds = (
+            await bookmarksService.getCollectionsForBookmark(id, user.id)
+          ).map((c) => c.id)
+          const newIds = new Set(body.collectionIds)
+          const scope = new Set<string>(body.collectionIds)
+          for (const cid of currentIds) if (!newIds.has(cid)) scope.add(cid)
+          await assertCanWriteCollections(user.id, Array.from(scope))
         }
 
         const updated = await bookmarksService.updateBookmark(id, user.id, body)

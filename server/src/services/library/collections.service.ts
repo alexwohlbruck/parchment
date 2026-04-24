@@ -9,6 +9,8 @@ import { users } from '../../schema/users.schema'
 import { and, eq, count, sql, or } from 'drizzle-orm'
 import { parseHandle } from '../../lib/crypto'
 import { buildHandle, isLocalHandle } from '../federation.service'
+import { emit } from '../realtime/emit'
+import { resolveCollectionRecipients } from '../realtime/recipients.service'
 import {
   CreateCollectionParams,
   NewCollection,
@@ -243,6 +245,10 @@ export async function createCollection(params: CreateCollectionParams) {
     .insert(collections)
     .values(newCollection)
     .returning()
+  // Owner-only at creation; no share rows exist yet. The resolver still
+  // looks them up but returns only the owner — keeps the emit site
+  // uniform with `updateCollection` etc.
+  await emit.collection('collection:created', inserted, inserted.id)
   return inserted
 }
 
@@ -262,6 +268,14 @@ export async function updateCollection(
     .where(and(eq(collections.id, id), eq(collections.userId, userId)))
     .returning()
 
+  if (updatedCollection) {
+    await emit.collection(
+      'collection:updated',
+      updatedCollection,
+      updatedCollection.id,
+    )
+  }
+
   return updatedCollection
 }
 
@@ -271,17 +285,22 @@ export async function deleteCollection(id: string, userId: string) {
     throw new Error('Cannot delete the default collection')
   }
 
-  return await db.transaction(async (tx) => {
+  // Resolve recipients BEFORE the delete — once the share rows are gone
+  // we can't reconstruct who had access. Emit AFTER the commit so we
+  // don't notify on a rolled-back delete.
+  const recipientsBefore = await resolveCollectionRecipients(id)
+
+  const deleted = await db.transaction(async (tx) => {
     await tx
       .delete(bookmarksCollections)
       .where(eq(bookmarksCollections.collectionId, id))
 
-    const [deleted] = await tx
+    const [row] = await tx
       .delete(collections)
       .where(and(eq(collections.id, id), eq(collections.userId, userId)))
       .returning()
 
-    if (!deleted) return undefined
+    if (!row) return undefined
 
     // Drop every dangling share row. The outgoing `shares` rows were
     // created by this owner; the mirrored `incoming_shares` rows live
@@ -305,8 +324,17 @@ export async function deleteCollection(id: string, userId: string) {
         ),
       )
 
-    return deleted
+    return row
   })
+
+  if (deleted) {
+    // Use the pre-resolved recipient set directly rather than going
+    // through the emit helper (whose resolver would return empty now).
+    const { publish } = await import('../realtime/event-bus.service')
+    publish('collection:deleted', { id }, recipientsBefore)
+  }
+
+  return deleted
 }
 
 // ===== Bookmarks in Collections =====
@@ -410,7 +438,7 @@ export class RotationVersionError extends Error {
 export async function rotateCollectionKey(
   params: RotateCollectionKeyParams,
 ): Promise<Collection | null> {
-  return await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [current] = await tx
       .select()
       .from(collections)
@@ -546,6 +574,10 @@ export async function rotateCollectionKey(
 
     return updatedCollection ?? null
   })
+  if (result) {
+    await emit.collection('collection:rotated', result, result.id)
+  }
+  return result
 }
 
 // ===== Scheme switch (server-key ↔ user-e2ee) =====
@@ -655,7 +687,7 @@ export class CollectionVersionConflictError extends Error {
 export async function changeCollectionScheme(
   params: ChangeCollectionSchemeParams,
 ): Promise<Collection | null> {
-  return await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [current] = await tx
       .select()
       .from(collections)
@@ -833,6 +865,10 @@ export async function changeCollectionScheme(
 
     return updatedCollection ?? null
   })
+  if (result) {
+    await emit.collection('collection:scheme-changed', result, result.id)
+  }
+  return result
 }
 
 // ===== Public Link Sharing =====
@@ -884,6 +920,14 @@ export async function createPublicLink(
     .returning()
   if (!updated) return null
 
+  // Public-link changes fan out to the owner only (anonymous viewers are
+  // stateless and refetch). This keeps their other open tabs in sync.
+  await emit.publicLink(
+    'collection:public-link-changed',
+    updated,
+    collectionId,
+  )
+
   return { publicToken: token, publicRole: 'viewer' }
 }
 
@@ -906,6 +950,13 @@ export async function revokePublicLink(
     })
     .where(and(eq(collections.id, collectionId), eq(collections.userId, userId)))
     .returning()
+  if (updated) {
+    await emit.publicLink(
+      'collection:public-link-changed',
+      updated,
+      collectionId,
+    )
+  }
   return !!updated
 }
 

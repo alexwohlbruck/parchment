@@ -25,6 +25,7 @@ import {
   buildHandle,
 } from './federation.service'
 import { parseHandle } from '../lib/crypto'
+import { publish } from './realtime/event-bus.service'
 
 export type ResourceType = 'collection' | 'route' | 'map' | 'layer'
 
@@ -133,6 +134,19 @@ export async function createShare(params: CreateShareParams): Promise<Share> {
     })
   }
 
+  // Emit to both sides of the new share so their UIs update in place:
+  //   - the owner (their other tabs/devices see the new access row)
+  //   - the recipient (if local — their library grows a shared entry)
+  // Cross-server recipients flow through the federation subscriber
+  // (Phase 4) which looks at `remoteHandles`.
+  const recipients = {
+    localUserIds: recipientUserId
+      ? [params.userId, recipientUserId]
+      : [params.userId],
+    remoteHandles: !isLocal ? [params.recipientHandle] : [],
+  }
+  publish('share:created', share, recipients)
+
   return share
 }
 
@@ -178,12 +192,12 @@ export async function revokeShare(
   userId: string,
   shareId: string,
 ): Promise<boolean> {
-  return await db.transaction(async (tx) => {
+  const deletedRow = await db.transaction(async (tx) => {
     const [row] = await tx
       .delete(shares)
       .where(and(eq(shares.id, shareId), eq(shares.userId, userId)))
       .returning()
-    if (!row) return false
+    if (!row) return null
 
     // Same-server mirror: if the recipient is on this server, drop their
     // incoming row too. Matched by (recipient user, resource, sender handle)
@@ -201,8 +215,27 @@ export async function revokeShare(
           ),
         )
     }
-    return true
+    return row
   })
+
+  if (deletedRow) {
+    // Tell both sides so the recipient's library drops the shared entry
+    // and the owner's other tabs drop the access-list row.
+    publish(
+      'share:revoked',
+      { id: deletedRow.id, resourceId: deletedRow.resourceId },
+      {
+        localUserIds: deletedRow.recipientUserId
+          ? [deletedRow.userId, deletedRow.recipientUserId]
+          : [deletedRow.userId],
+        remoteHandles: deletedRow.recipientUserId
+          ? []
+          : [deletedRow.recipientHandle],
+      },
+    )
+  }
+
+  return !!deletedRow
 }
 
 /**
@@ -219,6 +252,72 @@ export async function deleteShare(
 }
 
 /**
+ * Replace the encrypted share envelope for an existing share. Used when
+ * the owner changes collection metadata and wants recipients to see the
+ * new name / icon without re-creating the share. Updates both the
+ * outgoing row and the same-server recipient's mirrored incoming row
+ * so they never diverge.
+ *
+ * Scoped by recipient handle rather than share id so the owner-side
+ * caller doesn't need to remember specific share ids — they just iterate
+ * their share list and refresh envelopes.
+ */
+export async function updateShareEnvelope(
+  userId: string,
+  recipientHandle: string,
+  resourceType: ResourceType,
+  resourceId: string,
+  encryptedData: string,
+  nonce: string,
+): Promise<Share | null> {
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(shares)
+      .set({ encryptedData, nonce })
+      .where(
+        and(
+          eq(shares.userId, userId),
+          eq(shares.recipientHandle, recipientHandle),
+          eq(shares.resourceType, resourceType),
+          eq(shares.resourceId, resourceId),
+        ),
+      )
+      .returning()
+    if (!row) return null
+
+    if (row.recipientUserId) {
+      const senderHandle = await getLocalUserHandle(row.userId)
+      await tx
+        .update(incomingShares)
+        .set({ encryptedData, nonce })
+        .where(
+          and(
+            eq(incomingShares.userId, row.recipientUserId),
+            eq(incomingShares.senderHandle, senderHandle),
+            eq(incomingShares.resourceType, row.resourceType),
+            eq(incomingShares.resourceId, row.resourceId),
+          ),
+        )
+    }
+    return row
+  })
+
+  if (updated) {
+    // Emit a generic `share:envelope-updated` event so the recipient's
+    // client refetches the affected resource (metadata decrypted from
+    // the new envelope).
+    publish('share:envelope-updated', updated, {
+      localUserIds: updated.recipientUserId
+        ? [updated.userId, updated.recipientUserId]
+        : [updated.userId],
+      remoteHandles: updated.recipientUserId ? [] : [updated.recipientHandle],
+    })
+  }
+
+  return updated
+}
+
+/**
  * Change the role on an existing share. Updates both the outgoing row and
  * the same-server recipient's mirrored incoming row atomically so they
  * never diverge.
@@ -228,30 +327,41 @@ export async function updateShareRole(
   shareId: string,
   newRole: ShareRole,
 ): Promise<Share | null> {
-  return await db.transaction(async (tx) => {
-    const [updated] = await tx
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
       .update(shares)
       .set({ role: newRole })
       .where(and(eq(shares.id, shareId), eq(shares.userId, userId)))
       .returning()
-    if (!updated) return null
+    if (!row) return null
 
-    if (updated.recipientUserId) {
-      const senderHandle = await getLocalUserHandle(updated.userId)
+    if (row.recipientUserId) {
+      const senderHandle = await getLocalUserHandle(row.userId)
       await tx
         .update(incomingShares)
         .set({ role: newRole })
         .where(
           and(
-            eq(incomingShares.userId, updated.recipientUserId),
+            eq(incomingShares.userId, row.recipientUserId),
             eq(incomingShares.senderHandle, senderHandle),
-            eq(incomingShares.resourceType, updated.resourceType),
-            eq(incomingShares.resourceId, updated.resourceId),
+            eq(incomingShares.resourceType, row.resourceType),
+            eq(incomingShares.resourceId, row.resourceId),
           ),
         )
     }
-    return updated
+    return row
   })
+
+  if (updated) {
+    publish('share:role-updated', updated, {
+      localUserIds: updated.recipientUserId
+        ? [updated.userId, updated.recipientUserId]
+        : [updated.userId],
+      remoteHandles: updated.recipientUserId ? [] : [updated.recipientHandle],
+    })
+  }
+
+  return updated
 }
 
 // ============================================================================
@@ -348,6 +458,13 @@ export async function acceptIncomingShare(
     )
     .returning()
 
+  if (updated) {
+    publish('incoming-share:accepted', updated, {
+      localUserIds: [userId],
+      remoteHandles: [],
+    })
+  }
+
   return updated || null
 }
 
@@ -366,6 +483,13 @@ export async function rejectIncomingShare(
     )
     .returning()
 
+  if (updated) {
+    publish('incoming-share:rejected', updated, {
+      localUserIds: [userId],
+      remoteHandles: [],
+    })
+  }
+
   return !!updated
 }
 
@@ -382,6 +506,14 @@ export async function deleteIncomingShare(
       and(eq(incomingShares.id, shareId), eq(incomingShares.userId, userId)),
     )
     .returning()
+
+  if (result[0]) {
+    publish(
+      'incoming-share:deleted',
+      { id: result[0].id, resourceId: result[0].resourceId },
+      { localUserIds: [userId], remoteHandles: [] },
+    )
+  }
 
   return result.length > 0
 }

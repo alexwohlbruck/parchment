@@ -21,7 +21,6 @@ export interface Collection {
   id: string
   userId: string
   isPublic: boolean
-  isDefault?: boolean
   // Deprecated: use `scheme` instead. Kept on the type so legacy code
   // that reads it compiles; removing it is a follow-up once all
   // client code migrates.

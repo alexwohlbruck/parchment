@@ -85,7 +85,6 @@ async function makeCollection(
     id,
     userId: ownerId,
     isPublic: false,
-    isDefault: false,
     scheme: 'server-key',
     resharingPolicy: 'owner-only',
     ...overrides,

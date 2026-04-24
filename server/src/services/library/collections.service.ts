@@ -66,8 +66,6 @@ async function getOwnerHandle(
 }
 
 export async function getCollections(userId: string) {
-  await ensureDefaultCollection(userId)
-
   return await db
     .select()
     .from(collections)
@@ -195,39 +193,22 @@ export async function getSharedCollections(
   }))
 }
 
-export async function getDefaultCollection(userId: string) {
-  return (
-    await db
-      .select()
-      .from(collections)
-      .where(
-        and(eq(collections.userId, userId), eq(collections.isDefault, true)),
-      )
-  )[0]
-}
-
-export async function ensureDefaultCollection(userId: string) {
-  const existingDefault = await getDefaultCollection(userId)
-  if (existingDefault) {
-    return existingDefault
-  }
-
-  // Default collection is created with no encrypted metadata — the client
-  // writes an envelope via `updateCollection` the first time it loads the
-  // user's library and sees the `isDefault` row without metadata. This
-  // avoids the server needing any plaintext knowledge of display strings.
-  const newCollection: NewCollection = {
-    id: generateId(),
-    isPublic: false,
-    isDefault: true,
-    userId: userId,
-  }
-
+/**
+ * Create a single starter collection for a freshly-registered user. Called
+ * from the user-creation hook. No metadata envelope is written here — the
+ * server never sees the E2EE key. The client fills in an initial name/icon
+ * the first time it loads the user's library and encounters an owner
+ * collection without metadata.
+ */
+export async function createInitialCollection(userId: string) {
   const [inserted] = await db
     .insert(collections)
-    .values(newCollection)
+    .values({
+      id: generateId(),
+      isPublic: false,
+      userId,
+    })
     .returning()
-
   return inserted
 }
 
@@ -237,7 +218,6 @@ export async function createCollection(params: CreateCollectionParams) {
     metadataEncrypted: params.metadataEncrypted,
     metadataKeyVersion: params.metadataKeyVersion ?? 1,
     isPublic: params.isPublic || false,
-    isDefault: false, // Ensure new collections are not default
     userId: params.userId,
   }
 
@@ -280,11 +260,6 @@ export async function updateCollection(
 }
 
 export async function deleteCollection(id: string, userId: string) {
-  const collection = await getCollectionById(id, userId)
-  if (collection && collection.isDefault) {
-    throw new Error('Cannot delete the default collection')
-  }
-
   // Resolve recipients BEFORE the delete — once the share rows are gone
   // we can't reconstruct who had access. Emit AFTER the commit so we
   // don't notify on a rolled-back delete.

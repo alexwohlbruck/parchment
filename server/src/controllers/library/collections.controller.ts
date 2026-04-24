@@ -63,31 +63,6 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     },
   )
 
-  // Get the default collection (previously bookmarks)
-  .get(
-    '/default',
-    async ({ user }) => {
-      const defaultCollection =
-        await collectionsService.ensureDefaultCollection(user.id)
-
-      const bookmarks = await collectionsService.getBookmarksInCollection(
-        defaultCollection.id,
-        user.id,
-      )
-
-      return {
-        ...defaultCollection,
-        bookmarks,
-      }
-    },
-    {
-      detail: {
-        tags: ['Library'],
-        summary: 'Get the default collection',
-      },
-    },
-  )
-
   // Get a single collection by ID. Returns the row with an extra `role`
   // field of 'owner' | 'editor' | 'viewer' — clients use it to gate write
   // UI. Responds 404 when the caller neither owns nor has an active share.

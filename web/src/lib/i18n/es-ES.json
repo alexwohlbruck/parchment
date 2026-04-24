@@ -351,9 +351,9 @@
       "searchCollections": "Buscar colecciones...",
       "removeFromCollection": "Eliminar de la colección",
       "removedFromCollectionSuccess": "Eliminado de la colección",
-      "makeDefault": "Hacer Predeterminado",
       "addedToCollection": "Añadido a {collection}",
-      "failedToAddToCollection": "Error al añadir a la colección"
+      "failedToAddToCollection": "Error al añadir a la colección",
+      "saveToCollection": "Guardar en {collection}"
     },
     "empty": {
       "message": "no hay {entityPlural} todavía",
@@ -375,9 +375,10 @@
           "singular": "colección",
           "plural": "colecciones"
         },
-        "default": "Marcadores",
+        "starterName": "Marcadores",
         "manage": "Gestionar colecciones",
         "untitled": "Colección sin título",
+        "lastSaved": "Última guardada",
         "sharedBy": "Compartida por {name}"
       },
       "routes": {
@@ -424,8 +425,7 @@
         "collectionDescription": "Añade una descripción (opcional)",
         "collectionType": "Selecciona un tipo (opcional)",
         "bookmarkName": "Introduce el nombre del marcador",
-        "bookmarkType": "Selecciona el tipo de marcador (opcional)",
-        "isDefault": "Colección Predeterminada"
+        "bookmarkType": "Selecciona el tipo de marcador (opcional)"
       }
     },
     "types": {
@@ -444,6 +444,7 @@
       "saveErrorNoCoordinates": "No se puede guardar el lugar sin coordenadas",
       "saveErrorNoCollectionId": "El marcador debe pertenecer al menos a una colección.",
       "saveSuccess": "Marcador guardado {name}",
+      "saveSuccessToCollection": "Guardado {name} en {collection}",
       "saveError": "Error al guardar marcador",
       "updateSuccess": "Marcador actualizado",
       "updateError": "Error al actualizar marcador",
@@ -457,7 +458,6 @@
     "collections": {
       "fetchError": "Error al obtener colecciones",
       "fetchOneError": "Colección no encontrada",
-      "fetchDefaultError": "Error al obtener la colección predeterminada",
       "createSuccess": "Colección creada correctamente",
       "createError": "Error al crear colección",
       "updateSuccess": "Colección actualizada correctamente",

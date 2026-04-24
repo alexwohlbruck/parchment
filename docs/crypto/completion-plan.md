@@ -205,9 +205,9 @@ cleartext `name`, `description`, `icon`, `icon_color` columns from
   `server/src/controllers/library/collections.controller.ts` (create +
   update body now expect `metadataEncrypted`),
   `server/src/services/library/collections.service.ts`
-  (`ensureDefaultCollection` creates rows with no metadata; client fills
-  in on first edit), `server/src/types/library.types.ts`
-  (`CreateCollectionParams`).
+  (`createInitialCollection` creates a starter row with no metadata on
+  user registration; client fills in on first library fetch),
+  `server/src/types/library.types.ts` (`CreateCollectionParams`).
 - Web: `web/src/services/library/collections.service.ts` (encrypts
   before POST/PUT via `encryptCollectionMetadata`, decrypts on fetch via
   `hydrateDecryptedMetadata` helper), `web/src/types/library.types.ts`

@@ -67,7 +67,7 @@ function handleCollectionDelete() {
 
   <DetailPanelLayout v-else-if="collection">
     <template #title>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 min-w-0">
         <ItemIcon
           :icon="collection.icon"
           :color="collection.iconColor as ThemeColor"
@@ -75,6 +75,12 @@ function handleCollectionDelete() {
         />
         <div class="min-w-0">
           <h1 class="text-lg font-semibold truncate">{{ collectionName }}</h1>
+          <p
+            v-if="collection.description"
+            class="text-xs text-muted-foreground truncate"
+          >
+            {{ collection.description }}
+          </p>
         </div>
       </div>
     </template>
@@ -86,12 +92,6 @@ function handleCollectionDelete() {
         @edit="handleCollectionEdit"
       />
     </template>
-
-    <div v-if="collection.description" class="mb-4">
-      <p class="text-sm text-muted-foreground">
-        {{ collection.description }}
-      </p>
-    </div>
 
     <BookmarkList
       :bookmarks="bookmarks"

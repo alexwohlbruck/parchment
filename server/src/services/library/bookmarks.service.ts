@@ -13,7 +13,6 @@ import {
   NewBookmarkCollection,
 } from '../../types/library.types'
 import { generateId } from '../../util'
-import { getDefaultCollection } from './collections.service'
 import {
   createSelectFieldsWithGeometry,
   createPointFromCoordinates,
@@ -59,34 +58,17 @@ async function createBookmarkInternal(
 }
 
 /**
- * Creates a bookmark and assigns it to specified collections.
- * If no collection IDs are provided, assigns to the default collection.
+ * Creates a bookmark and assigns it to specified collections. Callers must
+ * supply at least one collection — the controller rejects empty input
+ * upstream.
  */
 export async function createBookmark(
   params: CreateBookmarkParams,
-  collectionIds: string[] | undefined,
-  userId: string,
+  collectionIds: string[],
 ): Promise<Bookmark> {
   const bookmark = await createBookmarkInternal(params)
 
-  let targetCollectionIds = collectionIds
-
-  // Ensure assignment to at least the default collection if none specified
-  if (!targetCollectionIds || targetCollectionIds.length === 0) {
-    const defaultCollection = await getDefaultCollection(userId)
-    if (defaultCollection) {
-      targetCollectionIds = [defaultCollection.id]
-    } else {
-      // Should ideally not happen if ensureDefaultCollection works
-      console.error('Default collection not found for user:', userId)
-      // Return the bookmark without assigning to a collection, or throw error?
-      // For now, returning the bookmark as is.
-      return bookmark
-    }
-  }
-
-  // Add to specified collections
-  const relations: NewBookmarkCollection[] = targetCollectionIds.map(
+  const relations: NewBookmarkCollection[] = collectionIds.map(
     (collectionId) => ({
       bookmarkId: bookmark.id,
       collectionId,
@@ -94,22 +76,19 @@ export async function createBookmark(
     }),
   )
 
-  if (relations.length > 0) {
-    await db.insert(bookmarksCollections).values(relations)
-    // Update collection `updatedAt` timestamps
-    await db
-      .update(collections)
-      .set({ updatedAt: new Date() })
-      .where(inArray(collections.id, targetCollectionIds))
-  }
+  await db.insert(bookmarksCollections).values(relations)
+  await db
+    .update(collections)
+    .set({ updatedAt: new Date() })
+    .where(inArray(collections.id, collectionIds))
 
   // Fan out to everyone who can see any of the target collections. The
   // payload carries the collectionIds so recipients can link the new
   // bookmark into their collections store without a follow-up fetch.
   await emit.bookmarkAcrossCollections(
     'bookmark:created',
-    { ...bookmark, collectionIds: targetCollectionIds },
-    targetCollectionIds,
+    { ...bookmark, collectionIds },
+    collectionIds,
   )
 
   return bookmark

@@ -131,7 +131,6 @@ async function makeCollection(
     id,
     userId: ownerId,
     isPublic: false,
-    isDefault: false,
     scheme: 'server-key',
     resharingPolicy: 'owner-only',
     ...overrides,
@@ -245,12 +244,6 @@ describe('deleteCollection', () => {
     expect(after.incoming).toBe(0)
   })
 
-  test('refuses to delete the default collection', async () => {
-    const id = await makeCollection(aliceId, { isDefault: true })
-    expect(deleteCollection(id, aliceId)).rejects.toThrow(/default/i)
-    // Cleanup since the throw left it behind.
-    await db.delete(collections).where(eq(collections.id, id))
-  })
 })
 
 describe('public link lifecycle', () => {

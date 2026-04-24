@@ -167,10 +167,7 @@ export const useCollectionsService = createSharedComposable(() => {
 
   function getCollectionDisplayName(collection: Collection | null): string {
     if (!collection) return ''
-    if (collection.isDefault) {
-      return collection.name || t('library.entities.collections.default')
-    }
-    return collection.name ?? ''
+    return collection.name || t('library.entities.collections.untitled')
   }
 
   /**
@@ -237,11 +234,59 @@ export const useCollectionsService = createSharedComposable(() => {
           )
         }),
       )
+
+      // Seed-on-first-decrypt: the server creates a starter collection
+      // with no metadata at user creation (it can't — the K_m envelope
+      // requires the user's seed, which only the client has). The first
+      // time the client successfully decrypts the library, any owner
+      // collection still missing an envelope gets one written here so it
+      // shows up as a normal, renameable collection instead of an
+      // "Untitled" placeholder. Fire-and-forget per collection; one
+      // failure shouldn't block the library from rendering.
+      if (userId) {
+        await Promise.all(
+          hydrated
+            .filter(
+              (c) => c.role === 'owner' && !c.metadataEncrypted && !c.name,
+            )
+            .map((c) => initializeBareCollection(c)),
+        )
+      }
+
       collectionsStore.setCollections(hydrated)
       return hydrated
     } catch (error) {
       toast.error(t('services.collections.fetchError'))
       return []
+    }
+  }
+
+  /**
+   * Write a sensible default metadata envelope for a collection the server
+   * auto-created (user-registration hook) before the client could encrypt
+   * one. Mutates `collection` in place with the decrypted field values so
+   * the caller can flow it into the store without a second fetch.
+   */
+  async function initializeBareCollection(collection: Collection) {
+    try {
+      const metadata: CollectionMetadata = {
+        name: t('library.entities.collections.starterName'),
+        icon: 'Bookmark',
+        iconColor: 'blue',
+        isPublic: false,
+      }
+      const envelope = await buildMetadataEnvelope(collection.id, metadata)
+      await api.put(`/library/collections/${collection.id}`, {
+        metadataEncrypted: envelope,
+      })
+      stampMetadata(collection, metadata)
+      collection.metadataEncrypted = envelope
+    } catch (err) {
+      console.warn(
+        '[collections] failed to initialize starter collection',
+        collection.id,
+        err,
+      )
     }
   }
 
@@ -273,27 +318,6 @@ export const useCollectionsService = createSharedComposable(() => {
       return hydrated
     } catch (error) {
       toast.error(t('services.collections.fetchOneError'))
-      return null
-    }
-  }
-
-  async function fetchDefaultCollection(): Promise<Collection | null> {
-    try {
-      const response = await api.get('/library/collections/default')
-      const collection = response.data as Collection | null
-
-      if (collection) {
-        const hydrated = await hydrateDecryptedMetadata(
-          collection,
-          authStore.me?.id,
-        )
-        collectionsStore.updateCollection(hydrated)
-        return hydrated
-      }
-
-      return collection
-    } catch (error) {
-      toast.error(t('services.collections.fetchDefaultError'))
       return null
     }
   }
@@ -587,7 +611,6 @@ export const useCollectionsService = createSharedComposable(() => {
   return {
     fetchCollections,
     fetchCollectionById,
-    fetchDefaultCollection,
     createCollection,
     updateCollection,
     deleteCollection,

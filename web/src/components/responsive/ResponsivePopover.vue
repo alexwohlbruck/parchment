@@ -19,6 +19,12 @@ interface Props
   mobileContentClass?: string
   modal?: boolean
   zIndexOffset?: number
+  /**
+   * Mobile only: let the bottom sheet size itself to the content height
+   * instead of running snap points. Ignored on desktop (the popover is
+   * already content-sized).
+   */
+  fitContent?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -85,6 +91,7 @@ watch(
       :show-drag-handle="props.showDragHandle"
       :show-close-button="props.showCloseButton"
       :dismissable="true"
+      :fit-content="props.fitContent"
       obstructing-key="responsive-popover"
       :z-index-offset="props.zIndexOffset"
     >
@@ -94,14 +101,20 @@ watch(
     </BottomSheet>
   </template>
 
-  <!-- Desktop: Popover (controlled state for click trigger) -->
+  <!-- Desktop: Popover (controlled state for click trigger). The trigger
+       slot is wrapped in an inline span so PopoverTrigger's as-child event
+       bindings have a concrete element to attach to — when the slot
+       contains a nested shadcn <Tooltip><TooltipTrigger as-child>...</>
+       (both also using as-child), PopoverTrigger's onClick otherwise gets
+       swallowed by the outer Tooltip wrapper and never reaches the button.
+       Clicks inside bubble to the span and open the popover normally. -->
   <Popover
     v-else
     v-model:open="desktopOpen"
     @update:open="handleDesktopOpenChange"
   >
     <PopoverTrigger as-child>
-      <slot name="trigger" />
+      <span class="inline-flex"><slot name="trigger" /></span>
     </PopoverTrigger>
     <PopoverContent
       :align="props.align"

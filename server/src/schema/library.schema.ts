@@ -75,8 +75,8 @@ export const bookmarks = pgTable(
  * collection AES key derived from the user's seed. The server stores
  * only the ciphertext envelope; it never sees the plaintext metadata.
  *
- * `isPublic`, `isDefault`, `isSensitive` stay cleartext because the
- * server needs them for access control and feed/discovery behaviour.
+ * `isPublic`, `isSensitive` stay cleartext because the server needs
+ * them for access control and feed/discovery behaviour.
  */
 export const collections = pgTable(
   'collections',
@@ -86,7 +86,6 @@ export const collections = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     isPublic: boolean('is_public').default(false).notNull(),
-    isDefault: boolean('is_default').default(false).notNull(),
     // Deprecated: use `scheme` instead. Kept as a read mirror during
     // migration so old code paths continue to work. Both are kept in sync
     // until all reads are migrated; drop in a follow-up.

@@ -6,7 +6,6 @@ import {
   MoreVerticalIcon,
   Pencil,
   Trash,
-  StarIcon,
   Share2Icon,
 } from 'lucide-vue-next'
 import { useCollectionsService } from '@/services/library/collections.service'
@@ -123,28 +122,14 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
     },
   ]
 
-  // Only show "make default" if collection is not already default
-  if (!props.collection.isDefault) {
-    items.push({
-      type: 'item',
-      id: 'make-default',
-      label: t('library.actions.makeDefault'),
-      icon: markRaw(StarIcon),
-      disabled: true,
-    })
-  }
-
-  // Only show delete if collection is not the default collection
-  if (!props.collection.isDefault) {
-    items.push({
-      type: 'item',
-      id: 'delete',
-      label: t('general.delete'),
-      icon: markRaw(Trash),
-      variant: 'destructive',
-      onSelect: deleteCollection,
-    })
-  }
+  items.push({
+    type: 'item',
+    id: 'delete',
+    label: t('general.delete'),
+    icon: markRaw(Trash),
+    variant: 'destructive',
+    onSelect: deleteCollection,
+  })
 
   return items
 })

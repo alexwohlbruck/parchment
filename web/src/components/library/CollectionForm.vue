@@ -4,7 +4,6 @@ import { useI18n } from 'vue-i18n'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { IconPicker } from '@/components/ui/icon-picker'
-import { Checkbox } from '@/components/ui/checkbox'
 import type { Collection } from '@/types/library.types'
 import type { ThemeColor } from '@/lib/utils'
 import { useForm } from 'vee-validate'
@@ -17,7 +16,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { useCollectionsService } from '@/services/library/collections.service'
 
 const { t } = useI18n()
 const emit = defineEmits(['update:valid'])
@@ -26,8 +24,6 @@ const props = defineProps<{
   collection?: Collection
 }>()
 
-const collectionsService = useCollectionsService()
-
 const collectionSchema = toTypedSchema(
   z.object({
     name: z.string().min(1),
@@ -35,7 +31,6 @@ const collectionSchema = toTypedSchema(
     icon: z.string().default('Folder'),
     iconColor: z.string().default('blue'),
     isPublic: z.boolean().default(false),
-    isDefault: z.boolean().default(false),
   }),
 )
 
@@ -45,7 +40,6 @@ interface CollectionFormValues {
   icon: string
   iconColor: string
   isPublic: boolean
-  isDefault: boolean
 }
 
 const { handleSubmit, values, meta, setFieldValue, resetForm } =
@@ -57,7 +51,6 @@ const { handleSubmit, values, meta, setFieldValue, resetForm } =
       icon: 'Bookmark',
       iconColor: 'blue',
       isPublic: false,
-      isDefault: false,
     },
   })
 
@@ -70,16 +63,8 @@ onMounted(() => {
         icon: props.collection.icon ?? 'Bookmark',
         iconColor: props.collection.iconColor ?? 'blue',
         isPublic: props.collection.isPublic,
-        isDefault: props.collection.isDefault || false,
       },
     })
-
-    if (props.collection.isDefault && !props.collection.name) {
-      setFieldValue(
-        'name',
-        collectionsService.getCollectionDisplayName(props.collection),
-      )
-    }
   }
 })
 
@@ -118,7 +103,6 @@ watch(
           icon: newCollection.icon ?? 'Bookmark',
           iconColor: newCollection.iconColor ?? 'blue',
           isPublic: newCollection.isPublic,
-          isDefault: newCollection.isDefault || false,
         },
       })
     }
@@ -136,12 +120,7 @@ defineExpose({
     <!-- Name field -->
     <FormField name="name" v-slot="{ field, errorMessage }">
       <FormItem>
-        <FormLabel
-          >{{ t('general.name') }}
-          <!-- <span v-if="values.isDefault" class="text-muted-foreground text-xs"
-            >({{ t('general.optional') }})</span
-          > -->
-        </FormLabel>
+        <FormLabel>{{ t('general.name') }}</FormLabel>
         <FormControl>
           <Input
             v-bind="field"
@@ -178,16 +157,5 @@ defineExpose({
       </FormItem>
     </FormField>
 
-    <!-- isDefault field (disabled checkbox) -->
-    <FormField name="isDefault" v-slot="{ field }">
-      <FormItem class="flex flex-row items-start space-x-3 space-y-0">
-        <FormControl>
-          <Checkbox :model-value="field.value" disabled />
-        </FormControl>
-        <div class="space-y-1 leading-none">
-          <FormLabel>{{ t('library.form.isDefault') }}</FormLabel>
-        </div>
-      </FormItem>
-    </FormField>
   </form>
 </template>

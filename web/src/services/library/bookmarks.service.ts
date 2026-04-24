@@ -16,6 +16,16 @@ export const useBookmarksService = createSharedComposable(() => {
   const { t } = useI18n()
   const isSaving = ref(false)
 
+  // Remember the most recently written-to collection so the bookmark
+  // button can target it directly on the next save. Last-write-wins across
+  // both new bookmarks and picker toggles.
+  function rememberLastSaved(collectionIds: string[] | undefined) {
+    if (!collectionIds || collectionIds.length === 0) return
+    collectionsStore.setLastSavedCollectionId(
+      collectionIds[collectionIds.length - 1],
+    )
+  }
+
   async function createBookmark(place: Place, collectionIds?: string[]) {
     if (!place.externalIds?.osm) {
       toast.error(t('services.bookmarks.saveErrorNoOsmId'))
@@ -45,9 +55,30 @@ export const useBookmarksService = createSharedComposable(() => {
       const bookmark = response.data
 
       bookmarksStore.addBookmark(bookmark)
-      toast.success(
-        t('services.bookmarks.saveSuccess', { name: place.name.value }),
-      )
+      rememberLastSaved(collectionIds)
+
+      // Last element of collectionIds is the one we want to surface in the
+      // toast — that's the same collection we just pinned as the target for
+      // the next one-tap save, so "Saved {name} to {collection}" matches
+      // what the user just did. Fall back to a generic message if the
+      // collection can't be resolved (e.g. stale cache).
+      const targetId = collectionIds?.[collectionIds.length - 1]
+      const target = targetId
+        ? collectionsStore.getCollectionById(targetId)
+        : undefined
+      if (target) {
+        toast.success(
+          t('services.bookmarks.saveSuccessToCollection', {
+            name: place.name.value,
+            collection:
+              target.name || t('library.entities.collections.untitled'),
+          }),
+        )
+      } else {
+        toast.success(
+          t('services.bookmarks.saveSuccess', { name: place.name.value }),
+        )
+      }
 
       return bookmark
     } catch (error) {
@@ -71,6 +102,7 @@ export const useBookmarksService = createSharedComposable(() => {
         // Added or removed collection-bookmark relations
         const updatedBookmark = response.data
         bookmarksStore.updateBookmark(id, updatedBookmark)
+        rememberLastSaved(updates.collectionIds)
         toast.success(t('services.bookmarks.updateSuccess'))
         return updatedBookmark
       } else if (response && response.status === 204) {

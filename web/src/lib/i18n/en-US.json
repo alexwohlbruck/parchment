@@ -387,9 +387,9 @@
       "searchCollections": "Search collections...",
       "removeFromCollection": "Remove from collection",
       "removedFromCollectionSuccess": "Removed from collection",
-      "makeDefault": "Make Default",
       "addedToCollection": "Added to {collection}",
-      "failedToAddToCollection": "Failed to add to collection"
+      "failedToAddToCollection": "Failed to add to collection",
+      "saveToCollection": "Save to {collection}"
     },
     "empty": {
       "message": "no {entityPlural} yet",
@@ -411,9 +411,10 @@
           "singular": "collection",
           "plural": "collections"
         },
-        "default": "Bookmarks",
+        "starterName": "Bookmarks",
         "manage": "Manage collections",
         "untitled": "Untitled collection",
+        "lastSaved": "Last saved to",
         "sharedBy": "Shared by {name}"
       },
       "routes": {
@@ -461,8 +462,7 @@
         "collectionType": "Select type (optional)",
         "bookmarkName": "Enter bookmark name",
         "bookmarkType": "Select bookmark type (optional)"
-      },
-      "isDefault": "Default Collection"
+      }
     },
     "types": {
       "home": "Home",
@@ -479,6 +479,7 @@
       "saveErrorNoOsmId": "Cannot bookmark place without an OSM ID",
       "saveErrorNoCoordinates": "Cannot bookmark place without coordinates",
       "saveSuccess": "Bookmarked {name}",
+      "saveSuccessToCollection": "Saved {name} to {collection}",
       "saveError": "Failed to save bookmark",
       "updateSuccess": "Bookmark updated",
       "updateError": "Failed to update bookmark",
@@ -493,7 +494,6 @@
     "collections": {
       "fetchError": "Failed to fetch collections",
       "fetchOneError": "Collection not found",
-      "fetchDefaultError": "Failed to fetch default collection",
       "createSuccess": "Collection created successfully",
       "createError": "Failed to create collection",
       "updateSuccess": "Collection updated successfully",

@@ -32,6 +32,5 @@ export type CreateCollectionParams = {
   metadataEncrypted?: string
   metadataKeyVersion?: number
   isPublic?: boolean
-  isDefault?: boolean
   userId: string
 }

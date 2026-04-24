@@ -46,17 +46,19 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
         return { error: 'Missing required OSM ID in externalIds' }
       }
 
+      if (!body.collectionIds || body.collectionIds.length === 0) {
+        set.status = 400
+        return { error: 'Missing required collectionIds in body' }
+      }
+
       try {
-        if (body.collectionIds && body.collectionIds.length > 0) {
-          await assertCanWriteCollections(user.id, body.collectionIds)
-        }
+        await assertCanWriteCollections(user.id, body.collectionIds)
         const createdBookmark = await bookmarksService.createBookmark(
           {
             ...body,
             userId: user.id,
           },
           body.collectionIds,
-          user.id,
         )
         set.status = 201
         return createdBookmark
@@ -79,7 +81,7 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
         presetType: t.Optional(
           t.Union([t.Literal('home'), t.Literal('work'), t.Literal('school')]),
         ),
-        collectionIds: t.Optional(t.Array(t.String())),
+        collectionIds: t.Array(t.String()),
       }),
       detail: {
         tags: ['Library'],

@@ -13,6 +13,19 @@ interface NormalizedCollection extends Omit<Collection, 'places'> {
 export const useCollectionsStore = defineStore('collections', () => {
   const collections = useStorage<NormalizedCollection[]>('collections', [])
 
+  // Per-device: id of the most recent collection the user saved a bookmark
+  // to. Drives the bookmark button's default target (tooltip / icon / color)
+  // and the clock badge in the collection picker. `null` when the user has
+  // never saved on this device — the picker opens instead of one-tap save.
+  const lastSavedCollectionId = useStorage<string | null>(
+    'last-saved-collection-id',
+    null,
+  )
+
+  function setLastSavedCollectionId(id: string | null) {
+    lastSavedCollectionId.value = id
+  }
+
   const getCollectionById = computed(() => {
     return (id: string) => {
       const collection = collections.value.find(
@@ -99,6 +112,11 @@ export const useCollectionsStore = defineStore('collections', () => {
 
   function removeCollection(id: string) {
     collections.value = collections.value.filter(c => c.id !== id)
+    // A deleted collection can't be the "last saved to" target anymore;
+    // clear the pointer so the button falls back to opening the picker.
+    if (lastSavedCollectionId.value === id) {
+      lastSavedCollectionId.value = null
+    }
   }
 
   function addBookmarkToCollection(collectionId: string, bookmark: Bookmark) {
@@ -147,6 +165,8 @@ export const useCollectionsStore = defineStore('collections', () => {
 
   return {
     collections,
+    lastSavedCollectionId,
+    setLastSavedCollectionId,
     getCollectionById,
     setCollections,
     updateCollection,

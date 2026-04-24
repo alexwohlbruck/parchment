@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Input } from '@/components/ui/input'
 import { ItemIcon } from '@/components/ui/item-icon'
-import { SearchIcon, CheckIcon, StarIcon } from 'lucide-vue-next'
+import { SearchIcon, CheckIcon, ClockIcon } from 'lucide-vue-next'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
@@ -15,21 +15,33 @@ import type {
   CreateCollectionParams,
   Collection,
 } from '@/types/library.types'
+import type { Place } from '@/types/place.types'
 import { getThemeColorClasses, fuzzyFilter, type ThemeColor } from '@/lib/utils'
 import { api } from '@/lib/api'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 
+// Two modes:
+//   - `bookmark` — manage which collections an existing bookmark belongs
+//     to. Tapping a row toggles membership. Original flow.
+//   - `place` — the place isn't bookmarked yet. Tapping a row creates the
+//     bookmark in that collection and emits `bookmark-created`; the
+//     caller closes the overlay. Used when the user clicks the save
+//     button with no last-saved collection on this device.
 const props = defineProps<{
-  bookmark: Bookmark
+  bookmark?: Bookmark
+  place?: Place
 }>()
 
-const emit = defineEmits(['bookmark-deleted'])
+const emit = defineEmits<{
+  (e: 'bookmark-deleted'): void
+  (e: 'bookmark-created', bookmark: Bookmark, collectionIds: string[]): void
+}>()
 
 const collectionsStore = useCollectionsStore()
 const collectionsService = useCollectionsService()
 const bookmarksService = useBookmarksService()
-const { collections } = storeToRefs(collectionsStore)
+const { collections, lastSavedCollectionId } = storeToRefs(collectionsStore)
 const { t } = useI18n()
 const appService = useAppService()
 const collectionSearchQuery = ref('')
@@ -41,14 +53,13 @@ onMounted(async () => {
   if (collections.value.length === 0) {
     await collectionsService.fetchCollections()
   }
-  await fetchCollectionsForBookmark()
+  if (props.bookmark?.id) {
+    await fetchCollectionsForBookmark()
+  }
 })
 
 async function fetchCollectionsForBookmark() {
   if (!props.bookmark || !props.bookmark.id) {
-    console.warn(
-      '[CollectionPicker] Attempted fetchCollectionsForBookmark without a valid bookmark ID.',
-    )
     bookmarkCollectionIds.value = []
     return
   }
@@ -86,17 +97,22 @@ const sortedAndFilteredCollections = computed(() => {
     },
   )
 
-  const defaultCollection = sourceCollections.find(c => c.isDefault)
+  // Pin the last-saved collection to the top — it's the button's one-tap
+  // target, so keeping it at position zero matches the user's expectation
+  // when they open the picker. Rest is recency-sorted.
+  const lastSavedId = lastSavedCollectionId.value
+  const lastSaved =
+    lastSavedId && sourceCollections.find((c) => c.id === lastSavedId)
 
   const otherCollectionsSorted = sourceCollections
-    .filter(c => !c.isDefault)
+    .filter((c) => c.id !== lastSavedId)
     .sort(
       (a, b) =>
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
     )
 
-  return defaultCollection
-    ? [defaultCollection, ...otherCollectionsSorted]
+  return lastSaved
+    ? [lastSaved, ...otherCollectionsSorted]
     : otherCollectionsSorted
 })
 
@@ -115,10 +131,18 @@ function handleKeydown(event: KeyboardEvent) {
   }
 }
 
-async function toggleCollection(collectionId: string) {
-  if (!props.bookmark || !props.bookmark.id || isTogglingCollection.value) {
+async function onCollectionClick(collectionId: string) {
+  if (isTogglingCollection.value) return
+
+  if (props.place && !props.bookmark) {
+    await saveNewBookmark(collectionId)
     return
   }
+  await toggleCollection(collectionId)
+}
+
+async function toggleCollection(collectionId: string) {
+  if (!props.bookmark || !props.bookmark.id) return
 
   isTogglingCollection.value = true
   try {
@@ -151,6 +175,21 @@ async function toggleCollection(collectionId: string) {
   }
 }
 
+async function saveNewBookmark(collectionId: string) {
+  if (!props.place) return
+  isTogglingCollection.value = true
+  try {
+    const bookmark = await bookmarksService.createBookmark(props.place, [
+      collectionId,
+    ])
+    if (bookmark) {
+      emit('bookmark-created', bookmark, [collectionId])
+    }
+  } finally {
+    isTogglingCollection.value = false
+  }
+}
+
 function openCreateCollectionDialog() {
   appService
     .componentDialog({
@@ -178,6 +217,22 @@ function openCreateCollectionDialog() {
 
         if (newCollection && newCollection.id) {
           isTogglingCollection.value = true
+
+          // Place mode: the bookmark doesn't exist yet. Create it
+          // directly in the freshly-made collection and emit so the
+          // parent can close the overlay + refresh state.
+          if (props.place && !props.bookmark) {
+            const bookmark = await bookmarksService.createBookmark(
+              props.place,
+              [newCollection.id],
+            )
+            if (bookmark) {
+              emit('bookmark-created', bookmark, [newCollection.id])
+            }
+            return
+          }
+
+          if (!props.bookmark?.id) return
           const currentIds = [...bookmarkCollectionIds.value]
           const updatedIds = [...currentIds, newCollection.id]
 
@@ -205,12 +260,12 @@ function openCreateCollectionDialog() {
 </script>
 
 <template>
-  <div class="flex flex-col gap-2">
-    <h2 class="px-3 text-base font-semibold">
+  <div class="flex flex-col gap-2 py-2">
+    <h2 class="px-4 text-base font-semibold">
       {{ t('library.actions.addToCollection') }}
     </h2>
     <div
-      class="px-3"
+      class="px-4"
       @click.stop="preventPropagation"
       @keydown.stop="handleKeydown"
     >
@@ -230,17 +285,17 @@ function openCreateCollectionDialog() {
 
     <div
       v-if="sortedAndFilteredCollections.length > 0"
-      class="max-h-[240px] overflow-y-auto px-2 flex flex-col"
+      class="max-h-[240px] overflow-y-auto px-2 flex flex-col gap-0.5"
     >
       <template
-        v-for="(collection, index) in sortedAndFilteredCollections"
+        v-for="collection in sortedAndFilteredCollections"
         :key="collection.id"
       >
         <Button
           variant="ghost"
-          class="w-full justify-start h-auto min-h-11 px-3 py-2 text-sm font-normal flex items-center gap-2"
+          class="w-full justify-start h-auto min-h-11 px-2 py-2 text-sm font-normal flex items-center gap-2"
           :disabled="isTogglingCollection"
-          @click.prevent.stop="toggleCollection(collection.id)"
+          @click.prevent.stop="onCollectionClick(collection.id)"
         >
           <div class="relative mr-0.5">
             <div
@@ -254,11 +309,11 @@ function openCreateCollectionDialog() {
               />
             </div>
             <div
-              v-if="collection.isDefault"
-              class="absolute -top-1 -right-1 bg-yellow-300 dark:bg-yellow-400 text-yellow-800 rounded-full p-[.15rem]"
-              title="Default Collection"
+              v-if="collection.id === lastSavedCollectionId"
+              class="absolute -top-1 -right-1 bg-muted text-muted-foreground ring-2 ring-background rounded-full p-[.15rem]"
+              :title="t('library.entities.collections.lastSaved')"
             >
-              <StarIcon class="size-2.5" stroke-width="3" />
+              <ClockIcon class="size-2.5" stroke-width="3" />
             </div>
           </div>
 
@@ -275,14 +330,14 @@ function openCreateCollectionDialog() {
 
     <div
       v-else-if="collections.length === 0"
-      class="px-2 py-4 text-center text-sm text-muted-foreground"
+      class="px-4 py-4 text-center text-sm text-muted-foreground"
     >
       {{ t('library.empty.noCollections') }}
     </div>
 
     <div
       v-else-if="collectionSearchQuery"
-      class="px-2 py-4 text-center text-sm text-muted-foreground"
+      class="px-4 py-4 text-center text-sm text-muted-foreground"
     >
       {{
         t('library.empty.searchResults', {
@@ -293,10 +348,10 @@ function openCreateCollectionDialog() {
 
     <Separator />
 
-    <div class="px-2 flex">
+    <div class="px-2">
       <Button
         variant="ghost"
-        class="w-full justify-start h-auto px-2 py-1.5 text-sm font-normal flex items-center gap-2"
+        class="w-full justify-start h-auto min-h-11 px-2 py-2 text-sm font-normal flex items-center gap-2"
         @click.prevent.stop="openCreateCollectionDialog"
       >
         <div class="relative mr-0.5">

@@ -522,29 +522,44 @@ app.get(
       PermissionId.INTEGRATIONS_WRITE_USER,
     )
 
-    if (!canWriteSystem && !canWriteUser) {
-      return status(403, {
-        message: t('errors.auth.insufficientPermissions'),
-      })
-    }
-
-    // Look up user integrations first, fall back to system. Required for
-    // any user-scoped integration (Dawarich, OSM account) to be found.
-    let integration = await getIntegration(id, user.id)
+    // `getIntegration(id, user.id)` returns either the caller's own user
+    // integration or a system integration — it never returns another user's
+    // row. That gives us ownership-by-construction for the user-scope path.
+    const integration = await getIntegration(id, user.id)
     if (!integration) {
       return status(404, { message: t('errors.notFound.integration') })
+    }
+
+    // Permission must match the row's actual scope. Without this, a regular
+    // user with WRITE_USER could enumerate system-integration dependents,
+    // leaking which users configured the dependent (e.g. OSM accounts).
+    const isSystem = integration.userId === null
+    if (isSystem) {
+      if (!canWriteSystem) {
+        return status(403, {
+          message: t('errors.auth.insufficientPermissions'),
+        })
+      }
+    } else {
+      if (!canWriteUser) {
+        return status(403, {
+          message: t('errors.auth.insufficientPermissions'),
+        })
+      }
     }
 
     const dependents = await getDependentIntegrations(
       integration.integrationId as any,
     )
 
+    // Deliberately omit `userId` — the client only renders the integration
+    // name in a warning dialog; returning userIds would expose which users
+    // have configured which dependent integrations.
     return dependents.map((dep) => {
       const definition = getIntegrationDefinition(dep.integrationId)
       return {
         id: dep.id,
         integrationId: dep.integrationId,
-        userId: dep.userId,
         name: definition?.name ?? dep.integrationId,
       }
     })

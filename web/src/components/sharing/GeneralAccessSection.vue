@@ -3,7 +3,12 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { GlobeIcon, LockIcon, ShieldCheckIcon } from 'lucide-vue-next'
+import {
+  GlobeIcon,
+  LinkIcon,
+  LockIcon,
+  ShieldCheckIcon,
+} from 'lucide-vue-next'
 import type { CollectionScheme } from '@/types/library.types'
 
 /**
@@ -96,31 +101,32 @@ const hasPublicLink = computed(() => !!props.publicToken)
 
       <div
         v-else
-        class="flex items-start gap-3 rounded-md border border-border p-3"
+        class="rounded-md border border-border p-3 overflow-hidden"
       >
-        <GlobeIcon class="size-4 text-primary shrink-0 mt-0.5" />
-        <div class="flex-1 min-w-0">
-          <p class="text-sm font-medium">
-            {{ t('sharing.generalAccess.anyoneWithLink.title') }}
-          </p>
-          <p class="text-xs text-muted-foreground">
-            {{ t('sharing.generalAccess.anyoneWithLink.description') }}
-          </p>
-          <p
-            v-if="publicUrl"
-            class="text-xs font-mono text-muted-foreground truncate mt-1"
-            :title="publicUrl"
-          >
-            {{ publicUrl }}
-          </p>
+        <div class="flex items-start gap-3">
+          <GlobeIcon class="size-4 text-primary shrink-0 mt-0.5" />
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium">
+              {{ t('sharing.generalAccess.anyoneWithLink.title') }}
+            </p>
+            <p class="text-xs text-muted-foreground">
+              {{ t('sharing.generalAccess.anyoneWithLink.description') }}
+            </p>
+          </div>
         </div>
-        <div class="flex flex-col gap-1.5">
+        <!-- Actions as a balanced button row under the description. The
+             URL itself isn't displayed — users interact via Copy, not by
+             reading. Hover-tooltip on Copy surfaces it for sanity checks. -->
+        <div class="flex gap-2 mt-3">
           <Button
             variant="outline"
             size="sm"
+            class="flex-1"
             :disabled="disabled || !publicUrl"
+            :title="publicUrl"
             @click="emit('copy-public-link')"
           >
+            <LinkIcon class="size-3.5 mr-1.5" />
             {{ t('sharing.generalAccess.anyoneWithLink.copyAction') }}
           </Button>
           <Button

@@ -76,7 +76,9 @@ export const useBookmarksService = createSharedComposable(() => {
       } else if (response && response.status === 204) {
         // Completely removed bookmark from all collections
         const bookmarkToRemove = bookmarksStore.getBookmarkById(id)
-        const name = bookmarkToRemove?.name || t('library.entities.bookmark')
+        const name =
+          bookmarkToRemove?.name ||
+          t('library.entities.bookmarks.title.singular')
         bookmarksStore.removeBookmark(id)
         toast.success(t('services.bookmarks.unsaveSuccess', { name }))
         return null

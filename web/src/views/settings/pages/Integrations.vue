@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { computed, onMounted, ref, type Ref } from 'vue'
+import { onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import IntegrationTile from '@/components/integration/IntegrationTile.vue'
 import {
@@ -17,6 +17,7 @@ import {
   UsersIcon,
   LinkIcon,
   PuzzleIcon,
+  ShieldCheckIcon,
 } from 'lucide-vue-next'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useIntegrationService } from '@/services/integration.service'
@@ -24,10 +25,9 @@ import { useAppService } from '@/services/app.service'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
 import {
-  IntegrationCapabilityId,
-  IntegrationScope,
-} from '@/types/integrations.types'
-import { fuzzyFilter } from '@/lib/utils'
+  useIntegrationFilters,
+  type SortField,
+} from '@/composables/useIntegrationFilters'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -54,228 +54,28 @@ const integrationService = useIntegrationService()
 const authService = useAuthService()
 const { toast } = useAppService()
 
-// Search
-const searchQuery = ref('')
-
-// Filters
-const selectedCapabilities = ref<string[]>([])
-const costFilter = ref<string[]>([])
-const hostingFilter = ref<string[]>([])
-const scopeFilter = ref<string[]>([])
-const statusFilter = ref<string[]>([])
-
-// Sort
-type SortField = 'popularity' | 'alphabetical' | 'dateModified'
-const sortField = ref<SortField>('alphabetical')
-const sortAscending = ref(true)
-
-// All capability options
-const allCapabilities = computed(() => {
-  return Object.values(IntegrationCapabilityId).map(id => ({
-    id,
-    label: t(`settings.integrations.capabilities.${id}`),
-  }))
-})
-
-// Filter refs by name — used for generic set/remove operations
-const filterRefs: Record<string, Ref<string[]>> = {
-  capability: selectedCapabilities,
-  cost: costFilter,
-  hosting: hostingFilter,
-  scope: scopeFilter,
-  status: statusFilter,
-}
-
-// Filters where values are mutually exclusive (single-select toggle)
-const exclusiveFilters = new Set(['cost', 'hosting', 'scope', 'status'])
-
-// Toggle a filter value on/off
-function toggleFilter(filter: string, value: string) {
-  const arr = filterRefs[filter]
-  if (!arr) return
-  if (arr.value.includes(value)) {
-    arr.value = arr.value.filter(v => v !== value)
-  } else if (exclusiveFilters.has(filter)) {
-    arr.value = [value]
-  } else {
-    arr.value = [...arr.value, value]
-  }
-}
-
-// Remove a specific filter value
-function removeFilter(chip: ActiveFilter) {
-  const arr = filterRefs[chip.category]
-  if (!arr) return
-  arr.value = arr.value.filter(v => v !== chip.key.split(':')[1])
-}
-
-// Active filter chips for display
-interface ActiveFilter {
-  key: string
-  category: string
-  label: string
-}
-
-const activeFilterChips = computed<ActiveFilter[]>(() => {
-  const chips: ActiveFilter[] = []
-
-  for (const v of costFilter.value) {
-    chips.push({
-      key: `cost:${v}`,
-      category: 'cost',
-      label:
-        v === 'paid'
-          ? t('settings.integrations.filter.paid')
-          : t('settings.integrations.filter.free'),
-    })
-  }
-  for (const v of hostingFilter.value) {
-    chips.push({
-      key: `hosting:${v}`,
-      category: 'hosting',
-      label:
-        v === 'cloud'
-          ? t('settings.integrations.filter.cloud')
-          : t('settings.integrations.filter.selfHosted'),
-    })
-  }
-  for (const v of scopeFilter.value) {
-    chips.push({
-      key: `scope:${v}`,
-      category: 'scope',
-      label:
-        v === 'system'
-          ? t('settings.integrations.filter.system')
-          : t('settings.integrations.filter.user'),
-    })
-  }
-  for (const v of statusFilter.value) {
-    chips.push({
-      key: `status:${v}`,
-      category: 'status',
-      label:
-        v === 'connected'
-          ? t('settings.integrations.filter.connected')
-          : t('settings.integrations.filter.notConnected'),
-    })
-  }
-  for (const v of selectedCapabilities.value) {
-    chips.push({
-      key: `cap:${v}`,
-      category: 'capability',
-      label: t(`settings.integrations.capabilities.${v}`),
-    })
-  }
-
-  return chips
-})
-
-function clearAllFilters() {
-  costFilter.value = []
-  hostingFilter.value = []
-  scopeFilter.value = []
-  statusFilter.value = []
-  selectedCapabilities.value = []
-}
-
-// Chips shown below the toolbar — exclude capabilities (they have their own toggle row)
-const dropdownFilterChips = computed(() =>
-  activeFilterChips.value.filter(c => c.category !== 'capability'),
-)
-
-const totalFilterCount = computed(() => activeFilterChips.value.length)
-
-// Filtered and sorted integrations
-const filteredIntegrations = computed(() => {
-  let items = [...integrationStore.allIntegrations]
-
-  // Capability filter
-  if (selectedCapabilities.value.length > 0) {
-    items = items.filter(({ integration }) =>
-      selectedCapabilities.value.every(cap =>
-        integration.capabilities.includes(cap as IntegrationCapabilityId),
-      ),
-    )
-  }
-
-  // Cost filter
-  if (costFilter.value.length > 0) {
-    items = items.filter(({ integration }) =>
-      costFilter.value.every(v =>
-        v === 'paid' ? integration.paid : !integration.paid,
-      ),
-    )
-  }
-
-  // Hosting filter
-  if (hostingFilter.value.length > 0) {
-    items = items.filter(({ integration }) =>
-      hostingFilter.value.every(v =>
-        v === 'cloud' ? integration.cloud : !integration.cloud,
-      ),
-    )
-  }
-
-  // Scope filter
-  if (scopeFilter.value.length > 0) {
-    items = items.filter(({ integration }) =>
-      scopeFilter.value.every(s =>
-        integration.scope?.includes(s as IntegrationScope),
-      ),
-    )
-  }
-
-  // Status filter
-  if (statusFilter.value.length > 0) {
-    items = items.filter(({ config }) =>
-      statusFilter.value.every(v => (v === 'connected' ? !!config : !config)),
-    )
-  }
-
-  // Search filter (fuzzy)
-  if (searchQuery.value.trim()) {
-    const searchItems = items.map(item => ({
-      ...item,
-      _name: item.integration.name,
-      _description: item.integration.description || '',
-    }))
-    const filtered = fuzzyFilter(searchItems, searchQuery.value.trim(), {
-      keys: ['_name', '_description'],
-    })
-    items = filtered.map(
-      ({ _name, _description, ...rest }) => rest,
-    ) as typeof items
-  }
-
-  // Sort
-  if (sortField.value === 'alphabetical') {
-    items.sort((a, b) => {
-      const cmp = a.integration.name.localeCompare(b.integration.name)
-      return sortAscending.value ? cmp : -cmp
-    })
-  } else if (sortField.value === 'dateModified') {
-    items.sort((a, b) => {
-      const aTime = a.config?.updatedAt
-        ? new Date(a.config.updatedAt).getTime()
-        : 0
-      const bTime = b.config?.updatedAt
-        ? new Date(b.config.updatedAt).getTime()
-        : 0
-      const cmp = bTime - aTime
-      return sortAscending.value ? cmp : -cmp
-    })
-  } else {
-    if (!sortAscending.value) {
-      items.reverse()
-    }
-  }
-
-  return items
-})
-
-const hasActiveFilters = computed(() => {
-  return searchQuery.value.trim() !== '' || activeFilterChips.value.length > 0
-})
+// Filter + sort state, active-chip derivations, and the sorted/filtered list
+// all live in the composable. Bind directly; the template doesn't need to
+// know how they're wired.
+const {
+  searchQuery,
+  selectedCapabilities,
+  costFilter,
+  hostingFilter,
+  scopeFilter,
+  statusFilter,
+  encryptionFilter,
+  sortField,
+  sortAscending,
+  allCapabilities,
+  dropdownFilterChips,
+  totalFilterCount,
+  hasActiveFilters,
+  filteredIntegrations,
+  toggleFilter,
+  removeFilter,
+  clearAllFilters,
+} = useIntegrationFilters()
 
 // Handle OAuth callback query params
 function handleOAuthCallback() {
@@ -580,6 +380,55 @@ onMounted(async () => {
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
 
+                <!-- Encryption submenu -->
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <ShieldCheckIcon
+                      class="size-4 mr-2 text-muted-foreground"
+                    />
+                    {{ t('settings.integrations.filter.encryption') }}
+                    <Badge
+                      v-if="encryptionFilter.length > 0"
+                      variant="primary"
+                      class="ml-auto px-1.5 py-0 text-[10px] min-w-5 justify-center"
+                    >
+                      {{ encryptionFilter.length }}
+                    </Badge>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    <DropdownMenuItem
+                      @select="
+                        (e: Event) => {
+                          e.preventDefault()
+                          toggleFilter('encryption', 'server')
+                        }
+                      "
+                    >
+                      <CheckIcon
+                        v-if="encryptionFilter.includes('server')"
+                        class="size-4 mr-2"
+                      />
+                      <span v-else class="size-4 mr-2" />
+                      {{ t('settings.integrations.filter.serverManaged') }}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      @select="
+                        (e: Event) => {
+                          e.preventDefault()
+                          toggleFilter('encryption', 'e2ee')
+                        }
+                      "
+                    >
+                      <CheckIcon
+                        v-if="encryptionFilter.includes('e2ee')"
+                        class="size-4 mr-2"
+                      />
+                      <span v-else class="size-4 mr-2" />
+                      {{ t('settings.integrations.filter.endToEnd') }}
+                    </DropdownMenuItem>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+
                 <!-- Reset -->
                 <template v-if="totalFilterCount > 0">
                   <DropdownMenuSeparator />
@@ -656,10 +505,8 @@ onMounted(async () => {
                       />
                     </button>
                   </DropdownMenuRadioItem>
-                  <!-- TODO: Implement date modified sort -->
                   <DropdownMenuRadioItem
                     value="dateModified"
-                    disabled
                     class="flex items-center justify-between pr-1.5"
                   >
                     <span>{{

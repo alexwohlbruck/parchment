@@ -105,18 +105,10 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
   }
 
   initialize(config: GoogleMapsConfig): void {
-    console.log(
-      'Google Maps Integration - initialize called with config:',
-      JSON.stringify(config, null, 2),
-    )
+    // Never log `config` — it contains the user's third-party API key.
     this.config = config
-
-    // Set the API key on the adapter for photo URLs
     if (config.apiKey) {
-      console.log('Setting API key on adapter:', config.apiKey)
       this.adapter.setApiKey(config.apiKey)
-    } else {
-      console.log('No API key found in config')
     }
   }
 

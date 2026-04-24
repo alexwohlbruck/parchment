@@ -197,6 +197,118 @@
       "when": 1775793912868,
       "tag": "0027_quiet_puma",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1776720314221,
+      "tag": "0028_remove_location_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1776722050848,
+      "tag": "0029_federation_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1776792946622,
+      "tag": "0030_metadata_encryption_names",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1776793797176,
+      "tag": "0031_integration_kms",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1776794360592,
+      "tag": "0032_personal_blobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1776794542678,
+      "tag": "0033_library_encryption",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1776794712081,
+      "tag": "0034_segment_stats",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1776794882827,
+      "tag": "0035_passkey_prf_slots",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1776795004788,
+      "tag": "0036_km_version",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1776795189936,
+      "tag": "0037_device_transfer",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1776836027669,
+      "tag": "0038_drop_segment_stats",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1776836938458,
+      "tag": "0039_revert_name_encryption",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1776838321785,
+      "tag": "0040_minor_scarlet_witch",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1776874540809,
+      "tag": "0041_mixed_wallflower",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1776985300264,
+      "tag": "0042_short_nebula",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1777003813241,
+      "tag": "0043_faithful_mimic",
+      "breakpoints": true
     }
   ]
 }

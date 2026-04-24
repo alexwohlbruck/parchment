@@ -29,10 +29,8 @@ export type CreateBookmarkParams = {
 }
 
 export type CreateCollectionParams = {
-  name: string
-  description?: string
-  icon?: string
-  iconColor?: string
+  metadataEncrypted?: string
+  metadataKeyVersion?: number
   isPublic?: boolean
   isDefault?: boolean
   userId: string

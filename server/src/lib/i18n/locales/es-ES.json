@@ -48,7 +48,9 @@
       "notAvailable": "La integración del servicio no está disponible",
       "invalidId": "ID de integración no válido",
       "invalidScope": "Ámbito de integración no válido",
-      "noUpdates": "No se proporcionaron actualizaciones"
+      "noUpdates": "No se proporcionaron actualizaciones",
+      "unsupportedScheme": "Esta integración no admite el esquema de cifrado solicitado",
+      "schemeAlreadyConfigured": "Esta integración ya está configurada con el mismo esquema"
     },
     "geocoding": {
       "queryRequired": "Se requiere el parámetro de consulta",

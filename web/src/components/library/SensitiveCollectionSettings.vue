@@ -89,10 +89,11 @@ function handleToggle(value: boolean) {
       </AlertDescription>
     </Alert>
 
-    <!-- Warning about conversion -->
+    <!-- Warning, not destructive — this is a constraint message, not
+         a failure. The user can't disable yet; no error happened. -->
     <Alert
       v-if="!internalValue && disabled"
-      variant="destructive"
+      variant="warning"
     >
       <AlertTriangle class="h-4 w-4" />
       <AlertTitle>Cannot Disable</AlertTitle>

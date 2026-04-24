@@ -1,0 +1,1 @@
+DROP TABLE "segment_stats" CASCADE;

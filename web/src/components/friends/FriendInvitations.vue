@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Spinner } from '@/components/ui/spinner'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Check, X, Clock, Send, Inbox } from 'lucide-vue-next'
+import { Check, X, Send, Inbox } from 'lucide-vue-next'
 import type { FriendInvitation } from '@/services/friends.service'
 
 const { t } = useI18n()
@@ -57,25 +57,20 @@ async function handleCancel(invitation: FriendInvitation) {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
-    <!-- Header -->
-    <div class="flex items-center gap-2">
-      <Clock class="h-5 w-5" />
-      <h3 class="font-semibold">{{ t('friends.invitations.title') }}</h3>
-      <Badge v-if="hasIncoming" variant="secondary">
-        {{ incomingInvitations.length }} {{ t('friends.invitations.incoming').toLowerCase() }}
-      </Badge>
-    </div>
+  <div class="flex flex-col gap-3 h-full">
+    <!-- No redundant "Invitations" header — the parent tab already
+         labels this section. When there ARE incoming, the nested
+         tabs below surface counts per side. -->
 
     <!-- Loading -->
-    <div v-if="isLoading" class="flex justify-center py-8">
+    <div v-if="isLoading" class="flex-1 flex items-center justify-center">
       <Spinner class="h-6 w-6" />
     </div>
 
     <!-- No Identity -->
     <div
       v-else-if="!isSetupComplete"
-      class="text-center text-muted-foreground py-4"
+      class="flex-1 flex items-center justify-center text-center text-sm text-muted-foreground px-4"
     >
       {{ t('friends.identity.setupInvitations') }}
     </div>
@@ -83,9 +78,12 @@ async function handleCancel(invitation: FriendInvitation) {
     <!-- Empty State -->
     <div
       v-else-if="!hasAny"
-      class="text-center text-muted-foreground py-8"
+      class="flex-1 flex flex-col items-center justify-center py-6 text-center gap-3"
     >
-      {{ t('friends.invitations.noPending') }}
+      <Inbox class="h-10 w-10 text-muted-foreground" />
+      <p class="text-sm text-muted-foreground">
+        {{ t('friends.invitations.noPending') }}
+      </p>
     </div>
 
     <!-- Invitations -->

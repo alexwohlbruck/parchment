@@ -414,7 +414,7 @@ export const useCommandStore = defineStore('command', () => {
         description: t('palette.commands.signOut.description'),
         keywords: t('palette.commands.signOut.keywords'),
         icon: LogOutIcon,
-        action: authService.signOut,
+        action: authService.confirmAndSignOut,
       },
     ]
   })

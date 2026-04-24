@@ -12,7 +12,7 @@ import { syncPermissionsAndRoles } from './sync-permissions'
 await syncPermissionsAndRoles()
 console.info('✅ Permissions and roles synced')
 
-// Insert initial user if none exist
+// Insert initial user if none exist.
 const users = await db.select().from(usersSchema).limit(1)
 if (users.length === 0) {
   // Use env (e.g. APP_TESTER_EMAIL for e2e tests), then argv, then defaults

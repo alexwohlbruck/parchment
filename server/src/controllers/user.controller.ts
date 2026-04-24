@@ -15,7 +15,14 @@ import {
   updateUserAlias,
   updateUserKeys,
   getUserIdentity,
+  updateUserDisplayProfile,
 } from '../services/user.service'
+import { resetUserIdentity } from '../services/identity-reset.service'
+import {
+  getUserKmVersion,
+  commitRotation,
+  RotationConflict,
+} from '../services/km-rotation.service'
 import {
   getOrCreateUserPreferences,
   updateUserPreferences,
@@ -38,6 +45,7 @@ app.use(permissions(PermissionId.USERS_READ)).get(
         email: users.email,
         firstName: users.firstName,
         lastName: users.lastName,
+        alias: users.alias,
         picture: users.picture,
         roles: sql`json_agg(json_build_object(
             'id', ${roles.id},
@@ -86,7 +94,10 @@ app.use(permissions(PermissionId.USERS_CREATE)).post(
       .insert(users)
       .values({
         id: generateId(),
-        ...body,
+        firstName: body.firstName,
+        lastName: body.lastName,
+        email: body.email,
+        picture: body.picture,
       })
       .returning()
 
@@ -153,6 +164,47 @@ app.use(permissions(PermissionId.PERMISSIONS_READ)).get(
     detail: {
       tags: ['Users'],
       summary: 'Get all permissions',
+    },
+  },
+)
+
+/**
+ * Reset the current user's encrypted data and federation identity.
+ *
+ * Last-resort escape hatch when the user has lost their recovery key
+ * AND has no working passkey slot AND no other device to transfer
+ * from. Wipes everything encrypted under the old seed (collections,
+ * personal blobs, wrapped-master-key slots, device-wrap secrets,
+ * friend relationships — because old signatures don't verify under
+ * new keys) and nulls the federation identity columns so the user
+ * can run a fresh setup on the next call to `PUT /users/me/keys`.
+ *
+ * Requires `confirm: 'erase-all-my-data'` in the body — a deliberate
+ * speed-bump against accidental calls.
+ */
+app.use(requireAuth).post(
+  '/me/identity/reset',
+  async ({ user, body, status }) => {
+    if (body.confirm !== 'erase-all-my-data') {
+      return status(400, {
+        message:
+          'Confirmation required. Pass `{ "confirm": "erase-all-my-data" }`.',
+      })
+    }
+    await resetUserIdentity(user.id)
+    return { success: true }
+  },
+  {
+    body: t.Object({
+      confirm: t.Literal('erase-all-my-data'),
+    }),
+    detail: {
+      tags: ['Users', 'Federation'],
+      description:
+        "Last-resort: wipe all of this user's encrypted data and clear " +
+        'the federation identity so they can re-run identity setup. ' +
+        'Session + passkeys survive; everything encrypted under the old ' +
+        'seed is gone. Irreversible.',
     },
   },
 )
@@ -238,6 +290,128 @@ app.use(requireAuth).put(
     detail: {
       tags: ['Users', 'Federation'],
       description: 'Register or update federation public keys',
+    },
+  },
+)
+
+/**
+ * Update current user's display profile (cleartext first/last name).
+ */
+app.use(requireAuth).patch(
+  '/me/profile',
+  async ({ user, body, set }) => {
+    await updateUserDisplayProfile(user.id, {
+      firstName: body.firstName ?? undefined,
+      lastName: body.lastName ?? undefined,
+    })
+    set.status = 200
+    return { success: true }
+  },
+  {
+    body: t.Object({
+      firstName: t.Optional(t.Union([t.String(), t.Null()])),
+      lastName: t.Optional(t.Union([t.String(), t.Null()])),
+    }),
+    detail: {
+      tags: ['Users'],
+      description: 'Update current user display profile (first/last name)',
+    },
+  },
+)
+
+/**
+ * Read the current master-key version. Clients compare this against the
+ * kmVersion on any record they're reading to detect a rotation in progress.
+ */
+app.use(requireAuth).get(
+  '/me/km-version',
+  async ({ user, status }) => {
+    const v = await getUserKmVersion(user.id)
+    if (v === null) return status(404, { message: 'User not found' })
+    return { kmVersion: v }
+  },
+  {
+    detail: {
+      tags: ['Users', 'KmRotation'],
+      description: 'Get current master-key version (Part C.7)',
+    },
+  },
+)
+
+/**
+ * Atomic rotation commit. Caller sends the full post-rotation state —
+ * new public keys, re-encrypted personal blobs, re-encrypted collection
+ * envelopes, re-sealed wrapped-master-key slots — along with
+ * `expectedCurrent` (their view of kmVersion). The server applies it
+ * all inside one DB transaction gated by a CAS check: if another device
+ * rotated first, we reject with 409 and NOTHING is written, leaving
+ * the winning device's state intact.
+ *
+ * This is the correctness fix for the previous race where client-side
+ * rotation did sequential PUTs (PUT keys → PUT each blob → POST each
+ * slot → CAS advance). If the CAS failed after those PUTs, the server
+ * already had the loser's public keys and mixed data.
+ */
+app.use(requireAuth).post(
+  '/me/km-version/commit',
+  async ({ user, body, status, t }) => {
+    try {
+      const nextKmVersion = await commitRotation({
+        userId: user.id,
+        expectedCurrent: body.expectedCurrent,
+        signingKey: body.signingKey,
+        encryptionKey: body.encryptionKey,
+        blobs: body.blobs,
+        collections: body.collections,
+        slots: body.slots,
+      })
+      return { kmVersion: nextKmVersion }
+    } catch (err) {
+      if (err instanceof RotationConflict) {
+        return status(409, { message: err.message })
+      }
+      throw err
+    }
+  },
+  {
+    body: t.Object({
+      expectedCurrent: t.Number(),
+      signingKey: t.String(),
+      encryptionKey: t.String(),
+      blobs: t.Optional(
+        t.Array(
+          t.Object({
+            blobType: t.String(),
+            encryptedBlob: t.String(),
+          }),
+        ),
+      ),
+      collections: t.Optional(
+        t.Array(
+          t.Object({
+            id: t.String(),
+            metadataEncrypted: t.String(),
+          }),
+        ),
+      ),
+      slots: t.Optional(
+        t.Array(
+          t.Object({
+            credentialId: t.String(),
+            wrappedKm: t.String(),
+            wrapAlgo: t.Optional(t.String()),
+            slotSignature: t.String(),
+          }),
+        ),
+      ),
+    }),
+    detail: {
+      tags: ['Users', 'KmRotation'],
+      description:
+        'Atomic rotation commit. Applies new public keys, re-encrypted ' +
+        'blobs, re-encrypted collection envelopes, and re-sealed slots ' +
+        'in a single transaction gated by a CAS on kmVersion. 409 on ' +
+        'conflict — nothing is written.',
     },
   },
 )

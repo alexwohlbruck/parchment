@@ -437,9 +437,9 @@ export async function getFriends(userId: string): Promise<Friendship[]> {
   for (const friendship of allFriendships) {
     const parsed = parseHandle(friendship.friendHandle)
 
-    // Check if this is a local friend
+    // For local friends, refresh name + picture straight from the users
+    // table — both are cleartext now (see SECURITY.md).
     if (parsed && parsed.domain === serverDomain) {
-      // Look up fresh user data
       const [localUser] = await db
         .select({
           firstName: users.firstName,
@@ -451,7 +451,6 @@ export async function getFriends(userId: string): Promise<Friendship[]> {
         .limit(1)
 
       if (localUser) {
-        // Return friendship with fresh user data
         const displayName =
           localUser.firstName && localUser.lastName
             ? `${localUser.firstName} ${localUser.lastName}`
@@ -466,7 +465,6 @@ export async function getFriends(userId: string): Promise<Friendship[]> {
       }
     }
 
-    // Remote friend or local user not found - use cached data
     result.push(friendship)
   }
 
@@ -497,11 +495,20 @@ export async function getInvitations(
 
 /**
  * Remove a friend (bidirectional)
- * When user A removes user B, both friendships are deleted and all location sharing data is cleaned up.
+ * When user A removes user B:
+ * - Both sides' friendship records are deleted.
+ * - Location-sharing state is torn down on both ends.
+ * - If the friend is remote, a signed RELATIONSHIP_REVOKE message is sent to
+ *   their home server so it can drop cached keys, pins, and any queued state.
+ *
+ * @param revokeSignature - Client-produced Ed25519 signature over the v2
+ *   revoke envelope. Required for remote revocations so the peer can verify
+ *   user intent independently of the home server.
  */
 export async function removeFriend(
   userId: string,
   friendHandle: string,
+  revokeSignature?: string,
 ): Promise<{ success: boolean; error?: string }> {
   const friendship = await db
     .select()
@@ -518,13 +525,10 @@ export async function removeFriend(
     return { success: false, error: 'Friendship not found' }
   }
 
-  // Get the user's handle for bidirectional cleanup
   const myHandle = await getUserHandle(userId)
 
-  // Delete this user's friendship record
   await db.delete(friendships).where(eq(friendships.id, friendship[0].id))
 
-  // If the friend is a local user, also remove their reciprocal friendship
   if (myHandle && isLocalHandle(friendHandle)) {
     const parsed = parseHandle(friendHandle)
     if (parsed) {
@@ -535,7 +539,6 @@ export async function removeFriend(
         .limit(1)
 
       if (friendUser[0]) {
-        // Delete the friend's reciprocal friendship record
         await db
           .delete(friendships)
           .where(
@@ -545,14 +548,76 @@ export async function removeFriend(
             ),
           )
 
-        // Clean up location sharing data for the friend as well
         await cleanupLocationSharingForFriend(friendUser[0].id, myHandle)
       }
     }
+  } else if (myHandle && !isLocalHandle(friendHandle) && revokeSignature) {
+    // Remote friend: propagate revocation to their home server.
+    const { generateNonce, nowIso } = await import('../lib/federation-canonical')
+    const { getProtocolVersion } = await import('../lib/server-identity')
+    const revokeMessage: FederationMessage = {
+      protocol_version: getProtocolVersion(),
+      message_type: 'RELATIONSHIP_REVOKE',
+      message_version: 1,
+      nonce: generateNonce(),
+      timestamp: nowIso(),
+      from: myHandle,
+      to: friendHandle,
+      signature: revokeSignature,
+      payload: {},
+    }
+    await sendFederationMessage(friendHandle, revokeMessage)
   }
 
-  // Clean up location sharing data for this user
   await cleanupLocationSharingForFriend(userId, friendHandle)
+
+  return { success: true }
+}
+
+/**
+ * Handle an inbound RELATIONSHIP_REVOKE from a remote peer.
+ * Tears down the local side of the friendship and all location-sharing state.
+ */
+export async function handleIncomingRelationshipRevoke(
+  fromHandle: string,
+  toHandle: string,
+): Promise<{ success: boolean; error?: string }> {
+  const parsed = parseHandle(toHandle)
+  if (!parsed) {
+    return { success: false, error: 'Invalid recipient handle' }
+  }
+
+  const localUser = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.alias, parsed.alias))
+    .limit(1)
+
+  if (!localUser[0]) {
+    // Nothing to revoke on our side.
+    return { success: true }
+  }
+
+  await db
+    .delete(friendships)
+    .where(
+      and(
+        eq(friendships.userId, localUser[0].id),
+        eq(friendships.friendHandle, fromHandle),
+      ),
+    )
+
+  // Drop any pending invitations between these handles too.
+  await db
+    .delete(friendInvitations)
+    .where(
+      and(
+        eq(friendInvitations.fromHandle, fromHandle),
+        eq(friendInvitations.toHandle, toHandle),
+      ),
+    )
+
+  await cleanupLocationSharingForFriend(localUser[0].id, fromHandle)
 
   return { success: true }
 }

@@ -12,11 +12,17 @@ import { useLocationService } from '@/services/location.service'
 import { useFriendsStore } from '@/stores/friends.store'
 import { useIdentityStore } from '@/stores/identity.store'
 import {
-  decryptLocationFromFriend,
+  decryptLocationFromFriendV2,
   importPublicKey,
+  type FriendShareBinding,
   type LocationData,
 } from '@/lib/federation-crypto'
 import type { LngLat } from '@/types/map.types'
+
+function buildRelationshipId(a: string, b: string): string {
+  const [first, second] = a < b ? [a, b] : [b, a]
+  return `${first}::${second}`
+}
 
 export interface FriendLocation {
   friendHandle: string
@@ -34,7 +40,8 @@ function friendLocationsComposable() {
   const identityStore = useIdentityStore()
 
   const { friends } = storeToRefs(friendsStore)
-  const { encryptionPrivateKey, isSetupComplete } = storeToRefs(identityStore)
+  const { encryptionPrivateKey, isSetupComplete, handle: myHandle } =
+    storeToRefs(identityStore)
 
   // State
   const friendLocations = ref<Map<string, FriendLocation>>(new Map())
@@ -92,14 +99,35 @@ function friendLocationsComposable() {
             continue
           }
 
-          // Decrypt the location
-          const friendPublicKey = importPublicKey(friend.friendEncryptionKey)
-          const locationData = decryptLocationFromFriend(
-            encLoc.encryptedLocation,
-            encLoc.nonce,
-            encryptionPrivateKey.value,
-            friendPublicKey,
-          )
+          if (!friend.friendSigningKey) {
+            console.warn(
+              `Friend ${friend.friendHandle} has no signing key, skipping`,
+            )
+            continue
+          }
+          if (!myHandle.value) {
+            console.warn('Own handle not available, skipping decrypt')
+            continue
+          }
+
+          // v2 wire shape: `encryptedLocation` is the full ECIES blob,
+          // `nonce` carries the RFC 3339 sentAt that the AAD binds.
+          const friendSigningKey = importPublicKey(friend.friendSigningKey)
+          const binding: FriendShareBinding = {
+            senderId: friend.friendHandle,
+            recipientId: myHandle.value,
+            relationshipId: buildRelationshipId(
+              friend.friendHandle,
+              myHandle.value,
+            ),
+            timestamp: encLoc.nonce,
+          }
+          const locationData = decryptLocationFromFriendV2({
+            blob: encLoc.encryptedLocation,
+            myEncryptionPrivateKey: encryptionPrivateKey.value,
+            senderSigningPublicKey: friendSigningKey,
+            binding,
+          })
 
           const friendLocation: FriendLocation = {
             friendHandle: friend.friendHandle,

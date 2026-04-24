@@ -30,7 +30,7 @@ export async function getEncryptedPointsInCollection(
     )
     .limit(1)
 
-  if (!collection || !collection.isSensitive) {
+  if (!collection || collection.scheme !== 'user-e2ee') {
     return []
   }
 
@@ -85,8 +85,10 @@ export async function createEncryptedPoint(
     throw new Error('Collection not found')
   }
 
-  if (!collection.isSensitive) {
-    throw new Error('Collection is not marked as sensitive')
+  if (collection.scheme !== 'user-e2ee') {
+    throw new Error(
+      'Collection scheme is not user-e2ee; encrypted points only belong in e2ee collections',
+    )
   }
 
   const [point] = await db
@@ -165,7 +167,16 @@ export async function deleteAllEncryptedPointsInCollection(
 }
 
 /**
- * Toggle collection sensitive mode
+ * Toggle collection sensitive mode.
+ *
+ * DEPRECATED: legacy endpoint that only flips the flag; does NOT re-encrypt
+ * existing points. The proper scheme-change flow lives in the collections
+ * service and runs a transactional re-encrypt. This stays for backward
+ * compatibility with clients that haven't been updated yet, but new
+ * callers should use `changeCollectionScheme` instead.
+ *
+ * Both `is_sensitive` (compat mirror) and `scheme` are updated together so
+ * reads remain consistent regardless of which field a caller inspects.
  */
 export async function setCollectionSensitive(
   collectionId: string,
@@ -176,6 +187,7 @@ export async function setCollectionSensitive(
     .update(collections)
     .set({
       isSensitive,
+      scheme: isSensitive ? 'user-e2ee' : 'server-key',
       updatedAt: new Date(),
     })
     .where(

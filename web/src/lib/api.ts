@@ -184,13 +184,24 @@ api.interceptors.response.use(
     if (axios.isCancel(error)) return Promise.reject(error)
 
     const { title, description } = getErrorMessage(error)
+    const status = error.response?.status as number | undefined
 
-    if (error.response?.status === 401) {
+    if (status === 401) {
       if (error.request.responseURL.includes('/auth/sessions/current')) {
         return
       } else {
         router.push({ name: AppRoute.SIGNIN })
       }
+    }
+
+    // Callers can opt individual statuses out of the global toast by
+    // passing `silentStatuses` on the request config — useful for
+    // polling loops where an "expected" 4xx (e.g. 425 not-ready) would
+    // otherwise spam the user with errors on every tick.
+    const silent = (error.config as { silentStatuses?: number[] } | undefined)
+      ?.silentStatuses
+    if (status !== undefined && silent?.includes(status)) {
+      return Promise.reject(error)
     }
 
     toast.error(title, { description })

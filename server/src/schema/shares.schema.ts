@@ -3,6 +3,19 @@ import { relations } from 'drizzle-orm'
 import { users } from './users.schema'
 
 /**
+ * Role a recipient has on a shared resource. Determines what they can do
+ * once they've accepted the share.
+ *
+ *   - 'viewer' — can read; cannot write.
+ *   - 'editor' — can read and write. Subject to the owning resource's
+ *     `resharing_policy` for whether they can re-share with others.
+ *
+ * Owners don't carry a share row; ownership is implicit via the
+ * resource's `userId` column. There is no separate 'owner' role value.
+ */
+export type ShareRole = 'viewer' | 'editor'
+
+/**
  * Generic shares table for E2EE resource sharing between users
  * Supports both same-server and cross-server sharing
  */
@@ -27,7 +40,12 @@ export const shares = pgTable(
     // Encrypted resource data (for cross-server sharing)
     encryptedData: text('encrypted_data'), // E2EE data blob
     nonce: text('nonce'),
-    
+
+    // Role granted on accept. 'viewer' by default; 'editor' allows the
+    // recipient to write to the resource (subject to the owning resource's
+    // resharing_policy for re-sharing).
+    role: text('role').$type<ShareRole>().notNull().default('viewer'),
+
     // Status
     status: text('status').default('pending').notNull(), // 'pending' | 'accepted' | 'rejected' | 'revoked'
     
@@ -70,7 +88,10 @@ export const incomingShares = pgTable(
     // Encrypted data (decryptable by recipient)
     encryptedData: text('encrypted_data').notNull(),
     nonce: text('nonce').notNull(),
-    
+
+    // Role granted by the sender. Mirrors `shares.role` on the sender side.
+    role: text('role').$type<ShareRole>().notNull().default('viewer'),
+
     // Status
     status: text('status').default('pending').notNull(), // 'pending' | 'accepted' | 'rejected'
     

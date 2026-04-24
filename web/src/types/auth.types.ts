@@ -23,6 +23,7 @@ export type User = {
   emailVerified: boolean
   firstName?: string
   lastName?: string
+  alias?: string | null
   picture?: string
   roles?: Role[]
   sessionCount?: number

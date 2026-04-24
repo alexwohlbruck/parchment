@@ -11,6 +11,7 @@
     "delete": "Eliminar",
     "confirm": "Confirmar",
     "close": "Cerrar",
+    "done": "Listo",
     "back": "Atrás",
     "save": "Guardar",
     "share": "Compartir",
@@ -174,6 +175,13 @@
             "name": "Idioma"
           }
         }
+      },
+      "signOut": {
+        "name": "Cerrar sesión",
+        "description": "Cerrar sesión de tu cuenta",
+        "keywords": "logout salir cuenta usuario",
+        "confirmTitle": "¿Cerrar sesión?",
+        "confirmDescription": "Asegúrate de haber guardado tu clave de recuperación — la necesitarás, o una clave de acceso, para volver a iniciar sesión."
       }
     }
   },
@@ -329,6 +337,14 @@
     "sort": {
       "name": "Nombre"
     },
+    "collections": {
+      "filter": {
+        "label": "Filtrar colecciones",
+        "all": "Todas las colecciones",
+        "mine": "Mis colecciones",
+        "shared": "Compartidas conmigo"
+      }
+    },
     "actions": {
       "addToCollection": "Añadir a Colección",
       "createNewCollection": "Crear nueva colección",
@@ -360,7 +376,9 @@
           "plural": "colecciones"
         },
         "default": "Marcadores",
-        "manage": "Gestionar colecciones"
+        "manage": "Gestionar colecciones",
+        "untitled": "Colección sin título",
+        "sharedBy": "Compartida por {name}"
       },
       "routes": {
         "title": {
@@ -419,9 +437,6 @@
       "collection": "Cargando colección..."
     }
   },
-  "timeline": {
-    "title": "Línea de tiempo"
-  },
   "services": {
     "bookmarks": {
       "fetchError": "Error al obtener marcadores",
@@ -474,6 +489,8 @@
     "cancel": "Cancelar",
     "done": "Listo",
     "locationSharing": "Compartir ubicación",
+    "countOne": "{n} amigo",
+    "countMany": "{n} amigos",
     "invitations": {
       "title": "Invitaciones pendientes",
       "incoming": "Recibidas",
@@ -503,12 +520,14 @@
     "identity": {
       "title": "Identidad federada",
       "description": "Tu identidad para conectar con amigos en otros servidores",
+      "configuredDescription": "Cómo otras personas te encuentran y verifican",
       "handle": "Identificador",
       "handleDescription": "Tu identificador único para federación",
       "username": "Nombre de usuario",
-      "usernameDescription": "Tu nombre de usuario (alias) en este servidor",
+      "usernameDescription": "Tu nombre único en este servidor",
       "server": "Servidor",
       "serverDescription": "El servidor que aloja tu identidad",
+      "shareHandleHint": "Comparte esto con amigos para que puedan añadirte.",
       "notSet": "No configurado",
       "edit": "Editar",
       "set": "Configurar",
@@ -521,7 +540,58 @@
       "viewKey": "Ver clave",
       "aliasHint": "3-30 caracteres, letras, números y guiones bajos",
       "updateFailed": "Error al actualizar alias",
-      "setupInvitations": "Configura tu identidad para ver invitaciones."
+      "setupInvitations": "Configura tu identidad para ver invitaciones.",
+      "restoreIdentity": "Restaurar identidad",
+      "restoreIdentityDescription": "Tu cuenta tiene una identidad federada — restáurala aquí para conectar con amigos.",
+      "staleTitle": "Este dispositivo está desincronizado",
+      "staleDescription": "Tus claves se rotaron en otro dispositivo. Toca una clave de acceso para sincronizar este dispositivo — hasta que lo hagas, tus datos guardados aquí no coincidirán con los de tus otros dispositivos.",
+      "syncWithPasskey": "Sincronizar con clave de acceso"
+    },
+    "rotateKeys": {
+      "title": "Rotar todas las claves",
+      "description": "Cambia tu clave maestra por una nueva y vuelve a cifrar todo bajo ella.",
+      "subDescription": "Tocarás cada clave de acceso registrada una vez para volver a asegurarla con la nueva clave.",
+      "beforeYouContinue": "Antes de continuar",
+      "warning": {
+        "keepOpen": "Mantén esta pestaña abierta hasta que termine.",
+        "tapEach": "Cualquier clave de acceso que no toques antes de finalizar no funcionará para recuperación después — ten al menos una clave de acceso o tu clave de recuperación a mano.",
+        "failsSafe": "Si la rotación falla a mitad, nada cambia en el servidor."
+      },
+      "action": "Rotar claves",
+      "runningTitle": "Rotando claves",
+      "runningDescription": "No cierres esta pestaña. Te avisaremos cuando sea seguro continuar.",
+      "doneTitle": "Claves rotadas",
+      "doneDescription": "Tus datos han sido vueltos a cifrar con una nueva clave maestra.",
+      "notResecuredTitle": "Algunas claves de acceso no se volvieron a asegurar",
+      "failedTitle": "La rotación falló",
+      "failedFallback": "La rotación falló",
+      "close": "Cerrar",
+      "slotWarning": "La clave de acceso {id}… no se volvió a asegurar ({reason}). Ya no funcionará para recuperación — elimínala y agrégala de nuevo.",
+      "unknownReason": "desconocido",
+      "progress": {
+        "preparing": "Preparando…",
+        "starting": "Iniciando rotación…",
+        "listing": "Listando tus datos cifrados…",
+        "reencryptBlob": "Volviendo a cifrar {type} ({index}/{total})",
+        "reencryptCollection": "Volviendo a cifrar colección {index} de {total}",
+        "resealingSlot": "Toca tu clave de acceso para volver a asegurar el slot {index} de {total}",
+        "committing": "Finalizando — guardando todo a la vez…",
+        "storingSeed": "Actualizando este dispositivo…",
+        "done": "Hecho — ahora en la versión de clave {version}"
+      }
+    },
+    "security": {
+      "title": "Claves de cifrado",
+      "description": "Tus claves privadas cifran tus datos de extremo a extremo",
+      "recoveryKey": "Clave de recuperación",
+      "recoveryKeyDescription": "Un respaldo de tus claves de cifrado. Guárdala para restaurar el acceso si pierdes todos los dispositivos.",
+      "viewKey": "Ver clave",
+      "rotateKeys": "Rotar claves de cifrado",
+      "rotateKeysDescription": "Genera nuevas claves de cifrado y vuelve a cifrar tus datos con ellas.",
+      "rotate": "Rotar",
+      "setupAnotherDevice": "Configurar otro dispositivo",
+      "setupAnotherDeviceDescription": "Comparte tus claves de cifrado con un teléfono o navegador nuevo para que pueda leer tus datos cifrados.",
+      "setupAction": "Configurar"
     },
     "recoveryKey": {
       "setupTitle": "Configurar identidad",
@@ -554,15 +624,6 @@
       "description": "Elige qué amigos pueden ver tu ubicación en tiempo real. Todos los datos de ubicación están cifrados de extremo a extremo.",
       "addFriendsPrompt": "Añade amigos para empezar a compartir tu ubicación.",
       "e2eeNotice": "Tu ubicación se cifra en tu dispositivo antes de enviarse. Solo los amigos que elijas pueden descifrar y ver tu ubicación. El servidor nunca ve tus coordenadas reales."
-    },
-    "shareDialog": {
-      "title": "Compartir {name}",
-      "description": "Selecciona amigos con quienes compartir este {type}. Los datos estarán cifrados de extremo a extremo.",
-      "identityRequired": "Necesitas configurar tu identidad antes de compartir.",
-      "noFriends": "Añade amigos para compartir con ellos.",
-      "alreadyShared": "Compartido",
-      "e2eeNotice": "Compartir con cifrado de extremo a extremo",
-      "shareButton": "Compartir con {count} amigo(s)"
     },
     "detail": {
       "justNow": "Ahora mismo",
@@ -836,6 +897,169 @@
         "title": "Claves de acceso"
       }
     },
+    "identity": {
+      "recoveryKey": {
+        "setup": {
+          "title": "Configurar identidad federada",
+          "description": "Tu clave de recuperación es tu último recurso para volver a entrar si pierdes todos los dispositivos. Guárdala en un lugar seguro — un gestor de contraseñas es ideal. En el siguiente paso te ofreceremos configurar una clave de acceso para la recuperación diaria.",
+          "importantTitle": "Importante",
+          "importantDescription": "Si pierdes esta clave Y todas las claves de acceso, tendrás que crear una nueva identidad y volver a añadir a todos tus amigos.",
+          "keyLabel": "Tu clave de recuperación",
+          "generating": "Generando...",
+          "keyCopiedToast": "Clave de recuperación copiada. Pégala en tu gestor de contraseñas.",
+          "masterPasswordHint": "Como una contraseña maestra. Mantenla en secreto y a salvo.",
+          "confirmSavedLabel": "He guardado mi clave de recuperación en un lugar seguro",
+          "failedFallback": "Error de configuración"
+        },
+        "passkeyOffer": {
+          "title": "¿Añadir una clave de acceso para recuperación?",
+          "description": "Las claves de acceso te permiten recuperar tu identidad en un nuevo dispositivo con un solo toque, sin necesidad de clave de recuperación. Siempre puedes añadir más desde Configuración.",
+          "alertDescription": "Tu clave de recuperación ya está a salvo. Añadir una clave de acceso es opcional pero muy recomendable.",
+          "existingLabel": "Ya tienes una clave de acceso:",
+          "existingHint": "Tócala abajo para habilitar la recuperación. Algunos navegadores o claves de acceso antiguas no pueden hacerlo — si no funciona, usa \"Añadir nueva\" en su lugar.",
+          "useExisting": "Usar \"{name}\" para recuperación",
+          "addNewInstead": "Añadir una nueva clave de acceso en su lugar",
+          "addPasskey": "Añadir clave de acceso",
+          "skipForNow": "Omitir por ahora",
+          "cannotUseError": "Esta clave de acceso no se puede usar para recuperación. Prueba añadiendo una nueva.",
+          "enableFailedError": "No se pudo habilitar la recuperación con clave de acceso. Aún puedes terminar la configuración usando tu clave de recuperación."
+        },
+        "complete": {
+          "title": "Identidad configurada",
+          "message": "¡Identidad configurada correctamente!",
+          "federationId": "Tu ID de federación: {handle}"
+        },
+        "import": {
+          "chooseTitle": "Restaurar tu identidad",
+          "chooseDescription": "Toca una de tus claves de acceso registradas para recuperar tu identidad en este dispositivo.",
+          "unlockWithPasskey": "Desbloquear con clave de acceso",
+          "pairWithOtherDevice": "Emparejar con tu otro dispositivo",
+          "useRecoveryKeyInstead": "Usar clave de recuperación en su lugar",
+          "unlockFailed": "No se pudo desbloquear con la clave de acceso",
+          "typeKeyTitle": "Importar clave de recuperación",
+          "typeKeyDescription": "Introduce tu clave de recuperación para restaurar tu identidad en este dispositivo.",
+          "recoveryKeyLabel": "Clave de recuperación",
+          "recoveryKeyPlaceholder": "Pega aquí tu clave de recuperación",
+          "invalidKey": "Clave de recuperación inválida",
+          "importAction": "Importar",
+          "lostKeyLink": "¿Perdiste tu clave de recuperación?",
+          "completeTitle": "Identidad restaurada",
+          "completeMessage": "¡Identidad restaurada correctamente!"
+        },
+        "reset": {
+          "confirmTitle": "¿Restablecer tu cuenta?",
+          "confirmDescription": "Esto borra permanentemente todos tus datos cifrados en esta cuenta — lugares guardados, colecciones, amigos y ajustes de compartición. Tu correo y claves de acceso permanecen, así que puedes seguir iniciando sesión. Esto no se puede deshacer.",
+          "typePromptTitle": "Escribe RESET para confirmar",
+          "typePromptLabel": "Confirmación",
+          "failedFallback": "Error al restablecer. Por favor, inténtalo de nuevo."
+        },
+        "view": {
+          "title": "Tu clave de recuperación",
+          "description": "Un respaldo para tu cuenta. Guárdala en un lugar seguro.",
+          "federationIdLabel": "Tu ID de federación — compártelo con amigos",
+          "keepSecretTitle": "Mantén esto en secreto",
+          "keepSecretDescription": "Cualquiera con esta clave puede iniciar sesión como tú en cualquier dispositivo.",
+          "keyLabel": "Clave de recuperación — guárdala en un gestor de contraseñas o imprímela",
+          "copied": "Copiado",
+          "copyToClipboard": "Copiar al portapapeles"
+        }
+      },
+      "transferDevice": {
+        "choose": {
+          "title": "Configurar otro dispositivo",
+          "description": "Inicia sesión en un nuevo teléfono o navegador. Ambos dispositivos permanecerán conectados — este no pierde nada.",
+          "currentDeviceLabel": "Este es mi dispositivo actual",
+          "currentDeviceHint": "Escanea el QR del nuevo dispositivo para compartir tu identidad con él",
+          "newDeviceLabel": "Este es mi nuevo dispositivo",
+          "newDeviceHint": "Muestra un QR para que tu dispositivo actual lo escanee"
+        },
+        "receive": {
+          "title": "Escanea esto con tu otro dispositivo",
+          "description": "En tu dispositivo con sesión iniciada, abre Configurar otro dispositivo → Este es mi dispositivo actual, luego escanea este QR.",
+          "preparing": "Preparando transferencia segura…",
+          "qrAlt": "Código QR de transferencia de dispositivo",
+          "waiting": "Esperando al otro dispositivo…",
+          "verifyTitle": "Verifica que el código de 6 dígitos coincida",
+          "verifyDescription": "Compara el código de abajo con el que se muestra en tu otro dispositivo. Si son diferentes, cancela — alguien podría estar interceptando la transferencia.",
+          "unsealing": "Abriendo tu identidad…",
+          "doneMessage": "Identidad restaurada en este dispositivo.",
+          "codesMatchAction": "Los códigos coinciden — desbloquear"
+        },
+        "send": {
+          "title": "Escanea tu nuevo dispositivo",
+          "description": "Apunta la cámara al código QR mostrado en tu nuevo dispositivo.",
+          "viewfinderHint": "Apunta la cámara al QR en tu nuevo dispositivo.",
+          "sealing": "Cifrando y subiendo…",
+          "verifyTitle": "Verifica que los códigos coincidan",
+          "verifyDescription": "Tu nuevo dispositivo debería mostrar ahora el mismo código de 6 dígitos. Si es así, toca \"Los códigos coinciden\" en el nuevo dispositivo para finalizar."
+        },
+        "errors": {
+          "sessionStart": "No se pudo iniciar la sesión de transferencia",
+          "sessionExpired": "La sesión de transferencia expiró. Cierra esto e inténtalo de nuevo — cada sesión dura 60 segundos.",
+          "polling": "Error al consultar la sesión de transferencia",
+          "missingState": "Falta estado de transferencia",
+          "noServerIdentity": "El servidor no tiene una identidad federada para verificar la firma del remitente.",
+          "seedMismatch": "La semilla transferida no deriva la identidad federada esperada.",
+          "openFailed": "Error al abrir la semilla transferida",
+          "cameraUnavailable": "Cámara no disponible: {message}",
+          "cameraAccess": "No se pudo acceder a la cámara",
+          "invalidQr": "El QR escaneado no es un código de transferencia de Parchment válido.",
+          "missingQrData": "Al QR escaneado le faltan datos de la sesión de transferencia.",
+          "noSeed": "Este dispositivo no tiene una semilla de identidad para transferir.",
+          "sealUploadFailed": "Error al cifrar y subir la semilla"
+        }
+      }
+    },
+    "auth": {
+      "passkeys": {
+        "addPasskey": "Añadir clave de acceso",
+        "columns": {
+          "name": "Nombre",
+          "synced": "Sincronizada",
+          "syncedHint": "Sí significa que esta clave de acceso viaja con tu gestor de contraseñas (iCloud Keychain, 1Password, Google) entre tus otros dispositivos. No significa que solo existe en el dispositivo que la creó.",
+          "added": "Añadida",
+          "recovery": "Recuperación",
+          "aboutLabel": "Acerca de {label}"
+        },
+        "setupIdentityFirst": "Configura primero tu identidad",
+        "recoveryOn": "Recuperación activada",
+        "turnOn": "Activar",
+        "deleteAction": "Eliminar clave de acceso",
+        "secondTapToast": "Un toque más para terminar la configuración.",
+        "addErrorFallback": "No se pudo añadir la clave de acceso",
+        "addSuccess": "Clave de acceso añadida. Puedes usarla en cualquier dispositivo.",
+        "addNoRecoveryFallback": "Clave de acceso añadida, pero no se puede usar para recuperación.",
+        "recoveryOnSuccess": "Recuperación activada. Usa esta clave de acceso en cualquier dispositivo.",
+        "cannotUseForRecovery": "Esta clave de acceso no se puede usar para recuperación.",
+        "recoveryFailedFallback": "No se pudo activar la recuperación.",
+        "deleteConfirmTitle": "¿Eliminar esta clave de acceso?",
+        "deleteConfirmDescription": "Ya no podrás usar esta clave de acceso para iniciar sesión en ningún dispositivo.",
+        "refreshKeysTitle": "¿Actualizar claves de cuenta?",
+        "refreshKeysDescription": "Si este dispositivo se perdió, actualiza para mantener tus datos a salvo. Tocarás tus otras claves de acceso.",
+        "refreshKeysAction": "Actualizar"
+      },
+      "sessions": {
+        "columns": {
+          "device": "Dispositivo",
+          "signedIn": "Sesión iniciada"
+        },
+        "thisDevice": "Este dispositivo",
+        "unknownDevice": "Desconocido",
+        "thisBrowser": "este navegador",
+        "thisDeviceFallback": "este dispositivo",
+        "signOutThisSession": "Cerrar esta sesión",
+        "signOutOtherDevices": "Cerrar sesión en otros dispositivos",
+        "deleteCurrentTitle": "¿Cerrar sesión en este dispositivo?",
+        "deleteOtherTitle": "¿Cerrar sesión de {browser} en {osName}?",
+        "deleteCurrentDescription": "Has iniciado sesión aquí — continuar te cerrará la sesión de inmediato.",
+        "deleteOtherDescription": "Cerrarás la sesión de {browser} en {osName}. Podrás volver a iniciar sesión más tarde.",
+        "signOutAction": "Cerrar sesión",
+        "signOutOthersTitle": "¿Cerrar sesión en otros dispositivos?",
+        "signOutOthersDescription": "Seguirás con la sesión iniciada aquí. Recomendado si un dispositivo se perdió o fue robado.",
+        "signOutOthersSuccess": "Sesión cerrada en otros dispositivos.",
+        "signOutOthersFailed": "No se pudo cerrar sesión en otros dispositivos."
+      }
+    },
     "behavior": {
       "title": "Comportamiento",
       "language": {
@@ -1003,6 +1227,11 @@
         "error": "Error al probar la conexión",
         "validation_error": "Por favor corrige los errores de validación antes de probar"
       },
+      "filter": {
+        "encryption": "Cifrado",
+        "serverManaged": "Gestionado por el servidor",
+        "endToEnd": "Cifrado de extremo a extremo"
+      },
       "capabilities": {
         "mapLayer": "Capa de mapa",
         "search": "Buscar",
@@ -1044,7 +1273,14 @@
         "axiom": "Enviar registros y trazas del servidor a Axiom para depuración y monitoreo",
         "barrelman": "Motor de búsqueda y espacial OSM autoalojado",
         "openstreetmap": "Configurar credenciales OAuth de OSM",
-        "openstreetmap-account": "Agregar notas, comentarios y hacer ediciones rápidas"
+        "openstreetmap-account": "Agregar notas, comentarios y hacer ediciones rápidas",
+        "dawarich": "Conecta tu instancia autoalojada de Dawarich — cifrada en tu dispositivo"
+      },
+      "scheme": {
+        "endToEnd": {
+          "formNote": "Cifrado de extremo a extremo. Tu URL y token de API se cifran en este dispositivo antes de subirse — el servidor de Parchment nunca los ve."
+        },
+        "setupRequired": "Configura tus claves de cifrado en Configuración → Claves de cifrado antes de configurar esta integración."
       },
       "osm": {
         "connected": "Cuenta de OpenStreetMap conectada exitosamente",
@@ -1108,6 +1344,72 @@
     "message": "Incluso Colón fue un mejor navegante.",
     "action": "Volver a España"
   },
+  "sharing": {
+    "title": "Compartir \"{name}\"",
+    "description": "Gestiona quién puede acceder a esta colección",
+    "searchPlaceholder": "Añadir personas por identificador",
+    "addAction": "Añadir",
+    "noFriendsMatch": "Ningún amigo coincide con tu búsqueda",
+    "peopleWithAccess": "Personas con acceso",
+    "role": {
+      "owner": "Propietario",
+      "viewer": "Lector",
+      "editor": "Editor"
+    },
+    "owner": {
+      "identityIncomplete": "Completa la configuración de identidad en Ajustes"
+    },
+    "generalAccess": {
+      "title": "Acceso general",
+      "restricted": {
+        "title": "Restringido",
+        "description": "Sólo las personas invitadas pueden abrir esta colección.",
+        "enableAction": "Crear enlace"
+      },
+      "anyoneWithLink": {
+        "title": "Cualquier persona con el enlace",
+        "description": "Cualquier persona en internet con el enlace puede ver.",
+        "copyAction": "Copiar enlace",
+        "revokeAction": "Revocar enlace"
+      },
+      "e2ee": {
+        "title": "Cifrado de extremo a extremo",
+        "description": "Sólo los amigos invitados pueden descifrar esta colección. El enlace público no está disponible.",
+        "switchAction": "Cambiar a cifrado gestionado por el servidor"
+      },
+      "serverKey": {
+        "switchAction": "Cambiar a cifrado de extremo a extremo"
+      }
+    },
+    "publicLink": {
+      "copied": "Enlace copiado al portapapeles"
+    },
+    "schemeSwitch": {
+      "upgradeConfirm": {
+        "title": "¿Cambiar a cifrado de extremo a extremo?",
+        "description": "Cada lugar guardado en esta colección se volverá a cifrar con tu clave personal. El servidor de Parchment ya no podrá leerlos. Cualquier enlace público será revocado. Los amigos con acceso se volverán a compartir con la nueva clave.",
+        "continueText": "Cambiar a extremo a extremo"
+      },
+      "downgradeConfirm": {
+        "title": "¿Cambiar a cifrado gestionado por el servidor?",
+        "description": "El servidor de Parchment podrá leer cada lugar guardado en esta colección. Los amigos con acceso se volverán a compartir con el nuevo esquema. Esto no se puede deshacer sin volver a cambiar y cifrar.",
+        "continueText": "Cambiar a gestionado por el servidor"
+      },
+      "success": "Esquema de cifrado cambiado",
+      "failed": "No se pudo cambiar el esquema de cifrado"
+    },
+    "errors": {
+      "loadFailed": "No se pudieron cargar los recursos compartidos",
+      "createFailed": "No se pudo compartir",
+      "revokeFailed": "No se pudo eliminar el acceso",
+      "roleChangeFailed": "No se pudo cambiar el rol",
+      "publicLinkFailed": "No se pudo crear el enlace público",
+      "publicLinkRevokeFailed": "No se pudo revocar el enlace público",
+      "copyFailed": "Error al copiar — selecciona y copia el enlace manualmente",
+      "identityRequired": "Configura tus claves de cifrado en Ajustes antes de compartir",
+      "missingFriendKey": "Las claves de este amigo aún no están sincronizadas; inténtalo en un momento"
+    }
+  },
   "auth": {
     "signIn": {
       "server": "Servidor",
@@ -1128,6 +1430,12 @@
     },
     "server": {
       "addCustom": "Añadir servidor personalizado..."
+    },
+    "passkey": {
+      "restoringTitle": "Restaurando tus datos…",
+      "restoringDescription": "Toca tu clave de acceso una vez más para desbloquear tus datos cifrados.",
+      "restoredSuccess": "Tus datos están listos.",
+      "restoreFailed": "No se pudieron restaurar tus datos — inténtalo de nuevo desde Configuración → Claves de cifrado."
     }
   }
 }

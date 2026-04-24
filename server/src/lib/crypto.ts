@@ -6,27 +6,51 @@ import { sha512 } from '@noble/hashes/sha2.js'
 ed.hashes.sha512 = (...m) => sha512(ed.etc.concatBytes(...m))
 
 /**
- * Verify an Ed25519 signature
- * @param message - The original message that was signed
- * @param signature - Base64-encoded signature
- * @param publicKey - Base64-encoded Ed25519 public key
- * @returns true if signature is valid
+ * Malformed input to verifySignature — distinct from a well-formed but invalid
+ * signature, which returns false.
+ */
+export class MalformedSignatureInputError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'MalformedSignatureInputError'
+  }
+}
+
+/**
+ * Verify an Ed25519 signature.
+ * - Returns true / false for a well-formed signature that verifies / doesn't verify.
+ * - Throws MalformedSignatureInputError if inputs can't be decoded. Callers should
+ *   treat this as a 4xx (sender sent garbage) rather than a 500.
  */
 export function verifySignature(
   message: string,
   signature: string,
   publicKey: string,
 ): boolean {
+  let signatureBytes: Uint8Array
+  let publicKeyBytes: Uint8Array
   try {
-    const messageBytes = new TextEncoder().encode(message)
-    const signatureBytes = base64ToBytes(signature)
-    const publicKeyBytes = base64ToBytes(publicKey)
-
-    return ed.verify(signatureBytes, messageBytes, publicKeyBytes)
-  } catch (error) {
-    console.error('Signature verification failed:', error)
-    return false
+    signatureBytes = base64ToBytes(signature)
+    publicKeyBytes = base64ToBytes(publicKey)
+  } catch (err) {
+    throw new MalformedSignatureInputError(
+      `Invalid base64 in signature or public key: ${(err as Error).message}`,
+    )
   }
+
+  if (signatureBytes.length !== 64) {
+    throw new MalformedSignatureInputError(
+      `Signature must be 64 bytes, got ${signatureBytes.length}`,
+    )
+  }
+  if (publicKeyBytes.length !== 32) {
+    throw new MalformedSignatureInputError(
+      `Public key must be 32 bytes, got ${publicKeyBytes.length}`,
+    )
+  }
+
+  const messageBytes = new TextEncoder().encode(message)
+  return ed.verify(signatureBytes, messageBytes, publicKeyBytes)
 }
 
 /**
@@ -104,7 +128,7 @@ export async function getPublicKeyFromPrivate(privateKey: string): Promise<strin
 }
 
 // Utility functions for base64 conversion
-function base64ToBytes(base64: string): Uint8Array {
+export function base64ToBytes(base64: string): Uint8Array {
   const binaryString = atob(base64)
   const bytes = new Uint8Array(binaryString.length)
   for (let i = 0; i < binaryString.length; i++) {
@@ -113,7 +137,7 @@ function base64ToBytes(base64: string): Uint8Array {
   return bytes
 }
 
-function bytesToBase64(bytes: Uint8Array): string {
+export function bytesToBase64(bytes: Uint8Array): string {
   let binaryString = ''
   for (let i = 0; i < bytes.length; i++) {
     binaryString += String.fromCharCode(bytes[i])

@@ -10,16 +10,21 @@ import {
   getIntegrationDefinition,
   extractPublicConfig,
   getDependentIntegrations,
+  IntegrationSchemeConflictError,
 } from '../services/integration.service'
 import {
   IntegrationId,
   IntegrationCapabilityId,
   IntegrationCapability,
   IntegrationScope,
+  IntegrationScheme,
+  ConfiguredIntegrationDto,
+  IntegrationRecord,
 } from '../types/integration.types'
 import { requireAuth, getSession } from '../middleware/auth.middleware'
 import { PermissionId } from '../types/auth.types'
 import { hasPermission, getPermissions } from '../services/auth.service'
+import { logger } from '../lib/logger'
 
 const app = new Elysia({ prefix: '/integrations' })
 
@@ -39,67 +44,58 @@ app.use(getSession).get(
   async ({ user }) => {
     const { integrationManager } = await import('../services/integrations')
 
-    // Always include system integrations with public fields
-    const systemIntegrations = await getConfiguredIntegrations()
-
-    const result: any[] = systemIntegrations.map((integration) => {
+    // Build the public-facing view of one integration row. Shared between the
+    // system and user branches — the only difference is that user rows carry
+    // userId + (for user-e2ee) the opaque encryptedConfig envelope.
+    const toDto = (
+      integration: IntegrationRecord,
+      includeUserFields: boolean,
+    ): ConfiguredIntegrationDto => {
       const definition = getIntegrationDefinition(integration.integrationId)
       const publicConfig = extractPublicConfig(
         (integration.config || {}) as Record<string, any>,
         definition,
       )
-
-      // Get the integration instance to access capability metadata
       const instance =
         integrationManager.getCachedIntegrationInstance(integration)
-      const enhancedCapabilities = integration.capabilities.map((cap) => {
-        const capabilityMetadata = instance?.capabilities[cap.id]?.metadata
-        return { ...cap, metadata: capabilityMetadata || null }
-      })
+      const enhancedCapabilities = integration.capabilities.map((cap) => ({
+        ...cap,
+        metadata: instance?.capabilities[cap.id]?.metadata ?? null,
+      }))
 
-      return {
+      const dto: ConfiguredIntegrationDto = {
         id: integration.id,
         integrationId: integration.integrationId,
+        scheme: integration.scheme,
         config: publicConfig,
         capabilities: enhancedCapabilities,
         name: definition?.name,
       }
-    })
+      if (includeUserFields) {
+        dto.userId = integration.userId
+        // user-e2ee rows carry the client-encrypted config as an opaque
+        // envelope; the client decrypts it locally on hydrate.
+        dto.encryptedConfig = integration.encryptedConfig
+      }
+      return dto
+    }
 
-    // If authenticated, also include user integrations
+    // Always include system integrations with public fields.
+    const systemIntegrations = await getConfiguredIntegrations()
+    const result: ConfiguredIntegrationDto[] = systemIntegrations.map((i) =>
+      toDto(i, false),
+    )
+
     if (user) {
       const userPermissions = await getPermissions(user.id)
       const canReadUser = hasPermission(
         userPermissions,
         PermissionId.INTEGRATIONS_READ_USER,
       )
-
       if (canReadUser) {
         const userIntegrations = await getConfiguredIntegrations(user.id)
         for (const integration of userIntegrations) {
-          const definition = getIntegrationDefinition(
-            integration.integrationId,
-          )
-          const publicConfig = extractPublicConfig(
-            (integration.config || {}) as Record<string, any>,
-            definition,
-          )
-
-          const instance =
-            integrationManager.getCachedIntegrationInstance(integration)
-          const enhancedCapabilities = integration.capabilities.map((cap) => {
-            const capabilityMetadata = instance?.capabilities[cap.id]?.metadata
-            return { ...cap, metadata: capabilityMetadata || null }
-          })
-
-          result.push({
-            id: integration.id,
-            userId: integration.userId,
-            integrationId: integration.integrationId,
-            config: publicConfig,
-            capabilities: enhancedCapabilities,
-            name: definition?.name,
-          })
+          result.push(toDto(integration, true))
         }
       }
     }
@@ -276,7 +272,9 @@ app.post(
       PermissionId.INTEGRATIONS_WRITE_SYSTEM,
     )
 
-    const { integrationId, config, capabilities } = body
+    const { integrationId, config, capabilities, scheme } = body
+    const effectiveScheme: IntegrationScheme =
+      (scheme as IntegrationScheme | undefined) ?? 'server-key'
 
     // Verify the integration ID is valid
     const validId = Object.values(IntegrationId).includes(
@@ -291,6 +289,15 @@ app.post(
     if (!definition) {
       return status(400, {
         message: t('errors.notFound.integrationDefinition'),
+      })
+    }
+
+    // Scheme must be one the definition opts into. Defaults to ['server-key']
+    // for integrations that haven't declared supportedSchemes.
+    const supportedSchemes = definition.supportedSchemes ?? ['server-key']
+    if (!supportedSchemes.includes(effectiveScheme)) {
+      return status(400, {
+        message: t('errors.integration.unsupportedScheme'),
       })
     }
 
@@ -346,18 +353,33 @@ app.post(
         integrationId as IntegrationId,
         config,
         processedCapabilities,
+        effectiveScheme,
       )
 
       return integration
-    } catch (err: any) {
-      return status(400, {
-        message: err.message || 'Failed to create integration',
-      })
+    } catch (err: unknown) {
+      if (err instanceof IntegrationSchemeConflictError) {
+        return status(409, {
+          message: t('errors.integration.schemeAlreadyConfigured'),
+        })
+      }
+      // Known Error throws from the service carry human-facing messages
+      // (validation, not-found, test-failed) — surface as 400. Non-Error
+      // throws are unexpected (DB / runtime bugs): log + generic 500 so
+      // we don't echo internal details to the caller.
+      if (err instanceof Error) {
+        logger.warn({ err, integrationId }, 'createIntegration failed')
+        return status(400, { message: err.message })
+      }
+      logger.error({ err }, 'createIntegration unexpected non-Error throw')
+      return status(500, { message: 'Failed to create integration' })
     }
   },
   {
     body: t.Object({
       integrationId: t.String(),
+      // Config may be empty for scheme='user-e2ee' — the ciphertext lives in
+      // the personal-blob channel and is uploaded separately by the client.
       config: t.Record(t.String(), t.Any()),
       capabilities: t.Optional(
         t.Array(
@@ -367,6 +389,7 @@ app.post(
           }),
         ),
       ),
+      scheme: t.Optional(t.String()),
     }),
     detail: {
       tags: ['Integrations'],
@@ -447,10 +470,13 @@ app.put(
 
       const updatedIntegration = await updateIntegration(id, userId, updates)
       return updatedIntegration
-    } catch (err: any) {
-      return status(400, {
-        message: err.message || 'Failed to update integration',
-      })
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        logger.warn({ err, id }, 'updateIntegration failed')
+        return status(400, { message: err.message })
+      }
+      logger.error({ err }, 'updateIntegration unexpected non-Error throw')
+      return status(500, { message: 'Failed to update integration' })
     }
   },
   {
@@ -490,29 +516,49 @@ app.get(
       userPermissions,
       PermissionId.INTEGRATIONS_WRITE_SYSTEM,
     )
+    const canWriteUser = hasPermission(
+      userPermissions,
+      PermissionId.INTEGRATIONS_WRITE_USER,
+    )
 
-    if (!canWriteSystem) {
-      return status(403, {
-        message: t('errors.auth.insufficientPermissions'),
-      })
-    }
-
-    // Find the integration record
-    let integration = await getIntegration(id)
+    // `getIntegration(id, user.id)` returns either the caller's own user
+    // integration or a system integration — it never returns another user's
+    // row. That gives us ownership-by-construction for the user-scope path.
+    const integration = await getIntegration(id, user.id)
     if (!integration) {
       return status(404, { message: t('errors.notFound.integration') })
+    }
+
+    // Permission must match the row's actual scope. Without this, a regular
+    // user with WRITE_USER could enumerate system-integration dependents,
+    // leaking which users configured the dependent (e.g. OSM accounts).
+    const isSystem = integration.userId === null
+    if (isSystem) {
+      if (!canWriteSystem) {
+        return status(403, {
+          message: t('errors.auth.insufficientPermissions'),
+        })
+      }
+    } else {
+      if (!canWriteUser) {
+        return status(403, {
+          message: t('errors.auth.insufficientPermissions'),
+        })
+      }
     }
 
     const dependents = await getDependentIntegrations(
       integration.integrationId as any,
     )
 
+    // Deliberately omit `userId` — the client only renders the integration
+    // name in a warning dialog; returning userIds would expose which users
+    // have configured which dependent integrations.
     return dependents.map((dep) => {
       const definition = getIntegrationDefinition(dep.integrationId)
       return {
         id: dep.id,
         integrationId: dep.integrationId,
-        userId: dep.userId,
         name: definition?.name ?? dep.integrationId,
       }
     })
@@ -586,10 +632,13 @@ app.delete(
 
       set.status = 204
       return null
-    } catch (err: any) {
-      return status(400, {
-        message: err.message || 'Failed to delete integration',
-      })
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        logger.warn({ err, id }, 'deleteIntegration failed')
+        return status(400, { message: err.message })
+      }
+      logger.error({ err }, 'deleteIntegration unexpected non-Error throw')
+      return status(500, { message: 'Failed to delete integration' })
     }
   },
   {
@@ -663,10 +712,13 @@ app.post(
         config,
       )
       return result
-    } catch (err: any) {
-      return status(400, {
-        message: err.message || 'Failed to test integration',
-      })
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        logger.warn({ err, integrationId }, 'testIntegrationConfig failed')
+        return status(400, { message: err.message })
+      }
+      logger.error({ err }, 'testIntegrationConfig unexpected non-Error throw')
+      return status(500, { message: 'Failed to test integration' })
     }
   },
   {

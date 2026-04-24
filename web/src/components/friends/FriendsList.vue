@@ -25,7 +25,7 @@ const locationBroadcast = useE2eeLocationBroadcast()
 const friendLocations = useFriendLocations()
 
 const { friends, isLoading } = storeToRefs(friendsStore)
-const { isSetupComplete } = storeToRefs(identityStore)
+const { isSetupComplete, needsImport } = storeToRefs(identityStore)
 
 const emit = defineEmits<{
   addFriend: []
@@ -144,63 +144,70 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-2 h-full">
-    <!-- Header -->
-    <div class="flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <Users class="h-5 w-5" />
-        <h3 class="font-semibold">{{ t('friends.title') }}</h3>
-        <span v-if="friends.length" class="text-sm text-muted-foreground">
-          ({{ friends.length }})
-        </span>
-      </div>
-      <Button
-        v-if="isSetupComplete"
-        variant="outline"
-        size="sm"
-        @click="emit('addFriend')"
-      >
-        <UserPlus class="h-4 w-4 mr-2" />
-        {{ t('friends.addFriend') }}
+  <div class="flex flex-col gap-3 h-full">
+    <!-- Setup required. Distinguish "you have an identity to restore"
+         from "you don't have one yet" so the button copy matches the
+         dialog the click will open — one of those gens a new seed,
+         the other imports the existing one. -->
+    <div
+      v-if="!isSetupComplete"
+      class="flex-1 flex flex-col items-center justify-center py-6 text-center gap-4"
+    >
+      <Users class="h-10 w-10 text-muted-foreground" />
+      <p class="text-sm text-muted-foreground max-w-xs">
+        {{
+          needsImport
+            ? t('friends.identity.restoreIdentityDescription')
+            : t('friends.empty.setupRequired')
+        }}
+      </p>
+      <Button @click="emit('setupIdentity')">
+        {{ needsImport ? t('friends.identity.restoreIdentity') : t('friends.identity.setupButton') }}
       </Button>
     </div>
 
-    <!-- Setup Required -->
-    <div
-      v-if="!isSetupComplete"
-      class="flex flex-col items-center justify-center py-8 text-center"
-    >
-      <Users class="h-12 w-12 text-muted-foreground mb-4" />
-      <p class="text-muted-foreground mb-4">
-        {{ t('friends.empty.setupRequired') }}
-      </p>
-      <Button @click="emit('setupIdentity')">{{
-        t('friends.identity.setupButton')
-      }}</Button>
-    </div>
-
     <!-- Loading -->
-    <div v-else-if="isLoading" class="flex justify-center py-8">
+    <div v-else-if="isLoading" class="flex-1 flex items-center justify-center">
       <Spinner class="h-6 w-6" />
     </div>
 
     <!-- Empty State -->
     <div
       v-else-if="isEmpty"
-      class="flex flex-col items-center justify-center py-8 text-center"
+      class="flex-1 flex flex-col items-center justify-center py-6 text-center gap-4"
     >
-      <Users class="h-12 w-12 text-muted-foreground mb-4" />
-      <p class="text-muted-foreground mb-4">
+      <Users class="h-10 w-10 text-muted-foreground" />
+      <p class="text-sm text-muted-foreground">
         {{ t('friends.empty.title') }}
       </p>
-      <Button variant="outline" @click="emit('addFriend')">
+      <Button @click="emit('addFriend')">
         <UserPlus class="h-4 w-4 mr-2" />
         {{ t('friends.addFirstFriend') }}
       </Button>
     </div>
 
-    <!-- Friends List -->
+    <!-- Friends List. No redundant inline "Friends" header — the parent
+         tab already labels this section. The Add-Friend action sits as
+         a compact right-aligned button with the count beside it. -->
     <template v-else>
+      <div class="flex items-center justify-between">
+        <span class="text-xs text-muted-foreground">
+          {{
+            friends.length === 1
+              ? t('friends.countOne', { n: friends.length })
+              : t('friends.countMany', { n: friends.length })
+          }}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          @click="emit('addFriend')"
+        >
+          <UserPlus class="h-4 w-4 mr-2" />
+          {{ t('friends.addFriend') }}
+        </Button>
+      </div>
+
       <div class="flex flex-col gap-2">
         <FriendCard
           v-for="friend in friends"
@@ -217,16 +224,18 @@ onUnmounted(() => {
 
       <div class="flex-1"></div>
 
-      <!-- E2EE notice (shows when any location sharing is enabled) -->
+      <!-- E2EE notice (shows when any location sharing is enabled).
+           Lets the `variant="success"` shade ladder handle the green
+           tint — no more hardcoded green overrides. -->
       <TransitionFade>
         <Alert
           variant="success"
           v-if="hasAnyLocationSharing"
-          class="flex items-center gap-3 px-4 py-3 rounded-lg bg-green-500/10 border-green-500/50"
+          class="flex items-center gap-3"
         >
           <Shield class="size-4 shrink-0" />
           <div>
-            <p class="font-semibold text-sm text-green-700 dark:text-green-400">
+            <p class="font-semibold text-sm">
               {{ t('friends.e2ee.title') }}
             </p>
             <p class="text-xs">

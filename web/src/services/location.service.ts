@@ -53,8 +53,7 @@ function locationService() {
   // ============================================================================
 
   /**
-   * Update location: broadcast to friends and optionally store in history
-   * Single API call for all location updates
+   * Update location: broadcast encrypted location to friends
    */
   async function updateLocation(
     locations: Array<{
@@ -62,25 +61,10 @@ function locationService() {
       encryptedLocation: string
       nonce: string
     }>,
-    history?: {
-      encryptedLocation: string
-      nonce: string
-      timestamp: Date
-    },
   ) {
-    const { data } = await api.post('/location/e2ee/update', {
-      locations,
-      history: history
-        ? {
-            encryptedLocation: history.encryptedLocation,
-            nonce: history.nonce,
-            timestamp: history.timestamp.toISOString(),
-          }
-        : undefined,
-    })
+    const { data } = await api.post('/location/e2ee/update', { locations })
     return data as {
       results: Array<{ friendHandle: string; stored: boolean }>
-      historyId: string | null
     }
   }
 
@@ -99,25 +83,6 @@ function locationService() {
     }>
   }
 
-  // ============================================================================
-  // Location History
-  // ============================================================================
-
-  /**
-   * Get encrypted location history
-   */
-  async function getE2eeHistory(limit?: number) {
-    const { data } = await api.get('/location/e2ee/history', {
-      params: { limit },
-    })
-    return data.entries as Array<{
-      id: string
-      encryptedLocation: string
-      nonce: string
-      timestamp: string
-    }>
-  }
-
   return {
     // Configuration
     getE2eeConfigs,
@@ -127,9 +92,6 @@ function locationService() {
     // Location Updates
     updateLocation,
     getFriendLocations,
-
-    // History
-    getE2eeHistory,
   }
 }
 

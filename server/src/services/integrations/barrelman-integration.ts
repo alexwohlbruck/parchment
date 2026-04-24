@@ -184,13 +184,28 @@ export class BarrelmanIntegration
     if (!this.validateConfig(config)) {
       return { success: false, message: 'Invalid configuration: Host is required' }
     }
+    // Use /health/auth so we verify both reachability AND the API key. When
+    // the server has no BARRELMAN_API_KEY set (dev mode) this still succeeds
+    // with no Authorization header. When the server requires auth, a missing
+    // or wrong key returns 401 — which /health alone would miss.
+    const headers: Record<string, string> = {}
+    if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
     try {
-      const response = await axios.get(`${config.host}/health`, { timeout: 5000 })
+      const response = await axios.get(`${config.host}/health/auth`, {
+        headers,
+        timeout: 5000,
+      })
       if (response.data?.status === 'ok') {
         return { success: true }
       }
       return { success: false, message: 'Barrelman health check failed' }
     } catch (e: any) {
+      if (e.response?.status === 401) {
+        return {
+          success: false,
+          message: config.apiKey ? 'Invalid API key' : 'API key required',
+        }
+      }
       return { success: false, message: `Connection failed: ${e.message}` }
     }
   }

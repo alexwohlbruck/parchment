@@ -196,7 +196,7 @@ const menuItems = computed((): MenuItemDefinition[] => {
       icon: LogOutIcon,
       variant: 'destructive',
       onSelect: () => {
-        authService.signOut()
+        authService.confirmAndSignOut()
       },
     },
     {

@@ -54,6 +54,11 @@ export interface CreateShareInput {
   role: ShareRole
   encryptedData: string
   nonce: string
+  // Signed v2 envelope for cross-server delivery. Required when the
+  // recipient is on a different server; unused for same-server shares.
+  federationSignature?: string
+  federationNonce?: string
+  federationTimestamp?: string
 }
 
 /**
@@ -79,19 +84,34 @@ export async function createShare(
 }
 
 /**
- * Revoke a share (mark status='revoked'). For user-e2ee collections, the
- * caller is responsible for following up with a collection rotate-key so
- * the revoked recipient actually loses decrypt access; this endpoint only
- * flips the server flag.
+ * Revoke a share. Server hard-deletes both the outgoing row and the
+ * same-server recipient's mirrored incoming row. For user-e2ee
+ * collections, the caller is still responsible for following up with
+ * `rotateCollectionKey` so the revoked recipient actually loses decrypt
+ * access — this endpoint only removes the ACL bookkeeping.
  */
 export async function revokeShare(shareId: string): Promise<void> {
   await api.post(`/sharing/${shareId}/revoke`)
 }
 
-/** Hard-delete a share row. Used when the sender decides a share was
- *  created in error and wants the row gone rather than a revoked trail. */
+/** Hard-delete a share row. Same server-side semantics as revoke today,
+ *  kept as a separate endpoint for API symmetry. */
 export async function deleteShare(shareId: string): Promise<void> {
   await api.delete(`/sharing/${shareId}`)
+}
+
+/**
+ * Change the role on an existing share. Avoids the revoke+recreate
+ * pattern, which tripped over the unique index on `shares`.
+ */
+export async function updateShareRole(
+  shareId: string,
+  role: ShareRole,
+): Promise<OutgoingShare> {
+  const { data } = await api.patch<OutgoingShare>(`/sharing/${shareId}`, {
+    role,
+  })
+  return data
 }
 
 /** Mint a public-link token on a collection. Server rejects user-e2ee. */

@@ -3,6 +3,8 @@ import { toast } from 'vue-sonner'
 import { useI18n } from 'vue-i18n'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
+import { useFriendsStore } from '@/stores/friends.store'
+import { useIdentityStore } from '@/stores/identity.store'
 import type { CreateCollectionParams, Collection } from '@/types/library.types'
 import { api } from '@/lib/api'
 import { getSeed } from '@/lib/key-storage'
@@ -11,9 +13,45 @@ import {
   decryptCollectionMetadata,
   type CollectionMetadata,
 } from '@/lib/library-crypto'
+import {
+  decryptFromFriend,
+  importPublicKey,
+} from '@/lib/federation-crypto'
 import { useAuthStore } from '@/stores/auth.store'
 
 // TODO: i18n error messages
+
+/**
+ * Shape of the ECIES payload the owner ships in `incoming_shares.encryptedData`.
+ * Stays in sync with what ShareDialog.addShare serializes.
+ */
+interface SharedPayload {
+  collectionId: string
+  scheme: string
+  metadata?: {
+    name?: string
+    description?: string
+    icon?: string
+    iconColor?: string
+  }
+}
+
+function stampMetadata(
+  collection: Collection,
+  metadata: {
+    name?: string
+    description?: string
+    icon?: string
+    iconColor?: string
+  },
+): void {
+  if (metadata.name !== undefined) collection.name = metadata.name
+  if (metadata.description !== undefined)
+    collection.description = metadata.description
+  if (metadata.icon !== undefined) collection.icon = metadata.icon
+  if (metadata.iconColor !== undefined)
+    collection.iconColor = metadata.iconColor
+}
 
 /**
  * Decrypt a single collection's metadata envelope and merge the plaintext
@@ -22,11 +60,79 @@ import { useAuthStore } from '@/stores/auth.store'
  * into the store whether or not decryption succeeded — undecryptable
  * collections still exist on the server; they just have no display
  * metadata until re-saved.
+ *
+ * Two paths:
+ *   - Owner row → decrypt `metadataEncrypted` using the caller's seed.
+ *   - Shared row → decrypt the ECIES `shareEnvelope` using the caller's
+ *     encryption key + the sender's long-term public key (from the
+ *     friends store), extract the inline `metadata`, stamp it onto the
+ *     collection. The K_m-encrypted `metadataEncrypted` envelope stays
+ *     on the row but can't be decrypted by the recipient — that's fine,
+ *     we ignore it in favor of the share payload.
  */
-async function hydrateDecryptedMetadata<T extends Collection & { bookmarks?: unknown }>(
+async function hydrateDecryptedMetadata<
+  T extends Collection & { bookmarks?: unknown },
+>(
   collection: T,
   userId: string | undefined,
+  ctx?: { friendsStore?: ReturnType<typeof useFriendsStore>; identityStore?: ReturnType<typeof useIdentityStore> },
 ): Promise<T> {
+  // Shared collection: prefer the ECIES share envelope — it carries the
+  // metadata that the owner deliberately packaged for this recipient.
+  if (
+    collection.role &&
+    collection.role !== 'owner' &&
+    collection.shareEnvelope &&
+    collection.senderHandle &&
+    ctx?.friendsStore &&
+    ctx?.identityStore
+  ) {
+    const friend = ctx.friendsStore.friends.find(
+      (f) => f.friendHandle === collection.senderHandle,
+    )
+    const myEncPriv = ctx.identityStore.encryptionPrivateKey
+    if (!friend?.friendEncryptionKey) {
+      console.warn(
+        '[collections] shared metadata: friend record missing for sender',
+        collection.senderHandle,
+        'friend count:',
+        ctx.friendsStore.friends.length,
+      )
+      return collection
+    }
+    if (!myEncPriv) {
+      console.warn('[collections] shared metadata: no encryption private key')
+      return collection
+    }
+    try {
+      const senderPub = importPublicKey(friend.friendEncryptionKey)
+      const plaintext = decryptFromFriend(
+        collection.shareEnvelope.encryptedData,
+        collection.shareEnvelope.nonce,
+        myEncPriv,
+        senderPub,
+        'parchment-share-collection-v1',
+      )
+      const parsed = JSON.parse(plaintext) as SharedPayload
+      if (parsed.metadata) {
+        stampMetadata(collection, parsed.metadata)
+      } else {
+        console.warn(
+          '[collections] shared envelope decrypted but has no metadata (old share format?)',
+          collection.id,
+        )
+      }
+    } catch (err) {
+      console.warn(
+        '[collections] failed to decrypt shared envelope for',
+        collection.id,
+        err,
+      )
+    }
+    return collection
+  }
+
+  // Owner row: decrypt the K_m-bound envelope as usual.
   if (!collection.metadataEncrypted) return collection
   if (!userId) return collection
   const seed = await getSeed()
@@ -38,12 +144,7 @@ async function hydrateDecryptedMetadata<T extends Collection & { bookmarks?: unk
       userId,
       collectionId: collection.id,
     })
-    if (metadata.name !== undefined) collection.name = metadata.name
-    if (metadata.description !== undefined)
-      collection.description = metadata.description
-    if (metadata.icon !== undefined) collection.icon = metadata.icon
-    if (metadata.iconColor !== undefined)
-      collection.iconColor = metadata.iconColor
+    stampMetadata(collection, metadata)
   } catch {
     // Undecryptable (wrong seed, tampered envelope, or the user doesn't
     // have a local seed yet). Leave the cleartext fields undefined; UI
@@ -55,6 +156,8 @@ async function hydrateDecryptedMetadata<T extends Collection & { bookmarks?: unk
 export const useCollectionsService = createSharedComposable(() => {
   const collectionsStore = useCollectionsStore()
   const authStore = useAuthStore()
+  const friendsStore = useFriendsStore()
+  const identityStore = useIdentityStore()
   const { t } = useI18n()
 
   function getCollectionDisplayName(collection: Collection | null): string {
@@ -88,11 +191,46 @@ export const useCollectionsService = createSharedComposable(() => {
 
   async function fetchCollections() {
     try {
-      const response = await api.get('/library/collections')
-      const collections = (response.data ?? []) as Collection[]
+      // Fetch owned + shared in parallel. Both are merged into the same
+      // list the UI renders, but the `role` field on each item tells the
+      // component whether to show write affordances. Owned rows have no
+      // role set — we stamp 'owner' for consistency downstream.
+      const [ownedResp, sharedResp] = await Promise.all([
+        api.get('/library/collections'),
+        api.get('/library/collections/shared-with-me').catch(() => ({
+          // Graceful degradation: older servers won't expose this endpoint
+          // yet. Treat as "no shared collections" rather than failing the
+          // whole library fetch.
+          data: [] as Collection[],
+        })),
+      ])
+      const owned = ((ownedResp.data ?? []) as Collection[]).map((c) => ({
+        ...c,
+        role: 'owner' as const,
+      }))
+      const shared = (sharedResp.data ?? []) as Collection[]
+
+      // Shared rows decrypt their display metadata from an ECIES envelope
+      // keyed by the sender's long-term X25519 pubkey — which lives on the
+      // friend record. The library view doesn't currently preload friends
+      // (it's done on-demand elsewhere), so the first library fetch after
+      // app start can race ahead of the friends store. Force a load now so
+      // decryption has what it needs.
+      if (shared.length > 0 && friendsStore.friends.length === 0) {
+        await friendsStore.loadFriends()
+      }
+
       const userId = authStore.me?.id
       const hydrated = await Promise.all(
-        collections.map((c) => hydrateDecryptedMetadata(c, userId)),
+        [...owned, ...shared].map(async (c) => {
+          // Owner rows decrypt the K_m envelope; shared rows fall into
+          // the ECIES share-envelope branch inside hydrateDecryptedMetadata.
+          return hydrateDecryptedMetadata(
+            c,
+            c.role === 'owner' ? userId : c.userId,
+            { friendsStore, identityStore },
+          )
+        }),
       )
       collectionsStore.setCollections(hydrated)
       return hydrated
@@ -106,9 +244,25 @@ export const useCollectionsService = createSharedComposable(() => {
     try {
       const response = await api.get(`/library/collections/${id}`)
       const collection = response.data as Collection
+
+      // If this is a shared collection, we need the friends store
+      // populated to decrypt the display metadata from the ECIES share
+      // envelope. Friends are loaded on-demand elsewhere so force a
+      // preload when we haven't fetched them yet.
+      if (
+        collection.role &&
+        collection.role !== 'owner' &&
+        friendsStore.friends.length === 0
+      ) {
+        await friendsStore.loadFriends()
+      }
+
       const hydrated = await hydrateDecryptedMetadata(
         collection,
-        authStore.me?.id,
+        collection.role === 'owner' || !collection.role
+          ? authStore.me?.id
+          : collection.userId,
+        { friendsStore, identityStore },
       )
       collectionsStore.updateCollection(hydrated)
       return hydrated

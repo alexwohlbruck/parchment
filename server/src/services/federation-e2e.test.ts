@@ -32,15 +32,18 @@ ed.hashes.sha512 = (...m) => sha512(ed.etc.concatBytes(...m))
 import {
   buildServerSignableWrapper,
   buildLegacySignableV1,
+  buildClientSignableV2,
   canonicalJsonStringify,
   generateNonce,
   hashBody,
   nowIso,
 } from '../lib/federation-canonical'
 import { db } from '../db'
-import { eq, inArray } from 'drizzle-orm'
+import { eq, inArray, and } from 'drizzle-orm'
 import { users } from '../schema/users.schema'
 import { friendInvitations } from '../schema/friend-invitations.schema'
+import { friendships } from '../schema/friendships.schema'
+import { incomingShares } from '../schema/shares.schema'
 import {
   federatedServerKeys,
   federationNonces,
@@ -238,6 +241,10 @@ async function cleanupAllTestRows() {
     await db
       .delete(friendInvitations)
       .where(inArray(friendInvitations.localUserId, ids))
+    await db
+      .delete(incomingShares)
+      .where(inArray(incomingShares.userId, ids))
+    await db.delete(friendships).where(inArray(friendships.userId, ids))
     await db.delete(users).where(inArray(users.id, ids))
   }
 }
@@ -422,6 +429,190 @@ describe('federation two-server integration', () => {
   test('tampered server signature: 401 S2S auth failure', async () => {
     const r = await sendFriendInvite({ tamperServerSig: true })
     expect(r.status).toBe(401)
+  })
+
+  test('signed RESOURCE_SHARE carries role through and writes incoming_shares on B', async () => {
+    // Prereq: Alice and Bob must be friends from B's perspective. The
+    // happy-path FRIEND_INVITE test above only creates an invitation;
+    // we inject an accepted friendship directly so RESOURCE_SHARE can
+    // pass its "recipient knows sender" check.
+    await db
+      .delete(friendships)
+      .where(
+        and(
+          eq(friendships.userId, bobUserId),
+          eq(friendships.friendHandle, ALICE_HANDLE),
+        ),
+      )
+    await db.insert(friendships).values({
+      id: generateId(),
+      userId: bobUserId,
+      friendHandle: ALICE_HANDLE,
+      friendSigningKey: ALICE_PUB,
+      friendEncryptionKey: '',
+      status: 'accepted',
+    })
+
+    const timestamp = nowIso()
+    const envelopeNonce = generateNonce()
+    const collectionId = generateId()
+
+    const payload = {
+      resourceType: 'collection',
+      resourceId: collectionId,
+      encryptedData: 'shared-ciphertext==',
+      nonce: 'content-nonce==',
+      role: 'editor',
+    }
+
+    // Alice signs the v2 canonical envelope over the payload + nonce +
+    // timestamp. This is the exact flow the sharing flow uses client-side.
+    const clientSignable = buildClientSignableV2({
+      protocol_version: 2,
+      message_type: 'RESOURCE_SHARE',
+      message_version: 1,
+      from: ALICE_HANDLE,
+      to: BOB_HANDLE,
+      nonce: envelopeNonce,
+      timestamp,
+      payload,
+    })
+    const clientSig = await sign(clientSignable, ALICE_SEED)
+
+    const message = {
+      protocol_version: 2,
+      message_type: 'RESOURCE_SHARE',
+      message_version: 1,
+      from: ALICE_HANDLE,
+      to: BOB_HANDLE,
+      nonce: envelopeNonce,
+      timestamp,
+      signature: clientSig,
+      payload,
+    }
+    const bodyJson = canonicalJsonStringify(message)
+
+    // Server A wraps it in the transport-level signed envelope.
+    const transportNonce = generateNonce()
+    const wrapperSignable = buildServerSignableWrapper({
+      method: 'POST',
+      path: '/federation/inbox',
+      body_hash: hashBody(bodyJson),
+      nonce: transportNonce,
+      timestamp,
+      peer_server_id: B_HOST,
+      sender_server_id: A_HOST,
+      protocol_version: 2,
+    })
+    const serverSig = await sign(wrapperSignable, SERVER_A_SEED)
+
+    const r = await axios.post(`${B_ORIGIN}/federation/inbox`, bodyJson, {
+      timeout: 5000,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Parchment-Server-Id': A_HOST,
+        'X-Parchment-Protocol-Version': '2',
+        'X-Parchment-Nonce': transportNonce,
+        'X-Parchment-Timestamp': timestamp,
+        'X-Parchment-Server-Signature': serverSig,
+      },
+      validateStatus: () => true,
+    })
+    expect(r.status).toBe(202)
+
+    // B persisted Bob's incoming_shares row with role='editor' —
+    // confirming the role rode inside the SIGNED payload, not a
+    // top-level unsigned field.
+    const [incoming] = await db
+      .select()
+      .from(incomingShares)
+      .where(
+        and(
+          eq(incomingShares.userId, bobUserId),
+          eq(incomingShares.resourceId, collectionId),
+        ),
+      )
+      .limit(1)
+    expect(incoming).toBeTruthy()
+    expect(incoming.role).toBe('editor')
+    expect(incoming.senderHandle).toBe(ALICE_HANDLE)
+  })
+
+  test('tampered RESOURCE_SHARE role (after signing) is rejected', async () => {
+    // Build a valid envelope, then flip `role: viewer` → `editor` in the
+    // body on the wire. The server canonicalizes the received payload and
+    // compares it against the signature — the tamper breaks verification.
+    const timestamp = nowIso()
+    const envelopeNonce = generateNonce()
+    const collectionId = generateId()
+
+    const signedPayload = {
+      resourceType: 'collection',
+      resourceId: collectionId,
+      encryptedData: 'ct',
+      nonce: 'n',
+      role: 'viewer', // Alice signs viewer
+    }
+    const clientSignable = buildClientSignableV2({
+      protocol_version: 2,
+      message_type: 'RESOURCE_SHARE',
+      message_version: 1,
+      from: ALICE_HANDLE,
+      to: BOB_HANDLE,
+      nonce: envelopeNonce,
+      timestamp,
+      payload: signedPayload,
+    })
+    const clientSig = await sign(clientSignable, ALICE_SEED)
+
+    // Upgrade role in the message we send on the wire. Everything else
+    // (nonce, timestamp, sig) stays.
+    const tamperedMessage = {
+      protocol_version: 2,
+      message_type: 'RESOURCE_SHARE',
+      message_version: 1,
+      from: ALICE_HANDLE,
+      to: BOB_HANDLE,
+      nonce: envelopeNonce,
+      timestamp,
+      signature: clientSig,
+      payload: {
+        ...signedPayload,
+        role: 'editor',
+      },
+    }
+    const bodyJson = canonicalJsonStringify(tamperedMessage)
+
+    const transportNonce = generateNonce()
+    const wrapperSignable = buildServerSignableWrapper({
+      method: 'POST',
+      path: '/federation/inbox',
+      body_hash: hashBody(bodyJson),
+      nonce: transportNonce,
+      timestamp,
+      peer_server_id: B_HOST,
+      sender_server_id: A_HOST,
+      protocol_version: 2,
+    })
+    const serverSig = await sign(wrapperSignable, SERVER_A_SEED)
+
+    const r = await axios.post(`${B_ORIGIN}/federation/inbox`, bodyJson, {
+      timeout: 5000,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Parchment-Server-Id': A_HOST,
+        'X-Parchment-Protocol-Version': '2',
+        'X-Parchment-Nonce': transportNonce,
+        'X-Parchment-Timestamp': timestamp,
+        'X-Parchment-Server-Signature': serverSig,
+      },
+      validateStatus: () => true,
+    })
+    // Server B recomputes the v2 signable from `payload.role=editor`;
+    // Alice's signature was over `role=viewer` → mismatch → 400.
+    expect(r.status).toBe(400)
+    const body = r.data as { message?: string }
+    expect((body.message ?? '').toLowerCase()).toContain('signature')
   })
 
   test('pin mismatch: rotated A identity key is rejected after initial pin', async () => {

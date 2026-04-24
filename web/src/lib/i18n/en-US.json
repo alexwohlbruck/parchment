@@ -373,6 +373,14 @@
     "sort": {
       "name": "Name"
     },
+    "collections": {
+      "filter": {
+        "label": "Filter collections",
+        "all": "All collections",
+        "mine": "My collections",
+        "shared": "Shared with me"
+      }
+    },
     "actions": {
       "addToCollection": "Add to Collection",
       "createNewCollection": "Create new collection",
@@ -405,7 +413,8 @@
         },
         "default": "Bookmarks",
         "manage": "Manage collections",
-        "untitled": "Untitled collection"
+        "untitled": "Untitled collection",
+        "sharedBy": "Shared by {name}"
       },
       "routes": {
         "title": {

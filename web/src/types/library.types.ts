@@ -50,6 +50,22 @@ export interface Collection {
   description?: string
   icon?: string
   iconColor?: string
+
+  // Caller's effective role on this collection. `'owner'` on collections the
+  // caller owns; a `ShareRole` when the collection is shared TO the caller.
+  // The server populates this on accessible fetches (`/:id` and
+  // `/shared-with-me`). Clients use it to gate write UI.
+  role?: 'owner' | ShareRole
+
+  // When this collection is shared TO the caller, the server includes the
+  // ECIES share envelope (encrypted by the sender for the caller) and the
+  // sender's federated handle. The client decrypts the envelope to
+  // recover the shared metadata (name/icon/…). Absent on owner rows.
+  shareEnvelope?: {
+    encryptedData: string
+    nonce: string
+  }
+  senderHandle?: string
 }
 
 export interface BookmarkCollection {

@@ -106,9 +106,7 @@ export async function destroyOtherSessions(
 ) {
   await db
     .delete(sessions)
-    .where(
-      and(eq(sessions.userId, userId), ne(sessions.id, currentSessionId)),
-    )
+    .where(and(eq(sessions.userId, userId), ne(sessions.id, currentSessionId)))
   await rotateAllForUser(userId, { excludeDeviceId: currentDeviceId })
 }
 
@@ -121,6 +119,9 @@ export async function destroyOtherSessions(
 export async function sendEmailVerificationCode(email: string, code: string) {
   // Never log the code — aggregated server logs (Grafana Loki,
   // CloudWatch, etc.) are a sign-in-bypass surface if OTPs appear.
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`One time verification code: ${code}`)
+  }
   await sendMail({
     to: email,
     from: 'onboarding',
@@ -291,14 +292,15 @@ export async function generatePrfAssertionOptions(userId: User['id']) {
       transports: passkeys.transports,
     })
     .from(passkeys)
-    .innerJoin(wrappedMasterKeys, eq(wrappedMasterKeys.credentialId, passkeys.id))
+    .innerJoin(
+      wrappedMasterKeys,
+      eq(wrappedMasterKeys.credentialId, passkeys.id),
+    )
     .where(eq(passkeys.userId, userId))
 
   const allowCredentials = rows.map((row) => ({
     id: row.id,
-    transports: row.transports.split(
-      ',',
-    ) as AuthenticatorTransportFuture[],
+    transports: row.transports.split(',') as AuthenticatorTransportFuture[],
   }))
 
   const baseOptions = await generateAuthenticationOptions({

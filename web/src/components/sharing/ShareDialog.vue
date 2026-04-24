@@ -29,16 +29,24 @@ import {
   listSharesForResource,
   createShare,
   revokeShare,
+  updateShareRole,
   createPublicLink as mintPublicLink,
   revokePublicLink as dropPublicLink,
   buildPublicLinkUrl,
   type OutgoingShare,
 } from '@/services/sharing.service'
-import { encryptForFriend, importPublicKey } from '@/lib/federation-crypto'
+import {
+  encryptForFriend,
+  importPublicKey,
+  buildSignableMessageV2,
+  generateNonce as generateFederationNonce,
+  sign as signEd25519,
+} from '@/lib/federation-crypto'
 import {
   upgradeCollectionToE2ee,
   downgradeCollectionToServerKey,
 } from '@/lib/collection-scheme-switch'
+import { rotateCollectionKey } from '@/lib/collection-rotation'
 import type { Collection, ShareRole } from '@/types/library.types'
 
 /**
@@ -74,7 +82,8 @@ const identityStore = useIdentityStore()
 const authStore = useAuthStore()
 const appService = useAppService()
 const { friends } = storeToRefs(friendsStore)
-const { encryptionPrivateKey, isSetupComplete } = storeToRefs(identityStore)
+const { encryptionPrivateKey, signingPrivateKey, isSetupComplete } =
+  storeToRefs(identityStore)
 
 const searchQuery = ref('')
 const shares = ref<OutgoingShare[]>([])
@@ -199,6 +208,19 @@ const publicUrl = computed(() => {
   return buildPublicLinkUrl(serverUrl.value, publicToken.value)
 })
 
+/**
+ * Does this handle live on a server other than our own? If yes, the share
+ * will travel over federation and the client must sign an envelope so the
+ * remote peer can verify the sender + payload haven't been tampered with.
+ */
+function isRemoteHandle(handle: string): boolean {
+  const domain = serverDomain.value
+  if (!domain) return false
+  const [, recipientDomain] = handle.split('@')
+  if (!recipientDomain) return false
+  return recipientDomain !== domain
+}
+
 async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
   if (!isSetupComplete.value || !encryptionPrivateKey.value) {
     toast.warning(t('sharing.errors.identityRequired'))
@@ -212,15 +234,25 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
 
   mutating.value = true
   try {
-    // The payload is the per-collection key wrapped for this friend. For
-    // server-key collections the wrapped bytes are effectively a marker
-    // (server enforces ACL and serves plaintext on read); for user-e2ee
-    // collections it's the actual decrypt key. Sending a non-empty blob
-    // in both cases keeps the federation path uniform.
+    // The ECIES envelope carries everything the recipient needs to
+    // render the shared collection:
+    //   - the collection id + scheme (routing)
+    //   - the display metadata (name, icon, iconColor, description)
+    //     because the server-stored `metadataEncrypted` envelope is
+    //     encrypted under Alice's personal K_m which Bob can't derive
+    // So without this, Bob sees an untitled, iconless card (the bug
+    // the owner reported). Metadata lives in the payload for both
+    // server-key and user-e2ee schemes to keep one delivery path.
     const friendPub = importPublicKey(friend.friendEncryptionKey)
     const payload = JSON.stringify({
       collectionId: props.collection.id,
       scheme: props.collection.scheme,
+      metadata: {
+        name: props.collection.name,
+        description: props.collection.description,
+        icon: props.collection.icon,
+        iconColor: props.collection.iconColor,
+      },
     })
     const encrypted = encryptForFriend(
       payload,
@@ -228,6 +260,40 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
       friendPub,
       `parchment-share-collection-v1`,
     )
+
+    // Build the v2 federation envelope when the recipient is remote. The
+    // server-side forwarder sends the envelope verbatim so the peer
+    // canonicalizes the SAME bytes the client signed. Without this the
+    // remote peer would reject the inbound message as unsigned.
+    let federationSignature: string | undefined
+    let federationNonce: string | undefined
+    let federationTimestamp: string | undefined
+    if (isRemoteHandle(friendHandle)) {
+      if (!signingPrivateKey.value) {
+        toast.warning(t('sharing.errors.identityRequired'))
+        return
+      }
+      federationNonce = generateFederationNonce()
+      federationTimestamp = new Date().toISOString()
+      const signable = buildSignableMessageV2({
+        protocol_version: 2,
+        message_type: 'RESOURCE_SHARE',
+        message_version: 1,
+        from: ownerHandle.value,
+        to: friendHandle,
+        nonce: federationNonce,
+        timestamp: federationTimestamp,
+        payload: {
+          resourceType: 'collection',
+          resourceId: props.collection.id,
+          encryptedData: encrypted.ciphertext,
+          nonce: encrypted.nonce,
+          role,
+        },
+      })
+      federationSignature = await signEd25519(signable, signingPrivateKey.value)
+    }
+
     await createShare({
       recipientHandle: friendHandle,
       resourceType: 'collection',
@@ -235,6 +301,9 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
       role,
       encryptedData: encrypted.ciphertext,
       nonce: encrypted.nonce,
+      federationSignature,
+      federationNonce,
+      federationTimestamp,
     })
     await refreshShares()
     emit('changed')
@@ -247,15 +316,12 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
 }
 
 async function onChangeRole(row: AccessRow, newRole: ShareRole) {
-  // v1 simplification: updating role means revoke + recreate the share,
-  // since the service doesn't yet expose an update-role endpoint. The
-  // outgoing share history on the server will reflect the prior role as
-  // revoked. Followup: add a dedicated PATCH /sharing/:id endpoint.
-  if (!row.shareId || !row.handle) return
+  if (!row.shareId) return
   mutating.value = true
   try {
-    await revokeShare(row.shareId)
-    await addShare(row.handle, newRole)
+    await updateShareRole(row.shareId, newRole)
+    await refreshShares()
+    emit('changed')
   } catch (err) {
     console.error('Failed to change role', err)
     toast.error(t('sharing.errors.roleChangeFailed'))
@@ -266,10 +332,62 @@ async function onChangeRole(row: AccessRow, newRole: ShareRole) {
 }
 
 async function onRemove(row: AccessRow) {
-  if (!row.shareId) return
+  if (!row.shareId || !row.handle) return
   mutating.value = true
   try {
-    await revokeShare(row.shareId)
+    // For server-key collections the server enforces access — a simple
+    // revoke (hard-delete of the share row) is enough; the recipient loses
+    // read access on the next request.
+    //
+    // For user-e2ee collections the recipient holds the collection key on
+    // their device, so a row-delete alone doesn't actually revoke decrypt
+    // access. We rotate the collection key: re-encrypt every point + the
+    // metadata envelope under a fresh key, rewrap the new key for every
+    // remaining recipient, and drop the revoked recipient's share row — all
+    // in one server-side transaction. Anyone already holding the old key
+    // can still decrypt ciphertext they cached locally; subsequent fetches
+    // return ciphertext they can't decrypt.
+    if (props.collection.scheme === 'user-e2ee') {
+      if (!encryptionPrivateKey.value || !authStore.me?.id) {
+        toast.warning(t('sharing.errors.identityRequired'))
+        return
+      }
+
+      // Fetch the current encrypted points + remaining friends so the
+      // orchestrator has everything it needs before touching the server.
+      const { data: pointsResp } = await api.get(
+        `/library/collections/${props.collection.id}/encrypted-points`,
+      )
+      const remainingShares = activeShares.value
+        .filter(s => s.id !== row.shareId)
+        .map(s => {
+          const friend = friends.value.find(
+            f => f.friendHandle === s.recipientHandle,
+          )
+          if (!friend?.friendEncryptionKey) return null
+          return {
+            id: s.id,
+            recipientHandle: s.recipientHandle,
+            recipientEncryptionKey: friend.friendEncryptionKey,
+          }
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null)
+
+      await rotateCollectionKey({
+        collection: props.collection,
+        ownerUserId: authStore.me.id,
+        currentPoints: (pointsResp.points ?? []) as Array<{
+          id: string
+          encryptedData: string
+          nonce: string
+        }>,
+        remainingShares,
+        revokeRecipientHandles: [row.handle],
+        ownerEncryptionPrivateKey: encryptionPrivateKey.value,
+      })
+    } else {
+      await revokeShare(row.shareId)
+    }
     await refreshShares()
     emit('changed')
   } catch (err) {

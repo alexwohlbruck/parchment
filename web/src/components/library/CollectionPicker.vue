@@ -70,8 +70,15 @@ async function fetchCollectionsForBookmark() {
 }
 
 const sortedAndFilteredCollections = computed(() => {
+  // Only offer collections the caller can actually write to. Viewer-role
+  // shared collections are read-only — showing them here just sets the
+  // user up for a 403 toast on click.
+  const writableCollections = collections.value.filter(
+    (c) => !c.role || c.role === 'owner' || c.role === 'editor',
+  )
+
   const sourceCollections = fuzzyFilter(
-    collections.value,
+    writableCollections,
     collectionSearchQuery.value,
     {
       keys: ['name', 'description'],

@@ -337,6 +337,14 @@
     "sort": {
       "name": "Nombre"
     },
+    "collections": {
+      "filter": {
+        "label": "Filtrar colecciones",
+        "all": "Todas las colecciones",
+        "mine": "Mis colecciones",
+        "shared": "Compartidas conmigo"
+      }
+    },
     "actions": {
       "addToCollection": "Añadir a Colección",
       "createNewCollection": "Crear nueva colección",
@@ -369,7 +377,8 @@
         },
         "default": "Marcadores",
         "manage": "Gestionar colecciones",
-        "untitled": "Colección sin título"
+        "untitled": "Colección sin título",
+        "sharedBy": "Compartida por {name}"
       },
       "routes": {
         "title": {

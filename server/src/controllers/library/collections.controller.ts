@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia'
 import { requireAuth } from '../../middleware/auth.middleware.js'
 import * as collectionsService from '../../services/library/collections.service'
 import * as encryptedPointsService from '../../services/library/encrypted-points.service'
+import * as sharingService from '../../services/sharing.service'
 
 const collectionsRouter = new Elysia({ prefix: '/collections' })
   .use(requireAuth)
@@ -45,6 +46,23 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     },
   )
 
+  // Collections the caller has been granted access to by someone else.
+  // Owner is somebody else; the returned `role` tells the client whether
+  // write actions should be enabled in the UI.
+  .get(
+    '/shared-with-me',
+    async ({ user }) => {
+      const items = await collectionsService.getSharedCollections(user.id)
+      return items
+    },
+    {
+      detail: {
+        tags: ['Library'],
+        summary: 'List collections shared to the caller',
+      },
+    },
+  )
+
   // Get the default collection (previously bookmarks)
   .get(
     '/default',
@@ -70,19 +88,28 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     },
   )
 
-  // Get a single collection by ID
+  // Get a single collection by ID. Returns the row with an extra `role`
+  // field of 'owner' | 'editor' | 'viewer' — clients use it to gate write
+  // UI. Responds 404 when the caller neither owns nor has an active share.
   .get(
     '/:id',
     async ({ params: { id }, user, set }) => {
-      const collection = await collectionsService.getCollectionById(id, user.id)
+      const collection = await collectionsService.getAccessibleCollection(
+        id,
+        user.id,
+      )
       if (!collection) {
         set.status = 404
         return { error: 'Collection not found' }
       }
 
+      // Bookmarks live on the owning user's rows — use the owner's id when
+      // the caller is a recipient so the join finds the plaintext rows.
+      // For user-e2ee collections bookmarks is empty (encrypted_points is
+      // the storage); the client fetches those separately.
       const bookmarks = await collectionsService.getBookmarksInCollection(
         id,
-        user.id,
+        collection.userId,
       )
 
       return {
@@ -103,18 +130,45 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
 
   // Update an existing collection. Accepts the encrypted metadata
   // envelope (replaces whatever was there) and/or the `isPublic` flag.
+  // Owner or editor may write; viewers get 403.
   .put(
     '/:id',
-    async ({ params: { id }, body, user }) => {
-      const updated = await collectionsService.updateCollection(
-        id,
-        user.id,
-        body,
-      )
-      if (!updated) {
-        return { error: 'Collection not found or update failed' }
+    async ({ params: { id }, body, user, set }) => {
+      try {
+        const role = await sharingService.requireWriteAccessToCollection(
+          user.id,
+          id,
+        )
+        // Only the owner can flip the `isPublic` flag — that's a privilege
+        // bit, not a content edit. Editors can update the encrypted
+        // metadata envelope only.
+        const updates =
+          role === 'owner' ? body : { ...body, isPublic: undefined }
+        const updated = await collectionsService.updateCollection(
+          id,
+          // Always pass the collection's true owner id so the WHERE clause
+          // finds the row — the role check above guarantees the caller is
+          // allowed to write.
+          role === 'owner' ? user.id : (await collectionsService
+            .getAccessibleCollection(id, user.id))!.userId,
+          updates,
+        )
+        if (!updated) {
+          set.status = 404
+          return { error: 'Collection not found or update failed' }
+        }
+        return updated
+      } catch (err) {
+        if (err instanceof sharingService.CollectionAccessDeniedError) {
+          set.status = 404
+          return { error: 'Collection not found' }
+        }
+        if (err instanceof sharingService.InsufficientRoleError) {
+          set.status = 403
+          return { error: 'Viewer role cannot update this collection' }
+        }
+        throw err
       }
-      return updated
     },
     {
       params: t.Object({
@@ -205,6 +259,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
           newEncryptedPoints: body.newEncryptedPoints,
           newBookmarks: body.newBookmarks,
           updatedShareEnvelopes: body.updatedShareEnvelopes,
+          expectedUpdatedAt: body.expectedUpdatedAt,
         })
         if (!updated) {
           set.status = 404
@@ -214,6 +269,10 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
       } catch (err) {
         if (err instanceof collectionsService.SchemeAlreadySetError) {
           set.status = 400
+          return { error: err.message }
+        }
+        if (err instanceof collectionsService.CollectionVersionConflictError) {
+          set.status = 409
           return { error: err.message }
         }
         throw err
@@ -228,6 +287,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         ]),
         newMetadataEncrypted: t.String(),
         newMetadataKeyVersion: t.Number(),
+        expectedUpdatedAt: t.Optional(t.String()),
         newEncryptedPoints: t.Optional(
           t.Array(
             t.Object({
@@ -399,19 +459,34 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     },
   )
 
-  // Create encrypted point in a collection
+  // Create encrypted point in a collection. Editor or owner only.
   .post(
     '/:id/encrypted-points',
     async ({ params: { id }, body, user, set }) => {
       try {
+        await sharingService.requireWriteAccessToCollection(user.id, id)
         const point = await encryptedPointsService.createEncryptedPoint({
           collectionId: id,
-          userId: user.id,
+          // Point rows are written under the collection owner's id so the
+          // existing owner-scoped reads still join correctly when an editor
+          // is the one creating the row.
+          userId: (await collectionsService.getAccessibleCollection(
+            id,
+            user.id,
+          ))!.userId,
           encryptedData: body.encryptedData,
           nonce: body.nonce,
         })
         return point
       } catch (err) {
+        if (err instanceof sharingService.CollectionAccessDeniedError) {
+          set.status = 404
+          return { error: 'Collection not found' }
+        }
+        if (err instanceof sharingService.InsufficientRoleError) {
+          set.status = 403
+          return { error: 'Viewer role cannot add encrypted points' }
+        }
         set.status = 400
         return { error: (err as Error).message }
       }
@@ -431,21 +506,38 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     },
   )
 
-  // Update an encrypted point
+  // Update an encrypted point. Editor or owner only.
   .put(
     '/:id/encrypted-points/:pointId',
     async ({ params, body, user, set }) => {
-      const point = await encryptedPointsService.updateEncryptedPoint(
-        params.pointId,
-        user.id,
-        body.encryptedData,
-        body.nonce,
-      )
-      if (!point) {
-        set.status = 404
-        return { error: 'Point not found' }
+      try {
+        await sharingService.requireWriteAccessToCollection(user.id, params.id)
+        const ownerId = (await collectionsService.getAccessibleCollection(
+          params.id,
+          user.id,
+        ))!.userId
+        const point = await encryptedPointsService.updateEncryptedPoint(
+          params.pointId,
+          ownerId,
+          body.encryptedData,
+          body.nonce,
+        )
+        if (!point) {
+          set.status = 404
+          return { error: 'Point not found' }
+        }
+        return point
+      } catch (err) {
+        if (err instanceof sharingService.CollectionAccessDeniedError) {
+          set.status = 404
+          return { error: 'Collection not found' }
+        }
+        if (err instanceof sharingService.InsufficientRoleError) {
+          set.status = 403
+          return { error: 'Viewer role cannot update encrypted points' }
+        }
+        throw err
       }
-      return point
     },
     {
       params: t.Object({
@@ -463,19 +555,36 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     },
   )
 
-  // Delete an encrypted point
+  // Delete an encrypted point. Editor or owner only.
   .delete(
     '/:id/encrypted-points/:pointId',
     async ({ params, user, set }) => {
-      const deleted = await encryptedPointsService.deleteEncryptedPoint(
-        params.pointId,
-        user.id,
-      )
-      if (!deleted) {
-        set.status = 404
-        return { error: 'Point not found' }
+      try {
+        await sharingService.requireWriteAccessToCollection(user.id, params.id)
+        const ownerId = (await collectionsService.getAccessibleCollection(
+          params.id,
+          user.id,
+        ))!.userId
+        const deleted = await encryptedPointsService.deleteEncryptedPoint(
+          params.pointId,
+          ownerId,
+        )
+        if (!deleted) {
+          set.status = 404
+          return { error: 'Point not found' }
+        }
+        set.status = 204
+      } catch (err) {
+        if (err instanceof sharingService.CollectionAccessDeniedError) {
+          set.status = 404
+          return { error: 'Collection not found' }
+        }
+        if (err instanceof sharingService.InsufficientRoleError) {
+          set.status = 403
+          return { error: 'Viewer role cannot delete encrypted points' }
+        }
+        throw err
       }
-      set.status = 204
     },
     {
       params: t.Object({

@@ -8,8 +8,10 @@ import { AppRoute } from '@/router'
 import type { Collection } from '@/types/library.types'
 import { type ThemeColor } from '@/lib/utils'
 import { ItemIcon } from '@/components/ui/item-icon'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import CollectionContextMenu from '@/components/library/CollectionContextMenu.vue'
 import { useCollectionsService } from '@/services/library/collections.service'
+import { useFriendsStore } from '@/stores/friends.store'
 
 const props = defineProps<{
   collection: Collection
@@ -17,10 +19,33 @@ const props = defineProps<{
 
 const router = useRouter()
 const collectionsService = useCollectionsService()
+const friendsStore = useFriendsStore()
+const { t } = useI18n()
 
 const displayName = computed(() => {
   return collectionsService.getCollectionDisplayName(props.collection)
 })
+
+// When the collection is shared TO the caller, find the sender in the
+// friends store so we can show their avatar as a badge on the icon —
+// a Google-Docs-style "you see this because X shared it" cue.
+const owner = computed(() => {
+  if (!props.collection.senderHandle) return null
+  const friend = friendsStore.friends.find(
+    (f) => f.friendHandle === props.collection.senderHandle,
+  )
+  if (!friend) return null
+  const name = friend.friendName || friend.friendHandle.split('@')[0]
+  return {
+    name,
+    picture: friend.friendPicture ?? null,
+    initials: name.slice(0, 2).toUpperCase(),
+  }
+})
+
+const isShared = computed(
+  () => !!props.collection.role && props.collection.role !== 'owner',
+)
 
 function goToCollection() {
   router.push({
@@ -36,7 +61,9 @@ function goToCollection() {
     @click="goToCollection"
   >
     <CardContent class="p-2 flex items-center gap-3">
-      <!-- Icon with star overlay for default collections -->
+      <!-- Icon with overlays:
+           - star for the user's default collection
+           - owner avatar badge for collections shared TO the user -->
       <div class="relative">
         <ItemIcon
           :icon="collection.icon"
@@ -50,6 +77,14 @@ function goToCollection() {
         >
           <StarIcon class="size-2.5" stroke-width="3" />
         </div>
+        <Avatar
+          v-else-if="isShared && owner"
+          class="absolute -bottom-1 -right-1 size-4 ring-2 ring-background"
+          :title="t('library.entities.collections.sharedBy', { name: owner.name })"
+        >
+          <AvatarImage v-if="owner.picture" :src="owner.picture" />
+          <AvatarFallback class="text-[8px]">{{ owner.initials }}</AvatarFallback>
+        </Avatar>
       </div>
 
       <!-- Content -->

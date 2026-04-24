@@ -72,6 +72,22 @@ app.use(requireAuth).post(
       }
     }
 
+    // Cross-server shares MUST carry a signed v2 envelope — without it
+    // the remote peer would reject the inbound message. Fail fast so the
+    // caller gets a clear error instead of a half-created share row.
+    if (!sharingService.isLocalRecipient(body.recipientHandle)) {
+      const missing =
+        !body.federationSignature ||
+        !body.federationNonce ||
+        !body.federationTimestamp
+      if (missing) {
+        return status(400, {
+          message:
+            'Cross-server shares require federationSignature + federationNonce + federationTimestamp',
+        })
+      }
+    }
+
     const share = await sharingService.createShare({
       userId: user.id,
       recipientHandle: body.recipientHandle,
@@ -80,6 +96,9 @@ app.use(requireAuth).post(
       encryptedData: body.encryptedData,
       nonce: body.nonce,
       role,
+      federationSignature: body.federationSignature,
+      federationNonce: body.federationNonce,
+      federationTimestamp: body.federationTimestamp,
     })
     return share
   },
@@ -98,6 +117,13 @@ app.use(requireAuth).post(
       role: t.Optional(
         t.Union([t.Literal('viewer'), t.Literal('editor')]),
       ),
+      // v2 federation envelope — required for cross-server recipients. The
+      // client builds the canonical envelope, signs it with the sender's
+      // Ed25519 private key, and submits all three pieces. Same-server
+      // shares may omit them.
+      federationSignature: t.Optional(t.String()),
+      federationNonce: t.Optional(t.String()),
+      federationTimestamp: t.Optional(t.String()),
     }),
     detail: {
       tags: ['Sharing'],
@@ -125,6 +151,38 @@ app.use(requireAuth).post(
     detail: {
       tags: ['Sharing'],
       summary: 'Revoke a share',
+    },
+  },
+)
+
+/**
+ * Update the role on an existing share (viewer ↔ editor). Preferred over
+ * the revoke+recreate pattern since the unique index on the outgoing row
+ * would otherwise collide on re-insert.
+ */
+app.use(requireAuth).patch(
+  '/:shareId',
+  async ({ params, body, user, status }) => {
+    const updated = await sharingService.updateShareRole(
+      user.id,
+      params.shareId,
+      body.role,
+    )
+    if (!updated) {
+      return status(404, { message: 'Share not found' })
+    }
+    return updated
+  },
+  {
+    params: t.Object({
+      shareId: t.String(),
+    }),
+    body: t.Object({
+      role: t.Union([t.Literal('viewer'), t.Literal('editor')]),
+    }),
+    detail: {
+      tags: ['Sharing'],
+      summary: "Update an existing share's role",
     },
   },
 )

@@ -1,5 +1,5 @@
 import Elysia, { t } from 'elysia'
-import { and, eq, gt, lte, sql } from 'drizzle-orm'
+import { and, eq, gt, isNull, lte, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { deviceTransferSessions } from '../schema/device-transfer.schema'
 import { generateId } from '../util'
@@ -86,6 +86,33 @@ app.use(requireAuth).post(
 app.use(requireAuth).post(
   '/device-transfer/:id/upload',
   async ({ user, params, body, status }) => {
+    // Atomic conditional update: only succeeds if the session exists, belongs
+    // to this user, is still unconsumed, unexpired, and has no payload yet.
+    // Race-safe — two concurrent sender uploads can't both "win" and overwrite
+    // each other, because the second UPDATE matches zero rows once the first
+    // has filled sealedSeed.
+    const updated = await db
+      .update(deviceTransferSessions)
+      .set({
+        senderEphemeralPub: body.senderEphemeralPub,
+        sealedSeed: body.sealedSeed,
+        senderSignature: body.senderSignature,
+      })
+      .where(
+        and(
+          eq(deviceTransferSessions.id, params.id),
+          eq(deviceTransferSessions.userId, user.id),
+          eq(deviceTransferSessions.consumed, false),
+          gt(deviceTransferSessions.expiresAt, new Date()),
+          isNull(deviceTransferSessions.sealedSeed),
+        ),
+      )
+      .returning({ id: deviceTransferSessions.id })
+
+    if (updated.length > 0) return { success: true }
+
+    // Update matched zero rows — classify why so the client gets a useful
+    // error code. This read is best-effort and only runs on the failure path.
     const row = await db
       .select()
       .from(deviceTransferSessions)
@@ -101,20 +128,9 @@ app.use(requireAuth).post(
     if (row[0].expiresAt.getTime() < Date.now()) {
       return status(410, { message: 'Session expired' })
     }
-    if (row[0].sealedSeed) {
-      return status(409, { message: 'Payload already uploaded' })
-    }
-
-    await db
-      .update(deviceTransferSessions)
-      .set({
-        senderEphemeralPub: body.senderEphemeralPub,
-        sealedSeed: body.sealedSeed,
-        senderSignature: body.senderSignature,
-      })
-      .where(eq(deviceTransferSessions.id, params.id))
-
-    return { success: true }
+    // sealedSeed already populated — either a double-submit from this sender
+    // or a race another sender won.
+    return status(409, { message: 'Payload already uploaded' })
   },
   {
     params: t.Object({ id: t.String() }),

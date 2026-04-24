@@ -316,6 +316,13 @@
       "when": 1777063913812,
       "tag": "0044_calm_terrax",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1777067747062,
+      "tag": "0045_curved_skin",
+      "breakpoints": true
     }
   ]
 }

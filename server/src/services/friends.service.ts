@@ -26,6 +26,7 @@ import { getUserHandle, getUserIdentity } from './user.service'
 import { parseHandle } from '../lib/crypto'
 import { generateId } from '../util'
 import { emit } from './realtime/emit'
+import { shares, incomingShares } from '../schema/shares.schema'
 
 // Re-export for external use
 export { getUserHandle }
@@ -624,7 +625,20 @@ export async function removeFriend(
 
 /**
  * Handle an inbound RELATIONSHIP_REVOKE from a remote peer.
- * Tears down the local side of the friendship and all location-sharing state.
+ *
+ * Tears down every cached row that references the revoking peer: the
+ * friendship record, any pending friend invitations either direction,
+ * location-sharing state, AND any collection shares that went through
+ * them (outgoing ones we issued TO them, plus incoming ones they issued
+ * TO us). The share rows carry ECIES envelopes bound to the peer's old
+ * long-term X25519 key — once they've revoked (typically because they
+ * reset their E2EE identity), those envelopes are permanently
+ * undecryptable, so keeping the rows around just clutters the library
+ * with ghost items.
+ *
+ * Same-handle scrub is deliberate: a sender who resets and picks the
+ * same alias will re-add the friend and re-share fresh content under
+ * the new keys; stale pre-reset rows should not interfere with that.
  */
 export async function handleIncomingRelationshipRevoke(
   fromHandle: string,
@@ -655,13 +669,45 @@ export async function handleIncomingRelationshipRevoke(
       ),
     )
 
-  // Drop any pending invitations between these handles too.
+  // Drop any pending invitations between these handles — either direction,
+  // since a reset + re-invite shouldn't be blocked by leftover rows from
+  // the previous identity.
   await db
     .delete(friendInvitations)
     .where(
       and(
+        eq(friendInvitations.localUserId, localUser[0].id),
         eq(friendInvitations.fromHandle, fromHandle),
-        eq(friendInvitations.toHandle, toHandle),
+      ),
+    )
+  await db
+    .delete(friendInvitations)
+    .where(
+      and(
+        eq(friendInvitations.localUserId, localUser[0].id),
+        eq(friendInvitations.toHandle, fromHandle),
+      ),
+    )
+
+  // Collection-share cleanup on BOTH sides of the pivot:
+  //   - `shares` rows where WE sent something to the revoking peer.
+  //   - `incomingShares` rows where the revoking peer sent something to us.
+  // The ECIES envelopes on both are tied to the peer's pre-revoke X25519
+  // keypair; they're cryptographically dead now.
+  await db
+    .delete(shares)
+    .where(
+      and(
+        eq(shares.userId, localUser[0].id),
+        eq(shares.recipientHandle, fromHandle),
+      ),
+    )
+  await db
+    .delete(incomingShares)
+    .where(
+      and(
+        eq(incomingShares.userId, localUser[0].id),
+        eq(incomingShares.senderHandle, fromHandle),
       ),
     )
 

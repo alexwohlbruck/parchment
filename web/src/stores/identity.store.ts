@@ -30,6 +30,7 @@ import {
   type RotationPhase,
 } from '@/lib/km-rotation'
 import { getSeed } from '@/lib/key-storage'
+import { flushAllPendingRevocations } from '@/services/revocations.service'
 
 /**
  * True if the given error is a user-cancelled WebAuthn prompt (closed
@@ -194,18 +195,35 @@ export const useIdentityStore = defineStore('identity', () => {
 
     try {
       await completeIdentitySetup(pendingSeed.value, pendingKeys.value)
-      
+
       hasLocalIdentity.value = true
-      localKeys.value = pendingKeys.value
-      
-      // Refresh server identity
+      const registeredKeys = pendingKeys.value
+      localKeys.value = registeredKeys
+
+      // Refresh server identity — also lets peers resolve our handle to
+      // the new signingKey before we try to ship any client-signed
+      // messages to them.
       identity.value = await fetchIdentityFromServer()
-      
+
       // Clear pending state
       pendingSeed.value = null
       pendingKeys.value = null
       pendingRecoveryKey.value = null
-      
+
+      // Fan out any pending RELATIONSHIP_REVOKE messages queued by a
+      // prior `resetUserIdentity`. This is what tells friends /
+      // collection-share counterparties "my identity changed, drop your
+      // cached rows pointing at my old keys." Safe to call on a
+      // first-time setup too — the pending list is empty in that case.
+      // Errors are swallowed inside the service so a federation hiccup
+      // doesn't fail the overall setup; the queue persists for retry.
+      if (identity.value?.handle) {
+        void flushAllPendingRevocations({
+          myHandle: identity.value.handle,
+          signingPrivateKey: registeredKeys.signing.privateKey,
+        })
+      }
+
       return { success: true }
     } catch (error) {
       return {

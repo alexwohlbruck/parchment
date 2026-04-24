@@ -27,6 +27,12 @@ import {
   getOrCreateUserPreferences,
   updateUserPreferences,
 } from '../services/user-preferences.service'
+import { createInitialCollection } from '../services/library/collections.service'
+import {
+  listPendingRevocations,
+  flushPendingRevocations,
+  discardPendingRevocation,
+} from '../services/revocations.service'
 import { buildHandle, getServerDomain } from '../services/federation.service'
 import { isValidAlias } from '../lib/crypto'
 
@@ -107,6 +113,11 @@ app.use(permissions(PermissionId.USERS_CREATE)).post(
       userId: newUser.id,
       roleId: body.role || 'user',
     })
+
+    // Seed the library with a single starter collection. Metadata is
+    // E2EE, so the envelope stays null until the user's client signs in
+    // and writes an initial name/icon under its own key.
+    await createInitialCollection(newUser.id)
 
     const roles = await getRoles(newUser.id)
 
@@ -205,6 +216,84 @@ app.use(requireAuth).post(
         'the federation identity so they can re-run identity setup. ' +
         'Session + passkeys survive; everything encrypted under the old ' +
         'seed is gone. Irreversible.',
+    },
+  },
+)
+
+/**
+ * List peer handles that need a RELATIONSHIP_REVOKE sent to them after
+ * an identity reset. Populated at reset time by `resetUserIdentity`;
+ * drained by the client once new keys are registered (see
+ * `/me/revocations/flush`). The list is empty in the normal case.
+ */
+app.use(requireAuth).get(
+  '/me/revocations/pending',
+  async ({ user }) => {
+    const rows = await listPendingRevocations(user.id)
+    return { revocations: rows }
+  },
+  {
+    detail: {
+      tags: ['Users', 'Federation'],
+      description:
+        'List peer handles queued for revocation after an identity reset.',
+    },
+  },
+)
+
+/**
+ * Forward a batch of client-signed RELATIONSHIP_REVOKE messages to the
+ * matching peers and delete the `pending_revocations` rows for any that
+ * deliver successfully. Each item carries the v2 envelope signature,
+ * nonce, and timestamp the client produced; the server does not
+ * synthesize any of those fields.
+ */
+app.use(requireAuth).post(
+  '/me/revocations/flush',
+  async ({ user, body }) => {
+    const results = await flushPendingRevocations(user.id, body.items)
+    return { results }
+  },
+  {
+    body: t.Object({
+      items: t.Array(
+        t.Object({
+          peerHandle: t.String(),
+          signature: t.String(),
+          nonce: t.String(),
+          timestamp: t.String(),
+          messageVersion: t.Optional(t.Number()),
+        }),
+      ),
+    }),
+    detail: {
+      tags: ['Users', 'Federation'],
+      description:
+        'Deliver client-signed RELATIONSHIP_REVOKE envelopes to their ' +
+        'peers. Rows that deliver are dropped; failures stay queued for ' +
+        'retry.',
+    },
+  },
+)
+
+/**
+ * Drop a pending revocation without sending. Used when a peer handle
+ * is known to be unreachable (the client has already decided the row
+ * is permanently orphaned and doesn't want to keep retrying).
+ */
+app.use(requireAuth).delete(
+  '/me/revocations/pending/:peerHandle',
+  async ({ user, params: { peerHandle }, status }) => {
+    const decoded = decodeURIComponent(peerHandle)
+    const deleted = await discardPendingRevocation(user.id, decoded)
+    if (!deleted) return status(404, { message: 'No pending revocation' })
+    return { success: true }
+  },
+  {
+    params: t.Object({ peerHandle: t.String() }),
+    detail: {
+      tags: ['Users', 'Federation'],
+      description: 'Drop a queued revocation without delivering it.',
     },
   },
 )

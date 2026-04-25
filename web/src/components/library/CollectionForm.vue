@@ -29,6 +29,7 @@ const collectionSchema = toTypedSchema(
     name: z.string().min(1),
     description: z.string().default(''),
     icon: z.string().default('Folder'),
+    iconPack: z.enum(['lucide', 'maki']).default('lucide'),
     iconColor: z.string().default('blue'),
     isPublic: z.boolean().default(false),
   }),
@@ -38,6 +39,7 @@ interface CollectionFormValues {
   name: string
   description: string
   icon: string
+  iconPack: 'lucide' | 'maki'
   iconColor: string
   isPublic: boolean
 }
@@ -49,6 +51,7 @@ const { handleSubmit, values, meta, setFieldValue, resetForm } =
       name: '',
       description: '',
       icon: 'Bookmark',
+      iconPack: 'lucide',
       iconColor: 'blue',
       isPublic: false,
     },
@@ -61,6 +64,7 @@ onMounted(() => {
         name: props.collection.name ?? '',
         description: props.collection.description || '',
         icon: props.collection.icon ?? 'Bookmark',
+        iconPack: props.collection.iconPack ?? 'lucide',
         iconColor: props.collection.iconColor ?? 'blue',
         isPublic: props.collection.isPublic,
       },
@@ -71,10 +75,12 @@ onMounted(() => {
 const collectionStyle = computed({
   get: () => ({
     icon: values.icon || 'Folder',
+    iconPack: values.iconPack ?? 'lucide',
     color: values.iconColor as ThemeColor,
   }),
   set: newValue => {
     setFieldValue('icon', newValue.icon)
+    if (newValue.iconPack) setFieldValue('iconPack', newValue.iconPack)
     setFieldValue('iconColor', newValue.color)
   },
 })
@@ -101,6 +107,7 @@ watch(
           name: newCollection.name ?? '',
           description: newCollection.description || '',
           icon: newCollection.icon ?? 'Bookmark',
+          iconPack: newCollection.iconPack ?? 'lucide',
           iconColor: newCollection.iconColor ?? 'blue',
           isPublic: newCollection.isPublic,
         },

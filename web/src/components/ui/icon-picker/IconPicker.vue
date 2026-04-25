@@ -8,16 +8,17 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { PaletteIcon, SearchIcon, CheckIcon, FileIcon } from 'lucide-vue-next'
+import { SearchIcon } from 'lucide-vue-next'
 import * as LucideIcons from 'lucide-vue-next'
-import { Icon } from 'lucide-vue-next'
 import type { LucideIcon } from 'lucide-vue-next'
 import { fuzzyFilter, getThemeColorClasses, type ThemeColor } from '@/lib/utils'
 import { ItemIcon } from '@/components/ui/item-icon'
+import MakiIcon from '@/components/ui/item-icon/MakiIcon.vue'
 import { useI18n } from 'vue-i18n'
 
 interface ModelValue {
   icon: string
+  iconPack?: 'lucide' | 'maki'
   color: ThemeColor
 }
 
@@ -36,10 +37,12 @@ const { t } = useI18n()
 const emit = defineEmits(['update:modelValue'])
 
 const showPopover = ref(false)
-const activeTab = ref('icon')
+const activeTab = ref<'lucide' | 'maki' | 'color'>(
+  props.modelValue.iconPack === 'maki' ? 'maki' : 'lucide',
+)
 const iconSearch = ref('')
 
-const iconComponents = computed<IconItem[]>(() => {
+const lucideIconComponents = computed<IconItem[]>(() => {
   return Object.entries(LucideIcons)
     .filter(
       ([key]) =>
@@ -54,16 +57,38 @@ const iconComponents = computed<IconItem[]>(() => {
     })
 })
 
-const filteredIconComponents = computed(() => {
-  if (!iconSearch.value) return iconComponents.value
+// Maki icon names sourced from the @mapbox/maki package at build time.
+// We only need names here — the SVGs themselves are loaded inside
+// MakiIcon. The `?as=raw` query exists just to make Vite enumerate the
+// directory; the value is discarded.
+const makiSvgs = import.meta.glob(
+  '/node_modules/@mapbox/maki/icons/*.svg',
+  { eager: true },
+) as Record<string, unknown>
+const makiIconNames = computed<string[]>(() => {
+  return Object.keys(makiSvgs)
+    .map((p) => p.split('/').pop()?.replace('.svg', '') ?? '')
+    .filter(Boolean)
+    .sort()
+})
 
-  return fuzzyFilter(iconComponents.value, iconSearch.value, {
-    keys: ['name'], // Search the name property
+const filteredLucideIcons = computed(() => {
+  if (!iconSearch.value) return lucideIconComponents.value
+  return fuzzyFilter(lucideIconComponents.value, iconSearch.value, {
+    keys: ['name'],
     threshold: -10000,
   })
 })
 
-// Available theme colors
+const filteredMakiIcons = computed(() => {
+  if (!iconSearch.value) return makiIconNames.value
+  return fuzzyFilter(
+    makiIconNames.value.map((name) => ({ name })),
+    iconSearch.value,
+    { keys: ['name'], threshold: -10000 },
+  ).map((m) => m.name)
+})
+
 const themeColors: ThemeColor[] = [
   'blue',
   'green',
@@ -79,11 +104,19 @@ const themeColors: ThemeColor[] = [
   'neutral',
 ]
 
-// Handler functions
-function handleIconSelect(iconName: string) {
+function selectLucide(iconName: string) {
   emit('update:modelValue', {
     ...props.modelValue,
     icon: iconName,
+    iconPack: 'lucide',
+  })
+}
+
+function selectMaki(iconName: string) {
+  emit('update:modelValue', {
+    ...props.modelValue,
+    icon: iconName,
+    iconPack: 'maki',
   })
 }
 
@@ -93,6 +126,13 @@ function handleColorSelect(color: ThemeColor) {
     color,
   })
 }
+
+const isSelectedLucide = (name: string) =>
+  (props.modelValue.iconPack ?? 'lucide') === 'lucide' &&
+  props.modelValue.icon === name
+
+const isSelectedMaki = (name: string) =>
+  props.modelValue.iconPack === 'maki' && props.modelValue.icon === name
 </script>
 
 <template>
@@ -103,20 +143,24 @@ function handleColorSelect(color: ThemeColor) {
         class="p-4 flex items-center justify-center"
         size="icon-xl"
       >
-        <ItemIcon :icon="modelValue.icon" :color="modelValue.color" size="md" />
+        <ItemIcon
+          :icon="modelValue.icon"
+          :icon-pack="modelValue.iconPack ?? 'lucide'"
+          :color="modelValue.color"
+          size="md"
+        />
       </Button>
     </PopoverTrigger>
     <PopoverContent class="w-72 p-0">
-      <!-- Tabs for icon and color selection -->
       <Tabs v-model="activeTab" class="w-full">
-        <TabsList class="grid grid-cols-2 mb-2 px-2">
-          <TabsTrigger value="icon">Icon</TabsTrigger>
+        <TabsList class="grid grid-cols-3 mb-2 px-2">
+          <TabsTrigger value="lucide">Lucide</TabsTrigger>
+          <TabsTrigger value="maki">Maki</TabsTrigger>
           <TabsTrigger value="color">Color</TabsTrigger>
         </TabsList>
 
-        <!-- Icon selection tab -->
-        <TabsContent value="icon" class="p-2 pt-0">
-          <!-- Search input -->
+        <!-- Lucide icon tab -->
+        <TabsContent value="lucide" class="p-2 pt-0">
           <div class="relative mb-2">
             <SearchIcon
               class="absolute left-2.5 top-3 size-4 text-muted-foreground"
@@ -127,24 +171,53 @@ function handleColorSelect(color: ThemeColor) {
               class="pl-8"
             />
           </div>
-
-          <!-- Icons grid -->
           <div class="max-h-64 overflow-y-auto grid grid-cols-5 gap-1 p-1">
             <Button
-              v-for="(icon, i) in filteredIconComponents"
+              v-for="icon in filteredLucideIcons"
               :key="icon.name"
               variant="ghost"
               size="icon"
               class="relative p-0"
               :class="
-                modelValue.icon === icon.name
+                isSelectedLucide(icon.name)
                   ? 'bg-primary/20 ring-2 ring-primary'
                   : ''
               "
-              @click="handleIconSelect(icon.name)"
+              @click="selectLucide(icon.name)"
             >
               <div class="absolute inset-0 grid place-items-center">
                 <component :is="icon.component" class="size-6" />
+              </div>
+            </Button>
+          </div>
+        </TabsContent>
+
+        <!-- Maki icon tab -->
+        <TabsContent value="maki" class="p-2 pt-0">
+          <div class="relative mb-2">
+            <SearchIcon
+              class="absolute left-2.5 top-3 size-4 text-muted-foreground"
+            />
+            <Input
+              v-model="iconSearch"
+              :placeholder="placeholder || t('general.search')"
+              class="pl-8"
+            />
+          </div>
+          <div class="max-h-64 overflow-y-auto grid grid-cols-5 gap-1 p-1">
+            <Button
+              v-for="name in filteredMakiIcons"
+              :key="name"
+              variant="ghost"
+              size="icon"
+              class="relative p-0"
+              :class="
+                isSelectedMaki(name) ? 'bg-primary/20 ring-2 ring-primary' : ''
+              "
+              @click="selectMaki(name)"
+            >
+              <div class="absolute inset-0 grid place-items-center">
+                <MakiIcon :name="name" size="md" />
               </div>
             </Button>
           </div>

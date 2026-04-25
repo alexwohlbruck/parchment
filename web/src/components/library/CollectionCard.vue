@@ -76,6 +76,7 @@ function goToCollection() {
       <div class="relative">
         <ItemIcon
           :icon="collection.icon"
+          :icon-pack="collection.iconPack ?? 'lucide'"
           :color="collection.iconColor as ThemeColor"
           size="md"
         />

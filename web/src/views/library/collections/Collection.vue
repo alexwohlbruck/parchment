@@ -70,6 +70,7 @@ function handleCollectionDelete() {
       <div class="flex items-center gap-2 min-w-0">
         <ItemIcon
           :icon="collection.icon"
+          :icon-pack="collection.iconPack ?? 'lucide'"
           :color="collection.iconColor as ThemeColor"
           size="sm"
         />

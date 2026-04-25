@@ -47,6 +47,7 @@ function stampMetadata(
     name?: string
     description?: string
     icon?: string
+    iconPack?: 'lucide' | 'maki'
     iconColor?: string
   },
 ): void {
@@ -54,6 +55,7 @@ function stampMetadata(
   if (metadata.description !== undefined)
     collection.description = metadata.description
   if (metadata.icon !== undefined) collection.icon = metadata.icon
+  if (metadata.iconPack !== undefined) collection.iconPack = metadata.iconPack
   if (metadata.iconColor !== undefined)
     collection.iconColor = metadata.iconColor
 }
@@ -342,6 +344,7 @@ export const useCollectionsService = createSharedComposable(() => {
         name: params.name,
         description: params.description,
         icon: params.icon,
+        iconPack: params.iconPack,
         iconColor: params.iconColor,
         isPublic: params.isPublic,
       })
@@ -378,6 +381,7 @@ export const useCollectionsService = createSharedComposable(() => {
       name?: string
       description?: string
       icon?: string
+      iconPack?: 'lucide' | 'maki'
       iconColor?: string
       scheme: Collection['scheme']
     },
@@ -400,6 +404,7 @@ export const useCollectionsService = createSharedComposable(() => {
         name: meta.name,
         description: meta.description,
         icon: meta.icon,
+        iconPack: meta.iconPack,
         iconColor: meta.iconColor,
       },
     })
@@ -449,6 +454,7 @@ export const useCollectionsService = createSharedComposable(() => {
         updates.name !== undefined ||
         updates.description !== undefined ||
         updates.icon !== undefined ||
+        updates.iconPack !== undefined ||
         updates.iconColor !== undefined
 
       const body: Record<string, unknown> = {}
@@ -459,6 +465,7 @@ export const useCollectionsService = createSharedComposable(() => {
           name: updates.name ?? current?.name,
           description: updates.description ?? current?.description,
           icon: updates.icon ?? current?.icon,
+          iconPack: updates.iconPack ?? current?.iconPack,
           iconColor: updates.iconColor ?? current?.iconColor,
           isPublic: updates.isPublic ?? current?.isPublic,
         }
@@ -487,6 +494,7 @@ export const useCollectionsService = createSharedComposable(() => {
           name: hydrated.name,
           description: hydrated.description,
           icon: hydrated.icon,
+          iconPack: hydrated.iconPack,
           iconColor: hydrated.iconColor,
           scheme: hydrated.scheme,
         })

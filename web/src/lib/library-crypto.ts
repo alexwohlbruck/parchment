@@ -29,6 +29,12 @@ export interface CollectionMetadata {
   name?: string
   description?: string
   icon?: string
+  /**
+   * Which icon pack `icon` is drawn from. Defaults to lucide when absent
+   * so existing collections (which never carried this field) keep
+   * rendering correctly.
+   */
+  iconPack?: 'lucide' | 'maki'
   iconColor?: string
   isPublic?: boolean
 }

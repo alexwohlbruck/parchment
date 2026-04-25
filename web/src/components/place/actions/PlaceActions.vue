@@ -176,6 +176,7 @@ const hasOsmId = computed(() => {
             >
               <ItemIcon
                 :icon="saveTarget.icon"
+                :icon-pack="saveTarget.iconPack ?? 'lucide'"
                 :color="saveTarget.iconColor as ThemeColor"
                 size="sm"
                 plain

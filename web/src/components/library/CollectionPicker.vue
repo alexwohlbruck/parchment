@@ -210,6 +210,7 @@ function openCreateCollectionDialog() {
             ? { description: formData.description }
             : {}),
           icon: formData.icon,
+          iconPack: formData.iconPack,
           iconColor: formData.iconColor,
           isPublic: formData.isPublic,
         }
@@ -304,6 +305,7 @@ function openCreateCollectionDialog() {
             >
               <ItemIcon
                 :icon="collection.icon"
+                :icon-pack="collection.iconPack ?? 'lucide'"
                 :color="collection.iconColor as ThemeColor"
                 size="sm"
               />

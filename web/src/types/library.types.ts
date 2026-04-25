@@ -48,6 +48,7 @@ export interface Collection {
   name?: string
   description?: string
   icon?: string
+  iconPack?: 'lucide' | 'maki'
   iconColor?: string
 
   // Caller's effective role on this collection. `'owner'` on collections the
@@ -93,6 +94,7 @@ export interface CreateCollectionParams {
   name: string
   description?: string
   icon?: string
+  iconPack?: 'lucide' | 'maki'
   iconColor?: string
   isPublic?: boolean
 }

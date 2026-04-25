@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Input } from '@/components/ui/input'
 import { ItemIcon } from '@/components/ui/item-icon'
@@ -21,21 +21,25 @@ import { api } from '@/lib/api'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 
-// Two modes:
-//   - `bookmark` — manage which collections an existing bookmark belongs
-//     to. Tapping a row toggles membership. Original flow.
-//   - `place` — the place isn't bookmarked yet. Tapping a row creates the
-//     bookmark in that collection and emits `bookmark-created`; the
-//     caller closes the overlay. Used when the user clicks the save
-//     button with no last-saved collection on this device.
+// Drives whichever mode applies for the given props at click time:
+//   - When a `bookmark` is in play, taps toggle collection membership.
+//   - When only `place` is in play (no bookmark yet), the first tap
+//     creates the bookmark in the picked collection.
+//   - If a bookmark gets removed from its last collection mid-session,
+//     the server deletes it and we transparently swap to `place` mode
+//     so further taps re-create it under whichever collection the user
+//     picks next. Picker stays open the whole time — closing is
+//     explicit via the Done button.
 const props = defineProps<{
   bookmark?: Bookmark
   place?: Place
 }>()
 
 const emit = defineEmits<{
+  (e: 'done'): void
   (e: 'bookmark-deleted'): void
   (e: 'bookmark-created', bookmark: Bookmark, collectionIds: string[]): void
+  (e: 'collections-changed', collectionIds: string[]): void
 }>()
 
 const collectionsStore = useCollectionsStore()
@@ -49,31 +53,55 @@ const searchInputRef = ref<HTMLInputElement | null>(null)
 const isTogglingCollection = ref(false)
 const bookmarkCollectionIds = ref<string[]>([])
 
+// Local mirror of the bookmark prop. Lets us flip into place-mode on
+// the spot when the user empties the bookmark to zero collections —
+// the parent's prop update lands a tick later but we don't want to
+// wait or block the next click on stale state.
+const currentBookmark = ref<Bookmark | undefined>(props.bookmark)
+
+watch(
+  () => props.bookmark?.id,
+  async (id, oldId) => {
+    if (id !== oldId) {
+      currentBookmark.value = props.bookmark
+      if (id) {
+        await fetchCollectionsForBookmark()
+      } else {
+        bookmarkCollectionIds.value = []
+      }
+    }
+  },
+)
+
 onMounted(async () => {
   if (collections.value.length === 0) {
     await collectionsService.fetchCollections()
   }
-  if (props.bookmark?.id) {
+  if (currentBookmark.value?.id) {
     await fetchCollectionsForBookmark()
   }
 })
 
 async function fetchCollectionsForBookmark() {
-  if (!props.bookmark || !props.bookmark.id) {
+  const id = currentBookmark.value?.id
+  if (!id) {
     bookmarkCollectionIds.value = []
     return
   }
 
   try {
     const response = await api.get(
-      `/library/bookmarks/${props.bookmark.id}/collections`,
+      `/library/bookmarks/${id}/collections`,
     )
-    bookmarkCollectionIds.value = response.data.map(
-      (collection: Collection) => collection.id,
-    )
+    const ids = response.data.map((collection: Collection) => collection.id)
+    bookmarkCollectionIds.value = ids
+    // Re-sync the parent's cached collection set in case it drifted —
+    // the badge on the bookmark button reads from there, and a stale
+    // count would mislead until the next toggle.
+    emit('collections-changed', ids)
   } catch (error) {
     console.error(
-      `[CollectionPicker] Error fetching collections for bookmark ${props.bookmark.id}:`,
+      `[CollectionPicker] Error fetching collections for bookmark ${id}:`,
       error,
     )
     bookmarkCollectionIds.value = []
@@ -134,40 +162,45 @@ function handleKeydown(event: KeyboardEvent) {
 async function onCollectionClick(collectionId: string) {
   if (isTogglingCollection.value) return
 
-  if (props.place && !props.bookmark) {
+  if (currentBookmark.value?.id) {
+    await toggleCollection(collectionId)
+  } else if (props.place) {
     await saveNewBookmark(collectionId)
-    return
   }
-  await toggleCollection(collectionId)
 }
 
 async function toggleCollection(collectionId: string) {
-  if (!props.bookmark || !props.bookmark.id) return
+  const id = currentBookmark.value?.id
+  if (!id) return
 
   isTogglingCollection.value = true
   try {
-    let newCollectionIds: string[]
-    if (bookmarkCollectionIds.value.includes(collectionId)) {
-      newCollectionIds = bookmarkCollectionIds.value.filter(
-        id => id !== collectionId,
-      )
-    } else {
-      newCollectionIds = [...bookmarkCollectionIds.value, collectionId]
-    }
+    const newCollectionIds = bookmarkCollectionIds.value.includes(collectionId)
+      ? bookmarkCollectionIds.value.filter((cid) => cid !== collectionId)
+      : [...bookmarkCollectionIds.value, collectionId]
 
-    const updatedBookmark = await bookmarksService.updateBookmark(
-      props.bookmark.id,
-      { collectionIds: newCollectionIds },
-    )
+    const updatedBookmark = await bookmarksService.updateBookmark(id, {
+      collectionIds: newCollectionIds,
+    })
 
     if (updatedBookmark === undefined) {
-      // Handle error case (toast shown by service)
-    } else if (updatedBookmark === null) {
-      bookmarkCollectionIds.value = []
-      emit('bookmark-deleted')
-    } else {
-      bookmarkCollectionIds.value = newCollectionIds
+      // Service-level error already toasted; leave local state alone so
+      // the user can retry on the same row without it looking checked.
+      return
     }
+
+    if (updatedBookmark === null) {
+      // Server deleted the bookmark (zero collections left). Don't close
+      // the picker — flip to place-mode locally so the next tap creates
+      // a fresh bookmark wherever the user points.
+      bookmarkCollectionIds.value = []
+      currentBookmark.value = undefined
+      emit('bookmark-deleted')
+      return
+    }
+
+    bookmarkCollectionIds.value = newCollectionIds
+    emit('collections-changed', newCollectionIds)
   } catch (error) {
     console.error('[CollectionPicker] Error toggling collection:', error)
   } finally {
@@ -183,6 +216,8 @@ async function saveNewBookmark(collectionId: string) {
       collectionId,
     ])
     if (bookmark) {
+      currentBookmark.value = bookmark
+      bookmarkCollectionIds.value = [collectionId]
       emit('bookmark-created', bookmark, [collectionId])
     }
   } finally {
@@ -219,31 +254,33 @@ function openCreateCollectionDialog() {
         if (newCollection && newCollection.id) {
           isTogglingCollection.value = true
 
-          // Place mode: the bookmark doesn't exist yet. Create it
-          // directly in the freshly-made collection and emit so the
-          // parent can close the overlay + refresh state.
-          if (props.place && !props.bookmark) {
+          // Place mode: there's no bookmark yet, so the freshly-made
+          // collection becomes the very first one for this place. Same
+          // codepath as picking an existing collection in place-mode.
+          if (!currentBookmark.value?.id && props.place) {
             const bookmark = await bookmarksService.createBookmark(
               props.place,
               [newCollection.id],
             )
             if (bookmark) {
+              currentBookmark.value = bookmark
+              bookmarkCollectionIds.value = [newCollection.id]
               emit('bookmark-created', bookmark, [newCollection.id])
             }
             return
           }
 
-          if (!props.bookmark?.id) return
-          const currentIds = [...bookmarkCollectionIds.value]
-          const updatedIds = [...currentIds, newCollection.id]
+          const id = currentBookmark.value?.id
+          if (!id) return
+          const updatedIds = [...bookmarkCollectionIds.value, newCollection.id]
 
-          const updatedBookmark = await bookmarksService.updateBookmark(
-            props.bookmark.id,
-            { collectionIds: updatedIds },
-          )
+          const updatedBookmark = await bookmarksService.updateBookmark(id, {
+            collectionIds: updatedIds,
+          })
 
           if (updatedBookmark) {
             bookmarkCollectionIds.value = updatedIds
+            emit('collections-changed', updatedIds)
           } else {
             await fetchCollectionsForBookmark()
           }
@@ -366,6 +403,18 @@ function openCreateCollectionDialog() {
         <span class="grow min-w-0 text-left">
           {{ t('library.actions.createNewCollection') }}
         </span>
+      </Button>
+    </div>
+
+    <Separator />
+
+    <div class="px-2 pb-1">
+      <Button
+        class="w-full"
+        size="sm"
+        @click.prevent.stop="emit('done')"
+      >
+        {{ t('general.done') }}
       </Button>
     </div>
   </div>

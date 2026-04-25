@@ -1,23 +1,20 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import {
   ShareIcon,
-  BookmarkIcon,
-  FolderPlusIcon,
-  PlusIcon,
+  BookmarkPlusIcon,
   ArrowUpFromDotIcon,
   ArrowDownToDotIcon,
 } from 'lucide-vue-next'
 import { useCollectionsStore } from '@/stores/library/collections.store'
-import { useCollectionsService } from '@/services/library/collections.service'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
 import type { Place } from '@/types/place.types'
 import { usePlaceService } from '@/services/place.service'
 import CollectionPicker from '@/components/library/CollectionPicker.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
-import { getThemeColorClasses, type ThemeColor } from '@/lib/utils'
+import { type ThemeColor } from '@/lib/utils'
 import ResponsivePopover from '@/components/responsive/ResponsivePopover.vue'
 import {
   Tooltip,
@@ -25,112 +22,62 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { storeToRefs } from 'pinia'
 
 const props = defineProps<{
   place: Partial<Place>
 }>()
 
 const collectionsStore = useCollectionsStore()
-const collectionsService = useCollectionsService()
 const bookmarksService = useBookmarksService()
 const { setBookmarkStatus } = usePlaceService()
 const { t } = useI18n()
-const { collections, lastSavedCollectionId } = storeToRefs(collectionsStore)
 
-// One-tap save target. The primary choice is the collection the user most
-// recently saved to on this device; falling back to the most recently
-// updated writable collection when nothing is pinned yet (fresh account,
-// cleared storage, or the pinned collection got deleted). This preserves
-// the click-once-to-save / click-again-to-manage flow for a brand-new
-// user — the picker only appears after the bookmark exists. Null only
-// when the library is genuinely empty (no writable collection available).
-const saveTarget = computed(() => {
-  const lastId = lastSavedCollectionId.value
-  if (lastId) {
-    const pinned = collectionsStore.getCollectionById(lastId)
-    if (pinned && isWritable(pinned)) return pinned
-  }
-  const writable = collections.value.filter(isWritable)
-  if (writable.length === 0) return null
-  return writable
-    .slice()
-    .sort(
-      (a, b) =>
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-    )[0]
+const bookmarkId = computed(() => props.place?.bookmark?.id || null)
+
+// The collections this bookmark currently belongs to. Sourced from the
+// place's local state which the picker keeps fresh by emitting
+// `collections-changed` after each toggle and `bookmark-created` /
+// `bookmark-deleted` for create/delete transitions.
+const collectionIds = computed<string[]>(
+  () => props.place?.collectionIds ?? [],
+)
+
+// The single collection to surface as a colored mini-badge when the
+// bookmark lives in exactly one collection. Resolved against the local
+// store; null when the count isn't 1 (no badge / count badge instead)
+// or the id can't be resolved (stale cache → no badge to avoid flashing
+// a placeholder).
+const singleCollection = computed(() => {
+  if (collectionIds.value.length !== 1) return null
+  return collectionsStore.getCollectionById(collectionIds.value[0]) ?? null
 })
-
-function isWritable(c: { role?: string | null }) {
-  return !c.role || c.role === 'owner' || c.role === 'editor'
-}
-
-const bookmarkId = computed(() => {
-  return props.place?.bookmark?.id || null
-})
-
-const isSaved = computed(() => {
-  return !!props.place?.bookmark
-})
-
-const saveTooltip = computed(() => {
-  const c = saveTarget.value
-  if (!c) return t('general.save')
-  return t('library.actions.saveToCollection', {
-    collection: collectionsService.getCollectionDisplayName(c),
-  })
-})
-
-async function quickSave() {
-  if (!props.place?.id) return
-  const target = saveTarget.value
-  if (!target) return
-  const newBookmark = await bookmarksService.createBookmark(
-    props.place as Place,
-    [target.id],
-  )
-  if (newBookmark) {
-    setBookmarkStatus(newBookmark, [target.id])
-  }
-}
-
-// Sticky flag that pins the picker open while we transition from the
-// saved state back into "pick a collection" mode. The second tap of the
-// bookmark button does an immediate, silent un-save (the assumption
-// being the user wants to MOVE the bookmark, not add it to a second
-// place). Once `isSaved` flips to false the regular branches would try
-// to render the quick-save button — this flag forces the picker
-// instead until the user either picks a new collection or closes it.
-const moveModeOpen = ref(false)
-
-async function unsaveAndOpenPicker() {
-  const id = props.place?.bookmark?.id
-  if (!id) {
-    moveModeOpen.value = true
-    return
-  }
-  // Optimistic local clear so the icon flips back to unsaved before the
-  // server roundtrip — keeps the click feeling instant.
-  setBookmarkStatus(null, null)
-  moveModeOpen.value = true
-  try {
-    // Empty `collectionIds` removes the bookmark from every collection;
-    // the server then deletes the orphaned row and emits the cascade.
-    // `silent: true` suppresses the "Removed {name}" toast — this is
-    // an undo, not a user-initiated removal.
-    await bookmarksService.updateBookmark(
-      id,
-      { collectionIds: [] },
-      { silent: true },
-    )
-  } catch (err) {
-    console.warn('[PlaceActions] silent unsave failed', err)
-  }
-}
 
 const hasOsmId = computed(() => {
   return props.place.externalIds?.['osm'] // TODO: Use enum constant
 })
+
+// `place.collectionIds` is the source of truth for the badge; sync it
+// from each picker event without touching the bookmark identity unless
+// the bookmark itself was created or deleted. Cast through `any` —
+// the bookmark on the place type is the server-inferred shape (with
+// `externalIds: unknown`); the web `Bookmark` constrains it to a
+// string record. They're the same row at runtime.
+function onCollectionsChanged(ids: string[]) {
+  const current = props.place?.bookmark
+  if (!current) return
+  setBookmarkStatus(current as any, ids)
+}
+
+function onBookmarkCreated(bookmark: any, ids: string[]) {
+  setBookmarkStatus(bookmark, ids)
+}
+
+function onBookmarkDeleted() {
+  // Don't close the picker — the user can keep going. Local state
+  // flips to "unsaved" so the badge disappears; the picker switches
+  // to place-mode internally.
+  setBookmarkStatus(null, null)
+}
 </script>
 
 <template>
@@ -152,147 +99,73 @@ const hasOsmId = computed(() => {
         </TooltipTrigger>
         <TooltipContent>{{ t('general.share') }}</TooltipContent>
       </Tooltip>
-      <template v-if="hasOsmId">
-        <!-- Move-mode picker: forced open after a "second tap" un-save.
-             Renders in `place` mode so picking a collection creates a
-             fresh bookmark there — i.e. the bookmark effectively MOVES
-             from saveTarget to whatever the user picks. Closing without
-             a pick leaves the place unsaved (the silent un-save already
-             ran). Wins the v-if cascade so a stale `saveTarget` branch
-             can't auto-resave on the very next render. -->
-        <ResponsivePopover
-          v-if="moveModeOpen"
-          v-model:open="moveModeOpen"
-          align="end"
-          desktop-content-class="w-auto px-0 py-1 min-w-[240px]"
-          :peek-height="'400px'"
-          modal
-          :z-index-offset="10"
-          fit-content
-          mobile-content-class="pt-5 pb-2 px-1"
-        >
-          <template #trigger>
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <Button size="icon" variant="outline">
-                  <FolderPlusIcon class="size-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {{ t('library.entities.collections.manage') }}
-              </TooltipContent>
-            </Tooltip>
-          </template>
-          <template #content="{ close }">
-            <CollectionPicker
-              :place="props.place as Place"
-              @bookmark-created="
-                (bookmark, collectionIds) => {
-                  setBookmarkStatus(bookmark, collectionIds)
-                  moveModeOpen = false
-                  close()
-                }
-              "
-            />
-          </template>
-        </ResponsivePopover>
 
-        <!-- Already saved: tapping again silently un-saves and switches
-             to move-mode (above) so the user can route the bookmark to
-             a different collection. The 9-out-of-10 case is "I clicked
-             save but want it elsewhere" — we don't want to add to a
-             second collection or show a "Removed" toast. -->
-        <Tooltip v-else-if="isSaved && bookmarkId">
-          <TooltipTrigger as-child>
-            <Button
-              size="icon"
-              variant="outline"
-              @click="unsaveAndOpenPicker()"
-            >
-              <FolderPlusIcon class="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            {{ t('library.entities.collections.manage') }}
-          </TooltipContent>
-        </Tooltip>
+      <!-- Bookmark button — single behavior regardless of saved state.
+           Always opens the picker. Saved state is communicated through
+           the corner badge: count of collections (≥2), the single
+           collection's icon (=1), or no badge (unsaved). -->
+      <ResponsivePopover
+        v-if="hasOsmId"
+        align="end"
+        desktop-content-class="w-auto px-0 py-1 min-w-[240px]"
+        :peek-height="'400px'"
+        modal
+        :z-index-offset="10"
+        fit-content
+        mobile-content-class="pt-5 pb-2 px-1"
+      >
+        <template #trigger>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button size="icon" variant="outline" class="relative">
+                <BookmarkPlusIcon class="size-4" />
 
-        <!-- Unsaved + a resolvable target (pinned last-saved, or the most
-             recently updated writable collection as a fallback): one-tap
-             save. Button inherits the collection's theme color; the "+"
-             badge signals that clicking adds to that collection. A second
-             click after saving lands in the manage-picker branch above. -->
-        <Tooltip v-else-if="saveTarget">
-          <TooltipTrigger as-child>
-            <Button
-              size="icon"
-              variant="outline"
-              class="relative"
-              :class="
-                getThemeColorClasses(
-                  (saveTarget.iconColor as ThemeColor) || 'blue',
-                )
-              "
-              @click="quickSave()"
-            >
-              <ItemIcon
-                :icon="saveTarget.icon"
-                :icon-pack="saveTarget.iconPack ?? 'lucide'"
-                :color="saveTarget.iconColor as ThemeColor"
-                size="sm"
-                plain
-              />
-              <span
-                class="absolute -top-1 -right-1 bg-background text-foreground ring-1 ring-border rounded-full p-[1px]"
-              >
-                <PlusIcon class="size-2.5" stroke-width="3" />
-              </span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{{ saveTooltip }}</TooltipContent>
-        </Tooltip>
+                <!-- Count badge: 2+ collections. Numeric, neutral
+                     muted background so it stays legible across themes
+                     without competing with the icon for attention. -->
+                <span
+                  v-if="collectionIds.length >= 2"
+                  class="absolute -top-1 -right-1 min-w-[1rem] h-4 px-1 bg-primary text-primary-foreground ring-2 ring-background rounded-full text-[10px] font-semibold leading-none flex items-center justify-center"
+                >
+                  {{ collectionIds.length }}
+                </span>
 
-        <!-- No writable collection exists yet (empty library). Fall back to
-             opening the picker so the user can create one and save in a
-             single flow. -->
-        <ResponsivePopover
-          v-else
-          align="end"
-          desktop-content-class="w-auto px-0 py-1 min-w-[240px]"
-          :peek-height="'400px'"
-          modal
-          :z-index-offset="10"
-          fit-content
-          mobile-content-class="pt-5 pb-2 px-1"
-        >
-          <template #trigger>
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <Button size="icon" variant="outline" class="relative">
-                  <BookmarkIcon class="size-4" />
-                  <span
-                    class="absolute -top-1 -right-1 bg-background text-foreground ring-1 ring-border rounded-full p-[1px]"
-                  >
-                    <PlusIcon class="size-2.5" stroke-width="3" />
-                  </span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{{ t('general.save') }}</TooltipContent>
-            </Tooltip>
-          </template>
-          <template #content="{ close }">
-            <CollectionPicker
-              :place="props.place as Place"
-              @bookmark-created="
-                (bookmark, collectionIds) => {
-                  setBookmarkStatus(bookmark, collectionIds)
-                  close()
-                }
-              "
-            />
-          </template>
-        </ResponsivePopover>
-      </template>
+                <!-- Single-collection badge: tiny colored swatch with
+                     the collection's actual icon, so the user can tell
+                     at a glance which collection holds this bookmark. -->
+                <span
+                  v-else-if="collectionIds.length === 1 && singleCollection"
+                  class="absolute -top-1 -right-1 ring-2 ring-background rounded-sm"
+                >
+                  <ItemIcon
+                    :icon="singleCollection.icon"
+                    :icon-pack="singleCollection.iconPack ?? 'lucide'"
+                    :color="singleCollection.iconColor as ThemeColor"
+                    size="xs"
+                  />
+                </span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {{
+                bookmarkId
+                  ? t('library.entities.collections.manage')
+                  : t('general.save')
+              }}
+            </TooltipContent>
+          </Tooltip>
+        </template>
+        <template #content="{ close }">
+          <CollectionPicker
+            :bookmark="bookmarkId ? ({ id: bookmarkId } as any) : undefined"
+            :place="props.place as Place"
+            @done="close"
+            @collections-changed="onCollectionsChanged"
+            @bookmark-created="onBookmarkCreated"
+            @bookmark-deleted="onBookmarkDeleted"
+          />
+        </template>
+      </ResponsivePopover>
     </div>
   </TooltipProvider>
 </template>

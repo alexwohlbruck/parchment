@@ -139,7 +139,7 @@ function navigateToRoute(routeName: AppRoute) {
             class="p-3 flex flex-col items-start justify-between gap-1 hover:bg-card transition-colors cursor-pointer border shadow-none h-24"
             @click="navigateTo('/settings')"
           >
-            <ItemIcon icon="Settings" color="gray" size="sm" variant="ghost" />
+            <ItemIcon icon="Settings" color="neutral" size="sm" variant="ghost" />
             <span class="font-medium text-sm">{{ t('settings.title') }}</span>
           </Card>
         </div>

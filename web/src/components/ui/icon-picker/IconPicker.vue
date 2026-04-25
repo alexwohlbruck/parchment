@@ -114,18 +114,28 @@ const filteredMakiIcons = computed(() => {
   ).map((m) => m.name)
 })
 
+// Ordered to roughly walk the spectrum (warm → cool → magenta) and
+// keep the two retained neutrals at the end. Default is `blue`; see
+// `ThemeColor` in lib/utils.ts for the rationale on the trimmed set.
 const themeColors: ThemeColor[] = [
-  'blue',
-  'green',
   'red',
   'orange',
+  'amber',
   'yellow',
+  'lime',
+  'green',
+  'emerald',
+  'teal',
+  'cyan',
+  'sky',
+  'blue',
+  'indigo',
   'violet',
+  'purple',
+  'fuchsia',
+  'pink',
   'rose',
-  'zinc',
   'slate',
-  'stone',
-  'gray',
   'neutral',
 ]
 

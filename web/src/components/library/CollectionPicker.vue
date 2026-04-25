@@ -360,7 +360,7 @@ function openCreateCollectionDialog() {
           <div
             class="size-7 rounded-sm flex items-center justify-center shrink-0 bg-muted"
           >
-            <ItemIcon icon="PlusIcon" color="gray" size="sm" />
+            <ItemIcon icon="PlusIcon" color="neutral" size="sm" />
           </div>
         </div>
         <span class="grow min-w-0 text-left">

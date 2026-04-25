@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SearchIcon } from 'lucide-vue-next'
 import * as LucideIcons from 'lucide-vue-next'
 import type { LucideIcon } from 'lucide-vue-next'
+import lucideTags from 'lucide-static/tags.json'
 import { fuzzyFilter, getThemeColorClasses, type ThemeColor } from '@/lib/utils'
 import { ItemIcon } from '@/components/ui/item-icon'
 import MakiIcon from '@/components/ui/item-icon/MakiIcon.vue'
@@ -24,7 +25,27 @@ interface ModelValue {
 
 interface IconItem {
   name: string
+  // Alias terms shipped with lucide-static so a search for "home" matches
+  // the "House" icon, "phone" matches "PhoneCall", etc. Joined into the
+  // searchable text so fuzzy matching can hit either the formal name or
+  // a synonym.
+  aliases: string
   component: LucideIcon
+}
+
+// Build kebab-case → pascal-case once. lucide-static tags are keyed by
+// kebab-case ("activity", "alert-triangle"); the lucide-vue-next exports
+// are PascalCase ("Activity", "AlertTriangle"). Convert at module load
+// so the lookup in the computed list is O(1).
+const lucideAliasMap: Record<string, string[]> = {}
+for (const [kebab, terms] of Object.entries(
+  lucideTags as Record<string, string[]>,
+)) {
+  const pascal = kebab
+    .split('-')
+    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+    .join('')
+  lucideAliasMap[pascal] = terms
 }
 
 const props = defineProps<{
@@ -53,7 +74,8 @@ const lucideIconComponents = computed<IconItem[]>(() => {
     )
     .map(([key, component]) => {
       const name = key.replace(/Icon$/, '')
-      return { name, component: component as LucideIcon }
+      const aliases = (lucideAliasMap[name] ?? []).join(' ')
+      return { name, aliases, component: component as LucideIcon }
     })
 })
 
@@ -74,8 +96,10 @@ const makiIconNames = computed<string[]>(() => {
 
 const filteredLucideIcons = computed(() => {
   if (!iconSearch.value) return lucideIconComponents.value
+  // Match against the icon name AND its lucide-static aliases so a query
+  // like "home" surfaces the House icon, "trash" surfaces Trash2 etc.
   return fuzzyFilter(lucideIconComponents.value, iconSearch.value, {
-    keys: ['name'],
+    keys: ['name', 'aliases'],
     threshold: -10000,
   })
 })

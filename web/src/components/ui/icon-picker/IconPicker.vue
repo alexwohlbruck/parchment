@@ -12,6 +12,7 @@ import { SearchIcon } from 'lucide-vue-next'
 import * as LucideIcons from 'lucide-vue-next'
 import type { LucideIcon } from 'lucide-vue-next'
 import lucideTags from 'lucide-static/tags.json'
+import { useVirtualizer } from '@tanstack/vue-virtual'
 import { fuzzyFilter, getThemeColorClasses, type ThemeColor } from '@/lib/utils'
 import { ItemIcon } from '@/components/ui/item-icon'
 import MakiIcon from '@/components/ui/item-icon/MakiIcon.vue'
@@ -157,6 +158,45 @@ const isSelectedLucide = (name: string) =>
 
 const isSelectedMaki = (name: string) =>
   props.modelValue.iconPack === 'maki' && props.modelValue.icon === name
+
+// Virtualization. Lucide ships ~1500 icons; rendering all of them on
+// every search keystroke is what made the picker stutter. Chunk the
+// filtered list into rows of 5 and only render the rows currently in
+// view (plus a small overscan for smooth scrolling). Maki gets the same
+// treatment for consistency even though its 215 icons would render fine
+// without it.
+const COLS = 5
+const ROW_PX = 40 // size-9-ish button + gap
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+  return out
+}
+
+const lucideRows = computed(() => chunk(filteredLucideIcons.value, COLS))
+const makiRows = computed(() => chunk(filteredMakiIcons.value, COLS))
+
+const lucideScrollEl = ref<HTMLElement | null>(null)
+const makiScrollEl = ref<HTMLElement | null>(null)
+
+const lucideVirtualizer = useVirtualizer(
+  computed(() => ({
+    count: lucideRows.value.length,
+    getScrollElement: () => lucideScrollEl.value,
+    estimateSize: () => ROW_PX,
+    overscan: 4,
+  })),
+)
+
+const makiVirtualizer = useVirtualizer(
+  computed(() => ({
+    count: makiRows.value.length,
+    getScrollElement: () => makiScrollEl.value,
+    estimateSize: () => ROW_PX,
+    overscan: 4,
+  })),
+)
 </script>
 
 <template>
@@ -195,24 +235,50 @@ const isSelectedMaki = (name: string) =>
               class="pl-8"
             />
           </div>
-          <div class="max-h-64 overflow-y-auto grid grid-cols-5 gap-1 p-1">
-            <Button
-              v-for="icon in filteredLucideIcons"
-              :key="icon.name"
-              variant="ghost"
-              size="icon"
-              class="relative p-0"
-              :class="
-                isSelectedLucide(icon.name)
-                  ? 'bg-primary/20 ring-2 ring-primary'
-                  : ''
-              "
-              @click="selectLucide(icon.name)"
+          <div
+            ref="lucideScrollEl"
+            class="h-64 overflow-y-auto p-1"
+            :data-rows="lucideRows.length"
+          >
+            <div
+              :style="{
+                height: `${lucideVirtualizer.getTotalSize()}px`,
+                width: '100%',
+                position: 'relative',
+              }"
             >
-              <div class="absolute inset-0 grid place-items-center">
-                <component :is="icon.component" class="size-6" />
+              <div
+                v-for="row in lucideVirtualizer.getVirtualItems()"
+                :key="String(row.key)"
+                class="grid grid-cols-5 gap-1"
+                :style="{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${row.start}px)`,
+                  height: `${row.size}px`,
+                }"
+              >
+                <Button
+                  v-for="icon in lucideRows[row.index]"
+                  :key="icon.name"
+                  variant="ghost"
+                  size="icon"
+                  class="relative p-0"
+                  :class="
+                    isSelectedLucide(icon.name)
+                      ? 'bg-primary/20 ring-2 ring-primary'
+                      : ''
+                  "
+                  @click="selectLucide(icon.name)"
+                >
+                  <div class="absolute inset-0 grid place-items-center">
+                    <component :is="icon.component" class="size-6" />
+                  </div>
+                </Button>
               </div>
-            </Button>
+            </div>
           </div>
         </TabsContent>
 
@@ -228,22 +294,46 @@ const isSelectedMaki = (name: string) =>
               class="pl-8"
             />
           </div>
-          <div class="max-h-64 overflow-y-auto grid grid-cols-5 gap-1 p-1">
-            <Button
-              v-for="name in filteredMakiIcons"
-              :key="name"
-              variant="ghost"
-              size="icon"
-              class="relative p-0"
-              :class="
-                isSelectedMaki(name) ? 'bg-primary/20 ring-2 ring-primary' : ''
-              "
-              @click="selectMaki(name)"
+          <div ref="makiScrollEl" class="h-64 overflow-y-auto p-1">
+            <div
+              :style="{
+                height: `${makiVirtualizer.getTotalSize()}px`,
+                width: '100%',
+                position: 'relative',
+              }"
             >
-              <div class="absolute inset-0 grid place-items-center">
-                <MakiIcon :name="name" size="md" />
+              <div
+                v-for="row in makiVirtualizer.getVirtualItems()"
+                :key="String(row.key)"
+                class="grid grid-cols-5 gap-1"
+                :style="{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${row.start}px)`,
+                  height: `${row.size}px`,
+                }"
+              >
+                <Button
+                  v-for="name in makiRows[row.index]"
+                  :key="name"
+                  variant="ghost"
+                  size="icon"
+                  class="relative p-0"
+                  :class="
+                    isSelectedMaki(name)
+                      ? 'bg-primary/20 ring-2 ring-primary'
+                      : ''
+                  "
+                  @click="selectMaki(name)"
+                >
+                  <div class="absolute inset-0 grid place-items-center">
+                    <MakiIcon :name="name" size="md" />
+                  </div>
+                </Button>
               </div>
-            </Button>
+            </div>
           </div>
         </TabsContent>
 

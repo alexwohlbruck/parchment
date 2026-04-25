@@ -200,13 +200,19 @@ async function toggleCollection(collectionId: string) {
 
   isTogglingCollection.value = true
   try {
-    const newCollectionIds = bookmarkCollectionIds.value.includes(collectionId)
-      ? bookmarkCollectionIds.value.filter((cid) => cid !== collectionId)
-      : [...bookmarkCollectionIds.value, collectionId]
+    const isAdding = !bookmarkCollectionIds.value.includes(collectionId)
+    const newCollectionIds = isAdding
+      ? [...bookmarkCollectionIds.value, collectionId]
+      : bookmarkCollectionIds.value.filter((cid) => cid !== collectionId)
 
-    const updatedBookmark = await bookmarksService.updateBookmark(id, {
-      collectionIds: newCollectionIds,
-    })
+    const updatedBookmark = await bookmarksService.updateBookmark(
+      id,
+      { collectionIds: newCollectionIds },
+      // Surface "Added to {collection}" with a View action only on the
+      // additive path — the remove path keeps the generic toast (no
+      // good single destination to jump to).
+      { addedCollectionId: isAdding ? collectionId : undefined },
+    )
 
     if (updatedBookmark === undefined) {
       // Service-level error already toasted; leave local state alone so
@@ -299,9 +305,11 @@ function openCreateCollectionDialog() {
           if (!id) return
           const updatedIds = [...bookmarkCollectionIds.value, newCollection.id]
 
-          const updatedBookmark = await bookmarksService.updateBookmark(id, {
-            collectionIds: updatedIds,
-          })
+          const updatedBookmark = await bookmarksService.updateBookmark(
+            id,
+            { collectionIds: updatedIds },
+            { addedCollectionId: newCollection.id },
+          )
 
           if (updatedBookmark) {
             bookmarkCollectionIds.value = updatedIds

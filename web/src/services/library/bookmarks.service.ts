@@ -1,6 +1,7 @@
 import { createSharedComposable } from '@vueuse/core'
 import { toast } from 'vue-sonner'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useCategoryPaletteStore } from '@/stores/category-palette.store'
@@ -10,6 +11,7 @@ import type { CreateBookmarkParams, Bookmark } from '@/types/library.types'
 import { ref } from 'vue'
 import { api } from '@/lib/api'
 import { closestThemeColor } from '@/lib/utils'
+import { AppRoute } from '@/router'
 
 // TODO: i18n error messages
 
@@ -18,8 +20,23 @@ export const useBookmarksService = createSharedComposable(() => {
   const collectionsStore = useCollectionsStore()
   const categoryPaletteStore = useCategoryPaletteStore()
   const themeStore = useThemeStore()
+  const router = useRouter()
   const { t } = useI18n()
   const isSaving = ref(false)
+
+  // Toast helper: builds the optional "View" action button that takes
+  // the user to the collection they just added a bookmark to. Returns
+  // undefined when there's no resolvable target (so the toast renders
+  // without an action) instead of a no-op button.
+  function viewCollectionAction(collectionId: string | undefined) {
+    if (!collectionId) return undefined
+    return {
+      label: t('general.view'),
+      onClick: () => {
+        router.push({ name: AppRoute.COLLECTION, params: { id: collectionId } })
+      },
+    }
+  }
 
   // Remember the most recently written-to collection so the bookmark
   // button can target it directly on the next save. Last-write-wins across
@@ -93,6 +110,7 @@ export const useBookmarksService = createSharedComposable(() => {
             collection:
               target.name || t('library.entities.collections.untitled'),
           }),
+          { action: viewCollectionAction(targetId) },
         )
       } else {
         toast.success(
@@ -113,7 +131,15 @@ export const useBookmarksService = createSharedComposable(() => {
   async function updateBookmark(
     id: string,
     updates: Partial<Bookmark> & { collectionIds?: string[] },
-    options: { silent?: boolean } = {},
+    options: {
+      silent?: boolean
+      // ID of a collection the caller just ADDED this bookmark to —
+      // used to render an "Added to X" toast with a View action that
+      // jumps straight to that collection. Pass `undefined` for any
+      // other update (rename, color change, removing a collection)
+      // and the toast falls back to the generic "Bookmark updated".
+      addedCollectionId?: string
+    } = {},
   ): Promise<Bookmark | null> {
     try {
       // Use PUT method again
@@ -125,7 +151,19 @@ export const useBookmarksService = createSharedComposable(() => {
         bookmarksStore.updateBookmark(id, updatedBookmark)
         rememberLastSaved(updates.collectionIds)
         if (!options.silent) {
-          toast.success(t('services.bookmarks.updateSuccess'))
+          const added = options.addedCollectionId
+            ? collectionsStore.getCollectionById(options.addedCollectionId)
+            : undefined
+          if (added) {
+            toast.success(
+              t('library.actions.addedToCollection', {
+                collection: added.name || t('library.entities.collections.untitled'),
+              }),
+              { action: viewCollectionAction(options.addedCollectionId) },
+            )
+          } else {
+            toast.success(t('services.bookmarks.updateSuccess'))
+          }
         }
         return updatedBookmark
       } else if (response && response.status === 204) {

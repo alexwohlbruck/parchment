@@ -170,7 +170,11 @@ export const useBookmarksService = createSharedComposable(() => {
       return false
     }
     try {
-      await api.delete(`/library/bookmarks/${bookmarkId}/collections`, {
+      // Server route is `DELETE /library/bookmarks/:id` with the
+      // collectionIds in the body. There's no `/collections` suffix —
+      // the URL was inherited from a refactor that consolidated the
+      // endpoints, and the wrong path silently 404s back.
+      await api.delete(`/library/bookmarks/${bookmarkId}`, {
         data: { collectionIds },
       })
 

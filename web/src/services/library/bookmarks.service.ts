@@ -93,6 +93,7 @@ export const useBookmarksService = createSharedComposable(() => {
   async function updateBookmark(
     id: string,
     updates: Partial<Bookmark> & { collectionIds?: string[] },
+    options: { silent?: boolean } = {},
   ): Promise<Bookmark | null> {
     try {
       // Use PUT method again
@@ -103,7 +104,9 @@ export const useBookmarksService = createSharedComposable(() => {
         const updatedBookmark = response.data
         bookmarksStore.updateBookmark(id, updatedBookmark)
         rememberLastSaved(updates.collectionIds)
-        toast.success(t('services.bookmarks.updateSuccess'))
+        if (!options.silent) {
+          toast.success(t('services.bookmarks.updateSuccess'))
+        }
         return updatedBookmark
       } else if (response && response.status === 204) {
         // Completely removed bookmark from all collections
@@ -112,12 +115,16 @@ export const useBookmarksService = createSharedComposable(() => {
           bookmarkToRemove?.name ||
           t('library.entities.bookmarks.title.singular')
         bookmarksStore.removeBookmark(id)
-        toast.success(t('services.bookmarks.unsaveSuccess', { name }))
+        if (!options.silent) {
+          toast.success(t('services.bookmarks.unsaveSuccess', { name }))
+        }
         return null
       } else {
         console.warn('Unexpected success status:', response?.status)
         bookmarksStore.removeBookmark(id)
-        toast.error(t('services.bookmarks.updateError'))
+        if (!options.silent) {
+          toast.error(t('services.bookmarks.updateError'))
+        }
         return null
       }
     } catch (error: any) {

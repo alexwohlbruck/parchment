@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import {
@@ -94,6 +94,40 @@ async function quickSave() {
   }
 }
 
+// Sticky flag that pins the picker open while we transition from the
+// saved state back into "pick a collection" mode. The second tap of the
+// bookmark button does an immediate, silent un-save (the assumption
+// being the user wants to MOVE the bookmark, not add it to a second
+// place). Once `isSaved` flips to false the regular branches would try
+// to render the quick-save button — this flag forces the picker
+// instead until the user either picks a new collection or closes it.
+const moveModeOpen = ref(false)
+
+async function unsaveAndOpenPicker() {
+  const id = props.place?.bookmark?.id
+  if (!id) {
+    moveModeOpen.value = true
+    return
+  }
+  // Optimistic local clear so the icon flips back to unsaved before the
+  // server roundtrip — keeps the click feeling instant.
+  setBookmarkStatus(null, null)
+  moveModeOpen.value = true
+  try {
+    // Empty `collectionIds` removes the bookmark from every collection;
+    // the server then deletes the orphaned row and emits the cascade.
+    // `silent: true` suppresses the "Removed {name}" toast — this is
+    // an undo, not a user-initiated removal.
+    await bookmarksService.updateBookmark(
+      id,
+      { collectionIds: [] },
+      { silent: true },
+    )
+  } catch (err) {
+    console.warn('[PlaceActions] silent unsave failed', err)
+  }
+}
+
 const hasOsmId = computed(() => {
   return props.place.externalIds?.['osm'] // TODO: Use enum constant
 })
@@ -119,10 +153,16 @@ const hasOsmId = computed(() => {
         <TooltipContent>{{ t('general.share') }}</TooltipContent>
       </Tooltip>
       <template v-if="hasOsmId">
-        <!-- Already saved: open the picker to manage which collections this
-             bookmark belongs to. Unchanged flow. -->
+        <!-- Move-mode picker: forced open after a "second tap" un-save.
+             Renders in `place` mode so picking a collection creates a
+             fresh bookmark there — i.e. the bookmark effectively MOVES
+             from saveTarget to whatever the user picks. Closing without
+             a pick leaves the place unsaved (the silent un-save already
+             ran). Wins the v-if cascade so a stale `saveTarget` branch
+             can't auto-resave on the very next render. -->
         <ResponsivePopover
-          v-if="isSaved && bookmarkId"
+          v-if="moveModeOpen"
+          v-model:open="moveModeOpen"
           align="end"
           desktop-content-class="w-auto px-0 py-1 min-w-[240px]"
           :peek-height="'400px'"
@@ -145,16 +185,37 @@ const hasOsmId = computed(() => {
           </template>
           <template #content="{ close }">
             <CollectionPicker
-              :bookmark="{ id: bookmarkId } as any"
-              @bookmark-deleted="
-                () => {
-                  setBookmarkStatus(null, null)
+              :place="props.place as Place"
+              @bookmark-created="
+                (bookmark, collectionIds) => {
+                  setBookmarkStatus(bookmark, collectionIds)
+                  moveModeOpen = false
                   close()
                 }
               "
             />
           </template>
         </ResponsivePopover>
+
+        <!-- Already saved: tapping again silently un-saves and switches
+             to move-mode (above) so the user can route the bookmark to
+             a different collection. The 9-out-of-10 case is "I clicked
+             save but want it elsewhere" — we don't want to add to a
+             second collection or show a "Removed" toast. -->
+        <Tooltip v-else-if="isSaved && bookmarkId">
+          <TooltipTrigger as-child>
+            <Button
+              size="icon"
+              variant="outline"
+              @click="unsaveAndOpenPicker()"
+            >
+              <FolderPlusIcon class="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {{ t('library.entities.collections.manage') }}
+          </TooltipContent>
+        </Tooltip>
 
         <!-- Unsaved + a resolvable target (pinned last-saved, or the most
              recently updated writable collection as a fallback): one-tap

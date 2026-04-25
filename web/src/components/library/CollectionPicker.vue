@@ -77,6 +77,11 @@ onMounted(async () => {
   if (collections.value.length === 0) {
     await collectionsService.fetchCollections()
   }
+  // Snapshot the order AFTER fetchCollections so a freshly-loaded list
+  // gets indexed; otherwise an empty store would freeze to an empty
+  // map and every row would land in the "appended at the bottom"
+  // bucket.
+  frozenOrder.value = buildFrozenOrder()
   if (currentBookmark.value?.id) {
     await fetchCollectionsForBookmark()
   }
@@ -108,6 +113,31 @@ async function fetchCollectionsForBookmark() {
   }
 }
 
+// Snapshot the sort order at mount time and freeze it for the lifetime
+// of the picker. Without this, every collection write (toggling
+// membership, creating a new collection) bumps `updatedAt` and the
+// recency-sorted list re-shuffles under the user's finger — the row
+// they were about to tap moves before the click lands. The freeze gets
+// reset whenever the picker is mounted again (i.e. opened).
+const frozenOrder = ref<Map<string, number>>(new Map())
+
+function buildFrozenOrder(): Map<string, number> {
+  const writable = collections.value.filter(
+    (c) => !c.role || c.role === 'owner' || c.role === 'editor',
+  )
+  const lastSavedId = lastSavedCollectionId.value
+  const ordered = writable
+    .slice()
+    .sort((a, b) => {
+      // Pin the last-saved collection to the top — it's the most likely
+      // target on first save and matches the badge in the trigger.
+      if (a.id === lastSavedId) return -1
+      if (b.id === lastSavedId) return 1
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    })
+  return new Map(ordered.map((c, i) => [c.id, i]))
+}
+
 const sortedAndFilteredCollections = computed(() => {
   // Only offer collections the caller can actually write to. Viewer-role
   // shared collections are read-only — showing them here just sets the
@@ -125,23 +155,18 @@ const sortedAndFilteredCollections = computed(() => {
     },
   )
 
-  // Pin the last-saved collection to the top — it's the button's one-tap
-  // target, so keeping it at position zero matches the user's expectation
-  // when they open the picker. Rest is recency-sorted.
-  const lastSavedId = lastSavedCollectionId.value
-  const lastSaved =
-    lastSavedId && sourceCollections.find((c) => c.id === lastSavedId)
+  // Apply the frozen order. Collections that didn't exist when the
+  // picker opened (e.g. one the user just created via the dialog) get
+  // appended at the bottom in store order — they weren't in the
+  // snapshot's index, so `Infinity` puts them last and stable.
+  const order = frozenOrder.value
+  const sorted = sourceCollections.slice().sort((a, b) => {
+    const ai = order.get(a.id) ?? Infinity
+    const bi = order.get(b.id) ?? Infinity
+    return ai - bi
+  })
 
-  const otherCollectionsSorted = sourceCollections
-    .filter((c) => c.id !== lastSavedId)
-    .sort(
-      (a, b) =>
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-    )
-
-  return lastSaved
-    ? [lastSaved, ...otherCollectionsSorted]
-    : otherCollectionsSorted
+  return sorted
 })
 
 function getDisplayName(collection: Collection): string {

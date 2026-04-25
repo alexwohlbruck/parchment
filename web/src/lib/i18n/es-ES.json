@@ -1090,16 +1090,26 @@
           "values": {
             "zinc": "Zinc",
             "rose": "Rosa",
+            "pink": "Rosado",
+            "fuchsia": "Fucsia",
+            "purple": "Púrpura",
+            "violet": "Violeta",
+            "indigo": "Índigo",
             "blue": "Azul",
+            "sky": "Cielo",
+            "cyan": "Cian",
+            "teal": "Verde azulado",
+            "emerald": "Esmeralda",
             "green": "Verde",
+            "lime": "Lima",
+            "yellow": "Amarillo",
+            "amber": "Ámbar",
             "orange": "Naranja",
             "red": "Rojo",
             "slate": "Pizarra",
             "stone": "Piedra",
             "gray": "Gris",
-            "neutral": "Neutral",
-            "yellow": "Amarillo",
-            "violet": "Violeta"
+            "neutral": "Neutral"
           }
         },
         "radius": {

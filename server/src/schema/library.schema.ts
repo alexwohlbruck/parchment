@@ -44,6 +44,11 @@ export const bookmarks = pgTable(
     address: text('address'),
     geometry: pointGeometry('geometry').notNull(),
     icon: text('icon').notNull().default('map-pin'),
+    // Which icon pack `icon` is drawn from. 'lucide' for the default
+    // PascalCase set; 'maki' for the geographic POI glyphs sourced from
+    // place categorization. Defaulting to 'lucide' keeps existing
+    // bookmark rows rendering correctly during the rollout.
+    iconPack: text('icon_pack').notNull().default('lucide'),
     iconColor: text('icon_color').notNull().default('#F43F5E'),
     presetType: text('preset_type'),
     userId: text('user_id')

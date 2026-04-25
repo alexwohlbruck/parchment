@@ -323,6 +323,13 @@
       "when": 1777067747062,
       "tag": "0045_curved_skin",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1777089451557,
+      "tag": "0046_careful_mimic",
+      "breakpoints": true
     }
   ]
 }

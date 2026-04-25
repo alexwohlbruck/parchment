@@ -195,6 +195,10 @@ function placeService() {
             updatedAt: new Date(bookmark.updatedAt),
             address: bookmark.address ?? null,
             presetType: bookmark.presetType ?? null,
+            // Server's column is NOT NULL with a default — older bookmark
+            // payloads from the API may still arrive without the field
+            // until the next refetch, so coerce to the schema default.
+            iconPack: bookmark.iconPack ?? 'lucide',
           }
         : undefined
 

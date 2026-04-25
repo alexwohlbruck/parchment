@@ -147,6 +147,7 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
     <CardContent class="p-2 flex items-center gap-3">
       <ItemIcon
         :icon="bookmark.icon"
+        :icon-pack="bookmark.iconPack ?? 'lucide'"
         :color="(bookmark.iconColor as ThemeColor) || 'blue'"
         size="md"
       />

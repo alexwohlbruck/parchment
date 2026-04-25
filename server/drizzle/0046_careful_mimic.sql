@@ -1,0 +1,1 @@
+ALTER TABLE "bookmarks" ADD COLUMN "icon_pack" text DEFAULT 'lucide' NOT NULL;

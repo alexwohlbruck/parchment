@@ -48,6 +48,7 @@ async function createBookmarkInternal(
       address: params.address,
       geometry: createPointFromCoordinates(params.lat, params.lng),
       icon: params.icon || 'map-pin',
+      iconPack: params.iconPack || 'lucide',
       iconColor: params.iconColor || '#F43F5E',
       presetType: params.presetType,
       userId: params.userId,

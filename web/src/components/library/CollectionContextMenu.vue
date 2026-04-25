@@ -73,6 +73,7 @@ function editCollection() {
             ? { description: formData.description }
             : {}),
           icon: formData.icon,
+          iconPack: formData.iconPack as 'lucide' | 'maki',
           iconColor: formData.iconColor as ThemeColor,
           isPublic: formData.isPublic,
         }

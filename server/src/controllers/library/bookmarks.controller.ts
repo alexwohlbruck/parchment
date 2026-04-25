@@ -77,6 +77,9 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
         lat: t.Number(),
         lng: t.Number(),
         icon: t.Optional(t.String()),
+        iconPack: t.Optional(
+          t.Union([t.Literal('lucide'), t.Literal('maki')]),
+        ),
         iconColor: t.Optional(t.String()),
         presetType: t.Optional(
           t.Union([t.Literal('home'), t.Literal('work'), t.Literal('school')]),

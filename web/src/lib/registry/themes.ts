@@ -1,3 +1,69 @@
+/**
+ * Build a shadcn theme entry that re-uses the `blue` theme's neutral
+ * palette (background / card / secondary / muted / etc.) and only
+ * swaps the `primary`, `ring`, and `activeColor` HSL strings.
+ *
+ * Letting these new accents share the blue baseline keeps the surface
+ * UI consistent across the picker and avoids cascading every neutral
+ * value 10 more times — the only thing the user actually sees change
+ * when switching accent is the primary tint.
+ */
+function buildAccentThemes<
+  T extends { name: string; label: string; light: string; dark: string },
+>(
+  defs: readonly T[],
+) {
+  return defs.map((d) => ({
+    name: d.name,
+    label: d.label,
+    activeColor: { light: d.light, dark: d.dark },
+    cssVars: {
+      light: {
+        background: "0 0% 100%",
+        foreground: "222.2 84% 4.9%",
+        card: "0 0% 100%",
+        "card-foreground": "222.2 84% 4.9%",
+        popover: "0 0% 100%",
+        "popover-foreground": "222.2 84% 4.9%",
+        primary: d.light,
+        "primary-foreground": "210 40% 98%",
+        secondary: "210 40% 96.1%",
+        "secondary-foreground": "222.2 47.4% 11.2%",
+        muted: "210 40% 96.1%",
+        "muted-foreground": "215.4 16.3% 46.9%",
+        accent: "210 40% 96.1%",
+        "accent-foreground": "222.2 47.4% 11.2%",
+        destructive: "0 84.2% 60.2%",
+        "destructive-foreground": "210 40% 98%",
+        border: "214.3 31.8% 91.4%",
+        input: "214.3 31.8% 91.4%",
+        ring: d.light,
+      },
+      dark: {
+        background: "222.2 84% 4.9%",
+        foreground: "210 40% 98%",
+        card: "222.2 84% 4.9%",
+        "card-foreground": "210 40% 98%",
+        popover: "222.2 84% 4.9%",
+        "popover-foreground": "210 40% 98%",
+        primary: d.dark,
+        "primary-foreground": "222.2 47.4% 11.2%",
+        secondary: "217.2 32.6% 17.5%",
+        "secondary-foreground": "210 40% 98%",
+        muted: "217.2 32.6% 17.5%",
+        "muted-foreground": "215 20.2% 65.1%",
+        accent: "217.2 32.6% 17.5%",
+        "accent-foreground": "210 40% 98%",
+        destructive: "0 62.8% 30.6%",
+        "destructive-foreground": "210 40% 98%",
+        border: "217.2 32.6% 17.5%",
+        input: "217.2 32.6% 17.5%",
+        ring: d.dark,
+      },
+    },
+  }))
+}
+
 export const themes = [
   {
     name: "zinc",
@@ -631,6 +697,23 @@ export const themes = [
       },
     },
   },
+  // Extended palette themes added alongside the icon-color expansion.
+  // All share the blue/neutral supporting palette (background, card,
+  // secondary, etc.); only `primary`, `ring`, and `activeColor` differ.
+  // Light primary uses the Tailwind 500 hue at full saturation; dark
+  // primary uses the Tailwind 400 hue so it pops on the dark background.
+  ...buildAccentThemes([
+    { name: "amber", label: "Amber", light: "37.7 92.1% 50.2%", dark: "43.3 96.4% 56.3%" },
+    { name: "lime", label: "Lime", light: "83.7 80.5% 44.3%", dark: "82.7 78% 55.5%" },
+    { name: "emerald", label: "Emerald", light: "160.1 84.1% 39.4%", dark: "158.1 64.4% 51.6%" },
+    { name: "teal", label: "Teal", light: "172.5 66% 50.4%", dark: "172.5 66% 50.4%" },
+    { name: "cyan", label: "Cyan", light: "188.7 85% 53.3%", dark: "187.9 85.7% 53.3%" },
+    { name: "sky", label: "Sky", light: "198.4 93.2% 59.6%", dark: "198.4 93.2% 59.6%" },
+    { name: "indigo", label: "Indigo", light: "239.4 83.5% 66.7%", dark: "234.5 89.5% 73.9%" },
+    { name: "purple", label: "Purple", light: "270.7 91% 65.1%", dark: "270 95.2% 75.3%" },
+    { name: "fuchsia", label: "Fuchsia", light: "292.2 84.1% 60.6%", dark: "292 91.4% 72.5%" },
+    { name: "pink", label: "Pink", light: "330.4 81.2% 60.4%", dark: "329.4 86.3% 70.2%" },
+  ]),
 ] as const;
 
 export type Theme = (typeof themes)[number];

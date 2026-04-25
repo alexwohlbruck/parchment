@@ -6,6 +6,7 @@ export interface Bookmark {
   lat: number
   lng: number
   icon: string
+  iconPack?: 'lucide' | 'maki'
   iconColor: string
   presetType?: 'home' | 'work' | 'school'
   userId: string
@@ -86,6 +87,7 @@ export interface CreateBookmarkParams {
   lat: number
   lng: number
   icon?: string
+  iconPack?: 'lucide' | 'maki'
   iconColor?: string
   presetType?: 'home' | 'work' | 'school'
 }

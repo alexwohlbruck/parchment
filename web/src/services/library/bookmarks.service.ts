@@ -3,16 +3,21 @@ import { toast } from 'vue-sonner'
 import { useI18n } from 'vue-i18n'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useCollectionsStore } from '@/stores/library/collections.store'
+import { useCategoryPaletteStore } from '@/stores/category-palette.store'
+import { useThemeStore } from '@/stores/theme.store'
 import type { Place } from '@/types/place.types'
 import type { CreateBookmarkParams, Bookmark } from '@/types/library.types'
 import { ref } from 'vue'
 import { api } from '@/lib/api'
+import { closestThemeColor } from '@/lib/utils'
 
 // TODO: i18n error messages
 
 export const useBookmarksService = createSharedComposable(() => {
   const bookmarksStore = useBookmarksStore()
   const collectionsStore = useCollectionsStore()
+  const categoryPaletteStore = useCategoryPaletteStore()
+  const themeStore = useThemeStore()
   const { t } = useI18n()
   const isSaving = ref(false)
 
@@ -41,6 +46,18 @@ export const useBookmarksService = createSharedComposable(() => {
 
     isSaving.value = true
 
+    // Pre-fill the bookmark's icon/color from the place's resolved
+    // category icon when available. The server emits `place.icon` with
+    // the maki/lucide name + the abstract category; we then snap the
+    // category's CSS color to the closest discrete `ThemeColor` so it
+    // matches what the picker offers. This avoids the "everything is a
+    // map-pin in default-red" baseline for newly-saved places.
+    const placeIcon = place.icon
+    const categoryColorString = placeIcon?.category
+      ? categoryPaletteStore.getCategoryColor(placeIcon.category, themeStore.isDark)
+      : null
+    const derivedIconColor = closestThemeColor(categoryColorString)
+
     try {
       const params: CreateBookmarkParams & { collectionIds?: string[] } = {
         externalIds: place.externalIds,
@@ -48,6 +65,9 @@ export const useBookmarksService = createSharedComposable(() => {
         address: place.address?.value.formatted,
         lat: geometry.center.lat,
         lng: geometry.center.lng,
+        icon: placeIcon?.icon,
+        iconPack: placeIcon?.iconPack,
+        iconColor: derivedIconColor,
         collectionIds,
       }
 

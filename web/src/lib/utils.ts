@@ -137,6 +137,107 @@ export function getThemeColorClasses(color: ThemeColor): string {
 }
 
 /**
+ * Reference hue (HSL, 0-360) for each ThemeColor that has one. The
+ * neutrals (`slate`, `neutral`, `primary`) are intentionally null —
+ * they're matched by saturation, not hue, in `closestThemeColor`.
+ *
+ * Hues are pulled from Tailwind's `*-500` shade so they correspond to
+ * the same accent the picker swatches render with. Don't sweat exact
+ * matching; we just need enough resolution for "this place is reddish"
+ * to land on the rose/red/pink end of the wheel rather than green.
+ */
+const themeColorHues: Record<Exclude<ThemeColor, 'primary'>, number | null> = {
+  red: 0,
+  orange: 25,
+  amber: 38,
+  yellow: 50,
+  lime: 78,
+  green: 142,
+  emerald: 158,
+  teal: 173,
+  cyan: 188,
+  sky: 199,
+  blue: 217,
+  indigo: 239,
+  violet: 263,
+  purple: 271,
+  fuchsia: 292,
+  pink: 330,
+  rose: 347,
+  slate: null,
+  neutral: null,
+}
+
+function parseColorToHsl(
+  input: string,
+): { h: number; s: number; l: number } | null {
+  // hsl(...) / hsla(...). Trim whitespace, optional `%` on s/l.
+  const hslMatch = input.match(
+    /^hsla?\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)%?\s*,\s*(\d+(?:\.\d+)?)%?/i,
+  )
+  if (hslMatch) {
+    const h = ((parseFloat(hslMatch[1]) % 360) + 360) % 360
+    return { h, s: parseFloat(hslMatch[2]), l: parseFloat(hslMatch[3]) }
+  }
+  // #rgb or #rrggbb hex
+  let hex = input.trim().replace(/^#/, '')
+  if (hex.length === 3) hex = hex.split('').map((c) => c + c).join('')
+  if (hex.length !== 6) return null
+  const r = parseInt(hex.slice(0, 2), 16) / 255
+  const g = parseInt(hex.slice(2, 4), 16) / 255
+  const b = parseInt(hex.slice(4, 6), 16) / 255
+  if ([r, g, b].some(Number.isNaN)) return null
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const l = (max + min) / 2
+  let h = 0
+  let s = 0
+  if (max !== min) {
+    const d = max - min
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    if (max === r) h = (g - b) / d + (g < b ? 6 : 0)
+    else if (max === g) h = (b - r) / d + 2
+    else h = (r - g) / d + 4
+    h *= 60
+  }
+  return { h, s: s * 100, l: l * 100 }
+}
+
+/**
+ * Snap an arbitrary CSS color string (hex, hsl, hsla) to the closest
+ * `ThemeColor` we offer in the picker. Used when saving a bookmark to
+ * convert the place's category color (which the server emits as a hex
+ * or hsl string) into one of the discrete theme tokens collections /
+ * bookmarks store. Returns `'blue'` when the input is unparseable.
+ *
+ * Matching rules:
+ *   - Saturation < 8% → `neutral` (achromatic).
+ *   - 8% ≤ saturation < 20% → `slate` (cool dim).
+ *   - Otherwise → the entry in `themeColorHues` whose hue is closest on
+ *     the color wheel (treating it as circular).
+ */
+export function closestThemeColor(input: string | null | undefined): ThemeColor {
+  if (!input) return 'blue'
+  const hsl = parseColorToHsl(input)
+  if (!hsl) return 'blue'
+  if (hsl.s < 8) return 'neutral'
+  if (hsl.s < 20) return 'slate'
+
+  let best: ThemeColor = 'blue'
+  let bestDist = Infinity
+  for (const [name, hue] of Object.entries(themeColorHues)) {
+    if (hue === null) continue
+    const diff = Math.abs(hsl.h - hue)
+    const dist = Math.min(diff, 360 - diff)
+    if (dist < bestDist) {
+      bestDist = dist
+      best = name as ThemeColor
+    }
+  }
+  return best
+}
+
+/**
  * A generic fuzzy search filter function that can work with any array of objects
  * @param items Array of objects to filter
  * @param term Search term to filter by

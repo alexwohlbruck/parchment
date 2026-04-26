@@ -29,11 +29,14 @@ import {
   TerminalIcon,
   XIcon,
   LoaderIcon,
+  SettingsIcon,
 } from 'lucide-vue-next'
 import { ItemIcon } from '@/components/ui/item-icon'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { fuzzyFilter, noFilter } from '@/lib/utils'
 import { TransitionSlide } from '@morev/vue-transitions'
+import { useSettingsIndex } from '@/composables/useSettingsIndex'
+import { useSettingsScrollTarget } from '@/composables/useSettingsScrollTarget'
 
 const emit = defineEmits<{
   (e: 'inputFocused'): void
@@ -96,6 +99,23 @@ const filteredCommands = computed(() => {
     ? filterFunction.value(availableCommands, query.value)
     : availableCommands
 })
+
+// --- Settings entries in the palette ---------------------------------------
+// The settings index drives a "Settings" group in the palette so users can
+// jump straight to a section by name (e.g. "3D terrain"). A single shared
+// limit keeps the palette from being dominated by settings results when
+// the query is broad.
+const SETTINGS_PALETTE_RESULT_LIMIT = 8
+const { search: searchSettings } = useSettingsIndex()
+const { navigateToSection } = useSettingsScrollTarget()
+const filteredSettings = computed(() => {
+  return searchSettings(query.value, SETTINGS_PALETTE_RESULT_LIMIT)
+})
+
+function onSettingSelected(entry: { to: string; sectionId: string }) {
+  navigateToSection(entry.to, entry.sectionId)
+  closePalette()
+}
 
 const filteredArgumentOptions = computed(() => {
   return filterFunction.value
@@ -368,7 +388,7 @@ const filterFunction = computed(() => {
       <template v-if="showResults">
         <!-- Top-level commands list -->
         <CommandList v-if="!activeArgument">
-          <CommandGroup heading="Commands">
+          <CommandGroup v-if="filteredCommands.length" heading="Commands">
             <CommandItem
               v-for="command in filteredCommands"
               :key="command.id"
@@ -391,6 +411,31 @@ const filterFunction = computed(() => {
                 :hotkey="command.hotkey"
                 class="ml-2"
               ></Kbd>
+            </CommandItem>
+          </CommandGroup>
+
+          <!-- Settings entries: only shown while the user is typing, so the
+               idle palette stays focused on top-level commands. -->
+          <CommandGroup
+            v-if="query.length && filteredSettings.length"
+            :heading="t('settings.title')"
+          >
+            <CommandItem
+              v-for="entry in filteredSettings"
+              :key="`settings-${entry.pageId}-${entry.sectionId}-${entry.title}`"
+              :value="entry"
+              class="flex gap-2"
+              @select="onSettingSelected(entry)"
+            >
+              <SettingsIcon class="size-5" />
+              <div class="flex-1 flex flex-col">
+                <span class="font-semibold">{{ entry.title }}</span>
+                <span class="text-sm text-gray-500">
+                  {{ entry.pageTitle
+                  }}<template v-if="entry.level === 'item'">
+                    · {{ entry.sectionTitle }}</template>
+                </span>
+              </div>
             </CommandItem>
           </CommandGroup>
 
@@ -451,6 +496,32 @@ const filterFunction = computed(() => {
                   </span>
                 </div>
               </template>
+            </CommandItem>
+          </CommandGroup>
+
+          <!-- Settings entries are surfaced even when the palette is in
+               search mode, so users can find a setting without first
+               backing out of the search command. -->
+          <CommandGroup
+            v-if="filteredSettings.length"
+            :heading="t('settings.title')"
+          >
+            <CommandItem
+              v-for="entry in filteredSettings"
+              :key="`settings-search-${entry.pageId}-${entry.sectionId}-${entry.title}`"
+              :value="entry"
+              class="flex gap-2"
+              @select="onSettingSelected(entry)"
+            >
+              <SettingsIcon class="size-5 opacity-50" />
+              <div class="flex-1 flex flex-col">
+                <span class="font-semibold">{{ entry.title }}</span>
+                <span class="text-sm text-gray-500">
+                  {{ entry.pageTitle
+                  }}<template v-if="entry.level === 'item'">
+                    · {{ entry.sectionTitle }}</template>
+                </span>
+              </div>
             </CommandItem>
           </CommandGroup>
         </CommandList>

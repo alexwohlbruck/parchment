@@ -4,7 +4,12 @@ import { Card, CardContent } from '@/components/ui/card'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import { ItemIcon } from '@/components/ui/item-icon'
-import { MoreVerticalIcon, PencilIcon, FolderPlusIcon } from 'lucide-vue-next'
+import {
+  MoreVerticalIcon,
+  PencilIcon,
+  FolderPlusIcon,
+  FolderMinusIcon,
+} from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
@@ -88,25 +93,50 @@ async function editBookmark() {
     })
 }
 
-const menuItems = computed<MenuItemDefinition[]>(() => [
-  {
-    type: 'item',
-    id: 'edit',
-    label: t('general.edit'),
-    icon: markRaw(PencilIcon),
-    onSelect: editBookmark,
-  },
-  {
-    type: 'submenu',
-    id: 'add-to-collection',
-    label: t('library.actions.addToCollection'),
-    icon: markRaw(FolderPlusIcon),
-    customComponent: markRaw(CollectionPicker),
-    customProps: {
-      bookmark: props.bookmark,
+const menuItems = computed<MenuItemDefinition[]>(() => {
+  const items: MenuItemDefinition[] = [
+    {
+      type: 'item',
+      id: 'edit',
+      label: t('general.edit'),
+      icon: markRaw(PencilIcon),
+      onSelect: editBookmark,
     },
-  },
-])
+    {
+      type: 'submenu',
+      id: 'add-to-collection',
+      label: t('library.actions.addToCollection'),
+      icon: markRaw(FolderPlusIcon),
+      customComponent: markRaw(CollectionPicker),
+      customProps: {
+        bookmark: props.bookmark,
+      },
+    },
+  ]
+
+  // Only render the "Remove from this collection" action when the card is
+  // rendered inside a specific collection AND the caller has write access
+  // to it. Owner or editor can remove; viewers on shared collections
+  // can't — the server would reject the call anyway, so hiding the item
+  // prevents a confusing error toast.
+  if (props.collectionId) {
+    const collection = collectionsStore.getCollectionById(props.collectionId)
+    const canWrite =
+      collection && (!collection.role || collection.role === 'owner' || collection.role === 'editor')
+    if (canWrite) {
+      items.push({
+        type: 'item',
+        id: 'remove-from-collection',
+        label: t('library.actions.removeFromCollection'),
+        icon: markRaw(FolderMinusIcon),
+        variant: 'destructive',
+        onSelect: () => emit('removeFromCollection', props.bookmark),
+      })
+    }
+  }
+
+  return items
+})
 </script>
 
 <template>
@@ -117,6 +147,7 @@ const menuItems = computed<MenuItemDefinition[]>(() => [
     <CardContent class="p-2 flex items-center gap-3">
       <ItemIcon
         :icon="bookmark.icon"
+        :icon-pack="bookmark.iconPack ?? 'lucide'"
         :color="(bookmark.iconColor as ThemeColor) || 'blue'"
         size="md"
       />

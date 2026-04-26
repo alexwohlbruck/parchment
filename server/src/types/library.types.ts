@@ -23,17 +23,15 @@ export type CreateBookmarkParams = {
   lat: number
   lng: number
   icon?: string
+  iconPack?: 'lucide' | 'maki'
   iconColor?: string
   presetType?: 'home' | 'work' | 'school'
   userId: string
 }
 
 export type CreateCollectionParams = {
-  name: string
-  description?: string
-  icon?: string
-  iconColor?: string
+  metadataEncrypted?: string
+  metadataKeyVersion?: number
   isPublic?: boolean
-  isDefault?: boolean
   userId: string
 }

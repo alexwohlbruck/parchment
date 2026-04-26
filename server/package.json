@@ -1,12 +1,14 @@
 {
   "name": "parchment",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "scripts": {
     "dev": "bun src/index.ts --watch",
     "build": "bun build ./src/index.ts ./src/migrate.ts ./src/seed/seed.ts --outdir ./dist --target bun",
     "start": "NODE_ENV=production bun dist/index.js",
     "start:server2": "PORT=5001 SERVER_ORIGIN=http://localhost:5001 CLIENT_ORIGIN=http://localhost:5173 bun src/index.ts",
-    "test": "bun test",
+    "test": "bun run test:db && bun run test:unit",
+    "test:db": "bun test --timeout=60000 src/services/sharing.service.test.ts src/services/library/collections.service.test.ts src/services/federation-e2e.test.ts src/services/federation-auth.roundtrip.test.ts",
+    "test:unit": "bun test src/lib src/services/category.service.test.ts src/services/device-wrap-secrets.service.test.ts src/services/identity-reset.service.test.ts src/services/integration.service.test.ts src/services/integrations src/services/location-e2ee.service.test.ts src/services/search.service.test.ts",
     "generate": "drizzle-kit generate",
     "migrate:dev": "bun run generate && bun src/migrate.ts",
     "migrate:prod": "bun dist/migrate.js",
@@ -55,6 +57,7 @@
     "pluscodes": "^2.6.0",
     "postgres": "^3.4.5",
     "qs": "^6.14.0",
+    "ua-parser-js": "^2.0.9",
     "ws": "^8.18.3"
   },
   "devDependencies": {

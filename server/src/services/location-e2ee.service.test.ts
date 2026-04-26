@@ -4,7 +4,6 @@
  * Tests cover:
  * - Location sharing configuration CRUD
  * - Encrypted location storage and retrieval
- * - Location history management
  *
  * Note: These tests mock the database layer to test service logic in isolation.
  */
@@ -52,8 +51,6 @@ import {
   storeEncryptedLocation,
   getEncryptedLocationForFriend,
   getEncryptedLocationsFromFriends,
-  storeLocationHistory,
-  getLocationHistory,
 } from './location-e2ee.service'
 
 describe('Location Sharing Configuration', () => {
@@ -421,101 +418,6 @@ describe('Encrypted Location Storage', () => {
   })
 })
 
-describe('Location History', () => {
-  beforeEach(() => {
-    mockDb.select.mockClear()
-    mockDb.insert.mockClear()
-    mockDb.returning.mockReset()
-  })
-
-  describe('storeLocationHistory', () => {
-    test('stores encrypted location in history', async () => {
-      const timestamp = new Date()
-      const newEntry = {
-        id: 'test-id-123',
-        userId: 'user-123',
-        encryptedLocation: 'encrypted-data',
-        nonce: 'nonce-value',
-        timestamp,
-        createdAt: timestamp,
-      }
-
-      const mockInsertQuery = {
-        insert: mock(() => mockInsertQuery),
-        values: mock(() => mockInsertQuery),
-        returning: mock(() => Promise.resolve([newEntry])),
-      }
-      mockDb.insert.mockReturnValue(mockInsertQuery)
-      mockInsertQuery.insert.mockReturnValue(mockInsertQuery)
-      mockInsertQuery.values.mockReturnValue(mockInsertQuery)
-
-      const entry = await storeLocationHistory(
-        'user-123',
-        'encrypted-data',
-        'nonce-value',
-        timestamp,
-      )
-
-      expect(entry.encryptedLocation).toBe('encrypted-data')
-      expect(entry.timestamp).toBe(timestamp)
-    })
-  })
-
-  describe('getLocationHistory', () => {
-    test('returns empty array when no history exists', async () => {
-      const mockSelectQuery = {
-        select: mock(() => mockSelectQuery),
-        from: mock(() => mockSelectQuery),
-        where: mock(() => mockSelectQuery),
-        orderBy: mock(() => mockSelectQuery),
-        limit: mock((n: number) => Promise.resolve([])),
-      }
-      mockDb.select.mockReturnValue(mockSelectQuery)
-      mockSelectQuery.select.mockReturnValue(mockSelectQuery)
-      mockSelectQuery.orderBy.mockReturnValue(mockSelectQuery)
-
-      const history = await getLocationHistory('user-123', { limit: 10 })
-
-      expect(history).toEqual([])
-    })
-
-    test('returns history entries', async () => {
-      const mockEntries = [
-        {
-          id: 'entry-1',
-          userId: 'user-123',
-          encryptedLocation: 'encrypted-1',
-          nonce: 'nonce-1',
-          timestamp: new Date('2024-01-01T10:00:00Z'),
-        },
-        {
-          id: 'entry-2',
-          userId: 'user-123',
-          encryptedLocation: 'encrypted-2',
-          nonce: 'nonce-2',
-          timestamp: new Date('2024-01-01T11:00:00Z'),
-        },
-      ]
-
-      const mockSelectQuery = {
-        select: mock(() => mockSelectQuery),
-        from: mock(() => mockSelectQuery),
-        where: mock(() => mockSelectQuery),
-        orderBy: mock(() => mockSelectQuery),
-        limit: mock(() => Promise.resolve(mockEntries)),
-      }
-      mockDb.select.mockReturnValue(mockSelectQuery)
-      mockSelectQuery.select.mockReturnValue(mockSelectQuery)
-      mockSelectQuery.orderBy.mockReturnValue(mockSelectQuery)
-      mockSelectQuery.limit.mockReturnValue(mockSelectQuery)
-
-      // This would need the actual query execution mocked properly
-      // For now, we test the structure
-      expect(mockDb.select).toBeDefined()
-    })
-  })
-})
-
 describe('Integration Scenarios', () => {
   test('complete location sharing flow: enable, store, retrieve, disable', async () => {
     // This test documents the expected flow
@@ -531,17 +433,6 @@ describe('Integration Scenarios', () => {
     expect(storeEncryptedLocation).toBeDefined()
     expect(getEncryptedLocationForFriend).toBeDefined()
     expect(disableLocationSharing).toBeDefined()
-  })
-
-  test('location history accumulates correctly', async () => {
-    // This test documents the expected flow
-    // 1. Store location 1
-    // 2. Store location 2
-    // 3. Store location 3
-    // 4. Retrieve history with limit
-
-    expect(storeLocationHistory).toBeDefined()
-    expect(getLocationHistory).toBeDefined()
   })
 })
 

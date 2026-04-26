@@ -94,12 +94,11 @@ app.use(requireAuth).delete(
 )
 
 // ============================================================================
-// Location Updates (Broadcasting + History)
+// Location Updates (Broadcasting)
 // ============================================================================
 
 /**
- * Update location: broadcast to friends and optionally store in personal history
- * Single endpoint for all location updates
+ * Update location: broadcast encrypted location to friends
  */
 app.use(requireAuth).post(
   '/e2ee/update',
@@ -110,7 +109,6 @@ app.use(requireAuth).post(
 
     const results = []
 
-    // Store encrypted location for each friend
     for (const item of body.locations) {
       await locationE2eeService.storeEncryptedLocation(
         user.id,
@@ -121,19 +119,7 @@ app.use(requireAuth).post(
       results.push({ friendHandle: item.forFriendHandle, stored: true })
     }
 
-    // Store in personal history if provided
-    let historyId: string | null = null
-    if (body.history) {
-      const entry = await locationE2eeService.storeLocationHistory(
-        user.id,
-        body.history.encryptedLocation,
-        body.history.nonce,
-        new Date(body.history.timestamp),
-      )
-      historyId = entry.id
-    }
-
-    return { results, historyId }
+    return { results }
   },
   {
     body: t.Object({
@@ -144,17 +130,10 @@ app.use(requireAuth).post(
           nonce: t.String(),
         }),
       ),
-      history: t.Optional(
-        t.Object({
-          encryptedLocation: t.String(),
-          nonce: t.String(),
-          timestamp: t.String(),
-        }),
-      ),
     }),
     detail: {
       tags: ['Location'],
-      summary: 'Update location: broadcast to friends and store in history',
+      summary: 'Broadcast encrypted location to friends',
     },
   },
 )
@@ -187,44 +166,6 @@ app.use(requireAuth).get(
     detail: {
       tags: ['Location'],
       summary: 'Get encrypted locations from friends',
-    },
-  },
-)
-
-// ============================================================================
-// Personal Location History
-// ============================================================================
-
-/**
- * Get encrypted location history
- */
-app.use(requireAuth).get(
-  '/e2ee/history',
-  async ({ query, user, status }) => {
-    if (!user) {
-      return status(401, { message: t('errors.auth.authenticationRequired') })
-    }
-
-    const entries = await locationE2eeService.getLocationHistory(user.id, {
-      limit: query.limit,
-    })
-
-    return {
-      entries: entries.map((e) => ({
-        id: e.id,
-        encryptedLocation: e.encryptedLocation,
-        nonce: e.nonce,
-        timestamp: e.timestamp.toISOString(),
-      })),
-    }
-  },
-  {
-    query: t.Object({
-      limit: t.Optional(t.Number()),
-    }),
-    detail: {
-      tags: ['Location'],
-      summary: 'Get encrypted location history',
     },
   },
 )

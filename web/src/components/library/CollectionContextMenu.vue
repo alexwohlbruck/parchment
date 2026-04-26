@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import { computed, markRaw } from 'vue'
+import { computed, markRaw, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
-import { MoreVerticalIcon, Pencil, Trash, StarIcon } from 'lucide-vue-next'
+import {
+  MoreVerticalIcon,
+  Pencil,
+  Trash,
+  Share2Icon,
+} from 'lucide-vue-next'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useAppService } from '@/services/app.service'
 import CollectionForm from '@/components/library/CollectionForm.vue'
+import ShareDialog from '@/components/sharing/ShareDialog.vue'
 import ResponsiveDropdown, {
   type MenuItemDefinition,
 } from '@/components/responsive/ResponsiveDropdown.vue'
@@ -20,6 +26,25 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'edit'): void
 }>()
+
+// Share dialog lives alongside the menu so closing the menu doesn't
+// tear down the dialog state. `isShareOpen` toggles independently.
+const isShareOpen = ref(false)
+
+/**
+ * Refetch the collections list after the share dialog emits `changed`.
+ * A scheme switch or public-link mint changes fields on the collection
+ * row (scheme, public_token, metadataKeyVersion) that the dialog reads
+ * on next open — stale data would misrepresent current state to the
+ * user.
+ */
+async function onShareChanged() {
+  try {
+    await collectionsService.fetchCollections()
+  } catch (err) {
+    console.error('Failed to refresh collections after share change', err)
+  }
+}
 
 const { t } = useI18n()
 const collectionsService = useCollectionsService()
@@ -48,6 +73,7 @@ function editCollection() {
             ? { description: formData.description }
             : {}),
           icon: formData.icon,
+          iconPack: formData.iconPack as 'lucide' | 'maki',
           iconColor: formData.iconColor as ThemeColor,
           isPublic: formData.isPublic,
         }
@@ -86,30 +112,25 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
       icon: markRaw(Pencil),
       onSelect: editCollection,
     },
+    {
+      type: 'item',
+      id: 'share',
+      label: t('general.share'),
+      icon: markRaw(Share2Icon),
+      onSelect: () => {
+        isShareOpen.value = true
+      },
+    },
   ]
 
-  // Only show "make default" if collection is not already default
-  if (!props.collection.isDefault) {
-    items.push({
-      type: 'item',
-      id: 'make-default',
-      label: t('library.actions.makeDefault'),
-      icon: markRaw(StarIcon),
-      disabled: true,
-    })
-  }
-
-  // Only show delete if collection is not the default collection
-  if (!props.collection.isDefault) {
-    items.push({
-      type: 'item',
-      id: 'delete',
-      label: t('general.delete'),
-      icon: markRaw(Trash),
-      variant: 'destructive',
-      onSelect: deleteCollection,
-    })
-  }
+  items.push({
+    type: 'item',
+    id: 'delete',
+    label: t('general.delete'),
+    icon: markRaw(Trash),
+    variant: 'destructive',
+    onSelect: deleteCollection,
+  })
 
   return items
 })
@@ -127,4 +148,10 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
       </Button>
     </template>
   </ResponsiveDropdown>
+
+  <ShareDialog
+    v-model:open="isShareOpen"
+    :collection="collection"
+    @changed="onShareChanged"
+  />
 </template>

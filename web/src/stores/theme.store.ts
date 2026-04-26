@@ -20,24 +20,47 @@ type Color =
   | 'red'
   | 'rose'
   | 'orange'
-  | 'green'
-  | 'blue'
+  | 'amber'
   | 'yellow'
+  | 'lime'
+  | 'green'
+  | 'emerald'
+  | 'teal'
+  | 'cyan'
+  | 'sky'
+  | 'blue'
+  | 'indigo'
   | 'violet'
+  | 'purple'
+  | 'fuchsia'
+  | 'pink'
 
+// Ordered to walk the spectrum (warm → cool → magenta), with the
+// neutrals at the end. Matches the order users see in the picker swatch
+// grid so the app-theme dropdown reads the same way.
 export const allColors: Color[] = [
-  'zinc',
-  'rose',
-  'blue',
-  'green',
-  'orange',
   'red',
-  'slate',
-  'stone',
-  'gray',
-  'neutral',
-  'yellow',
+  'rose',
+  'pink',
+  'fuchsia',
+  'purple',
   'violet',
+  'indigo',
+  'blue',
+  'sky',
+  'cyan',
+  'teal',
+  'emerald',
+  'green',
+  'lime',
+  'yellow',
+  'amber',
+  'orange',
+  'slate',
+  'gray',
+  'zinc',
+  'neutral',
+  'stone',
 ]
 
 export const allRadii = [0, 0.25, 0.5, 0.75, 1]

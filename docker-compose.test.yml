@@ -40,6 +40,12 @@ services:
       APP_TESTER_EMAIL: ${APP_TESTER_EMAIL:-test@parchment.local}
       GMAIL_EMAIL: ${GMAIL_EMAIL:-}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
+      # Crypto keys — NODE_ENV is production in this compose so both are
+      # required. Fixed deterministic test values (base64 32 bytes of 0x01
+      # and 0x02 respectively) keep e2e runs reproducible across runs.
+      # Override via .env.test if a real test needs fresh keys.
+      SERVER_IDENTITY_PRIVATE_KEY: ${SERVER_IDENTITY_PRIVATE_KEY:-AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=}
+      PARCHMENT_INTEGRATION_ENCRYPTION_KEY: ${PARCHMENT_INTEGRATION_ENCRYPTION_KEY:-AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=}
     ports:
       - "5001:5000"
     volumes:

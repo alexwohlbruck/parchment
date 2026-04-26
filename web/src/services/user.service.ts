@@ -27,11 +27,23 @@ function userService() {
     return newUser
   }
 
+  /**
+   * Update the current user's display profile (first/last name — cleartext).
+   */
+  async function updateMyProfile(fields: {
+    firstName?: string | null
+    lastName?: string | null
+  }) {
+    const { data } = await api.patch('/users/me/profile', fields)
+    return data
+  }
+
   return {
     getUsers,
     getRoles,
     getPermissions,
     inviteUser,
+    updateMyProfile,
   }
 }
 

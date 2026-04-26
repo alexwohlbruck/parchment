@@ -4,7 +4,11 @@ export * from '@server/types/integration.types'
 // Client-side types
 import { z } from 'zod'
 import { IntegrationDefinition } from '@server/types/integration.types'
-import { DependencyType, type Dependency, type Config } from '@/components/ui/auto-form/interface'
+import {
+  DependencyType,
+  type Dependency,
+  type Config,
+} from '@/components/ui/auto-form/interface'
 
 // TODO: i18n translate error messages
 
@@ -35,9 +39,11 @@ export const schemaConfigs: Partial<Record<string, SchemaConfig>> = {
       },
       redirectUri: {
         label: 'Redirect URI',
-        description: 'Must match the redirect URI registered in your OSM OAuth app. HTTPS is required by OSM.',
+        description:
+          'Must match the redirect URI registered in your OSM OAuth app. HTTPS is required by OSM.',
         inputProps: {
-          placeholder: 'https://your-server.example.com/integrations/osm/callback',
+          placeholder:
+            'https://your-server.example.com/integrations/osm/callback',
         },
       },
     },
@@ -81,7 +87,11 @@ export const configSchemas: Record<
       .enum(['production', 'sandbox', 'custom'])
       .default('production')
       .describe('public'),
-    customServerUrl: z.string().url('Please enter a valid URL').optional().describe('public'),
+    customServerUrl: z
+      .string()
+      .url('Please enter a valid URL')
+      .optional()
+      .describe('public'),
     clientId: z.string().min(1, 'Client ID is required'),
     clientSecret: z.string().optional(),
     redirectUri: z.string().url('Please enter a valid URL').optional(),
@@ -110,26 +120,36 @@ export const configSchemas: Record<
   }),
 
   mapboxSchema: z.object({
-    accessToken: z.string().min(1, 'Access token is required').describe('public'),
+    accessToken: z
+      .string()
+      .min(1, 'Access token is required')
+      .describe('public'),
   }),
 
   valhallaSchema: z.object({
     host: z.string().url('Please enter a valid URL'),
   }),
 
-  graphhopperSchema: z.object({
-    host: z.string().url('Please enter a valid URL').optional().default('https://graphhopper.com/api/1'),
-    apiKey: z.string().min(1, 'API Key is required').optional(),
-  }).refine(
-    (data) => data.host || data.apiKey,
-    {
-      message: 'Either host (for self-hosted) or API Key (for GraphHopper API) is required',
+  graphhopperSchema: z
+    .object({
+      host: z
+        .string()
+        .url('Please enter a valid URL')
+        .optional()
+        .default('https://graphhopper.com/api/1'),
+      apiKey: z.string().min(1, 'API Key is required').optional(),
+    })
+    .refine(data => data.host || data.apiKey, {
+      message:
+        'Either host (for self-hosted) or API Key (for GraphHopper API) is required',
       path: ['host'],
-    }
-  ),
+    }),
 
   mapillarySchema: z.object({
-    accessToken: z.string().min(1, 'Access token is required').describe('public'),
+    accessToken: z
+      .string()
+      .min(1, 'Access token is required')
+      .describe('public'),
   }),
 
   transitlandSchema: z.object({
@@ -173,5 +193,16 @@ export const configSchemas: Record<
 
   openstreetmapOAuthSchema: z.object({
     // No user-editable fields — config is managed by OAuth2 flow
+  }),
+
+  dawarichSchema: z.object({
+    url: z
+      .string()
+      .url('Please enter a valid URL')
+      .describe('Base URL of your Dawarich instance'),
+    apiToken: z
+      .string()
+      .min(1, 'API token is required')
+      .describe('API token from your Dawarich account'),
   }),
 }

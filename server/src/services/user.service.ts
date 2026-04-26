@@ -12,6 +12,7 @@ import { db } from '../db'
 import { users } from '../schema/users.schema'
 import { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { buildHandle } from './federation.service'
+import { emit } from './realtime/emit'
 
 function lower(email: AnyPgColumn): SQL {
   return sql`lower(${email})`
@@ -75,6 +76,12 @@ export async function updateUserAlias(
     .set({ alias, updatedAt: new Date() })
     .where(eq(users.id, userId))
 
+  await emit.userProfile(
+    'user:profile-updated',
+    { id: userId, alias },
+    userId,
+  )
+
   return { success: true }
 }
 
@@ -94,6 +101,30 @@ export async function updateUserKeys(
       updatedAt: new Date(),
     })
     .where(eq(users.id, userId))
+}
+
+/**
+ * Update the user's display profile fields. Names are cleartext — see
+ * SECURITY.md for the scope of what IS encrypted. Passing `null` clears
+ * the stored value.
+ */
+export async function updateUserDisplayProfile(
+  userId: string,
+  fields: {
+    firstName?: string | null
+    lastName?: string | null
+  },
+): Promise<void> {
+  const update: Record<string, unknown> = { updatedAt: new Date() }
+  if ('firstName' in fields) update.firstName = fields.firstName
+  if ('lastName' in fields) update.lastName = fields.lastName
+  await db.update(users).set(update).where(eq(users.id, userId))
+
+  await emit.userProfile(
+    'user:profile-updated',
+    { id: userId, ...fields },
+    userId,
+  )
 }
 
 /**

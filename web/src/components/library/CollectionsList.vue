@@ -10,7 +10,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
-import { SearchIcon, ArrowUpDownIcon, PlusIcon } from 'lucide-vue-next'
+import {
+  SearchIcon,
+  ArrowUpDownIcon,
+  PlusIcon,
+  FilterIcon,
+  CheckIcon,
+} from 'lucide-vue-next'
 import CollectionCard from '@/components/library/CollectionCard.vue'
 import CollectionForm from '@/components/library/CollectionForm.vue'
 import { useAppService } from '@/services/app.service'
@@ -29,6 +35,10 @@ const localCollections = ref<Collection[]>([...props.collections])
 const searchQuery = ref('')
 const sortBy = ref<'name' | 'createdAt' | 'updatedAt'>('updatedAt')
 const sortOrder = ref<'asc' | 'desc'>('desc')
+// Ownership filter: 'all' shows both, 'mine' hides collections the caller
+// was only invited to, 'shared' hides their own. Keys a computed below.
+type OwnershipFilter = 'all' | 'mine' | 'shared'
+const ownershipFilter = ref<OwnershipFilter>('all')
 const appService = useAppService()
 const collectionsService = useCollectionsService()
 
@@ -40,6 +50,10 @@ watch(
   { deep: true },
 )
 
+const sharedCount = computed(
+  () => localCollections.value.filter((c) => c.role && c.role !== 'owner').length,
+)
+
 const filteredCollections = computed(() => {
   let result = searchQuery.value
     ? fuzzyFilter(localCollections.value, searchQuery.value, {
@@ -47,6 +61,14 @@ const filteredCollections = computed(() => {
         preserveOrder: true,
       })
     : localCollections.value
+
+  // Ownership filter runs after search so users can still find anything by
+  // name even when "Shared with me" is active.
+  if (ownershipFilter.value === 'mine') {
+    result = result.filter((c) => !c.role || c.role === 'owner')
+  } else if (ownershipFilter.value === 'shared') {
+    result = result.filter((c) => c.role && c.role !== 'owner')
+  }
 
   result = [...result].sort((a, b) => {
     let comparison = 0
@@ -120,6 +142,48 @@ async function createCollection() {
             :placeholder="t('library.search.collections')"
           />
         </div>
+
+        <!-- Ownership filter: All / Mine / Shared with me. Hidden when the
+             user has no shared collections yet so the UI stays clean. -->
+        <DropdownMenu v-if="sharedCount > 0">
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              class="h-10 w-10"
+              :class="{ 'ring-1 ring-primary': ownershipFilter !== 'all' }"
+              :title="t('library.collections.filter.label')"
+            >
+              <FilterIcon class="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem @click="ownershipFilter = 'all'">
+              <CheckIcon
+                v-if="ownershipFilter === 'all'"
+                class="size-4 mr-2"
+              />
+              <span v-else class="inline-block size-4 mr-2" />
+              {{ t('library.collections.filter.all') }}
+            </DropdownMenuItem>
+            <DropdownMenuItem @click="ownershipFilter = 'mine'">
+              <CheckIcon
+                v-if="ownershipFilter === 'mine'"
+                class="size-4 mr-2"
+              />
+              <span v-else class="inline-block size-4 mr-2" />
+              {{ t('library.collections.filter.mine') }}
+            </DropdownMenuItem>
+            <DropdownMenuItem @click="ownershipFilter = 'shared'">
+              <CheckIcon
+                v-if="ownershipFilter === 'shared'"
+                class="size-4 mr-2"
+              />
+              <span v-else class="inline-block size-4 mr-2" />
+              {{ t('library.collections.filter.shared') }}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

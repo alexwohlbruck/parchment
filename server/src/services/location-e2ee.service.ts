@@ -10,13 +10,10 @@ import { db } from '../db'
 import {
   locationSharingConfig,
   encryptedLocations,
-  locationHistory,
   LocationSharingConfig,
   NewLocationSharingConfig,
   EncryptedLocation,
   NewEncryptedLocation,
-  LocationHistory,
-  NewLocationHistory,
 } from '../schema/location.schema'
 import { friendships } from '../schema/friendships.schema'
 import { generateId } from '../util'
@@ -288,79 +285,6 @@ export async function getEncryptedLocationsFromFriends(
     updatedAt: r.updatedAt,
     senderHandle: r.senderAlias ? buildHandle(r.senderAlias) : null,
   }))
-}
-
-// ============================================================================
-// Location History (personal encrypted storage)
-// ============================================================================
-
-/**
- * Store encrypted location in history
- */
-export async function storeLocationHistory(
-  userId: string,
-  encryptedLocation: string,
-  nonce: string,
-  timestamp: Date,
-): Promise<LocationHistory> {
-  const newEntry: NewLocationHistory = {
-    id: generateId(),
-    userId,
-    encryptedLocation,
-    nonce,
-    timestamp,
-  }
-
-  const [created] = await db
-    .insert(locationHistory)
-    .values(newEntry)
-    .returning()
-
-  return created
-}
-
-/**
- * Get encrypted location history for a user
- */
-export async function getLocationHistory(
-  userId: string,
-  options: {
-    startTime?: Date
-    endTime?: Date
-    limit?: number
-  } = {},
-): Promise<LocationHistory[]> {
-  let query = db
-    .select()
-    .from(locationHistory)
-    .where(eq(locationHistory.userId, userId))
-    .orderBy(locationHistory.timestamp)
-
-  if (options.limit) {
-    query = query.limit(options.limit) as typeof query
-  }
-
-  return await query
-}
-
-/**
- * Delete old location history entries
- */
-export async function pruneLocationHistory(
-  userId: string,
-  olderThan: Date,
-): Promise<number> {
-  const result = await db
-    .delete(locationHistory)
-    .where(
-      and(
-        eq(locationHistory.userId, userId),
-        // Note: Date filtering would need sql template for lt comparison
-      ),
-    )
-    .returning()
-
-  return result.length
 }
 
 // ============================================================================

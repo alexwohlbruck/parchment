@@ -156,6 +156,7 @@ async function handleMainChange(evt: any) {
 <template>
   <TooltipProvider>
     <SettingsSection
+      id="layers"
       class="h-full"
       :title="t('settings.mapSettings.layers.title')"
       :description="t('settings.mapSettings.layers.description')"

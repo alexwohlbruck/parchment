@@ -4,7 +4,6 @@ import { useI18n } from 'vue-i18n'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { IconPicker } from '@/components/ui/icon-picker'
-import { Checkbox } from '@/components/ui/checkbox'
 import type { Collection } from '@/types/library.types'
 import type { ThemeColor } from '@/lib/utils'
 import { useForm } from 'vee-validate'
@@ -17,7 +16,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { useCollectionsService } from '@/services/library/collections.service'
 
 const { t } = useI18n()
 const emit = defineEmits(['update:valid'])
@@ -26,16 +24,14 @@ const props = defineProps<{
   collection?: Collection
 }>()
 
-const collectionsService = useCollectionsService()
-
 const collectionSchema = toTypedSchema(
   z.object({
     name: z.string().min(1),
     description: z.string().default(''),
     icon: z.string().default('Folder'),
+    iconPack: z.enum(['lucide', 'maki']).default('lucide'),
     iconColor: z.string().default('blue'),
     isPublic: z.boolean().default(false),
-    isDefault: z.boolean().default(false),
   }),
 )
 
@@ -43,9 +39,9 @@ interface CollectionFormValues {
   name: string
   description: string
   icon: string
+  iconPack: 'lucide' | 'maki'
   iconColor: string
   isPublic: boolean
-  isDefault: boolean
 }
 
 const { handleSubmit, values, meta, setFieldValue, resetForm } =
@@ -55,9 +51,9 @@ const { handleSubmit, values, meta, setFieldValue, resetForm } =
       name: '',
       description: '',
       icon: 'Bookmark',
+      iconPack: 'lucide',
       iconColor: 'blue',
       isPublic: false,
-      isDefault: false,
     },
   })
 
@@ -65,31 +61,26 @@ onMounted(() => {
   if (props.collection) {
     resetForm({
       values: {
-        name: props.collection.name,
+        name: props.collection.name ?? '',
         description: props.collection.description || '',
-        icon: props.collection.icon,
-        iconColor: props.collection.iconColor,
+        icon: props.collection.icon ?? 'Bookmark',
+        iconPack: props.collection.iconPack ?? 'lucide',
+        iconColor: props.collection.iconColor ?? 'blue',
         isPublic: props.collection.isPublic,
-        isDefault: props.collection.isDefault || false,
       },
     })
-
-    if (props.collection.isDefault && !props.collection.name) {
-      setFieldValue(
-        'name',
-        collectionsService.getCollectionDisplayName(props.collection),
-      )
-    }
   }
 })
 
 const collectionStyle = computed({
   get: () => ({
     icon: values.icon || 'Folder',
+    iconPack: values.iconPack ?? 'lucide',
     color: values.iconColor as ThemeColor,
   }),
   set: newValue => {
     setFieldValue('icon', newValue.icon)
+    if (newValue.iconPack) setFieldValue('iconPack', newValue.iconPack)
     setFieldValue('iconColor', newValue.color)
   },
 })
@@ -113,12 +104,12 @@ watch(
     if (newCollection) {
       resetForm({
         values: {
-          name: newCollection.name,
+          name: newCollection.name ?? '',
           description: newCollection.description || '',
-          icon: newCollection.icon,
-          iconColor: newCollection.iconColor,
+          icon: newCollection.icon ?? 'Bookmark',
+          iconPack: newCollection.iconPack ?? 'lucide',
+          iconColor: newCollection.iconColor ?? 'blue',
           isPublic: newCollection.isPublic,
-          isDefault: newCollection.isDefault || false,
         },
       })
     }
@@ -136,12 +127,7 @@ defineExpose({
     <!-- Name field -->
     <FormField name="name" v-slot="{ field, errorMessage }">
       <FormItem>
-        <FormLabel
-          >{{ t('general.name') }}
-          <!-- <span v-if="values.isDefault" class="text-muted-foreground text-xs"
-            >({{ t('general.optional') }})</span
-          > -->
-        </FormLabel>
+        <FormLabel>{{ t('general.name') }}</FormLabel>
         <FormControl>
           <Input
             v-bind="field"
@@ -178,16 +164,5 @@ defineExpose({
       </FormItem>
     </FormField>
 
-    <!-- isDefault field (disabled checkbox) -->
-    <FormField name="isDefault" v-slot="{ field }">
-      <FormItem class="flex flex-row items-start space-x-3 space-y-0">
-        <FormControl>
-          <Checkbox :model-value="field.value" disabled />
-        </FormControl>
-        <div class="space-y-1 leading-none">
-          <FormLabel>{{ t('library.form.isDefault') }}</FormLabel>
-        </div>
-      </FormItem>
-    </FormField>
   </form>
 </template>

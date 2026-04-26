@@ -394,10 +394,12 @@ function onSnapPointChange(point: SnapPoint | null) {
   )
 }
 
-// Handle ESC key
+// Handle ESC key. preventDefault: false so esc still reaches Reka UI
+// dialogs above when this sheet isn't dismissable (or otherwise inert).
 useHotkeys([
   {
     key: 'esc',
+    preventDefault: false,
     handler: () => {
       if (props.dismissable) emit('update:open', false)
     },

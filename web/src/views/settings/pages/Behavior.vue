@@ -50,7 +50,10 @@ watch(
 <template>
   <div class="flex flex-col gap-4 w-fit items-start">
     <!-- Language preference -->
-    <SettingsSection :title="$t('settings.behavior.language.title')">
+    <SettingsSection
+      id="language"
+      :title="$t('settings.behavior.language.title')"
+    >
       <SettingsItem
         v-if="languageCommand"
         :title="languageCommand.name"
@@ -77,7 +80,10 @@ watch(
     </SettingsSection>
 
     <!-- Location behavior -->
-    <SettingsSection :title="$t('settings.mapSettings.location.title')">
+    <SettingsSection
+      id="location"
+      :title="$t('settings.mapSettings.location.title')"
+    >
       <SettingsItem
         :title="$t('settings.mapSettings.location.startupLocation')"
         :description="$t('settings.mapSettings.location.startupLocationDescription')"
@@ -138,7 +144,10 @@ watch(
     </SettingsSection>
 
     <!-- Floor numbering preference -->
-    <SettingsSection :title="$t('settings.behavior.floorNumbering.title')">
+    <SettingsSection
+      id="floor-numbering"
+      :title="$t('settings.behavior.floorNumbering.title')"
+    >
       <SettingsItem
         :title="$t('settings.behavior.floorNumbering.system')"
         :description="$t('settings.behavior.floorNumbering.description')"
@@ -163,7 +172,7 @@ watch(
     </SettingsSection>
 
     <!-- Units preference -->
-    <SettingsSection :title="$t('settings.behavior.units.title')">
+    <SettingsSection id="units" :title="$t('settings.behavior.units.title')">
       <SettingsItem
         :title="$t('settings.behavior.units.system')"
         :description="$t('settings.behavior.units.description')"

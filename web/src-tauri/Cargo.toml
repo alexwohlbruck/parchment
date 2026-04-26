@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "0.1.4"
+version = "0.1.5"
 description = "A Tauri App"
 authors = ["you"]
 license = ""
@@ -35,3 +35,6 @@ tauri-plugin-haptics = "2"
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+# OS keychain access for the identity seed (Part C.2).
+# Desktop only — mobile falls back to the browser storage path.
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }

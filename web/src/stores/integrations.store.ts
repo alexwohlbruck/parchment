@@ -6,6 +6,7 @@ import {
   IntegrationCapabilityId,
   type IntegrationDefinition,
   type IntegrationRecord,
+  type IntegrationScheme,
 } from '@server/types/integration.types'
 import { jsonSerializer } from '@/lib/storage'
 import {
@@ -203,6 +204,21 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     )
   }
 
+  /**
+   * Single-record selector used by dual-scheme tiles: returns the one
+   * configuration for this (integrationId, scheme) pair, or undefined.
+   * Guaranteed unique by the server-side partial unique index.
+   */
+  function getConfigurationForScheme(
+    integrationId: string,
+    scheme: IntegrationScheme,
+  ) {
+    return safeConfigurationsArray().find(
+      config =>
+        config.integrationId === integrationId && config.scheme === scheme,
+    )
+  }
+
   // Clear all cached data (used on sign out)
   function clearCache() {
     integrationConfigurations.value = null
@@ -217,6 +233,7 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     allIntegrations,
     configuredIntegrations,
     getConfigurationsForIntegration,
+    getConfigurationForScheme,
     mapboxAccessToken,
     integrationsReady,
     isMapboxAvailableButNotConfigured,

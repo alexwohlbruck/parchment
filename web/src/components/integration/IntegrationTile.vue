@@ -8,11 +8,14 @@ import {
   IntegrationDefinition,
   IntegrationId,
   IntegrationRecord,
+  IntegrationScheme,
   IntegrationScope,
 } from '@/types/integrations.types'
 import { computed, h } from 'vue'
+import { storeToRefs } from 'pinia'
 import { Button } from '@/components/ui/button'
 import { useIntegrationsStore } from '@/stores/integrations.store'
+import { useIdentityStore } from '@/stores/identity.store'
 import { useAppService } from '@/services/app.service'
 import { useIntegrationService } from '@/services/integration.service'
 import { configSchemas } from '@/types/integrations.types'
@@ -28,6 +31,8 @@ import {
 
 const { t } = useI18n()
 const integrationsStore = useIntegrationsStore()
+const identityStore = useIdentityStore()
+const { isSetupComplete } = storeToRefs(identityStore)
 const appService = useAppService()
 const { toast } = appService
 const integrationService = useIntegrationService()
@@ -49,6 +54,22 @@ const emit = defineEmits<{
 function getInitial(name: string): string {
   return name[0].toUpperCase()
 }
+
+// Which scheme the Configure slot uses. Phase 1 supports single-scheme
+// integrations only (Dawarich = user-e2ee, everything else = server-key).
+// Two-slot rendering will land when a dual-scheme integration ships.
+const activeScheme = computed<IntegrationScheme>(() => {
+  const supported = props.integration.supportedSchemes ?? ['server-key']
+  return supported[0] ?? 'server-key'
+})
+
+// Block Configure on user-e2ee tiles until identity setup is done — the
+// personal key derives from the seed, and without it we can't encrypt.
+const requiresSetup = computed(
+  () => activeScheme.value === 'user-e2ee' && !isSetupComplete.value,
+)
+
+const tileDisabled = computed(() => props.disabled || requiresSetup.value)
 
 async function handleOAuthClick() {
   const integration = props.integration
@@ -227,6 +248,11 @@ async function handleClick() {
 
   const integration = props.integration
 
+  if (requiresSetup.value) {
+    toast.warning(t('settings.integrations.scheme.setupRequired'))
+    return
+  }
+
   // OAuth integrations use a different flow
   if (integration.authType === 'oauth2') {
     return handleOAuthClick()
@@ -242,9 +268,11 @@ async function handleClick() {
     return
   }
 
-  // When editing, fetch full config (including secrets) via the detail endpoint
+  // When editing a server-key integration, fetch the full decrypted config
+  // via the detail endpoint. For user-e2ee rows the plaintext is already in
+  // the store — hydrated client-side on sign-in.
   let fullConfig: IntegrationRecord | undefined = config
-  if (isConfigured && config) {
+  if (isConfigured && config && activeScheme.value === 'server-key') {
     try {
       const response = await api.get<IntegrationRecord>(
         `/integrations/${config.id}`,
@@ -265,6 +293,7 @@ async function handleClick() {
       schema: formSchema,
       isConfigured,
       config: fullConfig,
+      scheme: activeScheme.value,
     },
     footerPrepend: isConfigured
       ? () =>
@@ -298,11 +327,13 @@ async function handleClick() {
             capabilities: formData.capabilities,
           })
         } else {
-          // Create new integration with capabilities separated from config
+          // Create new integration with capabilities separated from config.
+          // For user-e2ee the service POSTs metadata + saveBlob (rollback on fail).
           await integrationService.createIntegration(
             integration.id,
             formData.config,
             formData.capabilities,
+            activeScheme.value,
           )
         }
         return true // Indicate success
@@ -431,6 +462,7 @@ const icon = computed(() => {
     :class="
       cn(
         'flex flex-col gap-3 hover:bg-muted/50 transition-colors cursor-pointer relative',
+        tileDisabled && 'opacity-60 cursor-not-allowed',
       )
     "
     @click="handleClick"

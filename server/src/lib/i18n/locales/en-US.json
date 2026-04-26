@@ -48,7 +48,9 @@
       "notAvailable": "Service integration is not available",
       "invalidId": "Invalid integration ID",
       "invalidScope": "Invalid integration scope",
-      "noUpdates": "No updates provided"
+      "noUpdates": "No updates provided",
+      "unsupportedScheme": "This integration does not support the requested encryption scheme",
+      "schemeAlreadyConfigured": "This integration is already configured under the same scheme"
     },
     "geocoding": {
       "queryRequired": "Query parameter is required",

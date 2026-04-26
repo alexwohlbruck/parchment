@@ -32,6 +32,11 @@ services:
       GMAIL_EMAIL: ${GMAIL_EMAIL}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
       APP_TESTER_EMAIL: ${APP_TESTER_EMAIL}
+      # Crypto keys — two INDEPENDENT base64 32-byte values, required in prod.
+      # Generate each with: openssl rand -base64 32
+      # In production the server refuses to boot without these.
+      SERVER_IDENTITY_PRIVATE_KEY: ${SERVER_IDENTITY_PRIVATE_KEY}
+      PARCHMENT_INTEGRATION_ENCRYPTION_KEY: ${PARCHMENT_INTEGRATION_ENCRYPTION_KEY}
     ports:
       - "5000:5000"
     volumes:

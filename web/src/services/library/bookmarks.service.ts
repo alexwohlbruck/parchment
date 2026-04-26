@@ -1,20 +1,52 @@
 import { createSharedComposable } from '@vueuse/core'
 import { toast } from 'vue-sonner'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useCollectionsStore } from '@/stores/library/collections.store'
+import { useCategoryPaletteStore } from '@/stores/category-palette.store'
+import { useThemeStore } from '@/stores/theme.store'
 import type { Place } from '@/types/place.types'
 import type { CreateBookmarkParams, Bookmark } from '@/types/library.types'
 import { ref } from 'vue'
 import { api } from '@/lib/api'
+import { closestThemeColor } from '@/lib/utils'
+import { AppRoute } from '@/router'
 
 // TODO: i18n error messages
 
 export const useBookmarksService = createSharedComposable(() => {
   const bookmarksStore = useBookmarksStore()
   const collectionsStore = useCollectionsStore()
+  const categoryPaletteStore = useCategoryPaletteStore()
+  const themeStore = useThemeStore()
+  const router = useRouter()
   const { t } = useI18n()
   const isSaving = ref(false)
+
+  // Toast helper: builds the optional "View" action button that takes
+  // the user to the collection they just added a bookmark to. Returns
+  // undefined when there's no resolvable target (so the toast renders
+  // without an action) instead of a no-op button.
+  function viewCollectionAction(collectionId: string | undefined) {
+    if (!collectionId) return undefined
+    return {
+      label: t('general.view'),
+      onClick: () => {
+        router.push({ name: AppRoute.COLLECTION, params: { id: collectionId } })
+      },
+    }
+  }
+
+  // Remember the most recently written-to collection so the bookmark
+  // button can target it directly on the next save. Last-write-wins across
+  // both new bookmarks and picker toggles.
+  function rememberLastSaved(collectionIds: string[] | undefined) {
+    if (!collectionIds || collectionIds.length === 0) return
+    collectionsStore.setLastSavedCollectionId(
+      collectionIds[collectionIds.length - 1],
+    )
+  }
 
   async function createBookmark(place: Place, collectionIds?: string[]) {
     if (!place.externalIds?.osm) {
@@ -31,6 +63,18 @@ export const useBookmarksService = createSharedComposable(() => {
 
     isSaving.value = true
 
+    // Pre-fill the bookmark's icon/color from the place's resolved
+    // category icon when available. The server emits `place.icon` with
+    // the maki/lucide name + the abstract category; we then snap the
+    // category's CSS color to the closest discrete `ThemeColor` so it
+    // matches what the picker offers. This avoids the "everything is a
+    // map-pin in default-red" baseline for newly-saved places.
+    const placeIcon = place.icon
+    const categoryColorString = placeIcon?.category
+      ? categoryPaletteStore.getCategoryColor(placeIcon.category, themeStore.isDark)
+      : null
+    const derivedIconColor = closestThemeColor(categoryColorString)
+
     try {
       const params: CreateBookmarkParams & { collectionIds?: string[] } = {
         externalIds: place.externalIds,
@@ -38,6 +82,9 @@ export const useBookmarksService = createSharedComposable(() => {
         address: place.address?.value.formatted,
         lat: geometry.center.lat,
         lng: geometry.center.lng,
+        icon: placeIcon?.icon,
+        iconPack: placeIcon?.iconPack,
+        iconColor: derivedIconColor,
         collectionIds,
       }
 
@@ -45,9 +92,31 @@ export const useBookmarksService = createSharedComposable(() => {
       const bookmark = response.data
 
       bookmarksStore.addBookmark(bookmark)
-      toast.success(
-        t('services.bookmarks.saveSuccess', { name: place.name.value }),
-      )
+      rememberLastSaved(collectionIds)
+
+      // Last element of collectionIds is the one we want to surface in the
+      // toast — that's the same collection we just pinned as the target for
+      // the next one-tap save, so "Saved {name} to {collection}" matches
+      // what the user just did. Fall back to a generic message if the
+      // collection can't be resolved (e.g. stale cache).
+      const targetId = collectionIds?.[collectionIds.length - 1]
+      const target = targetId
+        ? collectionsStore.getCollectionById(targetId)
+        : undefined
+      if (target) {
+        toast.success(
+          t('services.bookmarks.saveSuccessToCollection', {
+            name: place.name.value,
+            collection:
+              target.name || t('library.entities.collections.untitled'),
+          }),
+          { action: viewCollectionAction(targetId) },
+        )
+      } else {
+        toast.success(
+          t('services.bookmarks.saveSuccess', { name: place.name.value }),
+        )
+      }
 
       return bookmark
     } catch (error) {
@@ -62,6 +131,15 @@ export const useBookmarksService = createSharedComposable(() => {
   async function updateBookmark(
     id: string,
     updates: Partial<Bookmark> & { collectionIds?: string[] },
+    options: {
+      silent?: boolean
+      // ID of a collection the caller just ADDED this bookmark to —
+      // used to render an "Added to X" toast with a View action that
+      // jumps straight to that collection. Pass `undefined` for any
+      // other update (rename, color change, removing a collection)
+      // and the toast falls back to the generic "Bookmark updated".
+      addedCollectionId?: string
+    } = {},
   ): Promise<Bookmark | null> {
     try {
       // Use PUT method again
@@ -71,19 +149,40 @@ export const useBookmarksService = createSharedComposable(() => {
         // Added or removed collection-bookmark relations
         const updatedBookmark = response.data
         bookmarksStore.updateBookmark(id, updatedBookmark)
-        toast.success(t('services.bookmarks.updateSuccess'))
+        rememberLastSaved(updates.collectionIds)
+        if (!options.silent) {
+          const added = options.addedCollectionId
+            ? collectionsStore.getCollectionById(options.addedCollectionId)
+            : undefined
+          if (added) {
+            toast.success(
+              t('library.actions.addedToCollection', {
+                collection: added.name || t('library.entities.collections.untitled'),
+              }),
+              { action: viewCollectionAction(options.addedCollectionId) },
+            )
+          } else {
+            toast.success(t('services.bookmarks.updateSuccess'))
+          }
+        }
         return updatedBookmark
       } else if (response && response.status === 204) {
         // Completely removed bookmark from all collections
         const bookmarkToRemove = bookmarksStore.getBookmarkById(id)
-        const name = bookmarkToRemove?.name || t('library.entities.bookmark')
+        const name =
+          bookmarkToRemove?.name ||
+          t('library.entities.bookmarks.title.singular')
         bookmarksStore.removeBookmark(id)
-        toast.success(t('services.bookmarks.unsaveSuccess', { name }))
+        if (!options.silent) {
+          toast.success(t('services.bookmarks.unsaveSuccess', { name }))
+        }
         return null
       } else {
         console.warn('Unexpected success status:', response?.status)
         bookmarksStore.removeBookmark(id)
-        toast.error(t('services.bookmarks.updateError'))
+        if (!options.silent) {
+          toast.error(t('services.bookmarks.updateError'))
+        }
         return null
       }
     } catch (error: any) {
@@ -109,7 +208,11 @@ export const useBookmarksService = createSharedComposable(() => {
       return false
     }
     try {
-      await api.delete(`/library/bookmarks/${bookmarkId}/collections`, {
+      // Server route is `DELETE /library/bookmarks/:id` with the
+      // collectionIds in the body. There's no `/collections` suffix —
+      // the URL was inherited from a refactor that consolidated the
+      // endpoints, and the wrong path silently 404s back.
+      await api.delete(`/library/bookmarks/${bookmarkId}`, {
         data: { collectionIds },
       })
 

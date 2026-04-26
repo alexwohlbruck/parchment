@@ -45,7 +45,6 @@ export enum CommandName {
   CHOOSE_MAP_ENGINE = 'chooseMapEngine',
   MAP_PROJECTION = 'mapProjection',
   OPEN_HOTKEYS_MENU = 'openHotkeysMenu',
-  OPEN_SETTINGS = 'openSettings',
   UPDATE_LANGUAGE = 'updateLanguage',
   SIGN_OUT = 'signOut',
 }
@@ -366,20 +365,6 @@ export const useCommandStore = defineStore('command', () => {
         },
       },
       {
-        id: CommandName.OPEN_SETTINGS,
-        name: t('palette.commands.openSettings.name'),
-        description: t('palette.commands.openSettings.description'),
-        keywords: t('palette.commands.openSettings.keywords'),
-        hotkey: [','],
-        icon: SettingsIcon,
-        action: () => {
-          const current = router.currentRoute.value
-          if (current.matched.some(r => r.name === AppRoute.SETTINGS)) return
-
-          router.push({ name: AppRoute.SETTINGS })
-        },
-      },
-      {
         id: CommandName.UPDATE_LANGUAGE,
         name: t('palette.commands.updateLanguage.name'),
         description: t('palette.commands.updateLanguage.description'),
@@ -414,7 +399,7 @@ export const useCommandStore = defineStore('command', () => {
         description: t('palette.commands.signOut.description'),
         keywords: t('palette.commands.signOut.keywords'),
         icon: LogOutIcon,
-        action: authService.signOut,
+        action: authService.confirmAndSignOut,
       },
     ]
   })

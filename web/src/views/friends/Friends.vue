@@ -49,18 +49,27 @@ function handleSetupComplete() {
   friendsStore.loadAll()
 }
 
+// Pick the right dialog mode based on what the server knows about
+// this account. If the server already has identity keys (i.e. another
+// device set up this account before), the right flow is to IMPORT the
+// existing seed here — showing a setup dialog that mints a fresh seed
+// would leave the server's old identity orphaned. Without server-side
+// keys, the only path is to create a new identity.
+function openIdentityDialog() {
+  recoveryDialogMode.value = needsImport.value ? 'import' : 'setup'
+  showRecoveryKeyDialog.value = true
+}
+
 function handleAddFriend() {
   if (!isSetupComplete.value) {
-    recoveryDialogMode.value = 'setup'
-    showRecoveryKeyDialog.value = true
+    openIdentityDialog()
   } else {
     showAddFriendDialog.value = true
   }
 }
 
 function handleSetupIdentity() {
-  recoveryDialogMode.value = 'setup'
-  showRecoveryKeyDialog.value = true
+  openIdentityDialog()
 }
 </script>
 

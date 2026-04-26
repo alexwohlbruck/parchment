@@ -138,9 +138,12 @@ watch(
 // Esc closes the drawer. Gated on `show` because LeftSheet is permanently
 // mounted — without the guard, pressing esc on the map root (with no
 // subview open) would still fire and trigger a home navigation.
+// preventDefault: false so esc still reaches Reka UI dialogs above (e.g.
+// the settings dialog) when this sheet is hidden.
 useHotkeys([
   {
     key: 'esc',
+    preventDefault: false,
     handler: () => {
       if (!props.show) return
       emit('home')

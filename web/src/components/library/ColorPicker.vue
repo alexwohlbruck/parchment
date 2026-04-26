@@ -25,21 +25,28 @@ const selectedColorClasses = computed(() => {
   return getThemeColorClasses(props.modelValue as ThemeColor)
 })
 
-// Predefined color options
+// Predefined color options. Aligned with `themeColors` in IconPicker —
+// kept in sync because both end up persisted as the same `iconColor`
+// field on collections / bookmarks.
 const colorOptions: ThemeColor[] = [
-  // Main colors
-  'blue',
-  'green',
   'red',
-  'yellow',
   'orange',
+  'amber',
+  'yellow',
+  'lime',
+  'green',
+  'emerald',
+  'teal',
+  'cyan',
+  'sky',
+  'blue',
+  'indigo',
   'violet',
+  'purple',
+  'fuchsia',
+  'pink',
   'rose',
-  // Neutrals
   'slate',
-  'gray',
-  'zinc',
-  'stone',
   'neutral',
 ]
 

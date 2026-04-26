@@ -118,6 +118,7 @@ onMounted(async () => {
 
     <div v-else>
       <SettingsSection
+        id="integrations"
         :title="t('settings.integrations.title')"
         :description="t('settings.integrations.description')"
         :frame="false"

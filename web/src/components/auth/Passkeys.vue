@@ -296,6 +296,7 @@ watch(passkeyListVersion, async () => {
 
 <template>
   <SettingsSection
+    id="passkeys"
     :title="$t('settings.account.passkeys.title')"
     :frame="false"
   >

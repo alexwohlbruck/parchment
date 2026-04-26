@@ -137,6 +137,51 @@ export function getThemeColorClasses(color: ThemeColor): string {
 }
 
 /**
+ * Ghost (soft-tinted) variant of getThemeColorClasses — lower-contrast
+ * background and saturated foreground, with light/dark variants. Use for
+ * icon tiles where the colour is decorative rather than primary content
+ * (settings nav, place categories, etc.). Static map so Tailwind's
+ * scanner picks up every variant.
+ */
+export function getThemeColorGhostClasses(color: ThemeColor): string {
+  const colorClasses: Record<ThemeColor, string> = {
+    red: 'bg-red-500/10 text-red-700 dark:bg-red-500/20 dark:text-red-300',
+    orange:
+      'bg-orange-500/10 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300',
+    amber:
+      'bg-amber-500/10 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+    yellow:
+      'bg-yellow-500/10 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300',
+    lime: 'bg-lime-500/10 text-lime-700 dark:bg-lime-500/20 dark:text-lime-300',
+    green:
+      'bg-green-500/10 text-green-700 dark:bg-green-500/20 dark:text-green-300',
+    emerald:
+      'bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+    teal: 'bg-teal-500/10 text-teal-700 dark:bg-teal-500/20 dark:text-teal-300',
+    cyan: 'bg-cyan-500/10 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-300',
+    sky: 'bg-sky-500/10 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300',
+    blue: 'bg-blue-500/10 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300',
+    indigo:
+      'bg-indigo-500/10 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300',
+    violet:
+      'bg-violet-500/10 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300',
+    purple:
+      'bg-purple-500/10 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300',
+    fuchsia:
+      'bg-fuchsia-500/10 text-fuchsia-700 dark:bg-fuchsia-500/20 dark:text-fuchsia-300',
+    pink: 'bg-pink-500/10 text-pink-700 dark:bg-pink-500/20 dark:text-pink-300',
+    rose: 'bg-rose-500/10 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300',
+    slate:
+      'bg-slate-500/10 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300',
+    neutral:
+      'bg-neutral-500/10 text-neutral-700 dark:bg-neutral-500/20 dark:text-neutral-300',
+    primary: 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary',
+  }
+
+  return colorClasses[color] ?? colorClasses.blue
+}
+
+/**
  * Reference hue (HSL, 0-360) for each ThemeColor that has one. The
  * neutrals (`slate`, `neutral`, `primary`) are intentionally null —
  * they're matched by saturation, not hue, in `closestThemeColor`.

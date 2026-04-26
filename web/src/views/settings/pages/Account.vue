@@ -93,7 +93,7 @@ async function saveName() {
 <template>
   <div class="flex flex-col gap-4">
     <template v-if="me">
-      <SettingsSection :title="$t('settings.account.user.title')">
+      <SettingsSection id="user" :title="$t('settings.account.user.title')">
         <div class="flex items-center gap-2 w-full">
           <Avatar v-if="me.picture" size="sm">
             <AvatarImage :src="me.picture" :alt="me.email" />

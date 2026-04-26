@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
 import { useI18n } from 'vue-i18n'
 import { toast } from 'vue-sonner'
 import { cn } from '@/lib/utils'
@@ -84,6 +85,17 @@ useHotkeys([
     name: t('palette.commands.search.name'),
     description: t('palette.commands.search.description'),
     handler: () => openPalette(),
+  },
+  {
+    id: HotkeyId.OPEN_SETTINGS,
+    key: [','],
+    name: t('settings.title'),
+    description: t('settings.openHotkeyDescription'),
+    handler: () => {
+      const current = router.currentRoute.value
+      if (current.matched.some(r => r.name === AppRoute.SETTINGS)) return
+      router.push({ name: AppRoute.SETTINGS })
+    },
   },
 ])
 
@@ -270,7 +282,6 @@ const items = computed<MenuItemDefinition[]>(() => [
       {
         label: t('settings.title'),
         icon: SettingsIcon,
-        commandId: CommandName.OPEN_SETTINGS,
         to: '/settings',
       },
     ],

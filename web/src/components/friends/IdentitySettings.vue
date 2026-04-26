@@ -210,6 +210,7 @@ function handleSetupComplete() {
          the high-stakes security actions (things that nuke data). -->
     <template v-else>
       <SettingsSection
+        id="identity"
         :title="t('friends.identity.title')"
         :description="t('friends.identity.configuredDescription')"
       >
@@ -274,6 +275,7 @@ function handleSetupComplete() {
       </SettingsSection>
 
       <SettingsSection
+        id="security"
         :title="t('friends.security.title')"
         :description="t('friends.security.description')"
       >

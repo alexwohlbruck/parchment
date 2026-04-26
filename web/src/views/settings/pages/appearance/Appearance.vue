@@ -48,7 +48,10 @@ const handleColorChange = (value: any) => {
 
 <template>
   <div class="flex flex-col gap-4 w-fit">
-    <SettingsSection :title="$t('settings.appearance.appTheme.title')">
+    <SettingsSection
+      id="app-theme"
+      :title="$t('settings.appearance.appTheme.title')"
+    >
       <SettingsItem :title="$t('settings.appearance.appTheme.color.title')">
         <Select
           :model-value="accentColor"
@@ -115,7 +118,10 @@ const handleColorChange = (value: any) => {
       </SettingsItem>
     </SettingsSection>
 
-    <SettingsSection :title="$t('settings.appearance.mapTheme.title')">
+    <SettingsSection
+      id="map-theme"
+      :title="$t('settings.appearance.mapTheme.title')"
+    >
       <SettingsItem :title="$t('settings.appearance.mapTheme.title')">
         <Select v-model="mapTheme">
           <SelectTrigger class="w-fit">

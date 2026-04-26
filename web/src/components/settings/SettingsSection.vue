@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
 interface Props {
+  id?: string
   title?: string
   description?: string
   frame?: boolean
@@ -20,8 +21,21 @@ const {
 </script>
 
 <template>
-  <div :class="cn('flex flex-col gap-2 w-full', className)">
-    <div v-if="title || description" class="flex justify-between items-center">
+  <div
+    :id="id"
+    data-settings-section
+    :data-section-id="id"
+    :class="
+      cn(
+        'flex flex-col gap-2 w-full settings-section-target',
+        className,
+      )
+    "
+  >
+    <div
+      v-if="title || description"
+      class="sticky top-0 z-10 -mx-2 px-2 pt-2 pb-1.5 flex justify-between items-center bg-background border-b border-border"
+    >
       <div>
         <H5 v-if="title">{{ title }}</H5>
         <Caption v-if="description">{{ description }}</Caption>
@@ -38,3 +52,13 @@ const {
     </div>
   </div>
 </template>
+
+<style scoped>
+.settings-section-target {
+  transition: box-shadow 0.5s ease-out;
+}
+.settings-section-target.is-flashing {
+  box-shadow: 0 0 0 4px rgb(from var(--primary) r g b / 0.18);
+  border-radius: var(--radius);
+}
+</style>

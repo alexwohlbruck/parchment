@@ -64,7 +64,10 @@ const isMaplibre = computed(() => settings.value.engine === MapEngine.MAPLIBRE)
 <template>
   <div class="flex flex-col gap-4 w-fit items-start">
     <!-- Map configuration -->
-    <SettingsSection :title="$t('settings.mapSettings.configuration.title')">
+    <SettingsSection
+      id="configuration"
+      :title="$t('settings.mapSettings.configuration.title')"
+    >
       <SettingsItem
         v-if="engineCommand"
         :title="engineCommand.name"
@@ -206,7 +209,10 @@ const isMaplibre = computed(() => settings.value.engine === MapEngine.MAPLIBRE)
     </SettingsSection>
 
     <!-- Map controls visibility -->
-    <SettingsSection :title="$t('settings.mapSettings.controls.title')">
+    <SettingsSection
+      id="controls"
+      :title="$t('settings.mapSettings.controls.title')"
+    >
       <SettingsItem
         :title="$t('settings.mapSettings.controls.zoom')"
         :icon="ZoomInIcon"
@@ -377,7 +383,10 @@ const isMaplibre = computed(() => settings.value.engine === MapEngine.MAPLIBRE)
       </SettingsItem>
     </SettingsSection>
 
-    <SettingsSection :title="$t('settings.mapSettings.style.title')">
+    <SettingsSection
+      id="style"
+      :title="$t('settings.mapSettings.style.title')"
+    >
       <SettingsItem
         :title="$t('settings.mapSettings.style.mapStyle')"
         :description="

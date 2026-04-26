@@ -12,6 +12,12 @@ interface HotkeyBinding {
   id?: string
   name?: string // Required if id is provided
   description?: string // Required if id is provided
+  // Whether to call event.preventDefault() before invoking the handler.
+  // Defaults to true for backwards compatibility, but should be set to
+  // false for keys whose default behaviour we want to preserve when our
+  // handler is a no-op (e.g. an `esc` binding gated on a v-if'd panel —
+  // unconditional preventDefault would swallow Reka UI's dialog close).
+  preventDefault?: boolean
 }
 
 /**
@@ -39,23 +45,25 @@ export function useHotkeys(bindings: HotkeyBinding | HotkeyBinding[]) {
   onMounted(() => {
     const bindingArray = Array.isArray(bindings) ? bindings : [bindings]
 
-    bindingArray.forEach(({ key, handler, id, name, description }) => {
-      // Register binding in the store (handles ephemeral hotkey registration)
-      const mousetrapKey = hotkeyStore.registerBinding(
-        id,
-        key,
-        handler,
-        name,
-        description,
-        componentName,
-      )
+    bindingArray.forEach(
+      ({ key, handler, id, name, description, preventDefault = true }) => {
+        // Register binding in the store (handles ephemeral hotkey registration)
+        const mousetrapKey = hotkeyStore.registerBinding(
+          id,
+          key,
+          handler,
+          name,
+          description,
+          componentName,
+        )
 
-      // Bind to mousetrap
-      mousetrap.bind(mousetrapKey, e => {
-        e.preventDefault()
-        handler()
-      })
-    })
+        // Bind to mousetrap
+        mousetrap.bind(mousetrapKey, e => {
+          if (preventDefault) e.preventDefault()
+          handler()
+        })
+      },
+    )
   })
 
   onUnmounted(() => {

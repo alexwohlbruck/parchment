@@ -60,6 +60,10 @@ function keepDefaultView(to, from) {
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
+  // Settings hash navigation is handled inside useSettingsScrollTarget
+  // because the same Settings tree is rendered twice in the DOM (dialog
+  // + LeftSheet) and Vue Router's `document.querySelector(hash)` would
+  // hit the off-screen copy.
   routes: [
     {
       path: '/signin',

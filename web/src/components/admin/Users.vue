@@ -135,7 +135,11 @@ onMounted(getUsers)
 </script>
 
 <template>
-  <SettingsSection :title="$t('settings.users.users.title')" :frame="false">
+  <SettingsSection
+    id="users"
+    :title="$t('settings.users.users.title')"
+    :frame="false"
+  >
     <template v-slot:actions>
       <Button
         v-if="authService.hasPermission(PermissionId.USERS_CREATE)"

@@ -38,6 +38,7 @@ onMounted(getPermissions)
 
 <template>
   <SettingsSection
+    id="permissions"
     :title="t('settings.users.permissions.title')"
     :frame="false"
   >

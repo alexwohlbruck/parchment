@@ -163,11 +163,6 @@
         "name": "Atajos de teclado",
         "description": "Ver todos los atajos de teclado disponibles"
       },
-      "openSettings": {
-        "name": "Abrir configuración",
-        "description": "Abrir la página de configuración",
-        "keywords": "configuración preferencias config"
-      },
       "updateLanguage": {
         "name": "Cambiar idioma",
         "description": "Cambiar el idioma de la aplicación",
@@ -886,6 +881,12 @@
   "settings": {
     "title": "Configuración",
     "description": "Administra la configuración de tu cuenta y el comportamiento de la aplicación",
+    "search": {
+      "placeholder": "Buscar configuración…",
+      "clear": "Limpiar búsqueda",
+      "noResults": "Sin resultados"
+    },
+    "openHotkeyDescription": "Abrir la página de configuración",
     "account": {
       "title": "Cuenta",
       "user": {

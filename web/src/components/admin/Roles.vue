@@ -68,7 +68,11 @@ onMounted(getRoles)
 </script>
 
 <template>
-  <SettingsSection :title="$t('settings.users.roles.title')" :frame="false">
+  <SettingsSection
+    id="roles"
+    :title="$t('settings.users.roles.title')"
+    :frame="false"
+  >
     <DataTable class="w-full" :columns="columns" :data="roles"></DataTable>
   </SettingsSection>
 </template>

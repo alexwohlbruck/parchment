@@ -7,6 +7,7 @@ export enum HotkeyId {
   TOGGLE_NAV_MINI = 'toggle-nav-mini',
   COMMAND_PALETTE = 'command-palette',
   SEARCH = 'search',
+  OPEN_SETTINGS = 'open-settings',
 }
 
 export interface EphemeralHotkey {

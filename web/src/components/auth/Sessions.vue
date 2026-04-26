@@ -158,6 +158,7 @@ async function signOutOthers() {
 
 <template>
   <SettingsSection
+    id="sessions"
     :title="$t('settings.account.sessions.title')"
     :frame="false"
   >

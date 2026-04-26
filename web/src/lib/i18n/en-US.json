@@ -177,11 +177,6 @@
           }
         }
       },
-      "openSettings": {
-        "name": "Open settings",
-        "description": "Open the settings page",
-        "keywords": "settings preferences config"
-      },
       "signOut": {
         "name": "Sign out",
         "description": "Sign out of your account",
@@ -919,6 +914,12 @@
   },
   "settings": {
     "title": "Settings",
+    "search": {
+      "placeholder": "Search settings…",
+      "clear": "Clear search",
+      "noResults": "No matching settings"
+    },
+    "openHotkeyDescription": "Open the settings page",
     "account": {
       "title": "Account",
       "user": {

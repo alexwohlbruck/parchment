@@ -12,6 +12,7 @@ import {
 } from 'reka-ui'
 import { cn } from '@/lib/utils'
 import DialogOverlay from './DialogOverlay.vue'
+import Button from '@/components/ui/button/Button.vue'
 
 const props = defineProps<
   DialogContentProps & {
@@ -43,12 +44,18 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
     >
       <slot />
 
-      <DialogClose
-        v-if="props.showCloseButton"
-        class="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
-      >
-        <X />
-        <span class="sr-only">Close</span>
+      <!-- Match the BottomSheet close button style: secondary pill in the
+           top-right corner. Keeps the close affordance consistent across
+           every modal surface in the app. -->
+      <DialogClose v-if="props.showCloseButton" as-child>
+        <Button
+          variant="secondary"
+          size="icon-sm"
+          class="rounded-full absolute top-2 right-2 z-50"
+          aria-label="Close"
+        >
+          <X class="size-4" />
+        </Button>
       </DialogClose>
     </DialogContent>
   </DialogPortal>

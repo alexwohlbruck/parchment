@@ -1,22 +1,46 @@
 ### Added
-- Barrelman tile server support — new integration renders self-hosted vector tiles with the OpenMapTiles schema, bundled with `osm-liberty` and `openmaptiles-default` styles and a basemap style config system
-- Nested layer groups — hierarchical layer organization with clone-on-modify semantics, backed by server-side defaults (cycling, transit, mapillary, friends) and DB migrations `0024_layers_unified_model` through `0027`
-- Fade basemap option — per-layer toggle that dims the underlying basemap when a layer is active, wired into `layer-visibility` service
-- Refined cycling layer — expanded style rules covering bike lanes, trails, and route hierarchy, served through a new server-side tile proxy endpoint
-- Unified routing adapters — `barrelman-graphhopper` and `barrelman-valhalla` adapters plus a shared `unified-routing.types` surface, letting trips use Barrelman, GraphHopper, or Valhalla interchangeably
-- Custom GraphHopper profile for inner-city street speed limits, with a reusable `graphhopper-custom-model` builder
-- Routing preferences UI overhaul — per-profile color system (`route-profile-colors`), richer elevation chart, and new layer-group helpers
-- Draggable waypoint markers on the trip detail view, backed by `waypoints-layer` and `base-marker-layer` drag handlers
-- Unified floating nav buttons across the drawer UI — new `SheetActionButtons` component used consistently by `BottomSheet`, `LeftSheet`, place, trip, friend, and collection views
-- Smooth map padding transitions — map viewport animates in sync with drawer open/close via new `map-padding` utility
+
+* Realtime system — server-side update pipeline plus web client manager and store handlers for live data sync
+* Federated collection sharing — full sharing model with roles, resharing policies, public links, and federated identity support
+* Google Docs–style Share Dialog — unified sharing UI with access list, avatars, real names, and public link controls
+* Public link lifecycle — mint, revoke, and unauthenticated resolver endpoints
+* Versioned collection keys — key rotation orchestrator and scheme-aware encryption support
+* Dual-scheme integrations — support for multiple encryption schemes with client hydration and persistence
+* Dawarich integration scaffold — E2EE-only integration plumbing and config schema
+* Icon system expansion — Lucide alias search, Maki icons tab, and extended icon color options
+* Virtualized icon picker — performant large icon grids via virtualization
+* Settings search — fuzzy search for faster navigation
+* Theme system expansion — extended palette, accent-aware neutrals, and additional theme options
+* Toast improvements — ghost-style actions and contextual “View” actions
+* Bookmark UX enhancements — collection picker, state badging, and improved interaction flows
 
 ### Changed
-- Layers system refactor — split monolithic `layer.constants.ts` into per-feature modules (`core-layers`, `cycling-layers`, `transit-layers`, `mapillary-layers`, `user-layer-templates`, etc.) and moved defaults server-side
-- `LayerConfiguration` / `LayerGroupConfiguration` rebuilt around the new unified layer model and nested group semantics
-- `RoutingPreferences` view rewritten to support multi-provider routing and the new profile color scheme
-- `TripDetail` view restructured with improved waypoint handling and elevation chart integration
-- Obstructing component logic in `useObstructingComponent` simplified and made reactive to drawer transitions
-- UI spacing pass — tightened `BottomSheet`, `LeftSheet`, `MobileNavigation`, responsive dropdown/popover/dialog, and integrations page padding
+
+* Settings UI overhaul — colored icons, submenu structure, and improved navigation
+* Share system refactor — replaced legacy dialogs with a unified Share Dialog
+* Collections model — now uses last-saved pointer instead of default collection
+* Bookmark behavior — second click now performs silent un-save and move
+* Icon system wiring — consistent usage across bookmarks and collections
+* Integration system refactor — scheme-aware CRUD, filtering, and hydration
+* i18n expansion — identity, auth, and key management strings localized (en/es)
+* Security UX — “Security” reframed as “Encryption keys” with clearer flows and warnings
+* Passkey flow — consolidated to single biometric with automatic encrypted data restore
+* Account and dialogs UI polish — tighter layouts, clearer states, improved copy across settings and recovery flows
+* Alerts and theming — semantic variants, dark mode support, and refined color scales
 
 ### Fixed
-- GraphHopper profile data issues — corrected custom-model serialization and downstream elevation/segment parsing in `TripDetail` and `directions.store`
+
+* Bookmark write-gate vulnerability and related i18n key issue
+* Remove-from-collection endpoint URL bug
+* Collection picker ordering instability while open
+* Cleanup of orphaned peer state after E2EE identity reset
+* Integration controller error handling (distinguish known vs unexpected errors)
+* Dependents endpoint scoping and userId leak
+* Device-transfer race condition during sealed-seed upload
+* Crypto boot checks and environment configuration reliability
+
+### Removed
+
+* Legacy ShareWithFriendDialog in favor of unified sharing flow
+* Unused v1 location encryption helpers and stale TODO / placeholder code
+* Location history tracking system

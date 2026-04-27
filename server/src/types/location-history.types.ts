@@ -83,3 +83,45 @@ export interface LocationHistoryRequest {
   /** IANA timezone, used to bucket `dailyStats` correctly. Defaults to UTC. */
   timezone?: string
 }
+
+/**
+ * "You've been here N times" — past-visit aggregate at a specific
+ * coordinate, surfaced on the place-detail page. Looked up by lat/lng
+ * (within a small radius) since OSM IDs aren't queryable from Dawarich.
+ */
+export interface PlaceVisitHistoryRequest {
+  lat: number
+  lng: number
+  /** Search radius in meters. Defaults to ~75 m server-side. */
+  radius?: number
+  /** Cap on `recentVisits.length` to keep payloads small. Defaults to 5. */
+  recentLimit?: number
+}
+
+export interface PlaceVisitSummary {
+  id: string
+  startTime: string // ISO 8601
+  endTime: string // ISO 8601
+  duration: number // seconds
+}
+
+export interface PlaceVisitHistory {
+  /** Total times the user has visited this place. 0 if no match. */
+  totalVisits: number
+  /** Most recent visit start time, or null if never visited. */
+  lastVisit: string | null
+  /** Earliest visit start time, or null if never visited. */
+  firstVisit: string | null
+  /** Sum of all visit durations in seconds. */
+  totalDuration: number
+  /**
+   * Most-recent visits, capped at `request.recentLimit`. Newest first.
+   * May be empty even when `totalVisits > 0` if the upstream couldn't
+   * resolve individual visits cheaply (e.g. very large place histories).
+   */
+  recentVisits: PlaceVisitSummary[]
+  source: {
+    integrationId: IntegrationId
+    instanceUrlHash?: string
+  }
+}

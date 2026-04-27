@@ -56,7 +56,8 @@
     },
     "locationHistory": {
       "rangeInvalid": "La hora de inicio debe ser anterior a la hora de fin",
-      "rangeRequired": "Se requieren las horas de inicio y fin"
+      "rangeRequired": "Se requieren las horas de inicio y fin",
+      "coordinatesRequired": "Se requieren los parámetros lat y lng"
     },
     "geocoding": {
       "queryRequired": "Se requiere el parámetro de consulta",

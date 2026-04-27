@@ -87,4 +87,73 @@ locationHistoryRouter.use(requireIntegrationCredentials).get(
   },
 )
 
+/**
+ * GET /location-history/place
+ *
+ * "You've been here N times" — visit-history aggregate at a coordinate,
+ * surfaced on the place-detail page. Same e2ee passthrough pattern as the
+ * main timeline endpoint above.
+ */
+locationHistoryRouter.use(requireIntegrationCredentials).get(
+  '/place',
+  async ({ integrationCredentials, query, status, t }) => {
+    const lat = Number.parseFloat(query.lat)
+    const lng = Number.parseFloat(query.lng)
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return status(400, {
+        message: t('errors.locationHistory.coordinatesRequired'),
+      })
+    }
+
+    const radius = query.radius ? Number.parseFloat(query.radius) : undefined
+    const recentLimit = query.recentLimit
+      ? Number.parseInt(query.recentLimit, 10)
+      : undefined
+
+    try {
+      const { integrationManager } = await import('../services/integrations')
+      const { IntegrationId } = await import('../types/integration.enums')
+      const integration = integrationManager
+        .getIntegrationRegistry()
+        .getIntegration(IntegrationId.DAWARICH)
+
+      if (!integration?.capabilities.locationHistory) {
+        return status(503, { message: t('errors.integration.unavailable') })
+      }
+
+      return await integration.capabilities.locationHistory.getPlaceVisitHistory(
+        integrationCredentials,
+        {
+          lat,
+          lng,
+          ...(radius !== undefined && Number.isFinite(radius) ? { radius } : {}),
+          ...(recentLimit !== undefined && Number.isFinite(recentLimit)
+            ? { recentLimit }
+            : {}),
+        },
+      )
+    } catch (err: any) {
+      logger.error(
+        {
+          err: {
+            message: err?.message,
+            code: err?.code,
+            status: err?.response?.status,
+          },
+        },
+        'place-visit-history fetch failed',
+      )
+      return status(502, { message: t('errors.integration.failed') })
+    }
+  },
+  {
+    query: t.Object({
+      lat: t.String(),
+      lng: t.String(),
+      radius: t.Optional(t.String()),
+      recentLimit: t.Optional(t.String()),
+    }),
+  },
+)
+
 export default locationHistoryRouter

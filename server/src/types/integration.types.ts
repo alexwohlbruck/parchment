@@ -14,6 +14,8 @@ import {
 import type {
   LocationHistory,
   LocationHistoryRequest,
+  PlaceVisitHistory,
+  PlaceVisitHistoryRequest,
 } from './location-history.types'
 
 export {
@@ -311,6 +313,15 @@ export interface LocationHistoryCapability {
     credentials: IntegrationCredentials,
     request: LocationHistoryRequest,
   ): Promise<LocationHistory>
+  /**
+   * Aggregate visit history at a coordinate — backs the "You've been here
+   * N times" widget on the place-detail page. Resolves by proximity since
+   * OSM IDs aren't queryable on Dawarich.
+   */
+  getPlaceVisitHistory(
+    credentials: IntegrationCredentials,
+    request: PlaceVisitHistoryRequest,
+  ): Promise<PlaceVisitHistory>
 }
 
 // Integration capabilities container

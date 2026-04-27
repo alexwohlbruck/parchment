@@ -56,7 +56,8 @@
     },
     "locationHistory": {
       "rangeInvalid": "Start time must be before end time",
-      "rangeRequired": "Start and end times are required"
+      "rangeRequired": "Start and end times are required",
+      "coordinatesRequired": "lat and lng query params are required"
     },
     "geocoding": {
       "queryRequired": "Query parameter is required",

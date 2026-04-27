@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import axios, { type AxiosInstance } from 'axios'
 import {
   IntegrationConfig,
@@ -11,6 +12,9 @@ import {
 import type {
   LocationHistory,
   LocationHistoryRequest,
+  PlaceVisitHistory,
+  PlaceVisitHistoryRequest,
+  PlaceVisitSummary,
 } from '../../types/location-history.types'
 import type { Coordinate } from '../../types/unified-routing.types'
 import {
@@ -39,6 +43,14 @@ const DEFAULT_TIMEOUT_MS = 15_000
  * ranges into 31-day windows and fire them in parallel.
  */
 const TIMELINE_MAX_DAYS = 31
+/**
+ * Default radius for matching an OSM place against a Dawarich-recorded
+ * place. Tight enough that two adjacent storefronts don't collide; loose
+ * enough to absorb Dawarich's geocoder centroid wobble.
+ */
+const DEFAULT_PLACE_RADIUS_M = 75
+/** Hard cap on `/api/v1/places` paging — protects heavy users from runaway loops. */
+const MAX_PLACES_PAGES = 20
 
 export class DawarichIntegration
   implements Integration<DawarichConfig>, LocationHistoryCapability
@@ -48,6 +60,7 @@ export class DawarichIntegration
   readonly capabilities = {
     locationHistory: {
       getLocationHistory: this.getLocationHistory.bind(this),
+      getPlaceVisitHistory: this.getPlaceVisitHistory.bind(this),
     } satisfies LocationHistoryCapability,
   }
 
@@ -174,6 +187,100 @@ export class DawarichIntegration
     })
   }
 
+  /**
+   * "You've been here N times" — Dawarich has no `place_id` filter on the
+   * visits index, so we resolve a place by lat/lng proximity, then pull
+   * visits at that place via the only spatial filter the API exposes
+   * (`selection=true&sw_lat&sw_lng&ne_lat&ne_lng`).
+   *
+   * Two upstream calls in the worst case:
+   *   1. `/api/v1/places` (paginated) → match the closest place within
+   *      `radius` to our requested coordinate. `visits_count` from the
+   *      match gives us the total without listing visits.
+   *   2. `/api/v1/visits?selection=true&...` over a tight bbox → first /
+   *      last / recent visits at that place, filtered by `place.id`.
+   *
+   * Returns an empty history (`totalVisits: 0`, no recents) when no
+   * matching place exists yet.
+   */
+  async getPlaceVisitHistory(
+    credentials: IntegrationCredentials,
+    request: PlaceVisitHistoryRequest,
+  ): Promise<PlaceVisitHistory> {
+    const client = this.buildClient(credentials)
+    const radiusM = request.radius ?? DEFAULT_PLACE_RADIUS_M
+    const recentLimit = Math.max(1, request.recentLimit ?? 5)
+
+    const empty = (totalVisits = 0): PlaceVisitHistory => ({
+      totalVisits,
+      lastVisit: null,
+      firstVisit: null,
+      totalDuration: 0,
+      recentVisits: [],
+      source: {
+        integrationId: IntegrationId.DAWARICH,
+        instanceUrlHash: hashInstanceUrl(credentials.endpoint),
+      },
+    })
+
+    const matchedPlace = await this.findClosestPlace(
+      client,
+      request.lat,
+      request.lng,
+      radiusM,
+    )
+    if (!matchedPlace) return empty()
+
+    const visits = await this.fetchVisitsAround(
+      client,
+      request.lat,
+      request.lng,
+      radiusM,
+    )
+    // The bbox query may include neighbouring places; filter to ours.
+    const ownVisits = visits.filter((v) => v.place?.id === matchedPlace.id)
+
+    if (ownVisits.length === 0) {
+      // We at least know the count from `/places` — show that.
+      return empty(matchedPlace.visits_count ?? 0)
+    }
+
+    const sorted = [...ownVisits].sort(
+      (a, b) => Date.parse(b.started_at) - Date.parse(a.started_at),
+    )
+
+    const totalDuration = sorted.reduce((sum, v) => {
+      const ms = Date.parse(v.ended_at) - Date.parse(v.started_at)
+      return sum + Math.max(0, Math.round(ms / 1000))
+    }, 0)
+
+    const recentVisits: PlaceVisitSummary[] = sorted
+      .slice(0, recentLimit)
+      .map((v) => ({
+        id: `dawarich-visit-${v.id}`,
+        startTime: v.started_at,
+        endTime: v.ended_at,
+        duration: Math.max(
+          0,
+          Math.round(
+            (Date.parse(v.ended_at) - Date.parse(v.started_at)) / 1000,
+          ),
+        ),
+      }))
+
+    return {
+      totalVisits: matchedPlace.visits_count ?? sorted.length,
+      lastVisit: sorted[0].started_at,
+      firstVisit: sorted[sorted.length - 1].started_at,
+      totalDuration,
+      recentVisits,
+      source: {
+        integrationId: IntegrationId.DAWARICH,
+        instanceUrlHash: hashInstanceUrl(credentials.endpoint),
+      },
+    }
+  }
+
   // ── HTTP ──────────────────────────────────────────────────────────────────
 
   private buildClient(credentials: IntegrationCredentials): AxiosInstance {
@@ -259,6 +366,132 @@ export class DawarichIntegration
 
     return { type: 'FeatureCollection', features }
   }
+
+  /**
+   * Page through `/api/v1/places` and return the closest stored place to
+   * `lat`/`lng` within `radiusM`. Distance computed via Haversine on the
+   * place's `latitude`/`longitude`. Returns null when nothing matches.
+   */
+  private async findClosestPlace(
+    client: AxiosInstance,
+    lat: number,
+    lng: number,
+    radiusM: number,
+  ): Promise<DawarichPlace | null> {
+    let best: { place: DawarichPlace; distM: number } | null = null
+    let page = 1
+    while (page <= MAX_PLACES_PAGES) {
+      const response = await client.get<DawarichPlace[]>('/api/v1/places', {
+        params: { page, per_page: 500 },
+      })
+      const { data, headers } = response
+      const places = Array.isArray(data) ? data : []
+      for (const p of places) {
+        if (typeof p.latitude !== 'number' || typeof p.longitude !== 'number') {
+          continue
+        }
+        const d = haversineMeters(lat, lng, p.latitude, p.longitude)
+        if (d <= radiusM && (!best || d < best.distM)) {
+          best = { place: p, distM: d }
+        }
+      }
+      const totalPages = Number.parseInt(
+        (headers['x-total-pages'] as string | undefined) ?? '1',
+        10,
+      )
+      if (page >= totalPages || !Number.isFinite(totalPages)) break
+      page++
+    }
+    return best?.place ?? null
+  }
+
+  /**
+   * `GET /api/v1/visits?selection=true&...` over a tight bbox around the
+   * coordinate. The bbox is the smallest spatial filter Dawarich exposes
+   * on the visits index — narrower than `radiusM` would be ideal but
+   * over-fetching by a few visits is cheap.
+   */
+  private async fetchVisitsAround(
+    client: AxiosInstance,
+    lat: number,
+    lng: number,
+    radiusM: number,
+  ): Promise<DawarichVisitsResponse> {
+    const dLat = radiusM / 111_320 // ≈ meters per degree latitude
+    const dLng = radiusM / (111_320 * Math.cos((lat * Math.PI) / 180) || 1)
+    const params = {
+      selection: 'true',
+      sw_lat: lat - dLat,
+      sw_lng: lng - dLng,
+      ne_lat: lat + dLat,
+      ne_lng: lng + dLng,
+      per_page: 500,
+    }
+
+    const visits: DawarichVisitsResponse = []
+    let page = 1
+    const MAX_PAGES = 10
+    while (page <= MAX_PAGES) {
+      const response = await client.get<DawarichVisitsResponse>(
+        '/api/v1/visits',
+        { params: { ...params, page } },
+      )
+      const data = Array.isArray(response.data) ? response.data : []
+      visits.push(...data)
+      const totalPages = Number.parseInt(
+        (response.headers['x-total-pages'] as string | undefined) ?? '1',
+        10,
+      )
+      if (page >= totalPages || !Number.isFinite(totalPages)) break
+      page++
+    }
+    return visits
+  }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+/** Subset of `/api/v1/places` response we use. */
+interface DawarichPlace {
+  id: number
+  name: string | null
+  latitude: number
+  longitude: number
+  visits_count: number | null
+}
+
+/** Subset of `/api/v1/visits` rows we need for the place-history aggregate. */
+type DawarichVisitsResponse = Array<{
+  id: number
+  started_at: string
+  ended_at: string
+  place: { id: number | null } | null
+}>
+
+/** Haversine distance in meters. */
+function haversineMeters(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): number {
+  const R = 6371000
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(a))
+}
+
+function hashInstanceUrl(url: string): string {
+  // Match the adapter's hashing — same 16-char SHA-256 truncation. Lets the
+  // client distinguish responses across instances without exposing the URL.
+  return createHash('sha256')
+    .update(url.replace(/\/+$/, ''))
+    .digest('hex')
+    .slice(0, 16)
 }
 
 /**

@@ -416,36 +416,46 @@ export class DawarichAdapter {
   /**
    * Map Dawarich's mode strings — `walking | running | cycling | driving |
    * bus | train | flying | boat | motorcycle | stationary | unknown` — onto
-   * the unified `TravelMode` enum. No speed-based fallback: if Dawarich says
-   * it doesn't know, we render WALKING as a placeholder rather than guessing.
+   * the unified `TravelMode` enum.
+   *
+   * Exact-match only: substring matching tripped on `motorcycle` (which
+   * contains `cycl`) silently classifying motorbike journeys as cycling.
+   * No speed-based fallback either — if Dawarich says it doesn't know, we
+   * render WALKING as a neutral placeholder rather than guessing.
    */
   private mapMode(dominant: string | null): TravelMode {
     if (!dominant) return TravelMode.WALKING
-    const lower = dominant.toLowerCase()
-    if (lower === 'walking' || lower === 'running' || lower.includes('foot'))
-      return TravelMode.WALKING
-    if (lower === 'cycling' || lower.includes('bik') || lower.includes('cycl'))
-      return TravelMode.CYCLING
-    if (lower === 'motorcycle') return TravelMode.MOTORCYCLE
-    if (lower === 'truck') return TravelMode.TRUCK
-    if (lower === 'wheelchair') return TravelMode.WHEELCHAIR
-    if (lower === 'driving' || lower === 'automotive' || lower === 'car')
-      return TravelMode.DRIVING
-    if (
-      lower === 'bus' ||
-      lower === 'train' ||
-      lower === 'tram' ||
-      lower === 'subway' ||
-      lower === 'rail' ||
-      lower === 'transit' ||
-      lower === 'boat' ||
-      lower === 'ferry' ||
-      lower === 'flying' ||
-      lower === 'plane' ||
-      lower === 'airplane'
-    )
-      return TravelMode.TRANSIT
-    return TravelMode.WALKING
+    switch (dominant.toLowerCase()) {
+      case 'walking':
+      case 'running':
+        return TravelMode.WALKING
+      case 'cycling':
+        return TravelMode.CYCLING
+      case 'motorcycle':
+        return TravelMode.MOTORCYCLE
+      case 'truck':
+        return TravelMode.TRUCK
+      case 'wheelchair':
+        return TravelMode.WHEELCHAIR
+      case 'driving':
+      case 'automotive':
+      case 'car':
+        return TravelMode.DRIVING
+      case 'bus':
+      case 'train':
+      case 'tram':
+      case 'subway':
+      case 'rail':
+      case 'transit':
+      case 'boat':
+      case 'ferry':
+      case 'flying':
+      case 'plane':
+      case 'airplane':
+        return TravelMode.TRANSIT
+      default:
+        return TravelMode.WALKING
+    }
   }
 
   /**

@@ -10,7 +10,7 @@ import type {
   LocationHistoryEntry,
 } from '@server/types/location-history.types'
 
-export type TimelineRangeMode = 'day' | 'custom'
+export type TimelineRangeMode = 'day' | 'range'
 
 export interface TimelineRange {
   start: Date
@@ -18,9 +18,10 @@ export interface TimelineRange {
   mode: TimelineRangeMode
 }
 
+/** Days of context the chart shows around the selected day. */
+const CHART_DAYS_BEFORE = 14
+const CHART_DAYS_AFTER = 14
 const CACHE_LIMIT = 8
-const cacheKey = (range: TimelineRange) =>
-  `${range.start.toISOString()}|${range.end.toISOString()}`
 
 function startOfLocalDay(d: Date): Date {
   const out = new Date(d)
@@ -34,9 +35,41 @@ function endOfLocalDay(d: Date): Date {
   return out
 }
 
+function addDays(d: Date, n: number): Date {
+  const out = new Date(d)
+  out.setDate(out.getDate() + n)
+  return out
+}
+
 export function dayRange(d: Date): TimelineRange {
   return { start: startOfLocalDay(d), end: endOfLocalDay(d), mode: 'day' }
 }
+
+export function customRange(start: Date, end: Date): TimelineRange {
+  return { start, end, mode: 'range' }
+}
+
+/**
+ * Window the daily-distance chart covers. Always at least
+ * `CHART_DAYS_BEFORE + CHART_DAYS_AFTER + 1` days centered on the entries
+ * range — keeps surrounding-day context visible even when the user is
+ * viewing a single day.
+ */
+function statsRangeFor(range: TimelineRange): { start: Date; end: Date } {
+  const minSpanMs =
+    (CHART_DAYS_BEFORE + CHART_DAYS_AFTER + 1) * 24 * 3600 * 1000
+  const span = range.end.getTime() - range.start.getTime()
+  if (span >= minSpanMs) return range
+  const midMs = range.start.getTime() + span / 2
+  const center = startOfLocalDay(new Date(midMs))
+  return {
+    start: addDays(center, -CHART_DAYS_BEFORE),
+    end: endOfLocalDay(addDays(center, CHART_DAYS_AFTER)),
+  }
+}
+
+const cacheKey = (range: TimelineRange) =>
+  `${range.start.toISOString()}|${range.end.toISOString()}`
 
 export const useTimelineStore = defineStore('timeline', () => {
   // ── State ─────────────────────────────────────────────────────────────────
@@ -45,10 +78,6 @@ export const useTimelineStore = defineStore('timeline', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  /**
-   * LRU-ish cache keyed by ISO range. Bounded to avoid unbounded memory when
-   * users skim through many days.
-   */
   const cache = new Map<string, LocationHistory>()
   let activeController: AbortController | null = null
 
@@ -87,7 +116,6 @@ export const useTimelineStore = defineStore('timeline', () => {
     const cached = cache.get(key)
     if (cached) {
       data.value = cached
-      // Refresh LRU position
       cache.delete(key)
       cache.set(key, cached)
       return
@@ -99,12 +127,14 @@ export const useTimelineStore = defineStore('timeline', () => {
     loading.value = true
 
     try {
+      const stats = statsRangeFor(range.value)
       const result = await fetchLocationHistory({
         start: range.value.start,
         end: range.value.end,
+        statsStart: stats.start,
+        statsEnd: stats.end,
         signal: controller.signal,
       })
-      // Drop stale results if the range changed mid-flight
       if (controller !== activeController) return
       data.value = result
       cache.set(key, result)

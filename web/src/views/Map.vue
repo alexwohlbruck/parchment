@@ -123,7 +123,12 @@ watch(isBottomSheetView, async isOpen => {
     bottomSheetOpen.value = isOpen
   } else {
     bottomSheetOpen.value = isOpen
-    router.push({ name: AppRoute.MAP })
+    // Don't redirect to MAP when leaving the bottom sheet by navigating to a
+    // dialog route (e.g. /settings/integrations). The user wants to stay at
+    // the dialog; pushing to MAP here would close it immediately.
+    if (!route.meta.dialog) {
+      router.push({ name: AppRoute.MAP })
+    }
   }
 })
 

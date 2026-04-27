@@ -49,6 +49,7 @@ export enum AppRoute {
   NOTE_CREATE = 'note-create',
   FRIENDS = 'friends',
   FRIEND_DETAIL = 'friend-detail',
+  TIMELINE = 'timeline',
   NOT_FOUND = 'not-found',
 }
 
@@ -186,6 +187,14 @@ const router = createRouter({
           name: AppRoute.FRIEND_DETAIL,
           component: () => import('@/views/friends/FriendDetail.vue'),
           props: true,
+          meta: {
+            auth: true,
+          },
+        },
+        {
+          path: '/timeline',
+          name: AppRoute.TIMELINE,
+          component: () => import('@/views/timeline/Timeline.vue'),
           meta: {
             auth: true,
           },

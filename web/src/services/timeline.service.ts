@@ -12,6 +12,9 @@ export class MissingDawarichConfigError extends Error {
 export interface FetchLocationHistoryArgs {
   start: Date
   end: Date
+  /** Wider range used to populate the daily-distance chart. */
+  statsStart?: Date
+  statsEnd?: Date
   /** IANA timezone for daily-stats bucketing. Defaults to the browser's. */
   timezone?: string
   /** Pass an AbortController.signal to cancel a stale request. */
@@ -36,12 +39,18 @@ export async function fetchLocationHistory(
   const timezone =
     args.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC'
 
+  const params: Record<string, string> = {
+    start: args.start.toISOString(),
+    end: args.end.toISOString(),
+    timezone,
+  }
+  if (args.statsStart && args.statsEnd) {
+    params.statsStart = args.statsStart.toISOString()
+    params.statsEnd = args.statsEnd.toISOString()
+  }
+
   const response = await api.get<LocationHistory>('/location-history', {
-    params: {
-      start: args.start.toISOString(),
-      end: args.end.toISOString(),
-      timezone,
-    },
+    params,
     headers: {
       'X-Integration-Endpoint': config.url,
       'X-Integration-Token': config.apiToken,

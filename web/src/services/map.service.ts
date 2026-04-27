@@ -23,6 +23,7 @@ import { usePlacePolygonLayerService } from '@/services/layers/features/place-po
 import { useSearchResultsLayerService } from '@/services/layers/features/search-results-layer.service'
 import { useMarkerLayersService } from '@/services/layers/markers/marker-layers.service'
 import { useNotesLayerService } from '@/services/layers/features/notes-layer.service'
+import { useTimelineLayerService } from '@/services/layers/features/timeline-layer.service'
 import { useAppStore } from '../stores/app.store'
 import { calculateFitPadding, type Padding } from '@/lib/map-padding'
 import { useDirectionsStore } from '@/stores/directions.store'
@@ -54,6 +55,7 @@ function mapService() {
   const searchResultsLayerService = useSearchResultsLayerService()
   const markerLayersService = useMarkerLayersService()
   const notesLayerService = useNotesLayerService()
+  const timelineLayerService = useTimelineLayerService()
   const appStore = useAppStore()
   const directionsStore = useDirectionsStore()
   const integrationsStore = useIntegrationsStore()
@@ -436,6 +438,12 @@ function mapService() {
 
       // Initialize notes layer for OSM notes overlay
       notesLayerService.initializeNotesLayer(mapStrategy)
+
+      // Initialize timeline layer (stops + path lines) — rendered when the
+      // /timeline page populates the timeline store. Pass the smart
+      // `fitBounds` so the route is framed inside the visible map area (not
+      // under the LeftSheet drawer) and re-fits once the drawer settles.
+      timelineLayerService.initializeTimelineLayer(mapStrategy, fitBounds)
 
       // Apply config properties AFTER all sources/layers are added,
       // because setConfigProperties modifies the map style (e.g. removeImport)

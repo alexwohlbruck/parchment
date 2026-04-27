@@ -134,6 +134,20 @@ function navigateToRoute(routeName: AppRoute) {
             <span class="font-medium text-sm">{{ t('friends.title') }}</span>
           </Card>
 
+          <!-- Timeline -->
+          <Card
+            class="p-3 flex flex-col items-start justify-between gap-1 hover:bg-card transition-colors cursor-pointer border shadow-none h-24"
+            @click="navigateTo('/timeline')"
+          >
+            <ItemIcon
+              icon="History"
+              color="orange"
+              size="sm"
+              variant="ghost"
+            />
+            <span class="font-medium text-sm">{{ t('timeline.title') }}</span>
+          </Card>
+
           <!-- Settings -->
           <Card
             class="p-3 flex flex-col items-start justify-between gap-1 hover:bg-card transition-colors cursor-pointer border shadow-none h-24"

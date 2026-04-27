@@ -475,6 +475,35 @@
   "customMaps": {
     "title": "Mapas personalizados"
   },
+  "timeline": {
+    "title": "Cronología",
+    "today": "Hoy",
+    "thisWeek": "Esta semana",
+    "thisMonth": "Este mes",
+    "selectDate": "Seleccionar fecha",
+    "customRange": "Rango personalizado",
+    "singleDay": "Un día",
+    "startTime": "Inicio",
+    "endTime": "Fin",
+    "noEvents": "No hay historial de ubicación para este rango",
+    "loadFailed": "No se pudo cargar la cronología",
+    "stop": "Parada",
+    "unnamedStop": "Ubicación sin nombre",
+    "duration": "{duration}",
+    "timeRange": "{start} – {end}",
+    "modeUnknown": "Viaje",
+    "noIntegration": {
+      "title": "Conecta un rastreador de ubicación",
+      "description": "Configura una integración de historial de ubicación para ver tu cronología.",
+      "details": "Tu configuración está cifrada de extremo a extremo — tus credenciales nunca salen de tu dispositivo sin cifrar.",
+      "configure": "Configurar integración"
+    },
+    "stats": {
+      "totalDistance": "{distance} km",
+      "totalStops": "{n} parada | {n} paradas",
+      "dailyDistance": "Distancia diaria"
+    }
+  },
   "friends": {
     "title": "Amigos",
     "addFriend": "Añadir amigo",
@@ -1262,7 +1291,8 @@
         "spatialChildren": "Lugares Secundarios",
         "searchAlongRoute": "Buscar en la ruta",
         "osmMapEdit": "Editar Mapa",
-        "tileServer": "Servidor de teselas"
+        "tileServer": "Servidor de teselas",
+        "locationHistory": "Historial de ubicación"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",

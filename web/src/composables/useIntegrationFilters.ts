@@ -10,6 +10,7 @@
  */
 import { computed, ref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import {
   IntegrationCapabilityId,
@@ -26,16 +27,38 @@ export interface ActiveFilter {
   label: string
 }
 
+/**
+ * Parse a `?capability=foo&capability=bar` (or comma-separated) query param
+ * into a list of valid `IntegrationCapabilityId` values. Lets other pages
+ * deep-link into the integrations page with a capability filter applied
+ * (e.g. the Timeline empty state preselects "Location History").
+ */
+function readCapabilityQuery(value: unknown): string[] {
+  const validIds = new Set<string>(Object.values(IntegrationCapabilityId))
+  const raw = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(',')
+      : []
+  return raw
+    .map((s) => String(s).trim())
+    .filter((s) => validIds.has(s))
+}
+
 export function useIntegrationFilters() {
   const { t } = useI18n()
+  const route = useRoute()
   const integrationStore = useIntegrationsStore()
   const { allIntegrations } = storeToRefs(integrationStore)
 
   // Search
   const searchQuery = ref('')
 
-  // Filter state
-  const selectedCapabilities = ref<string[]>([])
+  // Filter state — seed `selectedCapabilities` from `?capability=` so other
+  // pages can deep-link into a pre-filtered view.
+  const selectedCapabilities = ref<string[]>(
+    readCapabilityQuery(route.query.capability),
+  )
   const costFilter = ref<string[]>([])
   const hostingFilter = ref<string[]>([])
   const scopeFilter = ref<string[]>([])

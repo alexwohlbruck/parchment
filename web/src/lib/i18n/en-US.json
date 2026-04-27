@@ -509,6 +509,35 @@
   "customMaps": {
     "title": "Custom maps"
   },
+  "timeline": {
+    "title": "Timeline",
+    "today": "Today",
+    "thisWeek": "This week",
+    "thisMonth": "This month",
+    "selectDate": "Select date",
+    "customRange": "Custom range",
+    "singleDay": "Single day",
+    "startTime": "Start",
+    "endTime": "End",
+    "noEvents": "No location history for this range",
+    "loadFailed": "Couldn't load timeline",
+    "stop": "Stop",
+    "unnamedStop": "Unnamed location",
+    "duration": "{duration}",
+    "timeRange": "{start} – {end}",
+    "modeUnknown": "Travel",
+    "noIntegration": {
+      "title": "Connect a location tracker",
+      "description": "Configure a location history integration to view your timeline.",
+      "details": "Your config is end-to-end encrypted — your credentials never leave your device unencrypted.",
+      "configure": "Configure integration"
+    },
+    "stats": {
+      "totalDistance": "{distance} km",
+      "totalStops": "{n} stop | {n} stops",
+      "dailyDistance": "Daily distance"
+    }
+  },
   "friends": {
     "title": "Friends",
     "addFriend": "Add Friend",
@@ -1319,7 +1348,8 @@
         "spatialChildren": "Spatial Children",
         "searchAlongRoute": "Search Along Route",
         "osmMapEdit": "Edit Map",
-        "tileServer": "Tile Server"
+        "tileServer": "Tile Server",
+        "locationHistory": "Location History"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",

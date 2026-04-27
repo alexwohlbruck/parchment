@@ -72,7 +72,14 @@ export interface LocationHistory {
 }
 
 export interface LocationHistoryRequest {
+  /** Window for the stops + segments list. */
   range: { start: Date; end: Date }
+  /**
+   * Window for `dailyStats` (the daily-distance chart). Wider than `range`
+   * so the chart shows neighbouring-day context even in single-day mode.
+   * Defaults to `range` if omitted.
+   */
+  statsRange?: { start: Date; end: Date }
   /** IANA timezone, used to bucket `dailyStats` correctly. Defaults to UTC. */
   timezone?: string
 }

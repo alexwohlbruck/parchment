@@ -34,6 +34,19 @@ locationHistoryRouter.use(requireIntegrationCredentials).get(
       return status(400, { message: t('errors.locationHistory.rangeInvalid') })
     }
 
+    let statsRange: { start: Date; end: Date } | undefined
+    if (query.statsStart && query.statsEnd) {
+      const ss = new Date(query.statsStart)
+      const se = new Date(query.statsEnd)
+      if (
+        !Number.isNaN(ss.getTime()) &&
+        !Number.isNaN(se.getTime()) &&
+        ss.getTime() < se.getTime()
+      ) {
+        statsRange = { start: ss, end: se }
+      }
+    }
+
     try {
       const { integrationManager } = await import('../services/integrations')
       const { IntegrationId } = await import('../types/integration.enums')
@@ -49,6 +62,7 @@ locationHistoryRouter.use(requireIntegrationCredentials).get(
         integrationCredentials,
         {
           range: { start, end },
+          statsRange,
           timezone: query.timezone,
         },
       )
@@ -66,6 +80,8 @@ locationHistoryRouter.use(requireIntegrationCredentials).get(
     query: t.Object({
       start: t.String(),
       end: t.String(),
+      statsStart: t.Optional(t.String()),
+      statsEnd: t.Optional(t.String()),
       timezone: t.Optional(t.String()),
     }),
   },

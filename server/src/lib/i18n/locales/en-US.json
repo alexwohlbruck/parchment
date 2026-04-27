@@ -50,7 +50,13 @@
       "invalidScope": "Invalid integration scope",
       "noUpdates": "No updates provided",
       "unsupportedScheme": "This integration does not support the requested encryption scheme",
-      "schemeAlreadyConfigured": "This integration is already configured under the same scheme"
+      "schemeAlreadyConfigured": "This integration is already configured under the same scheme",
+      "credentialsMissing": "Integration endpoint and token headers are required",
+      "endpointInvalid": "Integration endpoint is not a valid URL"
+    },
+    "locationHistory": {
+      "rangeInvalid": "Start time must be before end time",
+      "rangeRequired": "Start and end times are required"
     },
     "geocoding": {
       "queryRequired": "Query parameter is required",

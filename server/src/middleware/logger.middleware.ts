@@ -19,6 +19,11 @@ const SENSITIVE_KEYS = new Set([
   'password', 'token', 'secret', 'apikey', 'api_key', 'accesstoken',
   'access_token', 'refreshtoken', 'refresh_token', 'sessionid', 'session_id',
   'authorization', 'cookie', 'set-cookie',
+  // Per-request integration credentials (e.g. Dawarich endpoint + token).
+  // Both the endpoint URL and the bearer token are user-e2ee material that
+  // must never reach a log line, even if a future change starts logging headers.
+  'x-integration-endpoint', 'x-integration-token',
+  'integrationcredentials', 'integration_credentials',
 ])
 
 export interface LogEvent {

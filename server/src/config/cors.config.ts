@@ -40,6 +40,11 @@ const corsConfig: CORSConfig = {
     'Set-Cookie',
     'X-Requested-With',
     'Accept',
+    // Per-request credentials forwarded for `scheme: 'user-e2ee'` integrations
+    // (e.g. Dawarich location history). Required so the browser preflight
+    // doesn't reject the request before it reaches the server.
+    'X-Integration-Endpoint',
+    'X-Integration-Token',
   ],
   exposeHeaders: '*',
   methods: allowedMethods,

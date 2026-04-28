@@ -110,6 +110,28 @@ locationHistoryRouter.use(requireIntegrationCredentials).get(
       ? Number.parseInt(query.recentLimit, 10)
       : undefined
 
+    // bounds: all four corners must be valid finite numbers, otherwise drop
+    // the bounds entirely (don't pass a half-formed bbox to the integration).
+    let bounds:
+      | { minLat: number; minLng: number; maxLat: number; maxLng: number }
+      | undefined
+    if (query.minLat && query.minLng && query.maxLat && query.maxLng) {
+      const minLat = Number.parseFloat(query.minLat)
+      const minLng = Number.parseFloat(query.minLng)
+      const maxLat = Number.parseFloat(query.maxLat)
+      const maxLng = Number.parseFloat(query.maxLng)
+      if (
+        Number.isFinite(minLat) &&
+        Number.isFinite(minLng) &&
+        Number.isFinite(maxLat) &&
+        Number.isFinite(maxLng) &&
+        minLat <= maxLat &&
+        minLng <= maxLng
+      ) {
+        bounds = { minLat, minLng, maxLat, maxLng }
+      }
+    }
+
     try {
       const { integrationManager } = await import('../services/integrations')
       const { IntegrationId } = await import('../types/integration.enums')
@@ -126,6 +148,7 @@ locationHistoryRouter.use(requireIntegrationCredentials).get(
         {
           lat,
           lng,
+          ...(bounds ? { bounds } : {}),
           ...(radius !== undefined && Number.isFinite(radius) ? { radius } : {}),
           ...(recentLimit !== undefined && Number.isFinite(recentLimit)
             ? { recentLimit }
@@ -150,6 +173,10 @@ locationHistoryRouter.use(requireIntegrationCredentials).get(
     query: t.Object({
       lat: t.String(),
       lng: t.String(),
+      minLat: t.Optional(t.String()),
+      minLng: t.Optional(t.String()),
+      maxLat: t.Optional(t.String()),
+      maxLng: t.Optional(t.String()),
       radius: t.Optional(t.String()),
       recentLimit: t.Optional(t.String()),
     }),

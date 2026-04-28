@@ -363,5 +363,66 @@ describe('DawarichIntegration', () => {
       expect(result.source.instanceUrlHash).toMatch(/^[0-9a-f]{16}$/)
       expect(result.source.instanceUrlHash).not.toContain('dawarich')
     })
+
+    test('expands the search radius to fit the supplied OSM bounds', async () => {
+      // ~500m × 500m polygon — well outside the default 75m radius.
+      // A visit ~250m from center should be counted with bounds, but
+      // would have been excluded with the default radius.
+      mockAxiosGet.mockImplementationOnce(() =>
+        visitsPage([
+          {
+            id: 1,
+            started_at: '2026-04-26T13:00:00Z',
+            ended_at: '2026-04-26T13:30:00Z',
+            place: {
+              id: 1,
+              latitude: targetLat + 0.00225, // ~250m north
+              longitude: targetLng,
+            },
+          },
+        ]),
+      )
+      const result = await integration.getPlaceVisitHistory(credentials, {
+        lat: targetLat,
+        lng: targetLng,
+        bounds: {
+          minLat: targetLat - 0.00225,
+          maxLat: targetLat + 0.00225,
+          minLng: targetLng - 0.00275,
+          maxLng: targetLng + 0.00275,
+        },
+      })
+      expect(result.totalVisits).toBe(1)
+    })
+
+    test('falls back to default radius when bounds are tiny (single OSM node)', async () => {
+      // Bounds collapse to a point — half-diagonal is 0; we still want the
+      // default 75 m floor so a node-style place isn't shrunk to nothing.
+      mockAxiosGet.mockImplementationOnce(() =>
+        visitsPage([
+          {
+            id: 1,
+            started_at: '2026-04-26T13:00:00Z',
+            ended_at: '2026-04-26T13:30:00Z',
+            place: {
+              id: 1,
+              latitude: targetLat + 0.0003, // ~33m — inside default 75m
+              longitude: targetLng,
+            },
+          },
+        ]),
+      )
+      const result = await integration.getPlaceVisitHistory(credentials, {
+        lat: targetLat,
+        lng: targetLng,
+        bounds: {
+          minLat: targetLat,
+          maxLat: targetLat,
+          minLng: targetLng,
+          maxLng: targetLng,
+        },
+      })
+      expect(result.totalVisits).toBe(1)
+    })
   })
 })

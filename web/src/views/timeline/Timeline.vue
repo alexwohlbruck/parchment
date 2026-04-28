@@ -2,6 +2,7 @@
 import { computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-vue-next'
@@ -21,6 +22,8 @@ import TimelineNoIntegration from './TimelineNoIntegration.vue'
 dayjs.extend(localizedFormat)
 
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 const integrationsStore = useIntegrationsStore()
 const timelineStore = useTimelineStore()
 const mapService = useMapService()
@@ -168,11 +171,33 @@ function pickFromChart(date: string) {
 }
 
 // ── Lifecycle ────────────────────────────────────────────────────────────
+
+// `?day=YYYY-MM-DD` deep-link — used by the place visit history widget
+// to land directly on the day a recent visit happened. We strip the
+// param after applying so a manual range change isn't fought by a
+// reload of the URL state.
+function applyDayFromQuery(raw: unknown) {
+  if (typeof raw !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return false
+  const parsed = dayjs(raw)
+  if (!parsed.isValid()) return false
+  timelineStore.setDay(parsed.toDate())
+  void router.replace({ query: { ...route.query, day: undefined } })
+  return true
+}
+
 onMounted(() => {
-  if (integrationsStore.isLocationHistoryActive) {
+  if (!integrationsStore.isLocationHistoryActive) return
+  if (!applyDayFromQuery(route.query.day)) {
     void timelineStore.load()
   }
 })
+
+watch(
+  () => route.query.day,
+  (day) => {
+    if (integrationsStore.isLocationHistoryActive) applyDayFromQuery(day)
+  },
+)
 
 watch(
   () => integrationsStore.isLocationHistoryActive,

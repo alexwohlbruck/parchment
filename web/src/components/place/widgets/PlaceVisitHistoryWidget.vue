@@ -4,7 +4,7 @@ import axios from 'axios'
 import { useI18n } from 'vue-i18n'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { HistoryIcon, MapPinCheckInsideIcon } from 'lucide-vue-next'
+import { HistoryIcon } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import PlaceSection from '@/components/place/details/PlaceSection.vue'
@@ -34,7 +34,8 @@ let activeController: AbortController | null = null
 
 // Re-fetch any time the place's coordinate changes — covers the user
 // navigating between place detail views without unmounting the widget.
-const coord = computed(() => props.place.geometry?.value?.center ?? null)
+const geometry = computed(() => props.place.geometry?.value ?? null)
+const coord = computed(() => geometry.value?.center ?? null)
 
 watch(
   [coord, () => integrationsStore.isLocationHistoryActive],
@@ -47,9 +48,18 @@ watch(
     activeController = new AbortController()
     const controller = activeController
     loading.value = true
+    const b = geometry.value?.bounds
     fetchPlaceVisitHistory({
       lat: c.lat,
       lng: c.lng,
+      bounds: b
+        ? {
+            minLat: b.minLat,
+            minLng: b.minLng,
+            maxLat: b.maxLat,
+            maxLng: b.maxLng,
+          }
+        : undefined,
       signal: controller.signal,
     })
       .then((result) => {
@@ -124,14 +134,17 @@ function viewOnTimeline(visit: { startTime: string }) {
         <div
           class="shrink-0 w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center"
         >
-          <MapPinCheckInsideIcon class="w-4.5 h-4.5" />
+          <HistoryIcon class="w-4.5 h-4.5" />
         </div>
         <div class="flex-1 min-w-0">
           <div class="flex items-baseline justify-between gap-2">
             <span class="font-semibold text-sm leading-snug">
-              You've been here
-              {{ data!.totalVisits }}
-              {{ data!.totalVisits === 1 ? 'time' : 'times' }}
+              <template v-if="data!.totalVisits === 1">
+                You've visited once
+              </template>
+              <template v-else>
+                You've visited {{ data!.totalVisits }} times
+              </template>
             </span>
           </div>
           <div class="text-xs text-muted-foreground mt-0.5 tabular-nums">

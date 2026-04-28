@@ -67,7 +67,18 @@ export async function fetchLocationHistory(
 export interface FetchPlaceVisitHistoryArgs {
   lat: number
   lng: number
-  /** Search radius in meters. Server defaults to ~75 m if omitted. */
+  /**
+   * The OSM polygon's bounding box, when available. Server uses it to
+   * size the search area to the actual place — small radius for a house,
+   * many hundreds of meters for an amusement park.
+   */
+  bounds?: {
+    minLat: number
+    minLng: number
+    maxLat: number
+    maxLng: number
+  }
+  /** Search radius in meters. Server falls back to a default when omitted. */
   radius?: number
   /** Cap on `recentVisits` returned. Server defaults to 5. */
   recentLimit?: number
@@ -89,6 +100,12 @@ export async function fetchPlaceVisitHistory(
   const params: Record<string, string> = {
     lat: String(args.lat),
     lng: String(args.lng),
+  }
+  if (args.bounds) {
+    params.minLat = String(args.bounds.minLat)
+    params.minLng = String(args.bounds.minLng)
+    params.maxLat = String(args.bounds.maxLat)
+    params.maxLng = String(args.bounds.maxLng)
   }
   if (args.radius !== undefined) params.radius = String(args.radius)
   if (args.recentLimit !== undefined)

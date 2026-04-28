@@ -45,10 +45,19 @@ const DEFAULT_TIMEOUT_MS = 15_000
 const TIMELINE_MAX_DAYS = 31
 /**
  * Default radius for matching an OSM place against a Dawarich-recorded
- * place. Tight enough that two adjacent storefronts don't collide; loose
- * enough to absorb Dawarich's geocoder centroid wobble.
+ * place when we have nothing else to go on (point places without a
+ * bounding box). Tight enough that two adjacent storefronts don't
+ * collide; loose enough to absorb Dawarich's geocoder centroid wobble.
  */
 const DEFAULT_PLACE_RADIUS_M = 75
+/**
+ * Padding added to the bbox-derived radius to account for visits that
+ * happen near the polygon edge (parking lots outside a stadium polygon,
+ * forecourt of a venue, GPS jitter at the boundary).
+ */
+const BOUNDS_RADIUS_PADDING_M = 50
+/** Hard ceiling so a malformed bbox can't trigger a continent-sized scan. */
+const MAX_PLACE_RADIUS_M = 5000
 
 export class DawarichIntegration
   implements Integration<DawarichConfig>, LocationHistoryCapability
@@ -205,7 +214,7 @@ export class DawarichIntegration
     request: PlaceVisitHistoryRequest,
   ): Promise<PlaceVisitHistory> {
     const client = this.buildClient(credentials)
-    const radiusM = request.radius ?? DEFAULT_PLACE_RADIUS_M
+    const radiusM = computePlaceRadius(request)
     const recentLimit = Math.max(1, request.recentLimit ?? 5)
 
     const empty = (): PlaceVisitHistory => ({
@@ -424,6 +433,33 @@ interface DawarichVisit {
     | null
 }
 type DawarichVisitsResponse = DawarichVisit[]
+
+/**
+ * Pick the search radius for a place lookup. Priority:
+ *   1. explicit `radius` (caller override) — capped to {@link MAX_PLACE_RADIUS_M}
+ *   2. half-diagonal of `bounds` + padding — sized to the polygon
+ *   3. {@link DEFAULT_PLACE_RADIUS_M} — point places, no bbox
+ *
+ * The floor is the default so a tiny / collapsed bbox (e.g. a single OSM
+ * node) doesn't shrink below the point-place radius.
+ */
+function computePlaceRadius(request: PlaceVisitHistoryRequest): number {
+  if (request.radius !== undefined && Number.isFinite(request.radius)) {
+    return Math.min(MAX_PLACE_RADIUS_M, Math.max(0, request.radius))
+  }
+  if (request.bounds) {
+    const { minLat, minLng, maxLat, maxLng } = request.bounds
+    const widthM = haversineMeters(minLat, minLng, minLat, maxLng)
+    const heightM = haversineMeters(minLat, minLng, maxLat, minLng)
+    const halfDiagonalM = Math.sqrt(widthM * widthM + heightM * heightM) / 2
+    const fromBounds = halfDiagonalM + BOUNDS_RADIUS_PADDING_M
+    return Math.min(
+      MAX_PLACE_RADIUS_M,
+      Math.max(DEFAULT_PLACE_RADIUS_M, fromBounds),
+    )
+  }
+  return DEFAULT_PLACE_RADIUS_M
+}
 
 /** Haversine distance in meters. */
 function haversineMeters(

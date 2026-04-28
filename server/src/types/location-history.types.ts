@@ -92,7 +92,22 @@ export interface LocationHistoryRequest {
 export interface PlaceVisitHistoryRequest {
   lat: number
   lng: number
-  /** Search radius in meters. Defaults to ~75 m server-side. */
+  /**
+   * The OSM polygon's bounding box, when available. Used to size the
+   * search area to the place — small radius for a house, many hundreds
+   * of meters for a stadium or amusement park. Falls back to the default
+   * radius (point places, no bounds) when omitted.
+   */
+  bounds?: {
+    minLat: number
+    minLng: number
+    maxLat: number
+    maxLng: number
+  }
+  /**
+   * Explicit search radius in meters. Wins over `bounds` when both are
+   * present. Defaults to a small floor server-side.
+   */
   radius?: number
   /** Cap on `recentVisits.length` to keep payloads small. Defaults to 5. */
   recentLimit?: number

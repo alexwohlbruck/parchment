@@ -49,8 +49,6 @@ const TIMELINE_MAX_DAYS = 31
  * enough to absorb Dawarich's geocoder centroid wobble.
  */
 const DEFAULT_PLACE_RADIUS_M = 75
-/** Hard cap on `/api/v1/places` paging — protects heavy users from runaway loops. */
-const MAX_PLACES_PAGES = 20
 
 export class DawarichIntegration
   implements Integration<DawarichConfig>, LocationHistoryCapability
@@ -193,15 +191,14 @@ export class DawarichIntegration
    * visits at that place via the only spatial filter the API exposes
    * (`selection=true&sw_lat&sw_lng&ne_lat&ne_lng`).
    *
-   * Two upstream calls in the worst case:
-   *   1. `/api/v1/places` (paginated) → match the closest place within
-   *      `radius` to our requested coordinate. `visits_count` from the
-   *      match gives us the total without listing visits.
-   *   2. `/api/v1/visits?selection=true&...` over a tight bbox → first /
-   *      last / recent visits at that place, filtered by `place.id`.
+   * One upstream call: `/api/v1/visits?selection=true&...` over a bbox
+   * around the requested coordinate. Each visit embeds `place: { id,
+   * latitude, longitude }` inline, so we group by `place.id`, pick the
+   * closest one to the target, and aggregate. We don't read `/api/v1/places`
+   * — Dawarich users with visit detection but no places index still get
+   * this widget.
    *
-   * Returns an empty history (`totalVisits: 0`, no recents) when no
-   * matching place exists yet.
+   * Returns an empty history when no visit falls inside the radius.
    */
   async getPlaceVisitHistory(
     credentials: IntegrationCredentials,
@@ -211,8 +208,8 @@ export class DawarichIntegration
     const radiusM = request.radius ?? DEFAULT_PLACE_RADIUS_M
     const recentLimit = Math.max(1, request.recentLimit ?? 5)
 
-    const empty = (totalVisits = 0): PlaceVisitHistory => ({
-      totalVisits,
+    const empty = (): PlaceVisitHistory => ({
+      totalVisits: 0,
       lastVisit: null,
       firstVisit: null,
       totalDuration: 0,
@@ -223,27 +220,27 @@ export class DawarichIntegration
       },
     })
 
-    const matchedPlace = await this.findClosestPlace(
-      client,
-      request.lat,
-      request.lng,
-      radiusM,
-    )
-    if (!matchedPlace) return empty()
-
     const visits = await this.fetchVisitsAround(
       client,
       request.lat,
       request.lng,
       radiusM,
     )
-    // The bbox query may include neighbouring places; filter to ours.
-    const ownVisits = visits.filter((v) => v.place?.id === matchedPlace.id)
+    if (visits.length === 0) return empty()
 
-    if (ownVisits.length === 0) {
-      // We at least know the count from `/places` — show that.
-      return empty(matchedPlace.visits_count ?? 0)
-    }
+    // Filter to visits whose place coordinate is within radius of the
+    // target. Bbox is rectangular so corners can be ~1.4× the radius;
+    // Haversine refines that to a circle. We deliberately don't pick
+    // a single `place_id` — Dawarich often splits visits at the same
+    // physical spot across multiple place IDs (GPS drift, re-detection),
+    // and the user mentally treats them as one location.
+    const ownVisits = visits.filter((v) => {
+      const lat = v.place?.latitude
+      const lng = v.place?.longitude
+      if (typeof lat !== 'number' || typeof lng !== 'number') return false
+      return haversineMeters(request.lat, request.lng, lat, lng) <= radiusM
+    })
+    if (ownVisits.length === 0) return empty()
 
     const sorted = [...ownVisits].sort(
       (a, b) => Date.parse(b.started_at) - Date.parse(a.started_at),
@@ -269,7 +266,7 @@ export class DawarichIntegration
       }))
 
     return {
-      totalVisits: matchedPlace.visits_count ?? sorted.length,
+      totalVisits: sorted.length,
       lastVisit: sorted[0].started_at,
       firstVisit: sorted[sorted.length - 1].started_at,
       totalDuration,
@@ -368,44 +365,6 @@ export class DawarichIntegration
   }
 
   /**
-   * Page through `/api/v1/places` and return the closest stored place to
-   * `lat`/`lng` within `radiusM`. Distance computed via Haversine on the
-   * place's `latitude`/`longitude`. Returns null when nothing matches.
-   */
-  private async findClosestPlace(
-    client: AxiosInstance,
-    lat: number,
-    lng: number,
-    radiusM: number,
-  ): Promise<DawarichPlace | null> {
-    let best: { place: DawarichPlace; distM: number } | null = null
-    let page = 1
-    while (page <= MAX_PLACES_PAGES) {
-      const response = await client.get<DawarichPlace[]>('/api/v1/places', {
-        params: { page, per_page: 500 },
-      })
-      const { data, headers } = response
-      const places = Array.isArray(data) ? data : []
-      for (const p of places) {
-        if (typeof p.latitude !== 'number' || typeof p.longitude !== 'number') {
-          continue
-        }
-        const d = haversineMeters(lat, lng, p.latitude, p.longitude)
-        if (d <= radiusM && (!best || d < best.distM)) {
-          best = { place: p, distM: d }
-        }
-      }
-      const totalPages = Number.parseInt(
-        (headers['x-total-pages'] as string | undefined) ?? '1',
-        10,
-      )
-      if (page >= totalPages || !Number.isFinite(totalPages)) break
-      page++
-    }
-    return best?.place ?? null
-  }
-
-  /**
    * `GET /api/v1/visits?selection=true&...` over a tight bbox around the
    * coordinate. The bbox is the smallest spatial filter Dawarich exposes
    * on the visits index — narrower than `radiusM` would be ideal but
@@ -451,22 +410,20 @@ export class DawarichIntegration
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-/** Subset of `/api/v1/places` response we use. */
-interface DawarichPlace {
-  id: number
-  name: string | null
-  latitude: number
-  longitude: number
-  visits_count: number | null
-}
-
 /** Subset of `/api/v1/visits` rows we need for the place-history aggregate. */
-type DawarichVisitsResponse = Array<{
+interface DawarichVisit {
   id: number
   started_at: string
   ended_at: string
-  place: { id: number | null } | null
-}>
+  place:
+    | {
+        id: number | null
+        latitude: number | null
+        longitude: number | null
+      }
+    | null
+}
+type DawarichVisitsResponse = DawarichVisit[]
 
 /** Haversine distance in meters. */
 function haversineMeters(

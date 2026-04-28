@@ -194,12 +194,6 @@ describe('DawarichIntegration', () => {
     const targetLat = 35.21694
     const targetLng = -80.820281
 
-    function placesPage(places: any[], totalPages = 1) {
-      return Promise.resolve({
-        data: places,
-        headers: { 'x-total-pages': String(totalPages) },
-      })
-    }
     function visitsPage(visits: any[], totalPages = 1) {
       return Promise.resolve({
         data: visits,
@@ -207,11 +201,27 @@ describe('DawarichIntegration', () => {
       })
     }
 
-    test('returns empty when no nearby place is found within radius', async () => {
-      // Far away from target — Haversine > 75 m
+    test('returns empty when no visits fall in the bbox', async () => {
+      mockAxiosGet.mockImplementationOnce(() => visitsPage([]))
+      const result = await integration.getPlaceVisitHistory(credentials, {
+        lat: targetLat,
+        lng: targetLng,
+      })
+      expect(result.totalVisits).toBe(0)
+      expect(result.recentVisits).toEqual([])
+      expect(result.lastVisit).toBeNull()
+    })
+
+    test('returns empty when bbox visits all sit outside the radius', async () => {
+      // Visit's place coordinates are far from the target — Haversine > 75 m
       mockAxiosGet.mockImplementationOnce(() =>
-        placesPage([
-          { id: 1, name: 'Far Place', latitude: 0, longitude: 0, visits_count: 10 },
+        visitsPage([
+          {
+            id: 1,
+            started_at: '2026-04-26T13:00:00-04:00',
+            ended_at: '2026-04-26T13:30:00-04:00',
+            place: { id: 99, latitude: 0, longitude: 0 },
+          },
         ]),
       )
       const result = await integration.getPlaceVisitHistory(credentials, {
@@ -219,100 +229,106 @@ describe('DawarichIntegration', () => {
         lng: targetLng,
       })
       expect(result.totalVisits).toBe(0)
-      expect(result.recentVisits).toEqual([])
     })
 
-    test('matches the closest place within the radius', async () => {
-      mockAxiosGet
-        .mockImplementationOnce(() =>
-          placesPage([
-            // 5m off
-            { id: 1, name: 'A', latitude: targetLat + 0.00005, longitude: targetLng, visits_count: 7 },
-            // 30m off
-            { id: 2, name: 'B', latitude: targetLat + 0.0003, longitude: targetLng, visits_count: 3 },
-          ]),
-        )
-        .mockImplementationOnce(() =>
-          visitsPage([
-            {
-              id: 100,
-              started_at: '2026-04-26T13:00:00-04:00',
-              ended_at: '2026-04-26T13:30:00-04:00',
-              place: { id: 1 },
-            },
-          ]),
-        )
+    test('counts visits across all place_ids within the radius (not just the closest)', async () => {
+      // Dawarich often splits visits at the same physical spot across
+      // multiple place IDs due to GPS drift / re-detection. Both should
+      // count toward the total.
+      mockAxiosGet.mockImplementationOnce(() =>
+        visitsPage([
+          {
+            id: 100,
+            started_at: '2026-04-26T13:00:00-04:00',
+            ended_at: '2026-04-26T13:30:00-04:00',
+            place: { id: 1, latitude: targetLat + 0.00005, longitude: targetLng },
+          },
+          {
+            id: 101,
+            started_at: '2026-04-25T10:00:00-04:00',
+            ended_at: '2026-04-25T10:15:00-04:00',
+            place: { id: 2, latitude: targetLat + 0.0003, longitude: targetLng },
+          },
+        ]),
+      )
       const result = await integration.getPlaceVisitHistory(credentials, {
         lat: targetLat,
         lng: targetLng,
       })
-      // visits_count from the matched place wins, not the visits-list count
-      expect(result.totalVisits).toBe(7)
-      expect(result.lastVisit).toContain('2026-04-26')
-      expect(result.recentVisits).toHaveLength(1)
-    })
-
-    test('filters bbox visits to only the matched place', async () => {
-      mockAxiosGet
-        .mockImplementationOnce(() =>
-          placesPage([
-            { id: 1, name: 'Target', latitude: targetLat, longitude: targetLng, visits_count: 5 },
-          ]),
-        )
-        .mockImplementationOnce(() =>
-          visitsPage([
-            { id: 1, started_at: '2026-04-26T13:00:00-04:00', ended_at: '2026-04-26T13:30:00-04:00', place: { id: 1 } },
-            { id: 2, started_at: '2026-04-25T10:00:00-04:00', ended_at: '2026-04-25T10:15:00-04:00', place: { id: 999 } },
-            { id: 3, started_at: '2026-04-24T08:00:00-04:00', ended_at: '2026-04-24T08:45:00-04:00', place: { id: 1 } },
-          ]),
-        )
-      const result = await integration.getPlaceVisitHistory(credentials, {
-        lat: targetLat,
-        lng: targetLng,
-      })
-      // Only place_id=1 visits (2 of 3 returned by the bbox)
+      expect(result.totalVisits).toBe(2)
       expect(result.recentVisits).toHaveLength(2)
-      // Newest first
-      expect(result.recentVisits[0].id).toBe('dawarich-visit-1')
-      expect(result.recentVisits[1].id).toBe('dawarich-visit-3')
     })
 
-    test('caps recent visits at recentLimit, but totalVisits remains accurate', async () => {
-      const places = [
-        { id: 1, name: 'P', latitude: targetLat, longitude: targetLng, visits_count: 50 },
-      ]
+    test('excludes visits whose place coordinate falls outside the radius', async () => {
+      mockAxiosGet.mockImplementationOnce(() =>
+        visitsPage([
+          // Inside radius
+          {
+            id: 1,
+            started_at: '2026-04-26T13:00:00-04:00',
+            ended_at: '2026-04-26T13:30:00-04:00',
+            place: { id: 1, latitude: targetLat, longitude: targetLng },
+          },
+          // ~33m off — inside default 75m radius
+          {
+            id: 2,
+            started_at: '2026-04-25T10:00:00-04:00',
+            ended_at: '2026-04-25T10:15:00-04:00',
+            place: { id: 2, latitude: targetLat + 0.0003, longitude: targetLng },
+          },
+          // ~333m off — outside radius (bbox would still hit, but Haversine excludes)
+          {
+            id: 3,
+            started_at: '2026-04-24T08:00:00-04:00',
+            ended_at: '2026-04-24T08:45:00-04:00',
+            place: { id: 3, latitude: targetLat + 0.003, longitude: targetLng },
+          },
+        ]),
+      )
+      const result = await integration.getPlaceVisitHistory(credentials, {
+        lat: targetLat,
+        lng: targetLng,
+      })
+      expect(result.totalVisits).toBe(2)
+      expect(result.recentVisits[0].id).toBe('dawarich-visit-1')
+      expect(result.recentVisits[1].id).toBe('dawarich-visit-2')
+    })
+
+    test('caps recent visits at recentLimit but keeps totalVisits accurate', async () => {
       const visits = Array.from({ length: 12 }, (_, i) => ({
         id: i,
         started_at: new Date(Date.now() - i * 86400000).toISOString(),
         ended_at: new Date(Date.now() - i * 86400000 + 600000).toISOString(),
-        place: { id: 1 },
+        place: { id: 1, latitude: targetLat, longitude: targetLng },
       }))
-      mockAxiosGet
-        .mockImplementationOnce(() => placesPage(places))
-        .mockImplementationOnce(() => visitsPage(visits))
+      mockAxiosGet.mockImplementationOnce(() => visitsPage(visits))
 
       const result = await integration.getPlaceVisitHistory(credentials, {
         lat: targetLat,
         lng: targetLng,
         recentLimit: 3,
       })
-      expect(result.totalVisits).toBe(50)
+      expect(result.totalVisits).toBe(12)
       expect(result.recentVisits).toHaveLength(3)
     })
 
     test('computes totalDuration from timestamps in seconds', async () => {
-      mockAxiosGet
-        .mockImplementationOnce(() =>
-          placesPage([
-            { id: 1, name: 'P', latitude: targetLat, longitude: targetLng, visits_count: 2 },
-          ]),
-        )
-        .mockImplementationOnce(() =>
-          visitsPage([
-            { id: 1, started_at: '2026-04-26T13:00:00Z', ended_at: '2026-04-26T13:30:00Z', place: { id: 1 } }, // 1800s
-            { id: 2, started_at: '2026-04-25T10:00:00Z', ended_at: '2026-04-25T10:10:00Z', place: { id: 1 } }, // 600s
-          ]),
-        )
+      mockAxiosGet.mockImplementationOnce(() =>
+        visitsPage([
+          {
+            id: 1,
+            started_at: '2026-04-26T13:00:00Z',
+            ended_at: '2026-04-26T13:30:00Z', // 1800s
+            place: { id: 1, latitude: targetLat, longitude: targetLng },
+          },
+          {
+            id: 2,
+            started_at: '2026-04-25T10:00:00Z',
+            ended_at: '2026-04-25T10:10:00Z', // 600s
+            place: { id: 1, latitude: targetLat, longitude: targetLng },
+          },
+        ]),
+      )
       const result = await integration.getPlaceVisitHistory(credentials, {
         lat: targetLat,
         lng: targetLng,
@@ -320,27 +336,26 @@ describe('DawarichIntegration', () => {
       expect(result.totalDuration).toBe(2400)
     })
 
-    test('falls back to visits_count when bbox returns no matching visits', async () => {
-      mockAxiosGet
-        .mockImplementationOnce(() =>
-          placesPage([
-            { id: 1, name: 'P', latitude: targetLat, longitude: targetLng, visits_count: 12 },
-          ]),
-        )
-        // Bbox is empty (e.g. very large place history; visits not in this radius slice)
-        .mockImplementationOnce(() => visitsPage([]))
+    test('drops visits whose place lacks coordinates', async () => {
+      mockAxiosGet.mockImplementationOnce(() =>
+        visitsPage([
+          {
+            id: 1,
+            started_at: '2026-04-26T13:00:00Z',
+            ended_at: '2026-04-26T13:10:00Z',
+            place: { id: 1, latitude: null, longitude: null },
+          },
+        ]),
+      )
       const result = await integration.getPlaceVisitHistory(credentials, {
         lat: targetLat,
         lng: targetLng,
       })
-      expect(result.totalVisits).toBe(12)
-      expect(result.recentVisits).toEqual([])
-      expect(result.lastVisit).toBeNull()
+      expect(result.totalVisits).toBe(0)
     })
 
     test('hashes the instance URL on every response', async () => {
-      mockAxiosGet
-        .mockImplementationOnce(() => placesPage([]))
+      mockAxiosGet.mockImplementationOnce(() => visitsPage([]))
       const result = await integration.getPlaceVisitHistory(credentials, {
         lat: targetLat,
         lng: targetLng,

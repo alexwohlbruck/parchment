@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { BatteryIcon, BatteryChargingIcon } from 'lucide-vue-next'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   Tooltip,
@@ -30,6 +31,9 @@ interface Props {
   friendAvatar?: string
   updatedAt: Date
   accuracy?: number
+  /** Battery level 0-1, omitted when unavailable on the sender's device. */
+  battery?: number
+  batteryCharging?: boolean
 }
 
 const props = defineProps<Props>()
@@ -77,6 +81,21 @@ const isStale = computed(() => {
   const fiveMinutes = 5 * 60 * 1000
   return Date.now() - props.updatedAt.getTime() > fiveMinutes
 })
+
+const batteryPercent = computed(() => {
+  if (props.battery == null) return null
+  return Math.round(props.battery * 100)
+})
+
+// Visual cue when the battery is low and not charging — only meaningful
+// signal worth changing color for in a tiny tooltip.
+const batteryLow = computed(() => {
+  return (
+    batteryPercent.value != null &&
+    batteryPercent.value <= 20 &&
+    !props.batteryCharging
+  )
+})
 </script>
 
 <template>
@@ -120,6 +139,17 @@ const isStale = computed(() => {
             class="text-xs text-muted-foreground"
           >
             {{ t('friends.map.accuracy', { meters: Math.round(accuracy) }) }}
+          </p>
+          <p
+            v-if="batteryPercent != null"
+            class="text-xs flex items-center gap-1"
+            :class="batteryLow ? 'text-orange-500' : 'text-muted-foreground'"
+          >
+            <component
+              :is="batteryCharging ? BatteryChargingIcon : BatteryIcon"
+              class="size-3"
+            />
+            {{ batteryPercent }}%
           </p>
         </div>
       </TooltipContent>

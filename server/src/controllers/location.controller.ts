@@ -1,8 +1,20 @@
 import Elysia, { t } from 'elysia'
 import { requireAuth } from '../middleware/auth.middleware'
+import { makeUserRateLimit } from '../middleware/rate-limit.middleware'
+import { isFriend } from '../services/friends.service'
 import * as locationE2eeService from '../services/location-e2ee.service'
 
 const app = new Elysia({ prefix: '/location' })
+
+// Rate-limit the broadcast endpoint. Movement-driven gating in the client
+// (10s floor, 10m distance threshold, 5min stationary refresh) means a
+// well-behaved client tops out at well under 12 req/min. Anything above is
+// either a bug or abuse.
+const updateRateLimit = makeUserRateLimit({
+  name: 'location-update',
+  limit: 12,
+  windowMs: 60_000,
+})
 
 // ============================================================================
 // Location Sharing Configuration
@@ -41,12 +53,8 @@ app.use(requireAuth).post(
 
     const config = await locationE2eeService.setLocationSharingConfig(
       user.id,
-      body.friendHandle,
-      {
-        enabled: body.enabled,
-        refreshInterval: body.refreshInterval,
-        expiresAt: body.expiresAt ? new Date(body.expiresAt) : undefined,
-      },
+      body.friendHandle.toLowerCase(),
+      { enabled: body.enabled },
     )
 
     return { config }
@@ -55,8 +63,6 @@ app.use(requireAuth).post(
     body: t.Object({
       friendHandle: t.String(),
       enabled: t.Optional(t.Boolean()),
-      refreshInterval: t.Optional(t.Number()),
-      expiresAt: t.Optional(t.String()),
     }),
     detail: {
       tags: ['Location'],
@@ -77,7 +83,7 @@ app.use(requireAuth).delete(
 
     const deleted = await locationE2eeService.disableLocationSharing(
       user.id,
-      decodeURIComponent(params.friendHandle),
+      decodeURIComponent(params.friendHandle).toLowerCase(),
     )
 
     return { deleted }
@@ -98,45 +104,80 @@ app.use(requireAuth).delete(
 // ============================================================================
 
 /**
- * Update location: broadcast encrypted location to friends
+ * Broadcast encrypted location to friends.
+ *
+ * Each item is processed independently — one bad item (not a friend,
+ * sharing disabled, replay) doesn't fail the whole batch. The response
+ * mirrors that with per-item status/reason.
+ *
+ * Authorization model: a row is stored ONLY when (a) `forFriendHandle`
+ * is an accepted friend of the caller AND (b) the caller has explicitly
+ * enabled sharing with that friend (`locationSharingConfig.enabled =
+ * true`). This is the only authorization gate; without it an
+ * authenticated user could fan ciphertext rows out to any handle and
+ * use realtime delivery as a presence/fingerprint oracle.
  */
-app.use(requireAuth).post(
-  '/e2ee/update',
-  async ({ body, user, status }) => {
-    if (!user) {
-      return status(401, { message: t('errors.auth.authenticationRequired') })
-    }
+app
+  .use(requireAuth)
+  .use(updateRateLimit)
+  .post(
+    '/e2ee/update',
+    async ({ body, user, status }) => {
+      if (!user) {
+        return status(401, { message: t('errors.auth.authenticationRequired') })
+      }
 
-    const results = []
+      const results = await Promise.all(
+        body.locations.map(async (item) => {
+          const friendHandle = item.forFriendHandle.toLowerCase()
+          try {
+            if (!(await isFriend(user.id, friendHandle))) {
+              return { friendHandle, stored: false, reason: 'not-a-friend' as const }
+            }
 
-    for (const item of body.locations) {
-      await locationE2eeService.storeEncryptedLocation(
-        user.id,
-        item.forFriendHandle,
-        item.encryptedLocation,
-        item.nonce,
-      )
-      results.push({ friendHandle: item.forFriendHandle, stored: true })
-    }
+            const config =
+              await locationE2eeService.getLocationSharingConfigForFriend(
+                user.id,
+                friendHandle,
+              )
+            if (!config?.enabled) {
+              return { friendHandle, stored: false, reason: 'not-enabled' as const }
+            }
 
-    return { results }
-  },
-  {
-    body: t.Object({
-      locations: t.Array(
-        t.Object({
-          forFriendHandle: t.String(),
-          encryptedLocation: t.String(),
-          nonce: t.String(),
+            const result = await locationE2eeService.storeEncryptedLocation(
+              user.id,
+              friendHandle,
+              item.encryptedLocation,
+              item.nonce,
+            )
+            if (!result.stored) {
+              return { friendHandle, stored: false, reason: 'replayed' as const }
+            }
+            return { friendHandle, stored: true as const }
+          } catch (err) {
+            return { friendHandle, stored: false, reason: 'error' as const }
+          }
         }),
-      ),
-    }),
-    detail: {
-      tags: ['Location'],
-      summary: 'Broadcast encrypted location to friends',
+      )
+
+      return { results }
     },
-  },
-)
+    {
+      body: t.Object({
+        locations: t.Array(
+          t.Object({
+            forFriendHandle: t.String(),
+            encryptedLocation: t.String(),
+            nonce: t.String(),
+          }),
+        ),
+      }),
+      detail: {
+        tags: ['Location'],
+        summary: 'Broadcast encrypted location to friends',
+      },
+    },
+  )
 
 /**
  * Get encrypted locations from friends

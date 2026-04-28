@@ -45,6 +45,8 @@ export class FriendLocationsLayer extends BaseMarkerLayer {
         friendAvatar: loc.friendPicture,
         updatedAt: loc.updatedAt,
         accuracy: loc.location.accuracy,
+        battery: loc.location.battery,
+        batteryCharging: loc.location.batteryCharging,
       },
     }))
   }

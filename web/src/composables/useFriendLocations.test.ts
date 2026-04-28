@@ -135,11 +135,6 @@ describe('useFriendLocations', () => {
       expect(error.value).toBeNull()
     })
 
-    test('starts not polling', () => {
-      const { isPolling } = useFriendLocations()
-
-      expect(isPolling.value).toBe(false)
-    })
   })
 
   describe('fetchLocations', () => {
@@ -381,63 +376,74 @@ describe('useFriendLocations', () => {
     })
   })
 
-  describe('Polling', () => {
-    test('startPolling sets isPolling to true', () => {
-      vi.useFakeTimers()
+  describe('applyEncryptedLocation (realtime push)', () => {
+    test('upserts a single decrypted location into reactive state', async () => {
       mockIsSetupComplete.value = true
       mockEncryptionPrivateKey.value = aliceKeys.encryption.privateKey
-      mockGetFriendLocations.mockResolvedValue([])
 
-      const { startPolling, isPolling } = useFriendLocations()
+      mockFriends.value = [
+        {
+          friendHandle: 'bob@other.server',
+          friendEncryptionKey: exportPublicKey(bobKeys.encryption.publicKey),
+          friendSigningKey: exportPublicKey(bobKeys.signing.publicKey),
+          friendName: 'Bob',
+        },
+      ]
 
-      startPolling(30000)
+      const bobLocation: LocationData = {
+        lat: 37.7749,
+        lng: -122.4194,
+        timestamp: Date.now(),
+      }
+      const payload = await v2LocationFixture({
+        senderKeys: bobKeys,
+        senderHandle: 'bob@other.server',
+        recipientKeys: aliceKeys,
+        recipientHandle: 'alice@home.server',
+        location: bobLocation,
+      })
 
-      expect(isPolling.value).toBe(true)
+      const { applyEncryptedLocation, locations } = useFriendLocations()
+      const applied = applyEncryptedLocation(payload)
 
-      vi.useRealTimers()
+      expect(applied).not.toBeNull()
+      expect(applied?.friendHandle).toBe('bob@other.server')
+      expect(locations.value).toHaveLength(1)
+      expect(locations.value[0].location.lat).toBeCloseTo(bobLocation.lat, 4)
     })
 
-    test('stopPolling sets isPolling to false', () => {
-      vi.useFakeTimers()
+    test('returns null when sender handle is unknown', async () => {
       mockIsSetupComplete.value = true
       mockEncryptionPrivateKey.value = aliceKeys.encryption.privateKey
-      mockGetFriendLocations.mockResolvedValue([])
+      mockFriends.value = []
 
-      const { startPolling, stopPolling, isPolling } = useFriendLocations()
+      const payload = await v2LocationFixture({
+        senderKeys: bobKeys,
+        senderHandle: 'bob@other.server',
+        recipientKeys: aliceKeys,
+        recipientHandle: 'alice@home.server',
+        location: { lat: 0, lng: 0, timestamp: Date.now() },
+      })
 
-      startPolling(30000)
-      expect(isPolling.value).toBe(true)
-
-      stopPolling()
-      expect(isPolling.value).toBe(false)
-
-      vi.useRealTimers()
+      const { applyEncryptedLocation, locations } = useFriendLocations()
+      expect(applyEncryptedLocation(payload)).toBeNull()
+      expect(locations.value).toHaveLength(0)
     })
 
-    test('polling fetches at intervals', async () => {
-      vi.useFakeTimers()
-      mockIsSetupComplete.value = true
-      mockEncryptionPrivateKey.value = aliceKeys.encryption.privateKey
-      mockGetFriendLocations.mockResolvedValue([])
+    test('returns null when identity is not set up', async () => {
+      mockIsSetupComplete.value = false
+      mockEncryptionPrivateKey.value = null
 
-      const { startPolling, stopPolling } = useFriendLocations()
+      const payload = await v2LocationFixture({
+        senderKeys: bobKeys,
+        senderHandle: 'bob@other.server',
+        recipientKeys: aliceKeys,
+        recipientHandle: 'alice@home.server',
+        location: { lat: 0, lng: 0, timestamp: Date.now() },
+      })
 
-      startPolling(1000) // 1 second interval
-
-      // Initial fetch
-      await vi.advanceTimersByTimeAsync(0)
-      expect(mockGetFriendLocations).toHaveBeenCalledTimes(1)
-
-      // After 1 second
-      await vi.advanceTimersByTimeAsync(1000)
-      expect(mockGetFriendLocations).toHaveBeenCalledTimes(2)
-
-      // After another second
-      await vi.advanceTimersByTimeAsync(1000)
-      expect(mockGetFriendLocations).toHaveBeenCalledTimes(3)
-
-      stopPolling()
-      vi.useRealTimers()
+      const { applyEncryptedLocation } = useFriendLocations()
+      expect(applyEncryptedLocation(payload)).toBeNull()
     })
   })
 
@@ -514,22 +520,34 @@ describe('useFriendLocations', () => {
       expect(hasLocations.value).toBe(false)
     })
 
-    test('cleanup stops polling and clears locations', async () => {
-      vi.useFakeTimers()
+    test('cleanup clears cached locations', async () => {
       mockIsSetupComplete.value = true
       mockEncryptionPrivateKey.value = aliceKeys.encryption.privateKey
-      mockGetFriendLocations.mockResolvedValue([])
 
-      const { startPolling, cleanup, isPolling, locations } = useFriendLocations()
+      mockFriends.value = [
+        {
+          friendHandle: 'bob@other.server',
+          friendEncryptionKey: exportPublicKey(bobKeys.encryption.publicKey),
+          friendSigningKey: exportPublicKey(bobKeys.signing.publicKey),
+        },
+      ]
 
-      startPolling(1000)
-      expect(isPolling.value).toBe(true)
+      mockGetFriendLocations.mockResolvedValue([
+        await v2LocationFixture({
+          senderKeys: bobKeys,
+          senderHandle: 'bob@other.server',
+          recipientKeys: aliceKeys,
+          recipientHandle: 'alice@home.server',
+          location: { lat: 1, lng: 1, timestamp: Date.now() },
+        }),
+      ])
+
+      const { fetchLocations, cleanup, locations } = useFriendLocations()
+      await fetchLocations()
+      expect(locations.value).toHaveLength(1)
 
       cleanup()
-      expect(isPolling.value).toBe(false)
       expect(locations.value).toEqual([])
-
-      vi.useRealTimers()
     })
   })
 })

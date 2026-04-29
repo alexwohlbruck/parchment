@@ -7,9 +7,12 @@
  *
  *   - a `Track` per friend, holding the latest sample plus the
  *     position we're currently rendering (see `lib/movement-interpolation`)
- *   - a `requestAnimationFrame` loop that recomputes each rendered
- *     position and pushes it via `mapAPI.setMarkerLngLat` — a direct
- *     CSS-transform on the maplibre marker, ~free per frame
+ *   - a per-frame `tick` registered with the shared
+ *     `lib/animation-scheduler` — recomputes each rendered position
+ *     and pushes it via `mapAPI.setMarkerLngLat` (a direct
+ *     CSS-transform on the maplibre marker, ~free per frame). The
+ *     scheduler sleeps when no marker is moving, so an idle page
+ *     costs nothing.
  *   - a sample-arrival watcher that builds a fresh `Track` (with a
  *     short tween from the currently-rendered position to the new
  *     sample) whenever a friend's `updatedAt` changes
@@ -32,14 +35,33 @@ import {
   predict,
   type Track,
 } from '@/lib/movement-interpolation'
+import {
+  register as registerTick,
+  requestTick,
+  type Tick,
+} from '@/lib/animation-scheduler'
 import FriendLocationMarker from '@/components/map/FriendLocationMarker.vue'
+
+// Skip `setMarkerLngLat` when the predicted position hasn't moved by
+// more than this. ~5 cm at the equator — well below visible
+// resolution at any reasonable zoom, so we save the maplibre internal
+// recompute on idle frames without ever showing a stale marker.
+const POSITION_EPSILON_DEG = 0.0000005
 
 export class FriendLocationsLayer extends BaseMarkerLayer {
   private layersStore = useLayersStore()
   private friendLocations = useFriendLocations()
 
   private tracks = new Map<string, Track>()
-  private animationFrame: number | null = null
+  /**
+   * Last position pushed to maplibre per marker. Compared against the
+   * current frame's prediction to skip `setMarkerLngLat` calls when
+   * the marker would render at the same screen pixel anyway — that's
+   * what lets the shared animation scheduler treat us as idle and
+   * pause its rAF.
+   */
+  private lastRendered = new Map<string, { lat: number; lng: number }>()
+  private unregisterTick: (() => void) | null = null
   private samplesWatchStop: WatchStopHandle | null = null
 
   /**
@@ -70,12 +92,12 @@ export class FriendLocationsLayer extends BaseMarkerLayer {
   /**
    * Override of base class init. We do everything the base class does
    * (mounts the create/destroy watcher), then layer on a sample
-   * watcher and an rAF loop for position animation.
+   * watcher and a tick into the shared animation scheduler.
    */
   initialize(mapAPI: MapMarkerAPI) {
     super.initialize(mapAPI)
     this.startSampleWatcher()
-    this.startAnimationLoop()
+    this.unregisterTick = registerTick(this.tick)
   }
 
   protected getData(): MarkerData[] {
@@ -147,8 +169,14 @@ export class FriendLocationsLayer extends BaseMarkerLayer {
         }
         // Drop tracks for friends that left the visible set.
         for (const handle of Array.from(this.tracks.keys())) {
-          if (!seen.has(handle)) this.tracks.delete(handle)
+          if (!seen.has(handle)) {
+            this.tracks.delete(handle)
+            this.lastRendered.delete(handle)
+          }
         }
+        // A new sample (or several) just landed — wake the scheduler so
+        // the marker starts gliding toward it on the next frame.
+        if (rows.length > 0) requestTick()
       },
       { immediate: true },
     )
@@ -197,6 +225,11 @@ export class FriendLocationsLayer extends BaseMarkerLayer {
         markerData.dragOptions,
       )
       this.currentMarkerSnapshots.set(fullId, snapshot)
+      // Recreate puts the marker at the raw sample position. Drop the
+      // last-rendered cache for this handle so the next scheduler
+      // tick force-emits the predicted position (otherwise the dedup
+      // check would skip and leave the marker on the sample).
+      this.lastRendered.delete(markerData.id)
     }
 
     for (const oldId of this.currentMarkerIds) {
@@ -206,6 +239,9 @@ export class FriendLocationsLayer extends BaseMarkerLayer {
       }
     }
     this.currentMarkerIds = newMarkerIds
+    // Markers were just (re)created — wake the scheduler so the next
+    // frame reconciles their positions to the rAF prediction.
+    if (data.length > 0) requestTick()
   }
 
   private snapshotProps(markerData: MarkerData): string {
@@ -231,35 +267,50 @@ export class FriendLocationsLayer extends BaseMarkerLayer {
   }
 
   /**
-   * Per-frame: ask each track where its marker should be NOW and push
-   * that to the maplibre marker via `setMarkerLngLat`. No-op when the
-   * layer is hidden — the rAF still spins (cheap) but does no work.
+   * Per-frame work, called by the shared animation scheduler. Returns
+   * `'active'` if any marker actually moved this frame so the scheduler
+   * keeps ticking; `'idle'` otherwise so it can sleep.
+   *
+   * `setMarkerLngLat` is gated on a sub-cm position delta — when a
+   * track is past its dead-reckoning cap (frozen at `track.to`),
+   * `predict` returns the same value frame after frame and we have
+   * nothing to push to maplibre.
+   *
+   * Bound as an arrow property so the scheduler can call it without a
+   * `this` reference.
    */
-  private startAnimationLoop() {
-    const tick = () => {
-      this.animationFrame = requestAnimationFrame(tick)
-      if (!this.mapAPI) return
-      if (this.enabled && !this.enabled.value) return
-      if (this.tracks.size === 0) return
+  private tick: Tick = (now) => {
+    if (!this.mapAPI) return 'idle'
+    if (this.enabled && !this.enabled.value) return 'idle'
+    if (this.tracks.size === 0) return 'idle'
 
-      const now = Date.now()
-      for (const [handle, track] of this.tracks) {
-        const fullId = `${this.idPrefix}${handle}`
-        const pos = predict(track, now)
-        this.mapAPI.setMarkerLngLat(fullId, pos)
+    let anyMoved = false
+    for (const [handle, track] of this.tracks) {
+      const fullId = `${this.idPrefix}${handle}`
+      if (!this.mapAPI.hasMarker(fullId)) continue
+      const pos = predict(track, now)
+      const prev = this.lastRendered.get(handle)
+      if (
+        prev &&
+        Math.abs(pos.lat - prev.lat) < POSITION_EPSILON_DEG &&
+        Math.abs(pos.lng - prev.lng) < POSITION_EPSILON_DEG
+      ) {
+        continue
       }
+      this.mapAPI.setMarkerLngLat(fullId, pos)
+      this.lastRendered.set(handle, { lat: pos.lat, lng: pos.lng })
+      anyMoved = true
     }
-    this.animationFrame = requestAnimationFrame(tick)
+    return anyMoved ? 'active' : 'idle'
   }
 
   destroy() {
-    if (this.animationFrame != null) {
-      cancelAnimationFrame(this.animationFrame)
-      this.animationFrame = null
-    }
+    this.unregisterTick?.()
+    this.unregisterTick = null
     this.samplesWatchStop?.()
     this.samplesWatchStop = null
     this.tracks.clear()
+    this.lastRendered.clear()
     this.currentMarkerSnapshots.clear()
     super.destroy()
   }

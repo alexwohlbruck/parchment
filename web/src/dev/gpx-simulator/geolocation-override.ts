@@ -29,11 +29,17 @@ interface ManagedWatcher {
 }
 
 let installed = false
+let originalGeolocationDescriptor: PropertyDescriptor | undefined
+let unsubscribeStore: (() => void) | undefined
 
 export function installGeolocationOverride() {
   if (installed) return
   if (typeof navigator === 'undefined' || !navigator.geolocation) return
   installed = true
+  originalGeolocationDescriptor = Object.getOwnPropertyDescriptor(
+    navigator,
+    'geolocation',
+  )
 
   // Capture the real Geolocation. Bind methods so they can be invoked
   // detached without a `this` reference.
@@ -162,7 +168,7 @@ export function installGeolocationOverride() {
   // Subscribe to store updates and push simulated positions to every
   // watcher when the current point changes. Per-watcher dedup avoids
   // double-emit when the store ticks but the point hasn't moved.
-  simulatorStore.subscribe((state) => {
+  unsubscribeStore = simulatorStore.subscribe((state) => {
     if (state.status !== 'playing' && state.status !== 'paused') return
     const point = state.currentPoint
     if (!point) return
@@ -177,4 +183,20 @@ export function installGeolocationOverride() {
       }
     }
   })
+}
+
+/**
+ * Testing hook — restore the original navigator.geolocation descriptor
+ * and clear the installed flag so the next `installGeolocationOverride`
+ * call sets up a fresh proxy. Not used in production.
+ */
+export function _resetForTests(): void {
+  if (!installed) return
+  unsubscribeStore?.()
+  unsubscribeStore = undefined
+  if (originalGeolocationDescriptor !== undefined) {
+    Object.defineProperty(navigator, 'geolocation', originalGeolocationDescriptor)
+  }
+  originalGeolocationDescriptor = undefined
+  installed = false
 }

@@ -62,6 +62,16 @@ export interface Track {
    * against re-deliveries (e.g., on `realtime:reconnected` refetch).
    */
   toSampleTimestamp: number
+  /**
+   * Pre-computed Hermite tangents in degrees PER SEGMENT (not
+   * per-second). Computed once at `buildTrack` time so per-frame
+   * `predict` can lerp without re-running the trig in
+   * `velocityVectorDegPerSec`. null when either velocity is missing
+   * or below `MIN_DR_SPEED` — `predict` falls back to ease-out lerp
+   * in that case.
+   */
+  hermiteT0: { dLat: number; dLng: number } | null
+  hermiteT1: { dLat: number; dLng: number } | null
 }
 
 /**
@@ -206,7 +216,7 @@ export function distanceMeters(a: LngLat, b: LngLat): number {
  *
  * Three regimes:
  *   - `now` inside the tween window → Hermite cubic from `from` to
- *     `to` when both endpoint velocities are known (smooth curve
+ *     `to` when pre-computed tangents are present (smooth curve
  *     through corners); ease-out linear lerp otherwise.
  *   - `now` past the tween, within staleness cap → dead-reckon forward
  *     from `to` using the sample's velocity.
@@ -218,36 +228,16 @@ export function predict(track: Track, now: number): LngLat {
 
   if (elapsedMs < track.segmentDurationMs) {
     const u = elapsedMs / track.segmentDurationMs
-    const segSec = track.segmentDurationMs / 1000
 
-    const haveEntryVel =
-      track.fromVelocity &&
-      track.fromVelocity.speedMps > MIN_DR_SPEED
-    const haveExitVel =
-      track.postSpeed != null &&
-      track.postSpeed > MIN_DR_SPEED &&
-      track.postHeading != null
-
-    // Hermite needs both tangents. When either is missing, fall back
-    // to ease-out linear lerp — better than picking an arbitrary zero
-    // tangent which would yield a worse-looking S-curve.
-    if (haveEntryVel && haveExitVel) {
-      const t0Per = velocityVectorDegPerSec(
+    if (track.hermiteT0 && track.hermiteT1) {
+      return hermiteLatLng(
         track.from,
-        track.fromVelocity!.speedMps,
-        track.fromVelocity!.headingDeg,
-      )
-      const t1Per = velocityVectorDegPerSec(
         track.to,
-        track.postSpeed!,
-        track.postHeading!,
+        track.hermiteT0,
+        track.hermiteT1,
+        u,
       )
-      // Hermite tangents are per-segment, not per-second.
-      const t0 = { dLat: t0Per.dLat * segSec, dLng: t0Per.dLng * segSec }
-      const t1 = { dLat: t1Per.dLat * segSec, dLng: t1Per.dLng * segSec }
-      return hermiteLatLng(track.from, track.to, t0, t1, u)
     }
-
     return lerpLatLng(track.from, track.to, easeOut(u))
   }
 
@@ -304,6 +294,8 @@ export function buildTrack(params: {
       postSpeed: sample.speed,
       postHeading: sample.heading,
       toSampleTimestamp: sample.timestampMs,
+      hermiteT0: null,
+      hermiteT1: null,
     }
   }
 
@@ -323,6 +315,34 @@ export function buildTrack(params: {
         }
       : null
 
+  // Pre-compute Hermite tangents in deg PER SEGMENT. Predict() reads
+  // these directly each frame — no trig in the hot path. Both must be
+  // present and above the dead-reckoning floor for Hermite to win
+  // visually; otherwise predict falls back to ease-out linear lerp.
+  let hermiteT0: { dLat: number; dLng: number } | null = null
+  let hermiteT1: { dLat: number; dLng: number } | null = null
+  const haveEntryVel =
+    fromVelocity != null && fromVelocity.speedMps > MIN_DR_SPEED
+  const haveExitVel =
+    sample.speed != null &&
+    sample.speed > MIN_DR_SPEED &&
+    sample.heading != null
+  if (haveEntryVel && haveExitVel) {
+    const segSec = segmentDurationMs / 1000
+    const t0Per = velocityVectorDegPerSec(
+      currentRendered,
+      fromVelocity!.speedMps,
+      fromVelocity!.headingDeg,
+    )
+    const t1Per = velocityVectorDegPerSec(
+      sample.lngLat,
+      sample.speed!,
+      sample.heading!,
+    )
+    hermiteT0 = { dLat: t0Per.dLat * segSec, dLng: t0Per.dLng * segSec }
+    hermiteT1 = { dLat: t1Per.dLat * segSec, dLng: t1Per.dLng * segSec }
+  }
+
   return {
     from: currentRendered,
     to: sample.lngLat,
@@ -332,5 +352,7 @@ export function buildTrack(params: {
     postSpeed: sample.speed,
     postHeading: sample.heading,
     toSampleTimestamp: sample.timestampMs,
+    hermiteT0,
+    hermiteT1,
   }
 }

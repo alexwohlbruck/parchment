@@ -104,6 +104,8 @@ describe('predict', () => {
     postSpeed: 1,
     postHeading: 90, // east
     toSampleTimestamp: 1000,
+    hermiteT0: null, // ease-out lerp path
+    hermiteT1: null,
   }
 
   test('returns from at segment start', () => {
@@ -194,6 +196,8 @@ describe('buildTrack', () => {
       postSpeed: 5, // m/s
       postHeading: 90, // east
       toSampleTimestamp: 1000,
+      hermiteT0: null,
+      hermiteT1: null,
     }
     const t = buildTrack({
       currentRendered: { lat: 35, lng: -79.985 },
@@ -219,6 +223,8 @@ describe('buildTrack', () => {
       postSpeed: null,
       postHeading: null,
       toSampleTimestamp: 1000,
+      hermiteT0: null,
+      hermiteT1: null,
     }
     const t = buildTrack({
       currentRendered: { lat: 35, lng: -79.99 },
@@ -309,21 +315,39 @@ describe('hermiteLatLng', () => {
 })
 
 describe('predict (Hermite path)', () => {
-  test('uses Hermite when both endpoint velocities are present', () => {
+  test('uses Hermite when pre-computed tangents are present', () => {
     // Right-angle turn: heading north, then heading east. The Hermite
     // curve should bow OUT (overshooting both axes) instead of cutting
     // a straight line corner.
-    const track: Track = {
-      from: { lat: 35, lng: -80 },
-      to: { lat: 35.001, lng: -79.999 },
-      segmentStartMs: 1000,
-      segmentDurationMs: 500,
-      fromVelocity: { speedMps: 2, headingDeg: 0 }, // north
-      postSpeed: 2,
-      postHeading: 90, // east
-      toSampleTimestamp: 1000,
-    }
-    const mid = predict(track, 1250)
+    const track = buildTrack({
+      currentRendered: { lat: 35, lng: -80 },
+      previousTrack: {
+        from: { lat: 0, lng: 0 },
+        to: { lat: 35, lng: -80 },
+        segmentStartMs: 0,
+        segmentDurationMs: 100,
+        fromVelocity: null,
+        postSpeed: 2, // m/s north
+        postHeading: 0,
+        toSampleTimestamp: 0,
+        hermiteT0: null,
+        hermiteT1: null,
+      },
+      sample: {
+        lngLat: { lat: 35.001, lng: -79.999 },
+        speed: 2,
+        heading: 90, // east
+        timestampMs: 1000,
+      },
+      now: 1000,
+    })
+    expect(track.hermiteT0).not.toBeNull()
+    expect(track.hermiteT1).not.toBeNull()
+
+    const mid = predict(
+      { ...track, segmentStartMs: 1000, segmentDurationMs: 500 },
+      1250,
+    )
     // Linear lerp midpoint would be at lat = 35.0005, lng = -79.9995.
     // Hermite with the velocity tangents should be NORTH of that line
     // (turning later than a straight cut would).
@@ -340,6 +364,8 @@ describe('predict (Hermite path)', () => {
       postSpeed: 5,
       postHeading: 90,
       toSampleTimestamp: 1000,
+      hermiteT0: null,
+      hermiteT1: null,
     }
     const mid = predict(track, 1250)
     // ease-out at u=0.5 is past the linear midpoint

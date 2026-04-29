@@ -6,13 +6,14 @@ import * as locationE2eeService from '../services/location-e2ee.service'
 
 const app = new Elysia({ prefix: '/location' })
 
-// Rate-limit the broadcast endpoint. Movement-driven gating in the client
-// (10s floor, 10m distance threshold, 5min stationary refresh) means a
-// well-behaved client tops out at well under 12 req/min. Anything above is
-// either a bug or abuse.
+// Rate-limit the broadcast endpoint. Movement-driven gating in the
+// client (2s floor, 3m distance threshold, 5min stationary refresh)
+// caps a well-behaved client to ~30 req/min while moving. 60/min leaves
+// headroom for burst broadcasts (sharing toggle, refresh-and-broadcast)
+// without throttling real usage. Anything above is either a bug or abuse.
 const updateRateLimit = makeUserRateLimit({
   name: 'location-update',
-  limit: 12,
+  limit: 60,
   windowMs: 60_000,
 })
 

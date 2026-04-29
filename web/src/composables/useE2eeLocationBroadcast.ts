@@ -30,8 +30,13 @@ import {
 // background tab on mobile). Without it, a stationary device would
 // never trip the stationary refresh because no coord change would wake
 // the broadcast trigger.
-const MIN_BROADCAST_INTERVAL_MS = 10_000
-const MIN_DISTANCE_M = 10
+//
+// Sized to give the receiver enough samples for smooth interpolation:
+// 2s minimum interval + 3m distance threshold means a brisk walk
+// (~1.4 m/s) broadcasts roughly every 2-3s, and a moving vehicle
+// every 2s. Server rate limit is sized to match (60/min).
+const MIN_BROADCAST_INTERVAL_MS = 2_000
+const MIN_DISTANCE_M = 3
 const STATIONARY_REFRESH_MS = 5 * 60_000
 const HEARTBEAT_MS = 60_000
 

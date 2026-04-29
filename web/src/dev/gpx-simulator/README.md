@@ -19,11 +19,9 @@ from the loaded GPX track at the current playback position.
 ## How to use
 
 1. Run the dev server (`bun run dev` in `web/`).
-2. A small "GPX SIM" chip appears bottom-right. Click to expand.
-3. Drop a `.gpx` file (or click "Open"). The track loads.
-4. Hit play. The rest of the app sees simulated GPS.
-
-Toggle via `Cmd+Shift+G` (Mac) / `Ctrl+Shift+G` (Win/Linux).
+2. Open Settings → Developer (only appears in dev builds).
+3. Pick or drop a `.gpx` file. The track loads.
+4. Hit Play. The rest of the app sees simulated GPS.
 
 ## How to record a GPX
 
@@ -38,13 +36,17 @@ Drop the exported `.gpx` into the panel.
 
 ## How to remove this feature
 
-This module is fully decoupled from app logic. To remove it:
+The module's I/O (parser, store, geolocation override) is fully
+decoupled from app logic. The settings page that surfaces it is the
+only coupling point. To remove the feature entirely:
 
 1. Delete this directory: `web/src/dev/gpx-simulator/`
-2. Delete the conditional import in `web/src/main.ts` (search for
+2. Delete `web/src/views/settings/pages/Developer.vue`
+3. Remove the `'developer'` entry from `web/src/views/settings/settingsIndex.ts`
+4. Remove the `DEVELOPER` route + import in `web/src/router/index.ts`
+5. Remove the conditional install in `web/src/main.ts` (search for
    `'@/dev/gpx-simulator'`).
-
-That's it — no other touches needed.
+6. (optional) remove `settings.developer.*` keys from `web/src/lib/i18n/en-US.json`.
 
 ## Files
 
@@ -54,6 +56,5 @@ That's it — no other touches needed.
   rate / loop) with a tiny pub-sub. No Vue, no Pinia.
 - `geolocation-override.ts` — installs the `navigator.geolocation`
   proxy. Forwards real GPS through when the simulator is stopped.
-- `GpxSimulatorPanel.vue` — the floating UI. Independent Vue app —
-  doesn't share component context with the main app.
-- `index.ts` — `install()` entry point.
+- `index.ts` — `install()` entry point and re-exports the store +
+  parser for the settings page UI.

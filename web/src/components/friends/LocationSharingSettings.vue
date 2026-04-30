@@ -30,7 +30,6 @@ const { friends } = storeToRefs(friendsStore)
 interface SharingConfig {
   friendHandle: string
   enabled: boolean
-  refreshInterval: number
 }
 
 const configs = ref<Map<string, SharingConfig>>(new Map())
@@ -53,7 +52,6 @@ onMounted(async () => {
       configs.value.set(friend.friendHandle, {
         friendHandle: friend.friendHandle,
         enabled: existing?.enabled ?? false,
-        refreshInterval: existing?.refreshInterval ?? 60,
       })
     }
   } catch (error) {
@@ -70,10 +68,7 @@ async function toggleSharing(friendHandle: string, enabled: boolean) {
     if (!config) return
 
     if (enabled) {
-      await locationService.setE2eeConfig(friendHandle, {
-        enabled: true,
-        refreshInterval: config.refreshInterval,
-      })
+      await locationService.setE2eeConfig(friendHandle, { enabled: true })
     } else {
       await locationService.disableE2eeSharing(friendHandle)
     }

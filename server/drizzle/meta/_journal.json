@@ -330,6 +330,13 @@
       "when": 1777089451557,
       "tag": "0046_careful_mimic",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1777391467974,
+      "tag": "0047_futuristic_demogoblin",
+      "breakpoints": true
     }
   ]
 }

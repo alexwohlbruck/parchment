@@ -274,6 +274,17 @@ export async function resolveUserProfileRecipients(
 }
 
 /**
+ * A single federation handle → split into local userId or remote handle.
+ * Used for events targeted at one specific recipient by handle (e.g. an
+ * encrypted location stored "for" a friend handle).
+ */
+export async function resolveHandleRecipient(
+  handle: string,
+): Promise<Recipients> {
+  return splitHandles([handle])
+}
+
+/**
  * Public-link events are owner-only (anonymous viewers can't be notified —
  * they're stateless and refetch on load). Kept as its own resolver for
  * symmetry with the rest.

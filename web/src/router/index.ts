@@ -11,6 +11,12 @@ import Behavior from '@/views/settings/pages/Behavior.vue'
 import Appearance from '@/views/settings/pages/appearance/Appearance.vue'
 import MapSettings from '@/views/settings/pages/MapSettings.vue'
 import Users from '@/views/settings/pages/Users.vue'
+// Dev-only settings page hosting the GPX track simulator. Imported
+// statically so the route is always registered (cheap); the
+// settingsIndex entry that surfaces it in the nav is gated by
+// `import.meta.env.DEV`. See `@/dev/gpx-simulator/index.ts` for the
+// removal checklist.
+import Developer from '@/views/settings/pages/Developer.vue'
 import Library from '@/views/library/Library.vue'
 import Collection from '@/views/library/collections/Collection.vue'
 import NotFound from '@/views/NotFound.vue'
@@ -45,6 +51,7 @@ export enum AppRoute {
   MAP_SETTINGS = 'mapSettings',
   USERS = 'users',
   INTEGRATIONS = 'integrations',
+  DEVELOPER = 'developer',
   NOTE = 'note',
   NOTE_CREATE = 'note-create',
   FRIENDS = 'friends',
@@ -243,6 +250,11 @@ const router = createRouter({
           path: '/settings/integrations',
           name: AppRoute.INTEGRATIONS,
           component: Integrations,
+        },
+        {
+          path: '/settings/developer',
+          name: AppRoute.DEVELOPER,
+          component: Developer,
         },
       ],
     },

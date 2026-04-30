@@ -314,15 +314,16 @@ describe('Encrypted Location Storage', () => {
       mockInsertQuery.insert.mockReturnValue(mockInsertQuery)
       mockInsertQuery.values.mockReturnValue(mockInsertQuery)
 
-      const location = await storeEncryptedLocation(
+      const result = await storeEncryptedLocation(
         'user-123',
         'alice@other.server',
         'encrypted-data',
         'nonce-value',
       )
 
-      expect(location.encryptedLocation).toBe('encrypted-data')
-      expect(location.nonce).toBe('nonce-value')
+      expect(result.stored).toBe(true)
+      expect(result.row.encryptedLocation).toBe('encrypted-data')
+      expect(result.row.nonce).toBe('nonce-value')
     })
 
     test('updates existing encrypted location (upsert)', async () => {
@@ -331,14 +332,16 @@ describe('Encrypted Location Storage', () => {
         userId: 'user-123',
         forFriendHandle: 'alice@other.server',
         encryptedLocation: 'old-encrypted-data',
-        nonce: 'old-nonce',
+        // Nonces are RFC 3339 timestamps; the new one must be strictly
+        // newer to clear the replay-protection guard.
+        nonce: '2026-01-01T00:00:00.000Z',
         updatedAt: new Date(),
       }
 
       const updatedLocation = {
         ...existingLocation,
         encryptedLocation: 'new-encrypted-data',
-        nonce: 'new-nonce',
+        nonce: '2026-01-01T00:00:01.000Z',
       }
 
       // Mock select to return existing
@@ -363,15 +366,51 @@ describe('Encrypted Location Storage', () => {
       mockUpdateQuery.set.mockReturnValue(mockUpdateQuery)
       mockUpdateQuery.where.mockReturnValue(mockUpdateQuery)
 
-      const location = await storeEncryptedLocation(
+      const result = await storeEncryptedLocation(
         'user-123',
         'alice@other.server',
         'new-encrypted-data',
-        'new-nonce',
+        '2026-01-01T00:00:01.000Z',
       )
 
-      expect(location.encryptedLocation).toBe('new-encrypted-data')
-      expect(location.nonce).toBe('new-nonce')
+      expect(result.stored).toBe(true)
+      expect(result.row.encryptedLocation).toBe('new-encrypted-data')
+      expect(result.row.nonce).toBe('2026-01-01T00:00:01.000Z')
+    })
+
+    test('rejects a replayed/stale nonce', async () => {
+      const existingLocation = {
+        id: 'location-1',
+        userId: 'user-123',
+        forFriendHandle: 'alice@other.server',
+        encryptedLocation: 'current-encrypted-data',
+        nonce: '2026-01-01T00:00:10.000Z',
+        updatedAt: new Date(),
+      }
+
+      const mockSelectQuery = {
+        select: mock(() => mockSelectQuery),
+        from: mock(() => mockSelectQuery),
+        where: mock(() => mockSelectQuery),
+        limit: mock(() => Promise.resolve([existingLocation])),
+      }
+      mockDb.select.mockReturnValue(mockSelectQuery)
+      mockSelectQuery.select.mockReturnValue(mockSelectQuery)
+
+      const result = await storeEncryptedLocation(
+        'user-123',
+        'alice@other.server',
+        'replayed-encrypted-data',
+        '2026-01-01T00:00:05.000Z', // older than existing
+      )
+
+      expect(result.stored).toBe(false)
+      if (!result.stored) {
+        expect(result.replayed).toBe(true)
+        expect(result.row.encryptedLocation).toBe('current-encrypted-data')
+      }
+      // Update was NOT called because the guard kicked in.
+      expect(mockDb.update).not.toHaveBeenCalled()
     })
   })
 

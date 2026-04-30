@@ -20,11 +20,15 @@ import {
 // Mock the stores and services
 const mockFriends = ref<any[]>([])
 const mockEncryptionPrivateKey = ref<Uint8Array | null>(null)
+const mockSigningPrivateKey = ref<Uint8Array | null>(null)
+const mockHandle = ref<string | null>(null)
 const mockIsSetupComplete = ref(false)
 
 vi.mock('@/stores/identity.store', () => ({
   useIdentityStore: () => ({
     encryptionPrivateKey: mockEncryptionPrivateKey,
+    signingPrivateKey: mockSigningPrivateKey,
+    handle: mockHandle,
     isSetupComplete: mockIsSetupComplete,
   }),
 }))
@@ -99,6 +103,8 @@ describe('useE2eeLocationBroadcast', () => {
     vi.clearAllMocks()
     mockFriends.value = []
     mockEncryptionPrivateKey.value = null
+    mockSigningPrivateKey.value = null
+    mockHandle.value = null
     mockIsSetupComplete.value = false
 
     mockGetE2eeConfigs.mockResolvedValue([])
@@ -202,19 +208,6 @@ describe('useE2eeLocationBroadcast', () => {
 
       vi.useRealTimers()
     })
-
-    test('uses custom interval', async () => {
-      vi.useFakeTimers()
-      mockIsSetupComplete.value = true
-      mockEncryptionPrivateKey.value = aliceKeys.encryption.privateKey
-
-      const { start, intervalMs } = useE2eeLocationBroadcast()
-      await start({ intervalMs: 5000 })
-
-      expect(intervalMs.value).toBe(5000)
-
-      vi.useRealTimers()
-    })
   })
 
   describe('stop', () => {
@@ -310,23 +303,6 @@ describe('useE2eeLocationBroadcast', () => {
     })
   })
 
-  describe('updateInterval', () => {
-    test('updates the broadcast interval', async () => {
-      mockIsSetupComplete.value = true
-      mockEncryptionPrivateKey.value = aliceKeys.encryption.privateKey
-
-      vi.useFakeTimers()
-
-      const { start, updateInterval, intervalMs } = useE2eeLocationBroadcast()
-      await start({ intervalMs: 60000 })
-      expect(intervalMs.value).toBe(60000)
-
-      updateInterval(30000)
-      expect(intervalMs.value).toBe(30000)
-
-      vi.useRealTimers()
-    })
-  })
 })
 
 // Location data format is a pure shape type now (no v1 encrypt/decrypt

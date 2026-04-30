@@ -1124,6 +1124,35 @@
         "signOutOthersFailed": "Couldn't sign out other devices."
       }
     },
+    "developer": {
+      "title": "Developer",
+      "gpxSimulator": {
+        "title": "GPX track simulator",
+        "description": "Replay a recorded GPX file as if it were live GPS. Lets you test location-aware features without physically moving.",
+        "noTrack": "No track loaded",
+        "noTrackHint": "Pick a .gpx file to start. The app will receive simulated GPS positions instead of real ones.",
+        "trackMeta": "{count} points · {duration}",
+        "choose": "Choose file",
+        "replace": "Replace",
+        "unload": "Unload",
+        "dropHere": "or drop a .gpx file here",
+        "play": "Play",
+        "pause": "Pause",
+        "reset": "Reset to start",
+        "playbackSpeed": "Playback speed",
+        "loop": "Loop",
+        "loopDescription": "Restart from the beginning when the track ends",
+        "position": "Position",
+        "speed": "Speed",
+        "heading": "Heading"
+      },
+      "info": {
+        "title": "About this page",
+        "description": "This page is only visible in development mode.",
+        "modeTitle": "Development build",
+        "modeDescription": "Development-only tooling lives here. None of it ships to production."
+      }
+    },
     "behavior": {
       "title": "Behavior",
       "language": {

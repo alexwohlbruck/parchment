@@ -453,6 +453,19 @@ export interface FriendShareBinding {
   timestamp: string // RFC 3339
 }
 
+/**
+ * Canonical relationshipId derived from the two parties' handles. Both
+ * sides compute identical IDs by sorting first — order doesn't depend on
+ * who's encrypting. Kept case-sensitive: the AAD binding embeds the
+ * relationshipId verbatim, so changing the case-folding rule would break
+ * decryption of any blob encrypted with the old rule. Lowercasing for
+ * comparisons happens at the API boundary, not here.
+ */
+export function buildRelationshipId(a: string, b: string): string {
+  const [first, second] = a < b ? [a, b] : [b, a]
+  return `${first}::${second}`
+}
+
 function buildFriendShareAAD(b: FriendShareBinding): AAD {
   return {
     userId: b.recipientId,

@@ -35,7 +35,6 @@ const emit = defineEmits<{
 interface LocationConfig {
   friendHandle: string
   enabled: boolean
-  refreshInterval: number
 }
 
 const locationConfigs = reactive<Record<string, LocationConfig>>({})
@@ -66,7 +65,6 @@ async function loadLocationConfigs() {
       locationConfigs[friend.friendHandle] = {
         friendHandle: friend.friendHandle,
         enabled: existing?.enabled ?? false,
-        refreshInterval: existing?.refreshInterval ?? 60,
       }
     }
   } catch (error) {
@@ -92,14 +90,10 @@ async function handleToggleLocation(friendHandle: string, enabled: boolean) {
     const config = locationConfigs[friendHandle] ?? {
       friendHandle,
       enabled: false,
-      refreshInterval: 60,
     }
 
     if (enabled) {
-      await locationService.setE2eeConfig(friendHandle, {
-        enabled: true,
-        refreshInterval: config.refreshInterval,
-      })
+      await locationService.setE2eeConfig(friendHandle, { enabled: true })
     } else {
       await locationService.disableE2eeSharing(friendHandle)
     }

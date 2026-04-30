@@ -1,8 +1,19 @@
 /**
  * Friend Locations Composable
  *
- * Fetches encrypted locations from friends, decrypts them,
- * and provides reactive state for map display.
+ * Holds reactive state for friends' decrypted positions. State is fed
+ * three ways:
+ *
+ *   - `fetchLocations()` for initial hydration when the layer mounts
+ *     and for catch-up after a websocket reconnect. Sweeps stale entries
+ *     out (anyone present locally but missing from the response).
+ *   - `applyEncryptedLocation(encLoc)` for individual server-pushed
+ *     `location:updated` events.
+ *   - `removeLocation(senderHandle)` for `location:cleared` events
+ *     (sender disabled sharing or unfriended).
+ *
+ * All three funnel through the same map keyed by lowercased handle so
+ * comparisons are case-insensitive end to end.
  */
 
 import { ref, computed } from 'vue'
@@ -12,17 +23,13 @@ import { useLocationService } from '@/services/location.service'
 import { useFriendsStore } from '@/stores/friends.store'
 import { useIdentityStore } from '@/stores/identity.store'
 import {
+  buildRelationshipId,
   decryptLocationFromFriendV2,
   importPublicKey,
   type FriendShareBinding,
   type LocationData,
 } from '@/lib/federation-crypto'
 import type { LngLat } from '@/types/map.types'
-
-function buildRelationshipId(a: string, b: string): string {
-  const [first, second] = a < b ? [a, b] : [b, a]
-  return `${first}::${second}`
-}
 
 export interface FriendLocation {
   friendHandle: string
@@ -34,6 +41,48 @@ export interface FriendLocation {
   lngLat: LngLat
 }
 
+export interface EncryptedLocationPayload {
+  id: string
+  fromUserId: string
+  senderHandle: string | null
+  encryptedLocation: string
+  nonce: string
+  updatedAt: string
+}
+
+export interface LocationClearedPayload {
+  senderHandle: string
+}
+
+/**
+ * Type guard: confirm an unknown realtime payload has the shape we expect
+ * before we hand it to decrypt. The realtime envelope is unvalidated by
+ * design — schema-checking here turns a malformed server emit into a
+ * silent no-op instead of a runtime crash inside crypto code.
+ */
+export function isEncryptedLocationPayload(
+  v: unknown,
+): v is EncryptedLocationPayload {
+  if (!v || typeof v !== 'object') return false
+  const o = v as Record<string, unknown>
+  return (
+    typeof o.id === 'string' &&
+    typeof o.fromUserId === 'string' &&
+    (o.senderHandle === null || typeof o.senderHandle === 'string') &&
+    typeof o.encryptedLocation === 'string' &&
+    typeof o.nonce === 'string' &&
+    typeof o.updatedAt === 'string'
+  )
+}
+
+export function isLocationClearedPayload(
+  v: unknown,
+): v is LocationClearedPayload {
+  if (!v || typeof v !== 'object') return false
+  const o = v as Record<string, unknown>
+  return typeof o.senderHandle === 'string'
+}
+
 function friendLocationsComposable() {
   const locationService = useLocationService()
   const friendsStore = useFriendsStore()
@@ -43,20 +92,104 @@ function friendLocationsComposable() {
   const { encryptionPrivateKey, isSetupComplete, handle: myHandle } =
     storeToRefs(identityStore)
 
-  // State
+  // Map keys are LOWERCASED handles so all reads/writes/deletes are
+  // case-insensitive without callers needing to think about it.
   const friendLocations = ref<Map<string, FriendLocation>>(new Map())
   const isLoading = ref(false)
-  const lastFetchedAt = ref<Date | null>(null)
   const error = ref<string | null>(null)
-  const isPolling = ref(false)
-  let pollInterval: ReturnType<typeof setInterval> | null = null
 
-  // Computed
   const locations = computed(() => Array.from(friendLocations.value.values()))
   const hasLocations = computed(() => friendLocations.value.size > 0)
 
   /**
-   * Fetch and decrypt friend locations from the server
+   * Decrypt a single encrypted location row and upsert it into the
+   * reactive map. Returns the decrypted entry or `null` if it couldn't
+   * be applied (missing keys, missing friend record, decrypt failure).
+   *
+   * Same code path is used by the initial fetch loop and the realtime
+   * push handler — both produce identical state.
+   */
+  function applyEncryptedLocation(
+    encLoc: EncryptedLocationPayload,
+  ): FriendLocation | null {
+    if (!isSetupComplete.value || !encryptionPrivateKey.value) return null
+    if (!encLoc.senderHandle) return null
+
+    const senderKey = encLoc.senderHandle.toLowerCase()
+    const friend = friends.value.find(
+      (f) => f.friendHandle.toLowerCase() === senderKey,
+    )
+    if (!friend) {
+      console.warn(`No friend record for sender handle: ${encLoc.senderHandle}`)
+      return null
+    }
+    if (!friend.friendEncryptionKey || !friend.friendSigningKey) {
+      console.warn(
+        `Friend ${friend.friendHandle} missing keys, skipping decrypt`,
+      )
+      return null
+    }
+    if (!myHandle.value) {
+      console.warn('Own handle not available, skipping decrypt')
+      return null
+    }
+
+    try {
+      // v2 wire shape: `encryptedLocation` is the full ECIES blob,
+      // `nonce` carries the RFC 3339 sentAt that the AAD binds.
+      const friendSigningKey = importPublicKey(friend.friendSigningKey)
+      const binding: FriendShareBinding = {
+        senderId: friend.friendHandle,
+        recipientId: myHandle.value,
+        relationshipId: buildRelationshipId(
+          friend.friendHandle,
+          myHandle.value,
+        ),
+        timestamp: encLoc.nonce,
+      }
+      const locationData = decryptLocationFromFriendV2({
+        blob: encLoc.encryptedLocation,
+        myEncryptionPrivateKey: encryptionPrivateKey.value,
+        senderSigningPublicKey: friendSigningKey,
+        binding,
+      })
+
+      const friendLocation: FriendLocation = {
+        friendHandle: friend.friendHandle,
+        friendAlias: friend.friendHandle.split('@')[0],
+        friendName: friend.friendName || undefined,
+        friendPicture: friend.friendPicture || undefined,
+        location: locationData,
+        updatedAt: new Date(encLoc.updatedAt),
+        lngLat: { lat: locationData.lat, lng: locationData.lng },
+      }
+
+      friendLocations.value.set(senderKey, friendLocation)
+      return friendLocation
+    } catch (decryptError) {
+      console.warn(
+        `Failed to decrypt location for ${friend.friendHandle}:`,
+        decryptError,
+      )
+      return null
+    }
+  }
+
+  /**
+   * Drop a friend's marker from local state. Used by the
+   * `location:cleared` realtime event when a sender disables sharing
+   * or unfriends — receivers shouldn't keep showing the last-known
+   * position.
+   */
+  function removeLocation(senderHandle: string): void {
+    friendLocations.value.delete(senderHandle.toLowerCase())
+  }
+
+  /**
+   * Fetch and decrypt all friend locations from the server. Used for
+   * initial hydration and reconnect catch-up. Sweeps any local entry
+   * not in the response — covers unfriending, sharing-disable, etc.
+   * that we missed while offline.
    */
   async function fetchLocations(): Promise<FriendLocation[]> {
     if (!isSetupComplete.value || !encryptionPrivateKey.value) {
@@ -68,106 +201,25 @@ function friendLocationsComposable() {
     error.value = null
 
     try {
-      // Fetch encrypted locations from server
       const encryptedLocations = await locationService.getFriendLocations()
 
-      if (!encryptedLocations || encryptedLocations.length === 0) {
-        return Array.from(friendLocations.value.values())
+      const seen = new Set<string>()
+      const decrypted: FriendLocation[] = []
+      for (const encLoc of encryptedLocations ?? []) {
+        if (encLoc.senderHandle) seen.add(encLoc.senderHandle.toLowerCase())
+        const applied = applyEncryptedLocation(encLoc)
+        if (applied) decrypted.push(applied)
       }
 
-      const decryptedLocations: FriendLocation[] = []
-      const processedHandles = new Set<string>()
-
-      for (const encLoc of encryptedLocations) {
-        try {
-          // Find the friend who sent this location using senderHandle
-          const friend = friends.value.find(
-            f => f.friendHandle === encLoc.senderHandle,
-          )
-
-          if (!friend) {
-            console.warn(
-              `Could not find friend for sender handle: ${encLoc.senderHandle}`,
-            )
-            continue
-          }
-
-          if (!friend.friendEncryptionKey) {
-            console.warn(
-              `Friend ${friend.friendHandle} has no encryption key, skipping`,
-            )
-            continue
-          }
-
-          if (!friend.friendSigningKey) {
-            console.warn(
-              `Friend ${friend.friendHandle} has no signing key, skipping`,
-            )
-            continue
-          }
-          if (!myHandle.value) {
-            console.warn('Own handle not available, skipping decrypt')
-            continue
-          }
-
-          // v2 wire shape: `encryptedLocation` is the full ECIES blob,
-          // `nonce` carries the RFC 3339 sentAt that the AAD binds.
-          const friendSigningKey = importPublicKey(friend.friendSigningKey)
-          const binding: FriendShareBinding = {
-            senderId: friend.friendHandle,
-            recipientId: myHandle.value,
-            relationshipId: buildRelationshipId(
-              friend.friendHandle,
-              myHandle.value,
-            ),
-            timestamp: encLoc.nonce,
-          }
-          const locationData = decryptLocationFromFriendV2({
-            blob: encLoc.encryptedLocation,
-            myEncryptionPrivateKey: encryptionPrivateKey.value,
-            senderSigningPublicKey: friendSigningKey,
-            binding,
-          })
-
-          const friendLocation: FriendLocation = {
-            friendHandle: friend.friendHandle,
-            friendAlias: friend.friendHandle.split('@')[0],
-            friendName: friend.friendName || undefined,
-            friendPicture: friend.friendPicture || undefined,
-            location: locationData,
-            updatedAt: new Date(encLoc.updatedAt),
-            lngLat: {
-              lat: locationData.lat,
-              lng: locationData.lng,
-            },
-          }
-
-          decryptedLocations.push(friendLocation)
-          friendLocations.value.set(friend.friendHandle, friendLocation)
-          processedHandles.add(friend.friendHandle)
-        } catch (decryptError) {
-          const handle = encLoc.senderHandle
-          console.warn(
-            `Failed to decrypt location for ${handle}:`,
-            decryptError,
-          )
-          // On decryption failure, try syncing keys for next time
-          // but don't block or retry aggressively
-        }
+      // Evict any entry that the server didn't return. Authoritative
+      // sweep — covers unfriend, disable, and any other state drift.
+      // Doesn't depend on the friends store being loaded (the previous
+      // implementation wiped everything when `friends.value` was empty).
+      for (const key of Array.from(friendLocations.value.keys())) {
+        if (!seen.has(key)) friendLocations.value.delete(key)
       }
 
-      // Remove locations for friends no longer in the friends list
-      const currentFriendHandles = new Set(
-        friends.value.map(f => f.friendHandle),
-      )
-      for (const [handle] of friendLocations.value.entries()) {
-        if (!currentFriendHandles.has(handle)) {
-          friendLocations.value.delete(handle)
-        }
-      }
-
-      lastFetchedAt.value = new Date()
-      return decryptedLocations
+      return decrypted
     } catch (err) {
       console.error('Failed to fetch friend locations:', err)
       error.value = err instanceof Error ? err.message : 'Failed to fetch'
@@ -177,52 +229,17 @@ function friendLocationsComposable() {
     }
   }
 
-  /**
-   * Start polling for friend locations
-   * @param intervalMs - Polling interval in milliseconds (default: 30 seconds)
-   */
-  function startPolling(intervalMs: number = 30000) {
-    if (isPolling.value) return
-
-    isPolling.value = true
-    fetchLocations() // Initial fetch
-
-    pollInterval = setInterval(() => {
-      fetchLocations()
-    }, intervalMs)
-  }
-
-  /**
-   * Stop polling for friend locations
-   */
-  function stopPolling() {
-    if (pollInterval) {
-      clearInterval(pollInterval)
-      pollInterval = null
-    }
-    isPolling.value = false
-  }
-
-  /**
-   * Clear all cached locations
-   */
   function clearLocations() {
     friendLocations.value.clear()
-    lastFetchedAt.value = null
   }
 
-  /**
-   * Get location for a specific friend
-   */
   function getLocationForFriend(
     friendHandle: string,
   ): FriendLocation | undefined {
-    return friendLocations.value.get(friendHandle)
+    return friendLocations.value.get(friendHandle.toLowerCase())
   }
 
-  // Clean up on unmount
   function cleanup() {
-    stopPolling()
     clearLocations()
   }
 
@@ -232,14 +249,12 @@ function friendLocationsComposable() {
     locations,
     hasLocations,
     isLoading,
-    isPolling,
-    lastFetchedAt,
     error,
 
     // Actions
     fetchLocations,
-    startPolling,
-    stopPolling,
+    applyEncryptedLocation,
+    removeLocation,
     clearLocations,
     getLocationForFriend,
     cleanup,

@@ -11,6 +11,12 @@ import {
   MatrixResponse,
   UnifiedRoute,
 } from './unified-routing.types'
+import type {
+  LocationHistory,
+  LocationHistoryRequest,
+  PlaceVisitHistory,
+  PlaceVisitHistoryRequest,
+} from './location-history.types'
 
 export {
   IntegrationId,
@@ -287,6 +293,37 @@ export interface OsmMapEditCapability {
   closeChangeset(changesetId: number): Promise<void>
 }
 
+/**
+ * Per-request credentials forwarded to capabilities backed by
+ * `scheme: 'user-e2ee'` integrations.
+ *
+ * Unlike server-key capabilities — which read cleartext config from the
+ * cached integration instance — user-e2ee capabilities have no server-side
+ * cleartext to read. The client decrypts its config locally and forwards
+ * `endpoint` + `token` per request via headers; the server uses them only
+ * for the duration of a single upstream call and never persists or logs them.
+ */
+export interface IntegrationCredentials {
+  endpoint: string
+  token: string
+}
+
+export interface LocationHistoryCapability {
+  getLocationHistory(
+    credentials: IntegrationCredentials,
+    request: LocationHistoryRequest,
+  ): Promise<LocationHistory>
+  /**
+   * Aggregate visit history at a coordinate — backs the "You've been here
+   * N times" widget on the place-detail page. Resolves by proximity since
+   * OSM IDs aren't queryable on Dawarich.
+   */
+  getPlaceVisitHistory(
+    credentials: IntegrationCredentials,
+    request: PlaceVisitHistoryRequest,
+  ): Promise<PlaceVisitHistory>
+}
+
 // Integration capabilities container
 export interface IntegrationCapabilities {
   search?: SearchCapability
@@ -304,6 +341,7 @@ export interface IntegrationCapabilities {
   spatialChildren?: SpatialChildrenCapability
   searchAlongRoute?: SearchAlongRouteCapability
   osmMapEdit?: OsmMapEditCapability
+  locationHistory?: LocationHistoryCapability
 }
 
 /**

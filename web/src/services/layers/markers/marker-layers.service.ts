@@ -59,6 +59,8 @@ export function useMarkerLayersService() {
         ),
       removeMarker: (id: string) => mapStrategy?.removeMarker(id),
       hasMarker: (id: string) => mapStrategy?.hasMarker(id) ?? false,
+      setMarkerLngLat: (id: string, lngLat: LngLat) =>
+        mapStrategy?.setMarkerLngLat(id, lngLat),
     }
 
     waypointsLayer.initialize(markerAPI)

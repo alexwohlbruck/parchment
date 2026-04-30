@@ -188,6 +188,24 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     )
   })
 
+  // Check if a location-history-capable integration is configured and active.
+  // Dawarich is the only provider today; extend this list when others land.
+  const isLocationHistoryActive = computed(() => {
+    return isCapabilityActive(
+      IntegrationId.DAWARICH,
+      IntegrationCapabilityId.LOCATION_HISTORY,
+    )
+  })
+
+  // Get the Dawarich config (decrypted client-side at sign-in for user-e2ee)
+  const dawarichConfig = computed(() => {
+    const config = getIntegrationConfig(IntegrationId.DAWARICH) as
+      | { url?: string; apiToken?: string }
+      | undefined
+    if (!config?.url || !config?.apiToken) return null
+    return { url: config.url, apiToken: config.apiToken }
+  })
+
   // Check if Mapbox is available but not configured (or configured but engine disabled)
   const isMapboxAvailableButNotConfigured = computed(() => {
     const isMapboxAvailable = safeAvailableArray().some(
@@ -239,6 +257,8 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     isMapboxAvailableButNotConfigured,
     isMapboxEngineActive,
     isWeatherActive,
+    isLocationHistoryActive,
+    dawarichConfig,
     isLoadingAvailable,
     isLoadingConfigured,
     getIntegrationConfig,

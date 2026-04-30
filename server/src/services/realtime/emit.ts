@@ -22,6 +22,7 @@ import {
   resolveFriendshipRecipients,
   resolveUserProfileRecipients,
   resolvePublicLinkRecipients,
+  resolveHandleRecipient,
 } from './recipients.service'
 
 export const emit = {
@@ -84,6 +85,19 @@ export const emit = {
    */
   async publicLink(event: string, payload: unknown, collectionId: string): Promise<RealtimeEvent> {
     const recipients = await resolvePublicLinkRecipients(collectionId)
+    return publish(event, payload, recipients)
+  },
+
+  /**
+   * Emit for an encrypted location stored "for" a friend handle. Recipient
+   * is that handle's owner (local userId or remote handle for federation).
+   */
+  async encryptedLocation(
+    event: string,
+    payload: unknown,
+    forFriendHandle: string,
+  ): Promise<RealtimeEvent> {
+    const recipients = await resolveHandleRecipient(forFriendHandle)
     return publish(event, payload, recipients)
   },
 }

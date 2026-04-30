@@ -15,6 +15,7 @@ import PlaceActions from './actions/PlaceActions.vue'
 import PlaceSources from './sources/PlaceSources.vue'
 import DetailsList from './details/DetailsList.vue'
 import PlaceWidgets from './widgets/PlaceWidgets.vue'
+import PlaceVisitHistoryWidget from './widgets/PlaceVisitHistoryWidget.vue'
 import NearbyCategories from './NearbyCategories.vue'
 import PlaceDisplayChips from './PlaceDisplayChips.vue'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
@@ -170,6 +171,7 @@ function handleBrandLogoError() {
             @imageError="handlePlaceImageError"
           />
           <DetailsList :place="place" />
+          <PlaceVisitHistoryWidget :place="place" />
           <PlaceWidgets :place="place" />
           <NearbyCategories :place="place" />
           <PlaceSources :place="place" />

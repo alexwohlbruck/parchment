@@ -45,4 +45,5 @@ export enum IntegrationCapabilityId {
   SEARCH_ALONG_ROUTE = 'searchAlongRoute',
   OSM_MAP_EDIT = 'osmMapEdit',
   TILE_SERVER = 'tileServer',
+  LOCATION_HISTORY = 'locationHistory',
 }

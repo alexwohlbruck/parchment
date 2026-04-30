@@ -70,7 +70,6 @@ const friendLocations = useFriendLocations()
 interface LocationConfig {
   friendHandle: string
   enabled: boolean
-  refreshInterval: number
 }
 const locationConfig = ref<LocationConfig | null>(null)
 
@@ -141,13 +140,11 @@ async function loadLocationConfig() {
       locationConfig.value = {
         friendHandle: config.friendHandle,
         enabled: config.enabled,
-        refreshInterval: config.refreshInterval ?? 60,
       }
     } else {
       locationConfig.value = {
         friendHandle: friendHandle.value,
         enabled: false,
-        refreshInterval: 60,
       }
     }
   } catch (error) {
@@ -164,7 +161,6 @@ async function toggleLocationSharing() {
     const newEnabled = !locationConfig.value.enabled
     await locationService.setE2eeConfig(friend.value.friendHandle, {
       enabled: newEnabled,
-      refreshInterval: locationConfig.value.refreshInterval,
     })
     locationConfig.value.enabled = newEnabled
     await locationBroadcast.refreshAndBroadcast()

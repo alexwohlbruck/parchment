@@ -162,8 +162,6 @@ export const locationSharingConfig = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     friendHandle: text('friend_handle').notNull(), // bob@other.com
     enabled: boolean('enabled').default(true).notNull(),
-    refreshInterval: integer('refresh_interval').default(60).notNull(), // seconds
-    expiresAt: timestamp('expires_at'), // optional auto-expire
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },

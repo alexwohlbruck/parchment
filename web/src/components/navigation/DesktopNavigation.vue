@@ -36,6 +36,7 @@ import {
   MessageSquareQuoteIcon,
   SearchIcon,
   MegaphoneIcon,
+  HistoryIcon,
 } from 'lucide-vue-next'
 import UpdateBanner from '@/components/navigation/UpdateBanner.vue'
 import { useHotkeys } from '@/composables/useHotkeys'
@@ -253,6 +254,11 @@ const items = computed<MenuItemDefinition[]>(() => [
         // hotkey: ['f'],
         icon: UsersRoundIcon,
         to: '/friends',
+      },
+      {
+        label: t('timeline.title'),
+        icon: HistoryIcon,
+        to: '/timeline',
       },
     ],
   },

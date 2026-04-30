@@ -1,9 +1,12 @@
 /**
  * Friend Locations Layer Controller
  *
- * This composable manages the friend locations feature globally.
- * It watches the Friends layer visibility and starts/stops polling accordingly.
- * It also broadcasts the user's own location when sharing is enabled.
+ * Manages the friend-locations feature globally: hydrates state when the
+ * map layer becomes visible, runs the broadcast pipeline while it's on,
+ * and tears both down when it's hidden. Realtime push of friends'
+ * locations is handled separately by `useFriendLocations.realtime.ts` and
+ * runs regardless of layer visibility, so toggling the layer back on
+ * shows current state immediately.
  */
 
 import { watch, computed, onUnmounted } from 'vue'
@@ -18,8 +21,6 @@ import { useE2eeLocationBroadcast } from '@/composables/useE2eeLocationBroadcast
 import { useMapService } from '@/services/map.service'
 import { mapEventBus } from '@/lib/eventBus'
 import { AppRoute } from '@/router'
-
-const POLL_INTERVAL = 30000 // 30 seconds
 
 function friendLocationsLayerComposable() {
   const layersStore = useLayersStore()
@@ -104,14 +105,14 @@ function friendLocationsLayerComposable() {
   async function startLocationServices() {
     // Sync friend keys before fetching locations to ensure we have latest public keys
     await friendsStore.syncKeys()
-    
+
+    // Hydrate state once when the layer turns on. After this the realtime
+    // handler in `useFriendLocations.realtime.ts` keeps it current.
     await friendLocations.fetchLocations()
-    friendLocations.startPolling(POLL_INTERVAL)
-    locationBroadcast.start({ intervalMs: POLL_INTERVAL })
+    locationBroadcast.start()
   }
 
   function stopLocationServices() {
-    friendLocations.stopPolling()
     locationBroadcast.stop()
     // Note: Markers are automatically cleared by FriendLocationsLayer when layer is hidden
   }

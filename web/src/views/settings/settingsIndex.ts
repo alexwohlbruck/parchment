@@ -1,6 +1,7 @@
 import {
   ActivityIcon,
   BlocksIcon,
+  CodeIcon,
   CogIcon,
   Contact2Icon,
   MapIcon,
@@ -287,4 +288,30 @@ export const settingsIndex: SettingsPageDef[] = [
     permissions: PermissionId.SYSTEM_READ,
     sections: [],
   },
+  // Dev-only entry — surfaces the GPX track simulator for testing
+  // location-aware features without physically moving. The whole entry
+  // is omitted from the array in production builds, so the page never
+  // appears in the nav (route is registered but unreachable from UI).
+  ...(import.meta.env.DEV
+    ? [
+        {
+          pageId: 'developer',
+          to: '/settings/developer',
+          icon: CodeIcon,
+          iconColor: 'purple' as const,
+          sections: [
+            {
+              id: 'gpx-simulator',
+              titleKey: 'settings.developer.gpxSimulator.title',
+              descriptionKey: 'settings.developer.gpxSimulator.description',
+              keywords: ['gpx', 'track', 'simulate', 'replay', 'gps', 'mock'],
+            },
+            {
+              id: 'dev-info',
+              titleKey: 'settings.developer.info.title',
+            },
+          ],
+        } satisfies SettingsPageDef,
+      ]
+    : []),
 ]

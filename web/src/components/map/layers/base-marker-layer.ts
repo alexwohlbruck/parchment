@@ -47,6 +47,13 @@ export interface MapMarkerAPI {
   ): void
   removeMarker(id: string): void
   hasMarker(id: string): boolean
+  /**
+   * Move an already-mounted marker without recreating its Vue component.
+   * Wraps maplibre's `Marker.setLngLat()` — a direct CSS-transform
+   * update, suitable for per-frame animation. Subclasses (e.g.
+   * friend-locations dead-reckoning) call this from their own rAF loop.
+   */
+  setMarkerLngLat(id: string, lngLat: LngLat): void
 }
 
 /**

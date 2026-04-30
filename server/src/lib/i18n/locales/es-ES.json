@@ -50,7 +50,14 @@
       "invalidScope": "Ámbito de integración no válido",
       "noUpdates": "No se proporcionaron actualizaciones",
       "unsupportedScheme": "Esta integración no admite el esquema de cifrado solicitado",
-      "schemeAlreadyConfigured": "Esta integración ya está configurada con el mismo esquema"
+      "schemeAlreadyConfigured": "Esta integración ya está configurada con el mismo esquema",
+      "credentialsMissing": "Se requieren los encabezados de endpoint y token de la integración",
+      "endpointInvalid": "El endpoint de la integración no es una URL válida"
+    },
+    "locationHistory": {
+      "rangeInvalid": "La hora de inicio debe ser anterior a la hora de fin",
+      "rangeRequired": "Se requieren las horas de inicio y fin",
+      "coordinatesRequired": "Se requieren los parámetros lat y lng"
     },
     "geocoding": {
       "queryRequired": "Se requiere el parámetro de consulta",

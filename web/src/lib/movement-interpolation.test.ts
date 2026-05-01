@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 import {
   MIN_DR_SPEED,
   STALENESS_CAP_SEC,
+  bearingDeg,
   buildTrack,
   distanceMeters,
   easeOut,
@@ -71,6 +72,30 @@ describe('projectLatLng', () => {
     const out = projectLatLng(origin, 0, 90, 1000)
     expect(out.lat).toBeCloseTo(origin.lat, 9)
     expect(out.lng).toBeCloseTo(origin.lng, 9)
+  })
+})
+
+describe('bearingDeg', () => {
+  const origin = { lat: 35, lng: -80 }
+  test('east is ~90°', () => {
+    expect(bearingDeg(origin, { lat: 35, lng: -79.99 })).toBeCloseTo(90, 0)
+  })
+  test('north is ~0°', () => {
+    expect(bearingDeg(origin, { lat: 35.01, lng: -80 })).toBeCloseTo(0, 0)
+  })
+  test('south is ~180°', () => {
+    expect(bearingDeg(origin, { lat: 34.99, lng: -80 })).toBeCloseTo(180, 0)
+  })
+  test('west is ~270°', () => {
+    expect(bearingDeg(origin, { lat: 35, lng: -80.01 })).toBeCloseTo(270, 0)
+  })
+  test('result always in [0, 360)', () => {
+    for (let i = 0; i < 360; i += 17) {
+      const target = projectLatLng(origin, 1, i, 100)
+      const b = bearingDeg(origin, target)
+      expect(b).toBeGreaterThanOrEqual(0)
+      expect(b).toBeLessThan(360)
+    }
   })
 })
 
@@ -211,6 +236,100 @@ describe('buildTrack', () => {
       now: 6000,
     })
     expect(t.fromVelocity).toEqual({ speedMps: 5, headingDeg: 90 })
+  })
+
+  test('synthesizes speed and heading from previous sample when device omits them', () => {
+    // Real-world phone GPS path: device emits null speed/heading, we
+    // need to derive from the position delta so dead-reckoning works.
+    const prev: Track = {
+      from: { lat: 35, lng: -80 },
+      to: { lat: 35, lng: -80 }, // arrived 1s ago at this point
+      segmentStartMs: 0,
+      segmentDurationMs: 0,
+      fromVelocity: null,
+      postSpeed: null,
+      postHeading: null,
+      toSampleTimestamp: 1000,
+      hermiteT0: null,
+      hermiteT1: null,
+    }
+    // 1s later, the next sample lands ~91m east (1m east is ~0.0000109°
+    // longitude at lat 35; 0.001° ≈ 91m).
+    const t = buildTrack({
+      currentRendered: { lat: 35, lng: -80 },
+      previousTrack: prev,
+      sample: {
+        lngLat: { lat: 35, lng: -79.999 },
+        speed: null,
+        heading: null,
+        timestampMs: 2000,
+      },
+      now: 2000,
+    })
+    // ~91 m / 1s = ~91 m/s; bearing east.
+    expect(t.postSpeed).not.toBeNull()
+    expect(t.postSpeed!).toBeGreaterThan(50)
+    expect(t.postSpeed!).toBeLessThan(150)
+    expect(t.postHeading).not.toBeNull()
+    expect(t.postHeading!).toBeGreaterThan(85)
+    expect(t.postHeading!).toBeLessThan(95)
+  })
+
+  test('respects device-reported speed/heading when present (no synthesis)', () => {
+    const prev: Track = {
+      from: { lat: 35, lng: -80 },
+      to: { lat: 35, lng: -80 },
+      segmentStartMs: 0,
+      segmentDurationMs: 0,
+      fromVelocity: null,
+      postSpeed: null,
+      postHeading: null,
+      toSampleTimestamp: 1000,
+      hermiteT0: null,
+      hermiteT1: null,
+    }
+    const t = buildTrack({
+      currentRendered: { lat: 35, lng: -80 },
+      previousTrack: prev,
+      sample: {
+        lngLat: { lat: 35, lng: -79.999 },
+        speed: 3, // device-reported m/s — used as-is, not overwritten
+        heading: 270, // west, deliberately wrong vs. the position delta
+        timestampMs: 2000,
+      },
+      now: 2000,
+    })
+    expect(t.postSpeed).toBe(3)
+    expect(t.postHeading).toBe(270)
+  })
+
+  test('does not synthesize when sub-meter jitter (no meaningful heading)', () => {
+    const prev: Track = {
+      from: { lat: 35, lng: -80 },
+      to: { lat: 35, lng: -80 },
+      segmentStartMs: 0,
+      segmentDurationMs: 0,
+      fromVelocity: null,
+      postSpeed: null,
+      postHeading: null,
+      toSampleTimestamp: 1000,
+      hermiteT0: null,
+      hermiteT1: null,
+    }
+    // ~5cm east — well under 1m.
+    const t = buildTrack({
+      currentRendered: { lat: 35, lng: -80 },
+      previousTrack: prev,
+      sample: {
+        lngLat: { lat: 35, lng: -80 + 0.0000005 },
+        speed: null,
+        heading: null,
+        timestampMs: 2000,
+      },
+      now: 2000,
+    })
+    expect(t.postSpeed).toBeNull()
+    expect(t.postHeading).toBeNull()
   })
 
   test('previous track without speed/heading yields null fromVelocity', () => {

@@ -236,9 +236,17 @@ export function resolveWidgetDescriptors(place: Place): WidgetDescriptor[] {
  */
 async function fetchTransitDepartures(
   onestopIds: string[],
-  options?: { next?: number; limit?: number },
+  options?: { limit?: number },
 ): Promise<{ departures: TransitDeparture[]; sources: SourceReference[] }> {
-  const { next = 3600, limit = 20 } = options || {}
+  // Fetch a wide window: a few hours of past departures plus the next 24h.
+  // Past departures help the user understand schedule cadence and catch
+  // "did I just miss it?" cases; future departures cover sparse services
+  // (intercity rail, ferries, regional buses). Truncation for visual
+  // density is a UI concern handled client-side.
+  const { limit = 150 } = options || {}
+  const now = Date.now()
+  const startTime = new Date(now - 3 * 3600_000).toISOString()
+  const endTime = new Date(now + 24 * 3600_000).toISOString()
 
   const transitlandRecord = integrationManager.getConfiguredIntegrationForSource(
     SOURCE.TRANSITLAND,
@@ -258,7 +266,7 @@ async function fetchTransitDepartures(
   for (const onestopId of onestopIds) {
     try {
       console.debug(`🌐 [Widget/Transit] Fetching departures for ${onestopId}`)
-      const departures = await transitland.getDepartures(onestopId, { next, limit })
+      const departures = await transitland.getDepartures(onestopId, { startTime, endTime, limit })
 
       if (departures?.length) {
         console.debug(`✅ [Widget/Transit] Found ${departures.length} departures for ${onestopId}`)
@@ -299,14 +307,13 @@ export async function fetchWidgetData(
   switch (type) {
     case WidgetType.TRANSIT: {
       const onestopIds = (params.onestopIds || '').split(',').filter(Boolean)
-      const next = params.next ? parseInt(params.next, 10) : undefined
       const limit = params.limit ? parseInt(params.limit, 10) : undefined
 
       if (!onestopIds.length) {
         throw new Error('Missing onestopIds parameter for transit widget')
       }
 
-      const { departures, sources } = await fetchTransitDepartures(onestopIds, { next, limit })
+      const { departures, sources } = await fetchTransitDepartures(onestopIds, { limit })
 
       const transitInfo: TransitStopInfo = {
         onestopId: onestopIds[0],

@@ -19,6 +19,7 @@ import PlaceVisitHistoryWidget from './widgets/PlaceVisitHistoryWidget.vue'
 import NearbyCategories from './NearbyCategories.vue'
 import PlaceDisplayChips from './PlaceDisplayChips.vue'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
+import SheetPageHost from './SheetPageHost.vue'
 
 const props = defineProps<{
   place: Partial<Place> | null
@@ -123,62 +124,64 @@ function handleBrandLogoError() {
 </script>
 
 <template>
-  <PanelLayout>
-    <template v-if="place">
-      <div class="flex flex-col space-y-3">
+  <SheetPageHost>
+    <PanelLayout>
+      <template v-if="place">
         <div class="flex flex-col space-y-3">
-          <PlaceHeader
-            :place="place"
-            @close="router.push({ name: AppRoute.MAP })"
-            @logoLoaded="handleBrandLogoLoad"
-            @logoError="handleBrandLogoError"
-          />
+          <div class="flex flex-col space-y-3">
+            <PlaceHeader
+              :place="place"
+              @close="router.push({ name: AppRoute.MAP })"
+              @logoLoaded="handleBrandLogoLoad"
+              @logoError="handleBrandLogoError"
+            />
 
-          <PlaceDisplayChips :place="place" />
+            <PlaceDisplayChips :place="place" />
 
-          <PlaceActions
-            :place="place"
-            @directions="handleDirectionsClick"
-            @directionsFrom="handleDirectionsFromClick"
-            @share="sharePlace"
-          />
+            <PlaceActions
+              :place="place"
+              @directions="handleDirectionsClick"
+              @directionsFrom="handleDirectionsFromClick"
+              @share="sharePlace"
+            />
+          </div>
+
+          <!-- Skeleton loaders while full data loads -->
+          <template v-if="loading">
+            <!-- Gallery skeleton -->
+            <Skeleton
+              class="ml-[-0.75rem] mr-[-0.75rem] w-[calc(100%+1.5rem)] h-48 rounded-lg"
+            />
+            <!-- Details skeleton -->
+            <div class="space-y-3">
+              <Skeleton class="h-5 w-3/4" />
+              <Skeleton class="h-5 w-1/2" />
+              <Skeleton class="h-5 w-2/3" />
+            </div>
+            <!-- Sources skeleton -->
+            <div class="space-y-2">
+              <Skeleton class="h-4 w-1/3" />
+              <Skeleton class="h-4 w-1/4" />
+            </div>
+          </template>
+
+          <template v-else>
+            <PlaceGallery
+              class="ml-[-0.75rem] mr-[-0.75rem] w-[calc(100%+1.5rem)]"
+              :place="place"
+              @imageLoaded="handlePlaceImageLoad"
+              @imageError="handlePlaceImageError"
+            />
+            <DetailsList :place="place" />
+            <PlaceVisitHistoryWidget :place="place" />
+            <PlaceWidgets :place="place" />
+            <NearbyCategories :place="place" />
+            <PlaceSources :place="place" />
+          </template>
         </div>
-
-        <!-- Skeleton loaders while full data loads -->
-        <template v-if="loading">
-          <!-- Gallery skeleton -->
-          <Skeleton
-            class="ml-[-0.75rem] mr-[-0.75rem] w-[calc(100%+1.5rem)] h-48 rounded-lg"
-          />
-          <!-- Details skeleton -->
-          <div class="space-y-3">
-            <Skeleton class="h-5 w-3/4" />
-            <Skeleton class="h-5 w-1/2" />
-            <Skeleton class="h-5 w-2/3" />
-          </div>
-          <!-- Sources skeleton -->
-          <div class="space-y-2">
-            <Skeleton class="h-4 w-1/3" />
-            <Skeleton class="h-4 w-1/4" />
-          </div>
-        </template>
-
-        <template v-else>
-          <PlaceGallery
-            class="ml-[-0.75rem] mr-[-0.75rem] w-[calc(100%+1.5rem)]"
-            :place="place"
-            @imageLoaded="handlePlaceImageLoad"
-            @imageError="handlePlaceImageError"
-          />
-          <DetailsList :place="place" />
-          <PlaceVisitHistoryWidget :place="place" />
-          <PlaceWidgets :place="place" />
-          <NearbyCategories :place="place" />
-          <PlaceSources :place="place" />
-        </template>
-      </div>
-    </template>
-  </PanelLayout>
+      </template>
+    </PanelLayout>
+  </SheetPageHost>
 </template>
 
 <style>

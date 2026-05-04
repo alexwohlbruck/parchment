@@ -900,11 +900,16 @@ async function enrichPlaceWithTransitData(place: Place): Promise<Place> {
       try {
         console.debug(`🌐 [Transit] Querying departures for onestop ID: ${onestopId}`)
         console.debug(`  - API: GET https://transit.land/api/v2/rest/stops/${onestopId}/departures`)
-        console.debug(`  - Parameters: next=3600 (1 hour), limit=20`)
-        
+        console.debug(`  - Parameters: window = now-3h .. now+24h, limit=150`)
+
+        const now = Date.now()
         const departures = await transitlandIntegration.getDepartures(onestopId, {
-          next: 3600, // Next hour
-          limit: 20
+          // Window = past 3h + next 24h. Past lets the user see "did I just
+          // miss it?" / schedule cadence; future covers sparse services
+          // (Amtrak, regional rail, ferries) without needing real-time data.
+          startTime: new Date(now - 3 * 3600_000).toISOString(),
+          endTime: new Date(now + 24 * 3600_000).toISOString(),
+          limit: 150,
         })
         
         if (departures && departures.length > 0) {

@@ -246,6 +246,23 @@ body {
   height: 100dvh;
 }
 
+/* Hide native scrollbars on every scroll container so toggling content
+   height (e.g. swapping page layers in the place sheet, or any other
+   dynamically-resized content) never shifts the layout.
+   Wheel/touch/keyboard scrolling still works — we only suppress the
+   visual track. We use this rather than `scrollbar-gutter: stable`
+   because gutter behaviour diverges by platform: classic-scrollbar
+   systems get a stable gutter (good), but overlay-scrollbar systems
+   (macOS default, iOS) reserve dead space the floating scrollbar never
+   fills. Hiding the bar entirely sidesteps both modes. */
+* {
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
 /* Tauri drag region support */
 /* Windows touch/pen support - use app-region for better compatibility */
 *[data-tauri-drag-region] {

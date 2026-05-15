@@ -88,6 +88,11 @@
           "places": {
             "name": "Lugares"
           }
+        },
+        "groups": {
+          "fullSearch": "Buscar",
+          "categories": "Categorías",
+          "places": "Lugares"
         }
       },
       "goto": {

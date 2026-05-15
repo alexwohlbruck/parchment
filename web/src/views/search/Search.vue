@@ -23,6 +23,7 @@ import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
 import { SearchIcon } from 'lucide-vue-next'
 import { newViewFraction } from '@/lib/map-bounds.utils'
+import { useGeolocationService } from '@/services/geolocation.service'
 
 const route = useRoute()
 const router = useRouter()
@@ -30,7 +31,10 @@ const searchService = useSearchService()
 const mapService = useMapService()
 const searchStore = useSearchStore()
 
+const geolocationService = useGeolocationService()
+
 const SIGNIFICANT_MOVEMENT_THRESHOLD = 0.3 // If camera moves to new area, refresh search results
+const NEARBY_RADIUS_KM = 5
 
 let lastRefreshBounds: MapBounds | null = null
 let suppressUrlSync = false
@@ -96,6 +100,23 @@ const { camera } = useMapCamera()
 
 const authService = useAuthService()
 const canAutoRefresh = computed(() => authService.hasPermission(PermissionId.SEARCH_AUTO_REFRESH))
+
+const hasGeolocation = computed(() => geolocationService.hasLocation.value)
+
+/** Build a bounding box around user location for "Near me" searches. */
+function nearbyBounds(): MapBounds | null {
+  const ll = geolocationService.lngLat.value
+  if (!ll) return null
+  // ~0.045 degrees ≈ 5 km at the equator; scale longitude by cos(lat)
+  const latDelta = NEARBY_RADIUS_KM / 111
+  const lngDelta = NEARBY_RADIUS_KM / (111 * Math.cos((ll.lat * Math.PI) / 180))
+  return {
+    north: ll.lat + latDelta,
+    south: ll.lat - latDelta,
+    east: ll.lng + lngDelta,
+    west: ll.lng - lngDelta,
+  }
+}
 
 // True when the map has moved enough to warrant a new search, but the user
 // must manually confirm (shown as a "Search this area" button for non-premium users)
@@ -183,6 +204,7 @@ function shouldMapRefresh(camera: MapCamera) {
 }
 
 useMapListener('moveend', () => {
+  if (searchStore.searchContext === 'nearby') return
   if (!shouldMapRefresh(camera.value)) return
 
   if (canAutoRefresh.value) {
@@ -217,8 +239,11 @@ async function performSearch() {
     searchStore.setSearchQuery(categoryTitle.value)
   }
 
-  const bounds = mapService.getBounds()
-  const center = mapService.getCenter()
+  const isNearby = searchStore.searchContext === 'nearby'
+  const bounds = isNearby ? nearbyBounds() : mapService.getBounds()
+  const center = isNearby && geolocationService.lngLat.value
+    ? geolocationService.lngLat.value
+    : mapService.getCenter()
 
   try {
     let places: Place[] = []
@@ -343,6 +368,11 @@ watch(
 )
 
 watch(
+  () => searchStore.searchContext,
+  () => performSearch(),
+)
+
+watch(
   [() => searchStore.filters, () => searchStore.sortBy],
   () => {
     syncFiltersToUrl()
@@ -402,8 +432,11 @@ watch(
         :filter-options="searchStore.dynamicFilterOptions"
         :sort-options="searchStore.activeSortDefs"
         :sort-by="searchStore.sortBy"
+        :search-context="searchStore.searchContext"
+        :has-geolocation="hasGeolocation"
         @update:filter="searchStore.setFilter"
         @update:sort-by="searchStore.setSortBy"
+        @update:search-context="searchStore.setSearchContext"
       />
     </div>
 

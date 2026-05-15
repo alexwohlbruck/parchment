@@ -191,14 +191,16 @@ export const useCommandStore = defineStore('command', () => {
                     iconName: result.icon || 'MapPin',
                     iconPack: result.iconPack || 'lucide',
                     iconColor: getCategoryColor(iconCategory, isDark.value),
+                    group: result.type === 'category' ? 'categories' : 'places',
                   }
                 })
 
                 return [
                   {
                     value: 'search-more-results',
-                    name: `Search "${searchText}"`,
+                    name: searchText,
                     icon: SearchIcon,
+                    group: 'fullSearch',
                   },
                   ...results,
                 ]

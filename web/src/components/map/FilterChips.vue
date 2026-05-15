@@ -3,6 +3,8 @@ import {
   ArrowUpDownIcon,
   SlidersHorizontalIcon,
   XIcon,
+  MapIcon,
+  LocateFixedIcon,
 } from 'lucide-vue-next'
 import ResponsiveDropdown, { type MenuItemDefinition } from '@/components/responsive/ResponsiveDropdown.vue'
 import { Button } from '@/components/ui/button'
@@ -17,11 +19,14 @@ const props = defineProps<{
   filterOptions: Record<string, ChipOption[]>
   sortOptions: SortDef[]
   sortBy: string
+  searchContext: 'map' | 'nearby'
+  hasGeolocation: boolean
 }>()
 
 const emit = defineEmits<{
   'update:filter': [id: string, value: any]
   'update:sortBy': [value: string]
+  'update:searchContext': [value: 'map' | 'nearby']
 }>()
 
 const sortOpen = ref(false)
@@ -209,6 +214,19 @@ function isOptionSelected(def: FilterDef, optionValue: any): boolean {
           </Button>
         </template>
       </ResponsiveDropdown>
+
+      <!-- Search context toggle -->
+      <Button
+        v-if="hasGeolocation"
+        variant="outline"
+        size="xs"
+        class="rounded-full gap-1 bg-background"
+        @click="emit('update:searchContext', searchContext === 'nearby' ? 'map' : 'nearby')"
+      >
+        <LocateFixedIcon v-if="searchContext === 'nearby'" class="size-3.5" />
+        <MapIcon v-else class="size-3.5" />
+        <span>{{ searchContext === 'nearby' ? 'Near me' : 'This area' }}</span>
+      </Button>
 
       <!-- Filters -->
       <ResponsiveDropdown

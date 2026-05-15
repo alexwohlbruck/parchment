@@ -39,6 +39,7 @@ function convertPresetToSearchResult(preset: any): SearchResult {
       : undefined,
     icon: resolvedIcon.icon,
     iconPack: resolvedIcon.iconPack,
+    iconCategory: preset.iconCategory,
     metadata: {
       category: {
         tags: preset.tags,

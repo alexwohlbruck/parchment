@@ -4,12 +4,14 @@ import type { Place } from '@/types/place.types'
 import type { MapBounds } from '@/types/map.types'
 import type { ChipOption } from '@/components/ui/chip'
 import { useMapStore } from '@/stores/map.store'
+import { useGeolocationService } from '@/services/geolocation.service'
 import {
   FILTER_DEFINITIONS,
   SORT_DEFINITIONS,
   generateFiltersFromFields,
   type FilterDef,
   type SortDef,
+  type SortContext,
   type FieldDefinition,
 } from '@/config/search-filters'
 
@@ -35,10 +37,11 @@ export const useSearchStore = defineStore('search', () => {
   const lastMaxResults = ref<number | null>(null)
   const lastResultCount = ref<number>(0)
 
-  // ── Filter / Sort state ────────────────────────────────────────────────
+  // ── Filter / Sort / Search context state ────────────────────────────────
   const filters = ref<Record<string, any>>({})
   const sortBy = ref<string>('relevance')
   const categoryFields = ref<FieldDefinition[]>([])
+  const searchContext = ref<'map' | 'nearby'>('map')
 
   // Computed values
   const hasResults = computed(() => searchResults.value.length > 0)
@@ -59,9 +62,21 @@ export const useSearchStore = defineStore('search', () => {
     allFilterDefs.value.filter(def => def.isAvailable(searchResults.value)),
   )
 
-  const activeSortDefs = computed<SortDef[]>(() =>
-    SORT_DEFINITIONS.filter(def => def.isAvailable(searchResults.value)),
-  )
+  function getSortContext(): SortContext {
+    const mapStore = useMapStore()
+    const geo = useGeolocationService()
+    const mapCenter = resolveMapCenter(mapStore.mapCamera.center)
+    const ll = geo.lngLat.value
+    return {
+      mapCenter,
+      userLocation: ll ? [ll.lng, ll.lat] : null,
+    }
+  }
+
+  const activeSortDefs = computed<SortDef[]>(() => {
+    const ctx = getSortContext()
+    return SORT_DEFINITIONS.filter(def => def.isAvailable(searchResults.value, ctx))
+  })
 
   const dynamicFilterOptions = computed<Record<string, ChipOption[]>>(() => {
     const options: Record<string, ChipOption[]> = {}
@@ -85,9 +100,12 @@ export const useSearchStore = defineStore('search', () => {
 
     const sortDef = SORT_DEFINITIONS.find(s => s.id === sortBy.value)
     if (sortDef && sortDef.id !== 'relevance') {
-      const mapStore = useMapStore()
-      const mapCenter = resolveMapCenter(mapStore.mapCamera.center)
-      results = [...results].sort((a, b) => sortDef.compare(a, b, { mapCenter }))
+      const ctx = getSortContext()
+      // When searching nearby, use user location as the distance reference
+      if (sortDef.id === 'distance' && searchContext.value === 'nearby' && ctx.userLocation) {
+        ctx.mapCenter = ctx.userLocation
+      }
+      results = [...results].sort((a, b) => sortDef.compare(a, b, ctx))
     }
 
     return results
@@ -201,6 +219,10 @@ export const useSearchStore = defineStore('search', () => {
     sortBy.value = id
   }
 
+  function setSearchContext(ctx: 'map' | 'nearby') {
+    searchContext.value = ctx
+  }
+
   function resetFilters() {
     filters.value = {}
     sortBy.value = 'relevance'
@@ -221,6 +243,7 @@ export const useSearchStore = defineStore('search', () => {
     filters,
     sortBy,
     categoryFields,
+    searchContext,
 
     // Computed
     hasResults,
@@ -249,6 +272,7 @@ export const useSearchStore = defineStore('search', () => {
     removeSearchResult,
     setFilter,
     setSortBy,
+    setSearchContext,
     resetFilters,
   }
 })

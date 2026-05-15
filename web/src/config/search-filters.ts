@@ -27,11 +27,16 @@ export interface FilterDef {
   toServerFilter?: (value: any) => Record<string, any> | null
 }
 
+export interface SortContext {
+  mapCenter: [number, number]
+  userLocation: [number, number] | null
+}
+
 export interface SortDef {
   id: string
   label: string
-  isAvailable: (places: Place[]) => boolean
-  compare: (a: Place, b: Place, ctx: { mapCenter: [number, number] }) => number
+  isAvailable: (places: Place[], ctx?: SortContext) => boolean
+  compare: (a: Place, b: Place, ctx: SortContext) => number
   serverValue?: string
 }
 
@@ -130,11 +135,14 @@ const HARDCODED_TAG_KEYS = new Set(['access', 'fee'])
 const FILTERABLE_FIELD_TYPES = new Set(['combo', 'check', 'semiCombo', 'radio'])
 
 export function generateFiltersFromFields(fields: FieldDefinition[]): FilterDef[] {
+  const seen = new Set<string>()
   return fields
     .filter(field => {
       if (!FILTERABLE_FIELD_TYPES.has(field.type)) return false
       if (HARDCODED_TAG_KEYS.has(field.key)) return false
       if (field.type !== 'check' && !field.options) return false
+      if (seen.has(field.key)) return false
+      seen.add(field.key)
       return true
     })
     .map(field => {
@@ -213,7 +221,7 @@ function createSemiComboFilter(field: FieldDefinition): FilterDef {
 export const SORT_DEFINITIONS: SortDef[] = [
   {
     id: 'relevance',
-    label: 'Relevance',
+    label: 'Best match',
     isAvailable: () => true,
     compare: () => 0,
     serverValue: 'relevance',
@@ -231,7 +239,7 @@ export const SORT_DEFINITIONS: SortDef[] = [
   },
   {
     id: 'rating',
-    label: 'Rating',
+    label: 'Top rated',
     isAvailable: (places) =>
       places.some(p => p.ratings?.rating?.value != null),
     compare: (a, b) => {

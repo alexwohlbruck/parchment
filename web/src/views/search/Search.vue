@@ -204,6 +204,7 @@ function shouldMapRefresh(camera: MapCamera) {
 }
 
 useMapListener('moveend', () => {
+  if (searchStore.searchContext === 'nearby') return
   if (!shouldMapRefresh(camera.value)) return
 
   if (canAutoRefresh.value) {

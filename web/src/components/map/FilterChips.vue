@@ -220,10 +220,7 @@ function isOptionSelected(def: FilterDef, optionValue: any): boolean {
         v-if="hasGeolocation"
         variant="outline"
         size="xs"
-        class="rounded-full gap-1"
-        :class="searchContext === 'nearby'
-          ? 'bg-primary-100 text-primary-800 border-primary-300 dark:bg-primary-800 dark:text-primary-200 dark:border-primary-600'
-          : 'bg-background'"
+        class="rounded-full gap-1 bg-background"
         @click="emit('update:searchContext', searchContext === 'nearby' ? 'map' : 'nearby')"
       >
         <LocateFixedIcon v-if="searchContext === 'nearby'" class="size-3.5" />

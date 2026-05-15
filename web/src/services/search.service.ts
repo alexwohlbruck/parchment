@@ -24,11 +24,24 @@ interface AdvancedSearchResponse {
 interface CategorySearchOptions {
   bounds?: MapBounds
   maxResults?: number
+  sort?: string
+  filter?: Record<string, any>
+  tags?: Record<string, string>
+}
+
+interface CategoryFieldDefinition {
+  id: string
+  key: string
+  type: string
+  label: string
+  placeholder?: string
+  options?: Record<string, string | { title: string }>
 }
 
 interface CategorySearchResponse {
   presetId: string
   results: Place[]
+  fieldDefinitions?: CategoryFieldDefinition[]
   totalCount: number
   executedAt: string
 }
@@ -122,7 +135,7 @@ function searchService() {
   async function searchByCategory(
     presetId: string,
     options: CategorySearchOptions = {},
-  ): Promise<Place[]> {
+  ): Promise<{ results: Place[]; fieldDefinitions: CategoryFieldDefinition[] }> {
     loading.value = true
     error.value = null
 
@@ -133,10 +146,16 @@ function searchService() {
           presetId,
           bounds: options.bounds,
           maxResults: options.maxResults || 100,
+          ...(options.sort ? { sort: options.sort } : {}),
+          ...(options.filter ? { filter: options.filter } : {}),
+          ...(options.tags ? { tags: options.tags } : {}),
         },
       )
 
-      return response.data.results
+      return {
+        results: response.data.results,
+        fieldDefinitions: response.data.fieldDefinitions || [],
+      }
     } catch (err) {
       console.error('Error in category search:', err)
       error.value =

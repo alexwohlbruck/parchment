@@ -1,5 +1,6 @@
 import type { Language } from './i18n'
 import { getLanguageCode } from './i18n'
+import { getChipLabel } from './display-chips'
 
 export type GeometryType = 'point' | 'line' | 'area' | 'vertex' | 'relation'
 
@@ -184,13 +185,18 @@ function loadFields(): Record<string, FieldDefinition> {
 
   for (const [id, field] of Object.entries(rawFields)) {
     const def = field as any
+    const rawOptions = def.options
+    const normalizedOptions = Array.isArray(rawOptions)
+      ? Object.fromEntries(rawOptions.map((v: string) => [v, v]))
+      : rawOptions
+
     fields[id] = {
       id,
       key: def.key || id,
       type: def.type || 'text',
       label: def.label || id,
       placeholder: def.placeholder,
-      options: def.options,
+      options: normalizedOptions,
     }
   }
 
@@ -532,10 +538,28 @@ export function getPresetFields(
           }
         }
 
+        // Enrich with curated display-chip labels where available
+        if (translatedField.type === 'check') {
+          const chipLabel = getChipLabel(translatedField.key, 'yes')
+          if (chipLabel) translatedField.label = chipLabel
+        }
+
+        if (translatedField.options) {
+          for (const [optKey] of Object.entries(translatedField.options)) {
+            const chipLabel = getChipLabel(translatedField.key, optKey)
+            if (chipLabel) translatedField.options[optKey] = chipLabel
+          }
+        }
+
         return translatedField
       })
       .filter((field): field is FieldDefinition => field !== null)
   })
+}
+
+export function getPresetById(id: string): PresetDefinition | null {
+  const data = loadPresets()
+  return data[id] || null
 }
 
 export function getPlaceType(

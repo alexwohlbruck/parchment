@@ -10,6 +10,7 @@ import {
 import { OverpassIntegration } from '../services/integrations/overpass-integration'
 import { categoryService } from '../services/category.service'
 import { categoryPalette } from '../lib/place-categories'
+import { getPresetById, getPresetFields } from '../lib/osm-presets'
 
 const searchRouter = new Elysia({ prefix: '/search' })
   .use(requireAuth)
@@ -169,18 +170,25 @@ const searchRouter = new Elysia({ prefix: '/search' })
   // TODO: Remove client-side category cache. Return category suggestions in search endpoint
   .post(
     '/category',
-    async ({ body, status }) => {
-      const { presetId, bounds, maxResults = 100 } = body
+    async ({ body, status, language }) => {
+      const { presetId, bounds, maxResults = 100, sort, filter, tags } = body
 
       try {
         const results = await searchService.searchByCategory(presetId, {
           bounds,
           limit: maxResults,
+          sort,
+          filter,
+          tags,
         })
+
+        const preset = getPresetById(presetId)
+        const fieldDefinitions = preset ? getPresetFields(preset, language) : []
 
         return {
           presetId,
           results,
+          fieldDefinitions,
           totalCount: results.length,
           executedAt: new Date().toISOString(),
         }
@@ -204,6 +212,17 @@ const searchRouter = new Elysia({ prefix: '/search' })
           west: t.Number(),
         }),
         maxResults: t.Optional(t.Number({ minimum: 1, maximum: 1000 })),
+        sort: t.Optional(t.Union([
+          t.Literal('relevance'),
+          t.Literal('distance'),
+          t.Literal('name'),
+        ])),
+        filter: t.Optional(t.Object({
+          access: t.Optional(t.Array(t.String())),
+          fee: t.Optional(t.Union([t.Literal('yes'), t.Literal('no')])),
+          hasHours: t.Optional(t.Boolean()),
+        })),
+        tags: t.Optional(t.Record(t.String(), t.String())),
       }),
       detail: {
         tags: ['Search'],

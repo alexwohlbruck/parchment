@@ -3,7 +3,6 @@ import {
   ArrowUpDownIcon,
   SlidersHorizontalIcon,
   XIcon,
-  MapIcon,
   LocateFixedIcon,
 } from 'lucide-vue-next'
 import ResponsiveDropdown, { type MenuItemDefinition } from '@/components/responsive/ResponsiveDropdown.vue'
@@ -215,29 +214,20 @@ function isOptionSelected(def: FilterDef, optionValue: any): boolean {
         </template>
       </ResponsiveDropdown>
 
-      <!-- Search context toggle -->
-      <div v-if="hasGeolocation" class="flex rounded-full border border-border bg-background overflow-hidden">
-        <button
-          class="px-2.5 py-1 text-xs font-medium flex items-center gap-1 transition-colors"
-          :class="searchContext === 'map'
-            ? 'bg-primary-100 text-primary-800 dark:bg-primary-800 dark:text-primary-200'
-            : 'text-muted-foreground hover:text-foreground'"
-          @click="emit('update:searchContext', 'map')"
-        >
-          <MapIcon class="size-3.5" />
-          This area
-        </button>
-        <button
-          class="px-2.5 py-1 text-xs font-medium flex items-center gap-1 transition-colors border-l border-border"
-          :class="searchContext === 'nearby'
-            ? 'bg-primary-100 text-primary-800 dark:bg-primary-800 dark:text-primary-200'
-            : 'text-muted-foreground hover:text-foreground'"
-          @click="emit('update:searchContext', 'nearby')"
-        >
-          <LocateFixedIcon class="size-3.5" />
-          Near me
-        </button>
-      </div>
+      <!-- Near me toggle -->
+      <Button
+        v-if="hasGeolocation"
+        variant="outline"
+        size="xs"
+        class="rounded-full gap-1"
+        :class="searchContext === 'nearby'
+          ? 'bg-primary-100 text-primary-800 border-primary-300 dark:bg-primary-800 dark:text-primary-200 dark:border-primary-600'
+          : 'bg-background'"
+        @click="emit('update:searchContext', searchContext === 'nearby' ? 'map' : 'nearby')"
+      >
+        <LocateFixedIcon class="size-3.5" />
+        <span>Near me</span>
+      </Button>
 
       <!-- Filters -->
       <ResponsiveDropdown

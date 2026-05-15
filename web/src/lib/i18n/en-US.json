@@ -89,6 +89,11 @@
           "places": {
             "name": "Places"
           }
+        },
+        "groups": {
+          "fullSearch": "Search",
+          "categories": "Categories",
+          "places": "Places"
         }
       },
       "goto": {

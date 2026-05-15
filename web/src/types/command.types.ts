@@ -38,4 +38,5 @@ export type CommandArgument = {
 
 export type CommandArgumentOption = PaletteItem & {
   value: string | number
+  group?: string
 }

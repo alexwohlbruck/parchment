@@ -163,7 +163,7 @@ describe('useSearchService', () => {
         bounds: { north: 1, south: 0, east: 1, west: 0 },
         maxResults: 50,
       })
-      expect(results).toEqual(mockPlaces)
+      expect(results).toEqual({ results: mockPlaces, fieldDefinitions: [] })
     })
 
     test('uses default maxResults when not provided', async () => {

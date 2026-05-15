@@ -27,11 +27,16 @@ export interface FilterDef {
   toServerFilter?: (value: any) => Record<string, any> | null
 }
 
+export interface SortContext {
+  mapCenter: [number, number]
+  userLocation: [number, number] | null
+}
+
 export interface SortDef {
   id: string
   label: string
-  isAvailable: (places: Place[]) => boolean
-  compare: (a: Place, b: Place, ctx: { mapCenter: [number, number] }) => number
+  isAvailable: (places: Place[], ctx?: SortContext) => boolean
+  compare: (a: Place, b: Place, ctx: SortContext) => number
   serverValue?: string
 }
 
@@ -216,14 +221,25 @@ function createSemiComboFilter(field: FieldDefinition): FilterDef {
 export const SORT_DEFINITIONS: SortDef[] = [
   {
     id: 'relevance',
-    label: 'Relevance',
+    label: 'Best match',
     isAvailable: () => true,
     compare: () => 0,
     serverValue: 'relevance',
   },
   {
+    id: 'nearby',
+    label: 'Nearby',
+    isAvailable: (_places, ctx) => ctx?.userLocation != null,
+    compare: (a, b, { userLocation }) => {
+      if (!userLocation) return 0
+      const distA = turf.distance(userLocation, placeCenter(a))
+      const distB = turf.distance(userLocation, placeCenter(b))
+      return distA - distB
+    },
+  },
+  {
     id: 'distance',
-    label: 'Distance',
+    label: 'Near map center',
     isAvailable: () => true,
     compare: (a, b, { mapCenter }) => {
       const distA = turf.distance(mapCenter, placeCenter(a))
@@ -234,7 +250,7 @@ export const SORT_DEFINITIONS: SortDef[] = [
   },
   {
     id: 'rating',
-    label: 'Rating',
+    label: 'Top rated',
     isAvailable: (places) =>
       places.some(p => p.ratings?.rating?.value != null),
     compare: (a, b) => {

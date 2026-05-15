@@ -4,12 +4,14 @@ import type { Place } from '@/types/place.types'
 import type { MapBounds } from '@/types/map.types'
 import type { ChipOption } from '@/components/ui/chip'
 import { useMapStore } from '@/stores/map.store'
+import { useGeolocationService } from '@/services/geolocation.service'
 import {
   FILTER_DEFINITIONS,
   SORT_DEFINITIONS,
   generateFiltersFromFields,
   type FilterDef,
   type SortDef,
+  type SortContext,
   type FieldDefinition,
 } from '@/config/search-filters'
 
@@ -59,9 +61,21 @@ export const useSearchStore = defineStore('search', () => {
     allFilterDefs.value.filter(def => def.isAvailable(searchResults.value)),
   )
 
-  const activeSortDefs = computed<SortDef[]>(() =>
-    SORT_DEFINITIONS.filter(def => def.isAvailable(searchResults.value)),
-  )
+  function getSortContext(): SortContext {
+    const mapStore = useMapStore()
+    const geo = useGeolocationService()
+    const mapCenter = resolveMapCenter(mapStore.mapCamera.center)
+    const ll = geo.lngLat.value
+    return {
+      mapCenter,
+      userLocation: ll ? [ll.lng, ll.lat] : null,
+    }
+  }
+
+  const activeSortDefs = computed<SortDef[]>(() => {
+    const ctx = getSortContext()
+    return SORT_DEFINITIONS.filter(def => def.isAvailable(searchResults.value, ctx))
+  })
 
   const dynamicFilterOptions = computed<Record<string, ChipOption[]>>(() => {
     const options: Record<string, ChipOption[]> = {}
@@ -85,9 +99,8 @@ export const useSearchStore = defineStore('search', () => {
 
     const sortDef = SORT_DEFINITIONS.find(s => s.id === sortBy.value)
     if (sortDef && sortDef.id !== 'relevance') {
-      const mapStore = useMapStore()
-      const mapCenter = resolveMapCenter(mapStore.mapCamera.center)
-      results = [...results].sort((a, b) => sortDef.compare(a, b, { mapCenter }))
+      const ctx = getSortContext()
+      results = [...results].sort((a, b) => sortDef.compare(a, b, ctx))
     }
 
     return results

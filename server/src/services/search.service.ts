@@ -316,6 +316,13 @@ export async function search(
 export interface CategorySearchOptions {
   bounds: MapBounds
   limit?: number
+  sort?: 'relevance' | 'distance' | 'name'
+  filter?: {
+    access?: string[]
+    fee?: 'yes' | 'no'
+    hasHours?: boolean
+  }
+  tags?: Record<string, string>
 }
 
 /**
@@ -395,9 +402,13 @@ export async function searchByCategory(
   // Resolve sub-preset IDs to parent category + filter tags
   const { categoryId, filterTags } = derivePresetFilter(presetId)
 
+  const mergedTags = { ...filterTags, ...options.tags }
+
   return await searchCapability.searchByCategory(categoryId, options.bounds, {
     limit: options.limit,
-    filterTags: Object.keys(filterTags).length > 0 ? filterTags : undefined,
+    filterTags: Object.keys(mergedTags).length > 0 ? mergedTags : undefined,
+    sort: options.sort,
+    filter: options.filter,
   })
 }
 

@@ -521,11 +521,8 @@ export class BarrelmanIntegration
     query: string,
     lat?: number,
     lng?: number,
-    options?: { radius?: number; limit?: number },
+    options?: { radius?: number; limit?: number; sort?: string; filter?: Record<string, any> },
   ): Promise<Place[]> {
-    // Barrelman searches globally for text queries (no spatial filter) and
-    // uses proximity re-rank to bias closer results. Radius is passed as a
-    // hint but does NOT act as a hard boundary.
     const response = await axios.post(
       `${this.config.host}/search`,
       {
@@ -535,6 +532,8 @@ export class BarrelmanIntegration
         radius: options?.radius,
         limit: options?.limit || 20,
         semantic: true,
+        ...(options?.sort ? { sort: options.sort } : {}),
+        ...(options?.filter ? { filter: options.filter } : {}),
       },
       { headers: this.headers, timeout: 10000 },
     )
@@ -569,7 +568,7 @@ export class BarrelmanIntegration
   async searchByCategory(
     presetId: string,
     bounds: MapBounds,
-    options?: { limit?: number; filterTags?: Record<string, string> },
+    options?: { limit?: number; filterTags?: Record<string, string>; sort?: string; filter?: Record<string, any> },
   ): Promise<Place[]> {
     const lat = (bounds.north + bounds.south) / 2
     const lng = (bounds.east + bounds.west) / 2
@@ -586,6 +585,8 @@ export class BarrelmanIntegration
         categories: [presetId],
         limit: options?.limit || 20,
         ...(options?.filterTags ? { tags: options.filterTags } : {}),
+        ...(options?.sort ? { sort: options.sort } : {}),
+        ...(options?.filter ? { filter: options.filter } : {}),
       },
       { headers: this.headers, timeout: 10000 },
     )

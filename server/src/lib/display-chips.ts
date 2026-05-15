@@ -100,9 +100,17 @@ const CHIP_LABELS: Record<string, ChipDef> = {
   second_hand_only:            { label: 'Second Hand Only',           icon: 'recycle',         sentiment: 'neutral',  category: 'offerings' },
   bulk_purchase_yes:           { label: 'Bulk Purchase',              icon: 'shopping-bag',    sentiment: 'neutral',  category: 'offerings' },
 
-  // ── Water ────────────────────────────────────────────────────────────────
+  // ── Water & Utilities ─────────────────────────────────────────────────────
   drinking_water_yes:  { label: 'Drinking Water',     icon: 'droplet', sentiment: 'positive', category: 'water' },
   drinking_water_no:   { label: 'No Drinking Water',  icon: 'droplet', sentiment: 'negative', category: 'water' },
+  bottle_yes:          { label: 'Bottle Refill',      icon: 'droplet', sentiment: 'positive', category: 'water' },
+  bottle_no:           { label: 'No Bottle Refill',   icon: 'droplet', sentiment: 'negative', category: 'water' },
+  hot_water_yes:       { label: 'Hot Water',          icon: 'droplet', sentiment: 'positive', category: 'water' },
+  hot_water_no:        { label: 'No Hot Water',       icon: 'droplet', sentiment: 'negative', category: 'water' },
+
+  // ── Seasonal & Timing ───────────────────────────────────────────────────
+  seasonal_yes:        { label: 'Seasonal',           icon: 'calendar', sentiment: 'neutral', category: 'timing' },
+  seasonal_no:         { label: 'Year-Round',          icon: 'calendar', sentiment: 'positive', category: 'timing' },
 
   // ── Pets & Family ────────────────────────────────────────────────────────
   dog_yes:             { label: 'Dog Friendly',    icon: 'dog',       sentiment: 'positive', category: 'family' },
@@ -132,6 +140,47 @@ const CHIP_LABELS: Record<string, ChipDef> = {
   'payment:apple_pay_yes':     { label: 'Apple Pay',       icon: 'smartphone',  sentiment: 'positive', category: 'payment' },
   'payment:google_pay_yes':    { label: 'Google Pay',      icon: 'smartphone',  sentiment: 'positive', category: 'payment' },
 
+  // ── Accommodation & Facilities ────────────────────────────────────────────
+  heating_yes:         { label: 'Heating',            icon: 'flame',     sentiment: 'positive', category: 'facilities' },
+  heating_no:          { label: 'No Heating',         icon: 'flame',     sentiment: 'negative', category: 'facilities' },
+  kitchen_yes:         { label: 'Kitchen',            icon: 'cooking-pot', sentiment: 'positive', category: 'facilities' },
+  kitchen_no:          { label: 'No Kitchen',         icon: 'cooking-pot', sentiment: 'negative', category: 'facilities' },
+  fireplace_yes:       { label: 'Fireplace',          icon: 'flame',     sentiment: 'positive', category: 'facilities' },
+  fireplace_no:        { label: 'No Fireplace',       icon: 'flame',     sentiment: 'negative', category: 'facilities' },
+  cabins_yes:          { label: 'Cabins',             icon: 'home',      sentiment: 'positive', category: 'facilities' },
+  caravans_yes:        { label: 'Caravans',           icon: 'home',      sentiment: 'positive', category: 'facilities' },
+  tents_yes:           { label: 'Tents',              icon: 'tent',      sentiment: 'positive', category: 'facilities' },
+  openfire_yes:        { label: 'Open Fire',          icon: 'flame',     sentiment: 'positive', category: 'facilities' },
+  openfire_no:         { label: 'No Open Fire',       icon: 'flame',     sentiment: 'negative', category: 'facilities' },
+  bbq_yes:             { label: 'BBQ',                icon: 'flame',     sentiment: 'positive', category: 'facilities' },
+  bbq_no:              { label: 'No BBQ',             icon: 'flame',     sentiment: 'negative', category: 'facilities' },
+  power_supply_yes:    { label: 'Power Supply',       icon: 'plug',      sentiment: 'positive', category: 'facilities' },
+  power_supply_no:     { label: 'No Power Supply',    icon: 'plug',      sentiment: 'negative', category: 'facilities' },
+
+  // ── Recreation & Outdoor ────────────────────────────────────────────────
+  bench_yes:           { label: 'Bench',              icon: 'armchair',  sentiment: 'positive', category: 'recreation' },
+  bench_no:            { label: 'No Bench',           icon: 'armchair',  sentiment: 'negative', category: 'recreation' },
+  shelter_yes:         { label: 'Shelter',            icon: 'home',      sentiment: 'positive', category: 'recreation' },
+  shelter_no:          { label: 'No Shelter',         icon: 'home',      sentiment: 'negative', category: 'recreation' },
+  picnic_table_yes:    { label: 'Picnic Table',       icon: 'armchair',  sentiment: 'positive', category: 'recreation' },
+  picnic_table_no:     { label: 'No Picnic Table',    icon: 'armchair',  sentiment: 'negative', category: 'recreation' },
+
+  // ── Accessibility Details ───────────────────────────────────────────────
+  handrail_yes:        { label: 'Handrail',           icon: 'accessibility', sentiment: 'positive', category: 'accessibility' },
+  handrail_no:         { label: 'No Handrail',        icon: 'accessibility', sentiment: 'negative', category: 'accessibility' },
+  step_count_yes:      { label: 'Steps',              icon: 'accessibility', sentiment: 'neutral',  category: 'accessibility' },
+
+  // ── Services ────────────────────────────────────────────────────────────
+  dispensing_yes:      { label: 'Dispensing',         icon: 'pill',       sentiment: 'positive', category: 'services' },
+  dispensing_no:       { label: 'Non-Dispensing',     icon: 'pill',       sentiment: 'neutral',  category: 'services' },
+  parcel_pickup_yes:   { label: 'Parcel Pickup',     icon: 'package',    sentiment: 'positive', category: 'services' },
+  parcel_mail_in_yes:  { label: 'Parcel Drop-Off',   icon: 'package',    sentiment: 'positive', category: 'services' },
+  compressed_air_yes:  { label: 'Compressed Air',    icon: 'wind',       sentiment: 'positive', category: 'services' },
+
+  // ── Cycling ─────────────────────────────────────────────────────────────
+  cargo_bike_yes:      { label: 'Cargo Bike',         icon: 'bike',      sentiment: 'positive', category: 'cycling' },
+  cargo_bike_no:       { label: 'No Cargo Bike',      icon: 'bike',      sentiment: 'negative', category: 'cycling' },
+
   // ── Automation ───────────────────────────────────────────────────────────
   automated_yes: { label: 'Automated', icon: 'bot',  sentiment: 'neutral', category: 'automation' },
   automated_no:  { label: 'Staffed',   icon: 'bot',  sentiment: 'neutral', category: 'automation' },
@@ -149,6 +198,14 @@ const CHIP_LABELS: Record<string, ChipDef> = {
   'diet:lactose_free_yes':{ label: 'Lactose Free',   icon: 'leaf', sentiment: 'positive', section: 'diet', category: 'diet' },
   'diet:pescetarian_yes': { label: 'Pescetarian',    icon: 'leaf', sentiment: 'positive', section: 'diet', category: 'diet' },
   'diet:dairy_free_yes':  { label: 'Dairy Free',     icon: 'leaf', sentiment: 'positive', section: 'diet', category: 'diet' },
+}
+
+/**
+ * Look up the curated display label for a tag key+value combination.
+ * Returns null if no curated label exists.
+ */
+export function getChipLabel(key: string, value: string): string | null {
+  return CHIP_LABELS[`${key}_${value}`]?.label ?? null
 }
 
 // ── Root keys eligible for chip display ───────────────────────────────────────

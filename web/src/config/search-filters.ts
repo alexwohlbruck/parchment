@@ -130,11 +130,14 @@ const HARDCODED_TAG_KEYS = new Set(['access', 'fee'])
 const FILTERABLE_FIELD_TYPES = new Set(['combo', 'check', 'semiCombo', 'radio'])
 
 export function generateFiltersFromFields(fields: FieldDefinition[]): FilterDef[] {
+  const seen = new Set<string>()
   return fields
     .filter(field => {
       if (!FILTERABLE_FIELD_TYPES.has(field.type)) return false
       if (HARDCODED_TAG_KEYS.has(field.key)) return false
       if (field.type !== 'check' && !field.options) return false
+      if (seen.has(field.key)) return false
+      seen.add(field.key)
       return true
     })
     .map(field => {

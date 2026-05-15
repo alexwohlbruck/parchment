@@ -227,19 +227,8 @@ export const SORT_DEFINITIONS: SortDef[] = [
     serverValue: 'relevance',
   },
   {
-    id: 'nearby',
-    label: 'Nearby',
-    isAvailable: (_places, ctx) => ctx?.userLocation != null,
-    compare: (a, b, { userLocation }) => {
-      if (!userLocation) return 0
-      const distA = turf.distance(userLocation, placeCenter(a))
-      const distB = turf.distance(userLocation, placeCenter(b))
-      return distA - distB
-    },
-  },
-  {
     id: 'distance',
-    label: 'Near map center',
+    label: 'Distance',
     isAvailable: () => true,
     compare: (a, b, { mapCenter }) => {
       const distA = turf.distance(mapCenter, placeCenter(a))

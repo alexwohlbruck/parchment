@@ -37,10 +37,11 @@ export const useSearchStore = defineStore('search', () => {
   const lastMaxResults = ref<number | null>(null)
   const lastResultCount = ref<number>(0)
 
-  // ── Filter / Sort state ────────────────────────────────────────────────
+  // ── Filter / Sort / Search context state ────────────────────────────────
   const filters = ref<Record<string, any>>({})
   const sortBy = ref<string>('relevance')
   const categoryFields = ref<FieldDefinition[]>([])
+  const searchContext = ref<'map' | 'nearby'>('map')
 
   // Computed values
   const hasResults = computed(() => searchResults.value.length > 0)
@@ -100,6 +101,10 @@ export const useSearchStore = defineStore('search', () => {
     const sortDef = SORT_DEFINITIONS.find(s => s.id === sortBy.value)
     if (sortDef && sortDef.id !== 'relevance') {
       const ctx = getSortContext()
+      // When searching nearby, use user location as the distance reference
+      if (sortDef.id === 'distance' && searchContext.value === 'nearby' && ctx.userLocation) {
+        ctx.mapCenter = ctx.userLocation
+      }
       results = [...results].sort((a, b) => sortDef.compare(a, b, ctx))
     }
 
@@ -214,6 +219,10 @@ export const useSearchStore = defineStore('search', () => {
     sortBy.value = id
   }
 
+  function setSearchContext(ctx: 'map' | 'nearby') {
+    searchContext.value = ctx
+  }
+
   function resetFilters() {
     filters.value = {}
     sortBy.value = 'relevance'
@@ -234,6 +243,7 @@ export const useSearchStore = defineStore('search', () => {
     filters,
     sortBy,
     categoryFields,
+    searchContext,
 
     // Computed
     hasResults,
@@ -262,6 +272,7 @@ export const useSearchStore = defineStore('search', () => {
     removeSearchResult,
     setFilter,
     setSortBy,
+    setSearchContext,
     resetFilters,
   }
 })

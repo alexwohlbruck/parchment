@@ -29,6 +29,7 @@ import {
   MapPinIcon,
   RulerIcon,
   CircleDotIcon,
+  CrosshairIcon,
 } from 'lucide-vue-next'
 import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -150,6 +151,17 @@ function openPlaceAtLocation() {
       },
     })
   }
+}
+
+function openCoordinateDetail() {
+  if (!clickedLngLat.value) return
+  router.push({
+    name: AppRoute.PLACE_COORDS,
+    params: {
+      lat: clickedLngLat.value.lat.toString(),
+      lng: clickedLngLat.value.lng.toString(),
+    },
+  })
 }
 
 // Reverse geocode when context menu opens
@@ -323,7 +335,6 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
       icon: MapPinIcon,
       onSelect: openPlaceAtLocation,
     })
-    items.push({ type: 'separator' })
   } else if (isGeocoding.value) {
     items.push({
       type: 'custom',
@@ -346,8 +357,19 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
         ],
       ),
     })
-    items.push({ type: 'separator' })
   }
+
+  if (clickedLngLat.value) {
+    items.push({
+      type: 'item',
+      id: 'open-coords',
+      label: `${clickedLngLat.value.lat.toFixed(5)}, ${clickedLngLat.value.lng.toFixed(5)}`,
+      icon: CrosshairIcon,
+      onSelect: openCoordinateDetail,
+    })
+  }
+
+  items.push({ type: 'separator' })
 
   // Directions items
   if (!useMultistopDirections.value) {

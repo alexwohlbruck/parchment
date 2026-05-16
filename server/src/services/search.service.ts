@@ -343,14 +343,7 @@ export async function search(
     })
   }
 
-  // Search recent places (handles both empty query and fuzzy search)
-  const recentPlaceResults = await searchRecentPlaces(userId, query)
-  scoredResults.push(
-    ...recentPlaceResults.map((r, i) => ({
-      result: r,
-      relevance: 0.6 - i * 0.05,
-    })),
-  )
+  // TODO: searchRecentPlaces — not yet implemented, skipping to avoid no-op await
 
   // Search external places using place service (only for 1+ character queries)
   if (query && query.length > 0 && lat && lng) {

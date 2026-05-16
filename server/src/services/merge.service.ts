@@ -292,6 +292,12 @@ function mergeAttributedRecord<T>(
  * Determines if two places should be merged based on name, address, and distance similarity
  */
 function shouldMergePlaces(place1: Place, place2: Place): boolean {
+  // Never merge intersections with non-intersections (e.g. a tram stop named
+  // "Hawthorne & 8th" co-located with the road intersection)
+  const isIntersection1 = place1.placeType?.value === 'Intersection'
+  const isIntersection2 = place2.placeType?.value === 'Intersection'
+  if (isIntersection1 !== isIntersection2) return false
+
   const point1 = createTurfPoint(place1)
   const point2 = createTurfPoint(place2)
   const distanceMeters = turf.distance(point1, point2, { units: 'meters' })

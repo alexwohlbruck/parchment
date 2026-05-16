@@ -49,7 +49,7 @@ export const useBookmarksService = createSharedComposable(() => {
   }
 
   async function createBookmark(place: Place, collectionIds?: string[]) {
-    if (!place.externalIds?.osm) {
+    if (!place.externalIds || Object.keys(place.externalIds).length === 0) {
       toast.error(t('services.bookmarks.saveErrorNoOsmId'))
       return null
     }

@@ -40,10 +40,9 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
   .post(
     '/',
     async ({ body, user, set }) => {
-      // Ensure the externalIds contains at least osm
-      if (!body.externalIds || !body.externalIds.osm) {
+      if (!body.externalIds || Object.keys(body.externalIds).length === 0) {
         set.status = 400
-        return { error: 'Missing required OSM ID in externalIds' }
+        return { error: 'Missing required externalIds' }
       }
 
       if (!body.collectionIds || body.collectionIds.length === 0) {

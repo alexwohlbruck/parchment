@@ -25,6 +25,22 @@ export function getPlaceRoute(placeId: string): RouteLocationRaw {
       }
     }
   }
+  // Coordinates format: "coords/35.2271/-80.8431"
+  else if (placeId.startsWith('coords/')) {
+    const parts = placeId.substring(7).split('/')
+    if (parts.length >= 2) {
+      console.log(
+        `Parsed as coords route: lat=${parts[0]}, lng=${parts[1]}`,
+      )
+      return {
+        name: AppRoute.PLACE_COORDS,
+        params: {
+          lat: parts[0],
+          lng: parts[1],
+        },
+      }
+    }
+  }
   // Location format: "location/name/lat/lng"
   else if (placeId.startsWith('location/')) {
     const parts = placeId.substring(9).split('/')

@@ -1090,13 +1090,14 @@ export async function lookupEnrichedPlaceByCoordinates(
     userId?: User['id']
     radius?: number
     language?: Language
+    addressOnly?: boolean
   },
 ): Promise<Place | null> {
   const startTime = Date.now()
   console.log(`⏱️ [PERF] Starting coordinate-based place lookup: lat=${lat}, lng=${lng}`)
   
   try {
-    const { userId, radius = 50, language = 'en' } = options || {}
+    const { userId, radius = 50, language = 'en', addressOnly = false } = options || {}
 
     // Step 1: Reverse geocode to find place at coordinates
     const geocodingIntegrations = integrationManager.getConfiguredIntegrationsByCapability(
@@ -1126,10 +1127,51 @@ export async function lookupEnrichedPlaceByCoordinates(
     }
     
     let place = results[0]
-    
+
+    // addressOnly mode: skip full enrichment, return coordinates as the title
+    // with geocoded address for supplemental info (used by /place/coords/:lat/:lng)
+    if (addressOnly) {
+      place.geometry = {
+        ...place.geometry,
+        value: {
+          type: 'point',
+          center: { lat, lng },
+        },
+      }
+      place.id = `coords/${lat}/${lng}`
+      place.externalIds = { coords: `${lat}/${lng}` }
+      place.name = { value: `${parseFloat(lat.toFixed(5))}, ${parseFloat(lng.toFixed(5))}`, sourceId: 'geocoding', timestamp: new Date().toISOString() }
+      place.description = null
+      place.placeType = { value: 'Coordinates', sourceId: 'geocoding', timestamp: new Date().toISOString() }
+      place.icon = { icon: 'Crosshair', iconPack: 'lucide' }
+      place.photos = []
+      place.contactInfo = { phone: null, email: null, website: null, socials: {} }
+      place.openingHours = null
+      place.ratings = undefined
+      place.transit = null
+      place.relations = null
+      place.amenities = {}
+      place.sources = []
+
+      const { resolveWidgetDescriptors } = await import('./widget.service')
+      place.widgets = resolveWidgetDescriptors(place)
+
+      if (userId) {
+        const bookmarkInfo = await findBookmarkByExternalIds(place.externalIds, userId)
+        if (bookmarkInfo) {
+          place.bookmark = bookmarkInfo.bookmark
+          place.collectionIds = bookmarkInfo.collectionIds
+        }
+      }
+
+      const totalTime = Date.now() - startTime
+      console.log(`⏱️ [PERF] Total coordinate lookup time (address-only): ${totalTime}ms`)
+      return place
+    }
+
     // Step 2: If we found a place with a name or ID, try to get full enriched details
     // This handles clicking near a POI - we want the full POI details, not just address
-    
+
     // First, check if we have an OSM ID - if so, use the full enrichment pipeline
     const osmId = place.externalIds?.[SOURCE.OSM]
     if (osmId) {

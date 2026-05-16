@@ -31,7 +31,7 @@ function formatDate(dateString: string) {
 </script>
 
 <template>
-  <PlaceSection>
+  <PlaceSection v-if="place.sources?.length">
     <template #main>
       <div class="space-y-3">
         <div

@@ -164,50 +164,69 @@ export function resolveWidgetDescriptors(place: Place): WidgetDescriptor[] {
     const hasNearbyCategories = Boolean(place.nearbyCategories?.length)
     const isContainerPlace = isAreaPlace && hasNearbyCategories
 
-    if (osmId && center) {
-      // Children strategy: show interesting POIs inside this area
-      if (isContainerPlace) {
-        descriptors.push({
-          type: WidgetType.RELATED_PLACES,
-          dataType: WidgetDataType.ASYNC,
-          title: 'Related Places',
-          estimatedHeight: 110,
-          params: {
-            strategy: 'children' as RelatedPlacesStrategy,
-            osmId,
-            lat: String(center.lat),
-            lng: String(center.lng),
-            south: String(bounds?.minLat || ''),
-            west: String(bounds?.minLng || ''),
-            north: String(bounds?.maxLat || ''),
-            east: String(bounds?.maxLng || ''),
-            presetIds: place.nearbyCategories!.map((c) => c.presetId).join(','),
-            placeId: place.id,
-            limit: '20',
-            offset: '0',
-          },
-        })
-      }
+    if (center) {
+      if (osmId) {
+        // Children strategy: show interesting POIs inside this area
+        if (isContainerPlace) {
+          descriptors.push({
+            type: WidgetType.RELATED_PLACES,
+            dataType: WidgetDataType.ASYNC,
+            title: 'Related Places',
+            estimatedHeight: 110,
+            params: {
+              strategy: 'children' as RelatedPlacesStrategy,
+              osmId,
+              lat: String(center.lat),
+              lng: String(center.lng),
+              south: String(bounds?.minLat || ''),
+              west: String(bounds?.minLng || ''),
+              north: String(bounds?.maxLat || ''),
+              east: String(bounds?.maxLng || ''),
+              presetIds: place.nearbyCategories!.map((c) => c.presetId).join(','),
+              placeId: place.id,
+              limit: '20',
+              offset: '0',
+            },
+          })
+        }
 
-      if (isAdminPlace) {
-        // Admin strategy: show next-level-up administrative boundary
-        descriptors.push({
-          type: WidgetType.RELATED_PLACES,
-          dataType: WidgetDataType.ASYNC,
-          title: 'Related Places',
-          estimatedHeight: 76,
-          params: {
-            strategy: 'admin' as RelatedPlacesStrategy,
-            osmId,
-            lat: String(center.lat),
-            lng: String(center.lng),
-            south: '', west: '', north: '', east: '',
-            presetIds: '',
-            placeId: place.id,
-          },
-        })
+        if (isAdminPlace) {
+          // Admin strategy: show next-level-up administrative boundary
+          descriptors.push({
+            type: WidgetType.RELATED_PLACES,
+            dataType: WidgetDataType.ASYNC,
+            title: 'Related Places',
+            estimatedHeight: 76,
+            params: {
+              strategy: 'admin' as RelatedPlacesStrategy,
+              osmId,
+              lat: String(center.lat),
+              lng: String(center.lng),
+              south: '', west: '', north: '', east: '',
+              presetIds: '',
+              placeId: place.id,
+            },
+          })
+        } else {
+          // Parent strategy: show the containing area for any non-admin place
+          descriptors.push({
+            type: WidgetType.RELATED_PLACES,
+            dataType: WidgetDataType.ASYNC,
+            title: 'Related Places',
+            estimatedHeight: 76,
+            params: {
+              strategy: 'parent' as RelatedPlacesStrategy,
+              osmId,
+              lat: String(center.lat),
+              lng: String(center.lng),
+              south: '', west: '', north: '', east: '',
+              presetIds: '',
+              placeId: place.id,
+            },
+          })
+        }
       } else {
-        // Parent strategy: show the containing area for any non-admin place
+        // No OSM ID (e.g. coordinate lookup) — still show parent containers
         descriptors.push({
           type: WidgetType.RELATED_PLACES,
           dataType: WidgetDataType.ASYNC,
@@ -215,7 +234,7 @@ export function resolveWidgetDescriptors(place: Place): WidgetDescriptor[] {
           estimatedHeight: 76,
           params: {
             strategy: 'parent' as RelatedPlacesStrategy,
-            osmId,
+            osmId: '',
             lat: String(center.lat),
             lng: String(center.lng),
             south: '', west: '', north: '', east: '',
@@ -556,10 +575,10 @@ async function fetchParentPlaces(
   lng: number,
   adminOnly: boolean,
 ): Promise<RelatedParent[]> {
-  if (!osmId) return []
+  if (!lat || !lng) return []
 
   // Try Barrelman first for spatial contains queries
-  if (lat && lng) {
+  {
     const barrelman = getBarrelmanContainsInstance()
     if (barrelman) {
       try {
@@ -567,10 +586,12 @@ async function fetchParentPlaces(
         const containers = await barrelman.getContainingAreas(lat, lng, osmId)
         if (containers.length) {
           // Filter self-references: c.id is "osm/way/123", osmId is "way/123"
-          const nonSelf = containers.filter((c) => {
-            const cOsmId = c.externalIds?.[SOURCE.OSM] || ''
-            return cOsmId !== osmId && c.id !== osmId && c.id !== `osm/${osmId}`
-          })
+          const nonSelf = osmId
+            ? containers.filter((c) => {
+                const cOsmId = c.externalIds?.[SOURCE.OSM] || ''
+                return cOsmId !== osmId && c.id !== osmId && c.id !== `osm/${osmId}`
+              })
+            : containers
           console.debug(`✅ [Widget/Parent] Barrelman returned ${nonSelf.length} containers`)
           if (nonSelf.length) {
             return nonSelf.map((c) => ({

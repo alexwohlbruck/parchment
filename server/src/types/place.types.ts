@@ -323,6 +323,9 @@ export interface Place {
   // Icon/category for display
   icon?: PlaceIcon
 
+  // IANA timezone resolved from coordinates (e.g. "America/New_York")
+  timezone?: string
+
   // All sources that contributed data
   sources: SourceReference[]
 

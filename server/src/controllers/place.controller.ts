@@ -46,7 +46,7 @@ app.get(
             ? id.split('/')
             : [null, id]
 
-          if (!osmType || !['node', 'way', 'relation'].includes(osmType)) {
+          if (!osmType || !['node', 'way', 'relation', 'intersection'].includes(osmType)) {
             return status(400, {
               message: t('errors.place.invalidOsmType'),
             })
@@ -119,11 +119,11 @@ app.get(
           language,
         })
       } else if (isCoordinateLookup) {
-        // New: Coordinate-based lookup with enrichment
         place = await lookupEnrichedPlaceByCoordinates(lat!, lng!, {
           userId: user?.id,
           radius: Math.round(radius),
           language,
+          addressOnly: true,
         })
       }
 

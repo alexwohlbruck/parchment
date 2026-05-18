@@ -4,6 +4,7 @@ import { FRIENDS_LAYER_TEMPLATES } from './friends'
 import { CYCLING_LAYER_TEMPLATES } from './cycling'
 import { MAPILLARY_LAYER_TEMPLATES } from './mapillary'
 import { TRANSIT_LAYER_TEMPLATES } from './transit'
+import { TIMEZONE_LAYER_TEMPLATES } from './timezone'
 import { DAYNIGHT_LAYER_TEMPLATES } from './daynight'
 import { USER_LAYER_TEMPLATES } from './user-templates'
 
@@ -14,6 +15,7 @@ export const DEFAULT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   ...CYCLING_LAYER_TEMPLATES,
   ...MAPILLARY_LAYER_TEMPLATES,
   ...TRANSIT_LAYER_TEMPLATES,
+  ...TIMEZONE_LAYER_TEMPLATES,
   ...DAYNIGHT_LAYER_TEMPLATES,
   ...USER_LAYER_TEMPLATES,
 ]
@@ -31,7 +33,7 @@ export function resolveProxyUrls(configuration: any, serverUrl: string): any {
 
   function replacePlaceholders(obj: any): any {
     if (typeof obj === 'string') {
-      return obj.replace(/\{PROXY_URL\}/g, proxyBase)
+      return obj.replace(/\{PROXY_URL\}/g, proxyBase).replace(/\{SERVER_URL\}/g, base)
     }
     if (Array.isArray(obj)) {
       return obj.map(replacePlaceholders)

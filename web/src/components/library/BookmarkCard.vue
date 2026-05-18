@@ -18,6 +18,7 @@ import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { storeToRefs } from 'pinia'
 import type { Bookmark } from '@/types/library.types'
 import type { ThemeColor } from '@/lib/utils'
+import { getPlaceRoute } from '@/lib/place.utils'
 import { useAppService } from '@/services/app.service'
 import BookmarkForm from '@/components/library/BookmarkForm.vue'
 import CollectionPicker from '@/components/library/CollectionPicker.vue'
@@ -53,17 +54,13 @@ onMounted(async () => {
 })
 
 function navigateToBookmark() {
-  const route = bookmarksStore.navigateToBookmark(props.bookmark)
-  const [type, osmId] = props.bookmark.externalIds.osm.split('/')
-  console.log(type, osmId)
+  bookmarksStore.navigateToBookmark(props.bookmark)
+  const ids = props.bookmark.externalIds as Record<string, string>
+  const [key, value] = ids.osm ? ['osm', ids.osm] : ids.coords ? ['coords', ids.coords] : [Object.keys(ids)[0], Object.values(ids)[0]]
+  if (!key || !value) return
+  const route = getPlaceRoute(`${key}/${value}`)
   if (route) {
-    router.push({
-      name: 'place',
-      params: {
-        id: osmId,
-        type,
-      },
-    })
+    router.push(route)
   }
 }
 

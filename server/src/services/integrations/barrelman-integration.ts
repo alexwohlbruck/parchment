@@ -437,10 +437,14 @@ export class BarrelmanIntegration
     const tags = r.tags || {}
     const summary = this.buildPlaceSummary(tags)
     const osmGeomHint = r.geom_type === 'area' ? 'area' : r.geom_type === 'line' ? 'line' : 'point'
-    const presetMatch = matchTags(tags, osmGeomHint as GeometryType)
-    const icon: PlaceIcon | undefined = buildPlaceIcon(presetMatch)
-    const placeTypeLabel =
-      getPlaceType(tags, 'en', osmGeomHint as GeometryType) || r.categories?.[0] || 'place'
+    const isIntersection = r.id.startsWith('intersection/')
+    const presetMatch = isIntersection ? null : matchTags(tags, osmGeomHint as GeometryType)
+    const icon: PlaceIcon | undefined = isIntersection
+      ? { icon: 'Signpost', iconPack: 'lucide' as const }
+      : buildPlaceIcon(presetMatch)
+    const placeTypeLabel = isIntersection
+      ? 'Intersection'
+      : getPlaceType(tags, 'en', osmGeomHint as GeometryType) || r.categories?.[0] || 'place'
 
     // Contact info
     const phone = r.phones?.length ? r.phones[0] : null
@@ -472,8 +476,11 @@ export class BarrelmanIntegration
 
     // Build OSM URL — r.id is always "node/123456" format, so parse from that
     // (r.osm_type may be stored as uppercase 'N'/'W'/'R' in some DB versions)
-    const osmTypeFromId = r.id.split('/')[0] // 'node', 'way', or 'relation'
-    const osmUrl = `https://www.openstreetmap.org/${osmTypeFromId}/${r.osm_id}`
+    const osmTypeFromId = r.id.split('/')[0]
+    const isRealOsmType = ['node', 'way', 'relation'].includes(osmTypeFromId)
+    const osmUrl = isRealOsmType
+      ? `https://www.openstreetmap.org/${osmTypeFromId}/${r.osm_id}`
+      : undefined
 
     return {
       id: `${SOURCE.OSM}/${r.id}`,
@@ -505,8 +512,8 @@ export class BarrelmanIntegration
       sources: [
         {
           id: sourceId,
-          name: 'OpenStreetMap',
-          url: osmUrl,
+          name: isRealOsmType ? 'OpenStreetMap' : 'Parchment',
+          ...(osmUrl ? { url: osmUrl } : {}),
         },
       ],
 

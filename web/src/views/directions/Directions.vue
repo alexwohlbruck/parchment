@@ -10,6 +10,7 @@ import {
   BikeIcon,
   BusFrontIcon,
   CarFrontIcon,
+  ClockIcon,
   FootprintsIcon,
   ShuffleIcon,
   SlidersHorizontalIcon,
@@ -36,7 +37,7 @@ dayjs.extend(duration)
 const directionsService = useDirectionsService()
 const directionsStore = useDirectionsStore()
 
-const { waypoints, trips, selectedMode, isLoading } =
+const { waypoints, trips, selectedMode, isLoading, timezoneWarning } =
   storeToRefs(directionsStore)
 
 const showPreferences = ref(false)
@@ -167,6 +168,17 @@ useMapListener(
         :model-value="waypoints"
         @update:modelValue="directionsService.setWaypoints"
       />
+    </div>
+
+    <!-- Timezone warning -->
+    <div
+      v-if="timezoneWarning"
+      class="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/30 rounded-md text-sm"
+    >
+      <ClockIcon class="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+      <span class="text-amber-800 dark:text-amber-200">
+        Your destination is in a different time zone ({{ timezoneWarning.offsetDifferenceText }})
+      </span>
     </div>
 
     <!-- Loading state -->

@@ -596,16 +596,17 @@ export class MaplibreStrategy extends MapStrategy {
     )
 
     if (typeof configuration.source === 'object') {
-      const sourceId = configuration.source.id
+      const { id: sourceId, ...sourceOptions } = configuration.source
+      delete sourceOptions.generateId
       const existingSource = this.mapInstance.getSource(sourceId)
 
       if (existingSource) {
         if (overwrite) {
           this.mapInstance.removeSource(sourceId)
-          this.mapInstance.addSource(sourceId, configuration.source as any)
+          this.mapInstance.addSource(sourceId, sourceOptions as any)
         }
       } else {
-        this.mapInstance.addSource(sourceId, configuration.source as any)
+        this.mapInstance.addSource(sourceId, sourceOptions as any)
       }
       configuration.source = sourceId
     }

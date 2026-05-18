@@ -248,6 +248,17 @@ const showItinerary = computed(() => {
 
     <!-- Trip Content -->
     <div v-else-if="trip" class="p-4 space-y-4">
+      <!-- Timezone warning -->
+      <div
+        v-if="directionsStore.timezoneWarning"
+        class="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/30 rounded-md text-sm"
+      >
+        <ClockIcon class="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+        <span class="text-amber-800 dark:text-amber-200">
+          Your destination is in a different time zone ({{ directionsStore.timezoneWarning.offsetDifferenceText }})
+        </span>
+      </div>
+
       <!-- Trip Overview -->
       <div class="flex items-center gap-1">
         <div class="flex-1 min-w-0">

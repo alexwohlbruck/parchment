@@ -218,18 +218,7 @@ type DayRange = {
   hours: string[]
 }
 
-// TODO: Opening hours need proper timezone handling:
-// 1. Use the place's lat/lon to determine its timezone
-// 2. Use a timezone library (like moment-timezone) to convert local times
-// 3. Consider using opening_hours.js which handles:
-//    - Timezone conversion based on lat/lon
-//    - Daylight saving time
-//    - Complex rules like "sunrise-sunset"
-//    - Holiday schedules
-//    See: https://github.com/opening-hours/opening_hours.js
-export function parseOpeningHours(hoursStr: string): OpeningStatus | null {
-  // Current implementation assumes local browser timezone
-  // This can be wrong if the place is in a different timezone
+export function parseOpeningHours(hoursStr: string, timezone?: string): OpeningStatus | null {
   try {
     // Handle special cases first
     if (hoursStr === '24/7') {
@@ -240,16 +229,39 @@ export function parseOpeningHours(hoursStr: string): OpeningStatus | null {
     }
 
     if (hoursStr.toLowerCase() === 'sunrise-sunset') {
-      // This is a rough approximation - ideally we'd calculate actual sunrise/sunset
       return {
-        isOpen: true, // Assuming daytime for now
+        isOpen: true,
         nextChange: 'at sunset',
       }
     }
 
-    const now = dayjs()
-    const currentDay = now.format('dd').slice(0, 2)
-    const currentTime = now.format('HH:mm')
+    let now: dayjs.Dayjs
+    let currentDay: string
+    let currentTime: string
+    let currentDayNum: number
+
+    if (timezone) {
+      const date = new Date()
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: timezone,
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        weekday: 'short',
+      }).formatToParts(date)
+      const weekdayStr = parts.find(p => p.type === 'weekday')?.value ?? ''
+      const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+      currentDayNum = dayMap[weekdayStr] ?? date.getDay()
+      currentDay = dayjs().day(currentDayNum).format('dd').slice(0, 2)
+      const hour = parts.find(p => p.type === 'hour')?.value ?? '00'
+      const minute = parts.find(p => p.type === 'minute')?.value ?? '00'
+      currentTime = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`
+    } else {
+      now = dayjs()
+      currentDay = now.format('dd').slice(0, 2)
+      currentTime = now.format('HH:mm')
+      currentDayNum = now.day()
+    }
 
     // Split into day ranges
     const ranges = hoursStr.split(';').map(range => {
@@ -308,7 +320,7 @@ export function parseOpeningHours(hoursStr: string): OpeningStatus | null {
 
     if (!todayRange || !todayRange.hours) {
       // Place is closed today, find next opening
-      const nextOpen = findNextOpenDay(now.day())
+      const nextOpen = findNextOpenDay(currentDayNum)
       if (nextOpen) {
         const nextOpenDate = dayjs()
           .day(nextOpen.day)
@@ -340,7 +352,7 @@ export function parseOpeningHours(hoursStr: string): OpeningStatus | null {
       }
     } else {
       // Find next day's opening time
-      const nextOpen = findNextOpenDay(now.day())
+      const nextOpen = findNextOpenDay(currentDayNum)
       if (nextOpen) {
         const nextOpenDate = dayjs()
           .day(nextOpen.day)

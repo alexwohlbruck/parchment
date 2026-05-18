@@ -3,7 +3,7 @@ import SunCalc from 'suncalc'
 const DEG2RAD = Math.PI / 180
 const RAD2DEG = 180 / Math.PI
 
-export function getSubSolarPoint(date: Date): { lat: number; lng: number } {
+function getSubSolarPoint(date: Date): { lat: number; lng: number } {
   const utcH = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600
   const lng = (12 - utcH) * 15
 
@@ -17,30 +17,37 @@ export function getSubSolarPoint(date: Date): { lat: number; lng: number } {
   return { lat, lng: ((lng % 360) + 540) % 360 - 180 }
 }
 
-function smoothstep(edge0: number, edge1: number, x: number): number {
-  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)))
-  return t * t * (3 - 2 * t)
-}
-
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t
-}
-
-function getDayNightColor(angularDistDeg: number): [number, number, number, number] {
+function getPixelColor(angularDistDeg: number): [number, number, number, number] {
   if (angularDistDeg < 87) return [0, 0, 0, 0]
-  if (angularDistDeg >= 105) return [0, 0, 15, 170]
 
-  const night = smoothstep(87, 105, angularDistDeg)
+  // Pre-terminator warm glow
+  if (angularDistDeg < 90) {
+    const t = (angularDistDeg - 87) / 3
+    return [255, 120, 40, t * 0.06]
+  }
 
-  const r = 0
-  const g = 0
-  const b = Math.round(lerp(0, 15, night))
-  const a = Math.round(lerp(0, 170, night))
+  // Civil twilight — warm sunset fading into cool darkness
+  if (angularDistDeg < 96) {
+    const t = (angularDistDeg - 90) / 6
+    const r = Math.round(255 * (1 - t * t) + 10 * t * t)
+    const g = Math.round(100 * (1 - t * t) + 10 * t * t)
+    const b = Math.round(40 * (1 - t) + 50 * t)
+    const a = 0.06 + t * 0.24
+    return [r, g, b, a]
+  }
 
-  return [r, g, b, a]
+  // Nautical + astronomical twilight
+  if (angularDistDeg < 108) {
+    const t = (angularDistDeg - 96) / 12
+    const a = 0.3 + t * 0.15
+    return [8, 8, Math.round(40 - 15 * t), a]
+  }
+
+  // Full night
+  return [5, 5, 20, 0.45]
 }
 
-export function renderDayNightImage(width: number, height: number): string {
+export function renderDayNightCanvas(width: number, height: number): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
@@ -56,24 +63,24 @@ export function renderDayNightImage(width: number, height: number): string {
   const cosSunLat = Math.cos(sunLatRad)
 
   for (let y = 0; y < height; y++) {
-    const lat = (0.5 - y / height) * Math.PI
+    const lat = (0.5 - y / height) * 170 * DEG2RAD
     const sinLat = Math.sin(lat)
     const cosLat = Math.cos(lat)
 
     for (let x = 0; x < width; x++) {
-      const lng = (x / width - 0.5) * 2 * Math.PI
+      const lng = (x / width - 0.5) * 360 * DEG2RAD
       const cosD = sinSunLat * sinLat + cosSunLat * cosLat * Math.cos(lng - sunLngRad)
       const d = Math.acos(Math.max(-1, Math.min(1, cosD))) * RAD2DEG
 
-      const [r, g, b, a] = getDayNightColor(d)
+      const [r, g, b, a] = getPixelColor(d)
       const idx = (y * width + x) * 4
       data[idx] = r
       data[idx + 1] = g
       data[idx + 2] = b
-      data[idx + 3] = a
+      data[idx + 3] = Math.round(a * 255)
     }
   }
 
   ctx.putImageData(imageData, 0, 0)
-  return canvas.toDataURL('image/png')
+  return canvas
 }

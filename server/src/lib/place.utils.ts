@@ -94,7 +94,7 @@ export function parseOpeningHoursForUnifiedFormat(
   }
 }
 
-export function isPlaceOpen(openingTimes: OpeningTime[]): {
+export function isPlaceOpen(openingTimes: OpeningTime[], timezone?: string): {
   isOpen: boolean
   nextChange?: string
 } {
@@ -103,28 +103,38 @@ export function isPlaceOpen(openingTimes: OpeningTime[]): {
   }
 
   const now = new Date()
-  const currentDay = now.getDay() // 0 = Sunday, 1 = Monday, etc.
-  const currentHour = now.getHours()
-  const currentMinute = now.getMinutes()
-  const currentTime = `${currentHour
-    .toString()
-    .padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`
+  let currentDay: number
+  let currentTime: string
+
+  if (timezone) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      weekday: 'short',
+    }).formatToParts(now)
+    const weekdayStr = parts.find(p => p.type === 'weekday')?.value ?? ''
+    const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+    currentDay = dayMap[weekdayStr] ?? now.getDay()
+    const hour = parts.find(p => p.type === 'hour')?.value ?? '00'
+    const minute = parts.find(p => p.type === 'minute')?.value ?? '00'
+    currentTime = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`
+  } else {
+    currentDay = now.getDay()
+    const currentHour = now.getHours()
+    const currentMinute = now.getMinutes()
+    currentTime = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`
+  }
 
   // Find if the place is currently open
   for (const time of openingTimes) {
     if (time.day === currentDay) {
       if (time.open <= currentTime && time.close > currentTime) {
-        // Calculate time until closing
-        const closingTime = time.close.split(':')
-        const closingHour = parseInt(closingTime[0])
-        const closingMinute = parseInt(closingTime[1])
-
-        const closingDate = new Date()
-        closingDate.setHours(closingHour, closingMinute)
-
-        const minutesUntilClose = Math.round(
-          (closingDate.getTime() - now.getTime()) / 60000,
-        )
+        // Calculate time until closing using string times
+        const [closeH, closeM] = time.close.split(':').map(Number)
+        const [curH, curM] = currentTime.split(':').map(Number)
+        const minutesUntilClose = (closeH * 60 + closeM) - (curH * 60 + curM)
 
         if (minutesUntilClose <= 60) {
           return { isOpen: true, nextChange: `in ${minutesUntilClose} min` }

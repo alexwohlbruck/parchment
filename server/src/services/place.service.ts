@@ -1040,16 +1040,25 @@ export async function lookupEnrichedPlaceById(
     const enrichmentTime = Date.now() - enrichmentStart
     console.log(`⏱️ [PERF] Step 3-4 - Parallel enrichment (Wiki + Address): ${enrichmentTime}ms`)
 
-    // Step 5: Resolve nearby categories first, then widget descriptors
+    // Step 5: Resolve timezone from coordinates
+    if (place.geometry?.value?.center) {
+      const { getTimezone } = await import('../lib/timezone')
+      place.timezone = getTimezone(
+        place.geometry.value.center.lat,
+        place.geometry.value.center.lng,
+      ) ?? undefined
+    }
+
+    // Step 6: Resolve nearby categories first, then widget descriptors
     // (widget descriptors depend on nearbyCategories being populated)
     const { resolveWidgetDescriptors } = await import('./widget.service')
     const { resolveNearbyCategories } = await import('../lib/nearby-categories')
     place.nearbyCategories = resolveNearbyCategories(place)
     place.widgets = resolveWidgetDescriptors(place)
 
-    // Step 6: Add bookmark information if user ID is provided
+    // Step 7: Add bookmark information if user ID is provided
     if (userId && place) {
-      const step6Start = Date.now()
+      const step7Start = Date.now()
       const bookmarkInfo = await findBookmarkByExternalIds(
         place.externalIds,
         userId,
@@ -1058,8 +1067,8 @@ export async function lookupEnrichedPlaceById(
         place.bookmark = bookmarkInfo.bookmark
         place.collectionIds = bookmarkInfo.collectionIds
       }
-      const step6Time = Date.now() - step6Start
-      console.log(`⏱️ [PERF] Step 6 - Bookmark info: ${step6Time}ms`)
+      const step7Time = Date.now() - step7Start
+      console.log(`⏱️ [PERF] Step 7 - Bookmark info: ${step7Time}ms`)
     }
 
     const totalTime = Date.now() - startTime
@@ -1152,6 +1161,9 @@ export async function lookupEnrichedPlaceByCoordinates(
       place.relations = null
       place.amenities = {}
       place.sources = []
+
+      const { getTimezone } = await import('../lib/timezone')
+      place.timezone = getTimezone(lat, lng) ?? undefined
 
       const { resolveWidgetDescriptors } = await import('./widget.service')
       place.widgets = resolveWidgetDescriptors(place)

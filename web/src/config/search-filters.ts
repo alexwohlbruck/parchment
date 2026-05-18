@@ -77,7 +77,7 @@ export const FILTER_DEFINITIONS: FilterDef[] = [
     isAvailable: () => true,
     match: (place, active: boolean) => {
       if (!active) return true
-      const status = isPlaceOpenNow(place.openingHours?.value)
+      const status = isPlaceOpenNow(place.openingHours?.value, place.timezone)
       return status === true || status === null
     },
     toServerFilter: (active: boolean) =>

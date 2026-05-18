@@ -1,3 +1,5 @@
+process.env.TZ = 'UTC'
+
 import { getObservabilityConfig } from './services/observability.config'
 import { initOtel } from './lib/otel'
 import { Elysia } from 'elysia'
@@ -32,6 +34,7 @@ import {
   deviceWrapSecrets as deviceWrapSecretsController,
   publicController,
   realtime as realtimeController,
+  data as dataController,
 } from './controllers'
 import { initializeIntegrations } from './services/integration.service'
 import { bootstrapRealtime } from './services/realtime/bootstrap'
@@ -103,6 +106,7 @@ async function main() {
   app.use(deviceWrapSecretsController)
   app.use(publicController)
   app.use(realtimeController)
+  app.use(dataController)
 
   // Wire realtime subscribers (local WS fanout, and — in Phase 4 —
   // federation forwarding). Must run before the first write path emits.

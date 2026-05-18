@@ -21,6 +21,7 @@ import type { Place, DisplayChip } from '@/types/place.types'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getWifiStatus, parseCuisines } from '@/lib/place.utils'
+import { isPlaceOpenNow, getLocalDayAndTime } from '@/lib/place-open.utils'
 import { resolveIconByName } from '@/lib/osm-tag-icons'
 import { SOURCE } from '@/lib/constants'
 import { encode } from 'pluscodes'
@@ -181,12 +182,7 @@ function getOpeningStatus(hours: any) {
     return { status: '', color: '' }
   }
 
-  const now = new Date()
-  const currentDay = now.getDay()
-  const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now
-    .getMinutes()
-    .toString()
-    .padStart(2, '0')}`
+  const { day: currentDay, time: currentTime } = getLocalDayAndTime(props.place.timezone)
 
   const todayHours = hours.regularHours.find((h: any) => h.day === currentDay)
   if (!todayHours) {
@@ -425,7 +421,7 @@ function getFullAddress(address: any) {
                       v-for="day in DAYS"
                       :key="day"
                       class="flex justify-between"
-                      :class="{ 'font-medium text-foreground': DAYS.indexOf(day) === new Date().getDay() }"
+                      :class="{ 'font-medium text-foreground': DAYS.indexOf(day) === getLocalDayAndTime(place.timezone).day }"
                     >
                       <span>{{ day }}</span>
                       <span>

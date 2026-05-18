@@ -13,7 +13,6 @@
  */
 
 import type { Layer, LayerGroup } from '@/types/map.types'
-import type { Place } from '@/types/place.types'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { toRaw } from 'vue'
 import { isTransitStopLayer } from '@/lib/transit.utils'
@@ -29,6 +28,7 @@ import { useLayerCrudService } from './core/layer-crud.service'
 import { useLayerVisibilityService } from './core/layer-visibility.service'
 import { useSearchResultsLayerService } from './features/search-results-layer.service'
 import { useTransitLayersService } from './features/transit-layers.service'
+import { useDayNightLayerService } from './features/daynight-layer.service'
 
 export function useLayersService() {
   // Initialize specialized services
@@ -36,6 +36,7 @@ export function useLayersService() {
   const visibilityService = useLayerVisibilityService()
   const searchResultsService = useSearchResultsLayerService()
   const transitService = useTransitLayersService()
+  const dayNightService = useDayNightLayerService()
 
   // ============================================================================
   // CORE CRUD OPERATIONS
@@ -88,6 +89,12 @@ export function useLayersService() {
         return
       }
 
+      // Day/night layer needs a dynamic image source managed by its service
+      if (dayNightService.isDayNightLayer(plainLayer)) {
+        dayNightService.initializeDayNightLayer(mapStrategy, plainLayer)
+        return
+      }
+
       // Add transit stop click handlers for transit stop layers
       if (isTransitStopLayer(plainLayer.configuration?.id)) {
         transitService.addTransitStopClickHandlers(mapStrategy, plainLayer.configuration.id)
@@ -105,6 +112,11 @@ export function useLayersService() {
     if (!mapStrategy) return
     const plainLayer = toRaw(layer)
     if (!isLayerCompatible(plainLayer, mapStrategy)) return
+
+    if (dayNightService.isDayNightLayer(plainLayer)) {
+      dayNightService.initializeDayNightLayer(mapStrategy, plainLayer)
+      return
+    }
 
     // Add transit stop click handlers for dynamically added transit stop layers
     if (isTransitStopLayer(plainLayer.configuration?.id)) {

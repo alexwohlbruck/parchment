@@ -106,13 +106,13 @@ describe('subscription.service', () => {
     test('returns isPremium: true when user has premium role', async () => {
       selectRows = [{ userId: 'user-1', roleId: 'premium' }]
       const result = await subService.getSubscriptionStatus('user-1')
-      expect(result).toEqual({ isPremium: true, tier: 'premium' })
+      expect(result).toEqual({ isPremium: true, hasSubscription: false, tier: 'premium' })
     })
 
     test('returns isPremium: false when user lacks premium role', async () => {
       selectRows = []
       const result = await subService.getSubscriptionStatus('user-2')
-      expect(result).toEqual({ isPremium: false, tier: 'free' })
+      expect(result).toEqual({ isPremium: false, hasSubscription: false, tier: 'free' })
     })
   })
 

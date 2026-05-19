@@ -8,6 +8,7 @@ function subscriptionService() {
   const authService = useAuthService()
 
   const billingEnabled = ref(false)
+  const hasSubscription = ref(false)
   const loading = ref(false)
 
   async function fetchConfig() {
@@ -20,6 +21,7 @@ function subscriptionService() {
   }
 
   fetchConfig()
+  refreshStatus().catch(() => {})
 
   const isPremium = computed(() => {
     if (!billingEnabled.value) return true
@@ -45,6 +47,7 @@ function subscriptionService() {
 
   async function refreshStatus() {
     const { data } = await api.get('/subscriptions/status')
+    hasSubscription.value = data.hasSubscription
     if (data.isPremium) {
       await authService.getPermissions()
     }
@@ -54,6 +57,7 @@ function subscriptionService() {
   return {
     billingEnabled,
     isPremium,
+    hasSubscription,
     tier,
     loading,
     startCheckout,

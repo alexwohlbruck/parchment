@@ -90,7 +90,7 @@ onMounted(async () => {
           Upgrade to Premium
         </Button>
         <Button
-          v-else
+          v-if="subscriptionService.hasSubscription.value"
           variant="outline"
           @click="subscriptionService.openPortal()"
         >

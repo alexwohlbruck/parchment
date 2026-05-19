@@ -105,6 +105,13 @@ export async function getSubscriptionStatus(userId: string) {
     )
     .limit(1)
 
+  const [user] = await db
+    .select({ polarCustomerId: users.polarCustomerId })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+
   const isPremium = !!row
-  return { isPremium, tier: isPremium ? 'premium' : 'free' } as const
+  const hasSubscription = !!user?.polarCustomerId
+  return { isPremium, hasSubscription, tier: isPremium ? 'premium' : 'free' } as const
 }

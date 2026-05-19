@@ -12,7 +12,10 @@ let polar: Polar | null = null
 
 function getPolar(): Polar {
   if (!polar) {
-    polar = new Polar({ accessToken: billing.accessToken })
+    polar = new Polar({
+      accessToken: billing.accessToken,
+      server: billing.sandbox ? 'sandbox' : 'production',
+    })
   }
   return polar
 }

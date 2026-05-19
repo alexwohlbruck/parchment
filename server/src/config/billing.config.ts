@@ -19,6 +19,7 @@ const hasValidLicense = isDev || !!licensePayload?.features?.includes('billing')
 
 export const billing = {
   enabled: hasPolarConfig && hasValidLicense,
+  sandbox: process.env.POLAR_SANDBOX === 'true',
   accessToken: process.env.POLAR_ACCESS_TOKEN ?? '',
   webhookSecret: process.env.POLAR_WEBHOOK_SECRET ?? '',
   organizationId: process.env.POLAR_ORGANIZATION_ID ?? '',

@@ -27,7 +27,9 @@ export async function createCheckoutSession(
 ) {
   const checkout = await getPolar().checkouts.create({
     products: [billing.premiumProductId],
-    customerEmail: userEmail,
+    ...(userEmail.includes('@') && !userEmail.endsWith('.test')
+      ? { customerEmail: userEmail }
+      : {}),
     metadata: { parchmentUserId: userId },
     successUrl,
   })

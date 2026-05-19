@@ -35,6 +35,7 @@ import {
   publicController,
   realtime as realtimeController,
   data as dataController,
+  subscription as subscriptionController,
 } from './controllers'
 import { initializeIntegrations } from './services/integration.service'
 import { bootstrapRealtime } from './services/realtime/bootstrap'
@@ -107,6 +108,7 @@ async function main() {
   app.use(publicController)
   app.use(realtimeController)
   app.use(dataController)
+  app.use(subscriptionController)
 
   // Wire realtime subscribers (local WS fanout, and — in Phase 4 —
   // federation forwarding). Must run before the first write path emits.

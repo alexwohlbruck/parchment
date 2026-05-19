@@ -26,6 +26,25 @@ const user: Role = {
   ],
 }
 
+const premium: Role = {
+  id: 'premium',
+  name: 'Premium',
+  description: 'A paying subscriber with access to all premium features',
+  permissions: [
+    PermissionId.INTEGRATIONS_READ_USER,
+    PermissionId.INTEGRATIONS_WRITE_USER,
+    PermissionId.LAYERS_READ,
+    PermissionId.LAYERS_WRITE,
+    PermissionId.LAYERS_DELETE,
+    PermissionId.SEARCH_AUTO_REFRESH,
+    PermissionId.PREMIUM_DATA_PROVIDERS,
+    PermissionId.PREMIUM_LAYERS,
+    PermissionId.PREMIUM_CUSTOM_MAPS,
+    PermissionId.PREMIUM_NAVIGATION,
+    PermissionId.PREMIUM_LOCATION_SHARING,
+  ],
+}
+
 const alpha: Role = {
   id: 'alpha',
   name: 'Alpha tester',
@@ -40,9 +59,11 @@ const alpha: Role = {
     PermissionId.LAYERS_WRITE,
     PermissionId.LAYERS_DELETE,
     PermissionId.SEARCH_AUTO_REFRESH,
-    // Permission.USERS_READ,
-    // Permission.ROLES_READ,
-    // Permission.PERMISSIONS_READ,
+    PermissionId.PREMIUM_DATA_PROVIDERS,
+    PermissionId.PREMIUM_LAYERS,
+    PermissionId.PREMIUM_CUSTOM_MAPS,
+    PermissionId.PREMIUM_NAVIGATION,
+    PermissionId.PREMIUM_LOCATION_SHARING,
   ],
 }
 
@@ -54,4 +75,4 @@ const admin: Role = {
   permissions: '*',
 }
 
-export const roles: Role[] = [user, alpha, admin]
+export const roles: Role[] = [user, premium, alpha, admin]

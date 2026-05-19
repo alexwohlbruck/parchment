@@ -14,6 +14,11 @@ export enum PermissionId {
   LAYERS_WRITE = 'layers:write',
   LAYERS_DELETE = 'layers:delete',
   SEARCH_AUTO_REFRESH = 'search:auto_refresh',
+  PREMIUM_DATA_PROVIDERS = 'premium:data_providers',
+  PREMIUM_LAYERS = 'premium:layers',
+  PREMIUM_CUSTOM_MAPS = 'premium:custom_maps',
+  PREMIUM_NAVIGATION = 'premium:navigation',
+  PREMIUM_LOCATION_SHARING = 'premium:location_sharing',
 }
 
 export type PermissionRule =

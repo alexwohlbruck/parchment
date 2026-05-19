@@ -122,12 +122,7 @@ export const settingsIndex: SettingsPageDef[] = [
       {
         id: 'plan',
         titleKey: 'settings.billing.plan.title',
-        keywords: ['subscription', 'premium', 'billing', 'upgrade', 'plan'],
-      },
-      {
-        id: 'features',
-        titleKey: 'settings.billing.features.title',
-        keywords: ['features', 'premium'],
+        keywords: ['subscription', 'premium', 'billing', 'upgrade', 'plan', 'features'],
       },
     ],
   },

@@ -1,5 +1,5 @@
 import { Elysia, t } from 'elysia'
-import { requireAuth } from '../middleware/auth.middleware'
+import { optionalAuth } from '../middleware/auth.middleware'
 import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
 import * as searchService from '../services/search.service'
 import { integrationManager } from '../services/integrations'
@@ -13,7 +13,7 @@ import { categoryPalette } from '../lib/place-categories'
 import { getPresetById, getPresetFields } from '../lib/osm-presets'
 
 const searchRouter = new Elysia({ prefix: '/search' })
-  .use(requireAuth)
+  .use(optionalAuth)
 
   .get(
     '/',
@@ -29,7 +29,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
       } = query
 
       const searchResults = await searchService.search(
-        user.id,
+        user?.id ?? '',
         {
           query: searchQuery,
           lat: lat ? parseFloat(lat) : undefined,

@@ -22,7 +22,11 @@ import {
   sendEmailVerificationCode,
   getPermissions,
 } from '../services/auth.service'
-import { fetchUser, fetchUserByEmail } from '../services/user.service'
+import {
+  fetchUser,
+  fetchUserByEmail,
+  createOpenRegistrationUser,
+} from '../services/user.service'
 import {
   createServerToken,
   validateServerToken,
@@ -37,6 +41,7 @@ import {
   RegistrationResponseJSON,
 } from '@simplewebauthn/server/script/deps'
 import { generateId } from '../util'
+import { registrationMode } from '../config'
 import { detectLanguage, getI18nInitOptions } from '../lib/i18n'
 import { makeUserRateLimit } from '../middleware/rate-limit.middleware'
 import { passkeyNameFromAAGUID } from '../lib/passkey-aaguid'
@@ -65,10 +70,10 @@ app.post(
     let user = await fetchUserByEmail(email)
 
     if (!user) {
-      // Invite-only today. Open-signup flow (auto-create user + seed default
-      // layers) will replace this branch when we're ready to accept new
-      // signups without an explicit invite.
-      return status(404, { message: t('errors.notFound.user') })
+      if (registrationMode === 'invite') {
+        return status(404, { message: t('errors.notFound.user') })
+      }
+      user = await createOpenRegistrationUser(email)
     }
 
     const isAppTester = user.email === process.env.APP_TESTER_EMAIL

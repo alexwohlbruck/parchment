@@ -1,5 +1,23 @@
+import { verifyLicense, type LicensePayload } from '../lib/license'
+import { logger } from '../lib/logger'
+
+let licensePayload: LicensePayload | null = null
+
+const licenseToken = process.env.PARCHMENT_LICENSE ?? ''
+if (licenseToken) {
+  licensePayload = await verifyLicense(licenseToken)
+  if (licensePayload) {
+    logger.info('Valid license detected — billing features available')
+  } else {
+    logger.warn('PARCHMENT_LICENSE is set but invalid or expired — billing disabled')
+  }
+}
+
+const hasPolarConfig = !!process.env.POLAR_ACCESS_TOKEN
+const hasValidLicense = !!licensePayload?.features?.includes('billing')
+
 export const billing = {
-  enabled: !!process.env.POLAR_ACCESS_TOKEN,
+  enabled: hasPolarConfig && hasValidLicense,
   accessToken: process.env.POLAR_ACCESS_TOKEN ?? '',
   webhookSecret: process.env.POLAR_WEBHOOK_SECRET ?? '',
   organizationId: process.env.POLAR_ORGANIZATION_ID ?? '',

@@ -4,6 +4,7 @@ import {
   CodeIcon,
   CogIcon,
   Contact2Icon,
+  CrownIcon,
   MapIcon,
   PaintbrushIcon,
   UserRoundIcon,
@@ -109,6 +110,24 @@ export const settingsIndex: SettingsPageDef[] = [
         id: 'passkeys',
         titleKey: 'settings.account.passkeys.title',
         keywords: ['webauthn', 'biometric', 'security key'],
+      },
+    ],
+  },
+  {
+    pageId: 'subscription',
+    to: '/settings/subscription',
+    icon: CrownIcon,
+    iconColor: 'amber',
+    sections: [
+      {
+        id: 'plan',
+        titleKey: 'settings.subscription.plan.title',
+        keywords: ['subscription', 'premium', 'billing', 'upgrade', 'plan'],
+      },
+      {
+        id: 'features',
+        titleKey: 'settings.subscription.features.title',
+        keywords: ['features', 'premium'],
       },
     ],
   },

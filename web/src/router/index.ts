@@ -23,6 +23,7 @@ import NotFound from '@/views/NotFound.vue'
 import Collections from '@/views/library/collections/Collections.vue'
 import Layers from '@/views/library/layers/Layers.vue'
 import Integrations from '@/views/settings/pages/Integrations.vue'
+import Subscription from '@/views/settings/pages/Subscription.vue'
 import Friends from '@/views/friends/Friends.vue'
 
 import { useAuthStore } from '@/stores/auth.store'
@@ -51,6 +52,7 @@ export enum AppRoute {
   MAP_SETTINGS = 'mapSettings',
   USERS = 'users',
   INTEGRATIONS = 'integrations',
+  SUBSCRIPTION = 'subscription',
   DEVELOPER = 'developer',
   NOTE = 'note',
   NOTE_CREATE = 'note-create',
@@ -250,6 +252,11 @@ const router = createRouter({
           path: '/settings/integrations',
           name: AppRoute.INTEGRATIONS,
           component: Integrations,
+        },
+        {
+          path: '/settings/subscription',
+          name: AppRoute.SUBSCRIPTION,
+          component: Subscription,
         },
         {
           path: '/settings/developer',

@@ -44,6 +44,10 @@ mock.module('../config', () => ({
     accessToken: 'test-token',
     premiumProductId: 'prod_test',
   },
+  appName: 'Parchment',
+  origins: { clientHostname: 'localhost', clientOrigin: 'http://localhost:5173', serverOrigin: 'http://localhost:5000' },
+  isSelfHosted: false,
+  registrationMode: 'invite',
 }))
 mock.module('../lib/logger', () => ({
   logger: { info: () => {}, warn: () => {}, debug: () => {} },

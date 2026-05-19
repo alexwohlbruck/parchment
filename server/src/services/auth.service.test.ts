@@ -59,8 +59,10 @@ describe('getPermissions (self-hosted override)', () => {
 
     mock.module('../config', () => ({
       appName: 'Parchment',
-      origins: { clientHostname: 'localhost' },
+      origins: { clientHostname: 'localhost', clientOrigin: 'http://localhost:5173', serverOrigin: 'http://localhost:5000' },
       isSelfHosted: true,
+      billing: { enabled: false },
+      registrationMode: 'invite',
     }))
 
     mock.module('../db', () => ({

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { SettingsSection } from '@/components/settings'
 import { Button } from '@/components/ui/button'
 import { ExternalLink, ArrowRight, Check } from 'lucide-vue-next'
@@ -8,6 +8,7 @@ import { useSubscriptionService } from '@/services/subscription.service'
 import { toast } from 'vue-sonner'
 
 const route = useRoute()
+const router = useRouter()
 const sub = useSubscriptionService()
 
 const features = [
@@ -19,14 +20,20 @@ const features = [
 ]
 
 onMounted(async () => {
-  if (route.query.checkout === 'success') {
-    const status = await sub.refreshStatus()
+  const isCheckoutReturn = route.query.checkout === 'success'
+  if (isCheckoutReturn) {
+    router.replace({ query: {} })
+  }
+  const status = await sub.verifySubscription()
+  if (isCheckoutReturn) {
     if (status.isPremium) {
       toast.success('Welcome to Premium!', {
+        id: 'checkout-result',
         description: 'Your subscription is now active.',
       })
     } else {
       toast.info('Processing your subscription...', {
+        id: 'checkout-result',
         description: 'It may take a moment to activate. Refresh to check.',
       })
     }

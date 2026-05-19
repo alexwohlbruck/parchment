@@ -3,12 +3,9 @@ import { sha512 } from '@noble/hashes/sha2.js'
 
 ed.hashes.sha512 = (...m) => sha512(ed.etc.concatBytes(...m))
 
-// The public key used to verify license signatures. Only Parchment's
+// Ed25519 public key for license verification. Only Parchment's
 // official build pipeline holds the corresponding private key.
-// Replace this with your actual public key (hex-encoded, 32 bytes).
-const LICENSE_PUBLIC_KEY =
-  process.env.PARCHMENT_LICENSE_PUBLIC_KEY ??
-  'a]placeholder-replace-with-real-key'
+const LICENSE_PUBLIC_KEY = 'a]placeholder-replace-with-real-key'
 
 export type LicensePayload = {
   org: string

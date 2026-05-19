@@ -19,7 +19,10 @@ const fakeDb = {
   insert: (table: unknown) => ({
     values: (row: unknown) => {
       insertedRows.push(row as any)
-      return { returning: () => [row] }
+      return {
+        returning: () => [row],
+        onConflictDoNothing: () => {},
+      }
     },
   }),
   delete: () => ({
@@ -52,6 +55,9 @@ mock.module('../config', () => ({
 mock.module('../lib/logger', () => ({
   logger: { info: () => {}, warn: () => {}, debug: () => {} },
 }))
+let fakeCustomers: any[] = []
+let fakeSubscriptions: any[] = []
+
 mock.module('@polar-sh/sdk', () => ({
   Polar: class FakePolar {
     checkouts = {
@@ -64,6 +70,12 @@ mock.module('@polar-sh/sdk', () => ({
         customerPortalUrl: 'https://polar.sh/portal/abc',
       }),
     }
+    customers = {
+      list: async () => ({ result: { items: fakeCustomers } }),
+    }
+    subscriptions = {
+      list: async () => ({ result: { items: fakeSubscriptions } }),
+    }
   },
 }))
 
@@ -75,6 +87,8 @@ describe('subscription.service', () => {
     deletedWhere.length = 0
     updatedSets.length = 0
     selectRows = []
+    fakeCustomers = []
+    fakeSubscriptions = []
   })
 
   describe('assignPremiumRole', () => {
@@ -88,10 +102,9 @@ describe('subscription.service', () => {
       })
     })
 
-    test('is idempotent — skips insert if already assigned', async () => {
-      selectRows = [{ userId: 'user-1', roleId: 'premium' }]
+    test('is idempotent — uses onConflictDoNothing for existing role', async () => {
       await subService.assignPremiumRole('user-1')
-      expect(insertedRows).toHaveLength(0)
+      expect(insertedRows).toHaveLength(1)
     })
   })
 
@@ -154,6 +167,32 @@ describe('subscription.service', () => {
     test('returns a portal URL', async () => {
       const url = await subService.getCustomerPortalUrl('cus_123')
       expect(url).toBe('https://polar.sh/portal/abc')
+    })
+  })
+
+  describe('verifyAndSyncSubscription', () => {
+    test('assigns premium when Polar has active subscription', async () => {
+      fakeCustomers = [{ id: 'cus_1' }]
+      fakeSubscriptions = [{ id: 'sub_1', status: 'active' }]
+      const result = await subService.verifyAndSyncSubscription('user-1', 'test@test.com')
+      expect(result).toEqual({ isPremium: true, hasSubscription: true, tier: 'premium' })
+      expect(insertedRows).toHaveLength(1)
+      expect(updatedSets).toHaveLength(1)
+    })
+
+    test('removes premium when customer exists but no active subscription', async () => {
+      fakeCustomers = [{ id: 'cus_1' }]
+      fakeSubscriptions = []
+      const result = await subService.verifyAndSyncSubscription('user-1', 'test@test.com')
+      expect(result).toEqual({ isPremium: false, hasSubscription: true, tier: 'free' })
+      expect(deletedWhere).toHaveLength(1)
+    })
+
+    test('removes premium when no customer found in Polar', async () => {
+      fakeCustomers = []
+      const result = await subService.verifyAndSyncSubscription('user-1', 'test@test.com')
+      expect(result).toEqual({ isPremium: false, hasSubscription: false, tier: 'free' })
+      expect(deletedWhere).toHaveLength(1)
     })
   })
 })

@@ -50,23 +50,10 @@ export async function getCustomerPortalUrl(polarCustomerId: string) {
 }
 
 export async function assignPremiumRole(userId: string) {
-  const existing = await db
-    .select()
-    .from(usersToRoles)
-    .where(
-      and(
-        eq(usersToRoles.userId, userId),
-        eq(usersToRoles.roleId, PREMIUM_ROLE_ID),
-      ),
-    )
-    .limit(1)
-
-  if (existing.length > 0) return
-
-  await db.insert(usersToRoles).values({
-    userId,
-    roleId: PREMIUM_ROLE_ID,
-  })
+  await db
+    .insert(usersToRoles)
+    .values({ userId, roleId: PREMIUM_ROLE_ID })
+    .onConflictDoNothing()
   logger.info({ userId }, 'Assigned premium role')
 }
 
@@ -99,6 +86,52 @@ export async function findUserByPolarCustomerId(polarCustomerId: string) {
     .where(eq(users.polarCustomerId, polarCustomerId))
     .limit(1)
   return user ?? null
+}
+
+export async function verifyAndSyncSubscription(userId: string, userEmail: string) {
+  const p = getPolar()
+
+  const customers = await p.customers.list({
+    email: userEmail,
+    organizationId: billing.organizationId,
+    limit: 1,
+  })
+
+  const customer = customers.result.items[0]
+  if (!customer) {
+    await removePremiumRole(userId)
+    return { isPremium: false, hasSubscription: false, tier: 'free' as const }
+  }
+
+  const existingLinkedUser = await findUserByPolarCustomerId(customer.id)
+  if (existingLinkedUser && existingLinkedUser.id !== userId) {
+    logger.warn(
+      { userId, existingUserId: existingLinkedUser.id, polarCustomerId: customer.id },
+      'Polar customer already linked to a different user — refusing to re-link',
+    )
+    await removePremiumRole(userId)
+    return { isPremium: false, hasSubscription: false, tier: 'free' as const }
+  }
+
+  await linkPolarCustomer(userId, customer.id)
+
+  const subs = await p.subscriptions.list({
+    customerId: customer.id,
+    productId: billing.premiumProductId,
+    active: true,
+    limit: 1,
+  })
+
+  const activeSub = subs.result.items[0]
+  if (activeSub) {
+    await assignPremiumRole(userId)
+    logger.info({ userId, polarCustomerId: customer.id }, 'Subscription verified active via Polar API')
+    return { isPremium: true, hasSubscription: true, tier: 'premium' as const }
+  }
+
+  await removePremiumRole(userId)
+  logger.info({ userId, polarCustomerId: customer.id }, 'Subscription verified inactive via Polar API')
+  return { isPremium: false, hasSubscription: true, tier: 'free' as const }
 }
 
 export async function getSubscriptionStatus(userId: string) {

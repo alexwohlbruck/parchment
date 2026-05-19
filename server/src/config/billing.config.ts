@@ -26,8 +26,24 @@ export const billing = {
   premiumProductId: process.env.POLAR_PREMIUM_PRODUCT_ID ?? '',
 }
 
+if (billing.enabled && !billing.webhookSecret) {
+  throw new Error(
+    'POLAR_WEBHOOK_SECRET must be set when billing is enabled. ' +
+    'Set the webhook signing secret from your Polar dashboard.',
+  )
+}
+
 export const registrationMode = (process.env.REGISTRATION_MODE ?? 'invite') as
   | 'invite'
   | 'open'
 
-export const isSelfHosted = !billing.enabled
+export const isSelfHosted =
+  process.env.PARCHMENT_SELF_HOSTED === 'true' && !billing.enabled
+
+if (isSelfHosted) {
+  logger.info('Running in self-hosted mode — all users receive full permissions')
+} else if (!billing.enabled) {
+  logger.warn(
+    'Billing is not configured and PARCHMENT_SELF_HOSTED is not set — premium features will be unavailable',
+  )
+}

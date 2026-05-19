@@ -132,6 +132,30 @@ describe('subscriptionService', () => {
     })
   })
 
+  test('verifySubscription calls POST /verify and updates state', async () => {
+    hoisted.apiPostSpy.mockResolvedValue({
+      data: { isPremium: true, hasSubscription: true, tier: 'premium' },
+    })
+    const svc = await createService()
+    const result = await svc.verifySubscription()
+    expect(hoisted.apiPostSpy).toHaveBeenCalledWith('/subscriptions/verify')
+    expect(result.isPremium).toBe(true)
+    expect(svc.hasPremiumRole.value).toBe(true)
+    expect(svc.hasSubscription.value).toBe(true)
+    expect(hoisted.getPermissionsSpy).toHaveBeenCalled()
+  })
+
+  test('verifySubscription handles cancelled subscription', async () => {
+    hoisted.apiPostSpy.mockResolvedValue({
+      data: { isPremium: false, hasSubscription: true, tier: 'free' },
+    })
+    const svc = await createService()
+    const result = await svc.verifySubscription()
+    expect(result.isPremium).toBe(false)
+    expect(svc.hasPremiumRole.value).toBe(false)
+    expect(svc.hasSubscription.value).toBe(true)
+  })
+
   test('refreshStatus re-fetches permissions after premium status', async () => {
     hoisted.apiGetSpy.mockImplementation((url: string) => {
       if (url === '/subscriptions/config')

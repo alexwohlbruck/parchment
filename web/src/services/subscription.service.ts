@@ -62,6 +62,17 @@ function subscriptionService() {
     }
   }
 
+  async function verifySubscription() {
+    const { data } = await api.post('/subscriptions/verify')
+    hasSubscription.value = data.hasSubscription
+    hasPremiumRole.value = data.isPremium
+    statusLoaded.value = true
+    if (data.isPremium) {
+      await authService.getPermissions()
+    }
+    return data
+  }
+
   return {
     billingEnabled,
     isPremium,
@@ -73,6 +84,7 @@ function subscriptionService() {
     startCheckout,
     openPortal,
     refreshStatus,
+    verifySubscription,
     fetchConfig,
   }
 }

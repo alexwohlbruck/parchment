@@ -64,7 +64,7 @@ onMounted(async () => {
           </p>
         </div>
         <div class="flex flex-col gap-3">
-          <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <p class="text-xs font-medium text-muted-foreground">
             Included with Premium
           </p>
           <ul class="flex flex-col gap-1.5">

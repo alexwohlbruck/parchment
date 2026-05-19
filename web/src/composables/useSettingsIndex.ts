@@ -1,6 +1,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthService } from '@/services/auth.service'
+import { useSubscriptionService } from '@/services/subscription.service'
 import { fuzzyFilter } from '@/lib/utils'
 import {
   settingsIndex,
@@ -31,6 +32,7 @@ export type SettingsSearchEntry = {
 export function useSettingsIndex() {
   const { t, te } = useI18n()
   const authService = useAuthService()
+  const subscriptionService = useSubscriptionService()
 
   const tr = (key: string | undefined): string | undefined => {
     if (!key) return undefined
@@ -39,10 +41,12 @@ export function useSettingsIndex() {
 
   // Filter out pages the current user can't access. Permissions on a page
   // hide all of its sections from both the sub-nav and the search.
+  // The subscription page is hidden when billing is disabled (self-hosted).
   const allowedPages = computed<SettingsPageDef[]>(() => {
-    return settingsIndex.filter(
-      page => !page.permissions || authService.hasPermission(page.permissions),
-    )
+    return settingsIndex.filter(page => {
+      if (page.pageId === 'subscription' && !subscriptionService.billingEnabled.value) return false
+      return !page.permissions || authService.hasPermission(page.permissions)
+    })
   })
 
   // Sections grouped by page, with i18n applied. Used by the sidebar to

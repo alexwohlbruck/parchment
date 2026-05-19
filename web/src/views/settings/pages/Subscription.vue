@@ -37,7 +37,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
+  <div v-if="subscriptionService.billingEnabled.value" class="flex flex-col gap-4">
     <SettingsSection id="plan" title="Plan">
       <div class="flex items-center gap-3">
         <div

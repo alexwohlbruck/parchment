@@ -1129,6 +1129,15 @@
         "signOutOthersFailed": "Couldn't sign out other devices."
       }
     },
+    "subscription": {
+      "title": "Subscription",
+      "plan": {
+        "title": "Plan"
+      },
+      "features": {
+        "title": "Premium features"
+      }
+    },
     "developer": {
       "title": "Developer",
       "gpxSimulator": {

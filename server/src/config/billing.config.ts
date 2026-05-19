@@ -13,8 +13,9 @@ if (licenseToken) {
   }
 }
 
+const isDev = process.env.NODE_ENV === 'development'
 const hasPolarConfig = !!process.env.POLAR_ACCESS_TOKEN
-const hasValidLicense = !!licensePayload?.features?.includes('billing')
+const hasValidLicense = isDev || !!licensePayload?.features?.includes('billing')
 
 export const billing = {
   enabled: hasPolarConfig && hasValidLicense,

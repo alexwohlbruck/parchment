@@ -58,6 +58,13 @@ services:
       # Generate each with: openssl rand -base64 32
       SERVER_IDENTITY_PRIVATE_KEY: ${SERVER_IDENTITY_PRIVATE_KEY}
       PARCHMENT_INTEGRATION_ENCRYPTION_KEY: ${PARCHMENT_INTEGRATION_ENCRYPTION_KEY}
+      # Billing (optional — omit to run in self-hosted mode)
+      PARCHMENT_LICENSE: ${PARCHMENT_LICENSE:-}
+      POLAR_ACCESS_TOKEN: ${POLAR_ACCESS_TOKEN:-}
+      POLAR_WEBHOOK_SECRET: ${POLAR_WEBHOOK_SECRET:-}
+      POLAR_ORGANIZATION_ID: ${POLAR_ORGANIZATION_ID:-}
+      POLAR_PREMIUM_PRODUCT_ID: ${POLAR_PREMIUM_PRODUCT_ID:-}
+      POLAR_SANDBOX: ${POLAR_SANDBOX:-false}
     depends_on:
       - parchment-db
     volumes:

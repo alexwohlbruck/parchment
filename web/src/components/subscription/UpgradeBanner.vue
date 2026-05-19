@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Crown } from 'lucide-vue-next'
+import { Sparkles } from 'lucide-vue-next'
 import { useSubscriptionService } from '@/services/subscription.service'
 
 defineProps<{
@@ -15,12 +15,12 @@ const subscriptionService = useSubscriptionService()
 <template>
   <Card
     v-if="subscriptionService.billingEnabled"
-    class="flex items-center gap-3 p-4 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30"
+    class="flex items-center gap-3 p-4 border-violet-200 dark:border-violet-800/60 bg-violet-50/50 dark:bg-violet-950/20"
   >
     <div
-      class="flex items-center justify-center w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-900/50 shrink-0"
+      class="flex items-center justify-center w-9 h-9 rounded-lg bg-violet-100 dark:bg-violet-900/30 shrink-0"
     >
-      <Crown class="w-5 h-5 text-amber-600 dark:text-amber-400" />
+      <Sparkles class="w-5 h-5 text-violet-600 dark:text-violet-400" />
     </div>
     <div class="flex-1 min-w-0">
       <p class="text-sm font-medium">Premium feature</p>

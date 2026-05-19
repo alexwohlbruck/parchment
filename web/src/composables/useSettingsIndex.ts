@@ -44,7 +44,7 @@ export function useSettingsIndex() {
   // The subscription page is hidden when billing is disabled (self-hosted).
   const allowedPages = computed<SettingsPageDef[]>(() => {
     return settingsIndex.filter(page => {
-      if (page.pageId === 'subscription' && !subscriptionService.billingEnabled.value) return false
+      if (page.pageId === 'billing' && !subscriptionService.billingEnabled.value) return false
       return !page.permissions || authService.hasPermission(page.permissions)
     })
   })

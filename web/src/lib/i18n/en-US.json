@@ -1129,13 +1129,13 @@
         "signOutOthersFailed": "Couldn't sign out other devices."
       }
     },
-    "subscription": {
-      "title": "Subscription",
+    "billing": {
+      "title": "Billing",
       "plan": {
         "title": "Plan"
       },
       "features": {
-        "title": "Premium features"
+        "title": "What's included"
       }
     },
     "developer": {

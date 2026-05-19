@@ -32,7 +32,7 @@ if (billing.enabled) {
     '/checkout',
     async ({ user }) => {
       const fullUser = await fetchUser(user.id)
-      const successUrl = `${process.env.CLIENT_ORIGIN}/settings/subscription?checkout=success`
+      const successUrl = `${process.env.CLIENT_ORIGIN}/settings/billing?checkout=success`
       const checkoutUrl = await createCheckoutSession(
         user.id,
         fullUser.email,

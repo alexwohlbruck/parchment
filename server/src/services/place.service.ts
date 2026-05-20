@@ -978,13 +978,15 @@ export async function lookupEnrichedPlaceById(
   options?: {
     userId?: User['id']
     language?: Language
+    /** When true, enrich with third-party data providers (Google Places, etc.) */
+    premiumData?: boolean
   },
 ): Promise<Place | null> {
   const startTime = Date.now()
   console.log(`⏱️ [PERF] Starting enriched place lookup: source=${source}, id=${id}`)
-  
+
   try {
-    const { userId, language = 'en' } = options || {}
+    const { userId, language = 'en', premiumData = false } = options || {}
 
     // Step 1: Get base place data
     const step1Start = Date.now()
@@ -997,10 +999,10 @@ export async function lookupEnrichedPlaceById(
       return null
     }
 
-    // Step 2: Look up from other sources and merge
+    // Step 2: Look up from other sources and merge (premium only)
     // Skip third-party search for transit stops to avoid overriding authoritative transit data
-    const skipThirdPartySearch = isPlaceTransitStop(place) && source === SOURCE.TRANSITLAND
-    
+    const skipThirdPartySearch = !premiumData || (isPlaceTransitStop(place) && source === SOURCE.TRANSITLAND)
+
     if (place.name?.value && place.geometry.value.center && !skipThirdPartySearch) {
       const step2Start = Date.now()
       const { lat, lng } = place.geometry.value.center
@@ -1100,13 +1102,14 @@ export async function lookupEnrichedPlaceByCoordinates(
     radius?: number
     language?: Language
     addressOnly?: boolean
+    premiumData?: boolean
   },
 ): Promise<Place | null> {
   const startTime = Date.now()
   console.log(`⏱️ [PERF] Starting coordinate-based place lookup: lat=${lat}, lng=${lng}`)
-  
+
   try {
-    const { userId, radius = 50, language = 'en', addressOnly = false } = options || {}
+    const { userId, radius = 50, language = 'en', addressOnly = false, premiumData = false } = options || {}
 
     // Step 1: Reverse geocode to find place at coordinates
     const geocodingIntegrations = integrationManager.getConfiguredIntegrationsByCapability(
@@ -1190,7 +1193,7 @@ export async function lookupEnrichedPlaceByCoordinates(
       console.log(`📍 Found OSM ID: ${osmId}, using full enrichment pipeline...`)
       
       const step2Start = Date.now()
-      const enrichedPlace = await lookupEnrichedPlaceById(SOURCE.OSM, osmId, { userId, language })
+      const enrichedPlace = await lookupEnrichedPlaceById(SOURCE.OSM, osmId, { userId, language, premiumData })
       const step2Time = Date.now() - step2Start
       console.log(`⏱️ [PERF] Step 2 - Full enrichment by OSM ID: ${step2Time}ms`)
       
@@ -1235,7 +1238,7 @@ export async function lookupEnrichedPlaceByCoordinates(
             
             if (extractedOsmId) {
               console.log(`📍 Extracted OSM ID from Geoapify: ${extractedOsmId}, using full OSM enrichment...`)
-              const enrichedPlace = await lookupEnrichedPlaceById(SOURCE.OSM, extractedOsmId, { userId, language })
+              const enrichedPlace = await lookupEnrichedPlaceById(SOURCE.OSM, extractedOsmId, { userId, language, premiumData })
               const step2Time = Date.now() - step2Start
               console.log(`⏱️ [PERF] Step 2 - Full enrichment via Geoapify→OSM: ${step2Time}ms`)
               

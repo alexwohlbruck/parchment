@@ -24,8 +24,12 @@ const freeFeatures = computed(() => [
 const premiumFeatures = computed(() => [
   t('settings.billing.plan.everythingInFree'),
   t('settings.billing.features.businessData'),
-  t('settings.billing.features.advancedLayers'),
-  t('settings.billing.features.customMaps'),
+  t('settings.billing.features.mapboxEngine'),
+  t('settings.billing.features.searchAutoRefresh'),
+  // t('settings.billing.features.advancedLayers'),
+  // t('settings.billing.features.customMaps'),
+  // t('settings.billing.features.routingPreferences'),
+  // t('settings.billing.features.weatherVisualizations'),
 ])
 
 const formattedPrice = computed(() => {

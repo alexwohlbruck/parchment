@@ -6,6 +6,8 @@ import {
   lookupEnrichedPlaceById,
   lookupEnrichedPlaceByCoordinates,
 } from '../services/place.service'
+import { getPermissions, hasPermission } from '../services/auth.service'
+import { PermissionId } from '../types/auth.types'
 import { SOURCE } from '../lib/constants.js'
 import { WidgetType } from '../types/place.types'
 import { fetchWidgetData } from '../services/widget.service'
@@ -34,6 +36,10 @@ app.get(
         message: t('errors.place.invalidParams'),
       })
     }
+
+    // Check if user has premium data provider access
+    const userPerms = user ? await getPermissions(user.id) : []
+    const premiumData = hasPermission(userPerms, PermissionId.PREMIUM_DATA_PROVIDERS)
 
     let place = null
 
@@ -94,6 +100,7 @@ app.get(
             place = await lookupEnrichedPlaceById(SOURCE.OSM, osmId, {
               userId: user?.id,
               language,
+              premiumData,
             })
           } else {
             // No OSM ID, return Geoapify data as-is
@@ -104,6 +111,7 @@ app.get(
           place = await lookupEnrichedPlaceById(source!, id!, {
             userId: user?.id,
             language,
+            premiumData,
           })
         }
       } else if (isNameLocationLookup) {
@@ -124,6 +132,7 @@ app.get(
           radius: Math.round(radius),
           language,
           addressOnly: true,
+          premiumData,
         })
       }
 

@@ -1117,8 +1117,12 @@
         "bookmarks": "Marcadores y colecciones",
         "locationSharing": "Ubicación en tiempo real",
         "businessData": "Datos comerciales mejorados",
+        "mapboxEngine": "Motor de mapa Mapbox",
+        "searchAutoRefresh": "Actualización automática de búsqueda",
         "advancedLayers": "Capas de mapa avanzadas",
-        "customMaps": "Configuraciones de mapa personalizadas"
+        "customMaps": "Configuraciones de mapa personalizadas",
+        "routingPreferences": "Preferencias de ruta avanzadas",
+        "weatherVisualizations": "Visualizaciones meteorológicas"
       },
       "trial": {
         "monthFree": "1 mes de prueba gratis",

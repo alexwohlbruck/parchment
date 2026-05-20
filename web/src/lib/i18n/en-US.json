@@ -1150,8 +1150,12 @@
         "bookmarks": "Bookmarks and collections",
         "locationSharing": "Real-time location sharing",
         "businessData": "Enhanced business data",
+        "mapboxEngine": "Mapbox map engine",
+        "searchAutoRefresh": "Auto-refresh search results",
         "advancedLayers": "Advanced map layers",
-        "customMaps": "Custom map configurations"
+        "customMaps": "Custom map configurations",
+        "routingPreferences": "Advanced routing preferences",
+        "weatherVisualizations": "Weather visualizations"
       },
       "trial": {
         "monthFree": "1 month free trial",

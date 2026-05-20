@@ -752,9 +752,9 @@ function mapService() {
   }
 
   function setMapEngine(mapEngine: MapEngine) {
-    // User explicitly selecting Mapbox without premium → redirect to billing
+    // User explicitly selecting Mapbox without premium → redirect to account billing
     if (mapEngine === MapEngine.MAPBOX && !canUseMapboxEngine.value) {
-      router.push({ name: AppRoute.BILLING })
+      router.push({ name: AppRoute.ACCOUNT, hash: '#plan' })
       return
     }
 

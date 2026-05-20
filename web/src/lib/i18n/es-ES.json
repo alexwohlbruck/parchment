@@ -1096,6 +1096,47 @@
         "signOutOthersFailed": "No se pudo cerrar sesión en otros dispositivos."
       }
     },
+    "billing": {
+      "title": "Facturación",
+      "canceling": "Cancelando",
+      "renews": "Se renueva el {date}",
+      "endsOn": "Tu suscripción terminará el {date}. Mantendrás el acceso hasta entonces.",
+      "manageSubscription": "Administrar suscripción",
+      "upgradeToPremium": "Mejorar a Premium",
+      "current": "Actual",
+      "plan": {
+        "free": "Gratis",
+        "freeDescription": "Funciones básicas del mapa",
+        "premium": "Premium",
+        "premiumDescription": "Todo, más funciones avanzadas",
+        "everythingInFree": "Todo lo de Gratis"
+      },
+      "features": {
+        "basicMapLayers": "Capas de mapa básicas",
+        "placeSearch": "Búsqueda y detalles de lugares",
+        "bookmarks": "Marcadores y colecciones",
+        "locationSharing": "Ubicación en tiempo real",
+        "businessData": "Datos comerciales mejorados",
+        "advancedLayers": "Capas de mapa avanzadas",
+        "customMaps": "Configuraciones de mapa personalizadas"
+      },
+      "trial": {
+        "monthFree": "1 mes de prueba gratis",
+        "monthsFree": "{count} meses de prueba gratis",
+        "weekFree": "1 semana de prueba gratis",
+        "weeksFree": "{count} semanas de prueba gratis",
+        "dayFree": "1 día de prueba gratis",
+        "daysFree": "{count} días de prueba gratis"
+      },
+      "perMonth": "/mes",
+      "perYear": "/año",
+      "checkout": {
+        "welcomePremium": "¡Bienvenido a Premium!",
+        "subscriptionActive": "Tu suscripción ya está activa.",
+        "processing": "Procesando tu suscripción...",
+        "processingDescription": "Puede tardar un momento en activarse. Actualiza para verificar."
+      }
+    },
     "behavior": {
       "title": "Comportamiento",
       "language": {

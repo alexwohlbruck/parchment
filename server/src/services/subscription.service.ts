@@ -9,6 +9,16 @@ import { logger } from '../lib/logger'
 const PREMIUM_ROLE_ID = 'premium'
 
 let polar: Polar | null = null
+let cachedProduct: ProductInfo | null = null
+
+export type ProductInfo = {
+  name: string
+  description: string | null
+  priceAmount: number
+  priceCurrency: string
+  interval: string
+  trialDays: number | null
+}
 
 function getPolar(): Polar {
   if (!polar) {
@@ -18,6 +28,49 @@ function getPolar(): Polar {
     })
   }
   return polar
+}
+
+/**
+ * Fetch and cache the premium product info from Polar.
+ * Cached in-memory since product details rarely change.
+ */
+export async function getProductInfo(): Promise<ProductInfo | null> {
+  if (cachedProduct) return cachedProduct
+
+  try {
+    const product = await getPolar().products.get({ id: billing.premiumProductId })
+
+    // Find the first non-archived fixed price
+    const price = product.prices?.find(
+      (p: any) => p.amountType === 'fixed' && !p.isArchived,
+    ) as { priceAmount: number; priceCurrency: string } | undefined
+
+    // Convert trial interval to days
+    let trialDays: number | null = null
+    if (product.trialIntervalCount && product.trialInterval) {
+      const multiplier: Record<string, number> = {
+        day: 1,
+        week: 7,
+        month: 30,
+        year: 365,
+      }
+      trialDays = product.trialIntervalCount * (multiplier[product.trialInterval] ?? 30)
+    }
+
+    cachedProduct = {
+      name: product.name,
+      description: product.description ?? null,
+      priceAmount: price?.priceAmount ?? 0,
+      priceCurrency: price?.priceCurrency ?? 'usd',
+      interval: product.recurringInterval ?? 'month',
+      trialDays,
+    }
+
+    return cachedProduct
+  } catch (err) {
+    logger.warn({ err }, 'Failed to fetch product info from Polar')
+    return null
+  }
 }
 
 export async function createCheckoutSession(
@@ -176,4 +229,50 @@ export async function getSubscriptionStatus(userId: string) {
   const isPremium = !!row
   const hasSubscription = !!user?.polarCustomerId
   return { isPremium, hasSubscription, tier: isPremium ? 'premium' : 'free' } as const
+}
+
+/**
+ * Fetch rich subscription details from Polar for display on the billing page.
+ * Returns null if the user has no Polar customer link or no active subscription.
+ */
+export async function getSubscriptionDetails(userId: string) {
+  const [user] = await db
+    .select({ polarCustomerId: users.polarCustomerId })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+
+  if (!user?.polarCustomerId) return null
+
+  const p = getPolar()
+
+  try {
+    const subs = await p.subscriptions.list({
+      customerId: user.polarCustomerId,
+      productId: billing.premiumProductId,
+      limit: 1,
+    })
+
+    const sub = subs.result.items[0]
+    if (!sub) return null
+
+    // Extract price from the subscription's amount field
+    const amount = sub.amount ?? 0
+    const currency = sub.currency ?? 'usd'
+    const interval = sub.recurringInterval ?? 'month'
+
+    return {
+      status: sub.status,
+      amount,
+      currency,
+      interval,
+      currentPeriodEnd: sub.currentPeriodEnd?.toISOString() ?? null,
+      cancelAtPeriodEnd: sub.cancelAtPeriodEnd ?? false,
+      startedAt: sub.startedAt?.toISOString() ?? null,
+      productName: sub.product?.name ?? 'Premium',
+    }
+  } catch (err) {
+    logger.warn({ userId, err }, 'Failed to fetch subscription details from Polar')
+    return null
+  }
 }

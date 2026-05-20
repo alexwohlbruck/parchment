@@ -7,6 +7,8 @@ import {
   createCheckoutSession,
   getCustomerPortalUrl,
   getSubscriptionStatus,
+  getSubscriptionDetails,
+  getProductInfo,
   verifyAndSyncSubscription,
   assignPremiumRole,
   removePremiumRole,
@@ -20,11 +22,14 @@ const app = new Elysia({ prefix: '/subscriptions' })
 
 app.get(
   '/config',
-  () => ({ billingEnabled: billing.enabled }),
+  async () => {
+    const product = billing.enabled ? await getProductInfo() : null
+    return { billingEnabled: billing.enabled, product }
+  },
   {
     detail: {
       tags: ['Subscriptions'],
-      summary: 'Get billing configuration',
+      summary: 'Get billing configuration and product info',
     },
   },
 )
@@ -144,7 +149,7 @@ if (billing.enabled) {
         '/checkout',
         async ({ user }) => {
           const fullUser = await fetchUser(user.id)
-          const successUrl = `${process.env.CLIENT_ORIGIN}/settings/billing?checkout=success`
+          const successUrl = `${process.env.CLIENT_ORIGIN}/settings/account?checkout=success`
           const checkoutUrl = await createCheckoutSession(
             user.id,
             fullUser.email,
@@ -187,6 +192,20 @@ if (billing.enabled) {
           detail: {
             tags: ['Subscriptions'],
             summary: 'Get current subscription status',
+          },
+        },
+      )
+
+      .get(
+        '/details',
+        async ({ user }) => {
+          const details = await getSubscriptionDetails(user.id)
+          return { details }
+        },
+        {
+          detail: {
+            tags: ['Subscriptions'],
+            summary: 'Get rich subscription details from Polar',
           },
         },
       )

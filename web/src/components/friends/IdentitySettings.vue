@@ -178,7 +178,7 @@ function handleSetupComplete() {
             {{ t('friends.identity.importDescription') }}
           </p>
         </div>
-        <Button @click="openImportDialog" class="shrink-0">
+        <Button variant="outline" @click="openImportDialog" class="shrink-0">
           <Download class="h-4 w-4 mr-2" />
           {{ t('friends.identity.importButton') }}
         </Button>
@@ -254,13 +254,14 @@ function handleSetupComplete() {
             <div class="flex items-center gap-2">
               <Code v-if="handle">{{ handle }}</Code>
               <Button size="sm" variant="outline" @click="startEditAlias">
-                {{ alias ? t('friends.identity.edit') : t('friends.identity.set') }}
+                {{
+                  alias ? t('friends.identity.edit') : t('friends.identity.set')
+                }}
               </Button>
             </div>
-            <span
-              v-if="handle"
-              class="text-xs text-muted-foreground"
-            >{{ t('friends.identity.shareHandleHint') }}</span>
+            <span v-if="handle" class="text-xs text-muted-foreground">{{
+              t('friends.identity.shareHandleHint')
+            }}</span>
           </div>
         </SettingsItem>
 

@@ -14,6 +14,7 @@ import { Check, Pencil } from 'lucide-vue-next'
 import Passkeys from '@/components/auth/Passkeys.vue'
 import Sessions from '@/components/auth/Sessions.vue'
 import IdentitySettings from '@/components/friends/IdentitySettings.vue'
+import Billing from '@/views/settings/pages/Billing.vue'
 
 const authService = useAuthService()
 const authStore = useAuthStore()
@@ -163,6 +164,8 @@ async function saveName() {
           </Button>
         </div>
       </SettingsSection>
+
+      <Billing />
 
       <IdentitySettings />
 

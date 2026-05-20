@@ -1131,11 +1131,43 @@
     },
     "billing": {
       "title": "Billing",
+      "canceling": "Canceling",
+      "renews": "Renews {date}",
+      "endsOn": "Your subscription will end on {date}. You'll retain access until then.",
+      "manageSubscription": "Manage subscription",
+      "upgradeToPremium": "Upgrade to Premium",
+      "current": "Current",
       "plan": {
-        "title": "Plan"
+        "free": "Free",
+        "freeDescription": "Core mapping features",
+        "premium": "Premium",
+        "premiumDescription": "Everything, plus advanced features",
+        "everythingInFree": "Everything in Free"
       },
       "features": {
-        "title": "What's included"
+        "basicMapLayers": "Basic map layers",
+        "placeSearch": "Place search and details",
+        "bookmarks": "Bookmarks and collections",
+        "locationSharing": "Real-time location sharing",
+        "businessData": "Enhanced business data",
+        "advancedLayers": "Advanced map layers",
+        "customMaps": "Custom map configurations"
+      },
+      "trial": {
+        "monthFree": "1 month free trial",
+        "monthsFree": "{count} month free trial",
+        "weekFree": "1 week free trial",
+        "weeksFree": "{count} week free trial",
+        "dayFree": "1 day free trial",
+        "daysFree": "{count} day free trial"
+      },
+      "perMonth": "/month",
+      "perYear": "/year",
+      "checkout": {
+        "welcomePremium": "Welcome to Premium!",
+        "subscriptionActive": "Your subscription is now active.",
+        "processing": "Processing your subscription...",
+        "processingDescription": "It may take a moment to activate. Refresh to check."
       }
     },
     "developer": {

@@ -25,6 +25,7 @@ import { useMapService } from '@/services/map.service'
 
 import { useI18n } from 'vue-i18n'
 import { useAuthService } from '@/services/auth.service'
+import { PermissionId } from '@/types/auth.types'
 import { MapEngine, MapProjection } from '@/types/map.types'
 import { useSearchService } from '@/services/search.service'
 import { useCommandService } from '@/services/command.service'
@@ -307,16 +308,21 @@ export const useCommandStore = defineStore('command', () => {
             name: t('palette.commands.chooseMapEngine.arguments.engine.name'),
             type: 'string',
             getItems() {
-              return [
-                {
-                  value: 'mapbox',
-                  name: t(
-                    'palette.commands.chooseMapEngine.arguments.engine.values.mapbox.name',
-                  ),
-                  description: t(
-                    'palette.commands.chooseMapEngine.arguments.engine.values.mapbox.description',
-                  ),
-                },
+              const canUseMapbox = authService.hasPermission(PermissionId.PREMIUM_LAYERS)
+              const items: CommandArgumentOption[] = [
+                ...(canUseMapbox
+                  ? [
+                      {
+                        value: 'mapbox' as const,
+                        name: t(
+                          'palette.commands.chooseMapEngine.arguments.engine.values.mapbox.name',
+                        ),
+                        description: t(
+                          'palette.commands.chooseMapEngine.arguments.engine.values.mapbox.description',
+                        ),
+                      },
+                    ]
+                  : []),
                 {
                   value: 'maplibre',
                   name: t(
@@ -327,6 +333,7 @@ export const useCommandStore = defineStore('command', () => {
                   ),
                 },
               ]
+              return items
             },
           },
         ],

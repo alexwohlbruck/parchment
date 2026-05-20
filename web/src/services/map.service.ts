@@ -43,6 +43,8 @@ import { ref, toRaw, watch, computed, Component } from 'vue'
 import { storedLocale } from '@/lib/i18n'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useSearchStore } from '@/stores/search.store'
+import { useAuthService } from '@/services/auth.service'
+import { PermissionId } from '@/types/auth.types'
 
 const dark = useDark()
 
@@ -60,6 +62,7 @@ function mapService() {
   const directionsStore = useDirectionsStore()
   const integrationsStore = useIntegrationsStore()
   const themeStore = useThemeStore()
+  const authService = useAuthService()
   const { settings } = storeToRefs(mapStore)
   const { layers } = storeToRefs(layersStore)
   const { accentColor, isDark } = storeToRefs(themeStore)
@@ -169,10 +172,32 @@ function mapService() {
     }
   }
 
+  const canUseMapboxEngine = computed(() =>
+    authService.hasPermission(PermissionId.PREMIUM_LAYERS),
+  )
+
+  /**
+   * Resolve the effective engine, falling back to MapLibre when the user
+   * does not have premium access to Mapbox.
+   */
+  function resolveEngine(requested: MapEngine): MapEngine {
+    if (requested === MapEngine.MAPBOX && !canUseMapboxEngine.value) {
+      return MapEngine.MAPLIBRE
+    }
+    return requested
+  }
+
+  // When premium access is revoked while using Mapbox, fall back to MapLibre
+  watch(canUseMapboxEngine, (canUse) => {
+    if (!canUse && mapStore.settings.engine === MapEngine.MAPBOX) {
+      setMapEngine(MapEngine.MAPLIBRE)
+    }
+  })
+
   function canInitializeMapEngine(mapEngine: MapEngine): boolean {
     switch (mapEngine) {
       case MapEngine.MAPBOX:
-        return integrationsStore.isMapboxEngineActive
+        return integrationsStore.isMapboxEngineActive && canUseMapboxEngine.value
       case MapEngine.MAPLIBRE:
         return true // MapLibre always works
       default:
@@ -183,23 +208,29 @@ function mapService() {
   function initializeMap(container: HTMLElement, mapEngine: MapEngine) {
     mapContainer = container as HTMLElement
 
+    // Fall back to MapLibre if user doesn't have premium access to Mapbox
+    const effectiveEngine = resolveEngine(mapEngine)
+    if (effectiveEngine !== mapEngine) {
+      mapStore.settings.engine = effectiveEngine
+    }
+
     // Check if we can initialize this map engine
-    if (!canInitializeMapEngine(mapEngine)) {
+    if (!canInitializeMapEngine(effectiveEngine)) {
       console.warn(
-        `Cannot initialize ${mapEngine}: missing credentials or unsupported engine`,
+        `Cannot initialize ${effectiveEngine}: missing credentials or unsupported engine`,
       )
       return null
     }
 
     // Get credentials for the map engine
-    const accessToken = getMapEngineCredentials(mapEngine)
+    const accessToken = getMapEngineCredentials(effectiveEngine)
 
     // Get current language for initialization
     const currentLanguage = storedLocale.value
 
     mapStrategy = getMapStrategy(
       container,
-      mapEngine,
+      effectiveEngine,
       accessToken,
       currentLanguage,
     )
@@ -729,10 +760,12 @@ function mapService() {
   }
 
   function setMapEngine(mapEngine: MapEngine) {
+    const effectiveEngine = resolveEngine(mapEngine)
+
     destroy()
     isMapReady.value = false // Reset map ready state
     queuedTrips.value = null // Clear any queued trips
-    mapStore.settings.engine = mapEngine
+    mapStore.settings.engine = effectiveEngine
 
     // Only initialize map if we have a container
     if (!mapContainer) {
@@ -741,22 +774,22 @@ function mapService() {
     }
 
     // Check if we can initialize this map engine
-    if (!canInitializeMapEngine(mapEngine)) {
+    if (!canInitializeMapEngine(effectiveEngine)) {
       console.warn(
-        `Cannot switch to ${mapEngine}: missing credentials or unsupported engine`,
+        `Cannot switch to ${effectiveEngine}: missing credentials or unsupported engine`,
       )
       return
     }
 
     // Get credentials for the map engine
-    const accessToken = getMapEngineCredentials(mapEngine)
+    const accessToken = getMapEngineCredentials(effectiveEngine)
 
     // Get current language for initialization
     const currentLanguage = storedLocale.value
 
     mapStrategy = getMapStrategy(
       mapContainer,
-      mapEngine,
+      effectiveEngine,
       accessToken,
       currentLanguage,
     )
@@ -1290,6 +1323,8 @@ function mapService() {
     highlightInstructionPoint: markerLayersService.highlightInstructionPoint,
     clearHighlightedInstructionPoint:
       markerLayersService.clearHighlightedInstructionPoint,
+
+    canUseMapboxEngine,
   }
 }
 

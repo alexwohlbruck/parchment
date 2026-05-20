@@ -43,8 +43,7 @@ import { storedLocale } from '@/lib/i18n'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useSearchStore } from '@/stores/search.store'
 import { api } from '@/lib/api'
-import { useAuthService } from '@/services/auth.service'
-import { PermissionId } from '@/types/auth.types'
+import { useSubscriptionService } from '@/services/subscription.service'
 
 const dark = useDark()
 
@@ -62,7 +61,7 @@ function mapService() {
   const directionsStore = useDirectionsStore()
   const integrationsStore = useIntegrationsStore()
   const themeStore = useThemeStore()
-  const authService = useAuthService()
+  const subscriptionService = useSubscriptionService()
   const { settings } = storeToRefs(mapStore)
   const { layers } = storeToRefs(layersStore)
   const { accentColor, isDark } = storeToRefs(themeStore)
@@ -162,9 +161,7 @@ function mapService() {
     }
   }
 
-  const canUseMapboxEngine = computed(() =>
-    authService.hasPermission(PermissionId.PREMIUM_LAYERS),
-  )
+  const canUseMapboxEngine = computed(() => subscriptionService.isPremium.value)
 
   /**
    * Resolve the effective engine, falling back to MapLibre when the user

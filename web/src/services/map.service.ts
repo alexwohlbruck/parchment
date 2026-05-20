@@ -43,7 +43,8 @@ import { storedLocale } from '@/lib/i18n'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useSearchStore } from '@/stores/search.store'
 import { api } from '@/lib/api'
-import { useSubscriptionService } from '@/services/subscription.service'
+import { useAuthService } from '@/services/auth.service'
+import { PermissionId } from '@/types/auth.types'
 
 const dark = useDark()
 
@@ -61,7 +62,7 @@ function mapService() {
   const directionsStore = useDirectionsStore()
   const integrationsStore = useIntegrationsStore()
   const themeStore = useThemeStore()
-  const subscriptionService = useSubscriptionService()
+  const authService = useAuthService()
   const { settings } = storeToRefs(mapStore)
   const { layers } = storeToRefs(layersStore)
   const { accentColor, isDark } = storeToRefs(themeStore)
@@ -161,7 +162,9 @@ function mapService() {
     }
   }
 
-  const canUseMapboxEngine = computed(() => subscriptionService.isPremium.value)
+  const canUseMapboxEngine = computed(() =>
+    authService.hasPermission(PermissionId.PREMIUM_LAYERS),
+  )
 
   /**
    * Resolve the effective engine, falling back to MapLibre when the user
@@ -174,9 +177,11 @@ function mapService() {
     return requested
   }
 
-  // When premium access is revoked while using Mapbox, fall back to MapLibre
+  // Auto-switch engine when premium status changes
   watch(canUseMapboxEngine, (canUse) => {
-    if (!canUse && mapStore.settings.engine === MapEngine.MAPBOX) {
+    if (canUse && mapStore.settings.engine === MapEngine.MAPLIBRE) {
+      setMapEngine(MapEngine.MAPBOX)
+    } else if (!canUse && mapStore.settings.engine === MapEngine.MAPBOX) {
       setMapEngine(MapEngine.MAPLIBRE)
     }
   })
@@ -747,12 +752,16 @@ function mapService() {
   }
 
   function setMapEngine(mapEngine: MapEngine) {
-    const effectiveEngine = resolveEngine(mapEngine)
+    // User explicitly selecting Mapbox without premium → redirect to billing
+    if (mapEngine === MapEngine.MAPBOX && !canUseMapboxEngine.value) {
+      router.push({ name: AppRoute.BILLING })
+      return
+    }
 
     destroy()
     isMapReady.value = false // Reset map ready state
     queuedTrips.value = null // Clear any queued trips
-    mapStore.settings.engine = effectiveEngine
+    mapStore.settings.engine = mapEngine
 
     // Only initialize map if we have a container
     if (!mapContainer) {
@@ -761,22 +770,22 @@ function mapService() {
     }
 
     // Check if we can initialize this map engine
-    if (!canInitializeMapEngine(effectiveEngine)) {
+    if (!canInitializeMapEngine(mapEngine)) {
       console.warn(
-        `Cannot switch to ${effectiveEngine}: missing credentials or unsupported engine`,
+        `Cannot switch to ${mapEngine}: missing credentials or unsupported engine`,
       )
       return
     }
 
     // Get credentials for the map engine
-    const accessToken = getMapEngineCredentials(effectiveEngine)
+    const accessToken = getMapEngineCredentials(mapEngine)
 
     // Get current language for initialization
     const currentLanguage = storedLocale.value
 
     mapStrategy = getMapStrategy(
       mapContainer,
-      effectiveEngine,
+      mapEngine,
       accessToken,
       currentLanguage,
     )

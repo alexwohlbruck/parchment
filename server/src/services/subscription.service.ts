@@ -91,13 +91,34 @@ export async function findUserByPolarCustomerId(polarCustomerId: string) {
 export async function verifyAndSyncSubscription(userId: string, userEmail: string) {
   const p = getPolar()
 
-  const customers = await p.customers.list({
-    email: userEmail,
-    organizationId: billing.organizationId,
-    limit: 1,
-  })
+  // Try to find the Polar customer — first by an existing link in our DB,
+  // then by email. Handles the case where the Polar checkout email differs
+  // from the Parchment account email (common in dev/sandbox).
+  const [localUser] = await db
+    .select({ polarCustomerId: users.polarCustomerId })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
 
-  const customer = customers.result.items[0]
+  let customer: { id: string } | undefined
+
+  if (localUser?.polarCustomerId) {
+    try {
+      customer = await p.customers.get({ id: localUser.polarCustomerId })
+    } catch {
+      // Customer may have been deleted on Polar side
+    }
+  }
+
+  if (!customer) {
+    const customers = await p.customers.list({
+      email: userEmail,
+      organizationId: billing.organizationId,
+      limit: 1,
+    })
+    customer = customers.result.items[0]
+  }
+
   if (!customer) {
     await removePremiumRole(userId)
     return { isPremium: false, hasSubscription: false, tier: 'free' as const }

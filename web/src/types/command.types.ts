@@ -39,4 +39,6 @@ export type CommandArgument = {
 export type CommandArgumentOption = PaletteItem & {
   value: string | number
   group?: string
+  /** When true, the option is shown but gated behind a premium subscription. */
+  premium?: boolean
 }

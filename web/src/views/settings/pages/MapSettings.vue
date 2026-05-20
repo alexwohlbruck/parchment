@@ -45,6 +45,7 @@ import {
   CloudSun,
   RouteIcon,
 } from 'lucide-vue-next'
+import { Badge } from '@/components/ui/badge'
 import Layers from '@/components/map/Layers.vue'
 
 const mapStore = useMapStore()
@@ -92,7 +93,16 @@ const isMaplibre = computed(() => settings.value.engine === MapEngine.MAPLIBRE)
                 )"
                 :value="argumentOption.value.toString()"
               >
-                {{ argumentOption.name }}
+                <span class="flex items-center gap-2">
+                  {{ argumentOption.name }}
+                  <Badge
+                    v-if="argumentOption.premium"
+                    variant="primary"
+                    class="text-[10px] px-1.5 py-0"
+                  >
+                    Premium
+                  </Badge>
+                </span>
               </SelectItem>
             </SelectGroup>
           </SelectContent>

@@ -32,6 +32,7 @@ import {
   SettingsIcon,
 } from 'lucide-vue-next'
 import { ItemIcon } from '@/components/ui/item-icon'
+import { Badge } from '@/components/ui/badge'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { fuzzyFilter, noFilter } from '@/lib/utils'
 import { TransitionSlide } from '@morev/vue-transitions'
@@ -551,7 +552,16 @@ const filterFunction = computed(() => {
                   class="size-5 opacity-50"
                 />
                 <div class="flex-1 flex flex-col">
-                  <span class="font-semibold">{{ argumentOption.name }}</span>
+                  <span class="flex items-center gap-2 font-semibold">
+                    {{ argumentOption.name }}
+                    <Badge
+                      v-if="argumentOption.premium"
+                      variant="primary"
+                      class="text-[10px] px-1.5 py-0"
+                    >
+                      Premium
+                    </Badge>
+                  </span>
                   <span
                     class="text-sm text-gray-500"
                     v-if="argumentOption.description"

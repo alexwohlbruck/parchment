@@ -1,16 +1,13 @@
 import { ref, computed } from 'vue'
 import { createSharedComposable } from '@vueuse/core'
 import { api } from '@/lib/api'
-import { useAuthService } from '@/services/auth.service'
+import { useAuthStore } from '@/stores/auth.store'
 
 function subscriptionService() {
-  const authService = useAuthService()
+  const authStore = useAuthStore()
 
   const billingEnabled = ref(false)
-  const hasSubscription = ref(false)
-  const hasPremiumRole = ref(false)
   const loading = ref(false)
-  const statusLoaded = ref(false)
 
   async function fetchConfig() {
     try {
@@ -22,12 +19,9 @@ function subscriptionService() {
   }
 
   fetchConfig()
-  refreshStatus().catch(() => {})
 
-  const isPremium = computed(() => {
-    if (!billingEnabled.value) return true
-    return hasPremiumRole.value
-  })
+  const isPremium = computed(() => authStore.subscription?.isPremium ?? false)
+  const hasSubscription = computed(() => authStore.subscription?.hasSubscription ?? false)
 
   const tier = computed(() => (isPremium.value ? 'premium' : 'free'))
 
@@ -47,29 +41,16 @@ function subscriptionService() {
   }
 
   async function refreshStatus() {
-    try {
-      const { data } = await api.get('/subscriptions/status')
-      hasSubscription.value = data.hasSubscription
-      hasPremiumRole.value = data.isPremium
-      statusLoaded.value = true
-      if (data.isPremium) {
-        await authService.getPermissions()
-      }
-      return data
-    } catch {
-      statusLoaded.value = true
-      return { isPremium: false, hasSubscription: false, tier: 'free' }
-    }
+    // Re-fetch permissions + subscription from the server
+    const { useAuthService } = await import('@/services/auth.service')
+    await useAuthService().getPermissions()
   }
 
   async function verifySubscription() {
+    // Verify with Polar and sync roles, then re-fetch permissions
     const { data } = await api.post('/subscriptions/verify')
-    hasSubscription.value = data.hasSubscription
-    hasPremiumRole.value = data.isPremium
-    statusLoaded.value = true
-    if (data.isPremium) {
-      await authService.getPermissions()
-    }
+    const { useAuthService } = await import('@/services/auth.service')
+    await useAuthService().getPermissions()
     return data
   }
 
@@ -77,10 +58,8 @@ function subscriptionService() {
     billingEnabled,
     isPremium,
     hasSubscription,
-    hasPremiumRole,
     tier,
     loading,
-    statusLoaded,
     startCheckout,
     openPortal,
     refreshStatus,

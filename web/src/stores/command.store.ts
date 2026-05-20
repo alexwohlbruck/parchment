@@ -25,8 +25,8 @@ import { useMapService } from '@/services/map.service'
 
 import { useI18n } from 'vue-i18n'
 import { useAuthService } from '@/services/auth.service'
+import { PermissionId } from '@/types/auth.types'
 import { MapEngine, MapProjection } from '@/types/map.types'
-import { useSubscriptionService } from '@/services/subscription.service'
 import { useSearchService } from '@/services/search.service'
 import { useCommandService } from '@/services/command.service'
 import { getCategoryColor } from '@/lib/place-colors'
@@ -60,7 +60,7 @@ export const useCommandStore = defineStore('command', () => {
   const { setAccentColor, setRadius } = useThemeStore()
   const authService = useAuthService()
   const mapService = useMapService()
-  const subscriptionService = useSubscriptionService()
+
   const { t, locale } = useI18n()
   const placeSearchService = useSearchService()
 
@@ -309,21 +309,18 @@ export const useCommandStore = defineStore('command', () => {
             name: t('palette.commands.chooseMapEngine.arguments.engine.name'),
             type: 'string',
             getItems() {
-              const canUseMapbox = subscriptionService.isPremium.value
-              const items: CommandArgumentOption[] = [
-                ...(canUseMapbox
-                  ? [
-                      {
-                        value: 'mapbox' as const,
-                        name: t(
-                          'palette.commands.chooseMapEngine.arguments.engine.values.mapbox.name',
-                        ),
-                        description: t(
-                          'palette.commands.chooseMapEngine.arguments.engine.values.mapbox.description',
-                        ),
-                      },
-                    ]
-                  : []),
+              const canUseMapbox = authService.hasPermission(PermissionId.PREMIUM_LAYERS)
+              return [
+                {
+                  value: 'mapbox' as const,
+                  name: t(
+                    'palette.commands.chooseMapEngine.arguments.engine.values.mapbox.name',
+                  ),
+                  description: t(
+                    'palette.commands.chooseMapEngine.arguments.engine.values.mapbox.description',
+                  ),
+                  premium: !canUseMapbox,
+                },
                 {
                   value: 'maplibre',
                   name: t(
@@ -334,7 +331,6 @@ export const useCommandStore = defineStore('command', () => {
                   ),
                 },
               ]
-              return items
             },
           },
         ],

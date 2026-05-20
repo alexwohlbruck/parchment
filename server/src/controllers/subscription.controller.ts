@@ -1,4 +1,4 @@
-import Elysia, { t } from 'elysia'
+import Elysia from 'elysia'
 import { validateEvent, WebhookVerificationError } from '@polar-sh/sdk/webhooks'
 import { requireAuth } from '../middleware/auth.middleware'
 import { billing } from '../config'
@@ -30,9 +30,8 @@ app.get(
 )
 
 if (billing.enabled) {
-  // Webhook must be registered BEFORE requireAuth is applied to the
-  // instance — Elysia's .use() mutates the app and would otherwise
-  // gate this unauthenticated endpoint behind session checks.
+  // Webhook is unauthenticated — lives on the main app instance.
+  // Authenticated routes use a separate Elysia instance below.
   app.post(
     '/webhook',
     async ({ body, request, status }) => {
@@ -42,11 +41,9 @@ if (billing.enabled) {
         headers[key] = value
       })
 
-      let event: ReturnType<typeof validateEvent> extends Promise<infer T>
-        ? T
-        : never
+      let event: { type: string; data: Record<string, unknown> }
       try {
-        event = validateEvent(rawBody, headers, billing.webhookSecret)
+        event = validateEvent(rawBody, headers, billing.webhookSecret) as typeof event
       } catch (err) {
         if (err instanceof WebhookVerificationError) {
           logger.warn('Webhook signature verification failed')
@@ -56,8 +53,7 @@ if (billing.enabled) {
         return status(400, { message: 'Invalid webhook payload' })
       }
 
-      const type = (event as { type: string }).type
-      const data = (event as { data: any }).data
+      const { type, data } = event
 
       switch (type) {
         case 'subscription.active': {
@@ -137,74 +133,79 @@ if (billing.enabled) {
     },
   )
 
-  // Authenticated routes — requireAuth applied after webhook registration
-  app.use(requireAuth)
+  // Authenticated routes — each chains .use(requireAuth) individually
+  // so the webhook route above stays unauthenticated.
+  const authed = new Elysia().use(requireAuth)
 
-  app.post(
-    '/checkout',
-    async ({ user }) => {
-      const fullUser = await fetchUser(user.id)
-      const successUrl = `${process.env.CLIENT_ORIGIN}/settings/billing?checkout=success`
-      const checkoutUrl = await createCheckoutSession(
-        user.id,
-        fullUser.email,
-        successUrl,
+  app.use(
+    authed
+
+      .post(
+        '/checkout',
+        async ({ user }) => {
+          const fullUser = await fetchUser(user.id)
+          const successUrl = `${process.env.CLIENT_ORIGIN}/settings/billing?checkout=success`
+          const checkoutUrl = await createCheckoutSession(
+            user.id,
+            fullUser.email,
+            successUrl,
+          )
+          return { checkoutUrl }
+        },
+        {
+          detail: {
+            tags: ['Subscriptions'],
+            summary: 'Create a Polar checkout session for premium upgrade',
+          },
+        },
       )
-      return { checkoutUrl }
-    },
-    {
-      detail: {
-        tags: ['Subscriptions'],
-        summary: 'Create a Polar checkout session for premium upgrade',
-      },
-    },
-  )
 
-  app.get(
-    '/portal',
-    async ({ user, status }) => {
-      const fullUser = await fetchUser(user.id)
-      if (!fullUser.polarCustomerId) {
-        return status(404, { message: 'No subscription found' })
-      }
-      const portalUrl = await getCustomerPortalUrl(fullUser.polarCustomerId)
-      return { portalUrl }
-    },
-    {
-      detail: {
-        tags: ['Subscriptions'],
-        summary: 'Get Polar customer portal URL',
-      },
-    },
-  )
+      .get(
+        '/portal',
+        async ({ user, status }) => {
+          const fullUser = await fetchUser(user.id)
+          if (!fullUser.polarCustomerId) {
+            return status(404, { message: 'No subscription found' })
+          }
+          const portalUrl = await getCustomerPortalUrl(fullUser.polarCustomerId)
+          return { portalUrl }
+        },
+        {
+          detail: {
+            tags: ['Subscriptions'],
+            summary: 'Get Polar customer portal URL',
+          },
+        },
+      )
 
-  app.get(
-    '/status',
-    async ({ user }) => {
-      return getSubscriptionStatus(user.id)
-    },
-    {
-      detail: {
-        tags: ['Subscriptions'],
-        summary: 'Get current subscription status',
-      },
-    },
-  )
+      .get(
+        '/status',
+        async ({ user }) => {
+          return getSubscriptionStatus(user.id)
+        },
+        {
+          detail: {
+            tags: ['Subscriptions'],
+            summary: 'Get current subscription status',
+          },
+        },
+      )
 
-  app.post(
-    '/verify',
-    async ({ user }) => {
-      const fullUser = await fetchUser(user.id)
-      const result = await verifyAndSyncSubscription(user.id, fullUser.email)
-      if (result) return result
-      return getSubscriptionStatus(user.id)
-    },
-    {
-      detail: {
-        tags: ['Subscriptions'],
-        summary: 'Verify subscription status directly with Polar',
-      },
-    },
+      .post(
+        '/verify',
+        async ({ user }) => {
+          const fullUser = await fetchUser(user.id)
+          const result = await verifyAndSyncSubscription(user.id, fullUser.email)
+          if (result) return result
+          return getSubscriptionStatus(user.id)
+        },
+        {
+          detail: {
+            tags: ['Subscriptions'],
+            summary: 'Verify subscription status directly with Polar',
+          },
+        },
+      ),
   )
 }
 

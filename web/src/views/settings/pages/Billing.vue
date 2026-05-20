@@ -21,22 +21,20 @@ const features = [
 
 onMounted(async () => {
   const isCheckoutReturn = route.query.checkout === 'success'
-  if (isCheckoutReturn) {
-    router.replace({ query: {} })
-  }
+  if (!isCheckoutReturn) return
+
+  router.replace({ query: {} })
   const status = await sub.verifySubscription()
-  if (isCheckoutReturn) {
-    if (status.isPremium) {
-      toast.success('Welcome to Premium!', {
-        id: 'checkout-result',
-        description: 'Your subscription is now active.',
-      })
-    } else {
-      toast.info('Processing your subscription...', {
-        id: 'checkout-result',
-        description: 'It may take a moment to activate. Refresh to check.',
-      })
-    }
+  if (status.isPremium) {
+    toast.success('Welcome to Premium!', {
+      id: 'checkout-result',
+      description: 'Your subscription is now active.',
+    })
+  } else {
+    toast.info('Processing your subscription...', {
+      id: 'checkout-result',
+      description: 'It may take a moment to activate. Refresh to check.',
+    })
   }
 })
 </script>

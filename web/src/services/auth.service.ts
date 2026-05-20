@@ -41,9 +41,12 @@ function authService() {
 
   async function getPermissions() {
     const {
-      data: { permissions },
+      data: { permissions, subscription },
     } = await api.get('auth/sessions/current/permissions')
     authStore.setPermissions(permissions)
+    if (subscription) {
+      authStore.setSubscription(subscription)
+    }
   }
 
   async function getAuthenticatedUser() {
@@ -65,10 +68,11 @@ function authService() {
       // Validate session in background - update store when response arrives
       sessionPromise
         .then(response => {
-          const { user, token: sessionId } = response?.data ?? {}
+          const { user, token: sessionId, subscription } = response?.data ?? {}
           if (user) {
             authStore.updateUser(user)
             setAuthHeader(sessionId)
+            if (subscription) authStore.setSubscription(subscription)
             getPermissions()
           } else {
             clearAllUserCaches()
@@ -87,10 +91,11 @@ function authService() {
     authStore.setAuthenticatedUserPromise(authenticatedUserPromise)
 
     const response = await authenticatedUserPromise
-    const { user, token: sessionId } = response?.data ?? {}
+    const { user, token: sessionId, subscription } = response?.data ?? {}
 
     if (user) {
-      setAuthenticatedUser(user, sessionId)
+      if (subscription) authStore.setSubscription(subscription)
+      await setAuthenticatedUser(user, sessionId)
     }
     return { user }
   }

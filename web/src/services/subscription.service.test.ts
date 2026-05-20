@@ -4,6 +4,7 @@ const hoisted = vi.hoisted(() => ({
   apiGetSpy: vi.fn(),
   apiPostSpy: vi.fn(),
   getPermissionsSpy: vi.fn().mockResolvedValue(undefined),
+  mockSubscription: null as { isPremium: boolean; hasSubscription: boolean; tier: string } | null,
 }))
 
 vi.mock('@/lib/api', () => ({
@@ -19,6 +20,12 @@ vi.mock('@/services/auth.service', () => ({
   }),
 }))
 
+vi.mock('@/stores/auth.store', () => ({
+  useAuthStore: () => ({
+    subscription: hoisted.mockSubscription,
+  }),
+}))
+
 vi.mock('@vueuse/core', () => ({
   createSharedComposable: (fn: Function) => fn,
 }))
@@ -26,13 +33,10 @@ vi.mock('@vueuse/core', () => ({
 describe('subscriptionService', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    hoisted.mockSubscription = null
     hoisted.apiGetSpy.mockImplementation((url: string) => {
       if (url === '/subscriptions/config')
         return Promise.resolve({ data: { billingEnabled: true } })
-      if (url === '/subscriptions/status')
-        return Promise.resolve({
-          data: { isPremium: false, hasSubscription: false, tier: 'free' },
-        })
       return Promise.reject(new Error(`Unexpected GET ${url}`))
     })
   })
@@ -47,65 +51,37 @@ describe('subscriptionService', () => {
     return svc
   }
 
-  test('isPremium returns true when status API reports premium', async () => {
-    hoisted.apiGetSpy.mockImplementation((url: string) => {
-      if (url === '/subscriptions/config')
-        return Promise.resolve({ data: { billingEnabled: true } })
-      if (url === '/subscriptions/status')
-        return Promise.resolve({
-          data: { isPremium: true, hasSubscription: true, tier: 'premium' },
-        })
-      return Promise.reject(new Error(`Unexpected GET ${url}`))
-    })
-    const svc = await createService()
-    await vi.waitFor(() => expect(svc.statusLoaded.value).toBe(true))
-    expect(svc.isPremium.value).toBe(true)
-  })
-
-  test('isPremium returns true when billing is disabled (self-hosted)', async () => {
-    hoisted.apiGetSpy.mockImplementation((url: string) => {
-      if (url === '/subscriptions/config')
-        return Promise.resolve({ data: { billingEnabled: false } })
-      if (url === '/subscriptions/status')
-        return Promise.reject(new Error('should not be called'))
-      return Promise.reject(new Error(`Unexpected GET ${url}`))
-    })
+  test('isPremium returns true when subscription says premium', async () => {
+    hoisted.mockSubscription = { isPremium: true, hasSubscription: true, tier: 'premium' }
     const svc = await createService()
     expect(svc.isPremium.value).toBe(true)
   })
 
-  test('isPremium returns false for free user with billing enabled', async () => {
+  test('isPremium returns false when no subscription data', async () => {
+    hoisted.mockSubscription = null
     const svc = await createService()
-    await vi.waitFor(() => expect(svc.statusLoaded.value).toBe(true))
     expect(svc.isPremium.value).toBe(false)
   })
 
-  test('tier computed returns correct string', async () => {
-    hoisted.apiGetSpy.mockImplementation((url: string) => {
-      if (url === '/subscriptions/config')
-        return Promise.resolve({ data: { billingEnabled: true } })
-      if (url === '/subscriptions/status')
-        return Promise.resolve({
-          data: { isPremium: true, hasSubscription: true, tier: 'premium' },
-        })
-      return Promise.reject(new Error(`Unexpected GET ${url}`))
-    })
+  test('isPremium returns false when subscription says not premium', async () => {
+    hoisted.mockSubscription = { isPremium: false, hasSubscription: false, tier: 'free' }
     const svc = await createService()
-    await vi.waitFor(() => expect(svc.statusLoaded.value).toBe(true))
+    expect(svc.isPremium.value).toBe(false)
+  })
+
+  test('hasSubscription derived from auth store', async () => {
+    hoisted.mockSubscription = { isPremium: true, hasSubscription: true, tier: 'premium' }
+    const svc = await createService()
+    expect(svc.hasSubscription.value).toBe(true)
+  })
+
+  test('tier computed returns correct string', async () => {
+    hoisted.mockSubscription = { isPremium: true, hasSubscription: true, tier: 'premium' }
+    const svc = await createService()
     expect(svc.tier.value).toBe('premium')
 
-    // Free tier
-    hoisted.apiGetSpy.mockImplementation((url: string) => {
-      if (url === '/subscriptions/config')
-        return Promise.resolve({ data: { billingEnabled: true } })
-      if (url === '/subscriptions/status')
-        return Promise.resolve({
-          data: { isPremium: false, hasSubscription: false, tier: 'free' },
-        })
-      return Promise.reject(new Error(`Unexpected GET ${url}`))
-    })
+    hoisted.mockSubscription = { isPremium: false, hasSubscription: false, tier: 'free' }
     const svc2 = await createService()
-    await vi.waitFor(() => expect(svc2.statusLoaded.value).toBe(true))
     expect(svc2.tier.value).toBe('free')
   })
 
@@ -132,7 +108,7 @@ describe('subscriptionService', () => {
     })
   })
 
-  test('verifySubscription calls POST /verify and updates state', async () => {
+  test('verifySubscription calls POST /verify and re-fetches permissions', async () => {
     hoisted.apiPostSpy.mockResolvedValue({
       data: { isPremium: true, hasSubscription: true, tier: 'premium' },
     })
@@ -140,38 +116,12 @@ describe('subscriptionService', () => {
     const result = await svc.verifySubscription()
     expect(hoisted.apiPostSpy).toHaveBeenCalledWith('/subscriptions/verify')
     expect(result.isPremium).toBe(true)
-    expect(svc.hasPremiumRole.value).toBe(true)
-    expect(svc.hasSubscription.value).toBe(true)
     expect(hoisted.getPermissionsSpy).toHaveBeenCalled()
   })
 
-  test('verifySubscription handles cancelled subscription', async () => {
-    hoisted.apiPostSpy.mockResolvedValue({
-      data: { isPremium: false, hasSubscription: true, tier: 'free' },
-    })
+  test('refreshStatus re-fetches permissions', async () => {
     const svc = await createService()
-    const result = await svc.verifySubscription()
-    expect(result.isPremium).toBe(false)
-    expect(svc.hasPremiumRole.value).toBe(false)
-    expect(svc.hasSubscription.value).toBe(true)
-  })
-
-  test('refreshStatus re-fetches permissions after premium status', async () => {
-    hoisted.apiGetSpy.mockImplementation((url: string) => {
-      if (url === '/subscriptions/config')
-        return Promise.resolve({ data: { billingEnabled: true } })
-      if (url === '/subscriptions/status')
-        return Promise.resolve({
-          data: { isPremium: true, hasSubscription: true, tier: 'premium' },
-        })
-      return Promise.reject(new Error(`Unexpected GET ${url}`))
-    })
-
-    const svc = await createService()
-    const result = await svc.refreshStatus()
-
-    expect(result.isPremium).toBe(true)
-    expect(hoisted.apiGetSpy).toHaveBeenCalledWith('/subscriptions/status')
+    await svc.refreshStatus()
     expect(hoisted.getPermissionsSpy).toHaveBeenCalled()
   })
 })

@@ -41,7 +41,8 @@ import {
   RegistrationResponseJSON,
 } from '@simplewebauthn/server/script/deps'
 import { generateId } from '../util'
-import { registrationMode } from '../config'
+import { billing, registrationMode } from '../config'
+import { getSubscriptionStatus } from '../services/subscription.service'
 import { detectLanguage, getI18nInitOptions } from '../lib/i18n'
 import { makeUserRateLimit } from '../middleware/rate-limit.middleware'
 import { passkeyNameFromAAGUID } from '../lib/passkey-aaguid'
@@ -536,9 +537,14 @@ app.group('/sessions', (app) => {
       const sessionId = getSessionId(request)
       const me = (await db.select().from(users).where(eq(users.id, user.id)))[0]
 
+      const subscription = billing.enabled
+        ? await getSubscriptionStatus(user.id)
+        : { isPremium: true, hasSubscription: false, tier: 'premium' as const }
+
       return {
         user: me,
         token: sessionId,
+        subscription,
       }
     },
     {
@@ -551,8 +557,13 @@ app.group('/sessions', (app) => {
   app.use(requireAuth).get(
     'current/permissions',
     async ({ user }) => {
-      const permissions = await getPermissions(user.id)
-      return { permissions }
+      const [permissions, subscription] = await Promise.all([
+        getPermissions(user.id),
+        billing.enabled
+          ? getSubscriptionStatus(user.id)
+          : { isPremium: true, hasSubscription: false, tier: 'premium' as const },
+      ])
+      return { permissions, subscription }
     },
     {
       detail: {

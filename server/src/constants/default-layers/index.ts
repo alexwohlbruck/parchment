@@ -31,9 +31,14 @@ export function resolveProxyUrls(configuration: any, serverUrl: string): any {
   const base = serverUrl.endsWith('/') ? serverUrl.slice(0, -1) : serverUrl
   const proxyBase = `${base}/proxy`
 
+  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
+
   function replacePlaceholders(obj: any): any {
     if (typeof obj === 'string') {
-      return obj.replace(/\{PROXY_URL\}/g, proxyBase).replace(/\{SERVER_URL\}/g, base)
+      return obj
+        .replace(/\{PROXY_URL\}/g, proxyBase)
+        .replace(/\{SERVER_URL\}/g, base)
+        .replace(/\{YESTERDAY\}/g, yesterday)
     }
     if (Array.isArray(obj)) {
       return obj.map(replacePlaceholders)

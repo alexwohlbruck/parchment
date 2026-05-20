@@ -12,10 +12,10 @@ test.describe('Subscription settings', () => {
   })
 
   test('subscription settings page is accessible', async ({ page }) => {
-    await page.goto('/settings/subscription')
+    await page.goto('/settings/billing')
     await page.waitForLoadState('networkidle')
 
-    expect(page.url()).toContain('/settings/subscription')
+    expect(page.url()).toContain('/settings/billing')
 
     const app = page.locator('#app')
     await expect(app).toBeVisible()
@@ -29,7 +29,7 @@ test.describe('Subscription settings', () => {
       }
     })
 
-    await page.goto('/settings/subscription')
+    await page.goto('/settings/billing')
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(1000)
 
@@ -50,7 +50,7 @@ test.describe('Subscription settings', () => {
   })
 
   test('shows plan section', async ({ page }) => {
-    await page.goto('/settings/subscription')
+    await page.goto('/settings/billing')
     await page.waitForLoadState('networkidle')
 
     // The page should show the plan section with either Free or Premium status

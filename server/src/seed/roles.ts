@@ -59,11 +59,6 @@ const alpha: Role = {
     PermissionId.LAYERS_WRITE,
     PermissionId.LAYERS_DELETE,
     PermissionId.SEARCH_AUTO_REFRESH,
-    PermissionId.PREMIUM_DATA_PROVIDERS,
-    PermissionId.PREMIUM_LAYERS,
-    PermissionId.PREMIUM_CUSTOM_MAPS,
-    PermissionId.PREMIUM_NAVIGATION,
-    PermissionId.PREMIUM_LOCATION_SHARING,
   ],
 }
 

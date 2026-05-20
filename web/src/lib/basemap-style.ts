@@ -29,10 +29,12 @@ export interface BasemapStyleOptions {
 }
 
 /**
- * Build a tile URL for our basemap proxy with optional auth token and cache-buster.
+ * Build a tile URL template for the server-side Barrelman proxy.
+ * The proxy route is /proxy/barrelman/:source/:z/:x/:y and handles
+ * auth + caching server-side, so no token param is needed here.
  */
 function buildTileUrl(tileServerUrl: string, tileKey?: string, source: string = 'basemap'): string {
-  const base = `${tileServerUrl}/tiles/${source}/{z}/{x}/{y}`
+  const base = `${tileServerUrl}/${source}/{z}/{x}/{y}`
   const params = new URLSearchParams()
   if (tileKey) params.set('token', tileKey)
   params.set('v', _cacheBuster)

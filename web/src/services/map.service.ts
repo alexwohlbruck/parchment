@@ -30,7 +30,6 @@ import { useDirectionsStore } from '@/stores/directions.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { IntegrationId } from '@server/types/integration.types'
-import { configSchemas } from '@/types/integrations.types'
 import { createSharedComposable, useDark } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { MapboxStrategy } from '@/components/map/map-providers/mapbox.strategy'
@@ -43,6 +42,7 @@ import { ref, toRaw, watch, computed, Component } from 'vue'
 import { storedLocale } from '@/lib/i18n'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useSearchStore } from '@/stores/search.store'
+import { api } from '@/lib/api'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
 
@@ -129,25 +129,15 @@ function mapService() {
       case MapEngine.MAPBOX:
         return new MapboxStrategy(container, options, accessToken, languageCode)
       case MapEngine.MAPLIBRE: {
-        // Resolve tile server URL and key from Barrelman integration config.
-        // Parse through the zod schema to apply defaults (e.g. host defaults
-        // to http://localhost:5001 when the integration is configured but
-        // the host field was never explicitly set).
-        const barrelmanRawConfig =
-          integrationsStore.getIntegrationConfig(IntegrationId.BARRELMAN) ?? {}
-        const barrelmanConfig = configSchemas.barrelmanSchema.safeParse(barrelmanRawConfig)
-        const barrelmanHost = barrelmanConfig.success
-          ? (barrelmanConfig.data as { host?: string }).host
-          : 'http://localhost:5001'
-        const tileKey = barrelmanConfig.success
-          ? (barrelmanConfig.data as { tileKey?: string }).tileKey
-          : undefined
+        // Route tile requests through the Parchment server's proxy to avoid
+        // CORS issues with the Barrelman tile server.  The proxy handles
+        // auth (appends tileKey server-side) and caching headers.
+        const proxyBaseUrl = `${api.defaults.baseURL}/proxy/barrelman`
         return new MaplibreStrategy(
           container,
           options,
           accessToken,
-          barrelmanHost,
-          tileKey,
+          proxyBaseUrl,
         )
       }
     }

@@ -167,14 +167,12 @@ app.get(
         .getConfiguredIntegrations()
         .find((i) => i.integrationId === IntegrationId.BARRELMAN)
 
-      if (!systemIntegration || !systemIntegration.config?.host) {
-        return new Response('Barrelman not configured', { status: 501 })
-      }
-
-      const { host, tileKey } = systemIntegration.config as {
-        host: string
-        tileKey?: string
-      }
+      const host =
+        (systemIntegration?.config as { host?: string })?.host ||
+        process.env.BARRELMAN_HOST ||
+        'http://localhost:5001'
+      const tileKey = (systemIntegration?.config as { tileKey?: string })
+        ?.tileKey
       const { source, z, x, y } = params
       const tileUrl = new URL(`/tiles/${source}/${z}/${x}/${y}`, host)
       if (tileKey) tileUrl.searchParams.set('token', tileKey)

@@ -43,6 +43,7 @@ const layersStore = useLayersStore()
 const appStore = useAppStore()
 const friendLocationsLayer = useFriendLocationsLayer()
 const { isMobileScreen } = useResponsive()
+const isDev = import.meta.env.DEV
 const { openExternalLink } = useExternalLink()
 
 const { dialogs } = appStore
@@ -173,7 +174,7 @@ function beforeNavTransition(value: boolean) {
   <Toaster richColors closeButton :duration="7000" position="bottom-center" />
   <HotkeysMenu />
   <DialogView></DialogView>
-  <ImpersonationBanner v-if="import.meta.env.DEV" />
+  <ImpersonationBanner v-if="isDev" />
 
   <div v-for="dialog in dialogs" :key="dialog.id">
     <component

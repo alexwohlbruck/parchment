@@ -42,6 +42,7 @@ const user = ref<any>(null)
 const loading = ref(true)
 
 const isCurrentUser = computed(() => authStore.me?.id === userId)
+const isDev = import.meta.env.DEV
 
 async function loadUser() {
   loading.value = true
@@ -136,7 +137,7 @@ onMounted(loadUser)
             Edit
           </Button>
           <Button
-            v-if="import.meta.env.DEV && !isCurrentUser"
+            v-if="isDev && !isCurrentUser"
             variant="outline"
             size="sm"
             :icon="EyeIcon"

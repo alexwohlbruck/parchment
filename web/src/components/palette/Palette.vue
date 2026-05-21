@@ -32,6 +32,7 @@ import {
   SettingsIcon,
 } from 'lucide-vue-next'
 import { ItemIcon } from '@/components/ui/item-icon'
+import { Badge } from '@/components/ui/badge'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { fuzzyFilter, noFilter } from '@/lib/utils'
 import { TransitionSlide } from '@morev/vue-transitions'
@@ -121,6 +122,27 @@ const filteredArgumentOptions = computed(() => {
   return filterFunction.value
     ? filterFunction.value(argumentOptions.value, query.value)
     : argumentOptions.value
+})
+
+const SEARCH_GROUP_ORDER = ['fullSearch', 'categories', 'places'] as const
+
+const groupedArgumentOptions = computed(() => {
+  if (!isSearch.value) return null
+
+  const groups: { key: string; heading: string; items: CommandArgumentOption[] }[] = []
+  for (const groupKey of SEARCH_GROUP_ORDER) {
+    const items = filteredArgumentOptions.value.filter(
+      item => item.group === groupKey,
+    )
+    if (items.length > 0) {
+      groups.push({
+        key: groupKey,
+        heading: t(`palette.commands.search.groups.${groupKey}`),
+        items,
+      })
+    }
+  }
+  return groups
 })
 
 function openPalette(withSearch = false) {
@@ -445,20 +467,63 @@ const filterFunction = computed(() => {
 
         <!-- Command selected, display arguments -->
         <CommandList v-if="activeArgument && (!isSearch || query.length)">
-          <CommandGroup :heading="activeArgument.name">
-            <div v-if="loadingOptions" class="py-6 text-center">
-              <LoaderIcon class="mx-auto h-4 w-4 animate-spin opacity-50" />
-              <p class="mt-2 text-sm text-muted-foreground">
-                Loading suggestions...
-              </p>
-            </div>
-            <CommandEmpty v-else-if="argumentOptions.length === 0">
-              <!-- TODO: Get this to show when no search results are found -->
-              <!-- TODO: i18n -->
+          <div v-if="loadingOptions" class="py-6 text-center">
+            <LoaderIcon class="mx-auto h-4 w-4 animate-spin opacity-50" />
+            <p class="mt-2 text-sm text-muted-foreground">
+              Loading suggestions...
+            </p>
+          </div>
+
+          <!-- Grouped rendering for search command -->
+          <template v-else-if="groupedArgumentOptions">
+            <CommandEmpty v-if="groupedArgumentOptions.length === 0">
+              No results found.
+            </CommandEmpty>
+            <CommandGroup
+              v-for="group in groupedArgumentOptions"
+              :key="group.key"
+              :heading="group.heading"
+            >
+              <CommandItem
+                v-for="argumentOption in group.items"
+                :key="argumentOption.value"
+                :value="argumentOption"
+                class="flex gap-2"
+                @select="onArgumentSelected(argumentOption.value)"
+              >
+                <ItemIcon
+                  v-if="argumentOption.iconColor"
+                  :icon="argumentOption.iconName"
+                  :icon-pack="argumentOption.iconPack"
+                  :custom-color="argumentOption.iconColor"
+                  shape="circle"
+                  variant="solid"
+                  size="sm"
+                />
+                <component
+                  v-else-if="argumentOption.icon"
+                  :is="argumentOption.icon"
+                  class="size-5 opacity-50"
+                />
+                <div class="flex-1 flex flex-col">
+                  <span class="font-semibold">{{ argumentOption.name }}</span>
+                  <span
+                    class="text-sm text-gray-500"
+                    v-if="argumentOption.description"
+                  >
+                    {{ argumentOption.description }}
+                  </span>
+                </div>
+              </CommandItem>
+            </CommandGroup>
+          </template>
+
+          <!-- Default flat rendering for non-search commands -->
+          <CommandGroup v-else :heading="activeArgument.name">
+            <CommandEmpty v-if="argumentOptions.length === 0">
               No results found.
             </CommandEmpty>
             <CommandItem
-              v-else
               v-for="argumentOption in filteredArgumentOptions"
               :key="argumentOption.value"
               :value="argumentOption"
@@ -487,7 +552,16 @@ const filterFunction = computed(() => {
                   class="size-5 opacity-50"
                 />
                 <div class="flex-1 flex flex-col">
-                  <span class="font-semibold">{{ argumentOption.name }}</span>
+                  <span class="flex items-center gap-2 font-semibold">
+                    {{ argumentOption.name }}
+                    <Badge
+                      v-if="argumentOption.premium"
+                      variant="primary"
+                      class="text-[10px] px-1.5 py-0"
+                    >
+                      Premium
+                    </Badge>
+                  </span>
                   <span
                     class="text-sm text-gray-500"
                     v-if="argumentOption.description"

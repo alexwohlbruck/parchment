@@ -1,3 +1,5 @@
+process.env.TZ = 'UTC'
+
 import { getObservabilityConfig } from './services/observability.config'
 import { initOtel } from './lib/otel'
 import { Elysia } from 'elysia'
@@ -32,8 +34,11 @@ import {
   deviceWrapSecrets as deviceWrapSecretsController,
   publicController,
   realtime as realtimeController,
+  data as dataController,
+  subscription as subscriptionController,
 } from './controllers'
 import { initializeIntegrations } from './services/integration.service'
+import { clearProductCache } from './services/subscription.service'
 import { bootstrapRealtime } from './services/realtime/bootstrap'
 import { syncPermissionsAndRoles } from './seed/sync-permissions'
 import { getI18nInitOptions, detectLanguage } from './lib/i18n'
@@ -103,6 +108,8 @@ async function main() {
   app.use(deviceWrapSecretsController)
   app.use(publicController)
   app.use(realtimeController)
+  app.use(dataController)
+  app.use(subscriptionController)
 
   // Wire realtime subscribers (local WS fanout, and — in Phase 4 —
   // federation forwarding). Must run before the first write path emits.
@@ -136,6 +143,7 @@ async function main() {
 
   try {
     logger.debug('i18n configured')
+    clearProductCache()
     await syncPermissionsAndRoles()
     logger.info('Permissions and roles synced')
     initializeOsmPresets()

@@ -21,6 +21,49 @@ import { integrationManager } from './integrations'
 import { resolveIcon } from '../lib/place-categories'
 
 
+function parseCoordinateQuery(query: string): { lat: number; lng: number } | null {
+  const trimmed = query.trim()
+
+  // "35.2271, -80.8431" or "35.2271,-80.8431"
+  const commaMatch = trimmed.match(/^(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)$/)
+  if (commaMatch) {
+    return validateAndNormalizeCoords(parseFloat(commaMatch[1]), parseFloat(commaMatch[2]))
+  }
+
+  // "35.2271 -80.8431" (both must have decimals to avoid "123 Main" false positives)
+  const spaceMatch = trimmed.match(/^(-?\d{1,3}\.\d+)\s+(-?\d{1,3}\.\d+)$/)
+  if (spaceMatch) {
+    return validateAndNormalizeCoords(parseFloat(spaceMatch[1]), parseFloat(spaceMatch[2]))
+  }
+
+  // "35.2271N 80.8431W" or "35.2271N, 80.8431W"
+  const nsewMatch = trimmed.match(/^(\d{1,3}(?:\.\d+)?)\s*([NSns])\s*,?\s*(\d{1,3}(?:\.\d+)?)\s*([EWew])$/)
+  if (nsewMatch) {
+    let lat = parseFloat(nsewMatch[1])
+    let lng = parseFloat(nsewMatch[3])
+    if (/[Ss]/.test(nsewMatch[2])) lat = -lat
+    if (/[Ww]/.test(nsewMatch[4])) lng = -lng
+    return validateAndNormalizeCoords(lat, lng)
+  }
+
+  return null
+}
+
+function validateAndNormalizeCoords(a: number, b: number): { lat: number; lng: number } | null {
+  if (!isFinite(a) || !isFinite(b)) return null
+
+  if (Math.abs(a) <= 90 && Math.abs(b) <= 180) {
+    return { lat: a, lng: b }
+  }
+
+  // Auto-swap if user entered lng,lat order
+  if (Math.abs(b) <= 90 && Math.abs(a) <= 180) {
+    return { lat: b, lng: a }
+  }
+
+  return null
+}
+
 /**
  * Convert a CategoryResult/preset to a SearchResult
  */
@@ -39,6 +82,7 @@ function convertPresetToSearchResult(preset: any): SearchResult {
       : undefined,
     icon: resolvedIcon.icon,
     iconPack: resolvedIcon.iconPack,
+    iconCategory: preset.iconCategory,
     metadata: {
       category: {
         tags: preset.tags,
@@ -224,6 +268,54 @@ export async function search(
   // Collect all results with normalized relevance scores (0-1) for interleaving
   const scoredResults: Array<{ result: SearchResult; relevance: number }> = []
 
+  // Coordinate detection — inject synthetic result if query looks like coordinates
+  if (query) {
+    const coords = parseCoordinateQuery(query)
+    if (coords) {
+      const coordId = `coords/${coords.lat}/${coords.lng}`
+      const timestamp = new Date().toISOString()
+      scoredResults.push({
+        result: {
+          id: coordId,
+          type: 'place',
+          title: `${coords.lat}, ${coords.lng}`,
+          description: 'Coordinates',
+          icon: 'MapPin',
+          iconPack: 'lucide',
+          metadata: {
+            place: {
+              id: coordId,
+              externalIds: {},
+              name: { value: `${coords.lat}, ${coords.lng}`, sourceId: 'input', timestamp },
+              description: null,
+              placeType: { value: 'Coordinates', sourceId: 'input', timestamp },
+              icon: { icon: 'MapPin', iconPack: 'lucide' as const },
+              geometry: {
+                value: {
+                  type: 'point',
+                  center: { lat: coords.lat, lng: coords.lng },
+                },
+                sourceId: 'input',
+                timestamp,
+              },
+              photos: [],
+              address: null,
+              contactInfo: { phone: null, email: null, website: null, websites: null, socials: {} },
+              openingHours: null,
+              amenities: {},
+              tags: {},
+              summary: null,
+              sources: [],
+              lastUpdated: timestamp,
+              createdAt: timestamp,
+            } as any,
+          },
+        },
+        relevance: 1.0,
+      })
+    }
+  }
+
   // Search presets/categories (only for 1+ character queries)
   if (query && query.length > 0) {
     const scoredPresets = categoryService.searchCategoriesWithScores(
@@ -251,14 +343,7 @@ export async function search(
     })
   }
 
-  // Search recent places (handles both empty query and fuzzy search)
-  const recentPlaceResults = await searchRecentPlaces(userId, query)
-  scoredResults.push(
-    ...recentPlaceResults.map((r, i) => ({
-      result: r,
-      relevance: 0.6 - i * 0.05,
-    })),
-  )
+  // TODO: searchRecentPlaces — not yet implemented, skipping to avoid no-op await
 
   // Search external places using place service (only for 1+ character queries)
   if (query && query.length > 0 && lat && lng) {
@@ -316,6 +401,13 @@ export async function search(
 export interface CategorySearchOptions {
   bounds: MapBounds
   limit?: number
+  sort?: 'relevance' | 'distance' | 'name'
+  filter?: {
+    access?: string[]
+    fee?: 'yes' | 'no'
+    hasHours?: boolean
+  }
+  tags?: Record<string, string>
 }
 
 /**
@@ -395,9 +487,13 @@ export async function searchByCategory(
   // Resolve sub-preset IDs to parent category + filter tags
   const { categoryId, filterTags } = derivePresetFilter(presetId)
 
+  const mergedTags = { ...filterTags, ...options.tags }
+
   return await searchCapability.searchByCategory(categoryId, options.bounds, {
     limit: options.limit,
-    filterTags: Object.keys(filterTags).length > 0 ? filterTags : undefined,
+    filterTags: Object.keys(mergedTags).length > 0 ? mergedTags : undefined,
+    sort: options.sort,
+    filter: options.filter,
   })
 }
 

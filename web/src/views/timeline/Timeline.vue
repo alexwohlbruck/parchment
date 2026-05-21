@@ -18,6 +18,12 @@ import TimelineSegmentRow from './components/TimelineSegmentRow.vue'
 import DailyDistanceChart from './components/DailyDistanceChart.vue'
 import TimelineDatePicker from './components/TimelineDatePicker.vue'
 import TimelineNoIntegration from './TimelineNoIntegration.vue'
+import { useAuthService } from '@/services/auth.service'
+import { PermissionId } from '@/types/auth.types'
+import UpgradeBanner from '@/components/subscription/UpgradeBanner.vue'
+
+const authService = useAuthService()
+const canAccessTimeline = computed(() => authService.hasPermission(PermissionId.LOCATION_SHARING))
 
 dayjs.extend(localizedFormat)
 
@@ -213,7 +219,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <TimelineNoIntegration v-if="!integrationsStore.isLocationHistoryActive" />
+  <PanelLayout v-if="!canAccessTimeline">
+    <UpgradeBanner feature="timeline" required-tier="basic" />
+  </PanelLayout>
+
+  <TimelineNoIntegration v-else-if="!integrationsStore.isLocationHistoryActive" />
 
   <PanelLayout v-else>
     <!-- Header -->

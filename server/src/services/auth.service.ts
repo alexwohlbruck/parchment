@@ -6,7 +6,7 @@ import {
   generateRegistrationOptions,
 } from '@simplewebauthn/server'
 import { db } from '../db'
-import { appName, origins } from '../config'
+import { appName, origins, isSelfHosted } from '../config'
 import { User } from '../schema/users.schema'
 import { Passkey, passkeys } from '../schema/passkeys.schema'
 import { usersToRoles } from '../schema/users-roles.schema'
@@ -323,6 +323,11 @@ export async function generatePrfAssertionOptions(userId: User['id']) {
 }
 
 export async function getPermissions(userId: User['id']) {
+  if (isSelfHosted) {
+    const allPerms = await db.select({ id: permissions.id }).from(permissions)
+    return allPerms.map((p) => p.id)
+  }
+
   // TODO: Optimize this query for Redis caching
   const result = await db
     .select()

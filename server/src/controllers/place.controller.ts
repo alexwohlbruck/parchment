@@ -6,6 +6,8 @@ import {
   lookupEnrichedPlaceById,
   lookupEnrichedPlaceByCoordinates,
 } from '../services/place.service'
+import { getPermissions, hasPermission } from '../services/auth.service'
+import { PermissionId } from '../types/auth.types'
 import { SOURCE } from '../lib/constants.js'
 import { WidgetType } from '../types/place.types'
 import { fetchWidgetData } from '../services/widget.service'
@@ -35,6 +37,10 @@ app.get(
       })
     }
 
+    // Check if user has premium data provider access
+    const userPerms = user ? await getPermissions(user.id) : []
+    const premiumData = hasPermission(userPerms, PermissionId.PREMIUM_DATA_PROVIDERS)
+
     let place = null
 
     try {
@@ -46,7 +52,7 @@ app.get(
             ? id.split('/')
             : [null, id]
 
-          if (!osmType || !['node', 'way', 'relation'].includes(osmType)) {
+          if (!osmType || !['node', 'way', 'relation', 'intersection'].includes(osmType)) {
             return status(400, {
               message: t('errors.place.invalidOsmType'),
             })
@@ -94,6 +100,7 @@ app.get(
             place = await lookupEnrichedPlaceById(SOURCE.OSM, osmId, {
               userId: user?.id,
               language,
+              premiumData,
             })
           } else {
             // No OSM ID, return Geoapify data as-is
@@ -104,6 +111,7 @@ app.get(
           place = await lookupEnrichedPlaceById(source!, id!, {
             userId: user?.id,
             language,
+            premiumData,
           })
         }
       } else if (isNameLocationLookup) {
@@ -119,11 +127,12 @@ app.get(
           language,
         })
       } else if (isCoordinateLookup) {
-        // New: Coordinate-based lookup with enrichment
         place = await lookupEnrichedPlaceByCoordinates(lat!, lng!, {
           userId: user?.id,
           radius: Math.round(radius),
           language,
+          addressOnly: true,
+          premiumData,
         })
       }
 

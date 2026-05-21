@@ -1,10 +1,11 @@
 import { Elysia, t } from 'elysia'
-import { requireAuth } from '../middleware/auth.middleware'
+import { permissions } from '../middleware/auth.middleware'
+import { PermissionId } from '../types/auth.types'
 import { requireIntegrationCredentials } from '../middleware/integration-credentials.middleware'
 import { logger } from '../lib/logger'
 
 const locationHistoryRouter = new Elysia({ prefix: '/location-history' }).use(
-  requireAuth,
+  permissions(PermissionId.LOCATION_SHARING),
 )
 
 /**

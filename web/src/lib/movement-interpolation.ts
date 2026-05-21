@@ -199,6 +199,24 @@ export function projectLatLng(
 }
 
 /**
+ * Initial bearing (degrees, 0=N, 90=E) from `a` to `b` along the
+ * great circle. Used to synthesize a heading when the device's
+ * Geolocation API didn't provide one (common on phones at low speed
+ * or for a brand-new fix). Returns the standard "compass" heading.
+ */
+export function bearingDeg(a: LngLat, b: LngLat): number {
+  const lat1 = toRad(a.lat)
+  const lat2 = toRad(b.lat)
+  const dLng = toRad(b.lng - a.lng)
+  const y = Math.sin(dLng) * Math.cos(lat2)
+  const x =
+    Math.cos(lat1) * Math.sin(lat2) -
+    Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng)
+  const deg = (Math.atan2(y, x) * 180) / Math.PI
+  return (deg + 360) % 360
+}
+
+/**
  * Distance in meters between two lat/lng points. Same equirectangular
  * approximation as the broadcast composable's `distanceMeters`.
  * Duplicated here to keep this module self-contained (no cross-imports
@@ -299,6 +317,31 @@ export function buildTrack(params: {
     }
   }
 
+  // Real-GPS samples on phones often have null `speed` / `heading` —
+  // the W3C Geolocation API only fills them when the device can
+  // compute motion confidently. Without them, dead-reckoning past the
+  // tween freezes and Hermite falls back to a straight lerp, so the
+  // marker visibly stutters between samples.
+  //
+  // When we have a previous sample and a meaningful elapsed time + jump
+  // distance, derive speed/heading from the position delta — same idea
+  // the GPX parser uses for points without explicit speed tags. Only
+  // synthesize what's missing; respect any device-reported value.
+  let resolvedSpeed = sample.speed
+  let resolvedHeading = sample.heading
+  if (previousTrack && (resolvedSpeed == null || resolvedHeading == null)) {
+    const dtSec = (sample.timestampMs - previousTrack.toSampleTimestamp) / 1000
+    const distM = distanceMeters(previousTrack.to, sample.lngLat)
+    // Guard against zero-time and sub-meter jitter. < 1m doesn't yield
+    // a meaningful heading; < ~50ms doesn't yield a meaningful speed.
+    if (dtSec >= 0.05 && distM >= 1) {
+      if (resolvedSpeed == null) resolvedSpeed = distM / dtSec
+      if (resolvedHeading == null) {
+        resolvedHeading = bearingDeg(previousTrack.to, sample.lngLat)
+      }
+    }
+  }
+
   // Tween length scales with the visible jump. ~5 m/ms catch-up rate
   // gives 200ms for a 1m correction and 1s for a 5m+ snap; clamped so
   // tiny corrections don't feel sluggish and big snaps don't drag.
@@ -324,9 +367,9 @@ export function buildTrack(params: {
   const haveEntryVel =
     fromVelocity != null && fromVelocity.speedMps > MIN_DR_SPEED
   const haveExitVel =
-    sample.speed != null &&
-    sample.speed > MIN_DR_SPEED &&
-    sample.heading != null
+    resolvedSpeed != null &&
+    resolvedSpeed > MIN_DR_SPEED &&
+    resolvedHeading != null
   if (haveEntryVel && haveExitVel) {
     const segSec = segmentDurationMs / 1000
     const t0Per = velocityVectorDegPerSec(
@@ -336,8 +379,8 @@ export function buildTrack(params: {
     )
     const t1Per = velocityVectorDegPerSec(
       sample.lngLat,
-      sample.speed!,
-      sample.heading!,
+      resolvedSpeed!,
+      resolvedHeading!,
     )
     hermiteT0 = { dLat: t0Per.dLat * segSec, dLng: t0Per.dLng * segSec }
     hermiteT1 = { dLat: t1Per.dLat * segSec, dLng: t1Per.dLng * segSec }
@@ -349,8 +392,8 @@ export function buildTrack(params: {
     segmentStartMs: now,
     segmentDurationMs,
     fromVelocity,
-    postSpeed: sample.speed,
-    postHeading: sample.heading,
+    postSpeed: resolvedSpeed,
+    postHeading: resolvedHeading,
     toSampleTimestamp: sample.timestampMs,
     hermiteT0,
     hermiteT1,

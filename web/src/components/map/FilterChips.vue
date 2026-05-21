@@ -1,177 +1,283 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import {
-  LockIcon,
-  DollarSignIcon,
-  StarIcon,
-  ClockIcon,
   ArrowUpDownIcon,
-  MapPinIcon,
+  SlidersHorizontalIcon,
+  XIcon,
+  MapIcon,
+  LocateFixedIcon,
 } from 'lucide-vue-next'
-import { Chip, type ChipOption } from '@/components/ui/chip'
+import ResponsiveDropdown, { type MenuItemDefinition } from '@/components/responsive/ResponsiveDropdown.vue'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import type { FilterDef, SortDef } from '@/config/search-filters'
+import type { ChipOption } from '@/components/ui/chip'
+import { computed, ref } from 'vue'
 
-// Filter state
-const selectedAccess = ref<string[]>([])
-const selectedPrice = ref<string>('')
-const selectedRating = ref<number | ''>('')
-const selectedSort = ref<string>('relevance')
-const openNow = ref<boolean>(false)
-
-// Access options
-const accessOptions: ChipOption[] = [
-  { label: 'Public', value: 'public' },
-  { label: 'Private', value: 'private' },
-  { label: 'Customers Only', value: 'customers' },
-  { label: 'Members Only', value: 'members' },
-  { label: 'Permit Required', value: 'permit' },
-  { label: 'No Access', value: 'no' },
-]
-
-// Price options
-const priceOptions: ChipOption[] = [
-  { label: 'Free', value: 'free' },
-  { label: '$', value: 'low' },
-  { label: '$$', value: 'medium' },
-  { label: '$$$', value: 'high' },
-  { label: '$$$$', value: 'very_high' },
-]
-
-// Rating options
-const ratingOptions: ChipOption[] = [
-  { label: '1+ Stars', value: 1 },
-  { label: '2+ Stars', value: 2 },
-  { label: '3+ Stars', value: 3 },
-  { label: '4+ Stars', value: 4 },
-  { label: '5 Stars', value: 5 },
-]
-
-// Sort options
-const sortOptions: ChipOption[] = [
-  { label: 'Relevance', value: 'relevance' },
-  { label: 'Distance', value: 'distance' },
-  { label: 'Rating', value: 'rating' },
-  { label: 'Price', value: 'price' },
-]
-
-// Emit filter changes to parent
-const emit = defineEmits<{
-  filtersChanged: [
-    filters: {
-      access: string[]
-      price: string
-      rating: number | ''
-      openNow: boolean
-      sort: string
-    },
-  ]
+const props = defineProps<{
+  filterDefs: FilterDef[]
+  filterValues: Record<string, any>
+  filterOptions: Record<string, ChipOption[]>
+  sortOptions: SortDef[]
+  sortBy: string
+  searchContext: 'map' | 'nearby'
+  hasGeolocation: boolean
 }>()
 
-// Watch for filter changes and emit to parent
-function emitFiltersChanged() {
-  emit('filtersChanged', {
-    access: selectedAccess.value,
-    price: selectedPrice.value,
-    rating: selectedRating.value,
-    openNow: openNow.value,
-    sort: selectedSort.value,
-  })
-}
+const emit = defineEmits<{
+  'update:filter': [id: string, value: any]
+  'update:sortBy': [value: string]
+  'update:searchContext': [value: 'map' | 'nearby']
+}>()
 
-// Handle filter updates
-function handleAccessUpdate(value: string[]) {
-  selectedAccess.value = value
-  emitFiltersChanged()
-}
+const sortOpen = ref(false)
+const filterOpen = ref(false)
 
-function handlePriceUpdate(value: string) {
-  selectedPrice.value = value
-  emitFiltersChanged()
-}
+// ── Sort menu items ─────────────────────────────────────────────────────
 
-function handleRatingUpdate(value: number) {
-  selectedRating.value = value
-  emitFiltersChanged()
-}
+const sortMenuItems = computed<MenuItemDefinition[]>(() =>
+  props.sortOptions.map(s => ({
+    type: 'item' as const,
+    id: s.id,
+    label: s.label,
+    active: props.sortBy === s.id,
+    onSelect: () => emit('update:sortBy', s.id),
+  })),
+)
 
-function handleOpenNowUpdate(value: boolean) {
-  openNow.value = value
-  emitFiltersChanged()
-}
-
-function handleSortUpdate(value: string) {
-  selectedSort.value = value
-  emitFiltersChanged()
-}
-
-// Reset all filters
-function resetFilters() {
-  selectedAccess.value = []
-  selectedPrice.value = ''
-  selectedRating.value = ''
-  selectedSort.value = 'relevance'
-  openNow.value = false
-  emitFiltersChanged()
-}
-
-// Expose reset function to parent
-defineExpose({
-  resetFilters,
+const sortLabel = computed(() => {
+  const selected = props.sortOptions.find(s => s.id === props.sortBy)
+  return selected?.label ?? 'Sort'
 })
+
+// ── Filter menu items ───────────────────────────────────────────────────
+
+const activeFilterCount = computed(() =>
+  props.filterDefs.filter(def => {
+    const value = props.filterValues[def.id] ?? def.defaultValue
+    if (value === null || value === undefined) return false
+    if (value === def.defaultValue) return false
+    if (Array.isArray(value) && value.length === 0) return false
+    return true
+  }).length,
+)
+
+const filterMenuItems = computed<MenuItemDefinition[]>(() =>
+  props.filterDefs.map(def => {
+    if (def.type === 'toggle') {
+      return {
+        type: 'item' as const,
+        id: def.id,
+        label: def.label,
+        active: !!getFilterValue(def),
+        keepOpen: true,
+        onSelect: () => emit('update:filter', def.id, !getFilterValue(def)),
+      }
+    }
+
+    const options = getFilterOptions(def)
+    return {
+      type: 'submenu' as const,
+      id: def.id,
+      label: def.label,
+      active: isFilterActive(def),
+      searchable: options.length > 15,
+      items: options.map(opt => ({
+        type: 'item' as const,
+        id: `${def.id}:${opt.value}`,
+        label: opt.label,
+        active: isOptionSelected(def, opt.value),
+        keepOpen: true,
+        onSelect: () => handleDropdownSelect(def, opt.value),
+      })),
+    }
+  }),
+)
+
+// ── Active filter chips ─────────────────────────────────────────────────
+
+const activeFilterChips = computed(() => {
+  const chips: { id: string; label: string; value: any; def: FilterDef }[] = []
+  for (const def of props.filterDefs) {
+    const value = props.filterValues[def.id] ?? def.defaultValue
+    if (value === null || value === undefined) continue
+    if (value === def.defaultValue) continue
+    if (Array.isArray(value) && value.length === 0) continue
+
+    if (def.type === 'toggle') {
+      chips.push({ id: def.id, label: def.label, value: true, def })
+    } else if (def.type === 'multi-select' && Array.isArray(value)) {
+      const options = getFilterOptions(def)
+      for (const v of value) {
+        const opt = options.find(o => o.value === v)
+        chips.push({
+          id: def.id,
+          label: `${def.label}: ${opt?.label ?? v}`,
+          value: v,
+          def,
+        })
+      }
+    } else {
+      const options = getFilterOptions(def)
+      const opt = options.find(o => String(o.value) === String(value))
+      chips.push({
+        id: def.id,
+        label: `${def.label}: ${opt?.label ?? value}`,
+        value,
+        def,
+      })
+    }
+  }
+  return chips
+})
+
+// ── Helpers ─────────────────────────────────────────────────────────────
+
+function getFilterValue(def: FilterDef): any {
+  return props.filterValues[def.id] ?? def.defaultValue
+}
+
+function getFilterOptions(def: FilterDef): ChipOption[] {
+  return props.filterOptions[def.id] ?? def.getOptions?.([]) ?? []
+}
+
+function handleDropdownSelect(def: FilterDef, value: any) {
+  if (def.type === 'multi-select') {
+    const current = Array.isArray(getFilterValue(def)) ? [...getFilterValue(def)] : []
+    const idx = current.indexOf(value)
+    if (idx >= 0) {
+      current.splice(idx, 1)
+    } else {
+      current.push(value)
+    }
+    emit('update:filter', def.id, current)
+  } else {
+    const currentValue = getFilterValue(def)
+    emit('update:filter', def.id, currentValue === value ? null : value)
+  }
+}
+
+function removeFilterChip(chip: { id: string; value: any; def: FilterDef }) {
+  if (chip.def.type === 'toggle') {
+    emit('update:filter', chip.id, false)
+  } else if (chip.def.type === 'multi-select') {
+    const current = Array.isArray(getFilterValue(chip.def)) ? [...getFilterValue(chip.def)] : []
+    emit('update:filter', chip.id, current.filter((v: any) => v !== chip.value))
+  } else {
+    emit('update:filter', chip.id, null)
+  }
+}
+
+function clearAllFilters() {
+  for (const def of props.filterDefs) {
+    emit('update:filter', def.id, def.defaultValue)
+  }
+}
+
+function isFilterActive(def: FilterDef): boolean {
+  const value = getFilterValue(def)
+  if (value === null || value === undefined) return false
+  if (value === def.defaultValue) return false
+  if (Array.isArray(value) && value.length === 0) return false
+  return true
+}
+
+function isOptionSelected(def: FilterDef, optionValue: any): boolean {
+  const value = getFilterValue(def)
+  if (def.type === 'multi-select') {
+    return Array.isArray(value) && value.includes(optionValue)
+  }
+  return String(value) === String(optionValue)
+}
 </script>
 
 <template>
-  <div class="flex flex-row gap-1 items-start pb-1">
-    <!-- Sort -->
-    <!-- TODO: Handle filter updates -->
-    <!-- @update:dropdown-value="handleSortUpdate" -->
-    <Chip
-      :icon="ArrowUpDownIcon"
-      label="Sort"
-      variant="dropdown"
-      size="xs"
-      :options="sortOptions"
-      :dropdown-value="selectedSort"
-      :force-icon="true"
-      :show-clear="false"
-    />
+  <div class="flex flex-col gap-1.5">
+    <!-- Row 1: Sort + Filters -->
+    <div class="flex flex-row gap-1.5 items-center overflow-visible">
+      <!-- Sort -->
+      <ResponsiveDropdown
+        :items="sortMenuItems"
+        :open="sortOpen"
+        title="Sort"
+        content-class="w-40"
+        @update:open="sortOpen = $event"
+      >
+        <template #trigger="{ open }">
+          <Button
+            variant="outline"
+            size="xs"
+            class="rounded-full gap-1 bg-background"
+            @click="open"
+          >
+            <ArrowUpDownIcon class="size-3.5" />
+            <span>{{ sortLabel }}</span>
+          </Button>
+        </template>
+      </ResponsiveDropdown>
 
-    <Chip
-      :icon="LockIcon"
-      label="Access"
-      variant="dropdown"
-      size="xs"
-      :options="accessOptions"
-      :multiple="true"
-      :dropdown-value="selectedAccess"
-    />
+      <!-- Search context toggle -->
+      <Button
+        v-if="hasGeolocation"
+        variant="outline"
+        size="xs"
+        class="rounded-full gap-1 bg-background"
+        @click="emit('update:searchContext', searchContext === 'nearby' ? 'map' : 'nearby')"
+      >
+        <LocateFixedIcon v-if="searchContext === 'nearby'" class="size-3.5" />
+        <MapIcon v-else class="size-3.5" />
+        <span>{{ searchContext === 'nearby' ? 'Near me' : 'This area' }}</span>
+      </Button>
 
-    <!-- Price Filter -->
-    <Chip
-      :icon="DollarSignIcon"
-      label="Price"
-      variant="dropdown"
-      size="xs"
-      :options="priceOptions"
-      :dropdown-value="selectedPrice"
-    />
+      <!-- Filters -->
+      <ResponsiveDropdown
+        v-if="filterDefs.length > 0"
+        :items="filterMenuItems"
+        :open="filterOpen"
+        title="Filters"
+        content-class="w-48"
+        @update:open="filterOpen = $event"
+      >
+        <template #trigger="{ open }">
+          <Button
+            variant="outline"
+            size="xs"
+            class="rounded-full gap-1 bg-background relative overflow-visible"
+            @click="open"
+          >
+            <SlidersHorizontalIcon class="size-3.5" />
+            <span>Filters</span>
+            <Badge
+              v-if="activeFilterCount > 0"
+              variant="primary"
+              class="absolute -top-1.5 -right-1.5 px-1 py-0 text-[10px] min-w-4 h-4 justify-center"
+            >
+              {{ activeFilterCount }}
+            </Badge>
+          </Button>
+        </template>
+      </ResponsiveDropdown>
+    </div>
 
-    <!-- Rating Filter -->
-    <Chip
-      :icon="StarIcon"
-      label="Rating"
-      variant="dropdown"
-      size="xs"
-      :options="ratingOptions"
-      :dropdown-value="selectedRating"
-    />
-
-    <!-- Open Now Toggle -->
-    <Chip
-      :icon="ClockIcon"
-      label="Open Now"
-      variant="toggle"
-      size="xs"
-      :model-value="openNow"
-    />
+    <!-- Row 2: Active filter chips (removable) -->
+    <div
+      v-if="activeFilterChips.length > 0"
+      class="flex items-center gap-1.5 flex-wrap"
+    >
+      <button
+        v-for="chip in activeFilterChips"
+        :key="`${chip.id}:${chip.value}`"
+        class="inline-flex items-center gap-1 rounded-full border border-border bg-background text-foreground px-2.5 py-0.5 text-xs font-medium hover:bg-muted transition-colors cursor-pointer"
+        @click="removeFilterChip(chip)"
+      >
+        {{ chip.label }}
+        <XIcon class="size-3" />
+      </button>
+      <button
+        class="text-xs text-muted-foreground hover:text-foreground transition-colors px-1 cursor-pointer"
+        @click="clearAllFilters"
+      >
+        Clear all
+      </button>
+    </div>
   </div>
 </template>

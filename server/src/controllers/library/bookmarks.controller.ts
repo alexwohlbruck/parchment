@@ -1,5 +1,6 @@
 import { Elysia, t } from 'elysia'
-import { requireAuth } from '../../middleware/auth.middleware'
+import { permissions } from '../../middleware/auth.middleware'
+import { PermissionId } from '../../types/auth.types'
 import * as bookmarksService from '../../services/library/bookmarks.service'
 import * as sharingService from '../../services/sharing.service'
 
@@ -34,16 +35,15 @@ function mapSharingError(
 }
 
 const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
-  .use(requireAuth)
+  .use(permissions(PermissionId.LIBRARY_WRITE))
 
   // Create a new bookmark and assign to collections
   .post(
     '/',
     async ({ body, user, set }) => {
-      // Ensure the externalIds contains at least osm
-      if (!body.externalIds || !body.externalIds.osm) {
+      if (!body.externalIds || Object.keys(body.externalIds).length === 0) {
         set.status = 400
-        return { error: 'Missing required OSM ID in externalIds' }
+        return { error: 'Missing required externalIds' }
       }
 
       if (!body.collectionIds || body.collectionIds.length === 0) {

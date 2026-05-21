@@ -52,8 +52,9 @@ const singleCollection = computed(() => {
   return collectionsStore.getCollectionById(collectionIds.value[0]) ?? null
 })
 
-const hasOsmId = computed(() => {
-  return props.place.externalIds?.['osm'] // TODO: Use enum constant
+const canBookmark = computed(() => {
+  const ids = props.place.externalIds
+  return ids && Object.keys(ids).length > 0
 })
 
 // `place.collectionIds` is the source of truth for the badge; sync it
@@ -105,7 +106,7 @@ function onBookmarkDeleted() {
            the corner badge: count of collections (≥2), the single
            collection's icon (=1), or no badge (unsaved). -->
       <ResponsivePopover
-        v-if="hasOsmId"
+        v-if="canBookmark"
         align="end"
         desktop-content-class="w-auto px-0 py-1 min-w-[240px]"
         :peek-height="'400px'"

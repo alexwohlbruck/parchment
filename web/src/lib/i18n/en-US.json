@@ -89,6 +89,11 @@
           "places": {
             "name": "Places"
           }
+        },
+        "groups": {
+          "fullSearch": "Search",
+          "categories": "Categories",
+          "places": "Places"
         }
       },
       "goto": {
@@ -204,6 +209,7 @@
   },
   "map": {
     "title": "Map",
+    "searchThisArea": "Search this area",
     "contextMenu": {
       "edit": "Edit map",
       "viewIn": "View in",
@@ -1124,6 +1130,62 @@
         "signOutOthersFailed": "Couldn't sign out other devices."
       }
     },
+    "billing": {
+      "title": "Billing",
+      "canceling": "Canceling",
+      "renews": "Renews {date}",
+      "endsOn": "Your subscription will end on {date}. You'll retain access until then.",
+      "manageSubscription": "Manage subscription",
+      "upgradeToBasic": "Upgrade to Basic",
+      "upgradeToPremium": "Upgrade to Premium",
+      "current": "Current",
+      "plan": {
+        "free": "Free",
+        "freeDescription": "Browse and search the map",
+        "basic": "Basic",
+        "basicDescription": "Save places, share with friends",
+        "premium": "Premium",
+        "premiumDescription": "Everything, plus advanced features",
+        "everythingInFree": "Everything in Free",
+        "everythingInBasic": "Everything in Basic"
+      },
+      "features": {
+        "basicMapLayers": "Basic map layers",
+        "placeSearch": "Place search and details",
+        "directions": "Directions and routing",
+        "bookmarks": "Bookmarks and saved places",
+        "collections": "Collections",
+        "friends": "Friends",
+        "locationSharing": "Real-time location sharing",
+        "mapNotes": "Map notes",
+        "customLayers": "Custom map layers",
+        "integrations": "Integrations",
+        "businessData": "Enhanced business data",
+        "mapboxEngine": "Mapbox map engine",
+        "searchAutoRefresh": "Auto-refresh search results",
+        "advancedLayers": "Advanced map layers",
+        "customMaps": "Custom map configurations",
+        "routingPreferences": "Advanced routing preferences",
+        "weatherVisualizations": "Weather visualizations"
+      },
+      "trial": {
+        "monthFree": "1 month free trial",
+        "monthsFree": "{count} month free trial",
+        "weekFree": "1 week free trial",
+        "weeksFree": "{count} week free trial",
+        "dayFree": "1 day free trial",
+        "daysFree": "{count} day free trial"
+      },
+      "perMonth": "/month",
+      "perYear": "/year",
+      "checkout": {
+        "welcomeTier": "Welcome to {tier}!",
+        "welcomePremium": "Welcome to Premium!",
+        "subscriptionActive": "Your subscription is now active.",
+        "processing": "Processing your subscription...",
+        "processingDescription": "It may take a moment to activate. Refresh to check."
+      }
+    },
     "developer": {
       "title": "Developer",
       "gpxSimulator": {
@@ -1565,6 +1627,12 @@
       "restoringDescription": "Tap your passkey one more time to unlock your encrypted data.",
       "restoredSuccess": "Your data is ready.",
       "restoreFailed": "Couldn't restore your data — try again from Settings → Encryption keys."
+    }
+  },
+  "subscription": {
+    "upgradeBanner": {
+      "title": "Upgrade to {tier}",
+      "description": "This feature requires a {tier} subscription."
     }
   }
 }

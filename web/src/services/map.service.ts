@@ -7,6 +7,7 @@ import {
   StreetViewType,
   type Layer,
   type MapEvents,
+  type MapBounds,
   MarkerIds,
   type MarkerId,
   type LngLat,
@@ -30,7 +31,6 @@ import { useDirectionsStore } from '@/stores/directions.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { IntegrationId } from '@server/types/integration.types'
-import { configSchemas } from '@/types/integrations.types'
 import { createSharedComposable, useDark } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { MapboxStrategy } from '@/components/map/map-providers/mapbox.strategy'
@@ -43,6 +43,9 @@ import { ref, toRaw, watch, computed, Component } from 'vue'
 import { storedLocale } from '@/lib/i18n'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useSearchStore } from '@/stores/search.store'
+import { api } from '@/lib/api'
+import { useAuthService } from '@/services/auth.service'
+import { PermissionId } from '@/types/auth.types'
 
 const dark = useDark()
 
@@ -60,6 +63,7 @@ function mapService() {
   const directionsStore = useDirectionsStore()
   const integrationsStore = useIntegrationsStore()
   const themeStore = useThemeStore()
+  const authService = useAuthService()
   const { settings } = storeToRefs(mapStore)
   const { layers } = storeToRefs(layersStore)
   const { accentColor, isDark } = storeToRefs(themeStore)
@@ -126,25 +130,15 @@ function mapService() {
       case MapEngine.MAPBOX:
         return new MapboxStrategy(container, options, accessToken, languageCode)
       case MapEngine.MAPLIBRE: {
-        // Resolve tile server URL and key from Barrelman integration config.
-        // Parse through the zod schema to apply defaults (e.g. host defaults
-        // to http://localhost:5001 when the integration is configured but
-        // the host field was never explicitly set).
-        const barrelmanRawConfig =
-          integrationsStore.getIntegrationConfig(IntegrationId.BARRELMAN) ?? {}
-        const barrelmanConfig = configSchemas.barrelmanSchema.safeParse(barrelmanRawConfig)
-        const barrelmanHost = barrelmanConfig.success
-          ? (barrelmanConfig.data as { host?: string }).host
-          : 'http://localhost:5001'
-        const tileKey = barrelmanConfig.success
-          ? (barrelmanConfig.data as { tileKey?: string }).tileKey
-          : undefined
+        // Route tile requests through the Parchment server's proxy to avoid
+        // CORS issues with the Barrelman tile server.  The proxy handles
+        // auth (appends tileKey server-side) and caching headers.
+        const proxyBaseUrl = `${api.defaults.baseURL}/proxy/barrelman`
         return new MaplibreStrategy(
           container,
           options,
           accessToken,
-          barrelmanHost,
-          tileKey,
+          proxyBaseUrl,
         )
       }
     }
@@ -169,10 +163,34 @@ function mapService() {
     }
   }
 
+  const canUseMapboxEngine = computed(() =>
+    authService.hasPermission(PermissionId.PREMIUM_LAYERS),
+  )
+
+  /**
+   * Resolve the effective engine, falling back to MapLibre when the user
+   * does not have premium access to Mapbox.
+   */
+  function resolveEngine(requested: MapEngine): MapEngine {
+    if (requested === MapEngine.MAPBOX && !canUseMapboxEngine.value) {
+      return MapEngine.MAPLIBRE
+    }
+    return requested
+  }
+
+  // Auto-switch engine when premium status changes
+  watch(canUseMapboxEngine, (canUse) => {
+    if (canUse && mapStore.settings.engine === MapEngine.MAPLIBRE) {
+      setMapEngine(MapEngine.MAPBOX)
+    } else if (!canUse && mapStore.settings.engine === MapEngine.MAPBOX) {
+      setMapEngine(MapEngine.MAPLIBRE)
+    }
+  })
+
   function canInitializeMapEngine(mapEngine: MapEngine): boolean {
     switch (mapEngine) {
       case MapEngine.MAPBOX:
-        return integrationsStore.isMapboxEngineActive
+        return integrationsStore.isMapboxEngineActive && canUseMapboxEngine.value
       case MapEngine.MAPLIBRE:
         return true // MapLibre always works
       default:
@@ -183,23 +201,29 @@ function mapService() {
   function initializeMap(container: HTMLElement, mapEngine: MapEngine) {
     mapContainer = container as HTMLElement
 
+    // Fall back to MapLibre if user doesn't have premium access to Mapbox
+    const effectiveEngine = resolveEngine(mapEngine)
+    if (effectiveEngine !== mapEngine) {
+      mapStore.settings.engine = effectiveEngine
+    }
+
     // Check if we can initialize this map engine
-    if (!canInitializeMapEngine(mapEngine)) {
+    if (!canInitializeMapEngine(effectiveEngine)) {
       console.warn(
-        `Cannot initialize ${mapEngine}: missing credentials or unsupported engine`,
+        `Cannot initialize ${effectiveEngine}: missing credentials or unsupported engine`,
       )
       return null
     }
 
     // Get credentials for the map engine
-    const accessToken = getMapEngineCredentials(mapEngine)
+    const accessToken = getMapEngineCredentials(effectiveEngine)
 
     // Get current language for initialization
     const currentLanguage = storedLocale.value
 
     mapStrategy = getMapStrategy(
       container,
-      mapEngine,
+      effectiveEngine,
       accessToken,
       currentLanguage,
     )
@@ -729,6 +753,12 @@ function mapService() {
   }
 
   function setMapEngine(mapEngine: MapEngine) {
+    // User explicitly selecting Mapbox without premium → redirect to account billing
+    if (mapEngine === MapEngine.MAPBOX && !canUseMapboxEngine.value) {
+      router.push({ name: AppRoute.ACCOUNT, hash: '#plan' })
+      return
+    }
+
     destroy()
     isMapReady.value = false // Reset map ready state
     queuedTrips.value = null // Clear any queued trips
@@ -1256,9 +1286,40 @@ function mapService() {
       return mapStrategy
     },
 
-    // Get current map bounds
+    // Get current map bounds (full viewport)
     getBounds() {
       return mapStrategy?.getBounds() || null
+    },
+
+    /**
+     * Get the geographic bounds of the visible (unobstructed) map area.
+     * Uses appStore.visibleMapArea to account for left sheet, bottom sheet,
+     * and other obstructing components, then unprojects the corners to
+     * geographic coordinates. Falls back to full viewport bounds.
+     */
+    getVisibleBounds(): MapBounds | null {
+      const map = mapStrategy?.mapInstance
+      if (!map?.unproject) return mapStrategy?.getBounds() || null
+
+      const visibleArea = appStore.visibleMapArea
+      if (!visibleArea || !visibleArea.width || !visibleArea.height) {
+        return mapStrategy?.getBounds() || null
+      }
+
+      // Unproject the four corners of the visible area rect (pixel → lng/lat)
+      const nw = map.unproject([visibleArea.x, visibleArea.y])
+      const ne = map.unproject([visibleArea.x + visibleArea.width, visibleArea.y])
+      const sw = map.unproject([visibleArea.x, visibleArea.y + visibleArea.height])
+      const se = map.unproject([visibleArea.x + visibleArea.width, visibleArea.y + visibleArea.height])
+
+      if (!nw || !ne || !sw || !se) return mapStrategy?.getBounds() || null
+
+      return {
+        north: Math.max(nw.lat, ne.lat, sw.lat, se.lat),
+        south: Math.min(nw.lat, ne.lat, sw.lat, se.lat),
+        east: Math.max(nw.lng, ne.lng, sw.lng, se.lng),
+        west: Math.min(nw.lng, ne.lng, sw.lng, se.lng),
+      }
     },
 
     // Get current map center
@@ -1290,6 +1351,8 @@ function mapService() {
     highlightInstructionPoint: markerLayersService.highlightInstructionPoint,
     clearHighlightedInstructionPoint:
       markerLayersService.clearHighlightedInstructionPoint,
+
+    canUseMapboxEngine,
   }
 }
 

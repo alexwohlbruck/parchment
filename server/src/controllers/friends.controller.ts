@@ -1,5 +1,6 @@
 import Elysia, { t } from 'elysia'
-import { requireAuth } from '../middleware/auth.middleware'
+import { permissions } from '../middleware/auth.middleware'
+import { PermissionId } from '../types/auth.types'
 import {
   sendFriendInvitation,
   acceptFriendInvitation,
@@ -18,7 +19,7 @@ const app = new Elysia({ prefix: '/friends' })
 /**
  * Get all friends
  */
-app.use(requireAuth).get(
+app.use(permissions(PermissionId.SOCIAL_READ)).get(
   '/',
   async ({ user }) => {
     const friends = await getFriends(user.id)
@@ -35,7 +36,7 @@ app.use(requireAuth).get(
 /**
  * Get pending invitations
  */
-app.use(requireAuth).get(
+app.use(permissions(PermissionId.SOCIAL_READ)).get(
   '/invitations',
   async ({ user, query }) => {
     const direction = query.direction as 'incoming' | 'outgoing' | undefined
@@ -58,7 +59,7 @@ app.use(requireAuth).get(
 /**
  * Send a friend invitation
  */
-app.use(requireAuth).post(
+app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
   '/invite',
   async ({ user, body, status, t }) => {
     const { handle, signature } = body
@@ -93,7 +94,7 @@ app.use(requireAuth).post(
 /**
  * Accept a friend invitation
  */
-app.use(requireAuth).post(
+app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
   '/invitations/:id/accept',
   async ({ user, params: { id }, body, status, t }) => {
     const result = await acceptFriendInvitation(user.id, id, body.signature)
@@ -123,7 +124,7 @@ app.use(requireAuth).post(
 /**
  * Reject a friend invitation
  */
-app.use(requireAuth).post(
+app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
   '/invitations/:id/reject',
   async ({ user, params: { id }, body, status, t }) => {
     const result = await rejectFriendInvitation(user.id, id, body?.signature)
@@ -155,7 +156,7 @@ app.use(requireAuth).post(
 /**
  * Cancel an outgoing invitation
  */
-app.use(requireAuth).delete(
+app.use(permissions(PermissionId.SOCIAL_WRITE)).delete(
   '/invitations/:id',
   async ({ user, params: { id }, status, t }) => {
     const result = await cancelFriendInvitation(user.id, id)
@@ -182,7 +183,7 @@ app.use(requireAuth).delete(
 /**
  * Remove a friend
  */
-app.use(requireAuth).delete(
+app.use(permissions(PermissionId.SOCIAL_WRITE)).delete(
   '/:handle',
   async ({ user, params: { handle }, query, status }) => {
     const decodedHandle = decodeURIComponent(handle)
@@ -212,7 +213,7 @@ app.use(requireAuth).delete(
 /**
  * Resolve a handle to user info
  */
-app.use(requireAuth).get(
+app.use(permissions(PermissionId.SOCIAL_READ)).get(
   '/resolve/:handle',
   async ({ params: { handle }, status, t }) => {
     const decodedHandle = decodeURIComponent(handle)
@@ -244,7 +245,7 @@ app.use(requireAuth).get(
  * Sync friend keys and profile - refresh public keys and profile info from the server
  * This fixes key drift issues when keys are regenerated and keeps profile info up to date
  */
-app.use(requireAuth).post(
+app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
   '/sync-keys',
   async ({ user }) => {
     const results = await syncFriendKeys(user.id)

@@ -87,7 +87,11 @@ export const getSession = (app: Elysia) =>
     },
   )
 
-// Use getSession to get user ID, return 401 if user is not authenticated
+export const optionalAuth = (app: Elysia) =>
+  app.use(getSession).derive(async ({ user, session }) => {
+    return { user, session }
+  })
+
 export const requireAuth = (app: Elysia) =>
   app.use(getSession).derive(async ({ user, session, status, t }) => {
     if (!user || !session) {

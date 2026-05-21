@@ -10,9 +10,11 @@
 import { SQL, eq, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from '../schema/users.schema'
+import { usersToRoles } from '../schema/users-roles.schema'
 import { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { buildHandle } from './federation.service'
 import { emit } from './realtime/emit'
+import { generateId } from '../util'
 
 function lower(email: AnyPgColumn): SQL {
   return sql`lower(${email})`
@@ -167,4 +169,20 @@ export async function getLocalUserIdByAlias(
     .limit(1)
 
   return user?.id || null
+}
+
+// ============================================================================
+// Open Registration
+// ============================================================================
+
+export async function createOpenRegistrationUser(email: string) {
+  const id = generateId()
+  const [user] = await db
+    .insert(users)
+    .values({ id, email })
+    .returning()
+
+  await db.insert(usersToRoles).values({ userId: id, roleId: 'user' })
+
+  return user
 }

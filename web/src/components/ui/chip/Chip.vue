@@ -193,7 +193,7 @@ function getDropdownItemComponent(): Component {
     v-else-if="variant === 'toggle'"
     variant="outline"
     :size="size"
-    :class="cn(chipClasses, 'whitespace-nowrap')"
+    :class="cn(chipClasses, 'whitespace-nowrap data-[state=on]:bg-primary-100 data-[state=on]:text-primary-800 data-[state=on]:border-primary-300 dark:data-[state=on]:bg-primary-800 dark:data-[state=on]:text-primary-200 dark:data-[state=on]:border-primary-600 data-[state=on]:shadow-xs')"
     :disabled="disabled"
     :pressed="isPressed"
     @click="handleClick"

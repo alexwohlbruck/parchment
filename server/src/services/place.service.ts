@@ -900,11 +900,16 @@ async function enrichPlaceWithTransitData(place: Place): Promise<Place> {
       try {
         console.debug(`🌐 [Transit] Querying departures for onestop ID: ${onestopId}`)
         console.debug(`  - API: GET https://transit.land/api/v2/rest/stops/${onestopId}/departures`)
-        console.debug(`  - Parameters: next=3600 (1 hour), limit=20`)
-        
+        console.debug(`  - Parameters: window = now-3h .. now+24h, limit=150`)
+
+        const now = Date.now()
         const departures = await transitlandIntegration.getDepartures(onestopId, {
-          next: 3600, // Next hour
-          limit: 20
+          // Window = past 3h + next 24h. Past lets the user see "did I just
+          // miss it?" / schedule cadence; future covers sparse services
+          // (Amtrak, regional rail, ferries) without needing real-time data.
+          startTime: new Date(now - 3 * 3600_000).toISOString(),
+          endTime: new Date(now + 24 * 3600_000).toISOString(),
+          limit: 150,
         })
         
         if (departures && departures.length > 0) {
@@ -973,13 +978,15 @@ export async function lookupEnrichedPlaceById(
   options?: {
     userId?: User['id']
     language?: Language
+    /** When true, enrich with third-party data providers (Google Places, etc.) */
+    premiumData?: boolean
   },
 ): Promise<Place | null> {
   const startTime = Date.now()
   console.log(`⏱️ [PERF] Starting enriched place lookup: source=${source}, id=${id}`)
-  
+
   try {
-    const { userId, language = 'en' } = options || {}
+    const { userId, language = 'en', premiumData = false } = options || {}
 
     // Step 1: Get base place data
     const step1Start = Date.now()
@@ -992,10 +999,10 @@ export async function lookupEnrichedPlaceById(
       return null
     }
 
-    // Step 2: Look up from other sources and merge
+    // Step 2: Look up from other sources and merge (premium only)
     // Skip third-party search for transit stops to avoid overriding authoritative transit data
-    const skipThirdPartySearch = isPlaceTransitStop(place) && source === SOURCE.TRANSITLAND
-    
+    const skipThirdPartySearch = !premiumData || (isPlaceTransitStop(place) && source === SOURCE.TRANSITLAND)
+
     if (place.name?.value && place.geometry.value.center && !skipThirdPartySearch) {
       const step2Start = Date.now()
       const { lat, lng } = place.geometry.value.center
@@ -1035,16 +1042,25 @@ export async function lookupEnrichedPlaceById(
     const enrichmentTime = Date.now() - enrichmentStart
     console.log(`⏱️ [PERF] Step 3-4 - Parallel enrichment (Wiki + Address): ${enrichmentTime}ms`)
 
-    // Step 5: Resolve nearby categories first, then widget descriptors
+    // Step 5: Resolve timezone from coordinates
+    if (place.geometry?.value?.center) {
+      const { getTimezone } = await import('../lib/timezone')
+      place.timezone = getTimezone(
+        place.geometry.value.center.lat,
+        place.geometry.value.center.lng,
+      ) ?? undefined
+    }
+
+    // Step 6: Resolve nearby categories first, then widget descriptors
     // (widget descriptors depend on nearbyCategories being populated)
     const { resolveWidgetDescriptors } = await import('./widget.service')
     const { resolveNearbyCategories } = await import('../lib/nearby-categories')
     place.nearbyCategories = resolveNearbyCategories(place)
     place.widgets = resolveWidgetDescriptors(place)
 
-    // Step 6: Add bookmark information if user ID is provided
+    // Step 7: Add bookmark information if user ID is provided
     if (userId && place) {
-      const step6Start = Date.now()
+      const step7Start = Date.now()
       const bookmarkInfo = await findBookmarkByExternalIds(
         place.externalIds,
         userId,
@@ -1053,8 +1069,8 @@ export async function lookupEnrichedPlaceById(
         place.bookmark = bookmarkInfo.bookmark
         place.collectionIds = bookmarkInfo.collectionIds
       }
-      const step6Time = Date.now() - step6Start
-      console.log(`⏱️ [PERF] Step 6 - Bookmark info: ${step6Time}ms`)
+      const step7Time = Date.now() - step7Start
+      console.log(`⏱️ [PERF] Step 7 - Bookmark info: ${step7Time}ms`)
     }
 
     const totalTime = Date.now() - startTime
@@ -1085,13 +1101,15 @@ export async function lookupEnrichedPlaceByCoordinates(
     userId?: User['id']
     radius?: number
     language?: Language
+    addressOnly?: boolean
+    premiumData?: boolean
   },
 ): Promise<Place | null> {
   const startTime = Date.now()
   console.log(`⏱️ [PERF] Starting coordinate-based place lookup: lat=${lat}, lng=${lng}`)
-  
+
   try {
-    const { userId, radius = 50, language = 'en' } = options || {}
+    const { userId, radius = 50, language = 'en', addressOnly = false, premiumData = false } = options || {}
 
     // Step 1: Reverse geocode to find place at coordinates
     const geocodingIntegrations = integrationManager.getConfiguredIntegrationsByCapability(
@@ -1121,17 +1139,61 @@ export async function lookupEnrichedPlaceByCoordinates(
     }
     
     let place = results[0]
-    
+
+    // addressOnly mode: skip full enrichment, return coordinates as the title
+    // with geocoded address for supplemental info (used by /place/coords/:lat/:lng)
+    if (addressOnly) {
+      place.geometry = {
+        ...place.geometry,
+        value: {
+          type: 'point',
+          center: { lat, lng },
+        },
+      }
+      place.id = `coords/${lat}/${lng}`
+      place.externalIds = { coords: `${lat}/${lng}` }
+      place.name = { value: `${parseFloat(lat.toFixed(5))}, ${parseFloat(lng.toFixed(5))}`, sourceId: 'geocoding', timestamp: new Date().toISOString() }
+      place.description = null
+      place.placeType = { value: 'Coordinates', sourceId: 'geocoding', timestamp: new Date().toISOString() }
+      place.icon = { icon: 'Crosshair', iconPack: 'lucide' }
+      place.photos = []
+      place.contactInfo = { phone: null, email: null, website: null, socials: {} }
+      place.openingHours = null
+      place.ratings = undefined
+      place.transit = null
+      place.relations = null
+      place.amenities = {}
+      place.sources = []
+
+      const { getTimezone } = await import('../lib/timezone')
+      place.timezone = getTimezone(lat, lng) ?? undefined
+
+      const { resolveWidgetDescriptors } = await import('./widget.service')
+      place.widgets = resolveWidgetDescriptors(place)
+
+      if (userId) {
+        const bookmarkInfo = await findBookmarkByExternalIds(place.externalIds, userId)
+        if (bookmarkInfo) {
+          place.bookmark = bookmarkInfo.bookmark
+          place.collectionIds = bookmarkInfo.collectionIds
+        }
+      }
+
+      const totalTime = Date.now() - startTime
+      console.log(`⏱️ [PERF] Total coordinate lookup time (address-only): ${totalTime}ms`)
+      return place
+    }
+
     // Step 2: If we found a place with a name or ID, try to get full enriched details
     // This handles clicking near a POI - we want the full POI details, not just address
-    
+
     // First, check if we have an OSM ID - if so, use the full enrichment pipeline
     const osmId = place.externalIds?.[SOURCE.OSM]
     if (osmId) {
       console.log(`📍 Found OSM ID: ${osmId}, using full enrichment pipeline...`)
       
       const step2Start = Date.now()
-      const enrichedPlace = await lookupEnrichedPlaceById(SOURCE.OSM, osmId, { userId, language })
+      const enrichedPlace = await lookupEnrichedPlaceById(SOURCE.OSM, osmId, { userId, language, premiumData })
       const step2Time = Date.now() - step2Start
       console.log(`⏱️ [PERF] Step 2 - Full enrichment by OSM ID: ${step2Time}ms`)
       
@@ -1176,7 +1238,7 @@ export async function lookupEnrichedPlaceByCoordinates(
             
             if (extractedOsmId) {
               console.log(`📍 Extracted OSM ID from Geoapify: ${extractedOsmId}, using full OSM enrichment...`)
-              const enrichedPlace = await lookupEnrichedPlaceById(SOURCE.OSM, extractedOsmId, { userId, language })
+              const enrichedPlace = await lookupEnrichedPlaceById(SOURCE.OSM, extractedOsmId, { userId, language, premiumData })
               const step2Time = Date.now() - step2Start
               console.log(`⏱️ [PERF] Step 2 - Full enrichment via Geoapify→OSM: ${step2Time}ms`)
               

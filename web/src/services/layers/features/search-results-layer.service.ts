@@ -51,7 +51,7 @@ export function useSearchResultsLayerService() {
 
     // Get current search results to restore data after style change
     const searchStore = useSearchStore()
-    const currentResults = searchStore.searchResults
+    const currentResults = searchStore.filteredSearchResults
     const currentGeoJSON =
       currentResults.length > 0
         ? createResultsGeoJSON(currentResults)
@@ -101,7 +101,7 @@ export function useSearchResultsLayerService() {
     const searchStore = useSearchStore()
 
     watch(
-      () => searchStore.searchResults,
+      () => searchStore.filteredSearchResults,
       newResults => {
         updateSearchResultsData(
           mapStrategy,
@@ -117,7 +117,7 @@ export function useSearchResultsLayerService() {
       newHoveredId => {
         updateSearchResultsHoverState(
           mapStrategy,
-          searchStore.searchResults,
+          searchStore.filteredSearchResults,
           newHoveredId,
         )
       },

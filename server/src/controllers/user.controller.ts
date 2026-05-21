@@ -41,142 +41,158 @@ import { detectLanguage, getI18nInitOptions } from '../lib/i18n'
 
 const app = new Elysia({ prefix: '/users' })
 
-// TODO: Make permission names type safe
-app.use(permissions(PermissionId.USERS_READ)).get(
-  '/',
-  async () => {
-    const usersResult = await db
-      .select({
-        id: users.id,
-        email: users.email,
-        firstName: users.firstName,
-        lastName: users.lastName,
-        alias: users.alias,
-        picture: users.picture,
-        roles: sql`json_agg(json_build_object(
-            'id', ${roles.id},
-            'name', ${roles.name}
-          ))`.as('roles'),
-      })
-      .from(users)
-      .leftJoin(usersToRoles, eq(usersToRoles.userId, users.id))
-      .leftJoin(roles, eq(usersToRoles.roleId, roles.id))
-      .groupBy(users.id)
+// Admin routes — scoped inside a group so the permissions() middleware
+// does not leak into the /me/* routes below.
+app.group('', (admin) =>
+  admin
+    .use(permissions(PermissionId.USERS_READ))
+    .get(
+      '/',
+      async () => {
+        const usersResult = await db
+          .select({
+            id: users.id,
+            email: users.email,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            alias: users.alias,
+            picture: users.picture,
+            roles: sql`json_agg(json_build_object(
+                'id', ${roles.id},
+                'name', ${roles.name}
+              ))`.as('roles'),
+          })
+          .from(users)
+          .leftJoin(usersToRoles, eq(usersToRoles.userId, users.id))
+          .leftJoin(roles, eq(usersToRoles.roleId, roles.id))
+          .groupBy(users.id)
 
-    const sessionCounts = await db
-      .select({
-        userId: sessions.userId,
-        sessionCount: sql`COUNT(*) AS session_count`,
-      })
-      .from(sessions)
-      .groupBy(sessions.userId)
+        const sessionCounts = await db
+          .select({
+            userId: sessions.userId,
+            sessionCount: sql`COUNT(*) AS session_count`,
+          })
+          .from(sessions)
+          .groupBy(sessions.userId)
 
-    const usersWithSessionCounts = usersResult.map((user) => {
-      const sessionCountResult = sessionCounts.find(
-        (sessionCount) => sessionCount.userId === user.id,
-      )
-      const sessionCount = sessionCountResult
-        ? +(sessionCountResult as { sessionCount: string | number })
-            .sessionCount
-        : 0
-      return { ...user, sessionCount }
-    })
+        const usersWithSessionCounts = usersResult.map((user) => {
+          const sessionCountResult = sessionCounts.find(
+            (sessionCount) => sessionCount.userId === user.id,
+          )
+          const sessionCount = sessionCountResult
+            ? +(sessionCountResult as { sessionCount: string | number })
+                .sessionCount
+            : 0
+          return { ...user, sessionCount }
+        })
 
-    return usersWithSessionCounts
-  },
-  {
-    detail: {
-      tags: ['Users'],
-    },
-  },
+        return usersWithSessionCounts
+      },
+      {
+        detail: {
+          tags: ['Users'],
+        },
+      },
+    ),
 )
 
-app.use(permissions(PermissionId.USERS_CREATE)).post(
-  '/',
-  async ({ body }) => {
-    // TODO: Require new permission to add users with elevated privileges
+app.group('', (admin) =>
+  admin
+    .use(permissions(PermissionId.USERS_CREATE))
+    .post(
+      '/',
+      async ({ body }) => {
+        const result = await db
+          .insert(users)
+          .values({
+            id: generateId(),
+            firstName: body.firstName,
+            lastName: body.lastName,
+            email: body.email,
+            picture: body.picture,
+          })
+          .returning()
 
-    const result = await db
-      .insert(users)
-      .values({
-        id: generateId(),
-        firstName: body.firstName,
-        lastName: body.lastName,
-        email: body.email,
-        picture: body.picture,
-      })
-      .returning()
+        const newUser = result[0]
 
-    const newUser = result[0]
+        await db.insert(usersToRoles).values({
+          userId: newUser.id,
+          roleId: body.role || 'user',
+        })
 
-    await db.insert(usersToRoles).values({
-      userId: newUser.id,
-      roleId: body.role || 'user',
-    })
+        await createInitialCollection(newUser.id)
 
-    // Seed the library with a single starter collection. Metadata is
-    // E2EE, so the envelope stays null until the user's client signs in
-    // and writes an initial name/icon under its own key.
-    await createInitialCollection(newUser.id)
+        const roles = await getRoles(newUser.id)
 
-    const roles = await getRoles(newUser.id)
+        await sendMail({
+          to: newUser.email,
+          from: 'onboarding',
+          subject: 'You are invited to Parchment Maps',
+          template: 'invitation',
+        })
 
-    await sendMail({
-      to: newUser.email,
-      from: 'onboarding',
-      subject: 'You are invited to Parchment Maps',
-      template: 'invitation',
-    })
-
-    return {
-      ...newUser,
-      roles,
-    }
-  },
-  {
-    body: t.Object({
-      firstName: t.String(),
-      lastName: t.String(),
-      email: t.String({
-        format: 'email',
-      }),
-      picture: t.Optional(t.String()),
-      role: t.Optional(
-        t.Union([t.Literal('user'), t.Literal('alpha'), t.Literal('admin')]),
-      ),
-    }),
-    detail: {
-      tags: ['Users'],
-      summary: 'Create a new user',
-    },
-  },
+        return {
+          ...newUser,
+          roles,
+        }
+      },
+      {
+        body: t.Object({
+          firstName: t.String(),
+          lastName: t.String(),
+          email: t.String({
+            format: 'email',
+          }),
+          picture: t.Optional(t.String()),
+          role: t.Optional(
+            t.Union([
+              t.Literal('user'),
+              t.Literal('alpha'),
+              t.Literal('admin'),
+            ]),
+          ),
+        }),
+        detail: {
+          tags: ['Users'],
+          summary: 'Create a new user',
+        },
+      },
+    ),
 )
 
-app.use(permissions(PermissionId.ROLES_READ)).get(
-  '/roles',
-  async (_context) => {
-    const result = await db.select().from(roles)
-    return result
-  },
-  {
-    detail: {
-      tags: ['Users'],
-    },
-  },
+app.group('', (admin) =>
+  admin
+    .use(permissions(PermissionId.ROLES_READ))
+    .get(
+      '/roles',
+      async (_context) => {
+        const result = await db.select().from(roles)
+        return result
+      },
+      {
+        detail: {
+          tags: ['Users'],
+        },
+      },
+    ),
 )
 
-app.use(permissions(PermissionId.PERMISSIONS_READ)).get(
-  '/permissions',
-  async (_context) => {
-    const result = await db.select().from(permissionsSchema)
-    return result
-  },
-  {
-    detail: {
-      tags: ['Users'],
-      summary: 'Get all permissions',
-    },
-  },
+app.group('', (admin) =>
+  admin
+    .use(permissions(PermissionId.PERMISSIONS_READ))
+    .get(
+      '/permissions',
+      async (_context) => {
+        const result = await db.select().from(permissionsSchema)
+        return result
+      },
+      {
+        detail: {
+          tags: ['Users'],
+          summary: 'Get all permissions',
+        },
+      },
+    ),
 )
 
 /**

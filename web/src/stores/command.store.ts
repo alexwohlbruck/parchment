@@ -25,6 +25,7 @@ import { useMapService } from '@/services/map.service'
 
 import { useI18n } from 'vue-i18n'
 import { useAuthService } from '@/services/auth.service'
+import { PermissionId } from '@/types/auth.types'
 import { MapEngine, MapProjection } from '@/types/map.types'
 import { useSearchService } from '@/services/search.service'
 import { useCommandService } from '@/services/command.service'
@@ -59,6 +60,7 @@ export const useCommandStore = defineStore('command', () => {
   const { setAccentColor, setRadius } = useThemeStore()
   const authService = useAuthService()
   const mapService = useMapService()
+
   const { t, locale } = useI18n()
   const placeSearchService = useSearchService()
 
@@ -191,14 +193,16 @@ export const useCommandStore = defineStore('command', () => {
                     iconName: result.icon || 'MapPin',
                     iconPack: result.iconPack || 'lucide',
                     iconColor: getCategoryColor(iconCategory, isDark.value),
+                    group: result.type === 'category' ? 'categories' : 'places',
                   }
                 })
 
                 return [
                   {
                     value: 'search-more-results',
-                    name: `Search "${searchText}"`,
+                    name: searchText,
                     icon: SearchIcon,
+                    group: 'fullSearch',
                   },
                   ...results,
                 ]
@@ -305,15 +309,17 @@ export const useCommandStore = defineStore('command', () => {
             name: t('palette.commands.chooseMapEngine.arguments.engine.name'),
             type: 'string',
             getItems() {
+              const canUseMapbox = authService.hasPermission(PermissionId.PREMIUM_LAYERS)
               return [
                 {
-                  value: 'mapbox',
+                  value: 'mapbox' as const,
                   name: t(
                     'palette.commands.chooseMapEngine.arguments.engine.values.mapbox.name',
                   ),
                   description: t(
                     'palette.commands.chooseMapEngine.arguments.engine.values.mapbox.description',
                   ),
+                  premium: !canUseMapbox,
                 },
                 {
                   value: 'maplibre',

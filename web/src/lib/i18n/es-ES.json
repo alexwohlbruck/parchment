@@ -88,6 +88,11 @@
           "places": {
             "name": "Lugares"
           }
+        },
+        "groups": {
+          "fullSearch": "Buscar",
+          "categories": "Categorías",
+          "places": "Lugares"
         }
       },
       "goto": {
@@ -199,6 +204,7 @@
   },
   "map": {
     "title": "Mapa",
+    "searchThisArea": "Buscar en esta zona",
     "contextMenu": {
       "edit": "Editar mapa",
       "viewIn": "Ver en",
@@ -1091,6 +1097,62 @@
         "signOutOthersFailed": "No se pudo cerrar sesión en otros dispositivos."
       }
     },
+    "billing": {
+      "title": "Facturación",
+      "canceling": "Cancelando",
+      "renews": "Se renueva el {date}",
+      "endsOn": "Tu suscripción terminará el {date}. Mantendrás el acceso hasta entonces.",
+      "manageSubscription": "Administrar suscripción",
+      "upgradeToBasic": "Mejorar a Básico",
+      "upgradeToPremium": "Mejorar a Premium",
+      "current": "Actual",
+      "plan": {
+        "free": "Gratis",
+        "freeDescription": "Explorar y buscar en el mapa",
+        "basic": "Básico",
+        "basicDescription": "Guardar lugares, compartir con amigos",
+        "premium": "Premium",
+        "premiumDescription": "Todo, más funciones avanzadas",
+        "everythingInFree": "Todo lo de Gratis",
+        "everythingInBasic": "Todo lo de Básico"
+      },
+      "features": {
+        "basicMapLayers": "Capas de mapa básicas",
+        "placeSearch": "Búsqueda y detalles de lugares",
+        "directions": "Direcciones y rutas",
+        "bookmarks": "Marcadores y lugares guardados",
+        "collections": "Colecciones",
+        "friends": "Amigos",
+        "locationSharing": "Ubicación en tiempo real",
+        "mapNotes": "Notas en el mapa",
+        "customLayers": "Capas de mapa personalizadas",
+        "integrations": "Integraciones",
+        "businessData": "Datos comerciales mejorados",
+        "mapboxEngine": "Motor de mapa Mapbox",
+        "searchAutoRefresh": "Actualización automática de búsqueda",
+        "advancedLayers": "Capas de mapa avanzadas",
+        "customMaps": "Configuraciones de mapa personalizadas",
+        "routingPreferences": "Preferencias de ruta avanzadas",
+        "weatherVisualizations": "Visualizaciones meteorológicas"
+      },
+      "trial": {
+        "monthFree": "1 mes de prueba gratis",
+        "monthsFree": "{count} meses de prueba gratis",
+        "weekFree": "1 semana de prueba gratis",
+        "weeksFree": "{count} semanas de prueba gratis",
+        "dayFree": "1 día de prueba gratis",
+        "daysFree": "{count} días de prueba gratis"
+      },
+      "perMonth": "/mes",
+      "perYear": "/año",
+      "checkout": {
+        "welcomeTier": "¡Bienvenido a {tier}!",
+        "welcomePremium": "¡Bienvenido a Premium!",
+        "subscriptionActive": "Tu suscripción ya está activa.",
+        "processing": "Procesando tu suscripción...",
+        "processingDescription": "Puede tardar un momento en activarse. Actualiza para verificar."
+      }
+    },
     "behavior": {
       "title": "Comportamiento",
       "language": {
@@ -1478,6 +1540,12 @@
       "restoringDescription": "Toca tu clave de acceso una vez más para desbloquear tus datos cifrados.",
       "restoredSuccess": "Tus datos están listos.",
       "restoreFailed": "No se pudieron restaurar tus datos — inténtalo de nuevo desde Configuración → Claves de cifrado."
+    }
+  },
+  "subscription": {
+    "upgradeBanner": {
+      "title": "Mejorar a {tier}",
+      "description": "Esta función requiere una suscripción {tier}."
     }
   }
 }

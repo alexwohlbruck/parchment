@@ -22,7 +22,11 @@ import {
   sendEmailVerificationCode,
   getPermissions,
 } from '../services/auth.service'
-import { fetchUser, fetchUserByEmail } from '../services/user.service'
+import {
+  fetchUser,
+  fetchUserByEmail,
+  createOpenRegistrationUser,
+} from '../services/user.service'
 import {
   createServerToken,
   validateServerToken,
@@ -37,6 +41,8 @@ import {
   RegistrationResponseJSON,
 } from '@simplewebauthn/server/script/deps'
 import { generateId } from '../util'
+import { billing, registrationMode } from '../config'
+import { getSubscriptionStatus } from '../services/subscription.service'
 import { detectLanguage, getI18nInitOptions } from '../lib/i18n'
 import { makeUserRateLimit } from '../middleware/rate-limit.middleware'
 import { passkeyNameFromAAGUID } from '../lib/passkey-aaguid'
@@ -65,10 +71,10 @@ app.post(
     let user = await fetchUserByEmail(email)
 
     if (!user) {
-      // Invite-only today. Open-signup flow (auto-create user + seed default
-      // layers) will replace this branch when we're ready to accept new
-      // signups without an explicit invite.
-      return status(404, { message: t('errors.notFound.user') })
+      if (registrationMode === 'invite') {
+        return status(404, { message: t('errors.notFound.user') })
+      }
+      user = await createOpenRegistrationUser(email)
     }
 
     const isAppTester = user.email === process.env.APP_TESTER_EMAIL
@@ -531,9 +537,14 @@ app.group('/sessions', (app) => {
       const sessionId = getSessionId(request)
       const me = (await db.select().from(users).where(eq(users.id, user.id)))[0]
 
+      const subscription = billing.enabled
+        ? await getSubscriptionStatus(user.id)
+        : { isPremium: true, isBasic: false, hasSubscription: false, tier: 'premium' as const }
+
       return {
         user: me,
         token: sessionId,
+        subscription,
       }
     },
     {
@@ -546,8 +557,13 @@ app.group('/sessions', (app) => {
   app.use(requireAuth).get(
     'current/permissions',
     async ({ user }) => {
-      const permissions = await getPermissions(user.id)
-      return { permissions }
+      const [permissions, subscription] = await Promise.all([
+        getPermissions(user.id),
+        billing.enabled
+          ? getSubscriptionStatus(user.id)
+          : { isPremium: true, isBasic: false, hasSubscription: false, tier: 'premium' as const },
+      ])
+      return { permissions, subscription }
     },
     {
       detail: {

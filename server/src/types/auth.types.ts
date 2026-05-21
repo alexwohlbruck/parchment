@@ -14,6 +14,19 @@ export enum PermissionId {
   LAYERS_WRITE = 'layers:write',
   LAYERS_DELETE = 'layers:delete',
   SEARCH_AUTO_REFRESH = 'search:auto_refresh',
+  PREMIUM_DATA_PROVIDERS = 'premium:data_providers',
+  PREMIUM_LAYERS = 'premium:layers',
+  PREMIUM_CUSTOM_MAPS = 'premium:custom_maps',
+  PREMIUM_NAVIGATION = 'premium:navigation',
+  PREMIUM_LOCATION_SHARING = 'premium:location_sharing',
+  LIBRARY_READ = 'library:read',
+  LIBRARY_WRITE = 'library:write',
+  SOCIAL_READ = 'social:read',
+  SOCIAL_WRITE = 'social:write',
+  SHARING_READ = 'sharing:read',
+  SHARING_WRITE = 'sharing:write',
+  LOCATION_SHARING = 'location:sharing',
+  NOTES_WRITE = 'notes:write',
 }
 
 export type PermissionRule =

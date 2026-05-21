@@ -1,6 +1,6 @@
 {
   "name": "parchment",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "scripts": {
     "dev": "bun src/index.ts --watch",
     "build": "bun build ./src/index.ts ./src/migrate.ts ./src/seed/seed.ts --outdir ./dist --target bun",
@@ -32,6 +32,7 @@
     "@opentelemetry/sdk-logs": "^0.213.0",
     "@opentelemetry/sdk-node": "^0.213.0",
     "@opentelemetry/semantic-conventions": "^1.40.0",
+    "@polar-sh/sdk": "^0.47.1",
     "@simplewebauthn/browser": "^10.0.0",
     "@simplewebauthn/server": "^10.0.0",
     "@simplewebauthn/types": "^10.0.0",
@@ -45,6 +46,7 @@
     "elysia": "^1.4.22",
     "elysia-i18next": "^4.0.3",
     "fuzzball": "^2.2.2",
+    "geo-tz": "^8.1.7",
     "geojson": "^0.5.0",
     "i18next": "^25.3.6",
     "lodash": "^4.17.21",

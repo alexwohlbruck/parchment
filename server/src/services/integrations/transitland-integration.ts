@@ -12,6 +12,44 @@ import { SOURCE } from '../../lib/constants'
 
 const TRANSITLAND_API_BASE_URL = 'https://transit.land/api/v2/rest'
 
+/**
+ * A raw Transitland departure paired with the contextual fields needed to
+ * compute an absolute timestamp (service_date + stop timezone). Threaded
+ * through `transformDepartures` instead of being hung off the raw object
+ * with sentinel underscore-prefixed properties.
+ */
+interface DepartureWithContext {
+  raw: any
+  serviceDate?: string
+  timezone?: string
+}
+
+/**
+ * Per-timezone formatter cache. `Intl.DateTimeFormat` construction is the
+ * dominant cost in `toAbsoluteIso`, called once per departure (~hundreds
+ * per place request). Keying by IANA zone gives us a single allocation
+ * per zone for the lifetime of the process.
+ */
+const formatterCache = new Map<string, Intl.DateTimeFormat>()
+
+function getTzFormatter(timezone: string): Intl.DateTimeFormat {
+  let f = formatterCache.get(timezone)
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    })
+    formatterCache.set(timezone, f)
+  }
+  return f
+}
+
 export interface TransitlandConfig extends IntegrationConfig {
   apiKey: string
 }
@@ -155,24 +193,30 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
       const data = await response.json()
       if (!data.stops?.length) return []
       
-      // Collect departures from all stops and child stops
-      const allDepartures: any[] = []
-      
-      for (const stop of data.stops) {
-        if (stop.departures?.length) {
-          allDepartures.push(...stop.departures)
-        }
-        
-        if (stop.children?.length) {
-          for (const child of stop.children) {
-            if (child.departures?.length) {
-              allDepartures.push(...child.departures)
-            }
-          }
+      // Collect departures and stitch each one to its parent stop's
+      // service_date + timezone. Transitland returns these on the stop, not
+      // on the departure itself, but they're required to disambiguate
+      // HH:mm:ss times across midnight (today vs tomorrow vs late-night
+      // GTFS service hours like 25:30).
+      const collected: DepartureWithContext[] = []
+
+      const collectFrom = (stop: any) => {
+        if (!stop?.departures?.length) return
+        const serviceDate: string | undefined = stop.service_date
+        const timezone: string | undefined = stop.stop_timezone
+        for (const dep of stop.departures) {
+          collected.push({ raw: dep, serviceDate, timezone })
         }
       }
-      
-      return this.transformDepartures(allDepartures)
+
+      for (const stop of data.stops) {
+        collectFrom(stop)
+        if (stop.children?.length) {
+          for (const child of stop.children) collectFrom(child)
+        }
+      }
+
+      return this.transformDepartures(collected)
     } catch (error) {
       console.error('Error fetching departures from Transitland:', error)
       return []
@@ -196,19 +240,79 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
   }
 
   /**
+   * Combine a `YYYY-MM-DD` service date and a `HH:mm:ss` time (which may
+   * exceed 24h for late-night GTFS service) into an absolute UTC ISO
+   * timestamp, interpreting the wall-clock value in the stop's timezone.
+   *
+   * Done with raw `Intl.DateTimeFormat` math instead of dayjs so we don't
+   * have to add a runtime dep to the server. Returns undefined if any
+   * input is missing or malformed.
+   */
+  private toAbsoluteIso(
+    serviceDate?: string,
+    time?: string,
+    timezone?: string,
+  ): string | undefined {
+    if (!serviceDate || !time) return undefined
+    const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(serviceDate)
+    const timeMatch = /^(\d{1,3}):(\d{2}):(\d{2})/.exec(time)
+    if (!dateMatch || !timeMatch) return undefined
+
+    const [, ys, ms, ds] = dateMatch
+    const [, hs, mins, ss] = timeMatch
+    const y = Number(ys)
+    const mo = Number(ms) - 1
+    const d = Number(ds)
+    const hours = Number(hs)
+    const minutes = Number(mins)
+    const seconds = Number(ss)
+
+    // Wall-clock instant in UTC, then offset by the stop's TZ to get the
+    // real UTC moment that corresponds to the displayed local time.
+    const wallUtcMs = Date.UTC(y, mo, d, 0, 0, 0)
+      + hours * 3600_000 + minutes * 60_000 + seconds * 1000
+
+    if (!timezone) return new Date(wallUtcMs).toISOString()
+
+    // Compute the timezone's offset at that wall-clock instant by formatting
+    // it back through Intl and diffing. Formatter is memoized per zone — see
+    // `getTzFormatter` above.
+    try {
+      const parts = getTzFormatter(timezone).formatToParts(new Date(wallUtcMs))
+      const get = (t: string) => Number(parts.find(p => p.type === t)?.value ?? '0')
+      const tzWallMs = Date.UTC(
+        get('year'), get('month') - 1, get('day'),
+        get('hour') === 24 ? 0 : get('hour'),
+        get('minute'), get('second'),
+      )
+      const offsetMs = tzWallMs - wallUtcMs
+      return new Date(wallUtcMs - offsetMs).toISOString()
+    } catch {
+      return new Date(wallUtcMs).toISOString()
+    }
+  }
+
+  /**
    * Transform Transitland departures data to our format
    */
-  private transformDepartures(departures: any[]): TransitDeparture[] {
-    return departures.map((dep: any) => {
+  private transformDepartures(items: DepartureWithContext[]): TransitDeparture[] {
+    return items.map(({ raw: dep, serviceDate, timezone }) => {
       // Try multiple possible field names for times
       const arrivalTime = dep.arrival_time || dep.arrival?.time || dep.arrival?.estimated_time || dep.arrival?.scheduled_time
       const departureTime = dep.departure_time || dep.departure?.time || dep.departure?.estimated_time || dep.departure?.scheduled_time
       const scheduledArrival = dep.scheduled_arrival_time || dep.arrival?.scheduled_time
       const scheduledDeparture = dep.scheduled_departure_time || dep.departure?.scheduled_time
-      
+
+      const arrivalAt = this.toAbsoluteIso(serviceDate, arrivalTime, timezone)
+      const departureAt = this.toAbsoluteIso(serviceDate, departureTime, timezone)
+
       return {
         arrivalTime,
         departureTime,
+        arrivalAt,
+        departureAt,
+        serviceDate,
+        timezone,
         scheduledArrivalTime: scheduledArrival,
         scheduledDepartureTime: scheduledDeparture,
         delay: dep.delay || dep.arrival?.delay || dep.departure?.delay,

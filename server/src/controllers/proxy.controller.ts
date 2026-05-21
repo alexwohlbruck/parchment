@@ -157,8 +157,8 @@ app.get(
   },
 )
 
-// Proxy Barrelman tile requests (bicycle_ways, bicycle_routes, etc.)
-// Forwards to Barrelman's /tiles endpoint with tileKey auth
+// Proxy Martin tile requests through Barrelman integration config.
+// Martin serves vector tiles at /{source}/{z}/{x}/{y} (no /tiles/ prefix).
 app.get(
   '/barrelman/:source/:z/:x/:y',
   async ({ params }) => {
@@ -167,16 +167,14 @@ app.get(
         .getConfiguredIntegrations()
         .find((i) => i.integrationId === IntegrationId.BARRELMAN)
 
-      if (!systemIntegration || !systemIntegration.config?.host) {
-        return new Response('Barrelman not configured', { status: 501 })
-      }
-
-      const { host, tileKey } = systemIntegration.config as {
-        host: string
-        tileKey?: string
-      }
+      const martinHost =
+        (systemIntegration?.config as { martinHost?: string })?.martinHost ||
+        process.env.MARTIN_HOST ||
+        'http://localhost:5002'
+      const tileKey = (systemIntegration?.config as { tileKey?: string })
+        ?.tileKey
       const { source, z, x, y } = params
-      const tileUrl = new URL(`/tiles/${source}/${z}/${x}/${y}`, host)
+      const tileUrl = new URL(`/${source}/${z}/${x}/${y}`, martinHost)
       if (tileKey) tileUrl.searchParams.set('token', tileKey)
 
       const response = await fetch(tileUrl.toString())

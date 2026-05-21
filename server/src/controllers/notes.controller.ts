@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia'
 import axios from 'axios'
-import { requireAuth } from '../middleware/auth.middleware'
+import { permissions } from '../middleware/auth.middleware'
+import { PermissionId } from '../types/auth.types'
 import { getConfiguredIntegrations } from '../services/integration.service'
 import {
   IntegrationId,
@@ -120,7 +121,7 @@ app.get(
  * POST /notes/create — Create a new note (requires auth).
  * Uses /create path to avoid conflict with GET /.
  */
-app.use(requireAuth).post(
+app.use(permissions(PermissionId.NOTES_WRITE)).post(
   '/create',
   async ({ body, user, status }) => {
     const accessToken = await getOsmAccessToken(user.id)
@@ -164,7 +165,7 @@ app.use(requireAuth).post(
 /**
  * POST /notes/:id/comment — Add a comment to a note (requires auth).
  */
-app.use(requireAuth).post(
+app.use(permissions(PermissionId.NOTES_WRITE)).post(
   '/:id/comment',
   async ({ params, body, user, status }) => {
     const accessToken = await getOsmAccessToken(user.id)
@@ -209,7 +210,7 @@ app.use(requireAuth).post(
 /**
  * POST /notes/:id/close — Close/resolve a note (requires auth).
  */
-app.use(requireAuth).post(
+app.use(permissions(PermissionId.NOTES_WRITE)).post(
   '/:id/close',
   async ({ params, body, user, status }) => {
     const accessToken = await getOsmAccessToken(user.id)
@@ -254,7 +255,7 @@ app.use(requireAuth).post(
 /**
  * POST /notes/:id/reopen — Reopen a note (requires auth).
  */
-app.use(requireAuth).post(
+app.use(permissions(PermissionId.NOTES_WRITE)).post(
   '/:id/reopen',
   async ({ params, body, user, status }) => {
     const accessToken = await getOsmAccessToken(user.id)

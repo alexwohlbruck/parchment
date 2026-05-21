@@ -22,6 +22,7 @@ export const users = pgTable('users', {
   // the kmVersion it was written under. On rotation, a background job re-
   // encrypts all rows and bumps this counter.
   kmVersion: integer('km_version').notNull().default(1),
+  polarCustomerId: text('polar_customer_id').unique(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })

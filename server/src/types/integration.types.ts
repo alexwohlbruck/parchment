@@ -51,6 +51,12 @@ export interface ConfiguredIntegrationDto {
 
 // Capability interfaces
 
+export interface SearchFilter {
+  access?: string[]
+  fee?: 'yes' | 'no'
+  hasHours?: boolean
+}
+
 export interface SearchCapability {
   searchPlaces(
     query: string,
@@ -60,6 +66,8 @@ export interface SearchCapability {
       radius?: number
       limit?: number
       language?: import('../lib/i18n').Language
+      sort?: 'relevance' | 'distance' | 'name'
+      filter?: SearchFilter
     },
   ): Promise<Place[]>
 }
@@ -178,6 +186,8 @@ export interface SearchCategoryCapability {
       limit?: number
       /** Extra OSM tag key/value pairs to filter results beyond the primary category. */
       filterTags?: Record<string, string>
+      sort?: 'relevance' | 'distance' | 'name'
+      filter?: SearchFilter
     },
   ): Promise<Place[]>
 }

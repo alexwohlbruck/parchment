@@ -1,8 +1,7 @@
 ### Added
 
-* Live friend locations — friends on the map now move in real time instead of waiting for the next refresh, with stronger privacy and security under the hood
-* Smoother map movement — friend markers glide between updates instead of jumping, so the map feels more natural to watch
-* Easier on your battery — map animations now pause when nothing is moving and use less power overall
-* Timeline page — a new dedicated page (with map view and nav shortcut on mobile and desktop) for browsing where you’ve been
-* Recent visits on places — place pages now show a timeline of your past visits, powered by your connected Dawarich account
-* Dawarich location history support — connect Dawarich to bring your full location history into Parchment
+* Basic subscription tier — a new $1/month plan that unlocks all user content features like bookmarks, collections, friends, location sharing, map notes, custom layers, and integrations
+* Per-feature permission guards — server endpoints now enforce granular permissions so free users get a read-only experience while subscribers unlock content creation
+* Upgrade prompts — free users see a clear upgrade banner when they visit Library, Friends, or Timeline
+* 3-tier billing page — settings now shows a side-by-side comparison of Free, Basic, and Premium plans with live pricing from Polar
+* Search within visible map area — search results now respect the unobstructed map viewport instead of the full screen bounds

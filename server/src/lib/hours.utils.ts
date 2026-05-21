@@ -165,18 +165,35 @@ export function parseOsmHours(tags: Record<string, string>): OpeningHours {
  * @param hours Array of OpeningTime objects
  * @returns Object containing open status and next change time
  */
-export function isPlaceOpen(hours: OpeningTime[]): {
+export function isPlaceOpen(hours: OpeningTime[], timezone?: string): {
   isOpen: boolean
   nextChange?: string // Time string in format "HH:mm"
 } {
   if (!hours.length) return { isOpen: false }
 
-  const now = new Date()
-  const currentDay = now.getDay()
-  const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now
-    .getMinutes()
-    .toString()
-    .padStart(2, '0')}`
+  let currentDay: number
+  let currentTime: string
+
+  if (timezone) {
+    const now = new Date()
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      weekday: 'short',
+    }).formatToParts(now)
+    const weekdayStr = parts.find(p => p.type === 'weekday')?.value ?? ''
+    const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+    currentDay = dayMap[weekdayStr] ?? now.getDay()
+    const hour = parts.find(p => p.type === 'hour')?.value ?? '00'
+    const minute = parts.find(p => p.type === 'minute')?.value ?? '00'
+    currentTime = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`
+  } else {
+    const now = new Date()
+    currentDay = now.getDay()
+    currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
+  }
 
   // Find today's hours
   const todayHours = hours.find((h) => h.day === currentDay)

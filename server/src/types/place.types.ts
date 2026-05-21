@@ -86,6 +86,18 @@ export interface Amenity {
 export interface TransitDeparture {
   arrivalTime?: string // ISO time string
   departureTime?: string // ISO time string
+  /**
+   * Absolute ISO 8601 timestamp combining service_date + departureTime
+   * (or arrivalTime). Lets the client compute "minutes until / since"
+   * without the bare HH:mm:ss having to be disambiguated as today vs
+   * tomorrow. Optional for back-compat with adapters that don't supply it.
+   */
+  arrivalAt?: string
+  departureAt?: string
+  /** Service date the departure belongs to, in the stop's local timezone (YYYY-MM-DD). */
+  serviceDate?: string
+  /** IANA timezone of the stop, used to interpret HH:mm:ss correctly. */
+  timezone?: string
   scheduledArrivalTime?: string
   scheduledDepartureTime?: string
   delay?: number // in seconds
@@ -310,6 +322,9 @@ export interface Place {
 
   // Icon/category for display
   icon?: PlaceIcon
+
+  // IANA timezone resolved from coordinates (e.g. "America/New_York")
+  timezone?: string
 
   // All sources that contributed data
   sources: SourceReference[]

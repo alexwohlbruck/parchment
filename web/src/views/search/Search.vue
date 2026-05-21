@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
+import { watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
-import { useMapStore } from '@/stores/map.store'
 import { useSearchStore } from '@/stores/search.store'
 import { useMapService } from '@/services/map.service'
 import { useMapCamera } from '@/composables/useMapCamera'
@@ -15,37 +14,110 @@ import PlaceList from '@/components/place/PlaceList.vue'
 import FilterChips from '@/components/map/FilterChips.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import { useRouter } from 'vue-router'
-import { AppRoute } from '@/router'
 import { getPlaceRoute } from '@/lib/place.utils'
-import { storeToRefs } from 'pinia'
 import { useCategoryStore } from '@/stores/category.store'
 import { getCategoryColor } from '@/lib/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
-import { SearchIcon } from 'lucide-vue-next'
 import { newViewFraction } from '@/lib/map-bounds.utils'
+import { useGeolocationService } from '@/services/geolocation.service'
 
 const route = useRoute()
 const router = useRouter()
 const searchService = useSearchService()
-const mapStore = useMapStore()
 const mapService = useMapService()
 const searchStore = useSearchStore()
 
+const geolocationService = useGeolocationService()
+
 const SIGNIFICANT_MOVEMENT_THRESHOLD = 0.3 // If camera moves to new area, refresh search results
+const NEARBY_RADIUS_KM = 5
 
 let lastRefreshBounds: MapBounds | null = null
+let suppressUrlSync = false
+let filtersRestored = false
+
+// ── URL ↔ filter/sort sync ──────────────────────────────────────────────
+
+function filtersToQuery(): Record<string, string | undefined> {
+  const q: Record<string, string | undefined> = {}
+
+  if (searchStore.sortBy !== 'relevance') {
+    q.sort = searchStore.sortBy
+  }
+
+  for (const def of searchStore.activeFilterDefs) {
+    const value = searchStore.filters[def.id]
+    if (value === undefined || value === null) continue
+    if (value === def.defaultValue) continue
+    if (Array.isArray(value) && value.length === 0) continue
+    if (def.type === 'toggle') {
+      q[`f.${def.id}`] = '1'
+    } else if (Array.isArray(value)) {
+      q[`f.${def.id}`] = value.join(',')
+    } else {
+      q[`f.${def.id}`] = String(value)
+    }
+  }
+  return q
+}
+
+function restoreFiltersFromQuery() {
+  const query = route.query
+  if (query.sort && typeof query.sort === 'string') {
+    searchStore.setSortBy(query.sort)
+  }
+  for (const [key, raw] of Object.entries(query)) {
+    if (!key.startsWith('f.') || typeof raw !== 'string') continue
+    const filterId = key.slice(2)
+    const def = searchStore.activeFilterDefs.find(d => d.id === filterId)
+    if (!def) continue
+    if (def.type === 'toggle') {
+      searchStore.setFilter(filterId, raw === '1')
+    } else if (def.type === 'multi-select') {
+      searchStore.setFilter(filterId, raw.split(',').filter(Boolean))
+    } else {
+      searchStore.setFilter(filterId, raw)
+    }
+  }
+}
+
+function syncFiltersToUrl() {
+  if (suppressUrlSync) return
+  const filterParams = filtersToQuery()
+
+  const cleaned: Record<string, any> = {}
+  for (const [k, v] of Object.entries(route.query)) {
+    if (k !== 'sort' && !k.startsWith('f.')) cleaned[k] = v
+  }
+  router.replace({ query: { ...cleaned, ...filterParams } })
+}
 
 const { camera } = useMapCamera()
 
 const authService = useAuthService()
 const canAutoRefresh = computed(() => authService.hasPermission(PermissionId.SEARCH_AUTO_REFRESH))
 
-// True when the map has moved enough to warrant a new search, but the user
-// must manually confirm (shown as a "Search this area" button for non-premium users)
-const pendingAreaSearch = ref(false)
+const hasGeolocation = computed(() => geolocationService.hasLocation.value)
+
+/** Build a bounding box around user location for "Near me" searches. */
+function nearbyBounds(): MapBounds | null {
+  const ll = geolocationService.lngLat.value
+  if (!ll) return null
+  // ~0.045 degrees ≈ 5 km at the equator; scale longitude by cos(lat)
+  const latDelta = NEARBY_RADIUS_KM / 111
+  const lngDelta = NEARBY_RADIUS_KM / (111 * Math.cos((ll.lat * Math.PI) / 180))
+  return {
+    north: ll.lat + latDelta,
+    south: ll.lat - latDelta,
+    east: ll.lng + lngDelta,
+    west: ll.lng - lngDelta,
+  }
+}
+
+// "Search this area" state lives in the store so the map overlay can read it
 
 const searchType = computed(() => {
   if (route.query.categoryId) return 'category'
@@ -95,19 +167,9 @@ const categoryIconColor = computed(() => {
   return getCategoryColor('default', themeStore.isDark)
 })
 
-// Note: Using searchStore directly in template due to TypeScript complexity with storeToRefs
-
 // Event listener reference for cleanup
 let searchClickHandler: ((event: Event) => void) | null = null
 
-// Filter state
-const activeFilters = ref({
-  access: [] as string[],
-  price: '' as string,
-  rating: '' as number | '',
-  openNow: false as boolean,
-  sort: 'relevance' as string,
-})
 
 // Search management
 
@@ -139,6 +201,7 @@ function shouldMapRefresh(camera: MapCamera) {
 }
 
 useMapListener('moveend', () => {
+  if (searchStore.searchContext === 'nearby') return
   if (!shouldMapRefresh(camera.value)) return
 
   if (canAutoRefresh.value) {
@@ -146,8 +209,13 @@ useMapListener('moveend', () => {
     debouncedMapRefresh(camera.value)
   } else {
     // Free tier: surface a manual "Search this area" prompt
-    pendingAreaSearch.value = true
+    searchStore.pendingAreaSearch = true
   }
+})
+
+// React to "Search this area" button clicks from the map overlay
+watch(() => searchStore.areaSearchRequestId, () => {
+  performSearch()
 })
 
 // Handle click on search result from map markers
@@ -159,7 +227,7 @@ function handleSearchResultClick(place: Place, event: any) {
 }
 
 async function performSearch() {
-  pendingAreaSearch.value = false
+  searchStore.pendingAreaSearch = false
   searchStore.setSearchLoading(true)
   searchStore.setSearchError(null)
 
@@ -173,8 +241,11 @@ async function performSearch() {
     searchStore.setSearchQuery(categoryTitle.value)
   }
 
-  const bounds = mapService.getBounds()
-  const center = mapService.getCenter()
+  const isNearby = searchStore.searchContext === 'nearby'
+  const bounds = isNearby ? nearbyBounds() : mapService.getVisibleBounds()
+  const center = isNearby && geolocationService.lngLat.value
+    ? geolocationService.lngLat.value
+    : mapService.getCenter()
 
   try {
     let places: Place[] = []
@@ -183,15 +254,23 @@ async function performSearch() {
     // Track the max results in the search store
     searchStore.setLastMaxResults(maxResults)
 
+    const { sort, filter, tags } = searchStore.serverFilterParams
+
     if (searchType.value === 'category') {
-      places = await searchService.searchByCategory(
+      const { results, fieldDefinitions } = await searchService.searchByCategory(
         route.query.categoryId as string,
         {
           bounds: bounds || undefined,
           maxResults,
+          sort,
+          filter,
+          tags,
         },
       )
+      places = results
+      searchStore.setCategoryFields(fieldDefinitions)
     } else if (searchType.value === 'text') {
+      searchStore.setCategoryFields([])
       const searchResults = await searchService.search({
         query: route.query.q as string,
         lat: center.lat,
@@ -199,17 +278,24 @@ async function performSearch() {
         autocomplete: false,
         maxResults,
       })
-      // Since autocomplete is false, we should get SearchResult objects with full metadata
       places = (searchResults as SearchResult[])
         .filter(result => result.type === 'place')
         .map(result => result.metadata.place as unknown as Place)
-      console.log('Search results:', places)
     }
 
     // Update the search store with results - this will automatically update the map layer
     searchStore.setSearchResults(places)
     searchStore.setLastSearchBounds(bounds)
     lastRefreshBounds = bounds
+
+    // On first load, restore filters from URL (after categoryFields are set)
+    if (!filtersRestored) {
+      filtersRestored = true
+      suppressUrlSync = true
+      restoreFiltersFromQuery()
+      await nextTick()
+      suppressUrlSync = false
+    }
   } catch (error) {
     console.error('Search error:', error)
     searchStore.setSearchError(
@@ -269,25 +355,33 @@ onUnmounted(() => {
 
 watch(
   () => route.query,
-  () => {
+  (newQuery, oldQuery) => {
+    const searchChanged =
+      newQuery.categoryId !== oldQuery?.categoryId ||
+      newQuery.q !== oldQuery?.q
+    if (!searchChanged) return
+    filtersRestored = false
+    suppressUrlSync = true
+    searchStore.resetFilters()
+    suppressUrlSync = false
     performSearch()
   },
   { deep: true },
 )
 
-// Handle filter changes
-function handleFiltersChanged(filters: {
-  access: string[]
-  price: string
-  rating: number | ''
-  openNow: boolean
-  sort: string
-}) {
-  activeFilters.value = filters
-  console.log('Filters changed:', filters)
-  // TODO: Apply filters to places or re-fetch with filters
-  // For now, just log the filter changes
-}
+watch(
+  () => searchStore.searchContext,
+  () => performSearch(),
+)
+
+watch(
+  [() => searchStore.filters, () => searchStore.sortBy],
+  () => {
+    syncFiltersToUrl()
+  },
+  { deep: true },
+)
+
 </script>
 
 <template>
@@ -317,8 +411,8 @@ function handleFiltersChanged(filters: {
         </h2>
         <div class="flex items-center gap-2 text-sm text-muted-foreground">
           <span>
-            {{ searchStore.searchResults.length.toLocaleString() }}
-            {{ searchStore.searchResults.length === 1 ? 'result' : 'results' }}
+            {{ searchStore.filteredSearchResults.length.toLocaleString() }}
+            {{ searchStore.filteredSearchResults.length === 1 ? 'result' : 'results' }}
           </span>
           <!-- Premium: auto-refresh spinner -->
           <div
@@ -332,32 +426,21 @@ function handleFiltersChanged(filters: {
       </div>
     </div>
 
-    <div class="-mx-4">
+    <div class="-mx-4 overflow-visible">
       <FilterChips
-        class="w-full overflow-x-auto scrollbar-hidden px-4"
-        @filters-changed="handleFiltersChanged"
+        class="w-full px-4"
+        :filter-defs="searchStore.activeFilterDefs"
+        :filter-values="searchStore.filters"
+        :filter-options="searchStore.dynamicFilterOptions"
+        :sort-options="searchStore.activeSortDefs"
+        :sort-by="searchStore.sortBy"
+        :search-context="searchStore.searchContext"
+        :has-geolocation="hasGeolocation"
+        @update:filter="searchStore.setFilter"
+        @update:sort-by="searchStore.setSortBy"
+        @update:search-context="searchStore.setSearchContext"
       />
     </div>
-
-    <!-- "Search this area" — shown when map has moved and user lacks auto-refresh -->
-    <Transition
-      enter-active-class="transition-all duration-200 ease-out"
-      enter-from-class="opacity-0 -translate-y-1"
-      enter-to-class="opacity-100 translate-y-0"
-      leave-active-class="transition-all duration-150 ease-in"
-      leave-from-class="opacity-100 translate-y-0"
-      leave-to-class="opacity-0 -translate-y-1"
-    >
-      <div v-if="pendingAreaSearch && !searchStore.isLoading" class="flex justify-center">
-        <button
-          class="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium bg-primary text-primary-foreground shadow-md hover:bg-primary/90 active:scale-95 transition-all"
-          @click="performSearch"
-        >
-          <SearchIcon class="w-3.5 h-3.5" />
-          Search this area
-        </button>
-      </div>
-    </Transition>
 
     <!-- Error state (only show if no existing places to display) -->
     <ErrorMessage
@@ -380,8 +463,8 @@ function handleFiltersChanged(filters: {
     >
       <div class="max-w-4xl mx-auto">
         <PlaceList
-          :places="searchStore.searchResults"
-          :loading="searchStore.isLoading"
+          :places="searchStore.filteredSearchResults"
+          :loading="searchStore.isSearching && !searchStore.hasResults"
           @place-hover="searchStore.setHoveredPlace($event)"
           @place-leave="searchStore.setHoveredPlace(null)"
         />

@@ -582,6 +582,7 @@ function handleAnimationEnd(open: boolean) {
 
         <div
           ref="scrollContainer"
+          data-sheet-scroll
           :class="
             cn('pb-[env(safe-area-inset-bottom)]', {
               'flex-1 h-[200vh]': !props.fitContent,

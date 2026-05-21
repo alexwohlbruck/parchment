@@ -9,11 +9,13 @@ import type { SourceId } from '@/types/place.types'
 import { SOURCE } from '@/lib/constants'
 import { useSearchStore } from '@/stores/search.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
+import { usePlaceCacheStore, buildPlaceCacheKey } from '@/stores/place-cache.store'
 
 function placeService() {
   const currentPlace = ref<Partial<Place> | null>(null)
   const loading = ref(false)
   const { toast } = useAppService()
+  const placeCache = usePlaceCacheStore()
 
   /**
    * Look up a place in the local search results store by ID
@@ -21,6 +23,80 @@ function placeService() {
   function findCachedPlace(placeId: string): Place | undefined {
     const searchStore = useSearchStore()
     return searchStore.searchResults.find(p => p.id === placeId)
+  }
+
+  /**
+   * Issue the actual GET against /places/details and write the response into
+   * the place cache. Centralised so foreground fetches and SWR background
+   * revalidations share the same request shape.
+   */
+  async function fetchPlaceFromApi(
+    cacheKey: string,
+    queryParams: Record<string, string>,
+    signal?: AbortSignal,
+  ): Promise<Place | null> {
+    const response = await api.get<Place>('/places/details', {
+      params: queryParams,
+      signal,
+    })
+    placeCache.set(cacheKey, response.data)
+    return response.data
+  }
+
+  /**
+   * Stale-while-revalidate fetch shared by both the source/id and
+   * coordinate lookup paths.
+   *
+   *   - Cache hit: render cached data immediately, kick off a background
+   *     fetch if the entry is stale (don't block the UI on it).
+   *   - Cache miss: foreground fetch with `loading=true`, surface errors
+   *     via toast, fall back to `null` on failure.
+   *
+   * The shared `loading` ref is also reset to `false` on cache hit — a
+   * rapid navigation could otherwise leave it stuck `true` from a prior
+   * in-flight call.
+   */
+  async function fetchPlaceWithCache(
+    queryParams: Record<string, string>,
+    signal?: AbortSignal,
+  ): Promise<Place | null> {
+    const cacheKey = buildPlaceCacheKey(queryParams)
+    const cached = placeCache.get(cacheKey)
+
+    if (cached) {
+      currentPlace.value = cached.data
+      loading.value = false
+      if (placeCache.isStale(cached)) {
+        // Background revalidate — don't await. UI keeps cached render until
+        // the fresh response lands. Errors are swallowed (no toast) since
+        // we're updating content the user is already seeing.
+        fetchPlaceFromApi(cacheKey, queryParams, signal)
+          .then(fresh => {
+            if (fresh) currentPlace.value = fresh
+          })
+          .catch(e => {
+            if (!axios.isCancel(e)) {
+              console.warn('Place revalidation failed:', e)
+            }
+          })
+      }
+      return cached.data
+    }
+
+    loading.value = true
+    try {
+      const data = await fetchPlaceFromApi(cacheKey, queryParams, signal)
+      currentPlace.value = data ?? null
+      return data
+    } catch (e) {
+      if (axios.isCancel(e)) return null
+      console.error('Error fetching place details:', e)
+      toast.error(e instanceof Error ? e.message : 'An error occurred')
+      currentPlace.value = null
+      return null
+    } finally {
+      loading.value = false
+    }
   }
 
   /**
@@ -37,56 +113,28 @@ function placeService() {
     },
     signal?: AbortSignal,
   ) {
-    loading.value = true
+    let queryParams: Record<string, string>
 
-    try {
-      let queryParams: Record<string, string> = {}
-
-      // Determine lookup method based on parameters
-      if (source && id) {
-        // Source-based lookup (OSM, Google, etc.)
-        queryParams = {
-          source,
-          id,
-        }
-      } else if (
-        options?.name &&
-        options?.lat !== undefined &&
-        options?.lng !== undefined
-      ) {
-        // Location-based lookup
-        queryParams = {
-          name: options.name,
-          lat: options.lat.toString(),
-          lng: options.lng.toString(),
-        }
-
-        // Add radius if specified
-        if (options.radius) {
-          queryParams.radius = options.radius.toString()
-        }
-      } else {
-        throw new Error(
-          'Invalid parameters. Provide either source+id or name+lat+lng',
-        )
+    if (source && id) {
+      queryParams = { source, id }
+    } else if (
+      options?.name &&
+      options?.lat !== undefined &&
+      options?.lng !== undefined
+    ) {
+      queryParams = {
+        name: options.name,
+        lat: options.lat.toString(),
+        lng: options.lng.toString(),
       }
-
-      const response = await api.get<Place>('/places/details', {
-        params: queryParams,
-        signal,
-      })
-
-      currentPlace.value = response.data
-      return response.data
-    } catch (e) {
-      if (axios.isCancel(e)) return null
-      console.error('Error fetching place details:', e)
-      toast.error(e instanceof Error ? e.message : 'An error occurred')
-      currentPlace.value = null
-      return null
-    } finally {
-      loading.value = false
+      if (options.radius) queryParams.radius = options.radius.toString()
+    } else {
+      throw new Error(
+        'Invalid parameters. Provide either source+id or name+lat+lng',
+      )
     }
+
+    return fetchPlaceWithCache(queryParams, signal)
   }
 
   /**
@@ -148,34 +196,13 @@ function placeService() {
     options?: { radius?: number },
     signal?: AbortSignal,
   ): Promise<Place | null> {
-    loading.value = true
-
-    try {
-      const queryParams: Record<string, string> = {
-        lat: lat.toString(),
-        lng: lng.toString(),
-      }
-
-      if (options?.radius) {
-        queryParams.radius = options.radius.toString()
-      }
-
-      const response = await api.get<Place>('/places/details', {
-        params: queryParams,
-        signal,
-      })
-
-      currentPlace.value = response.data
-      return response.data
-    } catch (e) {
-      if (axios.isCancel(e)) return null
-      console.error('Error fetching place details by coordinates:', e)
-      toast.error(e instanceof Error ? e.message : 'An error occurred')
-      currentPlace.value = null
-      return null
-    } finally {
-      loading.value = false
+    const queryParams: Record<string, string> = {
+      lat: lat.toString(),
+      lng: lng.toString(),
     }
+    if (options?.radius) queryParams.radius = options.radius.toString()
+
+    return fetchPlaceWithCache(queryParams, signal)
   }
 
   function clearPlace() {

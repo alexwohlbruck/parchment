@@ -1,7 +1,7 @@
 {
   "name": "parchment",
   "private": true,
-  "version": "0.1.6",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -52,6 +52,7 @@
     "@tauri-apps/plugin-store": "~2.4.2",
     "@tauri-apps/plugin-updater": "2.9.0",
     "@turf/turf": "^7.3.4",
+    "@types/suncalc": "^1.9.2",
     "@unovis/ts": "^1.6.4",
     "@unovis/vue": "^1.6.4",
     "@vee-validate/zod": "^4.12.8",
@@ -69,7 +70,7 @@
     "latest": "^0.2.0",
     "lucide-static": "^0.511.0",
     "lucide-vue-next": "0.475.0",
-    "mapbox-gl": "^3.16.0",
+    "mapbox-gl": "^3.23.1",
     "mapillary-js": "^4.1.2",
     "maplibre-gl": "^4.2.0",
     "mitt": "^3.0.1",
@@ -82,6 +83,7 @@
     "reka-ui": "^2.8.0",
     "shadcn-vue": "^2.4.3",
     "simple-icons": "^14.12.2",
+    "suncalc": "^1.9.0",
     "tailwind-merge": "^2.3.0",
     "tailwindcss-animate": "^1.0.7",
     "ua-parser-js": "^1.0.37",

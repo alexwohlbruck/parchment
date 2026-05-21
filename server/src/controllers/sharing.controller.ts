@@ -1,5 +1,6 @@
 import Elysia, { t } from 'elysia'
-import { requireAuth } from '../middleware/auth.middleware'
+import { permissions } from '../middleware/auth.middleware'
+import { PermissionId } from '../types/auth.types'
 import * as sharingService from '../services/sharing.service'
 
 const app = new Elysia({ prefix: '/sharing' })
@@ -11,7 +12,7 @@ const app = new Elysia({ prefix: '/sharing' })
 /**
  * Get all outgoing shares
  */
-app.use(requireAuth).get(
+app.use(permissions(PermissionId.SHARING_READ)).get(
   '/outgoing',
   async ({ user }) => {
     const shares = await sharingService.getOutgoingShares(user.id)
@@ -28,7 +29,7 @@ app.use(requireAuth).get(
 /**
  * Get shares for a specific resource
  */
-app.use(requireAuth).get(
+app.use(permissions(PermissionId.SHARING_READ)).get(
   '/outgoing/:resourceType/:resourceId',
   async ({ params, user }) => {
     const shares = await sharingService.getSharesForResource(
@@ -53,7 +54,7 @@ app.use(requireAuth).get(
 /**
  * Create a new share
  */
-app.use(requireAuth).post(
+app.use(permissions(PermissionId.SHARING_WRITE)).post(
   '/',
   async ({ body, user, status }) => {
     const role = body.role ?? 'viewer'
@@ -135,7 +136,7 @@ app.use(requireAuth).post(
 /**
  * Revoke a share
  */
-app.use(requireAuth).post(
+app.use(permissions(PermissionId.SHARING_WRITE)).post(
   '/:shareId/revoke',
   async ({ params, user, status }) => {
     const revoked = await sharingService.revokeShare(user.id, params.shareId)
@@ -160,7 +161,7 @@ app.use(requireAuth).post(
  * Called by the owner after updating collection metadata so recipients
  * see the new name/icon on their next refetch.
  */
-app.use(requireAuth).put(
+app.use(permissions(PermissionId.SHARING_WRITE)).put(
   '/envelope',
   async ({ body, user, status }) => {
     const updated = await sharingService.updateShareEnvelope(
@@ -201,7 +202,7 @@ app.use(requireAuth).put(
  * the revoke+recreate pattern since the unique index on the outgoing row
  * would otherwise collide on re-insert.
  */
-app.use(requireAuth).patch(
+app.use(permissions(PermissionId.SHARING_WRITE)).patch(
   '/:shareId',
   async ({ params, body, user, status }) => {
     const updated = await sharingService.updateShareRole(
@@ -231,7 +232,7 @@ app.use(requireAuth).patch(
 /**
  * Delete a share
  */
-app.use(requireAuth).delete(
+app.use(permissions(PermissionId.SHARING_WRITE)).delete(
   '/:shareId',
   async ({ params, user, status }) => {
     const deleted = await sharingService.deleteShare(user.id, params.shareId)
@@ -258,7 +259,7 @@ app.use(requireAuth).delete(
 /**
  * Get all incoming shares
  */
-app.use(requireAuth).get(
+app.use(permissions(PermissionId.SHARING_READ)).get(
   '/incoming',
   async ({ user }) => {
     const shares = await sharingService.getIncomingShares(user.id)
@@ -275,7 +276,7 @@ app.use(requireAuth).get(
 /**
  * Get pending incoming shares
  */
-app.use(requireAuth).get(
+app.use(permissions(PermissionId.SHARING_READ)).get(
   '/incoming/pending',
   async ({ user }) => {
     const shares = await sharingService.getPendingIncomingShares(user.id)
@@ -292,7 +293,7 @@ app.use(requireAuth).get(
 /**
  * Accept an incoming share
  */
-app.use(requireAuth).post(
+app.use(permissions(PermissionId.SHARING_WRITE)).post(
   '/incoming/:shareId/accept',
   async ({ params, user, status }) => {
     const share = await sharingService.acceptIncomingShare(
@@ -318,7 +319,7 @@ app.use(requireAuth).post(
 /**
  * Reject an incoming share
  */
-app.use(requireAuth).post(
+app.use(permissions(PermissionId.SHARING_WRITE)).post(
   '/incoming/:shareId/reject',
   async ({ params, user, status }) => {
     const rejected = await sharingService.rejectIncomingShare(
@@ -344,7 +345,7 @@ app.use(requireAuth).post(
 /**
  * Delete an incoming share
  */
-app.use(requireAuth).delete(
+app.use(permissions(PermissionId.SHARING_WRITE)).delete(
   '/incoming/:shareId',
   async ({ params, user, status }) => {
     const deleted = await sharingService.deleteIncomingShare(

@@ -10,6 +10,12 @@ import {
   Layers3Icon,
 } from 'lucide-vue-next'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
+import { useAuthService } from '@/services/auth.service'
+import { PermissionId } from '@/types/auth.types'
+import UpgradeBanner from '@/components/subscription/UpgradeBanner.vue'
+
+const authService = useAuthService()
+const canAccessLibrary = computed(() => authService.hasPermission(PermissionId.LIBRARY_READ))
 
 const tabs = [
   {
@@ -52,27 +58,30 @@ function handleTabChange(tabId) {
 
 <template>
   <PanelLayout>
-    <h1 class="text-2xl font-semibold mb-3">Library</h1>
-    <Tabs
-      :model-value="tabValue"
-      @update:model-value="handleTabChange"
-      class="w-full h-full flex flex-col gap-2"
-    >
-      <TabsList class="w-full flex">
-        <TabsTrigger
-          v-for="tab in tabs"
-          :key="tab.id"
-          :value="tab.id"
-          class="flex-1 gap-2"
-        >
-          <component :is="tab.icon" class="size-5" />
-        </TabsTrigger>
-      </TabsList>
+    <template v-if="canAccessLibrary">
+      <h1 class="text-2xl font-semibold mb-3">Library</h1>
+      <Tabs
+        :model-value="tabValue"
+        @update:model-value="handleTabChange"
+        class="w-full h-full flex flex-col gap-2"
+      >
+        <TabsList class="w-full flex">
+          <TabsTrigger
+            v-for="tab in tabs"
+            :key="tab.id"
+            :value="tab.id"
+            class="flex-1 gap-2"
+          >
+            <component :is="tab.icon" class="size-5" />
+          </TabsTrigger>
+        </TabsList>
 
-      <!-- TODO: Create dedicated header, scrollably body, and footer in bottom sheet component -->
-      <div class="flex-1">
-        <router-view />
-      </div>
-    </Tabs>
+        <!-- TODO: Create dedicated header, scrollably body, and footer in bottom sheet component -->
+        <div class="flex-1">
+          <router-view />
+        </div>
+      </Tabs>
+    </template>
+    <UpgradeBanner v-else feature="library" required-tier="basic" />
   </PanelLayout>
 </template>

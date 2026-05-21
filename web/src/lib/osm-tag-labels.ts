@@ -127,6 +127,29 @@ export const TAG_LABELS: Record<string, string> = {
   'payment:contactless': 'Contactless Payment',
   'payment:apple_pay': 'Apple Pay',
   'payment:google_pay': 'Google Pay',
+  // Accommodation & Facilities
+  heating: 'Heating',
+  hot_water: 'Hot Water',
+  kitchen: 'Kitchen',
+  fireplace: 'Fireplace',
+  openfire: 'Open Fire',
+  bbq: 'BBQ',
+  cabins: 'Cabins',
+  caravans: 'Caravans',
+  tents: 'Tents',
+  power_supply: 'Power Supply',
+  // Recreation & Outdoor
+  bench: 'Bench',
+  shelter: 'Shelter',
+  picnic_table: 'Picnic Table',
+  // Accessibility
+  handrail: 'Handrail',
+  step_count: 'Steps',
+  // Services
+  dispensing: 'Dispensing',
+  parcel_pickup: 'Parcel Pickup',
+  parcel_mail_in: 'Parcel Drop-Off',
+  compressed_air: 'Compressed Air',
 }
 
 /**

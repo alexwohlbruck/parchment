@@ -87,7 +87,6 @@ const router = createRouter({
       name: AppRoute.MAP,
       component: Map,
       meta: {
-        auth: true,
         transition: 'slide',
       },
       children: [

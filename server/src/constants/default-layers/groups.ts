@@ -139,4 +139,22 @@ export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
     order: 4,
     parentGroupId: null,
   },
+  {
+    templateId: 'default:group:daynight',
+    name: 'Day & Night',
+    icon: 'SunMoonIcon',
+    showInLayerSelector: true,
+    visible: false,
+    order: 5,
+    parentGroupId: null,
+  },
+  {
+    templateId: 'default:group:timezone',
+    name: 'Time Zones',
+    icon: 'ClockIcon',
+    showInLayerSelector: true,
+    visible: false,
+    order: 6,
+    parentGroupId: null,
+  },
 ]

@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { Waypoint } from '@/types/map.types'
 import { RoutingPreferences, SelectedMode } from '@/types/multimodal.types'
+import { getTimezoneWarning, type TimezoneWarning } from '@/lib/timezone.utils'
 
 // Mode-scoped preference storage
 export type ModeKey = 'walking' | 'biking' | 'driving' | 'transit' | 'wheelchair'
@@ -152,6 +153,13 @@ export const useDirectionsStore = defineStore('directions', () => {
     return m === 'multi' ? 'biking' : (m as ModeKey)
   }
 
+  const timezoneWarning = computed<TimezoneWarning | null>(() => {
+    const destination = waypoints.value[waypoints.value.length - 1]
+    if (!destination?.place?.timezone) return null
+    const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone
+    return getTimezoneWarning(userTz, destination.place.timezone)
+  })
+
   // Flat merged view for the backend wire format and existing consumers.
   const routingPreferences = computed<RoutingPreferences>(() => {
     const mk = modeKeyForSelected(selectedMode.value)
@@ -260,6 +268,7 @@ export const useDirectionsStore = defineStore('directions', () => {
     selectedMode,
     isLoading,
     selectedTripId,
+    timezoneWarning,
     generalPreferences,
     modePreferences,
     routingPreferences,

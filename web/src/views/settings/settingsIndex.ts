@@ -62,6 +62,11 @@ export const settingsIndex: SettingsPageDef[] = [
         keywords: ['name', 'email', 'sign out', 'profile', 'avatar'],
       },
       {
+        id: 'subscription',
+        titleKey: 'settings.billing.title',
+        keywords: ['subscription', 'premium', 'billing', 'upgrade', 'plan', 'features', 'payment'],
+      },
+      {
         id: 'identity',
         titleKey: 'friends.identity.title',
         descriptionKey: 'friends.identity.configuredDescription',

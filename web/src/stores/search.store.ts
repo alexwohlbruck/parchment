@@ -30,6 +30,11 @@ export const useSearchStore = defineStore('search', () => {
   const searchError = ref<string | null>(null)
   const hoveredPlaceId = ref<string | null>(null)
 
+  // "Search this area" state — set when map moves and user lacks auto-refresh
+  const pendingAreaSearch = ref(false)
+  // Incremented when the map overlay button is clicked; Search.vue watches this to trigger performSearch
+  const areaSearchRequestId = ref(0)
+
   // Search metadata
   const searchQuery = ref<string | null>(null)
   const searchType = ref<'text' | 'category' | 'overpass'>('text')
@@ -162,6 +167,7 @@ export const useSearchStore = defineStore('search', () => {
     searchError.value = null
     hoveredPlaceId.value = null
     categoryFields.value = []
+    pendingAreaSearch.value = false
     resetFilters()
   }
 
@@ -228,6 +234,14 @@ export const useSearchStore = defineStore('search', () => {
     sortBy.value = 'relevance'
   }
 
+  function setPendingAreaSearch(pending: boolean) {
+    pendingAreaSearch.value = pending
+  }
+
+  function requestAreaSearch() {
+    areaSearchRequestId.value++
+  }
+
   return {
     // State
     searchResults,
@@ -244,6 +258,8 @@ export const useSearchStore = defineStore('search', () => {
     sortBy,
     categoryFields,
     searchContext,
+    pendingAreaSearch,
+    areaSearchRequestId,
 
     // Computed
     hasResults,
@@ -274,5 +290,7 @@ export const useSearchStore = defineStore('search', () => {
     setSortBy,
     setSearchContext,
     resetFilters,
+    setPendingAreaSearch,
+    requestAreaSearch,
   }
 })

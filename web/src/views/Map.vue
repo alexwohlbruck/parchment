@@ -31,7 +31,9 @@ import MeasureTool from '@/components/map/measure/MeasureTool.vue'
 import RadiusTool from '@/components/map/measure/RadiusTool.vue'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { useMapStore } from '@/stores/map.store'
+import { useSearchStore } from '@/stores/search.store'
 import { ControlVisibility } from '@/types/map.types'
+import { SearchIcon } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -43,6 +45,7 @@ const { layers } = storeToRefs(layersStore)
 const streetViewLayersService = useStreetViewLayersService()
 const mapToolsStore = useMapToolsStore()
 const mapStore = useMapStore()
+const searchStore = useSearchStore()
 const { controlSettings } = storeToRefs(mapStore)
 const showToolbox = computed(
   () =>
@@ -157,6 +160,17 @@ const topLeftBufferStyle = computed(() => {
   return {
     paddingLeft: `${Math.max(0, overlay - 8)}px`,
   }
+})
+
+// Left-side obstruction width within the map container.
+// Used to offset the "Search this area" button so it centers in the
+// visible (unobstructed) map area via padding + justify-center.
+const mapLeftObstruction = computed(() => {
+  const dims = appStore.componentDimensions
+  const leftSheet = dims.get('left-sheet')
+  // Left sheet sits inside mainContent — its width is the obstruction.
+  // When closed, no obstruction (desktop nav is outside mainContent).
+  return leftSheet?.width ?? 0
 })
 
 onMounted(() => {
@@ -317,10 +331,29 @@ defineExpose({
           </div>
           <!-- Right section (top) -->
           <div class="flex flex-col items-end gap-2" />
-          <!-- Center (top): same padding/safe area as sides -->
+          <!-- Center (top): centered within visible (unobstructed) map area -->
           <div
-            class="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 flex flex-col items-center justify-start pointer-events-none p-2 safe-area-inset"
-          />
+            class="absolute inset-0 flex items-start justify-center pointer-events-none pt-2"
+            :style="{ paddingLeft: `${mapLeftObstruction}px` }"
+          >
+            <Transition
+              enter-active-class="transition-all duration-200 ease-out"
+              enter-from-class="opacity-0 -translate-y-2"
+              enter-to-class="opacity-100 translate-y-0"
+              leave-active-class="transition-all duration-150 ease-in"
+              leave-from-class="opacity-100 translate-y-0"
+              leave-to-class="opacity-0 -translate-y-2"
+            >
+              <button
+                v-if="searchStore.pendingAreaSearch && !searchStore.isLoading"
+                class="pointer-events-auto flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium bg-background text-foreground border border-border shadow-md hover:bg-accent active:scale-95 transition-all"
+                @click="searchStore.requestAreaSearch()"
+              >
+                <SearchIcon class="w-3.5 h-3.5" />
+                {{ $t('map.searchThisArea') }}
+              </button>
+            </Transition>
+          </div>
         </div>
 
         <!-- z-20 below drawers -->

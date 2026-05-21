@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
+import { watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSearchStore } from '@/stores/search.store'
 import { useMapService } from '@/services/map.service'
@@ -21,7 +21,6 @@ import { useThemeStore } from '@/stores/theme.store'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
-import { SearchIcon } from 'lucide-vue-next'
 import { newViewFraction } from '@/lib/map-bounds.utils'
 import { useGeolocationService } from '@/services/geolocation.service'
 
@@ -118,9 +117,7 @@ function nearbyBounds(): MapBounds | null {
   }
 }
 
-// True when the map has moved enough to warrant a new search, but the user
-// must manually confirm (shown as a "Search this area" button for non-premium users)
-const pendingAreaSearch = ref(false)
+// "Search this area" state lives in the store so the map overlay can read it
 
 const searchType = computed(() => {
   if (route.query.categoryId) return 'category'
@@ -212,8 +209,13 @@ useMapListener('moveend', () => {
     debouncedMapRefresh(camera.value)
   } else {
     // Free tier: surface a manual "Search this area" prompt
-    pendingAreaSearch.value = true
+    searchStore.pendingAreaSearch = true
   }
+})
+
+// React to "Search this area" button clicks from the map overlay
+watch(() => searchStore.areaSearchRequestId, () => {
+  performSearch()
 })
 
 // Handle click on search result from map markers
@@ -225,7 +227,7 @@ function handleSearchResultClick(place: Place, event: any) {
 }
 
 async function performSearch() {
-  pendingAreaSearch.value = false
+  searchStore.pendingAreaSearch = false
   searchStore.setSearchLoading(true)
   searchStore.setSearchError(null)
 
@@ -240,7 +242,7 @@ async function performSearch() {
   }
 
   const isNearby = searchStore.searchContext === 'nearby'
-  const bounds = isNearby ? nearbyBounds() : mapService.getBounds()
+  const bounds = isNearby ? nearbyBounds() : mapService.getVisibleBounds()
   const center = isNearby && geolocationService.lngLat.value
     ? geolocationService.lngLat.value
     : mapService.getCenter()
@@ -439,26 +441,6 @@ watch(
         @update:search-context="searchStore.setSearchContext"
       />
     </div>
-
-    <!-- "Search this area" — shown when map has moved and user lacks auto-refresh -->
-    <Transition
-      enter-active-class="transition-all duration-200 ease-out"
-      enter-from-class="opacity-0 -translate-y-1"
-      enter-to-class="opacity-100 translate-y-0"
-      leave-active-class="transition-all duration-150 ease-in"
-      leave-from-class="opacity-100 translate-y-0"
-      leave-to-class="opacity-0 -translate-y-1"
-    >
-      <div v-if="pendingAreaSearch && !searchStore.isLoading" class="flex justify-center">
-        <button
-          class="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium bg-primary text-primary-foreground shadow-md hover:bg-primary/90 active:scale-95 transition-all"
-          @click="performSearch"
-        >
-          <SearchIcon class="w-3.5 h-3.5" />
-          Search this area
-        </button>
-      </div>
-    </Transition>
 
     <!-- Error state (only show if no existing places to display) -->
     <ErrorMessage

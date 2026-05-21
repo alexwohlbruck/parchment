@@ -7,6 +7,7 @@ import {
   StreetViewType,
   type Layer,
   type MapEvents,
+  type MapBounds,
   MarkerIds,
   type MarkerId,
   type LngLat,
@@ -1285,9 +1286,40 @@ function mapService() {
       return mapStrategy
     },
 
-    // Get current map bounds
+    // Get current map bounds (full viewport)
     getBounds() {
       return mapStrategy?.getBounds() || null
+    },
+
+    /**
+     * Get the geographic bounds of the visible (unobstructed) map area.
+     * Uses appStore.visibleMapArea to account for left sheet, bottom sheet,
+     * and other obstructing components, then unprojects the corners to
+     * geographic coordinates. Falls back to full viewport bounds.
+     */
+    getVisibleBounds(): MapBounds | null {
+      const map = mapStrategy?.mapInstance
+      if (!map?.unproject) return mapStrategy?.getBounds() || null
+
+      const visibleArea = appStore.visibleMapArea
+      if (!visibleArea || !visibleArea.width || !visibleArea.height) {
+        return mapStrategy?.getBounds() || null
+      }
+
+      // Unproject the four corners of the visible area rect (pixel → lng/lat)
+      const nw = map.unproject([visibleArea.x, visibleArea.y])
+      const ne = map.unproject([visibleArea.x + visibleArea.width, visibleArea.y])
+      const sw = map.unproject([visibleArea.x, visibleArea.y + visibleArea.height])
+      const se = map.unproject([visibleArea.x + visibleArea.width, visibleArea.y + visibleArea.height])
+
+      if (!nw || !ne || !sw || !se) return mapStrategy?.getBounds() || null
+
+      return {
+        north: Math.max(nw.lat, ne.lat, sw.lat, se.lat),
+        south: Math.min(nw.lat, ne.lat, sw.lat, se.lat),
+        east: Math.max(nw.lng, ne.lng, sw.lng, se.lng),
+        west: Math.min(nw.lng, ne.lng, sw.lng, se.lng),
+      }
     },
 
     // Get current map center

@@ -4,7 +4,7 @@ const hoisted = vi.hoisted(() => ({
   apiGetSpy: vi.fn(),
   apiPostSpy: vi.fn(),
   getPermissionsSpy: vi.fn().mockResolvedValue(undefined),
-  mockSubscription: null as { isPremium: boolean; hasSubscription: boolean; tier: string } | null,
+  mockSubscription: null as { isPremium: boolean; isBasic: boolean; hasSubscription: boolean; tier: string } | null,
 }))
 
 vi.mock('@/lib/api', () => ({
@@ -52,7 +52,7 @@ describe('subscriptionService', () => {
   }
 
   test('isPremium returns true when subscription says premium', async () => {
-    hoisted.mockSubscription = { isPremium: true, hasSubscription: true, tier: 'premium' }
+    hoisted.mockSubscription = { isPremium: true, isBasic: false, hasSubscription: true, tier: 'premium' }
     const svc = await createService()
     expect(svc.isPremium.value).toBe(true)
   })
@@ -64,25 +64,35 @@ describe('subscriptionService', () => {
   })
 
   test('isPremium returns false when subscription says not premium', async () => {
-    hoisted.mockSubscription = { isPremium: false, hasSubscription: false, tier: 'free' }
+    hoisted.mockSubscription = { isPremium: false, isBasic: false, hasSubscription: false, tier: 'free' }
     const svc = await createService()
     expect(svc.isPremium.value).toBe(false)
   })
 
+  test('isBasic returns true when subscription says basic', async () => {
+    hoisted.mockSubscription = { isPremium: false, isBasic: true, hasSubscription: true, tier: 'basic' }
+    const svc = await createService()
+    expect(svc.isBasic.value).toBe(true)
+  })
+
   test('hasSubscription derived from auth store', async () => {
-    hoisted.mockSubscription = { isPremium: true, hasSubscription: true, tier: 'premium' }
+    hoisted.mockSubscription = { isPremium: true, isBasic: false, hasSubscription: true, tier: 'premium' }
     const svc = await createService()
     expect(svc.hasSubscription.value).toBe(true)
   })
 
   test('tier computed returns correct string', async () => {
-    hoisted.mockSubscription = { isPremium: true, hasSubscription: true, tier: 'premium' }
+    hoisted.mockSubscription = { isPremium: true, isBasic: false, hasSubscription: true, tier: 'premium' }
     const svc = await createService()
     expect(svc.tier.value).toBe('premium')
 
-    hoisted.mockSubscription = { isPremium: false, hasSubscription: false, tier: 'free' }
+    hoisted.mockSubscription = { isPremium: false, isBasic: true, hasSubscription: true, tier: 'basic' }
     const svc2 = await createService()
-    expect(svc2.tier.value).toBe('free')
+    expect(svc2.tier.value).toBe('basic')
+
+    hoisted.mockSubscription = { isPremium: false, isBasic: false, hasSubscription: false, tier: 'free' }
+    const svc3 = await createService()
+    expect(svc3.tier.value).toBe('free')
   })
 
   test('startCheckout calls the correct API endpoint', async () => {
@@ -99,8 +109,31 @@ describe('subscriptionService', () => {
     const svc = await createService()
     await svc.startCheckout()
 
-    expect(hoisted.apiPostSpy).toHaveBeenCalledWith('/subscriptions/checkout')
+    expect(hoisted.apiPostSpy).toHaveBeenCalledWith('/subscriptions/checkout', { tier: 'basic' })
     expect(window.location.href).toBe('https://polar.sh/checkout/abc')
+
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: originalLocation,
+    })
+  })
+
+  test('startCheckout with premium tier sends correct body', async () => {
+    hoisted.apiPostSpy.mockResolvedValue({
+      data: { checkoutUrl: 'https://polar.sh/checkout/premium' },
+    })
+
+    const originalLocation = window.location
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: { ...originalLocation, href: '' },
+    })
+
+    const svc = await createService()
+    await svc.startCheckout('premium')
+
+    expect(hoisted.apiPostSpy).toHaveBeenCalledWith('/subscriptions/checkout', { tier: 'premium' })
+    expect(window.location.href).toBe('https://polar.sh/checkout/premium')
 
     Object.defineProperty(window, 'location', {
       writable: true,
@@ -110,7 +143,7 @@ describe('subscriptionService', () => {
 
   test('verifySubscription calls POST /verify and re-fetches permissions', async () => {
     hoisted.apiPostSpy.mockResolvedValue({
-      data: { isPremium: true, hasSubscription: true, tier: 'premium' },
+      data: { isPremium: true, isBasic: false, hasSubscription: true, tier: 'premium' },
     })
     const svc = await createService()
     const result = await svc.verifySubscription()

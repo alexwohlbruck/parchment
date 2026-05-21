@@ -19,7 +19,7 @@ export const useAuthStore = defineStore('auth', () => {
   
   const me = ref<User | null | undefined>(cachedUser.value ?? undefined)
   const permissions = ref<PermissionId[]>([])
-  const subscription = ref<{ isPremium: boolean; hasSubscription: boolean; tier: string } | null>(null)
+  const subscription = ref<{ isPremium: boolean; isBasic: boolean; hasSubscription: boolean; tier: string } | null>(null)
   const sessions = ref<Session[]>([])
   const sessionId = ref<Session['id'] | null>(null)
   const stashedPath = ref<string | null>(null)
@@ -59,7 +59,7 @@ export const useAuthStore = defineStore('auth', () => {
     permissions.value = _permissions
   }
 
-  function setSubscription(_subscription: { isPremium: boolean; hasSubscription: boolean; tier: string }) {
+  function setSubscription(_subscription: { isPremium: boolean; isBasic: boolean; hasSubscription: boolean; tier: string }) {
     subscription.value = _subscription
   }
 

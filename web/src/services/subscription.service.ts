@@ -3,6 +3,8 @@ import { createSharedComposable } from '@vueuse/core'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
 
+export type Tier = 'free' | 'basic' | 'premium'
+
 export type SubscriptionDetails = {
   status: string
   amount: number
@@ -12,6 +14,7 @@ export type SubscriptionDetails = {
   cancelAtPeriodEnd: boolean
   startedAt: string | null
   productName: string
+  tier: Tier
 }
 
 export type ProductInfo = {
@@ -21,6 +24,7 @@ export type ProductInfo = {
   priceCurrency: string
   interval: string
   trialDays: number | null
+  tier: Tier
 }
 
 function subscriptionService() {
@@ -29,13 +33,17 @@ function subscriptionService() {
   const billingEnabled = ref(false)
   const loading = ref(false)
   const details = ref<SubscriptionDetails | null>(null)
-  const product = ref<ProductInfo | null>(null)
+  const basicProduct = ref<ProductInfo | null>(null)
+  const premiumProduct = ref<ProductInfo | null>(null)
 
   async function fetchConfig() {
     try {
       const { data } = await api.get('/subscriptions/config')
       billingEnabled.value = data.billingEnabled
-      product.value = data.product ?? null
+      if (data.products) {
+        basicProduct.value = data.products.basic ?? null
+        premiumProduct.value = data.products.premium ?? null
+      }
     } catch {
       billingEnabled.value = false
     }
@@ -44,14 +52,21 @@ function subscriptionService() {
   fetchConfig()
 
   const isPremium = computed(() => authStore.subscription?.isPremium ?? false)
+  const isBasic = computed(() => authStore.subscription?.isBasic ?? false)
   const hasSubscription = computed(() => authStore.subscription?.hasSubscription ?? false)
 
-  const tier = computed(() => (isPremium.value ? 'premium' : 'free'))
+  const tier = computed<Tier>(() => {
+    const t = authStore.subscription?.tier
+    if (t === 'premium' || t === 'basic') return t
+    return 'free'
+  })
 
-  async function startCheckout() {
+  async function startCheckout(checkoutTier?: Tier) {
     loading.value = true
     try {
-      const { data } = await api.post('/subscriptions/checkout')
+      const { data } = await api.post('/subscriptions/checkout', {
+        tier: checkoutTier ?? 'basic',
+      })
       window.location.href = data.checkoutUrl
     } finally {
       loading.value = false
@@ -89,11 +104,13 @@ function subscriptionService() {
   return {
     billingEnabled,
     isPremium,
+    isBasic,
     hasSubscription,
     tier,
     loading,
     details,
-    product,
+    basicProduct,
+    premiumProduct,
     startCheckout,
     openPortal,
     refreshStatus,

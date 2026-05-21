@@ -38,6 +38,8 @@ import {
 import { buildHandle, getServerDomain } from '../services/federation.service'
 import { isValidAlias } from '../lib/crypto'
 
+import { billing } from '../config'
+import { getAdminUserSubscriptionInfo } from '../services/subscription.service'
 import { i18next } from 'elysia-i18next'
 import { detectLanguage, getI18nInitOptions } from '../lib/i18n'
 
@@ -258,11 +260,17 @@ app.group('', (admin) =>
           .from(sessions)
           .where(eq(sessions.userId, params.id))
 
+        let billingInfo = null
+        if (billing.enabled) {
+          billingInfo = await getAdminUserSubscriptionInfo(params.id)
+        }
+
         return {
           ...userRow,
           roles: userRoles,
           permissions: userPermissions,
           sessionCount: sessionRows[0]?.count ?? 0,
+          billing: billingInfo,
         }
       },
       {

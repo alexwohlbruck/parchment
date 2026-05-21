@@ -260,9 +260,12 @@ jobs:
   build-ios:
     needs: [test]
     name: Build iOS app
-    runs-on: macos-latest
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v6
+
+      - name: Select Xcode 26
+        run: sudo xcode-select -s /Applications/Xcode_26.0.app/Contents/Developer
 
       - uses: oven-sh/setup-bun@v2
         with:

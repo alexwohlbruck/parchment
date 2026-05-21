@@ -1,42 +1,42 @@
 <script setup lang="ts">
 import { h, onMounted, ref, computed } from 'vue'
-import dayjs from 'dayjs'
-import localizedFormat from 'dayjs/plugin/localizedFormat'
 import { ColumnDef } from '@tanstack/vue-table'
-import { Role } from '@/types/auth.types'
+import { Role, PermissionId } from '@/types/auth.types'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
 import { useResponsive } from '@/lib/utils'
-
 import { useUserService } from '@/services/user.service'
+import { useAppService } from '@/services/app.service'
+import { useAuthService } from '@/services/auth.service'
+import { z } from 'zod'
 
-import { H4 } from '@/components/ui/typography'
 import DataTable from '@/components/table/DataTable.vue'
 import { Button } from '@/components/ui/button'
-import { Trash2Icon } from 'lucide-vue-next'
 import { Code } from '@/components/ui/code'
+import Badge from '@/components/ui/badge/Badge.vue'
 import { SettingsSection } from '@/components/settings'
+import { PlusIcon } from 'lucide-vue-next'
 
-dayjs.extend(localizedFormat)
-
+const router = useRouter()
 const userService = useUserService()
+const appService = useAppService()
+const authService = useAuthService()
 const { isTabletScreen } = useResponsive()
 const roles = ref<Role[]>([])
 
 const columns = computed<ColumnDef<Role>[]>(() => {
   const baseColumns: ColumnDef<Role>[] = []
 
-  // ID column (always visible)
   baseColumns.push({
     header: 'ID',
     cell: ({ row }) => h(Code, {}, row.original.id),
   })
 
-  // Name column (always visible)
   baseColumns.push({
     header: 'Name',
     accessorKey: 'name',
   })
 
-  // Description column (desktop only)
   if (!isTabletScreen.value) {
     baseColumns.push({
       header: 'Description',
@@ -44,17 +44,15 @@ const columns = computed<ColumnDef<Role>[]>(() => {
     })
   }
 
-  // Delete column (always visible)
   baseColumns.push({
-    id: 'delete',
+    id: 'type',
+    header: 'Type',
     cell: ({ row }) =>
-      h(Button, {
-        disabled: true, // TODO: User delete
-        variant: 'destructive-outline',
-        size: 'icon',
-        icon: Trash2Icon,
-        description: 'Delete user', // TODO: i18n
-      }),
+      h(
+        Badge,
+        { variant: (row.original as any).isDefault ? 'secondary' : 'outline' },
+        (row.original as any).isDefault ? 'Default' : 'Custom',
+      ),
   })
 
   return baseColumns
@@ -62,6 +60,26 @@ const columns = computed<ColumnDef<Role>[]>(() => {
 
 async function getRoles() {
   roles.value = await userService.getRoles()
+}
+
+async function createRole() {
+  const schema = z.object({
+    name: z.string().min(1).describe('Name'),
+    description: z.string().describe('Description'),
+  })
+
+  const result = (await appService.promptForm({
+    title: 'Create role',
+    schema,
+  })) as z.infer<typeof schema>
+
+  await userService.createRole(result)
+  await getRoles()
+  appService.toast.success('Role created')
+}
+
+function onRowClick(role: Role) {
+  router.push({ name: AppRoute.ROLE_DETAIL, params: { id: role.id } })
 }
 
 onMounted(getRoles)
@@ -73,6 +91,23 @@ onMounted(getRoles)
     :title="$t('settings.users.roles.title')"
     :frame="false"
   >
-    <DataTable class="w-full" :columns="columns" :data="roles" :page-size="10" />
+    <template v-slot:actions>
+      <Button
+        v-if="authService.hasPermission(PermissionId.ROLES_CREATE)"
+        @click="createRole()"
+        variant="outline"
+        :icon="PlusIcon"
+      >
+        Create role
+      </Button>
+    </template>
+
+    <DataTable
+      class="w-full"
+      :columns="columns"
+      :data="roles"
+      :page-size="10"
+      :on-row-click="onRowClick"
+    />
   </SettingsSection>
 </template>

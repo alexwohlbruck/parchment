@@ -203,6 +203,225 @@ app.group('', (admin) =>
 
 app.group('', (admin) =>
   admin
+    .use(permissions(PermissionId.ROLES_READ))
+    .get(
+      '/roles/:id',
+      async ({ params, status }) => {
+        const [role] = await db
+          .select()
+          .from(roles)
+          .where(eq(roles.id, params.id))
+          .limit(1)
+
+        if (!role) return status(404, { message: 'Role not found' })
+
+        const rolePerms = await db
+          .select({
+            id: permissionsSchema.id,
+            name: permissionsSchema.name,
+            isDefault: roleToPermissions.isDefault,
+          })
+          .from(roleToPermissions)
+          .innerJoin(
+            permissionsSchema,
+            eq(roleToPermissions.permissionId, permissionsSchema.id),
+          )
+          .where(eq(roleToPermissions.roleId, params.id))
+
+        const assignedUsers = await db
+          .select({
+            id: users.id,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            email: users.email,
+            picture: users.picture,
+          })
+          .from(usersToRoles)
+          .innerJoin(users, eq(usersToRoles.userId, users.id))
+          .where(eq(usersToRoles.roleId, params.id))
+
+        return {
+          ...role,
+          permissions: rolePerms,
+          users: assignedUsers,
+        }
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        detail: { tags: ['Users'] },
+      },
+    ),
+)
+
+app.group('', (admin) =>
+  admin
+    .use(permissions(PermissionId.ROLES_CREATE))
+    .post(
+      '/roles',
+      async ({ body }) => {
+        const id = generateId()
+        const [newRole] = await db
+          .insert(roles)
+          .values({
+            id,
+            name: body.name,
+            description: body.description ?? '',
+            isDefault: false,
+          })
+          .returning()
+
+        if (body.permissions?.length) {
+          await db.insert(roleToPermissions).values(
+            body.permissions.map((permId) => ({
+              roleId: id,
+              permissionId: permId,
+              isDefault: false,
+            })),
+          )
+        }
+
+        return newRole
+      },
+      {
+        body: t.Object({
+          name: t.String(),
+          description: t.Optional(t.String()),
+          permissions: t.Optional(t.Array(t.String())),
+        }),
+        detail: { tags: ['Users'] },
+      },
+    ),
+)
+
+app.group('', (admin) =>
+  admin
+    .use(permissions(PermissionId.ROLES_WRITE))
+    .patch(
+      '/roles/:id',
+      async ({ params, body, status }) => {
+        const [role] = await db
+          .select()
+          .from(roles)
+          .where(eq(roles.id, params.id))
+          .limit(1)
+
+        if (!role) return status(404, { message: 'Role not found' })
+        if (role.isDefault) {
+          return status(403, { message: 'Cannot modify default roles' })
+        }
+
+        const [updated] = await db
+          .update(roles)
+          .set({
+            ...(body.name !== undefined && { name: body.name }),
+            ...(body.description !== undefined && {
+              description: body.description,
+            }),
+          })
+          .where(eq(roles.id, params.id))
+          .returning()
+
+        return updated
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        body: t.Object({
+          name: t.Optional(t.String()),
+          description: t.Optional(t.String()),
+        }),
+        detail: { tags: ['Users'] },
+      },
+    ),
+)
+
+app.group('', (admin) =>
+  admin
+    .use(permissions(PermissionId.ROLES_DELETE))
+    .delete(
+      '/roles/:id',
+      async ({ params, status }) => {
+        const [role] = await db
+          .select()
+          .from(roles)
+          .where(eq(roles.id, params.id))
+          .limit(1)
+
+        if (!role) return status(404, { message: 'Role not found' })
+        if (role.isDefault) {
+          return status(403, { message: 'Cannot delete default roles' })
+        }
+
+        // Check no users are assigned this role
+        const [assignedCount] = await db
+          .select({ count: count() })
+          .from(usersToRoles)
+          .where(eq(usersToRoles.roleId, params.id))
+
+        if (assignedCount.count > 0) {
+          return status(400, {
+            message: 'Cannot delete a role that is assigned to users',
+          })
+        }
+
+        await db
+          .delete(roleToPermissions)
+          .where(eq(roleToPermissions.roleId, params.id))
+        await db.delete(roles).where(eq(roles.id, params.id))
+
+        return status(204)
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        detail: { tags: ['Users'] },
+      },
+    ),
+)
+
+app.group('', (admin) =>
+  admin
+    .use(permissions(PermissionId.ROLES_WRITE))
+    .put(
+      '/roles/:id/permissions',
+      async ({ params, body, status }) => {
+        const [role] = await db
+          .select()
+          .from(roles)
+          .where(eq(roles.id, params.id))
+          .limit(1)
+
+        if (!role) return status(404, { message: 'Role not found' })
+        if (role.isDefault) {
+          return status(403, { message: 'Cannot modify default role permissions' })
+        }
+
+        await db
+          .delete(roleToPermissions)
+          .where(eq(roleToPermissions.roleId, params.id))
+
+        if (body.permissions.length > 0) {
+          await db.insert(roleToPermissions).values(
+            body.permissions.map((permId) => ({
+              roleId: params.id,
+              permissionId: permId,
+              isDefault: false,
+            })),
+          )
+        }
+
+        return { success: true }
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        body: t.Object({
+          permissions: t.Array(t.String()),
+        }),
+        detail: { tags: ['Users'] },
+      },
+    ),
+)
+
+app.group('', (admin) =>
+  admin
     .use(permissions(PermissionId.PERMISSIONS_READ))
     .get(
       '/permissions',

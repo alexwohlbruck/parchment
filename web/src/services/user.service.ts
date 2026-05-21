@@ -67,14 +67,52 @@ function userService() {
     await api.delete(`/users/${id}`)
   }
 
+  async function getRole(id: string) {
+    const { data } = await api.get(`/users/roles/${id}`)
+    return data
+  }
+
+  async function createRole(fields: {
+    name: string
+    description?: string
+    permissions?: string[]
+  }) {
+    const { data } = await api.post('/users/roles', fields)
+    return data
+  }
+
+  async function updateRole(
+    id: string,
+    fields: { name?: string; description?: string },
+  ) {
+    const { data } = await api.patch(`/users/roles/${id}`, fields)
+    return data
+  }
+
+  async function deleteRole(id: string) {
+    await api.delete(`/users/roles/${id}`)
+  }
+
+  async function setRolePermissions(roleId: string, permissions: string[]) {
+    const { data } = await api.put(`/users/roles/${roleId}/permissions`, {
+      permissions,
+    })
+    return data
+  }
+
   return {
     getUsers,
     getUser,
     getRoles,
+    getRole,
     getPermissions,
     inviteUser,
     updateUser,
     deleteUser,
+    createRole,
+    updateRole,
+    deleteRole,
+    setRolePermissions,
     updateMyProfile,
   }
 }

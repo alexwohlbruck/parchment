@@ -316,6 +316,11 @@ export const settingsIndex: SettingsPageDef[] = [
               keywords: ['gpx', 'track', 'simulate', 'replay', 'gps', 'mock'],
             },
             {
+              id: 'impersonation',
+              titleKey: 'settings.developer.impersonation.title',
+              keywords: ['impersonate', 'login as', 'debug user'],
+            },
+            {
               id: 'dev-info',
               titleKey: 'settings.developer.info.title',
             },

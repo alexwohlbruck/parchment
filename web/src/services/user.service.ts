@@ -100,6 +100,11 @@ function userService() {
     return data
   }
 
+  async function impersonateUser(id: string) {
+    const { data } = await api.post(`/users/${id}/impersonate`)
+    return data as { sessionId: string; user: any }
+  }
+
   return {
     getUsers,
     getUser,
@@ -113,6 +118,7 @@ function userService() {
     updateRole,
     deleteRole,
     setRolePermissions,
+    impersonateUser,
     updateMyProfile,
   }
 }

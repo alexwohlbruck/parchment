@@ -39,6 +39,7 @@ import { buildHandle, getServerDomain } from '../services/federation.service'
 import { isValidAlias } from '../lib/crypto'
 
 import { billing } from '../config'
+import { logger } from '../lib/logger'
 import { getAdminUserSubscriptionInfo } from '../services/subscription.service'
 import { i18next } from 'elysia-i18next'
 import { detectLanguage, getI18nInitOptions } from '../lib/i18n'
@@ -642,6 +643,58 @@ app.group('', (admin) =>
         await db.delete(users).where(eq(users.id, params.id))
 
         return status(204)
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        detail: { tags: ['Users'] },
+      },
+    ),
+)
+
+// --- Impersonation (dev only) ---
+app.group('', (admin) =>
+  admin
+    .use(requireAuth)
+    .post(
+      '/:id/impersonate',
+      async ({ params, user, status }) => {
+        if (process.env.NODE_ENV === 'production') {
+          return status(403, { message: 'Impersonation is not available in production' })
+        }
+
+        if (params.id === user.id) {
+          return status(400, { message: 'Cannot impersonate yourself' })
+        }
+
+        const [target] = await db
+          .select({
+            id: users.id,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            email: users.email,
+            picture: users.picture,
+          })
+          .from(users)
+          .where(eq(users.id, params.id))
+          .limit(1)
+
+        if (!target) return status(404, { message: 'User not found' })
+
+        const session = await lucia.createSession(target.id, {})
+        logger.warn(
+          {
+            action: 'impersonate',
+            callerId: user.id,
+            targetId: target.id,
+            sessionId: session.id,
+          },
+          `User ${user.id} impersonating ${target.id}`,
+        )
+
+        return {
+          sessionId: session.id,
+          user: target,
+        }
       },
       {
         params: t.Object({ id: t.String() }),

@@ -15,6 +15,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
   CodeIcon,
+  EyeIcon,
   FileIcon,
   GaugeIcon,
   MapPinIcon,
@@ -34,6 +35,13 @@ import {
   simulatorStore,
   type SimulatorState,
 } from '@/dev/gpx-simulator'
+import { useUserService } from '@/services/user.service'
+import { useAuthService } from '@/services/auth.service'
+import { useAuthStore } from '@/stores/auth.store'
+import { useAppService } from '@/services/app.service'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
+import { User } from '@/types/auth.types'
 
 const state = ref<SimulatorState>(simulatorStore.getState())
 const errorMsg = ref<string | null>(null)
@@ -141,6 +149,39 @@ function setRate(rate: number) {
 function toggleLoop(value: boolean) {
   simulatorStore.setLoop(value)
 }
+
+// --- Impersonation ---
+const router = useRouter()
+const userService = useUserService()
+const authService = useAuthService()
+const authStore = useAuthStore()
+const appService = useAppService()
+const allUsers = ref<User[]>([])
+const selectedUserId = ref('')
+
+async function loadUsers() {
+  const result = await userService.getUsers(1, 100)
+  allUsers.value = (result.data as User[]).filter(
+    (u: User) => u.id !== authStore.me?.id,
+  )
+}
+
+async function startImpersonation() {
+  if (!selectedUserId.value) return
+  const target = allUsers.value.find(u => u.id === selectedUserId.value)
+  const confirmed = await appService.confirm({
+    title: `Impersonate ${target?.firstName ?? 'user'}?`,
+    description: 'You will be logged in as this user.',
+  })
+  if (!confirmed) return
+
+  await authService.impersonateUser(selectedUserId.value)
+  router.push({ name: AppRoute.MAP })
+}
+
+onMounted(() => {
+  loadUsers()
+})
 </script>
 
 <template>
@@ -307,6 +348,41 @@ function toggleLoop(value: boolean) {
           <span class="text-sm tabular-nums">{{ headingLabel }}</span>
         </SettingsItem>
       </template>
+    </SettingsSection>
+
+    <SettingsSection
+      id="impersonation"
+      title="Impersonate user"
+      description="Log in as another user to debug their experience. Session will be preserved until you click 'Return to admin'."
+    >
+      <SettingsItem
+        title="Select user"
+        :icon="EyeIcon"
+      >
+        <div class="flex items-center gap-2">
+          <select
+            v-model="selectedUserId"
+            class="flex h-9 w-full max-w-48 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="" disabled>Choose a user</option>
+            <option
+              v-for="u in allUsers"
+              :key="u.id"
+              :value="u.id"
+            >
+              {{ u.firstName }} {{ u.lastName }}
+            </option>
+          </select>
+          <Button
+            variant="default"
+            size="sm"
+            :disabled="!selectedUserId"
+            @click="startImpersonation"
+          >
+            Impersonate
+          </Button>
+        </div>
+      </SettingsItem>
     </SettingsSection>
 
     <SettingsSection

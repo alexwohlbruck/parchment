@@ -24,6 +24,7 @@ import {
   ExternalLinkIcon,
   Trash2Icon,
   PencilIcon,
+  EyeIcon,
 } from 'lucide-vue-next'
 
 dayjs.extend(localizedFormat)
@@ -65,6 +66,19 @@ async function deleteUser() {
   await userService.deleteUser(userId)
   appService.toast.success('User deleted')
   router.push({ name: AppRoute.USERS })
+}
+
+async function impersonate() {
+  if (!user.value) return
+  const confirmed = await appService.confirm({
+    title: `Impersonate ${user.value.firstName} ${user.value.lastName}?`,
+    description:
+      'You will be logged in as this user. A banner will appear at the bottom of the screen to return to your admin session.',
+  })
+  if (!confirmed) return
+
+  await authService.impersonateUser(userId)
+  router.push({ name: AppRoute.MAP })
 }
 
 function formatCurrency(amount: number, currency: string) {
@@ -120,6 +134,15 @@ onMounted(loadUser)
             @click="router.push({ name: AppRoute.USER_DETAIL, params: { id: userId } })"
           >
             Edit
+          </Button>
+          <Button
+            v-if="import.meta.env.DEV && !isCurrentUser"
+            variant="outline"
+            size="sm"
+            :icon="EyeIcon"
+            @click="impersonate"
+          >
+            Impersonate
           </Button>
           <Button
             v-if="

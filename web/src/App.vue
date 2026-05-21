@@ -28,6 +28,7 @@ import DesktopNav from '@/components/navigation/DesktopNavigation.vue'
 import MobileNav from '@/components/navigation/MobileNavigation.vue'
 import DialogView from '@/views/DialogView.vue'
 import HotkeysMenu from '@/components/HotkeysMenu.vue'
+import ImpersonationBanner from '@/components/ImpersonationBanner.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { TransitionSlide } from '@morev/vue-transitions'
 
@@ -172,6 +173,7 @@ function beforeNavTransition(value: boolean) {
   <Toaster richColors closeButton :duration="7000" position="bottom-center" />
   <HotkeysMenu />
   <DialogView></DialogView>
+  <ImpersonationBanner v-if="import.meta.env.DEV" />
 
   <div v-for="dialog in dialogs" :key="dialog.id">
     <component

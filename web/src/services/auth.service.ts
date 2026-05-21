@@ -406,6 +406,19 @@ function authService() {
     return permissions.some(value => userPermissions.includes(value))
   }
 
+  async function impersonateUser(userId: string) {
+    const { useUserService } = await import('@/services/user.service')
+    const userService = useUserService()
+    const result = await userService.impersonateUser(userId)
+    authStore.startImpersonation(result.sessionId, result.user)
+    await getPermissions()
+  }
+
+  async function endImpersonation() {
+    authStore.stopImpersonation()
+    await getPermissions()
+  }
+
   return {
     loadToken,
     getAuthenticatedUser,
@@ -426,6 +439,8 @@ function authService() {
     hasPermission,
     hasAllPermissions,
     hasAnyPermission,
+    impersonateUser,
+    endImpersonation,
   }
 }
 

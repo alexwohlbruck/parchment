@@ -54,7 +54,7 @@ export function useSettingsIndex() {
   const sectionsByPage = computed(() => {
     const map = new Map<
       string,
-      { id: string; title: string; hash: string }[]
+      { id: string; title: string; hash: string; to?: string }[]
     >()
     for (const page of allowedPages.value) {
       map.set(
@@ -63,6 +63,7 @@ export function useSettingsIndex() {
           id: section.id,
           title: tr(section.titleKey) ?? section.id,
           hash: `#${section.id}`,
+          to: section.to,
         })),
       )
     }
@@ -80,7 +81,7 @@ export function useSettingsIndex() {
         const sectionDescription = tr(section.descriptionKey)
         entries.push({
           pageId: page.pageId,
-          to: page.to,
+          to: section.to ?? page.to,
           pageTitle,
           sectionId: section.id,
           sectionTitle,

@@ -1497,6 +1497,18 @@
         "title": "Permissions"
       }
     },
+    "roles": {
+      "title": "Roles"
+    },
+    "permissions": {
+      "title": "Permissions"
+    },
+    "user-detail": {
+      "title": "User"
+    },
+    "role-detail": {
+      "title": "Role"
+    },
     "system": {
       "title": "System"
     }

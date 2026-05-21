@@ -17,8 +17,23 @@ export type Role = {
 const user: Role = {
   id: 'user',
   name: 'User',
-  description: 'A user that can view and browse the map',
+  description: 'A free user that can browse the map',
+  permissions: [],
+}
+
+const basic: Role = {
+  id: 'basic',
+  name: 'Basic',
+  description: 'A Basic subscriber with access to all user content features',
   permissions: [
+    PermissionId.LIBRARY_READ,
+    PermissionId.LIBRARY_WRITE,
+    PermissionId.SOCIAL_READ,
+    PermissionId.SOCIAL_WRITE,
+    PermissionId.SHARING_READ,
+    PermissionId.SHARING_WRITE,
+    PermissionId.LOCATION_SHARING,
+    PermissionId.NOTES_WRITE,
     PermissionId.INTEGRATIONS_READ_USER,
     PermissionId.INTEGRATIONS_WRITE_USER,
     PermissionId.LAYERS_READ,
@@ -31,10 +46,7 @@ const premium: Role = {
   name: 'Premium',
   description: 'A paying subscriber with access to all premium features',
   permissions: [
-    PermissionId.INTEGRATIONS_READ_USER,
-    PermissionId.INTEGRATIONS_WRITE_USER,
-    PermissionId.LAYERS_READ,
-    PermissionId.LAYERS_WRITE,
+    ...(basic.permissions as PermissionId[]),
     PermissionId.LAYERS_DELETE,
     PermissionId.SEARCH_AUTO_REFRESH,
     PermissionId.PREMIUM_DATA_PROVIDERS,
@@ -51,12 +63,9 @@ const alpha: Role = {
   description:
     'A privileged user that is able to read all data in the app, but has limited write permissions',
   permissions: [
-    PermissionId.INTEGRATIONS_READ_USER,
-    PermissionId.INTEGRATIONS_WRITE_USER,
+    ...(basic.permissions as PermissionId[]),
     PermissionId.INTEGRATIONS_READ_SYSTEM,
     PermissionId.SYSTEM_READ,
-    PermissionId.LAYERS_READ,
-    PermissionId.LAYERS_WRITE,
     PermissionId.LAYERS_DELETE,
     PermissionId.SEARCH_AUTO_REFRESH,
   ],
@@ -70,4 +79,4 @@ const admin: Role = {
   permissions: '*',
 }
 
-export const roles: Role[] = [user, premium, alpha, admin]
+export const roles: Role[] = [user, basic, premium, alpha, admin]

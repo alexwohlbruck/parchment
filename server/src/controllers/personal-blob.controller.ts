@@ -1,5 +1,6 @@
 import Elysia, { t } from 'elysia'
-import { requireAuth } from '../middleware/auth.middleware'
+import { permissions } from '../middleware/auth.middleware'
+import { PermissionId } from '../types/auth.types'
 import {
   getPersonalBlob,
   putPersonalBlob,
@@ -17,7 +18,7 @@ const app = new Elysia()
 
 const ALLOWED_TYPE_PATTERN = /^[a-zA-Z0-9._:-]{1,64}$/
 
-app.use(requireAuth).get(
+app.use(permissions(PermissionId.LIBRARY_READ)).get(
   '/me/blobs',
   async ({ user }) => {
     const rows = await listPersonalBlobTypes(user.id)
@@ -33,7 +34,7 @@ app.use(requireAuth).get(
   },
 )
 
-app.use(requireAuth).get(
+app.use(permissions(PermissionId.LIBRARY_READ)).get(
   '/me/blobs/:type',
   async ({ user, params: { type }, status }) => {
     if (!ALLOWED_TYPE_PATTERN.test(type)) {
@@ -52,7 +53,7 @@ app.use(requireAuth).get(
   },
 )
 
-app.use(requireAuth).put(
+app.use(permissions(PermissionId.LIBRARY_WRITE)).put(
   '/me/blobs/:type',
   async ({ user, params: { type }, body, status }) => {
     if (!ALLOWED_TYPE_PATTERN.test(type)) {
@@ -79,7 +80,7 @@ app.use(requireAuth).put(
   },
 )
 
-app.use(requireAuth).delete(
+app.use(permissions(PermissionId.LIBRARY_WRITE)).delete(
   '/me/blobs/:type',
   async ({ user, params: { type }, status }) => {
     if (!ALLOWED_TYPE_PATTERN.test(type)) {

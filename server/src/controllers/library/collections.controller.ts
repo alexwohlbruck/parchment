@@ -1,11 +1,12 @@
 import { Elysia, t } from 'elysia'
-import { requireAuth } from '../../middleware/auth.middleware.js'
+import { permissions } from '../../middleware/auth.middleware.js'
+import { PermissionId } from '../../types/auth.types'
 import * as collectionsService from '../../services/library/collections.service'
 import * as encryptedPointsService from '../../services/library/encrypted-points.service'
 import * as sharingService from '../../services/sharing.service'
 
 const collectionsRouter = new Elysia({ prefix: '/collections' })
-  .use(requireAuth)
+  .use(permissions(PermissionId.LIBRARY_WRITE))
 
   // Get all collections for the authenticated user
   .get(

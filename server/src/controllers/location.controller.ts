@@ -1,5 +1,6 @@
 import Elysia, { t } from 'elysia'
-import { requireAuth } from '../middleware/auth.middleware'
+import { permissions } from '../middleware/auth.middleware'
+import { PermissionId } from '../types/auth.types'
 import { makeUserRateLimit } from '../middleware/rate-limit.middleware'
 import { isFriend } from '../services/friends.service'
 import * as locationE2eeService from '../services/location-e2ee.service'
@@ -24,7 +25,7 @@ const updateRateLimit = makeUserRateLimit({
 /**
  * Get location sharing config for all friends
  */
-app.use(requireAuth).get(
+app.use(permissions(PermissionId.LOCATION_SHARING)).get(
   '/e2ee/config',
   async ({ user, status }) => {
     if (!user) {
@@ -45,7 +46,7 @@ app.use(requireAuth).get(
 /**
  * Set location sharing config for a friend
  */
-app.use(requireAuth).post(
+app.use(permissions(PermissionId.LOCATION_SHARING)).post(
   '/e2ee/config',
   async ({ body, user, status }) => {
     if (!user) {
@@ -75,7 +76,7 @@ app.use(requireAuth).post(
 /**
  * Disable location sharing with a friend
  */
-app.use(requireAuth).delete(
+app.use(permissions(PermissionId.LOCATION_SHARING)).delete(
   '/e2ee/config/:friendHandle',
   async ({ params, user, status }) => {
     if (!user) {
@@ -119,7 +120,7 @@ app.use(requireAuth).delete(
  * use realtime delivery as a presence/fingerprint oracle.
  */
 app
-  .use(requireAuth)
+  .use(permissions(PermissionId.LOCATION_SHARING))
   .use(updateRateLimit)
   .post(
     '/e2ee/update',
@@ -183,7 +184,7 @@ app
 /**
  * Get encrypted locations from friends
  */
-app.use(requireAuth).get(
+app.use(permissions(PermissionId.LOCATION_SHARING)).get(
   '/e2ee/friends',
   async ({ user, status }) => {
     if (!user) {

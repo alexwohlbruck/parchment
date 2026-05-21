@@ -1,4 +1,4 @@
-import Elysia from 'elysia'
+import Elysia, { t } from 'elysia'
 import { validateEvent, WebhookVerificationError } from '@polar-sh/sdk/webhooks'
 import { requireAuth } from '../middleware/auth.middleware'
 import { billing } from '../config'
@@ -8,10 +8,11 @@ import {
   getCustomerPortalUrl,
   getSubscriptionStatus,
   getSubscriptionDetails,
-  getProductInfo,
+  getProductsInfo,
   verifyAndSyncSubscription,
-  assignPremiumRole,
-  removePremiumRole,
+  assignTierRole,
+  removeTierRole,
+  resolveProductTier,
   linkPolarCustomer,
   findUserByPolarCustomerId,
 } from '../services/subscription.service'
@@ -23,8 +24,8 @@ const app = new Elysia({ prefix: '/subscriptions' })
 app.get(
   '/config',
   async () => {
-    const product = billing.enabled ? await getProductInfo() : null
-    return { billingEnabled: billing.enabled, product }
+    const products = billing.enabled ? await getProductsInfo() : null
+    return { billingEnabled: billing.enabled, products }
   },
   {
     detail: {
@@ -63,6 +64,7 @@ if (billing.enabled) {
       switch (type) {
         case 'subscription.active': {
           const polarCustomerId = data.customerId as string
+          const productId = data.productId as string | undefined
           const metadataUserId = data.metadata?.parchmentUserId as
             | string
             | undefined
@@ -87,18 +89,28 @@ if (billing.enabled) {
           }
 
           await linkPolarCustomer(userId, polarCustomerId)
-          await assignPremiumRole(userId)
-          publish('subscription:updated', { isPremium: true, tier: 'premium' }, {
+
+          const tier = productId ? resolveProductTier(productId) : null
+          if (tier && tier !== 'free') {
+            await assignTierRole(userId, tier)
+          } else {
+            // Fallback: unknown product, treat as premium for backward compat
+            await assignTierRole(userId, 'premium')
+            logger.warn({ productId }, 'Webhook: unknown productId, defaulting to premium')
+          }
+
+          publish('subscription:updated', { tier: tier ?? 'premium' }, {
             localUserIds: [userId],
             remoteHandles: [],
           })
-          logger.info({ userId, polarCustomerId }, 'Subscription activated')
+          logger.info({ userId, polarCustomerId, tier }, 'Subscription activated')
           break
         }
 
         case 'subscription.canceled':
         case 'subscription.revoked': {
           const polarCustomerId = data.customerId as string
+          const productId = data.productId as string | undefined
           const user = await findUserByPolarCustomerId(polarCustomerId)
 
           if (!user) {
@@ -109,13 +121,23 @@ if (billing.enabled) {
             return status(200, { received: true })
           }
 
-          await removePremiumRole(user.id)
-          publish('subscription:updated', { isPremium: false, tier: 'free' }, {
+          const tier = productId ? resolveProductTier(productId) : null
+          if (tier && tier !== 'free') {
+            await removeTierRole(user.id, tier)
+          } else {
+            // Fallback: unknown product, remove both
+            await removeTierRole(user.id, 'basic')
+            await removeTierRole(user.id, 'premium')
+          }
+
+          // Get the user's current status after removal
+          const currentStatus = await getSubscriptionStatus(user.id)
+          publish('subscription:updated', { tier: currentStatus.tier }, {
             localUserIds: [user.id],
             remoteHandles: [],
           })
           logger.info(
-            { userId: user.id, polarCustomerId },
+            { userId: user.id, polarCustomerId, tier },
             `Subscription ${type.split('.')[1]}`,
           )
           break
@@ -147,20 +169,38 @@ if (billing.enabled) {
 
       .post(
         '/checkout',
-        async ({ user }) => {
+        async ({ user, body }) => {
           const fullUser = await fetchUser(user.id)
           const successUrl = `${process.env.CLIENT_ORIGIN}/settings/account?checkout=success`
+          const tier = body.tier ?? 'basic'
+
+          // Map tier to product ID
+          let productId: string
+          if (tier === 'premium') {
+            productId = billing.premiumProductId
+          } else {
+            productId = billing.basicProductId
+          }
+
+          if (!productId) {
+            throw new Error('Product not configured for this tier')
+          }
+
           const checkoutUrl = await createCheckoutSession(
             user.id,
             fullUser.email,
             successUrl,
+            productId,
           )
           return { checkoutUrl }
         },
         {
+          body: t.Object({
+            tier: t.Optional(t.Union([t.Literal('basic'), t.Literal('premium')])),
+          }),
           detail: {
             tags: ['Subscriptions'],
-            summary: 'Create a Polar checkout session for premium upgrade',
+            summary: 'Create a Polar checkout session for subscription upgrade',
           },
         },
       )

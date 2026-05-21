@@ -539,7 +539,7 @@ app.group('/sessions', (app) => {
 
       const subscription = billing.enabled
         ? await getSubscriptionStatus(user.id)
-        : { isPremium: true, hasSubscription: false, tier: 'premium' as const }
+        : { isPremium: true, isBasic: false, hasSubscription: false, tier: 'premium' as const }
 
       return {
         user: me,
@@ -561,7 +561,7 @@ app.group('/sessions', (app) => {
         getPermissions(user.id),
         billing.enabled
           ? getSubscriptionStatus(user.id)
-          : { isPremium: true, hasSubscription: false, tier: 'premium' as const },
+          : { isPremium: true, isBasic: false, hasSubscription: false, tier: 'premium' as const },
       ])
       return { permissions, subscription }
     },

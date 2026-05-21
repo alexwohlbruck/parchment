@@ -38,6 +38,7 @@ import {
   subscription as subscriptionController,
 } from './controllers'
 import { initializeIntegrations } from './services/integration.service'
+import { clearProductCache } from './services/subscription.service'
 import { bootstrapRealtime } from './services/realtime/bootstrap'
 import { syncPermissionsAndRoles } from './seed/sync-permissions'
 import { getI18nInitOptions, detectLanguage } from './lib/i18n'
@@ -142,6 +143,7 @@ async function main() {
 
   try {
     logger.debug('i18n configured')
+    clearProductCache()
     await syncPermissionsAndRoles()
     logger.info('Permissions and roles synced')
     initializeOsmPresets()

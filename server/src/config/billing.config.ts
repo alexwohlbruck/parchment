@@ -24,6 +24,7 @@ export const billing = {
   webhookSecret: process.env.POLAR_WEBHOOK_SECRET ?? '',
   organizationId: process.env.POLAR_ORGANIZATION_ID ?? '',
   premiumProductId: process.env.POLAR_PREMIUM_PRODUCT_ID ?? '',
+  basicProductId: process.env.POLAR_BASIC_PRODUCT_ID ?? '',
 }
 
 if (billing.enabled && !billing.webhookSecret) {

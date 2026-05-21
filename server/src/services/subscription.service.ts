@@ -1,15 +1,19 @@
 import { Polar } from '@polar-sh/sdk'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import { db } from '../db'
 import { billing } from '../config'
 import { users } from '../schema/users.schema'
 import { usersToRoles } from '../schema/users-roles.schema'
 import { logger } from '../lib/logger'
 
+const BASIC_ROLE_ID = 'basic'
 const PREMIUM_ROLE_ID = 'premium'
 
 let polar: Polar | null = null
-let cachedProduct: ProductInfo | null = null
+let cachedProducts: Record<string, { info: ProductInfo; fetchedAt: number }> = {}
+const PRODUCT_CACHE_TTL = 60 * 60 * 1000 // 1 hour
+
+export type Tier = 'free' | 'basic' | 'premium'
 
 export type ProductInfo = {
   name: string
@@ -18,6 +22,11 @@ export type ProductInfo = {
   priceCurrency: string
   interval: string
   trialDays: number | null
+  tier: Tier
+}
+
+export function clearProductCache() {
+  cachedProducts = {}
 }
 
 function getPolar(): Polar {
@@ -31,21 +40,32 @@ function getPolar(): Polar {
 }
 
 /**
- * Fetch and cache the premium product info from Polar.
- * Cached in-memory since product details rarely change.
+ * Map a Polar product ID to its tier.
  */
-export async function getProductInfo(): Promise<ProductInfo | null> {
-  if (cachedProduct) return cachedProduct
+export function resolveProductTier(productId: string): Tier | null {
+  if (productId === billing.basicProductId) return 'basic'
+  if (productId === billing.premiumProductId) return 'premium'
+  return null
+}
+
+/**
+ * Fetch product info for a single Polar product.
+ */
+async function fetchProductInfo(productId: string, tier: Tier): Promise<ProductInfo | null> {
+  if (!productId) return null
+  const cached = cachedProducts[productId]
+  if (cached && Date.now() - cached.fetchedAt < PRODUCT_CACHE_TTL) return cached.info
 
   try {
-    const product = await getPolar().products.get({ id: billing.premiumProductId })
+    const product = await getPolar().products.get({ id: productId })
 
-    // Find the first non-archived fixed price
-    const price = product.prices?.find(
+    // Filter to active fixed prices; take the last one (most recently created)
+    // so price changes in Polar are picked up immediately.
+    const fixedPrices = (product.prices ?? []).filter(
       (p: any) => p.amountType === 'fixed' && !p.isArchived,
-    ) as { priceAmount: number; priceCurrency: string } | undefined
+    ) as { priceAmount: number; priceCurrency: string }[]
+    const price = fixedPrices[fixedPrices.length - 1]
 
-    // Convert trial interval to days
     let trialDays: number | null = null
     if (product.trialIntervalCount && product.trialInterval) {
       const multiplier: Record<string, number> = {
@@ -57,29 +77,59 @@ export async function getProductInfo(): Promise<ProductInfo | null> {
       trialDays = product.trialIntervalCount * (multiplier[product.trialInterval] ?? 30)
     }
 
-    cachedProduct = {
+    const info: ProductInfo = {
       name: product.name,
       description: product.description ?? null,
       priceAmount: price?.priceAmount ?? 0,
       priceCurrency: price?.priceCurrency ?? 'usd',
       interval: product.recurringInterval ?? 'month',
       trialDays,
+      tier,
     }
 
-    return cachedProduct
+    cachedProducts[productId] = { info, fetchedAt: Date.now() }
+    logger.debug({ productId, tier, priceAmount: info.priceAmount }, 'Fetched product info from Polar')
+    return info
   } catch (err) {
-    logger.warn({ err }, 'Failed to fetch product info from Polar')
+    logger.warn({ err, productId }, 'Failed to fetch product info from Polar')
     return null
   }
+}
+
+/**
+ * Fetch and cache the premium product info from Polar.
+ */
+export async function getProductInfo(): Promise<ProductInfo | null> {
+  return fetchProductInfo(billing.premiumProductId, 'premium')
+}
+
+/**
+ * Fetch and cache the basic product info from Polar.
+ */
+export async function getBasicProductInfo(): Promise<ProductInfo | null> {
+  return fetchProductInfo(billing.basicProductId, 'basic')
+}
+
+/**
+ * Fetch info for all configured products.
+ */
+export async function getProductsInfo(): Promise<{ basic: ProductInfo | null; premium: ProductInfo | null }> {
+  const [basic, premium] = await Promise.all([
+    getBasicProductInfo(),
+    getProductInfo(),
+  ])
+  return { basic, premium }
 }
 
 export async function createCheckoutSession(
   userId: string,
   userEmail: string,
   successUrl: string,
+  productId?: string,
 ) {
+  const targetProductId = productId ?? billing.premiumProductId
   const base = {
-    products: [billing.premiumProductId],
+    products: [targetProductId],
     metadata: { parchmentUserId: userId },
     successUrl,
   }
@@ -102,6 +152,28 @@ export async function getCustomerPortalUrl(polarCustomerId: string) {
   return session.customerPortalUrl
 }
 
+// ── Role assignment ─────────────────────────────────────────────────────
+
+export async function assignBasicRole(userId: string) {
+  await db
+    .insert(usersToRoles)
+    .values({ userId, roleId: BASIC_ROLE_ID })
+    .onConflictDoNothing()
+  logger.info({ userId }, 'Assigned basic role')
+}
+
+export async function removeBasicRole(userId: string) {
+  await db
+    .delete(usersToRoles)
+    .where(
+      and(
+        eq(usersToRoles.userId, userId),
+        eq(usersToRoles.roleId, BASIC_ROLE_ID),
+      ),
+    )
+  logger.info({ userId }, 'Removed basic role')
+}
+
 export async function assignPremiumRole(userId: string) {
   await db
     .insert(usersToRoles)
@@ -122,6 +194,32 @@ export async function removePremiumRole(userId: string) {
   logger.info({ userId }, 'Removed premium role')
 }
 
+/**
+ * Assign the role for a given tier, removing the other paid role if present.
+ */
+export async function assignTierRole(userId: string, tier: Tier) {
+  if (tier === 'basic') {
+    await removePremiumRole(userId)
+    await assignBasicRole(userId)
+  } else if (tier === 'premium') {
+    await removeBasicRole(userId)
+    await assignPremiumRole(userId)
+  }
+}
+
+/**
+ * Remove the role for a given tier.
+ */
+export async function removeTierRole(userId: string, tier: Tier) {
+  if (tier === 'basic') {
+    await removeBasicRole(userId)
+  } else if (tier === 'premium') {
+    await removePremiumRole(userId)
+  }
+}
+
+// ── Customer linking ────────────────────────────────────────────────────
+
 export async function linkPolarCustomer(
   userId: string,
   polarCustomerId: string,
@@ -141,12 +239,44 @@ export async function findUserByPolarCustomerId(polarCustomerId: string) {
   return user ?? null
 }
 
+// ── Status queries ──────────────────────────────────────────────────────
+
+/**
+ * Determine the user's highest tier from their roles.
+ * Premium > Basic > Free
+ */
+export async function getSubscriptionStatus(userId: string) {
+  const rows = await db
+    .select({ roleId: usersToRoles.roleId })
+    .from(usersToRoles)
+    .where(
+      and(
+        eq(usersToRoles.userId, userId),
+        inArray(usersToRoles.roleId, [BASIC_ROLE_ID, PREMIUM_ROLE_ID]),
+      ),
+    )
+
+  const [user] = await db
+    .select({ polarCustomerId: users.polarCustomerId })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+
+  const roleIds = rows.map(r => r.roleId)
+  const isPremium = roleIds.includes(PREMIUM_ROLE_ID)
+  const isBasic = roleIds.includes(BASIC_ROLE_ID)
+  const hasSubscription = !!user?.polarCustomerId
+
+  let tier: Tier = 'free'
+  if (isPremium) tier = 'premium'
+  else if (isBasic) tier = 'basic'
+
+  return { isPremium, isBasic, hasSubscription, tier } as const
+}
+
 export async function verifyAndSyncSubscription(userId: string, userEmail: string) {
   const p = getPolar()
 
-  // Try to find the Polar customer — first by an existing link in our DB,
-  // then by email. Handles the case where the Polar checkout email differs
-  // from the Parchment account email (common in dev/sandbox).
   const [localUser] = await db
     .select({ polarCustomerId: users.polarCustomerId })
     .from(users)
@@ -173,8 +303,9 @@ export async function verifyAndSyncSubscription(userId: string, userEmail: strin
   }
 
   if (!customer) {
+    await removeBasicRole(userId)
     await removePremiumRole(userId)
-    return { isPremium: false, hasSubscription: false, tier: 'free' as const }
+    return { isPremium: false, isBasic: false, hasSubscription: false, tier: 'free' as const }
   }
 
   const existingLinkedUser = await findUserByPolarCustomerId(customer.id)
@@ -183,52 +314,52 @@ export async function verifyAndSyncSubscription(userId: string, userEmail: strin
       { userId, existingUserId: existingLinkedUser.id, polarCustomerId: customer.id },
       'Polar customer already linked to a different user — refusing to re-link',
     )
+    await removeBasicRole(userId)
     await removePremiumRole(userId)
-    return { isPremium: false, hasSubscription: false, tier: 'free' as const }
+    return { isPremium: false, isBasic: false, hasSubscription: false, tier: 'free' as const }
   }
 
   await linkPolarCustomer(userId, customer.id)
 
-  const subs = await p.subscriptions.list({
-    customerId: customer.id,
-    productId: billing.premiumProductId,
-    active: true,
-    limit: 1,
-  })
+  // Check for premium subscription first
+  const premiumSubs = billing.premiumProductId
+    ? await p.subscriptions.list({
+        customerId: customer.id,
+        productId: billing.premiumProductId,
+        active: true,
+        limit: 1,
+      })
+    : { result: { items: [] } }
 
-  const activeSub = subs.result.items[0]
-  if (activeSub) {
+  if (premiumSubs.result.items[0]) {
+    await removeBasicRole(userId)
     await assignPremiumRole(userId)
-    logger.info({ userId, polarCustomerId: customer.id }, 'Subscription verified active via Polar API')
-    return { isPremium: true, hasSubscription: true, tier: 'premium' as const }
+    logger.info({ userId, polarCustomerId: customer.id }, 'Premium subscription verified active')
+    return { isPremium: true, isBasic: false, hasSubscription: true, tier: 'premium' as const }
   }
 
+  // Check for basic subscription
+  const basicSubs = billing.basicProductId
+    ? await p.subscriptions.list({
+        customerId: customer.id,
+        productId: billing.basicProductId,
+        active: true,
+        limit: 1,
+      })
+    : { result: { items: [] } }
+
+  if (basicSubs.result.items[0]) {
+    await removePremiumRole(userId)
+    await assignBasicRole(userId)
+    logger.info({ userId, polarCustomerId: customer.id }, 'Basic subscription verified active')
+    return { isPremium: false, isBasic: true, hasSubscription: true, tier: 'basic' as const }
+  }
+
+  // No active subscription
+  await removeBasicRole(userId)
   await removePremiumRole(userId)
-  logger.info({ userId, polarCustomerId: customer.id }, 'Subscription verified inactive via Polar API')
-  return { isPremium: false, hasSubscription: true, tier: 'free' as const }
-}
-
-export async function getSubscriptionStatus(userId: string) {
-  const [row] = await db
-    .select()
-    .from(usersToRoles)
-    .where(
-      and(
-        eq(usersToRoles.userId, userId),
-        eq(usersToRoles.roleId, PREMIUM_ROLE_ID),
-      ),
-    )
-    .limit(1)
-
-  const [user] = await db
-    .select({ polarCustomerId: users.polarCustomerId })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1)
-
-  const isPremium = !!row
-  const hasSubscription = !!user?.polarCustomerId
-  return { isPremium, hasSubscription, tier: isPremium ? 'premium' : 'free' } as const
+  logger.info({ userId, polarCustomerId: customer.id }, 'No active subscription found via Polar API')
+  return { isPremium: false, isBasic: false, hasSubscription: true, tier: 'free' as const }
 }
 
 /**
@@ -246,33 +377,40 @@ export async function getSubscriptionDetails(userId: string) {
 
   const p = getPolar()
 
-  try {
-    const subs = await p.subscriptions.list({
-      customerId: user.polarCustomerId,
-      productId: billing.premiumProductId,
-      limit: 1,
-    })
+  // Check premium first, then basic
+  const productIds = [billing.premiumProductId, billing.basicProductId].filter(Boolean)
 
-    const sub = subs.result.items[0]
-    if (!sub) return null
+  for (const productId of productIds) {
+    try {
+      const subs = await p.subscriptions.list({
+        customerId: user.polarCustomerId,
+        productId,
+        limit: 1,
+      })
 
-    // Extract price from the subscription's amount field
-    const amount = sub.amount ?? 0
-    const currency = sub.currency ?? 'usd'
-    const interval = sub.recurringInterval ?? 'month'
+      const sub = subs.result.items[0]
+      if (!sub) continue
 
-    return {
-      status: sub.status,
-      amount,
-      currency,
-      interval,
-      currentPeriodEnd: sub.currentPeriodEnd?.toISOString() ?? null,
-      cancelAtPeriodEnd: sub.cancelAtPeriodEnd ?? false,
-      startedAt: sub.startedAt?.toISOString() ?? null,
-      productName: sub.product?.name ?? 'Premium',
+      const amount = sub.amount ?? 0
+      const currency = sub.currency ?? 'usd'
+      const interval = sub.recurringInterval ?? 'month'
+      const tier = resolveProductTier(productId) ?? 'free'
+
+      return {
+        status: sub.status,
+        amount,
+        currency,
+        interval,
+        currentPeriodEnd: sub.currentPeriodEnd?.toISOString() ?? null,
+        cancelAtPeriodEnd: sub.cancelAtPeriodEnd ?? false,
+        startedAt: sub.startedAt?.toISOString() ?? null,
+        productName: sub.product?.name ?? (tier === 'premium' ? 'Premium' : 'Basic'),
+        tier,
+      }
+    } catch (err) {
+      logger.warn({ userId, productId, err }, 'Failed to fetch subscription details from Polar')
     }
-  } catch (err) {
-    logger.warn({ userId, err }, 'Failed to fetch subscription details from Polar')
-    return null
   }
+
+  return null
 }

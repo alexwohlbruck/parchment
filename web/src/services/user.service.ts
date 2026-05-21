@@ -45,11 +45,36 @@ function userService() {
     return data
   }
 
+  async function getUser(id: string) {
+    const { data } = await api.get(`/users/${id}`)
+    return data
+  }
+
+  async function updateUser(
+    id: string,
+    fields: {
+      firstName?: string
+      lastName?: string
+      email?: string
+      roles?: string[]
+    },
+  ) {
+    const { data } = await api.patch(`/users/${id}`, fields)
+    return data
+  }
+
+  async function deleteUser(id: string) {
+    await api.delete(`/users/${id}`)
+  }
+
   return {
     getUsers,
+    getUser,
     getRoles,
     getPermissions,
     inviteUser,
+    updateUser,
+    deleteUser,
     updateMyProfile,
   }
 }

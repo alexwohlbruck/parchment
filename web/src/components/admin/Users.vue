@@ -4,17 +4,31 @@ import dayjs from 'dayjs'
 import { z } from 'zod'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
 import { ColumnDef } from '@tanstack/vue-table'
-import { PermissionId, User } from '@/types/auth.types'
+import { PermissionId, User, Role } from '@/types/auth.types'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
 import { useUserService } from '@/services/user.service'
 import { useAppService } from '@/services/app.service'
 import { useAuthService } from '@/services/auth.service'
+import { useAuthStore } from '@/stores/auth.store'
 import { useResponsive } from '@/lib/utils'
 
-import { H4 } from '@/components/ui/typography'
 import DataTable from '@/components/table/DataTable.vue'
 import { Button } from '@/components/ui/button'
-import { PlusIcon, Trash2Icon } from 'lucide-vue-next'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  PlusIcon,
+  EllipsisIcon,
+  PencilIcon,
+  Trash2Icon,
+} from 'lucide-vue-next'
 import Avatar from '@/components/ui/avatar/Avatar.vue'
 import AvatarImage from '@/components/ui/avatar/AvatarImage.vue'
 import Badge from '@/components/ui/badge/Badge.vue'
@@ -23,19 +37,28 @@ import { SettingsSection } from '@/components/settings'
 dayjs.extend(localizedFormat)
 
 const { t } = useI18n()
+const router = useRouter()
 const appService = useAppService()
 const authService = useAuthService()
+const authStore = useAuthStore()
 const userService = useUserService()
 const { isTabletScreen } = useResponsive()
 const PAGE_SIZE = 25
 const users = ref<User[]>([])
+const allRoles = ref<Role[]>([])
 const totalUsers = ref(0)
 const currentPage = ref(1)
+
+const canUpdate = computed(() =>
+  authService.hasPermission(PermissionId.USERS_UPDATE),
+)
+const canDelete = computed(() =>
+  authService.hasPermission(PermissionId.USERS_DELETE),
+)
 
 const columns = computed<ColumnDef<User>[]>(() => {
   const baseColumns: ColumnDef<User>[] = []
 
-  // Avatar column (desktop only)
   if (!isTabletScreen.value) {
     baseColumns.push({
       id: 'avatar',
@@ -48,13 +71,11 @@ const columns = computed<ColumnDef<User>[]>(() => {
     })
   }
 
-  // Name column (always visible)
   baseColumns.push({
     header: 'Name',
     accessorFn: data => `${data.firstName} ${data.lastName}`,
   })
 
-  // Email column (desktop only)
   if (!isTabletScreen.value) {
     baseColumns.push({
       header: 'Email',
@@ -62,16 +83,13 @@ const columns = computed<ColumnDef<User>[]>(() => {
     })
   }
 
-  // Roles column (always visible)
   baseColumns.push({
     id: 'roles',
     header: 'Roles',
     cell: ({ row }) =>
       h(
         'div',
-        {
-          class: 'flex gap-2',
-        },
+        { class: 'flex gap-2' },
         [
           row.original.roles?.map(role =>
             h(Badge, { variant: 'outline' }, [role.name]),
@@ -80,7 +98,6 @@ const columns = computed<ColumnDef<User>[]>(() => {
       ),
   })
 
-  // Sessions column (desktop only)
   if (!isTabletScreen.value) {
     baseColumns.push({
       id: 'sessions',
@@ -93,18 +110,62 @@ const columns = computed<ColumnDef<User>[]>(() => {
     })
   }
 
-  // Delete column (always visible)
-  baseColumns.push({
-    id: 'delete',
-    cell: ({ row }) =>
-      h(Button, {
-        disabled: true, // TODO: User delete
-        variant: 'destructive-outline',
-        size: 'icon',
-        icon: Trash2Icon,
-        description: 'Delete user', // TODO: i18n
-      }),
-  })
+  if (canUpdate.value || canDelete.value) {
+    baseColumns.push({
+      id: 'actions',
+      meta: {
+        headerClass: 'w-12',
+        cellClass: 'text-right',
+      },
+      cell: ({ row }) =>
+        h(
+          DropdownMenu,
+          {},
+          {
+            default: () => [
+              h(
+                DropdownMenuTrigger,
+                { asChild: true },
+                () =>
+                  h(Button, {
+                    variant: 'ghost',
+                    size: 'icon-sm',
+                    icon: EllipsisIcon,
+                    onClick: (e: MouseEvent) => e.stopPropagation(),
+                  }),
+              ),
+              h(DropdownMenuContent, { align: 'end' }, () => [
+                canUpdate.value &&
+                  h(
+                    DropdownMenuItem,
+                    { onClick: () => editUser(row.original) },
+                    () => [
+                      h(PencilIcon, { class: 'size-4 mr-2' }),
+                      'Edit',
+                    ],
+                  ),
+                canDelete.value &&
+                  row.original.id !== authStore.me?.id &&
+                  h(DropdownMenuSeparator),
+                canDelete.value &&
+                  row.original.id !== authStore.me?.id &&
+                  h(
+                    DropdownMenuItem,
+                    {
+                      class: 'text-destructive',
+                      onClick: () => deleteUser(row.original),
+                    },
+                    () => [
+                      h(Trash2Icon, { class: 'size-4 mr-2' }),
+                      'Delete',
+                    ],
+                  ),
+              ]),
+            ],
+          },
+        ),
+    })
+  }
 
   return baseColumns
 })
@@ -116,9 +177,50 @@ async function getUsers(page = 1) {
   currentPage.value = result.page
 }
 
+async function editUser(user: User) {
+  const roleOptions = allRoles.value.map(r => r.id) as [string, ...string[]]
+
+  const schema = z.object({
+    firstName: z.string().describe('First name'),
+    lastName: z.string().describe('Last name'),
+    email: z.string().email().describe('Email'),
+    roles: z.array(z.enum(roleOptions)).describe('Roles'),
+  })
+
+  const result = (await appService.promptForm({
+    title: `Edit ${user.firstName} ${user.lastName}`,
+    schema,
+    initialValues: {
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      roles: user.roles?.map((r: any) => r.id) ?? [],
+    },
+  })) as z.infer<typeof schema>
+
+  await userService.updateUser(user.id, result)
+  await getUsers(currentPage.value)
+  appService.toast.success('User updated')
+}
+
+async function deleteUser(user: User) {
+  const confirmed = await appService.confirm({
+    title: `Delete ${user.firstName} ${user.lastName}?`,
+    description:
+      'This will permanently remove the user and invalidate all their sessions. This cannot be undone.',
+    destructive: true,
+    continueText: 'Delete',
+  })
+  if (!confirmed) return
+
+  await userService.deleteUser(user.id)
+  await getUsers(currentPage.value)
+  appService.toast.success('User deleted')
+}
+
 async function inviteUser() {
   const schema = z.object({
-    firstName: z.string().describe('First name'), // TODO: i18n
+    firstName: z.string().describe('First name'),
     lastName: z.string(),
     email: z.string().email(),
     role: z.enum(['user', 'alpha', 'admin']).default('user'),
@@ -137,7 +239,17 @@ async function inviteUser() {
   appService.toast.success(t('messages.invitationSent', { email: user.email }))
 }
 
-onMounted(getUsers)
+function onRowClick(user: User) {
+  router.push({ name: AppRoute.USER_DETAIL, params: { id: user.id } })
+}
+
+onMounted(async () => {
+  await Promise.all([getUsers(), loadRoles()])
+})
+
+async function loadRoles() {
+  allRoles.value = await userService.getRoles()
+}
 </script>
 
 <template>
@@ -164,6 +276,7 @@ onMounted(getUsers)
       :page-size="PAGE_SIZE"
       :total-items="totalUsers"
       :current-page="currentPage"
+      :on-row-click="onRowClick"
       @update:page="getUsers"
     />
   </SettingsSection>

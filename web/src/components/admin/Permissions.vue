@@ -46,6 +46,7 @@ onMounted(getPermissions)
       class="w-full"
       :columns="columns"
       :data="permissions"
-    ></DataTable>
+      :page-size="10"
+    />
   </SettingsSection>
 </template>

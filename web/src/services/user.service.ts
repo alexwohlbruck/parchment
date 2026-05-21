@@ -1,10 +1,17 @@
 import { api } from '@/lib/api'
 import { createSharedComposable } from '@vueuse/core'
 
+export type PaginatedUsers = {
+  data: any[]
+  total: number
+  page: number
+  limit: number
+}
+
 function userService() {
-  async function getUsers() {
-    const { data: users } = await api.get('/users')
-    return users
+  async function getUsers(page = 1, limit = 25): Promise<PaginatedUsers> {
+    const { data } = await api.get('/users', { params: { page, limit } })
+    return data
   }
 
   async function getRoles() {

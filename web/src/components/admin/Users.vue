@@ -27,7 +27,10 @@ const appService = useAppService()
 const authService = useAuthService()
 const userService = useUserService()
 const { isTabletScreen } = useResponsive()
+const PAGE_SIZE = 25
 const users = ref<User[]>([])
+const totalUsers = ref(0)
+const currentPage = ref(1)
 
 const columns = computed<ColumnDef<User>[]>(() => {
   const baseColumns: ColumnDef<User>[] = []
@@ -106,8 +109,11 @@ const columns = computed<ColumnDef<User>[]>(() => {
   return baseColumns
 })
 
-async function getUsers() {
-  users.value = await userService.getUsers()
+async function getUsers(page = 1) {
+  const result = await userService.getUsers(page, PAGE_SIZE)
+  users.value = result.data
+  totalUsers.value = result.total
+  currentPage.value = result.page
 }
 
 async function inviteUser() {
@@ -151,6 +157,14 @@ onMounted(getUsers)
       </Button>
     </template>
 
-    <DataTable class="w-full" :columns="columns" :data="users"></DataTable>
+    <DataTable
+      class="w-full"
+      :columns="columns"
+      :data="users"
+      :page-size="PAGE_SIZE"
+      :total-items="totalUsers"
+      :current-page="currentPage"
+      @update:page="getUsers"
+    />
   </SettingsSection>
 </template>

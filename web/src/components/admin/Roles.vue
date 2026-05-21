@@ -73,6 +73,6 @@ onMounted(getRoles)
     :title="$t('settings.users.roles.title')"
     :frame="false"
   >
-    <DataTable class="w-full" :columns="columns" :data="roles"></DataTable>
+    <DataTable class="w-full" :columns="columns" :data="roles" :page-size="10" />
   </SettingsSection>
 </template>

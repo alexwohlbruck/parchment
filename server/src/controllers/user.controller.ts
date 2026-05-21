@@ -4,7 +4,7 @@ import { User, users } from '../schema/users.schema'
 import { usersToRoles } from '../schema/users-roles.schema'
 import { roles } from '../schema/roles.schema'
 import { sessions } from '../schema/sessions.schema'
-import { eq, sql } from 'drizzle-orm'
+import { eq, sql, count } from 'drizzle-orm'
 import { permissions as permissionsSchema } from '../schema/permissions.schema'
 import { generateId } from '../util'
 import { getRoles } from '../services/auth.service'
@@ -48,7 +48,15 @@ app.group('', (admin) =>
     .use(permissions(PermissionId.USERS_READ))
     .get(
       '/',
-      async () => {
+      async ({ query }) => {
+        const page = Math.max(1, query.page ?? 1)
+        const limit = Math.min(100, Math.max(1, query.limit ?? 25))
+        const offset = (page - 1) * limit
+
+        const [totalResult] = await db
+          .select({ total: count() })
+          .from(users)
+
         const usersResult = await db
           .select({
             id: users.id,
@@ -57,6 +65,7 @@ app.group('', (admin) =>
             lastName: users.lastName,
             alias: users.alias,
             picture: users.picture,
+            createdAt: users.createdAt,
             roles: sql`json_agg(json_build_object(
                 'id', ${roles.id},
                 'name', ${roles.name}
@@ -66,6 +75,8 @@ app.group('', (admin) =>
           .leftJoin(usersToRoles, eq(usersToRoles.userId, users.id))
           .leftJoin(roles, eq(usersToRoles.roleId, roles.id))
           .groupBy(users.id)
+          .limit(limit)
+          .offset(offset)
 
         const sessionCounts = await db
           .select({
@@ -86,9 +97,18 @@ app.group('', (admin) =>
           return { ...user, sessionCount }
         })
 
-        return usersWithSessionCounts
+        return {
+          data: usersWithSessionCounts,
+          total: totalResult.total,
+          page,
+          limit,
+        }
       },
       {
+        query: t.Object({
+          page: t.Optional(t.Numeric({ minimum: 1 })),
+          limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100 })),
+        }),
         detail: {
           tags: ['Users'],
         },

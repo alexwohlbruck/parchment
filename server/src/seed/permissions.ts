@@ -98,4 +98,44 @@ export const permissions: {
     name: 'Premium location sharing',
     description: 'Advanced real-time location sharing features',
   },
+  {
+    id: PermissionId.LIBRARY_READ,
+    name: 'View library',
+    description: 'View bookmarks, collections, and saved places',
+  },
+  {
+    id: PermissionId.LIBRARY_WRITE,
+    name: 'Manage library',
+    description: 'Create, edit, and delete bookmarks and collections',
+  },
+  {
+    id: PermissionId.SOCIAL_READ,
+    name: 'View friends',
+    description: 'View friends list and friend profiles',
+  },
+  {
+    id: PermissionId.SOCIAL_WRITE,
+    name: 'Manage friends',
+    description: 'Send and accept friend invitations, remove friends',
+  },
+  {
+    id: PermissionId.SHARING_READ,
+    name: 'View shared content',
+    description: 'View content shared with you by other users',
+  },
+  {
+    id: PermissionId.SHARING_WRITE,
+    name: 'Share content',
+    description: 'Create and manage shared links and shared collections',
+  },
+  {
+    id: PermissionId.LOCATION_SHARING,
+    name: 'Location sharing',
+    description: 'Share your real-time location with friends',
+  },
+  {
+    id: PermissionId.NOTES_WRITE,
+    name: 'Map notes',
+    description: 'Create and edit map notes on OpenStreetMap',
+  },
 ]

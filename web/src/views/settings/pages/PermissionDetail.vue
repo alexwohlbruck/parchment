@@ -1,41 +1,86 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { useUserService } from '@/services/user.service'
+import { useAuthService } from '@/services/auth.service'
+import { PermissionId } from '@/types/auth.types'
 
 import { H3, H5, Caption } from '@/components/ui/typography'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import Badge from '@/components/ui/badge/Badge.vue'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Code } from '@/components/ui/code'
 import { ChevronLeftIcon } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
 const userService = useUserService()
+const authService = useAuthService()
 let permissionId = route.params.id as string
 
-type PermissionDetail = {
+type RoleInfo = {
   id: string
   name: string
-  roles: {
-    id: string
-    name: string
-    description: string
-    isDefault: boolean
-  }[]
+  description: string
+  isDefault: boolean
 }
 
-const permission = ref<PermissionDetail | null>(null)
+type PermissionInfo = {
+  id: string
+  name: string
+  roles: RoleInfo[]
+}
+
+const permission = ref<PermissionInfo | null>(null)
+const allRoles = ref<RoleInfo[]>([])
 const loading = ref(true)
+const saving = ref(false)
+
+const canWrite = computed(() =>
+  authService.hasPermission(PermissionId.ROLES_WRITE),
+)
+
+const assignedRoleIds = computed<Set<string>>(() =>
+  new Set((permission.value?.roles ?? []).map(r => r.id)),
+)
 
 async function loadData() {
   loading.value = true
   try {
-    permission.value = await userService.getPermission(permissionId)
+    const [permData, roles] = await Promise.all([
+      userService.getPermission(permissionId),
+      userService.getRoles(),
+    ])
+    permission.value = permData
+    allRoles.value = roles
   } finally {
     loading.value = false
+  }
+}
+
+async function toggleRole(roleId: string, checked: boolean) {
+  if (!canWrite.value) return
+
+  saving.value = true
+  try {
+    // Fetch the role's current permissions
+    const role = await userService.getRole(roleId)
+    const currentPermIds = (role.permissions ?? []).map((p: any) => p.id as string)
+
+    let newPermIds: string[]
+    if (checked) {
+      newPermIds = [...new Set([...currentPermIds, permissionId])]
+    } else {
+      newPermIds = currentPermIds.filter((id: string) => id !== permissionId)
+    }
+
+    await userService.setRolePermissions(roleId, newPermIds)
+    // Reload to get fresh associated roles
+    permission.value = await userService.getPermission(permissionId)
+  } finally {
+    saving.value = false
   }
 }
 
@@ -83,33 +128,45 @@ onMounted(loadData)
     </div>
 
     <div class="flex flex-col gap-6 ml-12">
-      <!-- Associated roles -->
+      <!-- Roles -->
       <div>
         <H5 class="mb-3">
           Roles
           <Badge variant="secondary" class="ml-2">
-            {{ permission.roles.length }}
+            {{ assignedRoleIds.size }}
           </Badge>
         </H5>
-        <Card v-if="permission.roles.length > 0" class="p-0 overflow-hidden">
+        <Caption class="text-muted-foreground mb-3 block">
+          Select which roles include this permission. System roles cannot be modified.
+        </Caption>
+        <Card class="p-0 overflow-hidden">
           <div class="divide-y divide-border">
-            <button
-              v-for="role in permission.roles"
+            <label
+              v-for="role in allRoles"
               :key="role.id"
-              class="w-full flex items-center gap-3 px-4 py-3 text-sm text-left hover:bg-muted/50 cursor-pointer"
-              @click="onRoleClick(role.id)"
+              class="flex items-center gap-3 px-4 py-3 text-sm"
+              :class="
+                !role.isDefault && canWrite
+                  ? 'cursor-pointer hover:bg-muted/50'
+                  : 'cursor-default'
+              "
             >
-              <span class="flex-1 min-w-0">
-                <span class="font-medium">{{ role.name }}</span>
+              <Checkbox
+                :model-value="role.id === 'admin' || assignedRoleIds.has(role.id)"
+                :disabled="role.isDefault || !canWrite || saving"
+                @update:model-value="(v: any) => toggleRole(role.id, !!v)"
+              />
+              <span
+                class="flex-1 min-w-0 cursor-pointer"
+                @click.prevent="onRoleClick(role.id)"
+              >
+                <span class="font-medium hover:underline">{{ role.name }}</span>
                 <span v-if="role.description" class="text-muted-foreground ml-2">{{ role.description }}</span>
               </span>
               <Badge v-if="role.isDefault" variant="secondary">System</Badge>
-            </button>
+            </label>
           </div>
         </Card>
-        <Caption v-else class="text-muted-foreground">
-          No roles have this permission
-        </Caption>
       </div>
     </div>
   </div>

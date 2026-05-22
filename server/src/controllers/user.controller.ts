@@ -131,16 +131,15 @@ app.group('', (admin) =>
     .post(
       '/',
       async ({ body, status }) => {
-        // Validate role exists if specified
-        const roleId = body.role || 'user'
-        const [roleRow] = await db
+        // Validate roles exist
+        const roleIds = body.roles?.length ? body.roles : ['user']
+        const existingRoles = await db
           .select({ id: roles.id })
           .from(roles)
-          .where(eq(roles.id, roleId))
-          .limit(1)
+          .where(inArray(roles.id, roleIds))
 
-        if (!roleRow) {
-          return status(400, { message: `Role "${roleId}" not found` })
+        if (existingRoles.length !== roleIds.length) {
+          return status(400, { message: 'One or more role IDs are invalid' })
         }
 
         const result = await db
@@ -156,10 +155,9 @@ app.group('', (admin) =>
 
         const newUser = result[0]
 
-        await db.insert(usersToRoles).values({
-          userId: newUser.id,
-          roleId,
-        })
+        await db.insert(usersToRoles).values(
+          roleIds.map(roleId => ({ userId: newUser.id, roleId })),
+        )
 
         await createInitialCollection(newUser.id)
 
@@ -185,7 +183,7 @@ app.group('', (admin) =>
             format: 'email',
           }),
           picture: t.Optional(t.String()),
-          role: t.Optional(t.String()),
+          roles: t.Optional(t.Array(t.String())),
         }),
         detail: {
           tags: ['Users'],

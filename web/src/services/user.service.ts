@@ -34,6 +34,7 @@ function userService() {
     lastName: string
     email: string
     picture?: string
+    roles?: string[]
   }) {
     const { data: newUser } = await api.post('/users', user)
     return newUser

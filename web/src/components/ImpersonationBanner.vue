@@ -1,14 +1,15 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { useAuthStore } from '@/stores/auth.store'
 import { useAuthService } from '@/services/auth.service'
-import { Button } from '@/components/ui/button'
-import { EyeIcon } from 'lucide-vue-next'
+import { EyeIcon, XIcon } from 'lucide-vue-next'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const authService = useAuthService()
+const expanded = ref(false)
 
 async function returnToAdmin() {
   await authService.endImpersonation()
@@ -17,21 +18,50 @@ async function returnToAdmin() {
 </script>
 
 <template>
-  <div
-    v-if="authStore.isImpersonating"
-    class="fixed bottom-0 left-0 right-0 z-50 bg-amber-500 dark:bg-amber-600 text-white px-4 py-2 flex items-center justify-center gap-3 text-sm font-medium shadow-lg"
-  >
-    <EyeIcon class="size-4" />
-    <span>
-      Viewing as {{ authStore.me?.firstName }} {{ authStore.me?.lastName }}
-    </span>
-    <Button
-      variant="outline"
-      size="xs"
-      class="border-white/40 text-white hover:bg-white/20 hover:text-white"
-      @click="returnToAdmin"
+  <Transition name="banner">
+    <div
+      v-if="authStore.isImpersonating"
+      class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50"
     >
-      Return to admin
-    </Button>
-  </div>
+      <button
+        v-if="!expanded"
+        class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-foreground/80 dark:bg-foreground/70 text-background text-xs font-medium backdrop-blur-sm shadow-lg cursor-pointer hover:bg-foreground/90 transition-all"
+        @click="expanded = true"
+      >
+        <EyeIcon class="size-3" />
+        {{ authStore.me?.firstName }}
+      </button>
+      <div
+        v-else
+        class="flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-foreground/80 dark:bg-foreground/70 text-background text-xs font-medium backdrop-blur-sm shadow-lg"
+      >
+        <EyeIcon class="size-3 shrink-0" />
+        <span>{{ authStore.me?.firstName }} {{ authStore.me?.lastName }}</span>
+        <button
+          class="text-background/80 hover:text-background underline cursor-pointer transition-colors"
+          @click="returnToAdmin"
+        >
+          Exit
+        </button>
+        <button
+          class="text-background/50 hover:text-background cursor-pointer transition-colors -mr-0.5"
+          @click="expanded = false"
+        >
+          <XIcon class="size-3" />
+        </button>
+      </div>
+    </div>
+  </Transition>
 </template>
+
+<style scoped>
+.banner-enter-active,
+.banner-leave-active {
+  transition: opacity 0.2s, transform 0.2s;
+}
+.banner-enter-from,
+.banner-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 8px);
+}
+</style>

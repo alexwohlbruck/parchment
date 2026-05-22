@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { h, ref, computed, onMounted } from 'vue'
+import { h, ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { ColumnDef } from '@tanstack/vue-table'
 import { AppRoute } from '@/router'
@@ -27,7 +27,7 @@ const router = useRouter()
 const appService = useAppService()
 const authService = useAuthService()
 const userService = useUserService()
-const roleId = route.params.id as string
+let roleId = route.params.id as string
 
 const role = ref<any>(null)
 const allPermissions = ref<Permission[]>([])
@@ -91,9 +91,13 @@ async function deleteRole() {
   })
   if (!confirmed) return
 
-  await userService.deleteRole(roleId)
-  appService.toast.success('Role deleted')
-  router.push({ name: AppRoute.ROLES })
+  try {
+    await userService.deleteRole(roleId)
+    appService.toast.success('Role deleted')
+    router.push({ name: AppRoute.ROLES })
+  } catch (err: any) {
+    appService.toast.error(err?.response?.data?.message ?? 'Failed to delete role')
+  }
 }
 
 async function editRole() {
@@ -116,9 +120,13 @@ async function editRole() {
 
   if (!result) return
 
-  await userService.updateRole(roleId, result)
-  role.value = await userService.getRole(roleId)
-  appService.toast.success('Role updated')
+  try {
+    await userService.updateRole(roleId, result)
+    role.value = await userService.getRole(roleId)
+    appService.toast.success('Role updated')
+  } catch (err: any) {
+    appService.toast.error(err?.response?.data?.message ?? 'Failed to update role')
+  }
 }
 
 type AssignedUser = {
@@ -151,6 +159,16 @@ const userColumns: ColumnDef<AssignedUser>[] = [
 function onUserRowClick(user: AssignedUser) {
   router.push({ name: AppRoute.USER_DETAIL, params: { id: user.id } })
 }
+
+watch(
+  () => route.params.id,
+  (newId) => {
+    if (newId && newId !== roleId) {
+      roleId = newId as string
+      loadData()
+    }
+  },
+)
 
 onMounted(loadData)
 </script>
@@ -235,9 +253,9 @@ onMounted(loadData)
               "
             >
               <Checkbox
-                :checked="isAdmin || rolePermissionIds.has(perm.id)"
+                :model-value="isAdmin || rolePermissionIds.has(perm.id)"
                 :disabled="isSystem || !canWrite || saving"
-                @update:checked="(v: boolean) => togglePermission(perm.id, v)"
+                @update:model-value="(v: any) => togglePermission(perm.id, !!v)"
               />
               <span class="flex-1 min-w-0">
                 <span class="font-medium">{{ perm.name }}</span>

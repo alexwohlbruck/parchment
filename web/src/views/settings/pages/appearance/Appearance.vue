@@ -47,7 +47,7 @@ const handleColorChange = (value: any) => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 w-fit">
+  <div class="flex flex-col gap-4">
     <SettingsSection
       id="app-theme"
       :title="$t('settings.appearance.appTheme.title')"

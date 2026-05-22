@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { h, onMounted, ref, computed } from 'vue'
 import dayjs from 'dayjs'
-import { z } from 'zod'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
 import { ColumnDef } from '@tanstack/vue-table'
 import { PermissionId, User, Role } from '@/types/auth.types'
@@ -14,6 +13,8 @@ import { useAuthService } from '@/services/auth.service'
 import { useAuthStore } from '@/stores/auth.store'
 import { useResponsive } from '@/lib/utils'
 
+import UserEditForm from './UserEditForm.vue'
+import InviteUserForm from './InviteUserForm.vue'
 import DataTable from '@/components/table/DataTable.vue'
 import { Button } from '@/components/ui/button'
 import {
@@ -178,25 +179,20 @@ async function getUsers(page = 1) {
 }
 
 async function editUser(user: User) {
-  const roleOptions = allRoles.value.map(r => r.id) as [string, ...string[]]
-
-  const schema = z.object({
-    firstName: z.string().describe('First name'),
-    lastName: z.string().describe('Last name'),
-    email: z.string().email().describe('Email'),
-    roles: z.array(z.enum(roleOptions)).describe('Roles'),
-  })
-
-  const result = (await appService.promptForm({
-    title: `Edit ${user.firstName} ${user.lastName}`,
-    schema,
-    initialValues: {
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      roles: user.roles?.map((r: any) => r.id) ?? [],
+  const result = await appService.componentDialog({
+    component: UserEditForm,
+    props: {
+      initialValues: {
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        roles: user.roles?.map((r: any) => r.id) ?? [],
+      },
+      roles: allRoles.value,
     },
-  })) as z.infer<typeof schema> | false
+    title: `Edit ${user.firstName} ${user.lastName}`,
+    continueText: 'Save',
+  })
 
   if (!result) return
 
@@ -221,24 +217,20 @@ async function deleteUser(user: User) {
 }
 
 async function inviteUser() {
-  const schema = z.object({
-    firstName: z.string().describe('First name'),
-    lastName: z.string(),
-    email: z.string().email(),
-    role: z.enum(['user', 'alpha', 'admin']).default('user'),
-    picture: z.string().url(),
+  const result = await appService.componentDialog({
+    component: InviteUserForm,
+    props: {
+      roles: allRoles.value,
+    },
+    title: 'Invite user',
+    continueText: 'Send invite',
   })
 
-  const user = (await appService.promptForm({
-    title: 'Invite user',
-    schema,
-  })) as z.infer<typeof schema>
+  if (!result) return
 
-  const newUser = await userService.inviteUser(user)
-
+  const newUser = await userService.inviteUser(result)
   users.value = [...users.value, newUser]
-
-  appService.toast.success(t('messages.invitationSent', { email: user.email }))
+  appService.toast.success(t('messages.invitationSent', { email: result.email }))
 }
 
 function onRowClick(user: User) {

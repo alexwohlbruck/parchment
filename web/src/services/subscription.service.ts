@@ -31,7 +31,7 @@ function subscriptionService() {
   const authStore = useAuthStore()
 
   const billingEnabled = ref(false)
-  const loading = ref(false)
+  const checkingOutTier = ref<Tier | null>(null)
   const details = ref<SubscriptionDetails | null>(null)
   const basicProduct = ref<ProductInfo | null>(null)
   const premiumProduct = ref<ProductInfo | null>(null)
@@ -62,14 +62,15 @@ function subscriptionService() {
   })
 
   async function startCheckout(checkoutTier?: Tier) {
-    loading.value = true
+    const tier = checkoutTier ?? 'basic'
+    checkingOutTier.value = tier
     try {
       const { data } = await api.post('/subscriptions/checkout', {
-        tier: checkoutTier ?? 'basic',
+        tier,
       })
       window.location.href = data.checkoutUrl
     } finally {
-      loading.value = false
+      checkingOutTier.value = null
     }
   }
 
@@ -107,7 +108,7 @@ function subscriptionService() {
     isBasic,
     hasSubscription,
     tier,
-    loading,
+    checkingOutTier,
     details,
     basicProduct,
     premiumProduct,

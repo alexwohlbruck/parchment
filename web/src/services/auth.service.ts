@@ -50,6 +50,13 @@ function authService() {
   }
 
   async function getAuthenticatedUser() {
+    // Impersonation doesn't survive page refresh — the impersonated session
+    // token isn't persisted, so the auth check would re-validate with the
+    // original user's session and create a mismatch. Clear it early.
+    if (authStore.isImpersonating) {
+      authStore.stopImpersonation()
+    }
+
     const localAuthToken = await loadToken()
     const hasCachedUser = authStore.me !== undefined && authStore.me !== null
 

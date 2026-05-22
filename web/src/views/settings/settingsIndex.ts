@@ -308,6 +308,7 @@ export const settingsIndex: SettingsPageDef[] = [
           to: '/settings/developer',
           icon: CodeIcon,
           iconColor: 'purple' as const,
+          permissions: PermissionId.SYSTEM_READ,
           sections: [
             {
               id: 'gpx-simulator',

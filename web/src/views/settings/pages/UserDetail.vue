@@ -1,17 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { h, ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
-import { z } from 'zod'
 import { AppRoute } from '@/router'
 import { useUserService } from '@/services/user.service'
 import { useAppService } from '@/services/app.service'
 import { useAuthService } from '@/services/auth.service'
 import { useAuthStore } from '@/stores/auth.store'
 import { useSubscriptionService } from '@/services/subscription.service'
-import { PermissionId, type Role } from '@/types/auth.types'
+import { PermissionId, type Permission, type Role } from '@/types/auth.types'
+import type { ColumnDef } from '@tanstack/vue-table'
 
+import UserEditForm from '@/components/admin/UserEditForm.vue'
 import { H3, H5, Caption } from '@/components/ui/typography'
 import { Button } from '@/components/ui/button'
 import Badge from '@/components/ui/badge/Badge.vue'
@@ -20,12 +21,16 @@ import Avatar from '@/components/ui/avatar/Avatar.vue'
 import AvatarImage from '@/components/ui/avatar/AvatarImage.vue'
 import { Code } from '@/components/ui/code'
 import { Separator } from '@/components/ui/separator'
+import { Spinner } from '@/components/ui/spinner'
+import DataTable from '@/components/table/DataTable.vue'
+import { Input } from '@/components/ui/input'
 import {
   ChevronLeftIcon,
   ExternalLinkIcon,
   Trash2Icon,
   PencilIcon,
   EyeIcon,
+  SearchIcon,
 } from 'lucide-vue-next'
 
 dayjs.extend(localizedFormat)
@@ -37,14 +42,36 @@ const authService = useAuthService()
 const authStore = useAuthStore()
 const userService = useUserService()
 const subscriptionService = useSubscriptionService()
-const userId = route.params.id as string
+let userId = route.params.id as string
 
 const user = ref<any>(null)
 const allRoles = ref<Role[]>([])
+const billing = ref<any>(null)
+const billingLoading = ref(false)
 const loading = ref(true)
 
 const isCurrentUser = computed(() => authStore.me?.id === userId)
 const isDev = import.meta.env.DEV
+const permissionSearch = ref('')
+
+const permissionColumns: ColumnDef<Permission>[] = [
+  {
+    header: 'ID',
+    cell: ({ row }) => h(Code, {}, () => row.original.id),
+  },
+  {
+    header: 'Name',
+    accessorKey: 'name',
+  },
+]
+
+const filteredPermissions = computed(() => {
+  const q = permissionSearch.value.toLowerCase()
+  if (!q || !user.value?.permissions) return user.value?.permissions ?? []
+  return user.value.permissions.filter(
+    (p: Permission) => p.id.toLowerCase().includes(q) || p.name?.toLowerCase().includes(q),
+  )
+})
 
 async function loadUser() {
   loading.value = true
@@ -60,35 +87,45 @@ async function loadUser() {
   }
 }
 
+async function loadBilling() {
+  if (!subscriptionService.billingEnabled.value) return
+  billingLoading.value = true
+  try {
+    billing.value = await userService.getUserBilling(userId)
+  } catch {
+    // Billing info is non-critical — silently ignore
+  } finally {
+    billingLoading.value = false
+  }
+}
+
 async function editUser() {
   if (!user.value) return
 
-  const roleOptions = allRoles.value.map(r => r.id) as [string, ...string[]]
-  if (roleOptions.length === 0) return
-
-  const schema = z.object({
-    firstName: z.string().describe('First name'),
-    lastName: z.string().describe('Last name'),
-    email: z.string().email().describe('Email'),
-    roles: z.array(z.enum(roleOptions)).describe('Roles'),
-  })
-
-  const result = (await appService.promptForm({
-    title: `Edit ${user.value.firstName} ${user.value.lastName}`,
-    schema,
-    initialValues: {
-      firstName: user.value.firstName,
-      lastName: user.value.lastName,
-      email: user.value.email,
-      roles: user.value.roles?.map((r: any) => r.id) ?? [],
+  const result = await appService.componentDialog({
+    component: UserEditForm,
+    props: {
+      initialValues: {
+        firstName: user.value.firstName,
+        lastName: user.value.lastName,
+        email: user.value.email,
+        roles: user.value.roles?.map((r: any) => r.id) ?? [],
+      },
+      roles: allRoles.value,
     },
-  })) as z.infer<typeof schema> | false
+    title: `Edit ${user.value.firstName} ${user.value.lastName}`,
+    continueText: 'Save',
+  })
 
   if (!result) return
 
-  await userService.updateUser(userId, result)
-  user.value = await userService.getUser(userId)
-  appService.toast.success('User updated')
+  try {
+    await userService.updateUser(userId, result)
+    user.value = await userService.getUser(userId)
+    appService.toast.success('User updated')
+  } catch (err: any) {
+    appService.toast.error(err?.response?.data?.message ?? 'Failed to update user')
+  }
 }
 
 async function deleteUser() {
@@ -102,9 +139,13 @@ async function deleteUser() {
   })
   if (!confirmed) return
 
-  await userService.deleteUser(userId)
-  appService.toast.success('User deleted')
-  router.push({ name: AppRoute.USERS })
+  try {
+    await userService.deleteUser(userId)
+    appService.toast.success('User deleted')
+    router.push({ name: AppRoute.USERS })
+  } catch (err: any) {
+    appService.toast.error(err?.response?.data?.message ?? 'Failed to delete user')
+  }
 }
 
 async function impersonate() {
@@ -116,8 +157,12 @@ async function impersonate() {
   })
   if (!confirmed) return
 
-  await authService.impersonateUser(userId)
-  router.push({ name: AppRoute.MAP })
+  try {
+    await authService.impersonateUser(userId)
+    router.push({ name: AppRoute.MAP })
+  } catch (err: any) {
+    appService.toast.error(err?.response?.data?.message ?? 'Failed to impersonate user')
+  }
 }
 
 function formatCurrency(amount: number, currency: string) {
@@ -128,7 +173,23 @@ function formatCurrency(amount: number, currency: string) {
   }).format(amount / 100)
 }
 
-onMounted(loadUser)
+watch(
+  () => route.params.id,
+  (newId) => {
+    if (newId && newId !== userId) {
+      userId = newId as string
+      billing.value = null
+      loadUser()
+      loadBilling()
+    }
+  },
+)
+
+onMounted(() => {
+  loadUser()
+  // Load billing info independently so the user detail appears instantly
+  loadBilling()
+})
 </script>
 
 <template>
@@ -156,9 +217,7 @@ onMounted(loadUser)
           <AvatarImage :src="user.picture || ''" />
         </Avatar>
         <div class="flex-1 min-w-0">
-          <H3 class="truncate">
-            {{ user.firstName }} {{ user.lastName }}
-          </H3>
+          <H3 class="truncate"> {{ user.firstName }} {{ user.lastName }} </H3>
           <Caption class="text-muted-foreground">{{ user.email }}</Caption>
           <Caption v-if="user.alias" class="text-muted-foreground">
             @{{ user.alias }}
@@ -209,7 +268,9 @@ onMounted(loadUser)
           </div>
           <div>
             <Caption class="text-muted-foreground">Created</Caption>
-            <p>{{ user.createdAt ? dayjs(user.createdAt).format('LL') : '—' }}</p>
+            <p>
+              {{ user.createdAt ? dayjs(user.createdAt).format('LL') : '—' }}
+            </p>
           </div>
           <div>
             <Caption class="text-muted-foreground">Sessions</Caption>
@@ -222,11 +283,7 @@ onMounted(loadUser)
       <div>
         <H5 class="mb-2">Roles</H5>
         <div class="flex flex-wrap gap-2">
-          <Badge
-            v-for="role in user.roles"
-            :key="role.id"
-            variant="outline"
-          >
+          <Badge v-for="role in user.roles" :key="role.id" variant="outline">
             {{ role.name }}
           </Badge>
           <Badge v-if="user.roles?.length === 0" variant="secondary">
@@ -237,139 +294,159 @@ onMounted(loadUser)
 
       <!-- Permissions -->
       <div>
-        <H5 class="mb-2">Effective permissions</H5>
-        <div class="flex flex-wrap gap-1.5">
-          <Code
-            v-for="perm in user.permissions"
-            :key="perm.id"
-            class="text-xs"
-          >
-            {{ perm.id }}
-          </Code>
-          <Caption
-            v-if="user.permissions?.length === 0"
-            class="text-muted-foreground"
-          >
-            No permissions
+        <div class="flex items-center justify-between mb-2">
+          <H5>Effective permissions</H5>
+          <Caption class="text-muted-foreground">
+            {{ user.permissions?.length ?? 0 }} permissions
           </Caption>
         </div>
+        <div v-if="user.permissions?.length > 0" class="flex flex-col gap-2">
+          <div class="relative">
+            <SearchIcon class="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input
+              v-model="permissionSearch"
+              placeholder="Filter permissions..."
+              class="pl-8 h-8 text-sm"
+            />
+          </div>
+          <DataTable
+            :columns="permissionColumns"
+            :data="filteredPermissions"
+            :page-size="10"
+          />
+        </div>
+        <Caption v-else class="text-muted-foreground">
+          No permissions
+        </Caption>
       </div>
 
       <!-- Subscription (billing enabled only) -->
-      <template v-if="subscriptionService.billingEnabled.value && user.billing">
+      <template v-if="subscriptionService.billingEnabled.value">
         <Separator />
-        <div>
-          <H5 class="mb-3">Subscription</H5>
-          <Card
-            v-if="user.billing.subscription"
-            class="p-4"
+
+        <!-- Billing loading state -->
+        <div v-if="billingLoading" class="flex items-center gap-2 py-4">
+          <Spinner class="size-4" />
+          <Caption class="text-muted-foreground"
+            >Loading billing info...</Caption
           >
-            <div class="flex items-center justify-between mb-3">
-              <div class="flex items-center gap-2">
-                <Badge>{{ user.billing.subscription.productName }}</Badge>
-                <Badge
-                  :variant="
-                    user.billing.subscription.status === 'active'
-                      ? 'default'
-                      : 'secondary'
-                  "
-                >
-                  {{ user.billing.subscription.status }}
-                </Badge>
-              </div>
-              <span class="text-sm font-medium">
-                {{
-                  formatCurrency(
-                    user.billing.subscription.amount,
-                    user.billing.subscription.currency,
-                  )
-                }}/{{ user.billing.subscription.interval }}
-              </span>
-            </div>
-            <div class="grid grid-cols-2 gap-3 text-sm">
-              <div v-if="user.billing.subscription.startedAt">
-                <Caption class="text-muted-foreground">Started</Caption>
-                <p>
+        </div>
+
+        <template v-else-if="billing">
+          <div>
+            <H5 class="mb-3">Subscription</H5>
+            <Card v-if="billing.subscription" class="p-4">
+              <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                  <Badge>{{ billing.subscription.productName }}</Badge>
+                  <Badge
+                    :variant="
+                      billing.subscription.status === 'active'
+                        ? 'default'
+                        : 'secondary'
+                    "
+                  >
+                    {{ billing.subscription.status }}
+                  </Badge>
+                </div>
+                <span class="text-sm font-medium">
                   {{
-                    dayjs(user.billing.subscription.startedAt).format('LL')
-                  }}
-                </p>
+                    formatCurrency(
+                      billing.subscription.amount,
+                      billing.subscription.currency,
+                    )
+                  }}/{{ billing.subscription.interval }}
+                </span>
               </div>
-              <div v-if="user.billing.subscription.currentPeriodEnd">
-                <Caption class="text-muted-foreground">Current period ends</Caption>
-                <p>
-                  {{
-                    dayjs(
-                      user.billing.subscription.currentPeriodEnd,
-                    ).format('LL')
-                  }}
-                </p>
+              <div class="grid grid-cols-2 gap-3 text-sm">
+                <div v-if="billing.subscription.startedAt">
+                  <Caption class="text-muted-foreground">Started</Caption>
+                  <p>
+                    {{ dayjs(billing.subscription.startedAt).format('LL') }}
+                  </p>
+                </div>
+                <div v-if="billing.subscription.currentPeriodEnd">
+                  <Caption class="text-muted-foreground"
+                    >Current period ends</Caption
+                  >
+                  <p>
+                    {{
+                      dayjs(billing.subscription.currentPeriodEnd).format('LL')
+                    }}
+                  </p>
+                </div>
               </div>
-            </div>
-            <div
-              v-if="user.billing.subscription.cancelAtPeriodEnd"
-              class="mt-3 text-sm text-amber-600 dark:text-amber-400"
+              <div
+                v-if="billing.subscription.cancelAtPeriodEnd"
+                class="mt-3 text-sm text-amber-600 dark:text-amber-400"
+              >
+                Cancels at end of current period
+              </div>
+            </Card>
+            <Caption v-else class="text-muted-foreground">
+              No active subscription
+            </Caption>
+          </div>
+
+          <!-- Order history -->
+          <div v-if="billing.orders?.length > 0">
+            <H5 class="mb-3">Order history</H5>
+            <Card class="p-0 overflow-hidden">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr
+                    class="border-b border-border text-left text-muted-foreground"
+                  >
+                    <th class="px-4 py-2 font-medium">Date</th>
+                    <th class="px-4 py-2 font-medium">Reason</th>
+                    <th class="px-4 py-2 font-medium text-right">Amount</th>
+                    <th class="px-4 py-2 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="order in billing.orders"
+                    :key="order.id"
+                    class="border-b border-border last:border-0"
+                  >
+                    <td class="px-4 py-2">
+                      {{
+                        order.createdAt
+                          ? dayjs(order.createdAt).format('ll')
+                          : '—'
+                      }}
+                    </td>
+                    <td class="px-4 py-2">
+                      {{ order.billingReason ?? '—' }}
+                    </td>
+                    <td class="px-4 py-2 text-right">
+                      {{ formatCurrency(order.amount, order.currency) }}
+                    </td>
+                    <td class="px-4 py-2">
+                      <Badge variant="outline" class="text-xs">
+                        {{ order.status }}
+                      </Badge>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </Card>
+          </div>
+
+          <!-- Portal link -->
+          <div v-if="billing.portalUrl">
+            <Button
+              variant="outline"
+              size="sm"
+              as="a"
+              :href="billing.portalUrl"
+              target="_blank"
             >
-              Cancels at end of current period
-            </div>
-          </Card>
-          <Caption v-else class="text-muted-foreground">
-            No active subscription
-          </Caption>
-        </div>
-
-        <!-- Order history -->
-        <div v-if="user.billing.orders?.length > 0">
-          <H5 class="mb-3">Order history</H5>
-          <Card class="p-0 overflow-hidden">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="border-b text-left text-muted-foreground">
-                  <th class="px-4 py-2 font-medium">Date</th>
-                  <th class="px-4 py-2 font-medium">Reason</th>
-                  <th class="px-4 py-2 font-medium text-right">Amount</th>
-                  <th class="px-4 py-2 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="order in user.billing.orders"
-                  :key="order.id"
-                  class="border-b last:border-0"
-                >
-                  <td class="px-4 py-2">
-                    {{ order.createdAt ? dayjs(order.createdAt).format('ll') : '—' }}
-                  </td>
-                  <td class="px-4 py-2">
-                    {{ order.billingReason ?? '—' }}
-                  </td>
-                  <td class="px-4 py-2 text-right">
-                    {{ formatCurrency(order.amount, order.currency) }}
-                  </td>
-                  <td class="px-4 py-2">
-                    <Badge variant="outline" class="text-xs">
-                      {{ order.status }}
-                    </Badge>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </Card>
-        </div>
-
-        <!-- Portal link -->
-        <div v-if="user.billing.portalUrl">
-          <Button
-            variant="outline"
-            size="sm"
-            as="a"
-            :href="user.billing.portalUrl"
-            target="_blank"
-          >
-            <ExternalLinkIcon class="size-4 mr-2" />
-            Open customer portal
-          </Button>
-        </div>
+              <ExternalLinkIcon class="size-4 mr-2" />
+              Open customer portal
+            </Button>
+          </div>
+        </template>
       </template>
     </div>
   </div>

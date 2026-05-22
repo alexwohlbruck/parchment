@@ -303,7 +303,7 @@ onMounted(async () => {
           v-if="tier.canUpgrade && tier.id !== 'free'"
           size="sm"
           class="w-full"
-          :loading="sub.loading.value"
+          :loading="sub.checkingOutTier.value === tier.checkoutTier"
           @click="sub.startCheckout(tier.checkoutTier)"
         >
           {{ tier.upgradeLabel }}

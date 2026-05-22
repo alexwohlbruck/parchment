@@ -95,6 +95,7 @@ async function deleteRole() {
       ? `This will unassign ${userCount} user${userCount === 1 ? '' : 's'} from this role and permanently delete it.`
       : 'This role will be permanently deleted.',
     destructive: true,
+    contentClass: 'md:max-w-sm lg:max-w-sm',
     continueText: 'Delete',
   })
   if (!confirmed) return

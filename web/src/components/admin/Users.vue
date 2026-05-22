@@ -18,7 +18,14 @@ import DeleteConfirmForm from './DeleteConfirmForm.vue'
 import DataTable from '@/components/table/DataTable.vue'
 import { Button } from '@/components/ui/button'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   PlusIcon,
+  EllipsisIcon,
   Trash2Icon,
 } from 'lucide-vue-next'
 import Avatar from '@/components/ui/avatar/Avatar.vue'
@@ -108,16 +115,38 @@ const columns = computed<ColumnDef<User>[]>(() => {
       },
       cell: ({ row }) =>
         row.original.id !== authStore.me?.id
-          ? h(Button, {
-              variant: 'ghost',
-              size: 'icon-sm',
-              icon: Trash2Icon,
-              class: 'text-muted-foreground hover:text-destructive',
-              onClick: (e: MouseEvent) => {
-                e.stopPropagation()
-                deleteUser(row.original)
+          ? h(
+              DropdownMenu,
+              {},
+              {
+                default: () => [
+                  h(
+                    DropdownMenuTrigger,
+                    { asChild: true },
+                    () =>
+                      h(Button, {
+                        variant: 'ghost',
+                        size: 'icon-sm',
+                        icon: EllipsisIcon,
+                        onClick: (e: MouseEvent) => e.stopPropagation(),
+                      }),
+                  ),
+                  h(DropdownMenuContent, { align: 'end' }, () => [
+                    h(
+                      DropdownMenuItem,
+                      {
+                        class: 'text-destructive',
+                        onClick: () => deleteUser(row.original),
+                      },
+                      () => [
+                        h(Trash2Icon, { class: 'size-4 mr-2' }),
+                        'Delete',
+                      ],
+                    ),
+                  ]),
+                ],
               },
-            })
+            )
           : null,
     })
   }

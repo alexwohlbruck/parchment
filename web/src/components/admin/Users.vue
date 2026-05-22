@@ -13,21 +13,12 @@ import { useAuthService } from '@/services/auth.service'
 import { useAuthStore } from '@/stores/auth.store'
 import { useResponsive } from '@/lib/utils'
 
-import UserEditForm from './UserEditForm.vue'
 import InviteUserForm from './InviteUserForm.vue'
+import DeleteConfirmForm from './DeleteConfirmForm.vue'
 import DataTable from '@/components/table/DataTable.vue'
 import { Button } from '@/components/ui/button'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
   PlusIcon,
-  EllipsisIcon,
-  PencilIcon,
   Trash2Icon,
 } from 'lucide-vue-next'
 import Avatar from '@/components/ui/avatar/Avatar.vue'
@@ -50,9 +41,6 @@ const allRoles = ref<Role[]>([])
 const totalUsers = ref(0)
 const currentPage = ref(1)
 
-const canUpdate = computed(() =>
-  authService.hasPermission(PermissionId.USERS_UPDATE),
-)
 const canDelete = computed(() =>
   authService.hasPermission(PermissionId.USERS_DELETE),
 )
@@ -111,7 +99,7 @@ const columns = computed<ColumnDef<User>[]>(() => {
     })
   }
 
-  if (canUpdate.value || canDelete.value) {
+  if (canDelete.value) {
     baseColumns.push({
       id: 'actions',
       meta: {
@@ -119,52 +107,18 @@ const columns = computed<ColumnDef<User>[]>(() => {
         cellClass: 'text-right',
       },
       cell: ({ row }) =>
-        h(
-          DropdownMenu,
-          {},
-          {
-            default: () => [
-              h(
-                DropdownMenuTrigger,
-                { asChild: true },
-                () =>
-                  h(Button, {
-                    variant: 'ghost',
-                    size: 'icon-sm',
-                    icon: EllipsisIcon,
-                    onClick: (e: MouseEvent) => e.stopPropagation(),
-                  }),
-              ),
-              h(DropdownMenuContent, { align: 'end' }, () => [
-                canUpdate.value &&
-                  h(
-                    DropdownMenuItem,
-                    { onClick: () => editUser(row.original) },
-                    () => [
-                      h(PencilIcon, { class: 'size-4 mr-2' }),
-                      'Edit',
-                    ],
-                  ),
-                canDelete.value &&
-                  row.original.id !== authStore.me?.id &&
-                  h(DropdownMenuSeparator),
-                canDelete.value &&
-                  row.original.id !== authStore.me?.id &&
-                  h(
-                    DropdownMenuItem,
-                    {
-                      class: 'text-destructive',
-                      onClick: () => deleteUser(row.original),
-                    },
-                    () => [
-                      h(Trash2Icon, { class: 'size-4 mr-2' }),
-                      'Delete',
-                    ],
-                  ),
-              ]),
-            ],
-          },
-        ),
+        row.original.id !== authStore.me?.id
+          ? h(Button, {
+              variant: 'ghost',
+              size: 'icon-sm',
+              icon: Trash2Icon,
+              class: 'text-muted-foreground hover:text-destructive',
+              onClick: (e: MouseEvent) => {
+                e.stopPropagation()
+                deleteUser(row.original)
+              },
+            })
+          : null,
     })
   }
 
@@ -178,35 +132,18 @@ async function getUsers(page = 1) {
   currentPage.value = result.page
 }
 
-async function editUser(user: User) {
-  const result = await appService.componentDialog({
-    component: UserEditForm,
-    props: {
-      initialValues: {
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        roles: user.roles?.map((r: any) => r.id) ?? [],
-      },
-      roles: allRoles.value,
-    },
-    title: `Edit ${user.firstName} ${user.lastName}`,
-    continueText: 'Save',
-  })
-
-  if (!result) return
-
-  await userService.updateUser(user.id, result)
-  await getUsers(currentPage.value)
-  appService.toast.success('User updated')
-}
-
 async function deleteUser(user: User) {
-  const confirmed = await appService.confirm({
+  const confirmed = await appService.componentDialog({
+    component: DeleteConfirmForm,
+    props: {
+      confirmValue: 'delete-user',
+      label: 'Type "delete-user" to confirm.',
+    },
     title: `Delete ${user.firstName} ${user.lastName}?`,
     description:
       'This will permanently remove the user and invalidate all their sessions. This cannot be undone.',
     destructive: true,
+    contentClass: 'md:max-w-sm lg:max-w-sm',
     continueText: 'Delete',
   })
   if (!confirmed) return

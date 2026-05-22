@@ -24,6 +24,11 @@ function userService() {
     return permissions
   }
 
+  async function getPermission(id: string) {
+    const { data } = await api.get(`/users/permissions/${id}`)
+    return data
+  }
+
   async function inviteUser(user: {
     firstName: string
     lastName: string
@@ -100,6 +105,11 @@ function userService() {
     return data
   }
 
+  async function getUserBilling(id: string) {
+    const { data } = await api.get(`/users/${id}/billing`)
+    return data
+  }
+
   async function impersonateUser(id: string) {
     const { data } = await api.post(`/users/${id}/impersonate`)
     return data as { sessionId: string; user: any }
@@ -108,9 +118,11 @@ function userService() {
   return {
     getUsers,
     getUser,
+    getUserBilling,
     getRoles,
     getRole,
     getPermissions,
+    getPermission,
     inviteUser,
     updateUser,
     deleteUser,

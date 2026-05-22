@@ -196,7 +196,9 @@ async function editUser(user: User) {
       email: user.email,
       roles: user.roles?.map((r: any) => r.id) ?? [],
     },
-  })) as z.infer<typeof schema>
+  })) as z.infer<typeof schema> | false
+
+  if (!result) return
 
   await userService.updateUser(user.id, result)
   await getUsers(currentPage.value)

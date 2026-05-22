@@ -3,13 +3,14 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
+import { z } from 'zod'
 import { AppRoute } from '@/router'
 import { useUserService } from '@/services/user.service'
 import { useAppService } from '@/services/app.service'
 import { useAuthService } from '@/services/auth.service'
 import { useAuthStore } from '@/stores/auth.store'
 import { useSubscriptionService } from '@/services/subscription.service'
-import { PermissionId } from '@/types/auth.types'
+import { PermissionId, type Role } from '@/types/auth.types'
 
 import { H3, H5, Caption } from '@/components/ui/typography'
 import { Button } from '@/components/ui/button'
@@ -39,6 +40,7 @@ const subscriptionService = useSubscriptionService()
 const userId = route.params.id as string
 
 const user = ref<any>(null)
+const allRoles = ref<Role[]>([])
 const loading = ref(true)
 
 const isCurrentUser = computed(() => authStore.me?.id === userId)
@@ -47,10 +49,46 @@ const isDev = import.meta.env.DEV
 async function loadUser() {
   loading.value = true
   try {
-    user.value = await userService.getUser(userId)
+    const [userData, roles] = await Promise.all([
+      userService.getUser(userId),
+      userService.getRoles(),
+    ])
+    user.value = userData
+    allRoles.value = roles
   } finally {
     loading.value = false
   }
+}
+
+async function editUser() {
+  if (!user.value) return
+
+  const roleOptions = allRoles.value.map(r => r.id) as [string, ...string[]]
+  if (roleOptions.length === 0) return
+
+  const schema = z.object({
+    firstName: z.string().describe('First name'),
+    lastName: z.string().describe('Last name'),
+    email: z.string().email().describe('Email'),
+    roles: z.array(z.enum(roleOptions)).describe('Roles'),
+  })
+
+  const result = (await appService.promptForm({
+    title: `Edit ${user.value.firstName} ${user.value.lastName}`,
+    schema,
+    initialValues: {
+      firstName: user.value.firstName,
+      lastName: user.value.lastName,
+      email: user.value.email,
+      roles: user.value.roles?.map((r: any) => r.id) ?? [],
+    },
+  })) as z.infer<typeof schema> | false
+
+  if (!result) return
+
+  await userService.updateUser(userId, result)
+  user.value = await userService.getUser(userId)
+  appService.toast.success('User updated')
 }
 
 async function deleteUser() {
@@ -132,7 +170,7 @@ onMounted(loadUser)
             variant="outline"
             size="sm"
             :icon="PencilIcon"
-            @click="router.push({ name: AppRoute.USER_DETAIL, params: { id: userId } })"
+            @click="editUser"
           >
             Edit
           </Button>

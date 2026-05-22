@@ -51,7 +51,7 @@ const columns = computed<ColumnDef<Role>[]>(() => {
       h(
         Badge,
         { variant: (row.original as any).isDefault ? 'secondary' : 'outline' },
-        (row.original as any).isDefault ? 'Default' : 'Custom',
+        (row.original as any).isDefault ? 'System' : 'Custom',
       ),
   })
 

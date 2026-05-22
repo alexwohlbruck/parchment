@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { h, ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import type { ColumnDef } from '@tanstack/vue-table'
 import { AppRoute } from '@/router'
 import { useUserService } from '@/services/user.service'
 import { useAppService } from '@/services/app.service'
@@ -14,8 +15,7 @@ import Badge from '@/components/ui/badge/Badge.vue'
 import { Checkbox } from '@/components/ui/checkbox'
 import Avatar from '@/components/ui/avatar/Avatar.vue'
 import AvatarImage from '@/components/ui/avatar/AvatarImage.vue'
-import { Input } from '@/components/ui/input'
-import { Separator } from '@/components/ui/separator'
+import DataTable from '@/components/table/DataTable.vue'
 import {
   ChevronLeftIcon,
   PencilIcon,
@@ -34,7 +34,7 @@ const allPermissions = ref<Permission[]>([])
 const loading = ref(true)
 const saving = ref(false)
 
-const isDefault = computed(() => role.value?.isDefault ?? true)
+const isSystem = computed(() => role.value?.isDefault ?? true)
 const isAdmin = computed(() => roleId === 'admin')
 
 const canWrite = computed(() =>
@@ -63,7 +63,7 @@ async function loadData() {
 }
 
 async function togglePermission(permId: string, checked: boolean) {
-  if (isDefault.value || !canWrite.value) return
+  if (isSystem.value || !canWrite.value) return
 
   saving.value = true
   try {
@@ -81,7 +81,7 @@ async function togglePermission(permId: string, checked: boolean) {
 }
 
 async function deleteRole() {
-  if (!role.value || isDefault.value) return
+  if (!role.value || isSystem.value) return
   const confirmed = await appService.confirm({
     title: `Delete "${role.value.name}"?`,
     description:
@@ -97,7 +97,7 @@ async function deleteRole() {
 }
 
 async function editRole() {
-  if (!role.value || isDefault.value || !canWrite.value) return
+  if (!role.value || isSystem.value || !canWrite.value) return
 
   const { z } = await import('zod')
   const schema = z.object({
@@ -112,11 +112,44 @@ async function editRole() {
       name: role.value.name,
       description: role.value.description,
     },
-  })) as { name: string; description: string }
+  })) as { name: string; description: string } | false
+
+  if (!result) return
 
   await userService.updateRole(roleId, result)
   role.value = await userService.getRole(roleId)
   appService.toast.success('Role updated')
+}
+
+type AssignedUser = {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  picture: string | null
+}
+
+const userColumns: ColumnDef<AssignedUser>[] = [
+  {
+    id: 'avatar',
+    cell: ({ row }) =>
+      h(Avatar, { class: 'size-8' }, () => [
+        h(AvatarImage, { src: row.original.picture || '' }),
+      ]),
+    meta: { headerClass: 'w-12' },
+  },
+  {
+    header: 'Name',
+    accessorFn: (data) => `${data.firstName} ${data.lastName}`,
+  },
+  {
+    header: 'Email',
+    accessorKey: 'email',
+  },
+]
+
+function onUserRowClick(user: AssignedUser) {
+  router.push({ name: AppRoute.USER_DETAIL, params: { id: user.id } })
 }
 
 onMounted(loadData)
@@ -145,13 +178,13 @@ onMounted(loadData)
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-3">
           <H3 class="truncate">{{ role.name }}</H3>
-          <Badge v-if="isDefault" variant="secondary">Default</Badge>
+          <Badge v-if="isSystem" variant="secondary">System</Badge>
         </div>
         <Caption v-if="role.description" class="text-muted-foreground">
           {{ role.description }}
         </Caption>
       </div>
-      <div v-if="!isDefault" class="flex gap-2 shrink-0">
+      <div v-if="!isSystem" class="flex gap-2 shrink-0">
         <Button
           v-if="canWrite"
           variant="outline"
@@ -184,10 +217,10 @@ onMounted(loadData)
           Administrators have all permissions
         </Caption>
         <Caption
-          v-else-if="isDefault"
+          v-else-if="isSystem"
           class="text-muted-foreground mb-3 block"
         >
-          Default role permissions cannot be modified
+          System role permissions cannot be modified
         </Caption>
         <Card class="p-0 overflow-hidden">
           <div class="divide-y divide-border">
@@ -196,14 +229,14 @@ onMounted(loadData)
               :key="perm.id"
               class="flex items-center gap-3 px-4 py-3 text-sm"
               :class="
-                !isDefault && canWrite
+                !isSystem && canWrite
                   ? 'cursor-pointer hover:bg-muted/50'
                   : 'cursor-default'
               "
             >
               <Checkbox
                 :checked="isAdmin || rolePermissionIds.has(perm.id)"
-                :disabled="isDefault || !canWrite || saving"
+                :disabled="isSystem || !canWrite || saving"
                 @update:checked="(v: boolean) => togglePermission(perm.id, v)"
               />
               <span class="flex-1 min-w-0">
@@ -223,26 +256,12 @@ onMounted(loadData)
             {{ role.users.length }}
           </Badge>
         </H5>
-        <div class="flex flex-col gap-2">
-          <router-link
-            v-for="u in role.users"
-            :key="u.id"
-            :to="{ name: AppRoute.USER_DETAIL, params: { id: u.id } }"
-            class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors"
-          >
-            <Avatar class="size-8">
-              <AvatarImage :src="u.picture || ''" />
-            </Avatar>
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium truncate">
-                {{ u.firstName }} {{ u.lastName }}
-              </p>
-              <Caption class="text-muted-foreground text-xs">
-                {{ u.email }}
-              </Caption>
-            </div>
-          </router-link>
-        </div>
+        <DataTable
+          :columns="userColumns"
+          :data="role.users"
+          :page-size="10"
+          :on-row-click="onUserRowClick"
+        />
       </div>
     </div>
   </div>

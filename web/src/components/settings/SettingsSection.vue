@@ -28,6 +28,7 @@ const {
     :class="
       cn(
         'flex flex-col gap-2 w-full settings-section-target',
+        !frame && 'flex-1 min-h-0',
         className,
       )
     "
@@ -47,7 +48,7 @@ const {
       <slot></slot>
     </Card>
 
-    <div v-else class="w-full h-full flex flex-col gap-4">
+    <div v-else class="w-full flex-1 min-h-0 flex flex-col gap-4">
       <slot></slot>
     </div>
   </div>

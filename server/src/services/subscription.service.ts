@@ -473,8 +473,8 @@ export async function getAdminUserSubscriptionInfo(userId: string) {
       orders = orderResult.result.items.map((o: any) => ({
         id: o.id,
         status: o.status,
-        amount: o.amount,
-        currency: o.currency,
+        amount: o.amount ?? 0,
+        currency: o.currency ?? 'usd',
         createdAt: o.createdAt?.toISOString() ?? null,
         billingReason: o.billingReason ?? null,
       }))

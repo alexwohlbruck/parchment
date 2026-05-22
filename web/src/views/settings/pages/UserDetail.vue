@@ -130,11 +130,17 @@ async function editUser() {
 
 async function deleteUser() {
   if (!user.value) return
-  const confirmed = await appService.confirm({
+  const confirmed = await appService.componentDialog({
+    component: (await import('@/components/admin/DeleteConfirmForm.vue')).default,
+    props: {
+      confirmValue: 'delete-user',
+      label: 'Type "delete-user" to confirm.',
+    },
     title: `Delete ${user.value.firstName} ${user.value.lastName}?`,
     description:
       'This will permanently remove the user and invalidate all their sessions. This cannot be undone.',
     destructive: true,
+    contentClass: 'md:max-w-sm lg:max-w-sm',
     continueText: 'Delete',
   })
   if (!confirmed) return

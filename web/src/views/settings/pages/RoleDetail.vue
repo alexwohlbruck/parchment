@@ -82,21 +82,22 @@ async function togglePermission(permId: string, checked: boolean) {
 
 async function deleteRole() {
   if (!role.value || isSystem.value) return
-  const roleName = role.value.name
   const userCount = role.value.users?.length ?? 0
 
-  const typed = await appService.prompt({
-    title: `Delete "${roleName}"?`,
+  const confirmed = await appService.componentDialog({
+    component: (await import('@/components/admin/DeleteConfirmForm.vue')).default,
+    props: {
+      confirmValue: roleId,
+      label: `Type the role ID to confirm deletion.`,
+    },
+    title: `Delete "${role.value.name}"?`,
     description: userCount > 0
-      ? `This will unassign ${userCount} user${userCount === 1 ? '' : 's'} from this role and permanently delete it. Type the role name to confirm.`
-      : 'This role will be permanently deleted. Type the role name to confirm.',
-    label: `Type "${roleName}" to confirm`,
+      ? `This will unassign ${userCount} user${userCount === 1 ? '' : 's'} from this role and permanently delete it.`
+      : 'This role will be permanently deleted.',
+    destructive: true,
     continueText: 'Delete',
   })
-  if (typed !== roleName) {
-    if (typed) appService.toast.error('Role name did not match')
-    return
-  }
+  if (!confirmed) return
 
   try {
     await userService.deleteRole(roleId)

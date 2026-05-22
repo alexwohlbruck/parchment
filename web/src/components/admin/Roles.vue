@@ -75,6 +75,7 @@ async function createRole() {
     component: RoleForm,
     props: {
       permissions: allPermissions.value,
+      existingRoleIds: roles.value.map(r => r.id),
     },
     title: 'Create role',
     continueText: 'Create',

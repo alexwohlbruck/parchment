@@ -268,6 +268,19 @@ app.group('', (admin) =>
     .post(
       '/roles',
       async ({ body, status }) => {
+        const id = body.id || generateId()
+
+        // Check for duplicate ID
+        const [existing] = await db
+          .select({ id: roles.id })
+          .from(roles)
+          .where(eq(roles.id, id))
+          .limit(1)
+
+        if (existing) {
+          return status(409, { message: `A role with ID "${id}" already exists` })
+        }
+
         if (body.permissions?.length) {
           const existingPerms = await db
             .select({ id: permissionsSchema.id })
@@ -278,7 +291,6 @@ app.group('', (admin) =>
           }
         }
 
-        const id = generateId()
         const [newRole] = await db
           .insert(roles)
           .values({
@@ -303,6 +315,7 @@ app.group('', (admin) =>
       },
       {
         body: t.Object({
+          id: t.Optional(t.String()),
           name: t.String(),
           description: t.Optional(t.String()),
           permissions: t.Optional(t.Array(t.String())),
@@ -370,18 +383,10 @@ app.group('', (admin) =>
           return status(403, { message: 'Cannot delete default roles' })
         }
 
-        // Check no users are assigned this role
-        const [assignedCount] = await db
-          .select({ count: count() })
-          .from(usersToRoles)
+        // Unassign all users from this role, then delete
+        await db
+          .delete(usersToRoles)
           .where(eq(usersToRoles.roleId, params.id))
-
-        if (assignedCount.count > 0) {
-          return status(400, {
-            message: 'Cannot delete a role that is assigned to users',
-          })
-        }
-
         await db
           .delete(roleToPermissions)
           .where(eq(roleToPermissions.roleId, params.id))

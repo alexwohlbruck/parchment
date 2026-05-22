@@ -82,14 +82,21 @@ async function togglePermission(permId: string, checked: boolean) {
 
 async function deleteRole() {
   if (!role.value || isSystem.value) return
-  const confirmed = await appService.confirm({
-    title: `Delete "${role.value.name}"?`,
-    description:
-      'This role will be permanently deleted. Users currently assigned to this role must be reassigned first.',
-    destructive: true,
+  const roleName = role.value.name
+  const userCount = role.value.users?.length ?? 0
+
+  const typed = await appService.prompt({
+    title: `Delete "${roleName}"?`,
+    description: userCount > 0
+      ? `This will unassign ${userCount} user${userCount === 1 ? '' : 's'} from this role and permanently delete it. Type the role name to confirm.`
+      : 'This role will be permanently deleted. Type the role name to confirm.',
+    label: `Type "${roleName}" to confirm`,
     continueText: 'Delete',
   })
-  if (!confirmed) return
+  if (typed !== roleName) {
+    if (typed) appService.toast.error('Role name did not match')
+    return
+  }
 
   try {
     await userService.deleteRole(roleId)

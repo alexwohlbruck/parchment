@@ -79,6 +79,7 @@ function userService() {
   }
 
   async function createRole(fields: {
+    id?: string
     name: string
     description?: string
     permissions?: string[]

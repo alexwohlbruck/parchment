@@ -61,12 +61,13 @@ function subscriptionService() {
     return 'free'
   })
 
-  async function startCheckout(checkoutTier?: Tier) {
+  async function startCheckout(checkoutTier?: Tier, successUrl?: string) {
     const tier = checkoutTier ?? 'basic'
     checkingOutTier.value = tier
     try {
       const { data } = await api.post('/subscriptions/checkout', {
         tier,
+        successUrl,
       })
       window.location.href = data.checkoutUrl
     } finally {

@@ -24,8 +24,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
+import {
   PlusIcon,
-  EllipsisIcon,
+  EllipsisVerticalIcon,
+  PencilIcon,
+  EyeIcon,
   Trash2Icon,
 } from 'lucide-vue-next'
 import Avatar from '@/components/ui/avatar/Avatar.vue'
@@ -48,9 +53,13 @@ const allRoles = ref<Role[]>([])
 const totalUsers = ref(0)
 const currentPage = ref(1)
 
+const canUpdate = computed(() =>
+  authService.hasPermission(PermissionId.USERS_UPDATE),
+)
 const canDelete = computed(() =>
   authService.hasPermission(PermissionId.USERS_DELETE),
 )
+const isDev = import.meta.env.DEV
 
 const columns = computed<ColumnDef<User>[]>(() => {
   const baseColumns: ColumnDef<User>[] = []
@@ -106,48 +115,74 @@ const columns = computed<ColumnDef<User>[]>(() => {
     })
   }
 
-  if (canDelete.value) {
+  if (canUpdate.value || canDelete.value) {
     baseColumns.push({
       id: 'actions',
       meta: {
-        headerClass: 'w-12',
-        cellClass: 'text-right',
+        headerClass: 'w-10',
+        cellClass: 'text-center',
       },
-      cell: ({ row }) =>
-        row.original.id !== authStore.me?.id
-          ? h(
-              DropdownMenu,
-              {},
+      cell: ({ row }) => {
+        const isMe = row.original.id === authStore.me?.id
+        const items: any[] = []
+
+        if (canUpdate.value) {
+          items.push(
+            h(
+              DropdownMenuItem,
+              { onClick: () => router.push({ name: AppRoute.USER_DETAIL, params: { id: row.original.id } }) },
+              () => [h(PencilIcon, { class: 'size-4 mr-2' }), 'Edit'],
+            ),
+          )
+        }
+
+        if (isDev && !isMe) {
+          items.push(
+            h(
+              DropdownMenuItem,
+              { onClick: () => impersonateUser(row.original) },
+              () => [h(EyeIcon, { class: 'size-4 mr-2' }), 'Impersonate'],
+            ),
+          )
+        }
+
+        if (canDelete.value && !isMe) {
+          if (items.length > 0) items.push(h(DropdownMenuSeparator))
+          items.push(
+            h(
+              DropdownMenuItem,
               {
-                default: () => [
-                  h(
-                    DropdownMenuTrigger,
-                    { asChild: true },
-                    () =>
-                      h(Button, {
-                        variant: 'ghost',
-                        size: 'icon-sm',
-                        icon: EllipsisIcon,
-                        onClick: (e: MouseEvent) => e.stopPropagation(),
-                      }),
-                  ),
-                  h(DropdownMenuContent, { align: 'end' }, () => [
-                    h(
-                      DropdownMenuItem,
-                      {
-                        class: 'text-destructive',
-                        onClick: () => deleteUser(row.original),
-                      },
-                      () => [
-                        h(Trash2Icon, { class: 'size-4 mr-2' }),
-                        'Delete',
-                      ],
-                    ),
-                  ]),
-                ],
+                class: 'text-destructive',
+                onClick: () => deleteUser(row.original),
               },
-            )
-          : null,
+              () => [h(Trash2Icon, { class: 'size-4 mr-2' }), 'Delete'],
+            ),
+          )
+        }
+
+        if (items.length === 0) return null
+
+        return h(
+          DropdownMenu,
+          {},
+          {
+            default: () => [
+              h(
+                DropdownMenuTrigger,
+                { asChild: true },
+                () =>
+                  h(Button, {
+                    variant: 'ghost',
+                    size: 'icon-sm',
+                    icon: EllipsisVerticalIcon,
+                    onClick: (e: MouseEvent) => e.stopPropagation(),
+                  }),
+              ),
+              h(DropdownMenuContent, { align: 'end' }, () => items),
+            ],
+          },
+        )
+      },
     })
   }
 
@@ -166,13 +201,13 @@ async function deleteUser(user: User) {
     component: DeleteConfirmForm,
     props: {
       confirmValue: 'delete-user',
-      label: 'Type "delete-user" to confirm.',
+      warning: 'This action cannot be undone.',
     },
     title: `Delete ${user.firstName} ${user.lastName}?`,
     description:
-      'This will permanently remove the user and invalidate all their sessions. This cannot be undone.',
+      'This will permanently remove the user and invalidate all their sessions.',
     destructive: true,
-    contentClass: 'md:max-w-sm lg:max-w-sm',
+    contentClass: 'md:max-w-md lg:max-w-md',
     continueText: 'Delete',
   })
   if (!confirmed) return
@@ -194,9 +229,25 @@ async function inviteUser() {
 
   if (!result) return
 
-  const newUser = await userService.inviteUser(result)
-  users.value = [...users.value, newUser]
+  await userService.inviteUser(result)
+  await getUsers(currentPage.value)
   appService.toast.success(t('messages.invitationSent', { email: result.email }))
+}
+
+async function impersonateUser(user: User) {
+  const confirmed = await appService.confirm({
+    title: `Impersonate ${user.firstName} ${user.lastName}?`,
+    description:
+      'You will be logged in as this user. A banner will appear at the bottom of the screen to return to your admin session.',
+  })
+  if (!confirmed) return
+
+  try {
+    await authService.impersonateUser(user.id)
+    router.push({ name: AppRoute.MAP })
+  } catch (err: any) {
+    appService.toast.error(err?.response?.data?.message ?? 'Failed to impersonate user')
+  }
 }
 
 function onRowClick(user: User) {

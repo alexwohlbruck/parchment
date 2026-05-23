@@ -134,13 +134,13 @@ async function deleteUser() {
     component: (await import('@/components/admin/DeleteConfirmForm.vue')).default,
     props: {
       confirmValue: 'delete-user',
-      label: 'Type "delete-user" to confirm.',
+      warning: 'This action cannot be undone.',
     },
     title: `Delete ${user.value.firstName} ${user.value.lastName}?`,
     description:
-      'This will permanently remove the user and invalidate all their sessions. This cannot be undone.',
+      'This will permanently remove the user and invalidate all their sessions.',
     destructive: true,
-    contentClass: 'md:max-w-sm lg:max-w-sm',
+    contentClass: 'md:max-w-md lg:max-w-md',
     continueText: 'Delete',
   })
   if (!confirmed) return

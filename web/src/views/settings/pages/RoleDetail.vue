@@ -88,14 +88,14 @@ async function deleteRole() {
     component: (await import('@/components/admin/DeleteConfirmForm.vue')).default,
     props: {
       confirmValue: roleId,
-      label: `Type the role ID to confirm deletion.`,
+      warning: 'This action cannot be undone.',
     },
     title: `Delete "${role.value.name}"?`,
     description: userCount > 0
       ? `This will unassign ${userCount} user${userCount === 1 ? '' : 's'} from this role and permanently delete it.`
       : 'This role will be permanently deleted.',
     destructive: true,
-    contentClass: 'md:max-w-sm lg:max-w-sm',
+    contentClass: 'md:max-w-md lg:max-w-md',
     continueText: 'Delete',
   })
   if (!confirmed) return

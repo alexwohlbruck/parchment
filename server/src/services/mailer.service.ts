@@ -1,34 +1,61 @@
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
 import nodemailer from 'nodemailer'
-import { smtpConfig, mailFrom } from '../config/mailer.config'
-import { clientOrigin } from '../config/origins.config'
+import { smtpConfig, smtpFrom, isEmailConfigured } from '../config/mailer.config'
+import { serverOrigin } from '../config/origins.config'
+import { logger } from '../lib/logger'
 
-const transporter = nodemailer.createTransport(smtpConfig)
-
-// TODO: Use a proper templating engine
-const templates = {
-  verificationCode: '<h3>Your verification code</h3><h1>{code}</h1>',
-  invitation: `<h3>You have been invited to join Parchment Maps!</h3><a href="${clientOrigin}" target="_blank">Click here to start</a>`,
+interface TemplateDataMap {
+  'verification-code': { code: string }
+  'invitation': { appUrl: string }
 }
 
-type TemplateName = keyof typeof templates
+type TemplateName = keyof TemplateDataMap
 
-function renderTemplate(templateName: TemplateName, data?: object) {
-  const template = templates[templateName]
-  return Object.entries(data || {}).reduce(
-    (acc, [key, value]) => acc.replace(`{${key}}`, value),
-    template,
+const templateCache = new Map<TemplateName, string>()
+
+const templatesDir = resolve(__dirname, '../../emails/output')
+
+function loadTemplate(name: TemplateName): string {
+  let html = templateCache.get(name)
+  if (!html) {
+    html = readFileSync(resolve(templatesDir, `${name}.html`), 'utf-8')
+    if (process.env.NODE_ENV === 'production') {
+      templateCache.set(name, html)
+    }
+  }
+  return html
+}
+
+function renderTemplate<T extends TemplateName>(name: T, data: TemplateDataMap[T]): string {
+  const html = loadTemplate(name)
+  const allData: Record<string, string> = {
+    logoUrl: `${serverOrigin}/data/logo.png`,
+    ...data,
+  }
+  return Object.entries(allData).reduce(
+    (acc, [key, value]) => acc.replaceAll(`{{${key}}}`, String(value)),
+    html,
   )
 }
 
-export async function sendMail(options: {
-  from: keyof typeof mailFrom
+const transporter = isEmailConfigured
+  ? nodemailer.createTransport(smtpConfig!)
+  : null
+
+export async function sendMail<T extends TemplateName>(options: {
   to: string | string[]
   subject: string
-  template: TemplateName
-  data?: object // TODO: Make this type safe
+  template: T
+  data: TemplateDataMap[T]
 }) {
+  if (!transporter) {
+    logger.warn({ template: options.template, to: options.to }, 'Email not sent: SMTP is not configured')
+    return
+  }
+
   return await transporter.sendMail({
-    from: smtpConfig.auth.user, // TODO: Use options.from
+    from: smtpFrom,
     to: options.to,
     subject: options.subject,
     html: renderTemplate(options.template, options.data),

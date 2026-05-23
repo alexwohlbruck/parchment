@@ -9,6 +9,7 @@ import { permissions as permissionsSchema } from '../schema/permissions.schema'
 import { generateId } from '../util'
 import { getRoles } from '../services/auth.service'
 import { sendMail } from '../services/mailer.service'
+import { clientOrigin } from '../config/origins.config'
 import { permissions, requireAuth } from '../middleware/auth.middleware'
 import { PermissionId } from '../types/auth.types'
 import {
@@ -124,12 +125,12 @@ app.group('', (admin) =>
 
         const roles = await getRoles(newUser.id)
 
-        await sendMail({
+        sendMail({
           to: newUser.email,
-          from: 'onboarding',
           subject: 'You are invited to Parchment Maps',
           template: 'invitation',
-        })
+          data: { appUrl: clientOrigin },
+        }).catch(err => logger.error(err, 'Failed to send invitation email'))
 
         return {
           ...newUser,

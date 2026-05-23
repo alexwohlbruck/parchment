@@ -1547,5 +1547,34 @@
       "title": "Mejorar a {tier}",
       "description": "Esta función requiere una suscripción {tier}."
     }
+  },
+  "onboarding": {
+    "finish": "Finalizar",
+    "profile": {
+      "title": "Configura tu perfil",
+      "description": "Cuéntanos un poco sobre ti para comenzar.",
+      "firstName": "Nombre",
+      "lastName": "Apellido",
+      "firstNamePlaceholder": "Alex",
+      "lastNamePlaceholder": "García"
+    },
+    "alias": {
+      "title": "Elige un nombre de usuario",
+      "description": "Elige un nombre de usuario único para tu identidad de federación. Otros podrán encontrarte con este identificador.",
+      "label": "Nombre de usuario",
+      "placeholder": "usuario",
+      "hint": "3-30 caracteres, letras, números y guiones bajos.",
+      "previewLabel": "Tu identificador",
+      "validationError": "El nombre debe tener 3-30 caracteres usando letras, números o guiones bajos.",
+      "saveFailed": "No se pudo guardar. Prueba con otro nombre."
+    },
+    "recoveryKey": {
+      "title": "Guarda tu clave de recuperación",
+      "description": "Esta clave es la única forma de recuperar tus datos cifrados. Guárdala en un lugar seguro."
+    },
+    "passkey": {
+      "title": "Añadir una clave de acceso",
+      "description": "Las claves de acceso te permiten iniciar sesión y restaurar tus datos cifrados sin escribir una clave de recuperación."
+    }
   }
 }

@@ -1649,5 +1649,34 @@
       "title": "Upgrade to {tier}",
       "description": "This feature requires a {tier} subscription."
     }
+  },
+  "onboarding": {
+    "finish": "Finish",
+    "profile": {
+      "title": "Set up your profile",
+      "description": "Tell us a bit about yourself to get started.",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "firstNamePlaceholder": "Alex",
+      "lastNamePlaceholder": "Smith"
+    },
+    "alias": {
+      "title": "Choose a username",
+      "description": "Pick a unique username for your federation identity. Others can find and add you with this handle.",
+      "label": "Username",
+      "placeholder": "username",
+      "hint": "3-30 characters, letters, numbers, and underscores only.",
+      "previewLabel": "Your handle",
+      "validationError": "Username must be 3-30 characters using letters, numbers, or underscores.",
+      "saveFailed": "Could not save username. Try a different one."
+    },
+    "recoveryKey": {
+      "title": "Save your recovery key",
+      "description": "This key is the only way to recover your encrypted data. Store it somewhere safe."
+    },
+    "passkey": {
+      "title": "Add a passkey",
+      "description": "Passkeys let you sign in and restore your encrypted data without typing a recovery key."
+    }
   }
 }

@@ -29,6 +29,9 @@ RUN bun install --frozen-lockfile --production || (rm -f bun.lock && bun install
 # Copy build output from builder stage
 COPY --from=builder /app/server/dist ./dist
 
+# Copy compiled email templates
+COPY --from=builder /app/server/emails/output ./emails/output
+
 # Copy drizzle migrations folder (pre-generated)
 COPY --from=builder /app/server/drizzle ./drizzle
 

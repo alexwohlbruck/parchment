@@ -18,4 +18,32 @@ app.get('/timezones.geojson', () => {
   })
 })
 
+let logoSvgCache: Buffer | null = null
+
+app.get('/logo.svg', () => {
+  if (!logoSvgCache) {
+    logoSvgCache = readFileSync(resolve(__dirname, '../../data/logo.svg'))
+  }
+  return new Response(logoSvgCache, {
+    headers: {
+      'Content-Type': 'image/svg+xml',
+      'Cache-Control': 'public, max-age=604800',
+    },
+  })
+})
+
+let logoPngCache: Buffer | null = null
+
+app.get('/logo.png', () => {
+  if (!logoPngCache) {
+    logoPngCache = readFileSync(resolve(__dirname, '../../data/logo.png'))
+  }
+  return new Response(logoPngCache, {
+    headers: {
+      'Content-Type': 'image/png',
+      'Cache-Control': 'public, max-age=604800',
+    },
+  })
+})
+
 export default app

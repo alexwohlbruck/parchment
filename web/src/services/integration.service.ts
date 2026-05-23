@@ -320,7 +320,7 @@ export function useIntegrationService() {
 
     if (hasCachedData) {
       // Return cached data immediately, refresh in background
-      api.get<IntegrationRecord[]>('/integrations/configured')
+      api.get<IntegrationRecord[]>('/integrations/configured', { silent: true } as any)
         .then(async (response) => {
           store.integrationConfigurations = await hydrateE2eeConfigs(
             response.data,
@@ -337,10 +337,15 @@ export function useIntegrationService() {
     try {
       const response = await api.get<IntegrationRecord[]>(
         '/integrations/configured',
+        { silent: true } as any,
       )
       const hydrated = await hydrateE2eeConfigs(response.data)
       store.integrationConfigurations = hydrated
       return hydrated
+    } catch (error) {
+      console.error('Failed to fetch configured integrations:', error)
+      store.integrationConfigurations = []
+      return []
     } finally {
       store.isLoadingConfigured = false
     }

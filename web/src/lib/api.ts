@@ -183,24 +183,30 @@ api.interceptors.response.use(
     // Cancelled requests (AbortController.abort()) are intentional — no toast
     if (axios.isCancel(error)) return Promise.reject(error)
 
-    const { title, description } = getErrorMessage(error)
     const status = error.response?.status as number | undefined
 
-    if (status === 401) {
-      if (error.request.responseURL.includes('/auth/sessions/current')) {
-        return
-      } else {
-        router.push({ name: AppRoute.SIGNIN })
-      }
+    // Session probe — any failure is handled silently by the caller.
+    if (error.request?.responseURL?.includes('/auth/sessions/current')) {
+      return Promise.reject(error)
     }
 
-    // Callers can opt individual statuses out of the global toast by
-    // passing `silentStatuses` on the request config — useful for
-    // polling loops where an "expected" 4xx (e.g. 425 not-ready) would
-    // otherwise spam the user with errors on every tick.
-    const silent = (error.config as { silentStatuses?: number[] } | undefined)
-      ?.silentStatuses
-    if (status !== undefined && silent?.includes(status)) {
+    const { title, description } = getErrorMessage(error)
+
+    if (status === 401) {
+      router.push({ name: AppRoute.SIGNIN })
+    }
+
+    // Callers can suppress error toasts entirely via `silent: true`
+    // on the request config, or opt individual statuses out via
+    // `silentStatuses: [425, ...]` — useful for polling loops where an
+    // "expected" 4xx would otherwise spam the user with errors.
+    const cfg = error.config as
+      | { silent?: boolean; silentStatuses?: number[] }
+      | undefined
+    if (
+      cfg?.silent ||
+      (status !== undefined && cfg?.silentStatuses?.includes(status))
+    ) {
       return Promise.reject(error)
     }
 

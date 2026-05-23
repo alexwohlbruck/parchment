@@ -1575,6 +1575,21 @@
     "passkey": {
       "title": "Añadir una clave de acceso",
       "description": "Las claves de acceso te permiten iniciar sesión y restaurar tus datos cifrados sin escribir una clave de recuperación."
+    },
+    "integrations": {
+      "title": "Habilitar integraciones",
+      "description": "Estas fuentes de datos gratuitas enriquecen tus mapas con fotos, descripciones y geocodificación. Puedes configurar más después en ajustes.",
+      "enableAll": "Habilitar todas las integraciones gratuitas",
+      "allConfigured": "Todas las integraciones gratuitas están habilitadas."
+    },
+    "invite": {
+      "title": "Invita a tu equipo",
+      "description": "Envía invitaciones a las personas con las que quieras colaborar. Siempre puedes hacerlo después desde ajustes.",
+      "addAnother": "Añadir otra persona",
+      "send": "Enviar invitaciones",
+      "sendFailed": "No se pudo enviar la invitación.",
+      "sent": "{count} invitación(es) enviada(s).",
+      "sentSummary": "{count} invitación(es) enviada(s)"
     }
   }
 }

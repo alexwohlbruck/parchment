@@ -1677,6 +1677,21 @@
     "passkey": {
       "title": "Add a passkey",
       "description": "Passkeys let you sign in and restore your encrypted data without typing a recovery key."
+    },
+    "integrations": {
+      "title": "Enable integrations",
+      "description": "These free data sources enrich your maps with photos, descriptions, and geocoding. You can configure more later in settings.",
+      "enableAll": "Enable all free integrations",
+      "allConfigured": "All free integrations are enabled."
+    },
+    "invite": {
+      "title": "Invite your team",
+      "description": "Send invitations to people you'd like to collaborate with. You can always do this later from settings.",
+      "addAnother": "Add another person",
+      "send": "Send invitations",
+      "sendFailed": "Failed to send invitation.",
+      "sent": "Sent {count} invitation(s).",
+      "sentSummary": "{count} invitation(s) sent"
     }
   }
 }

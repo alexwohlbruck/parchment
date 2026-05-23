@@ -1173,4 +1173,25 @@ app.use(requireAuth).put(
   },
 )
 
+/**
+ * Mark onboarding complete for the current user
+ */
+app.use(requireAuth).post(
+  '/me/onboarding/complete',
+  async ({ user }) => {
+    const now = new Date()
+    await db
+      .update(users)
+      .set({ onboardingCompletedAt: now })
+      .where(eq(users.id, user.id))
+    return { onboardingCompletedAt: now.toISOString() }
+  },
+  {
+    detail: {
+      tags: ['Users'],
+      description: 'Mark onboarding as complete for the current user',
+    },
+  },
+)
+
 export default app

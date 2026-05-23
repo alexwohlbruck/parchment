@@ -17,9 +17,11 @@ import ProfileSetupStep from './ProfileSetupStep.vue'
 import AliasSetupStep from './AliasSetupStep.vue'
 import RecoveryKeyStep from './RecoveryKeyStep.vue'
 import PasskeyStep from './PasskeyStep.vue'
+import IntegrationsSetupStep from './IntegrationsSetupStep.vue'
+import InviteUsersStep from './InviteUsersStep.vue'
 import { validateKey, type StepValidateFn } from './types'
 
-type StepId = 'profile' | 'alias' | 'recovery-key' | 'passkey'
+type StepId = 'profile' | 'alias' | 'recovery-key' | 'passkey' | 'integrations' | 'invite'
 
 interface StepDef {
   id: StepId
@@ -53,6 +55,12 @@ const steps = computed<StepDef[]>(() => {
     { id: 'recovery-key', component: RecoveryKeyStep, hideFooter: true },
     { id: 'passkey', component: PasskeyStep, hideFooter: true },
   ]
+  if (isAdmin.value) {
+    s.push(
+      { id: 'integrations', component: IntegrationsSetupStep },
+      { id: 'invite', component: InviteUsersStep },
+    )
+  }
   return s
 })
 

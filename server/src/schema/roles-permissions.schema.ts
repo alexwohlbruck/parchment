@@ -1,4 +1,4 @@
-import { pgTable, primaryKey, text } from 'drizzle-orm/pg-core'
+import { pgTable, primaryKey, text, boolean } from 'drizzle-orm/pg-core'
 import { roles } from './roles.schema'
 import { permissions } from './permissions.schema'
 
@@ -11,6 +11,7 @@ export const roleToPermissions = pgTable(
     permissionId: text('permission_id')
       .notNull()
       .references(() => permissions.id, { onDelete: 'cascade' }),
+    isDefault: boolean('is_default').notNull().default(true),
   },
   (t) => ({
     pk: primaryKey({ columns: [t.roleId, t.permissionId] }),

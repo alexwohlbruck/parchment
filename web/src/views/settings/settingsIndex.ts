@@ -33,6 +33,7 @@ export type SettingsSectionDef = {
   descriptionKey?: string
   keywords?: string[]
   items?: SettingsItemDef[]
+  to?: string
 }
 
 export type SettingsPageDef = {
@@ -273,14 +274,17 @@ export const settingsIndex: SettingsPageDef[] = [
         id: 'users',
         titleKey: 'settings.users.users.title',
         keywords: ['members', 'workspace'],
+        to: '/settings/users',
       },
       {
         id: 'roles',
         titleKey: 'settings.users.roles.title',
+        to: '/settings/roles',
       },
       {
         id: 'permissions',
         titleKey: 'settings.users.permissions.title',
+        to: '/settings/permissions',
       },
     ],
   },
@@ -304,12 +308,18 @@ export const settingsIndex: SettingsPageDef[] = [
           to: '/settings/developer',
           icon: CodeIcon,
           iconColor: 'purple' as const,
+          permissions: PermissionId.SYSTEM_READ,
           sections: [
             {
               id: 'gpx-simulator',
               titleKey: 'settings.developer.gpxSimulator.title',
               descriptionKey: 'settings.developer.gpxSimulator.description',
               keywords: ['gpx', 'track', 'simulate', 'replay', 'gps', 'mock'],
+            },
+            {
+              id: 'impersonation',
+              titleKey: 'settings.developer.impersonation.title',
+              keywords: ['impersonate', 'login as', 'debug user'],
             },
             {
               id: 'dev-info',

@@ -1208,6 +1208,9 @@
         "speed": "Speed",
         "heading": "Heading"
       },
+      "impersonation": {
+        "title": "Impersonate user"
+      },
       "info": {
         "title": "About this page",
         "description": "This page is only visible in development mode.",
@@ -1496,6 +1499,18 @@
       "permissions": {
         "title": "Permissions"
       }
+    },
+    "roles": {
+      "title": "Roles"
+    },
+    "permissions": {
+      "title": "Permissions"
+    },
+    "user-detail": {
+      "title": "User"
+    },
+    "role-detail": {
+      "title": "Role"
     },
     "system": {
       "title": "System"

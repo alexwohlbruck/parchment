@@ -34,15 +34,17 @@ onMounted(() => {
       <Separator />
     </div>
 
-    <div class="overflow-y-auto items-start px-4 md:pl-0">
+    <div class="flex-1 min-h-0 overflow-y-auto items-start px-4 md:pl-0">
       <!-- Padding lives inside the scroll container so sticky section
            headers can cover the top edge — otherwise content scrolls up
            into the container's own padding above the sticky header.
            data-settings-scroll-content is the hook for dynamic
            bottom-padding (so short last sections can still scroll up
            enough to win the active-section highlight). -->
-      <div class="py-6" data-settings-scroll-content>
-        <router-view class="w-full max-w-208 mx-auto" />
+      <div class="py-6 flex flex-col min-h-full" data-settings-scroll-content>
+        <div class="w-full max-w-208 mx-auto flex-1 flex flex-col min-h-0">
+          <router-view />
+        </div>
       </div>
     </div>
   </div>

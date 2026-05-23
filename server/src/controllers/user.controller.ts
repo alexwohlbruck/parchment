@@ -4,8 +4,10 @@ import { User, users } from '../schema/users.schema'
 import { usersToRoles } from '../schema/users-roles.schema'
 import { roles } from '../schema/roles.schema'
 import { sessions } from '../schema/sessions.schema'
-import { eq, sql } from 'drizzle-orm'
+import { eq, sql, count, and, ne, inArray } from 'drizzle-orm'
 import { permissions as permissionsSchema } from '../schema/permissions.schema'
+import { roleToPermissions } from '../schema/roles-permissions.schema'
+import { lucia } from '../lucia'
 import { generateId } from '../util'
 import { getRoles } from '../services/auth.service'
 import { sendMail } from '../services/mailer.service'
@@ -36,6 +38,9 @@ import {
 import { buildHandle, getServerDomain } from '../services/federation.service'
 import { isValidAlias } from '../lib/crypto'
 
+import { billing } from '../config'
+import { logger } from '../lib/logger'
+import { getAdminUserSubscriptionInfo } from '../services/subscription.service'
 import { i18next } from 'elysia-i18next'
 import { detectLanguage, getI18nInitOptions } from '../lib/i18n'
 
@@ -48,7 +53,15 @@ app.group('', (admin) =>
     .use(permissions(PermissionId.USERS_READ))
     .get(
       '/',
-      async () => {
+      async ({ query }) => {
+        const page = Math.max(1, query.page ?? 1)
+        const limit = Math.min(100, Math.max(1, query.limit ?? 25))
+        const offset = (page - 1) * limit
+
+        const [totalResult] = await db
+          .select({ total: count() })
+          .from(users)
+
         const usersResult = await db
           .select({
             id: users.id,
@@ -57,38 +70,54 @@ app.group('', (admin) =>
             lastName: users.lastName,
             alias: users.alias,
             picture: users.picture,
-            roles: sql`json_agg(json_build_object(
+            createdAt: users.createdAt,
+            roles: sql`COALESCE(json_agg(json_build_object(
                 'id', ${roles.id},
                 'name', ${roles.name}
-              ))`.as('roles'),
+              )) FILTER (WHERE ${roles.id} IS NOT NULL), '[]')`.as('roles'),
           })
           .from(users)
           .leftJoin(usersToRoles, eq(usersToRoles.userId, users.id))
           .leftJoin(roles, eq(usersToRoles.roleId, roles.id))
           .groupBy(users.id)
+          .limit(limit)
+          .offset(offset)
 
-        const sessionCounts = await db
-          .select({
-            userId: sessions.userId,
-            sessionCount: sql`COUNT(*) AS session_count`,
-          })
-          .from(sessions)
-          .groupBy(sessions.userId)
+        const userIds = usersResult.map((u) => u.id)
 
-        const usersWithSessionCounts = usersResult.map((user) => {
-          const sessionCountResult = sessionCounts.find(
-            (sessionCount) => sessionCount.userId === user.id,
-          )
-          const sessionCount = sessionCountResult
-            ? +(sessionCountResult as { sessionCount: string | number })
-                .sessionCount
-            : 0
-          return { ...user, sessionCount }
-        })
+        const sessionCounts =
+          userIds.length > 0
+            ? await db
+                .select({
+                  userId: sessions.userId,
+                  sessionCount: sql<number>`count(*)`.as('session_count'),
+                })
+                .from(sessions)
+                .where(inArray(sessions.userId, userIds))
+                .groupBy(sessions.userId)
+            : []
 
-        return usersWithSessionCounts
+        const sessionCountMap = new Map(
+          sessionCounts.map((s) => [s.userId, +s.sessionCount]),
+        )
+
+        const usersWithSessionCounts = usersResult.map((user) => ({
+          ...user,
+          sessionCount: sessionCountMap.get(user.id) ?? 0,
+        }))
+
+        return {
+          data: usersWithSessionCounts,
+          total: totalResult.total,
+          page,
+          limit,
+        }
       },
       {
+        query: t.Object({
+          page: t.Optional(t.Numeric({ minimum: 1 })),
+          limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100 })),
+        }),
         detail: {
           tags: ['Users'],
         },
@@ -101,7 +130,18 @@ app.group('', (admin) =>
     .use(permissions(PermissionId.USERS_CREATE))
     .post(
       '/',
-      async ({ body }) => {
+      async ({ body, status }) => {
+        // Validate roles exist
+        const roleIds = body.roles?.length ? body.roles : ['user']
+        const existingRoles = await db
+          .select({ id: roles.id })
+          .from(roles)
+          .where(inArray(roles.id, roleIds))
+
+        if (existingRoles.length !== roleIds.length) {
+          return status(400, { message: 'One or more role IDs are invalid' })
+        }
+
         const result = await db
           .insert(users)
           .values({
@@ -115,14 +155,13 @@ app.group('', (admin) =>
 
         const newUser = result[0]
 
-        await db.insert(usersToRoles).values({
-          userId: newUser.id,
-          roleId: body.role || 'user',
-        })
+        await db.insert(usersToRoles).values(
+          roleIds.map(roleId => ({ userId: newUser.id, roleId })),
+        )
 
         await createInitialCollection(newUser.id)
 
-        const roles = await getRoles(newUser.id)
+        const userRoles = await getRoles(newUser.id)
 
         await sendMail({
           to: newUser.email,
@@ -133,7 +172,7 @@ app.group('', (admin) =>
 
         return {
           ...newUser,
-          roles,
+          roles: userRoles,
         }
       },
       {
@@ -144,13 +183,7 @@ app.group('', (admin) =>
             format: 'email',
           }),
           picture: t.Optional(t.String()),
-          role: t.Optional(
-            t.Union([
-              t.Literal('user'),
-              t.Literal('alpha'),
-              t.Literal('admin'),
-            ]),
-          ),
+          roles: t.Optional(t.Array(t.String())),
         }),
         detail: {
           tags: ['Users'],
@@ -179,6 +212,250 @@ app.group('', (admin) =>
 
 app.group('', (admin) =>
   admin
+    .use(permissions(PermissionId.ROLES_READ))
+    .get(
+      '/roles/:id',
+      async ({ params, status }) => {
+        const [role] = await db
+          .select()
+          .from(roles)
+          .where(eq(roles.id, params.id))
+          .limit(1)
+
+        if (!role) return status(404, { message: 'Role not found' })
+
+        const rolePerms = await db
+          .select({
+            id: permissionsSchema.id,
+            name: permissionsSchema.name,
+            isDefault: roleToPermissions.isDefault,
+          })
+          .from(roleToPermissions)
+          .innerJoin(
+            permissionsSchema,
+            eq(roleToPermissions.permissionId, permissionsSchema.id),
+          )
+          .where(eq(roleToPermissions.roleId, params.id))
+
+        const assignedUsers = await db
+          .select({
+            id: users.id,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            email: users.email,
+            picture: users.picture,
+          })
+          .from(usersToRoles)
+          .innerJoin(users, eq(usersToRoles.userId, users.id))
+          .where(eq(usersToRoles.roleId, params.id))
+
+        return {
+          ...role,
+          permissions: rolePerms,
+          users: assignedUsers,
+        }
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        detail: { tags: ['Users'] },
+      },
+    ),
+)
+
+app.group('', (admin) =>
+  admin
+    .use(permissions(PermissionId.ROLES_CREATE))
+    .post(
+      '/roles',
+      async ({ body, status }) => {
+        const id = body.id || generateId()
+
+        // Check for duplicate ID
+        const [existing] = await db
+          .select({ id: roles.id })
+          .from(roles)
+          .where(eq(roles.id, id))
+          .limit(1)
+
+        if (existing) {
+          return status(409, { message: `A role with ID "${id}" already exists` })
+        }
+
+        if (body.permissions?.length) {
+          const existingPerms = await db
+            .select({ id: permissionsSchema.id })
+            .from(permissionsSchema)
+            .where(inArray(permissionsSchema.id, body.permissions))
+          if (existingPerms.length !== body.permissions.length) {
+            return status(400, { message: 'One or more permission IDs are invalid' })
+          }
+        }
+
+        const [newRole] = await db
+          .insert(roles)
+          .values({
+            id,
+            name: body.name,
+            description: body.description ?? '',
+            isDefault: false,
+          })
+          .returning()
+
+        if (body.permissions?.length) {
+          await db.insert(roleToPermissions).values(
+            body.permissions.map((permId) => ({
+              roleId: id,
+              permissionId: permId,
+              isDefault: false,
+            })),
+          )
+        }
+
+        return newRole
+      },
+      {
+        body: t.Object({
+          id: t.Optional(t.String()),
+          name: t.String(),
+          description: t.Optional(t.String()),
+          permissions: t.Optional(t.Array(t.String())),
+        }),
+        detail: { tags: ['Users'] },
+      },
+    ),
+)
+
+app.group('', (admin) =>
+  admin
+    .use(permissions(PermissionId.ROLES_WRITE))
+    .patch(
+      '/roles/:id',
+      async ({ params, body, status }) => {
+        const [role] = await db
+          .select()
+          .from(roles)
+          .where(eq(roles.id, params.id))
+          .limit(1)
+
+        if (!role) return status(404, { message: 'Role not found' })
+        if (role.isDefault) {
+          return status(403, { message: 'Cannot modify default roles' })
+        }
+
+        const [updated] = await db
+          .update(roles)
+          .set({
+            ...(body.name !== undefined && { name: body.name }),
+            ...(body.description !== undefined && {
+              description: body.description,
+            }),
+          })
+          .where(eq(roles.id, params.id))
+          .returning()
+
+        return updated
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        body: t.Object({
+          name: t.Optional(t.String()),
+          description: t.Optional(t.String()),
+        }),
+        detail: { tags: ['Users'] },
+      },
+    ),
+)
+
+app.group('', (admin) =>
+  admin
+    .use(permissions(PermissionId.ROLES_DELETE))
+    .delete(
+      '/roles/:id',
+      async ({ params, status }) => {
+        const [role] = await db
+          .select()
+          .from(roles)
+          .where(eq(roles.id, params.id))
+          .limit(1)
+
+        if (!role) return status(404, { message: 'Role not found' })
+        if (role.isDefault) {
+          return status(403, { message: 'Cannot delete default roles' })
+        }
+
+        // Unassign all users from this role, then delete
+        await db
+          .delete(usersToRoles)
+          .where(eq(usersToRoles.roleId, params.id))
+        await db
+          .delete(roleToPermissions)
+          .where(eq(roleToPermissions.roleId, params.id))
+        await db.delete(roles).where(eq(roles.id, params.id))
+
+        return status(204)
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        detail: { tags: ['Users'] },
+      },
+    ),
+)
+
+app.group('', (admin) =>
+  admin
+    .use(permissions(PermissionId.ROLES_WRITE))
+    .put(
+      '/roles/:id/permissions',
+      async ({ params, body, status }) => {
+        const [role] = await db
+          .select()
+          .from(roles)
+          .where(eq(roles.id, params.id))
+          .limit(1)
+
+        if (!role) return status(404, { message: 'Role not found' })
+        if (role.isDefault) {
+          return status(403, { message: 'Cannot modify default role permissions' })
+        }
+
+        if (body.permissions.length > 0) {
+          const existingPerms = await db
+            .select({ id: permissionsSchema.id })
+            .from(permissionsSchema)
+            .where(inArray(permissionsSchema.id, body.permissions))
+          if (existingPerms.length !== body.permissions.length) {
+            return status(400, { message: 'One or more permission IDs are invalid' })
+          }
+        }
+
+        await db
+          .delete(roleToPermissions)
+          .where(eq(roleToPermissions.roleId, params.id))
+
+        if (body.permissions.length > 0) {
+          await db.insert(roleToPermissions).values(
+            body.permissions.map((permId) => ({
+              roleId: params.id,
+              permissionId: permId,
+              isDefault: false,
+            })),
+          )
+        }
+
+        return { success: true }
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        body: t.Object({
+          permissions: t.Array(t.String()),
+        }),
+        detail: { tags: ['Users'] },
+      },
+    ),
+)
+
+app.group('', (admin) =>
+  admin
     .use(permissions(PermissionId.PERMISSIONS_READ))
     .get(
       '/permissions',
@@ -191,6 +468,327 @@ app.group('', (admin) =>
           tags: ['Users'],
           summary: 'Get all permissions',
         },
+      },
+    ),
+)
+
+app.group('', (admin) =>
+  admin
+    .use(permissions(PermissionId.PERMISSIONS_READ))
+    .get(
+      '/permissions/:id',
+      async ({ params, status }) => {
+        const [perm] = await db
+          .select()
+          .from(permissionsSchema)
+          .where(eq(permissionsSchema.id, params.id))
+          .limit(1)
+
+        if (!perm) return status(404, { message: 'Permission not found' })
+
+        const associatedRoles = await db
+          .select({
+            id: roles.id,
+            name: roles.name,
+            description: roles.description,
+            isDefault: roles.isDefault,
+          })
+          .from(roleToPermissions)
+          .innerJoin(roles, eq(roleToPermissions.roleId, roles.id))
+          .where(eq(roleToPermissions.permissionId, params.id))
+
+        return {
+          ...perm,
+          roles: associatedRoles,
+        }
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        detail: { tags: ['Users'] },
+      },
+    ),
+)
+
+// --- Single user CRUD ---
+app.group('', (admin) =>
+  admin
+    .use(permissions(PermissionId.USERS_READ))
+    .get(
+      '/:id',
+      async ({ params, status }) => {
+        const [userRow] = await db
+          .select({
+            id: users.id,
+            email: users.email,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            alias: users.alias,
+            picture: users.picture,
+            createdAt: users.createdAt,
+          })
+          .from(users)
+          .where(eq(users.id, params.id))
+          .limit(1)
+
+        if (!userRow) return status(404, { message: 'User not found' })
+
+        const userRoles = await db
+          .select({ id: roles.id, name: roles.name, description: roles.description })
+          .from(usersToRoles)
+          .innerJoin(roles, eq(usersToRoles.roleId, roles.id))
+          .where(eq(usersToRoles.userId, params.id))
+
+        const userPermissions = await db
+          .selectDistinct({ id: permissionsSchema.id, name: permissionsSchema.name })
+          .from(usersToRoles)
+          .innerJoin(roleToPermissions, eq(usersToRoles.roleId, roleToPermissions.roleId))
+          .innerJoin(permissionsSchema, eq(roleToPermissions.permissionId, permissionsSchema.id))
+          .where(eq(usersToRoles.userId, params.id))
+
+        const sessionRows = await db
+          .select({ count: count() })
+          .from(sessions)
+          .where(eq(sessions.userId, params.id))
+
+        return {
+          ...userRow,
+          roles: userRoles,
+          permissions: userPermissions,
+          sessionCount: sessionRows[0]?.count ?? 0,
+        }
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        detail: { tags: ['Users'] },
+      },
+    ),
+)
+
+// Separate billing endpoint so user detail loads instantly while billing
+// data (which hits the Polar API) streams in independently.
+app.group('', (admin) =>
+  admin
+    .use(permissions(PermissionId.USERS_READ))
+    .get(
+      '/:id/billing',
+      async ({ params, status }) => {
+        if (!billing.enabled) {
+          return status(404, { message: 'Billing not enabled' })
+        }
+        const billingInfo = await getAdminUserSubscriptionInfo(params.id)
+        return billingInfo ?? { subscription: null, orders: [], portalUrl: null }
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        detail: { tags: ['Users'] },
+      },
+    ),
+)
+
+app.group('', (admin) =>
+  admin
+    .use(permissions(PermissionId.USERS_UPDATE))
+    .patch(
+      '/:id',
+      async ({ params, body, status }) => {
+        const [existing] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.id, params.id))
+          .limit(1)
+
+        if (!existing) return status(404, { message: 'User not found' })
+
+        // Validate roles upfront, before the transaction
+        if (body.roles) {
+          const existingRoles = await db
+            .select({ id: roles.id })
+            .from(roles)
+            .where(inArray(roles.id, body.roles))
+
+          if (existingRoles.length !== body.roles.length) {
+            return status(400, { message: 'One or more role IDs are invalid' })
+          }
+        }
+
+        // Atomic transaction: field updates + role changes together
+        await db.transaction(async (tx) => {
+          await tx
+            .update(users)
+            .set({
+              ...(body.firstName !== undefined && { firstName: body.firstName }),
+              ...(body.lastName !== undefined && { lastName: body.lastName }),
+              ...(body.email !== undefined && { email: body.email }),
+            })
+            .where(eq(users.id, params.id))
+
+          if (body.roles) {
+            // Protect last admin: if removing admin role, verify another admin exists
+            const currentRoles = await tx
+              .select({ roleId: usersToRoles.roleId })
+              .from(usersToRoles)
+              .where(eq(usersToRoles.userId, params.id))
+
+            const hadAdmin = currentRoles.some(r => r.roleId === 'admin')
+            const willHaveAdmin = body.roles.includes('admin')
+
+            if (hadAdmin && !willHaveAdmin) {
+              const [adminCount] = await tx
+                .select({ count: count() })
+                .from(usersToRoles)
+                .where(
+                  and(
+                    eq(usersToRoles.roleId, 'admin'),
+                    ne(usersToRoles.userId, params.id),
+                  ),
+                )
+
+              if (adminCount.count === 0) {
+                throw new Error('Cannot remove the last admin')
+              }
+            }
+
+            await tx.delete(usersToRoles).where(eq(usersToRoles.userId, params.id))
+            if (body.roles.length > 0) {
+              await tx.insert(usersToRoles).values(
+                body.roles.map(roleId => ({ userId: params.id, roleId })),
+              )
+            }
+          }
+        })
+
+        const [updated] = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, params.id))
+          .limit(1)
+
+        const updatedRoles = await db
+          .select({ id: roles.id, name: roles.name })
+          .from(usersToRoles)
+          .innerJoin(roles, eq(usersToRoles.roleId, roles.id))
+          .where(eq(usersToRoles.userId, params.id))
+
+        return { ...updated, roles: updatedRoles }
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        body: t.Object({
+          firstName: t.Optional(t.String()),
+          lastName: t.Optional(t.String()),
+          email: t.Optional(t.String({ format: 'email' })),
+          roles: t.Optional(t.Array(t.String())),
+        }),
+        detail: { tags: ['Users'] },
+      },
+    ),
+)
+
+app.group('', (admin) =>
+  admin
+    .use(permissions(PermissionId.USERS_DELETE))
+    .delete(
+      '/:id',
+      async ({ params, user, status }) => {
+        if (params.id === user.id) {
+          return status(400, { message: 'Cannot delete yourself' })
+        }
+
+        const [existing] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.id, params.id))
+          .limit(1)
+
+        if (!existing) return status(404, { message: 'User not found' })
+
+        // Protect last admin
+        const [isAdmin] = await db
+          .select({ count: count() })
+          .from(usersToRoles)
+          .where(
+            and(
+              eq(usersToRoles.userId, params.id),
+              eq(usersToRoles.roleId, 'admin'),
+            ),
+          )
+
+        if (isAdmin.count > 0) {
+          const [otherAdmins] = await db
+            .select({ count: count() })
+            .from(usersToRoles)
+            .where(
+              and(
+                eq(usersToRoles.roleId, 'admin'),
+                ne(usersToRoles.userId, params.id),
+              ),
+            )
+
+          if (otherAdmins.count === 0) {
+            return status(400, { message: 'Cannot delete the last admin' })
+          }
+        }
+
+        await lucia.invalidateUserSessions(params.id)
+        await db.delete(users).where(eq(users.id, params.id))
+
+        return status(204)
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        detail: { tags: ['Users'] },
+      },
+    ),
+)
+
+// --- Impersonation (dev only) ---
+app.group('', (admin) =>
+  admin
+    .use(requireAuth)
+    .post(
+      '/:id/impersonate',
+      async ({ params, user, status }) => {
+        if (process.env.NODE_ENV === 'production') {
+          return status(403, { message: 'Impersonation is not available in production' })
+        }
+
+        if (params.id === user.id) {
+          return status(400, { message: 'Cannot impersonate yourself' })
+        }
+
+        const [target] = await db
+          .select({
+            id: users.id,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            email: users.email,
+            picture: users.picture,
+          })
+          .from(users)
+          .where(eq(users.id, params.id))
+          .limit(1)
+
+        if (!target) return status(404, { message: 'User not found' })
+
+        const session = await lucia.createSession(target.id, {})
+        logger.warn(
+          {
+            action: 'impersonate',
+            callerId: user.id,
+            targetId: target.id,
+            sessionId: session.id,
+          },
+          `User ${user.id} impersonating ${target.id}`,
+        )
+
+        return {
+          sessionId: session.id,
+          user: target,
+        }
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        detail: { tags: ['Users'] },
       },
     ),
 )

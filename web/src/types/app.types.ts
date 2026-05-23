@@ -30,6 +30,7 @@ export interface ComponentDialogOptions extends BaseDialogOptions {
   component: Component
   props?: Record<string, any>
   destructive?: boolean
+  contentClass?: string
   onContinue?: (payload?: any) => Promise<any>
   footerPrepend?: () => VNode | VNode[]
 }

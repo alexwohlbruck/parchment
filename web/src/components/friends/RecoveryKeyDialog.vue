@@ -32,12 +32,13 @@ import {
   Fingerprint,
   Smartphone,
 } from 'lucide-vue-next'
-import { toast } from 'vue-sonner'
+
 import TransferIdentityDialog from './TransferIdentityDialog.vue'
 import {
   useBusyOperation,
   useDialogCompletion,
 } from '@/composables/useDialogCompletion'
+import { useClipboard } from '@/composables/useClipboard'
 
 type Mode = 'setup' | 'import' | 'view'
 type SetupStep =
@@ -76,8 +77,7 @@ const isOpen = computed({
 const recoveryKeyInput = ref('')
 const existingRecoveryKey = ref<string | null>(null)
 const hasSavedKey = ref(false)
-const recoveryCopied = ref(false)
-let recoveryCopiedTimeout: ReturnType<typeof setTimeout> | null = null
+const { copied: recoveryCopied, copy: copyText } = useClipboard()
 const error = ref<string | null>(null)
 const setupStep = ref<SetupStep>('generate')
 const importStep = ref<ImportStep>('choose')
@@ -268,25 +268,18 @@ async function handleImport() {
 }
 
 async function handleResetIdentity() {
-  // Two-step gate: first a destructive confirm, then a typed
-  // confirmation. Skipping straight to typed-only would mean a
-  // misclick could open a full-screen modal asking to erase
-  // everything; the confirm dialog gives the user a chance to bail
-  // before the typed prompt appears.
-  const confirmed = await appService.confirm({
+  const confirmed = await appService.componentDialog({
+    component: (await import('@/components/admin/DeleteConfirmForm.vue')).default,
+    props: {
+      confirmValue: 'RESET',
+      warning: t('settings.identity.recoveryKey.reset.confirmDescription'),
+    },
     title: t('settings.identity.recoveryKey.reset.confirmTitle'),
-    description: t('settings.identity.recoveryKey.reset.confirmDescription'),
     destructive: true,
-    continueText: t('general.continue'),
+    contentClass: 'md:max-w-md lg:max-w-md',
+    continueText: t('settings.identity.recoveryKey.reset.typePromptTitle'),
   })
   if (!confirmed) return
-
-  const typed = await appService.prompt({
-    title: t('settings.identity.recoveryKey.reset.typePromptTitle'),
-    label: t('settings.identity.recoveryKey.reset.typePromptLabel'),
-    inputProps: { placeholder: 'RESET' },
-  })
-  if (typed?.trim().toUpperCase() !== 'RESET') return
 
   error.value = null
   const result = await identityStore.resetIdentity()
@@ -315,18 +308,9 @@ function handleClose() {
 }
 
 // Copy the recovery key with an inline button-state change (Copy →
-// Copied) on top of the existing toast. The inline feedback matters
-// because "did it actually copy?" anxiety is highest for a one-time
-// backup secret.
 async function copyRecoveryKey() {
   if (!existingRecoveryKey.value) return
-  await navigator.clipboard.writeText(existingRecoveryKey.value)
-  toast.success(t('settings.identity.recoveryKey.setup.keyCopiedToast'))
-  recoveryCopied.value = true
-  if (recoveryCopiedTimeout) clearTimeout(recoveryCopiedTimeout)
-  recoveryCopiedTimeout = setTimeout(() => {
-    recoveryCopied.value = false
-  }, 2000)
+  await copyText(existingRecoveryKey.value, t('settings.identity.recoveryKey.setup.keyCopiedToast'))
 }
 </script>
 

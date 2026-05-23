@@ -1,4 +1,4 @@
-import { pgTable, text } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean } from 'drizzle-orm/pg-core'
 import { usersToRoles } from './users-roles.schema'
 import { relations } from 'drizzle-orm'
 
@@ -6,6 +6,7 @@ export const roles = pgTable('roles', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   description: text('description').notNull(),
+  isDefault: boolean('is_default').notNull().default(true),
 })
 
 export const rolesRelations = relations(roles, ({ many }) => ({

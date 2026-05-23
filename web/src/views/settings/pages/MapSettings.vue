@@ -63,7 +63,7 @@ const isMaplibre = computed(() => settings.value.engine === MapEngine.MAPLIBRE)
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 w-fit items-start">
+  <div class="flex flex-col gap-4">
     <!-- Map configuration -->
     <SettingsSection
       id="configuration"

@@ -50,6 +50,11 @@ export enum AppRoute {
   APPEARANCE = 'appearance',
   MAP_SETTINGS = 'mapSettings',
   USERS = 'users',
+  USER_DETAIL = 'user-detail',
+  ROLES = 'roles',
+  ROLE_DETAIL = 'role-detail',
+  PERMISSIONS_PAGE = 'permissions',
+  PERMISSION_DETAIL = 'permission-detail',
   INTEGRATIONS = 'integrations',
   DEVELOPER = 'developer',
   NOTE = 'note',
@@ -244,6 +249,31 @@ const router = createRouter({
           path: '/settings/users',
           name: AppRoute.USERS,
           component: Users,
+        },
+        {
+          path: '/settings/users/:id',
+          name: AppRoute.USER_DETAIL,
+          component: () => import('@/views/settings/pages/UserDetail.vue'),
+        },
+        {
+          path: '/settings/roles',
+          name: AppRoute.ROLES,
+          component: () => import('@/views/settings/pages/RolesPage.vue'),
+        },
+        {
+          path: '/settings/roles/:id',
+          name: AppRoute.ROLE_DETAIL,
+          component: () => import('@/views/settings/pages/RoleDetail.vue'),
+        },
+        {
+          path: '/settings/permissions',
+          name: AppRoute.PERMISSIONS_PAGE,
+          component: () => import('@/views/settings/pages/PermissionsPage.vue'),
+        },
+        {
+          path: '/settings/permissions/:id',
+          name: AppRoute.PERMISSION_DETAIL,
+          component: () => import('@/views/settings/pages/PermissionDetail.vue'),
         },
         {
           path: '/settings/integrations',

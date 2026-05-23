@@ -344,6 +344,13 @@
       "when": 1779214864762,
       "tag": "0048_spooky_slipstream",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1779405110848,
+      "tag": "0049_next_zarda",
+      "breakpoints": true
     }
   ]
 }

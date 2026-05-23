@@ -50,6 +50,13 @@ function authService() {
   }
 
   async function getAuthenticatedUser() {
+    // Impersonation doesn't survive page refresh — the impersonated session
+    // token isn't persisted, so the auth check would re-validate with the
+    // original user's session and create a mismatch. Clear it early.
+    if (authStore.isImpersonating) {
+      authStore.stopImpersonation()
+    }
+
     const localAuthToken = await loadToken()
     const hasCachedUser = authStore.me !== undefined && authStore.me !== null
 
@@ -406,6 +413,19 @@ function authService() {
     return permissions.some(value => userPermissions.includes(value))
   }
 
+  async function impersonateUser(userId: string) {
+    const { useUserService } = await import('@/services/user.service')
+    const userService = useUserService()
+    const result = await userService.impersonateUser(userId)
+    authStore.startImpersonation(result.sessionId, result.user)
+    await getPermissions()
+  }
+
+  async function endImpersonation() {
+    authStore.stopImpersonation()
+    await getPermissions()
+  }
+
   return {
     loadToken,
     getAuthenticatedUser,
@@ -426,6 +446,8 @@ function authService() {
     hasPermission,
     hasAllPermissions,
     hasAnyPermission,
+    impersonateUser,
+    endImpersonation,
   }
 }
 

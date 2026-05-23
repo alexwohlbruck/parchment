@@ -5,6 +5,8 @@ import localizedFormat from 'dayjs/plugin/localizedFormat'
 import { ColumnDef } from '@tanstack/vue-table'
 import { Permission, Role } from '@/types/auth.types'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
 
 import { useUserService } from '@/services/user.service'
 
@@ -15,6 +17,7 @@ const { t } = useI18n()
 
 dayjs.extend(localizedFormat)
 
+const router = useRouter()
 const userService = useUserService()
 const permissions = ref<Permission[]>([])
 
@@ -28,6 +31,10 @@ const columns: ColumnDef<Permission>[] = [
     accessorKey: 'name',
   },
 ]
+
+function onRowClick(permission: Permission) {
+  router.push({ name: AppRoute.PERMISSION_DETAIL, params: { id: permission.id } })
+}
 
 async function getPermissions() {
   permissions.value = await userService.getPermissions()
@@ -46,6 +53,8 @@ onMounted(getPermissions)
       class="w-full"
       :columns="columns"
       :data="permissions"
-    ></DataTable>
+      :page-size="10"
+      :on-row-click="onRowClick"
+    />
   </SettingsSection>
 </template>

@@ -51,6 +51,17 @@ function userService() {
     return data
   }
 
+  async function uploadAvatar(file: File): Promise<{ picture: string }> {
+    const formData = new FormData()
+    formData.append('file', file)
+    const { data } = await api.post('/users/me/avatar', formData)
+    return data
+  }
+
+  async function deleteAvatar(): Promise<void> {
+    await api.delete('/users/me/avatar')
+  }
+
   async function getUser(id: string) {
     const { data } = await api.get(`/users/${id}`)
     return data
@@ -134,6 +145,8 @@ function userService() {
     setRolePermissions,
     impersonateUser,
     updateMyProfile,
+    uploadAvatar,
+    deleteAvatar,
   }
 }
 

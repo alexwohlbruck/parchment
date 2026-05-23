@@ -1575,8 +1575,10 @@
       "description": "Esta clave es la única forma de recuperar tus datos cifrados. Guárdala en un lugar seguro."
     },
     "theme": {
-      "title": "Elige tu tema",
-      "description": "Escoge un color y modo de pantalla que te gusten.",
+      "title": "Preferencias",
+      "description": "Configura tu idioma, unidades y estilo visual.",
+      "languageLabel": "Idioma",
+      "unitsLabel": "Unidades",
       "colorLabel": "Color de acento",
       "modeLabel": "Modo de pantalla",
       "modes": {

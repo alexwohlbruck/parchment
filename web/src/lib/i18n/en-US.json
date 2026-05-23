@@ -1677,8 +1677,10 @@
       "description": "This key is the only way to recover your encrypted data. Store it somewhere safe."
     },
     "theme": {
-      "title": "Choose your theme",
-      "description": "Pick a color and display mode that suits you.",
+      "title": "Preferences",
+      "description": "Set your language, units, and visual style.",
+      "languageLabel": "Language",
+      "unitsLabel": "Units",
       "colorLabel": "Accent color",
       "modeLabel": "Display mode",
       "modes": {

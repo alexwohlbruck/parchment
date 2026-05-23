@@ -1,17 +1,39 @@
 <script setup lang="ts">
-import { computed, inject, onMounted } from 'vue'
+import { computed, inject, onMounted, watch } from 'vue'
 import { useStorage } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { useThemeStore, allColors } from '@/stores/theme.store'
+import { useAppStore } from '@/stores/app.store'
+import { useAuthStore } from '@/stores/auth.store'
+import { useCommandStore, CommandName } from '@/stores/command.store'
 import { colors } from '@/lib/registry/colors'
+import { UnitSystem } from '@/types/map.types'
+import type { Locale } from '@/lib/i18n'
+import { updatePreferences } from '@/services/preferences.service'
 import { Sun, Moon, Monitor, Check } from 'lucide-vue-next'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { validateKey } from './types'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const themeStore = useThemeStore()
+const appStore = useAppStore()
+const authStore = useAuthStore()
+const commandStore = useCommandStore()
 const { accentColor } = storeToRefs(themeStore)
 const { setAccentColor } = themeStore
+const { unitSystem } = storeToRefs(appStore)
+
+const languageOptions = computed(() =>
+  commandStore.getCommandArgumentOptions(CommandName.UPDATE_LANGUAGE, 'language'),
+)
 
 const colorScheme = useStorage('vueuse-color-scheme', 'auto')
 
@@ -32,6 +54,18 @@ const modeOptions = computed(() => [
   { value: 'dark' as const, icon: Moon, label: t('onboarding.theme.modes.dark') },
 ])
 
+// Persist language and unit preferences to backend
+watch(
+  [locale, unitSystem],
+  ([newLocale, newUnitSystem]) => {
+    if (!authStore.me) return
+    updatePreferences({
+      language: newLocale as Locale,
+      unitSystem: newUnitSystem as UnitSystem,
+    }).catch(() => {})
+  },
+)
+
 const validation = inject(validateKey)
 
 onMounted(() => {
@@ -48,6 +82,50 @@ onMounted(() => {
       <p class="text-sm text-muted-foreground">
         {{ t('onboarding.theme.description') }}
       </p>
+    </div>
+
+    <!-- Language & Units -->
+    <div class="grid grid-cols-2 gap-4">
+      <div class="flex flex-col gap-2">
+        <p class="text-sm font-medium">
+          {{ t('onboarding.theme.languageLabel') }}
+        </p>
+        <Select v-model="locale">
+          <SelectTrigger class="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem
+              v-for="lang in languageOptions"
+              :key="lang.value.toString()"
+              :value="lang.value.toString()"
+            >
+              {{ lang.name }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <p class="text-sm font-medium">
+          {{ t('onboarding.theme.unitsLabel') }}
+        </p>
+        <Select v-model="unitSystem">
+          <SelectTrigger class="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem :value="UnitSystem.METRIC">
+                {{ t('settings.behavior.units.metric') }}
+              </SelectItem>
+              <SelectItem :value="UnitSystem.IMPERIAL">
+                {{ t('settings.behavior.units.imperial') }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </div>
     </div>
 
     <!-- Accent color -->

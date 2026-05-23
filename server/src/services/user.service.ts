@@ -115,11 +115,13 @@ export async function updateUserDisplayProfile(
   fields: {
     firstName?: string | null
     lastName?: string | null
+    picture?: string | null
   },
 ): Promise<void> {
   const update: Record<string, unknown> = { updatedAt: new Date() }
   if ('firstName' in fields) update.firstName = fields.firstName
   if ('lastName' in fields) update.lastName = fields.lastName
+  if ('picture' in fields) update.picture = fields.picture
   await db.update(users).set(update).where(eq(users.id, userId))
 
   await emit.userProfile(

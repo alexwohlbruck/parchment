@@ -1657,8 +1657,9 @@
       "description": "Tell us a bit about yourself to get started.",
       "firstName": "First name",
       "lastName": "Last name",
-      "firstNamePlaceholder": "Alex",
-      "lastNamePlaceholder": "Smith"
+      "firstNamePlaceholder": "Christopher",
+      "lastNamePlaceholder": "Columbus",
+      "removeAvatar": "Remove avatar"
     },
     "alias": {
       "title": "Choose a username",
@@ -1668,26 +1669,42 @@
       "hint": "3-30 characters, letters, numbers, and underscores only.",
       "previewLabel": "Your handle",
       "validationError": "Username must be 3-30 characters using letters, numbers, or underscores.",
+      "aliasTaken": "This username is already taken.",
       "saveFailed": "Could not save username. Try a different one."
     },
     "recoveryKey": {
       "title": "Save your recovery key",
       "description": "This key is the only way to recover your encrypted data. Store it somewhere safe."
     },
+    "theme": {
+      "title": "Choose your theme",
+      "description": "Pick a color and display mode that suits you.",
+      "colorLabel": "Accent color",
+      "modeLabel": "Display mode",
+      "modes": {
+        "light": "Light",
+        "dark": "Dark",
+        "auto": "System"
+      }
+    },
     "passkey": {
       "title": "Add a passkey",
       "description": "Passkeys let you sign in and restore your encrypted data without typing a recovery key."
     },
+    "subscription": {
+      "title": "Choose your plan",
+      "description": "Unlock bookmarks, collections, friends, and integrations with a paid plan.",
+      "skipLabel": "Continue with {plan}"
+    },
     "integrations": {
-      "title": "Enable integrations",
-      "description": "These free data sources enrich your maps with photos, descriptions, and geocoding. You can configure more later in settings.",
-      "enableAll": "Enable all free integrations",
-      "allConfigured": "All free integrations are enabled."
+      "title": "Set up integrations",
+      "description": "Connect services for maps, search, geocoding, and more. Free integrations have been enabled automatically."
     },
     "invite": {
-      "title": "Invite your team",
+      "title": "Invite others",
       "description": "Send invitations to people you'd like to collaborate with. You can always do this later from settings.",
-      "addAnother": "Add another person",
+      "emailLabel": "Email addresses",
+      "placeholder": "Type an email and press Enter...",
       "send": "Send invitations",
       "sendFailed": "Failed to send invitation.",
       "sent": "Sent {count} invitation(s).",

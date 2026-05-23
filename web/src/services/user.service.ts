@@ -30,10 +30,7 @@ function userService() {
   }
 
   async function inviteUser(user: {
-    firstName: string
-    lastName: string
     email: string
-    picture?: string
     roles?: string[]
   }) {
     const { data: newUser } = await api.post('/users', user)
@@ -46,6 +43,7 @@ function userService() {
   async function updateMyProfile(fields: {
     firstName?: string | null
     lastName?: string | null
+    picture?: string | null
   }) {
     const { data } = await api.patch('/users/me/profile', fields)
     return data
@@ -128,6 +126,13 @@ function userService() {
     return data as { sessionId: string; user: any }
   }
 
+  async function checkAliasAvailability(alias: string): Promise<boolean> {
+    const { data } = await api.get<{ available: boolean }>('/users/alias/check', {
+      params: { alias },
+    })
+    return data.available
+  }
+
   return {
     getUsers,
     getUser,
@@ -147,6 +152,7 @@ function userService() {
     updateMyProfile,
     uploadAvatar,
     deleteAvatar,
+    checkAliasAvailability,
   }
 }
 

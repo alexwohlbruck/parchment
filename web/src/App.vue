@@ -30,6 +30,7 @@ import DialogView from '@/views/DialogView.vue'
 import HotkeysMenu from '@/components/HotkeysMenu.vue'
 import ImpersonationBanner from '@/components/ImpersonationBanner.vue'
 import OnboardingDialog from '@/components/onboarding/OnboardingDialog.vue'
+import KeyRestoreDialog from '@/components/onboarding/KeyRestoreDialog.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { TransitionSlide } from '@morev/vue-transitions'
 
@@ -177,6 +178,7 @@ function beforeNavTransition(value: boolean) {
   <DialogView></DialogView>
   <ImpersonationBanner v-if="isDev" />
   <OnboardingDialog v-if="authStore.needsOnboarding" />
+  <KeyRestoreDialog v-else-if="authStore.me" />
 
   <div v-for="dialog in dialogs" :key="dialog.id">
     <component

@@ -10,12 +10,20 @@ import { useAppService } from '@/services/app.service'
 import { useAuthService } from '@/services/auth.service'
 
 import RoleForm from '@/components/admin/RoleForm.vue'
+import DeleteConfirmForm from '@/components/admin/DeleteConfirmForm.vue'
 import DataTable from '@/components/table/DataTable.vue'
 import { Button } from '@/components/ui/button'
 import { Code } from '@/components/ui/code'
 import Badge from '@/components/ui/badge/Badge.vue'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
 import { SettingsSection } from '@/components/settings'
-import { PlusIcon } from 'lucide-vue-next'
+import { PlusIcon, EllipsisVerticalIcon, Trash2Icon } from 'lucide-vue-next'
 
 const router = useRouter()
 const userService = useUserService()
@@ -23,6 +31,13 @@ const appService = useAppService()
 const authService = useAuthService()
 const { isTabletScreen } = useResponsive()
 const roles = ref<Role[]>([])
+
+const canWrite = computed(() =>
+  authService.hasPermission(PermissionId.ROLES_WRITE),
+)
+const canDelete = computed(() =>
+  authService.hasPermission(PermissionId.ROLES_DELETE),
+)
 
 const columns = computed<ColumnDef<Role>[]>(() => {
   const baseColumns: ColumnDef<Role>[] = []
@@ -55,6 +70,55 @@ const columns = computed<ColumnDef<Role>[]>(() => {
       ),
   })
 
+  if (canWrite.value || canDelete.value) {
+    baseColumns.push({
+      id: 'actions',
+      meta: {
+        headerClass: 'w-10',
+        cellClass: 'text-center',
+      },
+      cell: ({ row }) => {
+        const isDefault = (row.original as any).isDefault
+        if (isDefault) return null
+
+        const items: any[] = []
+
+        if (canDelete.value) {
+          items.push(
+            h(
+              DropdownMenuItem,
+              {
+                class: 'text-destructive',
+                onClick: () => deleteRole(row.original),
+              },
+              () => [h(Trash2Icon, { class: 'size-4 mr-2' }), 'Delete'],
+            ),
+          )
+        }
+
+        if (items.length === 0) return null
+
+        return h(
+          DropdownMenu,
+          {},
+          {
+            default: () => [
+              h(DropdownMenuTrigger, { asChild: true }, () =>
+                h(Button, {
+                  variant: 'ghost',
+                  size: 'icon-sm',
+                  icon: EllipsisVerticalIcon,
+                  onClick: (e: MouseEvent) => e.stopPropagation(),
+                }),
+              ),
+              h(DropdownMenuContent, { align: 'end' }, () => items),
+            ],
+          },
+        )
+      },
+    })
+  }
+
   return baseColumns
 })
 
@@ -66,6 +130,33 @@ async function getRoles() {
 
 async function loadPermissions() {
   allPermissions.value = await userService.getPermissions()
+}
+
+async function deleteRole(role: Role) {
+  const confirmed = await appService.componentDialog({
+    component: DeleteConfirmForm,
+    props: {
+      confirmValue: role.id,
+      warning: 'This action cannot be undone.',
+    },
+    title: `Delete "${role.name}"?`,
+    description:
+      'This role will be permanently deleted and unassigned from all users.',
+    destructive: true,
+    contentClass: 'md:max-w-md lg:max-w-md',
+    continueText: 'Delete',
+  })
+  if (!confirmed) return
+
+  try {
+    await userService.deleteRole(role.id)
+    await getRoles()
+    appService.toast.success('Role deleted')
+  } catch (err: any) {
+    appService.toast.error(
+      err?.response?.data?.message ?? 'Failed to delete role',
+    )
+  }
 }
 
 async function createRole() {

@@ -12,3 +12,6 @@ playwright-report/
 web/playwright-report/
 web/test-results/
 
+# Maizzle email build output
+server/emails/output/
+

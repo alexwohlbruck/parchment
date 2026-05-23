@@ -16,6 +16,7 @@ import { roleToPermissions } from '../schema/roles-permissions.schema'
 import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
 import { sessions } from '../schema/sessions.schema'
 import { sendMail } from './mailer.service'
+import { isEmailConfigured } from '../config/mailer.config'
 import { roles } from '../schema/roles.schema'
 import { rotateAllForUser } from './device-wrap-secrets.service'
 import { derivePrfSalt, bytesToBase64url } from '../lib/passkey-prf'
@@ -117,16 +118,13 @@ export async function destroyOtherSessions(
  * @returns Whether email was successfully sent
  */
 export async function sendEmailVerificationCode(email: string, code: string) {
-  // Never log the code — aggregated server logs (Grafana Loki,
-  // CloudWatch, etc.) are a sign-in-bypass surface if OTPs appear.
-  if (process.env.NODE_ENV === 'development') {
+  if (process.env.NODE_ENV === 'development' || !isEmailConfigured) {
     console.log(`One time verification code: ${code}`)
   }
   await sendMail({
     to: email,
-    from: 'onboarding',
     subject: 'Parchment Email Verification',
-    template: 'verificationCode',
+    template: 'verification-code',
     data: {
       code,
     },

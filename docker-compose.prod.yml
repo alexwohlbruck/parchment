@@ -29,9 +29,13 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@parchment-db:5432/${POSTGRES_DB}
       SERVER_ORIGIN: ${SERVER_ORIGIN}
       CLIENT_ORIGIN: ${CLIENT_ORIGIN}
-      GMAIL_EMAIL: ${GMAIL_EMAIL}
-      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
-      APP_TESTER_EMAIL: ${APP_TESTER_EMAIL}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SECURE: ${SMTP_SECURE:-true}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      APP_TESTER_EMAIL: ${APP_TESTER_EMAIL:-}
       # Crypto keys — two INDEPENDENT base64 32-byte values, required in prod.
       # Generate each with: openssl rand -base64 32
       # In production the server refuses to boot without these.

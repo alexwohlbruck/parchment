@@ -71,19 +71,19 @@ describe('needsOnboarding', () => {
 
   test('returns false when user is null', () => {
     const store = useAuthStore()
-    expect(store.needsOnboarding.value).toBe(false)
+    expect((store.needsOnboarding as any).value).toBe(false)
   })
 
   test('returns true when onboardingCompletedAt is null', () => {
     mockMe.value = { id: '1', firstName: 'Test', onboardingCompletedAt: null }
     const store = useAuthStore()
-    expect(store.needsOnboarding.value).toBe(true)
+    expect((store.needsOnboarding as any).value).toBe(true)
   })
 
   test('returns false when onboardingCompletedAt is set', () => {
     mockMe.value = { id: '1', firstName: 'Test', onboardingCompletedAt: '2026-01-01T00:00:00Z' }
     const store = useAuthStore()
-    expect(store.needsOnboarding.value).toBe(false)
+    expect((store.needsOnboarding as any).value).toBe(false)
   })
 })
 
@@ -243,11 +243,13 @@ describe('onboarding step progression', () => {
 
   test('isFirst and isLast flags', () => {
     const steps = ['profile', 'theme', 'recovery-key', 'passkey']
+    const first = 0
+    const last = steps.length - 1
 
-    expect(0 === 0).toBe(true) // isFirst at 0
-    expect(0 === steps.length - 1).toBe(false) // isLast at 0
-    expect(3 === 0).toBe(false) // isFirst at last
-    expect(3 === steps.length - 1).toBe(true) // isLast at last
+    expect(first === 0).toBe(true)
+    expect(first === last).toBe(false)
+    expect(last === 0).toBe(false)
+    expect(last === steps.length - 1).toBe(true)
   })
 })
 

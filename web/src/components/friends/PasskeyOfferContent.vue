@@ -32,7 +32,7 @@ const runPasskeyBusy = useBusyOperation(passkeyBusy, error)
 
 const promotionCandidate = computed(() => {
   return existingPasskeys.value.find(
-    (p) => !identityStore.passkeySlotCredentialIds.has(p.id),
+    p => !identityStore.passkeySlotCredentialIds.has(p.id),
   )
 })
 
@@ -100,10 +100,12 @@ onMounted(() => {
 
     <div
       v-if="promotionCandidate"
-      class="rounded-md border p-3 flex flex-col gap-2"
+      class="rounded-md border border-border p-3 flex flex-col gap-2"
     >
       <div class="text-sm">
-        <span class="font-semibold">{{ t('settings.identity.recoveryKey.passkeyOffer.existingLabel') }}</span>
+        <span class="font-semibold">{{
+          t('settings.identity.recoveryKey.passkeyOffer.existingLabel')
+        }}</span>
         <span class="ml-1 font-mono">{{ promotionCandidate.name }}</span>
       </div>
       <p class="text-xs text-muted-foreground">
@@ -124,7 +126,11 @@ onMounted(() => {
       >
         <Spinner v-if="passkeyBusy" class="h-4 w-4 mr-2" />
         <Fingerprint v-else class="h-4 w-4 mr-2" />
-        {{ t('settings.identity.recoveryKey.passkeyOffer.useExisting', { name: promotionCandidate.name }) }}
+        {{
+          t('settings.identity.recoveryKey.passkeyOffer.useExisting', {
+            name: promotionCandidate.name,
+          })
+        }}
       </Button>
       <Button
         :variant="promotionCandidate ? 'outline' : 'default'"
@@ -132,7 +138,11 @@ onMounted(() => {
         :disabled="passkeyBusy"
         @click="handleAddRecoveryPasskey"
       >
-        {{ promotionCandidate ? t('settings.identity.recoveryKey.passkeyOffer.addNewInstead') : t('settings.identity.recoveryKey.passkeyOffer.addPasskey') }}
+        {{
+          promotionCandidate
+            ? t('settings.identity.recoveryKey.passkeyOffer.addNewInstead')
+            : t('settings.identity.recoveryKey.passkeyOffer.addPasskey')
+        }}
       </Button>
       <Button
         v-if="!props.hideSkip"

@@ -38,8 +38,12 @@ services:
       SERVER_ORIGIN: ${SERVER_ORIGIN:-http://localhost:5001}
       CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:5174}
       APP_TESTER_EMAIL: ${APP_TESTER_EMAIL:-test@parchment.local}
-      GMAIL_EMAIL: ${GMAIL_EMAIL:-}
-      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SECURE: ${SMTP_SECURE:-true}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
       # Crypto keys — NODE_ENV is production in this compose so both are
       # required. Fixed deterministic test values (base64 32 bytes of 0x01
       # and 0x02 respectively) keep e2e runs reproducible across runs.

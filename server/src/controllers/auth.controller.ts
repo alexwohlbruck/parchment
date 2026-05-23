@@ -26,6 +26,7 @@ import {
   fetchUser,
   fetchUserByEmail,
   createOpenRegistrationUser,
+  hasUsers,
 } from '../services/user.service'
 import {
   createServerToken,
@@ -72,7 +73,10 @@ app.post(
 
     if (!user) {
       if (registrationMode === 'invite') {
-        return status(404, { message: t('errors.notFound.user') })
+        const hasAnyUsers = await hasUsers()
+        if (hasAnyUsers) {
+          return status(404, { message: t('errors.notFound.user') })
+        }
       }
       user = await createOpenRegistrationUser(email)
     }

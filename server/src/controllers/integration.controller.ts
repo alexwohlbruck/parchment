@@ -123,7 +123,7 @@ app.use(requireAuth)
  */
 app.get(
   '/available',
-  async ({ user, status, t }) => {
+  async ({ user }) => {
     const userPermissions = await getPermissions(user.id)
     const canReadUser = hasPermission(
       userPermissions,
@@ -137,12 +137,6 @@ app.get(
       userPermissions,
       PermissionId.INTEGRATIONS_WRITE_SYSTEM,
     )
-
-    if (!canReadUser && !canReadSystem) {
-      return status(403, {
-        message: t('errors.auth.insufficientPermissions'),
-      })
-    }
 
     const allAvailableIntegrations = await getAvailableIntegrations()
 

@@ -14,6 +14,7 @@ import { useResponsive } from '@/lib/utils'
 import { isTauri } from '@/lib/api'
 import { useExternalLink } from '@/composables/useExternalLink'
 import { useFriendLocationsLayer } from '@/composables/useFriendLocationsLayer'
+import { PermissionId } from '@/types/auth.types'
 import {
   connect as realtimeConnect,
   disconnect as realtimeDisconnect,
@@ -123,7 +124,10 @@ onMounted(async () => {
     categoryStore.init()
     categoryPaletteStore.loadPalette()
     // Initialize friend locations layer (watches visibility and polls accordingly)
-    friendLocationsLayer.initialize()
+    // Requires social permissions — skip for free users to avoid 403s
+    if (authService.hasPermission(PermissionId.SOCIAL_READ)) {
+      friendLocationsLayer.initialize()
+    }
     // Open the realtime WebSocket now that the user is known. Disconnects
     // and reconnects across signin/signout are handled by the watcher
     // below.

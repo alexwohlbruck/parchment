@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { h, onMounted, ref, computed } from 'vue'
+import { h, onMounted, onUnmounted, ref, computed } from 'vue'
 import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
 import { ColumnDef } from '@tanstack/vue-table'
@@ -35,8 +35,11 @@ import {
 } from 'lucide-vue-next'
 import Avatar from '@/components/ui/avatar/Avatar.vue'
 import AvatarImage from '@/components/ui/avatar/AvatarImage.vue'
+import AvatarFallback from '@/components/ui/avatar/AvatarFallback.vue'
 import Badge from '@/components/ui/badge/Badge.vue'
+import { UserIcon, MinusIcon } from 'lucide-vue-next'
 import { SettingsSection } from '@/components/settings'
+import { registerRealtimeHandlers } from '@/lib/realtime-events'
 
 dayjs.extend(localizedFormat)
 
@@ -68,17 +71,28 @@ const columns = computed<ColumnDef<User>[]>(() => {
     baseColumns.push({
       id: 'avatar',
       cell: ({ row }) =>
-        h(Avatar, {}, [
-          h(AvatarImage, {
-            src: row.original.picture || '',
-          }),
+        h(Avatar, {}, () => [
+          row.original.picture
+            ? h(AvatarImage, { src: row.original.picture })
+            : h(AvatarFallback, {}, () => [
+                h(UserIcon, { class: 'size-4 text-muted-foreground' }),
+              ]),
         ]),
     })
   }
 
   baseColumns.push({
+    id: 'name',
     header: 'Name',
-    accessorFn: data => `${data.firstName} ${data.lastName}`,
+    cell: ({ row }) => {
+      const name = [row.original.firstName, row.original.lastName].filter(Boolean).join(' ')
+      if (name) return name
+      return h(
+        'span',
+        { class: 'inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground' },
+        [h(MinusIcon, { class: 'size-3' })],
+      )
+    },
   })
 
   if (!isTabletScreen.value) {
@@ -104,6 +118,16 @@ const columns = computed<ColumnDef<User>[]>(() => {
   })
 
   if (!isTabletScreen.value) {
+    baseColumns.push({
+      id: 'status',
+      header: 'Status',
+      cell: ({ row }) => {
+        const completed = row.original.onboardingCompletedAt
+        if (completed) return h(Badge, { variant: 'outline' }, () => 'Active')
+        return h(Badge, { variant: 'outline' }, () => 'Invited')
+      },
+    })
+
     baseColumns.push({
       id: 'sessions',
       header: 'Sessions',
@@ -203,7 +227,7 @@ async function deleteUser(user: User) {
       confirmValue: 'delete-user',
       warning: 'This action cannot be undone.',
     },
-    title: `Delete ${user.firstName} ${user.lastName}?`,
+    title: `Delete ${[user.firstName, user.lastName].filter(Boolean).join(' ') || 'this user'}?`,
     description:
       'This will permanently remove the user and invalidate all their sessions.',
     destructive: true,
@@ -236,7 +260,7 @@ async function inviteUser() {
 
 async function impersonateUser(user: User) {
   const confirmed = await appService.confirm({
-    title: `Impersonate ${user.firstName} ${user.lastName}?`,
+    title: `Impersonate ${[user.firstName, user.lastName].filter(Boolean).join(' ') || 'this user'}?`,
     description:
       'You will be logged in as this user. A banner will appear at the bottom of the screen to return to your admin session.',
   })
@@ -254,8 +278,22 @@ function onRowClick(user: User) {
   router.push({ name: AppRoute.USER_DETAIL, params: { id: user.id } })
 }
 
+// Refresh admin table when any user updates their profile or completes onboarding.
+// Scoped to admins: the server only sends `user:profile-updated` to admin
+// recipients when the emitting user isn't the admin themselves.
+const REALTIME_OWNER = 'admin-users-table'
+
+registerRealtimeHandlers(REALTIME_OWNER, {
+  'user:profile-updated': () => void getUsers(currentPage.value),
+})
+
 onMounted(async () => {
   await Promise.all([getUsers(), loadRoles()])
+})
+
+onUnmounted(() => {
+  // Deregister realtime handlers when the component is destroyed
+  registerRealtimeHandlers(REALTIME_OWNER, {})
 })
 
 async function loadRoles() {

@@ -20,6 +20,7 @@ import {
   getUserIdentity,
   updateUserDisplayProfile,
 } from '../services/user.service'
+import { emit } from '../services/realtime/emit'
 import { resetUserIdentity } from '../services/identity-reset.service'
 import {
   getUserKmVersion,
@@ -72,6 +73,7 @@ app.group('', (admin) =>
             alias: users.alias,
             picture: users.picture,
             createdAt: users.createdAt,
+            onboardingCompletedAt: users.onboardingCompletedAt,
             roles: sql`COALESCE(json_agg(json_build_object(
                 'id', ${roles.id},
                 'name', ${roles.name}
@@ -1218,6 +1220,13 @@ app.use(requireAuth).post(
       .update(users)
       .set({ onboardingCompletedAt: now })
       .where(eq(users.id, user.id))
+
+    await emit.userProfile(
+      'user:profile-updated',
+      { id: user.id, onboardingCompletedAt: now.toISOString() },
+      user.id,
+    )
+
     return { onboardingCompletedAt: now.toISOString() }
   },
   {

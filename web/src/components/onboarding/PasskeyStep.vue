@@ -1,13 +1,20 @@
 <script setup lang="ts">
+import { inject, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PasskeyOfferContent from '@/components/friends/PasskeyOfferContent.vue'
+import { validateKey } from './types'
 
 const { t } = useI18n()
 
 const emit = defineEmits<{
   complete: []
-  skip: []
 }>()
+
+const validation = inject(validateKey)
+
+onMounted(() => {
+  validation?.register(() => true)
+})
 </script>
 
 <template>
@@ -22,8 +29,8 @@ const emit = defineEmits<{
     </div>
 
     <PasskeyOfferContent
+      hide-skip
       @complete="emit('complete')"
-      @skip="emit('skip')"
     />
   </div>
 </template>

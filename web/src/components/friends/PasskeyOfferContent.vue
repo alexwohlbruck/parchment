@@ -11,6 +11,10 @@ import { Spinner } from '@/components/ui/spinner'
 import { useBusyOperation } from '@/composables/useDialogCompletion'
 import { Fingerprint } from 'lucide-vue-next'
 
+const props = defineProps<{
+  hideSkip?: boolean
+}>()
+
 const emit = defineEmits<{
   complete: []
   skip: []
@@ -131,6 +135,7 @@ onMounted(() => {
         {{ promotionCandidate ? t('settings.identity.recoveryKey.passkeyOffer.addNewInstead') : t('settings.identity.recoveryKey.passkeyOffer.addPasskey') }}
       </Button>
       <Button
+        v-if="!props.hideSkip"
         variant="ghost"
         class="w-full"
         :disabled="passkeyBusy"

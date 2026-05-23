@@ -7,12 +7,10 @@ import {
   IntegrationId,
   type IntegrationDefinition,
 } from '@server/types/integration.types'
-import { Button } from '@/components/ui/button'
-import { Spinner } from '@/components/ui/spinner'
-import { Check, Zap } from 'lucide-vue-next'
+import IntegrationTile from '@/components/integration/IntegrationTile.vue'
 import { validateKey } from './types'
 
-const FREE_CLOUD_IDS: string[] = [
+const FREE_IDS: string[] = [
   IntegrationId.NOMINATIM,
   IntegrationId.OVERPASS,
   IntegrationId.WIKIDATA,
@@ -36,42 +34,41 @@ const { t } = useI18n()
 const store = useIntegrationsStore()
 const integrationService = useIntegrationService()
 
-const configuring = ref(false)
-const configured = ref(false)
-const error = ref<string | null>(null)
-
 const validation = inject(validateKey)
 
 onMounted(async () => {
   await integrationService.fetchAvailableIntegrations()
   await integrationService.fetchConfiguredIntegrations()
   validation?.register(() => true)
+  await autoConfigureFree()
 })
 
-const freeIntegrations = computed<IntegrationDefinition[]>(() => {
+const sortedIntegrations = computed(() => {
+  const all = store.allIntegrations
+  if (!all) return []
+  return [...all].sort((a, b) => {
+    const aFree = FREE_IDS.includes(a.integration.id)
+    const bFree = FREE_IDS.includes(b.integration.id)
+    if (aFree && !bFree) return -1
+    if (!aFree && bFree) return 1
+    return a.integration.name.localeCompare(b.integration.name)
+  })
+})
+
+function isFree(id: string) {
+  return FREE_IDS.includes(id)
+}
+
+async function autoConfigureFree() {
   const available = store.availableIntegrations
-  if (!Array.isArray(available)) return []
-  return available.filter(i => FREE_CLOUD_IDS.includes(i.id))
-})
-
-const unconfiguredFree = computed(() => {
-  return freeIntegrations.value.filter(
+  if (!Array.isArray(available)) return
+  const unconfigured = available.filter(
     i =>
-      !store.integrationConfigurations?.some(
-        c => c.integrationId === i.id,
-      ),
+      FREE_IDS.includes(i.id) &&
+      !store.integrationConfigurations?.some(c => c.integrationId === i.id),
   )
-})
-
-const allConfigured = computed(
-  () => freeIntegrations.value.length > 0 && unconfiguredFree.value.length === 0,
-)
-
-async function autoConfigureAll() {
-  configuring.value = true
-  error.value = null
-  try {
-    for (const integration of unconfiguredFree.value) {
+  for (const integration of unconfigured) {
+    try {
       const config = DEFAULT_CONFIGS[integration.id] ?? {}
       const capabilities = integration.capabilities.map(id => ({
         id,
@@ -82,12 +79,9 @@ async function autoConfigureAll() {
         config,
         capabilities,
       )
+    } catch {
+      // Non-critical — user can configure manually
     }
-    configured.value = true
-  } catch (e: any) {
-    error.value = e?.message ?? 'Failed to configure integrations'
-  } finally {
-    configuring.value = false
   }
 }
 </script>
@@ -103,89 +97,23 @@ async function autoConfigureAll() {
       </p>
     </div>
 
-    <div class="space-y-4">
-      <div class="grid grid-cols-1 gap-2">
-        <div
-          v-for="integration in freeIntegrations"
-          :key="integration.id"
-          class="flex items-center gap-3 rounded-lg border p-3"
-          :class="[
-            allConfigured || !unconfiguredFree.some(u => u.id === integration.id)
-              ? 'bg-muted/30'
-              : '',
-          ]"
-        >
-          <div
-            class="integration-icon size-9 flex items-center justify-center rounded-md shadow-xs border shrink-0"
-            :style="`--integration-color: ${integration.color}`"
-          >
-            <svg
-              v-if="store.getIcon(integration.id)"
-              class="integration-icon-fg size-5"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              v-html="store.getIcon(integration.id).svg"
-            />
-            <span v-else class="integration-icon-fg font-medium text-sm">
-              {{ integration.name[0] }}
-            </span>
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium">{{ integration.name }}</p>
-            <p class="text-xs text-muted-foreground truncate">
-              {{ integration.description }}
-            </p>
-          </div>
-          <Check
-            v-if="!unconfiguredFree.some(u => u.id === integration.id)"
-            class="size-4 text-primary shrink-0"
-          />
-        </div>
-      </div>
-
-      <div v-if="error" class="text-sm text-destructive text-center">
-        {{ error }}
-      </div>
-
-      <Button
-        v-if="!allConfigured"
-        class="w-full"
-        :disabled="configuring"
-        @click="autoConfigureAll"
+    <!-- All integrations grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div
+        v-for="item in sortedIntegrations"
+        :key="item.config?.id || item.integration.id"
+        :class="[
+          'rounded-xl transition-shadow',
+          isFree(item.integration.id)
+            ? 'ring-1 ring-primary/30'
+            : '',
+        ]"
       >
-        <Spinner v-if="configuring" class="size-4 mr-2" />
-        <Zap v-else class="size-4 mr-2" />
-        {{ t('onboarding.integrations.enableAll') }}
-      </Button>
-
-      <p v-else class="text-sm text-center text-muted-foreground">
-        {{ t('onboarding.integrations.allConfigured') }}
-      </p>
+        <IntegrationTile
+          :integration="item.integration"
+          :configuration="item.config"
+        />
+      </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.integration-icon {
-  background-color: oklch(
-    from var(--integration-color) calc(l + 0.5) calc(c - 0.08) h
-  );
-  border-color: oklch(
-    from var(--integration-color) calc(l - 0.2) calc(c + 0.05) h / 0.1
-  );
-}
-.integration-icon-fg {
-  color: oklch(from var(--integration-color) calc(l - 0.2) calc(c + 0.05) h);
-}
-:is(.dark *) .integration-icon {
-  background-color: oklch(
-    from var(--integration-color) calc(l - 0.35) calc(c - 0.05) h
-  );
-  border-color: oklch(
-    from var(--integration-color) calc(l + 0.25) calc(c - 0.05) h / 0.1
-  );
-}
-:is(.dark *) .integration-icon-fg {
-  color: oklch(from var(--integration-color) calc(l + 0.25) calc(c - 0.05) h);
-}
-</style>

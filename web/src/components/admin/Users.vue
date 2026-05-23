@@ -229,7 +229,7 @@ async function inviteUser() {
 
   if (!result) return
 
-  await userService.inviteUser(result)
+  await userService.inviteUser(result as { email: string; roles: string[] })
   await getUsers(currentPage.value)
   appService.toast.success(t('messages.invitationSent', { email: result.email }))
 }

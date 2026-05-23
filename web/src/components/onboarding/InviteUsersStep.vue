@@ -3,44 +3,49 @@ import { ref, inject, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUserService } from '@/services/user.service'
 import { useAppService } from '@/services/app.service'
-import type { Role } from '@/types/auth.types'
-import InviteUserForm from '@/components/admin/InviteUserForm.vue'
+import {
+  TagsInput,
+  TagsInputInput,
+  TagsInputItem,
+  TagsInputItemDelete,
+  TagsInputItemText,
+} from '@/components/ui/tags-input'
+import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
-import { Plus, Send, Check } from 'lucide-vue-next'
+import { Send, Check } from 'lucide-vue-next'
 import { validateKey } from './types'
 
 const { t } = useI18n()
 const userService = useUserService()
 const { toast } = useAppService()
 
-const roles = ref<Role[]>([])
-const formRefs = ref<InstanceType<typeof InviteUserForm>[]>([])
-const formCount = ref(1)
+const emails = ref<string[]>([])
 const sending = ref(false)
 const sentCount = ref(0)
 
 const validation = inject(validateKey)
 
-onMounted(async () => {
-  roles.value = await userService.getRoles()
+onMounted(() => {
   validation?.register(() => true)
 })
 
-function addForm() {
-  formCount.value++
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
+function handleUpdate(values: string[]) {
+  emails.value = values.filter(isValidEmail)
 }
 
 async function sendInvites() {
+  if (emails.value.length === 0) return
   sending.value = true
   let sent = 0
   try {
-    for (const form of formRefs.value) {
-      if (!form) continue
-      const result = await form.submit()
-      if (!result) continue
+    for (const email of emails.value) {
       try {
-        await userService.inviteUser(result as { firstName: string; lastName: string; email: string; roles: string[] })
+        await userService.inviteUser({ email })
         sent++
       } catch (e: any) {
         toast.error(e?.response?.data?.message ?? t('onboarding.invite.sendFailed'))
@@ -49,7 +54,7 @@ async function sendInvites() {
     if (sent > 0) {
       sentCount.value += sent
       toast.success(t('onboarding.invite.sent', { count: sent }))
-      formCount.value = 1
+      emails.value = []
     }
   } finally {
     sending.value = false
@@ -68,41 +73,36 @@ async function sendInvites() {
       </p>
     </div>
 
-    <div class="space-y-4">
-      <div
-        v-for="i in formCount"
-        :key="i"
-        class="rounded-lg border p-4"
-        :class="formCount > 1 ? '' : 'border-transparent p-0'"
+    <div class="flex flex-col gap-2">
+      <Label>{{ t('onboarding.invite.emailLabel') }}</Label>
+      <TagsInput
+        :model-value="emails"
+        :add-on-paste="true"
+        :add-on-tab="true"
+        :add-on-blur="true"
+        class="min-h-24 items-start"
+        @update:model-value="handleUpdate($event as string[])"
       >
-        <InviteUserForm
-          :ref="(el: any) => { if (el) formRefs[i - 1] = el }"
-          :roles="roles"
+        <TagsInputItem v-for="email in emails" :key="email" :value="email">
+          <TagsInputItemText />
+          <TagsInputItemDelete />
+        </TagsInputItem>
+        <TagsInputInput
+          :placeholder="emails.length === 0 ? t('onboarding.invite.placeholder') : ''"
+          @keydown.enter.prevent
         />
-      </div>
-
-      <Button
-        variant="outline"
-        size="sm"
-        class="w-full"
-        @click="addForm"
-      >
-        <Plus class="size-4 mr-1" />
-        {{ t('onboarding.invite.addAnother') }}
-      </Button>
+      </TagsInput>
     </div>
 
-    <div class="flex items-center gap-3">
-      <Button
-        class="flex-1"
-        :disabled="sending"
-        @click="sendInvites"
-      >
-        <Spinner v-if="sending" class="size-4 mr-2" />
-        <Send v-else class="size-4 mr-2" />
-        {{ t('onboarding.invite.send') }}
-      </Button>
-    </div>
+    <Button
+      class="w-full"
+      :disabled="sending || emails.length === 0"
+      @click="sendInvites"
+    >
+      <Spinner v-if="sending" class="size-4 mr-2" />
+      <Send v-else class="size-4 mr-2" />
+      {{ t('onboarding.invite.send') }}
+    </Button>
 
     <p
       v-if="sentCount > 0"

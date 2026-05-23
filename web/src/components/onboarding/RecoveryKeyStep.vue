@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { inject, onMounted } from 'vue'
+import { ref, inject, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useIdentityStore } from '@/stores/identity.store'
 import { validateKey } from './types'
@@ -7,21 +7,17 @@ import RecoveryKeySetupContent from '@/components/friends/RecoveryKeySetupConten
 
 const { t } = useI18n()
 const identityStore = useIdentityStore()
-
-const emit = defineEmits<{
-  confirm: []
-}>()
+const contentRef = ref<InstanceType<typeof RecoveryKeySetupContent>>()
 
 const validation = inject(validateKey)
 
 onMounted(async () => {
   await identityStore.startSetup()
-  validation?.register(() => true)
+  validation?.register(async () => {
+    if (!contentRef.value?.hasSavedKey) return false
+    return await contentRef.value.handleConfirm()
+  })
 })
-
-function handleConfirm() {
-  emit('confirm')
-}
 </script>
 
 <template>
@@ -36,8 +32,8 @@ function handleConfirm() {
     </div>
 
     <RecoveryKeySetupContent
-      @confirm="handleConfirm"
-      @cancel="() => {}"
+      ref="contentRef"
+      hide-footer
     />
   </div>
 </template>

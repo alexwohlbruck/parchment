@@ -12,6 +12,10 @@ import { Code } from '@/components/ui/code'
 import CopyButton from '@/components/CopyButton.vue'
 import { Key, AlertTriangle } from 'lucide-vue-next'
 
+const props = defineProps<{
+  hideFooter?: boolean
+}>()
+
 const emit = defineEmits<{
   confirm: []
   cancel: []
@@ -30,16 +34,18 @@ const formattedKey = computed(() => {
   return k.match(/.{1,5}/g)?.join(' ') ?? k
 })
 
-async function handleConfirm() {
-  if (!hasSavedKey.value) return
+async function handleConfirm(): Promise<boolean> {
+  if (!hasSavedKey.value) return false
 
   error.value = null
   const result = await identityStore.completeSetup()
 
   if (result.success) {
     emit('confirm')
+    return true
   } else {
     error.value = result.error || t('settings.identity.recoveryKey.setup.failedFallback')
+    return false
   }
 }
 
@@ -48,7 +54,7 @@ function reset() {
   error.value = null
 }
 
-defineExpose({ reset })
+defineExpose({ reset, hasSavedKey, handleConfirm })
 </script>
 
 <template>
@@ -97,7 +103,7 @@ defineExpose({ reset })
       </Alert>
     </div>
 
-    <div class="flex justify-end gap-2">
+    <div v-if="!props.hideFooter" class="flex justify-end gap-2">
       <Button variant="outline" @click="emit('cancel')">
         {{ t('general.cancel') }}
       </Button>

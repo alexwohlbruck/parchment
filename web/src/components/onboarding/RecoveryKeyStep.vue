@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, inject, onMounted } from 'vue'
+import { ref, inject, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useIdentityStore } from '@/stores/identity.store'
 import { validateKey } from './types'
@@ -12,11 +12,16 @@ const contentRef = ref<InstanceType<typeof RecoveryKeySetupContent>>()
 const validation = inject(validateKey)
 
 onMounted(async () => {
+  validation?.setCanContinue(false)
   await identityStore.startSetup()
   validation?.register(async () => {
     if (!contentRef.value?.hasSavedKey) return false
     return await contentRef.value.handleConfirm()
   })
+})
+
+watch(() => contentRef.value?.hasSavedKey, (saved) => {
+  validation?.setCanContinue(!!saved)
 })
 </script>
 

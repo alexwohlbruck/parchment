@@ -40,10 +40,14 @@ const sub = useSubscriptionService()
 const currentIndex = ref(0)
 const completing = ref(false)
 const stepValidateFn = ref<StepValidateFn | null>(null)
+const canContinue = ref(true)
 
 provide(validateKey, {
   register: (fn: StepValidateFn) => {
     stepValidateFn.value = fn
+  },
+  setCanContinue: (value: boolean) => {
+    canContinue.value = value
   },
 })
 
@@ -87,6 +91,7 @@ watch(steps, (newSteps, oldSteps) => {
   if (idx > 0) {
     currentIndex.value = idx
     stepValidateFn.value = null
+    canContinue.value = true
     stepRestored.value = true
   } else if (oldSteps && oldSteps.length === newSteps.length) {
     stepRestored.value = true
@@ -127,6 +132,7 @@ function advance() {
   } else {
     currentIndex.value++
     stepValidateFn.value = null
+    canContinue.value = true
     persistStep()
   }
 }
@@ -135,6 +141,7 @@ function back() {
   if (!isFirst.value) {
     currentIndex.value--
     stepValidateFn.value = null
+    canContinue.value = true
     persistStep()
   }
 }
@@ -174,7 +181,11 @@ function handleInteractOutside(e: Event) {
   <Dialog :open="true">
     <DialogContent
       :class="[
-        'max-h-[90dvh] gap-0 p-0 flex flex-col transition-[max-width] duration-300',
+        // Mobile: fullscreen
+        'inset-0 translate-x-0 translate-y-0 max-w-full h-[100dvh] max-h-[100dvh] rounded-none border-0',
+        // Desktop: centered card
+        'sm:inset-auto sm:top-[50%] sm:left-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:h-auto sm:max-h-[90dvh] sm:rounded-lg sm:border sm:border-border',
+        'gap-0 p-0 flex flex-col transition-[max-width] duration-300',
         currentStep.wide
           ? 'sm:max-w-2xl md:max-w-3xl'
           : 'sm:max-w-lg md:max-w-xl',
@@ -225,7 +236,7 @@ function handleInteractOutside(e: Event) {
 
         <Button
           @click="next"
-          :disabled="completing"
+          :disabled="completing || !canContinue"
         >
           <Spinner v-if="completing" class="h-4 w-4 mr-2" />
           <template v-else>

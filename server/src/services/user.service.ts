@@ -7,7 +7,7 @@
  * - Federation identity (keys)
  */
 
-import { SQL, eq, sql } from 'drizzle-orm'
+import { SQL, eq, sql, count } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from '../schema/users.schema'
 import { usersToRoles } from '../schema/users-roles.schema'
@@ -115,11 +115,13 @@ export async function updateUserDisplayProfile(
   fields: {
     firstName?: string | null
     lastName?: string | null
+    picture?: string | null
   },
 ): Promise<void> {
   const update: Record<string, unknown> = { updatedAt: new Date() }
   if ('firstName' in fields) update.firstName = fields.firstName
   if ('lastName' in fields) update.lastName = fields.lastName
+  if ('picture' in fields) update.picture = fields.picture
   await db.update(users).set(update).where(eq(users.id, userId))
 
   await emit.userProfile(
@@ -172,17 +174,35 @@ export async function getLocalUserIdByAlias(
 }
 
 // ============================================================================
+// Instance State
+// ============================================================================
+
+export async function hasUsers(): Promise<boolean> {
+  const [{ total }] = await db.select({ total: count() }).from(users)
+  return total > 0
+}
+
+// ============================================================================
 // Open Registration
 // ============================================================================
 
 export async function createOpenRegistrationUser(email: string) {
-  const id = generateId()
-  const [user] = await db
-    .insert(users)
-    .values({ id, email })
-    .returning()
+  return await db.transaction(async (tx) => {
+    const [{ total }] = await tx
+      .select({ total: count() })
+      .from(users)
+    const isFirstUser = total === 0
 
-  await db.insert(usersToRoles).values({ userId: id, roleId: 'user' })
+    const id = generateId()
+    const [user] = await tx
+      .insert(users)
+      .values({ id, email })
+      .returning()
 
-  return user
+    await tx
+      .insert(usersToRoles)
+      .values({ userId: id, roleId: isFirstUser ? 'admin' : 'user' })
+
+    return user
+  })
 }

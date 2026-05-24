@@ -171,7 +171,20 @@ if (billing.enabled) {
         '/checkout',
         async ({ user, body }) => {
           const fullUser = await fetchUser(user.id)
-          const successUrl = `${process.env.CLIENT_ORIGIN}/settings/account?checkout=success`
+          const clientOrigin = process.env.CLIENT_ORIGIN || ''
+          const defaultSuccessUrl = `${clientOrigin}/settings/account?checkout=success`
+          let successUrl = defaultSuccessUrl
+          if (body.successUrl) {
+            try {
+              const parsed = new URL(body.successUrl)
+              const allowed = new URL(clientOrigin)
+              if (parsed.origin === allowed.origin) {
+                successUrl = body.successUrl
+              }
+            } catch {
+              // invalid URL, use default
+            }
+          }
           const tier = body.tier ?? 'basic'
 
           // Map tier to product ID
@@ -197,6 +210,7 @@ if (billing.enabled) {
         {
           body: t.Object({
             tier: t.Optional(t.Union([t.Literal('basic'), t.Literal('premium')])),
+            successUrl: t.Optional(t.String()),
           }),
           detail: {
             tags: ['Subscriptions'],

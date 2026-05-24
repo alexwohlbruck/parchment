@@ -685,6 +685,9 @@
       "syncFailed": "Error al sincronizar las claves"
     }
   },
+  "dashboard": {
+    "title": "Panel"
+  },
   "navigation": {
     "title": "Navegación",
     "minimize": "Minimizar",
@@ -1546,6 +1549,69 @@
     "upgradeBanner": {
       "title": "Mejorar a {tier}",
       "description": "Esta función requiere una suscripción {tier}."
+    }
+  },
+  "onboarding": {
+    "finish": "Finalizar",
+    "profile": {
+      "title": "Configura tu perfil",
+      "description": "Cuéntanos un poco sobre ti para comenzar.",
+      "firstName": "Nombre",
+      "lastName": "Apellido",
+      "firstNamePlaceholder": "Cristóbal",
+      "lastNamePlaceholder": "Colón",
+      "removeAvatar": "Eliminar avatar"
+    },
+    "alias": {
+      "title": "Elige un nombre de usuario",
+      "description": "Elige un nombre de usuario único para tu identidad de federación. Otros podrán encontrarte con este identificador.",
+      "label": "Nombre de usuario",
+      "placeholder": "usuario",
+      "hint": "3-30 caracteres, letras, números y guiones bajos.",
+      "previewLabel": "Tu identificador",
+      "validationError": "El nombre debe tener 3-30 caracteres usando letras, números o guiones bajos.",
+      "aliasTaken": "Este nombre de usuario ya está en uso.",
+      "saveFailed": "No se pudo guardar. Prueba con otro nombre."
+    },
+    "recoveryKey": {
+      "title": "Guarda tu clave de recuperación",
+      "description": "Esta clave es la única forma de recuperar tus datos cifrados. Guárdala en un lugar seguro."
+    },
+    "theme": {
+      "title": "Preferencias",
+      "description": "Configura tu idioma, unidades y estilo visual.",
+      "languageLabel": "Idioma",
+      "unitsLabel": "Unidades",
+      "colorLabel": "Color de acento",
+      "modeLabel": "Modo de pantalla",
+      "modes": {
+        "light": "Claro",
+        "dark": "Oscuro",
+        "auto": "Sistema"
+      }
+    },
+    "passkey": {
+      "title": "Añadir una clave de acceso",
+      "description": "Las claves de acceso te permiten iniciar sesión y restaurar tus datos cifrados sin escribir una clave de recuperación."
+    },
+    "subscription": {
+      "title": "Elige tu plan",
+      "description": "Desbloquea marcadores, colecciones, amigos e integraciones con un plan de pago.",
+      "skipLabel": "Continuar con {plan}"
+    },
+    "integrations": {
+      "title": "Configurar integraciones",
+      "description": "Conecta servicios para mapas, búsqueda, geocodificación y más. Las integraciones gratuitas se han habilitado automáticamente."
+    },
+    "invite": {
+      "title": "Invitar a otros",
+      "description": "Envía invitaciones a personas con las que quieras colaborar. Siempre puedes hacerlo después desde ajustes.",
+      "emailLabel": "Direcciones de correo",
+      "placeholder": "Escribe un correo y presiona Enter...",
+      "send": "Enviar invitaciones",
+      "sendFailed": "No se pudo enviar la invitación.",
+      "sent": "{count} invitación(es) enviada(s).",
+      "sentSummary": "{count} invitación(es) enviada(s)"
     }
   }
 }

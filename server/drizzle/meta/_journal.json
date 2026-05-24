@@ -351,6 +351,13 @@
       "when": 1779405110848,
       "tag": "0049_next_zarda",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1779504160694,
+      "tag": "0050_thankful_norrin_radd",
+      "breakpoints": true
     }
   ]
 }

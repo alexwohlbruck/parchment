@@ -240,7 +240,11 @@ export async function resolveUserProfileRecipients(
     .where(eq(users.id, userId))
     .limit(1)
   if (!me?.alias) {
-    return { localUserIds: [userId], remoteHandles: [] }
+    // No alias yet (mid-onboarding) — still include admin recipients
+    // so the admin users table updates in real-time.
+    const admins = await resolveAdminRecipients()
+    const ids = new Set([userId, ...admins.localUserIds])
+    return { localUserIds: Array.from(ids), remoteHandles: [] }
   }
 
   // Friendships FROM this user → follow the handle column.
@@ -266,6 +270,11 @@ export async function resolveUserProfileRecipients(
       remoteHandles.add(row.handle)
     }
   }
+
+  // Admins see the users table — include them so the admin panel
+  // updates live when any user changes their profile / completes onboarding.
+  const admins = await resolveAdminRecipients()
+  for (const id of admins.localUserIds) localUserIds.add(id)
 
   return {
     localUserIds: Array.from(localUserIds),
@@ -299,6 +308,26 @@ export async function resolvePublicLinkRecipients(
     .limit(1)
   if (!collection) return EMPTY
   return { localUserIds: [collection.userId], remoteHandles: [] }
+}
+
+/**
+ * All users who hold the `admin` role. Used to fan out events that are
+ * relevant to the admin users table (e.g. a new user completing
+ * onboarding). The result is a local-only recipient set — admin
+ * status doesn't cross federation boundaries.
+ */
+export async function resolveAdminRecipients(): Promise<Recipients> {
+  const { usersToRoles } = await import('../../schema/users-roles.schema')
+
+  const rows = await db
+    .select({ userId: usersToRoles.userId })
+    .from(usersToRoles)
+    .where(eq(usersToRoles.roleId, 'admin'))
+
+  return {
+    localUserIds: rows.map(r => r.userId),
+    remoteHandles: [],
+  }
 }
 
 // Helper for unit tests that want to seed before calling resolvers.

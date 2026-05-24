@@ -37,6 +37,10 @@ export const useAuthStore = defineStore('auth', () => {
     sessionId.value = token
   }
 
+  const needsOnboarding = computed(
+    () => me.value != null && me.value.onboardingCompletedAt == null,
+  )
+
   async function setAuthenticatedUser(user: User, _sessionId: Session['id']) {
     me.value = user
     cachedUser.value = user // Persist to localStorage
@@ -45,6 +49,8 @@ export const useAuthStore = defineStore('auth', () => {
     if (isTauri) {
       await deviceStore.setToken(_sessionId)
     }
+
+    if (!user.onboardingCompletedAt) return
 
     router.push(stashedPath.value || { name: AppRoute.MAP })
   }
@@ -139,6 +145,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     me,
+    needsOnboarding,
     permissions,
     subscription,
     sessionId,

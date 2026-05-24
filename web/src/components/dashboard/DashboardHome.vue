@@ -3,6 +3,7 @@ import { computed, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
+import { useResponsive } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ItemIcon } from '@/components/ui/item-icon'
@@ -15,6 +16,7 @@ import { capitalize } from '@/filters/text.filters'
 const router = useRouter()
 const { t } = useI18n()
 const bookmarksStore = useBookmarksStore()
+const { isMobileScreen } = useResponsive()
 
 // Inject minimize function from MobileNavigation
 const minimizeSheet = inject<() => void>('minimizeMobileSheet', () => {})
@@ -73,8 +75,8 @@ function navigateToRoute(routeName: AppRoute) {
 </script>
 
 <template>
-  <div class="flex flex-col h-full pt-2">
-    <div class="pt-1 space-y-4 flex-1">
+  <div class="flex flex-col h-full">
+    <div class="space-y-4 flex-1">
       <!-- Library Section -->
       <div>
         <H4
@@ -99,8 +101,8 @@ function navigateToRoute(routeName: AppRoute) {
         </div>
       </div>
 
-      <!-- Navigation Section -->
-      <div>
+      <!-- Navigation Section (mobile only — desktop has the sidebar nav) -->
+      <div v-if="isMobileScreen">
         <H4
           class="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1"
           >{{ t('navigation.title') }}</H4

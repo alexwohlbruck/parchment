@@ -20,6 +20,7 @@ import {
   getUserIdentity,
   updateUserDisplayProfile,
 } from '../services/user.service'
+import { emit } from '../services/realtime/emit'
 import { resetUserIdentity } from '../services/identity-reset.service'
 import {
   getUserKmVersion,
@@ -72,6 +73,7 @@ app.group('', (admin) =>
             alias: users.alias,
             picture: users.picture,
             createdAt: users.createdAt,
+            onboardingCompletedAt: users.onboardingCompletedAt,
             roles: sql`COALESCE(json_agg(json_build_object(
                 'id', ${roles.id},
                 'name', ${roles.name}
@@ -178,8 +180,8 @@ app.group('', (admin) =>
       },
       {
         body: t.Object({
-          firstName: t.String(),
-          lastName: t.String(),
+          firstName: t.Optional(t.String()),
+          lastName: t.Optional(t.String()),
           email: t.String({
             format: 'email',
           }),
@@ -974,6 +976,38 @@ app.use(requireAuth).patch(
 )
 
 /**
+ * Check alias availability
+ */
+app.use(requireAuth).get(
+  '/alias/check',
+  async ({ user, query }) => {
+    const { alias } = query
+
+    if (!isValidAlias(alias)) {
+      return { available: false }
+    }
+
+    const existing = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.alias, alias))
+      .limit(1)
+
+    const taken = existing[0] && existing[0].id !== user.id
+    return { available: !taken }
+  },
+  {
+    query: t.Object({
+      alias: t.String(),
+    }),
+    detail: {
+      tags: ['Users', 'Federation'],
+      description: 'Check if an alias is available',
+    },
+  },
+)
+
+/**
  * Register or update public keys
  */
 app.use(requireAuth).put(
@@ -1007,6 +1041,7 @@ app.use(requireAuth).patch(
     await updateUserDisplayProfile(user.id, {
       firstName: body.firstName ?? undefined,
       lastName: body.lastName ?? undefined,
+      picture: body.picture ?? undefined,
     })
     set.status = 200
     return { success: true }
@@ -1015,6 +1050,7 @@ app.use(requireAuth).patch(
     body: t.Object({
       firstName: t.Optional(t.Union([t.String(), t.Null()])),
       lastName: t.Optional(t.Union([t.String(), t.Null()])),
+      picture: t.Optional(t.Union([t.String(), t.Null()])),
     }),
     detail: {
       tags: ['Users'],
@@ -1169,6 +1205,34 @@ app.use(requireAuth).put(
     detail: {
       tags: ['Users'],
       description: 'Update current user preferences (language, unit system)',
+    },
+  },
+)
+
+/**
+ * Mark onboarding complete for the current user
+ */
+app.use(requireAuth).post(
+  '/me/onboarding/complete',
+  async ({ user }) => {
+    const now = new Date()
+    await db
+      .update(users)
+      .set({ onboardingCompletedAt: now })
+      .where(eq(users.id, user.id))
+
+    await emit.userProfile(
+      'user:profile-updated',
+      { id: user.id, onboardingCompletedAt: now.toISOString() },
+      user.id,
+    )
+
+    return { onboardingCompletedAt: now.toISOString() }
+  },
+  {
+    detail: {
+      tags: ['Users'],
+      description: 'Mark onboarding as complete for the current user',
     },
   },
 )

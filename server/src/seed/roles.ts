@@ -18,7 +18,10 @@ const user: Role = {
   id: 'user',
   name: 'User',
   description: 'A free user that can browse the map',
-  permissions: [],
+  permissions: [
+    PermissionId.LAYERS_READ,
+    PermissionId.LAYERS_WRITE,
+  ],
 }
 
 const basic: Role = {

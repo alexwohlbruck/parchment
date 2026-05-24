@@ -23,8 +23,6 @@ const props = defineProps<{
 
 const schema = toTypedSchema(
   z.object({
-    firstName: z.string().min(1, 'Required'),
-    lastName: z.string().min(1, 'Required'),
     email: z.string().email('Invalid email'),
   }),
 )
@@ -32,8 +30,6 @@ const schema = toTypedSchema(
 const { validate } = useForm({
   validationSchema: schema,
   initialValues: {
-    firstName: '',
-    lastName: '',
     email: '',
   },
 })
@@ -67,28 +63,6 @@ defineExpose({
 
 <template>
   <form class="flex flex-col gap-4" @submit.prevent>
-    <div class="grid grid-cols-2 gap-3">
-      <FormField v-slot="{ componentField }" name="firstName">
-        <FormItem>
-          <FormLabel>First name</FormLabel>
-          <FormControl>
-            <Input v-bind="componentField" />
-          </FormControl>
-          <FormMessage />
-        </FormItem>
-      </FormField>
-
-      <FormField v-slot="{ componentField }" name="lastName">
-        <FormItem>
-          <FormLabel>Last name</FormLabel>
-          <FormControl>
-            <Input v-bind="componentField" />
-          </FormControl>
-          <FormMessage />
-        </FormItem>
-      </FormField>
-    </div>
-
     <FormField v-slot="{ componentField }" name="email">
       <FormItem>
         <FormLabel>Email</FormLabel>

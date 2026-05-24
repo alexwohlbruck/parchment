@@ -12,17 +12,27 @@
  */
 
 import { useFriendsStore } from './friends.store'
+import { useAuthStore } from './auth.store'
 import { registerRealtimeHandlers } from '@/lib/realtime-events'
+import { PermissionId } from '@/types/auth.types'
+
+/** Guard — skip the fetch when the user lacks SOCIAL_READ (free tier). */
+function canReadSocial(): boolean {
+  return useAuthStore().permissions.includes(PermissionId.SOCIAL_READ)
+}
 
 function refetchFriends() {
+  if (!canReadSocial()) return
   void useFriendsStore().loadFriends()
 }
 
 function refetchInvitations() {
+  if (!canReadSocial()) return
   void useFriendsStore().loadInvitations()
 }
 
 function refetchAll() {
+  if (!canReadSocial()) return
   void useFriendsStore().loadAll()
 }
 

@@ -28,7 +28,6 @@ import ParchmentLogo from '@/assets/parchment.svg?component'
 import AccountDropdown from '@/components/navigation/AccountDropdown.vue'
 import {
   CornerUpRightIcon,
-  CloudOffIcon,
   UsersRoundIcon,
   SettingsIcon,
   PanelLeftIcon,
@@ -37,6 +36,7 @@ import {
   SearchIcon,
   MegaphoneIcon,
   HistoryIcon,
+  LayoutDashboardIcon,
 } from 'lucide-vue-next'
 import UpdateBanner from '@/components/navigation/UpdateBanner.vue'
 import { useHotkeys } from '@/composables/useHotkeys'
@@ -232,6 +232,11 @@ const items = computed<MenuItemDefinition[]>(() => [
         commandId: CommandName.SEARCH,
       },
       {
+        label: t('dashboard.title'),
+        icon: LayoutDashboardIcon,
+        to: '/dashboard',
+      },
+      {
         label: t('directions.title'),
         icon: CornerUpRightIcon,
         // hotkey: ['d'],
@@ -242,12 +247,6 @@ const items = computed<MenuItemDefinition[]>(() => [
         icon: LibraryIcon,
         // hotkey: ['l'],
         to: '/library',
-      },
-      {
-        label: t('offlineMaps.title'),
-        // hotkey: ['o'],
-        icon: CloudOffIcon,
-        to: '/offline',
       },
       {
         label: t('friends.title'),
@@ -322,7 +321,7 @@ const items = computed<MenuItemDefinition[]>(() => [
           class="flex items-center gap-3 hover:opacity-85 dark:hover:opacity-90 transition-opacity cursor-pointer"
         >
           <ParchmentLogo
-            class="w-5 h-11 scale-150 text-primary"
+            class="w-5 h-11 scale-150 text-primary shrink-0"
             aria-label="Parchment"
           />
           <span
@@ -420,10 +419,10 @@ const items = computed<MenuItemDefinition[]>(() => [
                   <TooltipTrigger as-child>
                     <Button
                       variant="ghost"
-                      class="w-full flex px-3 justify-center gap-3 hover:bg-primary/5 hover:text-primary"
+                      :class="cn('w-full flex px-3 gap-3 hover:bg-primary/5 hover:text-primary', mini ? 'justify-center' : 'justify-start')"
                       @click="subitem.onClick()"
                     >
-                      <component :is="subitem.icon" class="size-5" />
+                      <component :is="subitem.icon" class="size-5 shrink-0" />
                       <div v-if="!mini" class="flex flex-1 gap-1 text-nowrap">
                         <div class="flex-1 text-left">
                           {{ subitem.label }}
@@ -478,18 +477,13 @@ const items = computed<MenuItemDefinition[]>(() => [
                   <TooltipTrigger as-child>
                     <Button
                       variant="ghost"
-                      class="w-full flex px-3 justify-center gap-3 hover:bg-primary/5 hover:text-primary"
-                      :class="
-                        router.currentRoute.value.path.startsWith(subitem.to)
-                          ? 'bg-primary/10 text-primary'
-                          : ''
-                      "
+                      :class="cn('w-full flex px-3 gap-3 hover:bg-primary/5 hover:text-primary', mini ? 'justify-center' : 'justify-start', router.currentRoute.value.path.startsWith(subitem.to) ? 'bg-primary/10 text-primary' : '')"
                       @click="handleNavClick(subitem.to)"
                     >
-                      <component :is="subitem.icon" class="size-5" />
+                      <component :is="subitem.icon" class="size-5 shrink-0" />
 
                       <div v-if="!mini" class="flex flex-1 gap-1 text-nowrap">
-                        <div class="flex-1">
+                        <div class="flex-1 text-left">
                           {{ subitem.label }}
                         </div>
 

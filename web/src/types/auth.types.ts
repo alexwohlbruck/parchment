@@ -25,6 +25,7 @@ export type User = {
   lastName?: string
   alias?: string | null
   picture?: string
+  onboardingCompletedAt?: string | null
   roles?: Role[]
   sessionCount?: number
 }

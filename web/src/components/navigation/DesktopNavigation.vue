@@ -420,7 +420,7 @@ const items = computed<MenuItemDefinition[]>(() => [
                   <TooltipTrigger as-child>
                     <Button
                       variant="ghost"
-                      class="w-full flex px-3 justify-center gap-3 hover:bg-primary/5 hover:text-primary"
+                      :class="cn('w-full flex px-3 gap-3 hover:bg-primary/5 hover:text-primary', mini ? 'justify-center' : 'justify-start')"
                       @click="subitem.onClick()"
                     >
                       <component :is="subitem.icon" class="size-5" />
@@ -478,18 +478,13 @@ const items = computed<MenuItemDefinition[]>(() => [
                   <TooltipTrigger as-child>
                     <Button
                       variant="ghost"
-                      class="w-full flex px-3 justify-center gap-3 hover:bg-primary/5 hover:text-primary"
-                      :class="
-                        router.currentRoute.value.path.startsWith(subitem.to)
-                          ? 'bg-primary/10 text-primary'
-                          : ''
-                      "
+                      :class="cn('w-full flex px-3 gap-3 hover:bg-primary/5 hover:text-primary', mini ? 'justify-center' : 'justify-start', router.currentRoute.value.path.startsWith(subitem.to) ? 'bg-primary/10 text-primary' : '')"
                       @click="handleNavClick(subitem.to)"
                     >
                       <component :is="subitem.icon" class="size-5" />
 
                       <div v-if="!mini" class="flex flex-1 gap-1 text-nowrap">
-                        <div class="flex-1">
+                        <div class="flex-1 text-left">
                           {{ subitem.label }}
                         </div>
 

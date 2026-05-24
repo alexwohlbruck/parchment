@@ -719,6 +719,9 @@
       "syncFailed": "Failed to sync keys"
     }
   },
+  "dashboard": {
+    "title": "Dashboard"
+  },
   "navigation": {
     "title": "Navigation",
     "minimize": "Minimize",

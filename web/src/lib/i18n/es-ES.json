@@ -685,6 +685,9 @@
       "syncFailed": "Error al sincronizar las claves"
     }
   },
+  "dashboard": {
+    "title": "Panel"
+  },
   "navigation": {
     "title": "Navegación",
     "minimize": "Minimizar",

@@ -61,6 +61,7 @@ export enum AppRoute {
   NOTE_CREATE = 'note-create',
   FRIENDS = 'friends',
   FRIEND_DETAIL = 'friend-detail',
+  DASHBOARD = 'dashboard',
   TIMELINE = 'timeline',
   NOT_FOUND = 'not-found',
 }
@@ -95,6 +96,14 @@ const router = createRouter({
         transition: 'slide',
       },
       children: [
+        {
+          path: '/dashboard',
+          name: AppRoute.DASHBOARD,
+          component: () => import('@/views/Dashboard.vue'),
+          meta: {
+            auth: true,
+          },
+        },
         {
           path: '/directions',
           name: AppRoute.DIRECTIONS,

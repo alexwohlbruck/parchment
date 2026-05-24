@@ -37,6 +37,7 @@ import {
   SearchIcon,
   MegaphoneIcon,
   HistoryIcon,
+  LayoutDashboardIcon,
 } from 'lucide-vue-next'
 import UpdateBanner from '@/components/navigation/UpdateBanner.vue'
 import { useHotkeys } from '@/composables/useHotkeys'
@@ -230,6 +231,11 @@ const items = computed<MenuItemDefinition[]>(() => [
         icon: SearchIcon,
         onClick: () => openPalette(true),
         commandId: CommandName.SEARCH,
+      },
+      {
+        label: t('dashboard.title'),
+        icon: LayoutDashboardIcon,
+        to: '/dashboard',
       },
       {
         label: t('directions.title'),

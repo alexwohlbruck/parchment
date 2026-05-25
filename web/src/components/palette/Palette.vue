@@ -84,6 +84,7 @@ const isDrawerOpen = computed(() => {
 // For async argument options
 const argumentOptions = ref<CommandArgumentOption[]>([])
 const loadingOptions = ref(false)
+let loadingTimer: ReturnType<typeof setTimeout> | null = null
 const { nextSignal } = useAbortController()
 
 const container = ref<HTMLElement>()
@@ -173,7 +174,9 @@ function closeDrawer() {
 }
 
 function resetOrClose() {
-  if (activeArgument.value) {
+  if (query.value) {
+    clearInput()
+  } else if (activeArgument.value) {
     resetCommand()
   } else if (showResults.value) {
     closePalette()
@@ -221,7 +224,7 @@ function inputFocused(event: FocusEvent) {
 // TODO: Come up with better method
 // TODO: Fix type error
 onClickOutside(container as any, event => {
-  showResults.value = false
+  closePalette()
   resetCommand()
 })
 
@@ -259,21 +262,21 @@ async function onArgumentSelected(value: ArgumentType) {
 async function loadArgumentOptions(signal?: AbortSignal) {
   if (!activeArgument.value) return
 
-  loadingOptions.value = true
+  if (loadingTimer) clearTimeout(loadingTimer)
+  loadingTimer = setTimeout(() => { loadingOptions.value = true }, 400)
   try {
     const items = activeArgument.value.getItems(undefined, signal)
-    // Check if result is a Promise
     if (items instanceof Promise) {
       argumentOptions.value = await items
     } else {
       argumentOptions.value = items
     }
   } catch (error) {
-    // Ignore cancellation — a newer request is already in flight
     if (error instanceof DOMException && error.name === 'AbortError') return
     console.error('Error loading argument options:', error)
     argumentOptions.value = []
   } finally {
+    if (loadingTimer) clearTimeout(loadingTimer)
     loadingOptions.value = false
   }
 }
@@ -388,8 +391,7 @@ const filterFunction = computed(() => {
                 class="absolute flex gap-1 transition-all duration-200"
                 :class="showResults || isDrawerOpen ? 'right-6' : 'right-0'"
               >
-                <!-- TODO: Detect if device has keyboard -->
-                <!-- <Kbd commandId="search"></Kbd> -->
+                <Kbd :hotkey="['mod', 'k']" size="xs" />
               </div>
             </transition-slide>
             <transition-slide :duration="200" :offset="['100%', 0]">

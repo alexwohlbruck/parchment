@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { AppRoute } from '@/router'
 import { useI18n } from 'vue-i18n'
 import { toast } from 'vue-sonner'
@@ -58,12 +58,15 @@ const { isFullscreen } = useFullscreen()
 const commandService = useCommandService()
 const commandStore = useCommandStore()
 
+const route = useRoute()
 const mini = defineModel('mini', { type: Boolean, default: true })
 const navRef = ref<HTMLElement | null>(null)
 const appStore = useAppStore()
 const { width: windowWidth, height: windowHeight } = useWindowSize()
 const paletteDialogOpen = ref(false)
 const paletteDialogRef = ref<InstanceType<typeof Palette> | null>(null)
+
+const isDashboard = computed(() => route.name === AppRoute.DASHBOARD)
 
 const isTauriDesktop = ref(false)
 const updateDismissed = ref(false)
@@ -197,14 +200,16 @@ function handleNavClick(to: string) {
 }
 
 function openPalette(withSearch = false) {
+  if (isDashboard.value) {
+    appEventBus.emit('palette:focus')
+    return
+  }
   paletteDialogOpen.value = true
   if (withSearch) {
-    // Active search command
     commandService.executeCommand(commandStore.getCommand(CommandName.SEARCH)!)
   }
 }
 
-// If command is executed with hotkey, open the palette
 const handlePaletteOpen = () => {
   openPalette()
 }

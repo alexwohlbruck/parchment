@@ -37,6 +37,7 @@
     "enabled": "Enabled",
     "all": "All",
     "recents": "Recents",
+    "pinned": "Pinned",
     "seeAll": "See all"
   },
   "weather": {

@@ -102,7 +102,7 @@ function goToCollection() {
         <div class="flex items-center justify-between">
           <div class="flex flex-col justify-center">
             <div class="flex items-center gap-2">
-              <h3 class="font-semibold text-sm">{{ displayName }}</h3>
+              <h3 class="font-sans font-semibold text-sm">{{ displayName }}</h3>
             </div>
 
             <!-- Display collection description if available -->

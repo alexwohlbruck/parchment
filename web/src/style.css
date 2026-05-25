@@ -6,8 +6,15 @@
 
 @theme {
   --font-sans:
-    var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
-    'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    'Geist Sans', -apple-system, BlinkMacSystemFont, 'Inter',
+    ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    'Segoe UI Symbol', 'Noto Color Emoji';
+
+  --font-serif:
+    'Boston Angel', ui-serif, Georgia, serif;
+
+  --font-mono:
+    'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
   --text-2xs: 0.625rem;
   --text-2xs--line-height: calc(0.875 / 0.625);
@@ -121,6 +128,11 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
 
+  --shadow-sm: 0 1px 0 rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 1px 0 rgba(0,0,0,0.04), 0 4px 14px rgba(0,0,0,0.06);
+  --shadow-lg: 0 10px 40px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.04);
+  --shadow-xl: 0 24px 60px rgba(0,0,0,0.16), 0 4px 12px rgba(0,0,0,0.06);
+
   --shadow-switch:
     rgba(0, 0, 0, 0.3) 0px 0px 1px, rgba(0, 0, 0, 0.2) 0px 1px 2px;
 
@@ -195,6 +207,12 @@
   }
 }
 
+@utility font-display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.018em;
+}
+
 @utility bg-primary-tinted {
   background-color: var(--color-primary-100);
   color: var(--color-primary-800);
@@ -223,11 +241,31 @@
   ::file-selector-button {
     border-color: var(--color-gray-200, currentcolor);
   }
+
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: -0.018em;
+    font-feature-settings: normal;
+  }
+}
+
+@font-face {
+  font-family: 'Boston Angel';
+  src: url('@/assets/fonts/BostonAngel-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
 }
 
 :root {
-  --font: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  font-family: var(--font);
+  --font: var(--font-sans);
+  --font-display: var(--font-serif);
+
+  font-family: var(--font-sans);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;

@@ -152,7 +152,7 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
       <div class="grow min-w-0">
         <div class="flex items-center justify-between">
           <div class="flex flex-col justify-center">
-            <h3 class="font-semibold text-sm">{{ bookmark.name }}</h3>
+            <h3 class="font-sans font-semibold text-sm">{{ bookmark.name }}</h3>
 
             <div v-if="bookmark.address" class="text-xs text-muted-foreground">
               {{ bookmark.address }}

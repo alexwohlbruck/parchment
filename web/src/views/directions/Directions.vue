@@ -118,22 +118,8 @@ useMapListener(
 <template>
   <PanelLayout>
     <div class="space-y-3 flex flex-col">
-      <h1 class="text-2xl font-semibold">Directions</h1>
-      <div class="flex items-center gap-2">
-        <Tabs v-model="selectedMode" class="flex-1">
-          <TabsList class="w-full flex">
-            <TabsTrigger
-              v-for="(mode, i) in modes"
-              :key="i"
-              :value="mode.type"
-              class="grow"
-              :title="mode.label"
-            >
-              <component :is="mode.icon" class="size-5" />
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-
+      <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-semibold">Directions</h1>
         <ResponsivePopover
           v-model:open="showPreferences"
           side="top"
@@ -145,7 +131,7 @@ useMapListener(
         >
           <template #trigger>
             <Button
-              variant="outline"
+              variant="ghost"
               size="icon"
               class="shrink-0"
               :class="showPreferences && 'bg-accent'"
@@ -163,6 +149,19 @@ useMapListener(
           </template>
         </ResponsivePopover>
       </div>
+      <Tabs v-model="selectedMode">
+        <TabsList class="w-full flex">
+          <TabsTrigger
+            v-for="(mode, i) in modes"
+            :key="i"
+            :value="mode.type"
+            class="grow"
+            :title="mode.label"
+          >
+            <component :is="mode.icon" class="size-5" />
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       <WaypointInput
         :model-value="waypoints"

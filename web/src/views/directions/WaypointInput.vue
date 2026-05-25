@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import draggable from 'vuedraggable'
 import { computed, ref, watch, onMounted } from 'vue'
-import { XIcon, PlusIcon, Check } from 'lucide-vue-next'
+import { XIcon, PlusIcon, Check, LocateFixedIcon, ArrowUpDownIcon, GripVerticalIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Waypoint } from '@/types/map.types'
 import { useDirectionsService } from '@/services/directions.service'
-import WaypointIcon from './WaypointIcon.vue'
 import {
   Combobox,
   ComboboxInput,
@@ -328,130 +327,185 @@ onMounted(() => {
   }
 })
 
+const swapRotations = ref<Record<number, number>>({})
+
+function swapAdjacentWaypoints(index: number) {
+  swapRotations.value[index] = (swapRotations.value[index] || 0) + 180
+  const newWaypoints = [...waypoints.value]
+  ;[newWaypoints[index], newWaypoints[index + 1]] = [newWaypoints[index + 1], newWaypoints[index]]
+  emit('update:modelValue', newWaypoints)
+  const newTexts = [...inputTexts.value]
+  ;[newTexts[index], newTexts[index + 1]] = [newTexts[index + 1], newTexts[index]]
+  inputTexts.value = newTexts
+}
+
+function locateUser(index: number) {
+  if (!isGeolocationSupported.value || !coords.value.latitude || !coords.value.longitude) return
+  const result = createCurrentLocationResult()
+  if (result) {
+    selectPlace(index, autocompleteResultToPlace(result), result)
+  }
+}
+
 defineExpose({
   clearWaypoint,
 })
 </script>
 
 <template>
-  <draggable
-    v-model="waypoints"
-    :animation="200"
-    handle=".handle"
-    tag="div"
-    class="flex flex-col gap-2"
-  >
-    <template #item="{ element, index }">
-      <div
-        class="relative w-full items-center flex gap-2 locations-list-item group"
-      >
-        <!-- Waypoint circle with icons/numbers -->
-        <WaypointIcon :index="index" :total-waypoints="waypoints.length" />
-
-        <Combobox
-          class="flex-1"
-          ignore-filter
-          :reset-search-term-on-select="false"
-          :reset-search-term-on-blur="false"
-        >
-          <ComboboxAnchor>
-            <ComboboxInput
-              :placeholder="
-                index == 0 ? $t('directions.from') : $t('directions.to')
-              "
-              :model-value="inputTexts[index] || ''"
-              @update:model-value="
-                value => {
-                  inputTexts[index] = value
-                  userModifiedInputs.add(index)
-                  getAutocomplete(index, value)
-                }
-              "
-              @focus="
-                () => {
-                  const currentValue = inputTexts[index] || ''
-                  currentQuery = currentValue
-                  getAutocomplete(index, currentValue)
-                }
-              "
-            />
-          </ComboboxAnchor>
-
-          <ComboboxList>
+  <div class="relative flex flex-col gap-2">
+    <draggable
+      v-model="waypoints"
+      :animation="200"
+      handle=".handle"
+      tag="div"
+      class="relative flex flex-col gap-2"
+    >
+      <template #item="{ element, index }">
+        <div class="relative flex items-center group">
+          <div class="flex-1 relative">
+            <!-- Connecting line between icons -->
             <div
-              v-if="isLoading && combinedResults.length === 0"
-              class="flex items-center justify-center p-4"
-            >
-              <Spinner class="h-4 w-4" />
-            </div>
+              v-if="index < waypoints.length - 1"
+              class="absolute left-[1.19rem] top-full w-px h-2 bg-border z-0"
+            />
 
-            <ComboboxEmpty
-              v-else-if="!isLoading && combinedResults.length === 0"
+            <Combobox
+              class="flex-1"
+              ignore-filter
+              :reset-search-term-on-select="false"
+              :reset-search-term-on-blur="false"
             >
-              No results found.
-            </ComboboxEmpty>
+              <ComboboxAnchor>
+                <ComboboxInput
+                  :placeholder="index === 0 ? $t('directions.from') : $t('directions.to')"
+                  :model-value="inputTexts[index] || ''"
+                  hide-search-icon
+                  @update:model-value="
+                    value => {
+                      inputTexts[index] = value
+                      userModifiedInputs.add(index)
+                      getAutocomplete(index, value)
+                    }
+                  "
+                  @focus="
+                    () => {
+                      const currentValue = inputTexts[index] || ''
+                      currentQuery = currentValue
+                      getAutocomplete(index, currentValue)
+                    }
+                  "
+                >
+                  <template #prefix>
+                    <div class="shrink-0 flex items-center justify-center handle cursor-grab active:cursor-grabbing relative">
+                      <div
+                        class="size-4 rounded-full flex items-center justify-center group-hover:opacity-0 transition-opacity"
+                        :class="index === 0 ? 'bg-background border-[1.5px] border-foreground/60' : 'bg-primary border-[1.5px] border-white'"
+                      >
+                        <span v-if="index > 0" class="text-[9px] font-bold text-white">{{ index }}</span>
+                      </div>
+                      <GripVerticalIcon class="size-4 text-muted-foreground absolute opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </template>
+                  <template #postfix>
+                    <div class="flex items-center -mr-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        v-if="!inputTexts[index]"
+                        @click="locateUser(index)"
+                        variant="ghost"
+                        size="icon"
+                        class="size-7"
+                        :title="$t('directions.currentLocation')"
+                      >
+                        <LocateFixedIcon class="size-4" />
+                      </Button>
+                      <Button
+                        @click="clearWaypoint(index)"
+                        variant="ghost"
+                        size="icon"
+                        class="size-7"
+                      >
+                        <XIcon class="size-4" />
+                      </Button>
+                    </div>
+                  </template>
+                </ComboboxInput>
+              </ComboboxAnchor>
 
-            <ComboboxGroup v-if="!isLoading || combinedResults.length > 0">
-              <ComboboxItem
-                v-for="result in combinedResults"
-                :key="result.id"
-                :value="autocompleteResultToPlace(result)"
-                @select="
-                  selectPlace(index, autocompleteResultToPlace(result), result)
-                "
-              >
-                <div class="flex items-center gap-2 flex-1">
-                  <!-- Single ItemIcon with computed icon and color -->
-                  <ItemIcon
-                    :icon="
-                      result.type === 'current_location'
-                        ? 'Locate'
-                        : result.type === 'bookmark'
-                          ? result.icon || 'MapPin'
-                          : 'MapPin'
-                    "
-                    :color="(result.color as ThemeColor) || 'slate'"
-                    size="sm"
-                    class="size-4"
-                  />
-                  <div class="flex flex-col flex-1">
-                    <span>{{ result.title }}</span>
-                    <span
-                      v-if="result.description"
-                      class="text-sm text-muted-foreground"
-                    >
-                      {{ result.description }}
-                    </span>
-                  </div>
+              <ComboboxList>
+                <div
+                  v-if="isLoading && combinedResults.length === 0"
+                  class="flex items-center justify-center p-4"
+                >
+                  <Spinner class="h-4 w-4" />
                 </div>
 
-                <ComboboxItemIndicator>
-                  <Check :class="cn('ml-auto h-4 w-4')" />
-                </ComboboxItemIndicator>
-              </ComboboxItem>
-            </ComboboxGroup>
-          </ComboboxList>
-        </Combobox>
+                <ComboboxEmpty v-else-if="!isLoading && combinedResults.length === 0">
+                  No results found.
+                </ComboboxEmpty>
 
-        <span class="absolute end-0 inset-y-0 flex items-center justify-center">
+                <ComboboxGroup v-if="!isLoading || combinedResults.length > 0">
+                  <ComboboxItem
+                    v-for="result in combinedResults"
+                    :key="result.id"
+                    :value="autocompleteResultToPlace(result)"
+                    @select="selectPlace(index, autocompleteResultToPlace(result), result)"
+                  >
+                    <div class="flex items-center gap-2 flex-1">
+                      <ItemIcon
+                        :icon="
+                          result.type === 'current_location'
+                            ? 'Locate'
+                            : result.type === 'bookmark'
+                              ? result.icon || 'MapPin'
+                              : 'MapPin'
+                        "
+                        :color="(result.color as ThemeColor) || 'slate'"
+                        size="sm"
+                        class="size-4"
+                      />
+                      <div class="flex flex-col flex-1">
+                        <span>{{ result.title }}</span>
+                        <span v-if="result.description" class="text-sm text-muted-foreground">
+                          {{ result.description }}
+                        </span>
+                      </div>
+                    </div>
+
+                    <ComboboxItemIndicator>
+                      <Check :class="cn('ml-auto h-4 w-4')" />
+                    </ComboboxItemIndicator>
+                  </ComboboxItem>
+                </ComboboxGroup>
+              </ComboboxList>
+            </Combobox>
+
+          </div>
+
+          <!-- Swap button between adjacent inputs -->
           <Button
-            @click="clearWaypoint(index)"
-            variant="ghost"
-            size="icon"
-            :icon="XIcon"
-            class="rounded-l-none"
-          ></Button>
-        </span>
-      </div>
-    </template>
-  </draggable>
+            v-if="index < waypoints.length - 1"
+            variant="outline"
+            size="icon-sm"
+            class="absolute -bottom-4 left-8 z-10 rounded-full size-7 bg-background shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+            @click.stop="swapAdjacentWaypoints(index)"
+            title="Swap"
+          >
+            <ArrowUpDownIcon class="size-3.5 transition-transform duration-300" :style="{ transform: `rotate(${swapRotations[index] || 0}deg)` }" />
+          </Button>
+        </div>
+      </template>
+    </draggable>
+  </div>
 
-  <Button
-    variant="outline"
-    :icon="PlusIcon"
-    @click="addWaypoint()"
-    class="w-fit self-center"
-  >
-    {{ $t('directions.addStop') }}
-  </Button>
+  <div class="-mt-1">
+    <Button
+      variant="outline"
+      :icon="PlusIcon"
+      @click="addWaypoint()"
+      class="w-full h-10"
+    >
+      {{ $t('directions.addStop') }}
+    </Button>
+  </div>
 </template>

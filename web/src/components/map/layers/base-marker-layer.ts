@@ -66,7 +66,7 @@ export abstract class BaseMarkerLayer {
   protected enabled: Ref<boolean> | undefined
   protected zIndex: number | undefined
   protected mapAPI: MapMarkerAPI | null = null
-  protected watchStop: WatchStopHandle | null = null
+  protected watchStops: WatchStopHandle[] = []
   protected currentMarkerIds = new Set<string>()
 
   constructor(config: MarkerLayerConfig) {
@@ -107,26 +107,28 @@ export abstract class BaseMarkerLayer {
    * Set up reactive watcher to sync markers with data
    */
   protected setupWatcher() {
-    // Watch the data and update markers reactively
-    this.watchStop = watch(
-      () => this.getData(),
-      (newData) => {
-        this.updateMarkers(newData)
-      },
-      { deep: true, immediate: true }
+    this.watchStops.push(
+      watch(
+        () => this.getData(),
+        (newData) => {
+          this.updateMarkers(newData)
+        },
+        { deep: true, immediate: true },
+      ),
     )
 
-    // If enabled ref is provided, watch it to show/hide markers
     if (this.enabled) {
-      watch(
-        this.enabled,
-        (isEnabled) => {
-          if (!isEnabled) {
-            this.clear()
-          } else {
-            this.updateMarkers(this.getData())
-          }
-        }
+      this.watchStops.push(
+        watch(
+          this.enabled,
+          (isEnabled) => {
+            if (!isEnabled) {
+              this.clear()
+            } else {
+              this.updateMarkers(this.getData())
+            }
+          },
+        ),
       )
     }
   }
@@ -187,7 +189,8 @@ export abstract class BaseMarkerLayer {
    * Destroy the layer and clean up watchers
    */
   destroy() {
-    this.watchStop?.()
+    this.watchStops.forEach(stop => stop())
+    this.watchStops = []
     this.clear()
     this.mapAPI = null
   }

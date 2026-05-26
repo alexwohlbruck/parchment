@@ -7,7 +7,7 @@ import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useResponsive } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+
 import { ItemIcon } from '@/components/ui/item-icon'
 import { AppRoute } from '@/router'
 import type { ThemeColor } from '@/lib/utils'
@@ -150,7 +150,7 @@ function formatTimeAgo(dateStr: string) {
       <div v-show="!paletteFocused" class="space-y-6">
       <!-- Pinned bookmarks -->
       <div v-if="pinnedBookmarks.length > 0">
-        <span class="text-xs font-semibold text-muted-foreground mb-1.5 px-1 block">{{ t('general.pinned') }}</span>
+        <h3 class="font-display text-lg mb-1.5 px-1 block">{{ t('general.pinned') }}</h3>
         <div class="flex gap-2 overflow-x-auto scrollbar-hidden -mx-1 px-1">
           <Card
             v-for="bookmark in pinnedBookmarks"
@@ -175,7 +175,7 @@ function formatTimeAgo(dateStr: string) {
 
       <!-- Library Section -->
       <div>
-        <span class="text-xs font-semibold text-muted-foreground mb-1.5 px-1 block">{{ t('library.title') }}</span>
+        <h3 class="font-display text-lg mb-1.5 px-1 block">{{ t('library.title') }}</h3>
         <div class="grid grid-cols-2 gap-2">
           <Card
             v-for="tab in libraryTabs"
@@ -199,7 +199,7 @@ function formatTimeAgo(dateStr: string) {
 
       <!-- Navigation Section (mobile only) -->
       <div v-if="isMobileScreen">
-        <span class="text-xs font-semibold text-muted-foreground mb-1.5 px-1 block">{{ t('navigation.title') }}</span>
+        <h3 class="font-display text-lg mb-1.5 px-1 block">{{ t('navigation.title') }}</h3>
         <div class="grid grid-cols-2 gap-2">
           <Card
             class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
@@ -237,17 +237,7 @@ function formatTimeAgo(dateStr: string) {
 
       <!-- Recent Places -->
       <div v-if="recentBookmarks.length > 0">
-        <div class="flex items-center justify-between mb-1.5 px-1">
-          <span class="text-xs font-semibold text-muted-foreground">{{ t('general.recents') }}</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            class="h-6 text-xs text-muted-foreground hover:text-foreground -my-1"
-            @click="navigateTo('/library')"
-          >
-            {{ t('general.seeAll') }}
-          </Button>
-        </div>
+        <h3 class="font-display text-lg mb-1.5 px-1">{{ t('general.recents') }}</h3>
         <div class="space-y-2">
           <Card
             v-for="bookmark in recentBookmarks"

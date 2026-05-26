@@ -70,7 +70,7 @@ function handleTabChange(tabId: string) {
         @update:model-value="handleTabChange"
         class="w-full h-full flex flex-col"
       >
-        <div class="-mx-3 px-3 flex items-end border-b border-border" style="width: calc(100% + 1.5rem)">
+        <div class="-mx-3 px-3 flex items-end border-b border-border relative" style="width: calc(100% + 1.5rem)">
           <TabsList variant="linear" class="border-b-0">
             <TabsTrigger
               v-for="tab in tabs"
@@ -82,7 +82,7 @@ function handleTabChange(tabId: string) {
               {{ tab.label }}
             </TabsTrigger>
           </TabsList>
-          <div id="library-tab-actions" class="flex items-center gap-0.5 ml-auto pb-1" />
+          <div id="library-tab-actions" class="absolute right-3 bottom-1 flex items-center gap-0.5" />
         </div>
 
         <div class="flex-1 pt-3">

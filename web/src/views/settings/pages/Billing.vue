@@ -254,13 +254,17 @@ onMounted(async () => {
       <div
         v-for="tier in tiers"
         :key="tier.id"
-        class="rounded-lg border bg-card text-card-foreground shadow-xs p-4 flex flex-col gap-4"
-        :class="tier.isCurrent ? 'border-primary bg-primary/[0.03]' : 'border-border'"
+        class="rounded-lg bg-card text-card-foreground shadow-xs p-4 flex flex-col gap-4"
+        :class="tier.isCurrent ? '' : 'border border-border'"
+        :style="tier.isCurrent ? {
+          background: 'linear-gradient(180deg, hsl(var(--primary) / 0.08) 0%, hsl(var(--card)) 40%)',
+          boxShadow: '0 0 0 1.5px hsl(var(--primary)) inset',
+        } : {}"
       >
         <!-- Name + badge -->
         <div class="flex flex-col gap-1">
           <div class="flex items-center gap-2">
-            <p class="text-sm font-medium">{{ tier.label }}</p>
+            <p class="text-2xl font-display">{{ tier.label }}</p>
             <Badge
               v-if="tier.isCurrent"
               variant="primary"
@@ -274,9 +278,9 @@ onMounted(async () => {
 
         <!-- Price -->
         <div>
-          <p class="text-2xl font-semibold tracking-tight">
+          <p class="text-[32px] font-display leading-tight">
             {{ tier.price }}
-            <span class="text-sm font-normal text-muted-foreground">{{ tier.interval }}</span>
+            <span class="text-sm font-sans font-normal text-muted-foreground">{{ tier.interval }}</span>
           </p>
           <p
             v-if="tier.trialLabel"

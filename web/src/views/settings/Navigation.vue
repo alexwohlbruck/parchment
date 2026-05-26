@@ -141,7 +141,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full md:w-56 gap-3 pt-6 px-4 md:pr-0 min-h-0">
+  <div class="flex flex-col w-full md:w-56 gap-3 pt-6 px-4 min-h-0 md:bg-accent/50 md:border-r md:border-border/60">
     <H3 class="ml-2">{{ t('settings.title') }}</H3>
 
     <!-- Search -->

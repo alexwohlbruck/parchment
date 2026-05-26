@@ -209,8 +209,9 @@
 
 @utility font-display {
   font-family: var(--font-display);
-  font-weight: 400;
-  letter-spacing: -0.018em;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  font-feature-settings: 'liga' 0, 'ss01' 0, 'ss02' 0, 'ss03' 0, 'ss04' 0, 'ss05' 0, 'ss06' 0;
 }
 
 @utility bg-primary-tinted {
@@ -244,9 +245,9 @@
 
   h1, h2 {
     font-family: var(--font-display);
-    font-weight: 400;
-    letter-spacing: -0.018em;
-    font-feature-settings: normal;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    font-feature-settings: 'liga' 0, 'ss01' 0, 'ss02' 0, 'ss03' 0, 'ss04' 0, 'ss05' 0, 'ss06' 0;
   }
 }
 

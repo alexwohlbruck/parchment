@@ -184,6 +184,7 @@ function directionsService() {
           (seg: any, i: number) => ({
             id: `segment-${segment.segmentIndex}-${i}`,
             type: 'route',
+            legIndex: seg.legIndex ?? segment.legIndex ?? 0,
             mode: normalizeMode(seg.mode),
             vehicleType: seg.vehicle?.type || seg.mode,
             startTime: new Date(seg.startTime),
@@ -205,6 +206,7 @@ function directionsService() {
         {
           id: `segment-${segment.segmentIndex}`,
           type: 'route',
+          legIndex: segment.legIndex ?? 0,
           mode: normalizeMode(segment.mode),
           vehicleType: segment.vehicle?.type || segment.mode,
           startTime: new Date(segment.startTime),

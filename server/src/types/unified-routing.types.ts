@@ -359,6 +359,7 @@ export interface RoutingCapabilities {
 export interface TimelineSegment {
   id: string
   type: 'route' | 'waiting' | 'transfer'
+  legIndex?: number
   mode: TravelMode
   vehicleType?: 'car' | 'bike' | 'scooter' | 'motorcycle' | 'truck' | 'walking'
   vehicleId?: string // Reference to user's vehicle

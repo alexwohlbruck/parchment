@@ -147,10 +147,12 @@ export class TripService {
       if (result.multimodalSegments) {
         result.multimodalSegments.forEach((seg, idx) => {
           seg.segmentIndex = segments.length + idx
+          seg.legIndex = i
         })
         segments.push(...result.multimodalSegments)
       } else {
         result.segment.segmentIndex = segments.length
+        result.segment.legIndex = i
         segments.push(result.segment)
       }
 

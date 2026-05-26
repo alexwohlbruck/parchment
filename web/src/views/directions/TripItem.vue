@@ -108,6 +108,44 @@ function getSegmentTooltip(segment: any): string {
   return `${mode}: ${duration}${distance ? ', ' + distance : ''}`
 }
 
+const legs = computed(() => {
+  const groups: { legIndex: number; segments: typeof props.trip.segments }[] = []
+  for (const seg of props.trip.segments) {
+    const li = (seg as any).legIndex ?? 0
+    const last = groups[groups.length - 1]
+    if (last && last.legIndex === li) {
+      last.segments.push(seg)
+    } else {
+      groups.push({ legIndex: li, segments: [seg] })
+    }
+  }
+  return groups
+})
+
+// Positions where waypoint caps should appear (leg boundaries only)
+const waypointCapPositions = computed(() => {
+  const segs = props.trip.segments
+  if (!segs.length) return []
+  const positions: number[] = [segLeft(segs[0])]
+  for (const leg of legs.value) {
+    const lastSeg = leg.segments[leg.segments.length - 1]
+    positions.push(Math.max(segEnd(lastSeg), segLeft(lastSeg) + segW(lastSeg)))
+  }
+  return positions
+})
+
+// Whether a segment is part of a multimodal leg (different modes within same leg)
+function isMultimodal(segment: typeof props.trip.segments[0]): boolean {
+  const li = (segment as any).legIndex ?? 0
+  const leg = legs.value.find(l => l.legIndex === li)
+  if (!leg || leg.segments.length < 2) return false
+  return new Set(leg.segments.map(s => s.mode)).size > 1
+}
+
+function segLegIndex(segment: typeof props.trip.segments[0]): number {
+  return (segment as any).legIndex ?? 0
+}
+
 function handleClick() {
   if (props.isClickable) {
     emit('click', props.trip)
@@ -159,16 +197,16 @@ function handleMouseEnter() {
         <div
           v-for="(segment, i) in trip.segments"
           :key="segment.id"
-          class="absolute h-full flex items-center text-white top-1/2 -translate-y-1/2 overflow-hidden shadow-xs border border-black/10 dark:border-white/15"
+          class="absolute h-full flex items-center text-white top-1/2 -translate-y-1/2 overflow-hidden shadow-xs border border-black/10 dark:border-black/20"
           :class="[
             segW(segment) < 20 ? 'rounded-full' : 'rounded-lg',
             getTravelModeCssClass(segment.mode),
             segW(segment) > 24 ? 'px-2 gap-1.5' : 'justify-center px-0.5',
           ]"
           :style="{
-            left: `${segLeft(segment)}px`,
-            width: `${segW(segment)}px`,
-            zIndex: trip.segments.length - i,
+            left: `${segLeft(segment) - (isMultimodal(segment) && i > 0 && segLegIndex(trip.segments[i - 1]) === segLegIndex(segment) ? 6 : 0)}px`,
+            width: `${segW(segment) + (isMultimodal(segment) && i > 0 && segLegIndex(trip.segments[i - 1]) === segLegIndex(segment) ? 6 : 0)}px`,
+            zIndex: i + 1,
           }"
           :title="getSegmentTooltip(segment)"
         >
@@ -185,12 +223,12 @@ function handleMouseEnter() {
           </span>
         </div>
 
-        <!-- Stop caps -->
+        <!-- Waypoint caps (only at leg boundaries) -->
         <div
-          v-for="(segment, i) in trip.segments"
-          :key="`cap-${segment.id}`"
+          v-for="(pos, i) in waypointCapPositions.slice(1)"
+          :key="`cap-${i}`"
           class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-2.5 rounded-full bg-primary border-[1.5px] border-white z-[20] shadow-xs"
-          :style="{ left: `${Math.max(segEnd(segment), segLeft(segment) + segW(segment))}px` }"
+          :style="{ left: `${pos}px` }"
         />
       </div>
 

@@ -139,6 +139,7 @@ export interface TripResponse {
 
 export interface TripSegment {
   segmentIndex: number
+  legIndex?: number
   mode: Mode
   ownership?: OwnershipType
   vehicle?: Vehicle

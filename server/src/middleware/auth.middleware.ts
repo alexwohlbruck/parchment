@@ -119,7 +119,7 @@ export const permissions =
       const userPermissions = await getPermissions(user.id)
 
       if (!hasPermission(userPermissions, allowedPermissions)) {
-        return status(401, { message: t('errors.auth.forbidden') })
+        return status(403, { message: t('errors.auth.forbidden') })
       }
 
       return {

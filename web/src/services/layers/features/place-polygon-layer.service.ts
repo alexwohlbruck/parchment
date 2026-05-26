@@ -31,19 +31,17 @@ export function usePlacePolygonLayerService() {
   function initializePlacePolygonLayers(mapStrategy: MapStrategy) {
     if (!mapStrategy) return
 
-    // Create polygon source with empty data initially
-    try {
-      mapStrategy.addSource(PLACE_POLYGON_SOURCE_ID, {
-        type: 'geojson',
-        data: EMPTY_PLACE_POLYGON_GEOJSON,
-      })
-    } catch (error) {
-      // Source might already exist, update it instead
-      const source = mapStrategy.mapInstance.getSource(PLACE_POLYGON_SOURCE_ID)
-      if (source) {
-        source.setData(EMPTY_PLACE_POLYGON_GEOJSON)
-      }
-    }
+    const map = mapStrategy.mapInstance
+
+    // Clean up existing layers/source from a previous style load
+    if (map.getLayer(PLACE_POLYGON_FILL_LAYER_ID)) map.removeLayer(PLACE_POLYGON_FILL_LAYER_ID)
+    if (map.getLayer(PLACE_POLYGON_STROKE_LAYER_ID)) map.removeLayer(PLACE_POLYGON_STROKE_LAYER_ID)
+    if (map.getSource(PLACE_POLYGON_SOURCE_ID)) map.removeSource(PLACE_POLYGON_SOURCE_ID)
+
+    mapStrategy.addSource(PLACE_POLYGON_SOURCE_ID, {
+      type: 'geojson',
+      data: EMPTY_PLACE_POLYGON_GEOJSON,
+    })
 
     // Add fill layer (background)
     const fillLayer: Layer = {

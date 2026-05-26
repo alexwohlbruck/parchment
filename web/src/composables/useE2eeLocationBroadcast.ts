@@ -213,6 +213,10 @@ function e2eeLocationBroadcastComposable() {
 
   async function loadFriendsWithSharing() {
     try {
+      if (friends.value.length === 0) {
+        await friendsStore.loadAll()
+      }
+
       const configs = await locationService.getE2eeConfigs()
       const enabledConfigs = configs.filter((c) => c.enabled)
 
@@ -222,7 +226,13 @@ function e2eeLocationBroadcastComposable() {
           const friend = friends.value.find(
             (f) => f.friendHandle.toLowerCase() === handle,
           )
-          if (!friend?.friendEncryptionKey) return null
+          if (!friend?.friendEncryptionKey) {
+            console.warn('[location-broadcast] friend missing encryption key:', handle, {
+              friendFound: !!friend,
+              hasKey: !!friend?.friendEncryptionKey,
+            })
+            return null
+          }
           return {
             friendHandle: friend.friendHandle,
             encryptionKey: friend.friendEncryptionKey,
@@ -249,14 +259,19 @@ function e2eeLocationBroadcastComposable() {
       !signingPrivateKey.value ||
       !handle.value
     ) {
+      console.warn('[location-broadcast] broadcast() skipped — missing:', {
+        hasLocation: !!currentLocation,
+        hasEncKey: !!encryptionPrivateKey.value,
+        hasSignKey: !!signingPrivateKey.value,
+        hasHandle: !!handle.value,
+      })
       return
     }
 
-    // Re-entrancy guard. `shouldBroadcast` already checks this, but a
-    // second caller (e.g. `broadcastNow`) bypasses the gates.
     if (isBroadcasting.value) return
 
     if (friendsWithSharing.value.length === 0) {
+      console.warn('[location-broadcast] broadcast() skipped — no friends with sharing enabled')
       // Nothing to send, but advance the bookkeeping so the watcher
       // doesn't call us back on every single coord update.
       lastBroadcastTime.value = new Date()

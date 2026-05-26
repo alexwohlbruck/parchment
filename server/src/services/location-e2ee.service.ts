@@ -330,7 +330,7 @@ export async function getEncryptedLocationsFromFriends(
 
   if (!user?.alias) return []
 
-  const userHandle = buildHandle(user.alias)
+  const userHandle = buildHandle(user.alias).toLowerCase()
 
   const [friendHandles, results] = await Promise.all([
     // This user's accepted friendships — handles only.

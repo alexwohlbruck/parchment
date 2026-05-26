@@ -274,196 +274,192 @@ function getFullAddress(address: any) {
     <PlaceSection v-if="place.address || phoneValue || websiteValue || emailValue || place.openingHours">
       <template #main>
         <div class="space-y-4">
-          <!-- Address Section -->
-          <div v-if="place.address">
-            <Collapsible v-if="coordinates || plusCode" v-model:open="isAddressExpanded">
-              <CollapsibleTrigger class="w-full cursor-pointer">
-                <div class="flex items-center justify-between group">
-                  <div class="flex gap-3 items-center group min-w-0 flex-1">
-                    <component
-                      :is="MapPinIcon"
-                      class="size-4 shrink-0 text-muted-foreground"
-                    />
-                    <div class="flex flex-col flex-1 min-w-0">
-                      <div class="text-left">
-                        <div class="truncate">
-                          {{ getAddressDisplay(place.address.value) }}
-                        </div>
-                      </div>
-                      <div
-                        v-if="getAddressSecondary(place.address.value)"
-                        class="text-sm text-muted-foreground truncate text-left"
-                      >
-                        {{ getAddressSecondary(place.address.value) }}
-                      </div>
-                    </div>
-                    <div class="flex opacity-0 group-hover:opacity-100 transition-opacity shrink-0" @click.stop>
-                      <CopyButton
-                        :text="place.address.value.formatted || getFullAddress(place.address.value)"
-                        :message="t('place.details.addressCopied')"
-                      />
-                      <a
-                        v-if="osmUrl"
-                        :href="coordinates ? `${osmUrl}#map=19/${coordinates.lat}/${coordinates.lng}` : osmUrl"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="p-1 hover:bg-muted rounded"
-                        :title="t('place.details.viewOnOpenStreetMap')"
-                      >
-                        <ExternalLinkIcon class="w-4 h-4 text-muted-foreground" />
-                      </a>
-                    </div>
-                  </div>
-                  <Button 
-                    variant="ghost"
-                    size="icon-xs"
-                    class="ml-2 shrink-0"
-                  >
-                    <ChevronDownIcon 
-                      class="h-4 w-4 text-muted-foreground transition-transform group-hover:text-foreground"
-                      :class="{ 'rotate-180': isAddressExpanded }"
-                    />
-                  </Button>
-                </div>
-              </CollapsibleTrigger>
-              
-              <CollapsibleContent>
-                <div class="mt-3 bg-muted/30 rounded-md p-3 space-y-3">
-                  <!-- Coordinates -->
-                  <DetailItem
-                    v-if="coordinates"
-                    :icon="GlobeIcon"
-                    :value="formatCoordinates(coordinates.lat, coordinates.lng)"
-                    :copyValue="formatCoordinates(coordinates.lat, coordinates.lng)"
-                    :osmUrl="osmUrl"
-                    :coordinates="coordinates"
-                    :label="t('place.details.coordinates')"
+        <!-- Address Section -->
+        <div v-if="place.address">
+          <Collapsible v-if="coordinates || plusCode" v-model:open="isAddressExpanded">
+            <CollapsibleTrigger class="w-full cursor-pointer">
+              <div class="flex items-center justify-between group">
+                <div class="flex gap-3 items-start group min-w-0 flex-1">
+                  <component
+                    :is="MapPinIcon"
+                    class="size-4 shrink-0 text-muted-foreground mt-0.5"
                   />
-
-                  <!-- Plus Code -->
-                  <DetailItem
-                    v-if="plusCode"
-                    :icon="PlusIcon"
-                    :value="plusCode"
-                    :copyValue="plusCode"
-                    :osmUrl="osmUrl"
-                    :coordinates="coordinates"
-                    :label="t('place.details.plusCode')"
-                  />
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-            
-            <!-- Non-collapsible address -->
-            <DetailItem
-              v-else
-              :icon="MapPinIcon"
-              :value="getAddressDisplay(place.address.value)"
-              :description="getAddressSecondary(place.address.value)"
-              :copyValue="place.address.value.formatted || getFullAddress(place.address.value)"
-              :osmUrl="osmUrl"
-              :coordinates="coordinates"
-              :label="t('place.details.address')"
-            />
-          </div>
-          
-          <!-- Hours -->
-          <div v-if="place.openingHours">
-            <Collapsible v-if="place.openingHours.value.regularHours.length > 0" v-model:open="isHoursExpanded">
-              <CollapsibleTrigger class="w-full cursor-pointer">
-                <div class="flex items-center justify-between group">
-                  <div class="flex gap-3 items-center group min-w-0 flex-1">
-                    <component
-                      :is="ClockIcon"
-                      class="size-4 shrink-0 text-muted-foreground"
-                    />
-                    <div class="flex flex-col flex-1 min-w-0">
-                      <div class="text-left">
-                        <span :class="getOpeningStatus(place.openingHours.value).color">
-                          {{ getOpeningStatus(place.openingHours.value).status }}
-                        </span>
-                      </div>
+                  <div class="flex flex-col flex-1 min-w-0">
+                    <div class="text-left font-medium text-sm">
+                      {{ getAddressDisplay(place.address.value) }}
                     </div>
-                    <div class="flex opacity-0 group-hover:opacity-100 transition-opacity shrink-0" @click.stop>
-                      <CopyButton
-                        :text="formatOpeningHours(place.openingHours.value)"
-                        :message="t('place.details.hoursCopied')"
-                      />
-                      <a
-                        v-if="osmUrl"
-                        :href="osmUrl"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="p-1 hover:bg-muted rounded"
-                        :title="t('place.details.viewOnOpenStreetMap')"
-                      >
-                        <ExternalLinkIcon class="w-4 h-4 text-muted-foreground" />
-                      </a>
-                    </div>
-                  </div>
-                  <Button 
-                    variant="ghost"
-                    size="icon-xs"
-                    class="ml-2 shrink-0"
-                  >
-                    <ChevronDownIcon 
-                      class="h-4 w-4 text-muted-foreground transition-transform group-hover:text-foreground"
-                      :class="{ 'rotate-180': isHoursExpanded }"
-                    />
-                  </Button>
-                </div>
-              </CollapsibleTrigger>
-              
-              <CollapsibleContent>
-                <div class="mt-3 bg-muted/30 rounded-md p-3">
-                  <div class="text-sm text-muted-foreground space-y-1">
                     <div
-                      v-for="day in DAYS"
-                      :key="day"
-                      class="flex justify-between"
-                      :class="{ 'font-medium text-foreground': DAYS.indexOf(day) === getLocalDayAndTime(place.timezone).day }"
+                      v-if="getAddressSecondary(place.address.value)"
+                      class="text-xs text-muted-foreground truncate text-left mt-0.5"
                     >
-                      <span>{{ day }}</span>
-                      <span>
-                        <template
-                          v-if="place.openingHours.value.regularHours.find(h => h.day === DAYS.indexOf(day))"
-                        >
-                          {{
-                            formatTime(
-                              place.openingHours.value.regularHours.find(h => h.day === DAYS.indexOf(day))!
-                                .open,
-                            )
-                          }}
-                          -
-                          {{
-                            formatTime(
-                              place.openingHours.value.regularHours.find(h => h.day === DAYS.indexOf(day))!
-                                .close,
-                            )
-                          }}
-                        </template>
-                        <template v-else>{{ t('place.hours.closed') }}</template>
+                      {{ getAddressSecondary(place.address.value) }}
+                    </div>
+                  </div>
+                  <div class="flex opacity-0 group-hover:opacity-100 transition-opacity shrink-0" @click.stop>
+                    <CopyButton
+                      :text="place.address.value.formatted || getFullAddress(place.address.value)"
+                      :message="t('place.details.addressCopied')"
+                    />
+                    <a
+                      v-if="osmUrl"
+                      :href="coordinates ? `${osmUrl}#map=19/${coordinates.lat}/${coordinates.lng}` : osmUrl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="p-1 hover:bg-muted rounded"
+                      :title="t('place.details.viewOnOpenStreetMap')"
+                    >
+                      <ExternalLinkIcon class="w-4 h-4 text-muted-foreground" />
+                    </a>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  class="ml-2 shrink-0"
+                >
+                  <ChevronDownIcon
+                    class="h-4 w-4 text-muted-foreground transition-transform group-hover:text-foreground"
+                    :class="{ 'rotate-180': isAddressExpanded }"
+                  />
+                </Button>
+              </div>
+            </CollapsibleTrigger>
+
+            <CollapsibleContent>
+              <div class="mt-3 bg-muted/30 rounded-md p-3 space-y-3">
+                <DetailItem
+                  v-if="coordinates"
+                  :icon="GlobeIcon"
+                  :value="formatCoordinates(coordinates.lat, coordinates.lng)"
+                  :copyValue="formatCoordinates(coordinates.lat, coordinates.lng)"
+                  :osmUrl="osmUrl"
+                  :coordinates="coordinates"
+                  :label="t('place.details.coordinates')"
+                />
+                <DetailItem
+                  v-if="plusCode"
+                  :icon="PlusIcon"
+                  :value="plusCode"
+                  :copyValue="plusCode"
+                  :osmUrl="osmUrl"
+                  :coordinates="coordinates"
+                  :label="t('place.details.plusCode')"
+                />
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <DetailItem
+            v-else
+            :icon="MapPinIcon"
+            :value="getAddressDisplay(place.address.value)"
+            :description="getAddressSecondary(place.address.value)"
+            :copyValue="place.address.value.formatted || getFullAddress(place.address.value)"
+            :osmUrl="osmUrl"
+            :coordinates="coordinates"
+            :label="t('place.details.address')"
+          />
+        </div>
+
+        <!-- Hours -->
+        <div v-if="place.openingHours">
+          <Collapsible v-if="place.openingHours.value.regularHours.length > 0" v-model:open="isHoursExpanded">
+            <CollapsibleTrigger class="w-full cursor-pointer">
+              <div class="flex items-center justify-between group">
+                <div class="flex gap-3 items-center group min-w-0 flex-1">
+                  <component
+                    :is="ClockIcon"
+                    class="size-4 shrink-0 text-muted-foreground"
+                  />
+                  <div class="flex flex-col flex-1 min-w-0">
+                    <div class="text-left text-sm font-medium">
+                      <span :class="getOpeningStatus(place.openingHours.value).color">
+                        {{ getOpeningStatus(place.openingHours.value).status }}
                       </span>
                     </div>
+                    <div class="text-xs text-muted-foreground mt-0.5 text-left">
+                      {{ t('place.hours.seeHours') }}
+                    </div>
+                  </div>
+                  <div class="flex opacity-0 group-hover:opacity-100 transition-opacity shrink-0" @click.stop>
+                    <CopyButton
+                      :text="formatOpeningHours(place.openingHours.value)"
+                      :message="t('place.details.hoursCopied')"
+                    />
+                    <a
+                      v-if="osmUrl"
+                      :href="osmUrl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="p-1 hover:bg-muted rounded"
+                      :title="t('place.details.viewOnOpenStreetMap')"
+                    >
+                      <ExternalLinkIcon class="w-4 h-4 text-muted-foreground" />
+                    </a>
                   </div>
                 </div>
-              </CollapsibleContent>
-            </Collapsible>
-            
-            <!-- Non-collapsible hours (no regular hours) -->
-            <DetailItem
-              v-else
-              :icon="ClockIcon"
-              :osmUrl="osmUrl"
-              :copyValue="formatOpeningHours(place.openingHours.value)"
-            >
-              <div class="flex flex-col">
-                <span :class="getOpeningStatus(place.openingHours.value).color">
-                  {{ getOpeningStatus(place.openingHours.value).status }}
-                </span>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  class="ml-2 shrink-0"
+                >
+                  <ChevronDownIcon
+                    class="h-4 w-4 text-muted-foreground transition-transform group-hover:text-foreground"
+                    :class="{ 'rotate-180': isHoursExpanded }"
+                  />
+                </Button>
               </div>
-            </DetailItem>
-          </div>
+            </CollapsibleTrigger>
+
+            <CollapsibleContent>
+              <div class="mt-3 bg-muted/30 rounded-md p-3">
+                <div class="text-sm text-muted-foreground space-y-1">
+                  <div
+                    v-for="day in DAYS"
+                    :key="day"
+                    class="flex justify-between"
+                    :class="{ 'font-medium text-foreground': DAYS.indexOf(day) === getLocalDayAndTime(place.timezone).day }"
+                  >
+                    <span>{{ day }}</span>
+                    <span>
+                      <template
+                        v-if="place.openingHours.value.regularHours.find(h => h.day === DAYS.indexOf(day))"
+                      >
+                        {{
+                          formatTime(
+                            place.openingHours.value.regularHours.find(h => h.day === DAYS.indexOf(day))!
+                              .open,
+                          )
+                        }}
+                        -
+                        {{
+                          formatTime(
+                            place.openingHours.value.regularHours.find(h => h.day === DAYS.indexOf(day))!
+                              .close,
+                          )
+                        }}
+                      </template>
+                      <template v-else>{{ t('place.hours.closed') }}</template>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <DetailItem
+            v-else
+            :icon="ClockIcon"
+            :osmUrl="osmUrl"
+            :copyValue="formatOpeningHours(place.openingHours.value)"
+          >
+            <div class="flex flex-col">
+              <span :class="getOpeningStatus(place.openingHours.value).color">
+                {{ getOpeningStatus(place.openingHours.value).status }}
+              </span>
+            </div>
+          </DetailItem>
+        </div>
 
           <!-- Phone -->
           <DetailItem
@@ -476,7 +472,7 @@ function getFullAddress(address: any) {
             :label="t('place.details.phoneNumber')"
           />
 
-          <!-- Websites (all URLs: primary + sub-key entries like website:menu) -->
+          <!-- Websites -->
           <DetailItem
             v-for="url in websiteUrls"
             :key="url"

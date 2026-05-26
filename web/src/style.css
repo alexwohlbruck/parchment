@@ -242,7 +242,7 @@
     border-color: var(--color-gray-200, currentcolor);
   }
 
-  h1, h2, h3 {
+  h1, h2 {
     font-family: var(--font-display);
     font-weight: 400;
     letter-spacing: -0.018em;

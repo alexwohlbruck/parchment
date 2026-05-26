@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import {
   ShareIcon,
   BookmarkPlusIcon,
-  ArrowUpFromDotIcon,
+  RouteIcon,
   ArrowDownToDotIcon,
 } from 'lucide-vue-next'
 import { useCollectionsStore } from '@/stores/library/collections.store'
@@ -89,7 +89,7 @@ function onBookmarkDeleted() {
         {{ t('directions.directions') }}
       </Button>
       <Button class="flex-1" variant="outline" @click="$emit('directionsFrom')">
-        <ArrowUpFromDotIcon class="mr-2 size-4 rotate-90" />
+        <RouteIcon class="mr-2 size-4" />
         {{ t('directions.planRoute') }}
       </Button>
       <Tooltip>

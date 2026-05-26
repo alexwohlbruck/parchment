@@ -128,37 +128,32 @@ function handleBrandLogoError() {
     <PanelLayout>
       <template v-if="place">
         <div class="flex flex-col space-y-3">
-          <div class="flex flex-col space-y-3">
-            <PlaceHeader
-              :place="place"
-              @close="router.push({ name: AppRoute.MAP })"
-              @logoLoaded="handleBrandLogoLoad"
-              @logoError="handleBrandLogoError"
-            />
+          <PlaceHeader
+            :place="place"
+            @close="router.push({ name: AppRoute.MAP })"
+            @logoLoaded="handleBrandLogoLoad"
+            @logoError="handleBrandLogoError"
+          />
 
-            <PlaceDisplayChips :place="place" />
+          <PlaceActions
+            :place="place"
+            @directions="handleDirectionsClick"
+            @directionsFrom="handleDirectionsFromClick"
+            @share="sharePlace"
+          />
 
-            <PlaceActions
-              :place="place"
-              @directions="handleDirectionsClick"
-              @directionsFrom="handleDirectionsFromClick"
-              @share="sharePlace"
-            />
-          </div>
+          <PlaceDisplayChips :place="place" />
 
           <!-- Skeleton loaders while full data loads -->
           <template v-if="loading">
-            <!-- Gallery skeleton -->
             <Skeleton
               class="ml-[-0.75rem] mr-[-0.75rem] w-[calc(100%+1.5rem)] h-48 rounded-lg"
             />
-            <!-- Details skeleton -->
             <div class="space-y-3">
               <Skeleton class="h-5 w-3/4" />
               <Skeleton class="h-5 w-1/2" />
               <Skeleton class="h-5 w-2/3" />
             </div>
-            <!-- Sources skeleton -->
             <div class="space-y-2">
               <Skeleton class="h-4 w-1/3" />
               <Skeleton class="h-4 w-1/4" />

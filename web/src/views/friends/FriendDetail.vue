@@ -24,11 +24,10 @@ import {
   RefreshCwIcon,
   TrashIcon,
   NavigationIcon,
-  MountainIcon,
-  GaugeIcon,
-  CircleDotIcon,
   BatteryIcon,
   BatteryChargingIcon,
+  ArrowRightIcon,
+  WaypointsIcon,
 } from 'lucide-vue-next'
 import CopyButton from '@/components/CopyButton.vue'
 import {
@@ -45,6 +44,7 @@ import {
 } from '@/components/ui/popover'
 import UserHandle from '@/components/UserHandle.vue'
 import { useMapService } from '@/services/map.service'
+import { useDirectionsStore } from '@/stores/directions.store'
 import { appEventBus } from '@/lib/eventBus'
 import DetailPanelLayout from '@/components/layouts/DetailPanelLayout.vue'
 import { useUnits } from '@/composables/useUnits'
@@ -61,6 +61,7 @@ const appService = useAppService()
 const locationService = useLocationService()
 const locationBroadcast = useE2eeLocationBroadcast()
 const mapService = useMapService()
+const directionsStore = useDirectionsStore()
 const { formatSpeed, formatElevation } = useUnits()
 
 const { friends } = storeToRefs(friendsStore)
@@ -130,6 +131,21 @@ const displayName = computed(() => {
     'Unknown'
   )
 })
+
+const isLocationFresh = computed(() => {
+  if (!friendLocation.value) return false
+  return Date.now() - friendLocation.value.updatedAt.getTime() < 5 * 60_000
+})
+
+function getDirections() {
+  if (!friendLocation.value) return
+  const { lat, lng } = friendLocation.value.location
+  directionsStore.setWaypoint(1, {
+    lngLat: { lng, lat },
+    place: null,
+  })
+  router.push({ name: AppRoute.DIRECTIONS })
+}
 
 // Load location config
 async function loadLocationConfig() {
@@ -225,6 +241,7 @@ async function handleRemoveFriend() {
 }
 
 onMounted(async () => {
+  await identityStore.initialize()
   await friendsStore.loadAll()
   await loadLocationConfig()
   await friendLocations.fetchLocations()
@@ -243,14 +260,12 @@ watch([isLoading, friend], ([loading, f]) => {
 </script>
 
 <template>
-  <!-- Loading State -->
   <div v-if="isLoading" class="h-full flex items-center justify-center">
     <div class="animate-pulse text-muted-foreground">
       {{ t('general.loading') }}
     </div>
   </div>
 
-  <!-- Content -->
   <DetailPanelLayout v-else-if="friend" :title="displayName">
     <template #actions>
       <DropdownMenu>
@@ -279,287 +294,170 @@ watch([isLoading, friend], ([loading, f]) => {
       </DropdownMenu>
     </template>
 
-    <div class="space-y-5">
-      <!-- Avatar & Identity -->
-      <div class="flex flex-col items-center text-center space-y-3">
-        <div class="relative">
-          <Avatar class="size-24 ring-4 ring-background shadow-xl">
-            <AvatarImage
-              v-if="friend.friendPicture"
-              :src="friend.friendPicture"
-              :alt="displayName"
-            />
-            <AvatarFallback
-              class="text-2xl font-medium bg-gradient-to-br from-primary/20 to-primary/5 text-primary"
-            >
-              {{ getInitials(friend.friendName, friend.friendHandle) }}
-            </AvatarFallback>
-          </Avatar>
+    <!-- Hero profile -->
+    <div class="flex flex-col items-center pt-2 pb-5">
+      <Avatar class="size-20 ring-4 ring-background shadow-lg">
+        <AvatarImage
+          v-if="friend.friendPicture"
+          :src="friend.friendPicture"
+          :alt="displayName"
+        />
+        <AvatarFallback class="text-2xl font-medium">
+          {{ getInitials(friend.friendName, friend.friendHandle) }}
+        </AvatarFallback>
+      </Avatar>
 
-          <!-- Location Status Indicator with Timestamp -->
+      <p class="text-xl font-semibold mt-3">{{ displayName }}</p>
+
+      <div class="flex items-center gap-1 mt-0.5">
+        <span class="text-sm text-muted-foreground">{{ friend.friendHandle }}</span>
+        <CopyButton :text="friend.friendHandle" size="xs" variant="ghost" class="size-5 shrink-0" />
+      </div>
+
+      <!-- Status pill -->
+      <div v-if="friendLocation" class="mt-2.5">
+        <div
+          class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium"
+          :class="isLocationFresh
+            ? 'bg-green-500/10 text-green-700 dark:text-green-400'
+            : 'bg-amber-500/10 text-amber-700 dark:text-amber-400'"
+        >
           <div
-            v-if="friendLocation"
-            class="absolute -bottom-1 right-1/2 translate-x-1/2 px-2 py-0.5 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center"
-          >
-            <span class="text-[10px] font-medium text-white whitespace-nowrap">
-              {{ formatTimeAgo(friendLocation.location.timestamp) }}
+            class="size-1.5 rounded-full"
+            :class="isLocationFresh ? 'bg-green-500' : 'bg-amber-500'"
+          />
+          {{ isLocationFresh ? t('friends.detail.recentlySeen') : t('friends.detail.lastSeen') }}
+          &middot;
+          {{ formatTimeAgo(friendLocation.location.timestamp) }}
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="flex items-center gap-2 mt-4 w-full">
+        <Button
+          class="flex-1"
+          :disabled="!friendLocation"
+          @click="getDirections"
+        >
+          <ArrowRightIcon class="size-4" />
+          Directions
+        </Button>
+        <Button
+          variant="outline"
+          class="flex-1"
+          disabled
+        >
+          <WaypointsIcon class="size-4" />
+          Start convoy
+        </Button>
+      </div>
+    </div>
+
+    <!-- Location details -->
+    <template v-if="friendLocation">
+      <Separator />
+      <div class="py-3 space-y-2">
+        <div class="flex items-center gap-2 text-xs text-muted-foreground">
+          <MapPinIcon class="size-3.5 shrink-0" />
+          <span class="tabular-nums">
+            {{ friendLocation.location.lat.toFixed(5) }}, {{ friendLocation.location.lng.toFixed(5) }}
+          </span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+          <div v-if="friendLocation.location.accuracy" class="flex items-center justify-between">
+            <span class="text-muted-foreground">{{ t('friends.detail.accuracy') }}</span>
+            <span class="tabular-nums">&plusmn;{{ Math.round(friendLocation.location.accuracy) }}m</span>
+          </div>
+          <div v-if="friendLocation.location.altitude != null && friendLocation.location.altitude !== 0" class="flex items-center justify-between">
+            <span class="text-muted-foreground">{{ t('friends.detail.altitude') }}</span>
+            <span class="tabular-nums">{{ formatElevation(friendLocation.location.altitude) }}</span>
+          </div>
+          <div v-if="friendLocation.location.speed != null" class="flex items-center justify-between">
+            <span class="text-muted-foreground">{{ t('friends.detail.speed') }}</span>
+            <span class="tabular-nums">
+              <template v-if="friendLocation.location.speed > 0.5">{{ formatSpeed(friendLocation.location.speed) }}</template>
+              <template v-else>{{ t('friends.detail.stationary') }}</template>
+            </span>
+          </div>
+          <div v-if="friendLocation.location.heading != null" class="flex items-center justify-between">
+            <span class="text-muted-foreground">{{ t('friends.detail.heading') }}</span>
+            <span class="tabular-nums">{{ Math.round(friendLocation.location.heading) }}&deg;</span>
+          </div>
+          <div v-if="friendLocation.location.battery != null" class="flex items-center justify-between">
+            <span class="text-muted-foreground">{{ t('friends.detail.battery') }}</span>
+            <span class="tabular-nums flex items-center gap-1">
+              {{ Math.round(friendLocation.location.battery * 100) }}%
+              <component
+                :is="friendLocation.location.batteryCharging ? BatteryChargingIcon : BatteryIcon"
+                class="size-3"
+                :class="friendLocation.location.batteryCharging ? 'text-green-500' : 'text-muted-foreground'"
+              />
             </span>
           </div>
         </div>
-
-        <div class="space-y-1.5 pt-2">
-          <h2 class="text-xl font-bold tracking-tight">
-            {{ displayName }}
-          </h2>
-          <!-- User Handle with Copy -->
-          <UserHandle :handle="friend.friendHandle" class="w-full max-w-xs" />
-        </div>
       </div>
+    </template>
 
-      <!-- Location Info -->
-      <div v-if="friendLocation" class="space-y-2">
-        <!-- Location Details Grid -->
-        <div class="grid grid-cols-2 gap-2 text-xs">
-          <!-- Coordinates -->
-          <div
-            class="col-span-2 flex items-center gap-2 p-2.5 rounded-md bg-muted/40"
-          >
-            <MapPinIcon class="size-4 text-emerald-600 shrink-0" />
-            <p class="text-sm font-medium tabular-nums">
-              {{ friendLocation.location.lat.toFixed(6) }},
-              {{ friendLocation.location.lng.toFixed(6) }}
-            </p>
-          </div>
-          <!-- Accuracy -->
-          <div
-            v-if="friendLocation.location.accuracy"
-            class="flex items-center gap-2 p-2 rounded-md bg-muted/30"
-          >
-            <CircleDotIcon class="size-4 text-muted-foreground" />
-            <div>
-              <p class="text-muted-foreground">
-                {{ t('friends.detail.accuracy') }}
-              </p>
-              <p class="font-medium">
-                ±{{ Math.round(friendLocation.location.accuracy) }}m
-              </p>
-            </div>
-          </div>
+    <Separator />
 
-          <!-- Altitude (only show if > 0, as 0 usually means unavailable) -->
-          <div
-            v-if="
-              friendLocation.location.altitude != null &&
-              friendLocation.location.altitude !== 0
-            "
-            class="flex items-center gap-2 p-2 rounded-md bg-muted/30"
-          >
-            <MountainIcon class="size-4 text-muted-foreground" />
-            <div>
-              <p class="text-muted-foreground">
-                {{ t('friends.detail.altitude') }}
-              </p>
-              <p class="font-medium">
-                {{ formatElevation(friendLocation.location.altitude) }}
-              </p>
-            </div>
-          </div>
-
-          <!-- Speed -->
-          <div
-            v-if="friendLocation.location.speed != null"
-            class="flex items-center gap-2 p-2 rounded-md bg-muted/30"
-          >
-            <GaugeIcon class="size-4 text-muted-foreground" />
-            <div>
-              <p class="text-muted-foreground">
-                {{ t('friends.detail.speed') }}
-              </p>
-              <p class="font-medium">
-                <template v-if="friendLocation.location.speed > 0.5">
-                  {{ formatSpeed(friendLocation.location.speed) }}
-                </template>
-                <template v-else>
-                  {{ t('friends.detail.stationary') }}
-                </template>
-              </p>
-            </div>
-          </div>
-
-          <!-- Heading -->
-          <div
-            v-if="friendLocation.location.heading != null"
-            class="flex items-center gap-2 p-2 rounded-md bg-muted/30"
-          >
-            <NavigationIcon
-              class="size-4 text-muted-foreground"
-              :style="{
-                transform: `rotate(${friendLocation.location.heading}deg)`,
-              }"
-            />
-            <div>
-              <p class="text-muted-foreground">
-                {{ t('friends.detail.heading') }}
-              </p>
-              <p class="font-medium">
-                {{ Math.round(friendLocation.location.heading) }}°
-              </p>
-            </div>
-          </div>
-
-          <!-- Battery -->
-          <div
-            v-if="friendLocation.location.battery != null"
-            class="flex items-center gap-2 p-2 rounded-md bg-muted/30"
-          >
-            <component
-              :is="
-                friendLocation.location.batteryCharging
-                  ? BatteryChargingIcon
-                  : BatteryIcon
-              "
-              class="size-4"
-              :class="
-                friendLocation.location.batteryCharging
-                  ? 'text-green-500'
-                  : 'text-muted-foreground'
-              "
-            />
-            <div>
-              <p class="text-muted-foreground">
-                {{ t('friends.detail.battery') }}
-              </p>
-              <p class="font-medium flex items-center gap-1">
-                {{ Math.round(friendLocation.location.battery * 100) }}%
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- No Location State -->
-      <div
-        v-else
-        class="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-dashed border-muted-foreground/20"
-      >
-        <div
-          class="size-9 rounded-full bg-muted flex items-center justify-center shrink-0"
-        >
-          <MapPinIcon class="size-4 text-muted-foreground" />
-        </div>
-        <div class="flex-1">
-          <p class="text-sm font-medium text-muted-foreground">
-            {{ t('friends.detail.noLocationData') }}
-          </p>
-          <p class="text-xs text-muted-foreground/70">
-            {{ t('friends.detail.noLocationDescription') }}
-          </p>
-        </div>
-      </div>
-
-      <Separator />
-
-      <!-- Location Sharing Toggle -->
-      <div class="flex items-center justify-between gap-3 py-1">
-        <div class="flex items-center gap-2.5">
-          <MapPinIcon
-            class="size-4"
-            :class="
-              locationConfig?.enabled ? 'text-primary' : 'text-muted-foreground'
-            "
-          />
-          <div>
-            <Label class="text-sm font-medium">
-              {{ t('friends.detail.shareMyLocation') }}
-            </Label>
-            <p class="text-xs text-muted-foreground">
-              {{
-                locationConfig?.enabled
-                  ? t('friends.detail.sharingEnabled')
-                  : t('friends.detail.sharingDisabled')
-              }}
-            </p>
-          </div>
-        </div>
-        <Switch
-          :model-value="locationConfig?.enabled ?? false"
-          :disabled="isSavingConfig"
-          @update:model-value="toggleLocationSharing"
+    <!-- Location Sharing -->
+    <div class="flex items-center justify-between gap-3 py-3">
+      <div class="flex items-center gap-2.5">
+        <MapPinIcon
+          class="size-4"
+          :class="locationConfig?.enabled ? 'text-primary' : 'text-muted-foreground'"
         />
+        <div>
+          <p class="text-sm font-medium">{{ t('friends.detail.shareMyLocation') }}</p>
+          <p class="text-xs text-muted-foreground">
+            {{ locationConfig?.enabled ? t('friends.detail.sharingEnabled') : t('friends.detail.sharingDisabled') }}
+          </p>
+        </div>
       </div>
+      <Switch
+        :model-value="locationConfig?.enabled ?? false"
+        :disabled="isSavingConfig"
+        @update:model-value="toggleLocationSharing"
+      />
+    </div>
 
-      <Separator />
+    <Separator />
 
-      <!-- E2EE Notice with Security Keys Popover -->
-      <Popover>
-        <PopoverTrigger asChild>
-          <Alert
-            variant="success"
-            class="flex items-center gap-3 px-4 py-3 rounded-lg bg-green-500/10 border-green-500/50 cursor-pointer hover:bg-green-500/15 transition-colors"
-          >
-            <ShieldIcon class="size-4 shrink-0 text-green-600" />
-            <div class="flex-1">
-              <p
-                class="font-semibold text-sm text-green-700 dark:text-green-400"
-              >
-                {{ t('friends.e2ee.title') }}
-              </p>
-              <p class="text-xs text-muted-foreground">
-                {{ t('friends.e2ee.description') }}
-              </p>
-            </div>
-            <KeyIcon class="size-4 text-green-600/50" />
-          </Alert>
-        </PopoverTrigger>
-        <PopoverContent class="w-80" align="center">
-          <div class="space-y-3">
-            <div class="flex items-center gap-2">
-              <KeyIcon class="size-4 text-muted-foreground" />
-              <h4 class="font-medium text-sm">
-                {{ t('friends.detail.security') }}
-              </h4>
-            </div>
-            <!-- Encryption Key -->
-            <div class="space-y-1">
-              <p
-                class="text-[10px] text-muted-foreground uppercase tracking-wider"
-              >
-                {{ t('friends.detail.encryptionKey') }}
-              </p>
-              <div class="flex items-start gap-2">
-                <code
-                  class="flex-1 text-[10px] font-mono text-muted-foreground/90 bg-muted p-2 rounded break-all leading-relaxed max-h-20 overflow-y-auto"
-                  >{{ friend.friendEncryptionKey ?? 'N/A' }}</code
-                >
-                <CopyButton
-                  v-if="friend.friendEncryptionKey"
-                  :text="friend.friendEncryptionKey"
-                  class="shrink-0"
-                />
-              </div>
-            </div>
-            <!-- Signing Key -->
-            <div class="space-y-1">
-              <p
-                class="text-[10px] text-muted-foreground uppercase tracking-wider"
-              >
-                {{ t('friends.detail.signingKey') }}
-              </p>
-              <div class="flex items-start gap-2">
-                <code
-                  class="flex-1 text-[10px] font-mono text-muted-foreground/90 bg-muted p-2 rounded break-all leading-relaxed max-h-20 overflow-y-auto"
-                  >{{ friend.friendSigningKey ?? 'N/A' }}</code
-                >
-                <CopyButton
-                  v-if="friend.friendSigningKey"
-                  :text="friend.friendSigningKey"
-                  class="shrink-0"
-                />
-              </div>
+    <!-- E2EE Notice -->
+    <Popover>
+      <PopoverTrigger asChild>
+        <button class="flex items-center gap-2.5 py-3 w-full text-left cursor-pointer group">
+          <ShieldIcon class="size-4 text-muted-foreground shrink-0" />
+          <div class="flex-1">
+            <p class="text-sm font-medium">{{ t('friends.e2ee.title') }}</p>
+            <p class="text-xs text-muted-foreground">{{ t('friends.e2ee.description') }}</p>
+          </div>
+          <KeyIcon class="size-3.5 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent class="w-72" align="start">
+        <div class="space-y-3">
+          <div class="flex items-center gap-2">
+            <KeyIcon class="size-3.5 text-muted-foreground" />
+            <p class="font-medium text-sm">{{ t('friends.detail.security') }}</p>
+          </div>
+          <div class="space-y-1">
+            <p class="text-[10px] text-muted-foreground">{{ t('friends.detail.encryptionKey') }}</p>
+            <div class="flex items-start gap-1.5">
+              <code class="flex-1 text-[10px] font-mono text-muted-foreground/80 bg-muted p-1.5 rounded break-all leading-relaxed max-h-16 overflow-y-auto">{{ friend.friendEncryptionKey ?? 'N/A' }}</code>
+              <CopyButton v-if="friend.friendEncryptionKey" :text="friend.friendEncryptionKey" class="shrink-0" />
             </div>
           </div>
-        </PopoverContent>
-      </Popover>
-    </div>
+          <div class="space-y-1">
+            <p class="text-[10px] text-muted-foreground">{{ t('friends.detail.signingKey') }}</p>
+            <div class="flex items-start gap-1.5">
+              <code class="flex-1 text-[10px] font-mono text-muted-foreground/80 bg-muted p-1.5 rounded break-all leading-relaxed max-h-16 overflow-y-auto">{{ friend.friendSigningKey ?? 'N/A' }}</code>
+              <CopyButton v-if="friend.friendSigningKey" :text="friend.friendSigningKey" class="shrink-0" />
+            </div>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   </DetailPanelLayout>
 </template>

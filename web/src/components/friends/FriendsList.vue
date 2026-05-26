@@ -130,6 +130,9 @@ function handleLocationConfigChanged({ friendHandle, enabled }: { friendHandle: 
 
 onMounted(() => {
   appEventBus.on('location-config:changed', handleLocationConfigChanged)
+  if (isSetupComplete.value) {
+    friendLocations.fetchLocations()
+  }
 })
 
 onUnmounted(() => {

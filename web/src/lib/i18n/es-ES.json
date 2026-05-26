@@ -663,6 +663,8 @@
       "daysAgo": "Hace {count}d",
       "lastKnownLocation": "Última ubicación conocida",
       "showOnMap": "Ver en mapa",
+      "recentlySeen": "Visto recientemente",
+      "lastSeen": "Visto por última vez",
       "noLocationData": "Sin datos de ubicación",
       "noLocationDescription": "Este amigo aún no ha compartido su ubicación contigo.",
       "locationSharing": "Compartir ubicación",

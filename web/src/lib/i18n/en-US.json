@@ -698,6 +698,8 @@
       "daysAgo": "{count}d ago",
       "lastKnownLocation": "Last Known Location",
       "showOnMap": "Show on Map",
+      "recentlySeen": "Recently seen",
+      "lastSeen": "Last seen",
       "noLocationData": "No location data",
       "noLocationDescription": "This friend hasn't shared their location with you yet.",
       "locationSharing": "Location Sharing",

@@ -96,7 +96,7 @@ function handleSetupIdentity() {
           </div>
         </div>
 
-        <TabsContent value="friends" class="flex-1 pt-3">
+        <TabsContent value="friends" class="flex-1 pt-1.5">
           <FriendsList
             @add-friend="handleAddFriend"
             @setup-identity="handleSetupIdentity"

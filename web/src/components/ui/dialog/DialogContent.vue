@@ -44,14 +44,24 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
     >
       <slot />
 
-      <!-- Match the BottomSheet close button style: secondary pill in the
-           top-right corner. Keeps the close affordance consistent across
-           every modal surface in the app. -->
-      <DialogClose v-if="props.showCloseButton" as-child>
+      <!-- Mobile: inside close button -->
+      <DialogClose v-if="props.showCloseButton" as-child class="md:hidden">
         <Button
           variant="secondary"
           size="icon-sm"
           class="rounded-full absolute top-2 right-2 z-50"
+          aria-label="Close"
+        >
+          <X class="size-4" />
+        </Button>
+      </DialogClose>
+
+      <!-- Desktop: floating close button outside dialog -->
+      <DialogClose v-if="props.showCloseButton" as-child class="hidden md:flex">
+        <Button
+          variant="outline"
+          size="icon-sm"
+          class="rounded-full shadow-md bg-background absolute top-2 -right-10 z-50"
           aria-label="Close"
         >
           <X class="size-4" />

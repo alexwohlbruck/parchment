@@ -2,8 +2,6 @@
 import { useRouter } from 'vue-router'
 import { useResponsive } from '@/lib/utils'
 
-import { H4 } from '@/components/ui/typography'
-import { Separator } from '@/components/ui/separator'
 import Button from '@/components/ui/button/Button.vue'
 
 import { ChevronLeftIcon } from 'lucide-vue-next'
@@ -21,17 +19,13 @@ onMounted(() => {
 
 <template>
   <div class="flex-1 flex flex-col">
-    <div v-if="isMobileScreen" class="flex flex-col gap-2">
-      <div class="flex items-center gap-1 pt-2 pl-2">
-        <Button @click="router.push('/settings')" variant="ghost" size="icon">
-          <ChevronLeftIcon class="size-5" />
-        </Button>
-        <H4>
-          {{ $t(`settings.${String(router.currentRoute.value.name)}.title`) }}
-        </H4>
-      </div>
-
-      <Separator />
+    <div v-if="isMobileScreen" class="flex items-center gap-2 px-2 py-2 border-b border-border">
+      <Button @click="router.push('/settings')" variant="ghost" size="icon-sm">
+        <ChevronLeftIcon class="size-5" />
+      </Button>
+      <span class="text-base font-semibold">
+        {{ $t(`settings.${String(router.currentRoute.value.name)}.title`) }}
+      </span>
     </div>
 
     <div class="flex-1 min-h-0 overflow-y-auto items-start px-4 md:pl-6">

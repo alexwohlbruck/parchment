@@ -9,8 +9,8 @@ export type PaginatedUsers = {
 }
 
 function userService() {
-  async function getUsers(page = 1, limit = 25): Promise<PaginatedUsers> {
-    const { data } = await api.get('/users', { params: { page, limit } })
+  async function getUsers(page = 1, limit = 25, config?: Record<string, any>): Promise<PaginatedUsers> {
+    const { data } = await api.get('/users', { params: { page, limit }, ...config })
     return data
   }
 

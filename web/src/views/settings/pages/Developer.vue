@@ -23,6 +23,7 @@ import {
   PauseIcon,
   PlayIcon,
   RotateCcwIcon,
+  SendIcon,
   XIcon,
 } from 'lucide-vue-next'
 import { SettingsSection, SettingsItem } from '@/components/settings'
@@ -35,6 +36,7 @@ import {
   simulatorStore,
   type SimulatorState,
 } from '@/dev/gpx-simulator'
+import { useE2eeLocationBroadcast } from '@/composables/useE2eeLocationBroadcast'
 import { useUserService } from '@/services/user.service'
 import { useAuthService } from '@/services/auth.service'
 import { useAuthStore } from '@/stores/auth.store'
@@ -150,6 +152,22 @@ function toggleLoop(value: boolean) {
   simulatorStore.setLoop(value)
 }
 
+// --- Location broadcast ---
+const locationBroadcast = useE2eeLocationBroadcast()
+const isBroadcasting = ref(false)
+
+async function forceBroadcast() {
+  isBroadcasting.value = true
+  try {
+    await locationBroadcast.broadcastNow()
+    appService.toast.success('Location broadcast sent')
+  } catch (err) {
+    appService.toast.error('Broadcast failed')
+  } finally {
+    isBroadcasting.value = false
+  }
+}
+
 // --- Impersonation ---
 const router = useRouter()
 const userService = useUserService()
@@ -160,10 +178,14 @@ const allUsers = ref<User[]>([])
 const selectedUserId = ref('')
 
 async function loadUsers() {
-  const result = await userService.getUsers(1, 100)
-  allUsers.value = (result.data as User[]).filter(
-    (u: User) => u.id !== authStore.me?.id,
-  )
+  try {
+    const result = await userService.getUsers(1, 100, { silentStatuses: [403] })
+    allUsers.value = (result.data as User[]).filter(
+      (u: User) => u.id !== authStore.me?.id,
+    )
+  } catch {
+    // User may lack USERS_READ permission — impersonation section stays hidden
+  }
 }
 
 async function startImpersonation() {
@@ -348,6 +370,27 @@ onMounted(() => {
           <span class="text-sm tabular-nums">{{ headingLabel }}</span>
         </SettingsItem>
       </template>
+    </SettingsSection>
+
+    <SettingsSection
+      id="location-broadcast"
+      title="Location broadcast"
+      description="Force push your current location to all friends with sharing enabled."
+    >
+      <SettingsItem
+        title="Broadcast location"
+        description="Encrypts and sends your current position immediately."
+        :icon="SendIcon"
+      >
+        <Button
+          variant="outline"
+          size="sm"
+          :disabled="isBroadcasting"
+          @click="forceBroadcast"
+        >
+          {{ isBroadcasting ? 'Sending...' : 'Send now' }}
+        </Button>
+      </SettingsItem>
     </SettingsSection>
 
     <SettingsSection

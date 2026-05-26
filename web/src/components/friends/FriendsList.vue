@@ -184,24 +184,6 @@ onUnmounted(() => {
          tab already labels this section. The Add-Friend action sits as
          a compact right-aligned button with the count beside it. -->
     <template v-else>
-      <div class="flex items-center justify-between">
-        <span class="text-xs text-muted-foreground">
-          {{
-            friends.length === 1
-              ? t('friends.countOne', { n: friends.length })
-              : t('friends.countMany', { n: friends.length })
-          }}
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          @click="emit('addFriend')"
-        >
-          <UserPlus class="h-4 w-4 mr-2" />
-          {{ t('friends.addFriend') }}
-        </Button>
-      </div>
-
       <div class="flex flex-col gap-2">
         <FriendCard
           v-for="friend in friends"

@@ -78,7 +78,7 @@ const hasPublicLink = computed(() => !!props.publicToken)
     <template v-else>
       <div
         v-if="!hasPublicLink"
-        class="flex items-start gap-3 rounded-md border border-border p-3"
+        class="flex items-start gap-3 rounded-md border p-3"
       >
         <LockIcon class="size-4 text-muted-foreground shrink-0 mt-0.5" />
         <div class="flex-1">
@@ -101,7 +101,7 @@ const hasPublicLink = computed(() => !!props.publicToken)
 
       <div
         v-else
-        class="rounded-md border border-border p-3 overflow-hidden"
+        class="rounded-md border p-3 overflow-hidden"
       >
         <div class="flex items-start gap-3">
           <GlobeIcon class="size-4 text-primary shrink-0 mt-0.5" />

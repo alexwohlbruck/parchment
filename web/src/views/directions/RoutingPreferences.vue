@@ -360,7 +360,7 @@ const customModelError = computed(() => {
         </Select>
       </div>
 
-      <div class="space-y-3 border-border pt-3">
+      <div class="space-y-3 pt-3">
         <div class="flex items-center justify-between">
           <Label for="use-known-vehicle-locations" class="text-sm font-normal">
             {{ t('directions.preferences.useKnownVehicleLocations') }}
@@ -899,7 +899,7 @@ const customModelError = computed(() => {
       </CollapsibleContent>
     </Collapsible>
 
-    <div class="hidden md:flex justify-end px-4 py-3 border-t border-border">
+    <div class="hidden md:flex justify-end px-4 py-3 border-t">
       <Button size="sm" @click="emit('close')">
         {{ t('general.done') }}
       </Button>

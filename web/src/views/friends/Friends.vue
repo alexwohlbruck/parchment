@@ -80,7 +80,7 @@ function handleSetupIdentity() {
     <template v-if="canAccessFriends">
       <h1 class="text-2xl font-semibold mb-3">Friends</h1>
       <Tabs default-value="friends" class="flex-1 flex flex-col">
-        <div class="-mx-3 px-3 flex items-end border-b border-border" style="width: calc(100% + 1.5rem)">
+        <div class="-mx-3 px-3 flex items-end border-b" style="width: calc(100% + 1.5rem)">
           <TabsList variant="linear" class="border-b-0">
             <TabsTrigger value="friends" variant="linear">
               Friends

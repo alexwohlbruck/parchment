@@ -100,7 +100,7 @@ onMounted(() => {
 
     <div
       v-if="promotionCandidate"
-      class="rounded-md border border-border p-3 flex flex-col gap-2"
+      class="rounded-md border p-3 flex flex-col gap-2"
     >
       <div class="text-sm">
         <span class="font-semibold">{{

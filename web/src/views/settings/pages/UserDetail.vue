@@ -401,7 +401,7 @@ onMounted(() => {
               <table class="w-full text-sm">
                 <thead>
                   <tr
-                    class="border-b border-border text-left text-muted-foreground"
+                    class="border-b text-left text-muted-foreground"
                   >
                     <th class="px-4 py-2 font-medium">Date</th>
                     <th class="px-4 py-2 font-medium">Reason</th>
@@ -413,7 +413,7 @@ onMounted(() => {
                   <tr
                     v-for="order in billing.orders"
                     :key="order.id"
-                    class="border-b border-border last:border-0"
+                    class="border-b last:border-0"
                   >
                     <td class="px-4 py-2">
                       {{

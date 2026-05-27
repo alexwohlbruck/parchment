@@ -18,7 +18,7 @@ const generalChips = computed((): DisplayChip[] =>
     <span
       v-for="chip in generalChips"
       :key="`${chip.key}_${chip.value}`"
-      class="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs"
+      class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
       :class="chip.sentiment === 'negative' ? 'text-muted-foreground' : 'bg-muted text-foreground'"
     >
       <component :is="resolveIconByName(chip.icon)" class="size-3" />

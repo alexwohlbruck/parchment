@@ -244,7 +244,7 @@ watch(
       <!-- Brand Logo -->
       <div
         v-if="logoLoading || brandLogo || logoError"
-        class="size-12 rounded-lg overflow-hidden border border-border shadow-sm shrink-0"
+        class="size-12 rounded-lg overflow-hidden border shadow-sm shrink-0"
       >
         <div
           v-if="logoLoading"

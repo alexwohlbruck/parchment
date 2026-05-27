@@ -24,7 +24,7 @@ const emit = defineEmits<{
       <div
         v-for="i in 6"
         :key="i"
-        class="rounded-xl border border-border bg-card px-3 py-3"
+        class="rounded-xl border bg-card px-3 py-3"
       >
         <div class="flex items-start gap-3">
           <Skeleton class="size-8 rounded-full shrink-0 mt-0.5" />

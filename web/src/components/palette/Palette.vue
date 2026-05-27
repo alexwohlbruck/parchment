@@ -360,7 +360,7 @@ const filterFunction = computed(() => {
 <template>
   <div ref="container">
     <Command
-      class="border border-border bg-background/85 backdrop-blur-xl backdrop-saturate-150"
+      class="border bg-background/85 backdrop-blur-xl backdrop-saturate-150"
       ref="commandPalette"
       v-model:open="commandOpen"
       :ignore-filter="true"
@@ -606,7 +606,7 @@ const filterFunction = computed(() => {
       <!-- Keyboard shortcut hints -->
       <div
         v-if="showHints"
-        class="flex items-center gap-4 px-3 py-2 text-xs text-muted-foreground bg-muted/50 border-t border-border"
+        class="flex items-center gap-4 px-3 py-2 text-xs text-muted-foreground bg-muted/50 border-t"
       >
         <div class="flex items-center gap-1.5">
           <Kbd :hotkeyId="HotkeyId.COMMAND_PALETTE" size="xs" />

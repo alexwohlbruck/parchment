@@ -25,7 +25,7 @@ const delegatedProps = computed(() => {
     :class="
       cn(
         variant === 'linear'
-          ? 'flex items-center gap-5 border-b border-border text-muted-foreground'
+          ? 'flex items-center gap-5 border-b text-muted-foreground'
           : 'inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground',
         props.class,
       )

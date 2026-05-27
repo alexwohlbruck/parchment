@@ -181,7 +181,7 @@ onMounted(() => {
           :class="[
             currentMode === option.value
               ? 'border-primary bg-primary/5'
-              : 'border-border hover:border-primary/40',
+              : 'hover:border-primary/40',
           ]"
           @click="setMode(option.value)"
         >

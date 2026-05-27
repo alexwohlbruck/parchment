@@ -156,7 +156,7 @@ function checkout(tier: Tier) {
       v-for="tier in tiers"
       :key="tier.id"
       class="rounded-lg bg-card text-card-foreground shadow-xs p-4 flex flex-col gap-4"
-      :class="tier.isCurrent ? '' : 'border border-border'"
+      :class="tier.isCurrent ? '' : 'border'"
       :style="tier.isCurrent ? {
         background: 'linear-gradient(180deg, hsl(var(--primary) / 0.08) 0%, hsl(var(--card)) 40%)',
         boxShadow: '0 0 0 1.5px hsl(var(--primary)) inset',

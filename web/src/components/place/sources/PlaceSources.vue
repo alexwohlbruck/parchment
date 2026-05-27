@@ -12,7 +12,7 @@ const sources = computed(() => props.place.sources ?? [])
 <template>
   <div
     v-if="sources.length"
-    class="px-3.5 py-2.5 rounded-lg border border-border text-xs text-muted-foreground"
+    class="px-3.5 py-2.5 rounded-lg border text-xs text-muted-foreground"
   >
     Data from
     <template v-for="(source, i) in sources" :key="source.id">

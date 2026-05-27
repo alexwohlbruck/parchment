@@ -106,7 +106,7 @@ function handleRowClick(event: MouseEvent, row: TData) {
 
 <template>
   <div class="flex flex-col gap-2">
-    <div class="border border-border rounded-md overflow-y-auto">
+    <div class="border rounded-md overflow-y-auto">
       <Table>
         <TableHeader>
           <TableRow

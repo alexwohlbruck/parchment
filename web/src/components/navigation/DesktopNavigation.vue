@@ -305,7 +305,7 @@ const items = computed<MenuItemDefinition[]>(() => [
       ref="navRef"
       :class="
         cn(
-          'overflow-y-auto py-1 border-border border-r flex flex-col gap-2 items-stretch relative',
+          'overflow-y-auto py-1 border-r flex flex-col gap-2 items-stretch relative',
           isTauri ? 'tauri-translucent' : 'bg-background',
           $attrs.class ?? '',
         )

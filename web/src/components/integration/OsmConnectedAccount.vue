@@ -84,7 +84,7 @@ defineExpose({ submit })
     </div>
 
     <!-- Connected account info -->
-    <div class="flex items-center gap-4 p-4 border border-border rounded-lg bg-muted/30">
+    <div class="flex items-center gap-4 p-4 border rounded-lg bg-muted/30">
       <Avatar size="sm" shape="circle">
         <AvatarImage v-if="osmProfileImageUrl" :src="osmProfileImageUrl" :alt="osmDisplayName" />
         <AvatarFallback
@@ -113,7 +113,7 @@ defineExpose({ submit })
       <div class="block text-sm font-medium text-foreground">
         {{ t('settings.integrations.capabilities.title') }}
       </div>
-      <div class="space-y-3 p-3 border border-border rounded-md">
+      <div class="space-y-3 p-3 border rounded-md">
         <div
           v-for="capability in capabilities"
           :key="capability.id"

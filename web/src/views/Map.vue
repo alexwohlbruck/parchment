@@ -346,7 +346,7 @@ defineExpose({
             >
               <button
                 v-if="searchStore.pendingAreaSearch && !searchStore.isLoading"
-                class="pointer-events-auto flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium bg-background text-foreground border border-border shadow-md hover:bg-accent active:scale-95 transition-all"
+                class="pointer-events-auto flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium bg-background text-foreground border shadow-md hover:bg-accent active:scale-95 transition-all"
                 @click="searchStore.requestAreaSearch()"
               >
                 <SearchIcon class="w-3.5 h-3.5" />

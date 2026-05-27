@@ -316,7 +316,7 @@ function openTransitlandLink() {
     </div>
 
     <!-- Footer: agency + Transitland -->
-    <div class="mt-6 pt-3 border-t border-border space-y-2 text-xs text-muted-foreground">
+    <div class="mt-6 pt-3 border-t space-y-2 text-xs text-muted-foreground">
       <div v-if="departures.length > 0 && departures[0].agency">
         Operated by
         <a

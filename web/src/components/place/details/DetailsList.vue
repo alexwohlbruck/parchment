@@ -522,7 +522,7 @@ function getFullAddress(address: any) {
             <span
               v-for="chip in dietChips"
               :key="`${chip.key}_${chip.value}`"
-              class="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-xs text-foreground"
+              class="inline-flex items-center gap-1 rounded-full border bg-muted px-2 py-0.5 text-xs text-foreground"
             >
               <component :is="resolveIconByName(chip.icon)" class="size-3" />
               <span>{{ chip.label }}</span>

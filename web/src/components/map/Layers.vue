@@ -212,7 +212,7 @@ async function handleMainChange(evt: any) {
                 @toggle-expanded="toggleGroup"
               />
 
-              <div v-else class="border border-border rounded-lg bg-background">
+              <div v-else class="border rounded-lg bg-background">
                 <LayerItemComponent :layer="element" />
               </div>
             </div>

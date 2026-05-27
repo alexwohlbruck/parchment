@@ -201,7 +201,7 @@ function navigateToTripDetail(trip: TripOption) {
             <template v-for="tick in timeTicks" :key="tick.time">
               <div
                 class="absolute bottom-0"
-                :class="tick.isLabel ? 'h-2 border-l border-border' : 'h-1.5 border-l border-border/60'"
+                :class="tick.isLabel ? 'h-2 border-l' : 'h-1.5 border-l border-border/60'"
                 :style="{ left: `${tick.position}px` }"
               />
               <span

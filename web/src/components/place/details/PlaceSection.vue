@@ -39,7 +39,7 @@ const isOpen = ref(props.defaultOpen)
           </div>
           
           <CollapsibleContent>
-            <div class="pt-3 space-y-3 border-t border-border mt-3">
+            <div class="pt-3 space-y-3 border-t mt-3">
               <slot name="expanded" />
             </div>
           </CollapsibleContent>

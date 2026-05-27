@@ -19,7 +19,7 @@ onMounted(() => {
 
 <template>
   <div class="flex-1 flex flex-col">
-    <div v-if="isMobileScreen" class="flex items-center gap-2 px-2 py-2 border-b border-border">
+    <div v-if="isMobileScreen" class="flex items-center gap-2 px-2 py-2 border-b">
       <Button @click="router.push('/settings')" variant="ghost" size="icon-sm">
         <ChevronLeftIcon class="size-5" />
       </Button>

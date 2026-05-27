@@ -82,7 +82,7 @@ onMounted(async () => {
     <!-- Active subscription details -->
     <div
       v-if="(sub.tier.value === 'basic' || sub.tier.value === 'premium') && sub.details.value"
-      class="rounded-lg border border-border bg-card text-card-foreground shadow-xs p-4 flex flex-col"
+      class="rounded-lg border bg-card text-card-foreground shadow-xs p-4 flex flex-col"
     >
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">

@@ -458,7 +458,7 @@
   ::before,
   ::backdrop,
   ::file-selector-button {
-    border-color: var(--color-parchment-200, currentcolor);
+    border-color: var(--color-border, currentcolor);
   }
 
   h1, h2 {

@@ -70,7 +70,7 @@ function handleTabChange(tabId: string) {
         @update:model-value="handleTabChange"
         class="w-full h-full flex flex-col"
       >
-        <div class="-mx-3 px-3 flex items-end border-b border-border relative" style="width: calc(100% + 1.5rem)">
+        <div class="-mx-3 px-3 flex items-end border-b relative" style="width: calc(100% + 1.5rem)">
           <TabsList variant="linear" class="border-b-0">
             <TabsTrigger
               v-for="tab in tabs"

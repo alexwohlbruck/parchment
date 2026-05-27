@@ -555,7 +555,7 @@ const icon = computed(() => {
     </div>
     <div
       v-if="integration.capabilities?.length > 0"
-      class="bg-muted/50 border-t border-border mt-auto"
+      class="bg-muted/50 border-t mt-auto"
     >
       <div
         class="flex flex-nowrap gap-2 px-2 py-3 overflow-x-auto scrollbar-hidden"

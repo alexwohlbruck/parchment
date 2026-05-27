@@ -319,11 +319,11 @@ function getDisplayName(serverUrl: string): string {
   </form>
 
   <div class="flex items-center my-6" v-if="!isTauri">
-    <hr class="flex-1 border-border" />
+    <hr class="flex-1" />
     <span class="px-4 text-xs text-muted-foreground uppercase">{{
       t('auth.signIn.or')
     }}</span>
-    <hr class="flex-1 border-border" />
+    <hr class="flex-1" />
   </div>
 
   <Button

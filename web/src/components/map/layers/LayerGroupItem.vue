@@ -192,7 +192,7 @@ function findChildTreeNode(group: LayerGroup): GroupTreeNode {
 
 <template>
   <div
-    class="border border-border rounded-lg bg-background transition-colors select-none"
+    class="border rounded-lg bg-background transition-colors select-none"
     :class="depth > 0 ? 'mt-1' : ''"
   >
     <Collapsible :open="expanded">
@@ -273,7 +273,7 @@ function findChildTreeNode(group: LayerGroup): GroupTreeNode {
 
       <!-- Group Content: Mixed draggable of layers + child groups -->
       <CollapsibleContent>
-        <div class="border-t border-border">
+        <div class="border-t">
           <draggable
             v-model="mixedItems"
             v-bind="groupDragOptions"

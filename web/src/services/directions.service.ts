@@ -106,6 +106,7 @@ function directionsService() {
       const { data } = await api.post('/directions/', request)
 
       // Transform response to UI format
+      const serverWaypoints: Array<{ label?: string }> = data.request?.waypoints ?? []
       const response: TripsResponse = {
         request: {
           waypoints: validWaypoints.map((wp, i) => ({
@@ -115,7 +116,7 @@ function directionsService() {
               i === 0 || i === validWaypoints.length - 1
                 ? WaypointType.STOP
                 : WaypointType.VIA,
-            name: wp.place ? getSearchResultName(wp.place as Place) : '',
+            name: (wp.place ? getSearchResultName(wp.place as Place) : '') || serverWaypoints[i]?.label || '',
           })),
           availableVehicles: availableVehicles.map(v => v.type),
           maxOptions: 5,
@@ -259,6 +260,12 @@ function directionsService() {
             place: place,
           }
           store.setWaypoint(index, updatedWaypoint)
+
+          // Patch the stored trip response if it already exists
+          const trips = store.trips
+          if (trips?.request?.waypoints?.[index]) {
+            trips.request.waypoints[index].name = getSearchResultName(place as Place)
+          }
         } else {
           console.log('[Directions] No reverse geocoding results found')
         }

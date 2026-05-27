@@ -43,28 +43,28 @@ export const PROFILE_TABS: ProfileTabDef[] = [
 // ── Surface categories ──────────────────────────────────────────────
 
 export const SURFACE_CATEGORIES: Record<string, ProfileCategory> = {
-  paved_smooth: { label: 'Paved', color: '#22c55e', caseColor: '#15803d', group: 'paved' },
-  paved: { label: 'Paved', color: '#22c55e', caseColor: '#15803d', group: 'paved' },
-  paved_rough: { label: 'Rough paved', color: '#eab308', caseColor: '#a16207', group: 'rough' },
-  compacted: { label: 'Compacted', color: '#eab308', caseColor: '#a16207', group: 'rough' },
-  gravel: { label: 'Gravel', color: '#f97316', caseColor: '#c2410c', group: 'unpaved' },
-  dirt: { label: 'Dirt', color: '#f97316', caseColor: '#c2410c', group: 'unpaved' },
-  path: { label: 'Path', color: '#ef4444', caseColor: '#b91c1c', group: 'trail' },
-  impassable: { label: 'Impassable', color: '#ef4444', caseColor: '#b91c1c', group: 'trail' },
-  unknown: { label: 'Unknown', color: '#9ca3af', caseColor: '#6b7280', group: 'unknown' },
+  paved_smooth: { label: 'Paved', color: '#7ca06a', caseColor: '#426330', group: 'paved' },
+  paved: { label: 'Paved', color: '#7ca06a', caseColor: '#426330', group: 'paved' },
+  paved_rough: { label: 'Rough paved', color: '#e97f00', caseColor: '#a54100', group: 'rough' },
+  compacted: { label: 'Compacted', color: '#e97f00', caseColor: '#a54100', group: 'rough' },
+  gravel: { label: 'Gravel', color: '#f86f3b', caseColor: '#b12b00', group: 'unpaved' },
+  dirt: { label: 'Dirt', color: '#f86f3b', caseColor: '#b12b00', group: 'unpaved' },
+  path: { label: 'Path', color: '#b33c2c', caseColor: '#761408', group: 'trail' },
+  impassable: { label: 'Impassable', color: '#b33c2c', caseColor: '#761408', group: 'trail' },
+  unknown: { label: 'Unknown', color: '#c1a57b', caseColor: '#a18559', group: 'unknown' },
 }
 
 // ── Incline categories ──────────────────────────────────────────────
 
 export const INCLINE_CATEGORIES: Record<string, ProfileCategory> = {
-  steep_up:     { label: 'Steep uphill',     color: '#dc2626', caseColor: '#991b1b', group: 'steep_up' },
-  moderate_up:  { label: 'Uphill',           color: '#f97316', caseColor: '#c2410c', group: 'moderate_up' },
-  gentle_up:    { label: 'Gentle uphill',    color: '#eab308', caseColor: '#a16207', group: 'gentle_up' },
-  flat:         { label: 'Flat',             color: '#86efac', caseColor: '#4ade80', group: 'flat' },
-  gentle_down:  { label: 'Gentle downhill',  color: '#22c55e', caseColor: '#15803d', group: 'gentle_down' },
-  moderate_down:{ label: 'Downhill',         color: '#16a34a', caseColor: '#15803d', group: 'moderate_down' },
-  steep_down:   { label: 'Steep downhill',   color: '#166534', caseColor: '#14532d', group: 'steep_down' },
-  unknown:      { label: 'Unknown',          color: '#9ca3af', caseColor: '#6b7280', group: 'unknown' },
+  steep_up:     { label: 'Steep uphill',     color: '#b33c2c', caseColor: '#761408', group: 'steep_up' },
+  moderate_up:  { label: 'Uphill',           color: '#f86f3b', caseColor: '#b12b00', group: 'moderate_up' },
+  gentle_up:    { label: 'Gentle uphill',    color: '#e97f00', caseColor: '#a54100', group: 'gentle_up' },
+  flat:         { label: 'Flat',             color: '#a3c095', caseColor: '#7ca06a', group: 'flat' },
+  gentle_down:  { label: 'Gentle downhill',  color: '#7ca06a', caseColor: '#426330', group: 'gentle_down' },
+  moderate_down:{ label: 'Downhill',         color: '#426330', caseColor: '#314d21', group: 'moderate_down' },
+  steep_down:   { label: 'Steep downhill',   color: '#314d21', caseColor: '#223815', group: 'steep_down' },
+  unknown:      { label: 'Unknown',          color: '#c1a57b', caseColor: '#a18559', group: 'unknown' },
 }
 
 // ── Bike-friendliness categories ────────────────────────────────────
@@ -75,12 +75,12 @@ export const INCLINE_CATEGORIES: Record<string, ProfileCategory> = {
 // "very_high" = green (best).
 
 export const STRESS_CATEGORIES: Record<string, ProfileCategory> = {
-  very_high: { label: 'Very friendly', color: '#22c55e', caseColor: '#15803d', group: 'very_high' },
-  high:      { label: 'Friendly',      color: '#86efac', caseColor: '#4ade80', group: 'high' },
-  moderate:  { label: 'Moderate',      color: '#eab308', caseColor: '#a16207', group: 'moderate' },
-  low:       { label: 'Low',           color: '#f97316', caseColor: '#c2410c', group: 'low' },
-  very_low:  { label: 'Unfriendly',    color: '#ef4444', caseColor: '#b91c1c', group: 'very_low' },
-  unknown:   { label: 'Unknown',       color: '#9ca3af', caseColor: '#6b7280', group: 'unknown' },
+  very_high: { label: 'Very friendly', color: '#7ca06a', caseColor: '#426330', group: 'very_high' },
+  high:      { label: 'Friendly',      color: '#a3c095', caseColor: '#7ca06a', group: 'high' },
+  moderate:  { label: 'Moderate',      color: '#e97f00', caseColor: '#a54100', group: 'moderate' },
+  low:       { label: 'Low',           color: '#f86f3b', caseColor: '#b12b00', group: 'low' },
+  very_low:  { label: 'Unfriendly',    color: '#b33c2c', caseColor: '#761408', group: 'very_low' },
+  unknown:   { label: 'Unknown',       color: '#c1a57b', caseColor: '#a18559', group: 'unknown' },
 }
 
 // ── Category map by profile type ────────────────────────────────────
@@ -154,7 +154,7 @@ export function getEdgeCategory(
     case 'stress':
       return getStressCategory(edge.bikePriority, edge.getOffBike)
     default:
-      return { label: 'Unknown', color: '#9ca3af', caseColor: '#6b7280', group: 'unknown' }
+      return { label: 'Unknown', color: '#c1a57b', caseColor: '#a18559', group: 'unknown' }
   }
 }
 

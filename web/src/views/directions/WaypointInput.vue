@@ -251,7 +251,7 @@ function autocompleteResultToPlace(result: AutocompleteResult): Place {
         id: result.id,
         name: result.title,
         icon: result.icon || 'map-pin',
-        iconColor: result.color || 'rose',
+        iconColor: result.color || 'magenta',
       },
     } as unknown as Place
   }
@@ -460,7 +460,7 @@ defineExpose({
                               ? result.icon || 'MapPin'
                               : 'MapPin'
                         "
-                        :color="(result.color as ThemeColor) || 'slate'"
+                        :color="(result.color as ThemeColor) || 'parchment'"
                         size="sm"
                         class="size-4"
                       />

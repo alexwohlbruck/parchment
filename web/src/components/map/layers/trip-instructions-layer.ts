@@ -91,13 +91,13 @@ export class TripInstructionsLayer extends BaseMarkerLayer {
    */
   private getSegmentColor(mode: string): string {
     const modeColors: Record<string, string> = {
-      walking: '#3b82f6',
-      biking: '#22c55e',
-      cycling: '#22c55e',
-      driving: '#a855f7',
-      transit: '#64748b',
-      truck: '#f97316',
+      walking: '#0089e9',
+      biking: '#7ca06a',
+      cycling: '#7ca06a',
+      driving: '#7965f0',
+      transit: '#a18559',
+      truck: '#f86f3b',
     }
-    return modeColors[mode] || '#3b82f6'
+    return modeColors[mode] || '#0089e9'
   }
 }

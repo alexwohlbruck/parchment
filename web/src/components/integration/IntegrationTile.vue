@@ -509,7 +509,7 @@ const icon = computed(() => {
           </Tooltip>
           <Tooltip v-if="integration.scope">
             <TooltipTrigger as-child>
-              <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-parchment-100 text-parchment-700 dark:bg-parchment-900 dark:text-parchment-300 font-semibold flex items-center gap-0.5">
+              <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-semibold flex items-center gap-0.5">
                 <UserIcon
                   v-if="integration.scope.includes(IntegrationScope.USER)"
                   class="size-3"

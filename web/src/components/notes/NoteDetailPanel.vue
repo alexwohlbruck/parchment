@@ -120,7 +120,7 @@ function handleReopen() {
             :class="
               noteStatus === 'open'
                 ? 'bg-forest-100 text-forest-700 dark:bg-forest-900 dark:text-forest-300'
-                : 'bg-parchment-100 text-parchment-600 dark:bg-parchment-800 dark:text-parchment-400'
+                : 'bg-muted text-muted-foreground'
             "
           >
             {{ noteStatus === 'open' ? t('notes.open') : t('notes.closed') }}

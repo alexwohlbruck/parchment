@@ -272,7 +272,7 @@ const aqiLabel = computed(() => {
 
 const aqiBadgeClass = computed(() => {
   const aqi = aqiLevel.value
-  if (!aqi) return 'bg-parchment-400'
+  if (!aqi) return 'bg-muted-foreground'
 
   if (unitSystem.value === UnitSystem.METRIC) {
     if (aqi === 1) return 'bg-forest-500'

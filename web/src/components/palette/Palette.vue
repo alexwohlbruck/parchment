@@ -426,7 +426,7 @@ const filterFunction = computed(() => {
                   {{ command.name
                   }}<template v-if="command.arguments">...</template>
                 </span>
-                <span class="text-sm text-parchment-500" v-if="command.description">
+                <span class="text-sm text-muted-foreground" v-if="command.description">
                   {{ command.description }}
                 </span>
               </div>
@@ -454,7 +454,7 @@ const filterFunction = computed(() => {
               <SettingsIcon class="size-5" />
               <div class="flex-1 flex flex-col">
                 <span class="font-semibold">{{ entry.title }}</span>
-                <span class="text-sm text-parchment-500">
+                <span class="text-sm text-muted-foreground">
                   {{ entry.pageTitle
                   }}<template v-if="entry.level === 'item'">
                     · {{ entry.sectionTitle }}</template>
@@ -510,7 +510,7 @@ const filterFunction = computed(() => {
                 <div class="flex-1 flex flex-col">
                   <span class="font-semibold">{{ argumentOption.name }}</span>
                   <span
-                    class="text-sm text-parchment-500"
+                    class="text-sm text-muted-foreground"
                     v-if="argumentOption.description"
                   >
                     {{ argumentOption.description }}
@@ -565,7 +565,7 @@ const filterFunction = computed(() => {
                     </Badge>
                   </span>
                   <span
-                    class="text-sm text-parchment-500"
+                    class="text-sm text-muted-foreground"
                     v-if="argumentOption.description"
                   >
                     {{ argumentOption.description }}
@@ -592,7 +592,7 @@ const filterFunction = computed(() => {
               <SettingsIcon class="size-5 opacity-50" />
               <div class="flex-1 flex flex-col">
                 <span class="font-semibold">{{ entry.title }}</span>
-                <span class="text-sm text-parchment-500">
+                <span class="text-sm text-muted-foreground">
                   {{ entry.pageTitle
                   }}<template v-if="entry.level === 'item'">
                     · {{ entry.sectionTitle }}</template>

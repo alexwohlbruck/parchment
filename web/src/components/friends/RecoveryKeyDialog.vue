@@ -27,6 +27,7 @@ import {
   AtSign,
   Fingerprint,
   Smartphone,
+  AlertTriangle,
 } from 'lucide-vue-next'
 
 import RecoveryKeySetupContent from './RecoveryKeySetupContent.vue'

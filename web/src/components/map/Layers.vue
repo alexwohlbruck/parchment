@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useLayersStore } from '@/stores/layers.store'
@@ -35,6 +35,11 @@ const { t } = useI18n()
 const { isDragActive } = useDragState()
 
 const isProd = import.meta.env.PROD
+
+const hasTeleportTarget = ref(false)
+onMounted(() => {
+  hasTeleportTarget.value = !!document.getElementById('library-tab-actions')
+})
 
 function openLayerConfigDialog(layerId?: string) {
   appService.componentDialog({
@@ -146,7 +151,7 @@ async function handleMainChange(evt: any) {
 </script>
 
 <template>
-  <Teleport to="#library-tab-actions">
+  <Teleport v-if="hasTeleportTarget" to="#library-tab-actions">
     <DropdownMenu>
       <DropdownMenuTrigger as-child>
         <Button variant="ghost" size="icon" class="size-7" :disabled="isProd">

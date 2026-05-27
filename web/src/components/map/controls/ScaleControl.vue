@@ -214,8 +214,8 @@ const isLowZoom = computed(() => {
           class="flex h-1.5 rounded overflow-hidden cursor-pointer transition-[background-color,border-color] duration-300"
           :class="[
             isLowZoom
-              ? 'ring-1 ring-parchment-700'
-              : 'ring-1 ring-parchment-200 dark:ring-parchment-700',
+              ? 'ring-1 ring-slate-700'
+              : 'ring-1 ring-slate-200 dark:ring-slate-700',
           ]"
           @click="toggleUnits"
         >
@@ -228,11 +228,11 @@ const isLowZoom = computed(() => {
               :class="[
                 isLowZoom
                   ? index % 2 === 0
-                    ? 'bg-parchment-900'
-                    : 'bg-parchment-500'
+                    ? 'bg-slate-900'
+                    : 'bg-slate-500'
                   : index % 2 === 0
-                  ? 'bg-parchment-400 dark:bg-parchment-900'
-                  : 'bg-white dark:bg-parchment-500',
+                  ? 'bg-slate-400 dark:bg-slate-900'
+                  : 'bg-white dark:bg-slate-500',
               ]"
               :style="{
                 width: `${
@@ -252,8 +252,8 @@ const isLowZoom = computed(() => {
                 class="text-[.65rem] font-bold transition-colors duration-300"
                 :class="[
                   isLowZoom
-                    ? 'text-parchment-200'
-                    : 'text-parchment-500 dark:text-parchment-200',
+                    ? 'text-slate-200'
+                    : 'text-slate-500 dark:text-slate-200',
                 ]"
                 >{{
                   formatDistance(

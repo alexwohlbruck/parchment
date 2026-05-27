@@ -58,14 +58,14 @@ function handleMouseLeave(event: MouseEvent) {
   >
     <!-- Stop name label (Apple Maps style) -->
     <div 
-      class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-white/95 backdrop-blur-sm rounded-md shadow-lg border border-gray-200 whitespace-nowrap transition-all duration-200"
+      class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-white/95 backdrop-blur-sm rounded-md shadow-lg border border-parchment-200 whitespace-nowrap transition-all duration-200"
       :class="{
         'scale-110 shadow-xl': props.isHovered,
         'scale-100': !props.isHovered
       }"
     >
       <!-- Stop name -->
-      <div class="text-xs font-medium text-gray-900 mb-1">
+      <div class="text-xs font-medium text-parchment-900 mb-1">
         {{ props.stop.stop_name }}
       </div>
       
@@ -82,12 +82,12 @@ function handleMouseLeave(event: MouseEvent) {
             :style="{ backgroundColor: routeColors[index] || '#007cbf' }"
           />
           <!-- Route name -->
-          <span class="text-xs text-gray-600 font-medium">
+          <span class="text-xs text-parchment-600 font-medium">
             {{ routeName }}
           </span>
         </div>
         <!-- Show "+" if more routes -->
-        <span v-if="props.stop.routes && props.stop.routes.length > 4" class="text-xs text-gray-500">
+        <span v-if="props.stop.routes && props.stop.routes.length > 4" class="text-xs text-parchment-500">
           +{{ props.stop.routes.length - 4 }}
         </span>
       </div>

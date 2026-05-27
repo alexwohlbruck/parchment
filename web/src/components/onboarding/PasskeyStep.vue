@@ -20,7 +20,7 @@ onMounted(() => {
 <template>
   <div class="flex flex-col gap-6">
     <div class="text-center space-y-1">
-      <h2 class="text-xl font-semibold">
+      <h2 class="text-2xl font-semibold">
         {{ t('onboarding.passkey.title') }}
       </h2>
       <p class="text-sm text-muted-foreground">
@@ -28,9 +28,6 @@ onMounted(() => {
       </p>
     </div>
 
-    <PasskeyOfferContent
-      hide-skip
-      @complete="emit('complete')"
-    />
+    <PasskeyOfferContent hide-skip @complete="emit('complete')" />
   </div>
 </template>

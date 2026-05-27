@@ -35,15 +35,15 @@ const openingStatus = computed(() => {
   }
 
   if (hours.isPermanentlyClosed) {
-    return { status: t('place.hours.permanentlyClosed'), color: 'text-red-500' }
+    return { status: t('place.hours.permanentlyClosed'), color: 'text-coral-500' }
   }
 
   if (hours.isTemporarilyClosed) {
-    return { status: t('place.hours.temporarilyClosed'), color: 'text-orange-500' }
+    return { status: t('place.hours.temporarilyClosed'), color: 'text-compass-500' }
   }
 
   if (hours.isOpen24_7) {
-    return { status: t('place.hours.open247'), color: 'text-green-500' }
+    return { status: t('place.hours.open247'), color: 'text-forest-500' }
   }
 
   if (hours.regularHours.length === 0) {
@@ -62,18 +62,18 @@ const openingStatus = computed(() => {
 
   const todayHours = hours.regularHours.find(h => h.day === currentDay)
   if (!todayHours) {
-    return { status: t('place.hours.closedToday'), color: 'text-red-500' }
+    return { status: t('place.hours.closedToday'), color: 'text-coral-500' }
   }
 
   if (currentTime >= todayHours.open && currentTime <= todayHours.close) {
     return {
       status: t('place.hours.openUntil', { time: formatTime(todayHours.close) }),
-      color: 'text-green-500',
+      color: 'text-forest-500',
     }
   } else if (currentTime < todayHours.open) {
     return {
       status: t('place.hours.opensAt', { time: formatTime(todayHours.open) }),
-      color: 'text-orange-500',
+      color: 'text-compass-500',
     }
   } else {
     let nextDay = (currentDay + 1) % 7
@@ -83,13 +83,13 @@ const openingStatus = computed(() => {
       if (nextDayHours) {
         return {
           status: t('place.hours.opensDay', { day: DAYS.value[nextDay], time: formatTime(nextDayHours.open) }),
-          color: 'text-orange-500',
+          color: 'text-compass-500',
         }
       }
       nextDay = (nextDay + 1) % 7
       daysChecked++
     }
-    return { status: t('place.hours.closed'), color: 'text-red-500' }
+    return { status: t('place.hours.closed'), color: 'text-coral-500' }
   }
 })
 

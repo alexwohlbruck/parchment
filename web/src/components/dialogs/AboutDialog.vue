@@ -172,7 +172,7 @@ const socialLinks = [
               rel="noopener noreferrer"
               class="flex-1"
             >
-              <Button variant="outline" class="w-full h-11 bg-background/60 backdrop-blur-sm hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+              <Button variant="outline" class="w-full h-11 bg-background/60 backdrop-blur-sm hover:bg-teal-500/10 hover:border-teal-500/30 hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
                 <BrandIcon
                   :icon="siOpenstreetmap"
                   class="size-4 mr-2"
@@ -189,7 +189,7 @@ const socialLinks = [
               rel="noopener noreferrer"
               class="flex-1"
             >
-              <Button variant="outline" class="w-full h-11 bg-background/60 backdrop-blur-sm hover:bg-blue-500/10 hover:border-blue-500/30 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+              <Button variant="outline" class="w-full h-11 bg-background/60 backdrop-blur-sm hover:bg-cobalt-500/10 hover:border-cobalt-500/30 hover:text-cobalt-600 dark:hover:text-cobalt-400 transition-colors">
                 <BrandIcon
                   :icon="siMapbox"
                   class="size-4 mr-2"

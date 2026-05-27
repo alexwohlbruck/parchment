@@ -7,7 +7,8 @@ import { useThemeStore, allColors } from '@/stores/theme.store'
 import { useAppStore } from '@/stores/app.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useCommandStore, CommandName } from '@/stores/command.store'
-import { colors } from '@/lib/registry/colors'
+import { palette } from '@/lib/palette'
+import type { PaletteColor } from '@/lib/palette'
 import { UnitSystem } from '@/types/map.types'
 import type { Locale } from '@/lib/i18n'
 import { updatePreferences } from '@/services/preferences.service'
@@ -32,7 +33,10 @@ const { setAccentColor } = themeStore
 const { unitSystem } = storeToRefs(appStore)
 
 const languageOptions = computed(() =>
-  commandStore.getCommandArgumentOptions(CommandName.UPDATE_LANGUAGE, 'language'),
+  commandStore.getCommandArgumentOptions(
+    CommandName.UPDATE_LANGUAGE,
+    'language',
+  ),
 )
 
 const colorScheme = useStorage('vueuse-color-scheme', 'auto')
@@ -49,22 +53,31 @@ function setMode(mode: 'light' | 'dark' | 'auto') {
 }
 
 const modeOptions = computed(() => [
-  { value: 'auto' as const, icon: Monitor, label: t('onboarding.theme.modes.auto') },
-  { value: 'light' as const, icon: Sun, label: t('onboarding.theme.modes.light') },
-  { value: 'dark' as const, icon: Moon, label: t('onboarding.theme.modes.dark') },
+  {
+    value: 'auto' as const,
+    icon: Monitor,
+    label: t('onboarding.theme.modes.auto'),
+  },
+  {
+    value: 'light' as const,
+    icon: Sun,
+    label: t('onboarding.theme.modes.light'),
+  },
+  {
+    value: 'dark' as const,
+    icon: Moon,
+    label: t('onboarding.theme.modes.dark'),
+  },
 ])
 
 // Persist language and unit preferences to backend
-watch(
-  [locale, unitSystem],
-  ([newLocale, newUnitSystem]) => {
-    if (!authStore.me) return
-    updatePreferences({
-      language: newLocale as Locale,
-      unitSystem: newUnitSystem as UnitSystem,
-    }).catch(() => {})
-  },
-)
+watch([locale, unitSystem], ([newLocale, newUnitSystem]) => {
+  if (!authStore.me) return
+  updatePreferences({
+    language: newLocale as Locale,
+    unitSystem: newUnitSystem as UnitSystem,
+  }).catch(() => {})
+})
 
 const validation = inject(validateKey)
 
@@ -76,7 +89,7 @@ onMounted(() => {
 <template>
   <div class="flex flex-col gap-6">
     <div class="text-center space-y-1">
-      <h2 class="text-xl font-semibold">
+      <h2 class="text-2xl font-semibold">
         {{ t('onboarding.theme.title') }}
       </h2>
       <p class="text-sm text-muted-foreground">
@@ -143,7 +156,7 @@ onMounted(() => {
               ? 'ring-2 ring-offset-2 ring-offset-background ring-primary scale-110'
               : 'hover:scale-110',
           ]"
-          :style="{ backgroundColor: colors[color][5].rgb }"
+          :style="{ backgroundColor: palette[color as PaletteColor]?.[500] }"
           :title="t(`settings.appearance.appTheme.color.values.${color}`)"
           @click="setAccentColor(color)"
         >

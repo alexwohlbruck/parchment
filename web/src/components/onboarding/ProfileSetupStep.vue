@@ -52,15 +52,23 @@ const aliasError = ref<string | null>(null)
 const aliasChecking = ref(false)
 const aliasAvailable = ref<boolean | null>(null)
 
-const isAliasValid = computed(() => /^[a-zA-Z0-9_]{3,30}$/.test(aliasInput.value))
-
-const autoAlias = computed(() =>
-  `${values.firstName || ''}${values.lastName || ''}`.replace(/\s/g, '').toLowerCase(),
+const isAliasValid = computed(() =>
+  /^[a-zA-Z0-9_]{3,30}$/.test(aliasInput.value),
 )
 
-watch(autoAlias, (val) => {
-  if (!aliasEdited.value) aliasInput.value = val
-}, { immediate: true })
+const autoAlias = computed(() =>
+  `${values.firstName || ''}${values.lastName || ''}`
+    .replace(/\s/g, '')
+    .toLowerCase(),
+)
+
+watch(
+  autoAlias,
+  val => {
+    if (!aliasEdited.value) aliasInput.value = val
+  },
+  { immediate: true },
+)
 
 const checkAliasAvailability = useDebounceFn(async (alias: string) => {
   if (!isAliasValid.value) {
@@ -82,7 +90,7 @@ const checkAliasAvailability = useDebounceFn(async (alias: string) => {
   }
 }, 400)
 
-watch(aliasInput, (val) => {
+watch(aliasInput, val => {
   aliasError.value = null
   aliasAvailable.value = null
   if (isAliasValid.value) {
@@ -97,7 +105,8 @@ function onAliasInput(e: Event) {
   aliasInput.value = val
 }
 
-const COLUMBUS_AVATAR = 'https://api.dicebear.com/9.x/open-peeps/svg?seed=f&accessories=eyepatch&skinColor=d08b5b&accessoriesProbability=100&face=driven&facialHair=moustache1&facialHairProbability=100&head=hatHip&backgroundColor=b6e3f4'
+const COLUMBUS_AVATAR =
+  'https://api.dicebear.com/9.x/open-peeps/svg?seed=f&accessories=eyepatch&skinColor=d08b5b&accessoriesProbability=100&face=driven&facialHair=moustache1&facialHairProbability=100&head=hatHip&backgroundColor=b6e3f4'
 
 const placeholderAvatar = computed(() => {
   if (!aliasInput.value) return COLUMBUS_AVATAR
@@ -122,8 +131,11 @@ async function validateStep(): Promise<boolean> {
 
   if (aliasChecking.value) {
     await new Promise<void>(resolve => {
-      const stop = watch(aliasChecking, (v) => {
-        if (!v) { stop(); resolve() }
+      const stop = watch(aliasChecking, v => {
+        if (!v) {
+          stop()
+          resolve()
+        }
       })
     })
   }
@@ -199,7 +211,7 @@ function removeAvatar() {
 <template>
   <div class="flex flex-col gap-6">
     <div class="text-center space-y-1">
-      <h2 class="text-xl font-semibold">
+      <h2 class="text-2xl font-semibold">
         {{ t('onboarding.profile.title') }}
       </h2>
       <p class="text-sm text-muted-foreground">
@@ -307,13 +319,17 @@ function removeAvatar() {
           />
           <CircleCheck
             v-else-if="aliasAvailable === true && isAliasValid"
-            class="size-4 mr-3 text-green-500 shrink-0"
+            class="size-4 mr-3 text-forest-500 shrink-0"
           />
           <CircleAlert
             v-else-if="aliasAvailable === false"
             class="size-4 mr-3 text-destructive shrink-0"
           />
-          <span v-if="domain" class="pr-3 text-muted-foreground select-none shrink-0">@{{ domain }}</span>
+          <span
+            v-if="domain"
+            class="pr-3 text-muted-foreground select-none shrink-0"
+            >@{{ domain }}</span
+          >
         </div>
         <p v-if="aliasError" class="text-sm font-medium text-destructive">
           {{ aliasError }}

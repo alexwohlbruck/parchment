@@ -255,12 +255,12 @@ async function copyRecoveryKey() {
         <template v-else-if="setupStep === 'complete'">
           <DialogHeader>
             <DialogTitle class="flex items-center gap-2">
-              <Check class="h-5 w-5 text-green-600" />
+              <Check class="h-5 w-5 text-forest-600" />
               {{ t('settings.identity.recoveryKey.complete.title') }}
             </DialogTitle>
           </DialogHeader>
           <div class="flex flex-col gap-4 py-4">
-            <Alert class="border-green-500 text-green-600">
+            <Alert class="border-forest-500 text-forest-600">
               <Check class="h-4 w-4" />
               <AlertDescription>
                 {{ t('settings.identity.recoveryKey.complete.message') }}
@@ -381,12 +381,12 @@ async function copyRecoveryKey() {
         <template v-else-if="importStep === 'complete'">
           <DialogHeader>
             <DialogTitle class="flex items-center gap-2">
-              <Check class="h-5 w-5 text-green-600" />
+              <Check class="h-5 w-5 text-forest-600" />
               {{ t('settings.identity.recoveryKey.import.completeTitle') }}
             </DialogTitle>
           </DialogHeader>
           <div class="flex flex-col gap-4 py-4">
-            <Alert class="border-green-500 text-green-600">
+            <Alert class="border-forest-500 text-forest-600">
               <Check class="h-4 w-4" />
               <AlertDescription>
                 {{ t('settings.identity.recoveryKey.import.completeMessage') }}
@@ -456,7 +456,7 @@ async function copyRecoveryKey() {
               <component
                 :is="recoveryCopied ? Check : Copy"
                 class="h-4 w-4 mr-2"
-                :class="recoveryCopied ? 'text-green-600' : ''"
+                :class="recoveryCopied ? 'text-forest-600' : ''"
               />
               {{ recoveryCopied ? t('settings.identity.recoveryKey.view.copied') : t('settings.identity.recoveryKey.view.copyToClipboard') }}
             </Button>

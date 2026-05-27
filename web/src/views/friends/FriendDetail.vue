@@ -319,12 +319,12 @@ watch([isLoading, friend], ([loading, f]) => {
         <div
           class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium"
           :class="isLocationFresh
-            ? 'bg-green-500/10 text-green-700 dark:text-green-400'
+            ? 'bg-forest-500/10 text-forest-700 dark:text-forest-400'
             : 'bg-amber-500/10 text-amber-700 dark:text-amber-400'"
         >
           <div
             class="size-1.5 rounded-full"
-            :class="isLocationFresh ? 'bg-green-500' : 'bg-amber-500'"
+            :class="isLocationFresh ? 'bg-forest-500' : 'bg-amber-500'"
           />
           {{ isLocationFresh ? t('friends.detail.recentlySeen') : t('friends.detail.lastSeen') }}
           &middot;
@@ -391,7 +391,7 @@ watch([isLoading, friend], ([loading, f]) => {
               <component
                 :is="friendLocation.location.batteryCharging ? BatteryChargingIcon : BatteryIcon"
                 class="size-3"
-                :class="friendLocation.location.batteryCharging ? 'text-green-500' : 'text-muted-foreground'"
+                :class="friendLocation.location.batteryCharging ? 'text-forest-500' : 'text-muted-foreground'"
               />
             </span>
           </div>

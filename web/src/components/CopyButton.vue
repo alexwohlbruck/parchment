@@ -18,7 +18,7 @@ const { copied, copy } = useClipboard()
   >
     <span class="relative flex items-center justify-center w-4 h-4">
       <Transition name="copy-swap">
-        <CheckIcon v-if="copied" class="absolute w-4 h-4 text-green-600" key="check" />
+        <CheckIcon v-if="copied" class="absolute w-4 h-4 text-forest-600" key="check" />
         <CopyIcon v-else class="absolute w-4 h-4 text-muted-foreground" key="copy" />
       </Transition>
     </span>

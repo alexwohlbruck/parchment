@@ -53,7 +53,7 @@ async function validate(): Promise<boolean> {
 <template>
   <div class="flex flex-col gap-6">
     <div class="text-center space-y-1">
-      <h2 class="text-xl font-semibold">
+      <h2 class="text-2xl font-semibold">
         {{ t('onboarding.alias.title') }}
       </h2>
       <p class="text-sm text-muted-foreground">
@@ -65,7 +65,9 @@ async function validate(): Promise<boolean> {
       <div class="flex flex-col gap-2">
         <Label for="alias">{{ t('onboarding.alias.label') }}</Label>
         <div class="relative">
-          <AtSign class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <AtSign
+            class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
+          />
           <Input
             id="alias"
             v-model="aliasInput"

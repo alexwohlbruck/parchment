@@ -30,7 +30,7 @@ const collectionSchema = toTypedSchema(
     description: z.string().default(''),
     icon: z.string().default('Folder'),
     iconPack: z.enum(['lucide', 'maki']).default('lucide'),
-    iconColor: z.string().default('blue'),
+    iconColor: z.string().default('cobalt'),
     isPublic: z.boolean().default(false),
   }),
 )
@@ -52,7 +52,7 @@ const { handleSubmit, values, meta, setFieldValue, resetForm } =
       description: '',
       icon: 'Bookmark',
       iconPack: 'lucide',
-      iconColor: 'blue',
+      iconColor: 'cobalt',
       isPublic: false,
     },
   })
@@ -65,7 +65,7 @@ onMounted(() => {
         description: props.collection.description || '',
         icon: props.collection.icon ?? 'Bookmark',
         iconPack: props.collection.iconPack ?? 'lucide',
-        iconColor: props.collection.iconColor ?? 'blue',
+        iconColor: props.collection.iconColor ?? 'cobalt',
         isPublic: props.collection.isPublic,
       },
     })
@@ -108,7 +108,7 @@ watch(
           description: newCollection.description || '',
           icon: newCollection.icon ?? 'Bookmark',
           iconPack: newCollection.iconPack ?? 'lucide',
-          iconColor: newCollection.iconColor ?? 'blue',
+          iconColor: newCollection.iconColor ?? 'cobalt',
           isPublic: newCollection.isPublic,
         },
       })

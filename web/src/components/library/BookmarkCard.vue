@@ -145,7 +145,7 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
       <ItemIcon
         :icon="bookmark.icon"
         :icon-pack="bookmark.iconPack ?? 'lucide'"
-        :color="(bookmark.iconColor as ThemeColor) || 'blue'"
+        :color="(bookmark.iconColor as ThemeColor) || 'cobalt'"
         size="md"
       />
 

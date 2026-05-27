@@ -41,7 +41,7 @@ const bookmarkSchema = toTypedSchema(
     name: z.string().min(1, 'Name is required'),
     type: z.string().optional(),
     icon: z.string().default('MapPin'),
-    iconColor: z.string().default('blue'),
+    iconColor: z.string().default('cobalt'),
   }),
 )
 
@@ -59,7 +59,7 @@ const { handleSubmit, values, meta, setFieldValue, resetForm } =
       name: '',
       type: undefined,
       icon: 'MapPin',
-      iconColor: 'blue',
+      iconColor: 'cobalt',
     },
   })
 

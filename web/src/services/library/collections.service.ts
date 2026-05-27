@@ -274,7 +274,7 @@ export const useCollectionsService = createSharedComposable(() => {
       const metadata: CollectionMetadata = {
         name: t('library.entities.collections.starterName'),
         icon: 'Bookmark',
-        iconColor: 'blue',
+        iconColor: 'cobalt',
         isPublic: false,
       }
       const envelope = await buildMetadataEnvelope(collection.id, metadata)

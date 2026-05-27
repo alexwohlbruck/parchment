@@ -89,7 +89,7 @@ async function autoConfigureFree() {
 <template>
   <div class="flex flex-col gap-6">
     <div class="text-center space-y-1">
-      <h2 class="text-xl font-semibold">
+      <h2 class="text-2xl font-semibold">
         {{ t('onboarding.integrations.title') }}
       </h2>
       <p class="text-sm text-muted-foreground">
@@ -104,9 +104,7 @@ async function autoConfigureFree() {
         :key="item.config?.id || item.integration.id"
         :class="[
           'rounded-xl transition-shadow',
-          isFree(item.integration.id)
-            ? 'ring-1 ring-primary/30'
-            : '',
+          isFree(item.integration.id) ? 'ring-1 ring-primary/30' : '',
         ]"
       >
         <IntegrationTile

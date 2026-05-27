@@ -30,7 +30,7 @@ import {
 
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { decodeShape } from '@/lib/utils'
-import colors from 'tailwindcss/colors'
+import { palette } from '@/lib/palette'
 import { mapEventBus } from '@/lib/eventBus'
 import {
   mapboxLayerToMaplibreLayer,
@@ -317,7 +317,7 @@ export class MaplibreStrategy extends MapStrategy {
           'line-cap': 'round',
         },
         paint: {
-          'line-color': colors.green[600],
+          'line-color': palette.forest[600],
           'line-width': 8,
         },
       })
@@ -331,7 +331,7 @@ export class MaplibreStrategy extends MapStrategy {
           'line-cap': 'round',
         },
         paint: {
-          'line-color': colors.green[400],
+          'line-color': palette.forest[400],
           'line-width': 5,
         },
       })

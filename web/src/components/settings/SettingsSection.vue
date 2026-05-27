@@ -27,7 +27,7 @@ const {
     :data-section-id="id"
     :class="
       cn(
-        'flex flex-col gap-2 w-full settings-section-target',
+        'flex flex-col gap-3 w-full settings-section-target',
         !frame && 'flex-1 min-h-0',
         className,
       )

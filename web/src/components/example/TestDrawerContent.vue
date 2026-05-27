@@ -6,13 +6,13 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   title: 'Test Drawer',
-  message: 'This is a test drawer opened programmatically!'
+  message: 'This is a test drawer opened programmatically!',
 })
 </script>
 
 <template>
   <div class="p-6">
-    <h2 class="text-xl font-semibold mb-4">{{ title }}</h2>
+    <h2 class="text-2xl font-semibold mb-4">{{ title }}</h2>
     <p class="text-muted-foreground mb-4">{{ message }}</p>
     <div class="space-y-4">
       <p>This drawer demonstrates:</p>
@@ -29,7 +29,8 @@ const props = withDefaults(defineProps<Props>(), {
         <p class="text-sm">Scrollable content area</p>
         <div class="h-full overflow-y-auto">
           <div v-for="i in 50" :key="i" class="py-2 border-b">
-            Item {{ i }} - This is scrollable content to test the scroll-to-drag conversion
+            Item {{ i }} - This is scrollable content to test the scroll-to-drag
+            conversion
           </div>
         </div>
       </div>

@@ -20,15 +20,18 @@ onMounted(async () => {
   })
 })
 
-watch(() => contentRef.value?.hasSavedKey, (saved) => {
-  validation?.setCanContinue(!!saved)
-})
+watch(
+  () => contentRef.value?.hasSavedKey,
+  saved => {
+    validation?.setCanContinue(!!saved)
+  },
+)
 </script>
 
 <template>
   <div class="flex flex-col gap-6">
     <div class="text-center space-y-1">
-      <h2 class="text-xl font-semibold">
+      <h2 class="text-2xl font-semibold">
         {{ t('onboarding.recoveryKey.title') }}
       </h2>
       <p class="text-sm text-muted-foreground">
@@ -36,9 +39,6 @@ watch(() => contentRef.value?.hasSavedKey, (saved) => {
       </p>
     </div>
 
-    <RecoveryKeySetupContent
-      ref="contentRef"
-      hide-footer
-    />
+    <RecoveryKeySetupContent ref="contentRef" hide-footer />
   </div>
 </template>

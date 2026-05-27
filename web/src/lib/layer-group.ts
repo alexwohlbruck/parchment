@@ -5,7 +5,7 @@ import {
   TravelMode,
 } from '@/types/directions.types'
 import { Layer, LayerType, MapEngine } from '@/types/map.types'
-import colors from 'tailwindcss/colors'
+import { palette } from '@/lib/palette'
 import { FeatureCollection } from 'geojson'
 import { toRaw } from 'vue'
 import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
@@ -721,7 +721,7 @@ export class TripGroup extends MapLayerGroup {
           'line-cap': 'round',
         },
         paint: {
-          'line-color': colors.gray[700],
+          'line-color': palette.parchment[700],
           'line-width': 6,
           'line-dasharray': [1, 2],
           'line-opacity': 1.0,
@@ -749,7 +749,7 @@ export class TripGroup extends MapLayerGroup {
           'line-cap': 'round',
         },
         paint: {
-          'line-color': colors.gray[500],
+          'line-color': palette.parchment[500],
           'line-width': 4,
           'line-dasharray': [1, 2],
           'line-opacity': 1.0,

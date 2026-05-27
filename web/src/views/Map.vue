@@ -219,7 +219,7 @@ defineExpose({
   >
     <!-- Show map UI area -->
     <div
-      class="absolute border-4 border-green-500 bg-green-500/10"
+      class="absolute border-4 border-forest-500 bg-forest-500/10"
       :style="{
         left: `${mapUIArea.x}px`,
         top: `${mapUIArea.y}px`,
@@ -228,7 +228,7 @@ defineExpose({
       }"
     >
       <div
-        class="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 text-xs font-mono rounded"
+        class="absolute top-2 left-2 bg-forest-500 text-white px-2 py-1 text-xs font-mono rounded"
       >
         Map UI Area: {{ Math.round(mapUIArea.width) }}x{{
           Math.round(mapUIArea.height)
@@ -240,7 +240,7 @@ defineExpose({
     <div
       v-for="[key, dimensions] in appStore.componentDimensions"
       :key="key"
-      class="absolute border-2 border-red-500 bg-red-500/10"
+      class="absolute border-2 border-coral-500 bg-coral-500/10"
       :style="{
         left: `${dimensions.x}px`,
         top: `${dimensions.y}px`,
@@ -249,7 +249,7 @@ defineExpose({
       }"
     >
       <div
-        class="absolute top-1 left-1 bg-red-500 text-white px-1 py-0.5 text-[10px] font-mono rounded"
+        class="absolute top-1 left-1 bg-coral-500 text-white px-1 py-0.5 text-[10px] font-mono rounded"
       >
         {{ key }}: {{ Math.round(dimensions.width) }}x{{
           Math.round(dimensions.height)

@@ -18,7 +18,7 @@ const { class: className, ...rest } = useAttrs()
     :class="
       cn(
         'block text-sm tracking-tight font-medium text-foreground text-left',
-        error && 'text-destructive dark:text-red-400 ',
+        error && 'text-destructive dark:text-coral-400 ',
         className ?? '',
       )
     "

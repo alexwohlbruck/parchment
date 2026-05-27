@@ -77,14 +77,14 @@ function beginOtp({
 
 <template>
   <div
-    class="relative flex flex-col h-full overflow-hidden bg-slate-50 dark:bg-slate-950 pt-[max(env(safe-area-inset-top), 0px)]"
+    class="relative flex flex-col h-full overflow-hidden bg-parchment-50 dark:bg-parchment-950 pt-[max(env(safe-area-inset-top), 0px)]"
   >
     <!-- Background map image with gradient fade -->
     <div class="absolute inset-0 pointer-events-none">
       <div class="parchment-bg absolute inset-0"></div>
       <!-- Gradient overlay to fade the map into the background -->
       <div
-        class="absolute inset-0 bg-gradient-to-b from-slate-50/50 via-slate-50/30 to-slate-50/50 dark:from-slate-950/50 dark:via-slate-950/30 dark:to-slate-950/50"
+        class="absolute inset-0 bg-gradient-to-b from-parchment-50/50 via-parchment-50/30 to-parchment-50/50 dark:from-parchment-950/50 dark:via-parchment-950/30 dark:to-parchment-950/50"
       />
     </div>
 
@@ -95,7 +95,7 @@ function beginOtp({
       <div class="w-full max-w-sm space-y-6">
         <!-- Form Card -->
         <div
-          class="form-card bg-white/90 dark:bg-slate-900/90 rounded-xl p-8 space-y-6"
+          class="form-card bg-white/90 dark:bg-parchment-900/90 rounded-xl p-8 space-y-6"
         >
           <!-- Title -->
           <div class="text-center space-y-1">
@@ -108,10 +108,10 @@ function beginOtp({
               />
             </div>
 
-            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">
+            <h1 class="text-2xl font-bold text-parchment-900 dark:text-white">
               {{ APP_NAME }}
             </h1>
-            <p class="text-sm text-slate-600 dark:text-slate-400">
+            <p class="text-sm text-parchment-600 dark:text-parchment-400">
               {{ t('taglines.short') }}
             </p>
           </div>
@@ -131,7 +131,7 @@ function beginOtp({
         </div>
 
         <!-- Footer Text -->
-        <p class="text-center text-xs text-slate-500 dark:text-slate-400">
+        <p class="text-center text-xs text-parchment-500 dark:text-parchment-400">
           {{ t('auth.signIn.termsAndPrivacy') }}
         </p>
       </div>

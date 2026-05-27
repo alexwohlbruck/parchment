@@ -125,7 +125,7 @@ function handleClick() {
               {{ displayName }}
             </span>
             <div v-if="formattedRating" class="flex items-center gap-1 shrink-0">
-              <StarIcon class="w-3 h-3 text-yellow-500 fill-yellow-500" />
+              <StarIcon class="w-3 h-3 text-amber-500 fill-amber-500" />
               <span class="text-xs font-medium text-foreground">{{ formattedRating }}</span>
               <span v-if="reviewCount" class="text-xs text-muted-foreground">({{ reviewCount.toLocaleString() }})</span>
             </div>
@@ -140,7 +140,7 @@ function handleClick() {
             <span
               v-if="isOpen !== null || hoursText"
               class="flex items-center gap-1"
-              :class="isOpen === true ? 'text-green-600' : isOpen === false ? 'text-red-500' : 'text-muted-foreground'"
+              :class="isOpen === true ? 'text-forest-600' : isOpen === false ? 'text-coral-500' : 'text-muted-foreground'"
             >
               <ClockIcon class="w-3 h-3 shrink-0" />
               <span v-if="isOpen === true">{{ t('place.listItem.openNow') }}</span>

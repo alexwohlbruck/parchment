@@ -74,7 +74,7 @@ const libraryTabs = computed(() => [
   {
     id: 'collections',
     icon: 'FolderOpen',
-    color: 'blue' as ThemeColor,
+    color: 'cobalt' as ThemeColor,
     route: AppRoute.LIBRARY_COLLECTIONS,
     label: capitalize(t('library.entities.collections.title.plural')),
     count: collectionsStore.collections.length || undefined,
@@ -82,14 +82,14 @@ const libraryTabs = computed(() => [
   {
     id: 'routes',
     icon: 'Route',
-    color: 'green' as ThemeColor,
+    color: 'forest' as ThemeColor,
     route: AppRoute.LIBRARY_ROUTES,
     label: capitalize(t('library.entities.routes.title.plural')),
   },
   {
     id: 'layers',
     icon: 'Layers3',
-    color: 'orange' as ThemeColor,
+    color: 'coral' as ThemeColor,
     route: AppRoute.LIBRARY_LAYERS,
     label: capitalize(t('library.entities.layers.title.plural')),
     count: layersStore.userLayers.length || undefined,
@@ -97,7 +97,7 @@ const libraryTabs = computed(() => [
   {
     id: 'maps',
     icon: 'Map',
-    color: 'violet' as ThemeColor,
+    color: 'iris' as ThemeColor,
     route: AppRoute.LIBRARY_MAPS,
     label: capitalize(t('library.entities.maps.title.plural')),
   },
@@ -161,7 +161,7 @@ function formatTimeAgo(dateStr: string) {
             <ItemIcon
               :icon="bookmark.icon"
               :icon-pack="bookmark.iconPack ?? 'lucide'"
-              :color="(bookmark.iconColor as ThemeColor) || 'blue'"
+              :color="(bookmark.iconColor as ThemeColor) || 'cobalt'"
               size="sm"
               variant="ghost"
             />
@@ -205,7 +205,7 @@ function formatTimeAgo(dateStr: string) {
             class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
             @click="navigateTo('/directions')"
           >
-            <ItemIcon icon="Navigation" color="green" size="sm" variant="ghost" />
+            <ItemIcon icon="Navigation" color="forest" size="sm" variant="ghost" />
             <span class="font-medium text-sm">{{ t('directions.title') }}</span>
           </Card>
 
@@ -221,7 +221,7 @@ function formatTimeAgo(dateStr: string) {
             class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
             @click="navigateTo('/timeline')"
           >
-            <ItemIcon icon="History" color="orange" size="sm" variant="ghost" />
+            <ItemIcon icon="History" color="amber" size="sm" variant="ghost" />
             <span class="font-medium text-sm">{{ t('timeline.title') }}</span>
           </Card>
 
@@ -229,7 +229,7 @@ function formatTimeAgo(dateStr: string) {
             class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
             @click="navigateTo('/settings')"
           >
-            <ItemIcon icon="Settings" color="neutral" size="sm" variant="ghost" />
+            <ItemIcon icon="Settings" color="parchment" size="sm" variant="ghost" />
             <span class="font-medium text-sm">{{ t('settings.title') }}</span>
           </Card>
         </div>
@@ -248,7 +248,7 @@ function formatTimeAgo(dateStr: string) {
             <ItemIcon
               :icon="bookmark.icon"
               :icon-pack="bookmark.iconPack ?? 'lucide'"
-              :color="(bookmark.iconColor as ThemeColor) || 'blue'"
+              :color="(bookmark.iconColor as ThemeColor) || 'cobalt'"
               size="sm"
               variant="ghost"
             />

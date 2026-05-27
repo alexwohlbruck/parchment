@@ -287,9 +287,9 @@ watch(
     <div v-if="openingStatus" class="flex items-center gap-1.5 text-sm">
       <span
         class="inline-block size-[7px] rounded-full shrink-0"
-        :class="openingStatus.isOpen ? 'bg-green-500 shadow-[0_0_0_3px_rgba(34,197,94,0.18)]' : 'bg-red-500 shadow-[0_0_0_3px_rgba(239,68,68,0.18)]'"
+        :class="openingStatus.isOpen ? 'bg-forest-500 shadow-[0_0_0_3px_rgba(90,126,71,0.18)]' : 'bg-coral-500 shadow-[0_0_0_3px_rgba(216,74,0,0.18)]'"
       />
-      <span :class="openingStatus.isOpen ? 'text-green-600' : 'text-red-500'" class="font-medium">{{ openingStatus.statusText }}</span>
+      <span :class="openingStatus.isOpen ? 'text-forest-600' : 'text-coral-500'" class="font-medium">{{ openingStatus.statusText }}</span>
       <template v-if="openingStatus.detail">
         <span class="text-muted-foreground font-normal">· {{ openingStatus.detail }}</span>
       </template>

@@ -92,7 +92,7 @@ export function formatCountdown(minutes: number | null, t: TFn): string {
 export function getCountdownClass(minutes: number | null): string {
   if (minutes === null) return 'text-muted-foreground'
   if (minutes < 0) return 'text-muted-foreground/70'
-  if (minutes <= 5) return 'text-emerald-600 font-medium'
+  if (minutes <= 5) return 'text-teal-600 font-medium'
   if (minutes <= 15) return 'text-amber-600 font-medium'
   return 'text-muted-foreground'
 }

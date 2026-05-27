@@ -135,7 +135,7 @@ function openFriendDetail() {
         <div v-if="hasLocation" class="flex items-center gap-1.5 mt-0.5">
           <div
             class="size-1.5 rounded-full shrink-0"
-            :class="isLocationFresh ? 'bg-green-500' : 'bg-muted-foreground/50'"
+            :class="isLocationFresh ? 'bg-forest-500' : 'bg-muted-foreground/50'"
           />
           <span class="text-[11px] text-muted-foreground truncate">
             {{ locationTimeAgo }}

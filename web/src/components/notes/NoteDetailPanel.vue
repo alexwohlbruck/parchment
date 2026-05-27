@@ -97,7 +97,7 @@ function handleReopen() {
             </div>
             <CheckCircleIcon
               v-if="noteStatus === 'closed'"
-              class="absolute -bottom-0.5 -right-0.5 size-3 text-green-500 fill-white dark:fill-[#0C0C0C] drop-shadow-sm"
+              class="absolute -bottom-0.5 -right-0.5 size-3 text-forest-500 fill-white dark:fill-[#0C0C0C] drop-shadow-sm"
             />
           </div>
           <div class="min-w-0">
@@ -119,8 +119,8 @@ function handleReopen() {
             class="text-xs px-1.5 py-0.5 rounded-full font-medium"
             :class="
               noteStatus === 'open'
-                ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
+                ? 'bg-forest-100 text-forest-700 dark:bg-forest-900 dark:text-forest-300'
+                : 'bg-parchment-100 text-parchment-600 dark:bg-parchment-800 dark:text-parchment-400'
             "
           >
             {{ noteStatus === 'open' ? t('notes.open') : t('notes.closed') }}

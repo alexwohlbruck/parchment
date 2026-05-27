@@ -47,7 +47,7 @@ const layerGroupSchema = computed(() => {
       fadeBasemap: z.boolean().default(false),
       visible: z.boolean().default(true),
       icon: z.string().default('FolderIcon'),
-      iconColor: z.string().default('blue'),
+      iconColor: z.string().default('cobalt'),
     }),
   )
 })
@@ -70,7 +70,7 @@ const { handleSubmit, values, meta, setFieldValue, resetForm } =
       fadeBasemap: false,
       visible: true,
       icon: 'FolderIcon',
-      iconColor: 'blue',
+      iconColor: 'cobalt',
     },
   })
 
@@ -86,7 +86,7 @@ watch(
           fadeBasemap: currentGroup.fadeBasemap ?? false,
           visible: currentGroup.visible,
           icon: currentGroup.icon,
-          iconColor: 'blue', // Default since we don't store color in LayerGroup
+          iconColor: 'cobalt', // Default since we don't store color in LayerGroup
         },
       })
     }

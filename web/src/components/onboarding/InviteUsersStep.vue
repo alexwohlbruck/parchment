@@ -48,7 +48,9 @@ async function sendInvites() {
         await userService.inviteUser({ email })
         sent++
       } catch (e: any) {
-        toast.error(e?.response?.data?.message ?? t('onboarding.invite.sendFailed'))
+        toast.error(
+          e?.response?.data?.message ?? t('onboarding.invite.sendFailed'),
+        )
       }
     }
     if (sent > 0) {
@@ -65,7 +67,7 @@ async function sendInvites() {
 <template>
   <div class="flex flex-col gap-6">
     <div class="text-center space-y-1">
-      <h2 class="text-xl font-semibold">
+      <h2 class="text-2xl font-semibold">
         {{ t('onboarding.invite.title') }}
       </h2>
       <p class="text-sm text-muted-foreground">
@@ -88,7 +90,9 @@ async function sendInvites() {
           <TagsInputItemDelete />
         </TagsInputItem>
         <TagsInputInput
-          :placeholder="emails.length === 0 ? t('onboarding.invite.placeholder') : ''"
+          :placeholder="
+            emails.length === 0 ? t('onboarding.invite.placeholder') : ''
+          "
           @keydown.enter.prevent
         />
       </TagsInput>

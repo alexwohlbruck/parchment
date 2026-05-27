@@ -10,15 +10,15 @@ export const buttonVariants = cva(
         default:
           'border border-primary-400 dark:border-primary-600 bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/95',
         destructive:
-          'border border-red-600 dark:border-red-500 bg-red-600 text-white hover:bg-red-700 dark:hover:bg-red-700 active:bg-red-800 dark:active:bg-red-800',
+          'border border-coral-600 dark:border-coral-500 bg-coral-600 text-white hover:bg-coral-700 dark:hover:bg-coral-700 active:bg-coral-800 dark:active:bg-coral-800',
         'destructive-outline':
-          'border border-input bg-background text-red-600 dark:text-red-500 hover:bg-red-100 dark:hover:bg-red-950 hover:text-red-700 dark:hover:text-red-400 active:bg-red-200 dark:active:bg-red-900',
+          'border border-input bg-background text-coral-600 dark:text-coral-500 hover:bg-coral-100 dark:hover:bg-coral-950 hover:text-coral-700 dark:hover:text-coral-400 active:bg-coral-200 dark:active:bg-coral-900',
         'destructive-ghost':
-          'text-red-600 dark:text-red-500 hover:bg-red-100 dark:hover:bg-red-950 hover:text-red-700 dark:hover:text-red-400 active:bg-red-200 dark:active:bg-red-900',
+          'text-coral-600 dark:text-coral-500 hover:bg-coral-100 dark:hover:bg-coral-950 hover:text-coral-700 dark:hover:text-coral-400 active:bg-coral-200 dark:active:bg-coral-900',
         info:
-          'border border-blue-600 dark:border-blue-500 bg-blue-600 text-white hover:bg-blue-700 dark:hover:bg-blue-700 active:bg-blue-800 dark:active:bg-blue-800',
+          'border border-cobalt-600 dark:border-cobalt-500 bg-cobalt-600 text-white hover:bg-cobalt-700 dark:hover:bg-cobalt-700 active:bg-cobalt-800 dark:active:bg-cobalt-800',
         success:
-          'border border-green-600 dark:border-green-500 bg-green-600 text-white hover:bg-green-700 dark:hover:bg-green-700 active:bg-green-800 dark:active:bg-green-800',
+          'border border-forest-600 dark:border-forest-500 bg-forest-600 text-white hover:bg-forest-700 dark:hover:bg-forest-700 active:bg-forest-800 dark:active:bg-forest-800',
         warning:
           'border border-amber-600 dark:border-amber-500 bg-amber-600 text-white hover:bg-amber-700 dark:hover:bg-amber-700 active:bg-amber-800 dark:active:bg-amber-800',
         outline:

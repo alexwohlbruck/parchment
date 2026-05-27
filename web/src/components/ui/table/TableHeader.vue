@@ -11,7 +11,7 @@ const props = defineProps<{
   <thead
     :class="
       cn(
-        '[&_tr]:border-b bg-slate-50 dark:bg-slate-600/10 border-border',
+        '[&_tr]:border-b bg-parchment-50 dark:bg-parchment-600/10 border-border',
         props.class,
       )
     "

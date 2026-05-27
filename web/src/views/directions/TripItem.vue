@@ -146,6 +146,13 @@ function segLegIndex(segment: typeof props.trip.segments[0]): number {
   return (segment as any).legIndex ?? 0
 }
 
+function hasNextInSameLeg(index: number): boolean {
+  if (index >= props.trip.segments.length - 1) return false
+  const current = props.trip.segments[index]
+  const next = props.trip.segments[index + 1]
+  return segLegIndex(current) === segLegIndex(next) && isMultimodal(current)
+}
+
 function handleClick() {
   if (props.isClickable) {
     emit('click', props.trip)
@@ -199,7 +206,9 @@ function handleMouseEnter() {
           :key="segment.id"
           class="absolute h-full flex items-center text-white top-1/2 -translate-y-1/2 overflow-hidden shadow-xs border border-black/10 dark:border-black/20"
           :class="[
-            segW(segment) < 20 ? 'rounded-full' : 'rounded-lg',
+            hasNextInSameLeg(i)
+              ? (segW(segment) < 20 ? 'rounded-l-full rounded-r-none' : 'rounded-l-lg rounded-r-none')
+              : (segW(segment) < 20 ? 'rounded-full' : 'rounded-lg'),
             getTravelModeCssClass(segment.mode),
             segW(segment) > 24 ? 'px-2 gap-1.5' : 'justify-center px-0.5',
           ]"

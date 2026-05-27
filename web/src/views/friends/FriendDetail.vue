@@ -44,9 +44,8 @@ import {
 } from '@/components/ui/popover'
 import UserHandle from '@/components/UserHandle.vue'
 import { useMapService } from '@/services/map.service'
-import { useDirectionsStore } from '@/stores/directions.store'
+import { useDirectionsService } from '@/services/directions.service'
 import { appEventBus } from '@/lib/eventBus'
-import DetailPanelLayout from '@/components/layouts/DetailPanelLayout.vue'
 import { useUnits } from '@/composables/useUnits'
 
 const props = defineProps<{
@@ -61,7 +60,7 @@ const appService = useAppService()
 const locationService = useLocationService()
 const locationBroadcast = useE2eeLocationBroadcast()
 const mapService = useMapService()
-const directionsStore = useDirectionsStore()
+const directionsService = useDirectionsService()
 const { formatSpeed, formatElevation } = useUnits()
 
 const { friends } = storeToRefs(friendsStore)
@@ -139,11 +138,21 @@ const isLocationFresh = computed(() => {
 
 function getDirections() {
   if (!friendLocation.value) return
+
   const { lat, lng } = friendLocation.value.location
-  directionsStore.setWaypoint(1, {
+  const waypoint = {
     lngLat: { lng, lat },
-    place: null,
-  })
+    place: {
+      id: `friend-${friend.value!.friendHandle}`,
+      name: { value: displayName.value },
+      geometry: { value: { type: 'point', center: { lat, lng } } },
+      externalIds: {},
+      address: null,
+      placeType: { value: 'friend' },
+    },
+  }
+
+  directionsService.directionsTo(waypoint)
   router.push({ name: AppRoute.DIRECTIONS })
 }
 
@@ -266,33 +275,9 @@ watch([isLoading, friend], ([loading, f]) => {
     </div>
   </div>
 
-  <DetailPanelLayout v-else-if="friend" :title="displayName">
-    <template #actions>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" class="-mr-2">
-            <MoreHorizontalIcon class="size-5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" class="w-48">
-          <DropdownMenuItem @click="syncKeys" :disabled="isSyncing">
-            <RefreshCwIcon
-              class="size-4"
-              :class="{ 'animate-spin': isSyncing }"
-            />
-            {{ t('friends.detail.syncKeys') }}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            class="text-destructive"
-            @click="handleRemoveFriend"
-          >
-            <TrashIcon class="size-4" />
-            {{ t('friends.detail.removeFriend') }}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </template>
+  <div v-else-if="friend" class="h-full flex flex-col">
+    <div class="flex-1 overflow-y-auto pt-2 pb-4">
+      <div class="px-4">
 
     <!-- Hero profile -->
     <div class="flex flex-col items-center pt-2 pb-5">
@@ -335,7 +320,7 @@ watch([isLoading, friend], ([loading, f]) => {
       <!-- Action buttons -->
       <div class="flex items-center gap-2 mt-4 w-full">
         <Button
-          class="flex-1"
+          class="flex-1 gap-2"
           :disabled="!friendLocation"
           @click="getDirections"
         >
@@ -344,12 +329,36 @@ watch([isLoading, friend], ([loading, f]) => {
         </Button>
         <Button
           variant="outline"
-          class="flex-1"
+          class="flex-1 gap-2"
           disabled
         >
           <WaypointsIcon class="size-4" />
           Start convoy
         </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon" class="shrink-0">
+              <MoreHorizontalIcon class="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" class="w-48">
+            <DropdownMenuItem @click="syncKeys" :disabled="isSyncing">
+              <RefreshCwIcon
+                class="size-4"
+                :class="{ 'animate-spin': isSyncing }"
+              />
+              {{ t('friends.detail.syncKeys') }}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              class="text-destructive"
+              @click="handleRemoveFriend"
+            >
+              <TrashIcon class="size-4" />
+              {{ t('friends.detail.removeFriend') }}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
 
@@ -459,5 +468,7 @@ watch([isLoading, friend], ([loading, f]) => {
         </div>
       </PopoverContent>
     </Popover>
-  </DetailPanelLayout>
+      </div>
+    </div>
+  </div>
 </template>

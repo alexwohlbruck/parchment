@@ -38,7 +38,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
   <div
     data-slot="command-input-wrapper"
     :class="cn(
-      'focus-within:ring-ring flex h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm ring-offset-background shadow-[0_1px_3px_rgba(0,0,0,0.08)] inset-shadow-[0_1px_0_rgba(255,255,255,0.7)] dark:inset-shadow-[0_1px_0_rgba(255,255,255,0.05)] transition-shadow focus-within:ring-1 focus-within:ring-inset',
+      'focus-within:ring-ring flex h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm ring-offset-background depth transition-shadow focus-within:ring-1 focus-within:ring-inset',
       props.wrapperClass,
     )"
   >

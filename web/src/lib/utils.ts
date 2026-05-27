@@ -15,25 +15,24 @@ import fuzzysort from 'fuzzysort'
 // `slate` and `neutral` cover the cool / warm-neutral cases. Default is
 // `blue`.
 export type ThemeColor =
-  | 'red'
-  | 'orange'
+  | 'parchment'
+  | 'ink'
+  | 'compass'
+  | 'coral'
   | 'amber'
-  | 'yellow'
-  | 'lime'
-  | 'green'
-  | 'emerald'
+  | 'peach'
+  | 'citrine'
+  | 'olive'
+  | 'forest'
+  | 'moss'
   | 'teal'
-  | 'cyan'
   | 'sky'
-  | 'blue'
+  | 'cobalt'
+  | 'periwinkle'
   | 'indigo'
   | 'violet'
-  | 'purple'
-  | 'fuchsia'
-  | 'pink'
-  | 'rose'
-  | 'slate'
-  | 'neutral'
+  | 'iris'
+  | 'magenta'
   | 'primary'
 
 export function getBreakpoints() {
@@ -103,37 +102,28 @@ export function getThemeColorClasses(color: ThemeColor): string {
   // back to blue so historical rows that stored a removed color (zinc,
   // stone, gray) still render rather than blanking out.
   const colorClasses: Record<ThemeColor, string> = {
-    red: 'bg-red-200 text-red-800 dark:bg-red-800 dark:text-red-200',
-    orange:
-      'bg-orange-200 text-orange-800 dark:bg-orange-800 dark:text-orange-200',
+    parchment: 'bg-parchment-200 text-parchment-800 dark:bg-parchment-800 dark:text-parchment-200',
+    ink: 'bg-ink-200 text-ink-800 dark:bg-ink-800 dark:text-ink-200',
+    compass: 'bg-compass-200 text-compass-800 dark:bg-compass-800 dark:text-compass-200',
+    coral: 'bg-coral-200 text-coral-800 dark:bg-coral-800 dark:text-coral-200',
     amber: 'bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-200',
-    yellow:
-      'bg-yellow-200 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200',
-    lime: 'bg-lime-200 text-lime-800 dark:bg-lime-800 dark:text-lime-200',
-    green: 'bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-200',
-    emerald:
-      'bg-emerald-200 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-200',
+    peach: 'bg-peach-200 text-peach-800 dark:bg-peach-800 dark:text-peach-200',
+    citrine: 'bg-citrine-200 text-citrine-800 dark:bg-citrine-800 dark:text-citrine-200',
+    olive: 'bg-olive-200 text-olive-800 dark:bg-olive-800 dark:text-olive-200',
+    forest: 'bg-forest-200 text-forest-800 dark:bg-forest-800 dark:text-forest-200',
+    moss: 'bg-moss-200 text-moss-800 dark:bg-moss-800 dark:text-moss-200',
     teal: 'bg-teal-200 text-teal-800 dark:bg-teal-800 dark:text-teal-200',
-    cyan: 'bg-cyan-200 text-cyan-800 dark:bg-cyan-800 dark:text-cyan-200',
     sky: 'bg-sky-200 text-sky-800 dark:bg-sky-800 dark:text-sky-200',
-    blue: 'bg-blue-200 text-blue-800 dark:bg-blue-800 dark:text-blue-200',
-    indigo:
-      'bg-indigo-200 text-indigo-800 dark:bg-indigo-800 dark:text-indigo-200',
-    violet:
-      'bg-violet-200 text-violet-800 dark:bg-violet-800 dark:text-violet-200',
-    purple:
-      'bg-purple-200 text-purple-800 dark:bg-purple-800 dark:text-purple-200',
-    fuchsia:
-      'bg-fuchsia-200 text-fuchsia-800 dark:bg-fuchsia-800 dark:text-fuchsia-200',
-    pink: 'bg-pink-200 text-pink-800 dark:bg-pink-800 dark:text-pink-200',
-    rose: 'bg-rose-200 text-rose-800 dark:bg-rose-800 dark:text-rose-200',
-    slate: 'bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200',
-    neutral:
-      'bg-neutral-200 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200',
+    cobalt: 'bg-cobalt-200 text-cobalt-800 dark:bg-cobalt-800 dark:text-cobalt-200',
+    periwinkle: 'bg-periwinkle-200 text-periwinkle-800 dark:bg-periwinkle-800 dark:text-periwinkle-200',
+    indigo: 'bg-indigo-200 text-indigo-800 dark:bg-indigo-800 dark:text-indigo-200',
+    violet: 'bg-violet-200 text-violet-800 dark:bg-violet-800 dark:text-violet-200',
+    iris: 'bg-iris-200 text-iris-800 dark:bg-iris-800 dark:text-iris-200',
+    magenta: 'bg-magenta-200 text-magenta-800 dark:bg-magenta-800 dark:text-magenta-200',
     primary: 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary',
   }
 
-  return colorClasses[color] ?? colorClasses.blue
+  return colorClasses[color] ?? colorClasses.cobalt
 }
 
 /**
@@ -145,40 +135,28 @@ export function getThemeColorClasses(color: ThemeColor): string {
  */
 export function getThemeColorGhostClasses(color: ThemeColor): string {
   const colorClasses: Record<ThemeColor, string> = {
-    red: 'bg-red-500/10 text-red-700 dark:bg-red-500/20 dark:text-red-300',
-    orange:
-      'bg-orange-500/10 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300',
-    amber:
-      'bg-amber-500/10 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
-    yellow:
-      'bg-yellow-500/10 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300',
-    lime: 'bg-lime-500/10 text-lime-700 dark:bg-lime-500/20 dark:text-lime-300',
-    green:
-      'bg-green-500/10 text-green-700 dark:bg-green-500/20 dark:text-green-300',
-    emerald:
-      'bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+    parchment: 'bg-parchment-500/10 text-parchment-700 dark:bg-parchment-500/20 dark:text-parchment-300',
+    ink: 'bg-ink-500/10 text-ink-700 dark:bg-ink-500/20 dark:text-ink-300',
+    compass: 'bg-compass-500/10 text-compass-700 dark:bg-compass-500/20 dark:text-compass-300',
+    coral: 'bg-coral-500/10 text-coral-700 dark:bg-coral-500/20 dark:text-coral-300',
+    amber: 'bg-amber-500/10 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+    peach: 'bg-peach-500/10 text-peach-700 dark:bg-peach-500/20 dark:text-peach-300',
+    citrine: 'bg-citrine-500/10 text-citrine-700 dark:bg-citrine-500/20 dark:text-citrine-300',
+    olive: 'bg-olive-500/10 text-olive-700 dark:bg-olive-500/20 dark:text-olive-300',
+    forest: 'bg-forest-500/10 text-forest-700 dark:bg-forest-500/20 dark:text-forest-300',
+    moss: 'bg-moss-500/10 text-moss-700 dark:bg-moss-500/20 dark:text-moss-300',
     teal: 'bg-teal-500/10 text-teal-700 dark:bg-teal-500/20 dark:text-teal-300',
-    cyan: 'bg-cyan-500/10 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-300',
     sky: 'bg-sky-500/10 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300',
-    blue: 'bg-blue-500/10 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300',
-    indigo:
-      'bg-indigo-500/10 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300',
-    violet:
-      'bg-violet-500/10 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300',
-    purple:
-      'bg-purple-500/10 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300',
-    fuchsia:
-      'bg-fuchsia-500/10 text-fuchsia-700 dark:bg-fuchsia-500/20 dark:text-fuchsia-300',
-    pink: 'bg-pink-500/10 text-pink-700 dark:bg-pink-500/20 dark:text-pink-300',
-    rose: 'bg-rose-500/10 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300',
-    slate:
-      'bg-slate-500/10 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300',
-    neutral:
-      'bg-neutral-500/10 text-neutral-700 dark:bg-neutral-500/20 dark:text-neutral-300',
+    cobalt: 'bg-cobalt-500/10 text-cobalt-700 dark:bg-cobalt-500/20 dark:text-cobalt-300',
+    periwinkle: 'bg-periwinkle-500/10 text-periwinkle-700 dark:bg-periwinkle-500/20 dark:text-periwinkle-300',
+    indigo: 'bg-indigo-500/10 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300',
+    violet: 'bg-violet-500/10 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300',
+    iris: 'bg-iris-500/10 text-iris-700 dark:bg-iris-500/20 dark:text-iris-300',
+    magenta: 'bg-magenta-500/10 text-magenta-700 dark:bg-magenta-500/20 dark:text-magenta-300',
     primary: 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary',
   }
 
-  return colorClasses[color] ?? colorClasses.blue
+  return colorClasses[color] ?? colorClasses.cobalt
 }
 
 /**
@@ -192,25 +170,24 @@ export function getThemeColorGhostClasses(color: ThemeColor): string {
  * to land on the rose/red/pink end of the wheel rather than green.
  */
 const themeColorHues: Record<Exclude<ThemeColor, 'primary'>, number | null> = {
-  red: 0,
-  orange: 25,
-  amber: 38,
-  yellow: 50,
-  lime: 78,
-  green: 142,
-  emerald: 158,
-  teal: 173,
-  cyan: 188,
-  sky: 199,
-  blue: 217,
-  indigo: 239,
-  violet: 263,
-  purple: 271,
-  fuchsia: 292,
-  pink: 330,
-  rose: 347,
-  slate: null,
-  neutral: null,
+  compass: 31,
+  coral: 40,
+  amber: 60,
+  peach: 75,
+  citrine: 95,
+  olive: 120,
+  forest: 135,
+  moss: 150,
+  teal: 195,
+  sky: 220,
+  cobalt: 240,
+  periwinkle: 260,
+  indigo: 275,
+  violet: 285,
+  iris: 320,
+  magenta: 340,
+  parchment: null,
+  ink: null,
 }
 
 function parseColorToHsl(
@@ -262,13 +239,13 @@ function parseColorToHsl(
  *     the color wheel (treating it as circular).
  */
 export function closestThemeColor(input: string | null | undefined): ThemeColor {
-  if (!input) return 'blue'
+  if (!input) return 'cobalt'
   const hsl = parseColorToHsl(input)
-  if (!hsl) return 'blue'
-  if (hsl.s < 8) return 'neutral'
-  if (hsl.s < 20) return 'slate'
+  if (!hsl) return 'cobalt'
+  if (hsl.s < 8) return 'parchment'
+  if (hsl.s < 20) return 'ink'
 
-  let best: ThemeColor = 'blue'
+  let best: ThemeColor = 'cobalt'
   let bestDist = Infinity
   for (const [name, hue] of Object.entries(themeColorHues)) {
     if (hue === null) continue

@@ -11,9 +11,16 @@ import {
   Mode,
   SelectedMode,
   SegmentState,
+  TransitDetails,
+  TransitRoute,
+  TransitTrip,
+  TransitStop,
+  TransitAgency,
+  TransitRouteType,
 } from '../types/trip.types'
 import { Coordinate } from '../types/unified-routing.types'
 import { routingService } from './routing.service'
+import { transitRoutingService } from './transit-routing.service'
 
 // TODO: Move to database per user
 const HARDCODED_VEHICLE_LOCATIONS = {
@@ -84,7 +91,7 @@ export class TripService {
     switch (selectedMode) {
       case 'multi':
         // Multi-modal: generate all available modes
-        return ['walking', 'driving', 'biking']
+        return ['walking', 'driving', 'biking', 'transit']
       case 'walking':
         // Walking only
         return ['walking']
@@ -95,8 +102,8 @@ export class TripService {
         // Biking (can include walking to bike)
         return ['walking', 'biking']
       case 'transit':
-        // Transit (can include walking to/from transit)
-        return ['walking'] // TODO: Add transit when implemented
+        // Transit: walk + transit + walk composition
+        return ['transit']
       case 'wheelchair':
         // Wheelchair — single mode, uses foot profile with custom_model
         return ['wheelchair']
@@ -209,6 +216,8 @@ export class TripService {
         )
       case 'wheelchair':
         return this.planWheelchairSegment(from, to, state, preferences)
+      case 'transit':
+        return this.planTransitSegment(from, to, state, preferences)
       default:
         return null
     }
@@ -688,6 +697,298 @@ export class TripService {
     } catch (error) {
       console.error('Direct biking failed:', error)
       return null
+    }
+  }
+
+  /**
+   * Plan transit segment — walk → transit → walk composition.
+   *
+   * Queries Barrelman for transit itineraries between origin and destination.
+   * MOTIS handles stop discovery and transit routing; Parchment replaces
+   * the walking legs with actual GraphHopper walking routes for accuracy.
+   *
+   * Returns multiple segments: [walk to stop, transit leg(s), walk from stop]
+   */
+  private async planTransitSegment(
+    from: Waypoint,
+    to: Waypoint,
+    state: SegmentState,
+    preferences?: any,
+  ): Promise<{
+    segment: TripSegment
+    state: SegmentState
+    multimodalSegments?: TripSegment[]
+  } | null> {
+    try {
+      const transitResponse = await transitRoutingService.getTransitRoute({
+        from: from.location,
+        to: to.location,
+        time: state.currentTime,
+        arriveBy: false,
+        numItineraries: 1,
+        transitModes: preferences?.transitModes,
+        maxWalkDistance: preferences?.maxWalkingDistance,
+        maxTransfers: preferences?.maxTransfers,
+        wheelchair: preferences?.wheelchairAccessible,
+      })
+
+      if (!transitResponse.itineraries.length) return null
+
+      // Use the best itinerary
+      const itinerary = transitResponse.itineraries[0]
+      const segments: TripSegment[] = []
+      let segmentTime = state.currentTime
+
+      for (const leg of itinerary.legs) {
+        if (leg.transitLeg) {
+          // Transit leg — convert MOTIS leg to our TripSegment with TransitDetails
+          const transitSegment = this.buildTransitSegment(leg, from, to, segmentTime)
+          segments.push(transitSegment)
+          segmentTime = transitSegment.endTime
+        } else {
+          // Walking leg — route via GraphHopper for accurate geometry and instructions
+          const walkFrom: Waypoint = {
+            location: { lat: leg.from.lat, lng: leg.from.lng },
+            type: 'via',
+            label: leg.from.name || undefined,
+          }
+          const walkTo: Waypoint = {
+            location: { lat: leg.to.lat, lng: leg.to.lng },
+            type: 'via',
+            label: leg.to.name || undefined,
+          }
+
+          const walkResult = await this.planWalkingSegmentForTransit(
+            walkFrom,
+            walkTo,
+            segmentTime,
+            preferences,
+          )
+
+          if (walkResult) {
+            segments.push(walkResult.segment)
+            segmentTime = walkResult.segment.endTime
+          } else {
+            // Fallback: use the straight-line walk from MOTIS
+            const fallbackSegment = this.buildWalkingFallbackSegment(
+              leg,
+              segmentTime,
+            )
+            segments.push(fallbackSegment)
+            segmentTime = fallbackSegment.endTime
+          }
+        }
+      }
+
+      if (segments.length === 0) return null
+
+      // The "main" segment is the first transit leg (or last segment if all walking)
+      const mainSegment = segments.find(s => s.mode === 'transit') || segments[segments.length - 1]
+
+      return {
+        segment: mainSegment,
+        multimodalSegments: segments,
+        state: {
+          currentTime: segments[segments.length - 1].endTime,
+          currentLocation: to.location,
+          currentMode: 'transit',
+          parkedVehicles: state.parkedVehicles,
+        },
+      }
+    } catch (error) {
+      console.error('Transit routing failed:', error)
+      return null
+    }
+  }
+
+  /**
+   * Plan a walking segment specifically for transit access/egress.
+   * Similar to planWalkingSegment but doesn't skip short walks (< 1 min)
+   * because even short walks are important in transit context.
+   */
+  private async planWalkingSegmentForTransit(
+    from: Waypoint,
+    to: Waypoint,
+    startTime: string,
+    preferences?: any,
+  ): Promise<{ segment: TripSegment } | null> {
+    try {
+      const route = await routingService.getRoute(
+        [
+          { type: 'coordinates', value: [from.location.lat, from.location.lng] },
+          { type: 'coordinates', value: [to.location.lat, to.location.lng] },
+        ],
+        'pedestrian',
+        preferences,
+      )
+
+      if (!route.routes.length) return null
+
+      const leg = route.routes[0].legs[0]
+      // Don't skip short segments for transit — even 30s walks matter
+      if (leg.distance < 5) return null
+
+      const segment: TripSegment = {
+        segmentIndex: 0,
+        mode: 'walking',
+        start: from,
+        end: to,
+        startTime,
+        endTime: new Date(
+          new Date(startTime).getTime() + leg.duration * 1000,
+        ).toISOString(),
+        duration: leg.duration,
+        distance: leg.distance,
+        geometry: leg.geometry,
+        instructions: leg.instructions,
+        co2: 0,
+        totalElevationGain: leg.totalElevationGain,
+        totalElevationLoss: leg.totalElevationLoss,
+        maxElevation: leg.maxElevation,
+        minElevation: leg.minElevation,
+        edgeSegments: leg.edgeSegments,
+      }
+
+      return { segment }
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Build a TripSegment from a MOTIS transit leg.
+   * Maps MOTIS OTPAPI fields to our TransitDetails type.
+   */
+  private buildTransitSegment(
+    leg: any,
+    tripFrom: Waypoint,
+    tripTo: Waypoint,
+    startTime: string,
+  ): TripSegment {
+    const departureStop: TransitStop = {
+      id: leg.from.stopId || '',
+      name: leg.from.name || '',
+      location: { lat: leg.from.lat, lng: leg.from.lng },
+      platformCode: leg.from.platformCode,
+      departureTime: leg.startTime,
+    }
+
+    const arrivalStop: TransitStop = {
+      id: leg.to.stopId || '',
+      name: leg.to.name || '',
+      location: { lat: leg.to.lat, lng: leg.to.lng },
+      platformCode: leg.to.platformCode,
+      arrivalTime: leg.endTime,
+    }
+
+    const intermediateStops: TransitStop[] = (leg.intermediateStops || []).map(
+      (s: any, i: number) => ({
+        id: s.stopId || '',
+        name: s.name || '',
+        location: { lat: s.lat, lng: s.lng },
+        platformCode: s.platformCode,
+        arrivalTime: s.arrival,
+        departureTime: s.departure,
+        stopSequence: i + 1,
+      }),
+    )
+
+    const routeType = this.mapMotisMode(leg.mode)
+
+    const transitDetails: TransitDetails = {
+      route: {
+        id: leg.routeId || '',
+        shortName: leg.routeShortName,
+        longName: leg.routeLongName,
+        type: routeType,
+        color: leg.routeColor,
+        textColor: leg.routeTextColor,
+        agency: {
+          id: leg.agencyId || '',
+          name: leg.agencyName || '',
+        },
+      },
+      trip: {
+        id: leg.tripId || '',
+        headsign: leg.headsign,
+      },
+      stops: [departureStop, ...intermediateStops, arrivalStop],
+      departureStop,
+      arrivalStop,
+      headsign: leg.headsign,
+      shortName: leg.routeShortName,
+      color: leg.routeColor,
+      textColor: leg.routeTextColor,
+    }
+
+    return {
+      segmentIndex: 0,
+      mode: 'transit',
+      start: {
+        location: { lat: leg.from.lat, lng: leg.from.lng },
+        type: 'via',
+        label: leg.from.name,
+      },
+      end: {
+        location: { lat: leg.to.lat, lng: leg.to.lng },
+        type: 'via',
+        label: leg.to.name,
+      },
+      startTime: leg.startTime,
+      endTime: leg.endTime,
+      duration: leg.duration,
+      distance: leg.distance,
+      geometry: leg.geometry || null,
+      instructions: [],
+      co2: leg.distance * 0.00005, // ~50g CO2/km for transit
+      details: { transitDetails },
+    }
+  }
+
+  /**
+   * Build a fallback walking segment from MOTIS straight-line data
+   * when GraphHopper routing fails.
+   */
+  private buildWalkingFallbackSegment(leg: any, startTime: string): TripSegment {
+    return {
+      segmentIndex: 0,
+      mode: 'walking',
+      start: {
+        location: { lat: leg.from.lat, lng: leg.from.lng },
+        type: 'via',
+        label: leg.from.name,
+      },
+      end: {
+        location: { lat: leg.to.lat, lng: leg.to.lng },
+        type: 'via',
+        label: leg.to.name,
+      },
+      startTime,
+      endTime: new Date(
+        new Date(startTime).getTime() + leg.duration * 1000,
+      ).toISOString(),
+      duration: leg.duration,
+      distance: leg.distance,
+      geometry: leg.geometry || null,
+      instructions: [],
+      co2: 0,
+    }
+  }
+
+  /**
+   * Map MOTIS mode strings to our TransitRouteType enum.
+   */
+  private mapMotisMode(mode: string): TransitRouteType {
+    switch (mode) {
+      case 'TRAM': return 'tram' as TransitRouteType
+      case 'SUBWAY': return 'subway' as TransitRouteType
+      case 'RAIL': return 'rail' as TransitRouteType
+      case 'BUS': return 'bus' as TransitRouteType
+      case 'FERRY': return 'ferry' as TransitRouteType
+      case 'CABLE_CAR': return 'cable_car' as TransitRouteType
+      case 'GONDOLA': return 'gondola' as TransitRouteType
+      case 'FUNICULAR': return 'funicular' as TransitRouteType
+      default: return 'bus' as TransitRouteType
     }
   }
 

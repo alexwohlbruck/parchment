@@ -341,7 +341,7 @@ const items = computed<MenuItemDefinition[]>(() => [
       <CommandDialog
         v-model:open="paletteDialogOpen"
         modal
-        class="top-[20%] translate-y-0"
+        class="top-[20%] bottom-auto"
       >
         <Palette
           ref="paletteDialogRef"

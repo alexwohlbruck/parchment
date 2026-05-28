@@ -32,6 +32,13 @@ export type SelectedMode =
   | 'transit'
   | 'wheelchair'
 
+export type SortPreference =
+  | 'fastest'
+  | 'cheapest'
+  | 'fewest_transfers'
+  | 'least_walking'
+  | 'greenest'
+
 export type WaypointType = 'origin' | 'destination' | 'via'
 
 export type OwnershipType = 'personal' | 'shared'

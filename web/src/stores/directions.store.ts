@@ -2,7 +2,7 @@ import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { Waypoint } from '@/types/map.types'
-import { RoutingPreferences, SelectedMode } from '@/types/multimodal.types'
+import { RoutingPreferences, SelectedMode, SortPreference } from '@/types/multimodal.types'
 import { getTimezoneWarning, type TimezoneWarning } from '@/lib/timezone.utils'
 
 // Mode-scoped preference storage
@@ -138,6 +138,8 @@ export const useDirectionsStore = defineStore('directions', () => {
   }
 
   const selectedMode = ref<SelectedMode>(loadSelectedMode())
+  const sortPreference = ref<SortPreference | null>(null)
+  const departureTime = ref<string | null>(null) // ISO 8601 or null for "now"
   const isLoading = ref(false)
   const selectedTripId = ref<string | null>(null) // Track which trip is currently shown on map
 
@@ -266,6 +268,8 @@ export const useDirectionsStore = defineStore('directions', () => {
     trips,
     waypoints,
     selectedMode,
+    sortPreference,
+    departureTime,
     isLoading,
     selectedTripId,
     timezoneWarning,

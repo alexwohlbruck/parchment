@@ -51,8 +51,14 @@ export class TripService {
 
     for (const mode of modes) {
       try {
-        const trip = await this.planModeTrip(request, mode, dataSources)
-        if (trip) candidates.push(trip)
+        if (mode === 'transit') {
+          // Transit generates multiple trip candidates (one per itinerary)
+          const trips = await this.planTransitTrips(request, dataSources)
+          candidates.push(...trips)
+        } else {
+          const trip = await this.planModeTrip(request, mode, dataSources)
+          if (trip) candidates.push(trip)
+        }
       } catch (error) {
         console.error(`Failed to plan ${mode} trip:`, error)
       }
@@ -783,11 +789,146 @@ export class TripService {
   }
 
   /**
+   * Plan multiple transit trips — returns one TripResponse per itinerary.
+   *
+   * Used by planTrip() to generate multiple transit candidates for scoring.
+   * Requests 3 itineraries from MOTIS and composes each independently.
+   */
+  private async planTransitTrips(
+    request: TripRequest,
+    dataSources: DataSource[],
+  ): Promise<TripResponse[]> {
+    const preferences = {
+      ...(request.routingPreferences || {}),
+      ...(request.language && { language: request.language }),
+    }
+    const startTime =
+      request.preferredDepartureTime || new Date().toISOString()
+
+    try {
+      const from = request.waypoints[0]
+      const to = request.waypoints[request.waypoints.length - 1]
+
+      const transitResponse = await transitRoutingService.getTransitRoute({
+        from: from.location,
+        to: to.location,
+        time: startTime,
+        arriveBy: false,
+        numItineraries: 3,
+        transitModes: preferences?.transitModes,
+        maxWalkDistance: preferences?.maxWalkingDistance,
+        maxTransfers: preferences?.maxTransfers,
+        wheelchair: preferences?.wheelchairAccessible,
+      })
+
+      if (!transitResponse.itineraries.length) return []
+
+      // Compose each itinerary into a full TripResponse
+      const results: TripResponse[] = []
+      for (const itinerary of transitResponse.itineraries) {
+        const segments = await this.composeTransitItinerary(
+          itinerary,
+          startTime,
+          preferences,
+        )
+        if (segments.length === 0) continue
+
+        // Index segments
+        segments.forEach((seg, idx) => {
+          seg.segmentIndex = idx
+          seg.legIndex = 0
+        })
+
+        const tripStats = this.calculateStats(segments)
+        results.push({
+          segments,
+          tripStats,
+          earliestStartTime: segments[0]?.startTime || startTime,
+          latestEndTime:
+            segments[segments.length - 1]?.endTime || startTime,
+          dataSources,
+          requestId: request.requestId,
+          generatedAt: new Date().toISOString(),
+        })
+      }
+
+      return results
+    } catch (error) {
+      console.error('Transit routing failed:', error)
+      return []
+    }
+  }
+
+  /**
+   * Compose a single MOTIS itinerary into an array of TripSegments.
+   *
+   * Replaces MOTIS walking legs with accurate GraphHopper walking routes,
+   * and converts transit legs to TripSegments with TransitDetails.
+   * Reused by both planTransitTrips() and planTransitSegment().
+   */
+  private async composeTransitItinerary(
+    itinerary: any,
+    startTime: string,
+    preferences?: any,
+  ): Promise<TripSegment[]> {
+    const segments: TripSegment[] = []
+    let segmentTime = startTime
+
+    for (const leg of itinerary.legs) {
+      if (leg.transitLeg) {
+        // Transit leg — convert MOTIS leg to our TripSegment with TransitDetails
+        const transitSegment = this.buildTransitSegment(
+          leg,
+          { location: { lat: leg.from.lat, lng: leg.from.lng }, type: 'via' },
+          { location: { lat: leg.to.lat, lng: leg.to.lng }, type: 'via' },
+          segmentTime,
+        )
+        segments.push(transitSegment)
+        segmentTime = transitSegment.endTime
+      } else {
+        // Walking leg — route via GraphHopper for accurate geometry
+        const walkFrom: Waypoint = {
+          location: { lat: leg.from.lat, lng: leg.from.lng },
+          type: 'via',
+          label: leg.from.name || undefined,
+        }
+        const walkTo: Waypoint = {
+          location: { lat: leg.to.lat, lng: leg.to.lng },
+          type: 'via',
+          label: leg.to.name || undefined,
+        }
+
+        const walkResult = await this.planWalkingSegmentForTransit(
+          walkFrom,
+          walkTo,
+          segmentTime,
+          preferences,
+        )
+
+        if (walkResult) {
+          segments.push(walkResult.segment)
+          segmentTime = walkResult.segment.endTime
+        } else {
+          // Fallback: use the straight-line walk from MOTIS
+          const fallbackSegment = this.buildWalkingFallbackSegment(
+            leg,
+            segmentTime,
+          )
+          segments.push(fallbackSegment)
+          segmentTime = fallbackSegment.endTime
+        }
+      }
+    }
+
+    return segments
+  }
+
+  /**
    * Plan transit segment — walk → transit → walk composition.
    *
-   * Queries Barrelman for transit itineraries between origin and destination.
-   * MOTIS handles stop discovery and transit routing; Parchment replaces
-   * the walking legs with actual GraphHopper walking routes for accuracy.
+   * Queries Barrelman for a single transit itinerary between two waypoints.
+   * Used by planModeTrip() for multi-waypoint transit (each leg planned
+   * independently). For multi-candidate generation, see planTransitTrips().
    *
    * Returns multiple segments: [walk to stop, transit leg(s), walk from stop]
    */
@@ -816,51 +957,12 @@ export class TripService {
 
       if (!transitResponse.itineraries.length) return null
 
-      // Use the best itinerary
       const itinerary = transitResponse.itineraries[0]
-      const segments: TripSegment[] = []
-      let segmentTime = state.currentTime
-
-      for (const leg of itinerary.legs) {
-        if (leg.transitLeg) {
-          // Transit leg — convert MOTIS leg to our TripSegment with TransitDetails
-          const transitSegment = this.buildTransitSegment(leg, from, to, segmentTime)
-          segments.push(transitSegment)
-          segmentTime = transitSegment.endTime
-        } else {
-          // Walking leg — route via GraphHopper for accurate geometry and instructions
-          const walkFrom: Waypoint = {
-            location: { lat: leg.from.lat, lng: leg.from.lng },
-            type: 'via',
-            label: leg.from.name || undefined,
-          }
-          const walkTo: Waypoint = {
-            location: { lat: leg.to.lat, lng: leg.to.lng },
-            type: 'via',
-            label: leg.to.name || undefined,
-          }
-
-          const walkResult = await this.planWalkingSegmentForTransit(
-            walkFrom,
-            walkTo,
-            segmentTime,
-            preferences,
-          )
-
-          if (walkResult) {
-            segments.push(walkResult.segment)
-            segmentTime = walkResult.segment.endTime
-          } else {
-            // Fallback: use the straight-line walk from MOTIS
-            const fallbackSegment = this.buildWalkingFallbackSegment(
-              leg,
-              segmentTime,
-            )
-            segments.push(fallbackSegment)
-            segmentTime = fallbackSegment.endTime
-          }
-        }
-      }
+      const segments = await this.composeTransitItinerary(
+        itinerary,
+        state.currentTime,
+        preferences,
+      )
 
       if (segments.length === 0) return null
 

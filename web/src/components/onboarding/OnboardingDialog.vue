@@ -182,9 +182,9 @@ function handleInteractOutside(e: Event) {
     <DialogContent
       :class="[
         // Mobile: fullscreen
-        'inset-0 translate-x-0 translate-y-0 max-w-full h-[100dvh] max-h-[100dvh] rounded-none border-0',
+        'max-w-full h-[100dvh] max-h-[100dvh] rounded-none border-0',
         // Desktop: centered card
-        'sm:inset-auto sm:top-[50%] sm:left-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:h-auto sm:max-h-[90dvh] sm:rounded-lg sm:border',
+        'sm:h-auto sm:max-h-[90dvh] sm:rounded-lg sm:border',
         'gap-0 p-0 flex flex-col transition-[max-width] duration-300',
         currentStep.wide
           ? 'sm:max-w-2xl md:max-w-3xl'

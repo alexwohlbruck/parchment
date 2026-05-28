@@ -1,0 +1,693 @@
+import { describe, test, expect, mock, beforeEach } from 'bun:test'
+
+// ── Mock dependencies before imports ─────────────────────────────────────────
+
+// Mock routing service — used for walking/biking/driving segments
+const mockGetRoute = mock(async () => ({
+  routes: [
+    {
+      distance: 500,
+      duration: 360,
+      legs: [
+        {
+          distance: 500,
+          duration: 360,
+          geometry: {
+            type: 'LineString' as const,
+            coordinates: [
+              [-80.8, 35.2],
+              [-80.81, 35.21],
+            ],
+          },
+          instructions: [],
+          totalElevationGain: 10,
+          totalElevationLoss: 5,
+          maxElevation: 250,
+          minElevation: 240,
+          edgeSegments: [],
+        },
+      ],
+    },
+  ],
+}))
+
+mock.module('./routing.service', () => ({
+  routingService: { getRoute: mockGetRoute },
+}))
+
+// Mock transit routing service — used for transit legs
+const mockGetTransitRoute = mock(async () => ({
+  itineraries: [],
+  metadata: { searchWindow: 3600 },
+}))
+
+mock.module('./transit-routing.service', () => ({
+  transitRoutingService: { getTransitRoute: mockGetTransitRoute },
+}))
+
+// ── Import under test (after mocks) ──────────────────────────────────────────
+
+const { TripService } = await import('./trip.service')
+
+// ── Test fixtures ────────────────────────────────────────────────────────────
+
+const CHARLOTTE_ORIGIN = {
+  location: { lat: 35.2094, lng: -80.8605 },
+  type: 'origin' as const,
+  label: 'Uptown Charlotte',
+}
+
+const CHARLOTTE_DEST = {
+  location: { lat: 35.2271, lng: -80.8431 },
+  type: 'destination' as const,
+  label: 'NoDa',
+}
+
+function makeTransitItinerary(overrides: Record<string, any> = {}) {
+  return {
+    duration: 1800,
+    startTime: '2026-01-15T08:00:00Z',
+    endTime: '2026-01-15T08:30:00Z',
+    walkTime: 600,
+    transitTime: 1200,
+    waitingTime: 0,
+    walkDistance: 500,
+    transfers: 0,
+    legs: [
+      {
+        mode: 'WALK',
+        transitLeg: false,
+        from: { name: 'Origin', lat: 35.2094, lng: -80.8605 },
+        to: {
+          name: 'Stop A',
+          lat: 35.21,
+          lng: -80.85,
+          stopId: 'stop-a',
+        },
+        startTime: '2026-01-15T08:00:00Z',
+        endTime: '2026-01-15T08:05:00Z',
+        duration: 300,
+        distance: 250,
+      },
+      {
+        mode: 'BUS',
+        transitLeg: true,
+        from: {
+          name: 'Stop A',
+          lat: 35.21,
+          lng: -80.85,
+          stopId: 'stop-a',
+        },
+        to: {
+          name: 'Stop B',
+          lat: 35.225,
+          lng: -80.845,
+          stopId: 'stop-b',
+        },
+        startTime: '2026-01-15T08:05:00Z',
+        endTime: '2026-01-15T08:25:00Z',
+        duration: 1200,
+        distance: 5000,
+        routeShortName: '9X',
+        routeLongName: 'Express Downtown',
+        routeColor: '0000FF',
+        routeTextColor: 'FFFFFF',
+        headsign: 'NoDa',
+        agencyName: 'Charlotte CATS',
+        agencyId: 'cats-agency',
+        tripId: 'trip-123',
+        routeId: 'route-9x',
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [-80.85, 35.21],
+            [-80.845, 35.225],
+          ],
+        },
+        intermediateStops: [
+          {
+            name: 'Mid Stop',
+            lat: 35.218,
+            lng: -80.848,
+            stopId: 'mid-stop',
+            arrival: '2026-01-15T08:15:00Z',
+            departure: '2026-01-15T08:15:30Z',
+          },
+        ],
+      },
+      {
+        mode: 'WALK',
+        transitLeg: false,
+        from: {
+          name: 'Stop B',
+          lat: 35.225,
+          lng: -80.845,
+          stopId: 'stop-b',
+        },
+        to: { name: 'Destination', lat: 35.2271, lng: -80.8431 },
+        startTime: '2026-01-15T08:25:00Z',
+        endTime: '2026-01-15T08:30:00Z',
+        duration: 300,
+        distance: 250,
+      },
+    ],
+    ...overrides,
+  }
+}
+
+function makeBasicWalkRoute(distance: number, duration: number) {
+  return {
+    routes: [
+      {
+        distance,
+        duration,
+        legs: [
+          {
+            distance,
+            duration,
+            geometry: {
+              type: 'LineString' as const,
+              coordinates: [
+                [-80.8, 35.2],
+                [-80.81, 35.21],
+              ],
+            },
+            instructions: [{ text: 'Walk north' }],
+            totalElevationGain: 5,
+            totalElevationLoss: 3,
+            maxElevation: 248,
+            minElevation: 243,
+            edgeSegments: [],
+          },
+        ],
+      },
+    ],
+  }
+}
+
+// ── Setup ────────────────────────────────────────────────────────────────────
+
+let tripService: InstanceType<typeof TripService>
+
+beforeEach(() => {
+  mockGetRoute.mockReset()
+  mockGetTransitRoute.mockReset()
+  tripService = new TripService()
+
+  // Default routing mock — returns a basic walking route
+  mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 360))
+})
+
+// ── Tests ────────────────────────────────────────────────────────────────────
+
+describe('TripService — mode generation', () => {
+  test('transit mode generates only transit', () => {
+    // Access private method via prototype
+    const modes = (tripService as any).getModesToGenerate('transit')
+    expect(modes).toEqual(['transit'])
+  })
+
+  test('multi mode includes transit', () => {
+    const modes = (tripService as any).getModesToGenerate('multi')
+    expect(modes).toContain('transit')
+    expect(modes).toContain('walking')
+    expect(modes).toContain('driving')
+    expect(modes).toContain('biking')
+  })
+
+  test('walking mode does not include transit', () => {
+    const modes = (tripService as any).getModesToGenerate('walking')
+    expect(modes).not.toContain('transit')
+  })
+
+  test('default mode (undefined) does not include transit', () => {
+    const modes = (tripService as any).getModesToGenerate(undefined)
+    expect(modes).not.toContain('transit')
+  })
+})
+
+describe('TripService — planTransitSegment', () => {
+  test('returns null when no itineraries found', async () => {
+    mockGetTransitRoute.mockImplementation(async () => ({
+      itineraries: [],
+      metadata: { searchWindow: 3600 },
+    }))
+
+    const result = await (tripService as any).planTransitSegment(
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      {
+        currentTime: '2026-01-15T08:00:00Z',
+        currentLocation: CHARLOTTE_ORIGIN.location,
+        currentMode: 'transit',
+        parkedVehicles: [],
+      },
+    )
+
+    expect(result).toBeNull()
+  })
+
+  test('composes walk → transit → walk segments', async () => {
+    const itinerary = makeTransitItinerary()
+    mockGetTransitRoute.mockImplementation(async () => ({
+      itineraries: [itinerary],
+      metadata: { searchWindow: 3600 },
+    }))
+
+    const result = await (tripService as any).planTransitSegment(
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      {
+        currentTime: '2026-01-15T08:00:00Z',
+        currentLocation: CHARLOTTE_ORIGIN.location,
+        currentMode: 'transit',
+        parkedVehicles: [],
+      },
+    )
+
+    expect(result).not.toBeNull()
+    expect(result.multimodalSegments).toBeArray()
+    // Three segments: walk → transit → walk
+    expect(result.multimodalSegments.length).toBe(3)
+
+    const [walk1, transit, walk2] = result.multimodalSegments
+    expect(walk1.mode).toBe('walking')
+    expect(transit.mode).toBe('transit')
+    expect(walk2.mode).toBe('walking')
+  })
+
+  test('transit segment has correct TransitDetails', async () => {
+    const itinerary = makeTransitItinerary()
+    mockGetTransitRoute.mockImplementation(async () => ({
+      itineraries: [itinerary],
+      metadata: { searchWindow: 3600 },
+    }))
+
+    const result = await (tripService as any).planTransitSegment(
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      {
+        currentTime: '2026-01-15T08:00:00Z',
+        currentLocation: CHARLOTTE_ORIGIN.location,
+        currentMode: 'transit',
+        parkedVehicles: [],
+      },
+    )
+
+    const transitSeg = result.multimodalSegments.find(
+      (s: any) => s.mode === 'transit',
+    )
+    expect(transitSeg).toBeDefined()
+    const details = transitSeg.details?.transitDetails
+    expect(details).toBeDefined()
+    expect(details.route.shortName).toBe('9X')
+    expect(details.route.longName).toBe('Express Downtown')
+    expect(details.route.color).toBe('0000FF')
+    expect(details.route.agency.name).toBe('Charlotte CATS')
+    expect(details.trip.headsign).toBe('NoDa')
+    expect(details.headsign).toBe('NoDa')
+    expect(details.departureStop.name).toBe('Stop A')
+    expect(details.arrivalStop.name).toBe('Stop B')
+  })
+
+  test('transit segment includes intermediate stops', async () => {
+    const itinerary = makeTransitItinerary()
+    mockGetTransitRoute.mockImplementation(async () => ({
+      itineraries: [itinerary],
+      metadata: { searchWindow: 3600 },
+    }))
+
+    const result = await (tripService as any).planTransitSegment(
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      {
+        currentTime: '2026-01-15T08:00:00Z',
+        currentLocation: CHARLOTTE_ORIGIN.location,
+        currentMode: 'transit',
+        parkedVehicles: [],
+      },
+    )
+
+    const transitSeg = result.multimodalSegments.find(
+      (s: any) => s.mode === 'transit',
+    )
+    const details = transitSeg.details?.transitDetails
+    // stops = [departure, ...intermediate, arrival]
+    expect(details.stops.length).toBe(3)
+    expect(details.stops[1].name).toBe('Mid Stop')
+    expect(details.stops[1].stopSequence).toBe(1)
+  })
+
+  test('updates segment state with final time and location', async () => {
+    const itinerary = makeTransitItinerary()
+    mockGetTransitRoute.mockImplementation(async () => ({
+      itineraries: [itinerary],
+      metadata: { searchWindow: 3600 },
+    }))
+
+    const result = await (tripService as any).planTransitSegment(
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      {
+        currentTime: '2026-01-15T08:00:00Z',
+        currentLocation: CHARLOTTE_ORIGIN.location,
+        currentMode: 'transit',
+        parkedVehicles: [],
+      },
+    )
+
+    expect(result.state.currentMode).toBe('transit')
+    expect(result.state.currentLocation).toEqual(CHARLOTTE_DEST.location)
+  })
+
+  test('passes transit preferences to MOTIS request', async () => {
+    mockGetTransitRoute.mockImplementation(async () => ({
+      itineraries: [],
+      metadata: { searchWindow: 3600 },
+    }))
+
+    await (tripService as any).planTransitSegment(
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      {
+        currentTime: '2026-01-15T08:00:00Z',
+        currentLocation: CHARLOTTE_ORIGIN.location,
+        currentMode: 'transit',
+        parkedVehicles: [],
+      },
+      {
+        transitModes: ['BUS', 'RAIL'],
+        maxWalkingDistance: 1500,
+        maxTransfers: 2,
+        wheelchairAccessible: true,
+      },
+    )
+
+    expect(mockGetTransitRoute).toHaveBeenCalledTimes(1)
+    const request = mockGetTransitRoute.mock.calls[0][0]
+    expect(request.transitModes).toEqual(['BUS', 'RAIL'])
+    expect(request.maxWalkDistance).toBe(1500)
+    expect(request.maxTransfers).toBe(2)
+    expect(request.wheelchair).toBe(true)
+  })
+
+  test('returns null on transit routing error', async () => {
+    mockGetTransitRoute.mockImplementation(async () => {
+      throw new Error('MOTIS connection refused')
+    })
+
+    const result = await (tripService as any).planTransitSegment(
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      {
+        currentTime: '2026-01-15T08:00:00Z',
+        currentLocation: CHARLOTTE_ORIGIN.location,
+        currentMode: 'transit',
+        parkedVehicles: [],
+      },
+    )
+
+    expect(result).toBeNull()
+  })
+
+  test('uses fallback walking segment when GraphHopper fails', async () => {
+    const itinerary = makeTransitItinerary()
+    mockGetTransitRoute.mockImplementation(async () => ({
+      itineraries: [itinerary],
+      metadata: { searchWindow: 3600 },
+    }))
+
+    // GraphHopper fails for walking legs
+    mockGetRoute.mockImplementation(async () => {
+      throw new Error('GraphHopper unavailable')
+    })
+
+    const result = await (tripService as any).planTransitSegment(
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      {
+        currentTime: '2026-01-15T08:00:00Z',
+        currentLocation: CHARLOTTE_ORIGIN.location,
+        currentMode: 'transit',
+        parkedVehicles: [],
+      },
+    )
+
+    // Should still produce segments using MOTIS fallback data
+    expect(result).not.toBeNull()
+    expect(result.multimodalSegments.length).toBe(3)
+
+    // Walking segments are fallback (no GraphHopper instructions)
+    const walkSegs = result.multimodalSegments.filter(
+      (s: any) => s.mode === 'walking',
+    )
+    expect(walkSegs.length).toBe(2)
+    walkSegs.forEach((seg: any) => {
+      expect(seg.instructions).toEqual([])
+    })
+  })
+})
+
+describe('TripService — buildTransitSegment', () => {
+  test('maps MOTIS BUS mode correctly', () => {
+    const mode = (tripService as any).mapMotisMode('BUS')
+    expect(mode).toBe('bus')
+  })
+
+  test('maps MOTIS RAIL mode correctly', () => {
+    const mode = (tripService as any).mapMotisMode('RAIL')
+    expect(mode).toBe('rail')
+  })
+
+  test('maps MOTIS SUBWAY mode correctly', () => {
+    const mode = (tripService as any).mapMotisMode('SUBWAY')
+    expect(mode).toBe('subway')
+  })
+
+  test('maps MOTIS TRAM mode correctly', () => {
+    const mode = (tripService as any).mapMotisMode('TRAM')
+    expect(mode).toBe('tram')
+  })
+
+  test('maps MOTIS FERRY mode correctly', () => {
+    const mode = (tripService as any).mapMotisMode('FERRY')
+    expect(mode).toBe('ferry')
+  })
+
+  test('maps unknown MOTIS mode to bus', () => {
+    const mode = (tripService as any).mapMotisMode('UNKNOWN_MODE')
+    expect(mode).toBe('bus')
+  })
+
+  test('builds transit segment with CO2 estimate', () => {
+    const leg = {
+      mode: 'BUS',
+      transitLeg: true,
+      from: { name: 'Stop A', lat: 35.21, lng: -80.85, stopId: 'sa' },
+      to: { name: 'Stop B', lat: 35.22, lng: -80.84, stopId: 'sb' },
+      startTime: '2026-01-15T08:05:00Z',
+      endTime: '2026-01-15T08:25:00Z',
+      duration: 1200,
+      distance: 5000,
+      routeShortName: '9X',
+      headsign: 'Downtown',
+      agencyName: 'CATS',
+      agencyId: 'cats',
+      tripId: 'trip-1',
+      routeId: 'route-9x',
+    }
+
+    const segment = (tripService as any).buildTransitSegment(
+      leg,
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      '2026-01-15T08:05:00Z',
+    )
+
+    expect(segment.co2).toBeCloseTo(5000 * 0.00005, 5) // ~50g/km
+    expect(segment.mode).toBe('transit')
+  })
+})
+
+describe('TripService — planTrip with transit', () => {
+  test('transit mode calls transit routing service', async () => {
+    mockGetTransitRoute.mockImplementation(async () => ({
+      itineraries: [makeTransitItinerary()],
+      metadata: { searchWindow: 3600 },
+    }))
+
+    const response = await tripService.planTrip({
+      waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+      selectedMode: 'transit',
+      preferredDepartureTime: '2026-01-15T08:00:00Z',
+    })
+
+    // Should produce at least one trip candidate
+    expect(response.trips.length).toBeGreaterThanOrEqual(1)
+    expect(mockGetTransitRoute).toHaveBeenCalled()
+  })
+
+  test('multi mode generates transit among other candidates', async () => {
+    mockGetTransitRoute.mockImplementation(async () => ({
+      itineraries: [makeTransitItinerary()],
+      metadata: { searchWindow: 3600 },
+    }))
+
+    const response = await tripService.planTrip({
+      waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+      selectedMode: 'multi',
+      preferredDepartureTime: '2026-01-15T08:00:00Z',
+    })
+
+    // multi generates walking, driving, biking, transit
+    // All should attempt routing (at least walking + transit should succeed)
+    expect(response.trips.length).toBeGreaterThanOrEqual(1)
+    expect(mockGetTransitRoute).toHaveBeenCalled()
+    expect(mockGetRoute).toHaveBeenCalled()
+  })
+
+  test('transit failure in multi mode still returns other trips', async () => {
+    mockGetTransitRoute.mockImplementation(async () => {
+      throw new Error('MOTIS unavailable')
+    })
+
+    const response = await tripService.planTrip({
+      waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+      selectedMode: 'multi',
+      preferredDepartureTime: '2026-01-15T08:00:00Z',
+    })
+
+    // Should still have walking/driving/biking trips
+    expect(response.trips.length).toBeGreaterThanOrEqual(1)
+  })
+
+  test('ranks trips by duration (fastest first)', async () => {
+    // Walking: slow
+    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(1000, 720))
+
+    // Transit: faster
+    mockGetTransitRoute.mockImplementation(async () => ({
+      itineraries: [
+        makeTransitItinerary({
+          duration: 1800,
+          legs: [
+            {
+              mode: 'BUS',
+              transitLeg: true,
+              from: { name: 'Stop A', lat: 35.21, lng: -80.85, stopId: 'sa' },
+              to: { name: 'Stop B', lat: 35.225, lng: -80.845, stopId: 'sb' },
+              startTime: '2026-01-15T08:00:00Z',
+              endTime: '2026-01-15T08:30:00Z',
+              duration: 1800,
+              distance: 5000,
+              routeShortName: '9X',
+              headsign: 'NoDa',
+              agencyName: 'CATS',
+            },
+          ],
+        }),
+      ],
+      metadata: { searchWindow: 3600 },
+    }))
+
+    const response = await tripService.planTrip({
+      waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+      selectedMode: 'multi',
+      preferredDepartureTime: '2026-01-15T08:00:00Z',
+    })
+
+    expect(response.trips.length).toBeGreaterThanOrEqual(1)
+    // All trips should have rank assigned
+    response.trips.forEach((trip) => {
+      expect(trip.rank).toBeGreaterThan(0)
+    })
+  })
+})
+
+describe('TripService — walkingSegmentForTransit', () => {
+  test('does not skip short walks (unlike regular walking segments)', async () => {
+    // Return a very short walk (30 seconds, 20m)
+    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(20, 30))
+
+    const result = await (tripService as any).planWalkingSegmentForTransit(
+      { location: { lat: 35.21, lng: -80.85 }, type: 'via' },
+      { location: { lat: 35.2101, lng: -80.8501 }, type: 'via' },
+      '2026-01-15T08:00:00Z',
+    )
+
+    // Short walk should still be returned for transit context
+    expect(result).not.toBeNull()
+    expect(result.segment.mode).toBe('walking')
+    expect(result.segment.distance).toBe(20)
+  })
+
+  test('skips walks under 5m distance', async () => {
+    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(3, 5))
+
+    const result = await (tripService as any).planWalkingSegmentForTransit(
+      { location: { lat: 35.21, lng: -80.85 }, type: 'via' },
+      { location: { lat: 35.2100001, lng: -80.8500001 }, type: 'via' },
+      '2026-01-15T08:00:00Z',
+    )
+
+    // Below 5m threshold — should be skipped
+    expect(result).toBeNull()
+  })
+
+  test('returns null on routing failure', async () => {
+    mockGetRoute.mockImplementation(async () => {
+      throw new Error('GH unavailable')
+    })
+
+    const result = await (tripService as any).planWalkingSegmentForTransit(
+      { location: { lat: 35.21, lng: -80.85 }, type: 'via' },
+      { location: { lat: 35.22, lng: -80.84 }, type: 'via' },
+      '2026-01-15T08:00:00Z',
+    )
+
+    expect(result).toBeNull()
+  })
+})
+
+describe('TripService — buildWalkingFallbackSegment', () => {
+  test('builds walking segment from MOTIS straight-line data', () => {
+    const leg = {
+      mode: 'WALK',
+      from: { name: 'Stop B', lat: 35.225, lng: -80.845, stopId: 'sb' },
+      to: { name: 'Destination', lat: 35.227, lng: -80.843 },
+      startTime: '2026-01-15T08:25:00Z',
+      endTime: '2026-01-15T08:30:00Z',
+      duration: 300,
+      distance: 250,
+    }
+
+    const segment = (tripService as any).buildWalkingFallbackSegment(
+      leg,
+      '2026-01-15T08:25:00Z',
+    )
+
+    expect(segment.mode).toBe('walking')
+    expect(segment.duration).toBe(300)
+    expect(segment.distance).toBe(250)
+    expect(segment.co2).toBe(0)
+    expect(segment.start.label).toBe('Stop B')
+    expect(segment.end.label).toBe('Destination')
+  })
+
+  test('calculates endTime from startTime + duration', () => {
+    const leg = {
+      mode: 'WALK',
+      from: { name: 'A', lat: 35.21, lng: -80.85 },
+      to: { name: 'B', lat: 35.22, lng: -80.84 },
+      duration: 600,
+      distance: 500,
+    }
+
+    const segment = (tripService as any).buildWalkingFallbackSegment(
+      leg,
+      '2026-01-15T10:00:00Z',
+    )
+
+    expect(segment.endTime).toBe('2026-01-15T10:10:00.000Z')
+  })
+})

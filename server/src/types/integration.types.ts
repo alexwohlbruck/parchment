@@ -206,12 +206,125 @@ export interface TransitDataCapability {
     endTime?: string
     limit?: number
   }): Promise<TransitDeparture[]>
-  
+
   // TODO: Implement these endpoints
   // getStops(options?: any): Promise<any[]>
   // getRoutes(options?: any): Promise<any[]>
   // getAgencies(options?: any): Promise<any[]>
   // getTrips(options?: any): Promise<any[]>
+}
+
+/**
+ * Transit routing capability — stop-to-stop transit routing via MOTIS.
+ *
+ * Separate from ROUTING (street routing via GraphHopper) because transit
+ * routing uses a fundamentally different engine and data model (GTFS +
+ * RAPTOR algorithm vs OSM graph + contraction hierarchies).
+ */
+export interface TransitRoutingCapability {
+  getTransitRoute(request: TransitRouteRequest): Promise<TransitRouteResponse>
+  getNearbyStops(request: NearbyStopsRequest): Promise<NearbyStopResult[]>
+  getRoutesForStop(feedId: string, stopId: string): Promise<StopRouteResult[]>
+}
+
+export interface TransitRouteRequest {
+  from: { lat: number; lng: number }
+  to: { lat: number; lng: number }
+  /** ISO 8601 datetime */
+  time?: string
+  /** If true, time is the desired arrival time */
+  arriveBy?: boolean
+  numItineraries?: number
+  searchWindow?: number
+  transitModes?: string[]
+  maxWalkDistance?: number
+  maxTransfers?: number
+  wheelchair?: boolean
+}
+
+export interface TransitRouteResponse {
+  itineraries: TransitItinerary[]
+  metadata?: {
+    searchWindow: number
+    nextPageCursor?: string
+    prevPageCursor?: string
+  }
+}
+
+export interface TransitItinerary {
+  duration: number
+  startTime: string
+  endTime: string
+  walkTime: number
+  transitTime: number
+  waitingTime: number
+  walkDistance: number
+  transfers: number
+  legs: TransitLeg[]
+}
+
+export interface TransitLeg {
+  mode: string
+  from: TransitLegPlace
+  to: TransitLegPlace
+  startTime: string
+  endTime: string
+  duration: number
+  distance: number
+  geometry?: { type: 'LineString'; coordinates: [number, number][] }
+  transitLeg: boolean
+  routeShortName?: string
+  routeLongName?: string
+  routeColor?: string
+  routeTextColor?: string
+  agencyName?: string
+  agencyId?: string
+  tripId?: string
+  headsign?: string
+  routeId?: string
+  intermediateStops?: TransitLegPlace[]
+}
+
+export interface TransitLegPlace {
+  name: string
+  lat: number
+  lng: number
+  stopId?: string
+  arrival?: string
+  departure?: string
+  platformCode?: string
+}
+
+export interface NearbyStopsRequest {
+  lat: number
+  lng: number
+  radius?: number
+  limit?: number
+}
+
+export interface NearbyStopResult {
+  stopId: string
+  feedId: string
+  stopName: string
+  stopCode: string | null
+  lat: number
+  lng: number
+  distance: number
+  locationType: number
+  parentStation: string | null
+  wheelchairBoarding: number
+  platformCode: string | null
+}
+
+export interface StopRouteResult {
+  routeId: string
+  feedId: string
+  routeShortName: string | null
+  routeLongName: string | null
+  routeType: number
+  routeColor: string | null
+  routeTextColor: string | null
+  agencyName: string | null
 }
 
 export interface WeatherData {
@@ -352,6 +465,7 @@ export interface IntegrationCapabilities {
   searchAlongRoute?: SearchAlongRouteCapability
   osmMapEdit?: OsmMapEditCapability
   locationHistory?: LocationHistoryCapability
+  transitRouting?: TransitRoutingCapability
 }
 
 /**

@@ -54,6 +54,26 @@ const waypoints = computed({
 
 const inputTexts = ref<string[]>([])
 const userModifiedInputs = ref<Set<number>>(new Set())
+const blurPhase = ref<Record<number, 'out' | 'wipe'>>({})
+
+const BLUR_OUT_MS = 200
+const SWAP_AT_MS = 100 // swap text while blur-out is still fading
+const WIPE_IN_MS = 1300
+
+function triggerTextSwap(index: number, newText: string) {
+  // Phase 1: blur out old text on the input
+  blurPhase.value[index] = 'out'
+
+  setTimeout(() => {
+    // Swap text mid-blur and start wipe — overlaps with tail of blur-out
+    inputTexts.value[index] = newText
+    blurPhase.value[index] = 'wipe'
+
+    setTimeout(() => {
+      delete blurPhase.value[index]
+    }, WIPE_IN_MS)
+  }, SWAP_AT_MS)
+}
 
 watch(
   () => waypoints.value,
@@ -64,7 +84,14 @@ watch(
       // Only update input text if user hasn't manually modified it
       if (!userModifiedInputs.value.has(index)) {
         const newText = getWaypointName(waypoint)
-        inputTexts.value[index] = newText
+        const oldText = inputTexts.value[index] || ''
+        // Animate blur swap only when resolving a name from coordinates
+        const isCoordText = /^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(oldText)
+        if (newText && newText !== oldText && isCoordText) {
+          triggerTextSwap(index, newText)
+        } else {
+          inputTexts.value[index] = newText
+        }
       }
     })
   },
@@ -380,6 +407,7 @@ defineExpose({
                 <ComboboxInput
                   :placeholder="index === 0 ? $t('directions.from') : $t('directions.to')"
                   :model-value="inputTexts[index] || ''"
+                  :class="blurPhase[index] === 'out' ? 'animate-blur-out' : blurPhase[index] === 'wipe' ? 'animate-wipe-in' : ''"
                   hide-search-icon
                   @update:model-value="
                     value => {

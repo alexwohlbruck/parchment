@@ -4,6 +4,12 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@property --wipe-reveal {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+
 @theme {
   --font-sans:
     'Geist Sans', -apple-system, BlinkMacSystemFont, 'Inter',
@@ -405,6 +411,26 @@
       opacity: 1;
     }
   }
+  @keyframes blur-text-out {
+    from { filter: blur(0); opacity: 1; }
+    to { filter: blur(6px); opacity: 0; }
+  }
+  @keyframes wipe-in {
+    from {
+      --wipe-reveal: 0%;
+      filter: blur(4px);
+      opacity: 0;
+    }
+    25% {
+      filter: blur(0);
+      opacity: 1;
+    }
+    to {
+      --wipe-reveal: 100%;
+      filter: blur(0);
+      opacity: 1;
+    }
+  }
 }
 
 @utility container {
@@ -476,6 +502,26 @@
       0 10px 15px -3px rgba(0, 0, 0, 0.1),
       0 4px 6px -4px rgba(0, 0, 0, 0.1);
   }
+}
+
+@utility animate-blur-out {
+  animation: blur-text-out 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility animate-wipe-in {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 0%, #000 var(--wipe-reveal),
+    transparent calc(var(--wipe-reveal) + 10%),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    #000 0%, #000 var(--wipe-reveal),
+    transparent calc(var(--wipe-reveal) + 10%),
+    transparent 100%
+  );
+  animation: wipe-in 1.2s cubic-bezier(0.05, 0.7, 0.1, 1) both;
 }
 
 @utility bg-primary-tinted {

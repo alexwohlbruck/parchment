@@ -691,3 +691,223 @@ describe('TripService — buildWalkingFallbackSegment', () => {
     expect(segment.endTime).toBe('2026-01-15T10:10:00.000Z')
   })
 })
+
+// ── Per-waypoint time constraints ────────────────────────────────────────────
+
+describe('TripService — time constraints', () => {
+  describe('applyWaypointTimeConstraints', () => {
+    test('departAfter delays departure when current time is earlier', () => {
+      const result = (tripService as any).applyWaypointTimeConstraints(
+        {
+          location: { lat: 35.21, lng: -80.85 },
+          type: 'via',
+          departAfter: '2026-01-15T09:00:00Z',
+        },
+        1,
+        {
+          currentTime: '2026-01-15T08:30:00Z',
+          currentLocation: { lat: 35.21, lng: -80.85 },
+          currentMode: 'walking',
+          parkedVehicles: [],
+        },
+      )
+
+      // Should wait until 09:00
+      expect(result.state.currentTime).toBe('2026-01-15T09:00:00.000Z')
+      expect(result.warnings).toHaveLength(0)
+    })
+
+    test('departAfter is no-op when current time is later', () => {
+      const result = (tripService as any).applyWaypointTimeConstraints(
+        {
+          location: { lat: 35.21, lng: -80.85 },
+          type: 'via',
+          departAfter: '2026-01-15T08:00:00Z',
+        },
+        0,
+        {
+          currentTime: '2026-01-15T08:30:00Z',
+          currentLocation: { lat: 35.21, lng: -80.85 },
+          currentMode: 'walking',
+          parkedVehicles: [],
+        },
+      )
+
+      // Should keep original time
+      expect(result.state.currentTime).toBe('2026-01-15T08:30:00.000Z')
+      expect(result.warnings).toHaveLength(0)
+    })
+
+    test('arriveBy generates warning when arriving late', () => {
+      const result = (tripService as any).applyWaypointTimeConstraints(
+        {
+          location: { lat: 35.21, lng: -80.85 },
+          type: 'via',
+          arriveBy: '2026-01-15T08:00:00Z',
+        },
+        1,
+        {
+          currentTime: '2026-01-15T08:15:00Z',
+          currentLocation: { lat: 35.21, lng: -80.85 },
+          currentMode: 'walking',
+          parkedVehicles: [],
+        },
+      )
+
+      expect(result.warnings).toHaveLength(1)
+      expect(result.warnings[0].type).toBe('time_constraint_violated')
+      expect(result.warnings[0].waypointIndex).toBe(1)
+      expect(result.warnings[0].overshootSeconds).toBe(900) // 15 min late
+    })
+
+    test('arriveBy generates no warning when on time', () => {
+      const result = (tripService as any).applyWaypointTimeConstraints(
+        {
+          location: { lat: 35.21, lng: -80.85 },
+          type: 'via',
+          arriveBy: '2026-01-15T09:00:00Z',
+        },
+        1,
+        {
+          currentTime: '2026-01-15T08:30:00Z',
+          currentLocation: { lat: 35.21, lng: -80.85 },
+          currentMode: 'walking',
+          parkedVehicles: [],
+        },
+      )
+
+      expect(result.warnings).toHaveLength(0)
+    })
+
+    test('dwellTime adds wait time at waypoint', () => {
+      const result = (tripService as any).applyWaypointTimeConstraints(
+        {
+          location: { lat: 35.21, lng: -80.85 },
+          type: 'via',
+          dwellTime: 30, // 30 minutes
+        },
+        1,
+        {
+          currentTime: '2026-01-15T08:00:00Z',
+          currentLocation: { lat: 35.21, lng: -80.85 },
+          currentMode: 'walking',
+          parkedVehicles: [],
+        },
+      )
+
+      // 08:00 + 30 min = 08:30
+      expect(result.state.currentTime).toBe('2026-01-15T08:30:00.000Z')
+    })
+
+    test('dwellTime + departAfter: dwell first, then wait if needed', () => {
+      const result = (tripService as any).applyWaypointTimeConstraints(
+        {
+          location: { lat: 35.21, lng: -80.85 },
+          type: 'via',
+          dwellTime: 10, // 10 minutes → 08:10
+          departAfter: '2026-01-15T09:00:00Z', // but can't leave until 09:00
+        },
+        1,
+        {
+          currentTime: '2026-01-15T08:00:00Z',
+          currentLocation: { lat: 35.21, lng: -80.85 },
+          currentMode: 'walking',
+          parkedVehicles: [],
+        },
+      )
+
+      // Dwell takes us to 08:10, departAfter pushes to 09:00
+      expect(result.state.currentTime).toBe('2026-01-15T09:00:00.000Z')
+    })
+
+    test('no constraints returns state unchanged', () => {
+      const result = (tripService as any).applyWaypointTimeConstraints(
+        {
+          location: { lat: 35.21, lng: -80.85 },
+          type: 'via',
+        },
+        0,
+        {
+          currentTime: '2026-01-15T08:00:00Z',
+          currentLocation: { lat: 35.21, lng: -80.85 },
+          currentMode: 'walking',
+          parkedVehicles: [],
+        },
+      )
+
+      expect(result.state.currentTime).toBe('2026-01-15T08:00:00.000Z')
+      expect(result.warnings).toHaveLength(0)
+    })
+  })
+
+  describe('planTrip with time constraints', () => {
+    test('three-stop trip with dwellTime at intermediate stop', async () => {
+      const middleStop = {
+        location: { lat: 35.218, lng: -80.852 },
+        type: 'via' as const,
+        label: 'Coffee Shop',
+        dwellTime: 15, // 15 minute coffee break
+      }
+
+      // Walking: 6 min per segment
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 360))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, middleStop, CHARLOTTE_DEST],
+        selectedMode: 'walking',
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      expect(response.trips.length).toBeGreaterThanOrEqual(1)
+      const trip = response.trips[0].trip
+
+      // Trip should include time for walking + dwell + walking
+      // Segment 1: 6 min walk. Dwell: 15 min. Segment 2: 6 min walk = 27 min total
+      expect(trip.tripStats.totalDuration).toBeGreaterThanOrEqual(360 + 360) // at least both walks
+    })
+
+    test('final waypoint arriveBy generates warning if late', async () => {
+      // Walking: 12 min
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(1000, 720))
+
+      const response = await tripService.planTrip({
+        waypoints: [
+          CHARLOTTE_ORIGIN,
+          {
+            ...CHARLOTTE_DEST,
+            arriveBy: '2026-01-15T08:05:00Z', // want to arrive by 08:05 (impossible with 12 min walk)
+          },
+        ],
+        selectedMode: 'walking',
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      expect(response.trips.length).toBeGreaterThanOrEqual(1)
+      const trip = response.trips[0].trip
+      expect(trip.warnings).toBeDefined()
+      expect(trip.warnings!.length).toBeGreaterThanOrEqual(1)
+      expect(trip.warnings![0].type).toBe('time_constraint_violated')
+    })
+
+    test('origin departAfter delays the trip start', async () => {
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 360))
+
+      const response = await tripService.planTrip({
+        waypoints: [
+          {
+            ...CHARLOTTE_ORIGIN,
+            departAfter: '2026-01-15T10:00:00Z', // Don't leave until 10:00
+          },
+          CHARLOTTE_DEST,
+        ],
+        selectedMode: 'walking',
+        preferredDepartureTime: '2026-01-15T08:00:00Z', // Would normally depart 08:00
+      })
+
+      expect(response.trips.length).toBeGreaterThanOrEqual(1)
+      const trip = response.trips[0].trip
+      // Trip should start at 10:00 due to departAfter, not 08:00
+      expect(trip.earliestStartTime).toBe('2026-01-15T10:00:00.000Z')
+    })
+  })
+})

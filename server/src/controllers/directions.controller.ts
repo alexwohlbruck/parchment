@@ -24,6 +24,10 @@ const WaypointSchema = t.Object({
     t.Literal('destination'),
     t.Literal('via'),
   ]),
+  // Per-waypoint time constraints
+  departAfter: t.Optional(t.String({ format: 'date-time' })),
+  arriveBy: t.Optional(t.String({ format: 'date-time' })),
+  dwellTime: t.Optional(t.Number({ minimum: 0 })),
 })
 
 const VehicleSchema = t.Object({
@@ -143,6 +147,9 @@ app.post(
           address: wp.address,
           label: wp.label,
           type: wp.type as WaypointType,
+          departAfter: wp.departAfter,
+          arriveBy: wp.arriveBy,
+          dwellTime: wp.dwellTime,
         })),
         selectedMode: body.selectedMode,
         routingPreferences: body.routingPreferences,

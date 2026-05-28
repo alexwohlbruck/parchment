@@ -17,6 +17,7 @@ import {
   TransitStop,
   TransitAgency,
   TransitRouteType,
+  TripWarning,
 } from '../types/trip.types'
 import { Coordinate } from '../types/unified-routing.types'
 import { routingService } from './routing.service'
@@ -122,6 +123,7 @@ export class TripService {
     dataSources: DataSource[],
   ): Promise<TripResponse | null> {
     const segments: TripSegment[] = []
+    const warnings: TripWarning[] = []
     let currentState: SegmentState = {
       currentTime: request.preferredDepartureTime || new Date().toISOString(),
       currentLocation: request.waypoints[0].location,
@@ -138,6 +140,15 @@ export class TripService {
     for (let i = 0; i < request.waypoints.length - 1; i++) {
       const from = request.waypoints[i]
       const to = request.waypoints[i + 1]
+
+      // ── Apply time constraints from the origin waypoint ──────────
+      const constraintWarnings = this.applyWaypointTimeConstraints(
+        from,
+        i,
+        currentState,
+      )
+      warnings.push(...constraintWarnings.warnings)
+      currentState = constraintWarnings.state
 
       const result = await this.planSegment(
         mode,
@@ -166,6 +177,22 @@ export class TripService {
       currentState = result.state
     }
 
+    // ── Check arrival constraint on the final waypoint ─────────────
+    const lastWp = request.waypoints[request.waypoints.length - 1]
+    if (lastWp.arriveBy) {
+      const arriveByTime = new Date(lastWp.arriveBy).getTime()
+      const actualArrival = new Date(currentState.currentTime).getTime()
+      if (actualArrival > arriveByTime) {
+        const overshoot = Math.round((actualArrival - arriveByTime) / 1000)
+        warnings.push({
+          type: 'time_constraint_violated',
+          waypointIndex: request.waypoints.length - 1,
+          message: `Arrived ${Math.ceil(overshoot / 60)} min after requested arrival time`,
+          overshootSeconds: overshoot,
+        })
+      }
+    }
+
     const tripStats = this.calculateStats(segments)
 
     return {
@@ -174,9 +201,59 @@ export class TripService {
       earliestStartTime: segments[0]?.startTime || currentState.currentTime,
       latestEndTime:
         segments[segments.length - 1]?.endTime || currentState.currentTime,
+      ...(warnings.length > 0 && { warnings }),
       dataSources,
       requestId: request.requestId,
       generatedAt: new Date().toISOString(),
+    }
+  }
+
+  /**
+   * Apply per-waypoint time constraints (departAfter, arriveBy, dwellTime)
+   * and return updated state + any warnings.
+   */
+  private applyWaypointTimeConstraints(
+    waypoint: Waypoint,
+    waypointIndex: number,
+    state: SegmentState,
+  ): { state: SegmentState; warnings: TripWarning[] } {
+    const warnings: TripWarning[] = []
+    let currentTime = new Date(state.currentTime).getTime()
+
+    // Check arriveBy — warn if we arrived after the requested time
+    if (waypoint.arriveBy) {
+      const arriveByTime = new Date(waypoint.arriveBy).getTime()
+      if (currentTime > arriveByTime) {
+        const overshoot = Math.round((currentTime - arriveByTime) / 1000)
+        warnings.push({
+          type: 'time_constraint_violated',
+          waypointIndex,
+          message: `Arrived ${Math.ceil(overshoot / 60)} min after requested arrival time`,
+          overshootSeconds: overshoot,
+        })
+      }
+    }
+
+    // Apply dwellTime — time spent at this waypoint before continuing
+    if (waypoint.dwellTime && waypoint.dwellTime > 0) {
+      currentTime += waypoint.dwellTime * 60 * 1000 // minutes → ms
+    }
+
+    // Enforce departAfter — don't leave before the specified time
+    if (waypoint.departAfter) {
+      const departAfterTime = new Date(waypoint.departAfter).getTime()
+      if (currentTime < departAfterTime) {
+        // Wait until the departure time
+        currentTime = departAfterTime
+      }
+    }
+
+    return {
+      state: {
+        ...state,
+        currentTime: new Date(currentTime).toISOString(),
+      },
+      warnings,
     }
   }
 

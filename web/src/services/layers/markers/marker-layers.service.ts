@@ -34,6 +34,11 @@ export function useMarkerLayersService() {
    * Call this after map is loaded
    */
   function initializeMarkerLayers(mapStrategy: MapStrategy) {
+    // Destroy any existing layers first (style.load fires on basemap/theme
+    // changes, not just initial load — without this, old layers leak watchers
+    // and orphan markers).
+    destroyMarkerLayers()
+
     // Create marker layer instances
     waypointsLayer = new WaypointsLayer()
     friendLocationsLayer = new FriendLocationsLayer()

@@ -12,6 +12,7 @@ import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
 export class WaypointsLayer extends BaseMarkerLayer {
   private directionsStore = useDirectionsStore()
   private directionsService = useDirectionsService()
+  private markerSnapshots = new Map<string, string>()
 
   constructor() {
     super({
@@ -48,5 +49,51 @@ export class WaypointsLayer extends BaseMarkerLayer {
         }
       })
       .filter((m): m is NonNullable<typeof m> => m !== null) as MarkerData[]
+  }
+
+  protected updateMarkers(data: MarkerData[]) {
+    if (!this.mapAPI) return
+
+    const newMarkerIds = new Set<string>()
+
+    for (const markerData of data) {
+      const fullId = `${this.idPrefix}${markerData.id}`
+      newMarkerIds.add(fullId)
+
+      const snapshot = `${markerData.props.index}|${markerData.props.totalWaypoints}|${markerData.props.type}`
+      const previous = this.markerSnapshots.get(fullId)
+
+      if (this.mapAPI.hasMarker(fullId) && previous === snapshot) {
+        this.mapAPI.setMarkerLngLat(fullId, markerData.lngLat)
+        continue
+      }
+
+      if (this.mapAPI.hasMarker(fullId)) {
+        this.mapAPI.removeMarker(fullId)
+      }
+      this.mapAPI.addVueMarker(
+        fullId,
+        markerData.lngLat,
+        this.component,
+        markerData.props,
+        this.zIndex,
+        markerData.dragOptions,
+      )
+      this.markerSnapshots.set(fullId, snapshot)
+    }
+
+    for (const oldId of this.currentMarkerIds) {
+      if (!newMarkerIds.has(oldId)) {
+        this.mapAPI.removeMarker(oldId)
+        this.markerSnapshots.delete(oldId)
+      }
+    }
+
+    this.currentMarkerIds = newMarkerIds
+  }
+
+  destroy() {
+    this.markerSnapshots.clear()
+    super.destroy()
   }
 }

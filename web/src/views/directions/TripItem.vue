@@ -209,13 +209,14 @@ function handleMouseEnter() {
             hasNextInSameLeg(i)
               ? (segW(segment) < 20 ? 'rounded-l-full rounded-r-none' : 'rounded-l-lg rounded-r-none')
               : (segW(segment) < 20 ? 'rounded-full' : 'rounded-lg'),
-            getTravelModeCssClass(segment.mode),
+            !segment.lineColor && getTravelModeCssClass(segment.mode),
             segW(segment) > 24 ? 'px-2 gap-1.5' : 'justify-center px-0.5',
           ]"
           :style="{
             left: `${segLeft(segment) - (isMultimodal(segment) && i > 0 && segLegIndex(trip.segments[i - 1]) === segLegIndex(segment) ? 6 : 0)}px`,
             width: `${segW(segment) + (isMultimodal(segment) && i > 0 && segLegIndex(trip.segments[i - 1]) === segLegIndex(segment) ? 6 : 0)}px`,
             zIndex: i + 1,
+            ...(segment.lineColor ? { background: `#${segment.lineColor}`, color: segment.lineTextColor ? `#${segment.lineTextColor}` : '#fff' } : {}),
           }"
           :title="getSegmentTooltip(segment)"
         >
@@ -270,21 +271,27 @@ function handleMouseEnter() {
 
       <!-- Transit departure cards -->
       <div
-        v-if="trip.mode === 'transit' && trip.segments.some(s => s.lineName)"
+        v-if="trip.segments.some(s => s.lineName)"
         class="flex gap-1.5 pt-2 overflow-x-auto scrollbar-hidden"
       >
         <div
           v-for="segment in trip.segments.filter(s => s.lineName)"
           :key="segment.id"
-          class="flex items-center gap-2 px-2.5 py-1.5 bg-background border rounded-full text-[11px] text-foreground/80 font-medium shrink-0"
+          class="flex items-center gap-2 px-2.5 py-1.5 bg-background border rounded-lg text-[11px] text-foreground/80 font-medium shrink-0"
         >
           <span
-            class="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-[5px] text-white text-[10px] font-bold"
-            :style="{ background: segment.lineColor || getTravelModeColor(segment.mode) }"
+            class="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-[5px] text-[10px] font-bold"
+            :style="{
+              background: `#${segment.lineColor}` || getTravelModeColor(segment.mode),
+              color: segment.lineTextColor ? `#${segment.lineTextColor}` : '#fff',
+            }"
           >
             {{ segment.vehicleNumber || segment.lineName }}
           </span>
-          <span>{{ formatDurationString(segment.duration) }}</span>
+          <span v-if="segment.headsign" class="text-muted-foreground truncate max-w-[120px]">
+            {{ segment.headsign }}
+          </span>
+          <span class="tabular-nums">{{ formatDurationString(segment.duration) }}</span>
         </div>
       </div>
     </div>

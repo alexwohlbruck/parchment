@@ -309,6 +309,23 @@ function getRailColor(entryIndex: number, position: 'above' | 'below'): string {
   return 'bg-border'
 }
 
+/**
+ * Get inline style for rail color — uses transit line color when available,
+ * otherwise returns empty (falls back to class-based coloring).
+ */
+function getRailStyle(entryIndex: number, position: 'above' | 'below'): Record<string, string> {
+  const entries = timelineEntries.value
+  const search = position === 'above' ? -1 : 1
+  for (let j = entryIndex + search; j >= 0 && j < entries.length; j += search) {
+    const e = entries[j]
+    if (e.kind === 'segment' && e.segment.lineColor) {
+      return { background: `#${e.segment.lineColor}` }
+    }
+    if (e.kind === 'segment') return {}
+  }
+  return {}
+}
+
 // ── Segment helpers ────────────────────────────────────────────────
 
 function showSegmentChart(segment: any): boolean {
@@ -457,19 +474,23 @@ function hasSegmentRouteInfo(segment: any): boolean {
               <div
                 class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[21px]"
                 :class="getRailColor(i, 'above')"
+                :style="getRailStyle(i, 'above')"
               />
               <!-- Line below icon: this segment's color, from icon center to bottom (with overlap) -->
               <div
                 v-if="i < timelineEntries.length - 1"
                 class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[19px] bottom-[-2px]"
-                :class="modeColors[entry.segment.mode as keyof typeof modeColors] || 'bg-parchment-500'"
+                :class="!entry.segment.lineColor && (modeColors[entry.segment.mode as keyof typeof modeColors] || 'bg-parchment-500')"
+                :style="entry.segment.lineColor ? { background: `#${entry.segment.lineColor}` } : {}"
               />
               <!-- Mode icon — mt-[5px] centers 28px icon against ~38px header (title + subtitle) -->
               <div
-                :class="[
-                  'relative z-10 mt-[5px] shrink-0 size-7 rounded-full flex items-center justify-center text-white',
-                  modeColors[entry.segment.mode as keyof typeof modeColors] || 'bg-parchment-500',
-                ]"
+                class="relative z-10 mt-[5px] shrink-0 size-7 rounded-full flex items-center justify-center text-white"
+                :class="!entry.segment.lineColor && (modeColors[entry.segment.mode as keyof typeof modeColors] || 'bg-parchment-500')"
+                :style="entry.segment.lineColor ? {
+                  background: `#${entry.segment.lineColor}`,
+                  color: entry.segment.lineTextColor ? `#${entry.segment.lineTextColor}` : '#fff',
+                } : {}"
               >
                 <component
                   :is="modeIcons[entry.segment.mode as keyof typeof modeIcons] || FootprintsIcon"
@@ -516,7 +537,83 @@ function hasSegmentRouteInfo(segment: any): boolean {
 
             <!-- ═══ Segment content ═══ -->
             <template v-else>
-              <div>
+              <!-- ── Transit segment header ── -->
+              <div v-if="entry.segment.mode === 'transit' && entry.segment.lineName">
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span
+                    class="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-md text-[11px] font-bold"
+                    :style="{
+                      background: entry.segment.lineColor ? `#${entry.segment.lineColor}` : undefined,
+                      color: entry.segment.lineTextColor ? `#${entry.segment.lineTextColor}` : '#fff',
+                    }"
+                    :class="!entry.segment.lineColor && 'bg-parchment-500'"
+                  >
+                    {{ entry.segment.lineName }}
+                  </span>
+                  <span v-if="entry.segment.headsign" class="text-sm font-semibold text-foreground">
+                    {{ entry.segment.headsign }}
+                  </span>
+                  <span v-else-if="entry.segment.lineLongName" class="text-sm font-semibold text-foreground">
+                    {{ entry.segment.lineLongName }}
+                  </span>
+                </div>
+                <div class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground tabular-nums">
+                  <span class="inline-flex items-center gap-1">
+                    <ClockIcon class="size-3" />
+                    {{ formatTime(entry.segment.startTime) }} – {{ formatTime(entry.segment.endTime) }}
+                  </span>
+                  <span>{{ formatDuration(entry.segment.duration) }} · {{ formatDistanceDisplay(entry.segment.distance) }}</span>
+                </div>
+                <div v-if="entry.segment.agencyName" class="mt-0.5 text-xs text-muted-foreground">
+                  {{ entry.segment.agencyName }}
+                </div>
+
+                <!-- Board/Alight stops -->
+                <div class="mt-2 space-y-1 text-sm">
+                  <div v-if="entry.segment.departureStop" class="flex items-center gap-2">
+                    <span class="text-[10px] font-semibold text-muted-foreground">Board</span>
+                    <span class="text-foreground">{{ entry.segment.departureStop.name }}</span>
+                    <span v-if="entry.segment.departureStop.platformCode" class="text-xs text-muted-foreground">
+                      Platform {{ entry.segment.departureStop.platformCode }}
+                    </span>
+                  </div>
+
+                  <!-- Intermediate stops (collapsible) -->
+                  <Collapsible
+                    v-if="entry.segment.intermediateStops?.length"
+                    v-slot="{ open }"
+                    class="mt-1"
+                  >
+                    <CollapsibleTrigger class="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                      <ChevronDownIcon class="size-3 transition-transform" :class="open && 'rotate-180'" />
+                      <span>{{ entry.segment.intermediateStops.length }} stops</span>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div class="ml-4 mt-1 space-y-0.5">
+                        <div
+                          v-for="stop in entry.segment.intermediateStops"
+                          :key="stop.id || stop.name"
+                          class="flex items-center gap-2 text-xs text-muted-foreground py-0.5"
+                        >
+                          <span class="size-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
+                          <span>{{ stop.name }}</span>
+                        </div>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+
+                  <div v-if="entry.segment.arrivalStop" class="flex items-center gap-2">
+                    <span class="text-[10px] font-semibold text-muted-foreground">Alight</span>
+                    <span class="text-foreground">{{ entry.segment.arrivalStop.name }}</span>
+                    <span v-if="entry.segment.arrivalStop.platformCode" class="text-xs text-muted-foreground">
+                      Platform {{ entry.segment.arrivalStop.platformCode }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ── Non-transit segment header ── -->
+              <div v-else>
                 <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                   <span
                     :class="[

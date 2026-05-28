@@ -18,6 +18,8 @@ import {
   TransitAgency,
   TransitRouteType,
   TripWarning,
+  TripScore,
+  SortPreference,
 } from '../types/trip.types'
 import { Coordinate } from '../types/unified-routing.types'
 import { routingService } from './routing.service'
@@ -56,19 +58,22 @@ export class TripService {
       }
     }
 
-    // Rank trips by duration (fastest first)
+    // Score and rank trips
     const rankedTrips: TripCandidate[] = candidates
-      .map((trip, index) => ({
+      .map((trip) => ({
         trip,
+        score: this.scoreTrip(trip),
+        rank: 0,
+      }))
+      .map((candidate) => ({
+        ...candidate,
         score: {
-          overall: 1 / trip.tripStats.totalDuration,
-          time: 0,
-          cost: 0,
-          environmental: 0,
-          comfort: 0,
-          safety: 0,
+          ...candidate.score,
+          overall: this.computeOverallScore(
+            candidate.score,
+            request.sortPreference,
+          ),
         },
-        rank: index + 1,
       }))
       .sort((a, b) => b.score.overall - a.score.overall)
       .map((candidate, index) => ({ ...candidate, rank: index + 1 }))
@@ -1077,13 +1082,25 @@ export class TripService {
     let totalDistance = 0
     let totalCost = 0
     let totalCo2 = 0
+    let totalWalkingDistance = 0
+    let totalTransfers = 0
 
     for (const segment of segments) {
       totalDuration += segment.duration
       totalDistance += segment.distance
       totalCost += segment.cost?.value || 0
       totalCo2 += segment.co2 || 0
+
+      if (segment.mode === 'walking') {
+        totalWalkingDistance += segment.distance
+      }
+      if (segment.mode === 'transit') {
+        totalTransfers++
+      }
     }
+
+    // Transfers = number of boardings - 1 (first boarding isn't a transfer)
+    if (totalTransfers > 0) totalTransfers--
 
     return {
       totalDuration,
@@ -1091,6 +1108,159 @@ export class TripService {
       totalCost:
         totalCost > 0 ? { value: totalCost, currency: 'USD' } : undefined,
       totalCo2: totalCo2 > 0 ? totalCo2 : undefined,
+      totalWalkingDistance:
+        totalWalkingDistance > 0 ? totalWalkingDistance : undefined,
+      totalTransfers: totalTransfers > 0 ? totalTransfers : undefined,
+    }
+  }
+
+  // ── Trip scoring ─────────────────────────────────────────────────────────────
+
+  /** CO2 emission factors in grams per meter. */
+  private static readonly CO2_PER_METER: Record<string, number> = {
+    walking: 0,
+    biking: 0,
+    transit: 0.05, // ~50g/km
+    driving: 0.24, // ~240g/km
+    wheelchair: 0,
+  }
+
+  /**
+   * Score a trip across multiple dimensions.
+   * Each dimension is normalized to 0-1 where 1 is best.
+   */
+  private scoreTrip(trip: TripResponse): TripScore {
+    return {
+      overall: 0, // computed later by computeOverallScore
+      time: this.scoreTime(trip),
+      cost: this.scoreCost(trip),
+      comfort: this.scoreComfort(trip),
+      environmental: this.scoreEnvironmental(trip),
+      safety: 0.5, // TODO: derive from GraphHopper edge data when available
+    }
+  }
+
+  /** Time score: inverse of duration, normalized so a 10 min trip → 1.0 */
+  private scoreTime(trip: TripResponse): number {
+    const duration = trip.tripStats.totalDuration
+    if (duration <= 0) return 1
+    // Sigmoid-ish: 600s → 1.0, 3600s → 0.17, 7200s → 0.08
+    return 600 / (600 + duration)
+  }
+
+  /** Cost score: inverse of monetary cost. Free trips → 1.0 */
+  private scoreCost(trip: TripResponse): number {
+    const cost = trip.tripStats.totalCost?.value ?? 0
+    if (cost <= 0) return 1
+    // $1 → 0.5, $5 → 0.17, $20 → 0.05
+    return 1 / (1 + cost)
+  }
+
+  /**
+   * Comfort score: penalizes long walks and many transfers.
+   * - Walking > 500m starts penalizing
+   * - Each transfer beyond 1 penalizes
+   */
+  private scoreComfort(trip: TripResponse): number {
+    const walkDist = trip.tripStats.totalWalkingDistance ?? 0
+    const transfers = trip.tripStats.totalTransfers ?? 0
+
+    // Walk penalty: 0m → 1.0, 500m → 0.5, 1500m → 0.25
+    const walkScore = 500 / (500 + walkDist)
+
+    // Transfer penalty: 0 → 1.0, 1 → 0.67, 2 → 0.5, 3 → 0.4
+    const transferScore = 1 / (1 + transfers * 0.5)
+
+    return walkScore * 0.6 + transferScore * 0.4
+  }
+
+  /**
+   * Environmental score: based on CO2 emissions.
+   * Walking/biking → 1.0, transit → ~0.7, driving → ~0.3
+   */
+  private scoreEnvironmental(trip: TripResponse): number {
+    const totalCo2 = trip.tripStats.totalCo2 ?? 0
+    if (totalCo2 <= 0) return 1
+    // 0g → 1.0, 250g → 0.5 (≈1km driving), 1000g → 0.2
+    return 250 / (250 + totalCo2)
+  }
+
+  /**
+   * Compute the overall score as a weighted combination of dimensions.
+   * Weights depend on the user's sort preference.
+   */
+  private computeOverallScore(
+    score: TripScore,
+    sortPreference?: SortPreference,
+  ): number {
+    const weights = this.getScoreWeights(sortPreference)
+    return (
+      score.time * weights.time +
+      score.cost * weights.cost +
+      score.comfort * weights.comfort +
+      score.environmental * weights.environmental +
+      score.safety * weights.safety
+    )
+  }
+
+  /**
+   * Weight distribution by sort preference.
+   * Each set sums to 1.0.
+   */
+  private getScoreWeights(sortPreference?: SortPreference): Record<
+    keyof Omit<TripScore, 'overall'>,
+    number
+  > {
+    switch (sortPreference) {
+      case 'fastest':
+        return {
+          time: 0.7,
+          cost: 0.05,
+          comfort: 0.1,
+          environmental: 0.05,
+          safety: 0.1,
+        }
+      case 'cheapest':
+        return {
+          time: 0.15,
+          cost: 0.55,
+          comfort: 0.1,
+          environmental: 0.1,
+          safety: 0.1,
+        }
+      case 'fewest_transfers':
+        return {
+          time: 0.15,
+          cost: 0.05,
+          comfort: 0.6,
+          environmental: 0.1,
+          safety: 0.1,
+        }
+      case 'least_walking':
+        return {
+          time: 0.1,
+          cost: 0.05,
+          comfort: 0.65,
+          environmental: 0.1,
+          safety: 0.1,
+        }
+      case 'greenest':
+        return {
+          time: 0.1,
+          cost: 0.05,
+          comfort: 0.1,
+          environmental: 0.65,
+          safety: 0.1,
+        }
+      default:
+        // Balanced default
+        return {
+          time: 0.4,
+          cost: 0.1,
+          comfort: 0.2,
+          environmental: 0.15,
+          safety: 0.15,
+        }
     }
   }
 

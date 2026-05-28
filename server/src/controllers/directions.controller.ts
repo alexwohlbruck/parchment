@@ -113,9 +113,18 @@ const SelectedModeSchema = t.Union([
   t.Literal('wheelchair'),
 ] as const)
 
+const SortPreferenceSchema = t.Union([
+  t.Literal('fastest'),
+  t.Literal('cheapest'),
+  t.Literal('fewest_transfers'),
+  t.Literal('least_walking'),
+  t.Literal('greenest'),
+] as const)
+
 const TripRequestSchema = t.Object({
   waypoints: t.Array(WaypointSchema, { minItems: 2 }),
   selectedMode: t.Optional(SelectedModeSchema),
+  sortPreference: t.Optional(SortPreferenceSchema),
   routingPreferences: t.Optional(RoutingPreferencesSchema),
   availableVehicles: t.Optional(t.Array(VehicleSchema)),
   knownAccessPoints: t.Optional(t.Array(AccessPointSchema)),
@@ -152,6 +161,7 @@ app.post(
           dwellTime: wp.dwellTime,
         })),
         selectedMode: body.selectedMode,
+        sortPreference: body.sortPreference as any,
         routingPreferences: body.routingPreferences,
         availableVehicles: body.availableVehicles?.map((vehicle) => ({
           id: vehicle.id,

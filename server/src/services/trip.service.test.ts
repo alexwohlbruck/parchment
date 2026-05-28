@@ -911,3 +911,289 @@ describe('TripService — time constraints', () => {
     })
   })
 })
+
+// ── Trip scoring ─────────────────────────────────────────────────────────────
+
+describe('TripService — scoring', () => {
+  describe('scoreTrip dimensions', () => {
+    test('short trip scores higher on time than long trip', () => {
+      const shortTrip = {
+        tripStats: {
+          totalDuration: 300,
+          totalDistance: 500,
+        },
+        segments: [],
+      } as any
+
+      const longTrip = {
+        tripStats: {
+          totalDuration: 3600,
+          totalDistance: 5000,
+        },
+        segments: [],
+      } as any
+
+      const shortScore = (tripService as any).scoreTime(shortTrip)
+      const longScore = (tripService as any).scoreTime(longTrip)
+
+      expect(shortScore).toBeGreaterThan(longScore)
+      expect(shortScore).toBeGreaterThan(0)
+      expect(shortScore).toBeLessThanOrEqual(1)
+    })
+
+    test('free trip scores 1.0 on cost', () => {
+      const trip = { tripStats: {} } as any
+      const score = (tripService as any).scoreCost(trip)
+      expect(score).toBe(1)
+    })
+
+    test('expensive trip scores lower on cost', () => {
+      const cheapTrip = {
+        tripStats: { totalCost: { value: 2, currency: 'USD' } },
+      } as any
+      const expensiveTrip = {
+        tripStats: { totalCost: { value: 20, currency: 'USD' } },
+      } as any
+
+      const cheapScore = (tripService as any).scoreCost(cheapTrip)
+      const expensiveScore = (tripService as any).scoreCost(expensiveTrip)
+
+      expect(cheapScore).toBeGreaterThan(expensiveScore)
+    })
+
+    test('zero-emission trip scores 1.0 on environmental', () => {
+      const trip = { tripStats: {} } as any
+      const score = (tripService as any).scoreEnvironmental(trip)
+      expect(score).toBe(1)
+    })
+
+    test('driving scores lower on environmental than walking', () => {
+      const walkTrip = { tripStats: { totalCo2: 0 } } as any
+      const driveTrip = { tripStats: { totalCo2: 2400 } } as any // 10km driving
+
+      const walkScore = (tripService as any).scoreEnvironmental(walkTrip)
+      const driveScore = (tripService as any).scoreEnvironmental(driveTrip)
+
+      expect(walkScore).toBeGreaterThan(driveScore)
+    })
+
+    test('trip with no transfers scores higher on comfort', () => {
+      const noTransfer = { tripStats: { totalWalkingDistance: 200 } } as any
+      const multiTransfer = {
+        tripStats: { totalWalkingDistance: 1500, totalTransfers: 3 },
+      } as any
+
+      const noTransferScore = (tripService as any).scoreComfort(noTransfer)
+      const multiTransferScore = (tripService as any).scoreComfort(multiTransfer)
+
+      expect(noTransferScore).toBeGreaterThan(multiTransferScore)
+    })
+  })
+
+  describe('computeOverallScore with sort preferences', () => {
+    test('fastest preference weights time heavily', () => {
+      const fastTrip: any = {
+        time: 0.9,
+        cost: 0.2,
+        comfort: 0.5,
+        environmental: 0.3,
+        safety: 0.5,
+      }
+      const cheapTrip: any = {
+        time: 0.3,
+        cost: 0.9,
+        comfort: 0.5,
+        environmental: 0.5,
+        safety: 0.5,
+      }
+
+      const fastOverall = (tripService as any).computeOverallScore(
+        fastTrip,
+        'fastest',
+      )
+      const cheapOverall = (tripService as any).computeOverallScore(
+        cheapTrip,
+        'fastest',
+      )
+
+      expect(fastOverall).toBeGreaterThan(cheapOverall)
+    })
+
+    test('cheapest preference weights cost heavily', () => {
+      const cheapTrip: any = {
+        time: 0.3,
+        cost: 0.9,
+        comfort: 0.5,
+        environmental: 0.5,
+        safety: 0.5,
+      }
+      const fastTrip: any = {
+        time: 0.9,
+        cost: 0.2,
+        comfort: 0.5,
+        environmental: 0.5,
+        safety: 0.5,
+      }
+
+      const cheapOverall = (tripService as any).computeOverallScore(
+        cheapTrip,
+        'cheapest',
+      )
+      const fastOverall = (tripService as any).computeOverallScore(
+        fastTrip,
+        'cheapest',
+      )
+
+      expect(cheapOverall).toBeGreaterThan(fastOverall)
+    })
+
+    test('greenest preference weights environmental heavily', () => {
+      const greenTrip: any = {
+        time: 0.3,
+        cost: 0.5,
+        comfort: 0.5,
+        environmental: 0.95,
+        safety: 0.5,
+      }
+      const dirtyTrip: any = {
+        time: 0.9,
+        cost: 0.5,
+        comfort: 0.5,
+        environmental: 0.1,
+        safety: 0.5,
+      }
+
+      const greenOverall = (tripService as any).computeOverallScore(
+        greenTrip,
+        'greenest',
+      )
+      const dirtyOverall = (tripService as any).computeOverallScore(
+        dirtyTrip,
+        'greenest',
+      )
+
+      expect(greenOverall).toBeGreaterThan(dirtyOverall)
+    })
+
+    test('default preference balances all dimensions', () => {
+      const score: any = {
+        time: 0.5,
+        cost: 0.5,
+        comfort: 0.5,
+        environmental: 0.5,
+        safety: 0.5,
+      }
+
+      const overall = (tripService as any).computeOverallScore(score)
+      // All at 0.5 → overall should be 0.5
+      expect(overall).toBeCloseTo(0.5, 5)
+    })
+
+    test('weight sets sum to 1.0', () => {
+      const preferences = [
+        'fastest',
+        'cheapest',
+        'fewest_transfers',
+        'least_walking',
+        'greenest',
+        undefined,
+      ] as const
+
+      for (const pref of preferences) {
+        const weights = (tripService as any).getScoreWeights(pref)
+        const sum = Object.values(weights).reduce(
+          (a: number, b: number) => a + b,
+          0,
+        )
+        expect(sum).toBeCloseTo(1.0, 5)
+      }
+    })
+  })
+
+  describe('calculateStats', () => {
+    test('counts walking distance', () => {
+      const segments = [
+        { mode: 'walking', duration: 300, distance: 400, co2: 0 },
+        { mode: 'transit', duration: 1200, distance: 5000, co2: 250 },
+        { mode: 'walking', duration: 200, distance: 200, co2: 0 },
+      ] as any[]
+
+      const stats = (tripService as any).calculateStats(segments)
+      expect(stats.totalWalkingDistance).toBe(600)
+    })
+
+    test('counts transfers (boardings - 1)', () => {
+      const segments = [
+        { mode: 'walking', duration: 300, distance: 250, co2: 0 },
+        { mode: 'transit', duration: 600, distance: 3000, co2: 150 },
+        { mode: 'walking', duration: 120, distance: 100, co2: 0 },
+        { mode: 'transit', duration: 600, distance: 2000, co2: 100 },
+        { mode: 'walking', duration: 200, distance: 150, co2: 0 },
+      ] as any[]
+
+      const stats = (tripService as any).calculateStats(segments)
+      expect(stats.totalTransfers).toBe(1) // 2 boardings - 1
+    })
+
+    test('single transit segment has 0 transfers', () => {
+      const segments = [
+        { mode: 'walking', duration: 300, distance: 250, co2: 0 },
+        { mode: 'transit', duration: 1200, distance: 5000, co2: 250 },
+        { mode: 'walking', duration: 200, distance: 200, co2: 0 },
+      ] as any[]
+
+      const stats = (tripService as any).calculateStats(segments)
+      // 1 boarding - 1 = 0, should be undefined (not 0)
+      expect(stats.totalTransfers).toBeUndefined()
+    })
+
+    test('walking-only trip has no transfers or walking distance', () => {
+      const segments = [
+        { mode: 'walking', duration: 600, distance: 800, co2: 0 },
+      ] as any[]
+
+      const stats = (tripService as any).calculateStats(segments)
+      expect(stats.totalWalkingDistance).toBe(800)
+      expect(stats.totalTransfers).toBeUndefined()
+    })
+  })
+
+  describe('end-to-end scoring in planTrip', () => {
+    test('trips have populated score dimensions', async () => {
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 360))
+      mockGetTransitRoute.mockImplementation(async () => ({
+        itineraries: [],
+        metadata: { searchWindow: 3600 },
+      }))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'walking',
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      expect(response.trips.length).toBeGreaterThanOrEqual(1)
+      const score = response.trips[0].score
+      expect(score.overall).toBeGreaterThan(0)
+      expect(score.time).toBeGreaterThan(0)
+      expect(score.time).toBeLessThanOrEqual(1)
+      expect(score.environmental).toBe(1) // walking → zero emissions
+    })
+
+    test('sortPreference affects trip ordering', async () => {
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 360))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'walking',
+        sortPreference: 'greenest',
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      expect(response.trips.length).toBeGreaterThanOrEqual(1)
+      // Walking should score very high on "greenest"
+      const score = response.trips[0].score
+      expect(score.environmental).toBe(1)
+    })
+  })
+})

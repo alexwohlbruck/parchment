@@ -47,9 +47,17 @@ export type EnergyType = 'electric' | 'gas' | 'diesel' | 'hybrid'
 // REQUEST TYPES
 // =============================================================================
 
+export type SortPreference =
+  | 'fastest'
+  | 'cheapest'
+  | 'fewest_transfers'
+  | 'least_walking'
+  | 'greenest'
+
 export interface TripRequest {
   waypoints: Waypoint[] // minimum 2
   selectedMode?: SelectedMode // Filter trips by mode
+  sortPreference?: SortPreference
   routingPreferences?: RoutingPreferences
   availableVehicles?: Vehicle[]
   knownAccessPoints?: AccessPoint[]

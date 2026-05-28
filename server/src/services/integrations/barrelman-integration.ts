@@ -12,6 +12,12 @@ import type {
   SpatialChildrenCapability,
   SearchAlongRouteCapability,
   RoutingCapability,
+  TransitRoutingCapability,
+  TransitRouteRequest,
+  TransitRouteResponse,
+  NearbyStopsRequest,
+  NearbyStopResult,
+  StopRouteResult,
   MapBounds,
 } from '../../types/integration.types'
 import {
@@ -109,6 +115,7 @@ export class BarrelmanIntegration
     IntegrationCapabilityId.SEARCH_ALONG_ROUTE,
     IntegrationCapabilityId.TILE_SERVER,
     IntegrationCapabilityId.ROUTING,
+    IntegrationCapabilityId.TRANSIT_ROUTING,
   ]
 
   readonly capabilities = {
@@ -176,6 +183,11 @@ export class BarrelmanIntegration
         },
       },
     } as RoutingCapability,
+    transitRouting: {
+      getTransitRoute: this.getTransitRoute.bind(this),
+      getNearbyStops: this.getNearbyStops.bind(this),
+      getRoutesForStop: this.getRoutesForStop.bind(this),
+    } as TransitRoutingCapability,
   }
 
   // ── Lifecycle ──────────────────────────────────────────────
@@ -775,5 +787,82 @@ export class BarrelmanIntegration
    */
   private buildCustomModel(request: RouteRequest): Record<string, any> | undefined {
     return buildGraphHopperCustomModel(request.mode, request.preferences)
+  }
+
+  // ── Transit routing (MOTIS via Barrelman) ───────────────────────
+
+  private async getTransitRoute(request: TransitRouteRequest): Promise<TransitRouteResponse> {
+    const { host, apiKey } = this.config
+    if (!apiKey) throw new Error('Barrelman API key not configured')
+
+    try {
+      const response = await axios.post(
+        `${host}/transit/route`,
+        request,
+        {
+          headers: this.headers,
+          timeout: 30_000,
+        },
+      )
+      return response.data
+    } catch (error: any) {
+      if (error.response) {
+        const status = error.response.status
+        const detail = error.response.data?.error ?? error.response.statusText
+        throw new Error(`Transit routing error (${status}): ${detail}`)
+      }
+      throw new Error(
+        `Transit routing error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      )
+    }
+  }
+
+  private async getNearbyStops(request: NearbyStopsRequest): Promise<NearbyStopResult[]> {
+    const { host, apiKey } = this.config
+    if (!apiKey) throw new Error('Barrelman API key not configured')
+
+    const params = new URLSearchParams({
+      lat: String(request.lat),
+      lng: String(request.lng),
+    })
+    if (request.radius != null) params.set('radius', String(request.radius))
+    if (request.limit != null) params.set('limit', String(request.limit))
+
+    try {
+      const response = await axios.get(
+        `${host}/transit/stops?${params}`,
+        {
+          headers: this.headers,
+          timeout: 10_000,
+        },
+      )
+      return response.data
+    } catch (error: any) {
+      if (error.response) {
+        throw new Error(`Nearby stops error (${error.response.status}): ${error.response.data?.error}`)
+      }
+      throw new Error(`Nearby stops error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  private async getRoutesForStop(feedId: string, stopId: string): Promise<StopRouteResult[]> {
+    const { host, apiKey } = this.config
+    if (!apiKey) throw new Error('Barrelman API key not configured')
+
+    try {
+      const response = await axios.get(
+        `${host}/transit/routes?feedId=${encodeURIComponent(feedId)}&stopId=${encodeURIComponent(stopId)}`,
+        {
+          headers: this.headers,
+          timeout: 10_000,
+        },
+      )
+      return response.data
+    } catch (error: any) {
+      if (error.response) {
+        throw new Error(`Stop routes error (${error.response.status}): ${error.response.data?.error}`)
+      }
+      throw new Error(`Stop routes error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
   }
 }

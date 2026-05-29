@@ -1728,3 +1728,933 @@ describe('TripService — scoring', () => {
     })
   })
 })
+
+// ── Validation ──────────────────────────────────────────────────────────────
+
+describe('TripService — validateRequest', () => {
+  test('throws on fewer than 2 waypoints', () => {
+    expect(() =>
+      (tripService as any).validateRequest({
+        waypoints: [CHARLOTTE_ORIGIN],
+      }),
+    ).toThrow('at least 2 waypoints')
+  })
+
+  test('throws on empty waypoints array', () => {
+    expect(() =>
+      (tripService as any).validateRequest({ waypoints: [] }),
+    ).toThrow('at least 2 waypoints')
+  })
+
+  test('throws when waypoints is undefined', () => {
+    expect(() =>
+      (tripService as any).validateRequest({}),
+    ).toThrow('at least 2 waypoints')
+  })
+
+  test('throws when a waypoint has no location', () => {
+    expect(() =>
+      (tripService as any).validateRequest({
+        waypoints: [
+          CHARLOTTE_ORIGIN,
+          { type: 'destination', label: 'No coords' },
+        ],
+      }),
+    ).toThrow('valid coordinates')
+  })
+
+  test('throws when lat is non-numeric', () => {
+    expect(() =>
+      (tripService as any).validateRequest({
+        waypoints: [
+          CHARLOTTE_ORIGIN,
+          { location: { lat: 'bad', lng: -80 }, type: 'destination' },
+        ],
+      }),
+    ).toThrow('valid coordinates')
+  })
+
+  test('does not throw for valid 2-waypoint request', () => {
+    expect(() =>
+      (tripService as any).validateRequest({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+      }),
+    ).not.toThrow()
+  })
+
+  test('does not throw for valid 3-waypoint request', () => {
+    expect(() =>
+      (tripService as any).validateRequest({
+        waypoints: [
+          CHARLOTTE_ORIGIN,
+          { location: { lat: 35.22, lng: -80.85 }, type: 'via' },
+          CHARLOTTE_DEST,
+        ],
+      }),
+    ).not.toThrow()
+  })
+})
+
+// ── Haversine distance ──────────────────────────────────────────────────────
+
+describe('TripService — haversineDistance', () => {
+  const haversine = (a: any, b: any) =>
+    (TripService as any).haversineDistance(a, b)
+
+  test('same point returns 0', () => {
+    const p = { lat: 35.2271, lng: -80.8431 }
+    expect(haversine(p, p)).toBe(0)
+  })
+
+  test('Charlotte to Raleigh ~209km', () => {
+    const charlotte = { lat: 35.2271, lng: -80.8431 }
+    const raleigh = { lat: 35.7796, lng: -78.6382 }
+    const dist = haversine(charlotte, raleigh)
+    // Allow ±5km tolerance
+    expect(dist).toBeGreaterThan(204_000)
+    expect(dist).toBeLessThan(214_000)
+  })
+
+  test('short distance ~500m', () => {
+    const a = { lat: 35.2271, lng: -80.8431 }
+    const b = { lat: 35.2316, lng: -80.8431 }
+    const dist = haversine(a, b)
+    expect(dist).toBeGreaterThan(400)
+    expect(dist).toBeLessThan(600)
+  })
+
+  test('symmetry: distance(a,b) === distance(b,a)', () => {
+    const a = { lat: 35.2271, lng: -80.8431 }
+    const b = { lat: 35.7796, lng: -78.6382 }
+    expect(haversine(a, b)).toBe(haversine(b, a))
+  })
+})
+
+// ── getTripMode ─────────────────────────────────────────────────────────────
+
+describe('TripService — getTripMode', () => {
+  function makeTripWithSegments(
+    segments: Array<{ mode: string; duration: number }>,
+  ) {
+    return { segments: segments as any }
+  }
+
+  test('walking-only trip returns walking', () => {
+    const trip = makeTripWithSegments([{ mode: 'walking', duration: 600 }])
+    expect((tripService as any).getTripMode(trip)).toBe('walking')
+  })
+
+  test('driving-only trip returns driving', () => {
+    const trip = makeTripWithSegments([{ mode: 'driving', duration: 600 }])
+    expect((tripService as any).getTripMode(trip)).toBe('driving')
+  })
+
+  test('biking-only trip returns biking', () => {
+    const trip = makeTripWithSegments([{ mode: 'biking', duration: 600 }])
+    expect((tripService as any).getTripMode(trip)).toBe('biking')
+  })
+
+  test('transit with walking access returns transit', () => {
+    const trip = makeTripWithSegments([
+      { mode: 'walking', duration: 300 },
+      { mode: 'transit', duration: 1200 },
+      { mode: 'walking', duration: 300 },
+    ])
+    expect((tripService as any).getTripMode(trip)).toBe('transit')
+  })
+
+  test('transit with biking access returns biking+transit', () => {
+    const trip = makeTripWithSegments([
+      { mode: 'walking', duration: 60 },
+      { mode: 'biking', duration: 300 },
+      { mode: 'transit', duration: 1200 },
+      { mode: 'walking', duration: 300 },
+    ])
+    expect((tripService as any).getTripMode(trip)).toBe('biking+transit')
+  })
+
+  test('transit with driving access returns driving+transit', () => {
+    const trip = makeTripWithSegments([
+      { mode: 'walking', duration: 60 },
+      { mode: 'driving', duration: 300 },
+      { mode: 'transit', duration: 1200 },
+      { mode: 'walking', duration: 300 },
+    ])
+    expect((tripService as any).getTripMode(trip)).toBe('driving+transit')
+  })
+
+  test('mixed non-transit returns mode with longest duration', () => {
+    const trip = makeTripWithSegments([
+      { mode: 'walking', duration: 200 },
+      { mode: 'driving', duration: 800 },
+    ])
+    expect((tripService as any).getTripMode(trip)).toBe('driving')
+  })
+})
+
+// ── filterQualityTrips ──────────────────────────────────────────────────────
+
+describe('TripService — filterQualityTrips', () => {
+  const baseScore = {
+    overall: 0.5,
+    time: 0.5,
+    cost: 0.5,
+    comfort: 0.5,
+    environmental: 0.5,
+    safety: 0.5,
+  }
+
+  function makeCandidate(
+    mode: string,
+    totalDuration: number,
+    endTime = '2026-01-15T08:10:00Z',
+  ) {
+    return {
+      trip: {
+        segments: [{ mode, duration: totalDuration, endTime }] as any,
+        tripStats: {
+          totalDuration,
+          totalDistance: totalDuration * 2,
+          totalTransfers: 0,
+          totalWalkingDistance: mode === 'walking' ? totalDuration * 1.2 : 0,
+        },
+        earliestStartTime: '2026-01-15T08:00:00Z',
+        latestEndTime: endTime,
+        dataSources: [],
+        generatedAt: '2026-01-15T08:00:00Z',
+      } as any,
+      score: { ...baseScore },
+      rank: 0,
+    }
+  }
+
+  function makeTransitCandidate(
+    accessMode: string | null,
+    totalDuration: number,
+    endTime = '2026-01-15T08:30:00Z',
+  ) {
+    const segments: any[] = []
+    if (accessMode && accessMode !== 'walking') {
+      segments.push({ mode: 'walking', duration: 60, endTime: '2026-01-15T08:01:00Z' })
+      segments.push({ mode: accessMode, duration: 300, endTime: '2026-01-15T08:06:00Z' })
+    } else {
+      segments.push({ mode: 'walking', duration: 300, endTime: '2026-01-15T08:05:00Z' })
+    }
+    segments.push({ mode: 'transit', duration: totalDuration - 600, endTime })
+    segments.push({ mode: 'walking', duration: 300, endTime })
+    return {
+      trip: {
+        segments,
+        tripStats: {
+          totalDuration,
+          totalDistance: totalDuration * 2,
+          totalTransfers: 0,
+          totalWalkingDistance: 600,
+        },
+        earliestStartTime: '2026-01-15T08:00:00Z',
+        latestEndTime: endTime,
+        dataSources: [],
+        generatedAt: '2026-01-15T08:00:00Z',
+      } as any,
+      score: { ...baseScore },
+      rank: 0,
+    }
+  }
+
+  test('returns all trips when ≤2 candidates', () => {
+    const candidates = [makeCandidate('driving', 600)]
+    const result = (tripService as any).filterQualityTrips(candidates)
+    expect(result.length).toBe(1)
+  })
+
+  test('keeps best-per-mode even when >4× slower than fastest', () => {
+    const candidates = [
+      makeCandidate('driving', 600),   // 10 min
+      makeCandidate('biking', 4800),   // 80 min (8× driving, >60min floor)
+      makeCandidate('walking', 12000), // 200 min (20× driving)
+    ]
+    const result = (tripService as any).filterQualityTrips(candidates)
+    const modes = result.map((c: any) => c.trip.segments[0].mode)
+    expect(modes).toContain('driving')
+    expect(modes).toContain('biking')
+    expect(modes).toContain('walking')
+    expect(result.length).toBe(3)
+  })
+
+  test('filters duplicate slow trips of same mode', () => {
+    const candidates = [
+      makeCandidate('driving', 600),
+      makeCandidate('biking', 4800),  // best biking — kept
+      makeCandidate('biking', 4900),  // second biking, also >4× — kept (under cap)
+      makeCandidate('biking', 5100),  // third biking — exceeds MAX_PER_MODE
+    ]
+    const result = (tripService as any).filterQualityTrips(candidates)
+    const bikingTrips = result.filter(
+      (c: any) => c.trip.segments[0].mode === 'biking',
+    )
+    // MAX_PER_MODE = 2
+    expect(bikingTrips.length).toBeLessThanOrEqual(2)
+  })
+
+  test('per-mode cap limits to MAX_PER_MODE', () => {
+    const candidates = [
+      makeCandidate('driving', 600),
+      makeCandidate('driving', 650),
+      makeCandidate('driving', 900), // different enough (>5%) to not be deduplicated
+      makeCandidate('walking', 2000),
+    ]
+    const result = (tripService as any).filterQualityTrips(candidates)
+    const drivingTrips = result.filter(
+      (c: any) => c.trip.segments[0].mode === 'driving',
+    )
+    expect(drivingTrips.length).toBeLessThanOrEqual(2)
+  })
+
+  test('near-duplicate removal: same mode within 5% duration', () => {
+    const candidates = [
+      makeCandidate('driving', 600),
+      makeCandidate('driving', 615), // 2.5% more — near duplicate
+      makeCandidate('walking', 2000),
+    ]
+    const result = (tripService as any).filterQualityTrips(candidates)
+    const drivingTrips = result.filter(
+      (c: any) => c.trip.segments[0].mode === 'driving',
+    )
+    expect(drivingTrips.length).toBe(1)
+  })
+
+  test('trips under quality floor are never filtered by ratio', () => {
+    // QUALITY_FLOOR_SECONDS = 3600 (60 min)
+    // Even though biking is >4× driving, it's under 60 min so it stays
+    const candidates = [
+      makeCandidate('driving', 300),  // 5 min
+      makeCandidate('biking', 2400),  // 40 min (8× driving, but under floor)
+      makeCandidate('walking', 3500), // 58 min (still under floor)
+    ]
+    const result = (tripService as any).filterQualityTrips(candidates)
+    expect(result.length).toBe(3)
+  })
+
+  test('transit sub-types count separately from each other', () => {
+    const candidates = [
+      makeCandidate('driving', 600),
+      makeTransitCandidate(null, 1800, '2026-01-15T08:30:00Z'),        // walk+transit
+      makeTransitCandidate(null, 1900, '2026-01-15T08:32:00Z'),        // walk+transit #2
+      makeTransitCandidate('biking', 2000, '2026-01-15T08:34:00Z'),    // bike+transit
+      makeTransitCandidate('biking', 2100, '2026-01-15T08:36:00Z'),    // bike+transit #2
+    ]
+    const result = (tripService as any).filterQualityTrips(candidates)
+    const walkTransit = result.filter(
+      (c: any) => (tripService as any).getTripMode(c.trip) === 'transit',
+    )
+    const bikeTransit = result.filter(
+      (c: any) => (tripService as any).getTripMode(c.trip) === 'biking+transit',
+    )
+    // Each sub-type should have up to MAX_PER_MODE (2)
+    expect(walkTransit.length).toBeLessThanOrEqual(2)
+    expect(bikeTransit.length).toBeLessThanOrEqual(2)
+  })
+})
+
+// ── rankBy methods ──────────────────────────────────────────────────────────
+
+describe('TripService — rankBy methods', () => {
+  function makeScoredCandidate(overrides: {
+    endTime?: string
+    totalDuration?: number
+    totalCo2?: number
+    totalCost?: { value: number; currency: string }
+    totalTransfers?: number
+    totalWalkingDistance?: number
+  }) {
+    const endTime = overrides.endTime || '2026-01-15T08:10:00Z'
+    return {
+      trip: {
+        segments: [
+          {
+            mode: 'walking',
+            duration: overrides.totalDuration || 600,
+            endTime,
+            distance: 500,
+          },
+        ] as any,
+        tripStats: {
+          totalDuration: overrides.totalDuration || 600,
+          totalDistance: 500,
+          totalCo2: overrides.totalCo2 ?? 0,
+          totalCost: overrides.totalCost,
+          totalTransfers: overrides.totalTransfers ?? 0,
+          totalWalkingDistance: overrides.totalWalkingDistance ?? 0,
+        },
+        earliestStartTime: '2026-01-15T08:00:00Z',
+        latestEndTime: endTime,
+        dataSources: [],
+        generatedAt: '2026-01-15T08:00:00Z',
+      } as any,
+      score: {
+        overall: 0,
+        time: 0.5,
+        cost: 0.5,
+        comfort: 0.5,
+        environmental: 0.5,
+        safety: 0.5,
+      },
+      rank: 0,
+    }
+  }
+
+  test('rankByArrivalTime: earliest arrival gets highest score', () => {
+    const candidates = [
+      makeScoredCandidate({ endTime: '2026-01-15T08:30:00Z' }),
+      makeScoredCandidate({ endTime: '2026-01-15T08:10:00Z' }),
+      makeScoredCandidate({ endTime: '2026-01-15T08:45:00Z' }),
+    ]
+    ;(tripService as any).rankByArrivalTime(candidates)
+
+    // Candidate ending at 08:10 should have highest overall
+    const sorted = [...candidates].sort(
+      (a, b) => b.score.overall - a.score.overall,
+    )
+    expect(
+      new Date(sorted[0].trip.segments[0].endTime).getTime(),
+    ).toBeLessThanOrEqual(
+      new Date(sorted[1].trip.segments[0].endTime).getTime(),
+    )
+  })
+
+  test('rankByCo2: lowest emissions gets highest score', () => {
+    const candidates = [
+      makeScoredCandidate({ totalCo2: 500 }),
+      makeScoredCandidate({ totalCo2: 0 }),
+      makeScoredCandidate({ totalCo2: 200 }),
+    ]
+    ;(tripService as any).rankByCo2(candidates)
+
+    const sorted = [...candidates].sort(
+      (a, b) => b.score.overall - a.score.overall,
+    )
+    expect(sorted[0].trip.tripStats.totalCo2).toBe(0)
+    expect(sorted[2].trip.tripStats.totalCo2).toBe(500)
+  })
+
+  test('rankByTransfers: fewest transfers gets highest score', () => {
+    const candidates = [
+      makeScoredCandidate({ totalTransfers: 2 }),
+      makeScoredCandidate({ totalTransfers: 0 }),
+      makeScoredCandidate({ totalTransfers: 1 }),
+    ]
+    ;(tripService as any).rankByTransfers(candidates)
+
+    const sorted = [...candidates].sort(
+      (a, b) => b.score.overall - a.score.overall,
+    )
+    expect(sorted[0].trip.tripStats.totalTransfers).toBe(0)
+    expect(sorted[2].trip.tripStats.totalTransfers).toBe(2)
+  })
+
+  test('rankByWalkingDistance: least walking gets highest score', () => {
+    const candidates = [
+      makeScoredCandidate({ totalWalkingDistance: 1000 }),
+      makeScoredCandidate({ totalWalkingDistance: 100 }),
+      makeScoredCandidate({ totalWalkingDistance: 500 }),
+    ]
+    ;(tripService as any).rankByWalkingDistance(candidates)
+
+    const sorted = [...candidates].sort(
+      (a, b) => b.score.overall - a.score.overall,
+    )
+    expect(sorted[0].trip.tripStats.totalWalkingDistance).toBe(100)
+    expect(sorted[2].trip.tripStats.totalWalkingDistance).toBe(1000)
+  })
+
+  test('all-equal values: all candidates get primary score of 1', () => {
+    const candidates = [
+      makeScoredCandidate({ totalCo2: 100 }),
+      makeScoredCandidate({ totalCo2: 100 }),
+      makeScoredCandidate({ totalCo2: 100 }),
+    ]
+    ;(tripService as any).rankByCo2(candidates)
+
+    // When range is 0, all get primary = 1
+    for (const c of candidates) {
+      expect(c.score.overall).toBeGreaterThan(0.99)
+    }
+  })
+
+  test('empty candidates array is a no-op', () => {
+    const candidates: any[] = []
+    ;(tripService as any).rankByArrivalTime(candidates)
+    expect(candidates.length).toBe(0)
+  })
+})
+
+// ── Segment planners ────────────────────────────────────────────────────────
+
+describe('TripService — segment planners', () => {
+  const baseState = {
+    currentTime: '2026-01-15T08:00:00Z',
+    currentLocation: CHARLOTTE_ORIGIN.location,
+    currentMode: 'walking' as const,
+    parkedVehicles: [],
+  }
+
+  describe('planWalkingSegment', () => {
+    test('returns segment with mode walking', async () => {
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 360))
+
+      const result = await (tripService as any).planWalkingSegment(
+        CHARLOTTE_ORIGIN,
+        CHARLOTTE_DEST,
+        baseState,
+      )
+      expect(result).not.toBeNull()
+      expect(result.segment.mode).toBe('walking')
+      expect(result.segment.co2).toBe(0)
+      expect(result.state.currentMode).toBe('walking')
+    })
+
+    test('skips walks under 60s duration', async () => {
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(30, 45))
+
+      const result = await (tripService as any).planWalkingSegment(
+        CHARLOTTE_ORIGIN,
+        CHARLOTTE_DEST,
+        baseState,
+      )
+      expect(result).toBeNull()
+    })
+
+    test('returns null on routing error', async () => {
+      mockGetRoute.mockImplementation(async () => {
+        throw new Error('Network timeout')
+      })
+
+      const result = await (tripService as any).planWalkingSegment(
+        CHARLOTTE_ORIGIN,
+        CHARLOTTE_DEST,
+        baseState,
+      )
+      expect(result).toBeNull()
+    })
+
+    test('returns null when no routes found', async () => {
+      mockGetRoute.mockImplementation(async () => ({ routes: [] }))
+
+      const result = await (tripService as any).planWalkingSegment(
+        CHARLOTTE_ORIGIN,
+        CHARLOTTE_DEST,
+        baseState,
+      )
+      expect(result).toBeNull()
+    })
+
+    test('preserves parkedVehicles in resulting state', async () => {
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 360))
+      const parkedVehicles = [
+        {
+          vehicle: { id: 'car-1', type: 'car' },
+          location: { lat: 35.21, lng: -80.85 },
+          parkedAt: '2026-01-15T07:50:00Z',
+        },
+      ]
+
+      const result = await (tripService as any).planWalkingSegment(
+        CHARLOTTE_ORIGIN,
+        CHARLOTTE_DEST,
+        { ...baseState, parkedVehicles },
+      )
+      expect(result.state.parkedVehicles).toEqual(parkedVehicles)
+    })
+
+    test('calculates endTime from startTime + duration', async () => {
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 600))
+
+      const result = await (tripService as any).planWalkingSegment(
+        CHARLOTTE_ORIGIN,
+        CHARLOTTE_DEST,
+        baseState,
+      )
+      const start = new Date(result.segment.startTime).getTime()
+      const end = new Date(result.segment.endTime).getTime()
+      expect(end - start).toBe(600 * 1000)
+    })
+  })
+
+  describe('planWheelchairSegment', () => {
+    test('returns segment with mode wheelchair', async () => {
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 480))
+
+      const result = await (tripService as any).planWheelchairSegment(
+        CHARLOTTE_ORIGIN,
+        CHARLOTTE_DEST,
+        baseState,
+        {},
+      )
+      expect(result).not.toBeNull()
+      expect(result.segment.mode).toBe('wheelchair')
+      expect(result.state.currentMode).toBe('wheelchair')
+    })
+
+    test('skips segments under 60s', async () => {
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(20, 30))
+
+      const result = await (tripService as any).planWheelchairSegment(
+        CHARLOTTE_ORIGIN,
+        CHARLOTTE_DEST,
+        baseState,
+        {},
+      )
+      expect(result).toBeNull()
+    })
+
+    test('returns null on routing error', async () => {
+      mockGetRoute.mockImplementation(async () => {
+        throw new Error('GraphHopper error')
+      })
+
+      const result = await (tripService as any).planWheelchairSegment(
+        CHARLOTTE_ORIGIN,
+        CHARLOTTE_DEST,
+        baseState,
+        {},
+      )
+      expect(result).toBeNull()
+    })
+
+    test('passes wheelchair profile to routing service', async () => {
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 480))
+
+      await (tripService as any).planWheelchairSegment(
+        CHARLOTTE_ORIGIN,
+        CHARLOTTE_DEST,
+        baseState,
+        {},
+      )
+      expect(mockGetRoute).toHaveBeenCalledWith(
+        expect.any(Array),
+        'wheelchair',
+        expect.anything(),
+      )
+    })
+  })
+
+  describe('planDirectBike', () => {
+    test('returns biking segment with co2: 0', async () => {
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(3000, 900))
+
+      const result = await (tripService as any).planDirectBike(
+        CHARLOTTE_ORIGIN,
+        CHARLOTTE_DEST,
+        baseState,
+      )
+      expect(result).not.toBeNull()
+      expect(result.segment.mode).toBe('biking')
+      expect(result.segment.co2).toBe(0)
+      expect(result.state.currentMode).toBe('biking')
+    })
+
+    test('returns null when route has no results', async () => {
+      mockGetRoute.mockImplementation(async () => ({ routes: [] }))
+
+      const result = await (tripService as any).planDirectBike(
+        CHARLOTTE_ORIGIN,
+        CHARLOTTE_DEST,
+        baseState,
+      )
+      expect(result).toBeNull()
+    })
+
+    test('returns null on routing error', async () => {
+      mockGetRoute.mockImplementation(async () => {
+        throw new Error('Bicycle profile not available')
+      })
+
+      const result = await (tripService as any).planDirectBike(
+        CHARLOTTE_ORIGIN,
+        CHARLOTTE_DEST,
+        baseState,
+      )
+      expect(result).toBeNull()
+    })
+
+    test('uses bicycle profile for routing', async () => {
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(3000, 900))
+
+      await (tripService as any).planDirectBike(
+        CHARLOTTE_ORIGIN,
+        CHARLOTTE_DEST,
+        baseState,
+        {},
+      )
+      const calls = mockGetRoute.mock.calls
+      const lastCall = calls[calls.length - 1]
+      expect(lastCall[1]).toBe('bicycle')
+    })
+  })
+
+  describe('planDrivingSegment', () => {
+    test('direct drive when no car vehicle provided', async () => {
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(5000, 600))
+
+      const result = await (tripService as any).planDrivingSegment(
+        CHARLOTTE_ORIGIN,
+        CHARLOTTE_DEST,
+        baseState,
+        [], // no vehicles
+        {},
+      )
+      expect(result).not.toBeNull()
+      expect(result.segment.mode).toBe('driving')
+    })
+
+    test('walk-to-car + drive when car is far from origin', async () => {
+      const farCar = {
+        id: 'car-1',
+        type: 'car',
+        location: { lat: 35.22, lng: -80.85 },
+      }
+      // First call: walk to car. Second call: drive to dest.
+      let callCount = 0
+      mockGetRoute.mockImplementation(async () => {
+        callCount++
+        if (callCount === 1) return makeBasicWalkRoute(300, 240) // walk
+        return makeBasicWalkRoute(5000, 600) // drive
+      })
+
+      const result = await (tripService as any).planDrivingSegment(
+        CHARLOTTE_ORIGIN,
+        CHARLOTTE_DEST,
+        baseState,
+        [farCar],
+        { useKnownVehicleLocations: true },
+      )
+      expect(result).not.toBeNull()
+      // Should have multimodal segments: walk + drive
+      expect(result.multimodalSegments).toBeDefined()
+      expect(result.multimodalSegments.length).toBe(2)
+      expect(result.multimodalSegments[0].mode).toBe('walking')
+      expect(result.multimodalSegments[1].mode).toBe('driving')
+    })
+
+    test('returns null on routing error', async () => {
+      mockGetRoute.mockImplementation(async () => {
+        throw new Error('Route not found')
+      })
+
+      const result = await (tripService as any).planDrivingSegment(
+        CHARLOTTE_ORIGIN,
+        CHARLOTTE_DEST,
+        baseState,
+        [],
+        {},
+      )
+      expect(result).toBeNull()
+    })
+
+    test('resulting state tracks parked vehicle', async () => {
+      const car = {
+        id: 'car-1',
+        type: 'car',
+        location: { lat: 35.22, lng: -80.85 },
+      }
+      let callCount = 0
+      mockGetRoute.mockImplementation(async () => {
+        callCount++
+        if (callCount === 1) return makeBasicWalkRoute(300, 240)
+        return makeBasicWalkRoute(5000, 600)
+      })
+
+      const result = await (tripService as any).planDrivingSegment(
+        CHARLOTTE_ORIGIN,
+        CHARLOTTE_DEST,
+        baseState,
+        [car],
+        { useKnownVehicleLocations: true },
+      )
+      expect(result).not.toBeNull()
+      expect(result.state.parkedVehicles.length).toBe(1)
+      expect(result.state.parkedVehicles[0].vehicle.type).toBe('car')
+    })
+  })
+})
+
+// ── Multi-stop trips ────────────────────────────────────────────────────────
+
+describe('TripService — multi-stop trips', () => {
+  test('3-stop walking trip produces 2 legs', async () => {
+    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 360))
+
+    const response = await tripService.planTrip({
+      waypoints: [
+        CHARLOTTE_ORIGIN,
+        {
+          location: { lat: 35.22, lng: -80.85 },
+          type: 'via',
+          label: 'Midpoint',
+        },
+        CHARLOTTE_DEST,
+      ],
+      selectedMode: 'walking',
+      preferredDepartureTime: '2026-01-15T08:00:00Z',
+    })
+
+    const walkTrip = response.trips.find((t) =>
+      t.trip.segments.every((s) => s.mode === 'walking'),
+    )
+    expect(walkTrip).toBeDefined()
+    // 2 legs: origin→mid, mid→dest
+    expect(walkTrip!.trip.segments.length).toBe(2)
+  })
+
+  test('4-stop driving trip produces 3 legs', async () => {
+    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(5000, 600))
+
+    const response = await tripService.planTrip({
+      waypoints: [
+        CHARLOTTE_ORIGIN,
+        { location: { lat: 35.22, lng: -80.85 }, type: 'via' },
+        { location: { lat: 35.23, lng: -80.84 }, type: 'via' },
+        CHARLOTTE_DEST,
+      ],
+      selectedMode: 'driving',
+      preferredDepartureTime: '2026-01-15T08:00:00Z',
+    })
+
+    const driveTrip = response.trips.find((t) =>
+      t.trip.segments.some((s) => s.mode === 'driving'),
+    )
+    expect(driveTrip).toBeDefined()
+    // Should have 3 driving legs
+    const drivingSegs = driveTrip!.trip.segments.filter(
+      (s) => s.mode === 'driving',
+    )
+    expect(drivingSegs.length).toBe(3)
+  })
+
+  test('segment times are sequential (no overlaps)', async () => {
+    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 360))
+
+    const response = await tripService.planTrip({
+      waypoints: [
+        CHARLOTTE_ORIGIN,
+        { location: { lat: 35.22, lng: -80.85 }, type: 'via' },
+        CHARLOTTE_DEST,
+      ],
+      selectedMode: 'walking',
+      preferredDepartureTime: '2026-01-15T08:00:00Z',
+    })
+
+    const trip = response.trips[0]?.trip
+    if (trip && trip.segments.length >= 2) {
+      for (let i = 1; i < trip.segments.length; i++) {
+        const prevEnd = new Date(trip.segments[i - 1].endTime).getTime()
+        const nextStart = new Date(trip.segments[i].startTime).getTime()
+        expect(nextStart).toBeGreaterThanOrEqual(prevEnd)
+      }
+    }
+  })
+})
+
+// ── planTrip error handling ─────────────────────────────────────────────────
+
+describe('TripService — planTrip error handling', () => {
+  test('all routing fails returns empty trips array', async () => {
+    mockGetRoute.mockImplementation(async () => {
+      throw new Error('All routing engines down')
+    })
+
+    const response = await tripService.planTrip({
+      waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+      selectedMode: 'walking',
+      preferredDepartureTime: '2026-01-15T08:00:00Z',
+    })
+
+    expect(response.trips).toEqual([])
+  })
+
+  test('individual mode failure does not block other modes', async () => {
+    let callCount = 0
+    mockGetRoute.mockImplementation(async (_pts: any, profile: string) => {
+      callCount++
+      if (profile === 'pedestrian') throw new Error('Walking engine down')
+      return makeBasicWalkRoute(5000, 600)
+    })
+
+    const response = await tripService.planTrip({
+      waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+      selectedMode: 'driving',
+      preferredDepartureTime: '2026-01-15T08:00:00Z',
+    })
+
+    // Walking failed but driving should still work
+    const hasDriving = response.trips.some((t) =>
+      t.trip.segments.some((s) => s.mode === 'driving'),
+    )
+    expect(hasDriving).toBe(true)
+  })
+
+  test('invalid waypoints throw before any routing', async () => {
+    await expect(
+      tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN],
+        selectedMode: 'walking',
+      }),
+    ).rejects.toThrow('at least 2 waypoints')
+
+    // No routing calls should have been made
+    expect(mockGetRoute).not.toHaveBeenCalled()
+  })
+
+  test('metadata includes processing time', async () => {
+    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 360))
+
+    const response = await tripService.planTrip({
+      waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+      selectedMode: 'walking',
+      preferredDepartureTime: '2026-01-15T08:00:00Z',
+    })
+
+    expect(response.metadata.processingTime).toBeGreaterThanOrEqual(0)
+    expect(response.metadata.totalCandidatesGenerated).toBeGreaterThanOrEqual(0)
+  })
+})
+
+// ── Mode generation edge cases ──────────────────────────────────────────────
+
+describe('TripService — mode generation edge cases', () => {
+  test('biking mode generates walking + biking', () => {
+    const modes = (tripService as any).getModesToGenerate('biking')
+    expect(modes).toContain('biking')
+    expect(modes).toContain('walking')
+    expect(modes).not.toContain('driving')
+    expect(modes).not.toContain('transit')
+  })
+
+  test('driving mode generates walking + driving', () => {
+    const modes = (tripService as any).getModesToGenerate('driving')
+    expect(modes).toContain('driving')
+    expect(modes).toContain('walking')
+    expect(modes).not.toContain('biking')
+    expect(modes).not.toContain('transit')
+  })
+
+  test('wheelchair mode generates only wheelchair', () => {
+    const modes = (tripService as any).getModesToGenerate('wheelchair')
+    expect(modes).toEqual(['wheelchair'])
+  })
+
+  test('wheelchair planTrip returns wheelchair segment', async () => {
+    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 480))
+
+    const response = await tripService.planTrip({
+      waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+      selectedMode: 'wheelchair',
+      preferredDepartureTime: '2026-01-15T08:00:00Z',
+    })
+
+    const wheelchair = response.trips.find((t) =>
+      t.trip.segments.some((s) => s.mode === 'wheelchair'),
+    )
+    expect(wheelchair).toBeDefined()
+  })
+})

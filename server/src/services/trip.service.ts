@@ -2267,6 +2267,18 @@ export class TripService {
       for (const c of subCandidates) transitPreferred.add(c)
     }
 
+    // Pre-select the best trip per mode so we always show at least one
+    // representative for each mode, even if it's much slower than driving.
+    const bestPerMode = new Set<typeof sorted[number]>()
+    const seenModes = new Set<string>()
+    for (const c of sorted) {
+      const mode = this.getTripMode(c.trip)
+      if (!seenModes.has(mode)) {
+        seenModes.add(mode)
+        bestPerMode.add(c)
+      }
+    }
+
     const kept: typeof sorted = []
     const modeCounts: Record<string, number> = {}
 
@@ -2275,10 +2287,13 @@ export class TripService {
       const mode = this.getTripMode(c.trip)
 
       // Trips under 1 hour are always reasonable — never filter them.
-      // Long trips are filtered if they're > 4× the fastest option.
+      // Long trips are filtered if they're > 4× the fastest option,
+      // UNLESS they're the best trip for their mode — always keep one
+      // representative per mode so users see all their options.
       if (
         dur > TripService.QUALITY_FLOOR_SECONDS &&
-        dur > shortestDuration * 4
+        dur > shortestDuration * 4 &&
+        !bestPerMode.has(c)
       ) {
         continue
       }

@@ -142,8 +142,10 @@ function directionsService() {
           isRecommended: candidate.rank === 1,
           rank: candidate.rank,
           provider: 'multimodal',
-          cost: candidate.trip.tripStats.totalCost,
-          co2Emissions: candidate.trip.tripStats.totalCo2,
+          cost: candidate.trip.tripStats.totalCost
+            ? { total: { amount: candidate.trip.tripStats.totalCost.value, currency: candidate.trip.tripStats.totalCost.currency } }
+            : undefined,
+          co2Emissions: candidate.trip.tripStats.totalCo2 ?? undefined,
         })),
         earliestStart:
           data.trips[0]?.trip.earliestStartTime || new Date().toISOString(),

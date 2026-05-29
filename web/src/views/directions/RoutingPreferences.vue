@@ -693,6 +693,25 @@ const customModelError = computed(() => {
           />
         </div>
 
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <Label class="text-sm font-normal">Arrive early</Label>
+            <span class="text-xs text-muted-foreground"
+              >{{ preferences.transitBufferMinutes ?? 2 }} min</span
+            >
+          </div>
+          <Slider
+            :model-value="[preferences.transitBufferMinutes ?? 2]"
+            :min="1"
+            :max="5"
+            :step="1"
+            @update:model-value="val => val && updatePreference('transitBufferMinutes', val[0])"
+          />
+          <p class="text-[11px] text-muted-foreground">
+            How early to arrive at the stop before departure
+          </p>
+        </div>
+
         <div
           v-if="isSupported('wheelchairAccessible')"
           class="flex items-center justify-between"

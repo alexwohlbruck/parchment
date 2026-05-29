@@ -47,6 +47,7 @@ const defaultModePreferences: Record<ModeKey, Partial<RoutingPreferences>> = {
   transit: {
     maxWalkingDistance: 1000,
     maxTransfers: 3,
+    transitBufferMinutes: 2,
     wheelchairAccessible: false,
   },
   wheelchair: {

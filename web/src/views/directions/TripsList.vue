@@ -3,17 +3,7 @@ import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import dayjs from 'dayjs'
 import { useRouter } from 'vue-router'
 import type { TripsResponse, TripOption } from '@/types/directions.types'
-import type { SortPreference } from '@/types/multimodal.types'
-import { useDirectionsStore } from '@/stores/directions.store'
-import { storeToRefs } from 'pinia'
 import TripItem from './TripItem.vue'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 
 interface Props {
   trips: TripsResponse
@@ -21,24 +11,6 @@ interface Props {
 
 const props = defineProps<Props>()
 const router = useRouter()
-const directionsStore = useDirectionsStore()
-const { sortPreference } = storeToRefs(directionsStore)
-
-const sortOptions: Array<{ value: SortPreference | 'recommended'; label: string }> = [
-  { value: 'recommended', label: 'Recommended' },
-  { value: 'fastest', label: 'Fastest' },
-  { value: 'cheapest', label: 'Cheapest' },
-  { value: 'fewest_transfers', label: 'Fewest transfers' },
-  { value: 'least_walking', label: 'Least walking' },
-  { value: 'greenest', label: 'Greenest' },
-]
-
-const selectedSort = computed({
-  get: () => sortPreference.value || 'recommended',
-  set: (val: string) => {
-    sortPreference.value = val === 'recommended' ? null : val as SortPreference
-  },
-})
 
 const MIN_PX_PER_MIN = 1.5
 const MAX_PX_PER_MIN = 50
@@ -77,11 +49,7 @@ onUnmounted(() => {
 })
 
 const sortedTrips = computed(() => {
-  return [...props.trips.trips].sort((a, b) => {
-    if (a.isRecommended && !b.isRecommended) return -1
-    if (!a.isRecommended && b.isRecommended) return 1
-    return a.summary.totalDuration - b.summary.totalDuration
-  })
+  return [...props.trips.trips].sort((a, b) => a.rank - b.rank)
 })
 
 const actualStart = computed(() => {
@@ -217,25 +185,6 @@ function navigateToTripDetail(trip: TripOption) {
 
 <template>
   <div class="flex flex-col h-full -mx-3" ref="containerRef">
-    <!-- Sort preference -->
-    <div class="flex items-center justify-end px-4 pb-1.5">
-      <Select v-model="selectedSort">
-        <SelectTrigger class="h-7 w-[150px] text-xs">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem
-            v-for="opt in sortOptions"
-            :key="opt.value"
-            :value="opt.value"
-            class="text-xs"
-          >
-            {{ opt.label }}
-          </SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
-
     <div class="flex-1 overflow-auto">
       <div :style="{ minWidth: `${timelineWidth + sidebarWidth}px` }">
         <!-- Time axis -->

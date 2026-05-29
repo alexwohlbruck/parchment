@@ -12,27 +12,23 @@ import {
 } from '@/components/ui/collapsible'
 import { Caption } from '@/components/ui/typography'
 import {
-  AccessibilityIcon,
   ArrowLeft,
   ArrowRight,
   ArrowUp,
   ArrowUpLeft,
   ArrowUpRight,
-  BikeIcon,
   BookmarkIcon,
-  CarFrontIcon,
   ChevronDownIcon,
   ClockIcon,
   FlagIcon,
   FootprintsIcon,
   ShareIcon,
-  TrainIcon,
-  TruckIcon,
   Undo2Icon,
 } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
 import type { RouteInstruction } from '@/types/directions.types'
 import type { RouteProfileType } from '@/lib/route-profile-colors'
+import { getSegmentIcon } from '@/lib/travel-mode-icons'
 import ElevationChart from '@/components/directions/ElevationChart.vue'
 import { useUnits } from '@/composables/useUnits'
 
@@ -64,15 +60,6 @@ watch(
   { immediate: true },
 )
 
-const modeIcons = {
-  walking: FootprintsIcon,
-  driving: CarFrontIcon,
-  cycling: BikeIcon,
-  biking: BikeIcon,
-  transit: TrainIcon,
-  truck: TruckIcon,
-  wheelchair: AccessibilityIcon,
-} as const
 
 const modeColors = {
   walking: 'bg-cobalt-500',
@@ -191,6 +178,11 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
     style: 'currency',
     currency: cost.currency,
   }).format(cost.amount)
+}
+
+function formatCo2(kg: number): string {
+  if (kg >= 1) return `${kg.toFixed(1)} kg`
+  return `${Math.round(kg * 1000)} g`
 }
 
 const PREVIEW_COUNT = 3
@@ -390,7 +382,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
               {{ formatCurrency(trip.cost.total) }}
             </span>
             <span v-if="trip.co2Emissions">
-              {{ trip.co2Emissions.toFixed(1) }}kg CO₂
+              {{ formatCo2(trip.co2Emissions) }} CO₂
             </span>
           </div>
         </div>
@@ -493,7 +485,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
                 } : {}"
               >
                 <component
-                  :is="modeIcons[entry.segment.mode as keyof typeof modeIcons] || FootprintsIcon"
+                  :is="getSegmentIcon(entry.segment.mode, entry.segment.routeType)"
                   class="size-3.5"
                 />
               </div>

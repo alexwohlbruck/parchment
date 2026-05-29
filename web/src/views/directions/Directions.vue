@@ -25,10 +25,17 @@ import TripsList from './TripsList.vue'
 import RoutingPreferences from './RoutingPreferences.vue'
 import { Spinner } from '@/components/ui/spinner'
 import { Waypoint } from '@/types/map.types'
-import { SelectedMode } from '@/types/multimodal.types'
+import { SelectedMode, SortPreference } from '@/types/multimodal.types'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import { Button } from '@/components/ui/button'
 import ResponsivePopover from '@/components/responsive/ResponsivePopover.vue'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { ref } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { AppRoute } from '@/router'
@@ -38,10 +45,28 @@ dayjs.extend(duration)
 const directionsService = useDirectionsService()
 const directionsStore = useDirectionsStore()
 
-const { waypoints, trips, selectedMode, departureTime, isLoading, timezoneWarning } =
+const { waypoints, trips, selectedMode, departureTime, sortPreference, isLoading, timezoneWarning } =
   storeToRefs(directionsStore)
 
 const showPreferences = ref(false)
+
+// ── Sort preference ──────────────────────────────────────────────
+const sortOptions: Array<{ value: SortPreference | 'recommended'; label: string }> = [
+  { value: 'recommended', label: 'Balanced' },
+  { value: 'shortest', label: 'Shortest' },
+  { value: 'earliest_arrival', label: 'Earliest arrival' },
+  { value: 'cheapest', label: 'Cheapest' },
+  { value: 'fewest_transfers', label: 'Fewest transfers' },
+  { value: 'least_walking', label: 'Least walking' },
+  { value: 'greenest', label: 'Greenest' },
+]
+
+const selectedSort = computed({
+  get: () => sortPreference.value || 'recommended',
+  set: (val: string) => {
+    sortPreference.value = val === 'recommended' ? null : val as SortPreference
+  },
+})
 
 // ── Departure time controls ───────────────────────────────────────
 const showTimePicker = ref(false)
@@ -200,7 +225,7 @@ useMapListener(
         @update:modelValue="directionsService.setWaypoints"
       />
 
-      <!-- Departure time -->
+      <!-- Departure time + sort preference -->
       <div class="flex items-center gap-1.5">
         <Button
           variant="outline"
@@ -219,6 +244,24 @@ useMapListener(
             <XIcon class="size-3" />
           </span>
         </Button>
+
+        <div class="flex-1" />
+
+        <Select v-model="selectedSort">
+          <SelectTrigger class="h-7 w-[150px] text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem
+              v-for="opt in sortOptions"
+              :key="opt.value"
+              :value="opt.value"
+              class="text-xs"
+            >
+              {{ opt.label }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div v-if="showTimePicker" class="flex items-center gap-2">

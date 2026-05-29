@@ -5,13 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useMapService } from '@/services/map.service'
 import { useUnits } from '@/composables/useUnits'
 import { getTravelModeCssClass, getTravelModeColor, getTravelModeCaseColor } from '@/lib/travel-mode-colors'
-import {
-  FootprintsIcon,
-  TrainIcon,
-  BikeIcon,
-  CarFrontIcon,
-  TruckIcon,
-} from 'lucide-vue-next'
+import { getSegmentIcon, getModeIcon } from '@/lib/travel-mode-icons'
 import type {
   TripOption,
   TripsResponse,
@@ -38,6 +32,11 @@ const mapService = useMapService()
 const { t } = useI18n()
 const { formatDistance } = useUnits()
 
+function formatCo2(kg: number): string {
+  if (kg >= 1) return `${kg.toFixed(1)} kg`
+  return `${Math.round(kg * 1000)} g`
+}
+
 const dominantMode = computed(() => {
   const durations: Record<string, number> = {}
   for (const seg of props.trip.segments) {
@@ -52,15 +51,22 @@ const dominantMode = computed(() => {
   return best
 })
 
-const modeIcons: Record<string, any> = {
-  walking: FootprintsIcon,
-  driving: CarFrontIcon,
-  cycling: BikeIcon,
-  biking: BikeIcon,
-  transit: TrainIcon,
-  motorcycle: CarFrontIcon,
-  truck: TruckIcon,
-}
+/** Icon for the dominant mode — resolves transit route type from the longest transit segment */
+const dominantTransitIcon = computed(() => {
+  if (dominantMode.value !== 'transit') {
+    return getModeIcon(dominantMode.value)
+  }
+  // Find the longest transit segment to determine the route type icon
+  let longestSeg: any = null
+  let longestDur = 0
+  for (const seg of props.trip.segments) {
+    if (seg.mode === 'transit' && seg.duration > longestDur) {
+      longestDur = seg.duration
+      longestSeg = seg
+    }
+  }
+  return getSegmentIcon('transit', longestSeg?.routeType)
+})
 
 function segLeft(segment: { startTime: Date }) {
   return dayjs(segment.startTime).diff(props.timelineStart, 'minute', true) * props.pxPerMinute
@@ -180,6 +186,9 @@ function handleMouseEnter() {
         </template>
       </div>
       <div class="text-[10px] text-muted-foreground font-medium mt-0.5">
+        {{ getArrivalTime() }}
+      </div>
+      <div class="text-[10px] text-muted-foreground font-medium">
         {{ formatDistance(trip.summary.totalDistance) }}
       </div>
     </div>
@@ -222,7 +231,7 @@ function handleMouseEnter() {
         >
           <component
             v-if="segW(segment) > 20"
-            :is="modeIcons[segment.mode]"
+            :is="getSegmentIcon(segment.mode, segment.routeType)"
             class="size-3 shrink-0"
           />
           <span
@@ -246,26 +255,21 @@ function handleMouseEnter() {
       <div class="flex items-center gap-1.5 flex-wrap mt-1.5 pr-4 text-[11px] text-muted-foreground">
         <span class="inline-flex items-center gap-1">
           <component
-            :is="modeIcons[dominantMode]"
+            :is="dominantTransitIcon"
             class="size-3"
             :style="{ color: getTravelModeColor(dominantMode) }"
           />
           <span class="font-semibold text-foreground/80">{{ getTripModeLabel(dominantMode) }}</span>
         </span>
 
-        <span
-          v-if="trip.isRecommended"
-          class="inline-flex items-center gap-1 h-[18px] px-1.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold"
-        >
-          Fastest
-        </span>
-
-        <span class="size-0.5 rounded-full bg-muted-foreground/50" />
-        <span>Arrive {{ getArrivalTime() }}</span>
-
         <template v-if="trip.cost?.total">
           <span class="size-0.5 rounded-full bg-muted-foreground/50" />
           <span class="tabular-nums">${{ trip.cost.total.amount.toFixed(2) }}</span>
+        </template>
+
+        <template v-if="trip.co2Emissions != null && trip.co2Emissions > 0">
+          <span class="size-0.5 rounded-full bg-muted-foreground/50" />
+          <span class="tabular-nums">{{ formatCo2(trip.co2Emissions) }} CO₂</span>
         </template>
       </div>
 

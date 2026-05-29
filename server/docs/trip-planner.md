@@ -69,19 +69,38 @@ Transit planning uses two methods:
 `transit` / `multi` mode). Requests 3 itineraries from MOTIS, composes each into
 a separate `TripResponse` for scoring.
 
-**`composeTransitItinerary()`** — shared composition logic for a single itinerary:
+**`composeTransitItinerary(origin, destination)`** — shared composition logic for
+a single itinerary:
 
 1. Send origin/destination to MOTIS via `TransitRoutingService.getTransitRoute()`
 2. MOTIS returns itineraries with WALK and transit legs
-3. For each WALK leg: re-route via GraphHopper pedestrian for accurate geometry
+3. For each WALK leg: re-route via GraphHopper pedestrian for accurate geometry.
+   The first walk uses the user's exact origin, and the last walk uses the exact
+   destination — MOTIS may snap to nearby stop coordinates which can be off.
 4. For each transit leg: build `TripSegment` with `TransitDetails` (route, stops,
    headsign, colors). Geometry is converted from GeoJSON `{type:'LineString',
    coordinates:[[lng,lat],...]}` to `Array<{lat,lng}>` to match GraphHopper format.
 5. If GraphHopper fails for a walk leg, fall back to MOTIS straight-line data
-6. Walk timing: access walks start `walkDuration + buffer` before transit departure.
-   Transfer walks start when the previous transit arrives. Walking segments extend
-   to the next transit departure to absorb wait time (no visual gaps).
-7. Return composed `TripSegment[]`
+6. **Synthesize missing access/egress walks**: MOTIS in transit-only mode with
+   stop IDs often omits the access and egress WALK legs (the itinerary starts
+   at the boarding stop and ends at the alighting stop). After processing all
+   MOTIS legs, if the first segment isn't a walk, an **access walk** from the
+   user's origin to the first boarding stop is added via GraphHopper. If the
+   last segment isn't a walk, an **egress walk** from the last alighting stop
+   to the user's destination is added.
+7. Walk timing uses the **actual GraphHopper duration**, not the MOTIS estimate:
+   - Access walks: back-calculate start time so the walk ends `buffer` minutes
+     before transit departure. Uses `actualDuration + buffer` from the transit
+     departure time. MOTIS estimates are only used for the initial GraphHopper
+     query timing; the segment is then re-timed with the real duration.
+   - Transfer walks: start when the previous transit arrives. If the actual walk
+     duration exceeds the available transfer window (i.e. the walk would finish
+     after the next transit departs), the itinerary is **infeasible** and is
+     discarded (`return []`).
+   - All pre-transit walks are extended to fill the gap up to transit departure
+     so the timeline shows a continuous bar (wait time absorbed into walk).
+   - Buffer is configurable via `transitBufferMinutes` (1-5 min, default 2).
+8. Return composed `TripSegment[]`
 
 ### 4. Time Constraints
 
@@ -100,22 +119,47 @@ Each trip is scored across five dimensions (0-1, higher is better):
 
 | Dimension | Formula | Notes |
 |-----------|---------|-------|
-| `time` | `600 / (600 + duration)` | 10 min trip = 1.0 |
-| `cost` | `1 / (1 + cost)` | Free = 1.0 |
+| `time` | `600 / max(600, arrivalOffset)` | Ratio-preserving: ≤10 min → 1.0, 20 min → 0.5, 54 min → 0.185. Uses arrival offset from requested departure so transit waits are penalized. |
+| `cost` | `10 / (10 + cost)` | Free = 1.0, $5 = 0.67 |
 | `comfort` | 0.6 * walkScore + 0.4 * transferScore | Penalizes >500m walks, >1 transfer |
-| `environmental` | `250 / (250 + totalCO2)` | Walking/biking = 1.0 |
+| `environmental` | `0.25 / (0.25 + totalCO2)` | Walking/biking = 1.0, CO2 in kg |
 | `safety` | 0.5 (placeholder) | Future: from GraphHopper edge data |
 
-The `overall` score is a weighted combination based on `sortPreference`:
+The `overall` score uses balanced weights (time-dominant so faster trips win):
 
-| Preference | time | cost | comfort | environmental | safety |
-|-----------|------|------|---------|---------------|--------|
-| `fastest` | 0.70 | 0.05 | 0.10 | 0.05 | 0.10 |
-| `cheapest` | 0.15 | 0.55 | 0.10 | 0.10 | 0.10 |
-| `fewest_transfers` | 0.15 | 0.05 | 0.60 | 0.10 | 0.10 |
-| `least_walking` | 0.10 | 0.05 | 0.65 | 0.10 | 0.10 |
-| `greenest` | 0.10 | 0.05 | 0.10 | 0.65 | 0.10 |
-| (default) | 0.40 | 0.10 | 0.20 | 0.15 | 0.15 |
+| time | cost | comfort | environmental | safety |
+|------|------|---------|---------------|--------|
+| 0.45 | 0.10 | 0.15 | 0.15 | 0.15 |
+
+All named sort preferences use **direct ranking** — the primary metric
+determines order, with the balanced score as a tiebreaker (scaled by 0.001
+so it never overrides the primary sort):
+
+**`shortest`** ranks by `totalDuration` via `rankByDuration()`.
+
+**`cheapest`** ranks by `totalCost` via `rankByCost()`.
+
+**`earliest_arrival`** ranks by absolute arrival time (the `endTime` of the
+last segment) via `rankByArrivalTime()`.
+
+**`greenest`** ranks by `totalCo2` (kg) via `rankByCo2()`.
+
+**`fewest_transfers`** ranks by `totalTransfers` count via `rankByTransfers()`.
+
+**`least_walking`** ranks by `totalWalkingDistance` (meters) via
+`rankByWalkingDistance()`.
+
+### Quality Filtering
+
+`filterQualityTrips()` enforces three rules in order:
+
+1. **Quality floor** — trips under 60 min are always kept; longer trips are
+   dropped if they exceed 4× the shortest candidate's duration.
+2. **Per-mode cap** — max 2 trips per mode for variety. Transit trips are
+   capped by earliest arrival time (not score order), since scheduled
+   departure times make arrival time more important than trip duration.
+3. **Near-duplicate** — same-mode trips within 5% duration of an already-kept
+   trip are dropped.
 
 ## Service Architecture
 
@@ -165,14 +209,26 @@ collisions when MOTIS loads multiple feeds.
 
 **Flex v2 incompatibility**: GTFS-Flex v2 feeds crash MOTIS and must be excluded.
 
-## CO2 Emission Factors
+## Cost & CO2 Factors
 
-| Mode | g CO2 / meter |
-|------|--------------|
-| Walking | 0 |
-| Cycling | 0 |
-| Transit | 0.05 (~50g/km) |
-| Driving | 0.24 (~240g/km) |
+**Driving cost**: fuel-only estimate based on average US gas price (~$3.50/gal)
+and average fuel efficiency (~25 MPG). `$0.000087/meter` ≈ $0.087/km ≈ $0.14/mi.
+
+**Transit cost**: from GTFS fare data via MOTIS. MOTIS reads `fare_attributes.txt`
+and `fare_rules.txt` from the GTFS feeds and returns the itinerary-level fare,
+which already accounts for transfer rules (e.g. free transfers within a time
+window). Agencies without fare data in their GTFS feeds show no price.
+
+**Transit distance**: MOTIS often returns `distance: 0` for transit legs. The
+server computes distance from the polyline geometry via Haversine when this
+happens, so CO2 calculations are always based on real distance.
+
+| Mode | kg CO2 / meter | Cost / meter |
+|------|--------------|-------------|
+| Walking | 0 | $0 |
+| Cycling | 0 | $0.000031 (~$0.05/mi maintenance) |
+| Transit | 0.00005 (~0.05 kg/km) | from GTFS fare data |
+| Driving | 0.00024 (~0.24 kg/km) | $0.000087 (~$0.087/km) |
 
 ## Key Types
 

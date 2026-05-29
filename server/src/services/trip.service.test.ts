@@ -45,6 +45,13 @@ mock.module('./transit-routing.service', () => ({
   transitRoutingService: { getTransitRoute: mockGetTransitRoute },
 }))
 
+// Mock search service — used for parking lookup
+const mockSearchByCategory = mock(async () => [])
+
+mock.module('./search.service', () => ({
+  searchByCategory: mockSearchByCategory,
+}))
+
 // ── Import under test (after mocks) ──────────────────────────────────────────
 
 const { TripService } = await import('./trip.service')
@@ -192,10 +199,13 @@ let tripService: InstanceType<typeof TripService>
 beforeEach(() => {
   mockGetRoute.mockReset()
   mockGetTransitRoute.mockReset()
+  mockSearchByCategory.mockReset()
   tripService = new TripService()
 
   // Default routing mock — returns a basic walking route
   mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 360))
+  // Default parking search — no results (parking feature is opt-in)
+  mockSearchByCategory.mockImplementation(async () => [])
 })
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -1497,6 +1507,161 @@ describe('TripService — scoring', () => {
         const transitStart = new Date(transitSeg.startTime).getTime()
         expect(bikeEnd).toBeLessThanOrEqual(transitStart)
       }
+    })
+  })
+
+  // ── Parking-aware driving ───────────────────────────────────────────────────
+
+  describe('parking-aware driving', () => {
+    const mockParking = [
+      { lat: 35.2265, lng: -80.8435, name: 'NoDa Parking Deck', tags: { fee: 'yes' } },
+      { lat: 35.2268, lng: -80.8440, name: 'Street Parking', tags: {} },
+    ]
+
+    test('generates drive-to-parking + walk when useKnownParkingLocations is true', async () => {
+      mockSearchByCategory.mockImplementation(async () => mockParking)
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(400, 240))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'driving',
+        routingPreferences: { useKnownParkingLocations: true },
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      // Should have both direct driving AND parking-aware driving candidates
+      expect(response.trips.length).toBeGreaterThanOrEqual(2)
+
+      // Find the parking trip (it has walking as the last segment)
+      const parkingTrip = response.trips.find((t) => {
+        const segs = t.trip.segments
+        return (
+          segs.length >= 2 &&
+          segs[segs.length - 1].mode === 'walking' &&
+          segs.some((s) => s.mode === 'driving')
+        )
+      })
+      expect(parkingTrip).toBeDefined()
+
+      // The parking trip should have: drive → walk
+      const segs = parkingTrip!.trip.segments
+      const driveSeg = segs.find((s) => s.mode === 'driving')!
+      const walkSeg = segs[segs.length - 1]
+      expect(driveSeg).toBeDefined()
+      expect(walkSeg.mode).toBe('walking')
+    })
+
+    test('does not search parking when useKnownParkingLocations is false', async () => {
+      mockSearchByCategory.mockImplementation(async () => mockParking)
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(400, 240))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'driving',
+        routingPreferences: { useKnownParkingLocations: false },
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      // Parking search should not have been called
+      expect(mockSearchByCategory).not.toHaveBeenCalled()
+    })
+
+    test('does not search parking when preference is not set', async () => {
+      mockSearchByCategory.mockImplementation(async () => mockParking)
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(400, 240))
+
+      await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'driving',
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      expect(mockSearchByCategory).not.toHaveBeenCalled()
+    })
+
+    test('searches with amenity/parking preset', async () => {
+      mockSearchByCategory.mockImplementation(async () => mockParking)
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(400, 240))
+
+      await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'driving',
+        routingPreferences: { useKnownParkingLocations: true },
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      expect(mockSearchByCategory).toHaveBeenCalledTimes(1)
+      const [presetId, options] = mockSearchByCategory.mock.calls[0]
+      expect(presetId).toBe('amenity/parking')
+      expect(options.bounds).toBeDefined()
+      expect(options.bounds.north).toBeGreaterThan(options.bounds.south)
+    })
+
+    test('returns null parking trip when no parking found', async () => {
+      mockSearchByCategory.mockImplementation(async () => [])
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(400, 240))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'driving',
+        routingPreferences: { useKnownParkingLocations: true },
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      // Only the direct driving candidate (+ walking from multi mode)
+      const parkingTrips = response.trips.filter((t) => {
+        const segs = t.trip.segments
+        return (
+          segs.length >= 2 &&
+          segs[segs.length - 1].mode === 'walking' &&
+          segs.some((s) => s.mode === 'driving')
+        )
+      })
+      expect(parkingTrips.length).toBe(0)
+    })
+
+    test('parking trip includes parking cost when fee=yes', async () => {
+      mockSearchByCategory.mockImplementation(async () => [mockParking[0]]) // fee=yes
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 180))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'driving',
+        routingPreferences: { useKnownParkingLocations: true },
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      const parkingTrip = response.trips.find((t) => {
+        const segs = t.trip.segments
+        return (
+          segs.length >= 2 &&
+          segs[segs.length - 1].mode === 'walking' &&
+          segs.some((s) => s.mode === 'driving')
+        )
+      })
+
+      if (parkingTrip) {
+        const driveSeg = parkingTrip.trip.segments.find((s) => s.mode === 'driving')!
+        expect(driveSeg.details?.vehicleDetails?.parkingCost).toBeDefined()
+        expect(driveSeg.details!.vehicleDetails!.parkingCost!.value).toBeGreaterThan(0)
+      }
+    })
+
+    test('handles parking search failure gracefully', async () => {
+      mockSearchByCategory.mockImplementation(async () => {
+        throw new Error('Overpass timeout')
+      })
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(400, 240))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'driving',
+        routingPreferences: { useKnownParkingLocations: true },
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      // Should still return direct driving candidates
+      expect(response.trips.length).toBeGreaterThanOrEqual(1)
     })
   })
 })

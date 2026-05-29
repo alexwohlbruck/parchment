@@ -11,6 +11,7 @@ import {
   Mode,
   SelectedMode,
   SegmentState,
+  ParkedVehicle,
   TransitDetails,
   TransitRoute,
   TransitTrip,
@@ -23,6 +24,7 @@ import {
 import { Coordinate } from '../types/unified-routing.types'
 import { routingService } from './routing.service'
 import { transitRoutingService } from './transit-routing.service'
+import { searchByCategory } from './search.service'
 
 // TODO: Move to database per user
 const HARDCODED_VEHICLE_LOCATIONS = {
@@ -60,6 +62,23 @@ export class TripService {
         }
       } catch (error) {
         console.error(`Failed to plan ${mode} trip:`, error)
+      }
+    }
+
+    // ── Parking-aware driving candidates ──────────────────────────────
+    // When useKnownParkingLocations is enabled and driving is one of the
+    // generated modes, search for real parking near the destination and
+    // generate a drive-to-parking + walk-to-destination candidate.
+    const useParking = request.routingPreferences?.useKnownParkingLocations
+    if (useParking && modes.includes('driving')) {
+      try {
+        const parkingTrip = await this.planDrivingWithParkingTrip(
+          request,
+          dataSources,
+        )
+        if (parkingTrip) candidates.push(parkingTrip)
+      } catch (error) {
+        console.error('Parking-aware driving failed:', error)
       }
     }
 
@@ -640,6 +659,299 @@ export class TripService {
     }
   }
 
+  // ── Parking-aware driving ────────────────────────────────────────────────────
+
+  /** Search radius for parking lots near a destination (meters). */
+  private static readonly PARKING_SEARCH_RADIUS = 500
+  /** Maximum parking results to evaluate. */
+  private static readonly PARKING_MAX_CANDIDATES = 3
+
+  /**
+   * Plan a driving trip that parks near the destination and walks the rest.
+   *
+   * Searches for real parking (amenity/parking via Overpass) within
+   * PARKING_SEARCH_RADIUS of the destination, then generates a trip:
+   *   [optional walk to car] → drive to parking → walk to destination
+   *
+   * If vehicle locations are known and the car is elsewhere, the trip
+   * starts with a walk-to-car segment (same as planDrivingSegment).
+   *
+   * Returns the fastest parking+walk combo, or null if no parking found
+   * or driving direct is clearly better.
+   */
+  private async planDrivingWithParkingTrip(
+    request: TripRequest,
+    dataSources: DataSource[],
+  ): Promise<TripResponse | null> {
+    const from = request.waypoints[0]
+    const to = request.waypoints[request.waypoints.length - 1]
+    const preferences = {
+      ...(request.routingPreferences || {}),
+      ...(request.language && { language: request.language }),
+    }
+    const startTime =
+      request.preferredDepartureTime || new Date().toISOString()
+    const maxWalkDistance = preferences.maxWalkingDistance ?? 1000 // meters
+
+    // Search for parking lots near the destination
+    const parkingPlaces = await this.searchNearbyParking(
+      to.location,
+      TripService.PARKING_SEARCH_RADIUS,
+    )
+
+    if (parkingPlaces.length === 0) return null
+
+    // Sort by distance to destination and take top N
+    const sortedParking = parkingPlaces
+      .map((p) => ({
+        place: p,
+        distToDest: TripService.haversineDistance(
+          { lat: p.lat, lng: p.lng },
+          to.location,
+        ),
+      }))
+      .sort((a, b) => a.distToDest - b.distToDest)
+      .slice(0, TripService.PARKING_MAX_CANDIDATES)
+
+    // Determine drive origin (may need to walk to car first)
+    const availableVehicles = request.availableVehicles || []
+    const car = availableVehicles.find((v) => v.type === 'car')
+    const useKnownLocations = preferences.useKnownVehicleLocations !== false
+    const carLocation =
+      useKnownLocations && car
+        ? car.location || HARDCODED_VEHICLE_LOCATIONS.car
+        : null
+
+    // Try each parking spot — pick the one with the best total time
+    let bestTrip: TripResponse | null = null
+    let bestTotalDuration = Infinity
+
+    for (const { place, distToDest } of sortedParking) {
+      // Skip parking too far to walk from
+      if (distToDest > maxWalkDistance) continue
+
+      try {
+        const segments: TripSegment[] = []
+        let currentTime = new Date(startTime).getTime()
+
+        const parkingCoord: Coordinate = { lat: place.lat, lng: place.lng }
+        const parkingWaypoint: Waypoint = {
+          location: parkingCoord,
+          type: 'via',
+          label: place.name || 'Parking',
+        }
+
+        // Step 1: Walk to car (if car is elsewhere)
+        if (carLocation) {
+          const distToCar = TripService.haversineDistance(
+            from.location,
+            carLocation,
+          )
+          if (distToCar > 50) {
+            const walkRoute = await routingService.getRoute(
+              [
+                { type: 'coordinates', value: [from.location.lat, from.location.lng] },
+                { type: 'coordinates', value: [carLocation.lat, carLocation.lng] },
+              ],
+              'pedestrian',
+              preferences,
+            )
+
+            if (!walkRoute.routes.length) continue
+            const walkLeg = walkRoute.routes[0].legs[0]
+
+            segments.push({
+              segmentIndex: 0,
+              mode: 'walking',
+              start: from,
+              end: {
+                location: carLocation,
+                type: 'via',
+                label: 'Your car',
+              },
+              startTime: new Date(currentTime).toISOString(),
+              endTime: new Date(
+                currentTime + walkLeg.duration * 1000,
+              ).toISOString(),
+              duration: walkLeg.duration,
+              distance: walkLeg.distance,
+              geometry: walkLeg.geometry,
+              instructions: walkLeg.instructions,
+              co2: 0,
+              totalElevationGain: walkLeg.totalElevationGain,
+              totalElevationLoss: walkLeg.totalElevationLoss,
+              maxElevation: walkLeg.maxElevation,
+              minElevation: walkLeg.minElevation,
+              edgeSegments: walkLeg.edgeSegments,
+            })
+
+            currentTime += walkLeg.duration * 1000
+          }
+        }
+
+        // Step 2: Drive to parking
+        const driveFrom = carLocation && segments.length > 0
+          ? carLocation
+          : from.location
+
+        const driveRoute = await routingService.getRoute(
+          [
+            { type: 'coordinates', value: [driveFrom.lat, driveFrom.lng] },
+            { type: 'coordinates', value: [parkingCoord.lat, parkingCoord.lng] },
+          ],
+          'auto',
+          preferences,
+        )
+
+        if (!driveRoute.routes.length) continue
+        const driveLeg = driveRoute.routes[0].legs[0]
+
+        // Extract parking cost from OSM fee tag if available
+        const hasFee = place.tags?.fee === 'yes'
+        const parkingCost = hasFee
+          ? { value: 2.0, currency: 'USD' } // Estimated default when fee=yes
+          : undefined
+
+        const driveSegment: TripSegment = {
+          segmentIndex: segments.length,
+          mode: 'driving',
+          vehicle: car || undefined,
+          start: segments.length > 0
+            ? { location: carLocation!, type: 'via', label: 'Your car' }
+            : from,
+          end: parkingWaypoint,
+          startTime: new Date(currentTime).toISOString(),
+          endTime: new Date(
+            currentTime + driveLeg.duration * 1000,
+          ).toISOString(),
+          duration: driveLeg.duration,
+          distance: driveLeg.distance,
+          geometry: driveLeg.geometry,
+          instructions: driveLeg.instructions,
+          cost: { value: driveLeg.distance * TripService.FUEL_COST_PER_METER, currency: 'USD' },
+          co2: driveLeg.distance * TripService.CO2_PER_METER.driving,
+          totalElevationGain: driveLeg.totalElevationGain,
+          totalElevationLoss: driveLeg.totalElevationLoss,
+          maxElevation: driveLeg.maxElevation,
+          minElevation: driveLeg.minElevation,
+          edgeSegments: driveLeg.edgeSegments,
+          details: parkingCost
+            ? { vehicleDetails: { parkingCost } }
+            : undefined,
+        }
+
+        segments.push(driveSegment)
+        currentTime += driveLeg.duration * 1000
+
+        // Step 3: Walk from parking to destination
+        const walkRoute = await routingService.getRoute(
+          [
+            { type: 'coordinates', value: [parkingCoord.lat, parkingCoord.lng] },
+            { type: 'coordinates', value: [to.location.lat, to.location.lng] },
+          ],
+          'pedestrian',
+          preferences,
+        )
+
+        if (!walkRoute.routes.length) continue
+        const walkLeg = walkRoute.routes[0].legs[0]
+
+        segments.push({
+          segmentIndex: segments.length,
+          mode: 'walking',
+          start: parkingWaypoint,
+          end: to,
+          startTime: new Date(currentTime).toISOString(),
+          endTime: new Date(
+            currentTime + walkLeg.duration * 1000,
+          ).toISOString(),
+          duration: walkLeg.duration,
+          distance: walkLeg.distance,
+          geometry: walkLeg.geometry,
+          instructions: walkLeg.instructions,
+          co2: 0,
+          totalElevationGain: walkLeg.totalElevationGain,
+          totalElevationLoss: walkLeg.totalElevationLoss,
+          maxElevation: walkLeg.maxElevation,
+          minElevation: walkLeg.minElevation,
+          edgeSegments: walkLeg.edgeSegments,
+        })
+
+        currentTime += walkLeg.duration * 1000
+
+        const totalDuration = (currentTime - new Date(startTime).getTime()) / 1000
+        if (totalDuration >= bestTotalDuration) continue
+
+        const tripStats = this.calculateStats(segments)
+
+        // Add parking cost to total trip cost
+        if (parkingCost) {
+          const baseCost = tripStats.totalCost?.value ?? 0
+          tripStats.totalCost = {
+            value: baseCost + parkingCost.value,
+            currency: 'USD',
+          }
+        }
+
+        bestTotalDuration = totalDuration
+        bestTrip = {
+          segments,
+          tripStats,
+          earliestStartTime: segments[0].startTime,
+          latestEndTime: segments[segments.length - 1].endTime,
+          dataSources,
+          requestId: request.requestId,
+          generatedAt: new Date().toISOString(),
+        }
+      } catch (error) {
+        // Individual parking spot failed — try next
+        continue
+      }
+    }
+
+    return bestTrip
+  }
+
+  /**
+   * Search for parking lots near a location.
+   *
+   * Uses the category search capability with preset "amenity/parking"
+   * (Overpass/Barrelman integration). Returns Place[] sorted by distance.
+   */
+  private async searchNearbyParking(
+    center: Coordinate,
+    radius: number,
+  ): Promise<Array<{ lat: number; lng: number; name?: string; tags?: Record<string, string> }>> {
+    try {
+      // Convert center + radius to bounding box
+      const dLat = radius / 111320
+      const dLng = radius / (111320 * Math.cos((center.lat * Math.PI) / 180))
+
+      const bounds = {
+        north: center.lat + dLat,
+        south: center.lat - dLat,
+        east: center.lng + dLng,
+        west: center.lng - dLng,
+      }
+
+      const places = await searchByCategory('amenity/parking', {
+        bounds,
+        limit: 10,
+        sort: 'distance',
+      })
+
+      return places.map((p) => ({
+        lat: p.lat,
+        lng: p.lng,
+        name: p.name || undefined,
+        tags: (p as any).tags,
+      }))
+    } catch (error) {
+      console.error('Parking search failed:', error)
+      return []
+    }
+  }
+
   /**
    * Plan biking segment (with optional walk-to-bike)
    */
@@ -1041,6 +1353,26 @@ export class TripService {
         ? TripService.CO2_PER_METER.biking
         : TripService.CO2_PER_METER.driving
 
+      // For car access with parking enabled, search for park-and-ride lots
+      // near the boarding stop and route there instead of driving to the stop.
+      let rideDestination = boardingStop
+      let parkAndRideWalk: TripSegment | null = null
+
+      if (accessMode === 'driving' && preferences?.useKnownParkingLocations) {
+        const parkingResults = await this.searchNearbyParking(
+          boardingStop.location,
+          TripService.PARKING_SEARCH_RADIUS,
+        )
+        if (parkingResults.length > 0) {
+          const closest = parkingResults[0]
+          rideDestination = {
+            location: { lat: closest.lat, lng: closest.lng },
+            type: 'via',
+            label: closest.name || 'Park & Ride',
+          }
+        }
+      }
+
       // Check if vehicle is far from origin — walk to vehicle first
       const distToVehicle = TripService.haversineDistance(
         origin.location,
@@ -1054,7 +1386,7 @@ export class TripService {
         label: vehicle.name || `Your ${vehicle.type}`,
       }
 
-      // Route from vehicle (or origin if vehicle is at origin) to boarding stop
+      // Route from vehicle (or origin if vehicle is at origin) to ride destination
       const rideOrigin = needsWalkToVehicle ? vehicleWaypoint : origin
       const rideRoute = await routingService.getRoute(
         [
@@ -1064,7 +1396,7 @@ export class TripService {
           },
           {
             type: 'coordinates',
-            value: [boardingStop.location.lat, boardingStop.location.lng],
+            value: [rideDestination.location.lat, rideDestination.location.lng],
           },
         ],
         routeProfile,
@@ -1074,8 +1406,25 @@ export class TripService {
       if (!rideRoute.routes.length) return null
       const rideLeg = rideRoute.routes[0].legs[0]
 
+      // If we parked at a lot (not the stop itself), plan walk from parking to stop
+      const parkedAtLot = rideDestination !== boardingStop
+      let parkWalkDuration = 0
+      if (parkedAtLot) {
+        const parkWalkResult = await this.planWalkingSegmentForTransit(
+          rideDestination,
+          boardingStop,
+          startTime, // temporary — we'll re-time below
+          preferences,
+        )
+        if (parkWalkResult) {
+          parkAndRideWalk = parkWalkResult.segment
+          parkWalkDuration = parkAndRideWalk.duration * 1000
+        }
+      }
+
       // Back-calculate ride timing from transit departure
-      const rideEndTime = transitDeparture - transitBufferSec * 1000
+      // Must account for parking walk if applicable
+      const rideEndTime = transitDeparture - transitBufferSec * 1000 - parkWalkDuration
       const rideDuration = rideLeg.duration * 1000
       const rideStartTime = rideEndTime - rideDuration
 
@@ -1123,13 +1472,13 @@ export class TripService {
         }
       }
 
-      // Build ride-to-stop segment
+      // Build ride-to-destination segment (parking lot or boarding stop)
       const rideSegment: TripSegment = {
         segmentIndex: 0,
         mode: accessMode,
         vehicle,
         start: rideOrigin,
-        end: boardingStop,
+        end: rideDestination,
         startTime: new Date(rideStartTime).toISOString(),
         endTime: new Date(rideEndTime).toISOString(),
         duration: (rideEndTime - rideStartTime) / 1000,
@@ -1148,9 +1497,20 @@ export class TripService {
         edgeSegments: rideLeg.edgeSegments,
       }
 
-      // Assemble: [walk to vehicle?] + ride to stop + transit + egress walk
+      // Assemble: [walk to vehicle?] + ride to stop/parking +
+      //           [walk from parking to stop?] + transit + egress walk
       if (walkSegment) segments.push(walkSegment)
       segments.push(rideSegment)
+
+      // If parked at a lot, add walk from parking → boarding stop
+      if (parkAndRideWalk) {
+        const parkWalkStart = rideEndTime
+        const parkWalkEnd = parkWalkStart + parkAndRideWalk.duration * 1000
+        parkAndRideWalk.startTime = new Date(parkWalkStart).toISOString()
+        parkAndRideWalk.endTime = new Date(parkWalkEnd).toISOString()
+        segments.push(parkAndRideWalk)
+      }
+
       segments.push(...transitSegments)
 
       // ── Egress walk: last alighting stop → destination ──────────────

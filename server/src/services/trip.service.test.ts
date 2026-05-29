@@ -917,11 +917,13 @@ describe('TripService — time constraints', () => {
 describe('TripService — scoring', () => {
   describe('scoreTrip dimensions', () => {
     test('short trip scores higher on time than long trip', () => {
+      const now = new Date()
       const shortTrip = {
         tripStats: {
           totalDuration: 300,
           totalDistance: 500,
         },
+        latestEndTime: new Date(now.getTime() + 300_000).toISOString(),
         segments: [],
       } as any
 
@@ -930,11 +932,13 @@ describe('TripService — scoring', () => {
           totalDuration: 3600,
           totalDistance: 5000,
         },
+        latestEndTime: new Date(now.getTime() + 3_600_000).toISOString(),
         segments: [],
       } as any
 
-      const shortScore = (tripService as any).scoreTime(shortTrip)
-      const longScore = (tripService as any).scoreTime(longTrip)
+      const ref = now.toISOString()
+      const shortScore = (tripService as any).scoreTime(shortTrip, ref)
+      const longScore = (tripService as any).scoreTime(longTrip, ref)
 
       expect(shortScore).toBeGreaterThan(longScore)
       expect(shortScore).toBeGreaterThan(0)
@@ -990,92 +994,61 @@ describe('TripService — scoring', () => {
     })
   })
 
-  describe('computeOverallScore with sort preferences', () => {
-    test('fastest preference weights time heavily', () => {
-      const fastTrip: any = {
-        time: 0.9,
-        cost: 0.2,
-        comfort: 0.5,
-        environmental: 0.3,
-        safety: 0.5,
-      }
-      const cheapTrip: any = {
-        time: 0.3,
-        cost: 0.9,
-        comfort: 0.5,
-        environmental: 0.5,
-        safety: 0.5,
-      }
+  describe('direct ranking sorts', () => {
+    test('shortest sorts by duration, not weighted score', () => {
+      const now = new Date()
+      const candidates = [
+        {
+          trip: {
+            tripStats: { totalDuration: 3240 }, // 54 min
+            latestEndTime: new Date(now.getTime() + 3_240_000).toISOString(),
+            segments: [{ mode: 'biking' }],
+          },
+          score: { overall: 0, time: 0.185, cost: 1, comfort: 1, environmental: 1, safety: 0.5 },
+        },
+        {
+          trip: {
+            tripStats: { totalDuration: 600 }, // 10 min
+            latestEndTime: new Date(now.getTime() + 600_000).toISOString(),
+            segments: [{ mode: 'driving' }],
+          },
+          score: { overall: 0, time: 1, cost: 0.5, comfort: 0.5, environmental: 0.3, safety: 0.5 },
+        },
+      ] as any[];
 
-      const fastOverall = (tripService as any).computeOverallScore(
-        fastTrip,
-        'fastest',
-      )
-      const cheapOverall = (tripService as any).computeOverallScore(
-        cheapTrip,
-        'fastest',
-      )
+      (tripService as any).rankByDuration(candidates)
 
-      expect(fastOverall).toBeGreaterThan(cheapOverall)
+      // 10-min trip must rank higher than 54-min trip
+      expect(candidates[1].score.overall).toBeGreaterThan(candidates[0].score.overall)
     })
 
-    test('cheapest preference weights cost heavily', () => {
-      const cheapTrip: any = {
-        time: 0.3,
-        cost: 0.9,
-        comfort: 0.5,
-        environmental: 0.5,
-        safety: 0.5,
-      }
-      const fastTrip: any = {
-        time: 0.9,
-        cost: 0.2,
-        comfort: 0.5,
-        environmental: 0.5,
-        safety: 0.5,
-      }
+    test('cheapest sorts by cost, not weighted score', () => {
+      const candidates = [
+        {
+          trip: {
+            tripStats: { totalDuration: 300, totalCost: { value: 15, currency: 'USD' } },
+            segments: [{ mode: 'driving' }],
+          },
+          score: { overall: 0, time: 0.9, cost: 0.4, comfort: 0.5, environmental: 0.3, safety: 0.5 },
+        },
+        {
+          trip: {
+            tripStats: { totalDuration: 1800, totalCost: { value: 2, currency: 'USD' } },
+            segments: [{ mode: 'transit' }],
+          },
+          score: { overall: 0, time: 0.3, cost: 0.83, comfort: 0.5, environmental: 0.7, safety: 0.5 },
+        },
+      ] as any[];
 
-      const cheapOverall = (tripService as any).computeOverallScore(
-        cheapTrip,
-        'cheapest',
-      )
-      const fastOverall = (tripService as any).computeOverallScore(
-        fastTrip,
-        'cheapest',
-      )
+      (tripService as any).rankByCost(candidates)
 
-      expect(cheapOverall).toBeGreaterThan(fastOverall)
+      // $2 trip must rank higher than $15 trip
+      expect(candidates[1].score.overall).toBeGreaterThan(candidates[0].score.overall)
     })
+  })
 
-    test('greenest preference weights environmental heavily', () => {
-      const greenTrip: any = {
-        time: 0.3,
-        cost: 0.5,
-        comfort: 0.5,
-        environmental: 0.95,
-        safety: 0.5,
-      }
-      const dirtyTrip: any = {
-        time: 0.9,
-        cost: 0.5,
-        comfort: 0.5,
-        environmental: 0.1,
-        safety: 0.5,
-      }
-
-      const greenOverall = (tripService as any).computeOverallScore(
-        greenTrip,
-        'greenest',
-      )
-      const dirtyOverall = (tripService as any).computeOverallScore(
-        dirtyTrip,
-        'greenest',
-      )
-
-      expect(greenOverall).toBeGreaterThan(dirtyOverall)
-    })
-
-    test('default preference balances all dimensions', () => {
+  describe('computeOverallScore (balanced)', () => {
+    test('balanced mode weights all dimensions', () => {
       const score: any = {
         time: 0.5,
         cost: 0.5,
@@ -1089,24 +1062,36 @@ describe('TripService — scoring', () => {
       expect(overall).toBeCloseTo(0.5, 5)
     })
 
-    test('weight sets sum to 1.0', () => {
-      const preferences = [
-        'fastest',
-        'cheapest',
-        'fewest_transfers',
-        'least_walking',
-        'greenest',
-        undefined,
-      ] as const
-
-      for (const pref of preferences) {
-        const weights = (tripService as any).getScoreWeights(pref)
-        const sum = Object.values(weights).reduce(
-          (a: number, b: number) => a + b,
-          0,
-        )
-        expect(sum).toBeCloseTo(1.0, 5)
+    test('time has highest weight in balanced mode', () => {
+      const highTime: any = {
+        time: 1.0,
+        cost: 0.0,
+        comfort: 0.0,
+        environmental: 0.0,
+        safety: 0.0,
       }
+      const highEnv: any = {
+        time: 0.0,
+        cost: 0.0,
+        comfort: 0.0,
+        environmental: 1.0,
+        safety: 0.0,
+      }
+
+      const timeOverall = (tripService as any).computeOverallScore(highTime)
+      const envOverall = (tripService as any).computeOverallScore(highEnv)
+
+      // time weight (0.45) > environmental weight (0.15)
+      expect(timeOverall).toBeGreaterThan(envOverall)
+    })
+
+    test('balanced weights sum to 1.0', () => {
+      const weights = (tripService as any).getScoreWeights()
+      const sum = Object.values(weights).reduce(
+        (a: number, b: number) => a + b,
+        0,
+      )
+      expect(sum).toBeCloseTo(1.0, 5)
     })
   })
 

@@ -48,7 +48,8 @@ export type EnergyType = 'electric' | 'gas' | 'diesel' | 'hybrid'
 // =============================================================================
 
 export type SortPreference =
-  | 'fastest'
+  | 'shortest'
+  | 'earliest_arrival'
   | 'cheapest'
   | 'fewest_transfers'
   | 'least_walking'
@@ -122,6 +123,7 @@ export interface RoutingPreferences {
   // Transit
   maxWalkingDistance?: number // meters
   maxTransfers?: number
+  transitBufferMinutes?: number // 1-5, minutes to arrive early at stop
 
   // UI state
   useKnownVehicleLocations?: boolean

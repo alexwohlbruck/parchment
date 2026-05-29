@@ -84,6 +84,7 @@ const RoutingPreferencesSchema = t.Object({
   // Transit
   maxWalkingDistance: t.Optional(t.Number({ minimum: 0 })),
   maxTransfers: t.Optional(t.Number({ minimum: 0 })),
+  transitBufferMinutes: t.Optional(t.Number({ minimum: 1, maximum: 5 })),
 
   // UI state
   useKnownVehicleLocations: t.Optional(t.Boolean()),
@@ -114,7 +115,8 @@ const SelectedModeSchema = t.Union([
 ] as const)
 
 const SortPreferenceSchema = t.Union([
-  t.Literal('fastest'),
+  t.Literal('shortest'),
+  t.Literal('earliest_arrival'),
   t.Literal('cheapest'),
   t.Literal('fewest_transfers'),
   t.Literal('least_walking'),

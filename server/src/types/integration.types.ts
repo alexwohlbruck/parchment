@@ -261,6 +261,11 @@ export interface TransitItinerary {
   walkDistance: number
   transfers: number
   legs: TransitLeg[]
+  /** Total fare from GTFS fare data (via MOTIS). Undefined if no fare data available. */
+  fare?: {
+    currency: string
+    amount: number
+  }
 }
 
 export interface TransitLeg {

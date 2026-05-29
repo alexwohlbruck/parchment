@@ -19,7 +19,6 @@ import {
   TransitRouteType,
   TripWarning,
   TripScore,
-  SortPreference,
 } from '../types/trip.types'
 import { Coordinate } from '../types/unified-routing.types'
 import { routingService } from './routing.service'
@@ -64,29 +63,57 @@ export class TripService {
       }
     }
 
-    // Score and rank trips
-    const rankedTrips: TripCandidate[] = candidates
-      .map((trip) => ({
+    // Score and rank trips.
+    // referenceTime = when the user wants to depart. Used so a transit trip
+    // that doesn't leave for 6 hours scores worse than an immediate drive.
+    const referenceTime =
+      request.preferredDepartureTime || new Date().toISOString()
+
+    const scored = candidates.map((trip) => {
+      const score = this.scoreTrip(trip, referenceTime)
+      return {
         trip,
-        score: this.scoreTrip(trip),
-        rank: 0,
-      }))
-      .map((candidate) => ({
-        ...candidate,
         score: {
-          ...candidate.score,
-          overall: this.computeOverallScore(
-            candidate.score,
-            request.sortPreference,
-          ),
+          ...score,
+          overall: this.computeOverallScore(score),
         },
-      }))
+        rank: 0,
+      }
+    })
+
+    // All named sort preferences use direct ranking — the primary metric
+    // determines order, with balanced score as a tiebreaker. Only the
+    // default "balanced" mode uses the weighted scoring system.
+    switch (request.sortPreference) {
+      case 'earliest_arrival':
+        this.rankByArrivalTime(scored)
+        break
+      case 'shortest':
+        this.rankByDuration(scored)
+        break
+      case 'cheapest':
+        this.rankByCost(scored)
+        break
+      case 'greenest':
+        this.rankByCo2(scored)
+        break
+      case 'fewest_transfers':
+        this.rankByTransfers(scored)
+        break
+      case 'least_walking':
+        this.rankByWalkingDistance(scored)
+        break
+    }
+
+    const sorted = scored
       .sort((a, b) => b.score.overall - a.score.overall)
+
+    const rankedTrips: TripCandidate[] = this.filterQualityTrips(sorted)
       .map((candidate, index) => ({ ...candidate, rank: index + 1 }))
 
     return {
       request,
-      trips: rankedTrips.slice(0, 5), // Return top 5 options
+      trips: rankedTrips,
       metadata: {
         totalCandidatesGenerated: candidates.length,
         processingTime: Date.now() - startTime,
@@ -525,8 +552,8 @@ export class TripService {
         distance: driveLeg.distance,
         geometry: driveLeg.geometry,
         instructions: driveLeg.instructions,
-        cost: { value: driveLeg.distance * 0.0002, currency: 'USD' }, // ~$0.20/km
-        co2: driveLeg.distance * 0.00024, // ~240g CO2/km
+        cost: { value: driveLeg.distance * TripService.FUEL_COST_PER_METER, currency: 'USD' },
+        co2: driveLeg.distance * TripService.CO2_PER_METER.driving,
         totalElevationGain: driveLeg.totalElevationGain,
         totalElevationLoss: driveLeg.totalElevationLoss,
         maxElevation: driveLeg.maxElevation,
@@ -589,8 +616,8 @@ export class TripService {
         distance: leg.distance,
         geometry: leg.geometry,
         instructions: leg.instructions,
-        cost: { value: leg.distance * 0.0002, currency: 'USD' },
-        co2: leg.distance * 0.00024,
+        cost: { value: leg.distance * TripService.FUEL_COST_PER_METER, currency: 'USD' },
+        co2: leg.distance * TripService.CO2_PER_METER.driving,
         totalElevationGain: leg.totalElevationGain,
         totalElevationLoss: leg.totalElevationLoss,
         maxElevation: leg.maxElevation,
@@ -814,7 +841,7 @@ export class TripService {
         to: to.location,
         time: startTime,
         arriveBy: false,
-        numItineraries: 3,
+        numItineraries: 5,
         transitModes: preferences?.transitModes,
         maxWalkDistance: preferences?.maxWalkingDistance,
         maxTransfers: preferences?.maxTransfers,
@@ -829,6 +856,8 @@ export class TripService {
         const segments = await this.composeTransitItinerary(
           itinerary,
           startTime,
+          from,
+          to,
           preferences,
         )
         if (segments.length === 0) continue
@@ -840,6 +869,17 @@ export class TripService {
         })
 
         const tripStats = this.calculateStats(segments)
+
+        // Apply itinerary-level fare from GTFS data (via MOTIS).
+        // This already accounts for transfer rules (e.g. free transfers
+        // within 105 minutes) so it replaces per-boarding fare summing.
+        if (itinerary.fare) {
+          tripStats.totalCost = {
+            value: itinerary.fare.amount,
+            currency: itinerary.fare.currency,
+          }
+        }
+
         results.push({
           segments,
           tripStats,
@@ -866,6 +906,11 @@ export class TripService {
    * and converts transit legs to TripSegments with TransitDetails.
    * Reused by both planTransitTrips() and planTransitSegment().
    *
+   * The `origin` and `destination` waypoints ensure the first walking
+   * leg starts at the user's exact origin and the last walking leg
+   * ends at the user's exact destination — MOTIS may snap these to
+   * nearby transit stop coordinates which can be hundreds of feet off.
+   *
    * Walking segments that precede transit legs are timed so the user
    * arrives at the stop shortly before the transit departure, rather
    * than starting the walk at the overall trip departure time and
@@ -875,6 +920,8 @@ export class TripService {
   private async composeTransitItinerary(
     itinerary: any,
     startTime: string,
+    origin: Waypoint,
+    destination: Waypoint,
     preferences?: any,
   ): Promise<TripSegment[]> {
     const legs = itinerary.legs
@@ -896,17 +943,28 @@ export class TripService {
         )
         segments.push(transitSegment)
       } else {
-        // Walking leg — route via GraphHopper for accurate geometry
-        const walkFrom: Waypoint = {
-          location: { lat: leg.from.lat, lng: leg.from.lng },
-          type: 'via',
-          label: leg.from.name || undefined,
-        }
-        const walkTo: Waypoint = {
-          location: { lat: leg.to.lat, lng: leg.to.lng },
-          type: 'via',
-          label: leg.to.name || undefined,
-        }
+        // Walking leg — route via GraphHopper for accurate geometry.
+        // Use the user's actual origin/destination for the first/last
+        // walking legs so the route reaches the exact endpoints, not
+        // the MOTIS-snapped stop coordinates which can be off by
+        // hundreds of feet.
+        const isFirstLeg = i === 0
+        const isLastLeg = i === legs.length - 1
+
+        const walkFrom: Waypoint = isFirstLeg
+          ? origin
+          : {
+              location: { lat: leg.from.lat, lng: leg.from.lng },
+              type: 'via',
+              label: leg.from.name || undefined,
+            }
+        const walkTo: Waypoint = isLastLeg
+          ? destination
+          : {
+              location: { lat: leg.to.lat, lng: leg.to.lng },
+              type: 'via',
+              label: leg.to.name || undefined,
+            }
 
         // Determine walk start time:
         // - Access walk (before first transit): back-calculate from transit departure
@@ -923,7 +981,8 @@ export class TripService {
           // Transfer or egress walk — always start right when previous segment ends
           walkStartTime = new Date(prevSegEnd).toISOString()
         } else if (nextLeg?.transitLeg) {
-          // Access walk (first segment) — back-calculate from transit departure
+          // Access walk (first segment) — use MOTIS estimate for initial timing;
+          // we'll recalculate after getting the real GraphHopper duration below.
           const transitDeparture = new Date(nextLeg.startTime).getTime()
           const walkDuration = leg.duration || 0 // seconds (MOTIS estimate)
           const idealStart = transitDeparture - (walkDuration * 1000) - (transitBufferSec * 1000)
@@ -950,12 +1009,40 @@ export class TripService {
           )
         }
 
-        // For walks that precede transit, extend the segment to fill
-        // the gap up to the transit departure. The extra time is wait
-        // time at the stop, but the timeline should show a continuous
-        // bar rather than a gap with dots.
+        // Re-time walks that precede a transit leg using the actual
+        // GraphHopper duration instead of the MOTIS estimate. MOTIS
+        // often underestimates walk time (it uses straight-line or
+        // its own heuristic), so the walk can overshoot the transit
+        // departure if we only use the MOTIS-based start time.
         if (nextLeg?.transitLeg) {
           const transitDeparture = new Date(nextLeg.startTime).getTime()
+          const actualWalkDuration = walkSegment.duration // seconds (from GraphHopper)
+
+          if (!prevSegEnd) {
+            // Access walk (first segment): recalculate start time using
+            // actual walk duration so we arrive buffer-minutes early.
+            const idealStart = transitDeparture - (actualWalkDuration * 1000) - (transitBufferSec * 1000)
+            const newStart = Math.max(idealStart, tripStart)
+            walkSegment.startTime = new Date(newStart).toISOString()
+            // Walk ends at start + actual duration
+            const newEnd = newStart + (actualWalkDuration * 1000)
+            walkSegment.endTime = new Date(newEnd).toISOString()
+            walkSegment.duration = actualWalkDuration
+          } else {
+            // Transfer walk (between transit legs): starts when previous
+            // transit arrives. If the walk can't finish before the next
+            // transit departs, this connection is infeasible — skip the
+            // entire itinerary.
+            const walkEnd = prevSegEnd + (actualWalkDuration * 1000)
+            if (walkEnd > transitDeparture) {
+              // Infeasible: walk takes longer than the transfer window
+              return []
+            }
+          }
+
+          // Extend walk segment to fill the gap up to transit departure.
+          // The extra time is wait time at the stop, but the timeline
+          // should show a continuous bar rather than a gap.
           const walkEnd = new Date(walkSegment.endTime).getTime()
           if (transitDeparture > walkEnd) {
             walkSegment.endTime = new Date(transitDeparture).toISOString()
@@ -964,6 +1051,74 @@ export class TripService {
         }
 
         segments.push(walkSegment)
+      }
+    }
+
+    // MOTIS in transit-only mode with stop IDs may omit access/egress WALK
+    // legs entirely — the itinerary starts at the boarding stop and ends
+    // at the alighting stop. Synthesize the missing walking segments via
+    // GraphHopper so the trip connects the user's actual origin/destination.
+
+    if (segments.length > 0) {
+      const firstSeg = segments[0]
+      const lastSeg = segments[segments.length - 1]
+
+      // Access walk: origin → first transit boarding stop
+      if (firstSeg.mode !== 'walking') {
+        const stopWaypoint: Waypoint = {
+          location: firstSeg.start.location,
+          type: 'via',
+          label: firstSeg.start.label,
+        }
+        // Back-calculate start time from transit departure
+        const transitDeparture = new Date(firstSeg.startTime).getTime()
+        const tripStart = new Date(startTime).getTime()
+
+        // First get the walk to compute actual duration
+        const accessResult = await this.planWalkingSegmentForTransit(
+          origin,
+          stopWaypoint,
+          startTime, // temporary; we'll re-time below
+          preferences,
+        )
+
+        if (accessResult) {
+          const actualDuration = accessResult.segment.duration
+          const idealStart = transitDeparture - (actualDuration * 1000) - (transitBufferSec * 1000)
+          const newStart = Math.max(idealStart, tripStart)
+          accessResult.segment.startTime = new Date(newStart).toISOString()
+          const newEnd = newStart + (actualDuration * 1000)
+          accessResult.segment.endTime = new Date(newEnd).toISOString()
+
+          // Extend to fill gap up to transit departure
+          if (transitDeparture > newEnd) {
+            accessResult.segment.endTime = new Date(transitDeparture).toISOString()
+            accessResult.segment.duration = (transitDeparture - newStart) / 1000
+          }
+
+          segments.unshift(accessResult.segment)
+        }
+      }
+
+      // Egress walk: last transit alighting stop → destination
+      if (lastSeg.mode !== 'walking') {
+        const stopWaypoint: Waypoint = {
+          location: lastSeg.end.location,
+          type: 'via',
+          label: lastSeg.end.label,
+        }
+        const egressStart = lastSeg.endTime
+
+        const egressResult = await this.planWalkingSegmentForTransit(
+          stopWaypoint,
+          destination,
+          egressStart,
+          preferences,
+        )
+
+        if (egressResult) {
+          segments.push(egressResult.segment)
+        }
       }
     }
 
@@ -1008,6 +1163,8 @@ export class TripService {
       const segments = await this.composeTransitItinerary(
         itinerary,
         state.currentTime,
+        from,
+        to,
         preferences,
       )
 
@@ -1162,6 +1319,11 @@ export class TripService {
       )
     }
 
+    // MOTIS often returns distance=0 for transit legs — compute from geometry
+    const distance = leg.distance > 0
+      ? leg.distance
+      : TripService.computeDistanceFromGeometry(geometry)
+
     return {
       segmentIndex: 0,
       mode: 'transit',
@@ -1178,10 +1340,10 @@ export class TripService {
       startTime: leg.startTime,
       endTime: leg.endTime,
       duration: leg.duration,
-      distance: leg.distance,
+      distance,
       geometry,
       instructions: [],
-      co2: leg.distance * 0.00005, // ~50g CO2/km for transit
+      co2: distance * TripService.CO2_PER_METER.transit,
       details: { transitDetails },
     }
   }
@@ -1242,6 +1404,30 @@ export class TripService {
   }
 
   /**
+   * Compute total distance in meters from a polyline of {lat, lng} points.
+   * Used when MOTIS returns distance=0 for transit legs.
+   */
+  private static computeDistanceFromGeometry(
+    geometry: Array<{ lat: number; lng: number }> | null,
+  ): number {
+    if (!geometry || geometry.length < 2) return 0
+    let total = 0
+    for (let i = 1; i < geometry.length; i++) {
+      const p1 = geometry[i - 1]
+      const p2 = geometry[i]
+      const dLat = ((p2.lat - p1.lat) * Math.PI) / 180
+      const dLng = ((p2.lng - p1.lng) * Math.PI) / 180
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos((p1.lat * Math.PI) / 180) *
+          Math.cos((p2.lat * Math.PI) / 180) *
+          Math.sin(dLng / 2) ** 2
+      total += 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    }
+    return total
+  }
+
+  /**
    * Calculate trip statistics from segments
    */
   private calculateStats(segments: TripSegment[]): TripStats {
@@ -1281,25 +1467,143 @@ export class TripService {
     }
   }
 
+  // ── Quality filtering ────────────────────────────────────────────────────────
+
+  private static readonly MAX_TRIPS = 15
+
+  /**
+   * Filter to quality trips only. Keeps up to MAX_TRIPS, dropping trips that
+   * are clearly worse than the best option in every meaningful way.
+   *
+   * Rules applied in order:
+   * 1. Quality floor — drop trips >4× the fastest AND >60 min
+   * 2. Per-mode cap — max MAX_PER_MODE trips of each mode for variety
+   *    (transit is capped by earliest arrival, not by score order)
+   * 3. Near-duplicate — drop same-mode trips within 5% duration
+   */
+  private static readonly QUALITY_FLOOR_SECONDS = 60 * 60 // 60 minutes
+  private static readonly MAX_PER_MODE = 2
+
+  private filterQualityTrips(
+    sorted: Array<{ trip: TripResponse; score: TripScore; rank: number }>,
+  ): Array<{ trip: TripResponse; score: TripScore; rank: number }> {
+    if (sorted.length <= 2) return sorted
+
+    const shortestDuration = Math.min(
+      ...sorted.map((c) => c.trip.tripStats.totalDuration),
+    )
+
+    // For transit, pre-select the earliest-arriving trips to keep.
+    // Transit departure times are fixed by the schedule, so arrival time
+    // matters more than trip duration — a 17-min trip departing now beats
+    // a 12-min trip departing in 10 minutes.
+    const transitPreferred = new Set(
+      sorted
+        .filter((c) => this.getTripMode(c.trip) === 'transit')
+        .sort((a, b) => {
+          const aEnd = new Date(
+            a.trip.segments[a.trip.segments.length - 1]?.endTime || 0,
+          ).getTime()
+          const bEnd = new Date(
+            b.trip.segments[b.trip.segments.length - 1]?.endTime || 0,
+          ).getTime()
+          return aEnd - bEnd
+        })
+        .slice(0, TripService.MAX_PER_MODE),
+    )
+
+    const kept: typeof sorted = []
+    const modeCounts: Record<string, number> = {}
+
+    for (const c of sorted) {
+      const dur = c.trip.tripStats.totalDuration
+      const mode = this.getTripMode(c.trip)
+
+      // Trips under 1 hour are always reasonable — never filter them.
+      // Long trips are filtered if they're > 4× the fastest option.
+      if (
+        dur > TripService.QUALITY_FLOOR_SECONDS &&
+        dur > shortestDuration * 4
+      ) {
+        continue
+      }
+
+      // Per-mode cap: ensure variety across modes.
+      // Transit uses arrival-time ordering; other modes use score ordering.
+      const modeCount = modeCounts[mode] || 0
+      if (modeCount >= TripService.MAX_PER_MODE) continue
+      if (mode === 'transit' && !transitPreferred.has(c)) continue
+
+      // Drop near-duplicates: same dominant mode, duration within 5%
+      const dominated = kept.some((k) => {
+        if (this.getTripMode(k.trip) !== mode) return false
+        const durRatio = dur / Math.max(k.trip.tripStats.totalDuration, 1)
+        return durRatio > 0.95 && durRatio < 1.05
+      })
+      if (dominated) continue
+
+      kept.push(c)
+      modeCounts[mode] = modeCount + 1
+      if (kept.length >= TripService.MAX_TRIPS) break
+    }
+
+    return kept
+  }
+
+  /**
+   * Determine the dominant mode of a trip. Transit if any segment is transit,
+   * otherwise the mode with the most duration. Prevents transit trips (which
+   * start with walking legs) from being compared as "walking".
+   */
+  private getTripMode(trip: TripResponse): Mode {
+    const hasTransit = trip.segments.some((s) => s.mode === 'transit')
+    if (hasTransit) return 'transit'
+
+    const durations: Partial<Record<Mode, number>> = {}
+    for (const seg of trip.segments) {
+      durations[seg.mode] = (durations[seg.mode] || 0) + seg.duration
+    }
+
+    let best: Mode = trip.segments[0]?.mode || 'walking'
+    let max = 0
+    for (const [mode, dur] of Object.entries(durations)) {
+      if (dur! > max) {
+        max = dur!
+        best = mode as Mode
+      }
+    }
+    return best
+  }
+
   // ── Trip scoring ─────────────────────────────────────────────────────────────
 
-  /** CO2 emission factors in grams per meter. */
+  /** CO2 emission factors in kilograms per meter. */
   private static readonly CO2_PER_METER: Record<string, number> = {
     walking: 0,
     biking: 0,
-    transit: 0.05, // ~50g/km
-    driving: 0.24, // ~240g/km
+    transit: 0.00005, // ~50g/km = 0.05 kg/km
+    driving: 0.00024, // ~240g/km = 0.24 kg/km
     wheelchair: 0,
   }
+
+  /** Fuel cost per meter for driving (based on ~$3.50/gal, ~25 MPG → ~$0.087/km) */
+  private static readonly FUEL_COST_PER_METER = 0.000087
+
+  // Transit fare is provided by MOTIS from GTFS fare data (fare_attributes.txt).
+  // No hardcoded default — agencies without fare data simply show no price.
 
   /**
    * Score a trip across multiple dimensions.
    * Each dimension is normalized to 0-1 where 1 is best.
+   *
+   * @param referenceTime - when the user wants to depart (ISO string).
+   *   Used to compute arrival offset so transit trips that don't depart
+   *   for hours are scored worse than immediate-departure modes.
    */
-  private scoreTrip(trip: TripResponse): TripScore {
+  private scoreTrip(trip: TripResponse, referenceTime: string): TripScore {
     return {
       overall: 0, // computed later by computeOverallScore
-      time: this.scoreTime(trip),
+      time: this.scoreTime(trip, referenceTime),
       cost: this.scoreCost(trip),
       comfort: this.scoreComfort(trip),
       environmental: this.scoreEnvironmental(trip),
@@ -1307,20 +1611,38 @@ export class TripService {
     }
   }
 
-  /** Time score: inverse of duration, normalized so a 10 min trip → 1.0 */
-  private scoreTime(trip: TripResponse): number {
-    const duration = trip.tripStats.totalDuration
-    if (duration <= 0) return 1
-    // Sigmoid-ish: 600s → 1.0, 3600s → 0.17, 7200s → 0.08
-    return 600 / (600 + duration)
+  /**
+   * Time score: based on arrival offset from the requested departure time.
+   *
+   * Uses `arrivalTime - referenceTime` instead of raw trip duration so that
+   * trips with long waits (e.g. transit not departing for 6 hours) are
+   * properly penalized. For immediate-departure modes (driving, walking,
+   * cycling) the arrival offset ≈ duration, so this is backward-compatible.
+   */
+  private scoreTime(trip: TripResponse, referenceTime: string): number {
+    const refMs = new Date(referenceTime).getTime()
+    const arrMs = new Date(trip.latestEndTime).getTime()
+    const arrivalOffset = (arrMs - refMs) / 1000
+
+    // Use the greater of arrival offset and duration. Arrival offset is
+    // normally ≥ duration, but if clocks or planning times are slightly
+    // off we never want the score to be *better* than raw duration implies.
+    const effective = Math.max(arrivalOffset, trip.tripStats.totalDuration)
+    if (effective <= 0) return 1
+
+    // Ratio-preserving: trips ≤10 min all score 1.0. Longer trips scale
+    // linearly — a 20 min trip scores 0.5, a 54 min trip scores 0.185.
+    // This preserves real-world duration ratios (5.4× slower → 5.4× lower
+    // score) so fast modes always outrank slow ones in balanced mode.
+    return 600 / Math.max(600, effective)
   }
 
   /** Cost score: inverse of monetary cost. Free trips → 1.0 */
   private scoreCost(trip: TripResponse): number {
     const cost = trip.tripStats.totalCost?.value ?? 0
     if (cost <= 0) return 1
-    // $1 → 0.5, $5 → 0.17, $20 → 0.05
-    return 1 / (1 + cost)
+    // $2 → 0.83, $5 → 0.67, $10 → 0.50, $20 → 0.33
+    return 10 / (10 + cost)
   }
 
   /**
@@ -1348,19 +1670,194 @@ export class TripService {
   private scoreEnvironmental(trip: TripResponse): number {
     const totalCo2 = trip.tripStats.totalCo2 ?? 0
     if (totalCo2 <= 0) return 1
-    // 0g → 1.0, 250g → 0.5 (≈1km driving), 1000g → 0.2
-    return 250 / (250 + totalCo2)
+    // 0kg → 1.0, 0.25kg → 0.5 (≈1km driving), 1kg → 0.2
+    return 0.25 / (0.25 + totalCo2)
+  }
+
+  /**
+   * Override overall scores so trips sort by earliest arrival time.
+   * Ties are broken by the balanced weighted score.
+   */
+  private rankByArrivalTime(
+    candidates: Array<{ trip: TripResponse; score: TripScore }>,
+  ): void {
+    if (candidates.length === 0) return
+
+    const arrivals = candidates.map((c) => {
+      const segs = c.trip.segments
+      if (!segs || segs.length === 0) return Infinity
+      return new Date(segs[segs.length - 1].endTime).getTime()
+    })
+
+    const earliest = Math.min(...arrivals.filter((t) => t !== Infinity))
+    const latest = Math.max(...arrivals.filter((t) => t !== Infinity))
+    const range = latest - earliest
+
+    for (let i = 0; i < candidates.length; i++) {
+      let primary: number
+      if (arrivals[i] === Infinity) {
+        primary = 0
+      } else if (range === 0) {
+        primary = 1
+      } else {
+        primary = 1 - (arrivals[i] - earliest) / range
+      }
+      // Balanced score as tiebreaker (scaled to <1 so it never overrides primary)
+      const balanced = this.computeOverallScore(candidates[i].score)
+      candidates[i].score.overall = primary + balanced * 0.001
+    }
+  }
+
+  /**
+   * Override overall scores so trips sort by lowest CO2 emissions.
+   * Ties are broken by the balanced weighted score.
+   */
+  private rankByCo2(
+    candidates: Array<{ trip: TripResponse; score: TripScore }>,
+  ): void {
+    if (candidates.length === 0) return
+
+    const emissions = candidates.map((c) => c.trip.tripStats.totalCo2 ?? 0)
+
+    const lowest = Math.min(...emissions)
+    const highest = Math.max(...emissions)
+    const range = highest - lowest
+
+    for (let i = 0; i < candidates.length; i++) {
+      let primary: number
+      if (range === 0) {
+        primary = 1
+      } else {
+        primary = 1 - (emissions[i] - lowest) / range
+      }
+      // Balanced score as tiebreaker
+      const balanced = this.computeOverallScore(candidates[i].score)
+      candidates[i].score.overall = primary + balanced * 0.001
+    }
+  }
+
+  /**
+   * Override overall scores so trips sort by fewest transfers.
+   * Non-transit trips (0 transfers) rank first. Ties broken by balanced score.
+   */
+  private rankByTransfers(
+    candidates: Array<{ trip: TripResponse; score: TripScore }>,
+  ): void {
+    if (candidates.length === 0) return
+
+    const transfers = candidates.map(
+      (c) => c.trip.tripStats.totalTransfers ?? 0,
+    )
+
+    const fewest = Math.min(...transfers)
+    const most = Math.max(...transfers)
+    const range = most - fewest
+
+    for (let i = 0; i < candidates.length; i++) {
+      let primary: number
+      if (range === 0) {
+        primary = 1
+      } else {
+        primary = 1 - (transfers[i] - fewest) / range
+      }
+      const balanced = this.computeOverallScore(candidates[i].score)
+      candidates[i].score.overall = primary + balanced * 0.001
+    }
+  }
+
+  /**
+   * Override overall scores so trips sort by least walking distance.
+   * Trips with no walking rank first. Ties broken by balanced score.
+   */
+  private rankByWalkingDistance(
+    candidates: Array<{ trip: TripResponse; score: TripScore }>,
+  ): void {
+    if (candidates.length === 0) return
+
+    const walkDists = candidates.map(
+      (c) => c.trip.tripStats.totalWalkingDistance ?? 0,
+    )
+
+    const shortest = Math.min(...walkDists)
+    const longest = Math.max(...walkDists)
+    const range = longest - shortest
+
+    for (let i = 0; i < candidates.length; i++) {
+      let primary: number
+      if (range === 0) {
+        primary = 1
+      } else {
+        primary = 1 - (walkDists[i] - shortest) / range
+      }
+      const balanced = this.computeOverallScore(candidates[i].score)
+      candidates[i].score.overall = primary + balanced * 0.001
+    }
+  }
+
+  /**
+   * Override overall scores so trips sort by shortest total duration.
+   * Ties broken by balanced score.
+   */
+  private rankByDuration(
+    candidates: Array<{ trip: TripResponse; score: TripScore }>,
+  ): void {
+    if (candidates.length === 0) return
+
+    const durations = candidates.map(
+      (c) => c.trip.tripStats.totalDuration,
+    )
+
+    const shortest = Math.min(...durations)
+    const longest = Math.max(...durations)
+    const range = longest - shortest
+
+    for (let i = 0; i < candidates.length; i++) {
+      let primary: number
+      if (range === 0) {
+        primary = 1
+      } else {
+        primary = 1 - (durations[i] - shortest) / range
+      }
+      const balanced = this.computeOverallScore(candidates[i].score)
+      candidates[i].score.overall = primary + balanced * 0.001
+    }
+  }
+
+  /**
+   * Override overall scores so trips sort by lowest cost.
+   * Free trips rank first. Ties broken by balanced score.
+   */
+  private rankByCost(
+    candidates: Array<{ trip: TripResponse; score: TripScore }>,
+  ): void {
+    if (candidates.length === 0) return
+
+    const costs = candidates.map(
+      (c) => c.trip.tripStats.totalCost?.value ?? 0,
+    )
+
+    const lowest = Math.min(...costs)
+    const highest = Math.max(...costs)
+    const range = highest - lowest
+
+    for (let i = 0; i < candidates.length; i++) {
+      let primary: number
+      if (range === 0) {
+        primary = 1
+      } else {
+        primary = 1 - (costs[i] - lowest) / range
+      }
+      const balanced = this.computeOverallScore(candidates[i].score)
+      candidates[i].score.overall = primary + balanced * 0.001
+    }
   }
 
   /**
    * Compute the overall score as a weighted combination of dimensions.
-   * Weights depend on the user's sort preference.
+   * Used for balanced mode and as tiebreaker in direct-ranking sorts.
    */
-  private computeOverallScore(
-    score: TripScore,
-    sortPreference?: SortPreference,
-  ): number {
-    const weights = this.getScoreWeights(sortPreference)
+  private computeOverallScore(score: TripScore): number {
+    const weights = this.getScoreWeights()
     return (
       score.time * weights.time +
       score.cost * weights.cost +
@@ -1371,63 +1868,28 @@ export class TripService {
   }
 
   /**
-   * Weight distribution by sort preference.
-   * Each set sums to 1.0.
+   * Balanced weight distribution for overall scoring.
+   *
+   * All named sort preferences (shortest, cheapest, greenest, etc.) use
+   * direct ranking methods — they don't go through the weight system.
+   * These weights are used only for balanced/default mode and as the
+   * tiebreaker in direct-ranking sorts.
+   *
+   * Time is weighted highest so faster trips win in balanced mode.
+   * The ratio-preserving time formula ensures a 10-min drive always
+   * outranks a 54-min bike ride, while still allowing a slightly slower
+   * but greener/cheaper trip to win when durations are close (~30%).
    */
-  private getScoreWeights(sortPreference?: SortPreference): Record<
+  private getScoreWeights(): Record<
     keyof Omit<TripScore, 'overall'>,
     number
   > {
-    switch (sortPreference) {
-      case 'fastest':
-        return {
-          time: 0.7,
-          cost: 0.05,
-          comfort: 0.1,
-          environmental: 0.05,
-          safety: 0.1,
-        }
-      case 'cheapest':
-        return {
-          time: 0.15,
-          cost: 0.55,
-          comfort: 0.1,
-          environmental: 0.1,
-          safety: 0.1,
-        }
-      case 'fewest_transfers':
-        return {
-          time: 0.15,
-          cost: 0.05,
-          comfort: 0.6,
-          environmental: 0.1,
-          safety: 0.1,
-        }
-      case 'least_walking':
-        return {
-          time: 0.1,
-          cost: 0.05,
-          comfort: 0.65,
-          environmental: 0.1,
-          safety: 0.1,
-        }
-      case 'greenest':
-        return {
-          time: 0.1,
-          cost: 0.05,
-          comfort: 0.1,
-          environmental: 0.65,
-          safety: 0.1,
-        }
-      default:
-        // Balanced default
-        return {
-          time: 0.4,
-          cost: 0.1,
-          comfort: 0.2,
-          environmental: 0.15,
-          safety: 0.15,
-        }
+    return {
+      time: 0.45,
+      cost: 0.10,
+      comfort: 0.15,
+      environmental: 0.15,
+      safety: 0.15,
     }
   }
 

@@ -850,49 +850,51 @@ export class TripService {
 
       if (!transitResponse.itineraries.length) return []
 
-      // Compose each itinerary into a full TripResponse
-      const results: TripResponse[] = []
-      for (const itinerary of transitResponse.itineraries) {
-        const segments = await this.composeTransitItinerary(
-          itinerary,
-          startTime,
-          from,
-          to,
-          preferences,
-        )
-        if (segments.length === 0) continue
+      // Compose each itinerary into a full TripResponse.
+      // Itineraries are independent — compose in parallel for faster response.
+      const composed = await Promise.all(
+        transitResponse.itineraries.map(async (itinerary) => {
+          const segments = await this.composeTransitItinerary(
+            itinerary,
+            startTime,
+            from,
+            to,
+            preferences,
+          )
+          if (segments.length === 0) return null
 
-        // Index segments
-        segments.forEach((seg, idx) => {
-          seg.segmentIndex = idx
-          seg.legIndex = 0
-        })
+          // Index segments
+          segments.forEach((seg, idx) => {
+            seg.segmentIndex = idx
+            seg.legIndex = 0
+          })
 
-        const tripStats = this.calculateStats(segments)
+          const tripStats = this.calculateStats(segments)
 
-        // Apply itinerary-level fare from GTFS data (via MOTIS).
-        // This already accounts for transfer rules (e.g. free transfers
-        // within 105 minutes) so it replaces per-boarding fare summing.
-        if (itinerary.fare) {
-          tripStats.totalCost = {
-            value: itinerary.fare.amount,
-            currency: itinerary.fare.currency,
+          // Apply itinerary-level fare from GTFS data (via MOTIS).
+          // This already accounts for transfer rules (e.g. free transfers
+          // within 105 minutes) so it replaces per-boarding fare summing.
+          if (itinerary.fare) {
+            tripStats.totalCost = {
+              value: itinerary.fare.amount,
+              currency: itinerary.fare.currency,
+            }
           }
-        }
 
-        results.push({
-          segments,
-          tripStats,
-          earliestStartTime: segments[0]?.startTime || startTime,
-          latestEndTime:
-            segments[segments.length - 1]?.endTime || startTime,
-          dataSources,
-          requestId: request.requestId,
-          generatedAt: new Date().toISOString(),
-        })
-      }
+          return {
+            segments,
+            tripStats,
+            earliestStartTime: segments[0]?.startTime || startTime,
+            latestEndTime:
+              segments[segments.length - 1]?.endTime || startTime,
+            dataSources,
+            requestId: request.requestId,
+            generatedAt: new Date().toISOString(),
+          } as TripResponse
+        }),
+      )
 
-      return results
+      return composed.filter((r): r is TripResponse => r !== null)
     } catch (error) {
       console.error('Transit routing failed:', error)
       return []
@@ -1647,10 +1649,19 @@ export class TripService {
 
   /**
    * Comfort score: penalizes long walks and many transfers.
-   * - Walking > 500m starts penalizing
+   * - Walking > 500m starts penalizing (transit access/egress context)
    * - Each transfer beyond 1 penalizes
+   * - Pure walking/cycling trips get full comfort score — the walk
+   *   penalty only applies when walking is an inconvenient part of
+   *   a multimodal trip, not when it IS the mode.
    */
   private scoreComfort(trip: TripResponse): number {
+    const mode = trip.segments[0]?.mode
+    const isPureWalkOrBike =
+      trip.segments.length > 0 &&
+      trip.segments.every((s) => s.mode === 'walking' || s.mode === 'biking')
+    if (isPureWalkOrBike) return 1
+
     const walkDist = trip.tripStats.totalWalkingDistance ?? 0
     const transfers = trip.tripStats.totalTransfers ?? 0
 

@@ -982,8 +982,12 @@ describe('TripService — scoring', () => {
     })
 
     test('trip with no transfers scores higher on comfort', () => {
-      const noTransfer = { tripStats: { totalWalkingDistance: 200 } } as any
+      const noTransfer = {
+        segments: [{ mode: 'transit' }],
+        tripStats: { totalWalkingDistance: 200 },
+      } as any
       const multiTransfer = {
+        segments: [{ mode: 'transit' }],
         tripStats: { totalWalkingDistance: 1500, totalTransfers: 3 },
       } as any
 
@@ -991,6 +995,15 @@ describe('TripService — scoring', () => {
       const multiTransferScore = (tripService as any).scoreComfort(multiTransfer)
 
       expect(noTransferScore).toBeGreaterThan(multiTransferScore)
+    })
+
+    test('pure walking trips get full comfort score', () => {
+      const walkTrip = {
+        segments: [{ mode: 'walking' }],
+        tripStats: { totalWalkingDistance: 3000 },
+      } as any
+      const score = (tripService as any).scoreComfort(walkTrip)
+      expect(score).toBe(1)
     })
   })
 

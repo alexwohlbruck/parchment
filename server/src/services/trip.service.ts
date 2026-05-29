@@ -587,7 +587,14 @@ export class TripService {
           currentTime: driveSegment.endTime,
           currentLocation: to.location,
           currentMode: 'driving',
-          parkedVehicles: state.parkedVehicles,
+          parkedVehicles: [
+            ...state.parkedVehicles,
+            {
+              vehicle: car,
+              location: to.location,
+              parkedAt: driveSegment.endTime,
+            },
+          ],
         },
       }
     } catch (error) {
@@ -902,6 +909,14 @@ export class TripService {
           dataSources,
           requestId: request.requestId,
           generatedAt: new Date().toISOString(),
+          parkedVehicles: car
+            ? [{
+                vehicle: car,
+                location: parkingCoord,
+                parkedAt: driveSegment.endTime,
+                cost: parkingCost,
+              }]
+            : undefined,
         }
       } catch (error) {
         // Individual parking spot failed — try next
@@ -1591,6 +1606,17 @@ export class TripService {
         }
       }
 
+      // Track parked vehicles — when driving to transit, the car is
+      // parked at the ride destination (parking lot or boarding stop).
+      const parkedVehicles: ParkedVehicle[] =
+        accessMode === 'driving'
+          ? [{
+              vehicle,
+              location: rideDestination.location,
+              parkedAt: rideSegment.endTime,
+            }]
+          : []
+
       return {
         segments: finalSegments,
         tripStats,
@@ -1600,6 +1626,7 @@ export class TripService {
         dataSources,
         requestId: undefined,
         generatedAt: new Date().toISOString(),
+        parkedVehicles: parkedVehicles.length > 0 ? parkedVehicles : undefined,
       } as TripResponse
     } catch (error) {
       console.error(`Transit with ${accessMode} access failed:`, error)

@@ -1363,6 +1363,33 @@ describe('TripService — scoring', () => {
       expect(modes).toContain('transit')
     })
 
+    test('car+transit trip populates parkedVehicles at boarding stop', async () => {
+      const transitItinerary = makeTransitItinerary()
+      mockGetTransitRoute.mockImplementation(async () => ({
+        itineraries: [transitItinerary],
+        metadata: { searchWindow: 3600 },
+      }))
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'transit',
+        availableVehicles: [carVehicle],
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      const carTransit = response.trips.find((t) =>
+        t.trip.segments.some((s) => s.mode === 'driving'),
+      )
+
+      if (carTransit) {
+        expect(carTransit.trip.parkedVehicles).toBeDefined()
+        expect(carTransit.trip.parkedVehicles!.length).toBe(1)
+        expect(carTransit.trip.parkedVehicles![0].vehicle.type).toBe('car')
+        expect(carTransit.trip.parkedVehicles![0].parkedAt).toBeDefined()
+      }
+    })
+
     test('generates both bike and car candidates when both available', async () => {
       const transitItinerary = makeTransitItinerary()
       mockGetTransitRoute.mockImplementation(async () => ({
@@ -1644,6 +1671,42 @@ describe('TripService — scoring', () => {
         const driveSeg = parkingTrip.trip.segments.find((s) => s.mode === 'driving')!
         expect(driveSeg.details?.vehicleDetails?.parkingCost).toBeDefined()
         expect(driveSeg.details!.vehicleDetails!.parkingCost!.value).toBeGreaterThan(0)
+      }
+    })
+
+    test('parking trip populates parkedVehicles on response', async () => {
+      const car = {
+        id: 'car-1',
+        type: 'car' as const,
+        location: { lat: 35.209, lng: -80.860 },
+      }
+      mockSearchByCategory.mockImplementation(async () => [mockParking[0]])
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 180))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'driving',
+        availableVehicles: [car],
+        routingPreferences: { useKnownParkingLocations: true },
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      const parkingTrip = response.trips.find((t) => {
+        const segs = t.trip.segments
+        return (
+          segs.length >= 2 &&
+          segs[segs.length - 1].mode === 'walking' &&
+          segs.some((s) => s.mode === 'driving')
+        )
+      })
+
+      if (parkingTrip) {
+        expect(parkingTrip.trip.parkedVehicles).toBeDefined()
+        expect(parkingTrip.trip.parkedVehicles!.length).toBe(1)
+        expect(parkingTrip.trip.parkedVehicles![0].vehicle.type).toBe('car')
+        expect(parkingTrip.trip.parkedVehicles![0].location.lat).toBe(mockParking[0].lat)
+        expect(parkingTrip.trip.parkedVehicles![0].location.lng).toBe(mockParking[0].lng)
+        expect(parkingTrip.trip.parkedVehicles![0].parkedAt).toBeDefined()
       }
     })
 

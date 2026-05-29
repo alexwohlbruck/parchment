@@ -154,6 +154,8 @@ export interface TripResponse {
   dataSources: DataSource[]
   requestId?: string
   generatedAt: string
+  /** Vehicles parked during this trip (for return-trip planning). */
+  parkedVehicles?: ParkedVehicle[]
 }
 
 export interface TripWarning {

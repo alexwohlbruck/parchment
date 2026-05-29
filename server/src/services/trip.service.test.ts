@@ -1156,6 +1156,95 @@ describe('TripService — scoring', () => {
     })
   })
 
+  describe('safety scoring', () => {
+    test('uses edge data for safety score when available', () => {
+      const trip = {
+        segments: [
+          {
+            mode: 'biking',
+            distance: 1000,
+            duration: 300,
+            edgeSegments: [
+              {
+                startDistance: 0,
+                endDistance: 600,
+                roadClass: 'cycleway',
+                surface: 'asphalt',
+                bikeNetwork: 'local',
+                bikePriority: 0.8,
+              },
+              {
+                startDistance: 600,
+                endDistance: 1000,
+                roadClass: 'primary',
+                surface: 'asphalt',
+              },
+            ],
+          },
+        ],
+        tripStats: { totalDuration: 300, totalDistance: 1000 },
+      } as any
+
+      const safety = (tripService as any).scoreSafety(trip)
+      expect(safety).toBeGreaterThan(0.5) // cycleway segment dominates
+      expect(safety).toBeLessThan(1.0)
+    })
+
+    test('falls back to mode defaults when no edge data', () => {
+      const trip = {
+        segments: [{ mode: 'biking', distance: 1000, duration: 300 }],
+        tripStats: { totalDuration: 300, totalDistance: 1000 },
+      } as any
+
+      const safety = (tripService as any).scoreSafety(trip)
+      expect(safety).toBe(0.5) // biking default
+    })
+
+    test('transit segments score 1.0 safety', () => {
+      const trip = {
+        segments: [{ mode: 'transit', distance: 5000, duration: 600 }],
+        tripStats: { totalDuration: 600, totalDistance: 5000 },
+      } as any
+
+      const safety = (tripService as any).scoreSafety(trip)
+      expect(safety).toBe(1.0)
+    })
+
+    test('dangerous road classes lower safety score', () => {
+      const safeTrip = {
+        segments: [
+          {
+            mode: 'biking',
+            distance: 1000,
+            duration: 300,
+            edgeSegments: [
+              { startDistance: 0, endDistance: 1000, roadClass: 'cycleway', surface: 'asphalt' },
+            ],
+          },
+        ],
+        tripStats: { totalDuration: 300, totalDistance: 1000 },
+      } as any
+
+      const dangerousTrip = {
+        segments: [
+          {
+            mode: 'biking',
+            distance: 1000,
+            duration: 300,
+            edgeSegments: [
+              { startDistance: 0, endDistance: 1000, roadClass: 'trunk', surface: 'asphalt' },
+            ],
+          },
+        ],
+        tripStats: { totalDuration: 300, totalDistance: 1000 },
+      } as any
+
+      const safeSafety = (tripService as any).scoreSafety(safeTrip)
+      const dangerousSafety = (tripService as any).scoreSafety(dangerousTrip)
+      expect(safeSafety).toBeGreaterThan(dangerousSafety)
+    })
+  })
+
   describe('end-to-end scoring in planTrip', () => {
     test('trips have populated score dimensions', async () => {
       mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 360))
@@ -1192,6 +1281,222 @@ describe('TripService — scoring', () => {
       // Walking should score very high on "greenest"
       const score = response.trips[0].score
       expect(score.environmental).toBe(1)
+    })
+  })
+
+  // ── Multi-access transit strategies ─────────────────────────────────────────
+
+  describe('multi-access transit strategies', () => {
+    const bikeVehicle = {
+      id: 'bike-1',
+      type: 'bike' as const,
+      location: { lat: 35.209, lng: -80.861 },
+    }
+    const carVehicle = {
+      id: 'car-1',
+      type: 'car' as const,
+      location: { lat: 35.209, lng: -80.860 },
+    }
+
+    test('generates bike+transit candidates when bike is available', async () => {
+      const transitItinerary = makeTransitItinerary()
+      mockGetTransitRoute.mockImplementation(async () => ({
+        itineraries: [transitItinerary],
+        metadata: { searchWindow: 3600 },
+      }))
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'transit',
+        availableVehicles: [bikeVehicle],
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      // Should have both walk+transit and bike+transit candidates
+      expect(response.trips.length).toBeGreaterThanOrEqual(2)
+
+      // Find the bike+transit trip
+      const bikeTransit = response.trips.find((t) =>
+        t.trip.segments.some((s) => s.mode === 'biking'),
+      )
+      expect(bikeTransit).toBeDefined()
+      // Should have a biking segment followed by transit
+      const modes = bikeTransit!.trip.segments.map((s) => s.mode)
+      expect(modes).toContain('biking')
+      expect(modes).toContain('transit')
+    })
+
+    test('generates car+transit candidates when car is available', async () => {
+      const transitItinerary = makeTransitItinerary()
+      mockGetTransitRoute.mockImplementation(async () => ({
+        itineraries: [transitItinerary],
+        metadata: { searchWindow: 3600 },
+      }))
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'transit',
+        availableVehicles: [carVehicle],
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      expect(response.trips.length).toBeGreaterThanOrEqual(2)
+
+      const carTransit = response.trips.find((t) =>
+        t.trip.segments.some((s) => s.mode === 'driving'),
+      )
+      expect(carTransit).toBeDefined()
+      const modes = carTransit!.trip.segments.map((s) => s.mode)
+      expect(modes).toContain('driving')
+      expect(modes).toContain('transit')
+    })
+
+    test('generates both bike and car candidates when both available', async () => {
+      const transitItinerary = makeTransitItinerary()
+      mockGetTransitRoute.mockImplementation(async () => ({
+        itineraries: [transitItinerary],
+        metadata: { searchWindow: 3600 },
+      }))
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'transit',
+        availableVehicles: [bikeVehicle, carVehicle],
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      // Walk + bike + car = at least 3 candidates
+      expect(response.trips.length).toBeGreaterThanOrEqual(3)
+
+      const hasBike = response.trips.some((t) =>
+        t.trip.segments.some((s) => s.mode === 'biking'),
+      )
+      const hasCar = response.trips.some((t) =>
+        t.trip.segments.some((s) => s.mode === 'driving'),
+      )
+      expect(hasBike).toBe(true)
+      expect(hasCar).toBe(true)
+    })
+
+    test('walk-to-vehicle segment when vehicle is far from origin', async () => {
+      // Vehicle is ~1km away — should include walk to vehicle
+      const farBike = {
+        id: 'bike-far',
+        type: 'bike' as const,
+        location: { lat: 35.215, lng: -80.870 },
+      }
+
+      const transitItinerary = makeTransitItinerary()
+      mockGetTransitRoute.mockImplementation(async () => ({
+        itineraries: [transitItinerary],
+        metadata: { searchWindow: 3600 },
+      }))
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 180))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'transit',
+        availableVehicles: [farBike],
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      const bikeTrip = response.trips.find((t) =>
+        t.trip.segments.some((s) => s.mode === 'biking'),
+      )
+      if (bikeTrip) {
+        // Should start with walking (to vehicle) before biking
+        const modes = bikeTrip.trip.segments.map((s) => s.mode)
+        const firstMode = modes[0]
+        expect(firstMode).toBe('walking')
+        // Then biking
+        expect(modes[1]).toBe('biking')
+      }
+    })
+
+    test('no multi-access when useKnownVehicleLocations is false', async () => {
+      const transitItinerary = makeTransitItinerary()
+      mockGetTransitRoute.mockImplementation(async () => ({
+        itineraries: [transitItinerary],
+        metadata: { searchWindow: 3600 },
+      }))
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'transit',
+        availableVehicles: [bikeVehicle],
+        routingPreferences: { useKnownVehicleLocations: false },
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      // Should only have walk+transit, no bike+transit
+      const hasBike = response.trips.some((t) =>
+        t.trip.segments.some((s) => s.mode === 'biking'),
+      )
+      expect(hasBike).toBe(false)
+    })
+
+    test('multi-access handles routing failure gracefully', async () => {
+      const transitItinerary = makeTransitItinerary()
+      mockGetTransitRoute.mockImplementation(async () => ({
+        itineraries: [transitItinerary],
+        metadata: { searchWindow: 3600 },
+      }))
+
+      // Walk routes succeed but alternate calls fail (simulating bike route failure)
+      let callCount = 0
+      mockGetRoute.mockImplementation(async () => {
+        callCount++
+        // First 2 calls (walk legs) succeed, then bike access fails
+        if (callCount <= 2) return makeBasicWalkRoute(300, 240)
+        throw new Error('Route not found')
+      })
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'transit',
+        availableVehicles: [bikeVehicle],
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      // Walk+transit should still work even if bike access fails
+      expect(response.trips.length).toBeGreaterThanOrEqual(1)
+      const walkTransit = response.trips.find((t) =>
+        !t.trip.segments.some((s) => s.mode === 'biking'),
+      )
+      expect(walkTransit).toBeDefined()
+    })
+
+    test('bike+transit candidate has correct timing', async () => {
+      const transitItinerary = makeTransitItinerary()
+      mockGetTransitRoute.mockImplementation(async () => ({
+        itineraries: [transitItinerary],
+        metadata: { searchWindow: 3600 },
+      }))
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(400, 300))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'transit',
+        availableVehicles: [bikeVehicle],
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      const bikeTrip = response.trips.find((t) =>
+        t.trip.segments.some((s) => s.mode === 'biking'),
+      )
+      if (bikeTrip) {
+        const bikeSeg = bikeTrip.trip.segments.find((s) => s.mode === 'biking')!
+        const transitSeg = bikeTrip.trip.segments.find((s) => s.mode === 'transit')!
+
+        // Bike segment must end before transit departs (with buffer)
+        const bikeEnd = new Date(bikeSeg.endTime).getTime()
+        const transitStart = new Date(transitSeg.startTime).getTime()
+        expect(bikeEnd).toBeLessThanOrEqual(transitStart)
+      }
     })
   })
 })

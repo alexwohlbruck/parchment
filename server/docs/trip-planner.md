@@ -66,8 +66,9 @@ MultimodalTripResponse  (ranked TripCandidate[])
 Transit planning uses two methods:
 
 **`planTransitTrips()`** — multi-candidate generation (used by `planTrip()` for
-`transit` / `multi` mode). Requests 3 itineraries from MOTIS, composes each into
-a separate `TripResponse` for scoring.
+`transit` / `multi` mode). Requests 5 itineraries from MOTIS, composes each into
+a separate `TripResponse` for scoring. Also generates multi-access candidates
+(bike+transit, car+transit) when `availableVehicles` are provided.
 
 **`composeTransitItinerary(origin, destination)`** — shared composition logic for
 a single itinerary:
@@ -102,6 +103,39 @@ a single itinerary:
    - Buffer is configurable via `transitBufferMinutes` (1-5 min, default 2).
 8. Return composed `TripSegment[]`
 
+#### Multi-Access Transit Strategies
+
+After composing walk+transit+walk candidates, `planTransitTrips()` generates
+additional candidates using bike or car access when `availableVehicles` are
+provided (and `useKnownVehicleLocations` is not `false`):
+
+**`composeTransitWithAccessMode()`** — takes the best MOTIS itinerary and
+replaces the access leg with a bike or car route:
+
+1. Extract transit segments from the itinerary (skip WALK legs)
+2. Find the first boarding stop location
+3. If vehicle is >200m from origin, plan walk → vehicle via GraphHopper pedestrian
+4. Plan ride from vehicle (or origin) → boarding stop via GraphHopper bicycle/auto
+5. Back-calculate timing: ride must finish `buffer` minutes before transit departure
+6. Keep transit segments unchanged from MOTIS
+7. Add egress walk from last alighting stop → destination via GraphHopper
+8. Validate transfer walks between consecutive transit segments
+
+**Trip patterns generated:**
+
+| Pattern | Access | Transit | Egress | Condition |
+|---------|--------|---------|--------|-----------|
+| 3.1 | walk | transit | walk | always |
+| 3.4 | bike → park | transit | walk | bike in `availableVehicles` |
+| 3.7 | car → park | transit | walk | car in `availableVehicles` |
+
+If the vehicle is >200m from the user, a walk-to-vehicle segment is prepended:
+walk → vehicle → ride to stop → transit → walk.
+
+**Quality filtering**: transit sub-types (walk+transit, bike+transit, car+transit)
+are counted separately in the per-mode cap, so each strategy gets up to 2 slots.
+`getTripMode()` returns `'transit'`, `'biking+transit'`, or `'driving+transit'`.
+
 ### 4. Time Constraints
 
 `applyWaypointTimeConstraints()` processes per-waypoint timing before each leg:
@@ -123,7 +157,21 @@ Each trip is scored across five dimensions (0-1, higher is better):
 | `cost` | `10 / (10 + cost)` | Free = 1.0, $5 = 0.67 |
 | `comfort` | 0.6 * walkScore + 0.4 * transferScore | Penalizes >500m walks, >1 transfer |
 | `environmental` | `0.25 / (0.25 + totalCO2)` | Walking/biking = 1.0, CO2 in kg |
-| `safety` | 0.5 (placeholder) | Future: from GraphHopper edge data |
+| `safety` | distance-weighted edge score | From GraphHopper edge data (road class, surface, bike infra) |
+
+**Safety scoring detail**: each edge segment in the trip is scored 0-1 based on
+a 0.5 baseline plus deltas from road class, surface, bike infrastructure, road
+environment, and smoothness. Scores are distance-weighted across all edges.
+Transit segments score 1.0. Segments without edge data use mode defaults
+(walking 0.7, biking 0.5, driving 0.6).
+
+| Factor | Best | Worst |
+|--------|------|-------|
+| Road class | cycleway/footway (+0.4) | motorway (-0.3) |
+| Surface | asphalt/paved (+0.1) | mud (-0.2) |
+| Bike infra | bike network + high priority (+0.2) | none (0) |
+| Road environment | road (0) | tunnel (-0.1) |
+| Smoothness | excellent (+0.1) | horrible (-0.2) |
 
 The `overall` score uses balanced weights (time-dominant so faster trips win):
 

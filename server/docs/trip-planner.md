@@ -63,14 +63,25 @@ MultimodalTripResponse  (ranked TripCandidate[])
 
 ### 3. Transit Composition
 
-`planTransitSegment()` builds a complete walk+transit+walk trip:
+Transit planning uses two methods:
+
+**`planTransitTrips()`** — multi-candidate generation (used by `planTrip()` for
+`transit` / `multi` mode). Requests 3 itineraries from MOTIS, composes each into
+a separate `TripResponse` for scoring.
+
+**`composeTransitItinerary()`** — shared composition logic for a single itinerary:
 
 1. Send origin/destination to MOTIS via `TransitRoutingService.getTransitRoute()`
 2. MOTIS returns itineraries with WALK and transit legs
 3. For each WALK leg: re-route via GraphHopper pedestrian for accurate geometry
-4. For each transit leg: build `TripSegment` with `TransitDetails` (route, stops, headsign, colors)
+4. For each transit leg: build `TripSegment` with `TransitDetails` (route, stops,
+   headsign, colors). Geometry is converted from GeoJSON `{type:'LineString',
+   coordinates:[[lng,lat],...]}` to `Array<{lat,lng}>` to match GraphHopper format.
 5. If GraphHopper fails for a walk leg, fall back to MOTIS straight-line data
-6. Return composed `multimodalSegments[]`
+6. Walk timing: access walks start `walkDuration + buffer` before transit departure.
+   Transfer walks start when the previous transit arrives. Walking segments extend
+   to the next transit departure to absorb wait time (no visual gaps).
+7. Return composed `TripSegment[]`
 
 ### 4. Time Constraints
 
@@ -140,9 +151,19 @@ GTFS data pipeline:
 Transitland API --> download GTFS ZIPs
   --> parse stops/routes into PostGIS
   --> compute walking transfers via GraphHopper point-to-point
-  --> inject transfers.txt into each feed
+  --> inject per-feed transfers.txt (filtered to same-feed stop pairs)
   --> feed processed GTFS to MOTIS
 ```
+
+**Polyline precision**: MOTIS v2 encodes `legGeometry.points` with precision 7
+(`1e7`), not the Google Maps standard precision 5. Barrelman's `decodePolyline()`
+defaults to precision 7.
+
+**Per-feed transfers**: `transfers.txt` is generated per-feed, filtering to stop
+pairs where both stops belong to the same feed. This prevents cross-agency stop ID
+collisions when MOTIS loads multiple feeds.
+
+**Flex v2 incompatibility**: GTFS-Flex v2 feeds crash MOTIS and must be excluded.
 
 ## CO2 Emission Factors
 

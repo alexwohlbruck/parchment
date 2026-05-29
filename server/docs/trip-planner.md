@@ -132,6 +132,13 @@ replaces the access leg with a bike or car route:
 If the vehicle is >200m from the user, a walk-to-vehicle segment is prepended:
 walk → vehicle → ride to stop → transit → walk.
 
+**Park-and-ride with parking search**: when `useKnownParkingLocations` is
+enabled and the access mode is `driving`, `composeTransitWithAccessMode()`
+searches for real parking near the boarding stop via `searchByCategory`.
+The car routes to the parking lot instead of the stop itself, and a short
+walk segment connects the parking lot to the boarding stop. Parking cost
+from OSM `fee=yes` is populated on `VehicleDetails.parkingCost`.
+
 **Quality filtering**: transit sub-types (walk+transit, bike+transit, car+transit)
 are counted separately in the per-mode cap, so each strategy gets up to 2 slots.
 `getTripMode()` returns `'transit'`, `'biking+transit'`, or `'driving+transit'`.
@@ -261,6 +268,8 @@ collisions when MOTIS loads multiple feeds.
 
 **Driving cost**: fuel-only estimate based on average US gas price (~$3.50/gal)
 and average fuel efficiency (~25 MPG). `$0.000087/meter` ≈ $0.087/km ≈ $0.14/mi.
+When parking with `useKnownParkingLocations`, an estimated $2.00 parking cost
+is added for lots with OSM `fee=yes` (actual fee amounts require paid data).
 
 **Transit cost**: from GTFS fare data via MOTIS. MOTIS reads `fare_attributes.txt`
 and `fare_rules.txt` from the GTFS feeds and returns the itinerary-level fare,
@@ -315,6 +324,25 @@ V = vehicle location    S = transit stop
 |---|---------|-------------|
 | 2.1 | O →[W]→ V →[D]→ X | Walk to car, drive |
 | 2.2 | O →[W]→ V →[B]→ X | Walk to bike, cycle |
+| 2.3 | O →[W?]→ V? →[D]→ P →[W]→ X | Drive to parking, walk to destination |
+
+### Parking-Aware Driving
+
+When `useKnownParkingLocations` is enabled in routing preferences,
+`planDrivingWithParkingTrip()` generates drive-to-parking + walk candidates:
+
+1. Search for parking within 500m of the destination via `searchByCategory('amenity/parking', ...)`
+   (Overpass/Barrelman integration).
+2. Sort results by distance to destination, take top 3.
+3. For each parking candidate:
+   a. Optionally walk to car (if `availableVehicles` has a car >50m away).
+   b. Drive to parking lot via GraphHopper auto.
+   c. Walk from parking to destination via GraphHopper pedestrian.
+4. Pick the fastest total-time combo.
+5. Populate `VehicleDetails.parkingCost` when OSM `fee=yes` (estimated $2).
+
+This is opt-in (`useKnownParkingLocations: true`) because the Overpass
+query adds latency and is only useful in dense areas with real parking data.
 
 ### Transit trips (access → transit → egress)
 
@@ -356,6 +384,8 @@ the faster composed trip if one exists.
 | Per-waypoint time constraints | free |
 | Sort preferences | free |
 | Safety scoring from edge data | free |
+| Parking-aware driving (drive → park → walk) | free |
+| Park-and-ride transit (drive → park → transit → walk) | free |
 | Shared mobility access/egress (GBFS, rideshare) | free (v2) |
 | Intermediate non-walking mode discovery | premium |
 | GTFS-RT realtime vehicle positions | premium |

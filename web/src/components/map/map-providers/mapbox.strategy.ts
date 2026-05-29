@@ -891,9 +891,17 @@ export class MapboxStrategy extends MapStrategy {
 
     visibleTrips.forEach(trip => {
       trip.segments.forEach(segment => {
-        if (segment.geometry) {
-          segment.geometry.forEach(coord => {
-            bounds.extend([coord.lng, coord.lat])
+        if (segment.geometry && Array.isArray(segment.geometry)) {
+          segment.geometry.forEach((coord: any) => {
+            if (
+              coord &&
+              typeof coord.lng === 'number' &&
+              typeof coord.lat === 'number' &&
+              Math.abs(coord.lat) <= 90 &&
+              Math.abs(coord.lng) <= 180
+            ) {
+              bounds.extend([coord.lng, coord.lat])
+            }
           })
         }
       })

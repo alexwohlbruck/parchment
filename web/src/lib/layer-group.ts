@@ -368,6 +368,8 @@ export class TripGroup extends MapLayerGroup {
     const layerId = `${this.id}-segment-layer-${segmentIndex}`
     const caseLayerId = `${this.id}-segment-case-layer-${segmentIndex}`
 
+    if (!segment.geometry || !Array.isArray(segment.geometry) || segment.geometry.length === 0) return
+
     // Ensure source doesn't already exist
     this.map.removeSource(sourceId)
 
@@ -378,7 +380,7 @@ export class TripGroup extends MapLayerGroup {
         properties: {},
         geometry: {
           type: 'LineString',
-          coordinates: segment.geometry!.map(c => [c.lng, c.lat]),
+          coordinates: segment.geometry.map((c: any) => [c.lng, c.lat]),
         },
       },
     })
@@ -446,7 +448,8 @@ export class TripGroup extends MapLayerGroup {
     segmentIndex: number,
     profile: RouteProfileType,
   ): void {
-    const geometry = segment.geometry!
+    if (!segment.geometry || !Array.isArray(segment.geometry)) return
+    const geometry = segment.geometry
     const edgeSegments = segment.edgeSegments!
     const defaultColor = this._getSegmentColor(segment)
     const defaultCaseColor = this._getSegmentCaseColor(segment)
@@ -673,10 +676,14 @@ export class TripGroup extends MapLayerGroup {
     segmentIndex: number,
   ): void {
     if (!currentSegment.geometry || !nextSegment.geometry) return
+    if (!Array.isArray(currentSegment.geometry) || !Array.isArray(nextSegment.geometry)) return
 
     const lastPoint =
       currentSegment.geometry[currentSegment.geometry.length - 1]
     const nextPoint = nextSegment.geometry[0]
+
+    // Guard: both endpoints must exist and have valid coordinates
+    if (!lastPoint?.lng || !lastPoint?.lat || !nextPoint?.lng || !nextPoint?.lat) return
     const sourceId = `${this.id}-connector-${segmentIndex}`
     const layerId = `${this.id}-connector-layer-${segmentIndex}`
     const caseLayerId = `${this.id}-connector-case-layer-${segmentIndex}`

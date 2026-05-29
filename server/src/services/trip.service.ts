@@ -865,26 +865,36 @@ export class TripService {
    * Replaces MOTIS walking legs with accurate GraphHopper walking routes,
    * and converts transit legs to TripSegments with TransitDetails.
    * Reused by both planTransitTrips() and planTransitSegment().
+   *
+   * Walking segments that precede transit legs are timed so the user
+   * arrives at the stop shortly before the transit departure, rather
+   * than starting the walk at the overall trip departure time and
+   * waiting at the station. A configurable buffer (default 2 min)
+   * ensures the user arrives a bit early.
    */
   private async composeTransitItinerary(
     itinerary: any,
     startTime: string,
     preferences?: any,
   ): Promise<TripSegment[]> {
+    const legs = itinerary.legs
     const segments: TripSegment[] = []
-    let segmentTime = startTime
+    // Buffer before transit departure (seconds). User preference 1-5 min.
+    const transitBufferMin = preferences?.transitBufferMinutes ?? 2
+    const transitBufferSec = transitBufferMin * 60
 
-    for (const leg of itinerary.legs) {
+    for (let i = 0; i < legs.length; i++) {
+      const leg = legs[i]
+
       if (leg.transitLeg) {
         // Transit leg — convert MOTIS leg to our TripSegment with TransitDetails
         const transitSegment = this.buildTransitSegment(
           leg,
           { location: { lat: leg.from.lat, lng: leg.from.lng }, type: 'via' },
           { location: { lat: leg.to.lat, lng: leg.to.lng }, type: 'via' },
-          segmentTime,
+          leg.startTime, // use MOTIS departure time for the transit leg
         )
         segments.push(transitSegment)
-        segmentTime = transitSegment.endTime
       } else {
         // Walking leg — route via GraphHopper for accurate geometry
         const walkFrom: Waypoint = {
@@ -898,25 +908,62 @@ export class TripService {
           label: leg.to.name || undefined,
         }
 
+        // Determine walk start time:
+        // - Access walk (before first transit): back-calculate from transit departure
+        // - Transfer walk (between transit legs): start when previous transit arrives
+        // - Egress walk (after last transit): start when last transit arrives
+        const nextLeg = i < legs.length - 1 ? legs[i + 1] : null
+        const prevSegEnd = segments.length > 0
+          ? new Date(segments[segments.length - 1].endTime).getTime()
+          : null
+        const tripStart = new Date(startTime).getTime()
+        let walkStartTime: string
+
+        if (prevSegEnd) {
+          // Transfer or egress walk — always start right when previous segment ends
+          walkStartTime = new Date(prevSegEnd).toISOString()
+        } else if (nextLeg?.transitLeg) {
+          // Access walk (first segment) — back-calculate from transit departure
+          const transitDeparture = new Date(nextLeg.startTime).getTime()
+          const walkDuration = leg.duration || 0 // seconds (MOTIS estimate)
+          const idealStart = transitDeparture - (walkDuration * 1000) - (transitBufferSec * 1000)
+          walkStartTime = new Date(Math.max(idealStart, tripStart)).toISOString()
+        } else {
+          walkStartTime = startTime
+        }
+
         const walkResult = await this.planWalkingSegmentForTransit(
           walkFrom,
           walkTo,
-          segmentTime,
+          walkStartTime,
           preferences,
         )
 
+        let walkSegment: TripSegment
         if (walkResult) {
-          segments.push(walkResult.segment)
-          segmentTime = walkResult.segment.endTime
+          walkSegment = walkResult.segment
         } else {
           // Fallback: use the straight-line walk from MOTIS
-          const fallbackSegment = this.buildWalkingFallbackSegment(
+          walkSegment = this.buildWalkingFallbackSegment(
             leg,
-            segmentTime,
+            walkStartTime,
           )
-          segments.push(fallbackSegment)
-          segmentTime = fallbackSegment.endTime
         }
+
+        // For walks that precede transit, extend the segment to fill
+        // the gap up to the transit departure. The extra time is wait
+        // time at the stop, but the timeline should show a continuous
+        // bar rather than a gap with dots.
+        if (nextLeg?.transitLeg) {
+          const transitDeparture = new Date(nextLeg.startTime).getTime()
+          const walkEnd = new Date(walkSegment.endTime).getTime()
+          if (transitDeparture > walkEnd) {
+            walkSegment.endTime = new Date(transitDeparture).toISOString()
+            walkSegment.duration = (transitDeparture - new Date(walkSegment.startTime).getTime()) / 1000
+          }
+        }
+
+        segments.push(walkSegment)
       }
     }
 
@@ -1105,6 +1152,16 @@ export class TripService {
       textColor: leg.routeTextColor,
     }
 
+    // Convert GeoJSON geometry to Array<{lat, lng}> format
+    // Barrelman returns {type: 'LineString', coordinates: [[lng,lat],...]}
+    // but the frontend map layer expects [{lat, lng}, ...]
+    let geometry: any = null
+    if (leg.geometry?.coordinates) {
+      geometry = leg.geometry.coordinates.map(
+        ([lng, lat]: [number, number]) => ({ lat, lng }),
+      )
+    }
+
     return {
       segmentIndex: 0,
       mode: 'transit',
@@ -1122,7 +1179,7 @@ export class TripService {
       endTime: leg.endTime,
       duration: leg.duration,
       distance: leg.distance,
-      geometry: leg.geometry || null,
+      geometry,
       instructions: [],
       co2: leg.distance * 0.00005, // ~50g CO2/km for transit
       details: { transitDetails },
@@ -1134,6 +1191,14 @@ export class TripService {
    * when GraphHopper routing fails.
    */
   private buildWalkingFallbackSegment(leg: any, startTime: string): TripSegment {
+    // Convert GeoJSON geometry to Array<{lat, lng}> format
+    let geometry: any = null
+    if (leg.geometry?.coordinates) {
+      geometry = leg.geometry.coordinates.map(
+        ([lng, lat]: [number, number]) => ({ lat, lng }),
+      )
+    }
+
     return {
       segmentIndex: 0,
       mode: 'walking',
@@ -1153,7 +1218,7 @@ export class TripService {
       ).toISOString(),
       duration: leg.duration,
       distance: leg.distance,
-      geometry: leg.geometry || null,
+      geometry,
       instructions: [],
       co2: 0,
     }

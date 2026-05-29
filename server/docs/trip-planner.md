@@ -289,3 +289,74 @@ happens, so CO2 calculations are always based on real distance.
 - `TransitRouteRequest` / `TransitRouteResponse` — MOTIS request/response (via integration)
 
 See `server/src/types/trip.types.ts` and `server/src/types/integration.types.ts`.
+
+## Trip Combination Model
+
+Formal enumeration of all multimodal trip patterns. Notation:
+
+```
+W = walk    B = cycle    D = drive    T = transit ride
+→ = followed by    ⊕ = park vehicle    O = origin    X = destination
+V = vehicle location    S = transit stop
+```
+
+### Direct trips (single mode)
+
+| # | Pattern | Description |
+|---|---------|-------------|
+| 1.1 | O →[W]→ X | Walk |
+| 1.2 | O →[B]→ X | Cycle |
+| 1.3 | O →[D]→ X | Drive |
+| 1.4 | O →[Wc]→ X | Wheelchair |
+
+### Vehicle-access trips
+
+| # | Pattern | Description |
+|---|---------|-------------|
+| 2.1 | O →[W]→ V →[D]→ X | Walk to car, drive |
+| 2.2 | O →[W]→ V →[B]→ X | Walk to bike, cycle |
+
+### Transit trips (access → transit → egress)
+
+**Currently implemented (free tier):**
+
+| # | Access | Transit | Egress | Condition |
+|---|--------|---------|--------|-----------|
+| 3.1 | walk | transit (RAPTOR) | walk | always |
+| 3.4 | walk→bike→park | transit | walk | bike in availableVehicles |
+| 3.7 | walk→car→park | transit | walk | car in availableVehicles |
+
+If the vehicle is near the origin (<200m), the walk-to-vehicle segment is
+omitted and the user rides directly from origin to the boarding stop.
+
+**Planned (future tiers):**
+
+| # | Access | Transit | Egress | Requirement |
+|---|--------|---------|--------|-------------|
+| 3.2 | walk | transit | shared cycle | GBFS integration |
+| 3.5 | bike→park | transit | shared cycle | GBFS + bike available |
+| 3.6 | bike→carry | transit | cycle | GTFS bikes_allowed |
+| 3.8-3.12 | various | transit | rideshare/shared | rideshare/GBFS APIs |
+| 3.15+ | walk | cycle between transit | walk | premium discovery |
+
+### Premium discovery patterns
+
+Automatic identification of non-walking intermediate modes between transit
+segments. When a base transit trip has a slow connection (>15 min walking
+transfer or >20 min wait), the planner searches for nearby stops on other
+lines reachable by cycle, re-queries MOTIS for both halves, and returns
+the faster composed trip if one exists.
+
+## Premium / Free Gating
+
+| Feature | Tier |
+|---------|------|
+| Walk/bike/car access + transit + walk egress | free |
+| Multi-access strategies (bike+transit, car+transit) | free |
+| Per-waypoint time constraints | free |
+| Sort preferences | free |
+| Safety scoring from edge data | free |
+| Shared mobility access/egress (GBFS, rideshare) | free (v2) |
+| Intermediate non-walking mode discovery | premium |
+| GTFS-RT realtime vehicle positions | premium |
+| Advanced route preferences (scenic, avoid stairs) | premium |

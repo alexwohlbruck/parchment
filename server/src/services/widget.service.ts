@@ -18,11 +18,16 @@ import { resolveDisplayChips } from '../lib/display-chips'
  * Used to detect transit stops that don't have stored transit info.
  */
 function isPlaceTransitStopFromTags(place: Place): boolean {
-  const placeType = place.placeType || ''
-  const tags = place.amenities?.reduce((acc, a) => {
-    if (a.key && a.rawValue) acc[a.key] = a.rawValue
-    return acc
-  }, {} as Record<string, string>) || {}
+  const placeType = typeof place.placeType === 'string'
+    ? place.placeType
+    : place.placeType?.value || ''
+  // amenities is Record<string, AttributedValue> — extract raw string values
+  const tags: Record<string, string> = {}
+  if (place.amenities && typeof place.amenities === 'object') {
+    for (const [key, attr] of Object.entries(place.amenities)) {
+      if (attr?.value != null) tags[key] = String(attr.value)
+    }
+  }
   return isTransitStop(placeType, tags)
 }
 

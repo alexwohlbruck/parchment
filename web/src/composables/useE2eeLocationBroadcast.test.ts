@@ -33,9 +33,12 @@ vi.mock('@/stores/identity.store', () => ({
   }),
 }))
 
+const mockLoadAllFriends = vi.fn()
+
 vi.mock('@/stores/friends.store', () => ({
   useFriendsStore: () => ({
     friends: mockFriends,
+    loadAll: mockLoadAllFriends,
   }),
 }))
 

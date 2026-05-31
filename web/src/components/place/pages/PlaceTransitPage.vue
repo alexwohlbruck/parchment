@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import type { TransitDeparture, TransitStopInfo } from '@/types/place.types'
 import { Badge } from '@/components/ui/badge'
 import { ClockIcon, NavigationIcon, ExternalLinkIcon } from 'lucide-vue-next'
+import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import { useExternalLink } from '@/composables/useExternalLink'
 import { useTransitClock } from '@/composables/useTransitClock'
 import {
@@ -274,18 +275,13 @@ function openTransitlandLink() {
                 >
                   {{ formatCountdown(minutesUntil(departure), t) }}
                 </span>
-                <span
+                <RealtimeIndicator
                   v-if="departure.realTime"
-                  class="ml-auto inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide"
-                  :style="{ color: getRouteColor(departure.route) }"
-                  :title="t('place.transit.realTimeData')"
-                >
-                  <span
-                    class="h-1.5 w-1.5 rounded-full animate-pulse"
-                    :style="{ backgroundColor: getRouteColor(departure.route) }"
-                  />
-                  {{ t('place.transit.live') }}
-                </span>
+                  class="ml-auto"
+                  :real-time="true"
+                  :delay="departure.delay"
+                  :color="getRouteColor(departure.route)"
+                />
               </li>
             </ul>
 

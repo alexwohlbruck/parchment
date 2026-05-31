@@ -5,6 +5,7 @@ import type { Place, TransitDeparture, TransitStopInfo } from '@/types/place.typ
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ClockIcon, NavigationIcon, ChevronRightIcon } from 'lucide-vue-next'
+import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import { useSheetPage } from '@/composables/useSheetPage'
 import { useTransitClock } from '@/composables/useTransitClock'
 import {
@@ -181,14 +182,11 @@ function openFullTransit() {
                     >
                       {{ formatCountdown(minutesUntil(departure), t) }}
                     </span>
-                    <span
-                      v-if="departure.realTime"
-                      class="text-xs font-medium"
-                      :style="{ color: getRouteColor(departure.route) }"
-                      :title="t('place.transit.realTimeData')"
-                    >
-                      {{ t('place.transit.live') }}
-                    </span>
+                    <RealtimeIndicator
+                      :real-time="!!departure.realTime"
+                      :delay="departure.delay"
+                      :color="getRouteColor(departure.route)"
+                    />
                   </div>
                 </div>
               </div>

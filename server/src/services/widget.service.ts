@@ -257,15 +257,12 @@ async function fetchTransitDepartures(
   onestopIds: string[],
   options?: { limit?: number },
 ): Promise<{ departures: TransitDeparture[]; sources: SourceReference[] }> {
-  // Fetch a wide window: a few hours of past departures plus the next 24h.
-  // Past departures help the user understand schedule cadence and catch
-  // "did I just miss it?" cases; future departures cover sparse services
-  // (intercity rail, ferries, regional buses). Truncation for visual
-  // density is a UI concern handled client-side.
+  // Use the `next` parameter (seconds) to fetch upcoming departures.
+  // Transitland's departures endpoint only accepts HH:mm:ss for
+  // start_time/end_time (NOT ISO timestamps), so `next` is the
+  // correct way to request a forward-looking window.
   const { limit = 150 } = options || {}
-  const now = Date.now()
-  const startTime = new Date(now - 3 * 3600_000).toISOString()
-  const endTime = new Date(now + 24 * 3600_000).toISOString()
+  const next = 24 * 3600 // next 24 hours
 
   const transitlandRecord = integrationManager.getConfiguredIntegrationForSource(
     SOURCE.TRANSITLAND,
@@ -285,7 +282,7 @@ async function fetchTransitDepartures(
   for (const onestopId of onestopIds) {
     try {
       console.debug(`🌐 [Widget/Transit] Fetching departures for ${onestopId}`)
-      const departures = await transitland.getDepartures(onestopId, { startTime, endTime, limit })
+      const departures = await transitland.getDepartures(onestopId, { next, limit })
 
       if (departures?.length) {
         console.debug(`✅ [Widget/Transit] Found ${departures.length} departures for ${onestopId}`)

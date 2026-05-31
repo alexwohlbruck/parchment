@@ -202,9 +202,13 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
 
       const collectFrom = (stop: any) => {
         if (!stop?.departures?.length) return
-        const serviceDate: string | undefined = stop.service_date
+        const stopServiceDate: string | undefined = stop.service_date
         const timezone: string | undefined = stop.stop_timezone
         for (const dep of stop.departures) {
+          // Transitland may place service_date on the departure instead
+          // of the stop (especially for late-night GTFS trips that cross
+          // midnight). Fall back to the departure's own field.
+          const serviceDate = stopServiceDate || dep.service_date || dep.date
           collected.push({ raw: dep, serviceDate, timezone })
         }
       }
@@ -297,14 +301,20 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
    */
   private transformDepartures(items: DepartureWithContext[]): TransitDeparture[] {
     return items.map(({ raw: dep, serviceDate, timezone }) => {
-      // Try multiple possible field names for times
-      const arrivalTime = dep.arrival_time || dep.arrival?.time || dep.arrival?.estimated_time || dep.arrival?.scheduled_time
-      const departureTime = dep.departure_time || dep.departure?.time || dep.departure?.estimated_time || dep.departure?.scheduled_time
-      const scheduledArrival = dep.scheduled_arrival_time || dep.arrival?.scheduled_time
-      const scheduledDeparture = dep.scheduled_departure_time || dep.departure?.scheduled_time
+      // Display times — use estimated (local HH:mm:ss) when available for
+      // realtime, falling back to the scheduled GTFS time.
+      const arrivalTime = dep.arrival?.estimated || dep.arrival_time || dep.arrival?.scheduled
+      const departureTime = dep.departure?.estimated || dep.departure_time || dep.departure?.scheduled
+      const scheduledArrival = dep.arrival?.scheduled || dep.arrival_time
+      const scheduledDeparture = dep.departure?.scheduled || dep.departure_time
 
-      const arrivalAt = this.toAbsoluteIso(serviceDate, arrivalTime, timezone)
-      const departureAt = this.toAbsoluteIso(serviceDate, departureTime, timezone)
+      // Absolute ISO timestamps — prefer the pre-computed UTC values from
+      // Transitland (correct timezone handling for GTFS 25:xx times) over
+      // our own toAbsoluteIso which requires stop_timezone.
+      const arrivalAt = dep.arrival?.estimated_utc || dep.arrival?.scheduled_utc
+        || this.toAbsoluteIso(serviceDate, arrivalTime, timezone)
+      const departureAt = dep.departure?.estimated_utc || dep.departure?.scheduled_utc
+        || this.toAbsoluteIso(serviceDate, departureTime, timezone)
 
       return {
         arrivalTime,
@@ -315,8 +325,9 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
         timezone,
         scheduledArrivalTime: scheduledArrival,
         scheduledDepartureTime: scheduledDeparture,
-        delay: dep.delay || dep.arrival?.delay || dep.departure?.delay,
-        realTime: Boolean(dep.realtime || dep.arrival?.estimated_time || dep.departure?.estimated_time),
+        delay: dep.delay ?? dep.arrival?.delay ?? dep.departure?.delay
+          ?? dep.arrival?.estimated_delay ?? dep.departure?.estimated_delay,
+        realTime: Boolean(dep.realtime || dep.arrival?.estimated || dep.departure?.estimated),
         headsign: dep.trip?.trip_headsign || dep.stop_headsign,
         direction: this.extractDirectionFromHeadsign(dep.trip?.trip_headsign || dep.stop_headsign),
         stopSequence: dep.stop_sequence,

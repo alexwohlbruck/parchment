@@ -12,7 +12,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useTimelineStore } from '@/stores/timeline.store'
 import { useMapService } from '@/services/map.service'
-import type { LocationHistoryStop } from '@server/types/location-history.types'
+import type { LocationHistoryStop, LocationHistoryEntry } from '@server/types/location-history.types'
 import TimelineStopRow from './components/TimelineStopRow.vue'
 import TimelineSegmentRow from './components/TimelineSegmentRow.vue'
 import DailyDistanceChart from './components/DailyDistanceChart.vue'
@@ -86,14 +86,6 @@ function setThisMonth() {
   applyRange(start, end)
 }
 
-/**
- * Shift the entire range by its own length in days, in either direction.
- *
- * Day-based (not ms-based) so we don't bleed across date boundaries when
- * the range is `[00:00:00, 23:59:59.999]` — a literal ms shift would land
- * the new range at `00:00:00.001` of the prior day through `00:00:00` of
- * the original day, which the chart bucketed as two highlighted days.
- */
 function shiftRange(direction: 1 | -1) {
   const days = Math.max(
     1,
@@ -110,7 +102,6 @@ function shiftRange(direction: 1 | -1) {
 }
 
 // ── Pickers ───────────────────────────────────────────────────────────────
-// Start change preserves duration by shifting end the same delta.
 const rangeStart = computed({
   get: () => range.value.start,
   set: (next: Date) => {
@@ -121,7 +112,6 @@ const rangeStart = computed({
   },
 })
 
-// End change keeps start fixed; if end < start, snap end to start's day-end.
 const rangeEnd = computed({
   get: () => range.value.end,
   set: (next: Date) => {
@@ -131,6 +121,11 @@ const rangeEnd = computed({
     }
     applyRange(range.value.start, newEnd)
   },
+})
+
+// ── Subtitle ────────────────────────────────────────────────────────────
+const subtitle = computed(() => {
+  return dayjs(range.value.start).format('dddd, MMM D')
 })
 
 // ── Day summary ──────────────────────────────────────────────────────────
@@ -159,7 +154,55 @@ const movingTimeLabel = computed(() => {
   if (totalMin < 60) return `${totalMin} min`
   const hours = Math.floor(totalMin / 60)
   const min = totalMin % 60
-  return min === 0 ? `${hours} h` : `${hours} h ${min} min`
+  return min === 0 ? `${hours}h` : `${hours}h ${min}m`
+})
+
+// ── Group entries by day ────────────────────────────────────────────────
+interface DayGroup {
+  key: string
+  label: string
+  dateMeta: string
+  entries: LocationHistoryEntry[]
+  stops: number
+  distanceKm: string
+}
+
+const dayGroups = computed<DayGroup[]>(() => {
+  if (entries.value.length === 0) return []
+
+  const groups = new Map<string, LocationHistoryEntry[]>()
+  for (const entry of entries.value) {
+    const time = entry.type === 'stop' ? entry.startTime : entry.startTime
+    const key = dayjs(time).format('YYYY-MM-DD')
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(entry)
+  }
+
+  const today = dayjs().format('YYYY-MM-DD')
+  const yesterday = dayjs().subtract(1, 'day').format('YYYY-MM-DD')
+
+  return Array.from(groups.entries()).map(([key, dayEntries]) => {
+    let label: string
+    if (key === today) label = 'Today'
+    else if (key === yesterday) label = 'Yesterday'
+    else label = dayjs(key).format('ddd, MMM D')
+
+    const stops = dayEntries.filter(e => e.type === 'stop').length
+    const distM = dayEntries
+      .filter((e): e is Extract<LocationHistoryEntry, { type: 'segment' }> => e.type === 'segment')
+      .reduce((sum, s) => sum + s.distance, 0)
+    const km = distM / 1000
+    const distanceKm = km < 1 ? `${Math.round(distM)} m` : `${km.toFixed(km < 10 ? 1 : 0)} km`
+
+    return {
+      key,
+      label,
+      dateMeta: `${dayjs(key).format('MMM D')} · ${stops} ${stops === 1 ? 'place' : 'places'} · ${distanceKm}`,
+      entries: dayEntries,
+      stops,
+      distanceKm,
+    }
+  })
 })
 
 // ── Map sync ─────────────────────────────────────────────────────────────
@@ -177,11 +220,6 @@ function pickFromChart(date: string) {
 }
 
 // ── Lifecycle ────────────────────────────────────────────────────────────
-
-// `?day=YYYY-MM-DD` deep-link — used by the place visit history widget
-// to land directly on the day a recent visit happened. We strip the
-// param after applying so a manual range change isn't fought by a
-// reload of the URL state.
 function applyDayFromQuery(raw: unknown) {
   if (typeof raw !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return false
   const parsed = dayjs(raw)
@@ -227,10 +265,44 @@ onBeforeUnmount(() => {
 
   <PanelLayout v-else>
     <!-- Header -->
-    <div class="flex items-baseline justify-between mb-4">
-      <h1 class="text-2xl font-semibold tracking-tight">
+    <div class="mb-1">
+      <h1 class="text-2xl font-semibold">
         {{ t('timeline.title') }}
       </h1>
+      <p class="text-sm text-muted-foreground">{{ subtitle }}</p>
+    </div>
+
+    <!-- Stat cards -->
+    <div
+      v-if="summary.stops > 0 || summary.distanceM > 0"
+      class="grid grid-cols-3 gap-2 my-3"
+    >
+      <div class="border border-border/50 rounded-lg px-3 py-2.5">
+        <div class="text-[10px] font-semibold text-muted-foreground">Places</div>
+        <div class="text-xl font-semibold tabular-nums mt-1">{{ summary.stops }}</div>
+      </div>
+      <div class="border border-border/50 rounded-lg px-3 py-2.5">
+        <div class="text-[10px] font-semibold text-muted-foreground">Distance</div>
+        <div class="text-xl font-semibold tabular-nums mt-1">
+          {{ distanceLabel }}
+        </div>
+      </div>
+      <div class="border border-border/50 rounded-lg px-3 py-2.5">
+        <div class="text-[10px] font-semibold text-muted-foreground">Active</div>
+        <div class="text-xl font-semibold tabular-nums mt-1">
+          {{ movingTimeLabel }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Daily distance chart -->
+    <div v-if="dailyStats.length > 0" class="-mx-3 mb-3">
+      <DailyDistanceChart
+        :stats="dailyStats"
+        :range-start="dayjs(range.start).format('YYYY-MM-DD')"
+        :range-end="dayjs(range.end).format('YYYY-MM-DD')"
+        @select="pickFromChart"
+      />
     </div>
 
     <!-- Shortcut chips -->
@@ -285,35 +357,8 @@ onBeforeUnmount(() => {
       </Button>
     </div>
 
-    <!-- Day summary — places · distance · moving time. Hidden when there's
-         nothing to show; otherwise gives an at-a-glance read of the range
-         without making the user scroll the entries. -->
-    <div
-      v-if="summary.stops > 0 || summary.distanceM > 0"
-      class="text-xs text-muted-foreground tabular-nums mb-3 flex items-center gap-1.5"
-    >
-      <span>
-        {{ summary.stops }}
-        {{ summary.stops === 1 ? 'place' : 'places' }}
-      </span>
-      <span class="text-muted-foreground/40">·</span>
-      <span>{{ distanceLabel }}</span>
-      <span class="text-muted-foreground/40">·</span>
-      <span>{{ movingTimeLabel }}</span>
-    </div>
-
-    <!-- Daily distance chart -->
-    <div v-if="dailyStats.length > 0" class="-mx-3 mb-3">
-      <DailyDistanceChart
-        :stats="dailyStats"
-        :range-start="dayjs(range.start).format('YYYY-MM-DD')"
-        :range-end="dayjs(range.end).format('YYYY-MM-DD')"
-        @select="pickFromChart"
-      />
-    </div>
-
     <!-- Body -->
-    <div class="flex-1 overflow-y-auto -mx-3">
+    <div class="flex-1 overflow-y-auto -mx-4">
       <div v-if="loading" class="flex justify-center py-12">
         <Spinner />
       </div>
@@ -329,19 +374,132 @@ onBeforeUnmount(() => {
       >
         {{ t('timeline.noEvents') }}
       </div>
-      <div v-else class="px-3">
-        <div class="flex flex-col">
-          <template v-for="(entry, i) in entries" :key="entry.id">
-            <TimelineStopRow
-              v-if="entry.type === 'stop'"
-              :stop="entry"
-              @select="focusStop"
-            />
-            <TimelineSegmentRow v-else :segment="entry" />
-            <div v-if="i < entries.length - 1" class="h-px" />
-          </template>
-        </div>
-      </div>
+      <template v-else>
+        <template v-for="group in dayGroups" :key="group.key">
+          <!-- Day header -->
+          <div class="flex items-center justify-between px-4 pt-3.5 pb-1.5">
+            <span class="text-lg font-semibold">{{ group.label }}</span>
+            <span class="text-[11px] text-muted-foreground tabular-nums">{{ group.dateMeta }}</span>
+          </div>
+
+          <!-- Timeline rail -->
+          <div class="tl-rail">
+            <template v-for="(entry, i) in group.entries" :key="entry.id">
+              <TimelineStopRow
+                v-if="entry.type === 'stop'"
+                :stop="entry"
+                :is-last="i === group.entries.length - 1"
+                @select="focusStop"
+              />
+              <TimelineSegmentRow v-else :segment="entry" />
+            </template>
+          </div>
+        </template>
+      </template>
     </div>
   </PanelLayout>
 </template>
+
+<style scoped>
+.tl-rail {
+  position: relative;
+  margin: 0 16px;
+  padding-left: 24px;
+}
+
+.tl-rail::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  bottom: 8px;
+  width: 0.5px;
+  background: var(--color-border);
+}
+
+:deep(.tl-event) {
+  position: relative;
+  padding: 8px 0 14px;
+  cursor: default;
+}
+
+:deep(.tl-event)::before {
+  content: "";
+  position: absolute;
+  left: -21px;
+  top: 14px;
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  background: var(--color-background);
+  border: 1.5px solid var(--color-muted-foreground);
+}
+
+:deep(.tl-event[data-kind="place"])::before {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+
+:deep(.tl-event[data-kind="travel"])::before {
+  border-color: var(--color-border);
+  background: var(--color-background);
+}
+
+:deep(.tl-event .time) {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--color-muted-foreground);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+:deep(.tl-event .title) {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-foreground);
+  margin-top: 1px;
+  letter-spacing: -0.005em;
+}
+
+:deep(.tl-event[data-kind="travel"] .title) {
+  color: var(--color-muted-foreground);
+  font-weight: 500;
+}
+
+:deep(.tl-event .meta) {
+  font-size: 11px;
+  color: var(--color-muted-foreground);
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+:deep(.tl-event .meta > *) {
+  white-space: nowrap;
+}
+
+:deep(.tl-event .meta .dot) {
+  width: 2px;
+  height: 2px;
+  background: var(--color-muted-foreground);
+  opacity: 0.4;
+  border-radius: 999px;
+}
+
+:deep(.tl-event .meta .meta-mode) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+:deep(.tl-event[data-kind="place"]) {
+  cursor: pointer;
+}
+
+:deep(.tl-event[data-kind="place"]:hover .title) {
+  color: var(--color-primary);
+}
+</style>

@@ -13,7 +13,7 @@ import { FriendLocationsLayer } from '@/components/map/layers/friend-locations-l
 import { TripInstructionsLayer } from '@/components/map/layers/trip-instructions-layer'
 import { UserLocationLayer } from '@/components/map/layers/user-location-layer'
 import { useDirectionsStore } from '@/stores/directions.store'
-import { watch, Component } from 'vue'
+import { watch, Component, type WatchStopHandle } from 'vue'
 
 export function useMarkerLayersService() {
   const directionsStore = useDirectionsStore()
@@ -23,6 +23,7 @@ export function useMarkerLayersService() {
   let friendLocationsLayer: FriendLocationsLayer | null = null
   let tripInstructionsLayer: TripInstructionsLayer | null = null
   let userLocationLayer: UserLocationLayer | null = null
+  let watchStops: WatchStopHandle[] = []
 
   // ============================================================================
   // INITIALIZATION
@@ -33,6 +34,11 @@ export function useMarkerLayersService() {
    * Call this after map is loaded
    */
   function initializeMarkerLayers(mapStrategy: MapStrategy) {
+    // Destroy any existing layers first (style.load fires on basemap/theme
+    // changes, not just initial load — without this, old layers leak watchers
+    // and orphan markers).
+    destroyMarkerLayers()
+
     // Create marker layer instances
     waypointsLayer = new WaypointsLayer()
     friendLocationsLayer = new FriendLocationsLayer()
@@ -76,8 +82,7 @@ export function useMarkerLayersService() {
    * Set up watchers to sync marker layers with store state
    */
   function setupMarkerLayerWatchers() {
-    // Watch for trip changes
-    watch(
+    watchStops.push(watch(
       () => directionsStore.trips,
       trips => {
         if (trips) {
@@ -96,24 +101,21 @@ export function useMarkerLayersService() {
           tripInstructionsLayer?.setTrip(null)
         }
       },
-    )
+    ))
 
-    // Watch for selected trip changes
-    watch(
+    watchStops.push(watch(
       () => directionsStore.selectedTripId,
       selectedTripId => {
         const trips = directionsStore.trips
         if (!trips || !selectedTripId) {
-          // Clear instruction markers when no trip is selected
           tripInstructionsLayer?.setTrip(null)
           return
         }
 
-        // Update instruction markers for selected trip
         const trip = trips.trips.find(t => t.id === selectedTripId)
         tripInstructionsLayer?.setTrip(trip || null)
       },
-    )
+    ))
   }
 
   // ============================================================================
@@ -124,6 +126,9 @@ export function useMarkerLayersService() {
    * Destroy marker layers and clean up
    */
   function destroyMarkerLayers() {
+    watchStops.forEach(stop => stop())
+    watchStops = []
+
     waypointsLayer?.destroy()
     friendLocationsLayer?.destroy()
     tripInstructionsLayer?.destroy()

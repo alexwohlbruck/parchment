@@ -52,11 +52,13 @@ function onFocusOutside(event: Event) {
     <DialogContent
       no-padding
       show-close-button
-      class="overflow-y-auto h-full sm:h-[90vh] max-w-full sm:max-w-[80vw] pt-[env(safe-area-inset-top)] border-none md:border"
+      class="h-full sm:h-[90vh] max-w-full sm:max-w-[80vw] pt-[env(safe-area-inset-top)] border-none md:border"
       @pointer-down-outside="onPointerDownOutside"
       @focus-outside="onFocusOutside"
     >
-      <router-view name="dialogContent"></router-view>
+      <div class="overflow-y-auto overflow-x-hidden h-full rounded-[inherit]">
+        <router-view name="dialogContent"></router-view>
+      </div>
     </DialogContent>
   </Dialog>
 </template>

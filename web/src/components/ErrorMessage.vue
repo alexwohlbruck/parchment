@@ -36,26 +36,26 @@ const statusConfig = computed(() => {
   const configs = {
     error: {
       icon: AlertTriangleIcon,
-      bgColor: 'bg-red-50 dark:bg-red-900',
-      iconColor: 'text-red-500 dark:text-red-300',
+      bgColor: 'bg-coral-50 dark:bg-coral-900',
+      iconColor: 'text-coral-500 dark:text-coral-300',
       title: 'Error',
     },
     warning: {
       icon: AlertCircleIcon,
-      bgColor: 'bg-yellow-50 dark:bg-yellow-900',
-      iconColor: 'text-yellow-500 dark:text-yellow-300',
+      bgColor: 'bg-amber-50 dark:bg-amber-900',
+      iconColor: 'text-amber-500 dark:text-amber-300',
       title: 'Warning',
     },
     info: {
       icon: InfoIcon,
-      bgColor: 'bg-blue-50 dark:bg-blue-900',
-      iconColor: 'text-blue-500 dark:text-blue-300',
+      bgColor: 'bg-cobalt-50 dark:bg-cobalt-900',
+      iconColor: 'text-cobalt-500 dark:text-cobalt-300',
       title: 'Information',
     },
     success: {
       icon: CheckCircleIcon,
-      bgColor: 'bg-green-50 dark:bg-green-900',
-      iconColor: 'text-green-500 dark:text-green-300',
+      bgColor: 'bg-forest-50 dark:bg-forest-900',
+      iconColor: 'text-forest-500 dark:text-forest-300',
       title: 'Success',
     },
   }

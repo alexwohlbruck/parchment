@@ -79,7 +79,7 @@ const { isMobileScreen, internalOpen, handleOpenChange } = useResponsiveOverlay(
     <DialogTrigger as-child>
       <slot name="trigger" :open="() => handleOpenChange(true)" />
     </DialogTrigger>
-    <DialogContent :class="props.contentClass">
+    <DialogContent :class="props.contentClass" :show-close-button="props.showCloseButton">
       <DialogHeader v-if="props.title || props.description">
         <DialogTitle v-if="props.title">{{ props.title }}</DialogTitle>
         <DialogDescription v-if="props.description">{{

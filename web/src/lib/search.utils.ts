@@ -225,7 +225,7 @@ export function autocompleteResultToPlace(result: AutocompleteResult): Place {
         id: result.id,
         name: result.title,
         icon: result.icon || 'map-pin',
-        iconColor: result.color || 'rose',
+        iconColor: result.color || 'magenta',
       },
     } as unknown as Place // TODO: Fix this
   }
@@ -325,7 +325,7 @@ export function adaptBookmarkResult(result: any): Place {
       id: bookmark.id,
       name: result.title,
       icon: result.icon || 'map-pin',
-      iconColor: result.color || 'rose',
+      iconColor: result.color || 'magenta',
       presetType: bookmark.presetType,
       lat: bookmark.lat,
       lng: bookmark.lng,

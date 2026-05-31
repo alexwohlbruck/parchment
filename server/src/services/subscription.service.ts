@@ -414,3 +414,94 @@ export async function getSubscriptionDetails(userId: string) {
 
   return null
 }
+
+/**
+ * Fetch rich Polar subscription data for admin user detail pages.
+ * Returns customer info, active subscription, recent orders, and portal URL.
+ */
+export async function getAdminUserSubscriptionInfo(userId: string) {
+  const [user] = await db
+    .select({ polarCustomerId: users.polarCustomerId })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+
+  if (!user?.polarCustomerId) return null
+
+  const p = getPolar()
+
+  try {
+    const customer = await p.customers.get({ id: user.polarCustomerId })
+
+    // Find active subscription across configured products
+    let subscription: any = null
+    const productIds = [billing.premiumProductId, billing.basicProductId].filter(Boolean)
+    for (const productId of productIds) {
+      const subs = await p.subscriptions.list({
+        customerId: user.polarCustomerId,
+        productId,
+        limit: 1,
+      })
+      const sub = subs.result.items[0]
+      if (sub) {
+        const tier = resolveProductTier(productId) ?? 'free'
+        subscription = {
+          id: sub.id,
+          status: sub.status,
+          tier,
+          productName: sub.product?.name ?? tier,
+          amount: sub.amount ?? 0,
+          currency: sub.currency ?? 'usd',
+          interval: sub.recurringInterval ?? 'month',
+          currentPeriodStart: sub.currentPeriodStart?.toISOString() ?? null,
+          currentPeriodEnd: sub.currentPeriodEnd?.toISOString() ?? null,
+          cancelAtPeriodEnd: sub.cancelAtPeriodEnd ?? false,
+          canceledAt: sub.canceledAt?.toISOString() ?? null,
+          startedAt: sub.startedAt?.toISOString() ?? null,
+        }
+        break
+      }
+    }
+
+    // Fetch recent orders
+    let orders: any[] = []
+    try {
+      const orderResult = await p.orders.list({
+        customerId: user.polarCustomerId,
+        limit: 10,
+      })
+      orders = orderResult.result.items.map((o: any) => ({
+        id: o.id,
+        status: o.status,
+        amount: o.amount ?? 0,
+        currency: o.currency ?? 'usd',
+        createdAt: o.createdAt?.toISOString() ?? null,
+        billingReason: o.billingReason ?? null,
+      }))
+    } catch (err) {
+      logger.warn({ userId, err }, 'Failed to fetch orders from Polar')
+    }
+
+    // Customer portal URL
+    let portalUrl: string | null = null
+    try {
+      portalUrl = await getCustomerPortalUrl(user.polarCustomerId)
+    } catch (err) {
+      logger.warn({ userId, err }, 'Failed to get customer portal URL')
+    }
+
+    return {
+      customer: {
+        email: customer.email,
+        name: customer.name ?? null,
+        avatarUrl: customer.avatarUrl ?? null,
+      },
+      subscription,
+      orders,
+      portalUrl,
+    }
+  } catch (err) {
+    logger.warn({ userId, err }, 'Failed to fetch admin subscription info from Polar')
+    return null
+  }
+}

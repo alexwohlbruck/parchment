@@ -37,6 +37,7 @@
     "enabled": "Enabled",
     "all": "All",
     "recents": "Recents",
+    "pinned": "Pinned",
     "seeAll": "See all"
   },
   "weather": {
@@ -697,6 +698,8 @@
       "daysAgo": "{count}d ago",
       "lastKnownLocation": "Last Known Location",
       "showOnMap": "Show on Map",
+      "recentlySeen": "Recently seen",
+      "lastSeen": "Last seen",
       "noLocationData": "No location data",
       "noLocationDescription": "This friend hasn't shared their location with you yet.",
       "locationSharing": "Location Sharing",
@@ -718,6 +721,9 @@
       "keysSynced": "Keys synced successfully",
       "syncFailed": "Failed to sync keys"
     }
+  },
+  "dashboard": {
+    "title": "Dashboard"
   },
   "navigation": {
     "title": "Navigation",
@@ -795,12 +801,15 @@
       "temporarilyClosedUntil": "Temporarily closed until {date}",
       "open247": "Open 24/7",
       "open24hours": "Open 24 hours",
+      "openNow": "Open now",
       "openUntil": "Open until {time}",
+      "closesAt": "Closes {time}",
       "opensAt": "Opens at {time}",
       "opensDay": "Opens {day} at {time}",
       "closedToday": "Closed today",
       "closed": "Closed",
       "seeHours": "See hours",
+      "distanceAway": "{distance} away",
       "days": {
         "0": "Sunday",
         "1": "Monday",
@@ -1208,6 +1217,9 @@
         "speed": "Speed",
         "heading": "Heading"
       },
+      "impersonation": {
+        "title": "Impersonate user"
+      },
       "info": {
         "title": "About this page",
         "description": "This page is only visible in development mode.",
@@ -1242,28 +1254,24 @@
         "color": {
           "title": "Color",
           "values": {
-            "zinc": "Zinc",
-            "rose": "Rose",
-            "pink": "Pink",
-            "fuchsia": "Fuchsia",
-            "purple": "Purple",
-            "violet": "Violet",
-            "indigo": "Indigo",
-            "blue": "Blue",
-            "sky": "Sky",
-            "cyan": "Cyan",
-            "teal": "Teal",
-            "emerald": "Emerald",
-            "green": "Green",
-            "lime": "Lime",
-            "yellow": "Yellow",
+            "parchment": "Parchment",
+            "ink": "Ink",
+            "compass": "Compass",
+            "coral": "Coral",
             "amber": "Amber",
-            "orange": "Orange",
-            "red": "Red",
-            "slate": "Slate",
-            "stone": "Stone",
-            "gray": "Gray",
-            "neutral": "Neutral"
+            "peach": "Peach",
+            "citrine": "Citrine",
+            "olive": "Olive",
+            "forest": "Forest",
+            "moss": "Moss",
+            "teal": "Teal",
+            "sky": "Sky",
+            "cobalt": "Cobalt",
+            "periwinkle": "Periwinkle",
+            "indigo": "Indigo",
+            "violet": "Violet",
+            "iris": "Iris",
+            "magenta": "Magenta"
           }
         },
         "radius": {
@@ -1497,6 +1505,18 @@
         "title": "Permissions"
       }
     },
+    "roles": {
+      "title": "Roles"
+    },
+    "permissions": {
+      "title": "Permissions"
+    },
+    "user-detail": {
+      "title": "User"
+    },
+    "role-detail": {
+      "title": "Role"
+    },
     "system": {
       "title": "System"
     }
@@ -1633,6 +1653,69 @@
     "upgradeBanner": {
       "title": "Upgrade to {tier}",
       "description": "This feature requires a {tier} subscription."
+    }
+  },
+  "onboarding": {
+    "finish": "Finish",
+    "profile": {
+      "title": "Set up your profile",
+      "description": "Tell us a bit about yourself to get started.",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "firstNamePlaceholder": "Christopher",
+      "lastNamePlaceholder": "Columbus",
+      "removeAvatar": "Remove avatar"
+    },
+    "alias": {
+      "title": "Choose a username",
+      "description": "Pick a unique username for your federation identity. Others can find and add you with this handle.",
+      "label": "Username",
+      "placeholder": "username",
+      "hint": "3-30 characters, letters, numbers, and underscores only.",
+      "previewLabel": "Your handle",
+      "validationError": "Username must be 3-30 characters using letters, numbers, or underscores.",
+      "aliasTaken": "This username is already taken.",
+      "saveFailed": "Could not save username. Try a different one."
+    },
+    "recoveryKey": {
+      "title": "Save your recovery key",
+      "description": "This key is the only way to recover your encrypted data. Store it somewhere safe."
+    },
+    "theme": {
+      "title": "Preferences",
+      "description": "Set your language, units, and visual style.",
+      "languageLabel": "Language",
+      "unitsLabel": "Units",
+      "colorLabel": "Accent color",
+      "modeLabel": "Display mode",
+      "modes": {
+        "light": "Light",
+        "dark": "Dark",
+        "auto": "System"
+      }
+    },
+    "passkey": {
+      "title": "Add a passkey",
+      "description": "Passkeys let you sign in and restore your encrypted data without typing a recovery key."
+    },
+    "subscription": {
+      "title": "Choose your plan",
+      "description": "Unlock bookmarks, collections, friends, and integrations with a paid plan.",
+      "skipLabel": "Continue with {plan}"
+    },
+    "integrations": {
+      "title": "Set up integrations",
+      "description": "Connect services for maps, search, geocoding, and more. Free integrations have been enabled automatically."
+    },
+    "invite": {
+      "title": "Invite others",
+      "description": "Send invitations to people you'd like to collaborate with. You can always do this later from settings.",
+      "emailLabel": "Email addresses",
+      "placeholder": "Type an email and press Enter...",
+      "send": "Send invitations",
+      "sendFailed": "Failed to send invitation.",
+      "sent": "Sent {count} invitation(s).",
+      "sentSummary": "{count} invitation(s) sent"
     }
   }
 }

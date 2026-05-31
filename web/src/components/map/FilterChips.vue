@@ -266,7 +266,7 @@ function isOptionSelected(def: FilterDef, optionValue: any): boolean {
       <button
         v-for="chip in activeFilterChips"
         :key="`${chip.id}:${chip.value}`"
-        class="inline-flex items-center gap-1 rounded-full border border-border bg-background text-foreground px-2.5 py-0.5 text-xs font-medium hover:bg-muted transition-colors cursor-pointer"
+        class="inline-flex items-center gap-1 rounded-full border bg-background text-foreground px-2.5 py-0.5 text-xs font-medium hover:bg-muted transition-colors cursor-pointer"
         @click="removeFilterChip(chip)"
       >
         {{ chip.label }}

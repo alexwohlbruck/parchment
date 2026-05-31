@@ -114,71 +114,68 @@ function openFriendDetail() {
 <template>
   <Card class="overflow-hidden group">
     <!-- Main Content (Clickable) -->
-    <div 
-      class="p-4 flex items-center gap-3 cursor-pointer hover:bg-muted/50 transition-colors"
+    <div
+      class="px-3 py-2.5 flex items-center gap-3 cursor-pointer hover:bg-muted/50 transition-colors"
       @click="openFriendDetail"
     >
-      <Avatar class="h-11 w-11 shrink-0">
+      <Avatar class="size-10 shrink-0">
         <AvatarImage
           v-if="friend.friendPicture"
           :src="friend.friendPicture"
           :alt="displayName"
         />
-        <AvatarFallback>{{ initials }}</AvatarFallback>
+        <AvatarFallback class="text-sm">{{ initials }}</AvatarFallback>
       </Avatar>
 
       <div class="min-w-0 flex-1">
-        <p class="font-medium truncate">{{ displayName }}</p>
-        <p class="text-sm text-muted-foreground truncate">
+        <p class="text-sm font-semibold truncate leading-tight">{{ displayName }}</p>
+        <p class="text-xs text-muted-foreground truncate leading-tight">
           {{ alias }}<span v-if="isRemote">@{{ domain }}</span>
         </p>
-        <!-- Friend's location info -->
-        <div v-if="hasLocation" class="flex items-center gap-1.5 mt-1">
+        <div v-if="hasLocation" class="flex items-center gap-1.5 mt-0.5">
           <div
-            class="w-2 h-2 rounded-full shrink-0"
-            :class="isLocationFresh ? 'bg-green-500' : 'bg-muted-foreground/50'"
+            class="size-1.5 rounded-full shrink-0"
+            :class="isLocationFresh ? 'bg-forest-500' : 'bg-muted-foreground/50'"
           />
-          <span class="text-xs text-muted-foreground truncate">
+          <span class="text-[11px] text-muted-foreground truncate">
             {{ locationTimeAgo }}
           </span>
         </div>
       </div>
 
-      <!-- Menu -->
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            class="h-8 w-8 shrink-0"
+          <Button
+            variant="ghost"
+            size="icon"
+            class="size-7 shrink-0"
             @click.stop
           >
-            <MoreVertical class="h-4 w-4" />
+            <MoreVertical class="size-3.5" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem @click="handleSyncKeys">
-            <RefreshCwIcon class="h-4 w-4 mr-2" :class="{ 'animate-spin': isSyncing }" />
+            <RefreshCwIcon class="size-4" :class="{ 'animate-spin': isSyncing }" />
             {{ t('friends.detail.syncKeys') }}
           </DropdownMenuItem>
           <DropdownMenuItem
             @click="emit('remove', friend)"
             class="text-destructive"
           >
-            <UserMinus class="h-4 w-4 mr-2" />
+            <UserMinus class="size-4" />
             {{ t('friends.removeFriend') }}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
 
-    <!-- Location Sharing Bar -->
     <div
-      class="px-4 py-2.5 flex items-center justify-between gap-3 border-t border-border/50 bg-muted/30"
+      class="px-3 py-2 flex items-center justify-between gap-3 border-t border-border/50 bg-muted/30"
     >
-      <div class="flex items-center gap-2 text-sm">
+      <div class="flex items-center gap-2 text-xs">
         <MapPin
-          class="h-4 w-4 shrink-0"
+          class="size-3.5 shrink-0"
           :class="
             locationConfig?.enabled ? 'text-primary' : 'text-muted-foreground'
           "
@@ -189,14 +186,13 @@ function openFriendDetail() {
       </div>
 
       <div class="flex items-center gap-2">
-        <!-- Toggle -->
         <Switch
           :model-value="locationConfig?.enabled ?? false"
           @update:model-value="(v: boolean) => emit('toggleLocation', friend.friendHandle, v)"
           :disabled="locationSaving"
-          class="scale-90"
+          size="sm"
         />
-        <Spinner v-if="locationSaving" class="h-4 w-4" />
+        <Spinner v-if="locationSaving" class="size-3.5" />
       </div>
     </div>
   </Card>

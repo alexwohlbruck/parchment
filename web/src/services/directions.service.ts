@@ -21,7 +21,7 @@ const HARDCODED_VEHICLE_LOCATIONS = {
 
 function directionsService() {
   const store = useDirectionsStore()
-  const { waypoints, selectedMode, routingPreferences } = storeToRefs(store)
+  const { waypoints, selectedMode, sortPreference, departureTime, routingPreferences } = storeToRefs(store)
 
   const lastRequestKey = ref('')
   const isRequesting = ref(false)
@@ -40,7 +40,7 @@ function directionsService() {
       .filter(wp => wp.lngLat)
       .map(wp => `${wp.lngLat!.lat},${wp.lngLat!.lng}`)
       .join(';')
-    return `${coords}|${mode}|${JSON.stringify(prefs)}`
+    return `${coords}|${mode}|${sortPreference.value || ''}|${departureTime.value || ''}|${JSON.stringify(prefs)}`
   }
 
   /**
@@ -98,14 +98,17 @@ function directionsService() {
           label: wp.place ? getSearchResultName(wp.place as Place) : '',
         })),
         selectedMode: selectedMode.value,
+        ...(sortPreference.value && { sortPreference: sortPreference.value }),
         availableVehicles,
         routingPreferences: routingPreferences.value,
+        ...(departureTime.value && { preferredDepartureTime: departureTime.value }),
         requestId: `frontend-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       }
 
       const { data } = await api.post('/directions/', request)
 
       // Transform response to UI format
+      const serverWaypoints: Array<{ label?: string }> = data.request?.waypoints ?? []
       const response: TripsResponse = {
         request: {
           waypoints: validWaypoints.map((wp, i) => ({
@@ -115,7 +118,7 @@ function directionsService() {
               i === 0 || i === validWaypoints.length - 1
                 ? WaypointType.STOP
                 : WaypointType.VIA,
-            name: wp.place ? getSearchResultName(wp.place as Place) : '',
+            name: (wp.place ? getSearchResultName(wp.place as Place) : '') || serverWaypoints[i]?.label || '',
           })),
           availableVehicles: availableVehicles.map(v => v.type),
           maxOptions: 5,
@@ -139,8 +142,10 @@ function directionsService() {
           isRecommended: candidate.rank === 1,
           rank: candidate.rank,
           provider: 'multimodal',
-          cost: candidate.trip.tripStats.totalCost,
-          co2Emissions: candidate.trip.tripStats.totalCo2,
+          cost: candidate.trip.tripStats.totalCost
+            ? { total: { amount: candidate.trip.tripStats.totalCost.value, currency: candidate.trip.tripStats.totalCost.currency } }
+            : undefined,
+          co2Emissions: candidate.trip.tripStats.totalCo2 ?? undefined,
         })),
         earliestStart:
           data.trips[0]?.trip.earliestStartTime || new Date().toISOString(),
@@ -175,50 +180,81 @@ function directionsService() {
   }
 
   /**
-   * Flatten multimodal segments into single array
+   * Extract transit-specific fields from a segment's transitDetails.
+   * Returns an object with lineName, lineColor, headsign, etc. —
+   * or empty object if not a transit segment.
+   */
+  function extractTransitFields(seg: any) {
+    const td = seg.details?.transitDetails
+    if (!td) return {}
+    return {
+      lineName: td.shortName || td.route?.shortName,
+      lineColor: td.color || td.route?.color,
+      lineTextColor: td.textColor || td.route?.textColor,
+      lineLongName: td.route?.longName,
+      headsign: td.headsign || td.trip?.headsign,
+      vehicleNumber: td.shortName || td.route?.shortName,
+      agencyName: td.route?.agency?.name,
+      agencyId: td.route?.agency?.id,
+      routeType: td.route?.type,
+      tripId: td.trip?.id,
+      departureStop: td.departureStop,
+      arrivalStop: td.arrivalStop,
+      intermediateStops: td.stops?.slice(1, -1), // exclude first/last
+      realTimeData: td.realTimeData,
+      delay: td.delay,
+      transitDetails: td,
+    }
+  }
+
+  /**
+   * Map a single raw backend segment to the flattened UI format.
+   */
+  function mapSegment(seg: any, id: string, legIndex: number) {
+    return {
+      id,
+      type: 'route',
+      legIndex,
+      mode: normalizeMode(seg.mode),
+      vehicleType: seg.vehicle?.type || seg.mode,
+      startTime: new Date(seg.startTime),
+      endTime: new Date(seg.endTime),
+      duration: seg.duration,
+      distance: seg.distance,
+      geometry: seg.geometry,
+      instructions: seg.instructions,
+      totalElevationGain: seg.totalElevationGain,
+      totalElevationLoss: seg.totalElevationLoss,
+      maxElevation: seg.maxElevation,
+      minElevation: seg.minElevation,
+      edgeSegments: seg.edgeSegments,
+      ...extractTransitFields(seg),
+    }
+  }
+
+  /**
+   * Flatten multimodal segments into single array.
+   * Transit segments get extra fields (lineName, lineColor, stops, etc.).
    */
   function flattenSegments(segments: any[]): any[] {
     return segments.flatMap(segment => {
       if (segment.details?.multimodalSegments) {
         return segment.details.multimodalSegments.map(
-          (seg: any, i: number) => ({
-            id: `segment-${segment.segmentIndex}-${i}`,
-            type: 'route',
-            mode: normalizeMode(seg.mode),
-            vehicleType: seg.vehicle?.type || seg.mode,
-            startTime: new Date(seg.startTime),
-            endTime: new Date(seg.endTime),
-            duration: seg.duration,
-            distance: seg.distance,
-            geometry: seg.geometry,
-            instructions: seg.instructions,
-            totalElevationGain: seg.totalElevationGain,
-            totalElevationLoss: seg.totalElevationLoss,
-            maxElevation: seg.maxElevation,
-            minElevation: seg.minElevation,
-            edgeSegments: seg.edgeSegments,
-          }),
+          (seg: any, i: number) =>
+            mapSegment(
+              seg,
+              `segment-${segment.segmentIndex}-${i}`,
+              seg.legIndex ?? segment.legIndex ?? 0,
+            ),
         )
       }
 
       return [
-        {
-          id: `segment-${segment.segmentIndex}`,
-          type: 'route',
-          mode: normalizeMode(segment.mode),
-          vehicleType: segment.vehicle?.type || segment.mode,
-          startTime: new Date(segment.startTime),
-          endTime: new Date(segment.endTime),
-          duration: segment.duration,
-          distance: segment.distance,
-          geometry: segment.geometry,
-          instructions: segment.instructions,
-          totalElevationGain: segment.totalElevationGain,
-          totalElevationLoss: segment.totalElevationLoss,
-          maxElevation: segment.maxElevation,
-          minElevation: segment.minElevation,
-          edgeSegments: segment.edgeSegments,
-        },
+        mapSegment(
+          segment,
+          `segment-${segment.segmentIndex}`,
+          segment.legIndex ?? 0,
+        ),
       ]
     })
   }
@@ -257,6 +293,12 @@ function directionsService() {
             place: place,
           }
           store.setWaypoint(index, updatedWaypoint)
+
+          // Patch the stored trip response if it already exists
+          const trips = store.trips
+          if (trips?.request?.waypoints?.[index]) {
+            trips.request.waypoints[index].name = getSearchResultName(place as Place)
+          }
         } else {
           console.log('[Directions] No reverse geocoding results found')
         }
@@ -381,10 +423,12 @@ function directionsService() {
     await setWaypointWithGeocoding(1, waypoint)
   }
 
-  // Auto-fetch when waypoints, mode, or preferences change
-  watch([waypoints, selectedMode, routingPreferences], getDirections, {
-    deep: true,
-  })
+  // Auto-fetch when waypoints, mode, preferences, sort, or departure time change
+  watch(
+    [waypoints, selectedMode, sortPreference, departureTime, routingPreferences],
+    getDirections,
+    { deep: true },
+  )
 
   // Request geolocation permissions early so current location is available
   if (isGeolocationSupported.value) {

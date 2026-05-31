@@ -14,6 +14,7 @@ import { useResponsive } from '@/lib/utils'
 import { isTauri } from '@/lib/api'
 import { useExternalLink } from '@/composables/useExternalLink'
 import { useFriendLocationsLayer } from '@/composables/useFriendLocationsLayer'
+import { PermissionId } from '@/types/auth.types'
 import {
   connect as realtimeConnect,
   disconnect as realtimeDisconnect,
@@ -28,6 +29,9 @@ import DesktopNav from '@/components/navigation/DesktopNavigation.vue'
 import MobileNav from '@/components/navigation/MobileNavigation.vue'
 import DialogView from '@/views/DialogView.vue'
 import HotkeysMenu from '@/components/HotkeysMenu.vue'
+import ImpersonationBanner from '@/components/ImpersonationBanner.vue'
+import OnboardingDialog from '@/components/onboarding/OnboardingDialog.vue'
+import KeyRestoreDialog from '@/components/onboarding/KeyRestoreDialog.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { TransitionSlide } from '@morev/vue-transitions'
 
@@ -42,6 +46,7 @@ const layersStore = useLayersStore()
 const appStore = useAppStore()
 const friendLocationsLayer = useFriendLocationsLayer()
 const { isMobileScreen } = useResponsive()
+const isDev = import.meta.env.DEV
 const { openExternalLink } = useExternalLink()
 
 const { dialogs } = appStore
@@ -119,7 +124,10 @@ onMounted(async () => {
     categoryStore.init()
     categoryPaletteStore.loadPalette()
     // Initialize friend locations layer (watches visibility and polls accordingly)
-    friendLocationsLayer.initialize()
+    // Requires social permissions — skip for free users to avoid 403s
+    if (authService.hasPermission(PermissionId.SOCIAL_READ)) {
+      friendLocationsLayer.initialize()
+    }
     // Open the realtime WebSocket now that the user is known. Disconnects
     // and reconnects across signin/signout are handled by the watcher
     // below.
@@ -172,6 +180,9 @@ function beforeNavTransition(value: boolean) {
   <Toaster richColors closeButton :duration="7000" position="bottom-center" />
   <HotkeysMenu />
   <DialogView></DialogView>
+  <ImpersonationBanner v-if="isDev" />
+  <OnboardingDialog v-if="authStore.needsOnboarding" />
+  <KeyRestoreDialog v-else-if="authStore.me" />
 
   <div v-for="dialog in dialogs" :key="dialog.id">
     <component

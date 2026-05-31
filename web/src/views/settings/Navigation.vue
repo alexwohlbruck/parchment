@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useResponsive } from '@/lib/utils'
 import { H3, Caption } from '@/components/ui/typography'
 import Button from '@/components/ui/button/Button.vue'
@@ -13,6 +13,7 @@ import { useSettingsScrollTarget } from '@/composables/useSettingsScrollTarget'
 import { getThemeColorGhostClasses } from '@/lib/utils'
 
 const route = useRoute()
+const router = useRouter()
 const { isMobileScreen } = useResponsive()
 const { t } = useI18n()
 const { allowedPages, sectionsByPage, search } = useSettingsIndex()
@@ -61,13 +62,32 @@ function onSearchKeydown(event: KeyboardEvent) {
 }
 
 function selectResult(to: string, sectionId: string) {
-  navigateToSection(to, sectionId)
+  const sections = allowedPages.value
+    .flatMap(p => p.sections)
+  const section = sections.find(s => s.id === sectionId)
+  if (section?.to) {
+    router.push(section.to)
+  } else {
+    navigateToSection(to, sectionId)
+  }
   clearSearch()
 }
 
 // --- Sub-nav active section -------------------------------------------------
 function isActivePage(to: string) {
-  return route.path === to
+  if (route.path === to) return true
+  const sections = sectionsByPage.value.get(
+    allowedPages.value.find(p => p.to === to)?.pageId ?? '',
+  )
+  if (sections) {
+    return sections.some(s => s.to && route.path.startsWith(s.to))
+  }
+  return false
+}
+
+function isActiveSection(section: { to?: string; id: string }) {
+  if (section.to) return route.path.startsWith(section.to)
+  return activeSectionId.value === section.id
 }
 
 function currentSubSections(pageId: string) {
@@ -121,7 +141,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full md:w-56 gap-3 pt-6 px-4 md:pr-0 min-h-0">
+  <div class="flex flex-col w-full md:w-56 gap-3 pt-6 px-4 min-h-0 md:bg-accent/50 md:border-r md:border-border/60">
     <H3 class="ml-2">{{ t('settings.title') }}</H3>
 
     <!-- Search -->
@@ -269,14 +289,14 @@ onBeforeUnmount(() => {
               <router-link
                 v-for="section in currentSubSections(page.pageId)"
                 :key="section.id"
-                :to="{ path: page.to, hash: section.hash }"
+                :to="section.to ?? { path: page.to, hash: section.hash }"
                 class="text-left text-sm pl-4 pr-2 py-1.5 -ml-px border-l-2 transition-colors leading-tight hover:text-primary"
                 :class="
-                  activeSectionId === section.id
+                  isActiveSection(section)
                     ? 'border-primary text-primary font-medium'
                     : 'border-transparent text-muted-foreground'
                 "
-                @click.prevent="navigateToSection(page.to, section.id)"
+                @click.prevent="section.to ? $router.push(section.to) : navigateToSection(page.to, section.id)"
               >
                 {{ section.title }}
               </router-link>

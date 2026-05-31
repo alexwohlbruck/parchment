@@ -36,21 +36,14 @@ export interface LogEvent {
     duration_ms?: number
     user_agent?: string
     ip?: string
-  }
-  /** Request metadata. Handlers may set `logEvent.request.body` to include the request body. */
-  request?: {
-    method: string
-    path: string
-    url: string
     query?: Record<string, string>
+  }
+  /** Handlers may set `logEvent.request = { body }` to include the request body in failure logs. */
+  request?: {
     body?: unknown
   }
-  /**
-   * Response metadata. Status is set automatically by middleware.
-   * Handlers may set `logEvent.response.body` to include response data in failure logs.
-   */
+  /** Handlers may set `logEvent.response = { body }` to include response data in failure logs. */
   response?: {
-    status: number
     body?: unknown
   }
   user?: {
@@ -150,11 +143,6 @@ export const loggerMiddleware = new Elysia({ name: 'parchment-logger' })
           request.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
           request.headers.get('x-real-ip') ??
           undefined,
-      },
-      request: {
-        method: request.method,
-        path: url.pathname,
-        url: url.href,
         ...(Object.keys(query).length > 0 && { query }),
       },
     }
@@ -197,7 +185,6 @@ export const loggerMiddleware = new Elysia({ name: 'parchment-logger' })
 
     logEvent.http.status = status
     logEvent.http.duration_ms = duration_ms
-    logEvent.response = { ...logEvent.response, status }
 
     meta.span.setAttribute('http.status_code', status)
     meta.span.setAttribute('http.duration_ms', duration_ms)
@@ -222,7 +209,6 @@ export const loggerMiddleware = new Elysia({ name: 'parchment-logger' })
 
     logEvent.http.status = status
     logEvent.http.duration_ms = duration_ms
-    logEvent.response = { ...logEvent.response, status }
     logEvent.error = {
       type: error instanceof Error ? error.name : String(code),
       message: error instanceof Error ? error.message : String(error),

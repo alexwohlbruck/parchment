@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useLayersStore } from '@/stores/layers.store'
@@ -12,14 +12,12 @@ import LayerGroupConfiguration from './layers/LayerGroupConfiguration.vue'
 import LayerItemComponent from './layers/LayerItem.vue'
 import LayerGroupItem from './layers/LayerGroupItem.vue'
 import { Button } from '@/components/ui/button'
-import SettingsSection from '@/components/settings/SettingsSection.vue'
 import {
-  ChevronDownIcon,
-  PlusIcon,
   FolderIcon,
+  PlusIcon,
   LayersIcon,
-  RotateCcwIcon,
   MoreHorizontalIcon,
+  RotateCcwIcon,
 } from 'lucide-vue-next'
 import {
   DropdownMenu,
@@ -28,17 +26,43 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import draggable from 'vuedraggable'
-import { useLayersService } from '@/services/layers/layers.service'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 const appService = useAppService()
 const layersStore = useLayersStore()
-const layersService = useLayersService()
 const { mainReorderableItems, groupsWithLayers, groupTree } = storeToRefs(layersStore)
 const { t } = useI18n()
 const { isDragActive } = useDragState()
 
 const isProd = import.meta.env.PROD
+
+const hasTeleportTarget = ref(false)
+onMounted(() => {
+  hasTeleportTarget.value = !!document.getElementById('library-tab-actions')
+})
+
+function openLayerConfigDialog(layerId?: string) {
+  appService.componentDialog({
+    component: LayerConfiguration,
+    continueText: t('general.save'),
+    props: { layerId },
+  })
+}
+
+function openLayerGroupConfigDialog(groupId?: string) {
+  appService.componentDialog({
+    component: LayerGroupConfiguration,
+    continueText: t('general.save'),
+    props: { groupId },
+  })
+}
+
+async function restoreDefaults() {
+  const result = await layersStore.restoreDefaults()
+  appService.toast.success(
+    t('layers.restoreDefaults.success', { count: result.restoredLayers + result.restoredGroups }),
+  )
+}
 
 // Track expanded groups
 const expandedGroups = ref(new Set<string>())
@@ -69,33 +93,6 @@ const {
   onDragMove,
   getLayerKey,
 } = useDragAndDrop()
-
-function openLayerConfigDialog(layerId?: string) {
-  appService.componentDialog({
-    component: LayerConfiguration,
-    continueText: t('general.save'),
-    props: {
-      layerId,
-    },
-  })
-}
-
-function openLayerGroupConfigDialog(groupId?: string) {
-  appService.componentDialog({
-    component: LayerGroupConfiguration,
-    continueText: t('general.save'),
-    props: {
-      groupId,
-    },
-  })
-}
-
-async function restoreDefaults() {
-  const result = await layersStore.restoreDefaults()
-  appService.toast.success(
-    t('layers.restoreDefaults.success', { count: result.restoredLayers + result.restoredGroups }),
-  )
-}
 
 function findGroupTreeNode(groupId: string, nodes?: any[]): any {
   const searchNodes = nodes ?? groupTree.value
@@ -154,53 +151,42 @@ async function handleMainChange(evt: any) {
 </script>
 
 <template>
-  <TooltipProvider>
-    <SettingsSection
-      id="layers"
-      class="h-full"
-      :title="t('settings.mapSettings.layers.title')"
-      :description="t('settings.mapSettings.layers.description')"
-      :frame="false"
-    >
-      <template v-slot:actions>
-        <div class="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <Button variant="outline" size="sm" :disabled="isProd">
-                <PlusIcon class="size-4 mr-2" />
-                {{ t('layers.actions.new') }}
-                <ChevronDownIcon class="size-4 ml-2" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem @click="openLayerConfigDialog">
-                <LayersIcon class="size-4" />
-                {{ t('layers.actions.newLayer') }}
-              </DropdownMenuItem>
-              <DropdownMenuItem @click="openLayerGroupConfigDialog">
-                <FolderIcon class="size-4" />
-                {{ t('layers.actions.newGroup') }}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <Button variant="ghost" size="icon" class="size-8">
-                <MoreHorizontalIcon class="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem @click="restoreDefaults">
-                <RotateCcwIcon class="size-4 mr-2" />
-                {{ t('layers.actions.restoreDefaults') }}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </template>
+  <Teleport v-if="hasTeleportTarget" to="#library-tab-actions">
+    <DropdownMenu>
+      <DropdownMenuTrigger as-child>
+        <Button variant="ghost" size="icon" class="size-7" :disabled="isProd">
+          <PlusIcon class="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem @click="openLayerConfigDialog()">
+          <LayersIcon class="size-4" />
+          {{ t('layers.actions.newLayer') }}
+        </DropdownMenuItem>
+        <DropdownMenuItem @click="openLayerGroupConfigDialog()">
+          <FolderIcon class="size-4" />
+          {{ t('layers.actions.newGroup') }}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+    <DropdownMenu>
+      <DropdownMenuTrigger as-child>
+        <Button variant="ghost" size="icon" class="size-7">
+          <MoreHorizontalIcon class="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem @click="restoreDefaults">
+          <RotateCcwIcon class="size-4" />
+          {{ t('layers.actions.restoreDefaults') }}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  </Teleport>
 
-      <div class="space-y-1 h-full">
-        <!-- Main Reorderable List (Ungrouped Layers + Groups) -->
+  <TooltipProvider>
+    <div class="h-full flex flex-col">
+      <div class="space-y-1 flex-1 min-h-0">
         <draggable
           v-if="draggableItems?.length > 0"
           v-model="draggableItems"
@@ -224,7 +210,6 @@ async function handleMainChange(evt: any) {
               "
               class="relative draggable-item"
             >
-              <!-- Layer Group -->
               <LayerGroupItem
                 v-if="!('groupId' in element)"
                 :group="getGroupForElement(element)"
@@ -232,15 +217,13 @@ async function handleMainChange(evt: any) {
                 @toggle-expanded="toggleGroup"
               />
 
-              <!-- Ungrouped Layer -->
-              <div v-else class="border border-border rounded-lg bg-background">
+              <div v-else class="border rounded-lg bg-background">
                 <LayerItemComponent :layer="element" />
               </div>
             </div>
           </template>
         </draggable>
 
-        <!-- Empty State -->
         <div
           v-if="!draggableItems?.length"
           class="text-center py-8 text-muted-foreground"
@@ -249,7 +232,7 @@ async function handleMainChange(evt: any) {
           <p class="text-sm">{{ t('layers.empty.message') }}</p>
         </div>
       </div>
-    </SettingsSection>
+    </div>
   </TooltipProvider>
 </template>
 

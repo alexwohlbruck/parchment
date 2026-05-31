@@ -3,7 +3,12 @@ export type { Permission, NewPermission } from '../schema/permissions.schema'
 export enum PermissionId {
   USERS_READ = 'users:read',
   USERS_CREATE = 'users:create',
+  USERS_UPDATE = 'users:update',
+  USERS_DELETE = 'users:delete',
   ROLES_READ = 'roles:read',
+  ROLES_CREATE = 'roles:create',
+  ROLES_WRITE = 'roles:write',
+  ROLES_DELETE = 'roles:delete',
   PERMISSIONS_READ = 'permissions:read',
   SYSTEM_READ = 'system:read', // TODO
   INTEGRATIONS_READ_USER = 'integrations:read:user',

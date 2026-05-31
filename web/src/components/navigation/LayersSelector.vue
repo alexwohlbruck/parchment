@@ -176,7 +176,7 @@ const allLayers = computed(() => {
             :value="basemapId"
             :aria-label="`Switch to ${basemap.name}`"
             variant="outline"
-            class="flex flex-col items-center gap-2 p-3 h-16 justify-center text-center transition-all duration-200 hover:bg-accent/50 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm"
+            class="flex flex-col items-center gap-2 p-3 h-16 justify-center text-center transition-all duration-200 hover:bg-muted data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm"
           >
             <component :is="basemap.icon" class="size-4 shrink-0" />
             <span class="font-medium text-xs leading-tight">{{
@@ -205,7 +205,7 @@ const allLayers = computed(() => {
           }`"
           :default-value="item.visible || false"
           @update:model-value="item.toggleFn"
-          class="flex flex-col items-center gap-2 p-3 h-16 justify-center text-center transition-all duration-200 hover:bg-accent/50 data-[state=on]:bg-primary/10 data-[state=on]:text-primary data-[state=on]:border-primary/50 group relative"
+          class="flex flex-col items-center gap-2 p-3 h-16 justify-center text-center transition-all duration-200 hover:bg-muted data-[state=on]:bg-primary/10 data-[state=on]:text-primary data-[state=on]:border-primary/50 group relative"
         >
           <!-- Group indicator badge -->
           <div
@@ -234,7 +234,7 @@ const allLayers = computed(() => {
           aria-label="Toggle OSM Notes layer"
           :default-value="notesStore.isLayerVisible"
           @update:model-value="(v: boolean) => (notesStore.isLayerVisible = v)"
-          class="flex flex-col items-center gap-2 p-3 h-16 justify-center text-center transition-all duration-200 hover:bg-accent/50 data-[state=on]:bg-primary/10 data-[state=on]:text-primary data-[state=on]:border-primary/50 group relative"
+          class="flex flex-col items-center gap-2 p-3 h-16 justify-center text-center transition-all duration-200 hover:bg-muted data-[state=on]:bg-primary/10 data-[state=on]:text-primary data-[state=on]:border-primary/50 group relative"
         >
           <div class="flex flex-col items-center gap-1 min-w-0 w-full">
             <MessageSquareIcon

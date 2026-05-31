@@ -384,7 +384,7 @@ defineExpose({
               <IconPicker
                 :model-value="{
                   icon: getIconStringFromComponent(value) || 'Layers3Icon',
-                  color: 'blue',
+                  color: 'cobalt',
                 }"
                 @update:model-value="
                   newValue => {

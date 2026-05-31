@@ -10,12 +10,8 @@ import {
   RecoveryKeyDialog,
 } from '@/components/friends'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Users, Inbox, AtSign } from 'lucide-vue-next'
-import { Card, CardContent } from '@/components/ui/card'
-import { Code } from '@/components/ui/code'
 import { Button } from '@/components/ui/button'
-import CopyButton from '@/components/CopyButton.vue'
-import { useRouter } from 'vue-router'
+import { UserPlusIcon } from 'lucide-vue-next'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
@@ -26,9 +22,9 @@ const canAccessFriends = computed(() => authService.hasPermission(PermissionId.S
 
 const friendsStore = useFriendsStore()
 const identityStore = useIdentityStore()
-const router = useRouter()
 
 const { isSetupComplete, needsImport, handle } = storeToRefs(identityStore)
+const { pendingIncomingCount } = storeToRefs(friendsStore)
 
 const showAddFriendDialog = ref(false)
 const showRecoveryKeyDialog = ref(false)
@@ -83,26 +79,31 @@ function handleSetupIdentity() {
   <PanelLayout>
     <template v-if="canAccessFriends">
       <h1 class="text-2xl font-semibold mb-3">Friends</h1>
-      <Tabs default-value="friends" class="flex-1 flex flex-col gap-4">
-        <TabsList class="w-full">
-          <TabsTrigger value="friends" class="flex-1 gap-2">
-            <Users class="h-4 w-4" />
-            Friends
-          </TabsTrigger>
-          <TabsTrigger value="invitations" class="flex-1 gap-2">
-            <Inbox class="h-4 w-4" />
-            Invitations
-          </TabsTrigger>
-        </TabsList>
+      <Tabs default-value="friends" class="flex-1 flex flex-col">
+        <div class="-mx-3 px-3 flex items-end border-b" style="width: calc(100% + 1.5rem)">
+          <TabsList variant="linear" class="border-b-0">
+            <TabsTrigger value="friends" variant="linear">
+              Friends
+            </TabsTrigger>
+            <TabsTrigger value="invitations" variant="linear" :count="pendingIncomingCount || null">
+              Invitations
+            </TabsTrigger>
+          </TabsList>
+          <div class="flex items-center ml-auto pb-1">
+            <Button variant="ghost" size="icon" class="size-7" @click="handleAddFriend">
+              <UserPlusIcon class="size-4" />
+            </Button>
+          </div>
+        </div>
 
-        <TabsContent value="friends" class="flex-1 mt-4">
+        <TabsContent value="friends" class="flex-1 pt-1.5">
           <FriendsList
             @add-friend="handleAddFriend"
             @setup-identity="handleSetupIdentity"
           />
         </TabsContent>
 
-        <TabsContent value="invitations" class="flex-1 mt-4">
+        <TabsContent value="invitations" class="flex-1 pt-3">
           <FriendInvitations />
         </TabsContent>
       </Tabs>

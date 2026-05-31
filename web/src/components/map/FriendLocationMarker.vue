@@ -143,7 +143,7 @@ const batteryLow = computed(() => {
           <p
             v-if="batteryPercent != null"
             class="text-xs flex items-center gap-1"
-            :class="batteryLow ? 'text-orange-500' : 'text-muted-foreground'"
+            :class="batteryLow ? 'text-compass-500' : 'text-muted-foreground'"
           >
             <component
               :is="batteryCharging ? BatteryChargingIcon : BatteryIcon"
@@ -204,7 +204,7 @@ const batteryLow = computed(() => {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #22c55e;
+  background: #7ca06a;
   border: 2px solid white;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }

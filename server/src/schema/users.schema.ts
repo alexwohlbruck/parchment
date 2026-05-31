@@ -23,6 +23,7 @@ export const users = pgTable('users', {
   // encrypts all rows and bumps this counter.
   kmVersion: integer('km_version').notNull().default(1),
   polarCustomerId: text('polar_customer_id').unique(),
+  onboardingCompletedAt: timestamp('onboarding_completed_at'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })

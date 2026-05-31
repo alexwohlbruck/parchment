@@ -25,7 +25,7 @@ const isRootSettingsPage = computed(() => {
 </script>
 
 <template>
-  <div ref="settingsRoot" class="flex overflow-y-hidden gap-4 h-full">
+  <div ref="settingsRoot" class="flex overflow-y-hidden h-full">
     <Navigation v-if="isRootSettingsPage || !isMobileScreen" />
     <SettingsPage v-if="!isRootSettingsPage || !isMobileScreen" />
   </div>

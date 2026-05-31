@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { AppRoute } from '@/router'
 import { useI18n } from 'vue-i18n'
 import { toast } from 'vue-sonner'
@@ -28,7 +28,6 @@ import ParchmentLogo from '@/assets/parchment.svg?component'
 import AccountDropdown from '@/components/navigation/AccountDropdown.vue'
 import {
   CornerUpRightIcon,
-  CloudOffIcon,
   UsersRoundIcon,
   SettingsIcon,
   PanelLeftIcon,
@@ -37,6 +36,7 @@ import {
   SearchIcon,
   MegaphoneIcon,
   HistoryIcon,
+  LayoutDashboardIcon,
 } from 'lucide-vue-next'
 import UpdateBanner from '@/components/navigation/UpdateBanner.vue'
 import { useHotkeys } from '@/composables/useHotkeys'
@@ -58,12 +58,15 @@ const { isFullscreen } = useFullscreen()
 const commandService = useCommandService()
 const commandStore = useCommandStore()
 
+const route = useRoute()
 const mini = defineModel('mini', { type: Boolean, default: true })
 const navRef = ref<HTMLElement | null>(null)
 const appStore = useAppStore()
 const { width: windowWidth, height: windowHeight } = useWindowSize()
 const paletteDialogOpen = ref(false)
 const paletteDialogRef = ref<InstanceType<typeof Palette> | null>(null)
+
+const isDashboard = computed(() => route.name === AppRoute.DASHBOARD)
 
 const isTauriDesktop = ref(false)
 const updateDismissed = ref(false)
@@ -197,14 +200,16 @@ function handleNavClick(to: string) {
 }
 
 function openPalette(withSearch = false) {
+  if (isDashboard.value) {
+    appEventBus.emit('palette:focus')
+    return
+  }
   paletteDialogOpen.value = true
   if (withSearch) {
-    // Active search command
     commandService.executeCommand(commandStore.getCommand(CommandName.SEARCH)!)
   }
 }
 
-// If command is executed with hotkey, open the palette
 const handlePaletteOpen = () => {
   openPalette()
 }
@@ -232,6 +237,11 @@ const items = computed<MenuItemDefinition[]>(() => [
         commandId: CommandName.SEARCH,
       },
       {
+        label: t('dashboard.title'),
+        icon: LayoutDashboardIcon,
+        to: '/dashboard',
+      },
+      {
         label: t('directions.title'),
         icon: CornerUpRightIcon,
         // hotkey: ['d'],
@@ -242,12 +252,6 @@ const items = computed<MenuItemDefinition[]>(() => [
         icon: LibraryIcon,
         // hotkey: ['l'],
         to: '/library',
-      },
-      {
-        label: t('offlineMaps.title'),
-        // hotkey: ['o'],
-        icon: CloudOffIcon,
-        to: '/offline',
       },
       {
         label: t('friends.title'),
@@ -301,7 +305,7 @@ const items = computed<MenuItemDefinition[]>(() => [
       ref="navRef"
       :class="
         cn(
-          'overflow-y-auto py-1 border-border border-r flex flex-col gap-2 items-stretch relative',
+          'overflow-y-auto py-1 border-r flex flex-col gap-2 items-stretch relative',
           isTauri ? 'tauri-translucent' : 'bg-background',
           $attrs.class ?? '',
         )
@@ -322,7 +326,7 @@ const items = computed<MenuItemDefinition[]>(() => [
           class="flex items-center gap-3 hover:opacity-85 dark:hover:opacity-90 transition-opacity cursor-pointer"
         >
           <ParchmentLogo
-            class="w-5 h-11 scale-150 text-primary"
+            class="w-5 h-11 scale-150 text-primary shrink-0"
             aria-label="Parchment"
           />
           <span
@@ -337,7 +341,7 @@ const items = computed<MenuItemDefinition[]>(() => [
       <CommandDialog
         v-model:open="paletteDialogOpen"
         modal
-        class="top-[20%] translate-y-0"
+        class="top-[20%] bottom-auto"
       >
         <Palette
           ref="paletteDialogRef"
@@ -420,10 +424,10 @@ const items = computed<MenuItemDefinition[]>(() => [
                   <TooltipTrigger as-child>
                     <Button
                       variant="ghost"
-                      class="w-full flex px-3 justify-center gap-3 hover:bg-primary/5 hover:text-primary"
+                      :class="cn('w-full flex px-3 gap-3 hover:bg-primary/5 hover:text-primary', mini ? 'justify-center' : 'justify-start')"
                       @click="subitem.onClick()"
                     >
-                      <component :is="subitem.icon" class="size-5" />
+                      <component :is="subitem.icon" class="size-5 shrink-0" />
                       <div v-if="!mini" class="flex flex-1 gap-1 text-nowrap">
                         <div class="flex-1 text-left">
                           {{ subitem.label }}
@@ -478,18 +482,13 @@ const items = computed<MenuItemDefinition[]>(() => [
                   <TooltipTrigger as-child>
                     <Button
                       variant="ghost"
-                      class="w-full flex px-3 justify-center gap-3 hover:bg-primary/5 hover:text-primary"
-                      :class="
-                        router.currentRoute.value.path.startsWith(subitem.to)
-                          ? 'bg-primary/10 text-primary'
-                          : ''
-                      "
+                      :class="cn('w-full flex px-3 gap-3 hover:bg-primary/5 hover:text-primary', mini ? 'justify-center' : 'justify-start', router.currentRoute.value.path.startsWith(subitem.to) ? 'bg-primary/10 text-primary' : '')"
                       @click="handleNavClick(subitem.to)"
                     >
-                      <component :is="subitem.icon" class="size-5" />
+                      <component :is="subitem.icon" class="size-5 shrink-0" />
 
                       <div v-if="!mini" class="flex flex-1 gap-1 text-nowrap">
-                        <div class="flex-1">
+                        <div class="flex-1 text-left">
                           {{ subitem.label }}
                         </div>
 

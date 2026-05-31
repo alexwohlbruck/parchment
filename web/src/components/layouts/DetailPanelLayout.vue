@@ -34,9 +34,9 @@ const emit = defineEmits<{
         </Button>
 
         <div class="flex-1 min-w-0">
-          <h1 v-if="title" class="text-lg font-semibold truncate">
+          <p v-if="title" class="text-lg font-semibold truncate">
             {{ title }}
-          </h1>
+          </p>
           <slot name="title" />
         </div>
 

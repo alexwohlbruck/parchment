@@ -58,7 +58,7 @@ const osmUserUrl = computed(() => {
     v-if="isAction && !comment.text"
     class="flex items-center gap-2 text-xs text-muted-foreground py-1"
   >
-    <span class="h-px flex-1 bg-border border-border" />
+    <span class="h-px flex-1 bg-border" />
     <span>
       <a
         v-if="osmUserUrl"
@@ -76,13 +76,13 @@ const osmUserUrl = computed(() => {
           : t('notes.actionReopened')
       }}
     </span>
-    <span class="h-px flex-1 bg-border border-border" />
+    <span class="h-px flex-1 bg-border" />
   </div>
 
   <!-- Comment card -->
   <div
     v-else
-    class="rounded-lg border border-border bg-card text-card-foreground p-3"
+    class="rounded-lg border bg-card text-card-foreground p-3"
   >
     <div class="flex gap-2">
       <Avatar size="xs" class="shrink-0 mt-0.5">

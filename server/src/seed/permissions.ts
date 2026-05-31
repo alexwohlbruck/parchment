@@ -20,8 +20,33 @@ export const permissions: {
     name: 'Invite new user',
   },
   {
+    id: PermissionId.USERS_UPDATE,
+    name: 'Edit users',
+    description: 'Update user profiles and role assignments',
+  },
+  {
+    id: PermissionId.USERS_DELETE,
+    name: 'Delete users',
+    description: 'Remove users from the system',
+  },
+  {
     id: PermissionId.ROLES_READ,
     name: 'Read user roles',
+  },
+  {
+    id: PermissionId.ROLES_CREATE,
+    name: 'Create roles',
+    description: 'Create new custom roles',
+  },
+  {
+    id: PermissionId.ROLES_WRITE,
+    name: 'Edit roles',
+    description: 'Update custom role names, descriptions, and permission assignments',
+  },
+  {
+    id: PermissionId.ROLES_DELETE,
+    name: 'Delete roles',
+    description: 'Remove custom roles from the system',
   },
   {
     id: PermissionId.PERMISSIONS_READ,

@@ -58,7 +58,7 @@ function handleMouseLeave(event: MouseEvent) {
   >
     <!-- Stop name label (Apple Maps style) -->
     <div 
-      class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-white/95 backdrop-blur-sm rounded-md shadow-lg border border-gray-200 whitespace-nowrap transition-all duration-200"
+      class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-white/95 backdrop-blur-sm rounded-md shadow-lg border border-black/10 whitespace-nowrap transition-all duration-200"
       :class="{
         'scale-110 shadow-xl': props.isHovered,
         'scale-100': !props.isHovered

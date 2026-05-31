@@ -106,7 +106,7 @@ async function saveName() {
               <span class="text-sm font-semibold leading-4">
                 {{ displayName }}
               </span>
-              <span class="text-xs text-gray-500 leading-4">
+              <span class="text-xs text-muted-foreground leading-4">
                 {{ me.email }}
               </span>
             </div>

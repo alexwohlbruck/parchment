@@ -30,7 +30,7 @@ const emit = defineEmits<{
     </div>
     <CheckCircleIcon
       v-if="note.status === 'closed'"
-      class="absolute -bottom-1 -right-1 size-3 text-green-500 fill-white dark:fill-[#0C0C0C] drop-shadow-sm"
+      class="absolute -bottom-1 -right-1 size-3 text-forest-500 fill-white dark:fill-[#0C0C0C] drop-shadow-sm"
     />
   </div>
 </template>

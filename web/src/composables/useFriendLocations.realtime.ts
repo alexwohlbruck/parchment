@@ -24,10 +24,13 @@ import { registerRealtimeHandlers } from '@/lib/realtime-events'
 
 function applyUpdate(payload: unknown) {
   if (!isEncryptedLocationPayload(payload)) {
-    console.warn('[realtime] Ignoring malformed location:updated payload')
+    console.warn('[realtime] Ignoring malformed location:updated payload', payload)
     return
   }
-  useFriendLocations().applyEncryptedLocation(payload)
+  const result = useFriendLocations().applyEncryptedLocation(payload)
+  if (!result) {
+    console.warn('[realtime] applyEncryptedLocation returned null — decrypt failed or missing keys')
+  }
 }
 
 function applyCleared(payload: unknown) {

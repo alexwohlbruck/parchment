@@ -1,6 +1,6 @@
 {
   "name": "parchment",
-  "version": "0.2.0-2",
+  "version": "0.3.0",
   "scripts": {
     "dev": "bun src/index.ts --watch",
     "build:emails": "cd emails && bun install && npx maizzle build production",
@@ -60,6 +60,7 @@
     "pluscodes": "^2.6.0",
     "postgres": "^3.4.5",
     "qs": "^6.14.0",
+    "sharp": "^0.34.5",
     "ua-parser-js": "^2.0.9",
     "ws": "^8.18.3"
   },

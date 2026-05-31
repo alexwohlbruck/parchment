@@ -499,7 +499,7 @@ const icon = computed(() => {
           </Tooltip>
           <Tooltip v-if="integration.cloud">
             <TooltipTrigger as-child>
-              <span class="text-[10px] p-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 font-semibold flex items-center gap-0.5">
+              <span class="text-[10px] p-0.5 rounded-full bg-cobalt-100 text-cobalt-700 dark:bg-cobalt-900 dark:text-cobalt-300 font-semibold flex items-center gap-0.5">
                 <CloudIcon class="size-3" />
               </span>
             </TooltipTrigger>
@@ -509,7 +509,7 @@ const icon = computed(() => {
           </Tooltip>
           <Tooltip v-if="integration.scope">
             <TooltipTrigger as-child>
-              <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-100 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 font-semibold flex items-center gap-0.5">
+              <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-semibold flex items-center gap-0.5">
                 <UserIcon
                   v-if="integration.scope.includes(IntegrationScope.USER)"
                   class="size-3"
@@ -555,7 +555,7 @@ const icon = computed(() => {
     </div>
     <div
       v-if="integration.capabilities?.length > 0"
-      class="bg-muted/50 border-t border-border mt-auto"
+      class="bg-muted/50 border-t mt-auto"
     >
       <div
         class="flex flex-nowrap gap-2 px-2 py-3 overflow-x-auto scrollbar-hidden"

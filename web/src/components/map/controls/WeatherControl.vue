@@ -253,18 +253,18 @@ const aqiBadgeClass = computed(() => {
 
   if (unitSystem.value === UnitSystem.METRIC) {
     // European AQI color scale (1-5)
-    if (aqi === 1) return 'bg-green-500 text-white' // Good
-    if (aqi === 2) return 'bg-yellow-400 text-white' // Fair
-    if (aqi === 3) return 'bg-orange-500 text-white' // Moderate
-    if (aqi === 4) return 'bg-red-500 text-white' // Poor
-    return 'bg-purple-600 text-white' // Very Poor (5)
+    if (aqi === 1) return 'bg-forest-500 text-white' // Good
+    if (aqi === 2) return 'bg-amber-400 text-white' // Fair
+    if (aqi === 3) return 'bg-compass-500 text-white' // Moderate
+    if (aqi === 4) return 'bg-coral-500 text-white' // Poor
+    return 'bg-violet-600 text-white' // Very Poor (5)
   } else {
     // US EPA AQI color scale (0-500)
-    if (aqi <= 50) return 'bg-green-500 text-white' // Good
-    if (aqi <= 100) return 'bg-yellow-400 text-white' // Moderate
-    if (aqi <= 150) return 'bg-orange-500 text-white' // Unhealthy for Sensitive Groups
-    if (aqi <= 200) return 'bg-red-500 text-white' // Unhealthy
-    if (aqi <= 300) return 'bg-purple-600 text-white' // Very Unhealthy
+    if (aqi <= 50) return 'bg-forest-500 text-white' // Good
+    if (aqi <= 100) return 'bg-amber-400 text-white' // Moderate
+    if (aqi <= 150) return 'bg-compass-500 text-white' // Unhealthy for Sensitive Groups
+    if (aqi <= 200) return 'bg-coral-500 text-white' // Unhealthy
+    if (aqi <= 300) return 'bg-violet-600 text-white' // Very Unhealthy
     return 'bg-maroon-800 text-white' // Hazardous
   }
 })

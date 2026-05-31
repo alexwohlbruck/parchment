@@ -190,7 +190,7 @@ function handleClose() {
       <template v-else-if="step === 'done'">
         <DialogHeader>
           <DialogTitle class="flex items-center gap-2">
-            <Check class="h-5 w-5 text-green-600" />
+            <Check class="h-5 w-5 text-forest-600" />
             {{ t('friends.rotateKeys.doneTitle') }}
           </DialogTitle>
           <DialogDescription>

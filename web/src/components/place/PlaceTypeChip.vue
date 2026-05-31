@@ -31,7 +31,7 @@ const color = computed(() => {
 
 <template>
   <button
-    class="inline-flex items-center gap-1 rounded-full border border-border pl-0.5 pr-2 py-0.5 bg-background transition-colors"
+    class="inline-flex items-center gap-1 rounded-full border pl-0.5 pr-2 py-0.5 bg-background transition-colors"
     @click="$emit('click')"
   >
     <ItemIcon

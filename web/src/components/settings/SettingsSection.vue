@@ -27,14 +27,15 @@ const {
     :data-section-id="id"
     :class="
       cn(
-        'flex flex-col gap-2 w-full settings-section-target',
+        'flex flex-col gap-3 w-full settings-section-target',
+        !frame && 'flex-1 min-h-0',
         className,
       )
     "
   >
     <div
       v-if="title || description"
-      class="sticky top-0 z-10 -mx-2 px-2 pt-2 pb-1.5 flex justify-between items-center bg-background border-b border-border"
+      class="sticky top-0 z-10 -mx-4 px-4 md:-ml-6 md:pl-6 pt-2 pb-1.5 flex justify-between items-center bg-background border-b"
     >
       <div>
         <H5 v-if="title">{{ title }}</H5>
@@ -47,7 +48,7 @@ const {
       <slot></slot>
     </Card>
 
-    <div v-else class="w-full h-full flex flex-col gap-4">
+    <div v-else class="w-full flex-1 min-h-0 flex flex-col gap-4">
       <slot></slot>
     </div>
   </div>

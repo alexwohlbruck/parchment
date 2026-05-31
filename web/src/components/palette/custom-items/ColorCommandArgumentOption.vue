@@ -1,13 +1,14 @@
 <script lang="ts" setup>
 import { computed, toRefs } from 'vue'
 import { CommandArgumentOption } from '@/types/command.types'
-import { colors } from '@/lib/registry/colors'
+import { palette } from '@/lib/palette'
+import type { PaletteColor } from '@/lib/palette'
 
 const props = defineProps<{
   argumentOption: CommandArgumentOption
 }>()
 const { argumentOption } = toRefs(props)
-const color = computed(() => colors[argumentOption.value.value][6].hsl)
+const color = computed(() => palette[argumentOption.value.value as PaletteColor]?.[600] ?? palette.cobalt[600])
 </script>
 
 <template>

@@ -152,9 +152,9 @@ function getFriendDisplayName(handle: string): string {
 
         <!-- E2EE notice -->
         <div class="flex items-start gap-3 p-4 rounded-lg bg-muted/50">
-          <Shield class="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
+          <Shield class="h-5 w-5 text-forest-500 shrink-0 mt-0.5" />
           <div class="text-sm">
-            <p class="font-medium text-green-700 dark:text-green-400">
+            <p class="font-medium text-forest-700 dark:text-forest-400">
               {{ t('friends.e2ee.title') }}
             </p>
             <p class="text-muted-foreground">

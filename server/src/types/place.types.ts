@@ -132,8 +132,17 @@ export interface TransitDeparture {
 }
 
 export interface TransitStopInfo {
-  onestopId: string
-  onestopIds?: string[] // For transfer hubs with multiple platforms
+  /** @deprecated Use stopId/feedId or coordinates instead */
+  onestopId?: string
+  /** @deprecated Use stopId/feedId or coordinates instead */
+  onestopIds?: string[]
+  /** GTFS stop ID (from Barrelman/MOTIS) */
+  stopId?: string
+  /** GTFS feed ID (from Barrelman/MOTIS) */
+  feedId?: string
+  /** Coordinates for spatial stop lookup */
+  lat?: number
+  lng?: number
   name?: string
   code?: string
   description?: string

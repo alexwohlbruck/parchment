@@ -13,7 +13,8 @@ import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { CheckIcon } from 'lucide-vue-next'
 import { useThemeStore, allColors } from '@/stores/theme.store'
-import { colors } from '@/lib/registry/colors'
+import { palette } from '@/lib/palette'
+import type { PaletteColor } from '@/lib/palette'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { SettingsSection, SettingsItem } from '@/components/settings'
@@ -47,7 +48,7 @@ const handleColorChange = (value: any) => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 w-fit">
+  <div class="flex flex-col gap-4">
     <SettingsSection
       id="app-theme"
       :title="$t('settings.appearance.appTheme.title')"
@@ -70,7 +71,7 @@ const handleColorChange = (value: any) => {
                 <div class="flex items-center gap-2">
                   <div
                     class="w-2.5 h-2.5 rounded-full"
-                    :style="{ backgroundColor: colors[color][5].rgb }"
+                    :style="{ backgroundColor: palette[color as PaletteColor]?.[500] }"
                   ></div>
                   <Span>{{
                     $t(`settings.appearance.appTheme.color.values.${color}`)

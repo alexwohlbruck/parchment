@@ -84,6 +84,7 @@ const isDrawerOpen = computed(() => {
 // For async argument options
 const argumentOptions = ref<CommandArgumentOption[]>([])
 const loadingOptions = ref(false)
+let loadingTimer: ReturnType<typeof setTimeout> | null = null
 const { nextSignal } = useAbortController()
 
 const container = ref<HTMLElement>()
@@ -173,7 +174,9 @@ function closeDrawer() {
 }
 
 function resetOrClose() {
-  if (activeArgument.value) {
+  if (query.value) {
+    clearInput()
+  } else if (activeArgument.value) {
     resetCommand()
   } else if (showResults.value) {
     closePalette()
@@ -221,7 +224,7 @@ function inputFocused(event: FocusEvent) {
 // TODO: Come up with better method
 // TODO: Fix type error
 onClickOutside(container as any, event => {
-  showResults.value = false
+  closePalette()
   resetCommand()
 })
 
@@ -259,21 +262,21 @@ async function onArgumentSelected(value: ArgumentType) {
 async function loadArgumentOptions(signal?: AbortSignal) {
   if (!activeArgument.value) return
 
-  loadingOptions.value = true
+  if (loadingTimer) clearTimeout(loadingTimer)
+  loadingTimer = setTimeout(() => { loadingOptions.value = true }, 400)
   try {
     const items = activeArgument.value.getItems(undefined, signal)
-    // Check if result is a Promise
     if (items instanceof Promise) {
       argumentOptions.value = await items
     } else {
       argumentOptions.value = items
     }
   } catch (error) {
-    // Ignore cancellation — a newer request is already in flight
     if (error instanceof DOMException && error.name === 'AbortError') return
     console.error('Error loading argument options:', error)
     argumentOptions.value = []
   } finally {
+    if (loadingTimer) clearTimeout(loadingTimer)
     loadingOptions.value = false
   }
 }
@@ -357,7 +360,7 @@ const filterFunction = computed(() => {
 <template>
   <div ref="container">
     <Command
-      class="border border-border bg-background/85 backdrop-blur-xl backdrop-saturate-150"
+      class="border bg-background/85 backdrop-blur-xl backdrop-saturate-150"
       ref="commandPalette"
       v-model:open="commandOpen"
       :ignore-filter="true"
@@ -388,8 +391,7 @@ const filterFunction = computed(() => {
                 class="absolute flex gap-1 transition-all duration-200"
                 :class="showResults || isDrawerOpen ? 'right-6' : 'right-0'"
               >
-                <!-- TODO: Detect if device has keyboard -->
-                <!-- <Kbd commandId="search"></Kbd> -->
+                <Kbd :hotkey="['mod', 'k']" size="xs" />
               </div>
             </transition-slide>
             <transition-slide :duration="200" :offset="['100%', 0]">
@@ -424,7 +426,7 @@ const filterFunction = computed(() => {
                   {{ command.name
                   }}<template v-if="command.arguments">...</template>
                 </span>
-                <span class="text-sm text-gray-500" v-if="command.description">
+                <span class="text-sm text-muted-foreground" v-if="command.description">
                   {{ command.description }}
                 </span>
               </div>
@@ -452,7 +454,7 @@ const filterFunction = computed(() => {
               <SettingsIcon class="size-5" />
               <div class="flex-1 flex flex-col">
                 <span class="font-semibold">{{ entry.title }}</span>
-                <span class="text-sm text-gray-500">
+                <span class="text-sm text-muted-foreground">
                   {{ entry.pageTitle
                   }}<template v-if="entry.level === 'item'">
                     · {{ entry.sectionTitle }}</template>
@@ -508,7 +510,7 @@ const filterFunction = computed(() => {
                 <div class="flex-1 flex flex-col">
                   <span class="font-semibold">{{ argumentOption.name }}</span>
                   <span
-                    class="text-sm text-gray-500"
+                    class="text-sm text-muted-foreground"
                     v-if="argumentOption.description"
                   >
                     {{ argumentOption.description }}
@@ -563,7 +565,7 @@ const filterFunction = computed(() => {
                     </Badge>
                   </span>
                   <span
-                    class="text-sm text-gray-500"
+                    class="text-sm text-muted-foreground"
                     v-if="argumentOption.description"
                   >
                     {{ argumentOption.description }}
@@ -590,7 +592,7 @@ const filterFunction = computed(() => {
               <SettingsIcon class="size-5 opacity-50" />
               <div class="flex-1 flex flex-col">
                 <span class="font-semibold">{{ entry.title }}</span>
-                <span class="text-sm text-gray-500">
+                <span class="text-sm text-muted-foreground">
                   {{ entry.pageTitle
                   }}<template v-if="entry.level === 'item'">
                     · {{ entry.sectionTitle }}</template>
@@ -604,7 +606,7 @@ const filterFunction = computed(() => {
       <!-- Keyboard shortcut hints -->
       <div
         v-if="showHints"
-        class="flex items-center gap-4 px-3 py-2 text-xs text-muted-foreground bg-muted/50 border-t border-border"
+        class="flex items-center gap-4 px-3 py-2 text-xs text-muted-foreground bg-muted/50 border-t"
       >
         <div class="flex items-center gap-1.5">
           <Kbd :hotkeyId="HotkeyId.COMMAND_PALETTE" size="xs" />

@@ -529,7 +529,7 @@ function handleAnimationEnd(open: boolean) {
         ref="drawerContentRef"
         :class="
           cn(
-            'bg-background rounded-t-md shadow-lg flex flex-col border-t border-border',
+            'bg-background rounded-t-md shadow-lg flex flex-col border-t',
             props.fitContent
               ? 'fixed bottom-0 left-0 right-0 max-h-[calc(100vh-env(safe-area-inset-top))]'
               : 'min-h-full absolute top-0 bottom-0 left-0 right-0',

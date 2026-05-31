@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import type { TransitDeparture, TransitStopInfo } from '@/types/place.types'
 import { Badge } from '@/components/ui/badge'
 import { ClockIcon, NavigationIcon, ExternalLinkIcon } from 'lucide-vue-next'
+import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import { useExternalLink } from '@/composables/useExternalLink'
 import { useTransitClock } from '@/composables/useTransitClock'
 import {
@@ -274,18 +275,13 @@ function openTransitlandLink() {
                 >
                   {{ formatCountdown(minutesUntil(departure), t) }}
                 </span>
-                <span
+                <RealtimeIndicator
                   v-if="departure.realTime"
-                  class="ml-auto inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide"
-                  :style="{ color: getRouteColor(departure.route) }"
-                  :title="t('place.transit.realTimeData')"
-                >
-                  <span
-                    class="h-1.5 w-1.5 rounded-full animate-pulse"
-                    :style="{ backgroundColor: getRouteColor(departure.route) }"
-                  />
-                  {{ t('place.transit.live') }}
-                </span>
+                  class="ml-auto"
+                  :real-time="true"
+                  :delay="departure.delay"
+                  :color="getRouteColor(departure.route)"
+                />
               </li>
             </ul>
 
@@ -316,7 +312,7 @@ function openTransitlandLink() {
     </div>
 
     <!-- Footer: agency + Transitland -->
-    <div class="mt-6 pt-3 border-t border-border space-y-2 text-xs text-muted-foreground">
+    <div class="mt-6 pt-3 border-t space-y-2 text-xs text-muted-foreground">
       <div v-if="departures.length > 0 && departures[0].agency">
         Operated by
         <a
@@ -333,14 +329,8 @@ function openTransitlandLink() {
         class="hover:text-foreground transition-colors flex items-center gap-1"
       >
         <ExternalLinkIcon class="h-3 w-3" />
-        View on Transitland
+        {{ t('place.transit.viewOnTransitland') }}
       </button>
     </div>
   </PanelLayout>
 </template>
-
-<style scoped>
-.font-mono {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
-</style>

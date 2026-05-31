@@ -15,6 +15,7 @@ export enum DialogType {
 
 export type AppEvents = {
   'palette:open': void
+  'palette:focus': void
   'hotkeys:open': void
   'location-config:changed': { friendHandle: string; enabled: boolean }
 }
@@ -30,6 +31,7 @@ export interface ComponentDialogOptions extends BaseDialogOptions {
   component: Component
   props?: Record<string, any>
   destructive?: boolean
+  contentClass?: string
   onContinue?: (payload?: any) => Promise<any>
   footerPrepend?: () => VNode | VNode[]
 }

@@ -32,6 +32,14 @@ export type SelectedMode =
   | 'transit'
   | 'wheelchair'
 
+export type SortPreference =
+  | 'shortest'
+  | 'earliest_arrival'
+  | 'cheapest'
+  | 'fewest_transfers'
+  | 'least_walking'
+  | 'greenest'
+
 export type WaypointType = 'origin' | 'destination' | 'via'
 
 export type OwnershipType = 'personal' | 'shared'
@@ -101,6 +109,7 @@ export interface RoutingPreferences {
   // ── Transit ──
   maxWalkingDistance?: number // meters
   maxTransfers?: number
+  transitBufferMinutes?: number // 1-5, minutes to arrive early at stop
 
   // ── UI state (not sent to routing engine) ──
   useKnownVehicleLocations?: boolean

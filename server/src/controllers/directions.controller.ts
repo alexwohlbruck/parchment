@@ -24,6 +24,10 @@ const WaypointSchema = t.Object({
     t.Literal('destination'),
     t.Literal('via'),
   ]),
+  // Per-waypoint time constraints
+  departAfter: t.Optional(t.String({ format: 'date-time' })),
+  arriveBy: t.Optional(t.String({ format: 'date-time' })),
+  dwellTime: t.Optional(t.Number({ minimum: 0 })),
 })
 
 const VehicleSchema = t.Object({
@@ -80,6 +84,7 @@ const RoutingPreferencesSchema = t.Object({
   // Transit
   maxWalkingDistance: t.Optional(t.Number({ minimum: 0 })),
   maxTransfers: t.Optional(t.Number({ minimum: 0 })),
+  transitBufferMinutes: t.Optional(t.Number({ minimum: 1, maximum: 5 })),
 
   // UI state
   useKnownVehicleLocations: t.Optional(t.Boolean()),
@@ -109,9 +114,19 @@ const SelectedModeSchema = t.Union([
   t.Literal('wheelchair'),
 ] as const)
 
+const SortPreferenceSchema = t.Union([
+  t.Literal('shortest'),
+  t.Literal('earliest_arrival'),
+  t.Literal('cheapest'),
+  t.Literal('fewest_transfers'),
+  t.Literal('least_walking'),
+  t.Literal('greenest'),
+] as const)
+
 const TripRequestSchema = t.Object({
   waypoints: t.Array(WaypointSchema, { minItems: 2 }),
   selectedMode: t.Optional(SelectedModeSchema),
+  sortPreference: t.Optional(SortPreferenceSchema),
   routingPreferences: t.Optional(RoutingPreferencesSchema),
   availableVehicles: t.Optional(t.Array(VehicleSchema)),
   knownAccessPoints: t.Optional(t.Array(AccessPointSchema)),
@@ -143,8 +158,12 @@ app.post(
           address: wp.address,
           label: wp.label,
           type: wp.type as WaypointType,
+          departAfter: wp.departAfter,
+          arriveBy: wp.arriveBy,
+          dwellTime: wp.dwellTime,
         })),
         selectedMode: body.selectedMode,
+        sortPreference: body.sortPreference as any,
         routingPreferences: body.routingPreferences,
         availableVehicles: body.availableVehicles?.map((vehicle) => ({
           id: vehicle.id,

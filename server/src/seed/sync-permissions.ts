@@ -1,49 +1,84 @@
+import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { permissions as permissionsSchema } from '../schema/permissions.schema'
 import { roles as rolesSchema } from '../schema/roles.schema'
 import { roleToPermissions } from '../schema/roles-permissions.schema'
-import { usersToRoles } from '../schema/users-roles.schema'
 import { permissions } from './permissions'
 import { roles } from './roles'
 
 /**
- * Synchronize permissions and roles from code definitions to the database.
- * Safe to call on every server startup — it preserves existing user-role
- * assignments while ensuring the permission and role tables match code.
- * Wrapped in a transaction to prevent a window with no permissions.
+ * Idempotent sync of code-defined permissions and roles to the database.
+ *
+ * - Permissions are upserted (never deleted — custom-assigned ones survive).
+ * - Default roles are upserted with `isDefault: true` (never deleted).
+ * - Default role-permission mappings (`isDefault = true`) are rebuilt from
+ *   code each startup. Custom mappings (`isDefault = false`) added by admins
+ *   through the UI are left untouched.
+ * - User-role assignments are never modified.
  */
 export async function syncPermissionsAndRoles() {
   await db.transaction(async (tx) => {
-    // Snapshot existing user-role assignments so we can restore them
-    const originalRoleAssignments = await tx.select().from(usersToRoles)
-
-    // Recreate permissions and roles from code definitions
-    await tx.delete(roleToPermissions)
-    await tx.delete(usersToRoles)
-    await tx.delete(rolesSchema)
-    await tx.delete(permissionsSchema)
-
-    await tx.insert(permissionsSchema).values(permissions)
-    await tx.insert(rolesSchema).values(roles)
-
-    // Assign permissions to roles
-    for (const role of roles) {
-      const perms = role.permissions === '*' ? permissions.map(p => p.id) : role.permissions
-      for (const permissionId of perms) {
-        await tx.insert(roleToPermissions).values({
-          roleId: role.id,
-          permissionId,
+    // 1. Upsert permissions — add new ones, never delete existing
+    for (const perm of permissions) {
+      await tx
+        .insert(permissionsSchema)
+        .values({ id: perm.id, name: perm.name })
+        .onConflictDoUpdate({
+          target: permissionsSchema.id,
+          set: { name: perm.name },
         })
-      }
     }
 
-    // Restore user-role assignments, filtering out any that reference removed roles
-    const validRoleIds = new Set(roles.map(r => r.id))
-    const validAssignments = originalRoleAssignments.filter(
-      a => validRoleIds.has(a.roleId),
-    )
-    if (validAssignments.length) {
-      await tx.insert(usersToRoles).values(validAssignments)
+    // 2. Upsert default roles — add new ones, update name/description
+    for (const role of roles) {
+      await tx
+        .insert(rolesSchema)
+        .values({
+          id: role.id,
+          name: role.name,
+          description: role.description,
+          isDefault: true,
+        })
+        .onConflictDoUpdate({
+          target: rolesSchema.id,
+          set: {
+            name: role.name,
+            description: role.description,
+            isDefault: true,
+          },
+        })
+    }
+
+    // 3. Rebuild default role-permission mappings only.
+    //    Delete all isDefault=true rows, then reinsert from code.
+    //    Custom mappings (isDefault=false) are preserved.
+    await tx
+      .delete(roleToPermissions)
+      .where(eq(roleToPermissions.isDefault, true))
+
+    // Fetch all permission IDs in the DB for the admin '*' wildcard
+    const allDbPermissions = await tx.select().from(permissionsSchema)
+    const allPermissionIds = allDbPermissions.map((p) => p.id)
+
+    for (const role of roles) {
+      const perms =
+        role.permissions === '*'
+          ? allPermissionIds
+          : role.permissions
+
+      for (const permissionId of perms) {
+        await tx
+          .insert(roleToPermissions)
+          .values({
+            roleId: role.id,
+            permissionId,
+            isDefault: true,
+          })
+          .onConflictDoUpdate({
+            target: [roleToPermissions.roleId, roleToPermissions.permissionId],
+            set: { isDefault: true },
+          })
+      }
     }
   })
 }

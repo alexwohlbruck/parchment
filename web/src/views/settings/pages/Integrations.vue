@@ -542,7 +542,7 @@ onMounted(async () => {
                 'rounded-full text-xs h-7 px-2.5 border font-medium transition-colors cursor-pointer',
                 selectedCapabilities.includes(cap.id)
                   ? 'bg-primary-100 text-primary-800 border-primary-300 dark:bg-primary-800 dark:text-primary-200 dark:border-primary-600 shadow-xs'
-                  : 'bg-transparent text-muted-foreground border-border hover:bg-muted hover:text-foreground',
+                  : 'bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground',
               ]"
               @click="toggleFilter('capability', cap.id)"
             >
@@ -558,7 +558,7 @@ onMounted(async () => {
             <button
               v-for="chip in dropdownFilterChips"
               :key="chip.key"
-              class="inline-flex items-center gap-1 rounded-full border border-border bg-background text-foreground px-2.5 py-0.5 text-xs font-medium hover:bg-muted transition-colors"
+              class="inline-flex items-center gap-1 rounded-full border bg-background text-foreground px-2.5 py-0.5 text-xs font-medium hover:bg-muted transition-colors"
               @click="removeFilter(chip)"
             >
               {{ chip.label }}

@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { defineStore } from 'pinia'
@@ -37,6 +37,10 @@ export const useAuthStore = defineStore('auth', () => {
     sessionId.value = token
   }
 
+  const needsOnboarding = computed(
+    () => me.value != null && me.value.onboardingCompletedAt == null,
+  )
+
   async function setAuthenticatedUser(user: User, _sessionId: Session['id']) {
     me.value = user
     cachedUser.value = user // Persist to localStorage
@@ -45,6 +49,8 @@ export const useAuthStore = defineStore('auth', () => {
     if (isTauri) {
       await deviceStore.setToken(_sessionId)
     }
+
+    if (!user.onboardingCompletedAt) return
 
     router.push(stashedPath.value || { name: AppRoute.MAP })
   }
@@ -93,8 +99,53 @@ export const useAuthStore = defineStore('auth', () => {
     authenticatedUserPromise.value = promise
   }
 
+  // --- Impersonation (dev only) ---
+  const originalSession = ref<{
+    token: string | null
+    user: User
+  } | null>(
+    JSON.parse(sessionStorage.getItem('parchment-original-session') ?? 'null'),
+  )
+
+  const isImpersonating = computed(() => originalSession.value !== null)
+
+  function startImpersonation(newToken: string, newUser: User) {
+    originalSession.value = {
+      token: sessionId.value,
+      user: me.value!,
+    }
+    sessionStorage.setItem(
+      'parchment-original-session',
+      JSON.stringify(originalSession.value),
+    )
+
+    sessionId.value = newToken
+    me.value = newUser
+    cachedUser.value = newUser
+    api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+  }
+
+  function stopImpersonation() {
+    if (!originalSession.value) return
+
+    const orig = originalSession.value
+    sessionId.value = orig.token
+    me.value = orig.user
+    cachedUser.value = orig.user
+
+    if (orig.token) {
+      api.defaults.headers.common['Authorization'] = `Bearer ${orig.token}`
+    } else {
+      delete api.defaults.headers.common['Authorization']
+    }
+
+    originalSession.value = null
+    sessionStorage.removeItem('parchment-original-session')
+  }
+
   return {
     me,
+    needsOnboarding,
     permissions,
     subscription,
     sessionId,
@@ -110,5 +161,8 @@ export const useAuthStore = defineStore('auth', () => {
     sessions,
     setSessions,
     removeSession,
+    isImpersonating,
+    startImpersonation,
+    stopImpersonation,
   }
 })

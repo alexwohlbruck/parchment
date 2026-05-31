@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import dayjs from 'dayjs'
 import duration from 'dayjs/plugin/duration'
-import { onUnmounted } from 'vue'
+import { computed, onUnmounted } from 'vue'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapListener } from '@/composables/useMapListener'
@@ -16,6 +16,7 @@ import {
   SlidersHorizontalIcon,
   TrainFrontIcon,
   TrainIcon,
+  XIcon,
 } from 'lucide-vue-next'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { storeToRefs } from 'pinia'
@@ -24,10 +25,17 @@ import TripsList from './TripsList.vue'
 import RoutingPreferences from './RoutingPreferences.vue'
 import { Spinner } from '@/components/ui/spinner'
 import { Waypoint } from '@/types/map.types'
-import { SelectedMode } from '@/types/multimodal.types'
+import { SelectedMode, SortPreference } from '@/types/multimodal.types'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import { Button } from '@/components/ui/button'
 import ResponsivePopover from '@/components/responsive/ResponsivePopover.vue'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { ref } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { AppRoute } from '@/router'
@@ -37,10 +45,59 @@ dayjs.extend(duration)
 const directionsService = useDirectionsService()
 const directionsStore = useDirectionsStore()
 
-const { waypoints, trips, selectedMode, isLoading, timezoneWarning } =
+const { waypoints, trips, selectedMode, departureTime, sortPreference, isLoading, timezoneWarning } =
   storeToRefs(directionsStore)
 
 const showPreferences = ref(false)
+
+// ── Sort preference ──────────────────────────────────────────────
+const sortOptions: Array<{ value: SortPreference | 'recommended'; label: string }> = [
+  { value: 'recommended', label: 'Balanced' },
+  { value: 'shortest', label: 'Shortest' },
+  { value: 'earliest_arrival', label: 'Earliest arrival' },
+  { value: 'cheapest', label: 'Cheapest' },
+  { value: 'fewest_transfers', label: 'Fewest transfers' },
+  { value: 'least_walking', label: 'Least walking' },
+  { value: 'greenest', label: 'Greenest' },
+]
+
+const selectedSort = computed({
+  get: () => sortPreference.value || 'recommended',
+  set: (val: string) => {
+    sortPreference.value = val === 'recommended' ? null : val as SortPreference
+  },
+})
+
+// ── Departure time controls ───────────────────────────────────────
+const showTimePicker = ref(false)
+
+/** Format the departure time for the datetime-local input */
+const departureTimeLocal = computed({
+  get: () => {
+    if (!departureTime.value) return ''
+    return dayjs(departureTime.value).format('YYYY-MM-DDTHH:mm')
+  },
+  set: (val: string) => {
+    if (!val) {
+      departureTime.value = null
+      return
+    }
+    departureTime.value = new Date(val).toISOString()
+  },
+})
+
+const departureTimeLabel = computed(() => {
+  if (!departureTime.value) return 'Now'
+  const d = dayjs(departureTime.value)
+  const today = dayjs()
+  if (d.isSame(today, 'day')) return `Depart ${d.format('h:mm A')}`
+  return `Depart ${d.format('MMM D, h:mm A')}`
+})
+
+function clearDepartureTime() {
+  departureTime.value = null
+  showTimePicker.value = false
+}
 
 onBeforeRouteLeave(to => {
   // Keep trips alive when drilling into a trip detail — TripDetail needs them.
@@ -118,22 +175,8 @@ useMapListener(
 <template>
   <PanelLayout>
     <div class="space-y-3 flex flex-col">
-      <h1 class="text-2xl font-semibold">Directions</h1>
-      <div class="flex items-center gap-2">
-        <Tabs v-model="selectedMode" class="flex-1">
-          <TabsList class="w-full flex">
-            <TabsTrigger
-              v-for="(mode, i) in modes"
-              :key="i"
-              :value="mode.type"
-              class="grow"
-              :title="mode.label"
-            >
-              <component :is="mode.icon" class="size-5" />
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-
+      <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-semibold">Directions</h1>
         <ResponsivePopover
           v-model:open="showPreferences"
           side="top"
@@ -145,7 +188,7 @@ useMapListener(
         >
           <template #trigger>
             <Button
-              variant="outline"
+              variant="ghost"
               size="icon"
               class="shrink-0"
               :class="showPreferences && 'bg-accent'"
@@ -163,11 +206,72 @@ useMapListener(
           </template>
         </ResponsivePopover>
       </div>
+      <Tabs v-model="selectedMode">
+        <TabsList class="w-full flex">
+          <TabsTrigger
+            v-for="(mode, i) in modes"
+            :key="i"
+            :value="mode.type"
+            class="grow"
+            :title="mode.label"
+          >
+            <component :is="mode.icon" class="size-5" />
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       <WaypointInput
         :model-value="waypoints"
         @update:modelValue="directionsService.setWaypoints"
       />
+
+      <!-- Departure time + sort preference -->
+      <div class="flex items-center gap-1.5">
+        <Button
+          variant="outline"
+          size="sm"
+          class="h-7 text-xs gap-1.5 font-normal"
+          :class="departureTime ? 'pr-1' : ''"
+          @click="showTimePicker = !showTimePicker"
+        >
+          <ClockIcon class="size-3.5" />
+          {{ departureTimeLabel }}
+          <span
+            v-if="departureTime"
+            class="ml-0.5 p-0.5 rounded hover:bg-muted"
+            @click.stop="clearDepartureTime"
+          >
+            <XIcon class="size-3" />
+          </span>
+        </Button>
+
+        <div class="flex-1" />
+
+        <Select v-model="selectedSort">
+          <SelectTrigger class="h-7 w-[150px] text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem
+              v-for="opt in sortOptions"
+              :key="opt.value"
+              :value="opt.value"
+              class="text-xs"
+            >
+              {{ opt.label }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div v-if="showTimePicker" class="flex items-center gap-2">
+        <input
+          type="datetime-local"
+          class="flex-1 h-8 px-2 text-xs rounded-md border border-input bg-background ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          :value="departureTimeLocal"
+          @input="(e: any) => departureTimeLocal = e.target.value"
+        />
+      </div>
     </div>
 
     <!-- Timezone warning -->

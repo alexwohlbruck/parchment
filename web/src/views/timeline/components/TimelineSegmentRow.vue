@@ -35,6 +35,33 @@ const modeIcon = computed(() => {
 
 const modeColor = computed(() => getTravelModeColor(props.segment.mode))
 
+const modeVerb = computed(() => {
+  switch (props.segment.mode) {
+    case TravelMode.DRIVING:
+    case TravelMode.MOTORCYCLE:
+    case TravelMode.TRUCK:
+      return 'Drove'
+    case TravelMode.CYCLING:
+      return 'Cycled'
+    case TravelMode.TRANSIT:
+      return 'Transit'
+    case TravelMode.WHEELCHAIR:
+      return 'Traveled'
+    case TravelMode.WALKING:
+    default:
+      return 'Walked'
+  }
+})
+
+const timeLabel = computed(() => {
+  const d = new Date(props.segment.startTime)
+  const h = d.getHours()
+  const m = d.getMinutes()
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const h12 = h % 12 || 12
+  return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`
+})
+
 const distanceLabel = computed(() => {
   const km = props.segment.distance / 1000
   if (km < 1) return `${Math.round(props.segment.distance)} m`
@@ -46,29 +73,32 @@ const durationLabel = computed(() => {
   if (totalMin < 60) return `${totalMin} min`
   const hours = Math.floor(totalMin / 60)
   const min = totalMin % 60
-  return min === 0 ? `${hours} hr` : `${hours} hr ${min} min`
+  return min === 0 ? `${hours}h` : `${hours}h ${min}m`
+})
+
+const title = computed(() => {
+  if (props.segment.toStopId) {
+    return `${modeVerb.value}`
+  }
+  return modeVerb.value
 })
 </script>
 
 <template>
-  <div class="relative flex items-center gap-2.5 px-3 py-1.5 text-xs">
-    <!-- Mode-coloured thread that runs full row height, aligned with the
-         centre of neighbouring stop ItemIcons. Continuous with the muted
-         thread on stop rows so the whole list reads as one timeline. -->
-    <div
-      aria-hidden="true"
-      class="absolute top-0 bottom-0 w-[3px] rounded-full left-[28px] -translate-x-1/2"
-      :style="{ backgroundColor: modeColor }"
-    />
-    <!-- Spacer reserves the icon column so text aligns with stop rows. -->
-    <div class="w-8 shrink-0" />
-    <component
-      :is="modeIcon"
-      class="relative z-10 w-3.5 h-3.5 shrink-0"
-      :style="{ color: modeColor }"
-    />
-    <span class="text-muted-foreground tabular-nums">{{ distanceLabel }}</span>
-    <span class="text-muted-foreground/40">·</span>
-    <span class="text-muted-foreground tabular-nums">{{ durationLabel }}</span>
+  <div class="tl-event" data-kind="travel">
+    <div class="time">{{ timeLabel }}</div>
+    <div class="title">{{ title }}</div>
+    <div class="meta">
+      <span class="meta-mode">
+        <component
+          :is="modeIcon"
+          class="size-[11px]"
+          :style="{ color: modeColor }"
+        />
+      </span>
+      <span>{{ durationLabel }}</span>
+      <span class="dot" />
+      <span>{{ distanceLabel }}</span>
+    </div>
   </div>
 </template>

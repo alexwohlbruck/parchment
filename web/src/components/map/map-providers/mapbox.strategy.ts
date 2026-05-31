@@ -32,7 +32,7 @@ import standardStyle from '@/components/map/styles/standard.json'
 
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { decodeShape } from '@/lib/utils'
-import colors from 'tailwindcss/colors'
+import { palette } from '@/lib/palette'
 import { mapEventBus } from '@/lib/eventBus'
 import { createPegmanLayers, updatePegmanData } from '@/lib/pegman.utils'
 import { parseMapboxToOsmId } from '@/lib/map.utils'
@@ -370,7 +370,7 @@ export class MapboxStrategy extends MapStrategy {
           'line-cap': 'round',
         },
         paint: {
-          'line-color': colors.green[600],
+          'line-color': palette.forest[600],
           'line-width': 8,
           'line-emissive-strength': 1,
         },
@@ -386,7 +386,7 @@ export class MapboxStrategy extends MapStrategy {
           'line-cap': 'round',
         },
         paint: {
-          'line-color': colors.green[400],
+          'line-color': palette.forest[400],
           'line-width': 5,
           'line-emissive-strength': 1,
         },
@@ -891,9 +891,17 @@ export class MapboxStrategy extends MapStrategy {
 
     visibleTrips.forEach(trip => {
       trip.segments.forEach(segment => {
-        if (segment.geometry) {
-          segment.geometry.forEach(coord => {
-            bounds.extend([coord.lng, coord.lat])
+        if (segment.geometry && Array.isArray(segment.geometry)) {
+          segment.geometry.forEach((coord: any) => {
+            if (
+              coord &&
+              typeof coord.lng === 'number' &&
+              typeof coord.lat === 'number' &&
+              Math.abs(coord.lat) <= 90 &&
+              Math.abs(coord.lng) <= 180
+            ) {
+              bounds.extend([coord.lng, coord.lat])
+            }
           })
         }
       })

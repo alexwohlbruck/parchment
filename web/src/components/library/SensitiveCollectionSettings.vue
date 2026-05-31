@@ -42,7 +42,7 @@ function handleToggle(value: boolean) {
           class="p-2 rounded-lg"
           :class="
             internalValue
-              ? 'bg-green-100 dark:bg-green-900/30'
+              ? 'bg-forest-100 dark:bg-forest-900/30'
               : 'bg-muted'
           "
         >
@@ -50,7 +50,7 @@ function handleToggle(value: boolean) {
             class="h-5 w-5"
             :class="
               internalValue
-                ? 'text-green-600 dark:text-green-400'
+                ? 'text-forest-600 dark:text-forest-400'
                 : 'text-muted-foreground'
             "
           />
@@ -70,7 +70,7 @@ function handleToggle(value: boolean) {
     </div>
 
     <!-- Warning when enabled -->
-    <Alert v-if="internalValue" variant="default" class="border-green-500/50">
+    <Alert v-if="internalValue" variant="default" class="border-forest-500/50">
       <Lock class="h-4 w-4" />
       <AlertTitle>E2E Encryption Enabled</AlertTitle>
       <AlertDescription class="text-sm space-y-2">

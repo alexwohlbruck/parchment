@@ -47,9 +47,18 @@ export type EnergyType = 'electric' | 'gas' | 'diesel' | 'hybrid'
 // REQUEST TYPES
 // =============================================================================
 
+export type SortPreference =
+  | 'shortest'
+  | 'earliest_arrival'
+  | 'cheapest'
+  | 'fewest_transfers'
+  | 'least_walking'
+  | 'greenest'
+
 export interface TripRequest {
   waypoints: Waypoint[] // minimum 2
   selectedMode?: SelectedMode // Filter trips by mode
+  sortPreference?: SortPreference
   routingPreferences?: RoutingPreferences
   availableVehicles?: Vehicle[]
   knownAccessPoints?: AccessPoint[]
@@ -66,6 +75,14 @@ export interface Waypoint {
   address?: string
   label?: string
   type: WaypointType
+
+  // ── Per-waypoint time constraints ──────────────────────────────────
+  /** Earliest departure from this waypoint (ISO 8601). */
+  departAfter?: string
+  /** Latest arrival at this waypoint (ISO 8601). */
+  arriveBy?: string
+  /** Minutes to spend at this waypoint before continuing. */
+  dwellTime?: number
 }
 
 export interface Vehicle {
@@ -106,6 +123,7 @@ export interface RoutingPreferences {
   // Transit
   maxWalkingDistance?: number // meters
   maxTransfers?: number
+  transitBufferMinutes?: number // 1-5, minutes to arrive early at stop
 
   // UI state
   useKnownVehicleLocations?: boolean
@@ -132,13 +150,25 @@ export interface TripResponse {
   earliestStartTime: string
   latestEndTime: string
   hazards?: Hazard[]
+  warnings?: TripWarning[]
   dataSources: DataSource[]
   requestId?: string
   generatedAt: string
+  /** Vehicles parked during this trip (for return-trip planning). */
+  parkedVehicles?: ParkedVehicle[]
+}
+
+export interface TripWarning {
+  type: 'time_constraint_violated' | 'tight_connection' | 'dwell_time_shortened'
+  waypointIndex: number
+  message: string
+  /** How many seconds over the constraint. Positive = late. */
+  overshootSeconds?: number
 }
 
 export interface TripSegment {
   segmentIndex: number
+  legIndex?: number
   mode: Mode
   ownership?: OwnershipType
   vehicle?: Vehicle

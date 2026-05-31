@@ -25,7 +25,7 @@ const props = withDefaults(
   }>(),
   {
     icon: 'Folder',
-    color: 'blue',
+    color: 'cobalt',
     size: 'md',
     variant: 'solid',
     plain: false,

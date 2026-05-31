@@ -145,14 +145,14 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
       <ItemIcon
         :icon="bookmark.icon"
         :icon-pack="bookmark.iconPack ?? 'lucide'"
-        :color="(bookmark.iconColor as ThemeColor) || 'blue'"
+        :color="(bookmark.iconColor as ThemeColor) || 'cobalt'"
         size="md"
       />
 
       <div class="grow min-w-0">
         <div class="flex items-center justify-between">
           <div class="flex flex-col justify-center">
-            <h3 class="font-semibold text-sm">{{ bookmark.name }}</h3>
+            <h3 class="font-sans font-semibold text-sm">{{ bookmark.name }}</h3>
 
             <div v-if="bookmark.address" class="text-xs text-muted-foreground">
               {{ bookmark.address }}

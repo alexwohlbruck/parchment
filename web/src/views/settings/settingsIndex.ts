@@ -33,6 +33,7 @@ export type SettingsSectionDef = {
   descriptionKey?: string
   keywords?: string[]
   items?: SettingsItemDef[]
+  to?: string
 }
 
 export type SettingsPageDef = {
@@ -121,7 +122,7 @@ export const settingsIndex: SettingsPageDef[] = [
     pageId: 'behavior',
     to: '/settings/behavior',
     icon: CogIcon,
-    iconColor: 'slate',
+    iconColor: 'parchment',
     sections: [
       {
         id: 'language',
@@ -161,7 +162,7 @@ export const settingsIndex: SettingsPageDef[] = [
     pageId: 'appearance',
     to: '/settings/appearance',
     icon: PaintbrushIcon,
-    iconColor: 'pink',
+    iconColor: 'magenta',
     sections: [
       {
         id: 'app-theme',
@@ -184,7 +185,7 @@ export const settingsIndex: SettingsPageDef[] = [
     pageId: 'mapSettings',
     to: '/settings/map',
     icon: MapIcon,
-    iconColor: 'emerald',
+    iconColor: 'moss',
     sections: [
       {
         id: 'configuration',
@@ -273,14 +274,17 @@ export const settingsIndex: SettingsPageDef[] = [
         id: 'users',
         titleKey: 'settings.users.users.title',
         keywords: ['members', 'workspace'],
+        to: '/settings/users',
       },
       {
         id: 'roles',
         titleKey: 'settings.users.roles.title',
+        to: '/settings/roles',
       },
       {
         id: 'permissions',
         titleKey: 'settings.users.permissions.title',
+        to: '/settings/permissions',
       },
     ],
   },
@@ -288,7 +292,7 @@ export const settingsIndex: SettingsPageDef[] = [
     pageId: 'system',
     to: '/settings/system',
     icon: ActivityIcon,
-    iconColor: 'neutral',
+    iconColor: 'parchment',
     disabled: true,
     permissions: PermissionId.SYSTEM_READ,
     sections: [],
@@ -303,13 +307,18 @@ export const settingsIndex: SettingsPageDef[] = [
           pageId: 'developer',
           to: '/settings/developer',
           icon: CodeIcon,
-          iconColor: 'purple' as const,
+          iconColor: 'iris' as const,
           sections: [
             {
               id: 'gpx-simulator',
               titleKey: 'settings.developer.gpxSimulator.title',
               descriptionKey: 'settings.developer.gpxSimulator.description',
               keywords: ['gpx', 'track', 'simulate', 'replay', 'gps', 'mock'],
+            },
+            {
+              id: 'impersonation',
+              titleKey: 'settings.developer.impersonation.title',
+              keywords: ['impersonate', 'login as', 'debug user'],
             },
             {
               id: 'dev-info',

@@ -1,37 +1,26 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import dayjs from 'dayjs'
-import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useMapService } from '@/services/map.service'
 import { useUnits } from '@/composables/useUnits'
-import { getTravelModeCssClass } from '@/lib/travel-mode-colors'
-import {
-  FootprintsIcon,
-  TrainIcon,
-  BikeIcon,
-  CarFrontIcon,
-  TruckIcon,
-  TrendingUpIcon,
-  TrendingDownIcon,
-  MountainIcon,
-} from 'lucide-vue-next'
+import { getTravelModeCssClass, getTravelModeColor, getTravelModeCaseColor } from '@/lib/travel-mode-colors'
+import { getSegmentIcon, getModeIcon } from '@/lib/travel-mode-icons'
 import type {
   TripOption,
   TripsResponse,
-  TravelMode,
 } from '@/types/directions.types'
 
 interface Props {
   trip: TripOption
   tripRequest: TripsResponse['request']
-  earliestStart: Date
-  pixelsPerMinute?: number
+  timelineStart: Date
+  pxPerMinute: number
+  sidebarWidth: number
   isClickable?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  pixelsPerMinute: 10,
   isClickable: true,
 })
 
@@ -39,56 +28,58 @@ const emit = defineEmits<{
   click: [trip: TripOption]
 }>()
 
-const router = useRouter()
 const mapService = useMapService()
 const { t } = useI18n()
-const { formatDistance, formatElevation } = useUnits()
+const { formatDistance } = useUnits()
 
-const modeIcons = {
-  walking: FootprintsIcon,
-  driving: CarFrontIcon,
-  cycling: BikeIcon,
-  biking: BikeIcon, // Alias for cycling
-  transit: TrainIcon,
-  motorcycle: CarFrontIcon,
-  truck: TruckIcon,
+function formatCo2(kg: number): string {
+  if (kg >= 1) return `${kg.toFixed(1)} kg`
+  return `${Math.round(kg * 1000)} g`
 }
 
-// Computed property to detect multimodal trips (walking + vehicle)
-const isMultimodalTrip = computed(() => {
-  const modes = new Set(props.trip.segments.map(s => s.mode as TravelMode))
-  return (
-    modes.has('walking' as TravelMode) &&
-    (modes.has('driving' as TravelMode) ||
-      modes.has('cycling' as TravelMode) ||
-      (modes as any).has('biking'))
-  )
+const dominantMode = computed(() => {
+  const durations: Record<string, number> = {}
+  for (const seg of props.trip.segments) {
+    const mode = seg.mode === 'biking' ? 'cycling' : seg.mode
+    durations[mode] = (durations[mode] || 0) + seg.duration
+  }
+  let best = props.trip.mode
+  let max = 0
+  for (const [mode, dur] of Object.entries(durations)) {
+    if (dur > max) { max = dur; best = mode }
+  }
+  return best
 })
 
-// Computed property to get trip description
-const tripDescription = computed(() => {
-  if (props.trip.segments.length === 1) {
-    const segment = props.trip.segments[0]
-    return getTripModeLabel(segment.mode)
+/** Icon for the dominant mode — resolves transit route type from the longest transit segment */
+const dominantTransitIcon = computed(() => {
+  if (dominantMode.value !== 'transit') {
+    return getModeIcon(dominantMode.value)
   }
-
-  if (isMultimodalTrip.value) {
-    const vehicleSegment = props.trip.segments.find(s => s.mode !== 'walking')
-    if (vehicleSegment) {
-      return `Walk to ${vehicleSegment.vehicleType || vehicleSegment.mode}`
+  // Find the longest transit segment to determine the route type icon
+  let longestSeg: any = null
+  let longestDur = 0
+  for (const seg of props.trip.segments) {
+    if (seg.mode === 'transit' && seg.duration > longestDur) {
+      longestDur = seg.duration
+      longestSeg = seg
     }
   }
-
-  return 'Mixed modes'
+  return getSegmentIcon('transit', longestSeg?.routeType)
 })
 
-// Check if elevation data is available and relevant (bike/pedestrian modes)
-const hasElevationData = computed(() => {
-  return (
-    (props.trip.mode === 'cycling' || props.trip.mode === 'walking') &&
-    props.trip.summary.totalElevationGain !== undefined
-  )
-})
+function segLeft(segment: { startTime: Date }) {
+  return dayjs(segment.startTime).diff(props.timelineStart, 'minute', true) * props.pxPerMinute
+}
+
+function segEnd(segment: { endTime?: Date; startTime: Date; duration: number }) {
+  const end = segment.endTime ?? dayjs(segment.startTime).add(segment.duration, 'second').toDate()
+  return dayjs(end).diff(props.timelineStart, 'minute', true) * props.pxPerMinute
+}
+
+function segW(segment: { duration: number }) {
+  return Math.max((segment.duration / 60) * props.pxPerMinute, 4)
+}
 
 function getTripModeLabel(mode: string): string {
   const normalizedMode = mode === 'biking' ? 'cycling' : mode
@@ -97,59 +88,75 @@ function getTripModeLabel(mode: string): string {
 
 function formatDuration(seconds: number) {
   const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return `${minutes} min`
+  if (minutes < 60) return { parts: [{ value: minutes, unit: 'min' }] }
   const hours = Math.floor(minutes / 60)
   const remainingMinutes = minutes % 60
-  return `${hours}h ${remainingMinutes}m`
+  const parts = [{ value: hours, unit: 'h' }]
+  if (remainingMinutes > 0) parts.push({ value: remainingMinutes, unit: 'm' })
+  return { parts }
 }
 
-function getDisplayTime(date: Date, isFirstSegment: boolean = false) {
-  // Only show "Now" for the first segment if it starts immediately (within 2 minutes)
-  if (isFirstSegment) {
-    const now = new Date()
-    const diffMinutes = dayjs(date).diff(now, 'minute')
+function formatDurationString(seconds: number) {
+  const { parts } = formatDuration(seconds)
+  return parts.map(p => `${p.value}${p.unit}`).join(' ')
+}
 
-    if (Math.abs(diffMinutes) <= 2) {
-      return 'Now'
-    }
-  }
-
-  return dayjs(date).format('H:mm')
+function getArrivalTime() {
+  const lastSegment = props.trip.segments[props.trip.segments.length - 1]
+  if (!lastSegment) return ''
+  return new Date(lastSegment.endTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
 }
 
 function getSegmentTooltip(segment: any): string {
-  const duration = formatDuration(segment.duration)
+  const duration = formatDurationString(segment.duration)
   const distance = segment.distance ? formatDistance(segment.distance) : ''
   const mode = getTripModeLabel(segment.mode)
+  return `${mode}: ${duration}${distance ? ', ' + distance : ''}`
+}
 
-  let tooltip = `${mode}: ${duration}${distance ? ', ' + distance : ''}`
-
-  // Add elevation info for bike/pedestrian segments if available
-  if (
-    (segment.mode === 'cycling' ||
-      segment.mode === 'biking' ||
-      segment.mode === 'walking') &&
-    segment.instructions &&
-    segment.instructions.length > 0
-  ) {
-    const elevationGain = segment.instructions.reduce(
-      (total: number, inst: any) => total + (inst.elevationGain || 0),
-      0,
-    )
-    const elevationLoss = segment.instructions.reduce(
-      (total: number, inst: any) => total + (inst.elevationLoss || 0),
-      0,
-    )
-
-    if (elevationGain > 0) {
-      tooltip += `\n↗ ${formatElevation(elevationGain)} climb`
-    }
-    if (elevationLoss > 0) {
-      tooltip += `\n↘ ${formatElevation(elevationLoss)} descent`
+const legs = computed(() => {
+  const groups: { legIndex: number; segments: typeof props.trip.segments }[] = []
+  for (const seg of props.trip.segments) {
+    const li = (seg as any).legIndex ?? 0
+    const last = groups[groups.length - 1]
+    if (last && last.legIndex === li) {
+      last.segments.push(seg)
+    } else {
+      groups.push({ legIndex: li, segments: [seg] })
     }
   }
+  return groups
+})
 
-  return tooltip
+// Positions where waypoint caps should appear (leg boundaries only)
+const waypointCapPositions = computed(() => {
+  const segs = props.trip.segments
+  if (!segs.length) return []
+  const positions: number[] = [segLeft(segs[0])]
+  for (const leg of legs.value) {
+    const lastSeg = leg.segments[leg.segments.length - 1]
+    positions.push(Math.max(segEnd(lastSeg), segLeft(lastSeg) + segW(lastSeg)))
+  }
+  return positions
+})
+
+// Whether a segment is part of a multimodal leg (different modes within same leg)
+function isMultimodal(segment: typeof props.trip.segments[0]): boolean {
+  const li = (segment as any).legIndex ?? 0
+  const leg = legs.value.find(l => l.legIndex === li)
+  if (!leg || leg.segments.length < 2) return false
+  return new Set(leg.segments.map(s => s.mode)).size > 1
+}
+
+function segLegIndex(segment: typeof props.trip.segments[0]): number {
+  return (segment as any).legIndex ?? 0
+}
+
+function hasNextInSameLeg(index: number): boolean {
+  if (index >= props.trip.segments.length - 1) return false
+  const current = props.trip.segments[index]
+  const next = props.trip.segments[index + 1]
+  return segLegIndex(current) === segLegIndex(next) && isMultimodal(current)
 }
 
 function handleClick() {
@@ -159,215 +166,138 @@ function handleClick() {
 }
 
 function handleMouseEnter() {
-  // Show this trip's route on the map
   mapService.showTripOnHover(props.trip.id)
-}
-
-function navigateToTripDetail() {
-  if (!props.isClickable) return
-
-  // Encode the trip request waypoints so the trip can be reconstructed
-  const waypointsParam = props.tripRequest.waypoints
-    .map(
-      wp => `${wp.coordinate.lat.toFixed(6)},${wp.coordinate.lng.toFixed(6)}`,
-    )
-    .join(';')
-
-  // Navigate to trip detail view with the specific trip ID and reconstruction data
-  router.push({
-    name: 'trip',
-    params: {
-      id: props.trip.id,
-    },
-    query: {
-      // Include trip context
-      mode: props.trip.mode,
-      vehicle: props.trip.vehicleType,
-      // Include waypoints for reconstruction
-      waypoints: waypointsParam,
-      // Include other relevant parameters
-      ...(props.tripRequest.departureTime && {
-        departure: props.tripRequest.departureTime.toISOString(),
-      }),
-      ...(props.tripRequest.preferences?.avoidTolls && { avoid_tolls: 'true' }),
-      ...(props.tripRequest.preferences?.avoidHighways && {
-        avoid_highways: 'true',
-      }),
-      ...(props.tripRequest.preferences?.avoidFerries && {
-        avoid_ferries: 'true',
-      }),
-    },
-  })
 }
 </script>
 
 <template>
   <div
-    class="relative flex items-start min-h-16 group"
-    :class="{
-      'cursor-pointer hover:bg-accent/50 rounded-lg p-2 -m-2 transition-colors':
-        isClickable,
-    }"
+    class="grid gap-3.5 py-3 transition-colors"
+    :class="{ 'cursor-pointer hover:bg-accent/50': isClickable }"
+    :style="{ gridTemplateColumns: sidebarWidth ? `${sidebarWidth}px 1fr` : 'auto 1fr' }"
     @click="handleClick"
     @mouseenter="handleMouseEnter"
   >
-    <!-- Trip info sidebar -->
-    <div class="shrink-0 pr-4 text-right">
-      <div class="text-sm font-medium text-foreground mb-0.5">
-        {{ formatDuration(trip.summary.totalDuration) }}
+    <!-- Duration sidebar -->
+    <div data-sidebar class="text-right tabular-nums pt-0.5 pl-3 pr-2 whitespace-nowrap">
+      <div class="text-base font-semibold leading-tight">
+        <template v-for="(part, i) in formatDuration(trip.summary.totalDuration).parts" :key="i">
+          <span v-if="i > 0" class="inline-block w-1" />{{ part.value }}<span class="text-[11px] font-medium ml-px">{{ part.unit }}</span>
+        </template>
       </div>
-      <div class="text-xs text-muted-foreground mb-1">
+      <div class="text-[10px] text-muted-foreground font-medium mt-0.5">
+        {{ getArrivalTime() }}
+      </div>
+      <div class="text-[10px] text-muted-foreground font-medium">
         {{ formatDistance(trip.summary.totalDistance) }}
-      </div>
-
-      <!-- Elevation data for bike/pedestrian modes -->
-      <div v-if="hasElevationData" class="flex flex-col gap-0.5 mt-1">
-        <div
-          v-if="
-            trip.summary.totalElevationGain &&
-            trip.summary.totalElevationGain > 0
-          "
-          class="flex items-center justify-end gap-1 text-xs text-green-600"
-          :title="`Total elevation gain: ${formatElevation(trip.summary.totalElevationGain)}`"
-        >
-          <TrendingUpIcon class="size-3" />
-          <span>{{ formatElevation(trip.summary.totalElevationGain) }}</span>
-        </div>
-        <div
-          v-if="
-            trip.summary.totalElevationLoss &&
-            trip.summary.totalElevationLoss > 0
-          "
-          class="flex items-center justify-end gap-1 text-xs text-red-600"
-          :title="`Total elevation loss: ${formatElevation(trip.summary.totalElevationLoss)}`"
-        >
-          <TrendingDownIcon class="size-3" />
-          <span>{{ formatElevation(trip.summary.totalElevationLoss) }}</span>
-        </div>
-        <div
-          v-if="trip.summary.maxElevation"
-          class="flex items-center justify-end gap-1 text-xs text-muted-foreground"
-          :title="`Highest point: ${formatElevation(trip.summary.maxElevation)}`"
-        >
-          <MountainIcon class="size-3" />
-          <span>{{ formatElevation(trip.summary.maxElevation) }}</span>
-        </div>
-      </div>
-
-      <!-- Cost display if available -->
-      <div v-if="trip.cost?.total" class="text-xs text-muted-foreground mt-1">
-        ${{ trip.cost.total.amount.toFixed(2) }}
       </div>
     </div>
 
-    <!-- Timeline section -->
-    <div class="relative flex-1 min-h-12">
-      <!-- Segments bar -->
-      <div class="relative h-8 mb-3">
+    <!-- Bar + meta -->
+    <div>
+      <!-- Trip bar -->
+      <div class="relative h-7 flex items-center">
+        <!-- Dotted track -->
         <div
-          v-for="(segment, segmentIndex) in trip.segments"
+          class="absolute inset-x-0 h-1.5 top-1/2 -translate-y-1/2 rounded-full"
+          style="background: repeating-linear-gradient(to right, hsl(var(--border)) 0 1.5px, transparent 1.5px 6px)"
+        />
+
+        <!-- Start cap -->
+        <div
+          class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-2.5 rounded-full bg-background border-[1.5px] border-foreground/60 z-[20] shadow-xs"
+          :style="{ left: `${segLeft(trip.segments[0])}px` }"
+        />
+
+        <!-- Segments -->
+        <div
+          v-for="(segment, i) in trip.segments"
           :key="segment.id"
-          class="absolute rounded-full transition-all duration-200 flex items-center shadow-xs h-8 group/segment overflow-hidden"
+          class="absolute h-full flex items-center text-white top-1/2 -translate-y-1/2 overflow-hidden shadow-xs border border-black/10 dark:border-black/20"
           :class="[
-            getTravelModeCssClass(segment.mode),
-            'group-hover:shadow-md group-hover:scale-[1.02]',
-            // Add visual connection for multimodal trips
-            isMultimodalTrip && segmentIndex > 0 ? 'ml-0.5' : '',
+            hasNextInSameLeg(i)
+              ? (segW(segment) < 20 ? 'rounded-l-full rounded-r-none' : 'rounded-l-lg rounded-r-none')
+              : (segW(segment) < 20 ? 'rounded-full' : 'rounded-lg'),
+            !segment.lineColor && getTravelModeCssClass(segment.mode),
+            segW(segment) > 24 ? 'px-2 gap-1.5' : 'justify-center px-0.5',
           ]"
           :style="{
-            left: `${
-              dayjs(segment.startTime).diff(earliestStart, 'minute') *
-              pixelsPerMinute
-            }px`,
-            width: `${Math.max(
-              (segment.duration / 60) * pixelsPerMinute,
-              40, // Match the minimum width for pill shape
-            )}px`,
+            left: `${segLeft(segment) - (isMultimodal(segment) && i > 0 && segLegIndex(trip.segments[i - 1]) === segLegIndex(segment) ? 6 : 0)}px`,
+            width: `${segW(segment) + (isMultimodal(segment) && i > 0 && segLegIndex(trip.segments[i - 1]) === segLegIndex(segment) ? 6 : 0)}px`,
+            zIndex: i + 1,
+            ...(segment.lineColor ? { background: `#${segment.lineColor}`, color: segment.lineTextColor ? `#${segment.lineTextColor}` : '#fff' } : {}),
           }"
           :title="getSegmentTooltip(segment)"
         >
-          <!-- Icon circle on the left -->
-          <div
-            class="shrink-0 w-6 h-6 bg-black/20 rounded-full flex items-center justify-center ml-1"
+          <component
+            v-if="segW(segment) > 20"
+            :is="getSegmentIcon(segment.mode, segment.routeType)"
+            class="size-3 shrink-0"
+          />
+          <span
+            v-if="segW(segment) > 70"
+            class="text-[11px] font-semibold truncate"
           >
-            <component
-              :is="modeIcons[segment.mode]"
-              class="size-3 text-white drop-shadow-xs"
-            />
-          </div>
-
-          <!-- Segment text (only show if there's enough space) -->
-          <div
-            v-if="(segment.duration / 60) * pixelsPerMinute > 60"
-            class="flex-1 px-2 text-xs font-medium text-white truncate"
-          >
-            {{ getTripModeLabel(segment.mode) }}
-          </div>
-
-          <!-- Tooltip on hover -->
-          <div
-            class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover/segment:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10"
-          >
-            {{ getSegmentTooltip(segment) }}
-          </div>
+            {{ segment.lineName || getTripModeLabel(segment.mode) }}
+          </span>
         </div>
 
-        <!-- Connection lines for multimodal trips -->
+        <!-- Waypoint caps (only at leg boundaries) -->
         <div
-          v-if="isMultimodalTrip && trip.segments.length > 1"
-          v-for="(segment, segmentIndex) in trip.segments.slice(0, -1)"
-          :key="`connection-${segment.id}`"
-          class="absolute top-1/2 transform -translate-y-1/2 h-0.5 bg-border"
-          :style="{
-            left: `${
-              dayjs(segment.startTime).diff(earliestStart, 'minute') *
-                pixelsPerMinute +
-              Math.max((segment.duration / 60) * pixelsPerMinute, 40)
-            }px`,
-            width: `${Math.max(
-              dayjs(trip.segments[segmentIndex + 1].startTime).diff(
-                segment.endTime,
-                'minute',
-              ) * pixelsPerMinute,
-              0,
-            )}px`,
-          }"
+          v-for="(pos, i) in waypointCapPositions.slice(1)"
+          :key="`cap-${i}`"
+          class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-2.5 rounded-full bg-primary border-[1.5px] border-white z-[20] shadow-xs"
+          :style="{ left: `${pos}px` }"
         />
       </div>
 
-      <!-- Timestamps below the bar -->
-      <div class="relative h-5">
-        <div
-          v-for="(segment, segmentIndex) in trip.segments"
-          :key="`${segment.id}-times`"
-          class="absolute text-[10px] text-muted-foreground tracking-tight"
-          :style="{
-            left: `${
-              dayjs(segment.startTime).diff(earliestStart, 'minute') *
-              pixelsPerMinute
-            }px`,
-            width: `${Math.max(
-              (segment.duration / 60) * pixelsPerMinute,
-              40, // Match the minimum width for pill shape
-            )}px`,
-          }"
-        >
-          <!-- Start time -->
-          <span class="absolute left-0">
-            {{ getDisplayTime(segment.startTime, segmentIndex === 0) }}
-          </span>
-          <!-- End time (only show if segment is wide enough to avoid overlap) -->
-          <span
-            class="absolute right-0"
-            v-if="(segment.duration / 60) * pixelsPerMinute > 50"
-          >
-            {{ getDisplayTime(segment.endTime, false) }}
-          </span>
-        </div>
+      <!-- Trip meta -->
+      <div class="flex items-center gap-1.5 flex-wrap mt-1.5 pr-4 text-[11px] text-muted-foreground">
+        <span class="inline-flex items-center gap-1">
+          <component
+            :is="dominantTransitIcon"
+            class="size-3"
+            :style="{ color: getTravelModeColor(dominantMode) }"
+          />
+          <span class="font-semibold text-foreground/80">{{ getTripModeLabel(dominantMode) }}</span>
+        </span>
+
+        <template v-if="trip.cost?.total">
+          <span class="size-0.5 rounded-full bg-muted-foreground/50" />
+          <span class="tabular-nums">${{ trip.cost.total.amount.toFixed(2) }}</span>
+        </template>
+
+        <template v-if="trip.co2Emissions != null && trip.co2Emissions > 0">
+          <span class="size-0.5 rounded-full bg-muted-foreground/50" />
+          <span class="tabular-nums">{{ formatCo2(trip.co2Emissions) }} CO₂</span>
+        </template>
       </div>
 
-      <!-- Instructions summary for multimodal trips -->
-      <!-- Removed instructions summary - leaving for detail page -->
+      <!-- Transit departure cards -->
+      <div
+        v-if="trip.segments.some(s => s.lineName)"
+        class="flex gap-1.5 pt-2 overflow-x-auto scrollbar-hidden"
+      >
+        <div
+          v-for="segment in trip.segments.filter(s => s.lineName)"
+          :key="segment.id"
+          class="flex items-center gap-2 px-2.5 py-1.5 bg-background border rounded-lg text-[11px] text-foreground/80 font-medium shrink-0"
+        >
+          <span
+            class="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-[5px] text-[10px] font-bold"
+            :style="{
+              background: `#${segment.lineColor}` || getTravelModeColor(segment.mode),
+              color: segment.lineTextColor ? `#${segment.lineTextColor}` : '#fff',
+            }"
+          >
+            {{ segment.vehicleNumber || segment.lineName }}
+          </span>
+          <span v-if="segment.headsign" class="text-muted-foreground truncate max-w-[120px]">
+            {{ segment.headsign }}
+          </span>
+          <span class="tabular-nums">{{ formatDurationString(segment.duration) }}</span>
+        </div>
+      </div>
     </div>
   </div>
 </template>

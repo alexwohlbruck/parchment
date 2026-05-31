@@ -272,21 +272,21 @@ const aqiLabel = computed(() => {
 
 const aqiBadgeClass = computed(() => {
   const aqi = aqiLevel.value
-  if (!aqi) return 'bg-gray-400'
+  if (!aqi) return 'bg-muted-foreground'
 
   if (unitSystem.value === UnitSystem.METRIC) {
-    if (aqi === 1) return 'bg-green-500'
-    if (aqi === 2) return 'bg-yellow-400'
-    if (aqi === 3) return 'bg-orange-500'
-    if (aqi === 4) return 'bg-red-500'
-    return 'bg-purple-600'
+    if (aqi === 1) return 'bg-forest-500'
+    if (aqi === 2) return 'bg-amber-400'
+    if (aqi === 3) return 'bg-compass-500'
+    if (aqi === 4) return 'bg-coral-500'
+    return 'bg-violet-600'
   } else {
-    if (aqi <= 50) return 'bg-green-500'
-    if (aqi <= 100) return 'bg-yellow-400'
-    if (aqi <= 150) return 'bg-orange-500'
-    if (aqi <= 200) return 'bg-red-500'
-    if (aqi <= 300) return 'bg-purple-600'
-    return 'bg-red-800'
+    if (aqi <= 50) return 'bg-forest-500'
+    if (aqi <= 100) return 'bg-amber-400'
+    if (aqi <= 150) return 'bg-compass-500'
+    if (aqi <= 200) return 'bg-coral-500'
+    if (aqi <= 300) return 'bg-violet-600'
+    return 'bg-coral-800'
   }
 })
 

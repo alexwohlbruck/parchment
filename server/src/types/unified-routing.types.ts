@@ -359,6 +359,7 @@ export interface RoutingCapabilities {
 export interface TimelineSegment {
   id: string
   type: 'route' | 'waiting' | 'transfer'
+  legIndex?: number
   mode: TravelMode
   vehicleType?: 'car' | 'bike' | 'scooter' | 'motorcycle' | 'truck' | 'walking'
   vehicleId?: string // Reference to user's vehicle
@@ -382,10 +383,21 @@ export interface TimelineSegment {
   // Per-edge surface/road/safety data
   edgeSegments?: RouteEdgeSegment[]
 
-  // Transit specific (for future use)
+  // Transit specific
   lineName?: string
   lineColor?: string
+  lineTextColor?: string
+  lineLongName?: string
+  headsign?: string
   vehicleNumber?: string
+  agencyName?: string
+  agencyId?: string
+  routeType?: string
+  tripId?: string
+  departureStop?: { name: string; id?: string }
+  arrivalStop?: { name: string; id?: string }
+  intermediateStops?: Array<{ name: string; id?: string }>
+  transitDetails?: any
   fare?: {
     currency: string
     amount: number

@@ -201,6 +201,8 @@ function directionsService() {
       departureStop: td.departureStop,
       arrivalStop: td.arrivalStop,
       intermediateStops: td.stops?.slice(1, -1), // exclude first/last
+      realTimeData: td.realTimeData,
+      delay: td.delay,
       transitDetails: td,
     }
   }

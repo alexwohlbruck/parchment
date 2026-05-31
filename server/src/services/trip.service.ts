@@ -2058,6 +2058,16 @@ export class TripService {
       textColor: leg.routeTextColor,
     }
 
+    // Surface realtime metadata from MOTIS legs. Barrelman passes through
+    // the GTFS-RT fields: realTime (boolean), departureDelay/arrivalDelay
+    // (seconds, positive = late).
+    if (leg.realTime) {
+      transitDetails.realTimeData = true
+      if (leg.departureDelay != null) {
+        transitDetails.delay = leg.departureDelay
+      }
+    }
+
     // Convert GeoJSON geometry to Array<{lat, lng}> format
     // Barrelman returns {type: 'LineString', coordinates: [[lng,lat],...]}
     // but the frontend map layer expects [{lat, lng}, ...]

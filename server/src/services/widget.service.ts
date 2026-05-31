@@ -2,15 +2,29 @@ import type { Place, TransitDeparture, TransitStopInfo, WidgetDescriptor, Widget
 import { WidgetType, WidgetDataType } from '../types/place.types'
 
 import { SOURCE } from '../lib/constants'
+import { IntegrationId } from '../types/integration.enums'
 import { integrationManager } from './integrations'
 import { IntegrationCapabilityId } from '../types/integration.types'
-import { TransitlandIntegration } from './integrations/transitland-integration'
 import { OverpassIntegration } from './integrations/overpass-integration'
 import { BarrelmanIntegration } from './integrations/barrelman-integration'
+import { isTransitStop } from '../lib/transit-utils'
 import { matchTags } from '../lib/osm-presets'
 import { buildPlaceIcon } from '../lib/place-categories'
 import * as turf from '@turf/turf'
 import { resolveDisplayChips } from '../lib/display-chips'
+
+/**
+ * Check if a place is a transit stop based on its OSM tags/type.
+ * Used to detect transit stops that don't have stored transit info.
+ */
+function isPlaceTransitStopFromTags(place: Place): boolean {
+  const placeType = place.placeType || ''
+  const tags = place.amenities?.reduce((acc, a) => {
+    if (a.key && a.rawValue) acc[a.key] = a.rawValue
+    return acc
+  }, {} as Record<string, string>) || {}
+  return isTransitStop(placeType, tags)
+}
 
 // ─── Integration helpers ─────────────────────────────────────────────────────
 
@@ -95,19 +109,30 @@ export function resolveWidgetDescriptors(place: Place): WidgetDescriptor[] {
   const descriptors: WidgetDescriptor[] = []
 
   // ── 1. Transit (ASYNC) ──────────────────────────────────────────────────────
-  if (place.transit?.value?.onestopId) {
-    const transit = place.transit.value
-    const onestopIds = transit.onestopIds || [transit.onestopId]
+  // Detect transit stops by either stored transit info or OSM tags.
+  // Departure data is fetched from Barrelman (MOTIS) using coordinates.
+  const transitInfo = place.transit?.value
+  const hasTransitInfo = transitInfo && (transitInfo.onestopId || transitInfo.stopId || transitInfo.feedId)
+  const isTransitByTags = place.geometry?.value?.center && isPlaceTransitStopFromTags(place)
 
-    descriptors.push({
-      type: WidgetType.TRANSIT,
-      dataType: WidgetDataType.ASYNC,
-      title: transit.name || 'Transit Departures',
-      estimatedHeight: 200,
-      params: {
-        onestopIds: onestopIds.join(','),
-      },
-    })
+  if (hasTransitInfo || isTransitByTags) {
+    const center = place.geometry?.value?.center
+    if (center) {
+      descriptors.push({
+        type: WidgetType.TRANSIT,
+        dataType: WidgetDataType.ASYNC,
+        title: transitInfo?.name || place.name?.value || 'Transit Departures',
+        estimatedHeight: 200,
+        params: {
+          lat: String(center.lat),
+          lng: String(center.lng),
+          ...(transitInfo?.feedId ? { feedId: transitInfo.feedId } : {}),
+          ...(transitInfo?.stopId ? { stopId: transitInfo.stopId } : {}),
+          // Keep onestopIds for backwards compatibility with cached data
+          ...(transitInfo?.onestopId ? { onestopIds: (transitInfo.onestopIds || [transitInfo.onestopId]).join(',') } : {}),
+        },
+      })
+    }
   }
 
   // ── 2. OSM Tags (STATIC) + Display Chips ──────────────────────────────────
@@ -250,67 +275,139 @@ export function resolveWidgetDescriptors(place: Place): WidgetDescriptor[] {
 }
 
 /**
- * Fetch transit departure data for the given onestop IDs.
- * Extracted from the former enrichPlaceWithTransitData() in place.service.ts.
+ * Fetch transit departure data from Barrelman (MOTIS stoptimes).
+ *
+ * Accepts either coordinates (lat/lng) or feedId+stopId. Barrelman
+ * finds nearby GTFS stops, queries MOTIS for timetable data, and
+ * enriches with route colors from the GTFS database.
  */
 async function fetchTransitDepartures(
-  onestopIds: string[],
+  params: { lat: number; lng: number; feedId?: string; stopId?: string },
   options?: { limit?: number },
-): Promise<{ departures: TransitDeparture[]; sources: SourceReference[] }> {
-  // Use the `next` parameter (seconds) to fetch upcoming departures.
-  // Transitland's departures endpoint only accepts HH:mm:ss for
-  // start_time/end_time (NOT ISO timestamps), so `next` is the
-  // correct way to request a forward-looking window.
-  const { limit = 150 } = options || {}
-  const next = 24 * 3600 // next 24 hours
+): Promise<{ departures: TransitDeparture[]; stopInfo?: { name?: string; code?: string; feedId?: string; stopId?: string; timezone?: string }; sources: SourceReference[] }> {
+  const { limit = 50 } = options || {}
 
-  const transitlandRecord = integrationManager.getConfiguredIntegrationForSource(
-    SOURCE.TRANSITLAND,
-    IntegrationCapabilityId.TRANSIT_DATA,
-  )
-  const transitland = transitlandRecord
-    ? integrationManager.getCachedIntegrationInstance(transitlandRecord) as TransitlandIntegration | null
-    : null
+  const barrelmanRecord = integrationManager
+    .getConfiguredIntegrations()
+    .find((i) => i.integrationId === IntegrationId.BARRELMAN)
 
-  if (!transitland) {
-    console.debug('🚫 [Widget/Transit] Transitland integration not configured')
+  const config = barrelmanRecord?.config as { host?: string; apiKey?: string } | undefined
+  if (!config?.host) {
+    console.debug('🚫 [Widget/Transit] Barrelman not configured')
     return { departures: [], sources: [] }
   }
 
-  const allDepartures: TransitDeparture[] = []
+  try {
+    const queryParams = new URLSearchParams({
+      lat: String(params.lat),
+      lng: String(params.lng),
+      n: String(limit),
+    })
+    if (params.feedId) queryParams.set('feedId', params.feedId)
+    if (params.stopId) queryParams.set('stopId', params.stopId)
 
-  for (const onestopId of onestopIds) {
-    try {
-      console.debug(`🌐 [Widget/Transit] Fetching departures for ${onestopId}`)
-      const departures = await transitland.getDepartures(onestopId, { next, limit })
+    const headers: Record<string, string> = {}
+    if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
 
-      if (departures?.length) {
-        console.debug(`✅ [Widget/Transit] Found ${departures.length} departures for ${onestopId}`)
-        allDepartures.push(...departures)
-      } else {
-        console.debug(`🚫 [Widget/Transit] No departures for ${onestopId}`)
-      }
-    } catch (error) {
-      console.error(`❌ [Widget/Transit] Error fetching departures for ${onestopId}:`, error)
+    console.debug(`🌐 [Widget/Transit] Fetching departures from Barrelman at (${params.lat}, ${params.lng})`)
+    const response = await fetch(`${config.host}/transit/departures?${queryParams}`, { headers })
+
+    if (!response.ok) {
+      console.error(`❌ [Widget/Transit] Barrelman returned ${response.status}`)
+      return { departures: [], sources: [] }
     }
+
+    const stopResults = await response.json() as Array<{
+      stop: { stopId: string; feedId: string; name: string; code?: string; lat: number; lng: number; timezone: string; distance?: number }
+      departures: Array<{
+        tripId: string
+        route: { id: string; feedId: string; shortName?: string; longName?: string; type: number; color?: string; textColor?: string; agencyId?: string; agencyName?: string }
+        headsign?: string
+        directionId?: string
+        departureTime: string
+        arrivalTime: string
+        scheduledDepartureTime: string
+        scheduledArrivalTime: string
+        delay?: number
+        realTime: boolean
+        cancelled: boolean
+        mode: string
+        tripOrigin?: string
+        tripDestination?: string
+      }>
+    }>
+
+    // Flatten all stops' departures into a single list
+    const allDepartures: TransitDeparture[] = []
+    let primaryStop: typeof stopResults[0]['stop'] | undefined
+
+    for (const stopResult of stopResults) {
+      if (!primaryStop) primaryStop = stopResult.stop
+
+      for (const dep of stopResult.departures) {
+        allDepartures.push({
+          departureTime: dep.departureTime,
+          arrivalTime: dep.arrivalTime,
+          departureAt: dep.departureTime,
+          arrivalAt: dep.arrivalTime,
+          scheduledDepartureTime: dep.scheduledDepartureTime,
+          scheduledArrivalTime: dep.scheduledArrivalTime,
+          timezone: stopResult.stop.timezone,
+          delay: dep.delay,
+          realTime: dep.realTime,
+          headsign: dep.headsign,
+          direction: dep.headsign,
+          trip: {
+            id: dep.tripId,
+            headsign: dep.headsign,
+            directionId: dep.directionId ? Number(dep.directionId) : undefined,
+            routeId: dep.route.id,
+          },
+          route: {
+            id: dep.route.id,
+            shortName: dep.route.shortName,
+            longName: dep.route.longName,
+            color: dep.route.color,
+            textColor: dep.route.textColor,
+            type: dep.route.type,
+            agencyId: dep.route.agencyId,
+          },
+          agency: dep.route.agencyName ? {
+            id: dep.route.agencyId || '',
+            name: dep.route.agencyName,
+          } : undefined,
+        })
+      }
+    }
+
+    // Sort by departure time
+    allDepartures.sort((a, b) => {
+      const timeA = a.departureAt || a.departureTime || ''
+      const timeB = b.departureAt || b.departureTime || ''
+      return timeA.localeCompare(timeB)
+    })
+
+    console.debug(`✅ [Widget/Transit] Got ${allDepartures.length} departures from ${stopResults.length} stop(s)`)
+
+    const sources: SourceReference[] = allDepartures.length > 0
+      ? [{ id: 'barrelman', name: 'GTFS Timetable' }]
+      : []
+
+    return {
+      departures: allDepartures,
+      stopInfo: primaryStop ? {
+        name: primaryStop.name,
+        code: primaryStop.code,
+        feedId: primaryStop.feedId,
+        stopId: primaryStop.stopId,
+        timezone: primaryStop.timezone,
+      } : undefined,
+      sources,
+    }
+  } catch (error) {
+    console.error('❌ [Widget/Transit] Barrelman departure fetch failed:', error)
+    return { departures: [], sources: [] }
   }
-
-  // Sort by departure time
-  allDepartures.sort((a, b) => {
-    const timeA = a.departureTime || a.arrivalTime || ''
-    const timeB = b.departureTime || b.arrivalTime || ''
-    return timeA.localeCompare(timeB)
-  })
-
-  const sources: SourceReference[] = allDepartures.length > 0
-    ? [{
-        id: SOURCE.TRANSITLAND,
-        name: 'Transitland',
-        url: `https://www.transit.land/stops/${onestopIds[0]}`,
-      }]
-    : []
-
-  return { departures: allDepartures, sources }
 }
 
 /**
@@ -322,26 +419,45 @@ export async function fetchWidgetData(
 ): Promise<WidgetResponse> {
   switch (type) {
     case WidgetType.TRANSIT: {
-      const onestopIds = (params.onestopIds || '').split(',').filter(Boolean)
+      const lat = params.lat ? parseFloat(params.lat) : NaN
+      const lng = params.lng ? parseFloat(params.lng) : NaN
       const limit = params.limit ? parseInt(params.limit, 10) : undefined
 
-      if (!onestopIds.length) {
-        throw new Error('Missing onestopIds parameter for transit widget')
+      if (isNaN(lat) || isNaN(lng)) {
+        throw new Error('Missing lat/lng parameters for transit widget')
       }
 
-      const { departures, sources } = await fetchTransitDepartures(onestopIds, { limit })
+      const { departures, stopInfo, sources } = await fetchTransitDepartures(
+        {
+          lat,
+          lng,
+          feedId: params.feedId || undefined,
+          stopId: params.stopId || undefined,
+        },
+        { limit },
+      )
 
       const transitInfo: TransitStopInfo = {
-        onestopId: onestopIds[0],
-        onestopIds: onestopIds.length > 1 ? onestopIds : undefined,
         departures,
+        name: stopInfo?.name,
+        code: stopInfo?.code,
+        feedId: stopInfo?.feedId,
+        stopId: stopInfo?.stopId,
+        timezone: stopInfo?.timezone,
+        lat,
+        lng,
+        // Preserve onestop ID if passed through (for tile layer linking)
+        ...(params.onestopIds ? {
+          onestopId: params.onestopIds.split(',')[0],
+          onestopIds: params.onestopIds.split(','),
+        } : {}),
       }
 
       return {
         type: WidgetType.TRANSIT,
         data: {
           value: transitInfo,
-          sourceId: SOURCE.TRANSITLAND,
+          sourceId: 'barrelman',
           timestamp: new Date().toISOString(),
         },
         sources,

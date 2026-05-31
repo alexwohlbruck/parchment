@@ -329,7 +329,7 @@ function openTransitlandLink() {
         class="hover:text-foreground transition-colors flex items-center gap-1"
       >
         <ExternalLinkIcon class="h-3 w-3" />
-        View on Transitland
+        {{ t('place.transit.viewOnTransitland') }}
       </button>
     </div>
   </PanelLayout>

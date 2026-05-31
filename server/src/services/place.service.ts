@@ -613,30 +613,20 @@ async function enrichPlaceWithWikiData(
     const wikidataId = place.externalIds?.wikidata
     if (!wikidataId) {
       
-      // For transit stops without Wikidata, try to find onestop ID by coordinates
-      if (isPlaceTransitStop(place) && place.name.value && place.geometry.value.center) {
-        const coordSearchStart = Date.now()
-        const onestopId = await tryFindOnestopIdByCoordinates(place.name.value, place.geometry.value.center)
-        const coordSearchTime = Date.now() - coordSearchStart
-        console.log(`⏱️ [PERF] Coordinate search for onestop ID: ${coordSearchTime}ms`)
-        
-        if (onestopId) {
-          const timestamp = new Date().toISOString()
-          
-          // Check if multiple IDs were found (stored in function property)
-          const multipleIds = (tryFindOnestopIdByCoordinates as any)._lastFoundMultipleIds
-          
-          place.transit = {
-            value: {
-              onestopId,
-              onestopIds: multipleIds && multipleIds.length > 1 ? multipleIds : undefined,
-              name: place.name.value || undefined,
-            },
-            sourceId: SOURCE.TRANSITLAND,
-            timestamp,
-          }
-          
-          delete (tryFindOnestopIdByCoordinates as any)._lastFoundMultipleIds
+      // For transit stops without Wikidata, mark as transit stop so the
+      // widget system can fetch departures via Barrelman (using coordinates).
+      // No need for Transitland onestop ID — Barrelman finds the nearest
+      // GTFS stop spatially.
+      if (isPlaceTransitStop(place) && place.geometry.value.center) {
+        const center = place.geometry.value.center
+        place.transit = {
+          value: {
+            name: place.name.value || undefined,
+            lat: center.lat,
+            lng: center.lng,
+          },
+          sourceId: 'barrelman',
+          timestamp: new Date().toISOString(),
         }
       }
       
@@ -687,12 +677,15 @@ async function enrichPlaceWithWikiData(
         console.debug(`  - Transitland URL: https://www.transit.land/stops/${id}`)
       })
       
-      // Create or update transit info with the onestop IDs
+      // Create or update transit info. Keep onestop IDs for Transitland
+      // tile layer linking; add coordinates for Barrelman departure lookup.
+      const center = place.geometry?.value?.center
       const transitInfo = {
-        onestopId: allOnestopIds[0], // Primary onestop ID (for backward compatibility)
-        onestopIds: allOnestopIds.length > 1 ? allOnestopIds : undefined, // All IDs for transfer hubs
+        onestopId: allOnestopIds[0],
+        onestopIds: allOnestopIds.length > 1 ? allOnestopIds : undefined,
         name: place.name.value || undefined,
-        ...place.transit?.value
+        ...(center ? { lat: center.lat, lng: center.lng } : {}),
+        ...place.transit?.value,
       }
 
       place.transit = {

@@ -33,7 +33,7 @@ const transitInfo = computed((): TransitStopInfo | null => {
 })
 
 const hasTransitData = computed(() => {
-  return transitInfo.value && transitInfo.value.onestopId
+  return transitInfo.value && (transitInfo.value.onestopId || transitInfo.value.stopId || transitInfo.value.departures?.length)
 })
 
 const departures = computed((): TransitDeparture[] => {

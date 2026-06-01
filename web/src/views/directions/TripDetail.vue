@@ -30,6 +30,7 @@ import type { RouteInstruction } from '@/types/directions.types'
 import type { RouteProfileType } from '@/lib/route-profile-colors'
 import { getSegmentIcon } from '@/lib/travel-mode-icons'
 import ElevationChart from '@/components/directions/ElevationChart.vue'
+import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import { useUnits } from '@/composables/useUnits'
 
 const route = useRoute()
@@ -552,8 +553,18 @@ function hasSegmentRouteInfo(segment: any): boolean {
                 <div class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground tabular-nums">
                   <span class="inline-flex items-center gap-1">
                     <ClockIcon class="size-3" />
+                    <span
+                      v-if="entry.segment.realTimeData && entry.segment.delay && Math.abs(entry.segment.delay) > 60"
+                      class="line-through"
+                    >{{ formatTime(new Date(entry.segment.startTime.getTime() - entry.segment.delay * 1000)) }}</span>
                     {{ formatTime(entry.segment.startTime) }} – {{ formatTime(entry.segment.endTime) }}
                   </span>
+                  <RealtimeIndicator
+                    v-if="entry.segment.realTimeData"
+                    :real-time="true"
+                    :delay="entry.segment.delay"
+                    :color="entry.segment.lineColor ? `#${entry.segment.lineColor}` : undefined"
+                  />
                   <span>{{ formatDuration(entry.segment.duration) }} · {{ formatDistanceDisplay(entry.segment.distance) }}</span>
                 </div>
                 <div v-if="entry.segment.agencyName" class="mt-0.5 text-xs text-muted-foreground">

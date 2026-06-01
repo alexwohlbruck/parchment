@@ -124,7 +124,10 @@ export const useTransitVehiclesStore = defineStore(
         }
 
         vehicles.value = merged
-        lastFetchedBounds.value = expanded
+        // Store the raw (unexpanded) bounds for change detection —
+        // expanded bounds would always differ from the next raw bounds
+        // by the expansion fraction, defeating the dedup threshold.
+        lastFetchedBounds.value = bounds
         lastFetchedAt.value = now
       } catch {
         // Silently ignore — Barrelman may not be configured or may

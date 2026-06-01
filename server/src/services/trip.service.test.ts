@@ -517,6 +517,177 @@ describe('TripService — buildTransitSegment', () => {
     expect(segment.co2).toBeCloseTo(5000 * 0.00005, 5) // ~50g/km
     expect(segment.mode).toBe('transit')
   })
+
+  test('includes realtime data when leg has realTime flag', () => {
+    const leg = {
+      mode: 'BUS',
+      transitLeg: true,
+      from: { name: 'Stop A', lat: 35.21, lng: -80.85, stopId: 'sa' },
+      to: { name: 'Stop B', lat: 35.22, lng: -80.84, stopId: 'sb' },
+      startTime: '2026-01-15T08:05:00Z',
+      endTime: '2026-01-15T08:25:00Z',
+      duration: 1200,
+      distance: 5000,
+      routeShortName: '9X',
+      headsign: 'Downtown',
+      realTime: true,
+      departureDelay: 120, // 2 minutes late
+    }
+
+    const segment = (tripService as any).buildTransitSegment(
+      leg,
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      '2026-01-15T08:05:00Z',
+    )
+
+    expect(segment.details.transitDetails.realTimeData).toBe(true)
+    expect(segment.details.transitDetails.delay).toBe(120)
+  })
+
+  test('omits realtime fields when leg is not realtime', () => {
+    const leg = {
+      mode: 'BUS',
+      transitLeg: true,
+      from: { name: 'Stop A', lat: 35.21, lng: -80.85, stopId: 'sa' },
+      to: { name: 'Stop B', lat: 35.22, lng: -80.84, stopId: 'sb' },
+      startTime: '2026-01-15T08:05:00Z',
+      endTime: '2026-01-15T08:25:00Z',
+      duration: 1200,
+      distance: 5000,
+      routeShortName: '9X',
+      headsign: 'Downtown',
+    }
+
+    const segment = (tripService as any).buildTransitSegment(
+      leg,
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      '2026-01-15T08:05:00Z',
+    )
+
+    expect(segment.details.transitDetails.realTimeData).toBeUndefined()
+    expect(segment.details.transitDetails.delay).toBeUndefined()
+  })
+
+  test('realtime without delay only sets realTimeData flag', () => {
+    const leg = {
+      mode: 'BUS',
+      transitLeg: true,
+      from: { name: 'Stop A', lat: 35.21, lng: -80.85, stopId: 'sa' },
+      to: { name: 'Stop B', lat: 35.22, lng: -80.84, stopId: 'sb' },
+      startTime: '2026-01-15T08:05:00Z',
+      endTime: '2026-01-15T08:25:00Z',
+      duration: 1200,
+      distance: 5000,
+      routeShortName: '9X',
+      headsign: 'Downtown',
+      realTime: true,
+      // no departureDelay field
+    }
+
+    const segment = (tripService as any).buildTransitSegment(
+      leg,
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      '2026-01-15T08:05:00Z',
+    )
+
+    expect(segment.details.transitDetails.realTimeData).toBe(true)
+    expect(segment.details.transitDetails.delay).toBeUndefined()
+  })
+
+  test('converts GeoJSON geometry to lat/lng array', () => {
+    const leg = {
+      mode: 'BUS',
+      transitLeg: true,
+      from: { name: 'Stop A', lat: 35.21, lng: -80.85, stopId: 'sa' },
+      to: { name: 'Stop B', lat: 35.22, lng: -80.84, stopId: 'sb' },
+      startTime: '2026-01-15T08:05:00Z',
+      endTime: '2026-01-15T08:25:00Z',
+      duration: 1200,
+      distance: 5000,
+      routeShortName: '9X',
+      headsign: 'Downtown',
+      geometry: {
+        type: 'LineString',
+        coordinates: [[-80.85, 35.21], [-80.845, 35.215], [-80.84, 35.22]],
+      },
+    }
+
+    const segment = (tripService as any).buildTransitSegment(
+      leg,
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      '2026-01-15T08:05:00Z',
+    )
+
+    expect(segment.geometry).toHaveLength(3)
+    expect(segment.geometry[0]).toEqual({ lat: 35.21, lng: -80.85 })
+    expect(segment.geometry[2]).toEqual({ lat: 35.22, lng: -80.84 })
+  })
+
+  test('computes distance from geometry when leg distance is 0', () => {
+    const leg = {
+      mode: 'BUS',
+      transitLeg: true,
+      from: { name: 'Stop A', lat: 35.21, lng: -80.85, stopId: 'sa' },
+      to: { name: 'Stop B', lat: 35.22, lng: -80.84, stopId: 'sb' },
+      startTime: '2026-01-15T08:05:00Z',
+      endTime: '2026-01-15T08:25:00Z',
+      duration: 1200,
+      distance: 0, // MOTIS sometimes returns 0
+      routeShortName: '9X',
+      headsign: 'Downtown',
+      geometry: {
+        type: 'LineString',
+        coordinates: [[-80.85, 35.21], [-80.84, 35.22]],
+      },
+    }
+
+    const segment = (tripService as any).buildTransitSegment(
+      leg,
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      '2026-01-15T08:05:00Z',
+    )
+
+    // Should compute a non-zero distance from the geometry
+    expect(segment.distance).toBeGreaterThan(0)
+  })
+
+  test('maps intermediate stops from leg', () => {
+    const leg = {
+      mode: 'BUS',
+      transitLeg: true,
+      from: { name: 'Stop A', lat: 35.21, lng: -80.85, stopId: 'sa' },
+      to: { name: 'Stop C', lat: 35.23, lng: -80.83, stopId: 'sc' },
+      startTime: '2026-01-15T08:05:00Z',
+      endTime: '2026-01-15T08:25:00Z',
+      duration: 1200,
+      distance: 5000,
+      routeShortName: '9X',
+      headsign: 'Downtown',
+      intermediateStops: [
+        { name: 'Stop B', lat: 35.22, lng: -80.84, stopId: 'sb', arrival: '2026-01-15T08:15:00Z', departure: '2026-01-15T08:15:30Z' },
+      ],
+    }
+
+    const segment = (tripService as any).buildTransitSegment(
+      leg,
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      '2026-01-15T08:05:00Z',
+    )
+
+    // stops = [departure, ...intermediate, arrival]
+    const stops = segment.details.transitDetails.stops
+    expect(stops).toHaveLength(3)
+    expect(stops[0].name).toBe('Stop A')
+    expect(stops[1].name).toBe('Stop B')
+    expect(stops[1].stopSequence).toBe(1)
+    expect(stops[2].name).toBe('Stop C')
+  })
 })
 
 describe('TripService — planTrip with transit', () => {

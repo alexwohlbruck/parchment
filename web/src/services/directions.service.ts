@@ -10,14 +10,9 @@ import { LngLat } from 'mapbox-gl'
 import type { Place } from '@/types/place.types'
 import { useGeocodingService } from './geocoding.service'
 import { getSearchResultName } from '@/lib/search.utils'
+import { useVehiclesStore } from '@/stores/vehicles.store'
 
 const MIN_WAYPOINTS = 2
-
-// TODO: Move to database per user
-const HARDCODED_VEHICLE_LOCATIONS = {
-  car: { lat: 35.21712207929376, lng: -80.81946433041882 },
-  bike: { lat: 35.21700938703438, lng: -80.81994398107717 },
-}
 
 function directionsService() {
   const store = useDirectionsStore()
@@ -69,18 +64,21 @@ function directionsService() {
     store.setLoading(true)
 
     try {
-      // Send all known vehicles - backend will determine which are relevant for the selected mode
+      // Send active vehicles with known locations from the user's vehicle store
       const useVehicleLocations =
         routingPreferences.value.useKnownVehicleLocations !== false
 
+      const vehiclesStore = useVehiclesStore()
       const availableVehicles = useVehicleLocations
-        ? Object.entries(HARDCODED_VEHICLE_LOCATIONS).map(
-            ([type, location]) => ({
-              id: `${type}-${Date.now()}`,
-              type,
-              location,
-            }),
-          )
+        ? vehiclesStore.activeVehicles
+            .filter((v) => v.lastKnownLocation)
+            .map((v) => ({
+              id: v.id,
+              type: v.type,
+              energyType: v.energyType ?? undefined,
+              name: v.name ?? undefined,
+              location: v.lastKnownLocation!,
+            }))
         : []
 
       // Build API request. Use getSearchResultName so reverse-geocoded
@@ -119,6 +117,8 @@ function directionsService() {
                 ? WaypointType.STOP
                 : WaypointType.VIA,
             name: (wp.place ? getSearchResultName(wp.place as Place) : '') || serverWaypoints[i]?.label || '',
+            // Pass through the full Place for POI rendering in the trip timeline
+            ...(wp.place ? { place: wp.place } : {}),
           })),
           availableVehicles: availableVehicles.map(v => v.type),
           maxOptions: 5,
@@ -228,6 +228,8 @@ function directionsService() {
       maxElevation: seg.maxElevation,
       minElevation: seg.minElevation,
       edgeSegments: seg.edgeSegments,
+      start: seg.start,
+      end: seg.end,
       ...extractTransitFields(seg),
     }
   }

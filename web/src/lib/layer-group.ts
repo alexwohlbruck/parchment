@@ -408,6 +408,7 @@ export class TripGroup extends MapLayerGroup {
           'line-width': 8,
           'line-opacity': 1.0,
           'line-emissive-strength': 1,
+          'line-occlusion-opacity': 0.5,
         },
       } as any,
     })
@@ -433,6 +434,7 @@ export class TripGroup extends MapLayerGroup {
           'line-width': 6,
           'line-opacity': 1.0,
           'line-emissive-strength': 1,
+          'line-occlusion-opacity': 0.5,
         },
       } as any,
     })
@@ -511,6 +513,7 @@ export class TripGroup extends MapLayerGroup {
           'line-width': 8,
           'line-opacity': 1.0,
           'line-emissive-strength': 1,
+          'line-occlusion-opacity': 0.5,
         },
       } as any,
     })
@@ -536,6 +539,7 @@ export class TripGroup extends MapLayerGroup {
           'line-width': 6,
           'line-opacity': 1.0,
           'line-emissive-strength': 1,
+          'line-occlusion-opacity': 0.5,
         },
       } as any,
     })
@@ -723,6 +727,7 @@ export class TripGroup extends MapLayerGroup {
         id: caseLayerId,
         type: 'line',
         source: sourceId,
+        slot: 'middle',
         layout: {
           'line-join': 'round',
           'line-cap': 'round',
@@ -733,6 +738,7 @@ export class TripGroup extends MapLayerGroup {
           'line-dasharray': [1, 2],
           'line-opacity': 1.0,
           'line-emissive-strength': 1,
+          'line-occlusion-opacity': 0.5,
         },
       } as any,
     })
@@ -751,6 +757,7 @@ export class TripGroup extends MapLayerGroup {
         id: layerId,
         type: 'line',
         source: sourceId,
+        slot: 'middle',
         layout: {
           'line-join': 'round',
           'line-cap': 'round',
@@ -761,6 +768,7 @@ export class TripGroup extends MapLayerGroup {
           'line-dasharray': [1, 2],
           'line-opacity': 1.0,
           'line-emissive-strength': 1,
+          'line-occlusion-opacity': 0.5,
         },
       } as any,
     })

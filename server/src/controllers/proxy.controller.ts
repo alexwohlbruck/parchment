@@ -209,4 +209,108 @@ app.get(
   },
 )
 
+// Proxy GTFS-RT vehicle positions from Barrelman.
+// Barrelman polls VehiclePositions feeds and serves enriched results;
+// we pass the bbox query params through and return JSON.
+app.get(
+  '/transit/vehicles',
+  async ({ query }) => {
+    try {
+      const systemIntegration = integrationManager
+        .getConfiguredIntegrations()
+        .find((i) => i.integrationId === IntegrationId.BARRELMAN)
+
+      const config = systemIntegration?.config as
+        | { host?: string; apiKey?: string }
+        | undefined
+      if (!config?.host) {
+        return new Response('Barrelman not configured', { status: 501 })
+      }
+
+      const params = new URLSearchParams()
+      for (const [k, v] of Object.entries(query)) {
+        if (v) params.set(k, String(v))
+      }
+
+      const headers: Record<string, string> = {}
+      if (config.apiKey) {
+        headers['Authorization'] = `Bearer ${config.apiKey}`
+      }
+
+      const response = await fetch(
+        `${config.host}/transit/vehicles?${params}`,
+        { headers },
+      )
+
+      return new Response(await response.arrayBuffer(), {
+        status: response.status,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+      })
+    } catch (error) {
+      console.error('Transit vehicles proxy error:', error)
+      return new Response('Proxy error', { status: 500 })
+    }
+  },
+  {
+    detail: {
+      tags: ['Proxy'],
+      summary: 'Proxy GTFS-RT vehicle positions from Barrelman',
+    },
+  },
+)
+
+// Proxy GTFS shape geometry from Barrelman (static, long-cached).
+app.get(
+  '/transit/shapes',
+  async ({ query }) => {
+    try {
+      const systemIntegration = integrationManager
+        .getConfiguredIntegrations()
+        .find((i) => i.integrationId === IntegrationId.BARRELMAN)
+
+      const config = systemIntegration?.config as
+        | { host?: string; apiKey?: string }
+        | undefined
+      if (!config?.host) {
+        return new Response('Barrelman not configured', { status: 501 })
+      }
+
+      const params = new URLSearchParams()
+      for (const [k, v] of Object.entries(query)) {
+        if (v) params.set(k, String(v))
+      }
+
+      const headers: Record<string, string> = {}
+      if (config.apiKey) {
+        headers['Authorization'] = `Bearer ${config.apiKey}`
+      }
+
+      const response = await fetch(
+        `${config.host}/transit/shapes?${params}`,
+        { headers },
+      )
+
+      return new Response(await response.arrayBuffer(), {
+        status: response.status,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'public, max-age=86400',
+        },
+      })
+    } catch (error) {
+      console.error('Transit shapes proxy error:', error)
+      return new Response('Proxy error', { status: 500 })
+    }
+  },
+  {
+    detail: {
+      tags: ['Proxy'],
+      summary: 'Proxy GTFS route shape geometry from Barrelman',
+    },
+  },
+)
+
 export default app

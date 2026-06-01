@@ -32,6 +32,7 @@ import RadiusTool from '@/components/map/measure/RadiusTool.vue'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { useMapStore } from '@/stores/map.store'
 import { useSearchStore } from '@/stores/search.store'
+import { useVehiclesStore } from '@/stores/vehicles.store'
 import { ControlVisibility } from '@/types/map.types'
 import { SearchIcon } from 'lucide-vue-next'
 
@@ -46,6 +47,7 @@ const streetViewLayersService = useStreetViewLayersService()
 const mapToolsStore = useMapToolsStore()
 const mapStore = useMapStore()
 const searchStore = useSearchStore()
+const vehiclesStore = useVehiclesStore()
 const { controlSettings } = storeToRefs(mapStore)
 const showToolbox = computed(
   () =>
@@ -97,6 +99,18 @@ const bottomSheetActiveSnapPoint = computed<number | string | null>(
 function onBottomSheetSnapIndexChange(idx: number) {
   if (idx >= 0) bottomSheetSnapIndex.value = idx
 }
+
+// Snap mobile bottom sheet to minimum when the vehicle location picker is
+// active so the map is fully visible for placing the marker.
+watch(
+  () => vehiclesStore.pickingLocationForVehicleId,
+  (picking) => {
+    if (!isMobileScreen.value) return
+    bottomSheetSnapIndex.value = picking
+      ? 0 // snap to minimum (peek height)
+      : MOBILE_DEFAULT_SNAP_INDEX
+  },
+)
 
 watch(
   () => route.name,

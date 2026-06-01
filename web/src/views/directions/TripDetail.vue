@@ -27,8 +27,18 @@ import {
 } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
 import type { RouteInstruction } from '@/types/directions.types'
+import type { Place } from '@/types/place.types'
 import type { RouteProfileType } from '@/lib/route-profile-colors'
 import { getSegmentIcon } from '@/lib/travel-mode-icons'
+import { getPlaceRoute } from '@/lib/place.utils'
+import {
+  getSearchResultIconName,
+  getSearchResultIconPack,
+  getSearchResultCategory,
+} from '@/lib/search.utils'
+import { getCategoryColor } from '@/lib/place-colors'
+import { useThemeStore } from '@/stores/theme.store'
+import { ItemIcon } from '@/components/ui/item-icon'
 import ElevationChart from '@/components/directions/ElevationChart.vue'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import { useUnits } from '@/composables/useUnits'
@@ -38,6 +48,7 @@ const router = useRouter()
 const directionsStore = useDirectionsStore()
 const directionsService = useDirectionsService()
 const mapService = useMapService()
+const themeStore = useThemeStore()
 const { formatDistance, formatElevation } = useUnits()
 
 const hoveredInstructionKey = ref<string | null>(null)
@@ -195,6 +206,7 @@ interface RouteWaypointDisplay {
   role: 'origin' | 'via' | 'destination'
   displayName: string
   time: Date | null
+  place?: Partial<Place> | null
 }
 
 const routeWaypoints = computed<RouteWaypointDisplay[]>(() => {
@@ -221,6 +233,7 @@ const routeWaypoints = computed<RouteWaypointDisplay[]>(() => {
       role,
       displayName: wp.name?.trim() || fallbackName,
       time: isOrigin ? t.startTime : isDestination ? t.endTime : null,
+      place: (wp as any).place ?? null,
     }
   })
 })
@@ -240,14 +253,22 @@ interface TimelineSegmentEntry {
   segmentIndex: number
 }
 
-type TimelineEntry = TimelineWaypointEntry | TimelineSegmentEntry
+interface TimelinePlaceStopEntry {
+  kind: 'place-stop'
+  place: Place
+  label: string
+  time: Date | null
+}
+
+type TimelineEntry = TimelineWaypointEntry | TimelineSegmentEntry | TimelinePlaceStopEntry
 
 const timelineEntries = computed<TimelineEntry[]>(() => {
   const t = trip.value
   if (!t) return []
   const entries: TimelineEntry[] = []
   const wps = routeWaypoints.value
-  const segs = t.segments
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
 
   const origin = wps.find(w => w.role === 'origin')
   entries.push({
@@ -263,6 +284,20 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
 
   for (let i = 0; i < segs.length; i++) {
     entries.push({ kind: 'segment', segment: segs[i], segmentIndex: i })
+
+    // Check for a place-bearing intermediate waypoint (e.g. parking) between
+    // consecutive segments. The backend attaches a full Place object to the
+    // segment end waypoint when it represents an OSM POI like a bike rack.
+    const seg = segs[i]
+    const nextSeg = segs[i + 1]
+    if (nextSeg && seg.end?.place) {
+      entries.push({
+        kind: 'place-stop',
+        place: seg.end.place as Place,
+        label: seg.end.label || seg.end.place.name?.value || 'Stop',
+        time: seg.endTime ?? null,
+      })
+    }
 
     const viaIndex = i + 1
     if (viaIndex < wps.length - 1) {
@@ -425,7 +460,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
       <div class="mt-4 pl-4">
         <div
           v-for="(entry, i) in timelineEntries"
-          :key="entry.kind === 'waypoint' ? entry.wp.id : `seg-${entry.segmentIndex}`"
+          :key="entry.kind === 'waypoint' ? entry.wp.id : entry.kind === 'place-stop' ? `place-${entry.place.id}` : `seg-${entry.segmentIndex}`"
           class="flex"
         >
           <!-- Rail column — fixed width, relative for absolute lines -->
@@ -461,8 +496,36 @@ function hasSegmentRouteInfo(segment: any): boolean {
               </div>
             </template>
 
+            <!-- ── Place stop rail (parking, etc.) ── -->
+            <template v-else-if="entry.kind === 'place-stop'">
+              <!-- Line above icon: from top (overlap) to icon center (mt-0.5=2px + 10px half of 20px = 12px) -->
+              <div
+                v-if="i > 0"
+                class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[14px]"
+                :class="getRailColor(i, 'above')"
+                :style="getRailStyle(i, 'above')"
+              />
+              <!-- Line below icon -->
+              <div
+                v-if="i < timelineEntries.length - 1"
+                class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[12px] bottom-[-2px]"
+                :class="getRailColor(i, 'below')"
+                :style="getRailStyle(i, 'below')"
+              />
+              <!-- POI icon -->
+              <ItemIcon
+                :icon="getSearchResultIconName(entry.place)"
+                :icon-pack="getSearchResultIconPack(entry.place)"
+                :custom-color="getCategoryColor(getSearchResultCategory(entry.place), themeStore.isDark)"
+                size="xs"
+                variant="solid"
+                shape="circle"
+                class="relative z-10 mt-0.5 !size-5 shrink-0"
+              />
+            </template>
+
             <!-- ── Segment rail ── -->
-            <template v-else>
+            <template v-else-if="entry.kind === 'segment'">
               <!-- Line above icon: previous segment's color, from top (with overlap) to icon center -->
               <div
                 class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[21px]"
@@ -496,7 +559,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
           <!-- Content column -->
           <div
             class="flex-1 min-w-0 pr-4"
-            :class="entry.kind === 'waypoint' ? 'pl-3 pb-4' : 'pl-2.5 pb-5'"
+            :class="entry.kind === 'place-stop' ? 'pl-3 pb-4' : entry.kind === 'waypoint' ? 'pl-3 pb-4' : 'pl-2.5 pb-5'"
           >
             <!-- ═══ Waypoint content ═══ -->
             <template v-if="entry.kind === 'waypoint'">
@@ -526,10 +589,75 @@ function hasSegmentRouteInfo(segment: any): boolean {
                   {{ entry.wp.displayName }}
                 </span>
               </div>
+              <!-- Place info card for origin/destination/via with a real POI -->
+              <router-link
+                v-if="entry.wp.place?.id"
+                :to="getPlaceRoute(entry.wp.place.id)"
+                class="mt-1.5 flex items-center gap-2 px-2 py-1.5 rounded-lg bg-muted/40 hover:bg-muted/70 transition-colors"
+              >
+                <ItemIcon
+                  :icon="getSearchResultIconName(entry.wp.place as Place)"
+                  :icon-pack="getSearchResultIconPack(entry.wp.place as Place)"
+                  :custom-color="getCategoryColor(getSearchResultCategory(entry.wp.place as Place), themeStore.isDark)"
+                  size="xs"
+                  variant="ghost"
+                  shape="circle"
+                  class="shrink-0"
+                />
+                <div class="flex-1 min-w-0 flex flex-col">
+                  <span
+                    v-if="entry.wp.place.placeType?.value"
+                    class="text-xs text-muted-foreground leading-snug"
+                  >
+                    {{ entry.wp.place.placeType.value }}
+                  </span>
+                  <span
+                    v-if="(entry.wp.place as any).summary"
+                    class="text-xs text-muted-foreground leading-snug"
+                  >
+                    {{ (entry.wp.place as any).summary }}
+                  </span>
+                </div>
+              </router-link>
+            </template>
+
+            <!-- ═══ Place stop content (parking, etc.) ═══ -->
+            <template v-else-if="entry.kind === 'place-stop'">
+              <div class="flex items-baseline gap-2 min-h-5 mt-px">
+                <span
+                  v-if="entry.time"
+                  class="text-sm font-medium tabular-nums shrink-0"
+                >
+                  {{ formatTime(entry.time) }}
+                </span>
+                <router-link
+                  :to="getPlaceRoute(entry.place.id)"
+                  class="text-sm text-primary hover:underline truncate"
+                >
+                  {{ entry.label }}
+                </router-link>
+              </div>
+              <div
+                v-if="(entry.place as any).summary || entry.place.placeType?.value"
+                class="mt-0.5 flex flex-col gap-0.5"
+              >
+                <span
+                  v-if="entry.place.placeType?.value && entry.place.placeType.value !== entry.label"
+                  class="text-xs text-muted-foreground"
+                >
+                  {{ entry.place.placeType.value }}
+                </span>
+                <span
+                  v-if="(entry.place as any).summary"
+                  class="text-xs text-muted-foreground"
+                >
+                  {{ (entry.place as any).summary }}
+                </span>
+              </div>
             </template>
 
             <!-- ═══ Segment content ═══ -->
-            <template v-else>
+            <template v-else-if="entry.kind === 'segment'">
               <!-- ── Transit segment header ── -->
               <div v-if="entry.segment.mode === 'transit' && entry.segment.lineName">
                 <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">

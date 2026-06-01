@@ -10,6 +10,7 @@ import { IntegrationId } from '@server/types/integration.types'
 import ContextMenu from '@/components/map/ContextMenu.vue'
 import MapLoading from '@/components/map/MapLoading.vue'
 import MapboxFallback from '@/components/map/MapboxFallback.vue'
+import VehicleLocationPickerBanner from '@/components/map/VehicleLocationPickerBanner.vue'
 
 const mapService = useMapService()
 const mapStore = useMapStore()
@@ -160,6 +161,7 @@ watch(
 
   <!-- Context menu is always available -->
   <ContextMenu v-if="shouldShowMap" />
+  <VehicleLocationPickerBanner v-if="shouldShowMap" />
 </template>
 
 <style>

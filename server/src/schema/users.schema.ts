@@ -4,6 +4,7 @@ import { usersToRoles } from './users-roles.schema'
 import { friendships } from './friendships.schema'
 import { friendInvitations } from './friend-invitations.schema'
 import { userPreferences } from './user-preferences.schema'
+import { userVehicles } from './user-vehicles.schema'
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -33,6 +34,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   friendships: many(friendships),
   friendInvitations: many(friendInvitations),
   preferences: one(userPreferences),
+  vehicles: many(userVehicles),
 }))
 
 export type User = typeof users.$inferSelect

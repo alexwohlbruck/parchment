@@ -306,6 +306,22 @@ export type TransitRouteType =
   | 'trolleybus'
   | 'monorail'
 
+/** A live GTFS-RT vehicle position enriched by Barrelman. */
+export interface TransitVehiclePosition {
+  vehicleId: string
+  tripId?: string
+  routeId?: string
+  feedId: string
+  position: { lat: number; lng: number }
+  bearing?: number
+  speed?: number
+  timestamp: string
+  routeColor?: string
+  routeTextColor?: string
+  routeShortName?: string
+  routeType?: TransitRouteType
+}
+
 export type TransitAlertEffect =
   | 'no_service'
   | 'reduced_service'
@@ -419,6 +435,27 @@ export interface TripPlanningError {
   segment?: number
   mode?: Mode
   details?: any
+}
+
+// =============================================================================
+// User Vehicle Management
+// =============================================================================
+
+export type LocationSource = 'manual' | 'inferred' | 'tracker'
+
+export type LocationStaleness = 'fresh' | 'aging' | 'stale' | 'very-stale' | 'unknown'
+
+export interface UserVehicle {
+  id: string
+  type: VehicleType
+  energyType?: EnergyType | null
+  name?: string | null
+  isActive: boolean
+  lastKnownLocation: Coordinate | null
+  locationSource: LocationSource
+  locationUpdatedAt: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 // Utility types for UI

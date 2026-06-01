@@ -399,3 +399,299 @@ export function buildTrack(params: {
     hermiteT1,
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// Polyline-constrained interpolation — Phase 3 of GTFS-RT
+// ═══════════════════════════════════════════════════════════════════
+
+/** A Track constrained to a known polyline (GTFS route shape). */
+export interface ConstrainedTrack extends Track {
+  /** The polyline this vehicle follows, in order of travel. */
+  polyline: LngLat[]
+  /** Cumulative distance in meters at each vertex of the polyline. */
+  cumulativeDistances: number[]
+  /** Total polyline length in meters. */
+  totalLength: number
+  /** Fractional position [0,1] along the polyline at the `to` sample. */
+  toFraction: number
+  /** Fractional position [0,1] along the polyline at the `from` (render start). */
+  fromFraction: number
+}
+
+/** Pre-computed distance table for a polyline. Cache alongside the shape. */
+export interface PolylineDistances {
+  cumulativeDistances: number[]
+  totalLength: number
+}
+
+/**
+ * Pre-compute cumulative distances for a polyline. Run once per shape
+ * and cache — shapes are static GTFS data.
+ */
+export function buildPolylineDistances(polyline: LngLat[]): PolylineDistances {
+  const cumulativeDistances = [0]
+  for (let i = 1; i < polyline.length; i++) {
+    cumulativeDistances.push(
+      cumulativeDistances[i - 1] + distanceMeters(polyline[i - 1], polyline[i]),
+    )
+  }
+  return {
+    cumulativeDistances,
+    totalLength: cumulativeDistances[cumulativeDistances.length - 1] || 0,
+  }
+}
+
+/**
+ * Snap a geographic position to the nearest point on a polyline.
+ * Returns the fractional position [0,1], the snapped lat/lng, and
+ * the bearing at that point along the polyline.
+ *
+ * O(n) over the polyline segments — shapes typically have 100-500
+ * vertices, fast enough at 60fps when called once per sample arrival
+ * (not per frame).
+ */
+export function snapToPolyline(
+  position: LngLat,
+  polyline: LngLat[],
+  cumulativeDistances: number[],
+  totalLength: number,
+): { fraction: number; snapped: LngLat; bearing: number } {
+  if (polyline.length < 2 || totalLength === 0) {
+    return { fraction: 0, snapped: position, bearing: 0 }
+  }
+
+  let bestDist = Infinity
+  let bestFraction = 0
+  let bestSnapped = polyline[0]
+  let bestBearing = 0
+
+  for (let i = 0; i < polyline.length - 1; i++) {
+    const a = polyline[i]
+    const b = polyline[i + 1]
+    const { point, t } = projectOntoSegment(position, a, b)
+    const d = distanceMeters(position, point)
+    if (d < bestDist) {
+      bestDist = d
+      const segDist = cumulativeDistances[i + 1] - cumulativeDistances[i]
+      const distAlongPolyline = cumulativeDistances[i] + segDist * t
+      bestFraction = distAlongPolyline / totalLength
+      bestSnapped = point
+      bestBearing = bearingDeg(a, b)
+    }
+  }
+
+  return {
+    fraction: clamp(bestFraction, 0, 1),
+    snapped: bestSnapped,
+    bearing: bestBearing,
+  }
+}
+
+/**
+ * Project point P onto the line segment A→B. Returns the closest
+ * point on the segment and the parametric `t` ∈ [0,1].
+ */
+function projectOntoSegment(
+  p: LngLat,
+  a: LngLat,
+  b: LngLat,
+): { point: LngLat; t: number } {
+  const dx = b.lng - a.lng
+  const dy = b.lat - a.lat
+  const lenSq = dx * dx + dy * dy
+  if (lenSq === 0) return { point: a, t: 0 }
+  const t = clamp(
+    ((p.lng - a.lng) * dx + (p.lat - a.lat) * dy) / lenSq,
+    0,
+    1,
+  )
+  return {
+    point: { lat: a.lat + dy * t, lng: a.lng + dx * t },
+    t,
+  }
+}
+
+/**
+ * Interpolate a position along a polyline at a given fraction [0,1].
+ * Walks the cumulative distance array to find the segment, then lerps
+ * within it.
+ */
+export function interpolateAlongPolyline(
+  fraction: number,
+  polyline: LngLat[],
+  cumulativeDistances: number[],
+  totalLength: number,
+): { position: LngLat; bearing: number } {
+  if (polyline.length < 2 || totalLength === 0) {
+    return { position: polyline[0] || { lat: 0, lng: 0 }, bearing: 0 }
+  }
+
+  const f = clamp(fraction, 0, 1)
+  const targetDist = f * totalLength
+
+  // Binary search for the segment containing targetDist
+  let lo = 0
+  let hi = polyline.length - 2
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (cumulativeDistances[mid + 1] < targetDist) lo = mid + 1
+    else hi = mid
+  }
+
+  const segStart = cumulativeDistances[lo]
+  const segEnd = cumulativeDistances[lo + 1]
+  const segLen = segEnd - segStart
+  const t = segLen > 0 ? (targetDist - segStart) / segLen : 0
+
+  return {
+    position: lerpLatLng(polyline[lo], polyline[lo + 1], t),
+    bearing: bearingDeg(polyline[lo], polyline[lo + 1]),
+  }
+}
+
+/**
+ * Build a constrained track that follows a polyline rather than
+ * free-space dead-reckoning.
+ */
+export function buildConstrainedTrack(params: {
+  currentRendered: LngLat | null
+  previousTrack?: ConstrainedTrack | null
+  sample: {
+    lngLat: LngLat
+    speed: number | null
+    heading: number | null
+    timestampMs: number
+  }
+  polyline: LngLat[]
+  polylineDistances: PolylineDistances
+  now: number
+}): ConstrainedTrack {
+  const {
+    currentRendered,
+    previousTrack,
+    sample,
+    polyline,
+    polylineDistances,
+    now,
+  } = params
+  const { cumulativeDistances, totalLength } = polylineDistances
+
+  // Snap the new sample to the polyline
+  const toSnap = snapToPolyline(
+    sample.lngLat,
+    polyline,
+    cumulativeDistances,
+    totalLength,
+  )
+
+  // Snap the current render position (or use previous track fraction)
+  let fromFraction: number
+  if (previousTrack) {
+    // Continue from where the animation left off
+    const predicted = predictConstrained(previousTrack, now)
+    const fromSnap = snapToPolyline(
+      predicted,
+      polyline,
+      cumulativeDistances,
+      totalLength,
+    )
+    fromFraction = fromSnap.fraction
+  } else if (currentRendered) {
+    const fromSnap = snapToPolyline(
+      currentRendered,
+      polyline,
+      cumulativeDistances,
+      totalLength,
+    )
+    fromFraction = fromSnap.fraction
+  } else {
+    fromFraction = toSnap.fraction
+  }
+
+  // Build the base track (reuses tween duration logic)
+  const base = buildTrack({
+    currentRendered: currentRendered
+      ? interpolateAlongPolyline(
+          fromFraction,
+          polyline,
+          cumulativeDistances,
+          totalLength,
+        ).position
+      : null,
+    previousTrack: previousTrack ?? null,
+    sample: {
+      ...sample,
+      lngLat: toSnap.snapped,
+    },
+    now,
+  })
+
+  return {
+    ...base,
+    polyline,
+    cumulativeDistances,
+    totalLength,
+    toFraction: toSnap.fraction,
+    fromFraction,
+  }
+}
+
+/**
+ * Predict position for a constrained track. During the tween phase,
+ * eases between `fromFraction` and `toFraction` along the polyline.
+ * During dead-reckoning, advances forward along the polyline by
+ * `speed * elapsed`. Returns the interpolated lat/lng.
+ */
+export function predictConstrained(
+  track: ConstrainedTrack,
+  now: number,
+): LngLat {
+  const elapsedMs = now - track.segmentStartMs
+
+  if (elapsedMs < track.segmentDurationMs) {
+    // Tween phase: ease between fractions along the polyline
+    const u = easeOut(elapsedMs / track.segmentDurationMs)
+    const fraction =
+      track.fromFraction + (track.toFraction - track.fromFraction) * u
+    return interpolateAlongPolyline(
+      fraction,
+      track.polyline,
+      track.cumulativeDistances,
+      track.totalLength,
+    ).position
+  }
+
+  // Past tween — dead-reckon along the polyline
+  const sinceArrivalSec = (elapsedMs - track.segmentDurationMs) / 1000
+  if (sinceArrivalSec > STALENESS_CAP_SEC) {
+    return interpolateAlongPolyline(
+      track.toFraction,
+      track.polyline,
+      track.cumulativeDistances,
+      track.totalLength,
+    ).position
+  }
+
+  if (
+    track.postSpeed != null &&
+    track.postSpeed > MIN_DR_SPEED
+  ) {
+    const distanceTraveled = track.postSpeed * sinceArrivalSec
+    const fractionDelta =
+      track.totalLength > 0 ? distanceTraveled / track.totalLength : 0
+    const fraction = clamp(track.toFraction + fractionDelta, 0, 1)
+    return interpolateAlongPolyline(
+      fraction,
+      track.polyline,
+      track.cumulativeDistances,
+      track.totalLength,
+    ).position
+  }
+
+  return interpolateAlongPolyline(
+    track.toFraction,
+    track.polyline,
+    track.cumulativeDistances,
+    track.totalLength,
+  ).position
+}

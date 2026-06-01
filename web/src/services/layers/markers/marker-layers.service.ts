@@ -12,6 +12,8 @@ import type { MarkerDragOptions } from '@/components/map/layers/base-marker-laye
 import { FriendLocationsLayer } from '@/components/map/layers/friend-locations-layer'
 import { TripInstructionsLayer } from '@/components/map/layers/trip-instructions-layer'
 import { UserLocationLayer } from '@/components/map/layers/user-location-layer'
+import { TrackerLocationsLayer } from '@/components/map/layers/tracker-locations-layer'
+import { TransitVehiclesLayer } from '@/components/map/layers/transit-vehicles-layer'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { watch, Component, type WatchStopHandle } from 'vue'
 
@@ -23,6 +25,8 @@ export function useMarkerLayersService() {
   let friendLocationsLayer: FriendLocationsLayer | null = null
   let tripInstructionsLayer: TripInstructionsLayer | null = null
   let userLocationLayer: UserLocationLayer | null = null
+  let trackerLocationsLayer: TrackerLocationsLayer | null = null
+  let transitVehiclesLayer: TransitVehiclesLayer | null = null
   let watchStops: WatchStopHandle[] = []
 
   // ============================================================================
@@ -44,6 +48,8 @@ export function useMarkerLayersService() {
     friendLocationsLayer = new FriendLocationsLayer()
     tripInstructionsLayer = new TripInstructionsLayer()
     userLocationLayer = new UserLocationLayer()
+    trackerLocationsLayer = new TrackerLocationsLayer()
+    transitVehiclesLayer = new TransitVehiclesLayer()
 
     // Initialize with map API
     const markerAPI = {
@@ -73,6 +79,9 @@ export function useMarkerLayersService() {
     friendLocationsLayer.initialize(markerAPI)
     tripInstructionsLayer.initialize(markerAPI)
     userLocationLayer.initialize(markerAPI)
+    trackerLocationsLayer.initialize(markerAPI)
+    transitVehiclesLayer.initialize(markerAPI)
+    transitVehiclesLayer.setGetBounds(() => mapStrategy.getBounds())
 
     // Set up watchers for reactive updates
     setupMarkerLayerWatchers()
@@ -133,11 +142,15 @@ export function useMarkerLayersService() {
     friendLocationsLayer?.destroy()
     tripInstructionsLayer?.destroy()
     userLocationLayer?.destroy()
+    trackerLocationsLayer?.destroy()
+    transitVehiclesLayer?.destroy()
 
     waypointsLayer = null
     friendLocationsLayer = null
     tripInstructionsLayer = null
     userLocationLayer = null
+    trackerLocationsLayer = null
+    transitVehiclesLayer = null
   }
 
   // ============================================================================

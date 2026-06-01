@@ -136,6 +136,9 @@ export type MapEvents = {
   'click:friend-marker': {
     friendHandle: string
   }
+  'click:tracker-marker': {
+    trackerId: string
+  }
 }
 
 export enum SourceType {
@@ -206,6 +209,7 @@ export enum LayerType {
   STREET_VIEW = 'street-view',
   TRANSIT = 'transit',
   FRIENDS = 'friends',
+  TRACKERS = 'trackers',
 }
 
 /**

@@ -3,13 +3,20 @@ import {
   MIN_DR_SPEED,
   STALENESS_CAP_SEC,
   bearingDeg,
+  buildConstrainedTrack,
+  buildPolylineDistances,
   buildTrack,
+  clamp,
   distanceMeters,
   easeOut,
   hermiteLatLng,
+  interpolateAlongPolyline,
   lerpLatLng,
   predict,
+  predictConstrained,
   projectLatLng,
+  snapToPolyline,
+  type ConstrainedTrack,
   type Track,
 } from './movement-interpolation'
 
@@ -492,5 +499,465 @@ describe('predict (Hermite path)', () => {
     expect(mid.lng).toBeLessThan(0.01)
     // No N/S motion since no Hermite curve.
     expect(mid.lat).toBeCloseTo(0, 6)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════
+// Polyline-constrained interpolation tests
+// ═══════════════════════════════════════════════════════════════════
+
+describe('clamp', () => {
+  test('returns value when within range', () => {
+    expect(clamp(5, 0, 10)).toBe(5)
+  })
+  test('clamps below lower bound', () => {
+    expect(clamp(-1, 0, 10)).toBe(0)
+  })
+  test('clamps above upper bound', () => {
+    expect(clamp(15, 0, 10)).toBe(10)
+  })
+  test('works when value equals bounds', () => {
+    expect(clamp(0, 0, 10)).toBe(0)
+    expect(clamp(10, 0, 10)).toBe(10)
+  })
+})
+
+describe('buildPolylineDistances', () => {
+  test('single-point polyline has zero length', () => {
+    const pd = buildPolylineDistances([{ lat: 0, lng: 0 }])
+    expect(pd.cumulativeDistances).toEqual([0])
+    expect(pd.totalLength).toBe(0)
+  })
+
+  test('two-point polyline has correct total length', () => {
+    const a = { lat: 0, lng: 0 }
+    const b = { lat: 0, lng: 0.01 }
+    const pd = buildPolylineDistances([a, b])
+    expect(pd.cumulativeDistances).toHaveLength(2)
+    expect(pd.cumulativeDistances[0]).toBe(0)
+    expect(pd.totalLength).toBeCloseTo(distanceMeters(a, b), 1)
+  })
+
+  test('cumulative distances are monotonically increasing', () => {
+    const polyline = [
+      { lat: 0, lng: 0 },
+      { lat: 0, lng: 0.01 },
+      { lat: 0, lng: 0.03 },
+      { lat: 0, lng: 0.06 },
+    ]
+    const pd = buildPolylineDistances(polyline)
+    for (let i = 1; i < pd.cumulativeDistances.length; i++) {
+      expect(pd.cumulativeDistances[i]).toBeGreaterThan(pd.cumulativeDistances[i - 1])
+    }
+  })
+
+  test('total length is sum of all segment lengths', () => {
+    const polyline = [
+      { lat: 0, lng: 0 },
+      { lat: 0, lng: 0.01 },
+      { lat: 0.01, lng: 0.01 },
+    ]
+    const pd = buildPolylineDistances(polyline)
+    const seg1 = distanceMeters(polyline[0], polyline[1])
+    const seg2 = distanceMeters(polyline[1], polyline[2])
+    expect(pd.totalLength).toBeCloseTo(seg1 + seg2, 1)
+  })
+})
+
+describe('snapToPolyline', () => {
+  // Simple L-shaped polyline: east then north
+  const polyline = [
+    { lat: 0, lng: 0 },
+    { lat: 0, lng: 0.01 },    // east segment
+    { lat: 0.01, lng: 0.01 }, // north segment
+  ]
+  const pd = buildPolylineDistances(polyline)
+
+  test('snaps point near first segment to correct position', () => {
+    // Point slightly north of the east segment midpoint
+    const result = snapToPolyline(
+      { lat: 0.001, lng: 0.005 },
+      polyline,
+      pd.cumulativeDistances,
+      pd.totalLength,
+    )
+    // Should snap to roughly the midpoint of the first segment
+    expect(result.snapped.lat).toBeCloseTo(0, 3)
+    expect(result.snapped.lng).toBeCloseTo(0.005, 3)
+    expect(result.fraction).toBeGreaterThan(0.2)
+    expect(result.fraction).toBeLessThan(0.4)
+  })
+
+  test('snaps point at polyline start to fraction ≈ 0', () => {
+    const result = snapToPolyline(
+      { lat: 0, lng: 0 },
+      polyline,
+      pd.cumulativeDistances,
+      pd.totalLength,
+    )
+    expect(result.fraction).toBeCloseTo(0, 2)
+  })
+
+  test('snaps point at polyline end to fraction ≈ 1', () => {
+    const result = snapToPolyline(
+      { lat: 0.01, lng: 0.01 },
+      polyline,
+      pd.cumulativeDistances,
+      pd.totalLength,
+    )
+    expect(result.fraction).toBeCloseTo(1, 2)
+  })
+
+  test('returns bearing along the segment', () => {
+    // Point near the east-heading segment → bearing ≈ 90°
+    const result = snapToPolyline(
+      { lat: 0, lng: 0.005 },
+      polyline,
+      pd.cumulativeDistances,
+      pd.totalLength,
+    )
+    expect(result.bearing).toBeCloseTo(90, 0)
+  })
+
+  test('handles degenerate polyline (single point)', () => {
+    const result = snapToPolyline(
+      { lat: 5, lng: 5 },
+      [{ lat: 0, lng: 0 }],
+      [0],
+      0,
+    )
+    expect(result.fraction).toBe(0)
+    expect(result.snapped).toEqual({ lat: 5, lng: 5 })
+  })
+
+  test('fraction is clamped to [0,1]', () => {
+    const result = snapToPolyline(
+      { lat: -0.01, lng: 0 }, // behind the start
+      polyline,
+      pd.cumulativeDistances,
+      pd.totalLength,
+    )
+    expect(result.fraction).toBeGreaterThanOrEqual(0)
+    expect(result.fraction).toBeLessThanOrEqual(1)
+  })
+})
+
+describe('interpolateAlongPolyline', () => {
+  const polyline = [
+    { lat: 0, lng: 0 },
+    { lat: 0, lng: 0.02 }, // east ~2.2 km at equator
+    { lat: 0.02, lng: 0.02 }, // north ~2.2 km
+  ]
+  const pd = buildPolylineDistances(polyline)
+
+  test('fraction=0 returns the start', () => {
+    const { position } = interpolateAlongPolyline(
+      0, polyline, pd.cumulativeDistances, pd.totalLength,
+    )
+    expect(position.lat).toBeCloseTo(0, 6)
+    expect(position.lng).toBeCloseTo(0, 6)
+  })
+
+  test('fraction=1 returns the end', () => {
+    const { position } = interpolateAlongPolyline(
+      1, polyline, pd.cumulativeDistances, pd.totalLength,
+    )
+    expect(position.lat).toBeCloseTo(0.02, 4)
+    expect(position.lng).toBeCloseTo(0.02, 4)
+  })
+
+  test('fraction=0.5 returns midpoint of total distance', () => {
+    const { position } = interpolateAlongPolyline(
+      0.5, polyline, pd.cumulativeDistances, pd.totalLength,
+    )
+    // Two equal-length segments → midpoint is at the corner vertex
+    expect(position.lat).toBeCloseTo(0, 3)
+    expect(position.lng).toBeCloseTo(0.02, 3)
+  })
+
+  test('returns bearing along the segment', () => {
+    // At fraction 0.25 we're in the east-heading segment
+    const { bearing } = interpolateAlongPolyline(
+      0.25, polyline, pd.cumulativeDistances, pd.totalLength,
+    )
+    expect(bearing).toBeCloseTo(90, 0)
+    // At fraction 0.75 we're in the north-heading segment
+    const { bearing: b2 } = interpolateAlongPolyline(
+      0.75, polyline, pd.cumulativeDistances, pd.totalLength,
+    )
+    expect(b2).toBeCloseTo(0, 0)
+  })
+
+  test('clamps fraction outside [0,1]', () => {
+    const { position: neg } = interpolateAlongPolyline(
+      -0.5, polyline, pd.cumulativeDistances, pd.totalLength,
+    )
+    expect(neg.lat).toBeCloseTo(0, 6)
+    expect(neg.lng).toBeCloseTo(0, 6)
+
+    const { position: over } = interpolateAlongPolyline(
+      1.5, polyline, pd.cumulativeDistances, pd.totalLength,
+    )
+    expect(over.lat).toBeCloseTo(0.02, 4)
+    expect(over.lng).toBeCloseTo(0.02, 4)
+  })
+
+  test('handles single-point polyline gracefully', () => {
+    const { position } = interpolateAlongPolyline(
+      0.5, [{ lat: 5, lng: 10 }], [0], 0,
+    )
+    expect(position.lat).toBe(5)
+    expect(position.lng).toBe(10)
+  })
+})
+
+describe('buildConstrainedTrack', () => {
+  const polyline = [
+    { lat: 0, lng: 0 },
+    { lat: 0, lng: 0.02 },
+    { lat: 0.02, lng: 0.02 },
+  ]
+  const pd = buildPolylineDistances(polyline)
+
+  test('first sample snaps to polyline with no tween', () => {
+    const ct = buildConstrainedTrack({
+      currentRendered: null,
+      sample: {
+        lngLat: { lat: 0.001, lng: 0.01 }, // slightly off the first segment
+        speed: 5,
+        heading: 90,
+        timestampMs: 1000,
+      },
+      polyline,
+      polylineDistances: pd,
+      now: 1000,
+    })
+
+    expect(ct.segmentDurationMs).toBe(0) // no tween for first sample
+    expect(ct.toFraction).toBeGreaterThan(0)
+    expect(ct.toFraction).toBeLessThan(1)
+    expect(ct.fromFraction).toBe(ct.toFraction) // same position
+    expect(ct.polyline).toBe(polyline)
+    expect(ct.totalLength).toBe(pd.totalLength)
+  })
+
+  test('subsequent sample creates a tween between fractions', () => {
+    // First sample at polyline start
+    const first = buildConstrainedTrack({
+      currentRendered: null,
+      sample: {
+        lngLat: { lat: 0, lng: 0 },
+        speed: 5,
+        heading: 90,
+        timestampMs: 0,
+      },
+      polyline,
+      polylineDistances: pd,
+      now: 0,
+    })
+
+    // Second sample further along the polyline
+    const second = buildConstrainedTrack({
+      currentRendered: { lat: 0, lng: 0 },
+      previousTrack: first,
+      sample: {
+        lngLat: { lat: 0, lng: 0.01 },
+        speed: 5,
+        heading: 90,
+        timestampMs: 2000,
+      },
+      polyline,
+      polylineDistances: pd,
+      now: 2000,
+    })
+
+    expect(second.toFraction).toBeGreaterThan(second.fromFraction)
+    expect(second.segmentDurationMs).toBeGreaterThan(0)
+  })
+
+  test('inherits base track properties (speed, heading, timestamp)', () => {
+    const ct = buildConstrainedTrack({
+      currentRendered: null,
+      sample: {
+        lngLat: { lat: 0, lng: 0.01 },
+        speed: 8.5,
+        heading: 45,
+        timestampMs: 3000,
+      },
+      polyline,
+      polylineDistances: pd,
+      now: 3000,
+    })
+
+    expect(ct.postSpeed).toBe(8.5)
+    expect(ct.postHeading).toBe(45)
+    expect(ct.toSampleTimestamp).toBe(3000)
+  })
+})
+
+describe('predictConstrained', () => {
+  const polyline = [
+    { lat: 0, lng: 0 },
+    { lat: 0, lng: 0.02 },
+    { lat: 0.02, lng: 0.02 },
+  ]
+  const pd = buildPolylineDistances(polyline)
+
+  function makeConstrainedTrack(overrides: Partial<ConstrainedTrack> = {}): ConstrainedTrack {
+    return {
+      from: { lat: 0, lng: 0 },
+      to: { lat: 0, lng: 0.01 },
+      segmentStartMs: 1000,
+      segmentDurationMs: 500,
+      fromVelocity: null,
+      postSpeed: 5,
+      postHeading: 90,
+      toSampleTimestamp: 1000,
+      hermiteT0: null,
+      hermiteT1: null,
+      polyline,
+      cumulativeDistances: pd.cumulativeDistances,
+      totalLength: pd.totalLength,
+      fromFraction: 0,
+      toFraction: 0.25,
+      ...overrides,
+    }
+  }
+
+  test('during tween phase, eases between fromFraction and toFraction', () => {
+    const track = makeConstrainedTrack({
+      fromFraction: 0,
+      toFraction: 0.5,
+      segmentStartMs: 1000,
+      segmentDurationMs: 500,
+    })
+
+    // At segment start → near the fromFraction position
+    const start = predictConstrained(track, 1000)
+    const startExpected = interpolateAlongPolyline(
+      0, polyline, pd.cumulativeDistances, pd.totalLength,
+    ).position
+    expect(start.lat).toBeCloseTo(startExpected.lat, 4)
+    expect(start.lng).toBeCloseTo(startExpected.lng, 4)
+
+    // At segment end → near the toFraction position
+    const end = predictConstrained(track, 1500)
+    const endExpected = interpolateAlongPolyline(
+      0.5, polyline, pd.cumulativeDistances, pd.totalLength,
+    ).position
+    expect(end.lat).toBeCloseTo(endExpected.lat, 4)
+    expect(end.lng).toBeCloseTo(endExpected.lng, 4)
+  })
+
+  test('midway through tween is past linear midpoint (ease-out)', () => {
+    const track = makeConstrainedTrack({
+      fromFraction: 0,
+      toFraction: 0.5,
+      segmentStartMs: 1000,
+      segmentDurationMs: 500,
+    })
+
+    const mid = predictConstrained(track, 1250) // 50% through tween
+    // Ease-out at 50% → fraction should be > linear midpoint of 0.25
+    // The position should be closer to toFraction than a linear interpolation
+    const linearMidPos = interpolateAlongPolyline(
+      0.25, polyline, pd.cumulativeDistances, pd.totalLength,
+    ).position
+    const toPos = interpolateAlongPolyline(
+      0.5, polyline, pd.cumulativeDistances, pd.totalLength,
+    ).position
+
+    // mid should be closer to the end than the linear midpoint
+    const distToLinearMid = distanceMeters(mid, linearMidPos)
+    const distToEnd = distanceMeters(mid, toPos)
+    expect(distToEnd).toBeLessThan(distToLinearMid)
+  })
+
+  test('dead-reckons along polyline past tween when speed is valid', () => {
+    const track = makeConstrainedTrack({
+      fromFraction: 0,
+      toFraction: 0.25,
+      segmentStartMs: 1000,
+      segmentDurationMs: 500,
+      postSpeed: 10, // 10 m/s
+    })
+
+    // 2 seconds past tween end → should advance along polyline
+    const pos = predictConstrained(track, 1500 + 2000)
+    const toPos = interpolateAlongPolyline(
+      0.25, polyline, pd.cumulativeDistances, pd.totalLength,
+    ).position
+
+    // Should be further along the polyline than toFraction
+    const distFromTo = distanceMeters(pos, toPos)
+    expect(distFromTo).toBeGreaterThan(10) // moved at least some distance
+  })
+
+  test('holds at toFraction past the staleness cap', () => {
+    const track = makeConstrainedTrack({
+      fromFraction: 0,
+      toFraction: 0.25,
+      segmentStartMs: 1000,
+      segmentDurationMs: 500,
+      postSpeed: 10,
+    })
+
+    const wayPast = 1000 + 500 + (STALENESS_CAP_SEC + 5) * 1000
+    const pos = predictConstrained(track, wayPast)
+    const toPos = interpolateAlongPolyline(
+      0.25, polyline, pd.cumulativeDistances, pd.totalLength,
+    ).position
+
+    expect(pos.lat).toBeCloseTo(toPos.lat, 4)
+    expect(pos.lng).toBeCloseTo(toPos.lng, 4)
+  })
+
+  test('holds at toFraction when speed is below MIN_DR_SPEED', () => {
+    const track = makeConstrainedTrack({
+      toFraction: 0.3,
+      postSpeed: MIN_DR_SPEED - 0.1,
+    })
+
+    const pos = predictConstrained(track, track.segmentStartMs + track.segmentDurationMs + 5000)
+    const toPos = interpolateAlongPolyline(
+      0.3, polyline, pd.cumulativeDistances, pd.totalLength,
+    ).position
+
+    expect(pos.lat).toBeCloseTo(toPos.lat, 4)
+    expect(pos.lng).toBeCloseTo(toPos.lng, 4)
+  })
+
+  test('holds at toFraction when speed is null', () => {
+    const track = makeConstrainedTrack({
+      toFraction: 0.4,
+      postSpeed: null,
+    })
+
+    const pos = predictConstrained(track, track.segmentStartMs + track.segmentDurationMs + 5000)
+    const toPos = interpolateAlongPolyline(
+      0.4, polyline, pd.cumulativeDistances, pd.totalLength,
+    ).position
+
+    expect(pos.lat).toBeCloseTo(toPos.lat, 4)
+    expect(pos.lng).toBeCloseTo(toPos.lng, 4)
+  })
+
+  test('dead-reckon fraction clamped to 1 (does not overshoot end)', () => {
+    const track = makeConstrainedTrack({
+      toFraction: 0.99,
+      postSpeed: 100, // very fast
+      segmentStartMs: 1000,
+      segmentDurationMs: 100,
+    })
+
+    // Even with high speed, should not overshoot fraction=1
+    const pos = predictConstrained(track, 1100 + 10000)
+    const endPos = interpolateAlongPolyline(
+      1, polyline, pd.cumulativeDistances, pd.totalLength,
+    ).position
+
+    // Should be at or near the polyline end, not beyond
+    expect(pos.lat).toBeCloseTo(endPos.lat, 4)
+    expect(pos.lng).toBeCloseTo(endPos.lng, 4)
   })
 })

@@ -353,7 +353,7 @@ jobs:
 
   deploy-docker:
     name: Push Docker images
-    needs: [build-docker, build-tauri, build-android, build-ios]
+    needs: [build-docker]
     runs-on: ubuntu-latest
     permissions:
       id-token: write

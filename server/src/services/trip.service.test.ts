@@ -1540,9 +1540,18 @@ describe('TripService — scoring', () => {
   // ── Parking-aware driving ───────────────────────────────────────────────────
 
   describe('parking-aware driving', () => {
+    // Mock Place objects with geometry.value.center (matches real Place type)
     const mockParking = [
-      { lat: 35.2265, lng: -80.8435, name: 'NoDa Parking Deck', tags: { fee: 'yes' } },
-      { lat: 35.2268, lng: -80.8440, name: 'Street Parking', tags: {} },
+      {
+        geometry: { value: { center: { lat: 35.2265, lng: -80.8435 } } },
+        name: { value: 'NoDa Parking Deck' },
+        tags: { fee: 'yes' },
+      },
+      {
+        geometry: { value: { center: { lat: 35.2268, lng: -80.8440 } } },
+        name: { value: 'Street Parking' },
+        tags: {},
+      },
     ]
 
     test('generates drive-to-parking + walk when useKnownParkingLocations is true', async () => {
@@ -1704,8 +1713,8 @@ describe('TripService — scoring', () => {
         expect(parkingTrip.trip.parkedVehicles).toBeDefined()
         expect(parkingTrip.trip.parkedVehicles!.length).toBe(1)
         expect(parkingTrip.trip.parkedVehicles![0].vehicle.type).toBe('car')
-        expect(parkingTrip.trip.parkedVehicles![0].location.lat).toBe(mockParking[0].lat)
-        expect(parkingTrip.trip.parkedVehicles![0].location.lng).toBe(mockParking[0].lng)
+        expect(parkingTrip.trip.parkedVehicles![0].location.lat).toBe(mockParking[0].geometry.value.center.lat)
+        expect(parkingTrip.trip.parkedVehicles![0].location.lng).toBe(mockParking[0].geometry.value.center.lng)
         expect(parkingTrip.trip.parkedVehicles![0].parkedAt).toBeDefined()
       }
     })
@@ -2656,5 +2665,344 @@ describe('TripService — mode generation edge cases', () => {
       t.trip.segments.some((s) => s.mode === 'wheelchair'),
     )
     expect(wheelchair).toBeDefined()
+  })
+})
+
+// ── Transit access/egress composition ──────────────────────────────────────
+
+describe('TripService — composeTransitWithAccessAndEgress', () => {
+  const service = new TripService()
+  const dataSources: any[] = []
+  const itinerary = makeTransitItinerary()
+
+  beforeEach(() => {
+    mockGetRoute.mockReset()
+    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+    mockSearchByCategory.mockReset()
+    mockSearchByCategory.mockImplementation(async () => [])
+  })
+
+  test('walking access + walking egress produces walk→transit→walk', async () => {
+    const result = await (service as any).composeTransitWithAccessAndEgress(
+      itinerary,
+      '2026-01-15T08:00:00Z',
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      { mode: 'walking' },
+      { mode: 'walking' },
+      {},
+      dataSources,
+    )
+
+    expect(result).not.toBeNull()
+    // Walking access returns empty segments (handled by composeTransitItinerary)
+    // so we get transit + walking egress
+    const modes = result.segments.map((s: any) => s.mode)
+    expect(modes).toContain('transit')
+  })
+
+  test('biking access + walking egress (3.4) parks bike at stop', async () => {
+    const bikeLocation = { lat: 35.2096, lng: -80.8610 }
+
+    const result = await (service as any).composeTransitWithAccessAndEgress(
+      itinerary,
+      '2026-01-15T08:00:00Z',
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      {
+        mode: 'biking',
+        vehicle: { id: 'bike-1', type: 'bike', name: 'My Bike', location: bikeLocation },
+        vehicleLocation: bikeLocation,
+      },
+      { mode: 'walking' },
+      {},
+      dataSources,
+    )
+
+    expect(result).not.toBeNull()
+    const modes = result.segments.map((s: any) => s.mode)
+    expect(modes).toContain('biking')
+    expect(modes).toContain('transit')
+    // Should NOT have bike egress (walked)
+    const egressSegments = result.segments.filter(
+      (s: any) => s.mode !== 'transit' &&
+        new Date(s.startTime) >= new Date(itinerary.legs[1].endTime),
+    )
+    expect(egressSegments.every((s: any) => s.mode === 'walking')).toBe(true)
+  })
+
+  test('biking carry-on access + biking egress (3.6) marks transit as carrying vehicle', async () => {
+    const bikeLocation = { lat: 35.2096, lng: -80.8610 }
+    const bike = { id: 'bike-1', type: 'bike' as const, name: 'My Bike', location: bikeLocation }
+
+    const result = await (service as any).composeTransitWithAccessAndEgress(
+      itinerary,
+      '2026-01-15T08:00:00Z',
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      {
+        mode: 'biking',
+        vehicle: bike,
+        vehicleLocation: bikeLocation,
+        carryOnTransit: true,
+      },
+      { mode: 'biking' },
+      {},
+      dataSources,
+    )
+
+    expect(result).not.toBeNull()
+    const modes = result.segments.map((s: any) => s.mode)
+
+    // Should have: bike access, transit (with carryingVehicle), bike egress
+    expect(modes).toContain('biking')
+    expect(modes).toContain('transit')
+
+    // Transit segments should be marked as carrying vehicle
+    const transitSegments = result.segments.filter((s: any) => s.mode === 'transit')
+    for (const seg of transitSegments) {
+      expect(seg.carryingVehicle).toBe(true)
+    }
+
+    // Should have bike egress after transit
+    const lastSegment = result.segments[result.segments.length - 1]
+    expect(lastSegment.mode).toBe('biking')
+    expect(lastSegment.vehicle?.id).toBe('bike-1')
+  })
+
+  test('driving access + walking egress (3.7) parks car', async () => {
+    const carLocation = { lat: 35.2096, lng: -80.8610 }
+    const car = { id: 'car-1', type: 'car' as const, name: 'My Car', location: carLocation }
+
+    const result = await (service as any).composeTransitWithAccessAndEgress(
+      itinerary,
+      '2026-01-15T08:00:00Z',
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      {
+        mode: 'driving',
+        vehicle: car,
+        vehicleLocation: carLocation,
+      },
+      { mode: 'walking' },
+      {},
+      dataSources,
+    )
+
+    expect(result).not.toBeNull()
+    const modes = result.segments.map((s: any) => s.mode)
+    expect(modes).toContain('driving')
+    expect(modes).toContain('transit')
+
+    // Should track parked vehicle
+    expect(result.parkedVehicles).toBeDefined()
+    expect(result.parkedVehicles!.length).toBe(1)
+    expect(result.parkedVehicles![0].vehicle.id).toBe('car-1')
+  })
+
+  test('walking access + shared-bike egress (3.2) adds walk-to-station + bike ride', async () => {
+    // Mock shared bike station near alighting stop
+    mockSearchByCategory.mockImplementation(async () => [
+      {
+        id: 'station-1',
+        name: { value: 'Downtown Bike Share' },
+        lat: 35.2255,
+        lng: -80.8445,
+        geometry: { value: { center: { lat: 35.2255, lng: -80.8445 } } },
+      },
+    ])
+
+    const result = await (service as any).composeTransitWithAccessAndEgress(
+      itinerary,
+      '2026-01-15T08:00:00Z',
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      { mode: 'walking' },
+      { mode: 'shared-bike', searchSharedMobility: true },
+      {},
+      dataSources,
+    )
+
+    expect(result).not.toBeNull()
+    const modes = result.segments.map((s: any) => s.mode)
+    expect(modes).toContain('transit')
+
+    // Should have walking to station + biking from station
+    const postTransitSegments = result.segments.filter(
+      (s: any) => s.mode !== 'transit' &&
+        new Date(s.startTime) >= new Date(itinerary.legs[1].endTime),
+    )
+    expect(postTransitSegments.length).toBeGreaterThanOrEqual(1)
+
+    // Bike segment should be marked as shared
+    const bikeEgress = postTransitSegments.find((s: any) => s.mode === 'biking')
+    expect(bikeEgress).toBeDefined()
+    expect(bikeEgress!.ownership).toBe('shared')
+  })
+
+  test('shared-bike egress falls back to walking when no stations found', async () => {
+    mockSearchByCategory.mockImplementation(async () => [])
+
+    const result = await (service as any).composeTransitWithAccessAndEgress(
+      itinerary,
+      '2026-01-15T08:00:00Z',
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      { mode: 'walking' },
+      { mode: 'shared-bike', searchSharedMobility: true },
+      {},
+      dataSources,
+    )
+
+    expect(result).not.toBeNull()
+    // No shared station → fallback to walking egress
+    const postTransitSegments = result.segments.filter(
+      (s: any) => s.mode !== 'transit' &&
+        new Date(s.startTime) >= new Date(itinerary.legs[1].endTime),
+    )
+    expect(postTransitSegments.every((s: any) => s.mode === 'walking')).toBe(true)
+  })
+
+  test('vehicle far from origin prepends walk-to-vehicle segment', async () => {
+    // Place bike 500m away (>200m threshold)
+    const farBikeLocation = { lat: 35.2140, lng: -80.8605 }
+
+    const result = await (service as any).composeTransitWithAccessAndEgress(
+      itinerary,
+      '2026-01-15T08:00:00Z',
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      {
+        mode: 'biking',
+        vehicle: { id: 'bike-1', type: 'bike', name: 'Far Bike', location: farBikeLocation },
+        vehicleLocation: farBikeLocation,
+      },
+      { mode: 'walking' },
+      {},
+      dataSources,
+    )
+
+    expect(result).not.toBeNull()
+    // First segment should be walking (to the bike)
+    expect(result.segments[0].mode).toBe('walking')
+    // Second should be biking (to the stop)
+    expect(result.segments[1].mode).toBe('biking')
+  })
+
+  test('timing is back-calculated from transit departure', async () => {
+    const bikeLocation = { lat: 35.2096, lng: -80.8610 }
+
+    const result = await (service as any).composeTransitWithAccessAndEgress(
+      itinerary,
+      '2026-01-15T08:00:00Z',
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      {
+        mode: 'biking',
+        vehicle: { id: 'bike-1', type: 'bike', location: bikeLocation },
+        vehicleLocation: bikeLocation,
+      },
+      { mode: 'walking' },
+      { transitBufferMinutes: 2 },
+      dataSources,
+    )
+
+    expect(result).not.toBeNull()
+    const bikeSegment = result.segments.find((s: any) => s.mode === 'biking')
+    const transitSegment = result.segments.find((s: any) => s.mode === 'transit')
+
+    // Bike segment should end before transit departs (with buffer)
+    const bikeEnd = new Date(bikeSegment!.endTime).getTime()
+    const transitStart = new Date(transitSegment!.startTime).getTime()
+    expect(bikeEnd).toBeLessThanOrEqual(transitStart)
+  })
+
+  test('empty transit segments returns null', async () => {
+    // Itinerary with no transit legs
+    const noTransitItinerary = makeTransitItinerary({
+      legs: [
+        {
+          mode: 'WALK',
+          transitLeg: false,
+          from: { name: 'A', lat: 35.2, lng: -80.8 },
+          to: { name: 'B', lat: 35.21, lng: -80.81 },
+          startTime: '2026-01-15T08:00:00Z',
+          endTime: '2026-01-15T08:10:00Z',
+          duration: 600,
+          distance: 500,
+        },
+      ],
+    })
+
+    const result = await (service as any).composeTransitWithAccessAndEgress(
+      noTransitItinerary,
+      '2026-01-15T08:00:00Z',
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      { mode: 'walking' },
+      { mode: 'walking' },
+      {},
+      dataSources,
+    )
+
+    expect(result).toBeNull()
+  })
+})
+
+// ── Transfer walks ──────────────────────────────────────────────────────────
+
+describe('TripService — insertTransferWalks', () => {
+  const service = new TripService()
+
+  beforeEach(() => {
+    mockGetRoute.mockReset()
+    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(100, 120))
+  })
+
+  test('inserts walk between distant consecutive transit segments', async () => {
+    const segments: any[] = [
+      {
+        mode: 'transit',
+        start: { location: { lat: 35.20, lng: -80.85 } },
+        end: { location: { lat: 35.21, lng: -80.84 } },
+        startTime: '2026-01-15T08:00:00Z',
+        endTime: '2026-01-15T08:20:00Z',
+      },
+      {
+        mode: 'transit',
+        start: { location: { lat: 35.215, lng: -80.835 } },
+        end: { location: { lat: 35.22, lng: -80.83 } },
+        startTime: '2026-01-15T08:25:00Z',
+        endTime: '2026-01-15T08:40:00Z',
+      },
+    ]
+
+    const result = await (service as any).insertTransferWalks(segments, {})
+    expect(result).not.toBeNull()
+    expect(result!.length).toBe(3) // transit + walk + transit
+    expect(result![1].mode).toBe('walking')
+  })
+
+  test('skips walk between close consecutive transit segments', async () => {
+    const segments: any[] = [
+      {
+        mode: 'transit',
+        start: { location: { lat: 35.20, lng: -80.85 } },
+        end: { location: { lat: 35.2001, lng: -80.8501 } }, // ~10m apart
+        startTime: '2026-01-15T08:00:00Z',
+        endTime: '2026-01-15T08:20:00Z',
+      },
+      {
+        mode: 'transit',
+        start: { location: { lat: 35.2002, lng: -80.8502 } },
+        end: { location: { lat: 35.22, lng: -80.83 } },
+        startTime: '2026-01-15T08:25:00Z',
+        endTime: '2026-01-15T08:40:00Z',
+      },
+    ]
+
+    const result = await (service as any).insertTransferWalks(segments, {})
+    expect(result).not.toBeNull()
+    expect(result!.length).toBe(2) // No walk inserted
   })
 })

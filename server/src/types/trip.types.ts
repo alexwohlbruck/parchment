@@ -3,6 +3,7 @@
 
 import { Coordinate, RouteInstruction, RouteEdgeSegment } from './unified-routing.types'
 import type { Language } from '../lib/i18n/i18n.types'
+import type { Place } from './place.types'
 
 // =============================================================================
 // CORE TYPES
@@ -75,6 +76,9 @@ export interface Waypoint {
   address?: string
   label?: string
   type: WaypointType
+
+  /** Full Place object when this waypoint is a real OSM POI (e.g. parking). */
+  place?: Place
 
   // ── Per-waypoint time constraints ──────────────────────────────────
   /** Earliest departure from this waypoint (ISO 8601). */
@@ -416,6 +420,32 @@ export interface EnergyState {
   currentLevel: number // 0-1 (percentage)
   range: number // meters remaining
   chargingNeeded?: boolean
+}
+
+// =============================================================================
+// TRANSIT ACCESS / EGRESS COMPOSITION
+// =============================================================================
+
+/** How to reach the first transit boarding stop. */
+export interface TransitAccessConfig {
+  mode: 'walking' | 'biking' | 'driving'
+  /** Vehicle used for this leg (bike/car). Null for walking. */
+  vehicle?: Vehicle
+  /** Where the vehicle is parked. Null for walking. */
+  vehicleLocation?: Coordinate
+  /** If true, search for parking near the boarding stop (park-and-ride). */
+  searchParking?: boolean
+  /** If true, the vehicle is carried on transit (bike carry-on). */
+  carryOnTransit?: boolean
+}
+
+/** How to get from the last alighting stop to the destination. */
+export interface TransitEgressConfig {
+  mode: 'walking' | 'biking' | 'driving' | 'shared-bike' | 'shared-scooter'
+  /** Vehicle used for egress (only for personal vehicles carried on transit). */
+  vehicle?: Vehicle
+  /** If true, search for shared mobility stations near alighting stop. */
+  searchSharedMobility?: boolean
 }
 
 // =============================================================================

@@ -97,7 +97,7 @@ const timelineWidth = computed(() => {
   return fullRange * pxPerMinute.value
 })
 
-const tickIntervals = computed(() => {
+const tickIntervals = computed((): { tickSec: number; labelSec: number } | { tick: number; label: number } => {
   const viewMin = barAreaWidth.value / pxPerMinute.value
   if (viewMin <= 2) return { tickSec: 10, labelSec: 30 }
   if (viewMin <= 4) return { tickSec: 15, labelSec: 60 }

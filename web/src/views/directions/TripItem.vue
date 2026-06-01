@@ -10,6 +10,7 @@ import type {
   TripOption,
   TripsResponse,
 } from '@/types/directions.types'
+import { TravelMode } from '@/types/directions.types'
 
 interface Props {
   trip: TripOption
@@ -40,13 +41,12 @@ function formatCo2(kg: number): string {
 const dominantMode = computed(() => {
   const durations: Record<string, number> = {}
   for (const seg of props.trip.segments) {
-    const mode = seg.mode === 'biking' ? 'cycling' : seg.mode
-    durations[mode] = (durations[mode] || 0) + seg.duration
+    durations[seg.mode] = (durations[seg.mode] || 0) + seg.duration
   }
-  let best = props.trip.mode
+  let best: TravelMode = props.trip.mode
   let max = 0
   for (const [mode, dur] of Object.entries(durations)) {
-    if (dur > max) { max = dur; best = mode }
+    if (dur > max) { max = dur; best = mode as TravelMode }
   }
   return best
 })

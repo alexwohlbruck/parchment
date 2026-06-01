@@ -53,8 +53,8 @@ watch(
   { immediate: true },
 )
 
-function handleTabChange(tabId: string) {
-  const tab = tabs.find(t => t.id === tabId)
+function handleTabChange(tabId: string | number) {
+  const tab = tabs.find(t => t.id === String(tabId))
   if (tab) {
     router.push({ name: tab.route })
   }

@@ -144,11 +144,11 @@ function getDirections() {
     lngLat: { lng, lat },
     place: {
       id: `friend-${friend.value!.friendHandle}`,
-      name: { value: displayName.value },
-      geometry: { value: { type: 'point', center: { lat, lng } } },
+      name: { value: displayName.value, sourceId: '' },
+      geometry: { value: { type: 'point' as const, center: { lat, lng } }, sourceId: '' },
       externalIds: {},
       address: null,
-      placeType: { value: 'friend' },
+      placeType: { value: 'friend', sourceId: '' },
     },
   }
 

@@ -23,7 +23,7 @@ import NotFound from '@/views/NotFound.vue'
 import Collections from '@/views/library/collections/Collections.vue'
 import Layers from '@/views/library/layers/Layers.vue'
 import Integrations from '@/views/settings/pages/Integrations.vue'
-import Friends from '@/views/friends/Friends.vue'
+import Lookout from '@/views/lookout/Lookout.vue'
 
 import { useAuthStore } from '@/stores/auth.store'
 
@@ -55,12 +55,14 @@ export enum AppRoute {
   ROLE_DETAIL = 'role-detail',
   PERMISSIONS_PAGE = 'permissions',
   PERMISSION_DETAIL = 'permission-detail',
+  VEHICLES = 'vehicles',
   INTEGRATIONS = 'integrations',
   DEVELOPER = 'developer',
   NOTE = 'note',
   NOTE_CREATE = 'note-create',
-  FRIENDS = 'friends',
+  LOOKOUT = 'lookout',
   FRIEND_DETAIL = 'friend-detail',
+  TRACKER_DETAIL = 'tracker-detail',
   DASHBOARD = 'dashboard',
   TIMELINE = 'timeline',
   NOT_FOUND = 'not-found',
@@ -195,21 +197,53 @@ const router = createRouter({
           props: true,
         },
         {
-          path: '/friends',
-          name: AppRoute.FRIENDS,
-          component: Friends,
+          path: '/lookout',
+          name: AppRoute.LOOKOUT,
+          component: Lookout,
           meta: {
             auth: true,
           },
         },
         {
-          path: '/friends/:handle',
+          path: '/lookout/friend/:handle',
           name: AppRoute.FRIEND_DETAIL,
           component: () => import('@/views/friends/FriendDetail.vue'),
           props: true,
           meta: {
             auth: true,
           },
+        },
+        {
+          path: '/lookout/tracker/:id',
+          name: AppRoute.TRACKER_DETAIL,
+          component: () => import('@/views/trackers/TrackerDetail.vue'),
+          props: true,
+          meta: {
+            auth: true,
+          },
+        },
+        // Redirects from old paths
+        {
+          path: '/friends',
+          redirect: '/lookout',
+        },
+        {
+          path: '/friends/:handle',
+          redirect: to => ({
+            name: AppRoute.FRIEND_DETAIL,
+            params: { handle: to.params.handle },
+          }),
+        },
+        {
+          path: '/trackers',
+          redirect: '/lookout',
+        },
+        {
+          path: '/trackers/:id',
+          redirect: to => ({
+            name: AppRoute.TRACKER_DETAIL,
+            params: { id: to.params.id },
+          }),
         },
         {
           path: '/timeline',
@@ -253,6 +287,11 @@ const router = createRouter({
           path: '/settings/map',
           name: AppRoute.MAP_SETTINGS,
           component: MapSettings,
+        },
+        {
+          path: '/settings/vehicles',
+          name: AppRoute.VEHICLES,
+          component: () => import('@/views/settings/pages/Vehicles.vue'),
         },
         {
           path: '/settings/users',

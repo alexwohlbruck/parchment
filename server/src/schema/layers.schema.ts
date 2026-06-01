@@ -18,6 +18,7 @@ export const LayerType = {
   STREET_VIEW: 'street-view',
   TRANSIT: 'transit',
   FRIENDS: 'friends',
+  TRACKERS: 'trackers',
 } as const
 
 export const MapEngine = {

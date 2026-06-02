@@ -6,13 +6,19 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from '@/components/ui/tooltip'
+import {
+  TrainFrontIcon,
+  BusIcon,
+  ShipIcon,
+  TramFrontIcon,
+} from 'lucide-vue-next'
 
 interface Props {
   vehicleId: string
   routeShortName?: string
   routeColor?: string     // hex without #
   routeTextColor?: string // hex without #
-  routeType?: string
+  routeType?: number | string
   bearing?: number
   timestamp?: string
   selected?: boolean
@@ -34,13 +40,6 @@ const emit = defineEmits<{
   select: [vehicleId: string]
 }>()
 
-const displayName = computed(() => {
-  if (!props.routeShortName) return ''
-  return props.routeShortName.length > 4
-    ? props.routeShortName.slice(0, 4)
-    : props.routeShortName
-})
-
 const bgColor = computed(() =>
   props.routeColor ? `#${props.routeColor}` : 'hsl(var(--foreground))',
 )
@@ -49,23 +48,25 @@ const textColor = computed(() =>
   props.routeTextColor ? `#${props.routeTextColor}` : 'hsl(var(--background))',
 )
 
-const routeTypeLabel = computed(() => {
-  const labels: Record<string, string> = {
-    bus: 'Bus',
-    tram: 'Tram',
-    subway: 'Subway',
-    rail: 'Rail',
-    ferry: 'Ferry',
-    cable_tram: 'Cable tram',
-    aerial_lift: 'Aerial lift',
-    funicular: 'Funicular',
-    trolleybus: 'Trolleybus',
-    monorail: 'Monorail',
-  }
-  return labels[props.routeType ?? ''] ?? 'Transit'
+const vehicleIcon = computed(() => {
+  const t = typeof props.routeType === 'string' ? parseInt(props.routeType, 10) : props.routeType
+  if (t === 0) return TramFrontIcon
+  if (t === 1) return TrainFrontIcon
+  if (t === 2) return TrainFrontIcon
+  if (t === 4) return ShipIcon
+  return BusIcon
 })
 
-// Reactive clock that ticks every second so timeAgo stays fresh
+const routeTypeLabel = computed(() => {
+  const t = typeof props.routeType === 'string' ? parseInt(props.routeType, 10) : props.routeType
+  if (t === 0) return 'Tram'
+  if (t === 1) return 'Subway'
+  if (t === 2) return 'Rail'
+  if (t === 3) return 'Bus'
+  if (t === 4) return 'Ferry'
+  return 'Transit'
+})
+
 const now = ref(Date.now())
 let tickTimer: ReturnType<typeof setInterval> | null = null
 onMounted(() => {
@@ -98,11 +99,7 @@ const timeAgo = computed(() => {
       <TooltipTrigger asChild>
         <div
           class="transit-vehicle-marker"
-          :class="{
-            stale: isStale,
-            selected: selected,
-            dimmed: dimmed,
-          }"
+          :class="{ stale: isStale, selected, dimmed }"
           @click.stop="emit('select', vehicleId)"
         >
           <!-- Direction arrow -->
@@ -115,12 +112,12 @@ const timeAgo = computed(() => {
             }"
           />
 
-          <!-- Main circle with route short name -->
+          <!-- Main circle with vehicle icon -->
           <div
             class="vehicle-circle"
             :style="{ background: bgColor, color: textColor }"
           >
-            <span class="route-name">{{ displayName }}</span>
+            <component :is="vehicleIcon" class="vehicle-icon" />
           </div>
         </div>
       </TooltipTrigger>
@@ -152,30 +149,26 @@ const timeAgo = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 3px;
-  border-radius: 10px;
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
   border: 2px solid white;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3), 0 0 0 0.5px rgba(0, 0, 0, 0.1);
   transition: transform 0.15s ease;
 }
 
 .transit-vehicle-marker:hover .vehicle-circle {
-  transform: scale(1.2);
+  transform: scale(1.15);
 }
 
-.route-name {
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1;
-  white-space: nowrap;
-  letter-spacing: -0.02em;
+.vehicle-icon {
+  width: 14px;
+  height: 14px;
 }
 
 .direction-arrow {
   position: absolute;
-  top: -7px;
+  top: -6px;
   left: 50%;
   margin-left: -4px;
   width: 0;
@@ -184,21 +177,18 @@ const timeAgo = computed(() => {
   border-right: 4px solid transparent;
   border-bottom: 6px solid currentColor;
   z-index: -1;
-  transform-origin: center calc(100% + 10px);
+  transform-origin: center calc(100% + 9px);
 }
 
-/* Selected state */
 .transit-vehicle-marker.selected .vehicle-circle {
-  transform: scale(1.35);
+  transform: scale(1.3);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), 0 0 0 2px rgba(255, 255, 255, 0.9);
 }
 
-/* Dimmed state (another vehicle is selected) */
 .transit-vehicle-marker.dimmed {
   opacity: 0.35;
 }
 
-/* Stale state */
 .transit-vehicle-marker.stale {
   opacity: 0.4;
 }

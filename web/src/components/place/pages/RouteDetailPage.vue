@@ -294,23 +294,21 @@ onUnmounted(() => {
             }"
           />
 
-          <!-- Vehicle indicators (absolutely positioned, centered at 13.5px) -->
+          <!-- Vehicle indicators (same style as map markers) -->
           <div
             v-for="vr in vehiclesOnRoute"
             :key="'v-' + vr.vehicleId"
             class="absolute z-20 cursor-pointer"
             :style="{
-              left: '1px',
-              top: `${vehicleTopPx(vr) + STOP_ROW_HEIGHT / 2 - 12}px`,
-              width: '25px',
-              height: '25px',
+              left: '2px',
+              top: `${vehicleTopPx(vr) + STOP_ROW_HEIGHT / 2 - 11}px`,
             }"
             @click.stop="onSelectVehicle(vr.vehicleId)"
           >
             <div
-              class="w-full h-full rounded-full flex items-center justify-center transition-all"
-              :style="{ background: bgColor }"
-              :class="{ 'ring-2 ring-offset-2 ring-offset-background scale-110': vr.vehicleId === selectedId }"
+              class="w-[22px] h-[22px] rounded-full flex items-center justify-center border-2 border-white transition-all"
+              :style="{ background: bgColor, boxShadow: '0 1px 4px rgba(0,0,0,0.3)' }"
+              :class="{ 'ring-2 ring-offset-1 ring-offset-background scale-110': vr.vehicleId === selectedId }"
             >
               <component :is="routeTypeIcon" class="h-3 w-3" :style="{ color: textColor }" />
             </div>

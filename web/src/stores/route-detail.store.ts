@@ -404,15 +404,37 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     if (routeIds.length === 0) return
 
     try {
-      const { data } = await api.get<{ vehicles: TransitVehiclePosition[] }>(
-        '/proxy/transit/route-vehicles',
-        { params: { routeIds: routeIds.join(','), feedId: activeRoute.value.feedId } },
-      )
+      // Try the route-specific endpoint first (no bounds needed)
+      let vehicleData: TransitVehiclePosition[] | null = null
 
-      if (!data?.vehicles) return
+      try {
+        const { data } = await api.get<{ vehicles: TransitVehiclePosition[] }>(
+          '/proxy/transit/route-vehicles',
+          { params: { routeIds: routeIds.join(','), feedId: activeRoute.value.feedId } },
+        )
+        vehicleData = data?.vehicles ?? null
+      } catch {
+        // Endpoint not available (server needs restart) — fall back to bbox
+      }
+
+      // Fallback: use the bbox vehicles endpoint with a wide bounds
+      if (!vehicleData) {
+        const bounds = routeBounds()
+        if (!bounds) return
+        const { data } = await api.get<{ vehicles: TransitVehiclePosition[] }>(
+          '/proxy/transit/vehicles',
+          { params: bounds },
+        )
+        // Filter to our routes client-side
+        const routeIdSet = new Set(routeIds)
+        vehicleData = (data?.vehicles ?? []).filter(v =>
+          (v.routeId && routeIdSet.has(v.routeId)) ||
+          (v.routeShortName && routeIdSet.has(v.routeShortName)),
+        )
+      }
 
       const updated = new Map<string, TransitVehiclePosition>()
-      for (const v of data.vehicles) {
+      for (const v of vehicleData) {
         updated.set(v.vehicleId, v)
       }
       vehicles.value = updated
@@ -421,8 +443,32 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
         selectedVehicleId.value = null
       }
     } catch {
-      // Silently ignore — will retry on next poll
+      // Will retry on next poll
     }
+  }
+
+  function routeBounds() {
+    const route = activeRoute.value
+    if (!route) return null
+    let north = -90, south = 90, east = -180, west = 180
+    if (route.coordinates) {
+      for (const [lng, lat] of route.coordinates) {
+        if (lat > north) north = lat
+        if (lat < south) south = lat
+        if (lng > east) east = lng
+        if (lng < west) west = lng
+      }
+    }
+    for (const stop of route.stops) {
+      if (stop.lat > north) north = stop.lat
+      if (stop.lat < south) south = stop.lat
+      if (stop.lng > east) east = stop.lng
+      if (stop.lng < west) west = stop.lng
+    }
+    if (north === -90) return null
+    const latPad = (north - south) * 0.3
+    const lngPad = (east - west) * 0.3
+    return { north: north + latPad, south: south - latPad, east: east + lngPad, west: west - lngPad }
   }
 
   return {

@@ -256,8 +256,13 @@ onUnmounted(() => {
       <div class="px-4">
         <div class="text-sm font-semibold mb-2">Stops</div>
 
-        <div class="relative pl-8">
-          <!-- Route color line -->
+        <!--
+          Timeline layout: everything centers on an axis 14px from
+          the container's left edge. pl-[34px] gives room for the
+          line + dots + vehicle icons to the left of stop names.
+        -->
+        <div class="relative pl-[34px]">
+          <!-- Route color line: 3px wide, centered on axis (14 - 1.5 = 12.5) -->
           <div
             class="absolute left-[12px] top-[16px] w-[3px] rounded-full z-0"
             :style="{
@@ -266,51 +271,51 @@ onUnmounted(() => {
             }"
           />
 
-          <!-- Vehicle indicators (absolute, interpolated position) -->
+          <!-- Vehicle indicators (absolute, centered on axis) -->
           <div
             v-for="vr in vehiclesOnRoute"
             :key="'v-' + vr.vehicleId"
             class="absolute z-20 cursor-pointer"
             :style="{
-              left: '-2px',
-              top: `${vehicleTopPx(vr) + 16 - 13}px`,
+              left: '1px',
+              top: `${vehicleTopPx(vr) + 16 - 12}px`,
             }"
             @click.stop="onSelectVehicle(vr.vehicleId)"
           >
+            <!-- 25px icon centered on 14px axis: 14 - 12.5 = 1.5 ≈ 1px left -->
             <div
-              class="w-[27px] h-[27px] rounded-full flex items-center justify-center transition-all"
+              class="w-[25px] h-[25px] rounded-full flex items-center justify-center transition-all"
               :style="{ background: bgColor }"
               :class="{
                 'ring-2 ring-offset-2 ring-offset-background scale-110': vr.vehicleId === selectedId,
               }"
             >
-              <component :is="routeTypeIcon" class="h-3.5 w-3.5" :style="{ color: textColor }" />
+              <component :is="routeTypeIcon" class="h-3 w-3" :style="{ color: textColor }" />
             </div>
           </div>
 
-          <!-- Stop rows (fixed height, no vehicle elements inline) -->
+          <!-- Stop rows -->
           <div
             v-for="(stop, i) in displayStops"
             :key="stop.stopId"
             class="relative flex items-center transition-opacity duration-200"
             :style="{ height: `${STOP_ROW_HEIGHT}px` }"
-            :class="{
-              'opacity-40': isStopPassedBySelected(i),
-            }"
+            :class="{ 'opacity-40': isStopPassedBySelected(i) }"
           >
-            <!-- Stop dot -->
+            <!-- Stop dot: centered on axis (14px from container left) -->
+            <!-- Normal 9px dot: 14 - 4.5 = 9.5 from container = 9.5 - 34 = -24.5 from content -->
+            <!-- Terminus 11px dot: 14 - 5.5 = 8.5 from container = 8.5 - 34 = -25.5 from content -->
             <div
               class="absolute rounded-full border-2 bg-background z-10"
               :style="{ borderColor: bgColor }"
               :class="[
                 i === 0 || i === displayStops.length - 1
-                  ? 'w-[11px] h-[11px] left-[-20px]'
-                  : 'w-[9px] h-[9px] left-[-19px]',
+                  ? 'w-[11px] h-[11px] -left-[25px]'
+                  : 'w-[9px] h-[9px] -left-[24px]',
               ]"
               style="top: 50%; transform: translateY(-50%)"
             />
 
-            <!-- Stop name -->
             <span
               class="text-sm"
               :class="{ 'font-semibold': i === 0 || i === displayStops.length - 1 }"

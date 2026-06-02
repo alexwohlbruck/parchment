@@ -299,7 +299,12 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
   private startSampleWatcher() {
     this.samplesWatchStop = watch(
       () => {
-        return Array.from(this.transitVehiclesStore.vehicles.values()).map(
+        // Read from whichever store is providing vehicle data
+        const source = this.routeDetailStore.isActive
+          ? this.routeDetailStore.vehicles
+          : this.transitVehiclesStore.vehicles
+
+        return Array.from(source.values()).map(
           (v) => ({
             id: v.vehicleId,
             lat: v.position.lat,

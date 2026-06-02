@@ -8,8 +8,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { api } from '@/lib/api'
-import { send as wsSend } from '@/lib/realtime'
-import { registerRealtimeHandlers } from '@/lib/realtime-events'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
 import type { TransitDeparture } from '@/types/place.types'
 
@@ -201,6 +199,8 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
 
   // ── Actions ──────────────────────────────────────────────────────
 
+  let vehiclePollTimer: ReturnType<typeof setInterval> | null = null
+
   async function openRoute(
     feedId: string,
     routeId: string,
@@ -215,7 +215,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
         { params: { feedId, routeId } },
       )
       activeRoute.value = data
-      subscribeVehicles()
+      startVehiclePolling()
     } catch (err) {
       console.error('[RouteDetail] Failed to load route:', err)
     } finally {
@@ -224,7 +224,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
   }
 
   function closeRoute() {
-    unsubscribeVehicles()
+    stopVehiclePolling()
     activeRoute.value = null
     departureContext.value = null
     selectedVehicleId.value = null
@@ -379,79 +379,51 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     return Math.sqrt(dLat * dLat + dLng * dLng)
   }
 
-  // ── Vehicle subscription ─────────────────────────────────────────
-  // Subscribe with a wide bbox covering the entire route so we get
-  // ALL vehicles on the line, not just the ones in the current viewport.
+  // ── Vehicle polling ──────────────────────────────────────────────
+  // Polls the route-specific endpoint which returns ALL vehicles on
+  // the route — no bounding box, no WebSocket subscription needed.
 
-  function subscribeVehicles() {
+  const VEHICLE_POLL_MS = 10_000
+
+  function startVehiclePolling() {
+    stopVehiclePolling()
+    fetchRouteVehicles()
+    vehiclePollTimer = setInterval(fetchRouteVehicles, VEHICLE_POLL_MS)
+  }
+
+  function stopVehiclePolling() {
+    if (vehiclePollTimer) {
+      clearInterval(vehiclePollTimer)
+      vehiclePollTimer = null
+    }
+  }
+
+  async function fetchRouteVehicles() {
     if (!activeRoute.value) return
-    // Use a generous bbox covering the full route extent
-    const bounds = routeBounds()
-    if (!bounds) return
-    wsSend({ type: 'transit:subscribe', bounds })
-  }
+    const routeIds = activeRouteIds.value
+    if (routeIds.length === 0) return
 
-  function unsubscribeVehicles() {
-    wsSend({ type: 'transit:unsubscribe' })
-  }
+    try {
+      const { data } = await api.get<{ vehicles: TransitVehiclePosition[] }>(
+        '/proxy/transit/route-vehicles',
+        { params: { routeIds: routeIds.join(','), feedId: activeRoute.value.feedId } },
+      )
 
-  function routeBounds() {
-    const route = activeRoute.value
-    if (!route) return null
+      if (!data?.vehicles) return
 
-    let north = -90, south = 90, east = -180, west = 180
-    if (route.coordinates) {
-      for (const [lng, lat] of route.coordinates) {
-        if (lat > north) north = lat
-        if (lat < south) south = lat
-        if (lng > east) east = lng
-        if (lng < west) west = lng
+      const updated = new Map<string, TransitVehiclePosition>()
+      for (const v of data.vehicles) {
+        updated.set(v.vehicleId, v)
       }
-    }
-    for (const stop of route.stops) {
-      if (stop.lat > north) north = stop.lat
-      if (stop.lat < south) south = stop.lat
-      if (stop.lng > east) east = stop.lng
-      if (stop.lng < west) west = stop.lng
-    }
-    if (north === -90) return null
-    // Generous padding to catch vehicles slightly beyond terminus
-    const latPad = (north - south) * 0.3
-    const lngPad = (east - west) * 0.3
-    return {
-      north: Math.min(90, north + latPad),
-      south: Math.max(-90, south - latPad),
-      east: Math.min(180, east + lngPad),
-      west: Math.max(-180, west - lngPad),
-    }
-  }
+      vehicles.value = updated
 
-  function applyVehicleUpdate(payload: unknown) {
-    const data = payload as { vehicles?: TransitVehiclePosition[] }
-    if (!data?.vehicles || !activeRoute.value) return
-
-    const routeIds = new Set(activeRouteIds.value)
-    const filtered = new Map<string, TransitVehiclePosition>()
-    for (const v of data.vehicles) {
-      if ((v.routeId && routeIds.has(v.routeId)) ||
-          (v.routeShortName && routeIds.has(v.routeShortName))) {
-        filtered.set(v.vehicleId, v)
+      if (selectedVehicleId.value && !updated.has(selectedVehicleId.value)) {
+        selectedVehicleId.value = null
       }
-    }
-    vehicles.value = filtered
-
-    // Auto-clear selection if the vehicle disappeared
-    if (selectedVehicleId.value && !filtered.has(selectedVehicleId.value)) {
-      selectedVehicleId.value = null
+    } catch {
+      // Silently ignore — will retry on next poll
     }
   }
-
-  registerRealtimeHandlers('route-detail', {
-    'transit:vehicles': applyVehicleUpdate,
-    'realtime:reconnected': () => {
-      if (activeRoute.value) subscribeVehicles()
-    },
-  })
 
   return {
     activeRoute,

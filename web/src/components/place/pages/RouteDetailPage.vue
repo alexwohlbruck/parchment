@@ -267,14 +267,29 @@ onUnmounted(() => {
         <div class="text-sm font-semibold mb-2">{{ t('place.transit.stops') }}</div>
 
         <div class="relative" style="padding-left: 32px">
-          <!-- Vertical route line (centered at 13.5px from left edge) -->
+          <!-- Vertical route line: split into passed (grey) and active (colored) segments -->
           <div
+            v-if="selectedVehicleOnRoute"
             class="absolute z-0 rounded-full"
             :style="{
               left: '12px',
               top: `${STOP_ROW_HEIGHT / 2}px`,
               width: '3px',
-              height: `${(displayStops.length - 1) * STOP_ROW_HEIGHT}px`,
+              height: `${vehicleTopPx(selectedVehicleOnRoute)}px`,
+              background: 'hsl(var(--muted-foreground))',
+            }"
+          />
+          <div
+            class="absolute z-0 rounded-full"
+            :style="{
+              left: '12px',
+              top: selectedVehicleOnRoute
+                ? `${STOP_ROW_HEIGHT / 2 + vehicleTopPx(selectedVehicleOnRoute)}px`
+                : `${STOP_ROW_HEIGHT / 2}px`,
+              width: '3px',
+              height: selectedVehicleOnRoute
+                ? `${(displayStops.length - 1) * STOP_ROW_HEIGHT - vehicleTopPx(selectedVehicleOnRoute)}px`
+                : `${(displayStops.length - 1) * STOP_ROW_HEIGHT}px`,
               background: bgColor,
             }"
           />

@@ -15,6 +15,8 @@ interface Props {
   routeType?: string
   bearing?: number
   timestamp?: string
+  selected?: boolean
+  dimmed?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -24,7 +26,13 @@ const props = withDefaults(defineProps<Props>(), {
   routeType: undefined,
   bearing: undefined,
   timestamp: undefined,
+  selected: false,
+  dimmed: false,
 })
+
+const emit = defineEmits<{
+  select: [vehicleId: string]
+}>()
 
 const displayName = computed(() => {
   if (!props.routeShortName) return ''
@@ -90,7 +98,12 @@ const timeAgo = computed(() => {
       <TooltipTrigger asChild>
         <div
           class="transit-vehicle-marker"
-          :class="{ stale: isStale }"
+          :class="{
+            stale: isStale,
+            selected: selected,
+            dimmed: dimmed,
+          }"
+          @click.stop="emit('select', vehicleId)"
         >
           <!-- Direction arrow -->
           <div
@@ -172,6 +185,17 @@ const timeAgo = computed(() => {
   border-bottom: 6px solid currentColor;
   z-index: -1;
   transform-origin: center calc(100% + 10px);
+}
+
+/* Selected state */
+.transit-vehicle-marker.selected .vehicle-circle {
+  transform: scale(1.35);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+
+/* Dimmed state (another vehicle is selected) */
+.transit-vehicle-marker.dimmed {
+  opacity: 0.35;
 }
 
 /* Stale state */

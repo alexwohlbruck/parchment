@@ -200,6 +200,9 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
       ? this.routeDetailStore.vehicles
       : this.transitVehiclesStore.vehicles
 
+    const selectedId = this.routeDetailStore.selectedVehicleId
+    const hasSelection = !!selectedId
+
     return Array.from(vehicles.values()).map((v: TransitVehiclePosition) => ({
       id: v.vehicleId,
       lngLat: { lat: v.position.lat, lng: v.position.lng },
@@ -211,6 +214,9 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
         routeType: v.routeType,
         bearing: v.bearing,
         timestamp: v.timestamp,
+        selected: v.vehicleId === selectedId,
+        dimmed: hasSelection && v.vehicleId !== selectedId,
+        onSelect: (id: string) => this.routeDetailStore.selectVehicle(id),
       },
     }))
   }
@@ -629,11 +635,15 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
       routeShortName?: string
       routeType?: string
       timestamp?: string
+      selected?: boolean
+      dimmed?: boolean
     }
     return [
       p.routeColor ?? '',
       p.routeShortName ?? '',
       p.routeType ?? '',
+      p.selected ? 's' : '',
+      p.dimmed ? 'd' : '',
       p.timestamp
         ? Math.floor(new Date(p.timestamp).getTime() / 60_000)
         : 'na',

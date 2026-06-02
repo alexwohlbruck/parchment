@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
-import { useRouteDetailStore, type DepartureContext } from '@/stores/route-detail.store'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRouteDetailStore, type DepartureContext, type VehicleOnRoute } from '@/stores/route-detail.store'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import SheetPageHeader from '@/components/place/SheetPageHeader.vue'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
@@ -15,8 +15,6 @@ import {
   ShipIcon,
   TramFrontIcon,
   MapPinIcon,
-  ChevronDownIcon,
-  ClockIcon,
 } from 'lucide-vue-next'
 import type { TransitDeparture } from '@/types/place.types'
 
@@ -28,30 +26,27 @@ const props = defineProps<{
   routeDepartures?: TransitDeparture[]
 }>()
 
-const routeDetailStore = useRouteDetailStore()
+const store = useRouteDetailStore()
 const currentTime = useTransitClock()
 
-const route = computed(() => routeDetailStore.activeRoute)
-const isLoading = computed(() => routeDetailStore.isLoading)
-const vehicles = computed(() => routeDetailStore.vehicleList)
-const originStopIndex = computed(() => routeDetailStore.originStopIndex)
-const headway = computed(() => routeDetailStore.headwayMinutes)
-const upcoming = computed(() => routeDetailStore.upcomingDepartures)
+const route = computed(() => store.activeRoute)
+const isLoading = computed(() => store.isLoading)
+const vehicles = computed(() => store.vehicleList)
+const vehiclesOnRoute = computed(() => store.vehiclesOnRoute)
+const selectedId = computed(() => store.selectedVehicleId)
 
 const displayName = computed(() => {
   if (!route.value) return ''
   return route.value.routeShortName || route.value.routeLongName || route.value.routeId
 })
 
-const fullName = computed(() => {
-  if (!route.value) return ''
-  return route.value.routeLongName || route.value.routeShortName || ''
-})
+const fullName = computed(() =>
+  route.value?.routeLongName || route.value?.routeShortName || '',
+)
 
 const bgColor = computed(() =>
   route.value?.routeColor ? `#${route.value.routeColor}` : 'hsl(var(--foreground))',
 )
-
 const textColor = computed(() =>
   route.value?.routeTextColor ? `#${route.value.routeTextColor}` : 'hsl(var(--background))',
 )
@@ -78,39 +73,42 @@ const routeTypeLabel = computed(() => {
   }
 })
 
-/** First upcoming departure for the "Now" / "X min" display. */
-const nextDeparture = computed(() => upcoming.value[0] ?? null)
+const headway = computed(() => store.headwayMinutes)
+const upcoming = computed(() => store.upcomingDepartures)
 
-const nextDepartureMinutes = computed(() => {
-  if (!nextDeparture.value) return null
-  return getMinutesUntil(nextDeparture.value, currentTime.value)
-})
-
-const nextDepartureLabel = computed(() => {
-  const m = nextDepartureMinutes.value
+const nextLabel = computed(() => {
+  const dep = upcoming.value[0]
+  if (!dep) return null
+  const m = getMinutesUntil(dep, currentTime.value)
   if (m === null) return null
   if (m <= 0) return 'Now'
-  if (m === 1) return '1 min'
   return `${m} min`
 })
 
-const delayStatus = computed(() => {
-  if (!nextDeparture.value) return null
-  const delay = nextDeparture.value.delay
-  if (delay == null) return null
-  if (delay <= 60) return 'On-time'
-  const mins = Math.round(delay / 60)
-  return `${mins} min late`
+const nextIsNow = computed(() => {
+  const dep = upcoming.value[0]
+  if (!dep) return false
+  const m = getMinutesUntil(dep, currentTime.value)
+  return m !== null && m <= 0
 })
 
-/** Is a stop "before" the current origin stop? */
-function isBeforeOrigin(index: number): boolean {
-  if (originStopIndex.value < 0) return false
-  return index < originStopIndex.value
+/** Get vehicles positioned between stop i-1 and stop i. */
+function vehiclesBetween(stopIndex: number): VehicleOnRoute[] {
+  return vehiclesOnRoute.value.filter(v => v.nearestStopIndex === stopIndex)
 }
 
-function isOriginStop(index: number): boolean {
-  return originStopIndex.value >= 0 && index === originStopIndex.value
+function isSelected(vehicleId: string): boolean {
+  return selectedId.value === vehicleId
+}
+
+function onVehicleClick(vehicleId: string) {
+  store.selectVehicle(selectedId.value === vehicleId ? null : vehicleId)
+}
+
+function timeAgo(timestamp: string): string {
+  const sec = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000)
+  if (sec < 60) return `${sec}s ago`
+  return `${Math.floor(sec / 60)}m ago`
 }
 
 onMounted(() => {
@@ -121,11 +119,11 @@ onMounted(() => {
         departures: props.routeDepartures || [],
       }
     : undefined
-  routeDetailStore.openRoute(props.feedId, props.routeId, context)
+  store.openRoute(props.feedId, props.routeId, context)
 })
 
 onUnmounted(() => {
-  routeDetailStore.closeRoute()
+  store.closeRoute()
 })
 </script>
 
@@ -138,8 +136,8 @@ onUnmounted(() => {
     </div>
 
     <div v-else-if="route" class="flex flex-col pb-6">
-      <!-- ── Route header ──────────────────────────────────── -->
-      <div class="flex items-start gap-3 px-4 mb-4">
+      <!-- ── Route header ──────────────────────────────── -->
+      <div class="flex items-start gap-3 px-4 mb-3">
         <div
           class="flex items-center justify-center min-w-10 h-10 px-2.5 rounded-lg font-bold text-lg shrink-0"
           :style="{ background: bgColor, color: textColor }"
@@ -156,68 +154,42 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- ── Departures summary ────────────────────────────── -->
-      <div v-if="upcoming.length > 0" class="px-4 mb-4">
-        <div class="flex items-center justify-between mb-1.5">
+      <!-- ── Departures ────────────────────────────────── -->
+      <div v-if="upcoming.length > 0" class="px-4 mb-3">
+        <div class="flex items-center justify-between mb-1">
           <span class="text-sm font-semibold">Departures</span>
           <span v-if="headway" class="text-xs text-muted-foreground">
             Every {{ headway }} min
           </span>
         </div>
-
-        <div class="flex items-center gap-2 text-sm">
+        <div class="flex items-center gap-1.5 flex-wrap">
           <span
-            :class="[
-              'font-medium',
-              nextDepartureMinutes != null && nextDepartureMinutes <= 1
-                ? 'text-green-600 dark:text-green-400'
-                : '',
-            ]"
+            :class="['text-sm font-medium', nextIsNow ? 'text-green-600 dark:text-green-400' : '']"
           >
-            {{ nextDepartureLabel || '—' }}
+            {{ nextLabel }}
           </span>
-          <template v-if="delayStatus">
-            <span class="text-muted-foreground">·</span>
-            <span
-              :class="[
-                'text-xs',
-                delayStatus === 'On-time'
-                  ? 'text-green-600 dark:text-green-400'
-                  : 'text-orange-500',
-              ]"
-            >
-              {{ delayStatus }}
-            </span>
-          </template>
-        </div>
-
-        <!-- Next few departures -->
-        <div v-if="upcoming.length > 1" class="flex items-center gap-2 mt-1.5 flex-wrap">
-          <template v-for="(dep, i) in upcoming.slice(0, 4)" :key="i">
-            <span class="text-xs text-muted-foreground tabular-nums">
-              {{ formatDepartureTime(dep) }}
-            </span>
-            <span v-if="dep.realTime" class="inline-flex">
-              <RealtimeIndicator :realTime="true" />
-            </span>
+          <template v-for="(dep, i) in upcoming.slice(1, 4)" :key="i">
+            <span class="text-muted-foreground text-xs">,</span>
+            <span class="text-sm tabular-nums">{{ formatDepartureTime(dep) }}</span>
+            <RealtimeIndicator v-if="dep.realTime" :realTime="true" class="shrink-0" />
           </template>
         </div>
       </div>
 
-      <!-- ── Live vehicles ─────────────────────────────────── -->
+      <!-- ── Active vehicles ───────────────────────────── -->
       <div
         v-if="vehicles.length > 0"
-        class="flex items-center gap-2 px-4 py-2 mx-4 mb-4 rounded-lg bg-muted/50"
+        class="flex items-center gap-2 px-4 py-2 mx-4 mb-3 rounded-lg bg-muted/50"
       >
         <component :is="routeTypeIcon" class="h-4 w-4 text-muted-foreground shrink-0" />
         <span class="text-sm text-muted-foreground">
-          {{ vehicles.length }} {{ routeTypeLabel.toLowerCase() }}{{ vehicles.length !== 1 ? 's' : '' }} active
+          {{ vehicles.length }} active
         </span>
       </div>
 
-      <!-- ── Stops ─────────────────────────────────────────── -->
+      <!-- ── Stop timeline with vehicles ───────────────── -->
       <div class="px-4">
-        <div class="text-sm font-semibold mb-3">Stops</div>
+        <div class="text-sm font-semibold mb-2">Stops</div>
 
         <div class="relative pl-7">
           <!-- Route color line -->
@@ -226,49 +198,55 @@ onUnmounted(() => {
             :style="{ background: bgColor }"
           />
 
-          <div
-            v-for="(stop, i) in route.stops"
-            :key="stop.stopId"
-            class="relative flex items-center justify-between gap-2 min-h-[32px]"
-            :class="{
-              'opacity-40': isBeforeOrigin(i),
-            }"
-          >
-            <!-- Stop marker -->
+          <template v-for="(stop, i) in route.stops" :key="stop.stopId">
+            <!-- Vehicles between previous stop and this stop -->
             <div
-              class="absolute w-[9px] h-[9px] rounded-full border-2 bg-background z-10"
-              :style="{ borderColor: bgColor }"
-              :class="[
-                i === 0 || i === route.stops.length - 1
-                  ? 'w-[11px] h-[11px] -left-[16px] top-[11px]'
-                  : '-left-[15px] top-[12px]',
-                isOriginStop(i) ? 'w-[11px] h-[11px] -left-[16px] top-[11px]' : '',
-              ]"
-            />
-
-            <!-- Active stop vehicle icon -->
-            <div
-              v-if="isOriginStop(i)"
-              class="absolute -left-[22px] top-[5px] w-[23px] h-[23px] rounded-full flex items-center justify-center z-20"
-              :style="{ background: bgColor }"
+              v-for="vr in vehiclesBetween(i)"
+              :key="vr.vehicleId"
+              class="relative flex items-center gap-2 py-1 cursor-pointer group/v"
+              :class="{ 'opacity-50': selectedId && !isSelected(vr.vehicleId) }"
+              @click="onVehicleClick(vr.vehicleId)"
             >
-              <component
-                :is="routeTypeIcon"
-                class="h-3.5 w-3.5"
-                :style="{ color: textColor }"
-              />
+              <div
+                class="absolute -left-[22px] w-[23px] h-[23px] rounded-full flex items-center justify-center z-20 transition-transform"
+                :style="{ background: bgColor }"
+                :class="{ 'scale-125 ring-2 ring-offset-2 ring-offset-background': isSelected(vr.vehicleId) }"
+              >
+                <component
+                  :is="routeTypeIcon"
+                  class="h-3.5 w-3.5"
+                  :style="{ color: textColor }"
+                />
+              </div>
+              <span class="text-xs text-muted-foreground pl-1">
+                {{ vr.vehicle.routeShortName || displayName }}
+                <span class="opacity-60">· {{ timeAgo(vr.vehicle.timestamp) }}</span>
+              </span>
             </div>
 
-            <!-- Stop name -->
-            <span
-              class="text-sm leading-snug py-1.5"
-              :class="{
-                'font-semibold': i === 0 || i === route.stops.length - 1 || isOriginStop(i),
-              }"
+            <!-- Stop dot + name -->
+            <div
+              class="relative flex items-center justify-between gap-2 min-h-[28px]"
             >
-              {{ stop.stopName }}
-            </span>
-          </div>
+              <div
+                class="absolute rounded-full border-2 bg-background z-10"
+                :style="{ borderColor: bgColor }"
+                :class="[
+                  i === 0 || i === route.stops.length - 1
+                    ? 'w-[11px] h-[11px] -left-[16px] top-[8px]'
+                    : 'w-[9px] h-[9px] -left-[15px] top-[9px]',
+                ]"
+              />
+              <span
+                class="text-sm leading-snug py-1"
+                :class="{
+                  'font-semibold': i === 0 || i === route.stops.length - 1,
+                }"
+              >
+                {{ stop.stopName }}
+              </span>
+            </div>
+          </template>
         </div>
       </div>
     </div>

@@ -1,9 +1,8 @@
 /**
  * Route Detail Store
  *
- * Manages the active transit route detail state. When a route is active,
- * the map isolates that line (fades others, highlights the route shape,
- * shows station markers, and displays live vehicles for just that route).
+ * Manages the active transit route detail view: route data, vehicle
+ * tracking, direction selection, and vehicle selection state.
  */
 
 import { ref, computed } from 'vue'
@@ -36,14 +35,22 @@ export interface RouteDetail {
   relatedRouteIds: string[]
 }
 
-/** Departure context passed from the transit stop page. */
 export interface DepartureContext {
-  /** The stop the user opened from. */
   originStopName: string
-  /** Headsign/direction of the selected departure. */
   headsign: string
-  /** All departures for this route at the origin stop. */
   departures: TransitDeparture[]
+}
+
+/** A vehicle projected onto the route's stop list. */
+export interface VehicleOnRoute {
+  vehicleId: string
+  vehicle: TransitVehiclePosition
+  /** Index of the stop the vehicle is approaching (or just passed). */
+  nearestStopIndex: number
+  /** 0-1 fraction between nearestStopIndex-1 and nearestStopIndex. */
+  fractionBetweenStops: number
+  /** Distance along route in meters. */
+  distanceAlongRoute: number
 }
 
 export const useRouteDetailStore = defineStore('route-detail', () => {
@@ -52,6 +59,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
   const departureContext = ref<DepartureContext | null>(null)
   const isLoading = ref(false)
   const vehicles = ref<Map<string, TransitVehiclePosition>>(new Map())
+  const selectedVehicleId = ref<string | null>(null)
 
   // ── Getters ──────────────────────────────────────────────────────
   const isActive = computed(() => activeRoute.value !== null)
@@ -63,24 +71,39 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
 
   const activeRouteIds = computed(() => {
     if (!activeRoute.value) return []
-    return [
-      activeRoute.value.routeId,
-      ...activeRoute.value.relatedRouteIds,
-    ]
+    return [activeRoute.value.routeId, ...activeRoute.value.relatedRouteIds]
   })
 
   const vehicleList = computed(() => Array.from(vehicles.value.values()))
 
-  /** Index of the origin stop in the stop list (-1 if not found). */
-  const originStopIndex = computed(() => {
-    if (!activeRoute.value || !departureContext.value) return -1
-    const name = departureContext.value.originStopName.toLowerCase()
-    return activeRoute.value.stops.findIndex(
-      s => s.stopName.toLowerCase().includes(name) || name.includes(s.stopName.toLowerCase()),
-    )
+  const selectedVehicle = computed(() =>
+    selectedVehicleId.value ? vehicles.value.get(selectedVehicleId.value) ?? null : null,
+  )
+
+  /** Vehicles projected onto the route timeline. */
+  const vehiclesOnRoute = computed((): VehicleOnRoute[] => {
+    const route = activeRoute.value
+    if (!route || !route.stops.length) return []
+
+    const result: VehicleOnRoute[] = []
+    for (const v of vehicles.value.values()) {
+      const projected = projectVehicleOnRoute(v, route.stops)
+      if (projected) result.push(projected)
+    }
+    return result
   })
 
-  /** Upcoming departures grouped by direction/headsign. */
+  /** Directions available (derived from departure headsigns). */
+  const directions = computed(() => {
+    if (!departureContext.value) return []
+    const headsigns = new Set<string>()
+    for (const dep of departureContext.value.departures) {
+      const h = dep.headsign || dep.direction
+      if (h) headsigns.add(h)
+    }
+    return [...headsigns]
+  })
+
   const upcomingDepartures = computed(() => {
     if (!departureContext.value) return []
     const now = Date.now()
@@ -93,7 +116,6 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
       .slice(0, 5)
   })
 
-  /** Average headway in minutes (from departure intervals). */
   const headwayMinutes = computed(() => {
     const deps = upcomingDepartures.value
     if (deps.length < 2) return null
@@ -110,8 +132,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     for (let i = 1; i < times.length; i++) {
       intervals.push((times[i] - times[i - 1]) / 60_000)
     }
-    const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length
-    return Math.round(avg)
+    return Math.round(intervals.reduce((a, b) => a + b, 0) / intervals.length)
   })
 
   // ── Actions ──────────────────────────────────────────────────────
@@ -123,6 +144,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
   ) {
     isLoading.value = true
     departureContext.value = context ?? null
+    selectedVehicleId.value = null
     try {
       const { data } = await api.get<RouteDetail>(
         '/proxy/transit/route-detail',
@@ -141,14 +163,98 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     unsubscribeVehicles()
     activeRoute.value = null
     departureContext.value = null
+    selectedVehicleId.value = null
     vehicles.value = new Map()
+  }
+
+  function selectVehicle(vehicleId: string | null) {
+    selectedVehicleId.value = vehicleId
+  }
+
+  // ── Vehicle projection ──────────────────────────────────────────
+
+  function projectVehicleOnRoute(
+    v: TransitVehiclePosition,
+    stops: RouteDetailStop[],
+  ): VehicleOnRoute | null {
+    if (stops.length < 2) return null
+
+    const vLat = v.position.lat
+    const vLng = v.position.lng
+
+    // Find nearest stop by distance
+    let bestIdx = 0
+    let bestDist = Infinity
+    for (let i = 0; i < stops.length; i++) {
+      const d = haversineQuick(vLat, vLng, stops[i].lat, stops[i].lng)
+      if (d < bestDist) {
+        bestDist = d
+        bestIdx = i
+      }
+    }
+
+    // Determine if the vehicle is before or after the nearest stop
+    // by checking distance to adjacent stops
+    let prevIdx = Math.max(0, bestIdx - 1)
+    let nextIdx = Math.min(stops.length - 1, bestIdx + 1)
+
+    // Project onto the segment between prev and next stop
+    let segStartIdx: number
+    let segEndIdx: number
+    if (bestIdx === 0) {
+      segStartIdx = 0
+      segEndIdx = 1
+    } else if (bestIdx === stops.length - 1) {
+      segStartIdx = stops.length - 2
+      segEndIdx = stops.length - 1
+    } else {
+      const dPrev = haversineQuick(vLat, vLng, stops[prevIdx].lat, stops[prevIdx].lng)
+      const dNext = haversineQuick(vLat, vLng, stops[nextIdx].lat, stops[nextIdx].lng)
+      if (dPrev < dNext) {
+        segStartIdx = prevIdx
+        segEndIdx = bestIdx
+      } else {
+        segStartIdx = bestIdx
+        segEndIdx = nextIdx
+      }
+    }
+
+    const segLen = stops[segEndIdx].distanceAlongRoute - stops[segStartIdx].distanceAlongRoute
+    if (segLen <= 0) {
+      return {
+        vehicleId: v.vehicleId,
+        vehicle: v,
+        nearestStopIndex: bestIdx,
+        fractionBetweenStops: 0,
+        distanceAlongRoute: stops[bestIdx].distanceAlongRoute,
+      }
+    }
+
+    // Project vehicle position between the two stops
+    const dToStart = haversineQuick(vLat, vLng, stops[segStartIdx].lat, stops[segStartIdx].lng)
+    const dToEnd = haversineQuick(vLat, vLng, stops[segEndIdx].lat, stops[segEndIdx].lng)
+    const totalD = dToStart + dToEnd
+    const frac = totalD > 0 ? Math.min(1, Math.max(0, dToStart / totalD)) : 0
+
+    return {
+      vehicleId: v.vehicleId,
+      vehicle: v,
+      nearestStopIndex: segEndIdx,
+      fractionBetweenStops: frac,
+      distanceAlongRoute: stops[segStartIdx].distanceAlongRoute + segLen * frac,
+    }
+  }
+
+  function haversineQuick(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const dLat = lat2 - lat1
+    const dLng = (lng2 - lng1) * Math.cos(((lat1 + lat2) / 2) * Math.PI / 180)
+    return Math.sqrt(dLat * dLat + dLng * dLng)
   }
 
   // ── Vehicle subscription ─────────────────────────────────────────
 
   function subscribeVehicles() {
     if (!activeRoute.value) return
-    // Compute bounds from the route shape or stops
     const bounds = computeRouteBounds()
     if (!bounds) return
     wsSend({ type: 'transit:subscribe', bounds })
@@ -158,14 +264,11 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     wsSend({ type: 'transit:unsubscribe' })
   }
 
-  /** Compute a bounding box that covers the entire route. */
   function computeRouteBounds() {
     const route = activeRoute.value
     if (!route) return null
 
     let north = -90, south = 90, east = -180, west = 180
-
-    // From shape coordinates
     if (route.coordinates) {
       for (const [lng, lat] of route.coordinates) {
         if (lat > north) north = lat
@@ -174,26 +277,16 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
         if (lng < west) west = lng
       }
     }
-
-    // From stops (in case shape is missing)
     for (const stop of route.stops) {
       if (stop.lat > north) north = stop.lat
       if (stop.lat < south) south = stop.lat
       if (stop.lng > east) east = stop.lng
       if (stop.lng < west) west = stop.lng
     }
-
     if (north === -90) return null
-
-    // Pad by 10%
     const latPad = (north - south) * 0.1
     const lngPad = (east - west) * 0.1
-    return {
-      north: north + latPad,
-      south: south - latPad,
-      east: east + lngPad,
-      west: west - lngPad,
-    }
+    return { north: north + latPad, south: south - latPad, east: east + lngPad, west: west - lngPad }
   }
 
   function applyVehicleUpdate(payload: unknown) {
@@ -209,6 +302,11 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
       }
     }
     vehicles.value = filtered
+
+    // Auto-clear selection if the vehicle disappeared
+    if (selectedVehicleId.value && !filtered.has(selectedVehicleId.value)) {
+      selectedVehicleId.value = null
+    }
   }
 
   registerRealtimeHandlers('route-detail', {
@@ -227,10 +325,14 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     activeRouteIds,
     vehicles,
     vehicleList,
-    originStopIndex,
+    vehiclesOnRoute,
+    selectedVehicleId,
+    selectedVehicle,
+    directions,
     upcomingDepartures,
     headwayMinutes,
     openRoute,
     closeRoute,
+    selectVehicle,
   }
 })

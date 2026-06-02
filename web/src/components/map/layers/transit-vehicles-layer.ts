@@ -149,18 +149,31 @@ function decayedDist(speed: number, sec: number): number {
  * Compute the DR confidence factor for the next track based on how
  * well our prediction matched the new GPS fix. Delegates to the
  * shared `updateDrConfidence` in movement-interpolation.ts.
+ *
+ * Uses effectiveSpeed (smoothedSpeed × drConfidence) as the prediction
+ * baseline — this matches what the DR engine actually used, so the
+ * ratio measures real prediction accuracy, not inflated raw speed.
+ *
+ * For free→constrained transitions, carries over the free-mode
+ * confidence instead of hard-resetting to 0.
  */
 function computeDrConfidence(
   existing: TransitTrack | undefined,
   newTargetDist: number,
   dt: number,
 ): number {
-  if (!existing || existing.kind !== 'constrained') return 0
+  if (!existing) return 0
+  if (existing.kind !== 'constrained') {
+    // Free→constrained transition: carry over accumulated confidence
+    // instead of resetting to 0 (which would stutter the marker).
+    return existing.drConfidence
+  }
+  const effectiveSpeed = existing.smoothedSpeed * existing.drConfidence
   return updateDrConfidence(
     existing.drConfidence,
     existing.targetDist,
     newTargetDist,
-    existing.smoothedSpeed,
+    effectiveSpeed,
     dt,
   )
 }
@@ -407,42 +420,55 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
             continue
           }
 
+          // Hoist shape lookup — used by both bootstrap and normal path.
+          const shapeKey =
+            row.feedId && row.routeId
+              ? this.shapeKey(row.feedId, row.routeId)
+              : null
+          const shape = shapeKey ? this.shapeCache.get(shapeKey) : null
+
           // Bootstrap: if this is the first time we see this vehicle and the
           // server provided a previousPosition, create a synthetic "prior"
           // track so the current sample becomes the second data point. This
           // gives us speed + direction immediately — no 5s wait for the next
           // poll to start interpolation.
-          if (!existing && row.previousLat != null && row.previousLng != null && row.previousTimestamp != null) {
+          //
+          // Staleness guard: reject previous positions older than 120s —
+          // stale data produces near-zero speed and multi-minute transitions.
+          const MAX_BOOTSTRAP_AGE_MS = 120_000
+          if (
+            !existing &&
+            row.previousLat != null && row.previousLng != null && row.previousTimestamp != null &&
+            (row.timestamp - row.previousTimestamp) < MAX_BOOTSTRAP_AGE_MS
+          ) {
             const prevRow = {
-              ...row,
               lat: row.previousLat,
               lng: row.previousLng,
               timestamp: row.previousTimestamp,
               speed: null as number | null,
               heading: null as number | null,
+              feedId: row.feedId,
+              routeId: row.routeId,
+              routeType: row.routeType,
               nextStopId: null as string | null,
               nextStopArrival: null as number | null,
               previousLat: null as number | null,
               previousLng: null as number | null,
               previousTimestamp: null as number | null,
             }
-            const shapeKey = row.feedId && row.routeId
-              ? this.shapeKey(row.feedId, row.routeId) : null
-            const shape = shapeKey ? this.shapeCache.get(shapeKey) : null
             if (shape) {
               existing = this.buildConstrainedTrack(undefined, prevRow, shape, now)
             } else {
               existing = this.buildFreeTrack(undefined, prevRow, now)
             }
+            // Seed confidence so the real sample's DR can work immediately.
+            // Without this, the synthetic track has smoothedSpeed=0 which makes
+            // updateDrConfidence short-circuit (predictedTravel < 2), keeping
+            // confidence at 0 and negating the bootstrap's purpose.
+            existing.drConfidence = 0.2
             // Don't set it on this.tracks yet — the current row will
             // immediately overwrite it below using this as `existing`.
           }
-
-          const shapeKey =
-            row.feedId && row.routeId
-              ? this.shapeKey(row.feedId, row.routeId)
-              : null
-          const shape = shapeKey ? this.shapeCache.get(shapeKey) : null
 
           if (shape) {
             this.tracks.set(
@@ -575,8 +601,10 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
       const overshootM = currentDist - newTargetDist
 
       if (overshootM <= GPS_NOISE_TOLERANCE_M) {
-        // Small noise: hold position, don't correct backwards. Accept the
-        // GPS as the new target but start from where we already are.
+        // Small noise: hold position, don't correct backwards.
+        // Keep smoothedSpeed unchanged — repeated noise detections
+        // should not compound speed penalties (which would make the
+        // vehicle unable to keep up when it starts moving again).
         return {
           kind: 'constrained',
           polyline,
@@ -586,7 +614,7 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
           targetDist: currentDist, // hold at current, don't glide backwards
           transitionStartMs: now,
           transitionDurationMs: 0,
-          smoothedSpeed: smoothedSpeed * 0.5,
+          smoothedSpeed, // no penalty — preserve speed for departure
           heading: snap.bearing,
           lastSampleTimestamp: row.timestamp,
           highWaterDist: currentDist,
@@ -682,11 +710,28 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
 
     const sampleInterval = dt > 2 ? dt * 1000 : TRANSITION_MS
 
-    // Free-space confidence: simple ramp based on sample count.
-    // We can't measure overshoot as precisely as constrained mode,
-    // so just ramp slowly to a moderate max.
+    // Free-space confidence: measure how well DR predicted this GPS fix.
+    // Compare where DR would have put us (target + DR from speed+heading)
+    // to where GPS actually says we are. Drop confidence if mismatch is
+    // large, preventing stationary vehicles from drifting on GPS jitter.
+    let freeConf: number
     const prevConf = existing.drConfidence
-    const freeConf = Math.min(prevConf + 0.15, 0.5)
+    const freePrevPos = existing.kind === 'free' ? existing.target : currentPos
+    if (dt > 1 && existing.smoothedSpeed > MIN_DR_SPEED && existing.heading != null) {
+      const effectiveFreeSpeed = existing.smoothedSpeed * prevConf
+      const predictedDist = effectiveFreeSpeed * dt
+      const actualDist = distanceMeters(freePrevPos, samplePos)
+      if (predictedDist > 2) {
+        const ratio = actualDist / predictedDist
+        const sampleConf = (ratio >= 0.4 && ratio <= 1.5) ? 0.6 : 0.2
+        const alpha = sampleConf < prevConf ? 0.5 : 0.2
+        freeConf = Math.min(alpha * sampleConf + (1 - alpha) * prevConf, 0.5)
+      } else {
+        freeConf = Math.min(prevConf + 0.1, 0.5)
+      }
+    } else {
+      freeConf = Math.min(prevConf + 0.1, 0.5)
+    }
 
     return {
       kind: 'free',
@@ -761,11 +806,12 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
     if (track.transitionDurationMs > 0 && elapsed < track.transitionDurationMs) {
       const u = elapsed / track.transitionDurationMs
       const dist = track.blendFromDist + (track.targetDist - track.blendFromDist) * u
-      // Never go backwards from high-water mark during a forward glide.
-      // (For backwards corrections — blendFromDist > targetDist — the
-      // highWaterDist was already reset to targetDist by the builder.)
-      const clamped = Math.max(dist, track.highWaterDist)
-      track.highWaterDist = clamped
+      // For forward glides: never go backwards from high-water mark.
+      // For backwards corrections (overshoot → GPS): skip the clamp so
+      // the glide can actually reach the lower targetDist.
+      const isBackwardsCorrection = track.blendFromDist > track.targetDist
+      const clamped = isBackwardsCorrection ? dist : Math.max(dist, track.highWaterDist)
+      if (!isBackwardsCorrection) track.highWaterDist = clamped
       return Math.min(clamped, track.totalLength)
     }
 

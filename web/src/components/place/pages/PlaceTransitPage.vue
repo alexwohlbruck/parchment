@@ -17,6 +17,9 @@ import {
 } from '@/lib/transit'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import SheetPageHeader from '@/components/place/SheetPageHeader.vue'
+import RouteDetailPage from '@/components/place/pages/RouteDetailPage.vue'
+import { useSheetPage } from '@/composables/useSheetPage'
+import { markRaw } from 'vue'
 
 const props = defineProps<{
   transitInfo: TransitStopInfo
@@ -24,7 +27,20 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const { openExternalLink } = useExternalLink()
+const { pushPage } = useSheetPage()
 const currentTime = useTransitClock()
+
+function openRouteDetail(departure: TransitDeparture) {
+  const feedId = props.transitInfo?.feedId
+  const routeId = departure.route.id
+  if (!feedId || !routeId) return
+
+  pushPage({
+    name: 'route-detail',
+    component: markRaw(RouteDetailPage),
+    props: { feedId, routeId },
+  })
+}
 
 const departures = computed((): TransitDeparture[] => {
   return props.transitInfo?.departures || []
@@ -182,21 +198,24 @@ function openTransitlandLink() {
         v-for="(routeView, routeKey) in groupedDepartures"
         :key="routeKey"
       >
-        <!-- Route header -->
-        <div class="flex items-center gap-2 mb-3">
+        <!-- Route header (clickable → opens route detail) -->
+        <button
+          class="flex items-center gap-2 mb-3 group cursor-pointer"
+          @click="openRouteDetail(repForRoute(routeView))"
+        >
           <Badge
             :style="{
               backgroundColor: getRouteColor(repForRoute(routeView).route),
               color: getTextColor(repForRoute(routeView).route),
             }"
-            class="text-xs font-semibold"
+            class="text-xs font-semibold group-hover:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"
           >
             {{ routeKey }}
           </Badge>
-          <span class="text-sm text-muted-foreground truncate">
+          <span class="text-sm text-muted-foreground truncate group-hover:text-foreground transition-colors">
             {{ repForRoute(routeView).route.longName }}
           </span>
-        </div>
+        </button>
 
         <!-- One sub-section per direction -->
         <div class="space-y-4">

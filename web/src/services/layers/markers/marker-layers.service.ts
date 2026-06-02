@@ -16,6 +16,7 @@ import { TrackerLocationsLayer } from '@/components/map/layers/tracker-locations
 import { TransitVehiclesLayer } from '@/components/map/layers/transit-vehicles-layer'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useTransitVehiclesStore } from '@/stores/transit-vehicles.store'
+import { useRouteIsolationService } from '@/services/layers/features/route-isolation.service'
 import { watch, Component, type WatchStopHandle } from 'vue'
 
 export function useMarkerLayersService() {
@@ -30,6 +31,7 @@ export function useMarkerLayersService() {
   let transitVehiclesLayer: TransitVehiclesLayer | null = null
   let watchStops: WatchStopHandle[] = []
   let moveEndCleanup: (() => void) | null = null
+  let routeIsolation: ReturnType<typeof useRouteIsolationService> | null = null
 
   // ============================================================================
   // INITIALIZATION
@@ -97,6 +99,10 @@ export function useMarkerLayersService() {
       mapStrategy.mapInstance.off('moveend', onMoveEnd)
     }
 
+    // Route isolation: highlights active transit route on the map
+    routeIsolation = useRouteIsolationService()
+    routeIsolation.initialize(mapStrategy.mapInstance)
+
     // Set up watchers for reactive updates
     setupMarkerLayerWatchers()
   }
@@ -153,6 +159,8 @@ export function useMarkerLayersService() {
     watchStops = []
     moveEndCleanup?.()
     moveEndCleanup = null
+    routeIsolation?.destroy()
+    routeIsolation = null
 
     waypointsLayer?.destroy()
     friendLocationsLayer?.destroy()

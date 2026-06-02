@@ -2,24 +2,14 @@ import { DefaultLayerTemplate } from '../../types/layers.types'
 import { LayerType } from '../../schema/layers.schema'
 
 export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
-  // Live vehicle positions from GTFS-RT (marker layer, not a map layer)
-  {
-    templateId: 'default:transit-vehicles',
-    name: 'Live vehicles',
-    type: LayerType.TRANSIT,
-    icon: 'BusIcon',
-    showInLayerSelector: true,
-    visible: false,
-    order: 0,
-    groupId: 'default:group:transit',
-    isSubLayer: false,
-    integrationId: null,
-    configuration: {
-      id: 'transit-vehicles',
-      type: 'circle',
-      source: 'transit-vehicles',
-    },
-  },
+  // Live vehicle positions — disabled from global layer group.
+  // Vehicles now only show in route detail context (isolated line view).
+  // Kept as a template for reference but hidden from the layer selector.
+  // {
+  //   templateId: 'default:transit-vehicles',
+  //   name: 'Live vehicles',
+  //   ...
+  // },
   // Transitland Route Active (hitbox/hover layer)
   {
     templateId: 'default:transitland-route-active',

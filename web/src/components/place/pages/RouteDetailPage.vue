@@ -196,7 +196,7 @@ onUnmounted(() => {
         <ToggleGroup
           type="single"
           :modelValue="activeDirection ?? undefined"
-          @update:modelValue="(v) => { if (v) store.setDirection(String(v)) }"
+          @update:modelValue="(v) => store.setDirection(v ? String(v) : activeDirection!)"
           variant="outline"
           size="sm"
           class="w-full"

@@ -417,6 +417,8 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
     const newTargetDist = snap.fraction * totalLength
 
     if (!existing) {
+      const rt = typeof row.routeType === 'number' ? row.routeType : 3
+      const initSpeed = Math.min(row.speed ?? 0, MAX_SPEED_BY_TYPE[rt] ?? DEFAULT_MAX_SPEED)
       return {
         kind: 'constrained',
         polyline,
@@ -426,7 +428,7 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
         targetDist: newTargetDist,
         transitionStartMs: now,
         transitionDurationMs: 0,
-        smoothedSpeed: Math.min(row.speed ?? 0, MAX_SPEED_BY_TYPE[row.routeType ?? 3] ?? DEFAULT_MAX_SPEED),
+        smoothedSpeed: initSpeed,
         heading: snap.bearing,
         lastSampleTimestamp: row.timestamp,
         highWaterDist: newTargetDist,
@@ -483,8 +485,8 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
       smoothedSpeed = Math.min(existing.smoothedSpeed, maxSpeed)
     }
 
-    // Monotonic: if the new fix is behind our high-water mark,
-    // hold position and reduce speed instead of going backwards
+    // Monotonic: if the new GPS fix is behind our high-water mark,
+    // hold position and reduce speed — let reality catch up
     const highWater = existing.kind === 'constrained'
       ? existing.highWaterDist
       : currentDist
@@ -505,9 +507,6 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
       }
     }
 
-    // Use the actual sample interval as transition duration so the
-    // vehicle glides at constant speed toward the target. Falls back
-    // to TRANSITION_MS for the first pair or very short intervals.
     const sampleInterval = dt > 2 ? dt * 1000 : TRANSITION_MS
 
     return {
@@ -642,24 +641,36 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
     const elapsed = now - track.transitionStartMs
     const elapsedSec = elapsed / 1000
 
-    // Where pure dead-reckoning says we should be
-    const idealDist = track.targetDist + decayedDist(track.smoothedSpeed, elapsedSec)
-
-    let dist: number
+    // Phase 1: glide from previous position toward the GPS target
+    // over the sample interval (constant speed, no easing).
     if (track.transitionDurationMs > 0 && elapsed < track.transitionDurationMs) {
-      // Ease-blend from starting position toward the moving ideal
-      const u = easeOut(elapsed / track.transitionDurationMs)
-      dist = track.blendFromDist + (idealDist - track.blendFromDist) * u
-    } else {
-      dist = idealDist
+      const u = elapsed / track.transitionDurationMs
+      const dist = track.blendFromDist + (track.targetDist - track.blendFromDist) * u
+      // Never go backwards from high-water mark
+      const clamped = Math.max(dist, track.highWaterDist)
+      track.highWaterDist = clamped
+      return Math.min(clamped, track.totalLength)
     }
 
-    // Monotonic clamp and polyline bounds
-    dist = Math.max(dist, track.highWaterDist)
-    dist = Math.min(dist, track.totalLength)
-    track.highWaterDist = dist
+    // Phase 2: dead-reckon forward from the GPS target at decaying speed.
+    // But NEVER go ahead of where the GPS says we should be — if we've
+    // overshot, just hold at the target and wait for reality to catch up.
+    const sinceArrival = elapsedSec - (track.transitionDurationMs / 1000)
+    if (sinceArrival > 0 && track.smoothedSpeed >= MIN_DR_SPEED && sinceArrival < MAX_COAST_SEC) {
+      const drDist = decayedDist(track.smoothedSpeed, sinceArrival)
+      const projected = track.targetDist + drDist
 
-    return dist
+      // Only advance if we're not already ahead of the target
+      // (which happens when the first interpolation frame overshoots)
+      if (track.highWaterDist <= track.targetDist) {
+        const dist = Math.min(projected, track.totalLength)
+        track.highWaterDist = Math.max(dist, track.highWaterDist)
+        return dist
+      }
+    }
+
+    // We're at or past the target — hold position
+    return Math.min(track.highWaterDist, track.totalLength)
   }
 
   private predictFree(track: FreeTransitTrack, now: number): LngLat {

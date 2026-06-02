@@ -121,15 +121,25 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     return filtered.sort((a, b) => a.routeFraction - b.routeFraction)
   })
 
-  /** Directions available (derived from departure headsigns). */
+  /** Directions available. Prefers departure headsigns if available,
+   *  otherwise derives from first/last stop names on the route. */
   const directions = computed(() => {
-    if (!departureContext.value) return []
-    const headsigns = new Set<string>()
-    for (const dep of departureContext.value.departures) {
-      const h = dep.headsign || dep.direction
-      if (h) headsigns.add(h)
+    // From departure context (when opened from a stop page)
+    if (departureContext.value) {
+      const headsigns = new Set<string>()
+      for (const dep of departureContext.value.departures) {
+        const h = dep.headsign || dep.direction
+        if (h) headsigns.add(h)
+      }
+      if (headsigns.size >= 2) return [...headsigns]
     }
-    return [...headsigns]
+
+    // Derive from route stops (first → last, last → first)
+    const stops = activeRoute.value?.stops
+    if (!stops || stops.length < 2) return []
+    const first = stops[0].stopName
+    const last = stops[stops.length - 1].stopName
+    return [`To ${last}`, `To ${first}`]
   })
 
   /** Whether the current direction reverses the stop list. */

@@ -24,6 +24,7 @@ import {
 } from './base-marker-layer'
 import { useLayersStore } from '@/stores/layers.store'
 import { useTransitVehiclesStore } from '@/stores/transit-vehicles.store'
+import { useRouteDetailStore } from '@/stores/route-detail.store'
 import {
   buildPolylineDistances,
   distanceMeters,
@@ -128,6 +129,7 @@ const pendingShapeFetches = new Set<string>()
 export class TransitVehiclesLayer extends BaseMarkerLayer {
   private layersStore = useLayersStore()
   private transitVehiclesStore = useTransitVehiclesStore()
+  private routeDetailStore = useRouteDetailStore()
 
   private tracks = new Map<string, TransitTrack>()
   private lastRendered = new Map<string, { lat: number; lng: number }>()
@@ -147,7 +149,11 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
 
   constructor() {
     const layersStore = useLayersStore()
+    const routeDetailStore = useRouteDetailStore()
     const isEnabled = computed(() => {
+      // Enable when route detail is active (isolated line view)
+      if (routeDetailStore.isActive) return true
+      // Or when the legacy layer toggle is on
       const layer = layersStore.layers.find(
         (l) => l.configuration?.id === 'transit-vehicles',
       )
@@ -189,7 +195,10 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
   }
 
   protected getData(): MarkerData[] {
-    const vehicles = this.transitVehiclesStore.vehicles
+    // When route detail is active, use its filtered vehicles
+    const vehicles = this.routeDetailStore.isActive
+      ? this.routeDetailStore.vehicles
+      : this.transitVehiclesStore.vehicles
 
     return Array.from(vehicles.values()).map((v: TransitVehiclePosition) => ({
       id: v.vehicleId,

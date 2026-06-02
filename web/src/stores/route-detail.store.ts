@@ -148,15 +148,52 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
 
   function subscribeVehicles() {
     if (!activeRoute.value) return
-    wsSend({
-      type: 'transit:subscribe-route',
-      feedId: activeRoute.value.feedId,
-      routeIds: activeRouteIds.value,
-    })
+    // Compute bounds from the route shape or stops
+    const bounds = computeRouteBounds()
+    if (!bounds) return
+    wsSend({ type: 'transit:subscribe', bounds })
   }
 
   function unsubscribeVehicles() {
     wsSend({ type: 'transit:unsubscribe' })
+  }
+
+  /** Compute a bounding box that covers the entire route. */
+  function computeRouteBounds() {
+    const route = activeRoute.value
+    if (!route) return null
+
+    let north = -90, south = 90, east = -180, west = 180
+
+    // From shape coordinates
+    if (route.coordinates) {
+      for (const [lng, lat] of route.coordinates) {
+        if (lat > north) north = lat
+        if (lat < south) south = lat
+        if (lng > east) east = lng
+        if (lng < west) west = lng
+      }
+    }
+
+    // From stops (in case shape is missing)
+    for (const stop of route.stops) {
+      if (stop.lat > north) north = stop.lat
+      if (stop.lat < south) south = stop.lat
+      if (stop.lng > east) east = stop.lng
+      if (stop.lng < west) west = stop.lng
+    }
+
+    if (north === -90) return null
+
+    // Pad by 10%
+    const latPad = (north - south) * 0.1
+    const lngPad = (east - west) * 0.1
+    return {
+      north: north + latPad,
+      south: south - latPad,
+      east: east + lngPad,
+      west: west - lngPad,
+    }
   }
 
   function applyVehicleUpdate(payload: unknown) {

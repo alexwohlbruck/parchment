@@ -43,6 +43,7 @@ const directions = computed(() => store.directions)
 const activeDirection = computed(() => store.activeDirection)
 const headway = computed(() => store.headwayMinutes)
 const upcoming = computed(() => store.upcomingDepartures)
+const displayStops = computed(() => store.displayStops)
 
 const displayName = computed(() =>
   route.value?.routeShortName || route.value?.routeLongName || route.value?.routeId || '',
@@ -70,12 +71,7 @@ const routeTypeIcon = computed(() => {
 
 const routeTypeLabel = computed(() => {
   const t = route.value?.routeType
-  if (t === 0) return 'tram'
-  if (t === 1) return 'train'
-  if (t === 2) return 'train'
-  if (t === 3) return 'bus'
-  if (t === 4) return 'ferry'
-  return 'vehicle'
+  return t === 0 ? 'tram' : t === 1 ? 'train' : t === 2 ? 'train' : t === 3 ? 'bus' : t === 4 ? 'ferry' : 'vehicle'
 })
 
 const nextLabel = computed(() => {
@@ -83,8 +79,7 @@ const nextLabel = computed(() => {
   if (!dep) return null
   const m = getMinutesUntil(dep, currentTime.value)
   if (m === null) return null
-  if (m <= 0) return 'Now'
-  return `${m} min`
+  return m <= 0 ? 'Now' : `${m} min`
 })
 
 const nextIsNow = computed(() => {
@@ -94,22 +89,28 @@ const nextIsNow = computed(() => {
   return m !== null && m <= 0
 })
 
+// ── Selected vehicle → grey-out stops behind it ─────────────
+
+const selectedVehicleOnRoute = computed(() =>
+  vehiclesOnRoute.value.find(vr => vr.vehicleId === selectedId.value) ?? null,
+)
+
+/** Stop index (in displayStops) that the selected vehicle has passed. */
+function isStopPassedBySelected(displayIndex: number): boolean {
+  const sv = selectedVehicleOnRoute.value
+  if (!sv) return false
+  // The vehicle is near stop sv.nearestStopIndex in the original stop list.
+  // In display order, routeFraction tells us where it is 0→1.
+  // Stops before that fraction are "passed".
+  const stopFraction = displayIndex / Math.max(1, displayStops.value.length - 1)
+  return stopFraction < sv.routeFraction - 0.01
+}
+
 // ── Vehicle helpers ──────────────────────────────────────────
 
-/** Map stop index → vehicles between that stop and the previous one. */
-const vehiclesByStopIndex = computed(() => {
-  const map = new Map<number, VehicleOnRoute[]>()
-  for (const vr of vehiclesOnRoute.value) {
-    const list = map.get(vr.nearestStopIndex) || []
-    list.push(vr)
-    map.set(vr.nearestStopIndex, list)
-  }
-  return map
-})
-
 function vehicleLabel(vr: VehicleOnRoute): string {
-  const stops = route.value?.stops
-  if (!stops) return displayName.value
+  const stops = displayStops.value
+  if (!stops.length) return displayName.value
   const stop = stops[vr.nearestStopIndex]
   return stop ? `Near ${stop.stopName}` : displayName.value
 }
@@ -122,6 +123,15 @@ function timeAgo(timestamp: string): string {
 
 function onSelectVehicle(value: string) {
   store.selectVehicle(value === selectedId.value ? null : value)
+}
+
+/** Height of each stop row in px (must match the CSS). */
+const STOP_ROW_HEIGHT = 32
+
+/** Top offset in px for a vehicle at the given routeFraction. */
+function vehicleTopPx(vr: VehicleOnRoute): number {
+  const totalHeight = (displayStops.value.length - 1) * STOP_ROW_HEIGHT
+  return vr.routeFraction * totalHeight
 }
 
 // ── Lifecycle ────────────────────────────────────────────────
@@ -238,53 +248,64 @@ onUnmounted(() => {
       <div class="px-4">
         <div class="text-sm font-semibold mb-2">Stops</div>
 
-        <div class="timeline relative" :style="{ '--route-color': bgColor } as any">
+        <div class="relative pl-8">
           <!-- Route color line -->
           <div
-            class="absolute left-[10px] top-2 bottom-2 w-[3px] rounded-full z-0"
-            :style="{ background: bgColor }"
+            class="absolute left-[12px] top-[16px] w-[3px] rounded-full z-0"
+            :style="{
+              background: bgColor,
+              height: `${(displayStops.length - 1) * STOP_ROW_HEIGHT}px`,
+            }"
           />
 
+          <!-- Vehicle indicators (absolute, interpolated position) -->
           <div
-            v-for="(stop, i) in route.stops"
+            v-for="vr in vehiclesOnRoute"
+            :key="'v-' + vr.vehicleId"
+            class="absolute z-20 cursor-pointer"
+            :style="{
+              left: '-2px',
+              top: `${vehicleTopPx(vr) + 16 - 13}px`,
+            }"
+            @click.stop="onSelectVehicle(vr.vehicleId)"
+          >
+            <div
+              class="w-[27px] h-[27px] rounded-full flex items-center justify-center transition-all"
+              :style="{ background: bgColor }"
+              :class="{
+                'ring-2 ring-offset-2 ring-offset-background scale-110': vr.vehicleId === selectedId,
+              }"
+            >
+              <component :is="routeTypeIcon" class="h-3.5 w-3.5" :style="{ color: textColor }" />
+            </div>
+          </div>
+
+          <!-- Stop rows (fixed height, no vehicle elements inline) -->
+          <div
+            v-for="(stop, i) in displayStops"
             :key="stop.stopId"
-            class="timeline-stop relative flex items-center min-h-[32px] pl-7"
+            class="relative flex items-center transition-opacity duration-200"
+            :style="{ height: `${STOP_ROW_HEIGHT}px` }"
+            :class="{
+              'opacity-40': isStopPassedBySelected(i),
+            }"
           >
             <!-- Stop dot -->
             <div
               class="absolute rounded-full border-2 bg-background z-10"
               :style="{ borderColor: bgColor }"
               :class="[
-                i === 0 || i === route.stops.length - 1
-                  ? 'w-[11px] h-[11px] left-[5px]'
-                  : 'w-[9px] h-[9px] left-[6px]',
+                i === 0 || i === displayStops.length - 1
+                  ? 'w-[11px] h-[11px] left-[-20px]'
+                  : 'w-[9px] h-[9px] left-[-19px]',
               ]"
               style="top: 50%; transform: translateY(-50%)"
             />
 
-            <!-- Vehicle indicators (absolute, no layout impact) -->
-            <div
-              v-for="vr in (vehiclesByStopIndex.get(i) || [])"
-              :key="vr.vehicleId"
-              class="absolute left-0 z-20 cursor-pointer"
-              style="top: 50%; transform: translate(-3px, -50%)"
-              @click.stop="onSelectVehicle(vr.vehicleId)"
-            >
-              <div
-                class="w-[27px] h-[27px] rounded-full flex items-center justify-center transition-all"
-                :style="{ background: bgColor }"
-                :class="{
-                  'ring-2 ring-offset-2 ring-offset-background scale-110': vr.vehicleId === selectedId,
-                }"
-              >
-                <component :is="routeTypeIcon" class="h-3.5 w-3.5" :style="{ color: textColor }" />
-              </div>
-            </div>
-
             <!-- Stop name -->
             <span
-              class="text-sm py-1"
-              :class="{ 'font-semibold': i === 0 || i === route.stops.length - 1 }"
+              class="text-sm"
+              :class="{ 'font-semibold': i === 0 || i === displayStops.length - 1 }"
             >
               {{ stop.stopName }}
             </span>

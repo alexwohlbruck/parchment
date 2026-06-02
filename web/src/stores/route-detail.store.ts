@@ -51,6 +51,8 @@ export interface VehicleOnRoute {
   fractionBetweenStops: number
   /** Distance along route in meters. */
   distanceAlongRoute: number
+  /** 0-1 position along the entire route (for timeline placement). */
+  routeFraction: number
 }
 
 export const useRouteDetailStore = defineStore('route-detail', () => {
@@ -81,17 +83,17 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     selectedVehicleId.value ? vehicles.value.get(selectedVehicleId.value) ?? null : null,
   )
 
-  /** Vehicles projected onto the route timeline. */
+  /** Vehicles projected onto the display-order stop list. */
   const vehiclesOnRoute = computed((): VehicleOnRoute[] => {
-    const route = activeRoute.value
-    if (!route || !route.stops.length) return []
+    const stops = displayStops.value
+    if (!stops.length) return []
 
     const result: VehicleOnRoute[] = []
     for (const v of vehicles.value.values()) {
-      const projected = projectVehicleOnRoute(v, route.stops)
+      const projected = projectVehicleOnRoute(v, stops)
       if (projected) result.push(projected)
     }
-    return result
+    return result.sort((a, b) => a.routeFraction - b.routeFraction)
   })
 
   /** Directions available (derived from departure headsigns). */
@@ -103,6 +105,18 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
       if (h) headsigns.add(h)
     }
     return [...headsigns]
+  })
+
+  /** Whether the current direction reverses the stop list. */
+  const isReversed = computed(() => {
+    if (directions.value.length < 2 || !activeDirection.value) return false
+    return directions.value.indexOf(activeDirection.value) === 1
+  })
+
+  /** Stops in display order (reversed for the second direction). */
+  const displayStops = computed(() => {
+    const stops = activeRoute.value?.stops ?? []
+    return isReversed.value ? [...stops].reverse() : stops
   })
 
   /** Active direction (auto-selects first if not set). */
@@ -239,16 +253,10 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
       }
     }
 
-    const segLen = stops[segEndIdx].distanceAlongRoute - stops[segStartIdx].distanceAlongRoute
-    if (segLen <= 0) {
-      return {
-        vehicleId: v.vehicleId,
-        vehicle: v,
-        nearestStopIndex: bestIdx,
-        fractionBetweenStops: 0,
-        distanceAlongRoute: stops[bestIdx].distanceAlongRoute,
-      }
-    }
+    const segLen = Math.abs(stops[segEndIdx].distanceAlongRoute - stops[segStartIdx].distanceAlongRoute)
+    const totalRouteLen = Math.abs(
+      stops[stops.length - 1].distanceAlongRoute - stops[0].distanceAlongRoute,
+    )
 
     // Project vehicle position between the two stops
     const dToStart = haversineQuick(vLat, vLng, stops[segStartIdx].lat, stops[segStartIdx].lng)
@@ -256,12 +264,20 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     const totalD = dToStart + dToEnd
     const frac = totalD > 0 ? Math.min(1, Math.max(0, dToStart / totalD)) : 0
 
+    const distAlong = stops[segStartIdx].distanceAlongRoute +
+      (stops[segEndIdx].distanceAlongRoute - stops[segStartIdx].distanceAlongRoute) * frac
+
+    // Compute route fraction: position as 0-1 along the stop list indices
+    // (not distance — we want even spacing on the timeline)
+    const indexFraction = (segStartIdx + frac) / Math.max(1, stops.length - 1)
+
     return {
       vehicleId: v.vehicleId,
       vehicle: v,
       nearestStopIndex: segEndIdx,
       fractionBetweenStops: frac,
-      distanceAlongRoute: stops[segStartIdx].distanceAlongRoute + segLen * frac,
+      distanceAlongRoute: distAlong,
+      routeFraction: Math.max(0, Math.min(1, indexFraction)),
     }
   }
 
@@ -351,6 +367,8 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     directions,
     upcomingDepartures,
     headwayMinutes,
+    isReversed,
+    displayStops,
     selectedDirection,
     activeDirection,
     openRoute,

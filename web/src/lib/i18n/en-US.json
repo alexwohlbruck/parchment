@@ -760,6 +760,7 @@
     "transit": {
       "viewOnTransitland": "View on Transitland",
       "transitStop": "Transit Stop",
+      "departures": "Departures",
       "upcomingDepartures": "Upcoming Departures",
       "unknownDirection": "Unknown Direction",
       "now": "Now",

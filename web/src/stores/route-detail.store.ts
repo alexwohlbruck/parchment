@@ -53,6 +53,8 @@ export interface VehicleOnRoute {
   distanceAlongRoute: number
   /** 0-1 position along the entire route (for timeline placement). */
   routeFraction: number
+  /** True if the vehicle is moving in the original stop-list direction (start→end). */
+  isForwardDirection: boolean
 }
 
 export const useRouteDetailStore = defineStore('route-detail', () => {
@@ -79,21 +81,44 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
 
   const vehicleList = computed(() => Array.from(vehicles.value.values()))
 
+  /** Vehicle IDs that should show on the map (filtered to active direction). */
+  const directionFilteredVehicleIds = computed(() => {
+    return new Set(vehiclesOnRoute.value.map(vr => vr.vehicleId))
+  })
+
   const selectedVehicle = computed(() =>
     selectedVehicleId.value ? vehicles.value.get(selectedVehicleId.value) ?? null : null,
   )
 
-  /** Vehicles projected onto the display-order stop list. */
-  const vehiclesOnRoute = computed((): VehicleOnRoute[] => {
-    const stops = displayStops.value
-    if (!stops.length) return []
+  /** All vehicles projected onto the original (non-reversed) stop list. */
+  const allVehiclesOnRoute = computed((): VehicleOnRoute[] => {
+    const route = activeRoute.value
+    if (!route || !route.stops.length) return []
 
     const result: VehicleOnRoute[] = []
     for (const v of vehicles.value.values()) {
-      const projected = projectVehicleOnRoute(v, stops)
+      const projected = projectVehicleOnRoute(v, route.stops, route.coordinates)
       if (projected) result.push(projected)
     }
-    return result.sort((a, b) => a.routeFraction - b.routeFraction)
+    return result
+  })
+
+  /** Vehicles filtered to the selected direction and mapped to display-order indices. */
+  const vehiclesOnRoute = computed((): VehicleOnRoute[] => {
+    const reversed = isReversed.value
+    // Show forward vehicles when viewing original direction,
+    // reverse vehicles when viewing reversed direction
+    const filtered = allVehiclesOnRoute.value.filter(
+      vr => reversed ? !vr.isForwardDirection : vr.isForwardDirection,
+    )
+
+    // Remap routeFraction for reversed display
+    if (reversed) {
+      return filtered
+        .map(vr => ({ ...vr, routeFraction: 1 - vr.routeFraction }))
+        .sort((a, b) => a.routeFraction - b.routeFraction)
+    }
+    return filtered.sort((a, b) => a.routeFraction - b.routeFraction)
   })
 
   /** Directions available (derived from departure headsigns). */
@@ -210,6 +235,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
   function projectVehicleOnRoute(
     v: TransitVehiclePosition,
     stops: RouteDetailStop[],
+    coordinates?: [number, number][] | null,
   ): VehicleOnRoute | null {
     if (stops.length < 2) return null
 
@@ -271,6 +297,14 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     // (not distance — we want even spacing on the timeline)
     const indexFraction = (segStartIdx + frac) / Math.max(1, stops.length - 1)
 
+    // Determine travel direction by comparing vehicle bearing to
+    // the route segment bearing at this position
+    const isForward = computeIsForward(
+      v.bearing,
+      stops[segStartIdx],
+      stops[segEndIdx],
+    )
+
     return {
       vehicleId: v.vehicleId,
       vehicle: v,
@@ -278,7 +312,31 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
       fractionBetweenStops: frac,
       distanceAlongRoute: distAlong,
       routeFraction: Math.max(0, Math.min(1, indexFraction)),
+      isForwardDirection: isForward,
     }
+  }
+
+  /** Compare vehicle bearing to the segment bearing to determine travel direction. */
+  function computeIsForward(
+    vehicleBearing: number | undefined,
+    fromStop: RouteDetailStop,
+    toStop: RouteDetailStop,
+  ): boolean {
+    if (vehicleBearing == null) return true // assume forward if no bearing
+
+    // Bearing from fromStop → toStop (the "forward" direction of the route)
+    const segBearing = Math.atan2(
+      toStop.lng - fromStop.lng,
+      toStop.lat - fromStop.lat,
+    ) * 180 / Math.PI
+    const normalizedSeg = ((segBearing % 360) + 360) % 360
+
+    // Angular difference
+    let diff = Math.abs(vehicleBearing - normalizedSeg)
+    if (diff > 180) diff = 360 - diff
+
+    // < 90° means same direction as stop ordering = forward
+    return diff < 90
   }
 
   function haversineQuick(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -369,6 +427,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     headwayMinutes,
     isReversed,
     displayStops,
+    directionFilteredVehicleIds,
     selectedDirection,
     activeDirection,
     openRoute,

@@ -196,14 +196,20 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
 
   protected getData(): MarkerData[] {
     // When route detail is active, use its filtered vehicles
-    const vehicles = this.routeDetailStore.isActive
-      ? this.routeDetailStore.vehicles
-      : this.transitVehiclesStore.vehicles
+    let vehicleEntries: TransitVehiclePosition[]
+    if (this.routeDetailStore.isActive) {
+      // Only show vehicles matching the selected direction
+      const dirFilter = this.routeDetailStore.directionFilteredVehicleIds
+      vehicleEntries = Array.from(this.routeDetailStore.vehicles.values())
+        .filter(v => dirFilter.has(v.vehicleId))
+    } else {
+      vehicleEntries = Array.from(this.transitVehiclesStore.vehicles.values())
+    }
 
     const selectedId = this.routeDetailStore.selectedVehicleId
     const hasSelection = !!selectedId
 
-    return Array.from(vehicles.values()).map((v: TransitVehiclePosition) => ({
+    return vehicleEntries.map((v: TransitVehiclePosition) => ({
       id: v.vehicleId,
       lngLat: { lat: v.position.lat, lng: v.position.lng },
       props: {

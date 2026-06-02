@@ -12,7 +12,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useTransitClock } from '@/composables/useTransitClock'
 import { useI18n } from 'vue-i18n'
 import { formatDepartureTime, getMinutesUntil } from '@/lib/transit'
@@ -193,23 +192,19 @@ onUnmounted(() => {
 
       <!-- ── Direction selector ──────────────────────────── -->
       <div v-if="directions.length > 1" class="px-4 mb-3">
-        <ToggleGroup
-          type="single"
+        <Select
           :modelValue="activeDirection ?? undefined"
-          @update:modelValue="(v) => store.setDirection(v ? String(v) : activeDirection!)"
-          variant="outline"
-          size="sm"
-          class="w-full"
+          @update:modelValue="(v) => store.setDirection(String(v))"
         >
-          <ToggleGroupItem
-            v-for="dir in directions"
-            :key="dir"
-            :value="dir"
-            class="flex-1 text-xs truncate"
-          >
-            {{ dir }}
-          </ToggleGroupItem>
-        </ToggleGroup>
+          <SelectTrigger class="w-full h-9">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem v-for="dir in directions" :key="dir" :value="dir">
+              {{ dir }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <!-- ── Departures ────────────────────────────────── -->

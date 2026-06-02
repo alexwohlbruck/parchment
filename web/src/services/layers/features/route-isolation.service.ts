@@ -74,6 +74,9 @@ export function useRouteIsolationService() {
   }) {
     if (!mapInstance) return
 
+    // Fit map to route bounds
+    fitToRoute(route)
+
     // Fade existing transit layers
     fadeTransitLayers(0.15)
 
@@ -107,6 +110,39 @@ export function useRouteIsolationService() {
     removeSourceIfExists(STOPS_SOURCE_ID)
 
     isIsolated = false
+  }
+
+  function fitToRoute(route: {
+    coordinates: [number, number][] | null
+    stops: RouteDetailStop[]
+  }) {
+    if (!mapInstance) return
+
+    let north = -90, south = 90, east = -180, west = 180
+
+    if (route.coordinates) {
+      for (const [lng, lat] of route.coordinates) {
+        if (lat > north) north = lat
+        if (lat < south) south = lat
+        if (lng > east) east = lng
+        if (lng < west) west = lng
+      }
+    }
+    for (const stop of route.stops) {
+      if (stop.lat > north) north = stop.lat
+      if (stop.lat < south) south = stop.lat
+      if (stop.lng > east) east = stop.lng
+      if (stop.lng < west) west = stop.lng
+    }
+
+    if (north === -90) return
+
+    try {
+      mapInstance.fitBounds(
+        [[west, south], [east, north]],
+        { padding: { top: 60, bottom: 60, left: 420, right: 60 }, duration: 800 },
+      )
+    } catch { /* fitBounds can throw on degenerate bounds */ }
   }
 
   function fadeTransitLayers(opacity: number | null) {

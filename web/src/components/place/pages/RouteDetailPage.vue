@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { useRouteDetailStore, type DepartureContext, type VehicleOnRoute } from '@/stores/route-detail.store'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import SheetPageHeader from '@/components/place/SheetPageHeader.vue'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
+import { Separator } from '@/components/ui/separator'
 import { useTransitClock } from '@/composables/useTransitClock'
 import {
   formatDepartureTime,
@@ -15,6 +16,7 @@ import {
   ShipIcon,
   TramFrontIcon,
   MapPinIcon,
+  ChevronDownIcon,
 } from 'lucide-vue-next'
 import type { TransitDeparture } from '@/types/place.types'
 
@@ -34,6 +36,10 @@ const isLoading = computed(() => store.isLoading)
 const vehicles = computed(() => store.vehicleList)
 const vehiclesOnRoute = computed(() => store.vehiclesOnRoute)
 const selectedId = computed(() => store.selectedVehicleId)
+const directions = computed(() => store.directions)
+const activeDirection = computed(() => store.activeDirection)
+const headway = computed(() => store.headwayMinutes)
+const upcoming = computed(() => store.upcomingDepartures)
 
 const displayName = computed(() => {
   if (!route.value) return ''
@@ -64,17 +70,14 @@ const routeTypeIcon = computed(() => {
 
 const routeTypeLabel = computed(() => {
   switch (route.value?.routeType) {
-    case 0: return 'Tram'
-    case 1: return 'Subway'
-    case 2: return 'Rail'
-    case 3: return 'Bus'
-    case 4: return 'Ferry'
-    default: return 'Transit'
+    case 0: return 'tram'
+    case 1: return 'train'
+    case 2: return 'train'
+    case 3: return 'bus'
+    case 4: return 'ferry'
+    default: return 'vehicle'
   }
 })
-
-const headway = computed(() => store.headwayMinutes)
-const upcoming = computed(() => store.upcomingDepartures)
 
 const nextLabel = computed(() => {
   const dep = upcoming.value[0]
@@ -92,7 +95,6 @@ const nextIsNow = computed(() => {
   return m !== null && m <= 0
 })
 
-/** Get vehicles positioned between stop i-1 and stop i. */
 function vehiclesBetween(stopIndex: number): VehicleOnRoute[] {
   return vehiclesOnRoute.value.filter(v => v.nearestStopIndex === stopIndex)
 }
@@ -109,6 +111,14 @@ function timeAgo(timestamp: string): string {
   const sec = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000)
   if (sec < 60) return `${sec}s ago`
   return `${Math.floor(sec / 60)}m ago`
+}
+
+/** Short label for a vehicle (nearest stop or route name). */
+function vehicleLabel(vr: VehicleOnRoute): string {
+  const stops = route.value?.stops
+  if (!stops) return displayName.value
+  const stop = stops[vr.nearestStopIndex]
+  return stop ? `Near ${stop.stopName}` : displayName.value
 }
 
 onMounted(() => {
@@ -148,10 +158,28 @@ onUnmounted(() => {
           <span class="font-semibold text-base leading-tight">
             {{ fullName }}
           </span>
-          <span v-if="headsign" class="text-sm text-muted-foreground">
-            {{ headsign }}
+          <span v-if="activeDirection" class="text-sm text-muted-foreground">
+            {{ activeDirection }}
           </span>
         </div>
+      </div>
+
+      <!-- ── Direction selector ────────────────────────── -->
+      <div v-if="directions.length > 1" class="flex gap-1.5 px-4 mb-3">
+        <button
+          v-for="dir in directions"
+          :key="dir"
+          class="px-3 py-1 rounded-full text-xs font-medium transition-colors"
+          :class="[
+            dir === activeDirection
+              ? 'text-white'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80',
+          ]"
+          :style="dir === activeDirection ? { background: bgColor, color: textColor } : {}"
+          @click="store.setDirection(dir)"
+        >
+          {{ dir }}
+        </button>
       </div>
 
       <!-- ── Departures ────────────────────────────────── -->
@@ -176,18 +204,37 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- ── Active vehicles ───────────────────────────── -->
-      <div
-        v-if="vehicles.length > 0"
-        class="flex items-center gap-2 px-4 py-2 mx-4 mb-3 rounded-lg bg-muted/50"
-      >
-        <component :is="routeTypeIcon" class="h-4 w-4 text-muted-foreground shrink-0" />
-        <span class="text-sm text-muted-foreground">
-          {{ vehicles.length }} active
-        </span>
+      <!-- ── Vehicle selector ──────────────────────────── -->
+      <div v-if="vehicles.length > 0" class="px-4 mb-3">
+        <div class="text-sm font-semibold mb-1.5">
+          {{ vehicles.length }} {{ routeTypeLabel }}{{ vehicles.length !== 1 ? 's' : '' }} active
+        </div>
+        <div class="flex gap-1.5 flex-wrap">
+          <button
+            v-for="vr in vehiclesOnRoute"
+            :key="vr.vehicleId"
+            class="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs transition-all border"
+            :class="[
+              isSelected(vr.vehicleId)
+                ? 'border-foreground/30 bg-accent shadow-sm'
+                : 'border-transparent bg-muted/50 hover:bg-muted',
+            ]"
+            @click="onVehicleClick(vr.vehicleId)"
+          >
+            <div
+              class="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+              :style="{ background: bgColor }"
+            >
+              <component :is="routeTypeIcon" class="h-3 w-3" :style="{ color: textColor }" />
+            </div>
+            <span class="truncate max-w-[140px]">{{ vehicleLabel(vr) }}</span>
+          </button>
+        </div>
       </div>
 
-      <!-- ── Stop timeline with vehicles ───────────────── -->
+      <Separator class="mx-4 mb-3" />
+
+      <!-- ── Stop timeline ─────────────────────────────── -->
       <div class="px-4">
         <div class="text-sm font-semibold mb-2">Stops</div>
 
@@ -203,31 +250,29 @@ onUnmounted(() => {
             <div
               v-for="vr in vehiclesBetween(i)"
               :key="vr.vehicleId"
-              class="relative flex items-center gap-2 py-1 cursor-pointer group/v"
-              :class="{ 'opacity-50': selectedId && !isSelected(vr.vehicleId) }"
+              class="relative flex items-center gap-2 py-0.5 cursor-pointer"
+              :class="{
+                'opacity-40': selectedId && !isSelected(vr.vehicleId),
+              }"
               @click="onVehicleClick(vr.vehicleId)"
             >
               <div
-                class="absolute -left-[22px] w-[23px] h-[23px] rounded-full flex items-center justify-center z-20 transition-transform"
+                class="absolute -left-[22px] w-[23px] h-[23px] rounded-full flex items-center justify-center z-20 transition-all"
                 :style="{ background: bgColor }"
-                :class="{ 'scale-125 ring-2 ring-offset-2 ring-offset-background': isSelected(vr.vehicleId) }"
+                :class="{
+                  'scale-110 ring-2 ring-offset-1 ring-offset-background': isSelected(vr.vehicleId),
+                }"
               >
-                <component
-                  :is="routeTypeIcon"
-                  class="h-3.5 w-3.5"
-                  :style="{ color: textColor }"
-                />
+                <component :is="routeTypeIcon" class="h-3 w-3" :style="{ color: textColor }" />
               </div>
-              <span class="text-xs text-muted-foreground pl-1">
+              <span class="text-xs text-muted-foreground">
                 {{ vr.vehicle.routeShortName || displayName }}
                 <span class="opacity-60">· {{ timeAgo(vr.vehicle.timestamp) }}</span>
               </span>
             </div>
 
             <!-- Stop dot + name -->
-            <div
-              class="relative flex items-center justify-between gap-2 min-h-[28px]"
-            >
+            <div class="relative flex items-center min-h-[28px]">
               <div
                 class="absolute rounded-full border-2 bg-background z-10"
                 :style="{ borderColor: bgColor }"

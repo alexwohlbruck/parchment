@@ -60,6 +60,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
   const isLoading = ref(false)
   const vehicles = ref<Map<string, TransitVehiclePosition>>(new Map())
   const selectedVehicleId = ref<string | null>(null)
+  const selectedDirection = ref<string | null>(null)
 
   // ── Getters ──────────────────────────────────────────────────────
   const isActive = computed(() => activeRoute.value !== null)
@@ -104,11 +105,25 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     return [...headsigns]
   })
 
+  /** Active direction (auto-selects first if not set). */
+  const activeDirection = computed(() => {
+    if (selectedDirection.value && directions.value.includes(selectedDirection.value)) {
+      return selectedDirection.value
+    }
+    return directions.value[0] ?? null
+  })
+
+  /** Upcoming departures filtered to the active direction. */
   const upcomingDepartures = computed(() => {
     if (!departureContext.value) return []
     const now = Date.now()
+    const dir = activeDirection.value
     return departureContext.value.departures
       .filter(d => {
+        if (dir) {
+          const h = d.headsign || d.direction
+          if (h !== dir) return false
+        }
         const depAt = d.departureAt || d.arrivalAt
         if (!depAt) return true
         return new Date(depAt).getTime() >= now - 60_000
@@ -164,11 +179,16 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     activeRoute.value = null
     departureContext.value = null
     selectedVehicleId.value = null
+    selectedDirection.value = null
     vehicles.value = new Map()
   }
 
   function selectVehicle(vehicleId: string | null) {
     selectedVehicleId.value = vehicleId
+  }
+
+  function setDirection(headsign: string) {
+    selectedDirection.value = headsign
   }
 
   // ── Vehicle projection ──────────────────────────────────────────
@@ -331,8 +351,11 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     directions,
     upcomingDepartures,
     headwayMinutes,
+    selectedDirection,
+    activeDirection,
     openRoute,
     closeRoute,
     selectVehicle,
+    setDirection,
   }
 })

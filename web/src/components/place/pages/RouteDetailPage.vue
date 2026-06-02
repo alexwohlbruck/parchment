@@ -43,6 +43,7 @@ const isLoading = computed(() => store.isLoading)
 const vehicles = computed(() => store.vehicleList)
 const vehiclesOnRoute = computed(() => store.vehiclesOnRoute)
 const selectedId = computed(() => store.selectedVehicleId)
+const stopTimeMap = computed(() => store.stopTimeMap)
 const directions = computed(() => store.directions)
 const activeDirection = computed(() => store.activeDirection)
 const headway = computed(() => store.headwayMinutes)
@@ -132,6 +133,22 @@ function timeAgo(timestamp: string): string {
 
 function onSelectVehicle(value: string) {
   store.selectVehicle(value === selectedId.value ? null : value)
+}
+
+/** Look up the departure/arrival time for a stop from the selected vehicle's trip. */
+function stopTime(stop: { stopId: string }): string | null {
+  if (!selectedId.value) return null
+  const time = stopTimeMap.value.get(stop.stopId)
+  if (!time) return null
+  const d = new Date(time)
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+
+function isStopInPast(stop: { stopId: string }): boolean {
+  if (!selectedId.value) return false
+  const time = stopTimeMap.value.get(stop.stopId)
+  if (!time) return false
+  return new Date(time).getTime() < Date.now()
 }
 
 /** Height of each stop row in px (must match the CSS). */
@@ -315,10 +332,10 @@ onUnmounted(() => {
           <div
             v-for="(stop, i) in displayStops"
             :key="stop.stopId"
-            class="flex items-center"
+            class="flex items-center justify-between gap-2"
             :style="{ height: `${STOP_ROW_HEIGHT}px` }"
           >
-            <!-- Stop dot (inline-positioned before the name) -->
+            <!-- Stop dot -->
             <div
               class="absolute rounded-full border-2 z-10"
               :style="{
@@ -331,13 +348,22 @@ onUnmounted(() => {
             />
 
             <span
-              class="text-sm"
+              class="text-sm min-w-0 truncate"
               :class="{
                 'font-semibold': i === 0 || i === displayStops.length - 1,
                 'text-muted-foreground': isStopPassedBySelected(i),
               }"
             >
               {{ stop.stopName }}
+            </span>
+
+            <!-- Departure time (when a vehicle is selected) -->
+            <span
+              v-if="stopTime(stop)"
+              class="text-xs tabular-nums shrink-0"
+              :class="isStopInPast(stop) ? 'text-muted-foreground' : 'font-medium'"
+            >
+              {{ stopTime(stop) }}
             </span>
           </div>
         </div>

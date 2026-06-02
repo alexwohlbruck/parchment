@@ -64,6 +64,26 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
   const selectedVehicleId = ref<string | null>(null)
   const selectedDirection = ref<string | null>(null)
 
+  /** Stop times for the selected vehicle's trip (from TripUpdate data). */
+  interface TripStopTime {
+    stopId: string
+    arrivalTime?: string
+    departureTime?: string
+  }
+  const tripStopTimes = ref<TripStopTime[]>([])
+
+  /** Map of stopId → time string for the selected vehicle's trip. */
+  const stopTimeMap = computed(() => {
+    const map = new Map<string, string>()
+    for (const st of tripStopTimes.value) {
+      const time = st.departureTime || st.arrivalTime
+      if (time && st.stopId) {
+        map.set(st.stopId, time)
+      }
+    }
+    return map
+  })
+
   // ── Getters ──────────────────────────────────────────────────────
   const isActive = computed(() => activeRoute.value !== null)
   const routeColor = computed(() =>
@@ -229,11 +249,37 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     departureContext.value = null
     selectedVehicleId.value = null
     selectedDirection.value = null
+    tripStopTimes.value = []
     vehicles.value = new Map()
   }
 
   function selectVehicle(vehicleId: string | null) {
     selectedVehicleId.value = vehicleId
+    tripStopTimes.value = []
+
+    if (vehicleId && activeRoute.value) {
+      const vehicle = vehicles.value.get(vehicleId)
+      if (vehicle?.tripId) {
+        const rawTripId = vehicle.tripId.startsWith(`${vehicle.feedId}_`)
+          ? vehicle.tripId.slice(vehicle.feedId.length + 1)
+          : vehicle.tripId
+        fetchTripStopTimes(vehicle.feedId, rawTripId)
+      }
+    }
+  }
+
+  async function fetchTripStopTimes(feedId: string, tripId: string) {
+    try {
+      const { data } = await api.get<{ stops: Array<{ stopId: string; arrivalTime?: string; departureTime?: string }> }>(
+        '/proxy/transit/trip-stops',
+        { params: { feedId, tripId } },
+      )
+      if (data?.stops) {
+        tripStopTimes.value = data.stops
+      }
+    } catch {
+      // Trip stop times unavailable — fine, we just won't show them
+    }
   }
 
   function setDirection(headsign: string) {
@@ -491,6 +537,8 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     directionFilteredVehicleIds,
     selectedDirection,
     activeDirection,
+    tripStopTimes,
+    stopTimeMap,
     openRoute,
     closeRoute,
     selectVehicle,

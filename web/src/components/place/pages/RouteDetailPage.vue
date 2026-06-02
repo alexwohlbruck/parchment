@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useTransitClock } from '@/composables/useTransitClock'
+import { useI18n } from 'vue-i18n'
 import { formatDepartureTime, getMinutesUntil } from '@/lib/transit'
 import {
   TrainFrontIcon,
@@ -34,6 +35,7 @@ const props = defineProps<{
 
 const store = useRouteDetailStore()
 const router = useRouter()
+const { t } = useI18n()
 const currentTime = useTransitClock()
 
 const route = computed(() => store.activeRoute)
@@ -71,9 +73,14 @@ const routeTypeIcon = computed(() => {
   }
 })
 
-const routeTypeLabel = computed(() => {
-  const t = route.value?.routeType
-  return t === 0 ? 'tram' : t === 1 ? 'train' : t === 2 ? 'train' : t === 3 ? 'bus' : t === 4 ? 'ferry' : 'vehicle'
+const vehicleTypeKey = computed(() => {
+  const rt = route.value?.routeType
+  if (rt === 0) return 'tram'
+  if (rt === 1) return 'subway'
+  if (rt === 2) return 'rail'
+  if (rt === 3) return 'bus'
+  if (rt === 4) return 'ferry'
+  return 'vehicle'
 })
 
 const nextLabel = computed(() => {
@@ -201,7 +208,7 @@ onUnmounted(() => {
       <div v-if="upcoming.length > 0" class="px-4 mb-3">
         <div class="flex items-center justify-between mb-1">
           <span class="text-sm font-semibold">Departures</span>
-          <span v-if="headway" class="text-xs text-muted-foreground">Every {{ headway }} min</span>
+          <span v-if="headway" class="text-xs text-muted-foreground">{{ t('place.transit.everyNMin', { n: headway }) }}</span>
         </div>
         <div class="flex items-center gap-1.5 flex-wrap">
           <span :class="['text-sm font-medium', nextIsNow ? 'text-green-600 dark:text-green-400' : '']">
@@ -218,7 +225,7 @@ onUnmounted(() => {
       <!-- ── Vehicle dropdown ──────────────────────────── -->
       <div v-if="vehicles.length > 0" class="px-4 mb-3">
         <div class="text-sm font-semibold mb-1.5">
-          {{ vehicles.length }} {{ routeTypeLabel }}{{ vehicles.length !== 1 ? 's' : '' }} active
+          {{ t('place.transit.activeVehicles', { count: vehicles.length, type: t(`place.transit.vehicleType.${vehicleTypeKey}`, vehicles.length) }) }}
         </div>
         <Select
           :modelValue="selectedId || undefined"
@@ -232,7 +239,7 @@ onUnmounted(() => {
               >
                 <component :is="routeTypeIcon" class="h-3 w-3" :style="{ color: textColor }" />
               </div>
-              <SelectValue :placeholder="`Select a ${routeTypeLabel}`" />
+              <SelectValue :placeholder="t('place.transit.selectVehicle', { type: t(`place.transit.vehicleType.${vehicleTypeKey}`, 1) })" />
             </div>
           </SelectTrigger>
           <SelectContent>
@@ -254,7 +261,7 @@ onUnmounted(() => {
 
       <!-- ── Stop timeline ─────────────────────────────── -->
       <div class="px-4">
-        <div class="text-sm font-semibold mb-2">Stops</div>
+        <div class="text-sm font-semibold mb-2">{{ t('place.transit.stops') }}</div>
 
         <!--
           Timeline layout: everything centers on an axis 14px from

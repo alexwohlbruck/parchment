@@ -768,7 +768,19 @@
       "live": "LIVE",
       "realTimeData": "Real-time data",
       "noUpcomingDepartures": "No upcoming departures available",
-      "checkBackLater": "Check back later or visit the transit provider's website"
+      "checkBackLater": "Check back later or visit the transit provider's website",
+      "vehicleType": {
+        "tram": "tram | trams",
+        "subway": "train | trains",
+        "rail": "train | trains",
+        "bus": "bus | buses",
+        "ferry": "ferry | ferries",
+        "vehicle": "vehicle | vehicles"
+      },
+      "activeVehicles": "{count} {type} active",
+      "selectVehicle": "Select a {type}",
+      "everyNMin": "Every {n} min",
+      "stops": "Stops"
     },
     "header": {
       "showMore": "Show more",

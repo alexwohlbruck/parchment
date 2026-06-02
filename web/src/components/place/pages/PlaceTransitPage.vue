@@ -1,8 +1,4 @@
 <script setup lang="ts">
-/**
- * Full transit stop departure page — compact layout matching the
- * PlaceTransit widget style but with all departures visible.
- */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { TransitDeparture, TransitStopInfo } from '@/types/place.types'
@@ -35,12 +31,9 @@ const departures = computed((): TransitDeparture[] => {
   return props.transitInfo?.departures || []
 })
 
-// ── Grouping: route → direction → sorted departure list ──────
-
 interface DirectionGroup {
   headsign: string
-  departures: TransitDeparture[]
-  hasRealtime: boolean
+  upcoming: TransitDeparture[]
 }
 
 interface RouteGroup {
@@ -70,9 +63,7 @@ const routeGroups = computed((): RouteGroup[] => {
       routeMap.set(routeKey, { route: dep.route, dirMap: new Map(), rep: dep })
     }
     const entry = routeMap.get(routeKey)!
-    if (!entry.dirMap.has(headsign)) {
-      entry.dirMap.set(headsign, [])
-    }
+    if (!entry.dirMap.has(headsign)) entry.dirMap.set(headsign, [])
     entry.dirMap.get(headsign)!.push(dep)
   }
 
@@ -83,32 +74,23 @@ const routeGroups = computed((): RouteGroup[] => {
       const sorted = [...deps].sort((a, b) => {
         const ma = getMinutesUntil(a, currentTime.value)
         const mb = getMinutesUntil(b, currentTime.value)
-        if (ma === null && mb === null) return 0
-        if (ma === null) return 1
-        if (mb === null) return -1
-        return ma - mb
+        return (ma ?? 9999) - (mb ?? 9999)
       })
-      directions.push({
-        headsign,
-        departures: sorted,
-        hasRealtime: sorted.some(d => d.realTime),
-      })
+      directions.push({ headsign, upcoming: sorted })
     }
     groups.push({ routeKey, route: entry.route, directions, representative: entry.rep })
   }
   return groups
 })
 
-const hasDepartures = computed(() => routeGroups.value.length > 0)
-
-function formatCountdownShort(dep: TransitDeparture): string {
-  const mins = getMinutesUntil(dep, currentTime.value)
-  if (mins === null) return ''
-  if (mins <= 0) return 'Now'
-  if (mins < 60) return `${mins} min`
-  const h = Math.floor(mins / 60)
-  const m = mins % 60
-  return m > 0 ? `${h}h ${m}m` : `${h}h`
+function formatMin(dep: TransitDeparture): string {
+  const m = getMinutesUntil(dep, currentTime.value)
+  if (m === null) return formatDepartureTime(dep)
+  if (m <= 0) return 'Now'
+  if (m < 60) return `${m} min`
+  const h = Math.floor(m / 60)
+  const r = m % 60
+  return r > 0 ? `${h}h ${r}m` : `${h}h`
 }
 
 function openRouteDetail(departure: TransitDeparture) {
@@ -133,11 +115,11 @@ function openTransitlandLink() {
       Stop ID: {{ transitInfo.code }}
     </div>
 
-    <div v-if="hasDepartures" class="space-y-5">
+    <div v-if="routeGroups.length > 0" class="space-y-5">
       <section v-for="group in routeGroups" :key="group.routeKey">
-        <!-- Route header -->
+        <!-- Route badge + name -->
         <button
-          class="flex items-center gap-2 mb-2 group cursor-pointer"
+          class="flex items-center gap-2 mb-3 group cursor-pointer"
           @click="openRouteDetail(group.representative)"
         >
           <Badge
@@ -154,31 +136,40 @@ function openTransitlandLink() {
           </span>
         </button>
 
-        <!-- Directions -->
+        <!-- Departure table: one row per direction -->
         <div class="space-y-2">
-          <div v-for="dir in group.directions" :key="dir.headsign">
-            <!-- Direction header + first few departures inline -->
-            <div class="flex items-start justify-between gap-3">
-              <span class="text-sm font-medium min-w-0 truncate">{{ dir.headsign }}</span>
-              <div class="flex items-center gap-0.5 shrink-0 flex-wrap justify-end">
-                <template v-for="(dep, i) in dir.departures.slice(0, 3)" :key="i">
-                  <span v-if="i > 0" class="text-muted-foreground text-xs">,</span>
-                  <span class="text-sm tabular-nums">{{ formatCountdownShort(dep) }}</span>
-                  <RealtimeIndicator v-if="dep.realTime" :realTime="true" class="shrink-0" />
-                </template>
-              </div>
+          <div
+            v-for="dir in group.directions"
+            :key="dir.headsign"
+            class="grid gap-x-3 items-baseline"
+            style="grid-template-columns: 1fr auto"
+          >
+            <!-- Row 1: headsign + next 2 countdowns -->
+            <span class="text-sm truncate">{{ dir.headsign }}</span>
+            <div class="flex items-center gap-1 justify-end">
+              <template v-for="(dep, i) in dir.upcoming.slice(0, 2)" :key="i">
+                <span v-if="i > 0" class="text-muted-foreground text-xs">,</span>
+                <span
+                  class="text-sm tabular-nums"
+                  :class="{ 'text-green-600 dark:text-green-400 font-medium': i === 0 && getMinutesUntil(dep, currentTime) !== null && getMinutesUntil(dep, currentTime)! <= 1 }"
+                >{{ formatMin(dep) }}</span>
+                <RealtimeIndicator v-if="dep.realTime" :realTime="true" class="shrink-0" />
+              </template>
             </div>
 
-            <!-- Additional departures (rows of absolute times) -->
-            <div v-if="dir.departures.length > 3" class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 pl-0">
-              <div
-                v-for="(dep, i) in dir.departures.slice(3)"
-                :key="i"
-                class="flex items-center gap-0.5"
-              >
+            <!-- Row 2: additional departure times (smaller, muted) -->
+            <div
+              v-if="dir.upcoming.length > 2"
+              class="col-span-2 flex items-center gap-1 flex-wrap"
+            >
+              <template v-for="(dep, i) in dir.upcoming.slice(2, 8)" :key="i">
+                <span v-if="i > 0" class="text-muted-foreground text-[10px]">,</span>
                 <span class="text-xs tabular-nums text-muted-foreground">{{ formatDepartureTime(dep) }}</span>
                 <RealtimeIndicator v-if="dep.realTime" :realTime="true" class="shrink-0" />
-              </div>
+              </template>
+              <span v-if="dir.upcoming.length > 8" class="text-xs text-muted-foreground">
+                +{{ dir.upcoming.length - 8 }} more
+              </span>
             </div>
           </div>
         </div>
@@ -201,9 +192,7 @@ function openTransitlandLink() {
           :href="departures[0].agency.url"
           target="_blank"
           class="text-primary hover:underline"
-        >
-          <strong>{{ departures[0].agency.name }}</strong>
-        </a>
+        ><strong>{{ departures[0].agency.name }}</strong></a>
         <strong v-else>{{ departures[0].agency?.name }}</strong>
       </div>
       <button

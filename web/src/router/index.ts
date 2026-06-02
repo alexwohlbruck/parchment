@@ -63,6 +63,7 @@ export enum AppRoute {
   LOOKOUT = 'lookout',
   FRIEND_DETAIL = 'friend-detail',
   TRACKER_DETAIL = 'tracker-detail',
+  TRANSIT_ROUTE = 'transit-route',
   DASHBOARD = 'dashboard',
   TIMELINE = 'timeline',
   NOT_FOUND = 'not-found',
@@ -147,6 +148,12 @@ const router = createRouter({
           path: '/place/coords/:lat/:lng',
           name: AppRoute.PLACE_COORDS,
           component: Place,
+        },
+        {
+          path: '/transit/route/:feedId/:routeId',
+          name: AppRoute.TRANSIT_ROUTE,
+          component: () => import('@/views/transit/TransitRouteDetail.vue'),
+          props: true,
         },
         {
           path: '/note/create',

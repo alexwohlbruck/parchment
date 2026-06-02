@@ -22,7 +22,8 @@ import {
   getTextColor,
 } from '@/lib/transit'
 import PlaceTransitPage from '@/components/place/pages/PlaceTransitPage.vue'
-import RouteDetailPage from '@/components/place/pages/RouteDetailPage.vue'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
 
 const props = defineProps<{
   place?: Partial<Place>
@@ -31,6 +32,7 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const { pushPage } = useSheetPage()
+const router = useRouter()
 const currentTime = useTransitClock()
 
 const transitInfo = computed((): TransitStopInfo | null => {
@@ -153,21 +155,9 @@ function openRouteDetail(group: RouteGroup) {
   const routeId = group.route.id
   if (!feedId || !routeId) return
 
-  const routeDepartures = departures.value.filter(d => {
-    const key = d.route.shortName || d.route.longName || d.route.id
-    return key === group.routeKey
-  })
-
-  pushPage({
-    name: 'route-detail',
-    component: markRaw(RouteDetailPage),
-    props: {
-      feedId,
-      routeId,
-      originStopName: transitInfo.value?.name || '',
-      headsign: group.directions[0]?.headsign || '',
-      routeDepartures,
-    },
+  router.push({
+    name: AppRoute.TRANSIT_ROUTE,
+    params: { feedId, routeId },
   })
 }
 </script>

@@ -346,10 +346,13 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
   }
 
   // ── Vehicle subscription ─────────────────────────────────────────
+  // Subscribe with a wide bbox covering the entire route so we get
+  // ALL vehicles on the line, not just the ones in the current viewport.
 
   function subscribeVehicles() {
     if (!activeRoute.value) return
-    const bounds = computeRouteBounds()
+    // Use a generous bbox covering the full route extent
+    const bounds = routeBounds()
     if (!bounds) return
     wsSend({ type: 'transit:subscribe', bounds })
   }
@@ -358,7 +361,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     wsSend({ type: 'transit:unsubscribe' })
   }
 
-  function computeRouteBounds() {
+  function routeBounds() {
     const route = activeRoute.value
     if (!route) return null
 
@@ -378,9 +381,15 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
       if (stop.lng < west) west = stop.lng
     }
     if (north === -90) return null
-    const latPad = (north - south) * 0.1
-    const lngPad = (east - west) * 0.1
-    return { north: north + latPad, south: south - latPad, east: east + lngPad, west: west - lngPad }
+    // Generous padding to catch vehicles slightly beyond terminus
+    const latPad = (north - south) * 0.3
+    const lngPad = (east - west) * 0.3
+    return {
+      north: Math.min(90, north + latPad),
+      south: Math.max(-90, south - latPad),
+      east: Math.min(180, east + lngPad),
+      west: Math.max(-180, west - lngPad),
+    }
   }
 
   function applyVehicleUpdate(payload: unknown) {

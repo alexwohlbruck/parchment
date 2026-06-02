@@ -17,9 +17,8 @@ import {
 } from '@/lib/transit'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import SheetPageHeader from '@/components/place/SheetPageHeader.vue'
-import RouteDetailPage from '@/components/place/pages/RouteDetailPage.vue'
-import { useSheetPage } from '@/composables/useSheetPage'
-import { markRaw } from 'vue'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
 
 const props = defineProps<{
   transitInfo: TransitStopInfo
@@ -27,30 +26,17 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const { openExternalLink } = useExternalLink()
-const { pushPage } = useSheetPage()
+const router = useRouter()
 const currentTime = useTransitClock()
 
-function openRouteDetail(departure: TransitDeparture, routeKey: string) {
+function openRouteDetail(departure: TransitDeparture) {
   const feedId = props.transitInfo?.feedId
   const routeId = departure.route.id
   if (!feedId || !routeId) return
 
-  // Collect all departures for this route
-  const routeDepartures = departures.value.filter(d => {
-    const key = `${d.route.shortName || d.route.longName || d.route.id}`
-    return key === routeKey
-  })
-
-  pushPage({
-    name: 'route-detail',
-    component: markRaw(RouteDetailPage),
-    props: {
-      feedId,
-      routeId,
-      originStopName: props.transitInfo?.name || '',
-      headsign: departure.headsign || departure.direction || '',
-      routeDepartures,
-    },
+  router.push({
+    name: AppRoute.TRANSIT_ROUTE,
+    params: { feedId, routeId },
   })
 }
 
@@ -213,7 +199,7 @@ function openTransitlandLink() {
         <!-- Route header (clickable → opens route detail) -->
         <button
           class="flex items-center gap-2 mb-3 group cursor-pointer"
-          @click="openRouteDetail(repForRoute(routeView), routeKey)"
+          @click="openRouteDetail(repForRoute(routeView))"
         >
           <Badge
             :style="{

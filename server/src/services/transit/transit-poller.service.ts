@@ -17,13 +17,11 @@
  */
 
 import { logger } from '../../lib/logger'
-import {
-  allConnections,
-  type Connection,
-} from '../realtime/registry.service'
+import { type Connection } from '../realtime/registry.service'
 import { IntegrationId } from '../../types/integration.enums'
 
 /** How often we poll Barrelman (ms). */
+const MAX_SUBSCRIBERS = 100
 const POLL_INTERVAL_MS = 10_000
 
 /** Expand viewport bounds by this fraction to prefetch nearby vehicles. */
@@ -66,6 +64,10 @@ export function subscribe(
   connection: Connection,
   bounds: Bounds,
 ): void {
+  if (subscribers.size >= MAX_SUBSCRIBERS && !subscribers.has(connectionId)) {
+    logger.warn({ connectionId }, 'Transit: subscriber cap reached, rejecting')
+    return
+  }
   subscribers.set(connectionId, { connectionId, connection, bounds })
   logger.debug({ connectionId, bounds }, 'Transit: subscribed')
 

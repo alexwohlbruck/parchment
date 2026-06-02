@@ -257,9 +257,11 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
     this.pollingWatchStop = watch(
       this.enabled,
       (visible) => {
-        if (visible) {
+        if (visible && !this.routeDetailStore.isActive) {
+          // Only subscribe to the global WS feed when NOT in route-detail
+          // mode. Route-detail has its own HTTP polling via the store.
           this.transitVehiclesStore.subscribe(getBounds)
-        } else {
+        } else if (!visible) {
           this.transitVehiclesStore.unsubscribe()
           this.tracks.clear()
           this.lastRendered.clear()
@@ -537,7 +539,7 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
         target: samplePos,
         transitionStartMs: now,
         transitionDurationMs: 0,
-        smoothedSpeed: Math.min(row.speed ?? 0, MAX_SPEED_BY_TYPE[row.routeType ?? 3] ?? DEFAULT_MAX_SPEED),
+        smoothedSpeed: Math.min(row.speed ?? 0, MAX_SPEED_BY_TYPE[typeof row.routeType === 'number' ? row.routeType : 3] ?? DEFAULT_MAX_SPEED),
         heading: row.heading,
         lastSampleTimestamp: row.timestamp,
       }
@@ -804,6 +806,7 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
     this.lastRendered.clear()
     this.currentMarkerSnapshots.clear()
     this.shapeCache.clear()
+    pendingShapeFetches.clear()
     this.getBoundsFn = null
     super.destroy()
   }

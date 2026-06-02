@@ -1,4 +1,5 @@
 import { Elysia } from 'elysia'
+import { requireAuth } from '../middleware/auth.middleware'
 import { integrationManager } from '../services/integrations'
 import {
   IntegrationCapabilityId,
@@ -6,6 +7,61 @@ import {
 } from '../types/integration.types'
 
 const app = new Elysia({ prefix: '/proxy' })
+
+/**
+ * Proxy a request to Barrelman's transit API. Handles integration
+ * config lookup, auth header, error response wrapping, and timeout.
+ */
+async function proxyBarrelman(
+  path: string,
+  query: Record<string, any>,
+  cacheControl: string = 'no-cache',
+): Promise<Response> {
+  const systemIntegration = integrationManager
+    .getConfiguredIntegrations()
+    .find((i) => i.integrationId === IntegrationId.BARRELMAN)
+
+  const config = systemIntegration?.config as
+    | { host?: string; apiKey?: string }
+    | undefined
+  if (!config?.host) {
+    return new Response(JSON.stringify({ error: 'Barrelman not configured' }), {
+      status: 501,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  const params = new URLSearchParams()
+  for (const [k, v] of Object.entries(query)) {
+    if (v != null && v !== '') params.set(k, String(v))
+  }
+
+  const headers: Record<string, string> = {}
+  if (config.apiKey) {
+    headers['Authorization'] = `Bearer ${config.apiKey}`
+  }
+
+  const response = await fetch(
+    `${config.host}${path}?${params}`,
+    { headers, signal: AbortSignal.timeout(10_000) },
+  )
+
+  if (!response.ok) {
+    // Return a clean JSON error instead of forwarding upstream HTML
+    return new Response(
+      JSON.stringify({ error: `Upstream error: ${response.status}` }),
+      { status: response.status, headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+
+  return new Response(await response.arrayBuffer(), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': cacheControl,
+    },
+  })
+}
 
 // Helper function to proxy tile requests with integration API key
 async function proxyTileRequest(
@@ -209,239 +265,37 @@ app.get(
   },
 )
 
-// Proxy GTFS-RT vehicle positions from Barrelman.
-// Barrelman polls VehiclePositions feeds and serves enriched results;
-// we pass the bbox query params through and return JSON.
-app.get(
-  '/transit/vehicles',
-  async ({ query }) => {
-    try {
-      const systemIntegration = integrationManager
-        .getConfiguredIntegrations()
-        .find((i) => i.integrationId === IntegrationId.BARRELMAN)
+// ── Transit proxy endpoints (authenticated) ─────────────────────
+// All transit endpoints require auth to prevent anonymous enumeration
+// of live vehicle positions and route topology.
+const transitProxy = new Elysia({ prefix: '/transit' }).use(requireAuth)
 
-      const config = systemIntegration?.config as
-        | { host?: string; apiKey?: string }
-        | undefined
-      if (!config?.host) {
-        return new Response('Barrelman not configured', { status: 501 })
-      }
-
-      const params = new URLSearchParams()
-      for (const [k, v] of Object.entries(query)) {
-        if (v) params.set(k, String(v))
-      }
-
-      const headers: Record<string, string> = {}
-      if (config.apiKey) {
-        headers['Authorization'] = `Bearer ${config.apiKey}`
-      }
-
-      const response = await fetch(
-        `${config.host}/transit/vehicles?${params}`,
-        { headers },
-      )
-
-      return new Response(await response.arrayBuffer(), {
-        status: response.status,
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache',
-        },
-      })
-    } catch (error) {
-      console.error('Transit vehicles proxy error:', error)
-      return new Response('Proxy error', { status: 500 })
-    }
-  },
-  {
-    detail: {
-      tags: ['Proxy'],
-      summary: 'Proxy GTFS-RT vehicle positions from Barrelman',
-    },
-  },
+transitProxy.get('/vehicles', ({ query }) =>
+  proxyBarrelman('/transit/vehicles', query, 'no-cache'),
+  { detail: { tags: ['Proxy'], summary: 'Proxy GTFS-RT vehicle positions' } },
 )
 
-// Proxy GTFS shape geometry from Barrelman (static, long-cached).
-app.get(
-  '/transit/shapes',
-  async ({ query }) => {
-    try {
-      const systemIntegration = integrationManager
-        .getConfiguredIntegrations()
-        .find((i) => i.integrationId === IntegrationId.BARRELMAN)
-
-      const config = systemIntegration?.config as
-        | { host?: string; apiKey?: string }
-        | undefined
-      if (!config?.host) {
-        return new Response('Barrelman not configured', { status: 501 })
-      }
-
-      const params = new URLSearchParams()
-      for (const [k, v] of Object.entries(query)) {
-        if (v) params.set(k, String(v))
-      }
-
-      const headers: Record<string, string> = {}
-      if (config.apiKey) {
-        headers['Authorization'] = `Bearer ${config.apiKey}`
-      }
-
-      const response = await fetch(
-        `${config.host}/transit/shapes?${params}`,
-        { headers },
-      )
-
-      return new Response(await response.arrayBuffer(), {
-        status: response.status,
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'public, max-age=86400',
-        },
-      })
-    } catch (error) {
-      console.error('Transit shapes proxy error:', error)
-      return new Response('Proxy error', { status: 500 })
-    }
-  },
-  {
-    detail: {
-      tags: ['Proxy'],
-      summary: 'Proxy GTFS route shape geometry from Barrelman',
-    },
-  },
+transitProxy.get('/shapes', ({ query }) =>
+  proxyBarrelman('/transit/shapes', query, 'public, max-age=86400'),
+  { detail: { tags: ['Proxy'], summary: 'Proxy route shape geometry' } },
 )
 
-// Proxy route-specific vehicle positions from Barrelman (no bounding box).
-app.get(
-  '/transit/route-vehicles',
-  async ({ query }) => {
-    try {
-      const systemIntegration = integrationManager
-        .getConfiguredIntegrations()
-        .find((i) => i.integrationId === IntegrationId.BARRELMAN)
-
-      const config = systemIntegration?.config as
-        | { host?: string; apiKey?: string }
-        | undefined
-      if (!config?.host) {
-        return new Response('Barrelman not configured', { status: 501 })
-      }
-
-      const params = new URLSearchParams()
-      for (const [k, v] of Object.entries(query)) {
-        if (v) params.set(k, String(v))
-      }
-
-      const headers: Record<string, string> = {}
-      if (config.apiKey) {
-        headers['Authorization'] = `Bearer ${config.apiKey}`
-      }
-
-      const response = await fetch(
-        `${config.host}/transit/route-vehicles?${params}`,
-        { headers },
-      )
-
-      return new Response(await response.arrayBuffer(), {
-        status: response.status,
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache',
-        },
-      })
-    } catch (error) {
-      console.error('Transit route vehicles proxy error:', error)
-      return new Response('Proxy error', { status: 500 })
-    }
-  },
-  {
-    detail: {
-      tags: ['Proxy'],
-      summary: 'Proxy route-specific vehicle positions from Barrelman',
-    },
-  },
+transitProxy.get('/route-vehicles', ({ query }) =>
+  proxyBarrelman('/transit/route-vehicles', query, 'no-cache'),
+  { detail: { tags: ['Proxy'], summary: 'Proxy route-specific vehicle positions' } },
 )
 
-// Proxy trip stop times from Barrelman.
-app.get(
-  '/transit/trip-stops',
-  async ({ query }) => {
-    try {
-      const systemIntegration = integrationManager
-        .getConfiguredIntegrations()
-        .find((i) => i.integrationId === IntegrationId.BARRELMAN)
-      const config = systemIntegration?.config as { host?: string; apiKey?: string } | undefined
-      if (!config?.host) return new Response('Barrelman not configured', { status: 501 })
-
-      const params = new URLSearchParams()
-      for (const [k, v] of Object.entries(query)) { if (v) params.set(k, String(v)) }
-      const headers: Record<string, string> = {}
-      if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
-
-      const response = await fetch(`${config.host}/transit/trip-stops?${params}`, { headers })
-      return new Response(await response.arrayBuffer(), {
-        status: response.status,
-        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
-      })
-    } catch (error) {
-      console.error('Transit trip stops proxy error:', error)
-      return new Response('Proxy error', { status: 500 })
-    }
-  },
-  { detail: { tags: ['Proxy'], summary: 'Proxy trip stop times from Barrelman' } },
+transitProxy.get('/trip-stops', ({ query }) =>
+  proxyBarrelman('/transit/trip-stops', query, 'no-cache'),
+  { detail: { tags: ['Proxy'], summary: 'Proxy trip stop times' } },
 )
 
-// Proxy route detail from Barrelman (semi-static, cached 1 hour).
-app.get(
-  '/transit/route-detail',
-  async ({ query }) => {
-    try {
-      const systemIntegration = integrationManager
-        .getConfiguredIntegrations()
-        .find((i) => i.integrationId === IntegrationId.BARRELMAN)
-
-      const config = systemIntegration?.config as
-        | { host?: string; apiKey?: string }
-        | undefined
-      if (!config?.host) {
-        return new Response('Barrelman not configured', { status: 501 })
-      }
-
-      const params = new URLSearchParams()
-      for (const [k, v] of Object.entries(query)) {
-        if (v) params.set(k, String(v))
-      }
-
-      const headers: Record<string, string> = {}
-      if (config.apiKey) {
-        headers['Authorization'] = `Bearer ${config.apiKey}`
-      }
-
-      const response = await fetch(
-        `${config.host}/transit/route-detail?${params}`,
-        { headers },
-      )
-
-      return new Response(await response.arrayBuffer(), {
-        status: response.status,
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'public, max-age=3600',
-        },
-      })
-    } catch (error) {
-      console.error('Transit route detail proxy error:', error)
-      return new Response('Proxy error', { status: 500 })
-    }
-  },
-  {
-    detail: {
-      tags: ['Proxy'],
-      summary: 'Proxy transit route detail from Barrelman',
-    },
-  },
+transitProxy.get('/route-detail', ({ query }) =>
+  proxyBarrelman('/transit/route-detail', query, 'public, max-age=3600'),
+  { detail: { tags: ['Proxy'], summary: 'Proxy route detail with stops and shape' } },
 )
+
+app.use(transitProxy)
+
 
 export default app

@@ -220,26 +220,33 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
   // ── Actions ──────────────────────────────────────────────────────
 
   let vehiclePollTimer: ReturnType<typeof setInterval> | null = null
+  /** Generation counter to guard against concurrent openRoute races. */
+  let openGeneration = 0
 
   async function openRoute(
     feedId: string,
     routeId: string,
     context?: DepartureContext,
   ) {
+    const gen = ++openGeneration
     isLoading.value = true
     departureContext.value = context ?? null
     selectedVehicleId.value = null
+    stopVehiclePolling()
     try {
       const { data } = await api.get<RouteDetail>(
         '/proxy/transit/route-detail',
         { params: { feedId, routeId } },
       )
+      // Guard: if another openRoute was called while we awaited, bail
+      if (gen !== openGeneration) return
       activeRoute.value = data
       startVehiclePolling()
     } catch (err) {
+      if (gen !== openGeneration) return
       console.error('[RouteDetail] Failed to load route:', err)
     } finally {
-      isLoading.value = false
+      if (gen === openGeneration) isLoading.value = false
     }
   }
 
@@ -253,9 +260,12 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     vehicles.value = new Map()
   }
 
+  let tripStopFetchId = 0
+
   function selectVehicle(vehicleId: string | null) {
     selectedVehicleId.value = vehicleId
     tripStopTimes.value = []
+    tripStopFetchId++
 
     if (vehicleId && activeRoute.value) {
       const vehicle = vehicles.value.get(vehicleId)
@@ -263,17 +273,20 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
         const rawTripId = vehicle.tripId.startsWith(`${vehicle.feedId}_`)
           ? vehicle.tripId.slice(vehicle.feedId.length + 1)
           : vehicle.tripId
-        fetchTripStopTimes(vehicle.feedId, rawTripId)
+        void fetchTripStopTimes(vehicle.feedId, rawTripId, vehicleId)
       }
     }
   }
 
-  async function fetchTripStopTimes(feedId: string, tripId: string) {
+  async function fetchTripStopTimes(feedId: string, tripId: string, forVehicleId: string) {
+    const fetchId = tripStopFetchId
     try {
       const { data } = await api.get<{ stops: Array<{ stopId: string; arrivalTime?: string; departureTime?: string }> }>(
         '/proxy/transit/trip-stops',
         { params: { feedId, tripId } },
       )
+      // Guard against stale write: only apply if the vehicle is still selected
+      if (fetchId !== tripStopFetchId || selectedVehicleId.value !== forVehicleId) return
       if (data?.stops) {
         tripStopTimes.value = data.stops
       }

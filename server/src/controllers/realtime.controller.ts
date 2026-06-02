@@ -155,18 +155,30 @@ wsApi.ws('/', {
       close: (code?: number, reason?: string) => ws.close(code, reason),
     }
 
+    // Validate bounds: must be finite numbers in valid ranges
+    const b = parsed.bounds
+    const validBounds = b &&
+      Number.isFinite(b.north) && Number.isFinite(b.south) &&
+      Number.isFinite(b.east) && Number.isFinite(b.west) &&
+      b.north >= b.south &&
+      b.north >= -90 && b.north <= 90 &&
+      b.south >= -90 && b.south <= 90 &&
+      b.east >= -180 && b.east <= 180 &&
+      b.west >= -180 && b.west <= 180
+      ? b : null
+
     switch (parsed.type) {
       case 'transit:subscribe':
-        if (parsed.bounds) {
-          transitSubscribe(connectionId, conn, parsed.bounds)
+        if (validBounds) {
+          transitSubscribe(connectionId, conn, validBounds)
         }
         break
       case 'transit:unsubscribe':
         transitUnsubscribe(connectionId)
         break
       case 'transit:viewport':
-        if (parsed.bounds) {
-          transitUpdateBounds(connectionId, parsed.bounds)
+        if (validBounds) {
+          transitUpdateBounds(connectionId, validBounds)
         }
         break
     }
@@ -175,7 +187,7 @@ wsApi.ws('/', {
     const carrier = ws.data.query as unknown as WsQueryCarrier | undefined
     const connectionId = carrier?._connectionId
     if (connectionId) {
-      transitOnClose(connectionId)
+      try { transitOnClose(connectionId) } catch { /* don't block deregister */ }
       deregisterSocket(connectionId)
     }
     logger.debug({ code, reason, connectionId }, 'Realtime WS closed')

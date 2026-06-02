@@ -30,15 +30,27 @@ const { openExternalLink } = useExternalLink()
 const { pushPage } = useSheetPage()
 const currentTime = useTransitClock()
 
-function openRouteDetail(departure: TransitDeparture) {
+function openRouteDetail(departure: TransitDeparture, routeKey: string) {
   const feedId = props.transitInfo?.feedId
   const routeId = departure.route.id
   if (!feedId || !routeId) return
 
+  // Collect all departures for this route
+  const routeDepartures = departures.value.filter(d => {
+    const key = `${d.route.shortName || d.route.longName || d.route.id}`
+    return key === routeKey
+  })
+
   pushPage({
     name: 'route-detail',
     component: markRaw(RouteDetailPage),
-    props: { feedId, routeId },
+    props: {
+      feedId,
+      routeId,
+      originStopName: props.transitInfo?.name || '',
+      headsign: departure.headsign || departure.direction || '',
+      routeDepartures,
+    },
   })
 }
 
@@ -201,7 +213,7 @@ function openTransitlandLink() {
         <!-- Route header (clickable → opens route detail) -->
         <button
           class="flex items-center gap-2 mb-3 group cursor-pointer"
-          @click="openRouteDetail(repForRoute(routeView))"
+          @click="openRouteDetail(repForRoute(routeView), routeKey)"
         >
           <Badge
             :style="{

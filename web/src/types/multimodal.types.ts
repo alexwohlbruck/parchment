@@ -320,6 +320,8 @@ export interface TransitVehiclePosition {
   routeTextColor?: string
   routeShortName?: string
   routeType?: TransitRouteType
+  nextStopId?: string
+  nextStopArrival?: string
 }
 
 export type TransitAlertEffect =

@@ -383,7 +383,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
   // Polls the route-specific endpoint which returns ALL vehicles on
   // the route — no bounding box, no WebSocket subscription needed.
 
-  const VEHICLE_POLL_MS = 10_000
+  const VEHICLE_POLL_MS = 5_000
 
   function startVehiclePolling() {
     stopVehiclePolling()

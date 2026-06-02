@@ -67,6 +67,17 @@ const DECAY_TAU = DECAY_HALF_LIFE_SEC / Math.LN2
 /** Stop dead-reckoning after this long without an update. */
 const MAX_COAST_SEC = 60
 
+/** Max realistic speed (m/s) by GTFS route_type. Prevents GPS noise
+ *  from making a streetcar appear to fly down the tracks at 50mph. */
+const MAX_SPEED_BY_TYPE: Record<number, number> = {
+  0: 14,   // tram/streetcar: ~50 km/h
+  1: 36,   // subway: ~130 km/h
+  2: 45,   // rail: ~160 km/h
+  3: 25,   // bus: ~90 km/h
+  4: 14,   // ferry: ~50 km/h
+}
+const DEFAULT_MAX_SPEED = 25 // m/s (~90 km/h)
+
 /** Max cached shapes (LRU eviction by insertion order). */
 const MAX_SHAPE_CACHE = 100
 
@@ -317,6 +328,11 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
             heading: v.bearing ?? null,
             feedId: v.feedId,
             routeId: v.routeId,
+            routeType: v.routeType ?? null,
+            nextStopId: v.nextStopId ?? null,
+            nextStopArrival: v.nextStopArrival
+              ? new Date(v.nextStopArrival).getTime()
+              : null,
           }),
         )
       },
@@ -385,7 +401,7 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
 
   private buildConstrainedTrack(
     existing: TransitTrack | undefined,
-    row: { lat: number; lng: number; timestamp: number; speed: number | null; heading: number | null },
+    row: { lat: number; lng: number; timestamp: number; speed: number | null; heading: number | null; routeType: number | string | null; nextStopId: string | null; nextStopArrival: number | null },
     shape: ShapeCache,
     now: number,
   ): ConstrainedTransitTrack {
@@ -410,7 +426,7 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
         targetDist: newTargetDist,
         transitionStartMs: now,
         transitionDurationMs: 0,
-        smoothedSpeed: row.speed ?? 0,
+        smoothedSpeed: Math.min(row.speed ?? 0, MAX_SPEED_BY_TYPE[row.routeType ?? 3] ?? DEFAULT_MAX_SPEED),
         heading: snap.bearing,
         lastSampleTimestamp: row.timestamp,
         highWaterDist: newTargetDist,
@@ -430,22 +446,41 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
       currentDist = currentSnap.fraction * totalLength
     }
 
-    // Compute smoothed speed from consecutive snapped positions.
-    // This is critical when the feed doesn't report speed (speed=0),
-    // which is common — we derive it from how far the vehicle moved.
+    // Compute interpolation speed. Priority:
+    // 1. TripUpdate arrival prediction → speed to reach next stop on time
+    // 2. Consecutive GPS position delta → measured speed
+    // 3. Feed-reported speed (often 0)
+    const rtNum = typeof row.routeType === 'number' ? row.routeType : 3
+    const maxSpeed = MAX_SPEED_BY_TYPE[rtNum] ?? DEFAULT_MAX_SPEED
     let smoothedSpeed: number
     const dt = (row.timestamp - existing.lastSampleTimestamp) / 1000
-    if (dt > 1) {
-      const prevTargetDist = existing.kind === 'constrained'
-        ? existing.targetDist
-        : 0
+
+    if (row.nextStopArrival && dt > 1) {
+      // Best source: TripUpdate predicts when the vehicle reaches its next stop.
+      // Compute speed needed to arrive on time.
+      const timeToArrival = (row.nextStopArrival - now) / 1000
+      if (timeToArrival > 2) {
+        // Estimate distance to next stop from the route shape.
+        // nextStopId may have directional suffix — try both.
+        const nextStopDist = this.findStopDistOnShape(row.nextStopId, polyline, cumulativeDistances, totalLength)
+        if (nextStopDist != null && nextStopDist > newTargetDist) {
+          const distToStop = nextStopDist - newTargetDist
+          smoothedSpeed = Math.min(distToStop / timeToArrival, maxSpeed)
+        } else {
+          // Can't find stop on shape — fall back to GPS delta
+          const measuredSpeed = Math.max(0, (newTargetDist - (existing.kind === 'constrained' ? existing.targetDist : 0)) / dt)
+          smoothedSpeed = Math.min(SPEED_ALPHA * measuredSpeed + (1 - SPEED_ALPHA) * existing.smoothedSpeed, maxSpeed)
+        }
+      } else {
+        smoothedSpeed = Math.min(existing.smoothedSpeed, maxSpeed)
+      }
+    } else if (dt > 1) {
+      const prevTargetDist = existing.kind === 'constrained' ? existing.targetDist : 0
       const measuredSpeed = Math.max(0, (newTargetDist - prevTargetDist) / dt)
-      const prevSpeed = existing.smoothedSpeed
-      // Use heavier weight on measured speed when feed reports 0
       const alpha = (row.speed ?? 0) > 0 ? SPEED_ALPHA : 0.6
-      smoothedSpeed = alpha * measuredSpeed + (1 - alpha) * prevSpeed
+      smoothedSpeed = Math.min(alpha * measuredSpeed + (1 - alpha) * existing.smoothedSpeed, maxSpeed)
     } else {
-      smoothedSpeed = existing.smoothedSpeed
+      smoothedSpeed = Math.min(existing.smoothedSpeed, maxSpeed)
     }
 
     // Monotonic: if the new fix is behind our high-water mark,
@@ -493,7 +528,7 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
 
   private buildFreeTrack(
     existing: TransitTrack | undefined,
-    row: { lat: number; lng: number; timestamp: number; speed: number | null; heading: number | null },
+    row: { lat: number; lng: number; timestamp: number; speed: number | null; heading: number | null; routeType: number | string | null; nextStopId: string | null; nextStopArrival: number | null },
     now: number,
   ): FreeTransitTrack {
     const samplePos: LngLat = { lat: row.lat, lng: row.lng }
@@ -505,7 +540,7 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
         target: samplePos,
         transitionStartMs: now,
         transitionDurationMs: 0,
-        smoothedSpeed: row.speed ?? 0,
+        smoothedSpeed: Math.min(row.speed ?? 0, MAX_SPEED_BY_TYPE[row.routeType ?? 3] ?? DEFAULT_MAX_SPEED),
         heading: row.heading,
         lastSampleTimestamp: row.timestamp,
       }
@@ -515,6 +550,8 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
       ? this.predictFree(existing, now)
       : this.predictConstrained(existing, now)
 
+    const rtNum = typeof row.routeType === 'number' ? row.routeType : 3
+    const maxSpeed = MAX_SPEED_BY_TYPE[rtNum] ?? DEFAULT_MAX_SPEED
     let smoothedSpeed: number
     const dt = (row.timestamp - existing.lastSampleTimestamp) / 1000
     if (dt > 1) {
@@ -528,7 +565,10 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
           ).position
       const measuredSpeed = distanceMeters(prevTarget, samplePos) / dt
       const alpha = (row.speed ?? 0) > 0 ? SPEED_ALPHA : 0.6
-      smoothedSpeed = alpha * measuredSpeed + (1 - alpha) * existing.smoothedSpeed
+      smoothedSpeed = Math.min(
+        alpha * measuredSpeed + (1 - alpha) * existing.smoothedSpeed,
+        maxSpeed,
+      )
     } else {
       smoothedSpeed = existing.smoothedSpeed
     }
@@ -545,6 +585,31 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
       heading: row.heading ?? existing.heading,
       lastSampleTimestamp: row.timestamp,
     }
+  }
+
+  /** Find a stop's distance along the route shape by matching stop position
+   *  to the nearest point on the polyline. Returns null if stop not found. */
+  private findStopDistOnShape(
+    stopId: string | null,
+    polyline: LngLat[],
+    cumulativeDistances: number[],
+    totalLength: number,
+  ): number | null {
+    if (!stopId || !this.routeDetailStore.activeRoute) return null
+    const stops = this.routeDetailStore.activeRoute.stops
+    // Try exact match and stripped-suffix match (e.g. "101N" → "101")
+    const stop = stops.find(s => s.stopId === stopId)
+      ?? stops.find(s => stopId.startsWith(s.stopId))
+      ?? stops.find(s => s.stopId.startsWith(stopId))
+    if (!stop) return null
+
+    const snap = snapToPolyline(
+      { lat: stop.lat, lng: stop.lng },
+      polyline,
+      cumulativeDistances,
+      totalLength,
+    )
+    return snap.fraction * totalLength
   }
 
   // ── Prediction ─────────────────────────────────────────────────

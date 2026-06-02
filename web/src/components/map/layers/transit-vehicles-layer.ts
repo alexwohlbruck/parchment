@@ -572,16 +572,18 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
 
   private predictConstrainedDist(track: ConstrainedTransitTrack, now: number): number {
     const elapsed = now - track.transitionStartMs
+    const elapsedSec = elapsed / 1000
+
+    // Where pure dead-reckoning says we should be
+    const idealDist = track.targetDist + decayedDist(track.smoothedSpeed, elapsedSec)
 
     let dist: number
     if (track.transitionDurationMs > 0 && elapsed < track.transitionDurationMs) {
-      // Linear interpolation: constant speed from blendFrom to target.
-      // No easing, no dead-reckoning — just a straight line.
-      const u = elapsed / track.transitionDurationMs
-      dist = track.blendFromDist + (track.targetDist - track.blendFromDist) * u
+      // Ease-blend from starting position toward the moving ideal
+      const u = easeOut(elapsed / track.transitionDurationMs)
+      dist = track.blendFromDist + (idealDist - track.blendFromDist) * u
     } else {
-      // Past the transition — hold at target until next update
-      dist = track.targetDist
+      dist = idealDist
     }
 
     // Monotonic clamp and polyline bounds
@@ -594,13 +596,23 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
 
   private predictFree(track: FreeTransitTrack, now: number): LngLat {
     const elapsed = now - track.transitionStartMs
+    const elapsedSec = elapsed / 1000
 
-    if (track.transitionDurationMs > 0 && elapsed < track.transitionDurationMs) {
-      const u = elapsed / track.transitionDurationMs
-      return lerpLatLng(track.blendFrom, track.target, u)
+    // Where pure dead-reckoning from the target says we should be
+    let idealPos: LngLat
+    if (track.smoothedSpeed >= MIN_DR_SPEED && track.heading != null) {
+      const drDist = decayedDist(track.smoothedSpeed, elapsedSec)
+      idealPos = projectLatLng(track.target, 1, track.heading, drDist)
+    } else {
+      idealPos = track.target
     }
 
-    return track.target
+    if (track.transitionDurationMs > 0 && elapsed < track.transitionDurationMs) {
+      const u = easeOut(elapsed / track.transitionDurationMs)
+      return lerpLatLng(track.blendFrom, idealPos, u)
+    }
+
+    return idealPos
   }
 
   // ── Marker reconciliation ──────────────────────────────────────
@@ -625,22 +637,16 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
       if (this.mapAPI.hasMarker(fullId)) {
         this.mapAPI.removeMarker(fullId)
       }
-      // Use last rendered position if available so the marker doesn't
-      // snap to the raw GPS position on recreate (causes visible jump).
-      const lastPos = this.lastRendered.get(markerData.id)
-      const createPos = lastPos
-        ? { lat: lastPos.lat, lng: lastPos.lng }
-        : markerData.lngLat
-
       this.mapAPI.addVueMarker(
         fullId,
-        createPos,
+        markerData.lngLat,
         this.component,
         markerData.props,
         this.zIndex,
         markerData.dragOptions,
       )
       this.currentMarkerSnapshots.set(fullId, snapshot)
+      this.lastRendered.delete(markerData.id)
     }
 
     for (const oldId of this.currentMarkerIds) {

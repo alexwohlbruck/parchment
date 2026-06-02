@@ -143,6 +143,7 @@ const timeAgo = computed(() => {
   align-items: center;
   justify-content: center;
   pointer-events: auto;
+  will-change: transform;
 }
 
 .vehicle-circle {

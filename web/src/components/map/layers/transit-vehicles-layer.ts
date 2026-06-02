@@ -49,10 +49,7 @@ import type { TransitVehiclePosition } from '@/types/multimodal.types'
 
 // ── Constants ─────────────────────────────────────────────────────
 
-// ~1 pixel at zoom 15. Prevents sub-pixel CSS transform jitter
-// where the browser rounds fractional pixel positions differently
-// each frame, making the marker visually vibrate.
-const POSITION_EPSILON_DEG = 0.00003
+const POSITION_EPSILON_DEG = 0.0000005
 
 /** Duration of the easeOut blend when a new fix arrives (ms). */
 const TRANSITION_MS = 2000
@@ -522,7 +519,7 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
       smoothedSpeed,
       heading: snap.bearing,
       lastSampleTimestamp: row.timestamp,
-      highWaterDist: Math.max(currentDist, highWater),
+      highWaterDist: existing.kind === 'constrained' ? existing.highWaterDist : currentDist,
     }
   }
 

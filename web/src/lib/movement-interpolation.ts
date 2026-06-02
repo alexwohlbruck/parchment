@@ -695,3 +695,59 @@ export function predictConstrained(
     track.totalLength,
   ).position
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// Dead-reckoning confidence — accuracy-based speed scaling
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Compute a dead-reckoning confidence factor (0..1) based on how well
+ * past predictions matched actual GPS fixes. Used by the transit
+ * vehicles layer to scale DR speed — a vehicle with low confidence
+ * won't extrapolate far past its last GPS position.
+ *
+ * @param prevConfidence  Previous confidence value (0..1)
+ * @param prevTargetDist  Distance along route at previous GPS fix
+ * @param newTargetDist   Distance along route at new GPS fix
+ * @param prevSpeed       Speed that was being used for DR (m/s)
+ * @param dt              Time between samples (seconds)
+ * @returns Updated confidence value (0..1)
+ */
+export function updateDrConfidence(
+  prevConfidence: number,
+  prevTargetDist: number,
+  newTargetDist: number,
+  prevSpeed: number,
+  dt: number,
+): number {
+  // How far did the vehicle actually travel according to GPS?
+  const actualTravel = newTargetDist - prevTargetDist
+
+  // How far did we predict it would travel (raw speed × time)?
+  const predictedTravel = prevSpeed * dt
+
+  // Not enough predicted movement to judge accuracy — keep previous
+  if (predictedTravel < 2) return prevConfidence
+
+  // Ratio: actual / predicted. 1.0 = perfect prediction.
+  // < 1.0 = overshoot (we predicted more than reality)
+  // > 1.0 = undershoot (vehicle went further than predicted)
+  const ratio = Math.max(0, actualTravel) / predictedTravel
+
+  // Convert ratio to a per-sample confidence score
+  let sampleConfidence: number
+  if (ratio >= 0.5 && ratio <= 1.3) {
+    // Good: actual travel within 50-130% of predicted
+    sampleConfidence = 0.8
+  } else if (ratio >= 0.2 && ratio <= 2.0) {
+    // Moderate: noticeable mismatch but not terrible
+    sampleConfidence = 0.4
+  } else {
+    // Bad: major overshoot or undershoot
+    sampleConfidence = 0.1
+  }
+
+  // Asymmetric smoothing: lose confidence fast, gain it slowly
+  const alpha = sampleConfidence < prevConfidence ? 0.6 : 0.25
+  return alpha * sampleConfidence + (1 - alpha) * prevConfidence
+}

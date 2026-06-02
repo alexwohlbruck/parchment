@@ -35,6 +35,7 @@ import {
   easeOut,
   clamp,
   MIN_DR_SPEED,
+  updateDrConfidence,
   type PolylineDistances,
 } from '@/lib/movement-interpolation'
 import { api } from '@/lib/api'
@@ -100,6 +101,14 @@ interface ConstrainedTransitTrack {
   lastSampleTimestamp: number
   /** Monotonic distance clamp — never renders below this. Updated per frame. */
   highWaterDist: number
+
+  /**
+   * Dead-reckoning confidence factor (0..1). Measures how well our DR
+   * predictions match subsequent GPS fixes. Starts at 0 (no DR on first
+   * sample), ramps up slowly when predictions are accurate, drops quickly
+   * when overshoots are detected. Applied as a multiplier on DR speed.
+   */
+  drConfidence: number
 }
 
 interface FreeTransitTrack {
@@ -113,9 +122,19 @@ interface FreeTransitTrack {
   smoothedSpeed: number
   heading: number | null
   lastSampleTimestamp: number
+
+  /** Dead-reckoning confidence (0..1). See ConstrainedTransitTrack. */
+  drConfidence: number
 }
 
 type TransitTrack = ConstrainedTransitTrack | FreeTransitTrack
+
+/**
+ * Small backwards GPS drift below this threshold (meters) is treated as
+ * noise, not as a real overshoot. Avoids triggering the full correction
+ * path for sub-10m GPS jitter on constrained routes.
+ */
+const GPS_NOISE_TOLERANCE_M = 15
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -124,6 +143,26 @@ function decayedDist(speed: number, sec: number): number {
   if (speed < MIN_DR_SPEED) return 0
   const capped = Math.min(sec, MAX_COAST_SEC)
   return speed * DECAY_TAU * (1 - Math.exp(-capped / DECAY_TAU))
+}
+
+/**
+ * Compute the DR confidence factor for the next track based on how
+ * well our prediction matched the new GPS fix. Delegates to the
+ * shared `updateDrConfidence` in movement-interpolation.ts.
+ */
+function computeDrConfidence(
+  existing: TransitTrack | undefined,
+  newTargetDist: number,
+  dt: number,
+): number {
+  if (!existing || existing.kind !== 'constrained') return 0
+  return updateDrConfidence(
+    existing.drConfidence,
+    existing.targetDist,
+    newTargetDist,
+    existing.smoothedSpeed,
+    dt,
+  )
 }
 
 // ── Shape cache ──────────────────────────────────────────────────
@@ -332,6 +371,13 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
             nextStopArrival: v.nextStopArrival
               ? new Date(v.nextStopArrival).getTime()
               : null,
+            // Previous position from the prior GTFS-RT snapshot —
+            // allows instant interpolation on first fetch.
+            previousLat: v.previousPosition?.lat ?? null,
+            previousLng: v.previousPosition?.lng ?? null,
+            previousTimestamp: v.previousTimestamp
+              ? new Date(v.previousTimestamp).getTime()
+              : null,
           }),
         )
       },
@@ -341,7 +387,7 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
 
         for (const row of rows) {
           seen.add(row.id)
-          const existing = this.tracks.get(row.id)
+          let existing = this.tracks.get(row.id)
 
           if (existing && existing.lastSampleTimestamp === row.timestamp) continue
 
@@ -359,6 +405,37 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
           if (existing && targetPos && distanceMeters(targetPos, samplePos) < 2) {
             existing.lastSampleTimestamp = row.timestamp
             continue
+          }
+
+          // Bootstrap: if this is the first time we see this vehicle and the
+          // server provided a previousPosition, create a synthetic "prior"
+          // track so the current sample becomes the second data point. This
+          // gives us speed + direction immediately — no 5s wait for the next
+          // poll to start interpolation.
+          if (!existing && row.previousLat != null && row.previousLng != null && row.previousTimestamp != null) {
+            const prevRow = {
+              ...row,
+              lat: row.previousLat,
+              lng: row.previousLng,
+              timestamp: row.previousTimestamp,
+              speed: null as number | null,
+              heading: null as number | null,
+              nextStopId: null as string | null,
+              nextStopArrival: null as number | null,
+              previousLat: null as number | null,
+              previousLng: null as number | null,
+              previousTimestamp: null as number | null,
+            }
+            const shapeKey = row.feedId && row.routeId
+              ? this.shapeKey(row.feedId, row.routeId) : null
+            const shape = shapeKey ? this.shapeCache.get(shapeKey) : null
+            if (shape) {
+              existing = this.buildConstrainedTrack(undefined, prevRow, shape, now)
+            } else {
+              existing = this.buildFreeTrack(undefined, prevRow, now)
+            }
+            // Don't set it on this.tracks yet — the current row will
+            // immediately overwrite it below using this as `existing`.
           }
 
           const shapeKey =
@@ -431,6 +508,7 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
         heading: snap.bearing,
         lastSampleTimestamp: row.timestamp,
         highWaterDist: newTargetDist,
+        drConfidence: 0, // No history — no dead-reckoning on first sample
       }
     }
 
@@ -484,12 +562,39 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
       smoothedSpeed = Math.min(existing.smoothedSpeed, maxSpeed)
     }
 
-    // If the GPS says we're behind where interpolation put us,
-    // accept the GPS position. The interpolation overshot — that's
-    // our error, not the GPS's. Glide to the GPS fix from current
-    // position (may be a slight visual correction backwards, but
-    // being stuck forever is much worse).
+    // Update DR confidence based on how well we predicted this GPS fix
+    const drConfidence = computeDrConfidence(existing, newTargetDist, dt)
+
+    // Overshoot handling: GPS says we're behind where interpolation put us.
+    // Two cases:
+    //   1. Small drift (< GPS_NOISE_TOLERANCE_M): GPS noise. Snap target
+    //      forward to current position — don't glide backwards for jitter.
+    //   2. Significant overshoot: accept GPS, glide back smoothly, and
+    //      kill DR confidence so we don't overshoot again immediately.
     if (newTargetDist < currentDist) {
+      const overshootM = currentDist - newTargetDist
+
+      if (overshootM <= GPS_NOISE_TOLERANCE_M) {
+        // Small noise: hold position, don't correct backwards. Accept the
+        // GPS as the new target but start from where we already are.
+        return {
+          kind: 'constrained',
+          polyline,
+          cumulativeDistances,
+          totalLength,
+          blendFromDist: currentDist,
+          targetDist: currentDist, // hold at current, don't glide backwards
+          transitionStartMs: now,
+          transitionDurationMs: 0,
+          smoothedSpeed: smoothedSpeed * 0.5,
+          heading: snap.bearing,
+          lastSampleTimestamp: row.timestamp,
+          highWaterDist: currentDist,
+          drConfidence: Math.min(drConfidence, 0.3), // Mild penalty
+        }
+      }
+
+      // Significant overshoot: glide back to GPS position
       return {
         kind: 'constrained',
         polyline,
@@ -499,11 +604,12 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
         targetDist: newTargetDist,
         transitionStartMs: now,
         transitionDurationMs: TRANSITION_MS,
-        smoothedSpeed: smoothedSpeed * 0.5,
+        smoothedSpeed: smoothedSpeed * 0.3,
         heading: snap.bearing,
         lastSampleTimestamp: row.timestamp,
         // Reset highWater to GPS — trust the real data
         highWaterDist: newTargetDist,
+        drConfidence: 0, // Kill DR — we just overshot significantly
       }
     }
 
@@ -522,6 +628,7 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
       heading: snap.bearing,
       lastSampleTimestamp: row.timestamp,
       highWaterDist: existing.kind === 'constrained' ? existing.highWaterDist : currentDist,
+      drConfidence,
     }
   }
 
@@ -542,6 +649,7 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
         smoothedSpeed: Math.min(row.speed ?? 0, MAX_SPEED_BY_TYPE[typeof row.routeType === 'number' ? row.routeType : 3] ?? DEFAULT_MAX_SPEED),
         heading: row.heading,
         lastSampleTimestamp: row.timestamp,
+        drConfidence: 0,
       }
     }
 
@@ -574,6 +682,12 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
 
     const sampleInterval = dt > 2 ? dt * 1000 : TRANSITION_MS
 
+    // Free-space confidence: simple ramp based on sample count.
+    // We can't measure overshoot as precisely as constrained mode,
+    // so just ramp slowly to a moderate max.
+    const prevConf = existing.drConfidence
+    const freeConf = Math.min(prevConf + 0.15, 0.5)
+
     return {
       kind: 'free',
       blendFrom: currentPos,
@@ -583,6 +697,7 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
       smoothedSpeed,
       heading: row.heading ?? existing.heading,
       lastSampleTimestamp: row.timestamp,
+      drConfidence: freeConf,
     }
   }
 
@@ -646,18 +761,23 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
     if (track.transitionDurationMs > 0 && elapsed < track.transitionDurationMs) {
       const u = elapsed / track.transitionDurationMs
       const dist = track.blendFromDist + (track.targetDist - track.blendFromDist) * u
-      // Never go backwards from high-water mark
+      // Never go backwards from high-water mark during a forward glide.
+      // (For backwards corrections — blendFromDist > targetDist — the
+      // highWaterDist was already reset to targetDist by the builder.)
       const clamped = Math.max(dist, track.highWaterDist)
       track.highWaterDist = clamped
       return Math.min(clamped, track.totalLength)
     }
 
-    // Phase 2: dead-reckon forward from the GPS target at decaying speed.
-    // But NEVER go ahead of where the GPS says we should be — if we've
-    // overshot, just hold at the target and wait for reality to catch up.
+    // Phase 2: dead-reckon forward from the GPS target at decaying speed,
+    // SCALED BY drConfidence. This is the key lever: confidence starts at
+    // 0 (no DR on first sample), ramps up as GPS confirms predictions,
+    // and drops when overshoots are detected. Net effect: DR is always
+    // conservative and self-correcting.
     const sinceArrival = elapsedSec - (track.transitionDurationMs / 1000)
-    if (sinceArrival > 0 && track.smoothedSpeed >= MIN_DR_SPEED && sinceArrival < MAX_COAST_SEC) {
-      const drDist = decayedDist(track.smoothedSpeed, sinceArrival)
+    const effectiveSpeed = track.smoothedSpeed * track.drConfidence
+    if (sinceArrival > 0 && effectiveSpeed >= MIN_DR_SPEED && sinceArrival < MAX_COAST_SEC) {
+      const drDist = decayedDist(effectiveSpeed, sinceArrival)
       const projected = track.targetDist + drDist
 
       // Only advance if we're not already ahead of the target
@@ -677,10 +797,11 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
     const elapsed = now - track.transitionStartMs
     const elapsedSec = elapsed / 1000
 
-    // Where pure dead-reckoning from the target says we should be
+    // Where confidence-scaled dead-reckoning from the target says we should be
     let idealPos: LngLat
-    if (track.smoothedSpeed >= MIN_DR_SPEED && track.heading != null) {
-      const drDist = decayedDist(track.smoothedSpeed, elapsedSec)
+    const effectiveSpeed = track.smoothedSpeed * track.drConfidence
+    if (effectiveSpeed >= MIN_DR_SPEED && track.heading != null) {
+      const drDist = decayedDist(effectiveSpeed, elapsedSec)
       idealPos = projectLatLng(track.target, 1, track.heading, drDist)
     } else {
       idealPos = track.target

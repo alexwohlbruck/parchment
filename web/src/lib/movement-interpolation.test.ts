@@ -16,6 +16,7 @@ import {
   predictConstrained,
   projectLatLng,
   snapToPolyline,
+  updateDrConfidence,
   type ConstrainedTrack,
   type Track,
 } from './movement-interpolation'
@@ -959,5 +960,119 @@ describe('predictConstrained', () => {
     // Should be at or near the polyline end, not beyond
     expect(pos.lat).toBeCloseTo(endPos.lat, 4)
     expect(pos.lng).toBeCloseTo(endPos.lng, 4)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════
+// Dead-reckoning confidence tests
+// ═══════════════════════════════════════════════════════════════════
+
+describe('updateDrConfidence', () => {
+  test('returns previous confidence when predicted travel is negligible', () => {
+    // speed=0.1, dt=5 → predicted=0.5m (< 2m threshold) → keep previous
+    expect(updateDrConfidence(0.5, 1000, 1000.5, 0.1, 5)).toBe(0.5)
+  })
+
+  test('returns previous confidence at zero speed', () => {
+    expect(updateDrConfidence(0.5, 0, 50, 0, 5)).toBe(0.5)
+  })
+
+  test('returns previous confidence at zero dt', () => {
+    expect(updateDrConfidence(0.5, 0, 50, 10, 0)).toBe(0.5)
+  })
+
+  test('ramps up slowly from 0 with good predictions', () => {
+    // speed=10, dt=5 → predicted=50m, actual=45m → ratio=0.9 → good
+    const c1 = updateDrConfidence(0, 0, 45, 10, 5)
+    // alpha=0.25 (rising), sampleConf=0.8 → 0.25*0.8 + 0.75*0 = 0.2
+    expect(c1).toBeCloseTo(0.2, 2)
+
+    const c2 = updateDrConfidence(c1, 45, 95, 10, 5)
+    expect(c2).toBeGreaterThan(c1)
+
+    const c3 = updateDrConfidence(c2, 95, 145, 10, 5)
+    expect(c3).toBeGreaterThan(c2)
+  })
+
+  test('converges near 0.8 for consistently good predictions', () => {
+    let c = 0
+    for (let i = 0; i < 30; i++) {
+      c = updateDrConfidence(c, i * 50, (i + 1) * 50, 10, 5)
+    }
+    expect(c).toBeGreaterThan(0.75)
+    expect(c).toBeLessThanOrEqual(0.8)
+  })
+
+  test('drops quickly on major overshoot', () => {
+    // Start high, then overshoot: predicted 50m, actual 5m
+    let c = 0.7
+    c = updateDrConfidence(c, 1000, 1005, 10, 5)
+    // ratio=0.1 → bad → sampleConf=0.1, alpha=0.6 (falling)
+    // 0.6*0.1 + 0.4*0.7 = 0.34
+    expect(c).toBeCloseTo(0.34, 2)
+  })
+
+  test('asymmetric: falls faster than it rises', () => {
+    // Good sample from 0.3 → rising
+    const rising = updateDrConfidence(0.3, 0, 50, 10, 5)
+    const riseAmount = rising - 0.3
+
+    // Bad sample from 0.7 → falling
+    const falling = updateDrConfidence(0.7, 0, 5, 10, 5)
+    const fallAmount = 0.7 - falling
+
+    expect(fallAmount).toBeGreaterThan(riseAmount)
+  })
+
+  test('handles vehicle going backwards (negative actual travel)', () => {
+    const c = updateDrConfidence(0.5, 1000, 990, 10, 5)
+    // actualTravel=-10 → clamped to 0 → ratio=0 → bad (0.1)
+    expect(c).toBeLessThan(0.3)
+  })
+
+  test('moderate mismatch gives moderate confidence adjustment', () => {
+    // ratio=0.3 → moderate (sampleConf=0.4)
+    const c = updateDrConfidence(0.5, 0, 15, 10, 5)
+    // alpha=0.6 (falling since 0.4<0.5), 0.6*0.4 + 0.4*0.5 = 0.44
+    expect(c).toBeCloseTo(0.44, 2)
+  })
+
+  test('recovery from overshoot takes multiple good samples', () => {
+    let c = 0.7
+    c = updateDrConfidence(c, 0, 5, 10, 5) // bad overshoot → ~0.34
+    const afterOvershoot = c
+    expect(afterOvershoot).toBeLessThan(0.4)
+
+    // Track recovery: should take at least 2 good samples to pass 0.5
+    let goodSamples = 0
+    for (let i = 0; i < 20; i++) {
+      c = updateDrConfidence(c, i * 50, (i + 1) * 50, 10, 5)
+      goodSamples++
+      if (c > 0.5) break
+    }
+    expect(goodSamples).toBeGreaterThanOrEqual(2)
+
+    // And even after recovery, should take more samples to reach 0.7+
+    let moreSamples = 0
+    for (let i = goodSamples; i < 30; i++) {
+      c = updateDrConfidence(c, i * 50, (i + 1) * 50, 10, 5)
+      moreSamples++
+      if (c > 0.7) break
+    }
+    expect(moreSamples).toBeGreaterThanOrEqual(3)
+  })
+
+  test('undershoot (vehicle faster than predicted) gives moderate confidence', () => {
+    // predicted 50m, actual 80m → ratio=1.6 → moderate (0.4)
+    const c = updateDrConfidence(0.5, 0, 80, 10, 5)
+    expect(c).toBeLessThan(0.5) // slight decrease
+    expect(c).toBeGreaterThan(0.35) // but not dramatic
+  })
+
+  test('perfect prediction gives high confidence', () => {
+    // predicted 50m, actual 50m → ratio=1.0 → good (0.8)
+    const c = updateDrConfidence(0.5, 0, 50, 10, 5)
+    // alpha=0.25 (rising), 0.25*0.8 + 0.75*0.5 = 0.575
+    expect(c).toBeCloseTo(0.575, 2)
   })
 })

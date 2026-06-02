@@ -322,6 +322,11 @@ export interface TransitVehiclePosition {
   routeType?: TransitRouteType
   nextStopId?: string
   nextStopArrival?: string
+  /** Position from the previous GTFS-RT snapshot.
+   *  Allows starting interpolation on first fetch without waiting for a second poll. */
+  previousPosition?: { lat: number; lng: number }
+  /** Timestamp of the previous position snapshot. */
+  previousTimestamp?: string
 }
 
 export type TransitAlertEffect =

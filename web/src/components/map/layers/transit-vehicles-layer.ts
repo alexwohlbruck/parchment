@@ -427,7 +427,9 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
       currentDist = currentSnap.fraction * totalLength
     }
 
-    // Compute smoothed speed from consecutive snapped positions
+    // Compute smoothed speed from consecutive snapped positions.
+    // This is critical when the feed doesn't report speed (speed=0),
+    // which is common — we derive it from how far the vehicle moved.
     let smoothedSpeed: number
     const dt = (row.timestamp - existing.lastSampleTimestamp) / 1000
     if (dt > 1) {
@@ -436,7 +438,9 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
         : 0
       const measuredSpeed = Math.max(0, (newTargetDist - prevTargetDist) / dt)
       const prevSpeed = existing.smoothedSpeed
-      smoothedSpeed = SPEED_ALPHA * measuredSpeed + (1 - SPEED_ALPHA) * prevSpeed
+      // Use heavier weight on measured speed when feed reports 0
+      const alpha = (row.speed ?? 0) > 0 ? SPEED_ALPHA : 0.6
+      smoothedSpeed = alpha * measuredSpeed + (1 - alpha) * prevSpeed
     } else {
       smoothedSpeed = existing.smoothedSpeed
     }
@@ -463,6 +467,11 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
       }
     }
 
+    // Use the actual sample interval as transition duration so the
+    // vehicle glides at constant speed toward the target. Falls back
+    // to TRANSITION_MS for the first pair or very short intervals.
+    const sampleInterval = dt > 2 ? dt * 1000 : TRANSITION_MS
+
     return {
       kind: 'constrained',
       polyline,
@@ -471,7 +480,7 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
       blendFromDist: currentDist,
       targetDist: newTargetDist,
       transitionStartMs: now,
-      transitionDurationMs: TRANSITION_MS,
+      transitionDurationMs: sampleInterval,
       smoothedSpeed,
       heading: snap.bearing,
       lastSampleTimestamp: row.timestamp,
@@ -515,17 +524,20 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
             existing.totalLength,
           ).position
       const measuredSpeed = distanceMeters(prevTarget, samplePos) / dt
-      smoothedSpeed = SPEED_ALPHA * measuredSpeed + (1 - SPEED_ALPHA) * existing.smoothedSpeed
+      const alpha = (row.speed ?? 0) > 0 ? SPEED_ALPHA : 0.6
+      smoothedSpeed = alpha * measuredSpeed + (1 - alpha) * existing.smoothedSpeed
     } else {
       smoothedSpeed = existing.smoothedSpeed
     }
+
+    const sampleInterval = dt > 2 ? dt * 1000 : TRANSITION_MS
 
     return {
       kind: 'free',
       blendFrom: currentPos,
       target: samplePos,
       transitionStartMs: now,
-      transitionDurationMs: TRANSITION_MS,
+      transitionDurationMs: sampleInterval,
       smoothedSpeed,
       heading: row.heading ?? existing.heading,
       lastSampleTimestamp: row.timestamp,

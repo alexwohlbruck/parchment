@@ -308,27 +308,32 @@ onUnmounted(() => {
           <div
             v-for="(stop, i) in displayStops"
             :key="stop.stopId"
-            class="relative flex items-center transition-opacity duration-200"
+            class="relative flex items-center"
             :style="{ height: `${STOP_ROW_HEIGHT}px` }"
-            :class="{ 'opacity-40': isStopPassedBySelected(i) }"
           >
-            <!-- Stop dot: centered on axis (14px from container left) -->
-            <!-- Normal 9px dot: 14 - 4.5 = 9.5 from container = 9.5 - 34 = -24.5 from content -->
-            <!-- Terminus 11px dot: 14 - 5.5 = 8.5 from container = 8.5 - 34 = -25.5 from content -->
+            <!-- Stop dot -->
             <div
-              class="absolute rounded-full border-2 bg-background z-10"
-              :style="{ borderColor: bgColor }"
+              class="absolute rounded-full border-2 z-10"
               :class="[
                 i === 0 || i === displayStops.length - 1
-                  ? 'w-[11px] h-[11px] -left-[25px]'
-                  : 'w-[9px] h-[9px] -left-[24px]',
+                  ? 'w-[11px] h-[11px]'
+                  : 'w-[9px] h-[9px]',
               ]"
-              style="top: 50%; transform: translateY(-50%)"
+              :style="{
+                borderColor: isStopPassedBySelected(i) ? 'hsl(var(--muted-foreground) / 0.3)' : bgColor,
+                background: isStopPassedBySelected(i) ? 'hsl(var(--muted))' : 'hsl(var(--background))',
+                left: `${14 - (i === 0 || i === displayStops.length - 1 ? 5.5 : 4.5)}px`,
+                top: '50%',
+                transform: 'translateY(-50%)',
+              }"
             />
 
             <span
-              class="text-sm"
-              :class="{ 'font-semibold': i === 0 || i === displayStops.length - 1 }"
+              class="text-sm transition-colors duration-200"
+              :class="{
+                'font-semibold': i === 0 || i === displayStops.length - 1,
+                'text-muted-foreground/50': isStopPassedBySelected(i),
+              }"
             >
               {{ stop.stopName }}
             </span>

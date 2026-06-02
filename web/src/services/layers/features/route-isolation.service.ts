@@ -20,7 +20,9 @@ const STOPS_SOURCE_ID = 'route-detail-stops'
 const STOPS_LAYER_ID = 'route-detail-stops-circles'
 const STOPS_LABELS_LAYER_ID = 'route-detail-stops-labels'
 
-/** Layer IDs in the transit group that should be faded when isolating. */
+/** Layer IDs in the transit group that should be faded when isolating.
+ *  Excludes `transitland-route-active` — it's a hover utility layer with
+ *  a feature-state opacity expression that breaks if overridden flat. */
 const TRANSIT_LAYER_IDS = [
   'transitland-rail',
   'transitland-rail-outline',
@@ -34,7 +36,6 @@ const TRANSIT_LAYER_IDS = [
   'transitland-metro-outline',
   'transitland-other',
   'transitland-other-outline',
-  'transitland-route-active',
   'transitland-tram-labels',
   'transitland-metro-labels',
   'transitland-rail-labels',

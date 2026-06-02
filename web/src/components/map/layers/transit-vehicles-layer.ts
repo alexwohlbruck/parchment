@@ -209,6 +209,13 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
     const selectedId = this.routeDetailStore.selectedVehicleId
     const hasSelection = !!selectedId
 
+    // When in route detail mode, use the route's type (from the route-detail
+    // API which has correct data) instead of the vehicle's type (from the
+    // vehicles enrichment cache which may have stale/wrong GTFS data).
+    const routeTypeOverride = this.routeDetailStore.isActive
+      ? this.routeDetailStore.activeRoute?.routeType
+      : undefined
+
     return vehicleEntries.map((v: TransitVehiclePosition) => ({
       id: v.vehicleId,
       lngLat: { lat: v.position.lat, lng: v.position.lng },
@@ -217,7 +224,7 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
         routeShortName: v.routeShortName,
         routeColor: v.routeColor,
         routeTextColor: v.routeTextColor,
-        routeType: v.routeType,
+        routeType: routeTypeOverride ?? v.routeType,
         bearing: v.bearing,
         timestamp: v.timestamp,
         selected: v.vehicleId === selectedId,

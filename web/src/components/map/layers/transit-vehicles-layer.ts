@@ -485,25 +485,26 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
       smoothedSpeed = Math.min(existing.smoothedSpeed, maxSpeed)
     }
 
-    // Monotonic: if the new GPS fix is behind our high-water mark,
-    // hold position and reduce speed — let reality catch up
-    const highWater = existing.kind === 'constrained'
-      ? existing.highWaterDist
-      : currentDist
-    if (newTargetDist < highWater - 5) {
+    // If the GPS says we're behind where interpolation put us,
+    // accept the GPS position. The interpolation overshot — that's
+    // our error, not the GPS's. Glide to the GPS fix from current
+    // position (may be a slight visual correction backwards, but
+    // being stuck forever is much worse).
+    if (newTargetDist < currentDist) {
       return {
         kind: 'constrained',
         polyline,
         cumulativeDistances,
         totalLength,
         blendFromDist: currentDist,
-        targetDist: currentDist,
+        targetDist: newTargetDist,
         transitionStartMs: now,
-        transitionDurationMs: 0,
-        smoothedSpeed: smoothedSpeed * 0.3,
+        transitionDurationMs: TRANSITION_MS,
+        smoothedSpeed: smoothedSpeed * 0.5,
         heading: snap.bearing,
         lastSampleTimestamp: row.timestamp,
-        highWaterDist: Math.max(currentDist, highWater),
+        // Reset highWater to GPS — trust the real data
+        highWaterDist: newTargetDist,
       }
     }
 

@@ -651,20 +651,19 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
     const p = markerData.props as {
       routeColor?: string
       routeShortName?: string
-      routeType?: string
-      timestamp?: string
+      routeType?: number | string
       selected?: boolean
       dimmed?: boolean
     }
+    // Only visual properties — NOT timestamp. Position is handled by
+    // the animation tick via setMarkerLngLat. Including timestamp
+    // causes a marker recreate (visible jump) every minute.
     return [
       p.routeColor ?? '',
       p.routeShortName ?? '',
       p.routeType ?? '',
       p.selected ? 's' : '',
       p.dimmed ? 'd' : '',
-      p.timestamp
-        ? Math.floor(new Date(p.timestamp).getTime() / 60_000)
-        : 'na',
     ].join('|')
   }
 

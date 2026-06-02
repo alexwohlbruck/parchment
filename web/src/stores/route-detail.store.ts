@@ -249,62 +249,28 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
   ): VehicleOnRoute | null {
     if (stops.length < 2) return null
 
-    const vLat = v.position.lat
-    const vLng = v.position.lng
-
-    // Find nearest stop by distance
-    let bestIdx = 0
-    let bestDist = Infinity
-    for (let i = 0; i < stops.length; i++) {
-      const d = haversineQuick(vLat, vLng, stops[i].lat, stops[i].lng)
-      if (d < bestDist) {
-        bestDist = d
-        bestIdx = i
-      }
-    }
-
-    // Determine if the vehicle is before or after the nearest stop
-    // by checking distance to adjacent stops
-    let prevIdx = Math.max(0, bestIdx - 1)
-    let nextIdx = Math.min(stops.length - 1, bestIdx + 1)
-
-    // Project onto the segment between prev and next stop
-    let segStartIdx: number
-    let segEndIdx: number
-    if (bestIdx === 0) {
-      segStartIdx = 0
-      segEndIdx = 1
-    } else if (bestIdx === stops.length - 1) {
-      segStartIdx = stops.length - 2
-      segEndIdx = stops.length - 1
-    } else {
-      const dPrev = haversineQuick(vLat, vLng, stops[prevIdx].lat, stops[prevIdx].lng)
-      const dNext = haversineQuick(vLat, vLng, stops[nextIdx].lat, stops[nextIdx].lng)
-      if (dPrev < dNext) {
-        segStartIdx = prevIdx
-        segEndIdx = bestIdx
-      } else {
-        segStartIdx = bestIdx
-        segEndIdx = nextIdx
-      }
-    }
-
-    const segLen = Math.abs(stops[segEndIdx].distanceAlongRoute - stops[segStartIdx].distanceAlongRoute)
-    const totalRouteLen = Math.abs(
-      stops[stops.length - 1].distanceAlongRoute - stops[0].distanceAlongRoute,
+    // Project the vehicle onto the route shape to get its distance
+    // along the route — this matches how the map renders the vehicle.
+    const vehicleDist = projectOntoShape(
+      v.position.lat, v.position.lng, coordinates, stops,
     )
 
-    // Project vehicle position between the two stops
-    const dToStart = haversineQuick(vLat, vLng, stops[segStartIdx].lat, stops[segStartIdx].lng)
-    const dToEnd = haversineQuick(vLat, vLng, stops[segEndIdx].lat, stops[segEndIdx].lng)
-    const totalD = dToStart + dToEnd
-    const frac = totalD > 0 ? Math.min(1, Math.max(0, dToStart / totalD)) : 0
+    // Find which two stops bracket this distance
+    let segStartIdx = 0
+    for (let i = 0; i < stops.length - 1; i++) {
+      if (vehicleDist >= stops[i].distanceAlongRoute) {
+        segStartIdx = i
+      }
+    }
+    const segEndIdx = Math.min(segStartIdx + 1, stops.length - 1)
 
-    const distAlong = stops[segStartIdx].distanceAlongRoute +
-      (stops[segEndIdx].distanceAlongRoute - stops[segStartIdx].distanceAlongRoute) * frac
+    // Fraction between the two bracketing stops
+    const segLen = stops[segEndIdx].distanceAlongRoute - stops[segStartIdx].distanceAlongRoute
+    const frac = segLen > 0
+      ? Math.max(0, Math.min(1, (vehicleDist - stops[segStartIdx].distanceAlongRoute) / segLen))
+      : 0
 
-    // Compute route fraction: position as 0-1 along the stop list indices
-    // (not distance — we want even spacing on the timeline)
+    // Timeline position: equidistant stops, so use index-based fraction
     const indexFraction = (segStartIdx + frac) / Math.max(1, stops.length - 1)
 
     // Determine travel direction by comparing vehicle bearing to
@@ -320,7 +286,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
       vehicle: v,
       nearestStopIndex: segEndIdx,
       fractionBetweenStops: frac,
-      distanceAlongRoute: distAlong,
+      distanceAlongRoute: vehicleDist,
       routeFraction: Math.max(0, Math.min(1, indexFraction)),
       isForwardDirection: isForward,
     }
@@ -347,6 +313,64 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
 
     // < 90° means same direction as stop ordering = forward
     return diff < 90
+  }
+
+  /**
+   * Project a vehicle position onto the route shape to get distance
+   * along the route. Falls back to nearest-stop distance if no shape.
+   */
+  function projectOntoShape(
+    lat: number,
+    lng: number,
+    coordinates: [number, number][] | null | undefined,
+    stops: RouteDetailStop[],
+  ): number {
+    if (coordinates && coordinates.length >= 2) {
+      // Build cumulative distances along the shape
+      let cumDist = 0
+      let bestDist = Infinity
+      let bestAlong = 0
+
+      for (let i = 0; i < coordinates.length - 1; i++) {
+        const [aLng, aLat] = coordinates[i]
+        const [bLng, bLat] = coordinates[i + 1]
+        const segLen = haversineQuick(aLat, aLng, bLat, bLng)
+
+        // Project point onto segment
+        const dx = bLng - aLng
+        const dy = bLat - aLat
+        const lenSq = dx * dx + dy * dy
+        const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, ((lng - aLng) * dx + (lat - aLat) * dy) / lenSq))
+
+        const projLat = aLat + dy * t
+        const projLng = aLng + dx * t
+        const d = haversineQuick(lat, lng, projLat, projLng)
+
+        if (d < bestDist) {
+          bestDist = d
+          bestAlong = cumDist + segLen * t
+        }
+        cumDist += segLen
+      }
+
+      // Convert shape distance to stop distance scale
+      // (shape coordinates and stops use the same distance metric from Barrelman)
+      const totalShapeDist = cumDist
+      const totalStopDist = stops[stops.length - 1].distanceAlongRoute - stops[0].distanceAlongRoute
+      if (totalShapeDist > 0 && totalStopDist > 0) {
+        return stops[0].distanceAlongRoute + (bestAlong / totalShapeDist) * totalStopDist
+      }
+      return bestAlong
+    }
+
+    // Fallback: find nearest stop
+    let bestIdx = 0
+    let bestD = Infinity
+    for (let i = 0; i < stops.length; i++) {
+      const d = haversineQuick(lat, lng, stops[i].lat, stops[i].lng)
+      if (d < bestD) { bestD = d; bestIdx = i }
+    }
+    return stops[bestIdx].distanceAlongRoute
   }
 
   function haversineQuick(lat1: number, lng1: number, lat2: number, lng2: number): number {

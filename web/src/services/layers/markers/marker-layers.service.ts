@@ -15,6 +15,7 @@ import { UserLocationLayer } from '@/components/map/layers/user-location-layer'
 import { TrackerLocationsLayer } from '@/components/map/layers/tracker-locations-layer'
 import { TransitVehiclesLayer } from '@/components/map/layers/transit-vehicles-layer'
 import { useDirectionsStore } from '@/stores/directions.store'
+import { useTransitVehiclesStore } from '@/stores/transit-vehicles.store'
 import { watch, Component, type WatchStopHandle } from 'vue'
 
 export function useMarkerLayersService() {
@@ -28,6 +29,7 @@ export function useMarkerLayersService() {
   let trackerLocationsLayer: TrackerLocationsLayer | null = null
   let transitVehiclesLayer: TransitVehiclesLayer | null = null
   let watchStops: WatchStopHandle[] = []
+  let moveEndCleanup: (() => void) | null = null
 
   // ============================================================================
   // INITIALIZATION
@@ -83,6 +85,18 @@ export function useMarkerLayersService() {
     transitVehiclesLayer.initialize(markerAPI)
     transitVehiclesLayer.setGetBounds(() => mapStrategy.getBounds())
 
+    const transitVehiclesStore = useTransitVehiclesStore()
+    let moveEndTimer: ReturnType<typeof setTimeout> | null = null
+    const onMoveEnd = () => {
+      if (moveEndTimer) clearTimeout(moveEndTimer)
+      moveEndTimer = setTimeout(() => transitVehiclesStore.updateViewport(), 500)
+    }
+    mapStrategy.mapInstance.on('moveend', onMoveEnd)
+    moveEndCleanup = () => {
+      if (moveEndTimer) clearTimeout(moveEndTimer)
+      mapStrategy.mapInstance.off('moveend', onMoveEnd)
+    }
+
     // Set up watchers for reactive updates
     setupMarkerLayerWatchers()
   }
@@ -137,6 +151,8 @@ export function useMarkerLayersService() {
   function destroyMarkerLayers() {
     watchStops.forEach(stop => stop())
     watchStops = []
+    moveEndCleanup?.()
+    moveEndCleanup = null
 
     waypointsLayer?.destroy()
     friendLocationsLayer?.destroy()

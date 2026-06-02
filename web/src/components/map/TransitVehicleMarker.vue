@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import {
   Tooltip,
   TooltipContent,
@@ -27,7 +27,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const displayName = computed(() => {
-  if (!props.routeShortName) return '?'
+  if (!props.routeShortName) return ''
   return props.routeShortName.length > 4
     ? props.routeShortName.slice(0, 4)
     : props.routeShortName
@@ -57,16 +57,26 @@ const routeTypeLabel = computed(() => {
   return labels[props.routeType ?? ''] ?? 'Transit'
 })
 
+// Reactive clock that ticks every second so timeAgo stays fresh
+const now = ref(Date.now())
+let tickTimer: ReturnType<typeof setInterval> | null = null
+onMounted(() => {
+  tickTimer = setInterval(() => { now.value = Date.now() }, 1000)
+})
+onUnmounted(() => {
+  if (tickTimer) clearInterval(tickTimer)
+})
+
 const isStale = computed(() => {
   if (!props.timestamp) return true
-  const age = Date.now() - new Date(props.timestamp).getTime()
+  const age = now.value - new Date(props.timestamp).getTime()
   return age > 2 * 60 * 1000
 })
 
 const timeAgo = computed(() => {
   if (!props.timestamp) return null
   const seconds = Math.floor(
-    (Date.now() - new Date(props.timestamp).getTime()) / 1000,
+    (now.value - new Date(props.timestamp).getTime()) / 1000,
   )
   if (seconds < 60) return `${seconds}s ago`
   const minutes = Math.floor(seconds / 60)

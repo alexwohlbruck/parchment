@@ -11,6 +11,12 @@ import {
   mintTicket,
   redeemTicket,
 } from '../services/realtime/ticket.service'
+import {
+  subscribe as transitSubscribe,
+  unsubscribe as transitUnsubscribe,
+  updateBounds as transitUpdateBounds,
+  onConnectionClosed as transitOnClose,
+} from '../services/transit/transit-poller.service'
 import { logger } from '../lib/logger'
 
 /**
@@ -131,10 +137,47 @@ wsApi.ws('/', {
     })
     logger.debug({ userId, connectionId }, 'Realtime WS opened')
   },
+  message(ws, message) {
+    const carrier = ws.data.query as unknown as WsQueryCarrier | undefined
+    const connectionId = carrier?._connectionId
+    if (!connectionId) return
+
+    let parsed: { type?: string; bounds?: { north: number; south: number; east: number; west: number } }
+    try {
+      parsed = typeof message === 'string' ? JSON.parse(message) : message
+    } catch {
+      return
+    }
+
+    const conn = {
+      id: connectionId,
+      send: (data: string) => ws.send(data),
+      close: (code?: number, reason?: string) => ws.close(code, reason),
+    }
+
+    switch (parsed.type) {
+      case 'transit:subscribe':
+        if (parsed.bounds) {
+          transitSubscribe(connectionId, conn, parsed.bounds)
+        }
+        break
+      case 'transit:unsubscribe':
+        transitUnsubscribe(connectionId)
+        break
+      case 'transit:viewport':
+        if (parsed.bounds) {
+          transitUpdateBounds(connectionId, parsed.bounds)
+        }
+        break
+    }
+  },
   close(ws, code, reason) {
     const carrier = ws.data.query as unknown as WsQueryCarrier | undefined
     const connectionId = carrier?._connectionId
-    if (connectionId) deregisterSocket(connectionId)
+    if (connectionId) {
+      transitOnClose(connectionId)
+      deregisterSocket(connectionId)
+    }
     logger.debug({ code, reason, connectionId }, 'Realtime WS closed')
   },
   error({ error }) {

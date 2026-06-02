@@ -266,39 +266,36 @@ onUnmounted(() => {
       <div class="px-4">
         <div class="text-sm font-semibold mb-2">{{ t('place.transit.stops') }}</div>
 
-        <!--
-          Timeline layout: everything centers on an axis 14px from
-          the container's left edge. pl-[34px] gives room for the
-          line + dots + vehicle icons to the left of stop names.
-        -->
-        <div class="relative pl-[34px]">
-          <!-- Route color line: 3px wide, centered on axis (14 - 1.5 = 12.5) -->
+        <div class="relative" style="padding-left: 32px">
+          <!-- Vertical route line (centered at 13.5px from left edge) -->
           <div
-            class="absolute left-[12px] top-[16px] w-[3px] rounded-full z-0"
+            class="absolute z-0 rounded-full"
             :style="{
-              background: bgColor,
+              left: '12px',
+              top: `${STOP_ROW_HEIGHT / 2}px`,
+              width: '3px',
               height: `${(displayStops.length - 1) * STOP_ROW_HEIGHT}px`,
+              background: bgColor,
             }"
           />
 
-          <!-- Vehicle indicators (absolute, centered on axis) -->
+          <!-- Vehicle indicators (absolutely positioned, centered at 13.5px) -->
           <div
             v-for="vr in vehiclesOnRoute"
             :key="'v-' + vr.vehicleId"
             class="absolute z-20 cursor-pointer"
             :style="{
               left: '1px',
-              top: `${vehicleTopPx(vr) + 16 - 12}px`,
+              top: `${vehicleTopPx(vr) + STOP_ROW_HEIGHT / 2 - 12}px`,
+              width: '25px',
+              height: '25px',
             }"
             @click.stop="onSelectVehicle(vr.vehicleId)"
           >
-            <!-- 25px icon centered on 14px axis: 14 - 12.5 = 1.5 ≈ 1px left -->
             <div
-              class="w-[25px] h-[25px] rounded-full flex items-center justify-center transition-all"
+              class="w-full h-full rounded-full flex items-center justify-center transition-all"
               :style="{ background: bgColor }"
-              :class="{
-                'ring-2 ring-offset-2 ring-offset-background scale-110': vr.vehicleId === selectedId,
-              }"
+              :class="{ 'ring-2 ring-offset-2 ring-offset-background scale-110': vr.vehicleId === selectedId }"
             >
               <component :is="routeTypeIcon" class="h-3 w-3" :style="{ color: textColor }" />
             </div>
@@ -308,31 +305,26 @@ onUnmounted(() => {
           <div
             v-for="(stop, i) in displayStops"
             :key="stop.stopId"
-            class="relative flex items-center"
+            class="flex items-center"
             :style="{ height: `${STOP_ROW_HEIGHT}px` }"
           >
-            <!-- Stop dot -->
+            <!-- Stop dot (inline-positioned before the name) -->
             <div
               class="absolute rounded-full border-2 z-10"
-              :class="[
-                i === 0 || i === displayStops.length - 1
-                  ? 'w-[11px] h-[11px]'
-                  : 'w-[9px] h-[9px]',
-              ]"
               :style="{
-                borderColor: isStopPassedBySelected(i) ? 'hsl(var(--muted-foreground) / 0.3)' : bgColor,
+                width: (i === 0 || i === displayStops.length - 1) ? '11px' : '9px',
+                height: (i === 0 || i === displayStops.length - 1) ? '11px' : '9px',
+                left: (i === 0 || i === displayStops.length - 1) ? '8px' : '9px',
+                borderColor: isStopPassedBySelected(i) ? 'hsl(var(--muted-foreground))' : bgColor,
                 background: isStopPassedBySelected(i) ? 'hsl(var(--muted))' : 'hsl(var(--background))',
-                left: `${14 - (i === 0 || i === displayStops.length - 1 ? 5.5 : 4.5)}px`,
-                top: '50%',
-                transform: 'translateY(-50%)',
               }"
             />
 
             <span
-              class="text-sm transition-colors duration-200"
+              class="text-sm"
               :class="{
                 'font-semibold': i === 0 || i === displayStops.length - 1,
-                'text-muted-foreground/50': isStopPassedBySelected(i),
+                'text-muted-foreground': isStopPassedBySelected(i),
               }"
             >
               {{ stop.stopName }}

@@ -222,15 +222,17 @@ function openRouteDetail(group: RouteGroup) {
               <span class="text-sm truncate min-w-0">
                 {{ dir.headsign }}
               </span>
-              <div class="flex items-center gap-1.5 shrink-0">
-                <span class="text-sm tabular-nums text-right">
-                  {{ directionCountdowns(dir) }}
-                </span>
-                <RealtimeIndicator
-                  v-if="dir.hasRealtime"
-                  :real-time="true"
-                  class="shrink-0"
-                />
+              <div class="flex items-center gap-0.5 shrink-0">
+                <template v-for="(dep, i) in dir.departures" :key="i">
+                  <span v-if="i > 0" class="text-muted-foreground text-xs">,</span>
+                  <span class="text-sm tabular-nums">{{ formatCountdownShort(dep) }}</span>
+                  <RealtimeIndicator
+                    v-if="dep.realTime"
+                    :real-time="true"
+                    :delay="dep.delay"
+                    class="shrink-0"
+                  />
+                </template>
               </div>
             </div>
           </div>

@@ -31,7 +31,7 @@ const isEarly = computed(() => (props.delay ?? 0) < 0)
 <template>
   <span v-if="realTime" class="inline-flex items-center gap-0.5">
     <WifiIcon
-      class="size-3 shrink-0"
+      class="size-3 shrink-0 rotate-45"
       :style="color ? { color } : undefined"
       :class="!color && 'text-muted-foreground'"
     />

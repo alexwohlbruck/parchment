@@ -251,10 +251,7 @@ onUnmounted(() => {
               :key="vr.vehicleId"
               :value="vr.vehicleId"
             >
-              <div class="flex items-center justify-between gap-3 w-full">
-                <span class="truncate">{{ vehicleLabel(vr) }}</span>
-                <span class="text-xs text-muted-foreground shrink-0">{{ timeAgo(vr.vehicle.timestamp) }}</span>
-              </div>
+              <span class="truncate">{{ vehicleLabel(vr) }}</span>
             </SelectItem>
           </SelectContent>
         </Select>

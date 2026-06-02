@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useTransitClock } from '@/composables/useTransitClock'
 import { useI18n } from 'vue-i18n'
 import { formatDepartureTime, getMinutesUntil } from '@/lib/transit'
@@ -190,18 +191,25 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- ── Direction pills ───────────────────────────── -->
-      <div v-if="directions.length > 1" class="flex gap-1.5 px-4 mb-3">
-        <button
-          v-for="dir in directions"
-          :key="dir"
-          class="px-3 py-1 rounded-full text-xs font-medium transition-colors"
-          :class="dir === activeDirection ? '' : 'bg-muted text-muted-foreground hover:bg-muted/80'"
-          :style="dir === activeDirection ? { background: bgColor, color: textColor } : {}"
-          @click="store.setDirection(dir)"
+      <!-- ── Direction selector ──────────────────────────── -->
+      <div v-if="directions.length > 1" class="px-4 mb-3">
+        <ToggleGroup
+          type="single"
+          :modelValue="activeDirection ?? undefined"
+          @update:modelValue="(v) => { if (v) store.setDirection(String(v)) }"
+          variant="outline"
+          size="sm"
+          class="w-full"
         >
-          {{ dir }}
-        </button>
+          <ToggleGroupItem
+            v-for="dir in directions"
+            :key="dir"
+            :value="dir"
+            class="flex-1 text-xs truncate"
+          >
+            {{ dir }}
+          </ToggleGroupItem>
+        </ToggleGroup>
       </div>
 
       <!-- ── Departures ────────────────────────────────── -->

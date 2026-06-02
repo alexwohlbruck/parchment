@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue'
 import { useRouteDetailStore, type DepartureContext, type VehicleOnRoute } from '@/stores/route-detail.store'
+import { useRouter } from 'vue-router'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
-import SheetPageHeader from '@/components/place/SheetPageHeader.vue'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -20,6 +20,7 @@ import {
   ShipIcon,
   TramFrontIcon,
   MapPinIcon,
+  ArrowLeftIcon,
 } from 'lucide-vue-next'
 import type { TransitDeparture } from '@/types/place.types'
 
@@ -32,6 +33,7 @@ const props = defineProps<{
 }>()
 
 const store = useRouteDetailStore()
+const router = useRouter()
 const currentTime = useTransitClock()
 
 const route = computed(() => store.activeRoute)
@@ -154,7 +156,13 @@ onUnmounted(() => {
 
 <template>
   <PanelLayout>
-    <SheetPageHeader :title="displayName || 'Route'" />
+    <!-- Header -->
+    <div class="flex items-center gap-2 px-3 py-2">
+      <button class="p-1 -ml-1 rounded-md hover:bg-muted" @click="router.back()">
+        <ArrowLeftIcon class="h-4 w-4" />
+      </button>
+      <span class="text-sm font-medium truncate">{{ displayName }}</span>
+    </div>
 
     <div v-if="isLoading" class="flex items-center justify-center py-12">
       <div class="animate-spin h-6 w-6 border-2 border-foreground/20 border-t-foreground rounded-full" />

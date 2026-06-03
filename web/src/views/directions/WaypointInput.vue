@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import draggable from 'vuedraggable'
 import { computed, ref, watch, onMounted } from 'vue'
-import { XIcon, PlusIcon, Check, LocateFixedIcon, ArrowUpDownIcon, GripVerticalIcon } from 'lucide-vue-next'
+import { XIcon, PlusIcon, Check, LocateFixedIcon, ArrowUpDownIcon, GripVerticalIcon, ClockIcon } from 'lucide-vue-next'
+import WaypointTimePopover from './WaypointTimePopover.vue'
 import { Button } from '@/components/ui/button'
-import { Waypoint } from '@/types/map.types'
+import { Waypoint, type WaypointTimeConstraint } from '@/types/map.types'
 import { useDirectionsService } from '@/services/directions.service'
 import {
   Combobox,
@@ -134,6 +135,12 @@ function clearWaypoint(index: number) {
 function addWaypoint() {
   inputTexts.value.push('')
   emit('update:modelValue', [...waypoints.value, { lngLat: null }])
+}
+
+function updateTimeConstraint(index: number, constraint: WaypointTimeConstraint | null) {
+  const updated = [...waypoints.value]
+  updated[index] = { ...updated[index], timeConstraint: constraint }
+  emit('update:modelValue', updated)
 }
 
 function getWaypointName(waypoint: Waypoint) {
@@ -436,25 +443,37 @@ defineExpose({
                     </div>
                   </template>
                   <template #postfix>
-                    <div class="flex items-center -mr-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        v-if="!inputTexts[index]"
-                        @click="locateUser(index)"
-                        variant="ghost"
-                        size="icon"
-                        class="size-7"
-                        :title="$t('directions.currentLocation')"
-                      >
-                        <LocateFixedIcon class="size-4" />
-                      </Button>
-                      <Button
-                        @click="clearWaypoint(index)"
-                        variant="ghost"
-                        size="icon"
-                        class="size-7"
-                      >
-                        <XIcon class="size-4" />
-                      </Button>
+                    <div class="flex items-center -mr-1.5">
+                      <!-- Time constraint popover (visible when waypoint is set, or has a constraint) -->
+                      <WaypointTimePopover
+                        v-if="element.lngLat || element.timeConstraint"
+                        :model-value="element.timeConstraint"
+                        :index="index"
+                        :waypoint-count="waypoints.length"
+                        :prev-constraint="index > 0 ? waypoints[index - 1]?.timeConstraint : null"
+                        :next-constraint="index < waypoints.length - 1 ? waypoints[index + 1]?.timeConstraint : null"
+                        @update:model-value="c => updateTimeConstraint(index, c)"
+                      />
+                      <div class="opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
+                        <Button
+                          v-if="!inputTexts[index]"
+                          @click="locateUser(index)"
+                          variant="ghost"
+                          size="icon"
+                          class="size-7"
+                          :title="$t('directions.currentLocation')"
+                        >
+                          <LocateFixedIcon class="size-4" />
+                        </Button>
+                        <Button
+                          @click="clearWaypoint(index)"
+                          variant="ghost"
+                          size="icon"
+                          class="size-7"
+                        >
+                          <XIcon class="size-4" />
+                        </Button>
+                      </div>
                     </div>
                   </template>
                 </ComboboxInput>

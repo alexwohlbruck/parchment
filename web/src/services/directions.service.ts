@@ -94,6 +94,10 @@ function directionsService() {
                 ? 'destination'
                 : 'via',
           label: wp.place ? getSearchResultName(wp.place as Place) : '',
+          // Per-waypoint time constraints
+          ...(wp.timeConstraint?.mode === 'departAfter' && { departAfter: wp.timeConstraint.time }),
+          ...(wp.timeConstraint?.mode === 'arriveBy' && { arriveBy: wp.timeConstraint.time }),
+          ...(wp.timeConstraint?.dwellTime && { dwellTime: wp.timeConstraint.dwellTime }),
         })),
         selectedMode: selectedMode.value,
         ...(sortPreference.value && { sortPreference: sortPreference.value }),

@@ -1749,6 +1749,33 @@ export class TripService {
               preferences, dataSources,
             ),
           )
+          // 3.10: rideshare → transit → rideshare
+          compositionPromises.push(
+            this.composeTransitWithAccessAndEgress(
+              bestItinerary, startTime, from, to,
+              { mode: 'rideshare' },
+              { mode: 'rideshare' },
+              preferences, dataSources,
+            ),
+          )
+          // 3.11: rideshare → transit → shared bike
+          compositionPromises.push(
+            this.composeTransitWithAccessAndEgress(
+              bestItinerary, startTime, from, to,
+              { mode: 'rideshare' },
+              { mode: 'shared-bike', searchSharedMobility: true },
+              preferences, dataSources,
+            ),
+          )
+          // 3.12: rideshare → transit → shared scooter
+          compositionPromises.push(
+            this.composeTransitWithAccessAndEgress(
+              bestItinerary, startTime, from, to,
+              { mode: 'rideshare' },
+              { mode: 'shared-scooter', searchSharedMobility: true },
+              preferences, dataSources,
+            ),
+          )
         }
 
         const results = await Promise.all(compositionPromises)
@@ -1771,12 +1798,17 @@ export class TripService {
    * access and egress legs routed via configurable modes. This is the
    * unified composer for all transit trip patterns:
    *
-   *   3.1  walk → transit → walk
-   *   3.4  bike → park → transit → walk
-   *   3.6  bike → transit (carry) → bike
-   *   3.7  car → park → transit → walk
-   *   3.2  walk → transit → shared bike
-   *   3.5  walk → transit → shared scooter
+   *   3.1   walk → transit → walk
+   *   3.2   walk → transit → shared bike
+   *   3.4   bike → park → transit → walk
+   *   3.5   walk → transit → shared scooter
+   *   3.6   bike → transit (carry) → bike
+   *   3.7   car → park → transit → walk
+   *   3.8   rideshare → transit → walk
+   *   3.9   walk → transit → rideshare
+   *   3.10  rideshare → transit → rideshare
+   *   3.11  rideshare → transit → shared bike
+   *   3.12  rideshare → transit → shared scooter
    *
    * Access timing is back-calculated from the transit departure so the
    * user arrives at the boarding stop with a configurable buffer.

@@ -14,6 +14,7 @@ import { Caption } from '@/components/ui/typography'
 import {
   AlertTriangleIcon,
   ArrowLeft,
+  BikeIcon,
   ArrowRight,
   ArrowUp,
   ArrowUpLeft,
@@ -698,6 +699,10 @@ function hasSegmentRouteInfo(segment: any): boolean {
                 </div>
                 <div v-if="entry.segment.agencyName" class="mt-0.5 text-xs text-muted-foreground">
                   {{ entry.segment.agencyName }}
+                </div>
+                <div v-if="entry.segment.carryingVehicle" class="mt-1 flex items-center gap-1.5 text-xs text-forest-600 dark:text-forest-400">
+                  <BikeIcon class="size-3.5" />
+                  <span>Bring bike on board</span>
                 </div>
 
                 <!-- Board/Alight stops -->

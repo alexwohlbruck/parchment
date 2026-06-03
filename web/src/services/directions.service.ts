@@ -234,6 +234,7 @@ function directionsService() {
       edgeSegments: seg.edgeSegments,
       start: seg.start,
       end: seg.end,
+      carryingVehicle: seg.carryingVehicle ?? false,
       ...extractTransitFields(seg),
     }
   }

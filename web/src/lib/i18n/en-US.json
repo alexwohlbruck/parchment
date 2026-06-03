@@ -353,7 +353,8 @@
       "cycling": "Cycling",
       "transit": "Transit",
       "driving": "Driving",
-      "wheelchair": "Wheelchair"
+      "wheelchair": "Wheelchair",
+      "rideshare": "Rideshare"
     },
     "preferences": {
       "general": "General Options",

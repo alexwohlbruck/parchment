@@ -809,14 +809,22 @@ function hasSegmentRouteInfo(segment: any): boolean {
 
               <!-- ── Non-transit segment header ── -->
               <div v-else>
-                <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                   <span
                     :class="[
                       'text-sm font-semibold capitalize',
                       modeTextColors[entry.segment.mode] || 'text-foreground',
                     ]"
                   >
-                    {{ entry.segment.mode }}
+                    {{ entry.segment.ownership === 'shared'
+                      ? (entry.segment.mode === 'biking' ? 'Bikeshare' : 'Scootershare')
+                      : entry.segment.mode }}
+                  </span>
+                  <span
+                    v-if="entry.segment.ownership === 'shared'"
+                    class="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300"
+                  >
+                    Shared
                   </span>
                   <span class="text-sm text-muted-foreground">
                     {{ formatDuration(entry.segment.duration) }} · {{ formatDistanceDisplay(entry.segment.distance) }}

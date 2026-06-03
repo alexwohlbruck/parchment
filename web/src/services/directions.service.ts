@@ -234,6 +234,7 @@ function directionsService() {
       edgeSegments: seg.edgeSegments,
       start: seg.start,
       end: seg.end,
+      ownership: seg.ownership ?? 'personal',
       carryingVehicle: seg.carryingVehicle ?? false,
       rideshareDetails: seg.details?.rideshareDetails ?? null,
       ...extractTransitFields(seg),

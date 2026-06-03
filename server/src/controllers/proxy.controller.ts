@@ -295,6 +295,11 @@ transitProxy.get('/route-detail', ({ query }) =>
   { detail: { tags: ['Proxy'], summary: 'Proxy route detail with stops and shape' } },
 )
 
+transitProxy.get('/bikes-allowed', ({ query }) =>
+  proxyBarrelman('/transit/bikes-allowed', query, 'public, max-age=3600'),
+  { detail: { tags: ['Proxy'], summary: 'Batch check bikes_allowed for routes' } },
+)
+
 app.use(transitProxy)
 
 

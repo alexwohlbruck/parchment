@@ -28,6 +28,8 @@ import type { Place } from '../types/place.types'
 import { routingService } from './routing.service'
 import { transitRoutingService } from './transit-routing.service'
 import { searchByCategory } from './search.service'
+import { integrationManager } from './integrations'
+import { IntegrationId } from '../types/integration.types'
 
 /**
  * Simplified multimodal trip planning service
@@ -1675,6 +1677,19 @@ export class TripService {
 
       if (transitSegments.length === 0) return null
 
+      // Bike carry-on: verify all transit legs allow bikes on board.
+      // Reject the itinerary if any leg's route doesn't allow bikes.
+      if (access.carryOnTransit) {
+        const transitRouteIds = legs
+          .filter((l: any) => l.transitLeg && l.routeId)
+          .map((l: any) => l.routeId as string)
+
+        if (transitRouteIds.length > 0) {
+          const allAllowed = await this.checkBikesAllowed(transitRouteIds)
+          if (!allAllowed) return null
+        }
+      }
+
       const firstTransit = transitSegments[0]
       const lastTransit = transitSegments[transitSegments.length - 1]
       const transitDeparture = new Date(firstTransit.startTime).getTime()
@@ -2525,6 +2540,42 @@ export class TripService {
       return { segment }
     } catch {
       return null
+    }
+  }
+
+  /**
+   * Check bikes_allowed for a set of MOTIS route IDs.
+   * MOTIS uses composite IDs: "{feedId}_{routeId}".
+   * Returns true if ALL routes allow bikes (bikesAllowed >= 1).
+   */
+  private async checkBikesAllowed(motisRouteIds: string[]): Promise<boolean> {
+    if (motisRouteIds.length === 0) return true
+
+    try {
+      const systemIntegration = integrationManager
+        .getConfiguredIntegrations()
+        .find((i: any) => i.integrationId === IntegrationId.BARRELMAN)
+
+      const config = systemIntegration?.config as
+        | { host?: string; apiKey?: string }
+        | undefined
+      if (!config?.host) return true // Can't check — allow by default
+
+      const routeParam = motisRouteIds.join(',')
+      const headers: Record<string, string> = {}
+      if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
+
+      const response = await fetch(
+        `${config.host}/transit/bikes-allowed?routes=${encodeURIComponent(routeParam)}`,
+        { headers, signal: AbortSignal.timeout(5_000) },
+      )
+      if (!response.ok) return true // Network error — allow by default
+
+      const data = await response.json() as Record<string, number>
+      // All routes must have bikes_allowed >= 1 (some or all trips allow bikes)
+      return motisRouteIds.every(id => (data[id] ?? 0) >= 1)
+    } catch {
+      return true // Integration not configured, timeout, or error — allow by default
     }
   }
 

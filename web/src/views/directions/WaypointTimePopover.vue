@@ -32,13 +32,22 @@ const props = defineProps<{
   prevConstraint?: WaypointTimeConstraint | null
   /** Time constraint of the next waypoint (for validation). */
   nextConstraint?: WaypointTimeConstraint | null
+  /** Controlled open state (for programmatic opening from mobile menu). */
+  open?: boolean
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: WaypointTimeConstraint | null]
+  'update:open': [value: boolean]
 }>()
 
-const open = ref(false)
+const open = ref(props.open ?? false)
+
+// Sync with controlled prop
+watch(() => props.open, (v) => {
+  if (v !== undefined) open.value = v
+})
+watch(open, (v) => emit('update:open', v))
 
 const isOrigin = computed(() => props.index === 0)
 const isDestination = computed(() => props.index === props.waypointCount - 1)

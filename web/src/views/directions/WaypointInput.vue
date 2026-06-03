@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import draggable from 'vuedraggable'
 import { computed, ref, watch, onMounted } from 'vue'
-import { XIcon, PlusIcon, Check, LocateFixedIcon, ArrowUpDownIcon, GripVerticalIcon, ClockIcon } from 'lucide-vue-next'
+import { XIcon, PlusIcon, Check, LocateFixedIcon, ArrowUpDownIcon, GripVerticalIcon, ClockIcon, EllipsisVerticalIcon } from 'lucide-vue-next'
 import WaypointTimePopover from './WaypointTimePopover.vue'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Waypoint, type WaypointTimeConstraint } from '@/types/map.types'
 import { useDirectionsService } from '@/services/directions.service'
 import {
@@ -20,7 +27,7 @@ import { Place } from '@/types/place.types'
 import { AutocompleteResult } from '@/types/search.types'
 import { useSearchService } from '@/services/search.service'
 import { useMapCamera } from '@/composables/useMapCamera'
-import { cn } from '@/lib/utils'
+import { cn, useResponsive } from '@/lib/utils'
 import { useDebounceFn } from '@vueuse/core'
 import { Spinner } from '@/components/ui/spinner'
 import { getSearchResultName } from '@/lib/search.utils'
@@ -35,6 +42,7 @@ const { coords, isSupported: isGeolocationSupported, resume } = useGeolocationSe
 const { t } = useI18n()
 
 const directionsService = useDirectionsService()
+const { isMobileScreen } = useResponsive()
 
 const MIN_LOCATIONS = 2
 
@@ -136,6 +144,9 @@ function addWaypoint() {
   inputTexts.value.push('')
   emit('update:modelValue', [...waypoints.value, { lngLat: null }])
 }
+
+/** Index of waypoint whose time popover should open (triggered from mobile menu). */
+const openTimePopoverIndex = ref<number | null>(null)
 
 function updateTimeConstraint(index: number, constraint: WaypointTimeConstraint | null) {
   const updated = [...waypoints.value]
@@ -443,8 +454,9 @@ defineExpose({
                     </div>
                   </template>
                   <template #postfix>
-                    <div class="flex items-center -mr-1.5">
-                      <!-- Time constraint popover (visible when waypoint is set, or has a constraint) -->
+                    <!-- Desktop: icon buttons hidden until row hover -->
+                    <div v-if="!isMobileScreen" class="flex items-center -mr-1.5">
+                      <!-- Active time badge stays visible without hover -->
                       <WaypointTimePopover
                         v-if="element.lngLat || element.timeConstraint"
                         :model-value="element.timeConstraint"
@@ -452,28 +464,75 @@ defineExpose({
                         :waypoint-count="waypoints.length"
                         :prev-constraint="index > 0 ? waypoints[index - 1]?.timeConstraint : null"
                         :next-constraint="index < waypoints.length - 1 ? waypoints[index + 1]?.timeConstraint : null"
+                        :class="element.timeConstraint ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'"
                         @update:model-value="c => updateTimeConstraint(index, c)"
                       />
-                      <div class="opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
-                        <Button
-                          v-if="!inputTexts[index]"
-                          @click="locateUser(index)"
-                          variant="ghost"
-                          size="icon"
-                          class="size-7"
-                          :title="$t('directions.currentLocation')"
-                        >
-                          <LocateFixedIcon class="size-4" />
-                        </Button>
-                        <Button
-                          @click="clearWaypoint(index)"
-                          variant="ghost"
-                          size="icon"
-                          class="size-7"
-                        >
-                          <XIcon class="size-4" />
-                        </Button>
-                      </div>
+                      <Button
+                        v-if="!inputTexts[index]"
+                        @click="locateUser(index)"
+                        variant="ghost"
+                        size="icon"
+                        class="size-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                        :title="$t('directions.currentLocation')"
+                      >
+                        <LocateFixedIcon class="size-4" />
+                      </Button>
+                      <Button
+                        @click="clearWaypoint(index)"
+                        variant="ghost"
+                        size="icon"
+                        class="size-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <XIcon class="size-4" />
+                      </Button>
+                    </div>
+
+                    <!-- Mobile: consolidated dropdown menu, always visible -->
+                    <div v-else class="flex items-center -mr-1.5">
+                      <!-- Time popover (rendered but trigger hidden — opened programmatically from menu) -->
+                      <WaypointTimePopover
+                        v-if="element.lngLat || element.timeConstraint"
+                        :model-value="element.timeConstraint"
+                        :index="index"
+                        :waypoint-count="waypoints.length"
+                        :prev-constraint="index > 0 ? waypoints[index - 1]?.timeConstraint : null"
+                        :next-constraint="index < waypoints.length - 1 ? waypoints[index + 1]?.timeConstraint : null"
+                        :open="openTimePopoverIndex === index"
+                        @update:open="v => { if (!v) openTimePopoverIndex = null }"
+                        @update:model-value="c => updateTimeConstraint(index, c)"
+                      />
+                      <DropdownMenu>
+                        <DropdownMenuTrigger as-child>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            class="size-7"
+                          >
+                            <EllipsisVerticalIcon class="size-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" class="w-44">
+                          <DropdownMenuItem
+                            v-if="element.lngLat || element.timeConstraint"
+                            @click="openTimePopoverIndex = index"
+                          >
+                            <ClockIcon class="size-4 mr-2" />
+                            {{ element.timeConstraint ? 'Edit time' : 'Set time' }}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            v-if="!inputTexts[index]"
+                            @click="locateUser(index)"
+                          >
+                            <LocateFixedIcon class="size-4 mr-2" />
+                            {{ $t('directions.currentLocation') }}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator v-if="element.lngLat || !inputTexts[index]" />
+                          <DropdownMenuItem @click="clearWaypoint(index)">
+                            <XIcon class="size-4 mr-2" />
+                            Clear
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </template>
                 </ComboboxInput>

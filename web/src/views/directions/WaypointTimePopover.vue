@@ -112,7 +112,7 @@ const warning = computed<string | null>(() => {
   // Check against next waypoint
   if (props.nextConstraint?.time) {
     const nextTime = dayjs(props.nextConstraint.time)
-    const thisDwell = dwellMinutes.value ?? 0
+    const thisDwell = Math.max(0, dwellMinutes.value ?? 0)
     const latestDepart = dayjs(timeLocal.value).add(thisDwell, 'minute')
 
     if (latestDepart.isAfter(nextTime)) {

@@ -15,6 +15,7 @@ import {
   AlertTriangleIcon,
   ArrowLeft,
   BikeIcon,
+  CarTaxiFrontIcon,
   ArrowRight,
   ArrowUp,
   ArrowUpLeft,
@@ -768,6 +769,42 @@ function hasSegmentRouteInfo(segment: any): boolean {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <!-- ── Rideshare segment header ── -->
+              <div v-else-if="entry.segment.mode === 'rideshare' && entry.segment.rideshareDetails">
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span class="inline-flex items-center gap-1.5 text-sm font-semibold">
+                    <CarTaxiFrontIcon class="size-4" />
+                    {{ entry.segment.rideshareDetails.provider }}
+                    <span v-if="entry.segment.rideshareDetails.productName" class="font-normal text-muted-foreground">
+                      {{ entry.segment.rideshareDetails.productName }}
+                    </span>
+                  </span>
+                </div>
+                <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                  <span v-if="entry.segment.rideshareDetails.priceRange" class="font-semibold text-foreground">
+                    ${{ entry.segment.rideshareDetails.priceRange.low.value.toFixed(0) }}–${{ entry.segment.rideshareDetails.priceRange.high.value.toFixed(0) }}
+                  </span>
+                  <span v-if="entry.segment.rideshareDetails.surgeMultiplier && entry.segment.rideshareDetails.surgeMultiplier > 1"
+                    class="text-amber-500 font-medium"
+                  >
+                    {{ entry.segment.rideshareDetails.surgeMultiplier.toFixed(1) }}× surge
+                  </span>
+                  <span v-if="entry.segment.rideshareDetails.pickupEta" class="inline-flex items-center gap-1">
+                    <ClockIcon class="size-3" />
+                    {{ Math.ceil(entry.segment.rideshareDetails.pickupEta / 60) }} min pickup
+                  </span>
+                  <span>{{ formatDuration(entry.segment.duration) }}</span>
+                </div>
+                <a
+                  v-if="entry.segment.rideshareDetails.bookingUrl"
+                  :href="entry.segment.rideshareDetails.bookingUrl"
+                  target="_blank"
+                  class="mt-1.5 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  Book in {{ entry.segment.rideshareDetails.provider }} →
+                </a>
               </div>
 
               <!-- ── Non-transit segment header ── -->

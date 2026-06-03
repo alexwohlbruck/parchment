@@ -235,6 +235,7 @@ function directionsService() {
       start: seg.start,
       end: seg.end,
       carryingVehicle: seg.carryingVehicle ?? false,
+      rideshareDetails: seg.details?.rideshareDetails ?? null,
       ...extractTransitFields(seg),
     }
   }

@@ -10,6 +10,7 @@ import {
   BikeIcon,
   BusFrontIcon,
   CarFrontIcon,
+  CarTaxiFrontIcon,
   ClockIcon,
   FootprintsIcon,
   ShuffleIcon,
@@ -131,6 +132,11 @@ const modes: Array<{ type: SelectedMode; icon: any; label: string }> = [
     type: 'driving',
     icon: CarFrontIcon,
     label: 'Driving',
+  },
+  {
+    type: 'rideshare',
+    icon: CarTaxiFrontIcon,
+    label: 'Rideshare',
   },
   {
     type: 'wheelchair',

@@ -2036,16 +2036,43 @@ export class TripService {
 
       case 'shared-bike':
       case 'shared-scooter': {
-        // Search for shared mobility stations near alighting stop
-        const stationCategory = egress.mode === 'shared-bike'
-          ? 'amenity/bicycle_rental'
-          : 'amenity/scooter_rental'
+        // Try GBFS real-time stations first, fall back to OSM
+        const vehicleType = egress.mode === 'shared-bike' ? 'bike' : 'scooter'
+        let stations: any[] = []
 
-        const stations = await searchByCategory(
-          stationCategory,
-          alightingStop.location,
-          500, // search radius meters
-        ).catch(() => [] as any[])
+        // Step 1: GBFS real-time availability
+        try {
+          const gbfsStations = await this.fetchGbfsNearbyStations(
+            alightingStop.location, 500, vehicleType,
+          )
+          stations = gbfsStations.map((s: any) => ({
+            geometry: { value: { center: { lat: s.lat, lng: s.lon } } },
+            name: { value: s.name },
+            lat: s.lat,
+            lng: s.lon,
+          }))
+        } catch { /* GBFS unavailable */ }
+
+        // Step 2: Fall back to OSM category search
+        if (stations.length === 0) {
+          const stationCategory = egress.mode === 'shared-bike'
+            ? 'amenity/bicycle_rental'
+            : 'amenity/scooter_rental'
+
+          const dLat = 500 / 111320
+          const dLng = 500 / (111320 * Math.cos((alightingStop.location.lat * Math.PI) / 180))
+
+          stations = await searchByCategory(stationCategory, {
+            bounds: {
+              north: alightingStop.location.lat + dLat,
+              south: alightingStop.location.lat - dLat,
+              east: alightingStop.location.lng + dLng,
+              west: alightingStop.location.lng - dLng,
+            },
+            limit: 5,
+            sort: 'distance',
+          }).catch(() => [] as any[])
+        }
 
         if (stations.length > 0) {
           const station = stations[0]
@@ -2548,6 +2575,49 @@ export class TripService {
    * MOTIS uses composite IDs: "{feedId}_{routeId}".
    * Returns true if ALL routes allow bikes (bikesAllowed >= 1).
    */
+  /**
+   * Fetch nearby shared-mobility stations from Barrelman's GBFS service.
+   * Returns stations with real-time availability, sorted by distance.
+   */
+  private async fetchGbfsNearbyStations(
+    center: Coordinate,
+    radius: number,
+    vehicleType: string,
+  ): Promise<any[]> {
+    try {
+      const systemIntegration = integrationManager
+        .getConfiguredIntegrations()
+        .find((i: any) => i.integrationId === IntegrationId.BARRELMAN)
+
+      const config = systemIntegration?.config as
+        | { host?: string; apiKey?: string }
+        | undefined
+      if (!config?.host) return []
+
+      const params = new URLSearchParams({
+        lat: String(center.lat),
+        lng: String(center.lng),
+        radius: String(radius),
+        vehicleType,
+        limit: '5',
+      })
+
+      const headers: Record<string, string> = {}
+      if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
+
+      const response = await fetch(
+        `${config.host}/gbfs/nearby-stations?${params}`,
+        { headers, signal: AbortSignal.timeout(5_000) },
+      )
+
+      if (!response.ok) return []
+      const data = await response.json() as any
+      return data.stations || []
+    } catch {
+      return []
+    }
+  }
+
   private async checkBikesAllowed(motisRouteIds: string[]): Promise<boolean> {
     if (motisRouteIds.length === 0) return true
 

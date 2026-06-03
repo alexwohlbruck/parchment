@@ -302,5 +302,21 @@ transitProxy.get('/bikes-allowed', ({ query }) =>
 
 app.use(transitProxy)
 
+// ── GBFS shared mobility proxy ──────────────────────────────────────
+
+const gbfsProxy = new Elysia({ prefix: '/proxy/gbfs' }).use(requireAuth)
+
+gbfsProxy.get('/nearby-stations', ({ query }) =>
+  proxyBarrelman('/gbfs/nearby-stations', query, 'no-cache'),
+  { detail: { tags: ['Proxy'], summary: 'Proxy GBFS nearby stations with availability' } },
+)
+
+gbfsProxy.get('/systems', ({ query }) =>
+  proxyBarrelman('/gbfs/systems', query, 'public, max-age=3600'),
+  { detail: { tags: ['Proxy'], summary: 'Proxy GBFS system catalog' } },
+)
+
+app.use(gbfsProxy)
+
 
 export default app

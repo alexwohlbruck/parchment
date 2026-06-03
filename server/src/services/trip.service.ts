@@ -27,6 +27,7 @@ import { Coordinate } from '../types/unified-routing.types'
 import type { Place } from '../types/place.types'
 import { routingService } from './routing.service'
 import { transitRoutingService } from './transit-routing.service'
+import { rideshareService } from './rideshare.service'
 import { searchByCategory } from './search.service'
 import { integrationManager } from './integrations'
 import { IntegrationId } from '../types/integration.types'
@@ -65,8 +66,10 @@ export class TripService {
 
       try {
         if (mode === 'transit') {
-          // Transit generates multiple trip candidates (one per itinerary)
           const trips = await this.planTransitTrips(request, dataSources)
+          candidates.push(...trips)
+        } else if (mode === 'rideshare') {
+          const trips = await this.planRideshareTrips(request, dataSources)
           candidates.push(...trips)
         } else {
           const trip = await this.planModeTrip(request, mode, dataSources)
@@ -166,27 +169,27 @@ export class TripService {
    * Walking is always included as it can be combined with any mode
    */
   private getModesToGenerate(selectedMode?: SelectedMode): Mode[] {
+    const hasRideshare = rideshareService.isRideshareAvailable()
     switch (selectedMode) {
-      case 'multi':
+      case 'multi': {
         // Multi-modal: generate all available modes
-        return ['walking', 'driving', 'biking', 'transit']
+        const modes: Mode[] = ['walking', 'driving', 'biking', 'transit']
+        if (hasRideshare) modes.push('rideshare')
+        return modes
+      }
       case 'walking':
-        // Walking only
         return ['walking']
       case 'driving':
-        // Driving (can include walking to car)
         return ['walking', 'driving']
       case 'biking':
-        // Biking (can include walking to bike)
         return ['walking', 'biking']
       case 'transit':
-        // Transit: walk + transit + walk composition
         return ['transit']
       case 'wheelchair':
-        // Wheelchair — single mode, uses foot profile with custom_model
         return ['wheelchair']
+      case 'rideshare':
+        return hasRideshare ? ['rideshare'] : []
       default:
-        // Default to all modes if not specified
         return ['walking', 'driving', 'biking']
     }
   }
@@ -1415,6 +1418,122 @@ export class TripService {
    * Used by planTrip() to generate multiple transit candidates for scoring.
    * Requests 3 itineraries from MOTIS and composes each independently.
    */
+  // ── Rideshare planning ─────────────────────────────────────────────
+
+  /**
+   * Plan standalone rideshare trips. Queries all configured providers
+   * (Uber, Lyft, etc.) in parallel and generates one TripResponse per
+   * product option so they can be scored alongside other modes.
+   */
+  private async planRideshareTrips(
+    request: TripRequest,
+    dataSources: DataSource[],
+  ): Promise<TripResponse[]> {
+    const from = request.waypoints[0]
+    const to = request.waypoints[request.waypoints.length - 1]
+    const startTime = request.preferredDepartureTime || new Date().toISOString()
+
+    const estimates = await rideshareService.getEstimates({
+      origin: from.location,
+      destination: to.location,
+      departureTime: startTime,
+    })
+
+    if (!estimates.length) return []
+
+    const trips: TripResponse[] = []
+
+    for (const estimate of estimates) {
+      // Take the cheapest product per provider for the trip list
+      // (the full product list is available via the rideshare API directly)
+      const product = estimate.products
+        .sort((a, b) => a.estimatedPrice.low.value - b.estimatedPrice.low.value)[0]
+      if (!product) continue
+
+      // Get driving geometry for the map
+      let geometry: any = null
+      try {
+        const route = await routingService.getRoute(
+          [
+            { type: 'coordinates', value: [from.location.lat, from.location.lng] },
+            { type: 'coordinates', value: [to.location.lat, to.location.lng] },
+          ],
+          'auto',
+          { ...(request.routingPreferences || {}), language: request.language },
+        )
+        geometry = route.routes[0]?.legs[0]?.geometry ?? null
+      } catch { /* geometry is optional */ }
+
+      const pickupTime = new Date(
+        new Date(startTime).getTime() + product.estimatedPickupTime * 1000,
+      ).toISOString()
+      const dropoffTime = new Date(
+        new Date(pickupTime).getTime() + product.estimatedDuration * 1000,
+      ).toISOString()
+
+      const segment: TripSegment = {
+        segmentIndex: 0,
+        legIndex: 0,
+        mode: 'rideshare',
+        start: from,
+        end: to,
+        startTime: pickupTime,
+        endTime: dropoffTime,
+        duration: product.estimatedDuration,
+        distance: product.estimatedDistance,
+        geometry,
+        instructions: [],
+        cost: product.estimatedPrice.high,
+        co2: product.estimatedDistance * 0.00024, // same as driving
+        details: {
+          rideshareDetails: {
+            provider: estimate.provider,
+            productId: product.productId,
+            productName: product.displayName,
+            vehicleType: 'car',
+            estimatedPickupTime: pickupTime,
+            pickupEta: product.estimatedPickupTime,
+            estimatedPrice: product.estimatedPrice.high,
+            priceRange: product.estimatedPrice,
+            surgeMultiplier: product.estimatedPrice.surgeMultiplier,
+            bookingUrl: product.bookingUrl,
+            expiresAt: estimate.expiresAt,
+            capacity: product.capacity,
+          },
+        },
+      }
+
+      const totalDuration = product.estimatedPickupTime + product.estimatedDuration
+
+      trips.push({
+        segments: [segment],
+        tripStats: {
+          totalDuration,
+          totalDistance: product.estimatedDistance,
+          totalCost: product.estimatedPrice.high,
+          totalCo2: product.estimatedDistance * 0.00024,
+        },
+        earliestStartTime: startTime,
+        latestEndTime: dropoffTime,
+        dataSources: [
+          ...dataSources,
+          {
+            id: estimate.provider.toLowerCase(),
+            name: estimate.provider,
+            url: product.bookingUrl,
+            type: 'rideshare_api',
+          },
+        ],
+        requestId: request.requestId,
+        generatedAt: new Date().toISOString(),
+      } as any)
+    }
+
+    return trips
+  }
+
+  // ── Transit planning ──────────────────────────────────────────────
+
   private async planTransitTrips(
     request: TripRequest,
     dataSources: DataSource[],
@@ -1610,6 +1729,28 @@ export class TripService {
           ),
         )
 
+        // ── Rideshare + transit combinations ──────────────────────────
+        if (rideshareService.isRideshareAvailable()) {
+          // 3.8: rideshare → transit → walk
+          compositionPromises.push(
+            this.composeTransitWithAccessAndEgress(
+              bestItinerary, startTime, from, to,
+              { mode: 'rideshare' },
+              { mode: 'walking' },
+              preferences, dataSources,
+            ),
+          )
+          // 3.9: walk → transit → rideshare
+          compositionPromises.push(
+            this.composeTransitWithAccessAndEgress(
+              bestItinerary, startTime, from, to,
+              { mode: 'walking' },
+              { mode: 'rideshare' },
+              preferences, dataSources,
+            ),
+          )
+        }
+
         const results = await Promise.all(compositionPromises)
         for (const result of results) {
           if (result) additionalCandidates.push(result)
@@ -1802,8 +1943,70 @@ export class TripService {
     preferences: any,
   ): Promise<{ segments: TripSegment[]; parkedVehicle?: ParkedVehicle } | null> {
     if (access.mode === 'walking') {
-      // Simple walk access — handled by composeTransitItinerary, not here
       return { segments: [] }
+    }
+
+    if (access.mode === 'rideshare') {
+      // Rideshare access: get cheapest estimate to boarding stop
+      try {
+        const estimates = await rideshareService.getEstimates({
+          origin: origin.location,
+          destination: boardingStop.location,
+        })
+        const cheapest = estimates
+          .flatMap(e => e.products.map(p => ({ ...p, provider: e.provider, expiresAt: e.expiresAt })))
+          .sort((a, b) => a.estimatedPrice.low.value - b.estimatedPrice.low.value)[0]
+        if (!cheapest) return null
+
+        const rideEnd = transitDeparture - transitBufferSec * 1000
+        const rideStart = rideEnd - cheapest.estimatedDuration * 1000
+
+        let geometry: any = null
+        try {
+          const route = await routingService.getRoute(
+            [
+              { type: 'coordinates', value: [origin.location.lat, origin.location.lng] },
+              { type: 'coordinates', value: [boardingStop.location.lat, boardingStop.location.lng] },
+            ],
+            'auto', preferences,
+          )
+          geometry = route.routes[0]?.legs[0]?.geometry ?? null
+        } catch { /* geometry optional */ }
+
+        return {
+          segments: [{
+            segmentIndex: 0,
+            legIndex: 0,
+            mode: 'rideshare',
+            start: origin,
+            end: boardingStop,
+            startTime: new Date(rideStart).toISOString(),
+            endTime: new Date(rideEnd).toISOString(),
+            duration: cheapest.estimatedDuration,
+            distance: cheapest.estimatedDistance,
+            geometry,
+            instructions: [],
+            cost: cheapest.estimatedPrice.high,
+            co2: cheapest.estimatedDistance * 0.00024,
+            details: {
+              rideshareDetails: {
+                provider: cheapest.provider,
+                productId: cheapest.productId,
+                productName: cheapest.displayName,
+                vehicleType: 'car',
+                pickupEta: cheapest.estimatedPickupTime,
+                estimatedPrice: cheapest.estimatedPrice.high,
+                priceRange: cheapest.estimatedPrice,
+                surgeMultiplier: cheapest.estimatedPrice.surgeMultiplier,
+                bookingUrl: cheapest.bookingUrl,
+                expiresAt: cheapest.expiresAt,
+              },
+            },
+          }],
+        }
+      } catch {
+        return null
+      }
     }
 
     const vehicle = access.vehicle!
@@ -2150,7 +2353,68 @@ export class TripService {
         break
       }
 
-      default:
+      case 'rideshare': {
+        // Rideshare egress: cheapest ride from alighting stop to destination
+        try {
+          const estimates = await rideshareService.getEstimates({
+            origin: alightingStop.location,
+            destination: destination.location,
+          })
+          const cheapest = estimates
+            .flatMap(e => e.products.map(p => ({ ...p, provider: e.provider, expiresAt: e.expiresAt })))
+            .sort((a, b) => a.estimatedPrice.low.value - b.estimatedPrice.low.value)[0]
+
+          if (cheapest) {
+            const rideStart = new Date(egressStartTime).getTime() + cheapest.estimatedPickupTime * 1000
+            const rideEnd = rideStart + cheapest.estimatedDuration * 1000
+
+            let geometry: any = null
+            try {
+              const route = await routingService.getRoute(
+                [
+                  { type: 'coordinates', value: [alightingStop.location.lat, alightingStop.location.lng] },
+                  { type: 'coordinates', value: [destination.location.lat, destination.location.lng] },
+                ],
+                'auto', preferences,
+              )
+              geometry = route.routes[0]?.legs[0]?.geometry ?? null
+            } catch { /* optional */ }
+
+            segments.push({
+              segmentIndex: 0,
+              legIndex: 0,
+              mode: 'rideshare',
+              start: alightingStop,
+              end: destination,
+              startTime: new Date(rideStart).toISOString(),
+              endTime: new Date(rideEnd).toISOString(),
+              duration: cheapest.estimatedDuration,
+              distance: cheapest.estimatedDistance,
+              geometry,
+              instructions: [],
+              cost: cheapest.estimatedPrice.high,
+              co2: cheapest.estimatedDistance * 0.00024,
+              details: {
+                rideshareDetails: {
+                  provider: cheapest.provider,
+                  productId: cheapest.productId,
+                  productName: cheapest.displayName,
+                  vehicleType: 'car',
+                  pickupEta: cheapest.estimatedPickupTime,
+                  estimatedPrice: cheapest.estimatedPrice.high,
+                  priceRange: cheapest.estimatedPrice,
+                  surgeMultiplier: cheapest.estimatedPrice.surgeMultiplier,
+                  bookingUrl: cheapest.bookingUrl,
+                  expiresAt: cheapest.expiresAt,
+                },
+              },
+            })
+          }
+        } catch { /* rideshare unavailable */ }
+        break
+      }
+
+      default: {
         // Unsupported egress mode — fall back to walking
         const fallback = await this.planWalkingSegmentForTransit(
           alightingStop,
@@ -2159,6 +2423,7 @@ export class TripService {
           preferences,
         )
         if (fallback) segments.push(fallback.segment)
+      }
     }
 
     return segments.length > 0 ? segments : null

@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/collapsible'
 import { Caption } from '@/components/ui/typography'
 import {
+  AlertTriangleIcon,
   ArrowLeft,
   ArrowRight,
   ArrowUp,
@@ -727,7 +728,10 @@ function hasSegmentRouteInfo(segment: any): boolean {
                           class="flex items-center gap-2 text-xs text-muted-foreground py-0.5"
                         >
                           <span class="size-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
-                          <span>{{ stop.name }}</span>
+                          <span class="flex-1">{{ stop.name }}</span>
+                          <span v-if="stop.arrivalTime" class="text-[10px] tabular-nums shrink-0">
+                            {{ formatTime(new Date(stop.arrivalTime)) }}
+                          </span>
                         </div>
                       </div>
                     </CollapsibleContent>
@@ -739,6 +743,24 @@ function hasSegmentRouteInfo(segment: any): boolean {
                     <span v-if="entry.segment.arrivalStop.platformCode" class="text-xs text-muted-foreground">
                       Platform {{ entry.segment.arrivalStop.platformCode }}
                     </span>
+                  </div>
+
+                  <!-- Transit alerts -->
+                  <div
+                    v-for="(alert, ai) in entry.segment.transitDetails?.alerts ?? []"
+                    :key="ai"
+                    class="flex gap-2 p-2 mt-1 rounded-md text-xs"
+                    :class="alert.severity === 'severe'
+                      ? 'bg-destructive/10 text-destructive'
+                      : alert.severity === 'warning'
+                        ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400'
+                        : 'bg-muted text-muted-foreground'"
+                  >
+                    <AlertTriangleIcon class="size-3.5 shrink-0 mt-0.5" />
+                    <div>
+                      <div v-if="alert.headerText" class="font-medium">{{ alert.headerText }}</div>
+                      <div v-if="alert.descriptionText" class="mt-0.5 line-clamp-3">{{ alert.descriptionText }}</div>
+                    </div>
                   </div>
                 </div>
               </div>

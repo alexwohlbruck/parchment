@@ -31,6 +31,7 @@ export type SelectedMode =
   | 'biking'
   | 'transit'
   | 'wheelchair'
+  | 'rideshare'
 
 export type SortPreference =
   | 'shortest'
@@ -358,10 +359,17 @@ export type TransitAlertSeverity = 'info' | 'warning' | 'severe'
 
 export interface RideshareDetails {
   provider: string
+  productId?: string
+  productName?: string
   vehicleType: VehicleType
   estimatedPickupTime?: string
+  pickupEta?: number
   estimatedPrice?: CurrencyAmount
+  priceRange?: { low: CurrencyAmount; high: CurrencyAmount }
+  surgeMultiplier?: number
   bookingUrl?: string
+  expiresAt?: string
+  capacity?: number
 }
 
 export interface VehicleDetails {

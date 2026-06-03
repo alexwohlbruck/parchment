@@ -37,6 +37,7 @@ export type SelectedMode =
   | 'biking'
   | 'transit'
   | 'wheelchair'
+  | 'rideshare'
 
 export type WaypointType = 'origin' | 'destination' | 'via'
 
@@ -329,10 +330,19 @@ export type TransitAlertSeverity = 'info' | 'warning' | 'severe'
 
 export interface RideshareDetails {
   provider: string
+  productId?: string
+  productName?: string
   vehicleType: VehicleType
   estimatedPickupTime?: string
+  /** Seconds until pickup */
+  pickupEta?: number
   estimatedPrice?: CurrencyAmount
+  priceRange?: { low: CurrencyAmount; high: CurrencyAmount }
+  surgeMultiplier?: number
   bookingUrl?: string
+  /** When this estimate becomes stale (ISO 8601). */
+  expiresAt?: string
+  capacity?: number
 }
 
 export interface VehicleDetails {
@@ -428,8 +438,8 @@ export interface EnergyState {
 
 /** How to reach the first transit boarding stop. */
 export interface TransitAccessConfig {
-  mode: 'walking' | 'biking' | 'driving'
-  /** Vehicle used for this leg (bike/car). Null for walking. */
+  mode: 'walking' | 'biking' | 'driving' | 'rideshare'
+  /** Vehicle used for this leg (bike/car). Null for walking/rideshare. */
   vehicle?: Vehicle
   /** Where the vehicle is parked. Null for walking. */
   vehicleLocation?: Coordinate
@@ -441,7 +451,7 @@ export interface TransitAccessConfig {
 
 /** How to get from the last alighting stop to the destination. */
 export interface TransitEgressConfig {
-  mode: 'walking' | 'biking' | 'driving' | 'shared-bike' | 'shared-scooter'
+  mode: 'walking' | 'biking' | 'driving' | 'shared-bike' | 'shared-scooter' | 'rideshare'
   /** Vehicle used for egress (only for personal vehicles carried on transit). */
   vehicle?: Vehicle
   /** If true, search for shared mobility stations near alighting stop. */

@@ -453,6 +453,53 @@ export interface LocationHistoryCapability {
 }
 
 // Integration capabilities container
+// ── Rideshare estimation ─────────────────────────────────────────────
+
+export interface RideshareEstimateRequest {
+  origin: { lat: number; lng: number }
+  destination: { lat: number; lng: number }
+  /** ISO 8601 departure time. Null = now. */
+  departureTime?: string
+}
+
+export interface RideshareProduct {
+  /** Provider-specific product ID (e.g. "uberX", "lyft_standard") */
+  productId: string
+  /** Human-readable name (e.g. "UberX", "Lyft XL") */
+  displayName: string
+  /** Estimated price range */
+  estimatedPrice: {
+    low: { value: number; currency: string }
+    high: { value: number; currency: string }
+    surgeMultiplier?: number
+  }
+  /** ETA for nearest driver in seconds */
+  estimatedPickupTime: number
+  /** Estimated trip duration in seconds */
+  estimatedDuration: number
+  /** Estimated trip distance in meters */
+  estimatedDistance: number
+  /** Deep link to open the provider's app with this trip pre-filled */
+  bookingUrl: string
+  /** Maximum passenger capacity */
+  capacity?: number
+}
+
+export interface RideshareEstimateResponse {
+  provider: string
+  products: RideshareProduct[]
+  /** When this estimate expires (ISO 8601). */
+  expiresAt: string
+}
+
+export interface RideshareEstimateCapability {
+  getRideshareEstimates(
+    request: RideshareEstimateRequest,
+  ): Promise<RideshareEstimateResponse>
+}
+
+// ── Capability container ─────────────────────────────────────────────
+
 export interface IntegrationCapabilities {
   search?: SearchCapability
   searchCategory?: SearchCategoryCapability
@@ -471,6 +518,7 @@ export interface IntegrationCapabilities {
   osmMapEdit?: OsmMapEditCapability
   locationHistory?: LocationHistoryCapability
   transitRouting?: TransitRoutingCapability
+  rideshareEstimate?: RideshareEstimateCapability
 }
 
 /**

@@ -24,6 +24,9 @@ export enum IntegrationId {
   OPENSTREETMAP_ACCOUNT = 'openstreetmap-account',
   /** Dawarich self-hosted location history. Phase-1 plumbing-only: no capabilities yet. */
   DAWARICH = 'dawarich',
+  /** Rideshare providers — price/time estimates + booking deep links. */
+  UBER = 'uber',
+  LYFT = 'lyft',
 }
 
 export enum IntegrationCapabilityId {
@@ -47,4 +50,5 @@ export enum IntegrationCapabilityId {
   TILE_SERVER = 'tileServer',
   LOCATION_HISTORY = 'locationHistory',
   TRANSIT_ROUTING = 'transitRouting',
+  RIDESHARE_ESTIMATE = 'rideshareEstimate',
 }

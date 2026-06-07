@@ -223,10 +223,13 @@ export interface SegmentDetails {
 export interface SharedMobilityDetails {
   provider: string
   stationName?: string
+  toStationName?: string
   vehicleType: 'bike' | 'ebike' | 'scooter' | 'car' | 'moped' | 'other'
+  propulsionType?: 'human' | 'electric_assist' | 'electric'
   stationId?: string
   availableVehicles?: number
   availableDocks?: number
+  unlockUri?: string
 }
 
 export interface TransitDetails {

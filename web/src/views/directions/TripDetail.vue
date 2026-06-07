@@ -23,6 +23,7 @@ import {
   BookmarkIcon,
   ChevronDownIcon,
   ClockIcon,
+  ExternalLinkIcon,
   FlagIcon,
   FootprintsIcon,
   ShareIcon,
@@ -842,7 +843,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
               <!-- Shared mobility station info -->
               <div
                 v-if="entry.segment.sharedMobilityDetails"
-                class="mt-2 rounded-lg border bg-teal-50 dark:bg-teal-900/20 p-3 space-y-1.5"
+                class="mt-2 rounded-lg border bg-teal-50 dark:bg-teal-900/20 p-3 space-y-2"
               >
                 <div class="flex items-center justify-between">
                   <div>
@@ -851,6 +852,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
                     </div>
                     <div class="text-xs text-muted-foreground">
                       {{ entry.segment.sharedMobilityDetails.provider }}
+                      <span v-if="entry.segment.sharedMobilityDetails.propulsionType === 'electric_assist'"> · e-bike</span>
                     </div>
                   </div>
                   <div
@@ -860,6 +862,16 @@ function hasSegmentRouteInfo(segment: any): boolean {
                     {{ entry.segment.sharedMobilityDetails.availableVehicles }} available
                   </div>
                 </div>
+                <a
+                  v-if="entry.segment.sharedMobilityDetails.unlockUri"
+                  :href="entry.segment.sharedMobilityDetails.unlockUri"
+                  target="_blank"
+                  rel="noopener"
+                  class="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-md bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium transition-colors"
+                >
+                  Unlock in {{ entry.segment.sharedMobilityDetails.provider }}
+                  <ExternalLinkIcon class="size-3.5" />
+                </a>
               </div>
 
               <!-- Route info card -->

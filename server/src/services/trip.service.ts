@@ -1762,18 +1762,30 @@ export class TripService {
     }
 
     // Add shared mobility details for RENTAL legs
-    if (leg.mode === 'RENTAL' && (leg.rentalProvider || leg.rentalStationName)) {
+    if (leg.mode === 'RENTAL') {
       segment.details = {
         sharedMobilityDetails: {
           provider: leg.rentalProvider || 'Unknown',
           stationName: leg.rentalStationName,
+          toStationName: (leg as any).rentalToStationName,
           vehicleType: this.mapRentalFormFactor(leg.rentalFormFactor),
+          propulsionType: this.mapPropulsionType((leg as any).rentalPropulsionType),
           stationId: leg.rentalStationId,
+          unlockUri: (leg as any).rentalUri,
         },
       }
     }
 
     return segment
+  }
+
+  private mapPropulsionType(prop?: string): 'human' | 'electric_assist' | 'electric' | undefined {
+    switch (prop) {
+      case 'HUMAN': return 'human'
+      case 'ELECTRIC_ASSIST': return 'electric_assist'
+      case 'ELECTRIC': return 'electric'
+      default: return undefined
+    }
   }
 
   private mapIntermodalStreetMode(motisMode: string): Mode {

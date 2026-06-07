@@ -60,28 +60,31 @@ export class TripService {
       ? new Set(['driving', 'biking'] as Mode[])
       : new Set()
 
-    for (const mode of modes) {
-      // Skip direct vehicle trips when parking is enabled — the parking-
-      // aware planner below handles these modes instead.
-      if (parkingVehicleModes.has(mode)) continue
-
-      try {
-        if (mode === 'transit') {
-          const useIntermodal = process.env.MOTIS_INTERMODAL_ENABLED === 'true'
-          const trips = useIntermodal
-            ? await this.planIntermodalTransitTrips(request, dataSources)
-            : await this.planTransitTrips(request, dataSources)
-          candidates.push(...trips)
-        } else if (mode === 'rideshare') {
-          const trips = await this.planRideshareTrips(request, dataSources)
-          candidates.push(...trips)
-        } else {
-          const trip = await this.planModeTrip(request, mode, dataSources)
-          if (trip) candidates.push(trip)
+    // Plan all modes in parallel — each mode query is independent
+    const modePromises = modes
+      .filter(mode => !parkingVehicleModes.has(mode))
+      .map(async (mode): Promise<TripResponse[]> => {
+        try {
+          if (mode === 'transit') {
+            const useIntermodal = process.env.MOTIS_INTERMODAL_ENABLED === 'true'
+            return useIntermodal
+              ? await this.planIntermodalTransitTrips(request, dataSources)
+              : await this.planTransitTrips(request, dataSources)
+          } else if (mode === 'rideshare') {
+            return await this.planRideshareTrips(request, dataSources)
+          } else {
+            const trip = await this.planModeTrip(request, mode, dataSources)
+            return trip ? [trip] : []
+          }
+        } catch (error) {
+          console.error(`Failed to plan ${mode} trip:`, error)
+          return []
         }
-      } catch (error) {
-        console.error(`Failed to plan ${mode} trip:`, error)
-      }
+      })
+
+    const modeResults = await Promise.all(modePromises)
+    for (const trips of modeResults) {
+      candidates.push(...trips)
     }
 
     // ── Parking-aware candidates ───────────────────────────────────────
@@ -1558,12 +1561,18 @@ export class TripService {
     const from = request.waypoints[0]
     const to = request.waypoints[request.waypoints.length - 1]
 
+    // Skip transit for very short trips — MOTIS exhaustively searches
+    // transit options even when walking is clearly faster, causing
+    // multi-second delays for trips under ~1.5km.
+    const dist = TripService.haversineDistance(from.location, to.location)
+    if (dist < 1500) return []
+
     const baseRequest = {
       from: from.location,
       to: to.location,
       time: startTime,
       arriveBy: false,
-      numItineraries: 5,
+      numItineraries: 3,
       transitModes: preferences?.transitModes,
       maxTransfers: preferences?.maxTransfers,
       wheelchair: preferences?.wheelchairAccessible,
@@ -1572,13 +1581,13 @@ export class TripService {
     const queries: Promise<TripResponse[]>[] = []
 
     // Query 1 (always): WALK access/egress + RENTAL (bikeshare/scooter)
+    // Skip directModes — GraphHopper already computes walk/bike/drive in parallel
     queries.push(
       this.executeIntermodalQuery(
         {
           ...baseRequest,
           preTransitModes: ['WALK'],
           postTransitModes: ['WALK', 'RENTAL'],
-          directModes: ['WALK'],
           maxPreTransitTime: preferences?.maxWalkingDistance
             ? Math.round(preferences.maxWalkingDistance / 1.4)
             : undefined,
@@ -1601,7 +1610,6 @@ export class TripService {
             from: carFrom,
             preTransitModes: ['CAR_PARKING'],
             postTransitModes: ['WALK'],
-            directModes: ['CAR'],
           },
           from, to, startTime, dataSources,
         ),
@@ -1623,7 +1631,6 @@ export class TripService {
             from: bikeFrom,
             preTransitModes: ['BIKE'],
             postTransitModes: ['WALK'],
-            directModes: ['BIKE'],
             maxPreTransitTime: 1800,
           },
           from, to, startTime, dataSources,
@@ -1631,7 +1638,6 @@ export class TripService {
       )
     }
 
-    // Execute all queries in parallel
     const results = await Promise.all(queries)
     const allTrips = results.flat()
 

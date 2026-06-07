@@ -213,17 +213,20 @@ export interface CurrencyAmount {
 }
 
 export interface SegmentDetails {
-  // Transit-specific details
   transitDetails?: TransitDetails
-
-  // Rideshare-specific details
   rideshareDetails?: RideshareDetails
-
-  // Vehicle-specific details
   vehicleDetails?: VehicleDetails
-
-  // Multimodal-specific details (for walking → vehicle trips)
+  sharedMobilityDetails?: SharedMobilityDetails
   multimodalSegments?: TripSegment[]
+}
+
+export interface SharedMobilityDetails {
+  provider: string
+  stationName?: string
+  vehicleType: 'bike' | 'ebike' | 'scooter' | 'car' | 'moped' | 'other'
+  stationId?: string
+  availableVehicles?: number
+  availableDocks?: number
 }
 
 export interface TransitDetails {

@@ -20,6 +20,7 @@ import {
   TransitRouteType,
   TransitAccessConfig,
   TransitEgressConfig,
+  SharedMobilityDetails,
   TripWarning,
   TripScore,
 } from '../types/trip.types'
@@ -66,7 +67,10 @@ export class TripService {
 
       try {
         if (mode === 'transit') {
-          const trips = await this.planTransitTrips(request, dataSources)
+          const useIntermodal = process.env.MOTIS_INTERMODAL_ENABLED === 'true'
+          const trips = useIntermodal
+            ? await this.planIntermodalTransitTrips(request, dataSources)
+            : await this.planTransitTrips(request, dataSources)
           candidates.push(...trips)
         } else if (mode === 'rideshare') {
           const trips = await this.planRideshareTrips(request, dataSources)
@@ -1532,7 +1536,319 @@ export class TripService {
     return trips
   }
 
-  // ── Transit planning ──────────────────────────────────────────────
+  // ── Intermodal transit planning (MOTIS unified graph) ─────────────
+
+  /**
+   * Plan transit trips using MOTIS intermodal routing.
+   *
+   * Instead of manually enumerating 14+ access/egress mode combinations
+   * and querying MOTIS separately for each, this sends 1-3 MOTIS queries
+   * that handle walk/bike/car/bikeshare access/egress natively within
+   * the unified graph (OSM + GTFS + GBFS).
+   *
+   * Rideshare combinations (3.8-3.12) are still handled by the existing
+   * manual composition since rideshare isn't a MOTIS-routable mode.
+   */
+  private async planIntermodalTransitTrips(
+    request: TripRequest,
+    dataSources: DataSource[],
+  ): Promise<TripResponse[]> {
+    const preferences = request.routingPreferences || {}
+    const startTime = request.preferredDepartureTime || new Date().toISOString()
+    const from = request.waypoints[0]
+    const to = request.waypoints[request.waypoints.length - 1]
+
+    const baseRequest = {
+      from: from.location,
+      to: to.location,
+      time: startTime,
+      arriveBy: false,
+      numItineraries: 5,
+      transitModes: preferences?.transitModes,
+      maxTransfers: preferences?.maxTransfers,
+      wheelchair: preferences?.wheelchairAccessible,
+    }
+
+    const queries: Promise<TripResponse[]>[] = []
+
+    // Query 1 (always): WALK access/egress + RENTAL (bikeshare/scooter)
+    queries.push(
+      this.executeIntermodalQuery(
+        {
+          ...baseRequest,
+          preTransitModes: ['WALK'],
+          postTransitModes: ['WALK', 'RENTAL'],
+          directModes: ['WALK'],
+          maxPreTransitTime: preferences?.maxWalkingDistance
+            ? Math.round(preferences.maxWalkingDistance / 1.4)
+            : undefined,
+        },
+        from, to, startTime, dataSources,
+      ),
+    )
+
+    // Query 2 (if car available): CAR_PARKING access (park-and-ride)
+    const availableVehicles = request.availableVehicles || []
+    const car = availableVehicles.find(v => v.type === 'car')
+    if (car) {
+      const carFrom = car.location
+        ? { lat: car.location.lat, lng: car.location.lng }
+        : from.location
+      queries.push(
+        this.executeIntermodalQuery(
+          {
+            ...baseRequest,
+            from: carFrom,
+            preTransitModes: ['CAR_PARKING'],
+            postTransitModes: ['WALK'],
+            directModes: ['CAR'],
+          },
+          from, to, startTime, dataSources,
+        ),
+      )
+    }
+
+    // Query 3 (if bike available): BIKE access
+    const bike = availableVehicles.find(v =>
+      ['bike', 'e-bike', 'scooter', 'e-scooter'].includes(v.type),
+    )
+    if (bike) {
+      const bikeFrom = bike.location
+        ? { lat: bike.location.lat, lng: bike.location.lng }
+        : from.location
+      queries.push(
+        this.executeIntermodalQuery(
+          {
+            ...baseRequest,
+            from: bikeFrom,
+            preTransitModes: ['BIKE'],
+            postTransitModes: ['WALK'],
+            directModes: ['BIKE'],
+            maxPreTransitTime: 1800,
+          },
+          from, to, startTime, dataSources,
+        ),
+      )
+    }
+
+    // Execute all queries in parallel
+    const results = await Promise.all(queries)
+    const allTrips = results.flat()
+
+    // Rideshare + transit combos still use manual composition
+    try {
+      const rideshareTrips = await this.planRideshareTransitCombos(
+        request, dataSources, startTime,
+      )
+      allTrips.push(...rideshareTrips)
+    } catch {
+      // Rideshare failures are non-fatal
+    }
+
+    return allTrips
+  }
+
+  private async executeIntermodalQuery(
+    request: import('../types/integration.types').IntermodalRouteRequest,
+    from: Waypoint,
+    to: Waypoint,
+    startTime: string,
+    dataSources: DataSource[],
+  ): Promise<TripResponse[]> {
+    try {
+      const response = await transitRoutingService.getIntermodalRoute(request)
+      if (!response.itineraries?.length) return []
+
+      return response.itineraries
+        .map(itinerary => this.adaptIntermodalItinerary(itinerary, from, to, startTime, dataSources))
+        .filter((t): t is TripResponse => t !== null)
+    } catch (error) {
+      console.error('Intermodal query failed:', error)
+      return []
+    }
+  }
+
+  /**
+   * Adapt a MOTIS intermodal itinerary into a TripResponse.
+   *
+   * MOTIS intermodal legs include real OSM geometry for walk/bike/car
+   * segments, so we don't need to replace them with GraphHopper routes.
+   */
+  private adaptIntermodalItinerary(
+    itinerary: import('../types/integration.types').TransitItinerary,
+    from: Waypoint,
+    to: Waypoint,
+    startTime: string,
+    dataSources: DataSource[],
+  ): TripResponse | null {
+    const segments: TripSegment[] = []
+
+    for (const leg of itinerary.legs) {
+      const segment = this.adaptIntermodalLeg(leg)
+      if (segment) segments.push(segment)
+    }
+
+    if (segments.length === 0) return null
+
+    segments.forEach((seg, idx) => {
+      seg.segmentIndex = idx
+      seg.legIndex = 0
+    })
+
+    const tripStats = this.calculateStats(segments)
+
+    if (itinerary.fare) {
+      tripStats.totalCost = {
+        value: itinerary.fare.amount,
+        currency: itinerary.fare.currency,
+      }
+    }
+
+    return {
+      segments,
+      tripStats,
+      earliestStartTime: segments[0]?.startTime || startTime,
+      latestEndTime: segments[segments.length - 1]?.endTime || startTime,
+      dataSources,
+      requestId: undefined,
+      generatedAt: new Date().toISOString(),
+    }
+  }
+
+  private adaptIntermodalLeg(
+    leg: import('../types/integration.types').TransitLeg,
+  ): TripSegment | null {
+    let geometry: any = null
+    if (leg.geometry?.coordinates) {
+      geometry = leg.geometry.coordinates.map(
+        ([lng, lat]: [number, number]) => ({ lat, lng }),
+      )
+    }
+
+    const distance = leg.distance > 0
+      ? leg.distance
+      : TripService.computeDistanceFromGeometry(geometry)
+
+    // Transit legs use the existing buildTransitSegment pattern
+    if (leg.transitLeg) {
+      return this.buildTransitSegment(leg, { location: { lat: leg.from.lat, lng: leg.from.lng }, type: 'via' } as Waypoint, { location: { lat: leg.to.lat, lng: leg.to.lng }, type: 'via' } as Waypoint, leg.startTime)
+    }
+
+    // Street-mode legs (WALK, BIKE, CAR, CAR_PARKING, RENTAL)
+    const mode = this.mapIntermodalStreetMode(leg.mode)
+    const ownership = leg.mode === 'RENTAL' ? 'shared' as const : undefined
+
+    const segment: TripSegment = {
+      segmentIndex: 0,
+      mode,
+      ownership,
+      start: {
+        location: { lat: leg.from.lat, lng: leg.from.lng },
+        type: 'via',
+        label: leg.from.name || undefined,
+      },
+      end: {
+        location: { lat: leg.to.lat, lng: leg.to.lng },
+        type: 'via',
+        label: leg.to.name || undefined,
+      },
+      startTime: leg.startTime,
+      endTime: leg.endTime,
+      duration: leg.duration,
+      distance,
+      geometry,
+      instructions: [],
+      co2: distance * (TripService.CO2_PER_METER[mode] ?? 0),
+    }
+
+    // Add shared mobility details for RENTAL legs
+    if (leg.mode === 'RENTAL' && (leg.rentalProvider || leg.rentalStationName)) {
+      segment.details = {
+        sharedMobilityDetails: {
+          provider: leg.rentalProvider || 'Unknown',
+          stationName: leg.rentalStationName,
+          vehicleType: this.mapRentalFormFactor(leg.rentalFormFactor),
+          stationId: leg.rentalStationId,
+        },
+      }
+    }
+
+    return segment
+  }
+
+  private mapIntermodalStreetMode(motisMode: string): Mode {
+    switch (motisMode) {
+      case 'WALK': return 'walking'
+      case 'BIKE': case 'BICYCLE': return 'biking'
+      case 'CAR': case 'CAR_PARKING': case 'CAR_DROPOFF': return 'driving'
+      case 'RENTAL': return 'biking'
+      default: return 'walking'
+    }
+  }
+
+  private mapRentalFormFactor(formFactor?: string): SharedMobilityDetails['vehicleType'] {
+    switch (formFactor) {
+      case 'BICYCLE': case 'CARGO_BICYCLE': return 'bike'
+      case 'SCOOTER_STANDING': case 'SCOOTER_SEATED': return 'scooter'
+      case 'CAR': return 'car'
+      case 'MOPED': return 'moped'
+      default: return 'bike'
+    }
+  }
+
+  /**
+   * Extract rideshare + transit combinations from existing patterns.
+   * These can't be handled by MOTIS since rideshare isn't a routable mode.
+   */
+  private async planRideshareTransitCombos(
+    request: TripRequest,
+    dataSources: DataSource[],
+    startTime: string,
+  ): Promise<TripResponse[]> {
+    const from = request.waypoints[0]
+    const to = request.waypoints[request.waypoints.length - 1]
+    const preferences = request.routingPreferences || {}
+
+    // Only attempt if rideshare is configured
+    if (!rideshareService.isAvailable()) return []
+
+    const transitResponse = await transitRoutingService.getTransitRoute({
+      from: from.location,
+      to: to.location,
+      time: startTime,
+      numItineraries: 3,
+      transitModes: preferences?.transitModes,
+      maxTransfers: preferences?.maxTransfers,
+    })
+
+    if (!transitResponse.itineraries?.length) return []
+
+    const bestItinerary = transitResponse.itineraries[0]
+    const compositionPromises: Promise<TripResponse | null>[] = []
+
+    // 3.8: rideshare → transit → walk
+    compositionPromises.push(
+      this.composeTransitWithAccessAndEgress(
+        bestItinerary, from, to, startTime, preferences,
+        { mode: 'rideshare' },
+        { mode: 'walking' },
+      ).catch(() => null),
+    )
+
+    // 3.9: walk → transit → rideshare
+    compositionPromises.push(
+      this.composeTransitWithAccessAndEgress(
+        bestItinerary, from, to, startTime, preferences,
+        { mode: 'walking' },
+        { mode: 'rideshare' },
+      ).catch(() => null),
+    )
+
+    const results = await Promise.all(compositionPromises)
+    return results.filter((r): r is TripResponse => r !== null)
+  }
+
+  // ── Transit planning (legacy federated approach) ─────────────────
 
   private async planTransitTrips(
     request: TripRequest,

@@ -839,6 +839,29 @@ function hasSegmentRouteInfo(segment: any): boolean {
                 </div>
               </div>
 
+              <!-- Shared mobility station info -->
+              <div
+                v-if="entry.segment.sharedMobilityDetails"
+                class="mt-2 rounded-lg border bg-teal-50 dark:bg-teal-900/20 p-3 space-y-1.5"
+              >
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div v-if="entry.segment.sharedMobilityDetails.stationName" class="text-sm font-medium">
+                      {{ entry.segment.sharedMobilityDetails.stationName }}
+                    </div>
+                    <div class="text-xs text-muted-foreground">
+                      {{ entry.segment.sharedMobilityDetails.provider }}
+                    </div>
+                  </div>
+                  <div
+                    v-if="entry.segment.sharedMobilityDetails.availableVehicles != null"
+                    class="text-xs text-teal-700 dark:text-teal-300 font-medium"
+                  >
+                    {{ entry.segment.sharedMobilityDetails.availableVehicles }} available
+                  </div>
+                </div>
+              </div>
+
               <!-- Route info card -->
               <div
                 v-if="hasSegmentRouteInfo(entry.segment)"

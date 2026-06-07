@@ -237,6 +237,7 @@ function directionsService() {
       ownership: seg.ownership ?? 'personal',
       carryingVehicle: seg.carryingVehicle ?? false,
       rideshareDetails: seg.details?.rideshareDetails ?? null,
+      sharedMobilityDetails: seg.details?.sharedMobilityDetails ?? null,
       ...extractTransitFields(seg),
     }
   }

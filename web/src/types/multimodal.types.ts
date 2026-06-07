@@ -230,6 +230,16 @@ export interface SegmentDetails {
   transitDetails?: TransitDetails
   rideshareDetails?: RideshareDetails
   vehicleDetails?: VehicleDetails
+  sharedMobilityDetails?: SharedMobilityDetails
+}
+
+export interface SharedMobilityDetails {
+  provider: string
+  stationName?: string
+  vehicleType: 'bike' | 'ebike' | 'scooter' | 'car' | 'moped' | 'other'
+  stationId?: string
+  availableVehicles?: number
+  availableDocks?: number
 }
 
 export interface TransitDetails {

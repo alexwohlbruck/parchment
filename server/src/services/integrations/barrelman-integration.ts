@@ -14,6 +14,7 @@ import type {
   RoutingCapability,
   TransitRoutingCapability,
   TransitRouteRequest,
+  IntermodalRouteRequest,
   TransitRouteResponse,
   NearbyStopsRequest,
   NearbyStopResult,
@@ -185,6 +186,7 @@ export class BarrelmanIntegration
     } as RoutingCapability,
     transitRouting: {
       getTransitRoute: this.getTransitRoute.bind(this),
+      getIntermodalRoute: this.getIntermodalRoute.bind(this),
       getNearbyStops: this.getNearbyStops.bind(this),
       getRoutesForStop: this.getRoutesForStop.bind(this),
     } as TransitRoutingCapability,
@@ -813,6 +815,32 @@ export class BarrelmanIntegration
       }
       throw new Error(
         `Transit routing error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      )
+    }
+  }
+
+  private async getIntermodalRoute(request: IntermodalRouteRequest): Promise<TransitRouteResponse> {
+    const { host, apiKey } = this.config
+    if (!apiKey) throw new Error('Barrelman API key not configured')
+
+    try {
+      const response = await axios.post(
+        `${host}/transit/intermodal-route`,
+        request,
+        {
+          headers: this.headers,
+          timeout: 30_000,
+        },
+      )
+      return response.data
+    } catch (error: any) {
+      if (error.response) {
+        const status = error.response.status
+        const detail = error.response.data?.error ?? error.response.statusText
+        throw new Error(`Intermodal routing error (${status}): ${detail}`)
+      }
+      throw new Error(
+        `Intermodal routing error: ${error instanceof Error ? error.message : 'Unknown error'}`,
       )
     }
   }

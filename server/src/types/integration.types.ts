@@ -223,6 +223,7 @@ export interface TransitDataCapability {
  */
 export interface TransitRoutingCapability {
   getTransitRoute(request: TransitRouteRequest): Promise<TransitRouteResponse>
+  getIntermodalRoute?(request: IntermodalRouteRequest): Promise<TransitRouteResponse>
   getNearbyStops(request: NearbyStopsRequest): Promise<NearbyStopResult[]>
   getRoutesForStop(feedId: string, stopId: string): Promise<StopRouteResult[]>
 }
@@ -240,6 +241,22 @@ export interface TransitRouteRequest {
   maxWalkDistance?: number
   maxTransfers?: number
   wheelchair?: boolean
+}
+
+export interface IntermodalRouteRequest extends TransitRouteRequest {
+  /** Modes for first mile (coordinate → first transit stop). Default: ['WALK'] */
+  preTransitModes?: string[]
+  /** Modes for last mile (last transit stop → coordinate). Default: ['WALK'] */
+  postTransitModes?: string[]
+  /** Direct (non-transit) modes to also compute. Default: ['WALK'] */
+  directModes?: string[]
+  /** Max first-mile time in seconds (default 900) */
+  maxPreTransitTime?: number
+  /** Max last-mile time in seconds (default 900) */
+  maxPostTransitTime?: number
+  /** Filter rental vehicles to specific form factors (BICYCLE, SCOOTER_STANDING, etc.) */
+  preTransitRentalFormFactors?: string[]
+  postTransitRentalFormFactors?: string[]
 }
 
 export interface TransitRouteResponse {
@@ -288,6 +305,13 @@ export interface TransitLeg {
   headsign?: string
   routeId?: string
   intermediateStops?: TransitLegPlace[]
+  realTime?: boolean
+  departureDelay?: number
+  arrivalDelay?: number
+  rentalProvider?: string
+  rentalStationName?: string
+  rentalFormFactor?: string
+  rentalStationId?: string
 }
 
 export interface TransitLegPlace {

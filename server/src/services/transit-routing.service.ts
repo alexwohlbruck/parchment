@@ -1,6 +1,7 @@
 import {
   IntegrationCapabilityId,
   type TransitRouteRequest,
+  type IntermodalRouteRequest,
   type TransitRouteResponse,
   type NearbyStopsRequest,
   type NearbyStopResult,
@@ -29,6 +30,22 @@ export class TransitRoutingService {
     request: TransitRouteRequest,
   ): Promise<TransitRouteResponse> {
     const capability = this.getTransitRoutingCapability()
+    return capability.getTransitRoute(request)
+  }
+
+  /**
+   * Intermodal routing with pre/post-transit mode selection.
+   *
+   * Requires MOTIS to have OSM street data loaded. Falls back to
+   * getTransitRoute() if the integration doesn't support intermodal.
+   */
+  async getIntermodalRoute(
+    request: IntermodalRouteRequest,
+  ): Promise<TransitRouteResponse> {
+    const capability = this.getTransitRoutingCapability()
+    if (capability.getIntermodalRoute) {
+      return capability.getIntermodalRoute(request)
+    }
     return capability.getTransitRoute(request)
   }
 

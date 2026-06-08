@@ -1567,12 +1567,19 @@ export class TripService {
     const dist = TripService.haversineDistance(from.location, to.location)
     if (dist < 1500) return []
 
+    // Scale search scope to trip distance — shorter trips need less
+    // walking radius, longer trips can afford more RAPTOR iterations
+    const maxWalkSec = preferences?.maxWalkingDistance
+      ? Math.round(preferences.maxWalkingDistance / 1.4)
+      : dist < 5000 ? 600 : 900
+
     const baseRequest = {
       from: from.location,
       to: to.location,
       time: startTime,
       arriveBy: false,
       numItineraries: 3,
+      searchWindow: dist < 5000 ? 1800 : 3600,
       transitModes: preferences?.transitModes,
       maxTransfers: preferences?.maxTransfers,
       wheelchair: preferences?.wheelchairAccessible,
@@ -1588,9 +1595,8 @@ export class TripService {
           ...baseRequest,
           preTransitModes: ['WALK'],
           postTransitModes: ['WALK', 'RENTAL'],
-          maxPreTransitTime: preferences?.maxWalkingDistance
-            ? Math.round(preferences.maxWalkingDistance / 1.4)
-            : undefined,
+          maxPreTransitTime: maxWalkSec,
+          maxPostTransitTime: maxWalkSec,
         },
         from, to, startTime, dataSources,
       ),

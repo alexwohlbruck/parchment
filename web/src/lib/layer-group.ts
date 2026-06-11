@@ -808,7 +808,8 @@ export class TripGroup extends MapLayerGroup {
   private _getSegmentColor(segment: TripSegment): string {
     const { mode, lineColor } = segment
     if (lineColor) {
-      return lineColor
+      // GTFS route colors often lack the '#' prefix — Mapbox silently ignores invalid colors
+      return lineColor.startsWith('#') ? lineColor : `#${lineColor}`
     }
 
     // Use the travel mode color constants to match the trip list UI
@@ -818,7 +819,7 @@ export class TripGroup extends MapLayerGroup {
   private _getSegmentCaseColor(segment: TripSegment): string {
     const { mode, lineColor } = segment
     if (lineColor) {
-      return lineColor
+      return lineColor.startsWith('#') ? lineColor : `#${lineColor}`
     }
 
     // Use the travel mode case color constants to match the trip list UI

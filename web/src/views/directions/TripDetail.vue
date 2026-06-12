@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { api } from '@/lib/api'
+import { applyDepartureChange } from '@/lib/trip-rebooking'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapService } from '@/services/map.service'
@@ -120,64 +121,75 @@ function departuresFor(segmentIndex: number): DepartureOption[] {
 }
 
 // ── Departure rebooking ──────────────────────────────────────────────
-// Choosing a later run shifts the whole request's departure time by the
-// same delta and re-plans — downstream connections recompute server-side.
-// When the refreshed results land, jump to the trip that boards the chosen
-// run (same line sequence, nearest boarding time).
+// Choosing a later run is pure schedule math on the existing plan — no
+// re-planning. The chosen leg moves to the chosen run; legs before it
+// either shift later (first boarding: leave home later) or keep their
+// schedule with the extra wait absorbed at the platform; legs after keep
+// their planned runs when the connection still holds, otherwise roll to
+// the next departure of the same line.
 const rebooking = ref(false)
 
-function chooseDeparture(segmentIndex: number, departureMs: number) {
+function asMs(v: string | Date): number {
+  return new Date(v).getTime()
+}
+
+/** Next run of this segment's line departing at/after minMs. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function nextDepartureAfter(seg: any, segmentIndex: number, minMs: number): Promise<number | null> {
+  const cached = departuresFor(segmentIndex).find((d) => d.ms >= minMs)
+  if (cached) return cached.ms
+  try {
+    const { data } = await api.get('/proxy/transit/departures', {
+      params: {
+        lat: seg.departureStop.location.lat,
+        lng: seg.departureStop.location.lng,
+        radius: 50,
+        n: 20,
+        time: new Date(minMs).toISOString(),
+      },
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const all: any[] = (Array.isArray(data) ? data : []).flatMap(
+      (s: { departures?: unknown[] }) => s.departures ?? [],
+    )
+    return (
+      all
+        .filter((d) => d.route?.shortName === seg.lineName && !d.cancelled)
+        .map((d) => new Date(d.departureTime).getTime())
+        .filter((m) => m >= minMs)
+        .sort((a, b) => a - b)[0] ?? null
+    )
+  } catch {
+    return null
+  }
+}
+
+async function chooseDeparture(segmentIndex: number, departureMs: number) {
   const t = trip.value
   if (!t || rebooking.value) return
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const segs = t.segments as any[]
-  const seg = segs[segmentIndex]
-  const boardMs = new Date(seg.startTime).getTime()
-  const delta = departureMs - boardMs
-  if (Math.abs(delta) < 30_000) return
-
-  const lineSignature = segs
-    .filter((s) => s.mode === 'transit')
-    .map((s) => s.lineName)
-    .join('>')
 
   rebooking.value = true
-  const stopWatch = watch(
-    () => directionsStore.trips,
-    (nt) => {
-      if (!nt) return
-      stopWatch()
-      rebooking.value = false
-      const candidates = nt.trips.filter(
-        (x) =>
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (x.segments as any[])
-            .filter((s) => s.mode === 'transit')
-            .map((s) => s.lineName)
-            .join('>') === lineSignature,
-      )
-      const best = candidates.sort((a, b) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const board = (x: typeof a) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const ts = (x.segments as any[]).filter((s) => s.mode === 'transit')
-          const target = ts[segs.slice(0, segmentIndex + 1).filter((s) => s.mode === 'transit').length - 1] ?? ts[0]
-          return Math.abs(new Date(target.startTime).getTime() - departureMs)
-        }
-        return board(a) - board(b)
-      })[0]
-      if (best) {
-        router.replace({ name: AppRoute.TRIP, params: { id: best.id } })
-      } else {
-        router.replace({ name: AppRoute.DIRECTIONS })
-      }
-    },
-  )
+  try {
+    const changed = await applyDepartureChange(
+      segs,
+      segmentIndex,
+      departureMs,
+      (i, minMs) => nextDepartureAfter(segs[i], i, minMs),
+    )
+    if (!changed) return
 
-  // Shift the request — the directions service watcher refetches.
-  directionsStore.departureTime = new Date(
-    new Date(t.startTime).getTime() + delta,
-  ).toISOString()
+    // Trip-level rollup
+    t.startTime = new Date(asMs(segs[0].startTime))
+    t.endTime = new Date(asMs(segs[segs.length - 1].endTime))
+    t.summary.totalDuration = (asMs(t.endTime) - asMs(t.startTime)) / 1000
+
+    // Refresh chips so the chosen run becomes the highlighted one
+    await loadDepartures()
+  } finally {
+    rebooking.value = false
+  }
 }
 
 /** Time actually in motion — a walk's duration minus the wait at the stop. */
@@ -208,9 +220,7 @@ watch(trip, loadDepartures, { immediate: true })
 watch(
   trip,
   newTrip => {
-    // During a departure rebooking the old trip id vanishes on purpose —
-    // chooseDeparture navigates to the replacement itself.
-    if (newTrip === null && !isLoading.value && !rebooking.value && directionsStore.trips) {
+    if (newTrip === null && !isLoading.value && directionsStore.trips) {
       router.push({ name: AppRoute.DIRECTIONS })
     }
   },
@@ -809,10 +819,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
             <template v-else-if="entry.kind === 'segment'">
               <!-- ── Transit segment card ── -->
               <div v-if="entry.segment.mode === 'transit' && entry.segment.lineName">
-                <div
-                  class="rounded-xl border bg-card overflow-hidden"
-                  :style="entry.segment.lineColor ? { borderLeft: `3px solid #${entry.segment.lineColor}` } : {}"
-                >
+                <div class="rounded-xl border bg-card overflow-hidden">
                   <!-- Line header — tinted with the line colour -->
                   <div
                     class="px-3 py-2 flex items-center gap-2"

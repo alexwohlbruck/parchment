@@ -1618,7 +1618,10 @@ export class TripService {
       to: to.location,
       time: arrivalTarget ?? startTime,
       arriveBy: arrivalTarget != null,
-      numItineraries: 3,
+      // Ask MOTIS for a spread of options — a dense network has several
+      // distinct routings; filterQualityTrips dedupes them by line signature
+      // and keeps the best handful.
+      numItineraries: 8,
       searchWindow: dist < 5000 ? 1800 : 3600,
       transitModes: preferences?.transitModes,
       maxTransfers: preferences?.maxTransfers,
@@ -2061,7 +2064,7 @@ export class TripService {
     dataSources: DataSource[],
     preferences?: any,
   ): Promise<TripResponse | null> {
-    const segments: TripSegment[] = []
+    let segments: TripSegment[] = []
 
     for (const leg of itinerary.legs) {
       const segment = this.adaptIntermodalLeg(leg)
@@ -2070,6 +2073,10 @@ export class TripService {
 
     if (segments.length === 0) return null
 
+    // Drop transit legs that walking beats, then enrich the (possibly
+    // merged) walks. Order matters: collapsing first lets enrich re-time
+    // the merged boundary/transfer walks correctly.
+    segments = this.collapseWalkableTransitLegs(segments)
     await this.enrichIntermodalWalks(segments, from, to, startTime, preferences)
 
     segments.forEach((seg, idx) => {
@@ -2095,6 +2102,79 @@ export class TripService {
       requestId: undefined,
       generatedAt: new Date().toISOString(),
     }
+  }
+
+  /** Only transit legs at most this long (in-vehicle seconds) are walk-checked. */
+  private static readonly COLLAPSE_MAX_RIDE_SEC = 360
+  /** Beyond this straight-line distance a leg is never walkable. */
+  private static readonly COLLAPSE_MAX_WALK_METERS = 1500
+  /**
+   * Time transit costs beyond the ride itself (waiting, boarding). A transit
+   * leg is only worth keeping if it beats walking by more than this — which
+   * is why a one-block bus you'd wait 5 min for loses to a 3-min walk.
+   */
+  private static readonly COLLAPSE_OVERHEAD_SEC = 240
+
+  /** Estimated street walking speed (m/s) incl. detour factor, for the
+   *  collapse decision only — real geometry comes from enrichment later. */
+  private static readonly WALK_ESTIMATE_MPS = 1.4 / 1.35
+
+  /**
+   * Replace transit legs that walking beats with a walk, then merge adjacent
+   * walks. General rule: a leg survives only if `rideTime + overhead < walkTime`,
+   * so a one-block bus you'd wait for loses to a short walk while a fast
+   * subway one-stop (far apart) is protected.
+   *
+   * The walk time is estimated from straight-line distance — cheap (no routing
+   * call) and good enough because the overhead margin absorbs the error. The
+   * resulting walks carry the MOTIS geometry as a placeholder;
+   * enrichIntermodalWalks re-routes and re-times them (a collapsed boundary
+   * leg becomes an access/egress walk, a collapsed mid leg a transfer walk —
+   * both already handled there).
+   */
+  private collapseWalkableTransitLegs(segments: TripSegment[]): TripSegment[] {
+    const collapsed = segments.map((seg) => {
+      if (seg.mode !== 'transit') return seg
+      if (seg.duration > TripService.COLLAPSE_MAX_RIDE_SEC) return seg
+      const crow = TripService.haversineDistance(
+        seg.start.location,
+        seg.end.location,
+      )
+      if (crow > TripService.COLLAPSE_MAX_WALK_METERS) return seg
+
+      const walkEst = crow / TripService.WALK_ESTIMATE_MPS
+      // Keep the transit leg only if it beats walking by the overhead.
+      if (walkEst > seg.duration + TripService.COLLAPSE_OVERHEAD_SEC) return seg
+
+      // Walk wins — replace with a walk (geometry refined by enrichment).
+      return {
+        ...seg,
+        mode: 'walking' as const,
+        vehicle: undefined,
+        cost: undefined,
+        details: undefined,
+        co2: 0,
+        distance: crow,
+        duration: walkEst,
+      } as TripSegment
+    })
+
+    // Merge runs of consecutive walking segments into one (start of first →
+    // end of last). enrichIntermodalWalks recomputes geometry/timing after.
+    const merged: TripSegment[] = []
+    for (const seg of collapsed) {
+      const prev = merged[merged.length - 1]
+      if (seg.mode === 'walking' && prev?.mode === 'walking') {
+        prev.end = seg.end
+        prev.endTime = seg.endTime
+        prev.distance += seg.distance
+        prev.duration =
+          (new Date(seg.endTime).getTime() - new Date(prev.startTime).getTime()) / 1000
+      } else {
+        merged.push(seg)
+      }
+    }
+    return merged
   }
 
   /** Transit modes that board inside a station (vs curbside/pier). */
@@ -2796,20 +2876,23 @@ export class TripService {
 
   // ── Quality filtering ────────────────────────────────────────────────────────
 
-  private static readonly MAX_TRIPS = 15
+  private static readonly MAX_TRIPS = 18
 
   /**
    * Filter to quality trips only. Keeps up to MAX_TRIPS, dropping trips that
    * are clearly worse than the best option in every meaningful way.
    *
-   * Rules applied in order:
+   * Rules:
    * 1. Quality floor — drop trips >4× the fastest AND >60 min
-   * 2. Per-mode cap — max MAX_PER_MODE trips of each mode for variety
-   *    (transit is capped by earliest arrival, not by score order)
-   * 3. Near-duplicate — drop same-mode trips within 5% duration
+   * 2. Transit — keep the best-ranked trip per distinct line signature
+   *    (e.g. "3", "2>F", "bike:A"), up to MAX_TRANSIT_OPTIONS. A dense
+   *    network has many real alternatives; show them rather than two.
+   * 3. Non-transit — max MAX_PER_MODE per mode + near-duplicate removal.
    */
   private static readonly QUALITY_FLOOR_SECONDS = 60 * 60 // 60 minutes
   private static readonly MAX_PER_MODE = 2
+  /** Distinct transit routings (by line signature) to surface. */
+  private static readonly MAX_TRANSIT_OPTIONS = 8
 
   private filterQualityTrips(
     sorted: Array<{ trip: TripResponse; score: TripScore; rank: number }>,
@@ -2821,44 +2904,20 @@ export class TripService {
       ...sorted.map((c) => c.trip.tripStats.totalDuration),
     )
 
-    // For transit variants, pre-select trips PER sub-type (walk+transit,
-    // bike+transit, car+transit count separately). In balanced mode the
-    // earliest arrivals win — users want the next departures. Under a named
-    // sort, `sorted` already reflects the chosen metric, so keep that order
-    // (otherwise e.g. "cheapest" could drop the cheapest transit option).
+    // Transit: keep the best-ranked trip per distinct line signature, so a
+    // dense network surfaces its many real alternatives (3 vs 4 vs A→D vs
+    // F…) instead of two near-identical departures. `sorted` is already in
+    // the active ranking order (balanced score, or the named sort), so the
+    // first trip seen for a signature is its best representative.
     const transitPreferred = new Set<typeof sorted[number]>()
-    const transitSubTypes = new Set(
-      sorted
-        .map((c) => this.getTripMode(c.trip))
-        .filter((m) => m.includes('transit')),
-    )
-    for (const subType of transitSubTypes) {
-      let subCandidates = sorted.filter(
-        (c) => this.getTripMode(c.trip) === subType,
-      )
-      if (!sortPreference) {
-        // Earliest arrival in 5-minute buckets; within a bucket the trip
-        // with fewer vehicle legs wins. Pure earliest-arrival kept
-        // surfacing three-vehicle relay chains that beat a simple
-        // one-seat ride by a minute or two.
-        const arrival = (c: typeof sorted[number]) =>
-          new Date(
-            c.trip.segments[c.trip.segments.length - 1]?.endTime || 0,
-          ).getTime()
-        const vehicleLegs = (c: typeof sorted[number]) =>
-          c.trip.segments.filter((s) => s.mode !== 'walking').length
-        subCandidates = [...subCandidates].sort((a, b) => {
-          const bucketA = Math.round(arrival(a) / 300_000)
-          const bucketB = Math.round(arrival(b) / 300_000)
-          if (bucketA !== bucketB) return bucketA - bucketB
-          const legDiff = vehicleLegs(a) - vehicleLegs(b)
-          if (legDiff !== 0) return legDiff
-          return arrival(a) - arrival(b)
-        })
-      }
-      for (const c of subCandidates.slice(0, TripService.MAX_PER_MODE)) {
-        transitPreferred.add(c)
-      }
+    const seenSignatures = new Set<string>()
+    for (const c of sorted) {
+      if (!this.getTripMode(c.trip).includes('transit')) continue
+      const sig = this.transitSignature(c.trip)
+      if (seenSignatures.has(sig)) continue
+      seenSignatures.add(sig)
+      transitPreferred.add(c)
+      if (transitPreferred.size >= TripService.MAX_TRANSIT_OPTIONS) break
     }
 
     // Pre-select the best trip per mode so we always show at least one
@@ -2892,22 +2951,23 @@ export class TripService {
         continue
       }
 
-      // Per-mode cap: ensure variety across modes.
-      // Transit sub-types use arrival-time ordering; other modes use score order.
-      const modeCount = modeCounts[mode] || 0
-      if (modeCount >= TripService.MAX_PER_MODE) continue
-      if (mode.includes('transit') && !transitPreferred.has(c)) continue
-
-      // Drop near-duplicates: same dominant mode, duration within 5%
-      const dominated = kept.some((k) => {
-        if (this.getTripMode(k.trip) !== mode) return false
-        const durRatio = dur / Math.max(k.trip.tripStats.totalDuration, 1)
-        return durRatio > 0.95 && durRatio < 1.05
-      })
-      if (dominated) continue
+      if (mode.includes('transit')) {
+        // Transit variety is governed by line-signature dedup above.
+        if (!transitPreferred.has(c)) continue
+      } else {
+        // Non-transit: cap per mode and drop near-duplicates (same mode,
+        // duration within 5%).
+        if ((modeCounts[mode] || 0) >= TripService.MAX_PER_MODE) continue
+        const dominated = kept.some((k) => {
+          if (this.getTripMode(k.trip) !== mode) return false
+          const durRatio = dur / Math.max(k.trip.tripStats.totalDuration, 1)
+          return durRatio > 0.95 && durRatio < 1.05
+        })
+        if (dominated) continue
+      }
 
       kept.push(c)
-      modeCounts[mode] = modeCount + 1
+      modeCounts[mode] = (modeCounts[mode] || 0) + 1
       if (kept.length >= TripService.MAX_TRIPS) break
     }
 
@@ -2950,6 +3010,25 @@ export class TripService {
       }
     }
     return best
+  }
+
+  /**
+   * A trip's distinct-routing key: the access mode (when not walking) plus
+   * the ordered transit line names — e.g. "3", "2>F", "bike:A". Two trips
+   * with the same signature are the same "way" (different departures); the
+   * filter keeps only the best-ranked one.
+   */
+  private transitSignature(trip: TripResponse): string {
+    const lines = trip.segments
+      .filter((s) => s.mode === 'transit')
+      .map((s) => {
+        const td = s.details?.transitDetails
+        return td?.shortName || td?.route?.shortName || td?.route?.id || '?'
+      })
+    const access = trip.segments.find(
+      (s) => s.mode !== 'walking' && s.mode !== 'transit',
+    )?.mode
+    return (access ? `${access}:` : '') + lines.join('>')
   }
 
   // ── Trip scoring ─────────────────────────────────────────────────────────────

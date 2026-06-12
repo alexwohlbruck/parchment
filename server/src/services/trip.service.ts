@@ -62,15 +62,6 @@ export class TripService {
             return await this.planIntermodalTransitTrips(request, dataSources)
           } else if (mode === 'rideshare') {
             return await this.planRideshareTrips(request, dataSources)
-          } else if (mode === 'biking') {
-            // Cycling covers two distinct strategies: your own bike
-            // (GraphHopper) and a shared bike/scooter you fetch from a dock
-            // (MOTIS RENTAL). Both belong in the cycling and multi profiles.
-            const [personal, shared] = await Promise.all([
-              this.planModeTrip(request, mode, dataSources),
-              this.planSharedVehicleTrips(request, dataSources),
-            ])
-            return [...(personal ? [personal] : []), ...shared]
           } else {
             const trip = await this.planModeTrip(request, mode, dataSources)
             return trip ? [trip] : []
@@ -80,6 +71,18 @@ export class TripService {
           return []
         }
       })
+
+    // Shared bike/scooter rides run whenever cycling is in scope — a docked
+    // rental is a cycling strategy, and unlike a personal bike it needs no
+    // parking, so this is independent of the parking-aware swap above.
+    if (modes.includes('biking')) {
+      modePromises.push(
+        this.planSharedVehicleTrips(request, dataSources).catch((error) => {
+          console.error('Shared vehicle planning failed:', error)
+          return []
+        }),
+      )
+    }
 
     const modeResults = await Promise.all(modePromises)
     for (const trips of modeResults) {

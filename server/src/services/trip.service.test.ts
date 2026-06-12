@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test'
+import { describe, test, expect, mock, beforeEach, spyOn } from 'bun:test'
 
 // ── Mock dependencies before imports ─────────────────────────────────────────
 
@@ -250,6 +250,25 @@ describe('TripService — mode generation', () => {
   test('default mode (undefined) does not include transit', () => {
     const modes = (tripService as any).getModesToGenerate(undefined)
     expect(modes).not.toContain('transit')
+  })
+
+  test('shared rides are planned even when parking-aware routing is on', async () => {
+    // Regression: useKnownParkingLocations swaps biking out of the mode loop
+    // for the parking-aware variant, which used to silently skip the shared
+    // bike/scooter query — a docked rental needs no parking.
+    const spy = spyOn(tripService as any, 'planSharedVehicleTrips')
+      .mockResolvedValue([])
+    try {
+      await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'multi',
+        routingPreferences: { useKnownParkingLocations: true } as any,
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+      expect(spy).toHaveBeenCalled()
+    } finally {
+      spy.mockRestore()
+    }
   })
 })
 

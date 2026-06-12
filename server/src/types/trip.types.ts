@@ -439,32 +439,6 @@ export interface EnergyState {
 }
 
 // =============================================================================
-// TRANSIT ACCESS / EGRESS COMPOSITION
-// =============================================================================
-
-/** How to reach the first transit boarding stop. */
-export interface TransitAccessConfig {
-  mode: 'walking' | 'biking' | 'driving' | 'rideshare'
-  /** Vehicle used for this leg (bike/car). Null for walking/rideshare. */
-  vehicle?: Vehicle
-  /** Where the vehicle is parked. Null for walking. */
-  vehicleLocation?: Coordinate
-  /** If true, search for parking near the boarding stop (park-and-ride). */
-  searchParking?: boolean
-  /** If true, the vehicle is carried on transit (bike carry-on). */
-  carryOnTransit?: boolean
-}
-
-/** How to get from the last alighting stop to the destination. */
-export interface TransitEgressConfig {
-  mode: 'walking' | 'biking' | 'driving' | 'shared-bike' | 'shared-scooter' | 'rideshare'
-  /** Vehicle used for egress (only for personal vehicles carried on transit). */
-  vehicle?: Vehicle
-  /** If true, search for shared mobility stations near alighting stop. */
-  searchSharedMobility?: boolean
-}
-
-// =============================================================================
 // TRIP SCORING AND FILTERING
 // =============================================================================
 

@@ -40,9 +40,16 @@ const mockGetTransitRoute = mock(async () => ({
   itineraries: [],
   metadata: { searchWindow: 3600 },
 }))
+const mockGetIntermodalRoute = mock(async () => ({
+  itineraries: [],
+  metadata: { searchWindow: 3600 },
+}))
 
 mock.module('./transit-routing.service', () => ({
-  transitRoutingService: { getTransitRoute: mockGetTransitRoute },
+  transitRoutingService: {
+    getTransitRoute: mockGetTransitRoute,
+    getIntermodalRoute: mockGetIntermodalRoute,
+  },
 }))
 
 // Mock search service — used for parking lookup
@@ -199,9 +206,15 @@ let tripService: InstanceType<typeof TripService>
 beforeEach(() => {
   mockGetRoute.mockReset()
   mockGetTransitRoute.mockReset()
+  mockGetIntermodalRoute.mockReset()
   mockSearchByCategory.mockReset()
   tripService = new TripService()
 
+  // Default transit mock — no itineraries (tests opt in)
+  mockGetIntermodalRoute.mockImplementation(async () => ({
+    itineraries: [],
+    metadata: { searchWindow: 3600 },
+  }))
   // Default routing mock — returns a basic walking route
   mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 360))
   // Default parking search — no results (parking feature is opt-in)
@@ -236,227 +249,6 @@ describe('TripService — mode generation', () => {
   })
 })
 
-describe('TripService — planTransitSegment', () => {
-  test('returns null when no itineraries found', async () => {
-    mockGetTransitRoute.mockImplementation(async () => ({
-      itineraries: [],
-      metadata: { searchWindow: 3600 },
-    }))
-
-    const result = await (tripService as any).planTransitSegment(
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      {
-        currentTime: '2026-01-15T08:00:00Z',
-        currentLocation: CHARLOTTE_ORIGIN.location,
-        currentMode: 'transit',
-        parkedVehicles: [],
-      },
-    )
-
-    expect(result).toBeNull()
-  })
-
-  test('composes walk → transit → walk segments', async () => {
-    const itinerary = makeTransitItinerary()
-    mockGetTransitRoute.mockImplementation(async () => ({
-      itineraries: [itinerary],
-      metadata: { searchWindow: 3600 },
-    }))
-
-    const result = await (tripService as any).planTransitSegment(
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      {
-        currentTime: '2026-01-15T08:00:00Z',
-        currentLocation: CHARLOTTE_ORIGIN.location,
-        currentMode: 'transit',
-        parkedVehicles: [],
-      },
-    )
-
-    expect(result).not.toBeNull()
-    expect(result.multimodalSegments).toBeArray()
-    // Three segments: walk → transit → walk
-    expect(result.multimodalSegments.length).toBe(3)
-
-    const [walk1, transit, walk2] = result.multimodalSegments
-    expect(walk1.mode).toBe('walking')
-    expect(transit.mode).toBe('transit')
-    expect(walk2.mode).toBe('walking')
-  })
-
-  test('transit segment has correct TransitDetails', async () => {
-    const itinerary = makeTransitItinerary()
-    mockGetTransitRoute.mockImplementation(async () => ({
-      itineraries: [itinerary],
-      metadata: { searchWindow: 3600 },
-    }))
-
-    const result = await (tripService as any).planTransitSegment(
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      {
-        currentTime: '2026-01-15T08:00:00Z',
-        currentLocation: CHARLOTTE_ORIGIN.location,
-        currentMode: 'transit',
-        parkedVehicles: [],
-      },
-    )
-
-    const transitSeg = result.multimodalSegments.find(
-      (s: any) => s.mode === 'transit',
-    )
-    expect(transitSeg).toBeDefined()
-    const details = transitSeg.details?.transitDetails
-    expect(details).toBeDefined()
-    expect(details.route.shortName).toBe('9X')
-    expect(details.route.longName).toBe('Express Downtown')
-    expect(details.route.color).toBe('0000FF')
-    expect(details.route.agency.name).toBe('Charlotte CATS')
-    expect(details.trip.headsign).toBe('NoDa')
-    expect(details.headsign).toBe('NoDa')
-    expect(details.departureStop.name).toBe('Stop A')
-    expect(details.arrivalStop.name).toBe('Stop B')
-  })
-
-  test('transit segment includes intermediate stops', async () => {
-    const itinerary = makeTransitItinerary()
-    mockGetTransitRoute.mockImplementation(async () => ({
-      itineraries: [itinerary],
-      metadata: { searchWindow: 3600 },
-    }))
-
-    const result = await (tripService as any).planTransitSegment(
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      {
-        currentTime: '2026-01-15T08:00:00Z',
-        currentLocation: CHARLOTTE_ORIGIN.location,
-        currentMode: 'transit',
-        parkedVehicles: [],
-      },
-    )
-
-    const transitSeg = result.multimodalSegments.find(
-      (s: any) => s.mode === 'transit',
-    )
-    const details = transitSeg.details?.transitDetails
-    // stops = [departure, ...intermediate, arrival]
-    expect(details.stops.length).toBe(3)
-    expect(details.stops[1].name).toBe('Mid Stop')
-    expect(details.stops[1].stopSequence).toBe(1)
-  })
-
-  test('updates segment state with final time and location', async () => {
-    const itinerary = makeTransitItinerary()
-    mockGetTransitRoute.mockImplementation(async () => ({
-      itineraries: [itinerary],
-      metadata: { searchWindow: 3600 },
-    }))
-
-    const result = await (tripService as any).planTransitSegment(
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      {
-        currentTime: '2026-01-15T08:00:00Z',
-        currentLocation: CHARLOTTE_ORIGIN.location,
-        currentMode: 'transit',
-        parkedVehicles: [],
-      },
-    )
-
-    expect(result.state.currentMode).toBe('transit')
-    expect(result.state.currentLocation).toEqual(CHARLOTTE_DEST.location)
-  })
-
-  test('passes transit preferences to MOTIS request', async () => {
-    mockGetTransitRoute.mockImplementation(async () => ({
-      itineraries: [],
-      metadata: { searchWindow: 3600 },
-    }))
-
-    await (tripService as any).planTransitSegment(
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      {
-        currentTime: '2026-01-15T08:00:00Z',
-        currentLocation: CHARLOTTE_ORIGIN.location,
-        currentMode: 'transit',
-        parkedVehicles: [],
-      },
-      {
-        transitModes: ['BUS', 'RAIL'],
-        maxWalkingDistance: 1500,
-        maxTransfers: 2,
-        wheelchairAccessible: true,
-      },
-    )
-
-    expect(mockGetTransitRoute).toHaveBeenCalledTimes(1)
-    const request = mockGetTransitRoute.mock.calls[0][0]
-    expect(request.transitModes).toEqual(['BUS', 'RAIL'])
-    expect(request.maxWalkDistance).toBe(1500)
-    expect(request.maxTransfers).toBe(2)
-    expect(request.wheelchair).toBe(true)
-  })
-
-  test('returns null on transit routing error', async () => {
-    mockGetTransitRoute.mockImplementation(async () => {
-      throw new Error('MOTIS connection refused')
-    })
-
-    const result = await (tripService as any).planTransitSegment(
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      {
-        currentTime: '2026-01-15T08:00:00Z',
-        currentLocation: CHARLOTTE_ORIGIN.location,
-        currentMode: 'transit',
-        parkedVehicles: [],
-      },
-    )
-
-    expect(result).toBeNull()
-  })
-
-  test('uses fallback walking segment when GraphHopper fails', async () => {
-    const itinerary = makeTransitItinerary()
-    mockGetTransitRoute.mockImplementation(async () => ({
-      itineraries: [itinerary],
-      metadata: { searchWindow: 3600 },
-    }))
-
-    // GraphHopper fails for walking legs
-    mockGetRoute.mockImplementation(async () => {
-      throw new Error('GraphHopper unavailable')
-    })
-
-    const result = await (tripService as any).planTransitSegment(
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      {
-        currentTime: '2026-01-15T08:00:00Z',
-        currentLocation: CHARLOTTE_ORIGIN.location,
-        currentMode: 'transit',
-        parkedVehicles: [],
-      },
-    )
-
-    // Should still produce segments using MOTIS fallback data
-    expect(result).not.toBeNull()
-    expect(result.multimodalSegments.length).toBe(3)
-
-    // Walking segments are fallback (no GraphHopper instructions)
-    const walkSegs = result.multimodalSegments.filter(
-      (s: any) => s.mode === 'walking',
-    )
-    expect(walkSegs.length).toBe(2)
-    walkSegs.forEach((seg: any) => {
-      expect(seg.instructions).toEqual([])
-    })
-  })
-})
 
 describe('TripService — buildTransitSegment', () => {
   test('maps MOTIS BUS mode correctly', () => {
@@ -692,7 +484,7 @@ describe('TripService — buildTransitSegment', () => {
 
 describe('TripService — planTrip with transit', () => {
   test('transit mode calls transit routing service', async () => {
-    mockGetTransitRoute.mockImplementation(async () => ({
+    mockGetIntermodalRoute.mockImplementation(async () => ({
       itineraries: [makeTransitItinerary()],
       metadata: { searchWindow: 3600 },
     }))
@@ -705,11 +497,11 @@ describe('TripService — planTrip with transit', () => {
 
     // Should produce at least one trip candidate
     expect(response.trips.length).toBeGreaterThanOrEqual(1)
-    expect(mockGetTransitRoute).toHaveBeenCalled()
+    expect(mockGetIntermodalRoute).toHaveBeenCalled()
   })
 
   test('multi mode generates transit among other candidates', async () => {
-    mockGetTransitRoute.mockImplementation(async () => ({
+    mockGetIntermodalRoute.mockImplementation(async () => ({
       itineraries: [makeTransitItinerary()],
       metadata: { searchWindow: 3600 },
     }))
@@ -723,12 +515,12 @@ describe('TripService — planTrip with transit', () => {
     // multi generates walking, driving, biking, transit
     // All should attempt routing (at least walking + transit should succeed)
     expect(response.trips.length).toBeGreaterThanOrEqual(1)
-    expect(mockGetTransitRoute).toHaveBeenCalled()
+    expect(mockGetIntermodalRoute).toHaveBeenCalled()
     expect(mockGetRoute).toHaveBeenCalled()
   })
 
   test('transit failure in multi mode still returns other trips', async () => {
-    mockGetTransitRoute.mockImplementation(async () => {
+    mockGetIntermodalRoute.mockImplementation(async () => {
       throw new Error('MOTIS unavailable')
     })
 
@@ -747,7 +539,7 @@ describe('TripService — planTrip with transit', () => {
     mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(1000, 720))
 
     // Transit: faster
-    mockGetTransitRoute.mockImplementation(async () => ({
+    mockGetIntermodalRoute.mockImplementation(async () => ({
       itineraries: [
         makeTransitItinerary({
           duration: 1800,
@@ -785,93 +577,6 @@ describe('TripService — planTrip with transit', () => {
   })
 })
 
-describe('TripService — walkingSegmentForTransit', () => {
-  test('does not skip short walks (unlike regular walking segments)', async () => {
-    // Return a very short walk (30 seconds, 20m)
-    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(20, 30))
-
-    const result = await (tripService as any).planWalkingSegmentForTransit(
-      { location: { lat: 35.21, lng: -80.85 }, type: 'via' },
-      { location: { lat: 35.2101, lng: -80.8501 }, type: 'via' },
-      '2026-01-15T08:00:00Z',
-    )
-
-    // Short walk should still be returned for transit context
-    expect(result).not.toBeNull()
-    expect(result.segment.mode).toBe('walking')
-    expect(result.segment.distance).toBe(20)
-  })
-
-  test('skips walks under 5m distance', async () => {
-    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(3, 5))
-
-    const result = await (tripService as any).planWalkingSegmentForTransit(
-      { location: { lat: 35.21, lng: -80.85 }, type: 'via' },
-      { location: { lat: 35.2100001, lng: -80.8500001 }, type: 'via' },
-      '2026-01-15T08:00:00Z',
-    )
-
-    // Below 5m threshold — should be skipped
-    expect(result).toBeNull()
-  })
-
-  test('returns null on routing failure', async () => {
-    mockGetRoute.mockImplementation(async () => {
-      throw new Error('GH unavailable')
-    })
-
-    const result = await (tripService as any).planWalkingSegmentForTransit(
-      { location: { lat: 35.21, lng: -80.85 }, type: 'via' },
-      { location: { lat: 35.22, lng: -80.84 }, type: 'via' },
-      '2026-01-15T08:00:00Z',
-    )
-
-    expect(result).toBeNull()
-  })
-})
-
-describe('TripService — buildWalkingFallbackSegment', () => {
-  test('builds walking segment from MOTIS straight-line data', () => {
-    const leg = {
-      mode: 'WALK',
-      from: { name: 'Stop B', lat: 35.225, lng: -80.845, stopId: 'sb' },
-      to: { name: 'Destination', lat: 35.227, lng: -80.843 },
-      startTime: '2026-01-15T08:25:00Z',
-      endTime: '2026-01-15T08:30:00Z',
-      duration: 300,
-      distance: 250,
-    }
-
-    const segment = (tripService as any).buildWalkingFallbackSegment(
-      leg,
-      '2026-01-15T08:25:00Z',
-    )
-
-    expect(segment.mode).toBe('walking')
-    expect(segment.duration).toBe(300)
-    expect(segment.distance).toBe(250)
-    expect(segment.co2).toBe(0)
-    expect(segment.start.label).toBe('Stop B')
-    expect(segment.end.label).toBe('Destination')
-  })
-
-  test('calculates endTime from startTime + duration', () => {
-    const leg = {
-      mode: 'WALK',
-      from: { name: 'A', lat: 35.21, lng: -80.85 },
-      to: { name: 'B', lat: 35.22, lng: -80.84 },
-      duration: 600,
-      distance: 500,
-    }
-
-    const segment = (tripService as any).buildWalkingFallbackSegment(
-      leg,
-      '2026-01-15T10:00:00Z',
-    )
-
-    expect(segment.endTime).toBe('2026-01-15T10:10:00.000Z')
-  })
-})
 
 // ── Per-waypoint time constraints ────────────────────────────────────────────
 
@@ -1429,7 +1134,7 @@ describe('TripService — scoring', () => {
   describe('end-to-end scoring in planTrip', () => {
     test('trips have populated score dimensions', async () => {
       mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 360))
-      mockGetTransitRoute.mockImplementation(async () => ({
+      mockGetIntermodalRoute.mockImplementation(async () => ({
         itineraries: [],
         metadata: { searchWindow: 3600 },
       }))
@@ -1479,12 +1184,44 @@ describe('TripService — scoring', () => {
       location: { lat: 35.209, lng: -80.860 },
     }
 
+    /** Itinerary whose access leg is a street ride (BIKE or CAR) instead of a walk. */
+    function makeVehicleAccessItinerary(mode: 'BIKE' | 'CAR') {
+      const itinerary = makeTransitItinerary()
+      itinerary.legs[0] = {
+        ...itinerary.legs[0],
+        mode,
+        distance: 2000,
+        duration: 600,
+        startTime: '2026-01-15T07:55:00Z',
+        endTime: '2026-01-15T08:05:00Z',
+      }
+      return itinerary
+    }
+
+    /** Dispatch intermodal responses by pre-transit mode, like MOTIS would. */
+    function mockIntermodalByAccessMode() {
+      mockGetIntermodalRoute.mockImplementation(async (req: any) => {
+        if (req.preTransitModes?.includes('CAR_PARKING')) {
+          return {
+            itineraries: [makeVehicleAccessItinerary('CAR')],
+            metadata: { searchWindow: 3600 },
+          }
+        }
+        if (req.preTransitModes?.includes('BIKE')) {
+          return {
+            itineraries: [makeVehicleAccessItinerary('BIKE')],
+            metadata: { searchWindow: 3600 },
+          }
+        }
+        return {
+          itineraries: [makeTransitItinerary()],
+          metadata: { searchWindow: 3600 },
+        }
+      })
+    }
+
     test('generates bike+transit candidates when bike is available', async () => {
-      const transitItinerary = makeTransitItinerary()
-      mockGetTransitRoute.mockImplementation(async () => ({
-        itineraries: [transitItinerary],
-        metadata: { searchWindow: 3600 },
-      }))
+      mockIntermodalByAccessMode()
       mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
 
       const response = await tripService.planTrip({
@@ -1497,23 +1234,17 @@ describe('TripService — scoring', () => {
       // Should have both walk+transit and bike+transit candidates
       expect(response.trips.length).toBeGreaterThanOrEqual(2)
 
-      // Find the bike+transit trip
       const bikeTransit = response.trips.find((t) =>
         t.trip.segments.some((s) => s.mode === 'biking'),
       )
       expect(bikeTransit).toBeDefined()
-      // Should have a biking segment followed by transit
       const modes = bikeTransit!.trip.segments.map((s) => s.mode)
       expect(modes).toContain('biking')
       expect(modes).toContain('transit')
     })
 
     test('generates car+transit candidates when car is available', async () => {
-      const transitItinerary = makeTransitItinerary()
-      mockGetTransitRoute.mockImplementation(async () => ({
-        itineraries: [transitItinerary],
-        metadata: { searchWindow: 3600 },
-      }))
+      mockIntermodalByAccessMode()
       mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
 
       const response = await tripService.planTrip({
@@ -1534,12 +1265,8 @@ describe('TripService — scoring', () => {
       expect(modes).toContain('transit')
     })
 
-    test('car+transit trip populates parkedVehicles at boarding stop', async () => {
-      const transitItinerary = makeTransitItinerary()
-      mockGetTransitRoute.mockImplementation(async () => ({
-        itineraries: [transitItinerary],
-        metadata: { searchWindow: 3600 },
-      }))
+    test('car+transit trip populates parkedVehicles at the parking spot', async () => {
+      mockIntermodalByAccessMode()
       mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
 
       const response = await tripService.planTrip({
@@ -1552,21 +1279,22 @@ describe('TripService — scoring', () => {
       const carTransit = response.trips.find((t) =>
         t.trip.segments.some((s) => s.mode === 'driving'),
       )
+      expect(carTransit).toBeDefined()
 
-      if (carTransit) {
-        expect(carTransit.trip.parkedVehicles).toBeDefined()
-        expect(carTransit.trip.parkedVehicles!.length).toBe(1)
-        expect(carTransit.trip.parkedVehicles![0].vehicle.type).toBe('car')
-        expect(carTransit.trip.parkedVehicles![0].parkedAt).toBeDefined()
-      }
+      // Parked where the driving leg ends, when it ends
+      expect(carTransit!.trip.parkedVehicles).toBeDefined()
+      expect(carTransit!.trip.parkedVehicles!.length).toBe(1)
+      const parked = carTransit!.trip.parkedVehicles![0]
+      expect(parked.vehicle.type).toBe('car')
+      expect(parked.parkedAt).toBe('2026-01-15T08:05:00Z')
+      const driveSeg = carTransit!.trip.segments.find((s) => s.mode === 'driving')!
+      expect(parked.location).toEqual(driveSeg.end.location)
+      // The ride segment is tagged with the user's vehicle
+      expect(driveSeg.vehicle?.id).toBe('car-1')
     })
 
     test('generates both bike and car candidates when both available', async () => {
-      const transitItinerary = makeTransitItinerary()
-      mockGetTransitRoute.mockImplementation(async () => ({
-        itineraries: [transitItinerary],
-        metadata: { searchWindow: 3600 },
-      }))
+      mockIntermodalByAccessMode()
       mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
 
       const response = await tripService.planTrip({
@@ -1597,11 +1325,7 @@ describe('TripService — scoring', () => {
         location: { lat: 35.215, lng: -80.870 },
       }
 
-      const transitItinerary = makeTransitItinerary()
-      mockGetTransitRoute.mockImplementation(async () => ({
-        itineraries: [transitItinerary],
-        metadata: { searchWindow: 3600 },
-      }))
+      mockIntermodalByAccessMode()
       mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 180))
 
       const response = await tripService.planTrip({
@@ -1614,76 +1338,83 @@ describe('TripService — scoring', () => {
       const bikeTrip = response.trips.find((t) =>
         t.trip.segments.some((s) => s.mode === 'biking'),
       )
-      if (bikeTrip) {
-        // Should start with walking (to vehicle) before biking
-        const modes = bikeTrip.trip.segments.map((s) => s.mode)
-        const firstMode = modes[0]
-        expect(firstMode).toBe('walking')
-        // Then biking
-        expect(modes[1]).toBe('biking')
-      }
+      expect(bikeTrip).toBeDefined()
+
+      // Walk to the bike first, then ride; walk is back-timed to end
+      // exactly when the MOTIS itinerary departs
+      const segs = bikeTrip!.trip.segments
+      expect(segs[0].mode).toBe('walking')
+      expect(segs[1].mode).toBe('biking')
+      expect(new Date(segs[0].endTime).getTime()).toBe(
+        new Date(segs[1].startTime).getTime(),
+      )
+      expect(bikeTrip!.trip.earliestStartTime).toBe(segs[0].startTime)
     })
 
-    test('no multi-access when useKnownVehicleLocations is false', async () => {
-      const transitItinerary = makeTransitItinerary()
-      mockGetTransitRoute.mockImplementation(async () => ({
-        itineraries: [transitItinerary],
-        metadata: { searchWindow: 3600 },
-      }))
+    test('stored vehicle location is ignored when useKnownVehicleLocations is false', async () => {
+      const farBike = {
+        id: 'bike-far',
+        type: 'bike' as const,
+        location: { lat: 35.215, lng: -80.870 },
+      }
+
+      mockIntermodalByAccessMode()
       mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
 
       const response = await tripService.planTrip({
         waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
         selectedMode: 'transit',
-        availableVehicles: [bikeVehicle],
+        availableVehicles: [farBike],
         routingPreferences: { useKnownVehicleLocations: false },
         preferredDepartureTime: '2026-01-15T08:00:00Z',
       })
 
-      // Should only have walk+transit, no bike+transit
-      const hasBike = response.trips.some((t) =>
+      // Bike query runs from the origin (vehicle treated as with the user):
+      // no walk-to-vehicle prefix on the bike+transit trip
+      const bikeTrip = response.trips.find((t) =>
         t.trip.segments.some((s) => s.mode === 'biking'),
       )
-      expect(hasBike).toBe(false)
+      expect(bikeTrip).toBeDefined()
+      expect(bikeTrip!.trip.segments[0].mode).toBe('biking')
+
+      // The BIKE query was anchored at the origin, not the stored location
+      const bikeQuery = mockGetIntermodalRoute.mock.calls
+        .map((c: any[]) => c[0])
+        .find((req: any) => req.preTransitModes?.includes('BIKE'))
+      expect(bikeQuery.from).toEqual(CHARLOTTE_ORIGIN.location)
     })
 
-    test('multi-access handles routing failure gracefully', async () => {
-      const transitItinerary = makeTransitItinerary()
-      mockGetTransitRoute.mockImplementation(async () => ({
-        itineraries: [transitItinerary],
-        metadata: { searchWindow: 3600 },
-      }))
+    test('walk-to-vehicle routing failure degrades gracefully', async () => {
+      const farBike = {
+        id: 'bike-far',
+        type: 'bike' as const,
+        location: { lat: 35.215, lng: -80.870 },
+      }
 
-      // Walk routes succeed but alternate calls fail (simulating bike route failure)
-      let callCount = 0
+      mockIntermodalByAccessMode()
+      // All street routing fails — connection walk can't be planned
       mockGetRoute.mockImplementation(async () => {
-        callCount++
-        // First 2 calls (walk legs) succeed, then bike access fails
-        if (callCount <= 2) return makeBasicWalkRoute(300, 240)
         throw new Error('Route not found')
       })
 
       const response = await tripService.planTrip({
         waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
         selectedMode: 'transit',
-        availableVehicles: [bikeVehicle],
+        availableVehicles: [farBike],
         preferredDepartureTime: '2026-01-15T08:00:00Z',
       })
 
-      // Walk+transit should still work even if bike access fails
+      // Walk+transit still works, and the bike trip is returned without
+      // the walk-to-vehicle prefix rather than being dropped
       expect(response.trips.length).toBeGreaterThanOrEqual(1)
-      const walkTransit = response.trips.find((t) =>
-        !t.trip.segments.some((s) => s.mode === 'biking'),
+      const walkTransit = response.trips.find(
+        (t) => !t.trip.segments.some((s) => s.mode === 'biking'),
       )
       expect(walkTransit).toBeDefined()
     })
 
     test('bike+transit candidate has correct timing', async () => {
-      const transitItinerary = makeTransitItinerary()
-      mockGetTransitRoute.mockImplementation(async () => ({
-        itineraries: [transitItinerary],
-        metadata: { searchWindow: 3600 },
-      }))
+      mockIntermodalByAccessMode()
       mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(400, 300))
 
       const response = await tripService.planTrip({
@@ -1696,15 +1427,14 @@ describe('TripService — scoring', () => {
       const bikeTrip = response.trips.find((t) =>
         t.trip.segments.some((s) => s.mode === 'biking'),
       )
-      if (bikeTrip) {
-        const bikeSeg = bikeTrip.trip.segments.find((s) => s.mode === 'biking')!
-        const transitSeg = bikeTrip.trip.segments.find((s) => s.mode === 'transit')!
+      expect(bikeTrip).toBeDefined()
+      const bikeSeg = bikeTrip!.trip.segments.find((s) => s.mode === 'biking')!
+      const transitSeg = bikeTrip!.trip.segments.find((s) => s.mode === 'transit')!
 
-        // Bike segment must end before transit departs (with buffer)
-        const bikeEnd = new Date(bikeSeg.endTime).getTime()
-        const transitStart = new Date(transitSeg.startTime).getTime()
-        expect(bikeEnd).toBeLessThanOrEqual(transitStart)
-      }
+      // Bike segment must end before transit departs
+      const bikeEnd = new Date(bikeSeg.endTime).getTime()
+      const transitStart = new Date(transitSeg.startTime).getTime()
+      expect(bikeEnd).toBeLessThanOrEqual(transitStart)
     })
   })
 
@@ -2839,341 +2569,3 @@ describe('TripService — mode generation edge cases', () => {
   })
 })
 
-// ── Transit access/egress composition ──────────────────────────────────────
-
-describe('TripService — composeTransitWithAccessAndEgress', () => {
-  const service = new TripService()
-  const dataSources: any[] = []
-  const itinerary = makeTransitItinerary()
-
-  beforeEach(() => {
-    mockGetRoute.mockReset()
-    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
-    mockSearchByCategory.mockReset()
-    mockSearchByCategory.mockImplementation(async () => [])
-  })
-
-  test('walking access + walking egress produces walk→transit→walk', async () => {
-    const result = await (service as any).composeTransitWithAccessAndEgress(
-      itinerary,
-      '2026-01-15T08:00:00Z',
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      { mode: 'walking' },
-      { mode: 'walking' },
-      {},
-      dataSources,
-    )
-
-    expect(result).not.toBeNull()
-    // Walking access returns empty segments (handled by composeTransitItinerary)
-    // so we get transit + walking egress
-    const modes = result.segments.map((s: any) => s.mode)
-    expect(modes).toContain('transit')
-  })
-
-  test('biking access + walking egress (3.4) parks bike at stop', async () => {
-    const bikeLocation = { lat: 35.2096, lng: -80.8610 }
-
-    const result = await (service as any).composeTransitWithAccessAndEgress(
-      itinerary,
-      '2026-01-15T08:00:00Z',
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      {
-        mode: 'biking',
-        vehicle: { id: 'bike-1', type: 'bike', name: 'My Bike', location: bikeLocation },
-        vehicleLocation: bikeLocation,
-      },
-      { mode: 'walking' },
-      {},
-      dataSources,
-    )
-
-    expect(result).not.toBeNull()
-    const modes = result.segments.map((s: any) => s.mode)
-    expect(modes).toContain('biking')
-    expect(modes).toContain('transit')
-    // Should NOT have bike egress (walked)
-    const egressSegments = result.segments.filter(
-      (s: any) => s.mode !== 'transit' &&
-        new Date(s.startTime) >= new Date(itinerary.legs[1].endTime),
-    )
-    expect(egressSegments.every((s: any) => s.mode === 'walking')).toBe(true)
-  })
-
-  test('biking carry-on access + biking egress (3.6) marks transit as carrying vehicle', async () => {
-    const bikeLocation = { lat: 35.2096, lng: -80.8610 }
-    const bike = { id: 'bike-1', type: 'bike' as const, name: 'My Bike', location: bikeLocation }
-
-    const result = await (service as any).composeTransitWithAccessAndEgress(
-      itinerary,
-      '2026-01-15T08:00:00Z',
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      {
-        mode: 'biking',
-        vehicle: bike,
-        vehicleLocation: bikeLocation,
-        carryOnTransit: true,
-      },
-      { mode: 'biking' },
-      {},
-      dataSources,
-    )
-
-    expect(result).not.toBeNull()
-    const modes = result.segments.map((s: any) => s.mode)
-
-    // Should have: bike access, transit (with carryingVehicle), bike egress
-    expect(modes).toContain('biking')
-    expect(modes).toContain('transit')
-
-    // Transit segments should be marked as carrying vehicle
-    const transitSegments = result.segments.filter((s: any) => s.mode === 'transit')
-    for (const seg of transitSegments) {
-      expect(seg.carryingVehicle).toBe(true)
-    }
-
-    // Should have bike egress after transit
-    const lastSegment = result.segments[result.segments.length - 1]
-    expect(lastSegment.mode).toBe('biking')
-    expect(lastSegment.vehicle?.id).toBe('bike-1')
-  })
-
-  test('driving access + walking egress (3.7) parks car', async () => {
-    const carLocation = { lat: 35.2096, lng: -80.8610 }
-    const car = { id: 'car-1', type: 'car' as const, name: 'My Car', location: carLocation }
-
-    const result = await (service as any).composeTransitWithAccessAndEgress(
-      itinerary,
-      '2026-01-15T08:00:00Z',
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      {
-        mode: 'driving',
-        vehicle: car,
-        vehicleLocation: carLocation,
-      },
-      { mode: 'walking' },
-      {},
-      dataSources,
-    )
-
-    expect(result).not.toBeNull()
-    const modes = result.segments.map((s: any) => s.mode)
-    expect(modes).toContain('driving')
-    expect(modes).toContain('transit')
-
-    // Should track parked vehicle
-    expect(result.parkedVehicles).toBeDefined()
-    expect(result.parkedVehicles!.length).toBe(1)
-    expect(result.parkedVehicles![0].vehicle.id).toBe('car-1')
-  })
-
-  test('walking access + shared-bike egress (3.2) adds walk-to-station + bike ride', async () => {
-    // Mock shared bike station near alighting stop
-    mockSearchByCategory.mockImplementation(async () => [
-      {
-        id: 'station-1',
-        name: { value: 'Downtown Bike Share' },
-        lat: 35.2255,
-        lng: -80.8445,
-        geometry: { value: { center: { lat: 35.2255, lng: -80.8445 } } },
-      },
-    ])
-
-    const result = await (service as any).composeTransitWithAccessAndEgress(
-      itinerary,
-      '2026-01-15T08:00:00Z',
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      { mode: 'walking' },
-      { mode: 'shared-bike', searchSharedMobility: true },
-      {},
-      dataSources,
-    )
-
-    expect(result).not.toBeNull()
-    const modes = result.segments.map((s: any) => s.mode)
-    expect(modes).toContain('transit')
-
-    // Should have walking to station + biking from station
-    const postTransitSegments = result.segments.filter(
-      (s: any) => s.mode !== 'transit' &&
-        new Date(s.startTime) >= new Date(itinerary.legs[1].endTime),
-    )
-    expect(postTransitSegments.length).toBeGreaterThanOrEqual(1)
-
-    // Bike segment should be marked as shared
-    const bikeEgress = postTransitSegments.find((s: any) => s.mode === 'biking')
-    expect(bikeEgress).toBeDefined()
-    expect(bikeEgress!.ownership).toBe('shared')
-  })
-
-  test('shared-bike egress falls back to walking when no stations found', async () => {
-    mockSearchByCategory.mockImplementation(async () => [])
-
-    const result = await (service as any).composeTransitWithAccessAndEgress(
-      itinerary,
-      '2026-01-15T08:00:00Z',
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      { mode: 'walking' },
-      { mode: 'shared-bike', searchSharedMobility: true },
-      {},
-      dataSources,
-    )
-
-    expect(result).not.toBeNull()
-    // No shared station → fallback to walking egress
-    const postTransitSegments = result.segments.filter(
-      (s: any) => s.mode !== 'transit' &&
-        new Date(s.startTime) >= new Date(itinerary.legs[1].endTime),
-    )
-    expect(postTransitSegments.every((s: any) => s.mode === 'walking')).toBe(true)
-  })
-
-  test('vehicle far from origin prepends walk-to-vehicle segment', async () => {
-    // Place bike 500m away (>200m threshold)
-    const farBikeLocation = { lat: 35.2140, lng: -80.8605 }
-
-    const result = await (service as any).composeTransitWithAccessAndEgress(
-      itinerary,
-      '2026-01-15T08:00:00Z',
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      {
-        mode: 'biking',
-        vehicle: { id: 'bike-1', type: 'bike', name: 'Far Bike', location: farBikeLocation },
-        vehicleLocation: farBikeLocation,
-      },
-      { mode: 'walking' },
-      {},
-      dataSources,
-    )
-
-    expect(result).not.toBeNull()
-    // First segment should be walking (to the bike)
-    expect(result.segments[0].mode).toBe('walking')
-    // Second should be biking (to the stop)
-    expect(result.segments[1].mode).toBe('biking')
-  })
-
-  test('timing is back-calculated from transit departure', async () => {
-    const bikeLocation = { lat: 35.2096, lng: -80.8610 }
-
-    const result = await (service as any).composeTransitWithAccessAndEgress(
-      itinerary,
-      '2026-01-15T08:00:00Z',
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      {
-        mode: 'biking',
-        vehicle: { id: 'bike-1', type: 'bike', location: bikeLocation },
-        vehicleLocation: bikeLocation,
-      },
-      { mode: 'walking' },
-      { transitBufferMinutes: 2 },
-      dataSources,
-    )
-
-    expect(result).not.toBeNull()
-    const bikeSegment = result.segments.find((s: any) => s.mode === 'biking')
-    const transitSegment = result.segments.find((s: any) => s.mode === 'transit')
-
-    // Bike segment should end before transit departs (with buffer)
-    const bikeEnd = new Date(bikeSegment!.endTime).getTime()
-    const transitStart = new Date(transitSegment!.startTime).getTime()
-    expect(bikeEnd).toBeLessThanOrEqual(transitStart)
-  })
-
-  test('empty transit segments returns null', async () => {
-    // Itinerary with no transit legs
-    const noTransitItinerary = makeTransitItinerary({
-      legs: [
-        {
-          mode: 'WALK',
-          transitLeg: false,
-          from: { name: 'A', lat: 35.2, lng: -80.8 },
-          to: { name: 'B', lat: 35.21, lng: -80.81 },
-          startTime: '2026-01-15T08:00:00Z',
-          endTime: '2026-01-15T08:10:00Z',
-          duration: 600,
-          distance: 500,
-        },
-      ],
-    })
-
-    const result = await (service as any).composeTransitWithAccessAndEgress(
-      noTransitItinerary,
-      '2026-01-15T08:00:00Z',
-      CHARLOTTE_ORIGIN,
-      CHARLOTTE_DEST,
-      { mode: 'walking' },
-      { mode: 'walking' },
-      {},
-      dataSources,
-    )
-
-    expect(result).toBeNull()
-  })
-})
-
-// ── Transfer walks ──────────────────────────────────────────────────────────
-
-describe('TripService — insertTransferWalks', () => {
-  const service = new TripService()
-
-  beforeEach(() => {
-    mockGetRoute.mockReset()
-    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(100, 120))
-  })
-
-  test('inserts walk between distant consecutive transit segments', async () => {
-    const segments: any[] = [
-      {
-        mode: 'transit',
-        start: { location: { lat: 35.20, lng: -80.85 } },
-        end: { location: { lat: 35.21, lng: -80.84 } },
-        startTime: '2026-01-15T08:00:00Z',
-        endTime: '2026-01-15T08:20:00Z',
-      },
-      {
-        mode: 'transit',
-        start: { location: { lat: 35.215, lng: -80.835 } },
-        end: { location: { lat: 35.22, lng: -80.83 } },
-        startTime: '2026-01-15T08:25:00Z',
-        endTime: '2026-01-15T08:40:00Z',
-      },
-    ]
-
-    const result = await (service as any).insertTransferWalks(segments, {})
-    expect(result).not.toBeNull()
-    expect(result!.length).toBe(3) // transit + walk + transit
-    expect(result![1].mode).toBe('walking')
-  })
-
-  test('skips walk between close consecutive transit segments', async () => {
-    const segments: any[] = [
-      {
-        mode: 'transit',
-        start: { location: { lat: 35.20, lng: -80.85 } },
-        end: { location: { lat: 35.2001, lng: -80.8501 } }, // ~10m apart
-        startTime: '2026-01-15T08:00:00Z',
-        endTime: '2026-01-15T08:20:00Z',
-      },
-      {
-        mode: 'transit',
-        start: { location: { lat: 35.2002, lng: -80.8502 } },
-        end: { location: { lat: 35.22, lng: -80.83 } },
-        startTime: '2026-01-15T08:25:00Z',
-        endTime: '2026-01-15T08:40:00Z',
-      },
-    ]
-
-    const result = await (service as any).insertTransferWalks(segments, {})
-    expect(result).not.toBeNull()
-    expect(result!.length).toBe(2) // No walk inserted
-  })
-})

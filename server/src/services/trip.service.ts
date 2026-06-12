@@ -145,6 +145,11 @@ export class TripService {
           ? -new Date(c.trip.segments[0].startTime).getTime()
           : Infinity,
       )
+    } else {
+      // Balanced mode: a trip several times slower than the best option is
+      // dominated no matter how cheap or green it is — a 100-min walk must
+      // not outrank a 20-min drive on perfect cost/CO2 sub-scores.
+      this.applyDurationDominance(scored)
     }
 
     const sorted = scored
@@ -1857,6 +1862,9 @@ export class TripService {
         // work MOTIS does alongside it (those itineraries are discarded).
         maxTransfers: 0,
         directModes: ['RENTAL'],
+        // MOTIS's default 1800s cap would drop a 31-minute ride across
+        // Brooklyn — allow up to an hour on a shared vehicle.
+        maxDirectTime: 3600,
         preTransitModes: ['WALK'],
         postTransitModes: ['WALK'],
         maxPreTransitTime: maxWalkSec,
@@ -3645,6 +3653,35 @@ export class TripService {
           : 1 - (v - min) / range
       c.score.overall = primary + this.computeOverallScore(c.score) * 0.001
     })
+  }
+
+  /** Duration ratio (vs the fastest candidate) tolerated before a trip's
+   *  balanced score starts shrinking. ~50% slower is a fair trade for a
+   *  cheaper or greener trip; beyond that, slowness dominates. */
+  private static readonly DURATION_DOMINANCE_GRACE = 1.5
+
+  /**
+   * Scale balanced scores by relative duration. Non-time dimensions (cost,
+   * CO2, comfort) are absolute, so a very slow trip can hoard near-perfect
+   * sub-scores — a 100-minute walk scores 1.0 on cost/CO2/comfort and ends
+   * up ranked above a 20-minute drive. Dividing by how far a trip exceeds
+   * 1.5× the fastest option restores time dominance while leaving close
+   * calls (within ~50%) to the weighted trade-off.
+   */
+  private applyDurationDominance(
+    scored: Array<{ trip: TripResponse; score: TripScore }>,
+  ): void {
+    if (scored.length < 2) return
+    const fastest = Math.min(
+      ...scored.map((c) => c.trip.tripStats.totalDuration),
+    )
+    if (!Number.isFinite(fastest) || fastest <= 0) return
+    for (const c of scored) {
+      const ratio = c.trip.tripStats.totalDuration / fastest
+      if (ratio > TripService.DURATION_DOMINANCE_GRACE) {
+        c.score.overall *= TripService.DURATION_DOMINANCE_GRACE / ratio
+      }
+    }
   }
 
   /**

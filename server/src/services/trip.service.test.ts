@@ -2094,6 +2094,38 @@ describe('TripService — filterQualityTrips', () => {
 
 // ── rankByMetric (direct ranking) ──────────────────────────────────────────────────────────
 
+describe('TripService — applyDurationDominance', () => {
+  const cand = (durationSec: number, overall: number) => ({
+    trip: { tripStats: { totalDuration: durationSec } },
+    score: { overall },
+  })
+
+  test('a slow walk drops below a fast drive despite better sub-scores', () => {
+    // 102-min walk hoards perfect cost/CO2/comfort (overall 0.58); 18-min
+    // drive scores 0.55. Dominance must invert them.
+    const walk = cand(102 * 60, 0.58)
+    const drive = cand(18 * 60, 0.55)
+    ;(tripService as any).applyDurationDominance([walk, drive])
+    expect(walk.score.overall).toBeLessThan(drive.score.overall)
+    // ratio 5.67 → scaled by 1.5/5.67
+    expect(walk.score.overall).toBeCloseTo(0.58 * (1.5 / (102 / 18)), 5)
+  })
+
+  test('trips within the 1.5x grace keep their scores', () => {
+    const a = cand(20 * 60, 0.6)
+    const b = cand(28 * 60, 0.55) // 1.4× — a fair green/cheap trade-off
+    ;(tripService as any).applyDurationDominance([a, b])
+    expect(a.score.overall).toBe(0.6)
+    expect(b.score.overall).toBe(0.55)
+  })
+
+  test('single candidate is untouched', () => {
+    const only = cand(7200, 0.5)
+    ;(tripService as any).applyDurationDominance([only])
+    expect(only.score.overall).toBe(0.5)
+  })
+})
+
 describe('TripService — rankByMetric', () => {
   function makeScoredCandidate(overrides: {
     endTime?: string

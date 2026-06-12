@@ -264,6 +264,9 @@ export interface IntermodalRouteRequest extends TransitRouteRequest {
   postTransitModes?: string[]
   /** Direct (non-transit) modes to also compute. Default: ['WALK'] */
   directModes?: string[]
+  /** Max duration (s) for direct (non-transit) connections. Barrelman
+   *  defaults to 3600 when directModes is set (MOTIS's 1800 is too tight). */
+  maxDirectTime?: number
   /** Max first-mile time in seconds (default 900) */
   maxPreTransitTime?: number
   /** Max last-mile time in seconds (default 900) */

@@ -89,6 +89,7 @@ const RoutingPreferencesSchema = t.Object({
   // UI state
   useKnownVehicleLocations: t.Optional(t.Boolean()),
   useKnownParkingLocations: t.Optional(t.Boolean()),
+  includePrivateParking: t.Optional(t.Boolean()),
   routingEngine: t.Optional(t.String()),
 
   // Advanced: raw custom_model JSON override

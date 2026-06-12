@@ -133,6 +133,8 @@ export interface RoutingPreferences {
   // UI state
   useKnownVehicleLocations?: boolean
   useKnownParkingLocations?: boolean
+  /** Include private/inaccessible parking lots in park-and-ride search. */
+  includePrivateParking?: boolean
   routingEngine?: string
 
   // Legacy boolean fields (backward compat)

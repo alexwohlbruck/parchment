@@ -727,6 +727,21 @@ export class TripService {
   private static readonly PARKING_SEARCH_RADIUS = 500
   /** Maximum parking results to evaluate. */
   private static readonly PARKING_MAX_CANDIDATES = 3
+  /**
+   * OSM access values that mean the public can't just park there. Excluded
+   * by default; the includePrivateParking preference opts back in.
+   */
+  private static readonly INACCESSIBLE_PARKING_ACCESS = new Set([
+    'private', 'no', 'permit', 'permit_holders', 'residents', 'resident',
+    'employees', 'staff', 'military', 'agricultural', 'forestry', 'delivery',
+  ])
+  /**
+   * Max gap (m) allowed between where the drive ends and where the walk
+   * begins. A larger gap means GraphHopper snapped them to opposite sides of
+   * a barrier (rail tracks, a highway) — the lot isn't actually walkable to
+   * the destination, so the candidate is dropped rather than "teleporting".
+   */
+  private static readonly PARKING_CONNECT_MAX_GAP = 80
 
   /**
    * Plan a driving trip that parks near the destination and walks the rest.
@@ -755,10 +770,13 @@ export class TripService {
       request.preferredDepartureTime || new Date().toISOString()
     const maxWalkDistance = preferences.maxWalkingDistance ?? 1000 // meters
 
-    // Search for parking lots near the destination
+    // Search for parking lots near the destination. Private/inaccessible
+    // lots are excluded unless the user opts in.
     const parkingPlaces = await this.searchNearbyParking(
       to.location,
       TripService.PARKING_SEARCH_RADIUS,
+      'amenity/parking',
+      preferences.includePrivateParking === true,
     )
 
     if (parkingPlaces.length === 0) return null
@@ -918,6 +936,12 @@ export class TripService {
 
         if (!walkRoute.routes.length) continue
         const walkLeg = walkRoute.routes[0].legs[0]
+
+        // Reject lots that don't actually connect to the destination on foot.
+        // If the drive's end and the walk's start are far apart, they snapped
+        // to opposite sides of a barrier (e.g. rail tracks) and the trip would
+        // teleport across — not a real route.
+        if (!this.segmentsConnect(driveLeg.geometry, walkLeg.geometry)) continue
 
         segments.push({
           segmentIndex: segments.length,
@@ -1169,6 +1193,10 @@ export class TripService {
         if (!walkRoute.routes.length) continue
         const walkLeg = walkRoute.routes[0].legs[0]
 
+        // Reject parking that doesn't connect to the destination on foot
+        // (snapped across a barrier — would teleport).
+        if (!this.segmentsConnect(bikeLeg.geometry, walkLeg.geometry)) continue
+
         segments.push({
           segmentIndex: segments.length,
           mode: 'walking',
@@ -1231,10 +1259,30 @@ export class TripService {
    * @param category  OSM preset — "amenity/parking" for cars,
    *                  "amenity/bicycle_parking" for bikes.
    */
+  /**
+   * Whether the end of one routed leg meets the start of the next closely
+   * enough to be one continuous trip. A large gap means the router snapped
+   * the two onto disconnected networks (across rail tracks, a highway, a
+   * river) and the segments would visually teleport.
+   */
+  private segmentsConnect(
+    first: Coordinate[] | undefined,
+    second: Coordinate[] | undefined,
+  ): boolean {
+    const end = first?.[first.length - 1]
+    const start = second?.[0]
+    if (!end || !start) return true // can't tell — don't reject
+    return (
+      TripService.haversineDistance(end, start) <=
+      TripService.PARKING_CONNECT_MAX_GAP
+    )
+  }
+
   private async searchNearbyParking(
     center: Coordinate,
     radius: number,
     category: string = 'amenity/parking',
+    includePrivate = false,
   ): Promise<Place[]> {
     try {
       // Convert center + radius to bounding box
@@ -1248,15 +1296,26 @@ export class TripService {
         west: center.lng - dLng,
       }
 
+      // Over-fetch so the access filter still leaves candidates.
       const places = await searchByCategory(category, {
         bounds,
-        limit: 10,
+        limit: 25,
         sort: 'distance',
       })
 
-      return places.filter(
-        (p) => p.geometry?.value?.center?.lat && p.geometry?.value?.center?.lng,
-      )
+      return places.filter((p) => {
+        if (!p.geometry?.value?.center?.lat || !p.geometry?.value?.center?.lng) {
+          return false
+        }
+        // Car parking: drop lots the public can't use, unless opted in.
+        if (category === 'amenity/parking' && !includePrivate) {
+          const access = p.tags?.['access']
+          if (access && TripService.INACCESSIBLE_PARKING_ACCESS.has(access)) {
+            return false
+          }
+        }
+        return true
+      })
     } catch (error) {
       console.error(`Parking search (${category}) failed:`, error)
       return []

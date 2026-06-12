@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
+import { api } from '@/lib/api'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapService } from '@/services/map.service'
@@ -55,6 +56,76 @@ const mapService = useMapService()
 const themeStore = useThemeStore()
 const { formatDistance, formatElevation } = useUnits()
 
+// ── Upcoming departures per transit segment ─────────────────────────
+// Shows the rider their options beyond the planned departure ("also at
+// 2:21, 2:51"), Transit-app style. Fetched per boarding stop, filtered to
+// the same line and direction.
+const segmentDepartures = ref<Record<number, string[]>>({})
+
+async function loadDepartures() {
+  segmentDepartures.value = {}
+  const t = trip.value
+  if (!t) return
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
+  await Promise.all(
+    segs.map(async (seg, idx) => {
+      if (seg.mode !== 'transit' || !seg.departureStop?.location) return
+      try {
+        const startMs = new Date(seg.startTime).getTime()
+        const { data } = await api.get('/proxy/transit/departures', {
+          params: {
+            lat: seg.departureStop.location.lat,
+            lng: seg.departureStop.location.lng,
+            radius: 50,
+            n: 40,
+            time: new Date(startMs - 60_000).toISOString(),
+          },
+        })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const all: any[] = (Array.isArray(data) ? data : []).flatMap(
+          (s: { departures?: unknown[] }) => s.departures ?? [],
+        )
+        const sameLine = all.filter(
+          (d) => d.route?.shortName === seg.lineName && !d.cancelled,
+        )
+        // Prefer same-direction departures when the headsign matches
+        const sameDirection = sameLine.filter(
+          (d) => d.headsign?.toLowerCase() === seg.headsign?.toLowerCase(),
+        )
+        const pool = sameDirection.length >= 2 ? sameDirection : sameLine
+        const times = [...new Set(
+          pool
+            .map((d) => new Date(d.departureTime).getTime())
+            .filter((ms) => ms >= startMs - 60_000)
+            .sort((a, b) => a - b),
+        )]
+        segmentDepartures.value[idx] = times
+          .slice(0, 4)
+          .map((ms) => formatTime(new Date(ms)))
+      } catch {
+        // Departures are an enhancement — skip on failure
+      }
+    }),
+  )
+}
+
+function departuresFor(segmentIndex: number): string[] {
+  return segmentDepartures.value[segmentIndex] ?? []
+}
+
+/** Time actually in motion — a walk's duration minus the wait at the stop. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function movingDuration(segment: any): number {
+  return Math.max(0, (segment.duration || 0) - (segment.waitSeconds ?? 0))
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function waitMinutes(segment: any): number {
+  const w = segment.waitSeconds ?? 0
+  return w >= 60 ? Math.round(w / 60) : 0
+}
+
 const hoveredInstructionKey = ref<string | null>(null)
 
 const tripId = computed(() => route.params.id as string)
@@ -65,6 +136,8 @@ const trip = computed(() => {
   if (!directionsStore.trips?.trips) return null
   return directionsStore.trips.trips.find(t => t.id === tripId.value) || null
 })
+
+watch(trip, loadDepartures, { immediate: true })
 
 watch(
   trip,
@@ -201,7 +274,6 @@ function formatCo2(kg: number): string {
   return `${Math.round(kg * 1000)} g`
 }
 
-const PREVIEW_COUNT = 3
 
 // ── Route waypoints ────────────────────────────────────────────────
 
@@ -717,6 +789,25 @@ function hasSegmentRouteInfo(segment: any): boolean {
                     </span>
                   </div>
 
+                  <!-- Upcoming departures for this line at the boarding stop -->
+                  <div
+                    v-if="departuresFor(entry.segmentIndex).length > 1"
+                    class="flex flex-wrap items-center gap-1.5 pt-0.5"
+                  >
+                    <span
+                      v-for="(dep, di) in departuresFor(entry.segmentIndex)"
+                      :key="dep"
+                      class="px-2 py-0.5 rounded-md text-xs font-medium tabular-nums"
+                      :class="di === 0
+                        ? (!entry.segment.lineColor && 'bg-parchment-500 text-white')
+                        : 'bg-muted text-muted-foreground'"
+                      :style="di === 0 && entry.segment.lineColor ? {
+                        background: `#${entry.segment.lineColor}`,
+                        color: entry.segment.lineTextColor ? `#${entry.segment.lineTextColor}` : '#fff',
+                      } : {}"
+                    >{{ dep }}</span>
+                  </div>
+
                   <!-- Intermediate stops (collapsible) -->
                   <Collapsible
                     v-if="entry.segment.intermediateStops?.length"
@@ -828,7 +919,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
                     Shared
                   </span>
                   <span class="text-sm text-muted-foreground">
-                    {{ formatDuration(entry.segment.duration) }} · {{ formatDistanceDisplay(entry.segment.distance) }}
+                    {{ formatDuration(movingDuration(entry.segment)) }} · {{ formatDistanceDisplay(entry.segment.distance) }}
                   </span>
                 </div>
                 <div
@@ -837,6 +928,12 @@ function hasSegmentRouteInfo(segment: any): boolean {
                 >
                   <ClockIcon class="size-3" />
                   {{ formatTime(entry.segment.startTime) }} – {{ formatTime(entry.segment.endTime) }}
+                </div>
+                <div
+                  v-if="waitMinutes(entry.segment)"
+                  class="mt-0.5 text-xs text-muted-foreground"
+                >
+                  then wait {{ waitMinutes(entry.segment) }} min
                 </div>
               </div>
 
@@ -874,81 +971,72 @@ function hasSegmentRouteInfo(segment: any): boolean {
                 </a>
               </div>
 
-              <!-- Route info card -->
-              <div
-                v-if="hasSegmentRouteInfo(entry.segment)"
-                class="mt-3 rounded-lg border bg-card p-3.5 space-y-3"
-              >
-                <!-- Stats grid -->
-                <div
-                  v-if="entry.segment.totalElevationGain || entry.segment.totalElevationLoss"
-                  class="grid grid-cols-3 gap-2 pb-3 border-b"
-                >
-                  <div>
-                    <div class="text-[11px] text-muted-foreground font-medium">Distance</div>
-                    <div class="text-base font-medium tabular-nums mt-0.5 tracking-tight">
-                      {{ formatDistanceDisplay(entry.segment.distance) }}
-                    </div>
-                  </div>
-                  <div v-if="entry.segment.totalElevationGain">
-                    <div class="text-[11px] text-muted-foreground font-medium">Ascent</div>
-                    <div class="text-base font-medium tabular-nums mt-0.5 tracking-tight">
-                      {{ formatElevation(entry.segment.totalElevationGain) }}
-                    </div>
-                  </div>
-                  <div v-if="entry.segment.totalElevationLoss">
-                    <div class="text-[11px] text-muted-foreground font-medium">Descent</div>
-                    <div class="text-base font-medium tabular-nums mt-0.5 tracking-tight">
-                      {{ formatElevation(entry.segment.totalElevationLoss) }}
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Elevation chart + profile -->
-                <ElevationChart
-                  v-if="showSegmentChart(entry.segment)"
-                  :segment-index="entry.segmentIndex"
-                  :geometry="entry.segment.geometry!"
-                  :max-elevation="entry.segment.maxElevation"
-                  :min-elevation="entry.segment.minElevation"
-                  :edge-segments="entry.segment.edgeSegments"
-                  :mode="entry.segment.mode"
-                  :total-elevation-gain="entry.segment.totalElevationGain"
-                  :total-elevation-loss="entry.segment.totalElevationLoss"
-                  @update:route-profile="onRouteProfileChange"
-                />
-              </div>
-
-              <!-- Turn-by-turn -->
+              <!-- Details: stats, elevation, turn-by-turn — folded by default
+                   so the whole trip fits on one screen -->
               <Collapsible
-                v-if="entry.segment.instructions?.length"
+                v-if="hasSegmentRouteInfo(entry.segment) || entry.segment.instructions?.length"
                 v-slot="{ open }"
-                class="mt-3"
+                class="mt-2"
               >
-                <!-- Section header -->
-                <div class="flex items-center justify-between mb-1">
-                  <span class="text-xs font-medium text-muted-foreground">
-                    Turn-by-turn
-                  </span>
-                  <CollapsibleTrigger
-                    v-if="entry.segment.instructions.length > PREVIEW_COUNT"
-                    as-child
-                  >
-                    <Button variant="ghost" size="sm" class="h-7 text-xs text-muted-foreground -mr-2">
-                      {{ open ? 'Show less' : `Show all ${entry.segment.instructions.length}` }}
-                      <ChevronDownIcon
-                        class="size-3 ml-0.5 transition-transform"
-                        :class="{ 'rotate-180': open }"
-                      />
-                    </Button>
-                  </CollapsibleTrigger>
-                </div>
+                <CollapsibleTrigger
+                  class="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  <ChevronDownIcon class="size-3 transition-transform" :class="open && 'rotate-180'" />
+                  <span>{{ open ? 'Hide details' : 'Details' }}</span>
+                  <span
+                    v-if="!open && entry.segment.instructions?.length"
+                    class="font-normal text-muted-foreground/70"
+                  >· {{ entry.segment.instructions.length }} steps</span>
+                </CollapsibleTrigger>
 
-                <!-- Preview steps -->
-                <div class="relative">
-                  <div>
+                <CollapsibleContent>
+                  <!-- Stats + elevation -->
+                  <div
+                    v-if="hasSegmentRouteInfo(entry.segment)"
+                    class="mt-2 rounded-lg border bg-card p-3.5 space-y-3"
+                  >
                     <div
-                      v-for="(instruction, instrIndex) in entry.segment.instructions.slice(0, PREVIEW_COUNT)"
+                      v-if="entry.segment.totalElevationGain || entry.segment.totalElevationLoss"
+                      class="grid grid-cols-3 gap-2 pb-3 border-b"
+                    >
+                      <div>
+                        <div class="text-[11px] text-muted-foreground font-medium">Distance</div>
+                        <div class="text-base font-medium tabular-nums mt-0.5 tracking-tight">
+                          {{ formatDistanceDisplay(entry.segment.distance) }}
+                        </div>
+                      </div>
+                      <div v-if="entry.segment.totalElevationGain">
+                        <div class="text-[11px] text-muted-foreground font-medium">Ascent</div>
+                        <div class="text-base font-medium tabular-nums mt-0.5 tracking-tight">
+                          {{ formatElevation(entry.segment.totalElevationGain) }}
+                        </div>
+                      </div>
+                      <div v-if="entry.segment.totalElevationLoss">
+                        <div class="text-[11px] text-muted-foreground font-medium">Descent</div>
+                        <div class="text-base font-medium tabular-nums mt-0.5 tracking-tight">
+                          {{ formatElevation(entry.segment.totalElevationLoss) }}
+                        </div>
+                      </div>
+                    </div>
+
+                    <ElevationChart
+                      v-if="showSegmentChart(entry.segment)"
+                      :segment-index="entry.segmentIndex"
+                      :geometry="entry.segment.geometry!"
+                      :max-elevation="entry.segment.maxElevation"
+                      :min-elevation="entry.segment.minElevation"
+                      :edge-segments="entry.segment.edgeSegments"
+                      :mode="entry.segment.mode"
+                      :total-elevation-gain="entry.segment.totalElevationGain"
+                      :total-elevation-loss="entry.segment.totalElevationLoss"
+                      @update:route-profile="onRouteProfileChange"
+                    />
+                  </div>
+
+                  <!-- Turn-by-turn -->
+                  <div v-if="entry.segment.instructions?.length" class="mt-2">
+                    <div
+                      v-for="(instruction, instrIndex) in entry.segment.instructions"
                       :key="instrIndex"
                       class="step-row"
                       :class="{
@@ -983,60 +1071,8 @@ function hasSegmentRouteInfo(segment: any): boolean {
                       </span>
                     </div>
                   </div>
-                  <div
-                    v-if="!open && entry.segment.instructions.length > PREVIEW_COUNT"
-                    class="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-background to-transparent"
-                  />
-                </div>
-
-                <!-- Remaining steps -->
-                <CollapsibleContent v-if="entry.segment.instructions.length > PREVIEW_COUNT">
-                  <div>
-                    <div
-                      v-for="(instruction, j) in entry.segment.instructions.slice(PREVIEW_COUNT)"
-                      :key="Number(j) + PREVIEW_COUNT"
-                      class="step-row"
-                      :class="{
-                        'step-row-active': hoveredInstructionKey === getInstructionKey(entry.segmentIndex, Number(j) + PREVIEW_COUNT),
-                      }"
-                      @mouseenter="onInstructionHover(entry.segmentIndex, Number(j) + PREVIEW_COUNT, instruction)"
-                      @mouseleave="onInstructionLeave"
-                    >
-                      <span class="step-num">{{ Number(j) + PREVIEW_COUNT + 1 }}</span>
-                      <span class="step-icon">
-                        <component :is="getInstructionIcon(instruction)" class="size-3.5" />
-                      </span>
-                      <div class="flex-1 min-w-0">
-                        <div class="text-sm font-medium text-foreground leading-snug">
-                          {{ typeof instruction === 'string' ? instruction : instruction.text }}
-                        </div>
-                        <div
-                          v-if="typeof instruction === 'object' && instruction.streetName"
-                          class="text-[11px] text-muted-foreground mt-0.5"
-                        >
-                          {{ instruction.streetName }}
-                        </div>
-                      </div>
-                      <span
-                        v-if="typeof instruction === 'object'"
-                        class="step-dist"
-                      >
-                        {{ formatDistanceDisplay(instruction.distance) }}
-                        <template v-if="instruction.duration">
-                          · {{ formatDuration(instruction.duration) }}
-                        </template>
-                      </span>
-                    </div>
-                  </div>
                 </CollapsibleContent>
               </Collapsible>
-
-              <div
-                v-else-if="!entry.segment.instructions?.length"
-                class="mt-3 text-sm text-muted-foreground italic"
-              >
-                No detailed instructions available for this segment.
-              </div>
             </template>
           </div>
         </div>

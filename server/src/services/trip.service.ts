@@ -1605,9 +1605,10 @@ export class TripService {
 
     // Scale search scope to trip distance — shorter trips need less
     // walking radius, longer trips can afford more RAPTOR iterations
-    const maxWalkSec = preferences?.maxWalkingDistance
-      ? Math.round(preferences.maxWalkingDistance / 1.4)
-      : dist < 5000 ? 600 : 900
+    const maxWalkSec = TripService.walkSecondsBudget(
+      preferences?.maxWalkingDistance,
+      dist < 5000 ? 600 : 900,
+    )
 
     // Arrive-by: anchor the MOTIS search on the arrival target so
     // itineraries land before it, instead of departing as soon as possible.
@@ -1778,9 +1779,10 @@ export class TripService {
       state = constrained.state
 
       const legDist = TripService.haversineDistance(from.location, to.location)
-      const maxWalkSec = preferences?.maxWalkingDistance
-        ? Math.round(preferences.maxWalkingDistance / 1.4)
-        : legDist < 5000 ? 600 : 900
+      const maxWalkSec = TripService.walkSecondsBudget(
+        preferences?.maxWalkingDistance,
+        legDist < 5000 ? 600 : 900,
+      )
 
       const trips = await this.executeIntermodalQuery(
         {
@@ -2195,6 +2197,23 @@ export class TripService {
       }
     }
     return merged
+  }
+
+  /**
+   * Convert a max-walking-distance preference (meters) into the MOTIS
+   * street-leg time budget (seconds). MOTIS measures the budget in walk
+   * time along the street network, so a naive meters/speed conversion
+   * silently undershoots the user's stated distance — street routes detour,
+   * and a walk a few seconds over the cap kills otherwise-perfect one-seat
+   * itineraries. 20% detour headroom plus a minute of slack keeps the cap
+   * meaning "about this far", erring on inclusion (scoring handles the rest).
+   */
+  private static walkSecondsBudget(
+    maxWalkingDistanceM: number | undefined,
+    defaultSec: number,
+  ): number {
+    if (!maxWalkingDistanceM) return defaultSec
+    return Math.round((maxWalkingDistanceM / 1.4) * 1.2) + 60
   }
 
   /** Transit modes that board inside a station (vs curbside/pier). */

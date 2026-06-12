@@ -295,21 +295,50 @@ const tripId = computed(() => route.params.id as string)
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 
-// Trip lookup: exact id first (same session / restored plan cache), then
-// the URL's stable signature — a refresh or shared link re-plans from the
-// URL's wp/mode/depart params (the shared directions service hydrates and
-// fetches automatically) and the signature picks this trip out of the
-// fresh results, whose ids are newly minted.
+// Server-persisted snapshot (the `pt` capability token in the URL): the
+// exact trip as originally planned, immune to schedule drift. Fetched when
+// the in-memory plan can't supply the trip — refresh, another device.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const persistedTrip = ref<any | null>(null)
+const recovering = ref(false)
+
+async function recoverPersistedTrip() {
+  const pt = route.query.pt as string | undefined
+  if (!pt || persistedTrip.value || recovering.value) return
+  recovering.value = true
+  try {
+    const { data } = await api.get(`/directions/trips/${pt}`)
+    persistedTrip.value = data.trip
+  } catch {
+    // Unknown/expired snapshot — the sig/re-plan path may still recover it
+  } finally {
+    recovering.value = false
+  }
+}
+
+// Trip lookup, most faithful source first:
+// 1. exact id in the in-memory plan (same session, or session-cache restore)
+// 2. the persisted snapshot (refresh / shared link — exact times)
+// 3. signature match against a fresh re-plan (best effort, ids re-minted)
 const trip = computed(() => {
   const list = directionsStore.trips?.trips
-  if (!list) return null
-  const byId = list.find(t => t.id === tripId.value)
+  const byId = list?.find(t => t.id === tripId.value)
   if (byId) return byId
+  if (persistedTrip.value) return persistedTrip.value
   const sig = route.query.sig as string | undefined
-  if (!sig) return null
+  if (!sig || !list) return null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return list.find(t => tripSignature((t as any).segments) === sig) || null
 })
+
+watch(
+  () => [tripId.value, route.query.pt],
+  () => {
+    const list = directionsStore.trips?.trips
+    if (!list?.some(t => t.id === tripId.value)) void recoverPersistedTrip()
+  },
+  { immediate: true },
+)
 
 watch(trip, loadDepartures, { immediate: true })
 
@@ -322,11 +351,12 @@ watch(trip, (t) => {
 })
 
 // Only bail back to the planner when results have settled and the trip is
-// genuinely absent — never mid-recovery while the re-plan is in flight.
+// genuinely absent — never mid-recovery while the snapshot fetch or the
+// re-plan is in flight.
 watch(
-  [trip, () => directionsStore.isLoading],
-  ([newTrip, loading]) => {
-    if (newTrip === null && !loading && directionsStore.trips) {
+  [trip, () => directionsStore.isLoading, recovering],
+  ([newTrip, loading, busy]) => {
+    if (newTrip === null && !loading && !busy && directionsStore.trips) {
       router.push({ name: AppRoute.DIRECTIONS, query: route.query })
     }
   },
@@ -655,9 +685,9 @@ function hasSegmentRouteInfo(segment: any): boolean {
 
 <template>
   <div class="h-full w-full overflow-y-auto">
-    <!-- Loading (own state, or the shared planner re-creating the trip
-         from a refreshed/shared URL) -->
-    <div v-if="isLoading || (!trip && directionsStore.isLoading)" class="flex items-center justify-center py-8">
+    <!-- Loading (own state, the snapshot fetch, or the shared planner
+         re-creating the trip from a refreshed/shared URL) -->
+    <div v-if="isLoading || (!trip && (recovering || directionsStore.isLoading))" class="flex items-center justify-center py-8">
       <Caption>Loading trip details...</Caption>
     </div>
 

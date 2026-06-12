@@ -7,6 +7,7 @@ import TripItem from './TripItem.vue'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { serializeDirectionsQuery } from '@/lib/directions-url'
 import { tripSignature } from '@/lib/trip-signature'
+import { api } from '@/lib/api'
 
 interface Props {
   trips: TripsResponse
@@ -168,24 +169,38 @@ function navigateToTripDetail(trip: TripOption) {
   // The trip URL carries the full planning inputs (same wp/mode/sort/depart
   // format as the directions URL) plus the trip's stable signature, so a
   // refresh or a shared link can re-plan and find this same trip again.
-  router.push({
-    name: 'trip',
-    params: { id: trip.id },
-    query: {
-      ...serializeDirectionsQuery({
-        waypoints: props.trips.request.waypoints.map((wp) => ({
-          lat: wp.coordinate.lat,
-          lng: wp.coordinate.lng,
-          label: wp.name || undefined,
-        })),
-        mode: directionsStore.selectedMode,
-        sort: directionsStore.sortPreference || undefined,
-        depart: directionsStore.departureTime || undefined,
-      }),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      sig: tripSignature((trip as any).segments),
-    },
-  })
+  const query = {
+    ...serializeDirectionsQuery({
+      waypoints: props.trips.request.waypoints.map((wp) => ({
+        lat: wp.coordinate.lat,
+        lng: wp.coordinate.lng,
+        label: wp.name || undefined,
+      })),
+      mode: directionsStore.selectedMode,
+      sort: directionsStore.sortPreference || undefined,
+      depart: directionsStore.departureTime || undefined,
+    }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sig: tripSignature((trip as any).segments),
+  }
+  router.push({ name: 'trip', params: { id: trip.id }, query })
+
+  // Persist a server-side snapshot in the background and slip its token
+  // into the URL — the snapshot makes refresh and cross-device shares
+  // exact, independent of schedule drift. Best-effort: the sig/re-plan
+  // path still recovers the trip if this fails.
+  api
+    .post('/directions/trips', { request: query, trip })
+    .then(({ data }) => {
+      router
+        .replace({
+          name: 'trip',
+          params: { id: trip.id },
+          query: { ...query, pt: data.id },
+        })
+        .catch(() => {})
+    })
+    .catch(() => {})
 }
 </script>
 

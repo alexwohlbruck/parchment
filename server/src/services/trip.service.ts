@@ -1862,13 +1862,47 @@ export class TripService {
       from, to, startTime, dataSources, preferences,
     )
 
-    // Keep only pure shared-vehicle rides — drop any transit itineraries the
-    // query returned as a side effect.
-    return trips.filter(
+    return this.selectSharedRides(trips)
+  }
+
+  /**
+   * Reduce direct shared-vehicle candidates to one ride per operator product.
+   *
+   * Drops the transit itineraries the direct query returns as a side effect,
+   * then groups pure shared rides by operator + vehicle kind: several dock
+   * pairings of the same system are near-duplicates to a rider, and the one
+   * needing the least walking to/from the vehicle wins (total duration breaks
+   * ties). Distinct operators each keep their best ride — different pricing
+   * is worth comparing.
+   */
+  private selectSharedRides(trips: TripResponse[]): TripResponse[] {
+    const pure = trips.filter(
       (t) =>
         t.segments.some((s) => s.ownership === 'shared') &&
         !t.segments.some((s) => s.mode === 'transit'),
     )
+
+    const walkSec = (t: TripResponse) =>
+      t.segments.reduce(
+        (sum, s) => (s.mode === 'walking' ? sum + s.duration : sum),
+        0,
+      )
+    const best = new Map<string, TripResponse>()
+    for (const trip of pure) {
+      const det = trip.segments.find((s) => s.details?.sharedMobilityDetails)
+        ?.details?.sharedMobilityDetails
+      const key = `${det?.provider ?? 'unknown'}:${det?.vehicleType ?? 'vehicle'}`
+      const cur = best.get(key)
+      if (
+        !cur ||
+        walkSec(trip) < walkSec(cur) ||
+        (walkSec(trip) === walkSec(cur) &&
+          trip.tripStats.totalDuration < cur.tripStats.totalDuration)
+      ) {
+        best.set(key, trip)
+      }
+    }
+    return [...best.values()]
   }
 
   /**
@@ -3221,13 +3255,14 @@ export class TripService {
     }
 
     // Shared bike/scooter is its own strategy — a vehicle you fetch from a
-    // dock, distinct from a personal bike. Give it a separate per-mode slot
-    // so it's never dropped as a near-duplicate of cycling.
+    // dock, distinct from a personal bike. Scope the slot by operator so a
+    // shared ride is never dropped as a near-duplicate of cycling, and two
+    // operators' offers (different pricing) are shown side by side.
     const shared = trip.segments.find((s) => s.ownership === 'shared')
     if (shared) {
-      return shared.details?.sharedMobilityDetails?.vehicleType === 'scooter'
-        ? 'scootershare'
-        : 'bikeshare'
+      const det = shared.details?.sharedMobilityDetails
+      const kind = det?.vehicleType === 'scooter' ? 'scootershare' : 'bikeshare'
+      return det?.provider ? `${kind}:${det.provider}` : kind
     }
 
     const durations: Partial<Record<Mode, number>> = {}

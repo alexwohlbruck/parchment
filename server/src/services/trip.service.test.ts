@@ -1804,6 +1804,109 @@ describe('TripService — getTripMode', () => {
     ])
     expect((tripService as any).getTripMode(trip)).toBe('driving')
   })
+
+  test('direct shared rides get an operator-scoped slot', () => {
+    const trip = {
+      segments: [
+        { mode: 'walking', duration: 120 },
+        {
+          mode: 'cycling',
+          duration: 900,
+          ownership: 'shared',
+          details: {
+            sharedMobilityDetails: { provider: 'Citi Bike', vehicleType: 'bike' },
+          },
+        },
+        { mode: 'walking', duration: 60 },
+      ] as any,
+    }
+    expect((tripService as any).getTripMode(trip)).toBe('bikeshare:Citi Bike')
+
+    const scooter = {
+      segments: [
+        {
+          mode: 'cycling',
+          duration: 600,
+          ownership: 'shared',
+          details: {
+            sharedMobilityDetails: { provider: 'Lime', vehicleType: 'scooter' },
+          },
+        },
+      ] as any,
+    }
+    expect((tripService as any).getTripMode(scooter)).toBe('scootershare:Lime')
+  })
+})
+
+// ── selectSharedRides ───────────────────────────────────────────────────────
+
+describe('TripService — selectSharedRides', () => {
+  function sharedTrip(
+    provider: string,
+    accessWalkSec: number,
+    rideSec: number,
+    egressWalkSec = 60,
+    vehicleType = 'bike',
+  ) {
+    const segments = [
+      { mode: 'walking', duration: accessWalkSec },
+      {
+        mode: 'cycling',
+        duration: rideSec,
+        ownership: 'shared',
+        details: { sharedMobilityDetails: { provider, vehicleType } },
+      },
+      { mode: 'walking', duration: egressWalkSec },
+    ]
+    return {
+      segments: segments as any,
+      tripStats: {
+        totalDuration: accessWalkSec + rideSec + egressWalkSec,
+        totalDistance: 3000,
+      },
+    }
+  }
+
+  test('keeps only the least-walking ride per operator', () => {
+    // Same system, two dock pairings: 2-min walk vs 9-min walk to the bike.
+    const near = sharedTrip('Citi Bike', 120, 900)
+    const far = sharedTrip('Citi Bike', 540, 840)
+    const kept = (tripService as any).selectSharedRides([far, near])
+    expect(kept).toHaveLength(1)
+    expect(kept[0]).toBe(near)
+  })
+
+  test('distinct operators each keep their best ride', () => {
+    const citi = sharedTrip('Citi Bike', 300, 900)
+    const citiFar = sharedTrip('Citi Bike', 600, 900)
+    const veo = sharedTrip('Veo', 240, 1000)
+    const kept = (tripService as any).selectSharedRides([citi, citiFar, veo])
+    expect(kept).toHaveLength(2)
+    expect(kept).toContain(citi)
+    expect(kept).toContain(veo)
+  })
+
+  test('bike and scooter from one operator are separate products', () => {
+    const bike = sharedTrip('Lime', 120, 900, 60, 'bike')
+    const scooter = sharedTrip('Lime', 180, 700, 60, 'scooter')
+    const kept = (tripService as any).selectSharedRides([bike, scooter])
+    expect(kept).toHaveLength(2)
+  })
+
+  test('drops transit itineraries returned as a side effect', () => {
+    const transitTrip = {
+      segments: [
+        { mode: 'walking', duration: 200 },
+        { mode: 'transit', duration: 1000 },
+        { mode: 'walking', duration: 200 },
+      ] as any,
+      tripStats: { totalDuration: 1400, totalDistance: 4000 },
+    }
+    const ride = sharedTrip('Citi Bike', 120, 900)
+    const kept = (tripService as any).selectSharedRides([transitTrip, ride])
+    expect(kept).toHaveLength(1)
+    expect(kept[0]).toBe(ride)
+  })
 })
 
 // ── filterQualityTrips ──────────────────────────────────────────────────────

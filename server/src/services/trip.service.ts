@@ -3393,6 +3393,24 @@ export class TripService {
    * properly penalized. For immediate-departure modes (driving, walking,
    * cycling) the arrival offset ≈ duration, so this is backward-compatible.
    */
+  /** Value of time for generalized cost: 200 s/$ ≈ $18/hour. A paid trip
+   *  must save about 3.3 minutes per dollar to beat a free alternative. */
+  private static readonly VALUE_OF_TIME_SEC_PER_DOLLAR = 200
+
+  /**
+   * Trip duration with monetary cost folded in as equivalent seconds
+   * (generalized cost). This is what balanced ranking should compare:
+   * paying $7.86 for a shared bike to arrive 5 minutes earlier is a bad
+   * trade at any reasonable value of time, even though both raw dimensions
+   * ("faster" and "only ~$8") look acceptable in isolation.
+   */
+  private generalizedDurationSec(trip: TripResponse): number {
+    const costPenalty =
+      (trip.tripStats.totalCost?.value ?? 0) *
+      TripService.VALUE_OF_TIME_SEC_PER_DOLLAR
+    return trip.tripStats.totalDuration + costPenalty
+  }
+
   private scoreTime(trip: TripResponse, referenceTime: string): number {
     const refMs = new Date(referenceTime).getTime()
     const arrMs = new Date(trip.latestEndTime).getTime()
@@ -3401,7 +3419,11 @@ export class TripService {
     // Use the greater of arrival offset and duration. Arrival offset is
     // normally ≥ duration, but if clocks or planning times are slightly
     // off we never want the score to be *better* than raw duration implies.
-    const effective = Math.max(arrivalOffset, trip.tripStats.totalDuration)
+    // Monetary cost is added as equivalent time (generalized cost).
+    const effective =
+      Math.max(arrivalOffset, trip.tripStats.totalDuration) +
+      (trip.tripStats.totalCost?.value ?? 0) *
+        TripService.VALUE_OF_TIME_SEC_PER_DOLLAR
     if (effective <= 0) return 1
 
     // Ratio-preserving: trips ≤10 min all score 1.0. Longer trips scale
@@ -3672,12 +3694,15 @@ export class TripService {
     scored: Array<{ trip: TripResponse; score: TripScore }>,
   ): void {
     if (scored.length < 2) return
+    // Compare generalized durations (time + cost as equivalent time) so a
+    // free-but-slower trip and a paid-but-faster one are judged on the
+    // same axis.
     const fastest = Math.min(
-      ...scored.map((c) => c.trip.tripStats.totalDuration),
+      ...scored.map((c) => this.generalizedDurationSec(c.trip)),
     )
     if (!Number.isFinite(fastest) || fastest <= 0) return
     for (const c of scored) {
-      const ratio = c.trip.tripStats.totalDuration / fastest
+      const ratio = this.generalizedDurationSec(c.trip) / fastest
       if (ratio > TripService.DURATION_DOMINANCE_GRACE) {
         c.score.overall *= TripService.DURATION_DOMINANCE_GRACE / ratio
       }

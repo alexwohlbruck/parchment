@@ -2124,6 +2124,27 @@ describe('TripService — applyDurationDominance', () => {
     ;(tripService as any).applyDurationDominance([only])
     expect(only.score.overall).toBe(0.5)
   })
+
+  test('cost counts as time: paid last-mile loses to free walking', () => {
+    // Same transit spine; one ends with a $7.86 shared bike saving 5 min.
+    // Generalized: 50min + 7.86*200s ≈ 76min vs 55min — walking wins.
+    const ref = '2026-06-12T16:00:00Z'
+    const trip = (durMin: number, cost?: number) => ({
+      tripStats: { totalDuration: durMin * 60, totalCost: cost ? { value: cost, currency: 'USD' } : undefined },
+      latestEndTime: new Date(new Date(ref).getTime() + durMin * 60000).toISOString(),
+    })
+    const bikeshareTime = (tripService as any).scoreTime(trip(50, 7.86), ref)
+    const walkingTime = (tripService as any).scoreTime(trip(55), ref)
+    expect(walkingTime).toBeGreaterThan(bikeshareTime)
+
+    // Dominance ranks on the same generalized axis: against a 20-min
+    // fastest option the paid variant is penalized harder.
+    const a = { trip: trip(50, 7.86), score: { overall: 0.5 } }
+    const b = { trip: trip(55), score: { overall: 0.5 } }
+    const fastest = { trip: trip(20), score: { overall: 0.7 } }
+    ;(tripService as any).applyDurationDominance([a, b, fastest])
+    expect(a.score.overall).toBeLessThan(b.score.overall)
+  })
 })
 
 describe('TripService — rankByMetric', () => {

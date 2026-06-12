@@ -37,26 +37,51 @@ function formatCo2(kg: number): string {
   return `${Math.round(kg * 1000)} g`
 }
 
-const dominantMode = computed(() => {
-  const durations: Record<string, number> = {}
-  for (const seg of props.trip.segments) {
-    const mode = seg.mode === 'biking' ? 'cycling' : seg.mode
-    durations[mode] = (durations[mode] || 0) + seg.duration
+/**
+ * Trip type — the combination pattern, not the longest mode. A subway trip
+ * with two long walks is still a transit trip ("Transit & Walking"), a
+ * drive to the station is "Park & Ride". Mirrors the trip-combination
+ * taxonomy the planner generates from.
+ */
+const tripType = computed<{ key: string; iconMode: string }>(() => {
+  const segs = props.trip.segments as any[]
+  const has = (m: string) => segs.some(s => s.mode === m)
+
+  if (!has('transit')) {
+    if (has('rideshare')) return { key: 'rideshare', iconMode: 'rideshare' }
+    if (has('driving')) return { key: 'driving', iconMode: 'driving' }
+    if (has('cycling')) return { key: 'cycling', iconMode: 'cycling' }
+    if (has('wheelchair')) return { key: 'wheelchair', iconMode: 'wheelchair' }
+    return { key: 'walking', iconMode: 'walking' }
   }
-  let best = props.trip.mode
-  let max = 0
-  for (const [mode, dur] of Object.entries(durations)) {
-    if (dur > max) { max = dur; best = mode }
+
+  if (has('driving')) return { key: 'parkAndRide', iconMode: 'transit' }
+  if (has('rideshare')) return { key: 'transitRideshare', iconMode: 'transit' }
+  const shared = segs.find(s => s.sharedMobilityDetails)
+  if (shared) {
+    const kind = shared.sharedMobilityDetails?.vehicleType === 'scooter'
+      ? 'transitScooter' : 'transitBikeShare'
+    return { key: kind, iconMode: 'transit' }
   }
-  return best
+  if (has('cycling')) return { key: 'transitBike', iconMode: 'transit' }
+
+  // Significant walking: ≥8 min actually moving, or over a third of the trip
+  const walkSec = segs.reduce(
+    (sum, s) => sum + (s.mode === 'walking' ? (s.duration || 0) - (s.waitSeconds ?? 0) : 0),
+    0,
+  )
+  const total = props.trip.summary.totalDuration || 1
+  if (walkSec >= 480 || walkSec / total >= 0.35) {
+    return { key: 'transitWalking', iconMode: 'transit' }
+  }
+  return { key: 'transit', iconMode: 'transit' }
 })
 
-/** Icon for the dominant mode — resolves transit route type from the longest transit segment */
-const dominantTransitIcon = computed(() => {
-  if (dominantMode.value !== 'transit') {
-    return getModeIcon(dominantMode.value)
+/** Icon for the trip type — transit types use the longest transit segment's route type */
+const tripIcon = computed(() => {
+  if (tripType.value.iconMode !== 'transit') {
+    return getModeIcon(tripType.value.iconMode)
   }
-  // Find the longest transit segment to determine the route type icon
   let longestSeg: any = null
   let longestDur = 0
   for (const seg of props.trip.segments) {
@@ -339,11 +364,11 @@ function handleMouseEnter() {
       <div class="flex items-center gap-1.5 flex-wrap mt-1.5 pr-4 text-[11px] text-muted-foreground">
         <span class="inline-flex items-center gap-1">
           <component
-            :is="dominantTransitIcon"
+            :is="tripIcon"
             class="size-3"
-            :style="{ color: getTravelModeColor(dominantMode) }"
+            :style="{ color: getTravelModeColor(tripType.iconMode) }"
           />
-          <span class="font-semibold text-foreground/80">{{ getTripModeLabel(dominantMode) }}</span>
+          <span class="font-semibold text-foreground/80">{{ t(`directions.tripTypes.${tripType.key}`) }}</span>
         </span>
 
         <template v-if="trip.cost?.total">

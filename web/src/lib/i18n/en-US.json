@@ -340,6 +340,20 @@
     }
   },
   "directions": {
+    "tripTypes": {
+      "walking": "Walking",
+      "cycling": "Cycling",
+      "driving": "Driving",
+      "wheelchair": "Wheelchair",
+      "rideshare": "Rideshare",
+      "transit": "Transit",
+      "transitWalking": "Transit & Walking",
+      "transitBike": "Transit & Bike",
+      "transitBikeShare": "Transit & Bike Share",
+      "transitScooter": "Transit & Scooter",
+      "transitRideshare": "Transit & Rideshare",
+      "parkAndRide": "Park & Ride"
+    },
     "toward": "toward {headsign}",
     "title": "Directions",
     "planRouteFromHere": "Plan route from here",

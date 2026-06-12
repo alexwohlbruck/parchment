@@ -119,6 +119,41 @@ describe('TripItem timeline rendering', () => {
     expect(spans.some((s) => s.type === 'walk')).toBe(true)
   })
 
+  it('labels trips by combination type, not longest mode', () => {
+    // Long walks + subway: walking dominates by duration, but the trip is
+    // transit — labelled "Transit & Walking" (mocked t echoes the key).
+    const longWalks = mountTrip([
+      seg({ mode: 'walking', duration: 600 }),
+      seg({ mode: 'transit', lineName: 'Q', routeType: 'subway', duration: 400 }),
+      seg({ mode: 'walking', duration: 500 }),
+    ])
+    expect(longWalks.text()).toContain('directions.tripTypes.transitWalking')
+
+    // Short access walks: plain "Transit"
+    const shortWalks = mountTrip([
+      seg({ mode: 'walking', duration: 120 }),
+      seg({ mode: 'transit', lineName: 'Q', routeType: 'subway', duration: 1500 }),
+      seg({ mode: 'walking', duration: 100 }),
+    ])
+    expect(shortWalks.text()).toContain('directions.tripTypes.transit')
+    expect(shortWalks.text()).not.toContain('transitWalking')
+
+    // Drive + transit: Park & Ride
+    const pnr = mountTrip([
+      seg({ mode: 'driving', duration: 600 }),
+      seg({ mode: 'walking', duration: 100 }),
+      seg({ mode: 'transit', lineName: '4', routeType: 'subway', duration: 900 }),
+    ])
+    expect(pnr.text()).toContain('directions.tripTypes.parkAndRide')
+
+    // Shared bike egress: Transit & Bike Share
+    const share = mountTrip([
+      seg({ mode: 'transit', lineName: 'A', routeType: 'subway', duration: 900 }),
+      seg({ mode: 'cycling', duration: 300, sharedMobilityDetails: { vehicleType: 'bike', provider: 'Citi Bike' } }),
+    ])
+    expect(share.text()).toContain('directions.tripTypes.transitBikeShare')
+  })
+
   it('renders a pill per vehicle leg for multi-transfer trips', () => {
     const wrapper = mountTrip([
       seg({ mode: 'walking' }),

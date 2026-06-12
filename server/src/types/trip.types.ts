@@ -184,6 +184,12 @@ export interface TripSegment {
   endTime: string
   duration: number // seconds
   distance: number // meters
+  /**
+   * Seconds of waiting folded into this segment, after the moving portion
+   * (e.g. standing at the stop between finishing the walk and the vehicle
+   * departing). duration - waitSeconds = time actually in motion.
+   */
+  waitSeconds?: number
   geometry: any // GeoJSON or encoded polyline
   instructions: RouteInstruction[]
   cost?: CurrencyAmount

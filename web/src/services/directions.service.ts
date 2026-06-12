@@ -225,6 +225,7 @@ function directionsService() {
       endTime: new Date(seg.endTime),
       duration: seg.duration,
       distance: seg.distance,
+      waitSeconds: seg.waitSeconds,
       geometry: seg.geometry,
       instructions: seg.instructions,
       totalElevationGain: seg.totalElevationGain,

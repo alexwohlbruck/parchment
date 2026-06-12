@@ -2320,6 +2320,7 @@ export class TripService {
             seg.startTime = new Date(newStart).toISOString()
             seg.endTime = new Date(departureMs).toISOString()
             seg.duration = (departureMs - newStart) / 1000
+            seg.waitSeconds = Math.max(0, seg.duration - leg.duration)
           } else if (i === 0) {
             // First leg isn't a walk-to-transit (e.g. a fully collapsed trip);
             // just place the routed walk from its start.
@@ -2331,9 +2332,22 @@ export class TripService {
             const startMs = new Date(seg.startTime).getTime()
             seg.endTime = new Date(startMs + ghDurMs).toISOString()
             seg.duration = leg.duration
+          } else if (nextIsTransitLeg) {
+            // Transfer walk: you walk when you arrive, then wait at the next
+            // platform. Stretch the segment to the next departure so a MOTIS
+            // gap (walk ends, bus leaves later) doesn't render as dead air —
+            // the remainder is explicit wait. Start stays anchored to the
+            // previous arrival, so nothing cascades.
+            const departureMs = new Date(segments[i + 1].startTime).getTime()
+            const startMs = new Date(seg.startTime).getTime()
+            if (departureMs > startMs) {
+              seg.endTime = new Date(departureMs).toISOString()
+              seg.duration = (departureMs - startMs) / 1000
+              seg.waitSeconds = Math.max(0, seg.duration - leg.duration)
+            }
           }
-          // Middle walks (transfers, walks to rental stations) keep MOTIS
-          // timing — re-timing them would cascade into later segments.
+          // Other middle walks (e.g. to rental stations) keep MOTIS timing —
+          // re-timing them would cascade into later segments.
         } catch {
           // GraphHopper failure — the MOTIS leg stands
         }

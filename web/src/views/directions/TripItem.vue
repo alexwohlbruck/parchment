@@ -81,16 +81,15 @@ function segW(segment: { duration: number }) {
   return Math.max((segment.duration / 60) * props.pxPerMinute, 4)
 }
 
-/**
- * Walking pace (m/s) used only to split a walk segment into its moving vs
- * waiting parts. Transit access/transfer walks fold the wait at the stop into
- * the walk segment's duration; we estimate the walking part from distance and
- * treat the remainder (right before the vehicle) as waiting.
- */
-const WALK_MPS = 1.35
-const MIN_WAIT_SEC = 45
+/** Waits shorter than this aren't worth a visual break in the ticks. */
+const MIN_WAIT_SEC = 30
 
-/** Typed sub-spans of the track: 'walk' (long ticks) then 'wait' (dots). */
+/**
+ * Typed sub-spans of the track: 'walk' (tall ticks) then 'wait' (dots).
+ * The split comes from the server's `waitSeconds` — the stop wait folded
+ * into a walk segment after its moving portion. No wait field → the whole
+ * segment is walking (e.g. pure walking trips).
+ */
 const trackSpans = computed(() => {
   const pxPerSec = props.pxPerMinute / 60
   const spans: { left: number; width: number; type: 'walk' | 'wait' }[] = []
@@ -99,14 +98,12 @@ const trackSpans = computed(() => {
     const dur = seg.duration || 0
     if (dur <= 0) continue
     const left = segLeft(seg)
-    const walkSec = seg.distance
-      ? Math.min(dur, seg.distance / WALK_MPS)
-      : dur
-    const waitSec = dur - walkSec
+    const waitSec = (seg as { waitSeconds?: number }).waitSeconds ?? 0
+    const walkSec = waitSec >= MIN_WAIT_SEC ? dur - waitSec : dur
     const walkW = walkSec * pxPerSec
     if (walkW > 0.5) spans.push({ left, width: walkW, type: 'walk' })
-    if (waitSec >= MIN_WAIT_SEC) {
-      spans.push({ left: left + walkW, width: waitSec * pxPerSec, type: 'wait' })
+    if (walkSec < dur) {
+      spans.push({ left: left + walkW, width: (dur - walkSec) * pxPerSec, type: 'wait' })
     }
   }
   return spans

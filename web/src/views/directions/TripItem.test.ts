@@ -83,7 +83,7 @@ describe('TripItem timeline rendering', () => {
   })
 
   it('splits a transfer walk into a walking span and a trailing wait span', () => {
-    // 345m transfer walk over 420s = ~255s walking + ~165s waiting.
+    // 420s transfer segment = 255s walking + 165s waiting (server-computed).
     const wrapper = mountTrip([
       seg({ mode: 'transit', lineName: '2', routeType: 'subway', endTime: new Date('2026-06-12T14:00:00Z') }),
       seg({
@@ -92,6 +92,7 @@ describe('TripItem timeline rendering', () => {
         endTime: new Date('2026-06-12T14:07:00Z'),
         duration: 420,
         distance: 345,
+        waitSeconds: 165,
       }),
       seg({ mode: 'transit', lineName: 'F', routeType: 'subway', startTime: new Date('2026-06-12T14:07:00Z') }),
     ])

@@ -2216,10 +2216,23 @@ export class TripService {
     return Math.round((maxWalkingDistanceM / 1.4) * 1.2) + 60
   }
 
-  /** Transit modes that board inside a station (vs curbside/pier). */
+  /**
+   * Transit modes that board inside a station (vs curbside/pier).
+   * Trams/streetcars are deliberately excluded — they board from curbside
+   * or median platforms, and snapping to a nearby building's "entrance"
+   * teleports the walk to the wrong facility (e.g. the bus terminal a
+   * block from a streetcar stop).
+   */
   private static readonly STATION_ROUTE_TYPES = new Set([
-    'subway', 'rail', 'tram', 'monorail', 'funicular', 'cable_tram',
+    'subway', 'rail', 'monorail', 'funicular',
   ])
+
+  /**
+   * Max distance (m) an entrance may be from the platform to be trusted as
+   * THIS station's entrance. Real entrances sit within ~100m of the platform
+   * centroid; anything farther is usually a different building.
+   */
+  private static readonly ENTRANCE_SNAP_RADIUS_M = 150
 
   /** True when the segment is a transit leg boarding inside a station. */
   private isStationTransit(seg: TripSegment): boolean {
@@ -2299,10 +2312,10 @@ export class TripService {
 
         const [boardEntrance, alightEntrance] = await Promise.all([
           nextIsTransit
-            ? this.cachedNearestEntrance(seg.end.location.lat, seg.end.location.lng, 300)
+            ? this.cachedNearestEntrance(seg.end.location.lat, seg.end.location.lng, TripService.ENTRANCE_SNAP_RADIUS_M)
             : Promise.resolve(null),
           prevIsTransit
-            ? this.cachedNearestEntrance(seg.start.location.lat, seg.start.location.lng, 300)
+            ? this.cachedNearestEntrance(seg.start.location.lat, seg.start.location.lng, TripService.ENTRANCE_SNAP_RADIUS_M)
             : Promise.resolve(null),
         ])
 

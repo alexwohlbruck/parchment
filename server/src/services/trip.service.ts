@@ -2276,11 +2276,17 @@ export class TripService {
 
     const tripStats = this.calculateStats(segments)
 
+    // Transit fare (GTFS fares via MOTIS) adds to any per-segment costs
+    // calculateStats already summed — e.g. a bikeshare egress leg.
     if (itinerary.fare) {
-      tripStats.totalCost = {
-        value: itinerary.fare.amount,
-        currency: itinerary.fare.currency,
-      }
+      const existing = tripStats.totalCost
+      tripStats.totalCost =
+        existing && existing.currency === itinerary.fare.currency
+          ? {
+              value: Math.round((existing.value + itinerary.fare.amount) * 100) / 100,
+              currency: existing.currency,
+            }
+          : { value: itinerary.fare.amount, currency: itinerary.fare.currency }
     }
 
     return {

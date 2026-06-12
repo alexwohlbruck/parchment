@@ -59,8 +59,13 @@ const { formatDistance, formatElevation } = useUnits()
 // ── Upcoming departures per transit segment ─────────────────────────
 // Shows the rider their options beyond the planned departure ("also at
 // 2:21, 2:51"), Transit-app style. Fetched per boarding stop, filtered to
-// the same line and direction.
-const segmentDepartures = ref<Record<number, string[]>>({})
+// the same line and direction. Clicking a later one re-plans the trip
+// anchored to that departure.
+interface DepartureOption {
+  ms: number
+  label: string
+}
+const segmentDepartures = ref<Record<number, DepartureOption[]>>({})
 
 async function loadDepartures() {
   segmentDepartures.value = {}
@@ -102,7 +107,7 @@ async function loadDepartures() {
         )]
         segmentDepartures.value[idx] = times
           .slice(0, 4)
-          .map((ms) => formatTime(new Date(ms)))
+          .map((ms) => ({ ms, label: formatTime(new Date(ms)) }))
       } catch {
         // Departures are an enhancement — skip on failure
       }
@@ -110,8 +115,69 @@ async function loadDepartures() {
   )
 }
 
-function departuresFor(segmentIndex: number): string[] {
+function departuresFor(segmentIndex: number): DepartureOption[] {
   return segmentDepartures.value[segmentIndex] ?? []
+}
+
+// ── Departure rebooking ──────────────────────────────────────────────
+// Choosing a later run shifts the whole request's departure time by the
+// same delta and re-plans — downstream connections recompute server-side.
+// When the refreshed results land, jump to the trip that boards the chosen
+// run (same line sequence, nearest boarding time).
+const rebooking = ref(false)
+
+function chooseDeparture(segmentIndex: number, departureMs: number) {
+  const t = trip.value
+  if (!t || rebooking.value) return
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
+  const seg = segs[segmentIndex]
+  const boardMs = new Date(seg.startTime).getTime()
+  const delta = departureMs - boardMs
+  if (Math.abs(delta) < 30_000) return
+
+  const lineSignature = segs
+    .filter((s) => s.mode === 'transit')
+    .map((s) => s.lineName)
+    .join('>')
+
+  rebooking.value = true
+  const stopWatch = watch(
+    () => directionsStore.trips,
+    (nt) => {
+      if (!nt) return
+      stopWatch()
+      rebooking.value = false
+      const candidates = nt.trips.filter(
+        (x) =>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (x.segments as any[])
+            .filter((s) => s.mode === 'transit')
+            .map((s) => s.lineName)
+            .join('>') === lineSignature,
+      )
+      const best = candidates.sort((a, b) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const board = (x: typeof a) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const ts = (x.segments as any[]).filter((s) => s.mode === 'transit')
+          const target = ts[segs.slice(0, segmentIndex + 1).filter((s) => s.mode === 'transit').length - 1] ?? ts[0]
+          return Math.abs(new Date(target.startTime).getTime() - departureMs)
+        }
+        return board(a) - board(b)
+      })[0]
+      if (best) {
+        router.replace({ name: AppRoute.TRIP, params: { id: best.id } })
+      } else {
+        router.replace({ name: AppRoute.DIRECTIONS })
+      }
+    },
+  )
+
+  // Shift the request — the directions service watcher refetches.
+  directionsStore.departureTime = new Date(
+    new Date(t.startTime).getTime() + delta,
+  ).toISOString()
 }
 
 /** Time actually in motion — a walk's duration minus the wait at the stop. */
@@ -142,7 +208,9 @@ watch(trip, loadDepartures, { immediate: true })
 watch(
   trip,
   newTrip => {
-    if (newTrip === null && !isLoading.value && directionsStore.trips) {
+    // During a departure rebooking the old trip id vanishes on purpose —
+    // chooseDeparture navigates to the replacement itself.
+    if (newTrip === null && !isLoading.value && !rebooking.value && directionsStore.trips) {
       router.push({ name: AppRoute.DIRECTIONS })
     }
   },
@@ -485,6 +553,11 @@ function hasSegmentRouteInfo(segment: any): boolean {
             </span>
           </div>
 
+          <!-- Leave – arrive -->
+          <div class="mt-1 text-sm text-muted-foreground tabular-nums">
+            {{ formatTime(trip.startTime) }} – {{ formatTime(trip.endTime) }}
+          </div>
+
           <!-- Cost / CO2 -->
           <div
             v-if="trip.cost?.total || trip.co2Emissions"
@@ -734,132 +807,157 @@ function hasSegmentRouteInfo(segment: any): boolean {
 
             <!-- ═══ Segment content ═══ -->
             <template v-else-if="entry.kind === 'segment'">
-              <!-- ── Transit segment header ── -->
+              <!-- ── Transit segment card ── -->
               <div v-if="entry.segment.mode === 'transit' && entry.segment.lineName">
-                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                  <span
-                    class="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-md text-[11px] font-bold"
-                    :style="{
-                      background: entry.segment.lineColor ? `#${entry.segment.lineColor}` : undefined,
-                      color: entry.segment.lineTextColor ? `#${entry.segment.lineTextColor}` : '#fff',
-                    }"
-                    :class="!entry.segment.lineColor && 'bg-parchment-500'"
-                  >
-                    {{ entry.segment.lineName }}
-                  </span>
-                  <span v-if="entry.segment.headsign" class="text-sm font-semibold text-foreground">
-                    {{ entry.segment.headsign }}
-                  </span>
-                  <span v-else-if="entry.segment.lineLongName" class="text-sm font-semibold text-foreground">
-                    {{ entry.segment.lineLongName }}
-                  </span>
-                </div>
-                <div class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground tabular-nums">
-                  <span class="inline-flex items-center gap-1">
-                    <ClockIcon class="size-3" />
-                    <span
-                      v-if="entry.segment.realTimeData && entry.segment.delay && Math.abs(entry.segment.delay) > 60"
-                      class="line-through"
-                    >{{ formatTime(new Date(entry.segment.startTime.getTime() - entry.segment.delay * 1000)) }}</span>
-                    {{ formatTime(entry.segment.startTime) }} – {{ formatTime(entry.segment.endTime) }}
-                  </span>
-                  <RealtimeIndicator
-                    v-if="entry.segment.realTimeData"
-                    :real-time="true"
-                    :delay="entry.segment.delay"
-                    :color="entry.segment.lineColor ? `#${entry.segment.lineColor}` : undefined"
-                  />
-                  <span>{{ formatDuration(entry.segment.duration) }} · {{ formatDistanceDisplay(entry.segment.distance) }}</span>
-                </div>
-                <div v-if="entry.segment.agencyName" class="mt-0.5 text-xs text-muted-foreground">
-                  {{ entry.segment.agencyName }}
-                </div>
-                <div v-if="entry.segment.carryingVehicle" class="mt-1 flex items-center gap-1.5 text-xs text-forest-600 dark:text-forest-400">
-                  <BikeIcon class="size-3.5" />
-                  <span>Bring bike on board</span>
-                </div>
-
-                <!-- Board/Alight stops -->
-                <div class="mt-2 space-y-1 text-sm">
-                  <div v-if="entry.segment.departureStop" class="flex items-center gap-2">
-                    <span class="text-[10px] font-semibold text-muted-foreground">Board</span>
-                    <span class="text-foreground">{{ entry.segment.departureStop.name }}</span>
-                    <span v-if="entry.segment.departureStop.platformCode" class="text-xs text-muted-foreground">
-                      Platform {{ entry.segment.departureStop.platformCode }}
-                    </span>
-                  </div>
-
-                  <!-- Upcoming departures for this line at the boarding stop -->
+                <div
+                  class="rounded-xl border bg-card overflow-hidden"
+                  :style="entry.segment.lineColor ? { borderLeft: `3px solid #${entry.segment.lineColor}` } : {}"
+                >
+                  <!-- Line header — tinted with the line colour -->
                   <div
-                    v-if="departuresFor(entry.segmentIndex).length > 1"
-                    class="flex flex-wrap items-center gap-1.5 pt-0.5"
+                    class="px-3 py-2 flex items-center gap-2"
+                    :class="!entry.segment.lineColor && 'bg-muted/40'"
+                    :style="entry.segment.lineColor ? { background: `#${entry.segment.lineColor}1f` } : {}"
                   >
                     <span
-                      v-for="(dep, di) in departuresFor(entry.segmentIndex)"
-                      :key="dep"
-                      class="px-2 py-0.5 rounded-md text-xs font-medium tabular-nums"
-                      :class="di === 0
-                        ? (!entry.segment.lineColor && 'bg-parchment-500 text-white')
-                        : 'bg-muted text-muted-foreground'"
-                      :style="di === 0 && entry.segment.lineColor ? {
+                      class="inline-flex items-center justify-center min-w-[28px] h-[26px] px-2 rounded-lg text-sm font-bold shrink-0"
+                      :class="!entry.segment.lineColor && 'bg-parchment-500 text-white'"
+                      :style="entry.segment.lineColor ? {
                         background: `#${entry.segment.lineColor}`,
                         color: entry.segment.lineTextColor ? `#${entry.segment.lineTextColor}` : '#fff',
                       } : {}"
-                    >{{ dep }}</span>
+                    >
+                      {{ entry.segment.lineName }}
+                    </span>
+                    <ArrowRight class="size-3.5 text-muted-foreground shrink-0" />
+                    <span class="text-sm font-semibold text-foreground truncate">
+                      {{ entry.segment.headsign || entry.segment.lineLongName }}
+                    </span>
+                    <RealtimeIndicator
+                      v-if="entry.segment.realTimeData"
+                      :real-time="true"
+                      :delay="entry.segment.delay"
+                      :color="entry.segment.lineColor ? `#${entry.segment.lineColor}` : undefined"
+                      class="ml-auto shrink-0"
+                    />
                   </div>
 
-                  <!-- Intermediate stops (collapsible) -->
-                  <Collapsible
-                    v-if="entry.segment.intermediateStops?.length"
-                    v-slot="{ open }"
-                    class="mt-1"
-                  >
-                    <CollapsibleTrigger class="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
-                      <ChevronDownIcon class="size-3 transition-transform" :class="open && 'rotate-180'" />
-                      <span>{{ entry.segment.intermediateStops.length }} stops</span>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <div class="ml-4 mt-1 space-y-0.5">
-                        <div
-                          v-for="stop in entry.segment.intermediateStops"
-                          :key="stop.id || stop.name"
-                          class="flex items-center gap-2 text-xs text-muted-foreground py-0.5"
-                        >
-                          <span class="size-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
-                          <span class="flex-1">{{ stop.name }}</span>
-                          <span v-if="stop.arrivalTime" class="text-[10px] tabular-nums shrink-0">
-                            {{ formatTime(new Date(stop.arrivalTime)) }}
-                          </span>
+                  <div class="px-3 py-2.5 space-y-2">
+                    <!-- Board -->
+                    <div v-if="entry.segment.departureStop" class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="text-sm font-medium text-foreground leading-snug">
+                          {{ entry.segment.departureStop.name }}
+                        </div>
+                        <div class="text-[11px] text-muted-foreground mt-px">
+                          Board<span v-if="entry.segment.departureStop.platformCode"> · Platform {{ entry.segment.departureStop.platformCode }}</span>
                         </div>
                       </div>
-                    </CollapsibleContent>
-                  </Collapsible>
+                      <span class="text-sm font-semibold tabular-nums shrink-0">
+                        {{ formatTime(entry.segment.startTime) }}
+                      </span>
+                    </div>
 
-                  <div v-if="entry.segment.arrivalStop" class="flex items-center gap-2">
-                    <span class="text-[10px] font-semibold text-muted-foreground">Alight</span>
-                    <span class="text-foreground">{{ entry.segment.arrivalStop.name }}</span>
-                    <span v-if="entry.segment.arrivalStop.platformCode" class="text-xs text-muted-foreground">
-                      Platform {{ entry.segment.arrivalStop.platformCode }}
-                    </span>
-                  </div>
+                    <!-- Departure picker — tap a later run to re-plan around it -->
+                    <div
+                      v-if="departuresFor(entry.segmentIndex).length > 1"
+                      class="flex flex-wrap items-center gap-1.5"
+                    >
+                      <button
+                        v-for="(dep, di) in departuresFor(entry.segmentIndex)"
+                        :key="dep.ms"
+                        type="button"
+                        class="px-2 py-0.5 rounded-md text-xs font-medium tabular-nums transition-all"
+                        :class="[
+                          di === 0
+                            ? (!entry.segment.lineColor && 'bg-parchment-500 text-white')
+                            : 'bg-muted text-muted-foreground hover:text-foreground hover:ring-1 hover:ring-border cursor-pointer',
+                          rebooking && 'opacity-50 pointer-events-none',
+                        ]"
+                        :style="di === 0 && entry.segment.lineColor ? {
+                          background: `#${entry.segment.lineColor}`,
+                          color: entry.segment.lineTextColor ? `#${entry.segment.lineTextColor}` : '#fff',
+                        } : {}"
+                        :title="di === 0 ? 'Planned departure' : 'Leave on this departure instead'"
+                        @click="di !== 0 && chooseDeparture(entry.segmentIndex, dep.ms)"
+                      >
+                        {{ dep.label }}
+                      </button>
+                    </div>
 
-                  <!-- Transit alerts -->
-                  <div
-                    v-for="(alert, ai) in entry.segment.transitDetails?.alerts ?? []"
-                    :key="ai"
-                    class="flex gap-2 p-2 mt-1 rounded-md text-xs"
-                    :class="alert.severity === 'severe'
-                      ? 'bg-destructive/10 text-destructive'
-                      : alert.severity === 'warning'
-                        ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400'
-                        : 'bg-muted text-muted-foreground'"
-                  >
-                    <AlertTriangleIcon class="size-3.5 shrink-0 mt-0.5" />
-                    <div>
-                      <div v-if="alert.headerText" class="font-medium">{{ alert.headerText }}</div>
-                      <div v-if="alert.descriptionText" class="mt-0.5 line-clamp-3">{{ alert.descriptionText }}</div>
+                    <!-- Intermediate stops -->
+                    <Collapsible
+                      v-if="entry.segment.intermediateStops?.length"
+                      v-slot="{ open }"
+                    >
+                      <CollapsibleTrigger class="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                        <ChevronDownIcon class="size-3 transition-transform" :class="open && 'rotate-180'" />
+                        <span>{{ entry.segment.intermediateStops.length }} stops · {{ formatDuration(entry.segment.duration) }}</span>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div
+                          class="ml-1.5 mt-1.5 pl-3 space-y-1 border-l-2"
+                          :style="entry.segment.lineColor ? { borderColor: `#${entry.segment.lineColor}66` } : {}"
+                        >
+                          <div
+                            v-for="stop in entry.segment.intermediateStops"
+                            :key="stop.id || stop.name"
+                            class="flex items-center gap-2 text-xs text-muted-foreground"
+                          >
+                            <span class="flex-1 truncate">{{ stop.name }}</span>
+                            <span v-if="stop.arrivalTime" class="text-[10px] tabular-nums shrink-0">
+                              {{ formatTime(new Date(stop.arrivalTime)) }}
+                            </span>
+                          </div>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    <!-- Alight -->
+                    <div v-if="entry.segment.arrivalStop" class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="text-sm font-medium text-foreground leading-snug">
+                          {{ entry.segment.arrivalStop.name }}
+                        </div>
+                        <div class="text-[11px] text-muted-foreground mt-px">
+                          Alight<span v-if="entry.segment.arrivalStop.platformCode"> · Platform {{ entry.segment.arrivalStop.platformCode }}</span>
+                        </div>
+                      </div>
+                      <span class="text-sm font-semibold tabular-nums shrink-0">
+                        {{ formatTime(entry.segment.endTime) }}
+                      </span>
+                    </div>
+
+                    <!-- Transit alerts -->
+                    <div
+                      v-for="(alert, ai) in entry.segment.transitDetails?.alerts ?? []"
+                      :key="ai"
+                      class="flex gap-2 p-2 rounded-md text-xs"
+                      :class="alert.severity === 'severe'
+                        ? 'bg-destructive/10 text-destructive'
+                        : alert.severity === 'warning'
+                          ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400'
+                          : 'bg-muted text-muted-foreground'"
+                    >
+                      <AlertTriangleIcon class="size-3.5 shrink-0 mt-0.5" />
+                      <div>
+                        <div v-if="alert.headerText" class="font-medium">{{ alert.headerText }}</div>
+                        <div v-if="alert.descriptionText" class="mt-0.5 line-clamp-3">{{ alert.descriptionText }}</div>
+                      </div>
                     </div>
                   </div>
+                </div>
+
+                <!-- Meta under the card -->
+                <div class="mt-1.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
+                  <span class="tabular-nums">{{ formatDuration(entry.segment.duration) }} · {{ formatDistanceDisplay(entry.segment.distance) }}</span>
+                  <span v-if="entry.segment.agencyName">· {{ entry.segment.agencyName }}</span>
+                  <span
+                    v-if="entry.segment.carryingVehicle"
+                    class="inline-flex items-center gap-1 text-forest-600 dark:text-forest-400"
+                  >
+                    <BikeIcon class="size-3" /> Bring bike on board
+                  </span>
                 </div>
               </div>
 
@@ -922,8 +1020,10 @@ function hasSegmentRouteInfo(segment: any): boolean {
                     {{ formatDuration(movingDuration(entry.segment)) }} · {{ formatDistanceDisplay(entry.segment.distance) }}
                   </span>
                 </div>
+                <!-- Walk times are implied by the surrounding stops; show the
+                     clock only for vehicle modes -->
                 <div
-                  v-if="entry.segment.startTime && entry.segment.endTime"
+                  v-if="entry.segment.mode !== 'walking' && entry.segment.startTime && entry.segment.endTime"
                   class="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground tabular-nums"
                 >
                   <ClockIcon class="size-3" />

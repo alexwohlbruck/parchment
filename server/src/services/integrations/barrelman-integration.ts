@@ -189,6 +189,7 @@ export class BarrelmanIntegration
       getIntermodalRoute: this.getIntermodalRoute.bind(this),
       getNearbyStops: this.getNearbyStops.bind(this),
       getRoutesForStop: this.getRoutesForStop.bind(this),
+      getNearestEntrance: this.getNearestEntrance.bind(this),
     } as TransitRoutingCapability,
   }
 
@@ -891,6 +892,32 @@ export class BarrelmanIntegration
         throw new Error(`Stop routes error (${error.response.status}): ${error.response.data?.error}`)
       }
       throw new Error(`Stop routes error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  private async getNearestEntrance(
+    lat: number,
+    lon: number,
+    maxDistanceM: number = 500,
+  ) {
+    const { host } = this.config
+
+    try {
+      const params = new URLSearchParams({
+        lat: String(lat),
+        lon: String(lon),
+        maxDistance: String(maxDistanceM),
+      })
+      const response = await axios.get(
+        `${host}/transit/nearest-entrance?${params}`,
+        {
+          headers: this.headers,
+          timeout: 5_000,
+        },
+      )
+      return response.data
+    } catch {
+      return null // Silently fail — fall back to station centroid
     }
   }
 }

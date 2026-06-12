@@ -6,6 +6,7 @@ import {
   type NearbyStopsRequest,
   type NearbyStopResult,
   type StopRouteResult,
+  type StationEntrance,
 } from '../types/integration.types'
 import { integrationManager } from './integrations'
 
@@ -68,6 +69,29 @@ export class TransitRoutingService {
   ): Promise<StopRouteResult[]> {
     const capability = this.getTransitRoutingCapability()
     return capability.getRoutesForStop(feedId, stopId)
+  }
+
+  /**
+   * Find the nearest station entrance to a coordinate.
+   * Used to replace station centroids with actual entrance locations
+   * for walking directions during transfers.
+   * Returns null if no entrance found or capability not available.
+   */
+  async getNearestEntrance(
+    lat: number,
+    lon: number,
+    maxDistanceM?: number,
+  ): Promise<StationEntrance | null> {
+    try {
+      const capability = this.getTransitRoutingCapability()
+      if (capability.getNearestEntrance) {
+        // await so a rejected promise is caught here, not surfaced to callers
+        return await capability.getNearestEntrance(lat, lon, maxDistanceM)
+      }
+      return null
+    } catch {
+      return null
+    }
   }
 
   /**

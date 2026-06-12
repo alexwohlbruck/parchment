@@ -221,11 +221,25 @@ export interface TransitDataCapability {
  * routing uses a fundamentally different engine and data model (GTFS +
  * RAPTOR algorithm vs OSM graph + contraction hierarchies).
  */
+export interface StationEntrance {
+  osmId: string
+  name: string | null
+  description: string | null
+  wheelchair: string | null
+  level: string | null
+  /** Access point type: subway_entrance, train_station_entrance, railway_crossing, highway_crossing */
+  accessType: string
+  lat: number
+  lon: number
+  distanceM: number
+}
+
 export interface TransitRoutingCapability {
   getTransitRoute(request: TransitRouteRequest): Promise<TransitRouteResponse>
   getIntermodalRoute?(request: IntermodalRouteRequest): Promise<TransitRouteResponse>
   getNearbyStops(request: NearbyStopsRequest): Promise<NearbyStopResult[]>
   getRoutesForStop(feedId: string, stopId: string): Promise<StopRouteResult[]>
+  getNearestEntrance?(lat: number, lon: number, maxDistanceM?: number): Promise<StationEntrance | null>
 }
 
 export interface TransitRouteRequest {

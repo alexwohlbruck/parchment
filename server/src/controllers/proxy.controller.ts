@@ -300,6 +300,20 @@ transitProxy.get('/bikes-allowed', ({ query }) =>
   { detail: { tags: ['Proxy'], summary: 'Batch check bikes_allowed for routes' } },
 )
 
+transitProxy.get('/station/:feedId/:stopId', ({ params }) =>
+  proxyBarrelman(
+    `/transit/station/${encodeURIComponent(params.feedId)}/${encodeURIComponent(params.stopId)}`,
+    {},
+    'public, max-age=3600',
+  ),
+  { detail: { tags: ['Proxy'], summary: 'Proxy station detail with entrances and buildings' } },
+)
+
+transitProxy.get('/nearest-entrance', ({ query }) =>
+  proxyBarrelman('/transit/nearest-entrance', query, 'public, max-age=3600'),
+  { detail: { tags: ['Proxy'], summary: 'Proxy nearest station entrance lookup' } },
+)
+
 app.use(transitProxy)
 
 // ── GBFS shared mobility proxy ──────────────────────────────────────

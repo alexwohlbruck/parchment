@@ -2185,6 +2185,83 @@ describe('TripService — fare gate delay', () => {
   })
 })
 
+describe('TripService — in-station transfers', () => {
+  test('transfer walk between two subway legs keeps MOTIS path: no entrance snap, wait stretched', async () => {
+    mockGetNearestEntrance.mockClear()
+    mockGetNearestEntrance.mockImplementation(async () => ({
+      osmId: 'n1', name: 'Entrance A', description: null, wheelchair: null,
+      level: '0', accessType: 'subway_entrance',
+      lat: 35.2101, lon: -80.8501, distanceM: 20,
+    }) as any)
+    const subway = (from: string, to: string, dep: string, arr: string, line: string) => ({
+      mode: 'SUBWAY', transitLeg: true,
+      from: { name: from, lat: 35.21, lng: -80.85, stopId: from },
+      to: { name: to, lat: 35.225, lng: -80.845, stopId: to },
+      startTime: dep, endTime: arr, duration: 600, distance: 4000,
+      routeShortName: line, headsign: 'Uptown',
+      geometry: { type: 'LineString', coordinates: [[-80.85, 35.21], [-80.845, 35.225]] },
+    })
+    mockGetIntermodalRoute.mockImplementation(async () => ({
+      itineraries: [makeTransitItinerary({
+        legs: [
+          {
+            mode: 'WALK', transitLeg: false,
+            from: { name: 'Origin', lat: 35.2094, lng: -80.8605 },
+            to: { name: 'Stop R', lat: 35.21, lng: -80.85, stopId: 'R' },
+            startTime: '2026-01-15T08:00:00Z', endTime: '2026-01-15T08:05:00Z',
+            duration: 300, distance: 250,
+          },
+          subway('R', 'TSQ-R', '2026-01-15T08:05:00Z', '2026-01-15T08:15:00Z', 'R'),
+          {
+            // In-station transfer: R platform → 1 platform, 2 min underground
+            mode: 'WALK', transitLeg: false,
+            from: { name: 'TSQ-R', lat: 35.225, lng: -80.845, stopId: 'TSQ-R' },
+            to: { name: 'TSQ-1', lat: 35.2255, lng: -80.8445, stopId: 'TSQ-1' },
+            startTime: '2026-01-15T08:15:00Z', endTime: '2026-01-15T08:17:00Z',
+            duration: 120, distance: 140,
+            geometry: { type: 'LineString', coordinates: [[-80.845, 35.225], [-80.8445, 35.2255]] },
+          },
+          subway('TSQ-1', '79 St', '2026-01-15T08:20:00Z', '2026-01-15T08:28:00Z', '1'),
+          {
+            mode: 'WALK', transitLeg: false,
+            from: { name: '79 St', lat: 35.225, lng: -80.845, stopId: '79' },
+            to: { name: 'Destination', lat: 35.2304, lng: -80.8433 },
+            startTime: '2026-01-15T08:28:00Z', endTime: '2026-01-15T08:33:00Z',
+            duration: 300, distance: 250,
+          },
+        ],
+      })],
+      metadata: { searchWindow: 7200 },
+    }) as any)
+
+    try {
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'transit',
+        preferredDepartureTime: '2026-01-15T07:50:00Z',
+      })
+      const segs = response.trips[0].trip.segments
+      const transfer = segs.find(
+        (s: any, i: number) =>
+          s.mode === 'walking' && i > 0 && i < segs.length - 1,
+      ) as any
+
+      // Wait stretched to the 1 train's departure: 120s moving + 180s wait
+      expect(transfer.duration).toBe(300)
+      expect(transfer.waitSeconds).toBe(180)
+      // Entrance snapping ran only for the street-side boundary walks —
+      // never for the underground transfer (2 calls, not 4).
+      expect(mockGetNearestEntrance.mock.calls.length).toBe(2)
+    } finally {
+      mockGetNearestEntrance.mockImplementation(async () => null)
+      mockGetIntermodalRoute.mockImplementation(async () => ({
+        itineraries: [],
+        metadata: { searchWindow: 0 },
+      }) as any)
+    }
+  })
+})
+
 describe('TripService — applyDurationDominance', () => {
   const cand = (durationSec: number, overall: number) => ({
     trip: { tripStats: { totalDuration: durationSec } },

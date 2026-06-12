@@ -71,13 +71,14 @@ const tripType = computed<{ key: string; iconMode: string }>(() => {
   }
   if (has('cycling')) return { key: 'transitBike', iconMode: 'transit' }
 
-  // Significant walking: ≥8 min actually moving, or over a third of the trip
+  // "Transit & Walking" only when walking is a significant journey of its
+  // own (15+ min in motion) — ordinary access and transfer walks are just
+  // part of riding transit.
   const walkSec = segs.reduce(
     (sum, s) => sum + (s.mode === 'walking' ? (s.duration || 0) - (s.waitSeconds ?? 0) : 0),
     0,
   )
-  const total = props.trip.summary.totalDuration || 1
-  if (walkSec >= 480 || walkSec / total >= 0.35) {
+  if (walkSec >= 900) {
     return { key: 'transitWalking', iconMode: 'transit' }
   }
   return { key: 'transit', iconMode: 'transit' }

@@ -2528,6 +2528,24 @@ export class TripService {
         const nextIsTransit = i < last && this.isStationTransit(segments[i + 1])
         const prevIsTransit = i > 0 && this.isStationTransit(segments[i - 1])
 
+        // Station-to-station transfer (e.g. R → 1 inside Times Sq): the
+        // rider never reaches the street, so snapping endpoints to street
+        // entrances and re-routing along sidewalks would be flatly wrong.
+        // MOTIS's walk is level-aware and follows the in-station pathways
+        // (real or synthesized connectors) — keep its geometry and timing,
+        // stretching to the next departure so slack shows as platform wait.
+        if (prevIsTransit && nextIsTransit) {
+          const movingSec = seg.duration
+          const departureMs = new Date(segments[i + 1].startTime).getTime()
+          const startMs = new Date(seg.startTime).getTime()
+          if (departureMs > startMs) {
+            seg.endTime = new Date(departureMs).toISOString()
+            seg.duration = (departureMs - startMs) / 1000
+            seg.waitSeconds = Math.max(0, seg.duration - movingSec)
+          }
+          return
+        }
+
         const [boardEntrance, alightEntrance] = await Promise.all([
           nextIsTransit
             ? this.cachedNearestEntrance(seg.end.location.lat, seg.end.location.lng, TripService.ENTRANCE_SNAP_RADIUS_M, wheelchair)

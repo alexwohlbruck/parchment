@@ -289,7 +289,12 @@ export function resolveWidgetDescriptors(place: Place): WidgetDescriptor[] {
 async function fetchTransitDepartures(
   params: { lat: number; lng: number; feedId?: string; stopId?: string },
   options?: { limit?: number },
-): Promise<{ departures: TransitDeparture[]; stopInfo?: { name?: string; code?: string; feedId?: string; stopId?: string; timezone?: string }; sources: SourceReference[] }> {
+): Promise<{
+  departures: TransitDeparture[]
+  stopInfo?: { name?: string; code?: string; feedId?: string; stopId?: string; timezone?: string }
+  routes?: TransitStopInfo['routes']
+  sources: SourceReference[]
+}> {
   const { limit = 50 } = options || {}
 
   const barrelmanRecord = integrationManager
@@ -398,6 +403,35 @@ async function fetchTransitDepartures(
       ? [{ id: 'barrelman', name: 'GTFS Timetable' }]
       : []
 
+    // All lines serving the stop — aggregated across its station complex
+    // (agency transfers.txt), not just the routes departing soon. The
+    // "N Q R W S 1 2 3 7" badge row for a station like Times Sq.
+    let routes: TransitStopInfo['routes']
+    if (primaryStop) {
+      try {
+        const routesRes = await fetch(
+          `${config.host}/transit/routes?feedId=${encodeURIComponent(primaryStop.feedId)}&stopId=${encodeURIComponent(primaryStop.stopId)}`,
+          { headers },
+        )
+        if (routesRes.ok) {
+          const rows = await routesRes.json() as Array<{
+            routeId: string; routeShortName?: string; routeLongName?: string
+            routeType?: number; routeColor?: string; routeTextColor?: string
+          }>
+          routes = rows.map((r) => ({
+            id: r.routeId,
+            shortName: r.routeShortName,
+            longName: r.routeLongName,
+            color: r.routeColor,
+            textColor: r.routeTextColor,
+            type: r.routeType,
+          }))
+        }
+      } catch {
+        // Route list is an enhancement — departures still render without it
+      }
+    }
+
     return {
       departures: allDepartures,
       stopInfo: primaryStop ? {
@@ -407,6 +441,7 @@ async function fetchTransitDepartures(
         stopId: primaryStop.stopId,
         timezone: primaryStop.timezone,
       } : undefined,
+      routes,
       sources,
     }
   } catch (error) {
@@ -432,7 +467,7 @@ export async function fetchWidgetData(
         throw new Error('Missing lat/lng parameters for transit widget')
       }
 
-      const { departures, stopInfo, sources } = await fetchTransitDepartures(
+      const { departures, stopInfo, routes, sources } = await fetchTransitDepartures(
         {
           lat,
           lng,
@@ -444,6 +479,7 @@ export async function fetchWidgetData(
 
       const transitInfo: TransitStopInfo = {
         departures,
+        routes,
         name: stopInfo?.name,
         code: stopInfo?.code,
         feedId: stopInfo?.feedId,

@@ -112,16 +112,17 @@ const trackSpans = computed(() => {
 // Walk and wait share colour, opacity, and spacing — the shape is the
 // signal: walking is a tall pill tick, waiting a small dot. Crisp pill
 // shapes come from an SVG mask (gradients anti-alias into blurry ovals);
-// the colour is a plain background that shows through the mask. The tile
-// width is fitted per span so a whole number of shapes fills it exactly —
-// no clipped pills at span boundaries.
+// the colour is a plain background that shows through the mask.
+//
+// Each tick represents one minute: a span gets round(minutes) shapes, and
+// the tile is fitted so that whole number fills it exactly — countable
+// minutes, no clipped pills at span boundaries.
 const TICK_COLOR = 'hsl(var(--muted-foreground) / 0.6)'
-const TICK_IDEAL_SPACING = 6
 const TICK_W = 2.5
 
 function tickStyle(span: { width: number; type: 'walk' | 'wait' }) {
   const h = span.type === 'walk' ? 9 : TICK_W
-  const count = Math.max(1, Math.round(span.width / TICK_IDEAL_SPACING))
+  const count = Math.max(1, Math.round(span.width / props.pxPerMinute))
   const tile = span.width / count
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${tile}" height="${h}"><rect x="${(tile - TICK_W) / 2}" width="${TICK_W}" height="${h}" rx="${TICK_W / 2}"/></svg>`
   const mask = `url('data:image/svg+xml;utf8,${encodeURIComponent(svg)}') 0 center / ${tile}px ${h}px repeat-x`

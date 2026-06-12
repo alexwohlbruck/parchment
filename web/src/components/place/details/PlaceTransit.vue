@@ -7,7 +7,8 @@
  *     Headsign     Now, 7 min  📶
  *     Headsign     12, 25 min  📶
  */
-import { computed, markRaw } from 'vue'
+import { computed, markRaw, watch } from 'vue'
+import { setPlaceTransitLines } from '@/composables/usePlaceTransitLines'
 import { useI18n } from 'vue-i18n'
 import type { Place, TransitDeparture, TransitStopInfo } from '@/types/place.types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -47,8 +48,15 @@ const departures = computed((): TransitDeparture[] => {
   return transitInfo.value?.departures || []
 })
 
-/** Every line serving this station, across its whole transfer complex. */
+/** Every line serving this station, across its whole transfer complex.
+ *  Rendered by the place header next to the title (Apple-Maps style) —
+ *  published there as soon as the widget data arrives. */
 const stationLines = computed(() => transitInfo.value?.routes || [])
+watch(
+  stationLines,
+  (lines) => setPlaceTransitLines(props.place?.id, lines),
+  { immediate: true },
+)
 
 // ── Group departures: route → direction → sorted upcoming list ──
 
@@ -179,25 +187,6 @@ function openRouteDetail(group: RouteGroup) {
         <ChevronRightIcon class="w-4 h-4 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
       </button>
 
-      <!-- Every line serving this station, across its whole transfer
-           complex — not just the routes departing soon -->
-      <div
-        v-if="stationLines.length"
-        class="mt-1.5 flex flex-wrap items-center gap-1"
-      >
-        <span
-          v-for="line in stationLines"
-          :key="line.id"
-          class="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-[11px] font-semibold leading-none"
-          :style="{
-            background: getRouteColor({ color: line.color } as never),
-            color: getTextColor({ color: line.color, textColor: line.textColor } as never),
-          }"
-          :title="line.longName || line.shortName"
-        >
-          {{ line.shortName || line.id }}
-        </span>
-      </div>
     </CardHeader>
 
     <CardContent class="p-3 pt-2">

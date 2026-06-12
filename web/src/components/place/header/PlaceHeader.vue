@@ -21,10 +21,16 @@ import { AppRoute } from '@/router'
 import { getLocalDayAndTime } from '@/lib/place-open.utils'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useUnits } from '@/composables/useUnits'
+import { usePlaceTransitLines } from '@/composables/usePlaceTransitLines'
+import { getRouteColor, getTextColor } from '@/lib/transit'
 
 const props = defineProps<{
   place: Partial<Place>
 }>()
+
+/** Line bullets for transit stations (N Q R W S 1 2 3 7…), published by
+ *  the transit departures widget once its data arrives. */
+const stationLines = usePlaceTransitLines(computed(() => props.place?.id))
 
 const { t } = useI18n()
 const themeStore = useThemeStore()
@@ -281,6 +287,26 @@ watch(
           {{ displayName }}
         </h1>
       </div>
+    </div>
+
+    <!-- Transit line bullets — every line serving this station across its
+         transfer complex, right under the title like Apple Maps -->
+    <div
+      v-if="stationLines.length"
+      class="flex flex-wrap items-center gap-1"
+    >
+      <span
+        v-for="line in stationLines"
+        :key="line.id"
+        class="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full text-xs font-semibold leading-none"
+        :style="{
+          background: getRouteColor({ color: line.color } as never),
+          color: getTextColor({ color: line.color, textColor: line.textColor } as never),
+        }"
+        :title="line.longName || line.shortName"
+      >
+        {{ line.shortName || line.id }}
+      </span>
     </div>
 
     <!-- Open status -->

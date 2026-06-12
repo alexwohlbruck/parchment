@@ -113,6 +113,16 @@ function directionsService() {
         requestId: `frontend-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       }
 
+      // Same inputs planned recently in this tab? Restore the exact
+      // response (same trip ids and times) instead of re-planning — a page
+      // refresh on a trip detail lands back on the identical trip.
+      const planKey = planCacheKey(request)
+      const cached = readPlanCache(planKey)
+      if (cached) {
+        store.setTrips(cached)
+        return
+      }
+
       const { data } = await api.post('/directions/', request)
 
       // Transform response to UI format
@@ -166,6 +176,7 @@ function directionsService() {
       }
 
       store.setTrips(response)
+      writePlanCache(planKey, response)
     } catch (error) {
       console.error('Failed to fetch directions:', error)
       store.unsetTrips()
@@ -173,6 +184,44 @@ function directionsService() {
     } finally {
       isRequesting.value = false
       store.setLoading(false)
+    }
+  }
+
+  // ── Plan cache (sessionStorage) ─────────────────────────────────────
+  // One entry: the latest plan, keyed by its full request (minus volatile
+  // fields). Survives refresh within the tab; cross-device sharing goes
+  // through the URL → re-plan → trip-signature match path instead.
+  const PLAN_CACHE_KEY = 'parchment:last-plan'
+  const PLAN_CACHE_TTL_MS = 30 * 60_000
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function planCacheKey(request: any): string {
+    const { requestId: _id, availableVehicles: _v, ...stable } = request
+    return JSON.stringify(stable)
+  }
+
+  function readPlanCache(key: string): TripsResponse | null {
+    try {
+      const raw = sessionStorage.getItem(PLAN_CACHE_KEY)
+      if (!raw) return null
+      const entry = JSON.parse(raw)
+      if (entry.key !== key) return null
+      if (Date.now() - entry.savedAt > PLAN_CACHE_TTL_MS) return null
+      return entry.response as TripsResponse
+    } catch {
+      return null
+    }
+  }
+
+  function writePlanCache(key: string, response: TripsResponse) {
+    try {
+      sessionStorage.setItem(
+        PLAN_CACHE_KEY,
+        JSON.stringify({ key, savedAt: Date.now(), response }),
+      )
+    } catch {
+      // Quota exceeded or storage unavailable — the URL re-plan path
+      // still recovers the trip, just without identical ids.
     }
   }
 

@@ -4,6 +4,9 @@ import dayjs from 'dayjs'
 import { useRouter } from 'vue-router'
 import type { TripsResponse, TripOption } from '@/types/directions.types'
 import TripItem from './TripItem.vue'
+import { useDirectionsStore } from '@/stores/directions.store'
+import { serializeDirectionsQuery } from '@/lib/directions-url'
+import { tripSignature } from '@/lib/trip-signature'
 
 interface Props {
   trips: TripsResponse
@@ -11,6 +14,7 @@ interface Props {
 
 const props = defineProps<Props>()
 const router = useRouter()
+const directionsStore = useDirectionsStore()
 
 const MIN_PX_PER_MIN = 1.5
 const MAX_PX_PER_MIN = 50
@@ -161,23 +165,25 @@ const timeTicks = computed(() => {
 })
 
 function navigateToTripDetail(trip: TripOption) {
-  const waypointsParam = props.trips.request.waypoints
-    .map(wp => `${wp.coordinate.lat.toFixed(6)},${wp.coordinate.lng.toFixed(6)}`)
-    .join(';')
-
+  // The trip URL carries the full planning inputs (same wp/mode/sort/depart
+  // format as the directions URL) plus the trip's stable signature, so a
+  // refresh or a shared link can re-plan and find this same trip again.
   router.push({
     name: 'trip',
     params: { id: trip.id },
     query: {
-      mode: trip.mode,
-      vehicle: trip.vehicleType,
-      waypoints: waypointsParam,
-      ...(props.trips.request.departureTime && {
-        departure: props.trips.request.departureTime.toISOString(),
+      ...serializeDirectionsQuery({
+        waypoints: props.trips.request.waypoints.map((wp) => ({
+          lat: wp.coordinate.lat,
+          lng: wp.coordinate.lng,
+          label: wp.name || undefined,
+        })),
+        mode: directionsStore.selectedMode,
+        sort: directionsStore.sortPreference || undefined,
+        depart: directionsStore.departureTime || undefined,
       }),
-      ...(props.trips.request.preferences?.avoidTolls && { avoid_tolls: 'true' }),
-      ...(props.trips.request.preferences?.avoidHighways && { avoid_highways: 'true' }),
-      ...(props.trips.request.preferences?.avoidFerries && { avoid_ferries: 'true' }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      sig: tripSignature((trip as any).segments),
     },
   })
 }

@@ -33,6 +33,7 @@ import {
   Undo2Icon,
 } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
+import { tripSignature } from '@/lib/trip-signature'
 import type { RouteInstruction } from '@/types/directions.types'
 import type { Place } from '@/types/place.types'
 import type { RouteProfileType } from '@/lib/route-profile-colors'
@@ -294,18 +295,39 @@ const tripId = computed(() => route.params.id as string)
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 
+// Trip lookup: exact id first (same session / restored plan cache), then
+// the URL's stable signature — a refresh or shared link re-plans from the
+// URL's wp/mode/depart params (the shared directions service hydrates and
+// fetches automatically) and the signature picks this trip out of the
+// fresh results, whose ids are newly minted.
 const trip = computed(() => {
-  if (!directionsStore.trips?.trips) return null
-  return directionsStore.trips.trips.find(t => t.id === tripId.value) || null
+  const list = directionsStore.trips?.trips
+  if (!list) return null
+  const byId = list.find(t => t.id === tripId.value)
+  if (byId) return byId
+  const sig = route.query.sig as string | undefined
+  if (!sig) return null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return list.find(t => tripSignature((t as any).segments) === sig) || null
 })
 
 watch(trip, loadDepartures, { immediate: true })
 
+// Keep the URL's id canonical after a signature match, so departure
+// rebooking and further shares reference the live trip object.
+watch(trip, (t) => {
+  if (t && t.id !== tripId.value) {
+    router.replace({ params: { id: t.id }, query: route.query }).catch(() => {})
+  }
+})
+
+// Only bail back to the planner when results have settled and the trip is
+// genuinely absent — never mid-recovery while the re-plan is in flight.
 watch(
-  trip,
-  newTrip => {
-    if (newTrip === null && !isLoading.value && directionsStore.trips) {
-      router.push({ name: AppRoute.DIRECTIONS })
+  [trip, () => directionsStore.isLoading],
+  ([newTrip, loading]) => {
+    if (newTrip === null && !loading && directionsStore.trips) {
+      router.push({ name: AppRoute.DIRECTIONS, query: route.query })
     }
   },
   { immediate: true },
@@ -633,8 +655,9 @@ function hasSegmentRouteInfo(segment: any): boolean {
 
 <template>
   <div class="h-full w-full overflow-y-auto">
-    <!-- Loading -->
-    <div v-if="isLoading" class="flex items-center justify-center py-8">
+    <!-- Loading (own state, or the shared planner re-creating the trip
+         from a refreshed/shared URL) -->
+    <div v-if="isLoading || (!trip && directionsStore.isLoading)" class="flex items-center justify-center py-8">
       <Caption>Loading trip details...</Caption>
     </div>
 
@@ -1321,9 +1344,15 @@ function hasSegmentRouteInfo(segment: any): boolean {
       </div>
     </div>
 
-    <!-- No trip found -->
-    <div v-else class="p-4">
-      <Caption>Trip not found</Caption>
+    <!-- No trip found — and no way to recreate it (the URL carries no
+         planning inputs). Recoverable URLs never land here: the shared
+         service re-plans from the query and the signature re-finds the trip. -->
+    <div v-else class="p-6 flex flex-col items-start gap-3">
+      <Caption>This trip is no longer available.</Caption>
+      <Button variant="outline" size="sm" @click="router.push({ name: AppRoute.DIRECTIONS, query: route.query })">
+        <ArrowLeft class="size-4 mr-1" />
+        Back to the planner
+      </Button>
     </div>
   </div>
 </template>

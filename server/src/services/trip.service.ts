@@ -2586,6 +2586,7 @@ export class TripService {
 
     // Add shared mobility details for RENTAL legs
     if (leg.mode === 'RENTAL') {
+      const pricing = leg.rentalPricing
       segment.details = {
         sharedMobilityDetails: {
           provider: leg.rentalProvider || 'Unknown',
@@ -2595,7 +2596,20 @@ export class TripService {
           propulsionType: this.mapPropulsionType((leg as any).rentalPropulsionType),
           stationId: leg.rentalStationId,
           unlockUri: (leg as any).rentalUri,
+          ...(pricing && {
+            pricing: {
+              currency: pricing.currency,
+              unlockPrice: pricing.unlockPrice,
+              perMinuteRate: pricing.perMinuteRate,
+              estimatedCost: pricing.estimatedCost,
+              planName: pricing.planName,
+            },
+          }),
         },
+      }
+      // Fold the GBFS fare estimate into trip cost (calculateStats sums these).
+      if (pricing && pricing.estimatedCost > 0) {
+        segment.cost = { value: pricing.estimatedCost, currency: pricing.currency }
       }
     }
 

@@ -35,6 +35,7 @@ import { AppRoute } from '@/router'
 import type { RouteInstruction } from '@/types/directions.types'
 import type { Place } from '@/types/place.types'
 import type { RouteProfileType } from '@/lib/route-profile-colors'
+import type { SharedMobilityDetails } from '@/types/multimodal.types'
 import { getSegmentIcon } from '@/lib/travel-mode-icons'
 import { getPlaceRoute } from '@/lib/place.utils'
 import {
@@ -375,6 +376,22 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
     style: 'currency',
     currency: cost.currency,
   }).format(cost.amount)
+}
+
+type RentalPricing = NonNullable<SharedMobilityDetails['pricing']>
+
+/** "≈ $12.12" — estimated single-ride fare. */
+const formatRentalFare = (p: RentalPricing): string =>
+  `≈ ${formatCurrency({ currency: p.currency, amount: p.estimatedCost })}`
+
+/** "$4.99 unlock + $0.41/min" — the rate card behind the estimate. */
+const formatFareBreakdown = (p: RentalPricing): string => {
+  const unlock = `${formatCurrency({ currency: p.currency, amount: p.unlockPrice })} unlock`
+  if (p.perMinuteRate > 0) {
+    const rate = formatCurrency({ currency: p.currency, amount: p.perMinuteRate })
+    return `${unlock} + ${rate}/min`
+  }
+  return unlock
 }
 
 function formatCo2(kg: number): string {
@@ -1095,6 +1112,18 @@ function hasSegmentRouteInfo(segment: any): boolean {
                   >
                     {{ entry.segment.sharedMobilityDetails.availableVehicles }} available
                   </div>
+                </div>
+                <!-- GBFS fare estimate -->
+                <div
+                  v-if="entry.segment.sharedMobilityDetails.pricing"
+                  class="flex items-baseline justify-between gap-2 border-t border-teal-200/60 dark:border-teal-800/40 pt-2"
+                >
+                  <span class="text-sm font-semibold text-teal-800 dark:text-teal-200">
+                    {{ formatRentalFare(entry.segment.sharedMobilityDetails.pricing) }}
+                  </span>
+                  <span class="text-xs text-muted-foreground text-right">
+                    {{ formatFareBreakdown(entry.segment.sharedMobilityDetails.pricing) }}
+                  </span>
                 </div>
                 <a
                   v-if="entry.segment.sharedMobilityDetails.unlockUri"

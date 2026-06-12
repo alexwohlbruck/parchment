@@ -243,6 +243,14 @@ export interface SharedMobilityDetails {
   availableVehicles?: number
   availableDocks?: number
   unlockUri?: string
+  /** Fare from the operator's GBFS pricing feed (estimate). */
+  pricing?: {
+    currency: string
+    unlockPrice: number
+    perMinuteRate: number
+    estimatedCost: number
+    planName?: string
+  }
 }
 
 export interface TransitDetails {

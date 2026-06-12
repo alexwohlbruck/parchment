@@ -328,6 +328,16 @@ export interface TransitLeg {
   rentalStationName?: string
   rentalFormFactor?: string
   rentalStationId?: string
+  rentalSystemId?: string
+  /** Estimated fare from the operator's GBFS pricing feed, when published. */
+  rentalPricing?: {
+    currency: string
+    unlockPrice: number
+    perMinuteRate: number
+    perKmRate: number
+    planName?: string
+    estimatedCost: number
+  }
 }
 
 export interface TransitLegPlace {

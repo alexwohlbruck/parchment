@@ -238,6 +238,17 @@ export interface SharedMobilityDetails {
   availableVehicles?: number
   availableDocks?: number
   unlockUri?: string
+  /** Fare from the operator's GBFS pricing feed (estimate). */
+  pricing?: {
+    currency: string
+    /** Base/unlock fee. */
+    unlockPrice: number
+    /** Per-minute rate, for display ("$0.41/min"). */
+    perMinuteRate: number
+    /** Estimated total for this ride. */
+    estimatedCost: number
+    planName?: string
+  }
 }
 
 export interface TransitDetails {

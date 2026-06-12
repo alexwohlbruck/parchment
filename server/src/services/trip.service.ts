@@ -2837,14 +2837,23 @@ export class TripService {
         (c) => this.getTripMode(c.trip) === subType,
       )
       if (!sortPreference) {
+        // Earliest arrival in 5-minute buckets; within a bucket the trip
+        // with fewer vehicle legs wins. Pure earliest-arrival kept
+        // surfacing three-vehicle relay chains that beat a simple
+        // one-seat ride by a minute or two.
+        const arrival = (c: typeof sorted[number]) =>
+          new Date(
+            c.trip.segments[c.trip.segments.length - 1]?.endTime || 0,
+          ).getTime()
+        const vehicleLegs = (c: typeof sorted[number]) =>
+          c.trip.segments.filter((s) => s.mode !== 'walking').length
         subCandidates = [...subCandidates].sort((a, b) => {
-          const aEnd = new Date(
-            a.trip.segments[a.trip.segments.length - 1]?.endTime || 0,
-          ).getTime()
-          const bEnd = new Date(
-            b.trip.segments[b.trip.segments.length - 1]?.endTime || 0,
-          ).getTime()
-          return aEnd - bEnd
+          const bucketA = Math.round(arrival(a) / 300_000)
+          const bucketB = Math.round(arrival(b) / 300_000)
+          if (bucketA !== bucketB) return bucketA - bucketB
+          const legDiff = vehicleLegs(a) - vehicleLegs(b)
+          if (legDiff !== 0) return legDiff
+          return arrival(a) - arrival(b)
         })
       }
       for (const c of subCandidates.slice(0, TripService.MAX_PER_MODE)) {

@@ -899,6 +899,7 @@ export class BarrelmanIntegration
     lat: number,
     lon: number,
     maxDistanceM: number = 500,
+    wheelchair: boolean = false,
   ) {
     const { host } = this.config
 
@@ -907,6 +908,7 @@ export class BarrelmanIntegration
         lat: String(lat),
         lon: String(lon),
         maxDistance: String(maxDistanceM),
+        ...(wheelchair && { wheelchair: 'true' }),
       })
       const response = await axios.get(
         `${host}/transit/nearest-entrance?${params}`,

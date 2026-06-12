@@ -239,7 +239,7 @@ export interface TransitRoutingCapability {
   getIntermodalRoute?(request: IntermodalRouteRequest): Promise<TransitRouteResponse>
   getNearbyStops(request: NearbyStopsRequest): Promise<NearbyStopResult[]>
   getRoutesForStop(feedId: string, stopId: string): Promise<StopRouteResult[]>
-  getNearestEntrance?(lat: number, lon: number, maxDistanceM?: number): Promise<StationEntrance | null>
+  getNearestEntrance?(lat: number, lon: number, maxDistanceM?: number, wheelchair?: boolean): Promise<StationEntrance | null>
 }
 
 export interface TransitRouteRequest {

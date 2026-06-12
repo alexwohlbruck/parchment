@@ -81,12 +81,13 @@ export class TransitRoutingService {
     lat: number,
     lon: number,
     maxDistanceM?: number,
+    wheelchair?: boolean,
   ): Promise<StationEntrance | null> {
     try {
       const capability = this.getTransitRoutingCapability()
       if (capability.getNearestEntrance) {
         // await so a rejected promise is caught here, not surfaced to callers
-        return await capability.getNearestEntrance(lat, lon, maxDistanceM)
+        return await capability.getNearestEntrance(lat, lon, maxDistanceM, wheelchair)
       }
       return null
     } catch {

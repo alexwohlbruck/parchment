@@ -2416,6 +2416,9 @@ export class TripService {
    */
   private static readonly ENTRANCE_SNAP_RADIUS_M = 150
 
+  /** Time to queue and tap through fare control at a subway entrance. */
+  private static readonly FARE_GATE_DELAY_SEC = 10
+
   /** True when the segment is a transit leg boarding inside a station. */
   private isStationTransit(seg: TripSegment): boolean {
     if (seg.mode !== 'transit') return false
@@ -2434,11 +2437,12 @@ export class TripService {
     lat: number,
     lng: number,
     radiusM: number,
+    wheelchair = false,
   ): Promise<import('../types/integration.types').StationEntrance | null> {
-    const key = `${lat.toFixed(5)},${lng.toFixed(5)},${radiusM}`
+    const key = `${lat.toFixed(5)},${lng.toFixed(5)},${radiusM},${wheelchair ? 'w' : ''}`
     let hit = this.entranceCache.get(key)
     if (!hit) {
-      hit = transitRoutingService.getNearestEntrance(lat, lng, radiusM)
+      hit = transitRoutingService.getNearestEntrance(lat, lng, radiusM, wheelchair)
       this.entranceCache.set(key, hit)
       if (this.entranceCache.size > TripService.ENTRANCE_CACHE_MAX) {
         // Drop the oldest entry — simple FIFO trim is enough here
@@ -2488,16 +2492,19 @@ export class TripService {
 
         // 2. Entrance snapping on station-facing endpoints. Only for
         // station-based modes — bus/ferry stops are curbside or pier-side
-        // and have no entrance to walk to.
+        // and have no entrance to walk to. With the wheelchair preference,
+        // only accessible access points are considered (elevators rather
+        // than stairs; entrances tagged wheelchair=no excluded).
+        const wheelchair = preferences?.wheelchairAccessible === true
         const nextIsTransit = i < last && this.isStationTransit(segments[i + 1])
         const prevIsTransit = i > 0 && this.isStationTransit(segments[i - 1])
 
         const [boardEntrance, alightEntrance] = await Promise.all([
           nextIsTransit
-            ? this.cachedNearestEntrance(seg.end.location.lat, seg.end.location.lng, TripService.ENTRANCE_SNAP_RADIUS_M)
+            ? this.cachedNearestEntrance(seg.end.location.lat, seg.end.location.lng, TripService.ENTRANCE_SNAP_RADIUS_M, wheelchair)
             : Promise.resolve(null),
           prevIsTransit
-            ? this.cachedNearestEntrance(seg.start.location.lat, seg.start.location.lng, TripService.ENTRANCE_SNAP_RADIUS_M)
+            ? this.cachedNearestEntrance(seg.start.location.lat, seg.start.location.lng, TripService.ENTRANCE_SNAP_RADIUS_M, wheelchair)
             : Promise.resolve(null),
         ])
 
@@ -2538,7 +2545,20 @@ export class TripService {
           seg.minElevation = leg.minElevation
           seg.edgeSegments = leg.edgeSegments
 
-          const ghDurMs = leg.duration * 1000
+          // Fare validation delay: passing a fare-controlled entrance
+          // (turnstiles at subway entrances) costs real time. Counted as
+          // movement, not wait — you're queueing and tapping, not standing
+          // at the platform.
+          const boardGateSec =
+            boardEntrance?.accessType === 'subway_entrance'
+              ? TripService.FARE_GATE_DELAY_SEC
+              : 0
+          const alightGateSec =
+            alightEntrance?.accessType === 'subway_entrance'
+              ? TripService.FARE_GATE_DELAY_SEC
+              : 0
+          const movingSec = leg.duration + boardGateSec + alightGateSec
+          const ghDurMs = movingSec * 1000
 
           const nextIsTransitLeg = i < last && segments[i + 1].mode === 'transit'
           if (i === 0 && nextIsTransitLeg) {
@@ -2554,18 +2574,18 @@ export class TripService {
             seg.startTime = new Date(newStart).toISOString()
             seg.endTime = new Date(departureMs).toISOString()
             seg.duration = (departureMs - newStart) / 1000
-            seg.waitSeconds = Math.max(0, seg.duration - leg.duration)
+            seg.waitSeconds = Math.max(0, seg.duration - movingSec)
           } else if (i === 0) {
             // First leg isn't a walk-to-transit (e.g. a fully collapsed trip);
             // just place the routed walk from its start.
             const startMs = new Date(seg.startTime).getTime()
             seg.endTime = new Date(startMs + ghDurMs).toISOString()
-            seg.duration = leg.duration
+            seg.duration = movingSec
           } else if (i === last) {
             // Anchor the start (transit arrival side); extend the end.
             const startMs = new Date(seg.startTime).getTime()
             seg.endTime = new Date(startMs + ghDurMs).toISOString()
-            seg.duration = leg.duration
+            seg.duration = movingSec
           } else if (nextIsTransitLeg) {
             // Transfer walk: you walk when you arrive, then wait at the next
             // platform. Stretch the segment to the next departure so a MOTIS

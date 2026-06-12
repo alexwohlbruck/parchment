@@ -2094,6 +2094,75 @@ describe('TripService — filterQualityTrips', () => {
 
 // ── rankByMetric (direct ranking) ──────────────────────────────────────────────────────────
 
+describe('TripService — fare gate delay', () => {
+  test('subway entrance adds fare validation time to access and egress walks', async () => {
+    // Walk → subway → walk. Station-based transit triggers entrance
+    // snapping; the snapped entrance is fare-controlled (subway_entrance),
+    // so both the access and egress walks absorb the +10s gate delay.
+    mockGetNearestEntrance.mockImplementation(async () => ({
+      osmId: 'n1', name: 'Entrance A', description: null, wheelchair: 'yes',
+      level: '0', accessType: 'subway_entrance',
+      lat: 35.2101, lon: -80.8501, distanceM: 20,
+    }) as any)
+    mockGetIntermodalRoute.mockImplementation(async () => ({
+      itineraries: [makeTransitItinerary({
+        legs: [
+          {
+            mode: 'WALK', transitLeg: false,
+            from: { name: 'Origin', lat: 35.2094, lng: -80.8605 },
+            to: { name: 'Stop A', lat: 35.21, lng: -80.85, stopId: 'stop-a' },
+            startTime: '2026-01-15T08:00:00Z', endTime: '2026-01-15T08:05:00Z',
+            duration: 300, distance: 250,
+          },
+          {
+            mode: 'SUBWAY', transitLeg: true,
+            from: { name: 'Stop A', lat: 35.21, lng: -80.85, stopId: 'stop-a' },
+            to: { name: 'Stop B', lat: 35.225, lng: -80.845, stopId: 'stop-b' },
+            startTime: '2026-01-15T08:05:00Z', endTime: '2026-01-15T08:25:00Z',
+            duration: 1200, distance: 5000,
+            routeShortName: '1', headsign: 'Uptown',
+            geometry: { type: 'LineString', coordinates: [[-80.85, 35.21], [-80.845, 35.225]] },
+          },
+          {
+            mode: 'WALK', transitLeg: false,
+            from: { name: 'Stop B', lat: 35.225, lng: -80.845, stopId: 'stop-b' },
+            to: { name: 'Destination', lat: 35.2304, lng: -80.8433 },
+            startTime: '2026-01-15T08:25:00Z', endTime: '2026-01-15T08:30:00Z',
+            duration: 300, distance: 250,
+          },
+        ],
+      })],
+      metadata: { searchWindow: 7200 },
+    }) as any)
+
+    try {
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'transit',
+        preferredDepartureTime: '2026-01-15T07:50:00Z',
+      })
+      expect(response.trips.length).toBeGreaterThan(0)
+      const segs = response.trips[0].trip.segments
+      const access = segs[0]
+      const egress = segs[segs.length - 1]
+
+      // GraphHopper mock walks take 360s; gate adds 10s of movement.
+      // Access walk is departure-anchored with a 2-min buffer:
+      // duration = 360 + 10 + 120 buffer = 490s, of which 120s is wait.
+      expect(access.duration).toBe(490)
+      expect(access.waitSeconds).toBe(120)
+      // Egress extends from arrival: walk + gate.
+      expect(egress.duration).toBe(370)
+    } finally {
+      mockGetNearestEntrance.mockImplementation(async () => null)
+      mockGetIntermodalRoute.mockImplementation(async () => ({
+        itineraries: [],
+        metadata: { searchWindow: 0 },
+      }) as any)
+    }
+  })
+})
+
 describe('TripService — applyDurationDominance', () => {
   const cand = (durationSec: number, overall: number) => ({
     trip: { tripStats: { totalDuration: durationSec } },

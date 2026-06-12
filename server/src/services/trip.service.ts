@@ -2306,13 +2306,26 @@ export class TripService {
 
           const ghDurMs = leg.duration * 1000
 
-          if (i === 0) {
-            // Anchor the end (transit departure side); back-time the start,
-            // never before the requested departure.
-            const endMs = new Date(seg.endTime).getTime()
-            const newStart = Math.max(endMs - ghDurMs, tripStartMs)
+          const nextIsTransitLeg = i < last && segments[i + 1].mode === 'transit'
+          if (i === 0 && nextIsTransitLeg) {
+            // Access walk: leave as late as possible while still reaching the
+            // stop the preferred buffer before the train departs (rather than
+            // arriving exactly on time). The buffer is a soft target — the
+            // clamp to the requested departure and ~1 min of walk-time
+            // uncertainty flex it naturally. The segment spans walk + buffer
+            // wait, so the timeline shows the short wait at the stop.
+            const departureMs = new Date(segments[i + 1].startTime).getTime()
+            const bufferMs = (preferences?.transitBufferMinutes ?? 2) * 60_000
+            const newStart = Math.max(departureMs - ghDurMs - bufferMs, tripStartMs)
             seg.startTime = new Date(newStart).toISOString()
-            seg.duration = (endMs - newStart) / 1000
+            seg.endTime = new Date(departureMs).toISOString()
+            seg.duration = (departureMs - newStart) / 1000
+          } else if (i === 0) {
+            // First leg isn't a walk-to-transit (e.g. a fully collapsed trip);
+            // just place the routed walk from its start.
+            const startMs = new Date(seg.startTime).getTime()
+            seg.endTime = new Date(startMs + ghDurMs).toISOString()
+            seg.duration = leg.duration
           } else if (i === last) {
             // Anchor the start (transit arrival side); extend the end.
             const startMs = new Date(seg.startTime).getTime()

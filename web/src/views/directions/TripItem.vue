@@ -112,9 +112,12 @@ const trackSpans = computed(() => {
   return spans
 })
 
+// Walk and wait use the same colour, opacity and rounded marks — they differ
+// only in length: walking is a rounded dash, waiting a round dot.
+const TICK_COLOR = 'hsl(var(--muted-foreground) / 0.6)'
 const TICK_STYLES = {
-  walk: 'repeating-linear-gradient(to right, hsl(var(--border)) 0 1.5px, transparent 1.5px 6px)',
-  wait: 'radial-gradient(circle, hsl(var(--muted-foreground)) 1px, transparent 1.4px) center / 5px 6px repeat-x',
+  walk: `radial-gradient(2px 1px at center, ${TICK_COLOR} 80%, transparent 90%) 0 center / 7px 100% repeat-x`,
+  wait: `radial-gradient(1px 1px at center, ${TICK_COLOR} 80%, transparent 90%) 0 center / 7px 100% repeat-x`,
 } as const
 
 function getTripModeLabel(mode: string): string {

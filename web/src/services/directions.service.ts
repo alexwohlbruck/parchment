@@ -1,5 +1,6 @@
 import { watch, ref } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { createSharedComposable } from '@vueuse/core'
 import { useGeolocationService } from '@/services/geolocation.service'
@@ -11,6 +12,11 @@ import type { Place } from '@/types/place.types'
 import { useGeocodingService } from './geocoding.service'
 import { getSearchResultName } from '@/lib/search.utils'
 import { useVehiclesStore } from '@/stores/vehicles.store'
+import {
+  serializeDirectionsQuery,
+  parseDirectionsQuery,
+  directionsQueryEquals,
+} from '@/lib/directions-url'
 
 const MIN_WAYPOINTS = 2
 
@@ -433,6 +439,66 @@ function directionsService() {
     }
     await setWaypointWithGeocoding(1, waypoint)
   }
+
+  // ── Shareable URL state ─────────────────────────────────────────────
+  // Directions inputs live in the query string (?wp=lat,lng,label&mode=…)
+  // so links can be bookmarked, shared, and reproduced exactly.
+  const route = useRoute()
+  const router = useRouter()
+
+  /** Hydrate the store from a shared/bookmarked directions URL. */
+  function applyUrlState(): boolean {
+    const state = parseDirectionsQuery(route.query)
+    if (!state) return false
+
+    const wps = state.waypoints.map((w, i) => ({
+      lngLat: new LngLat(w.lng, w.lat),
+      place: w.label
+        ? ({
+            id: `shared-wp-${i}`,
+            name: { value: w.label },
+            geometry: {
+              value: { type: 'point', center: { lat: w.lat, lng: w.lng } },
+            },
+            externalIds: {},
+            address: null,
+            placeType: { value: 'shared_location' },
+          } as unknown as Place)
+        : null,
+    })) as Waypoint[]
+    while (wps.length < MIN_WAYPOINTS) wps.push({ lngLat: null } as Waypoint)
+
+    if (state.mode) store.selectedMode = state.mode as typeof selectedMode.value
+    if (state.sort) store.sortPreference = state.sort as typeof sortPreference.value
+    if (state.depart) store.departureTime = state.depart
+    store.setWaypoints(wps)
+    return true
+  }
+
+  /** Reflect the current inputs into the URL (replace — no history spam). */
+  function syncUrl() {
+    if (!route.path.startsWith('/directions')) return
+    const q = serializeDirectionsQuery({
+      waypoints: waypoints.value
+        .filter((w) => w.lngLat)
+        .map((w) => ({
+          lat: w.lngLat!.lat,
+          lng: w.lngLat!.lng,
+          label: (w.place ? getSearchResultName(w.place as Place) : '') || undefined,
+        })),
+      mode: selectedMode.value,
+      sort: sortPreference.value || undefined,
+      depart: departureTime.value || undefined,
+    })
+    if (directionsQueryEquals(q, route.query)) return
+    const { wp: _wp, mode: _mode, sort: _sort, depart: _depart, ...rest } = route.query
+    router.replace({ query: { ...rest, ...q } }).catch(() => {})
+  }
+
+  applyUrlState()
+  watch([waypoints, selectedMode, sortPreference, departureTime], syncUrl, {
+    deep: true,
+  })
 
   // Auto-fetch when waypoints, mode, preferences, sort, or departure time change
   watch(

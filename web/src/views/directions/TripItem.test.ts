@@ -82,6 +82,42 @@ describe('TripItem timeline rendering', () => {
     expect(wrapper.text()).toContain('Inwood-207 St')
   })
 
+  it('splits a transfer walk into a walking span and a trailing wait span', () => {
+    // 345m transfer walk over 420s = ~255s walking + ~165s waiting.
+    const wrapper = mountTrip([
+      seg({ mode: 'transit', lineName: '2', routeType: 'subway', endTime: new Date('2026-06-12T14:00:00Z') }),
+      seg({
+        mode: 'walking',
+        startTime: new Date('2026-06-12T14:00:00Z'),
+        endTime: new Date('2026-06-12T14:07:00Z'),
+        duration: 420,
+        distance: 345,
+      }),
+      seg({ mode: 'transit', lineName: 'F', routeType: 'subway', startTime: new Date('2026-06-12T14:07:00Z') }),
+    ])
+    const spans = (wrapper.vm as unknown as {
+      trackSpans: { type: string; width: number }[]
+    }).trackSpans
+    const walk = spans.find((s) => s.type === 'walk')
+    const wait = spans.find((s) => s.type === 'wait')
+    expect(walk).toBeDefined()
+    expect(wait).toBeDefined()
+    // walking comes before waiting on the track
+    expect(walk!.width).toBeGreaterThan(0)
+    expect(wait!.width).toBeGreaterThan(0)
+  })
+
+  it('does not add a wait span to a pure walk with no absorbed wait', () => {
+    const wrapper = mountTrip([
+      seg({ mode: 'walking', duration: 600, distance: 800 }),
+    ])
+    const spans = (wrapper.vm as unknown as {
+      trackSpans: { type: string }[]
+    }).trackSpans
+    expect(spans.some((s) => s.type === 'wait')).toBe(false)
+    expect(spans.some((s) => s.type === 'walk')).toBe(true)
+  })
+
   it('renders a pill per vehicle leg for multi-transfer trips', () => {
     const wrapper = mountTrip([
       seg({ mode: 'walking' }),

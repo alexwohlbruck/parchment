@@ -81,6 +81,42 @@ function segW(segment: { duration: number }) {
   return Math.max((segment.duration / 60) * props.pxPerMinute, 4)
 }
 
+/**
+ * Walking pace (m/s) used only to split a walk segment into its moving vs
+ * waiting parts. Transit access/transfer walks fold the wait at the stop into
+ * the walk segment's duration; we estimate the walking part from distance and
+ * treat the remainder (right before the vehicle) as waiting.
+ */
+const WALK_MPS = 1.35
+const MIN_WAIT_SEC = 45
+
+/** Typed sub-spans of the track: 'walk' (long ticks) then 'wait' (dots). */
+const trackSpans = computed(() => {
+  const pxPerSec = props.pxPerMinute / 60
+  const spans: { left: number; width: number; type: 'walk' | 'wait' }[] = []
+  for (const seg of props.trip.segments) {
+    if (seg.mode !== 'walking') continue
+    const dur = seg.duration || 0
+    if (dur <= 0) continue
+    const left = segLeft(seg)
+    const walkSec = seg.distance
+      ? Math.min(dur, seg.distance / WALK_MPS)
+      : dur
+    const waitSec = dur - walkSec
+    const walkW = walkSec * pxPerSec
+    if (walkW > 0.5) spans.push({ left, width: walkW, type: 'walk' })
+    if (waitSec >= MIN_WAIT_SEC) {
+      spans.push({ left: left + walkW, width: waitSec * pxPerSec, type: 'wait' })
+    }
+  }
+  return spans
+})
+
+const TICK_STYLES = {
+  walk: 'repeating-linear-gradient(to right, hsl(var(--border)) 0 1.5px, transparent 1.5px 6px)',
+  wait: 'radial-gradient(circle, hsl(var(--muted-foreground)) 1px, transparent 1.4px) center / 5px 6px repeat-x',
+} as const
+
 function getTripModeLabel(mode: string): string {
   const normalizedMode = mode === 'biking' ? 'cycling' : mode
   return t(`directions.modes.${normalizedMode}`)
@@ -219,10 +255,15 @@ function handleMouseEnter() {
     <div>
       <!-- Trip bar -->
       <div class="relative h-7 flex items-center">
-        <!-- Dotted track -->
+        <!-- Faint baseline for the empty axis (before departure / after arrival) -->
+        <div class="absolute inset-x-0 h-px top-1/2 -translate-y-1/2 bg-border/30" />
+
+        <!-- Track spans: walking as long ticks, waiting as dots -->
         <div
-          class="absolute inset-x-0 h-1.5 top-1/2 -translate-y-1/2 rounded-full"
-          style="background: repeating-linear-gradient(to right, hsl(var(--border)) 0 1.5px, transparent 1.5px 6px)"
+          v-for="(span, i) in trackSpans"
+          :key="`track-${i}`"
+          class="absolute h-1.5 top-1/2 -translate-y-1/2"
+          :style="{ left: `${span.left}px`, width: `${span.width}px`, background: TICK_STYLES[span.type] }"
         />
 
         <!-- Start cap -->

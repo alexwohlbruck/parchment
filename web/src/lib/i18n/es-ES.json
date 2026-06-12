@@ -321,6 +321,7 @@
     }
   },
   "directions": {
+    "toward": "hacia {headsign}",
     "title": "Direcciones",
     "planRouteFromHere": "Planificar ruta desde aquí",
     "directionsHere": "Direcciones a aquí",

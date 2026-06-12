@@ -340,6 +340,7 @@
     }
   },
   "directions": {
+    "toward": "toward {headsign}",
     "title": "Directions",
     "planRouteFromHere": "Plan route from here",
     "directionsHere": "Directions here",

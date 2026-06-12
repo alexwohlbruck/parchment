@@ -4,7 +4,7 @@ import dayjs from 'dayjs'
 import { useI18n } from 'vue-i18n'
 import { useMapService } from '@/services/map.service'
 import { useUnits } from '@/composables/useUnits'
-import { getTravelModeCssClass, getTravelModeColor, getTravelModeCaseColor } from '@/lib/travel-mode-colors'
+import { getTravelModeCssClass, getTravelModeColor } from '@/lib/travel-mode-colors'
 import { getSegmentIcon, getModeIcon } from '@/lib/travel-mode-icons'
 import type {
   TripOption,
@@ -114,6 +114,13 @@ function getSegmentTooltip(segment: any): string {
   return `${mode}: ${duration}${distance ? ', ' + distance : ''}`
 }
 
+/** "Q · toward Coney Island" — single quiet context line under the bar. */
+const firstTransitHeadsign = computed(() => {
+  const seg = props.trip.segments.find(s => s.mode === 'transit' && (s as any).headsign)
+  if (!seg) return null
+  return `${(seg as any).lineName ? (seg as any).lineName + ' · ' : ''}${t('directions.toward', { headsign: (seg as any).headsign })}`
+})
+
 const legs = computed(() => {
   const groups: { legIndex: number; segments: typeof props.trip.segments }[] = []
   for (const seg of props.trip.segments) {
@@ -152,11 +159,26 @@ function segLegIndex(segment: typeof props.trip.segments[0]): number {
   return (segment as any).legIndex ?? 0
 }
 
-function hasNextInSameLeg(index: number): boolean {
+// Walking segments don't render as pills — the dotted track shows through,
+// Transit-app style. Pills join only to an adjacent visible (non-walk) pill.
+function isPill(segment: typeof props.trip.segments[0]): boolean {
+  return segment.mode !== 'walking'
+}
+
+function joinsNext(index: number): boolean {
   if (index >= props.trip.segments.length - 1) return false
   const current = props.trip.segments[index]
   const next = props.trip.segments[index + 1]
-  return segLegIndex(current) === segLegIndex(next) && isMultimodal(current)
+  return (
+    isPill(current) &&
+    isPill(next) &&
+    segLegIndex(current) === segLegIndex(next) &&
+    isMultimodal(current)
+  )
+}
+
+function joinsPrev(index: number): boolean {
+  return index > 0 && joinsNext(index - 1)
 }
 
 function handleClick() {
@@ -209,44 +231,52 @@ function handleMouseEnter() {
           :style="{ left: `${segLeft(trip.segments[0])}px` }"
         />
 
-        <!-- Segments -->
-        <div
-          v-for="(segment, i) in trip.segments"
-          :key="segment.id"
-          class="absolute h-full flex items-center text-white top-1/2 -translate-y-1/2 overflow-hidden shadow-xs border border-black/10 dark:border-black/20"
-          :class="[
-            hasNextInSameLeg(i)
-              ? (segW(segment) < 20 ? 'rounded-l-full rounded-r-none' : 'rounded-l-lg rounded-r-none')
-              : (segW(segment) < 20 ? 'rounded-full' : 'rounded-lg'),
-            !segment.lineColor && getTravelModeCssClass(segment.mode),
-            segW(segment) > 24 ? 'px-2 gap-1.5' : 'justify-center px-0.5',
-          ]"
-          :style="{
-            left: `${segLeft(segment) - (isMultimodal(segment) && i > 0 && segLegIndex(trip.segments[i - 1]) === segLegIndex(segment) ? 6 : 0)}px`,
-            width: `${segW(segment) + (isMultimodal(segment) && i > 0 && segLegIndex(trip.segments[i - 1]) === segLegIndex(segment) ? 6 : 0)}px`,
-            zIndex: i + 1,
-            ...(segment.lineColor ? { background: `#${segment.lineColor}`, color: segment.lineTextColor ? `#${segment.lineTextColor}` : '#fff' } : {}),
-          }"
-          :title="getSegmentTooltip(segment)"
-        >
-          <component
-            v-if="segW(segment) > 20"
-            :is="getSegmentIcon(segment.mode, segment.routeType)"
-            class="size-3 shrink-0"
-          />
-          <span
-            v-if="segW(segment) > 70"
-            class="text-[11px] font-semibold truncate"
+        <!-- Vehicle pills — walking stays as the dotted track underneath -->
+        <template v-for="(segment, i) in trip.segments" :key="segment.id">
+          <div
+            v-if="isPill(segment)"
+            class="absolute h-full flex items-center justify-center text-white top-1/2 -translate-y-1/2 overflow-hidden shadow-xs"
+            :class="[
+              joinsNext(i) && !joinsPrev(i) ? 'rounded-l-[10px] rounded-r-none'
+                : joinsPrev(i) && !joinsNext(i) ? 'rounded-r-[10px] rounded-l-none'
+                : joinsPrev(i) && joinsNext(i) ? 'rounded-none'
+                : 'rounded-[10px]',
+              !segment.lineColor && getTravelModeCssClass(segment.mode),
+              segW(segment) > 28 ? 'px-2 gap-1.5' : 'px-0.5',
+            ]"
+            :style="{
+              left: `${segLeft(segment) - (joinsPrev(i) ? 6 : 0)}px`,
+              width: `${segW(segment) + (joinsPrev(i) ? 6 : 0)}px`,
+              zIndex: i + 1,
+              ...(segment.lineColor ? { background: `#${segment.lineColor}`, color: segment.lineTextColor ? `#${segment.lineTextColor}` : '#fff' } : {}),
+            }"
+            :title="getSegmentTooltip(segment)"
           >
-            {{ segment.lineName || getTripModeLabel(segment.mode) }}
-          </span>
-        </div>
+            <span
+              v-if="segment.lineName && segW(segment) > 28"
+              class="text-[12px] font-bold truncate"
+            >
+              {{ segment.lineName }}
+            </span>
+            <component
+              v-else-if="segW(segment) > 20"
+              :is="getSegmentIcon(segment.mode, segment.routeType)"
+              class="size-3.5 shrink-0"
+            />
+          </div>
+        </template>
 
-        <!-- Waypoint caps (only at leg boundaries) -->
+        <!-- End cap -->
         <div
-          v-for="(pos, i) in waypointCapPositions.slice(1)"
-          :key="`cap-${i}`"
+          v-if="waypointCapPositions.length"
           class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-2.5 rounded-full bg-primary border-[1.5px] border-white z-[20] shadow-xs"
+          :style="{ left: `${waypointCapPositions[waypointCapPositions.length - 1]}px` }"
+        />
+        <!-- Intermediate waypoint caps (multi-stop trips only) -->
+        <div
+          v-for="(pos, i) in waypointCapPositions.slice(1, -1)"
+          :key="`cap-${i}`"
+          class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-2 rounded-full bg-background border-[1.5px] border-primary z-[20]"
           :style="{ left: `${pos}px` }"
         />
       </div>
@@ -273,30 +303,12 @@ function handleMouseEnter() {
         </template>
       </div>
 
-      <!-- Transit departure cards -->
+      <!-- First transit leg headsign — one quiet line instead of a card row -->
       <div
-        v-if="trip.segments.some(s => s.lineName)"
-        class="flex gap-1.5 pt-2 overflow-x-auto scrollbar-hidden"
+        v-if="firstTransitHeadsign"
+        class="mt-1 text-[11px] text-muted-foreground truncate pr-4"
       >
-        <div
-          v-for="segment in trip.segments.filter(s => s.lineName)"
-          :key="segment.id"
-          class="flex items-center gap-2 px-2.5 py-1.5 bg-background border rounded-lg text-[11px] text-foreground/80 font-medium shrink-0"
-        >
-          <span
-            class="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-[5px] text-[10px] font-bold"
-            :style="{
-              background: `#${segment.lineColor}` || getTravelModeColor(segment.mode),
-              color: segment.lineTextColor ? `#${segment.lineTextColor}` : '#fff',
-            }"
-          >
-            {{ segment.vehicleNumber || segment.lineName }}
-          </span>
-          <span v-if="segment.headsign" class="text-muted-foreground truncate max-w-[120px]">
-            {{ segment.headsign }}
-          </span>
-          <span class="tabular-nums">{{ formatDurationString(segment.duration) }}</span>
-        </div>
+        {{ firstTransitHeadsign }}
       </div>
     </div>
   </div>

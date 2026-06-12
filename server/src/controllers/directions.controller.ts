@@ -112,6 +112,7 @@ const SelectedModeSchema = t.Union([
   t.Literal('biking'),
   t.Literal('transit'),
   t.Literal('wheelchair'),
+  t.Literal('rideshare'),
 ] as const)
 
 const SortPreferenceSchema = t.Union([

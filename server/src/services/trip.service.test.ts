@@ -44,11 +44,13 @@ const mockGetIntermodalRoute = mock(async () => ({
   itineraries: [],
   metadata: { searchWindow: 3600 },
 }))
+const mockGetNearestEntrance = mock(async () => null)
 
 mock.module('./transit-routing.service', () => ({
   transitRoutingService: {
     getTransitRoute: mockGetTransitRoute,
     getIntermodalRoute: mockGetIntermodalRoute,
+    getNearestEntrance: mockGetNearestEntrance,
   },
 }))
 
@@ -207,6 +209,8 @@ beforeEach(() => {
   mockGetRoute.mockReset()
   mockGetTransitRoute.mockReset()
   mockGetIntermodalRoute.mockReset()
+  mockGetNearestEntrance.mockReset()
+  mockGetNearestEntrance.mockImplementation(async () => null)
   mockSearchByCategory.mockReset()
   tripService = new TripService()
 
@@ -915,7 +919,7 @@ describe('TripService — scoring', () => {
         },
       ] as any[];
 
-      (tripService as any).rankByDuration(candidates)
+      (tripService as any).rankByMetric(candidates, (c: any) => c.trip.tripStats.totalDuration)
 
       // 10-min trip must rank higher than 54-min trip
       expect(candidates[1].score.overall).toBeGreaterThan(candidates[0].score.overall)
@@ -939,7 +943,7 @@ describe('TripService — scoring', () => {
         },
       ] as any[];
 
-      (tripService as any).rankByCost(candidates)
+      (tripService as any).rankByMetric(candidates, (c: any) => c.trip.tripStats.totalCost?.value ?? 0)
 
       // $2 trip must rank higher than $15 trip
       expect(candidates[1].score.overall).toBeGreaterThan(candidates[0].score.overall)
@@ -1966,9 +1970,9 @@ describe('TripService — filterQualityTrips', () => {
   })
 })
 
-// ── rankBy methods ──────────────────────────────────────────────────────────
+// ── rankByMetric (direct ranking) ──────────────────────────────────────────────────────────
 
-describe('TripService — rankBy methods', () => {
+describe('TripService — rankByMetric', () => {
   function makeScoredCandidate(overrides: {
     endTime?: string
     totalDuration?: number
@@ -2013,13 +2017,17 @@ describe('TripService — rankBy methods', () => {
     }
   }
 
-  test('rankByArrivalTime: earliest arrival gets highest score', () => {
+  test('arrival metric: earliest arrival gets highest score', () => {
     const candidates = [
       makeScoredCandidate({ endTime: '2026-01-15T08:30:00Z' }),
       makeScoredCandidate({ endTime: '2026-01-15T08:10:00Z' }),
       makeScoredCandidate({ endTime: '2026-01-15T08:45:00Z' }),
     ]
-    ;(tripService as any).rankByArrivalTime(candidates)
+    ;(tripService as any).rankByMetric(candidates, (c: any) =>
+      c.trip.segments.length
+        ? new Date(c.trip.segments[c.trip.segments.length - 1].endTime).getTime()
+        : Infinity,
+    )
 
     // Candidate ending at 08:10 should have highest overall
     const sorted = [...candidates].sort(
@@ -2032,13 +2040,13 @@ describe('TripService — rankBy methods', () => {
     )
   })
 
-  test('rankByCo2: lowest emissions gets highest score', () => {
+  test('co2 metric: lowest emissions gets highest score', () => {
     const candidates = [
       makeScoredCandidate({ totalCo2: 500 }),
       makeScoredCandidate({ totalCo2: 0 }),
       makeScoredCandidate({ totalCo2: 200 }),
     ]
-    ;(tripService as any).rankByCo2(candidates)
+    ;(tripService as any).rankByMetric(candidates, (c: any) => c.trip.tripStats.totalCo2 ?? 0)
 
     const sorted = [...candidates].sort(
       (a, b) => b.score.overall - a.score.overall,
@@ -2047,13 +2055,13 @@ describe('TripService — rankBy methods', () => {
     expect(sorted[2].trip.tripStats.totalCo2).toBe(500)
   })
 
-  test('rankByTransfers: fewest transfers gets highest score', () => {
+  test('transfers metric: fewest transfers gets highest score', () => {
     const candidates = [
       makeScoredCandidate({ totalTransfers: 2 }),
       makeScoredCandidate({ totalTransfers: 0 }),
       makeScoredCandidate({ totalTransfers: 1 }),
     ]
-    ;(tripService as any).rankByTransfers(candidates)
+    ;(tripService as any).rankByMetric(candidates, (c: any) => c.trip.tripStats.totalTransfers ?? 0)
 
     const sorted = [...candidates].sort(
       (a, b) => b.score.overall - a.score.overall,
@@ -2062,13 +2070,13 @@ describe('TripService — rankBy methods', () => {
     expect(sorted[2].trip.tripStats.totalTransfers).toBe(2)
   })
 
-  test('rankByWalkingDistance: least walking gets highest score', () => {
+  test('walking metric: least walking gets highest score', () => {
     const candidates = [
       makeScoredCandidate({ totalWalkingDistance: 1000 }),
       makeScoredCandidate({ totalWalkingDistance: 100 }),
       makeScoredCandidate({ totalWalkingDistance: 500 }),
     ]
-    ;(tripService as any).rankByWalkingDistance(candidates)
+    ;(tripService as any).rankByMetric(candidates, (c: any) => c.trip.tripStats.totalWalkingDistance ?? 0)
 
     const sorted = [...candidates].sort(
       (a, b) => b.score.overall - a.score.overall,
@@ -2083,7 +2091,7 @@ describe('TripService — rankBy methods', () => {
       makeScoredCandidate({ totalCo2: 100 }),
       makeScoredCandidate({ totalCo2: 100 }),
     ]
-    ;(tripService as any).rankByCo2(candidates)
+    ;(tripService as any).rankByMetric(candidates, (c: any) => c.trip.tripStats.totalCo2 ?? 0)
 
     // When range is 0, all get primary = 1
     for (const c of candidates) {
@@ -2093,7 +2101,11 @@ describe('TripService — rankBy methods', () => {
 
   test('empty candidates array is a no-op', () => {
     const candidates: any[] = []
-    ;(tripService as any).rankByArrivalTime(candidates)
+    ;(tripService as any).rankByMetric(candidates, (c: any) =>
+      c.trip.segments.length
+        ? new Date(c.trip.segments[c.trip.segments.length - 1].endTime).getTime()
+        : Infinity,
+    )
     expect(candidates.length).toBe(0)
   })
 })

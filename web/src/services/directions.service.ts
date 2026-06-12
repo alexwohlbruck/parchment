@@ -549,11 +549,16 @@ function directionsService() {
     deep: true,
   })
 
-  // Auto-fetch when waypoints, mode, preferences, sort, or departure time change
+  // Auto-fetch when waypoints, mode, preferences, sort, or departure time
+  // change. `immediate` matters: applyUrlState() above hydrates the store
+  // BEFORE this watcher registers, so a page refresh with URL params would
+  // otherwise restore the inputs without ever planning — watchers don't
+  // see mutations that precede them. The immediate run plans from the
+  // hydrated state (and no-ops harmlessly when fewer than 2 waypoints).
   watch(
     [waypoints, selectedMode, sortPreference, departureTime, routingPreferences],
     getDirections,
-    { deep: true },
+    { deep: true, immediate: true },
   )
 
   // Request geolocation permissions early so current location is available

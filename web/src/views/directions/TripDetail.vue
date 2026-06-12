@@ -79,13 +79,34 @@ async function loadDepartures() {
       if (seg.mode !== 'transit' || !seg.departureStop?.location) return
       try {
         const startMs = new Date(seg.startTime).getTime()
+
+        // Earliest run the rider could physically board: mid-trip you can
+        // only board out of the existing platform wait (arrival on foot);
+        // for the first boarding, leaving home earlier is bounded by the
+        // requested departure time (or now).
+        const hasEarlierTransit = segs
+          .slice(0, idx)
+          .some((s) => s.mode === 'transit')
+        let floorMs: number
+        if (hasEarlierTransit) {
+          const prev = segs[idx - 1]
+          floorMs = prev?.mode === 'walking'
+            ? new Date(prev.endTime).getTime() - (prev.waitSeconds ?? 0) * 1000
+            : startMs
+        } else {
+          const requestedMs = directionsStore.departureTime
+            ? new Date(directionsStore.departureTime).getTime()
+            : Date.now()
+          floorMs = requestedMs + (startMs - new Date(t.startTime).getTime())
+        }
+
         const { data } = await api.get('/proxy/transit/departures', {
           params: {
             lat: seg.departureStop.location.lat,
             lng: seg.departureStop.location.lng,
             radius: 50,
-            n: 40,
-            time: new Date(startMs - 60_000).toISOString(),
+            n: 60,
+            time: new Date(Math.min(floorMs, startMs) - 60_000).toISOString(),
           },
         })
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -103,17 +124,26 @@ async function loadDepartures() {
         const times = [...new Set(
           pool
             .map((d) => new Date(d.departureTime).getTime())
-            .filter((ms) => ms >= startMs - 60_000)
+            .filter((ms) => ms >= floorMs - 30_000)
             .sort((a, b) => a - b),
         )]
-        segmentDepartures.value[idx] = times
-          .slice(0, 4)
-          .map((ms) => ({ ms, label: formatTime(new Date(ms)) }))
+        const earlier = times.filter((ms) => ms < startMs - 30_000).slice(-2)
+        const current = times.filter((ms) => ms >= startMs - 30_000).slice(0, 4)
+        segmentDepartures.value[idx] = [...earlier, ...current].map((ms) => ({
+          ms,
+          label: formatTime(new Date(ms)),
+        }))
       } catch {
         // Departures are an enhancement — skip on failure
       }
     }),
   )
+}
+
+/** Is this run the one the trip currently boards? */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isCurrentDeparture(segment: any, ms: number): boolean {
+  return Math.abs(ms - asMs(segment.startTime)) < 30_000
 }
 
 function departuresFor(segmentIndex: number): DepartureOption[] {
@@ -871,22 +901,22 @@ function hasSegmentRouteInfo(segment: any): boolean {
                       class="flex flex-wrap items-center gap-1.5"
                     >
                       <button
-                        v-for="(dep, di) in departuresFor(entry.segmentIndex)"
+                        v-for="dep in departuresFor(entry.segmentIndex)"
                         :key="dep.ms"
                         type="button"
                         class="px-2 py-0.5 rounded-md text-xs font-medium tabular-nums transition-all"
                         :class="[
-                          di === 0
+                          isCurrentDeparture(entry.segment, dep.ms)
                             ? (!entry.segment.lineColor && 'bg-parchment-500 text-white')
                             : 'bg-muted text-muted-foreground hover:text-foreground hover:ring-1 hover:ring-border cursor-pointer',
                           rebooking && 'opacity-50 pointer-events-none',
                         ]"
-                        :style="di === 0 && entry.segment.lineColor ? {
+                        :style="isCurrentDeparture(entry.segment, dep.ms) && entry.segment.lineColor ? {
                           background: `#${entry.segment.lineColor}`,
                           color: entry.segment.lineTextColor ? `#${entry.segment.lineTextColor}` : '#fff',
                         } : {}"
-                        :title="di === 0 ? 'Planned departure' : 'Leave on this departure instead'"
-                        @click="di !== 0 && chooseDeparture(entry.segmentIndex, dep.ms)"
+                        :title="isCurrentDeparture(entry.segment, dep.ms) ? 'Planned departure' : 'Take this departure instead'"
+                        @click="!isCurrentDeparture(entry.segment, dep.ms) && chooseDeparture(entry.segmentIndex, dep.ms)"
                       >
                         {{ dep.label }}
                       </button>

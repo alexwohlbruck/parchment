@@ -76,9 +76,16 @@ export async function applyDepartureChange(
   } else {
     const prev = segments[segmentIndex - 1]
     if (prev?.mode === 'walking') {
+      // The platform wait absorbs the change. An earlier run is only
+      // boardable out of the existing wait — you can't walk back in time.
+      const newWait = (prev.waitSeconds ?? 0) + delta / 1000
+      if (newWait < 0) return false
       prev.endTime = new Date(asMs(prev.endTime) + delta)
       prev.duration += delta / 1000
-      prev.waitSeconds = (prev.waitSeconds ?? 0) + delta / 1000
+      prev.waitSeconds = newWait
+    } else if (delta < 0) {
+      // No wait buffer before this boarding — can't board earlier.
+      return false
     }
   }
 

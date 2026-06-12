@@ -101,4 +101,34 @@ describe('applyDepartureChange', () => {
     const ok = await applyDepartureChange(segs, 1, min(7), vi.fn())
     expect(ok).toBe(false)
   })
+
+  it('first boarding earlier: approach shifts earlier, downstream waits grow', async () => {
+    const segs = makeTrip()
+    // Bus A 3 min earlier (14:04): leave home at 13:57; arrive 14:17;
+    // transfer walk 3m → 14:20, B at 14:25 holds with 5 min wait.
+    const ok = await applyDepartureChange(segs, 1, min(4), vi.fn())
+    expect(ok).toBe(true)
+    expect(ms(segs[0].startTime)).toBe(min(-3))
+    expect(segs[0].waitSeconds).toBe(120)
+    expect(ms(segs[1].endTime)).toBe(min(17))
+    expect(ms(segs[2].endTime)).toBe(min(25))
+    expect(segs[2].waitSeconds).toBe(300)
+    expect(ms(segs[3].startTime)).toBe(min(25))
+  })
+
+  it('mid-trip earlier: boardable only out of the existing platform wait', async () => {
+    // B has a 2-min wait buffer — 1 min earlier works…
+    const segs = makeTrip()
+    const ok = await applyDepartureChange(segs, 3, min(24), vi.fn())
+    expect(ok).toBe(true)
+    expect(segs[2].waitSeconds).toBe(60)
+    expect(ms(segs[3].startTime)).toBe(min(24))
+
+    // …but 5 min earlier would require time travel — rejected, untouched.
+    const segs2 = makeTrip()
+    const ok2 = await applyDepartureChange(segs2, 3, min(20), vi.fn())
+    expect(ok2).toBe(false)
+    expect(ms(segs2[3].startTime)).toBe(min(25))
+    expect(segs2[2].waitSeconds).toBe(120)
+  })
 })

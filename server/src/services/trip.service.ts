@@ -1724,12 +1724,16 @@ export class TripService {
       from, to, startTime, dataSources, preferences,
     )
 
-    // Query 1b (always): RENTAL egress (bikeshare/scooter last mile)
+    // Query 1b (always): RENTAL egress (bikeshare/scooter last mile) and
+    // RENTAL as a direct mode — a plain walk → shared bike → walk trip is
+    // often the best option and nothing else generates it (the GraphHopper
+    // biking trip assumes a personal bike).
     const rentalQuery = this.executeIntermodalQuery(
       {
         ...baseRequest,
         preTransitModes: ['WALK'],
         postTransitModes: ['RENTAL'],
+        directModes: ['RENTAL'],
         maxPreTransitTime: maxWalkSec,
         maxPostTransitTime: maxWalkSec,
       },

@@ -48,6 +48,12 @@ const tripType = computed<{ key: string; iconMode: string }>(() => {
   const has = (m: string) => segs.some(s => s.mode === m)
 
   if (!has('transit')) {
+    const shared = segs.find(s => s.sharedMobilityDetails)
+    if (shared) {
+      const kind = shared.sharedMobilityDetails?.vehicleType === 'scooter'
+        ? 'scootershare' : 'bikeshare'
+      return { key: kind, iconMode: 'cycling' }
+    }
     if (has('rideshare')) return { key: 'rideshare', iconMode: 'rideshare' }
     if (has('driving')) return { key: 'driving', iconMode: 'driving' }
     if (has('cycling')) return { key: 'cycling', iconMode: 'cycling' }

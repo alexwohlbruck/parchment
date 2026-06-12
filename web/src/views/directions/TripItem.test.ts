@@ -152,6 +152,14 @@ describe('TripItem timeline rendering', () => {
       seg({ mode: 'cycling', duration: 300, sharedMobilityDetails: { vehicleType: 'bike', provider: 'Citi Bike' } }),
     ])
     expect(share.text()).toContain('directions.tripTypes.transitBikeShare')
+
+    // Direct shared bike (no transit): Bike Share, not Cycling or Scootershare
+    const directShare = mountTrip([
+      seg({ mode: 'walking', duration: 120 }),
+      seg({ mode: 'cycling', duration: 900, ownership: 'shared', sharedMobilityDetails: { vehicleType: 'bike', provider: 'Citi Bike' } }),
+      seg({ mode: 'walking', duration: 100 }),
+    ])
+    expect(directShare.text()).toContain('directions.tripTypes.bikeshare')
   })
 
   it('renders a pill per vehicle leg for multi-transfer trips', () => {

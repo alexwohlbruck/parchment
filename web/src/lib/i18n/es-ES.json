@@ -322,6 +322,8 @@
   },
   "directions": {
     "tripTypes": {
+      "bikeshare": "Bici compartida",
+      "scootershare": "Patinete compartido",
       "walking": "A pie",
       "cycling": "Bicicleta",
       "driving": "Coche",

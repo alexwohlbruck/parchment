@@ -1044,7 +1044,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
                     ]"
                   >
                     {{ entry.segment.ownership === 'shared'
-                      ? (entry.segment.mode === 'biking' ? 'Bikeshare' : 'Scootershare')
+                      ? (entry.segment.sharedMobilityDetails?.vehicleType === 'scooter' ? 'Scootershare' : 'Bikeshare')
                       : entry.segment.mode }}
                   </span>
                   <span

@@ -1644,6 +1644,26 @@ export class TripService {
       from, to, startTime, dataSources, preferences,
     )
 
+    // Query 1a (always): least-transfer sweep. Time-optimal RAPTOR never
+    // returns a one-seat ride that arrives a few minutes after a transfer
+    // combo — it's Pareto-dominated at generation time, before our scoring
+    // ever sees it ("why transfer to a bus when the streetcar goes there?").
+    // A heavy per-interchange pad makes RAPTOR surface the simplest
+    // itineraries; signature dedup merges them with the time-optimal set
+    // and ranking decides.
+    const fewTransfersQuery = this.executeIntermodalQuery(
+      {
+        ...baseRequest,
+        numItineraries: 2,
+        preTransitModes: ['WALK'],
+        postTransitModes: ['WALK'],
+        maxPreTransitTime: maxWalkSec,
+        maxPostTransitTime: maxWalkSec,
+        additionalTransferTime: 15,
+      },
+      from, to, startTime, dataSources, preferences,
+    )
+
     // Query 1b (always): RENTAL egress (bikeshare/scooter last mile)
     const rentalQuery = this.executeIntermodalQuery(
       {
@@ -1656,7 +1676,7 @@ export class TripService {
       from, to, startTime, dataSources, preferences,
     )
 
-    const queries: Promise<TripResponse[]>[] = [walkQuery, rentalQuery]
+    const queries: Promise<TripResponse[]>[] = [walkQuery, fewTransfersQuery, rentalQuery]
 
     const availableVehicles = request.availableVehicles || []
     const useKnownLocations = preferences.useKnownVehicleLocations !== false

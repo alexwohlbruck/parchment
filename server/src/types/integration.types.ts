@@ -271,6 +271,8 @@ export interface IntermodalRouteRequest extends TransitRouteRequest {
   /** Filter rental vehicles to specific form factors (BICYCLE, SCOOTER_STANDING, etc.) */
   preTransitRentalFormFactors?: string[]
   postTransitRentalFormFactors?: string[]
+  /** Minutes reserved per interchange (transfer penalty). Barrelman defaults to 3. */
+  additionalTransferTime?: number
 }
 
 export interface TransitRouteResponse {

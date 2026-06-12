@@ -1625,20 +1625,35 @@ export class TripService {
       wheelchair: preferences?.wheelchairAccessible,
     }
 
-    // Query 1 (always): WALK access/egress + RENTAL (bikeshare/scooter)
+    // Query 1 (always): WALK access/egress. Kept separate from RENTAL —
+    // walk-only queries get Barrelman's wide stop-matching radius (off-street
+    // platforms stay boardable) and run in ~100ms, while mixing RENTAL in
+    // would force the narrow radius onto the primary transit results.
     // Skip directModes — GraphHopper already computes walk/bike/drive in parallel
     const walkQuery = this.executeIntermodalQuery(
       {
         ...baseRequest,
         preTransitModes: ['WALK'],
-        postTransitModes: ['WALK', 'RENTAL'],
+        postTransitModes: ['WALK'],
         maxPreTransitTime: maxWalkSec,
         maxPostTransitTime: maxWalkSec,
       },
       from, to, startTime, dataSources, preferences,
     )
 
-    const queries: Promise<TripResponse[]>[] = [walkQuery]
+    // Query 1b (always): RENTAL egress (bikeshare/scooter last mile)
+    const rentalQuery = this.executeIntermodalQuery(
+      {
+        ...baseRequest,
+        preTransitModes: ['WALK'],
+        postTransitModes: ['RENTAL'],
+        maxPreTransitTime: maxWalkSec,
+        maxPostTransitTime: maxWalkSec,
+      },
+      from, to, startTime, dataSources, preferences,
+    )
+
+    const queries: Promise<TripResponse[]>[] = [walkQuery, rentalQuery]
 
     const availableVehicles = request.availableVehicles || []
     const useKnownLocations = preferences.useKnownVehicleLocations !== false

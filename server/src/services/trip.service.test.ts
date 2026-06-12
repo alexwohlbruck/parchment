@@ -1888,9 +1888,31 @@ describe('TripService — selectSharedRides', () => {
 
   test('keeps only the least-walking ride per operator', () => {
     // Same system, two dock pairings: 2-min walk vs 9-min walk to the bike.
+    // The far dock is slower overall — the near dock must win.
     const near = sharedTrip('Citi Bike', 120, 900)
     const far = sharedTrip('Citi Bike', 540, 840)
     const kept = (tripService as any).selectSharedRides([far, near])
+    expect(kept).toHaveLength(1)
+    expect(kept[0]).toBe(near)
+  })
+
+  test('a farther dock wins only when it actually saves time', () => {
+    // Near dock: 2-min walk, 22-min total. Far dock on the way to the
+    // destination: 6-min walk but a shorter ride — 17-min total. Saving
+    // 5 minutes (> 3-min threshold) justifies the longer walk.
+    const near = sharedTrip('Citi Bike', 120, 1140)   // total 1320
+    const far = sharedTrip('Citi Bike', 360, 600)     // total 1020
+    const kept = (tripService as any).selectSharedRides([near, far])
+    expect(kept).toHaveLength(1)
+    expect(kept[0]).toBe(far)
+  })
+
+  test('a marginal time saving does not displace the closest dock', () => {
+    // Far dock saves only 2 minutes — under the 3-min trade threshold.
+    // Walking past a perfectly good bike for 2 minutes isn't worth it.
+    const near = sharedTrip('Citi Bike', 120, 1140)   // total 1320
+    const far = sharedTrip('Citi Bike', 360, 780)     // total 1200
+    const kept = (tripService as any).selectSharedRides([near, far])
     expect(kept).toHaveLength(1)
     expect(kept[0]).toBe(near)
   })

@@ -1857,7 +1857,10 @@ export class TripService {
         to: to.location,
         time: arrivalTarget ?? startTime,
         arriveBy: arrivalTarget != null,
-        numItineraries: 4,
+        // Barrelman merges direct + transit results sorted by duration and
+        // slices to numItineraries — keep the window wide enough that a
+        // slower dock pairing isn't crowded out by 0-transfer transit rows.
+        numItineraries: 8,
         // Direct shared ride is the target; maxTransfers 0 caps the transit
         // work MOTIS does alongside it (those itineraries are discarded).
         maxTransfers: 0,
@@ -1876,15 +1879,24 @@ export class TripService {
     return this.selectSharedRides(trips)
   }
 
+  /** A farther dock must save at least this much total time to displace
+   *  the closest one — walking past a perfectly good bike needs a payoff. */
+  private static readonly SHARED_WALK_TRADE_SEC = 180
+
   /**
    * Reduce direct shared-vehicle candidates to one ride per operator product.
    *
    * Drops the transit itineraries the direct query returns as a side effect,
    * then groups pure shared rides by operator + vehicle kind: several dock
-   * pairings of the same system are near-duplicates to a rider, and the one
-   * needing the least walking to/from the vehicle wins (total duration breaks
-   * ties). Distinct operators each keep their best ride — different pricing
-   * is worth comparing.
+   * pairings of the same system are near-duplicates to a rider. Within a
+   * group, the closest dock (least walking) wins by default; a farther dock
+   * displaces it only when it actually saves meaningful total time — e.g.
+   * the extra walk is toward the destination and the ride nets out faster.
+   * Distinct operators each keep their best ride — different pricing is
+   * worth comparing.
+   *
+   * MOTIS only generates candidates from docks with GBFS-reported available
+   * vehicles, so "closest" here already means closest *usable* dock.
    */
   private selectSharedRides(trips: TripResponse[]): TripResponse[] {
     const pure = trips.filter(
@@ -1898,22 +1910,36 @@ export class TripService {
         (sum, s) => (s.mode === 'walking' ? sum + s.duration : sum),
         0,
       )
-    const best = new Map<string, TripResponse>()
+
+    const groups = new Map<string, TripResponse[]>()
     for (const trip of pure) {
       const det = trip.segments.find((s) => s.details?.sharedMobilityDetails)
         ?.details?.sharedMobilityDetails
       const key = `${det?.provider ?? 'unknown'}:${det?.vehicleType ?? 'vehicle'}`
-      const cur = best.get(key)
-      if (
-        !cur ||
-        walkSec(trip) < walkSec(cur) ||
-        (walkSec(trip) === walkSec(cur) &&
-          trip.tripStats.totalDuration < cur.tripStats.totalDuration)
-      ) {
-        best.set(key, trip)
-      }
+      groups.set(key, [...(groups.get(key) ?? []), trip])
     }
-    return [...best.values()]
+
+    const selected: TripResponse[] = []
+    for (const candidates of groups.values()) {
+      const leastWalk = candidates.reduce((a, b) =>
+        walkSec(b) < walkSec(a) ||
+        (walkSec(b) === walkSec(a) &&
+          b.tripStats.totalDuration < a.tripStats.totalDuration)
+          ? b
+          : a,
+      )
+      // A farther-walk candidate wins only by beating the closest dock's
+      // total time by the trade threshold; among those, fastest wins.
+      const fasterTrade = candidates
+        .filter(
+          (c) =>
+            c.tripStats.totalDuration <=
+            leastWalk.tripStats.totalDuration - TripService.SHARED_WALK_TRADE_SEC,
+        )
+        .sort((a, b) => a.tripStats.totalDuration - b.tripStats.totalDuration)[0]
+      selected.push(fasterTrade ?? leastWalk)
+    }
+    return selected
   }
 
   /**

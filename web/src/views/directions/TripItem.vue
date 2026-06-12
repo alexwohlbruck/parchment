@@ -112,12 +112,12 @@ const trackSpans = computed(() => {
   return spans
 })
 
-// Walk and wait use the same colour, opacity and rounded marks — they differ
-// only in length: walking is a rounded dash, waiting a round dot.
+// Walk and wait share colour, opacity, spacing, and rounded edges — the
+// shape is the signal: walking is a tall rounded tick, waiting a small dot.
 const TICK_COLOR = 'hsl(var(--muted-foreground) / 0.6)'
 const TICK_STYLES = {
-  walk: `radial-gradient(2px 1px at center, ${TICK_COLOR} 80%, transparent 90%) 0 center / 7px 100% repeat-x`,
-  wait: `radial-gradient(1px 1px at center, ${TICK_COLOR} 80%, transparent 90%) 0 center / 7px 100% repeat-x`,
+  walk: `radial-gradient(1.25px 4.5px at center, ${TICK_COLOR} 85%, transparent 100%) 0 center / 6px 100% repeat-x`,
+  wait: `radial-gradient(1.25px 1.25px at center, ${TICK_COLOR} 85%, transparent 100%) 0 center / 6px 100% repeat-x`,
 } as const
 
 function getTripModeLabel(mode: string): string {
@@ -261,11 +261,12 @@ function handleMouseEnter() {
         <!-- Faint baseline for the empty axis (before departure / after arrival) -->
         <div class="absolute inset-x-0 h-px top-1/2 -translate-y-1/2 bg-border/30" />
 
-        <!-- Track spans: walking as long ticks, waiting as dots -->
+        <!-- Track spans: walking as tall ticks, waiting as dots -->
         <div
           v-for="(span, i) in trackSpans"
           :key="`track-${i}`"
-          class="absolute h-1.5 top-1/2 -translate-y-1/2"
+          class="absolute top-1/2 -translate-y-1/2"
+          :class="span.type === 'walk' ? 'h-2.5' : 'h-1.5'"
           :style="{ left: `${span.left}px`, width: `${span.width}px`, background: TICK_STYLES[span.type] }"
         />
 

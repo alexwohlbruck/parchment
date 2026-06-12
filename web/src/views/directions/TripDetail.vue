@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { api } from '@/lib/api'
 import { applyDepartureChange } from '@/lib/trip-rebooking'
@@ -28,6 +28,7 @@ import {
   ExternalLinkIcon,
   FlagIcon,
   FootprintsIcon,
+  RssIcon,
   ShareIcon,
   Undo2Icon,
 } from 'lucide-vue-next'
@@ -66,15 +67,31 @@ const { formatDistance, formatElevation } = useUnits()
 interface DepartureOption {
   ms: number
   label: string
+  /** True when the time comes from a GTFS-RT prediction, not the schedule. */
+  realTime: boolean
 }
 const segmentDepartures = ref<Record<number, DepartureOption[]>>({})
+// Full fetched schedule per segment (superset of the chips) — rebooking
+// resolves runs from this synchronously, so switching departures is instant.
+const segmentSchedule = ref<Record<number, DepartureOption[]>>({})
+
+// Clock driving missed/hurry chip states; departures re-fetch keeps the
+// realtime predictions fresh as vehicles move.
+const nowMs = ref(Date.now())
+const tickTimer = setInterval(() => { nowMs.value = Date.now() }, 10_000)
+const refreshTimer = setInterval(() => { void loadDepartures() }, 30_000)
+onUnmounted(() => {
+  clearInterval(tickTimer)
+  clearInterval(refreshTimer)
+})
 
 async function loadDepartures() {
-  segmentDepartures.value = {}
   const t = trip.value
   if (!t) return
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const segs = t.segments as any[]
+  const nextChips: Record<number, DepartureOption[]> = {}
+  const nextSched: Record<number, DepartureOption[]> = {}
   await Promise.all(
     segs.map(async (seg, idx) => {
       if (seg.mode !== 'transit' || !seg.departureStop?.location) return
@@ -122,23 +139,29 @@ async function loadDepartures() {
           (d) => d.headsign?.toLowerCase() === seg.headsign?.toLowerCase(),
         )
         const pool = sameDirection.length >= 2 ? sameDirection : sameLine
-        const times = [...new Set(
-          pool
-            .map((d) => new Date(d.departureTime).getTime())
-            .filter((ms) => ms >= floorMs - 30_000)
-            .sort((a, b) => a - b),
-        )]
-        const earlier = times.filter((ms) => ms < startMs - 30_000).slice(-2)
-        const current = times.filter((ms) => ms >= startMs - 30_000).slice(0, 4)
-        segmentDepartures.value[idx] = [...earlier, ...current].map((ms) => ({
-          ms,
-          label: formatTime(new Date(ms)),
-        }))
+        // Dedup by minute; a run is "live" when any source row carries a
+        // GTFS-RT prediction for it.
+        const byMs = new Map<number, boolean>()
+        for (const d of pool) {
+          const depMs = new Date(d.departureTime).getTime()
+          if (depMs < floorMs - 30_000) continue
+          byMs.set(depMs, (byMs.get(depMs) ?? false) || d.realTime === true)
+        }
+        const runs: DepartureOption[] = [...byMs.entries()]
+          .sort((a, b) => a[0] - b[0])
+          .map(([ms, realTime]) => ({ ms, realTime, label: formatTime(new Date(ms)) }))
+        nextSched[idx] = runs
+        const earlier = runs.filter((d) => d.ms < startMs - 30_000).slice(-2)
+        const current = runs.filter((d) => d.ms >= startMs - 30_000).slice(0, 4)
+        nextChips[idx] = [...earlier, ...current]
       } catch {
         // Departures are an enhancement — skip on failure
       }
     }),
   )
+  // Atomic swap — no flicker on the periodic refresh
+  segmentDepartures.value = nextChips
+  segmentSchedule.value = nextSched
 }
 
 /** Is this run the one the trip currently boards? */
@@ -164,10 +187,12 @@ function asMs(v: string | Date): number {
   return new Date(v).getTime()
 }
 
-/** Next run of this segment's line departing at/after minMs. */
+/** Next run of this segment's line departing at/after minMs. Resolves from
+ *  the prefetched schedule (instant); only goes to the API when the needed
+ *  run falls outside the cached window. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function nextDepartureAfter(seg: any, segmentIndex: number, minMs: number): Promise<number | null> {
-  const cached = departuresFor(segmentIndex).find((d) => d.ms >= minMs)
+  const cached = (segmentSchedule.value[segmentIndex] ?? []).find((d) => d.ms >= minMs)
   if (cached) return cached.ms
   try {
     const { data } = await api.get('/proxy/transit/departures', {
@@ -216,11 +241,39 @@ async function chooseDeparture(segmentIndex: number, departureMs: number) {
     t.endTime = new Date(asMs(segs[segs.length - 1].endTime))
     t.summary.totalDuration = (asMs(t.endTime) - asMs(t.startTime)) / 1000
 
-    // Refresh chips so the chosen run becomes the highlighted one
-    await loadDepartures()
+    // Refresh chips in the background — the rebooking math is already
+    // applied from the cached schedule, so the UI updates instantly.
+    void loadDepartures()
   } finally {
     rebooking.value = false
   }
+}
+
+// ── Departure chip states (Transit-app style) ────────────────────────
+// missed: the vehicle is gone (or, for the first boarding, you can no
+// longer walk there in time). hurry: catchable, but only just — the walk
+// leaves under 3 minutes of slack. live: time comes from GTFS-RT.
+
+/** Walking seconds from the rider's position to this boarding, when this
+ *  is the trip's first transit leg (0 otherwise — mid-trip positions
+ *  depend on earlier legs, so only "departed" can be judged there). */
+function accessWalkSec(segmentIndex: number): number {
+  const t = trip.value
+  if (!t) return 0
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
+  const isFirst = !segs.slice(0, segmentIndex).some((s) => s.mode === 'transit')
+  if (!isFirst) return 0
+  const prev = segs[segmentIndex - 1]
+  return prev?.mode === 'walking' ? movingDuration(prev) : 0
+}
+
+function depState(segmentIndex: number, dep: DepartureOption): 'missed' | 'hurry' | 'ok' {
+  const leadMs = dep.ms - nowMs.value
+  const walkMs = accessWalkSec(segmentIndex) * 1000
+  if (leadMs < walkMs) return 'missed'
+  if (walkMs > 0 && leadMs < walkMs + 180_000) return 'hurry'
+  return 'ok'
 }
 
 /** Time actually in motion — a walk's duration minus the wait at the stop. */
@@ -921,20 +974,39 @@ function hasSegmentRouteInfo(segment: any): boolean {
                         v-for="dep in departuresFor(entry.segmentIndex)"
                         :key="dep.ms"
                         type="button"
-                        class="px-2 py-0.5 rounded-md text-xs font-medium tabular-nums transition-all"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium tabular-nums transition-all"
                         :class="[
                           isCurrentDeparture(entry.segment, dep.ms)
                             ? (!entry.segment.lineColor && 'bg-parchment-500 text-white')
-                            : 'bg-muted text-muted-foreground hover:text-foreground hover:ring-1 hover:ring-border cursor-pointer',
+                            : depState(entry.segmentIndex, dep) === 'missed'
+                              ? 'bg-muted/60 text-muted-foreground/50 line-through cursor-default'
+                              : depState(entry.segmentIndex, dep) === 'hurry'
+                                ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 hover:ring-1 hover:ring-amber-400 cursor-pointer'
+                                : 'bg-muted text-muted-foreground hover:text-foreground hover:ring-1 hover:ring-border cursor-pointer',
                           rebooking && 'opacity-50 pointer-events-none',
                         ]"
                         :style="isCurrentDeparture(entry.segment, dep.ms) && entry.segment.lineColor ? {
                           background: `#${entry.segment.lineColor}`,
                           color: entry.segment.lineTextColor ? `#${entry.segment.lineTextColor}` : '#fff',
                         } : {}"
-                        :title="isCurrentDeparture(entry.segment, dep.ms) ? 'Planned departure' : 'Take this departure instead'"
-                        @click="!isCurrentDeparture(entry.segment, dep.ms) && chooseDeparture(entry.segmentIndex, dep.ms)"
+                        :title="isCurrentDeparture(entry.segment, dep.ms)
+                          ? 'Planned departure'
+                          : depState(entry.segmentIndex, dep) === 'missed'
+                            ? 'Departed'
+                            : depState(entry.segmentIndex, dep) === 'hurry'
+                              ? 'Catchable if you hurry'
+                              : 'Take this departure instead'"
+                        :disabled="depState(entry.segmentIndex, dep) === 'missed' && !isCurrentDeparture(entry.segment, dep.ms)"
+                        @click="!isCurrentDeparture(entry.segment, dep.ms)
+                          && depState(entry.segmentIndex, dep) !== 'missed'
+                          && chooseDeparture(entry.segmentIndex, dep.ms)"
                       >
+                        <!-- Live (GTFS-RT) vs scheduled indicator -->
+                        <RssIcon
+                          v-if="dep.realTime"
+                          class="size-2.5 opacity-70"
+                          :class="depState(entry.segmentIndex, dep) !== 'missed' && 'animate-pulse'"
+                        />
                         {{ dep.label }}
                       </button>
                     </div>
@@ -1100,6 +1172,10 @@ function hasSegmentRouteInfo(segment: any): boolean {
                   <div>
                     <div v-if="entry.segment.sharedMobilityDetails.stationName" class="text-sm font-medium">
                       {{ entry.segment.sharedMobilityDetails.stationName }}
+                      <template v-if="entry.segment.sharedMobilityDetails.toStationName">
+                        <ArrowRight class="inline size-3 mx-0.5 text-muted-foreground" />
+                        {{ entry.segment.sharedMobilityDetails.toStationName }}
+                      </template>
                     </div>
                     <div class="text-xs text-muted-foreground">
                       {{ entry.segment.sharedMobilityDetails.provider }}

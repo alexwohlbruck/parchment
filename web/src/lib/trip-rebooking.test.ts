@@ -29,10 +29,10 @@ const ms = (v: string | Date) => new Date(v).getTime()
 describe('applyDepartureChange', () => {
   it('first boarding later: approach shifts rigidly, holding connection keeps its run', async () => {
     const segs = makeTrip()
-    const lookup = vi.fn()
-    // Take bus A 8 minutes later (14:15). Bus B at 14:25 is still makeable:
-    // arrive 14:28?? — bus A arrival becomes 14:28, so B at 14:25 is missed.
-    // Use +4 min instead: A departs 14:11, arrives 14:24; walk 3m → 14:27 > 14:25 → B missed too.
+    // Schedule for bus B: 14:25, 14:35 — the lookup is always consulted so
+    // runs re-select in both directions.
+    const lookup = vi.fn(async (_i: number, minMs: number) =>
+      [min(25), min(35)].find((t) => t >= minMs) ?? null)
     // Use +1 min: A 14:08→14:21, walk 3m → 14:24 ≤ 14:25 → B holds.
     const ok = await applyDepartureChange(segs, 1, min(8), lookup)
     expect(ok).toBe(true)
@@ -51,12 +51,35 @@ describe('applyDepartureChange', () => {
     expect(ms(segs[2].endTime)).toBe(min(25))
     expect(segs[2].waitSeconds).toBe(60)
 
-    // B kept its planned run — no lookup needed
+    // B re-selected onto the same (earliest feasible) run
     expect(ms(segs[3].startTime)).toBe(min(25))
-    expect(lookup).not.toHaveBeenCalled()
 
     // Egress walk follows B
     expect(ms(segs[4].startTime)).toBe(min(40))
+    expect(ms(segs[4].endTime)).toBe(min(44))
+  })
+
+  it('changing back to the original departure restores downstream runs', async () => {
+    const segs = makeTrip()
+    // B runs every 10 min: 14:25, 14:35, 14:45
+    const lookup = vi.fn(async (_i: number, minMs: number) =>
+      [min(25), min(35), min(45)].find((t) => t >= minMs) ?? null)
+
+    // Take bus A 10 min later → B rolls to 14:35 (connection broken)
+    await applyDepartureChange(segs, 1, min(17), lookup)
+    expect(ms(segs[3].startTime)).toBe(min(35))
+
+    // Switch back to the original 14:07 run → B must roll BACK to 14:25
+    const ok = await applyDepartureChange(segs, 1, min(7), lookup)
+    expect(ok).toBe(true)
+    expect(ms(segs[1].startTime)).toBe(min(7))
+    expect(ms(segs[1].endTime)).toBe(min(20))
+    // Transfer walk: 3 min moving from 14:20 → 14:23, wait 2 min to 14:25
+    expect(ms(segs[2].endTime)).toBe(min(25))
+    expect(segs[2].waitSeconds).toBe(120)
+    expect(ms(segs[3].startTime)).toBe(min(25))
+    expect(ms(segs[3].endTime)).toBe(min(40))
+    // Egress restored too
     expect(ms(segs[4].endTime)).toBe(min(44))
   })
 

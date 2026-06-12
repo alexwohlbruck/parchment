@@ -2301,7 +2301,10 @@ export class TripService {
     // merged) walks. Order matters: collapsing first lets enrich re-time
     // the merged boundary/transfer walks correctly.
     segments = this.collapseWalkableTransitLegs(segments)
-    await this.enrichIntermodalWalks(segments, from, to, startTime, preferences)
+    await Promise.all([
+      this.enrichIntermodalWalks(segments, from, to, startTime, preferences),
+      this.enrichSharedRideSegments(segments, preferences),
+    ])
 
     segments.forEach((seg, idx) => {
       seg.segmentIndex = idx
@@ -2628,6 +2631,46 @@ export class TripService {
           }
           // Other middle walks (e.g. to rental stations) keep MOTIS timing —
           // re-timing them would cascade into later segments.
+        } catch {
+          // GraphHopper failure — the MOTIS leg stands
+        }
+      }),
+    )
+  }
+
+  /**
+   * Upgrade shared-ride (RENTAL) legs with a GraphHopper bicycle route:
+   * turn-by-turn instructions, edge segments (safety scoring), and
+   * elevation — the same detail a personal-bike trip gets. MOTIS timing is
+   * kept (the leg anchors the trip chain); only the ride detail improves.
+   * GraphHopper failures leave the MOTIS leg as-is.
+   */
+  private async enrichSharedRideSegments(
+    segments: TripSegment[],
+    preferences?: any,
+  ): Promise<void> {
+    await Promise.all(
+      segments.map(async (seg) => {
+        if (seg.ownership !== 'shared' || seg.mode !== 'biking') return
+        try {
+          const route = await routingService.getRoute(
+            [
+              { type: 'coordinates', value: [seg.start.location.lat, seg.start.location.lng] },
+              { type: 'coordinates', value: [seg.end.location.lat, seg.end.location.lng] },
+            ],
+            'bicycle',
+            preferences,
+          )
+          if (!route.routes.length) return
+          const leg = route.routes[0].legs[0]
+          seg.geometry = leg.geometry
+          seg.instructions = leg.instructions
+          seg.distance = leg.distance
+          seg.totalElevationGain = leg.totalElevationGain
+          seg.totalElevationLoss = leg.totalElevationLoss
+          seg.maxElevation = leg.maxElevation
+          seg.minElevation = leg.minElevation
+          seg.edgeSegments = leg.edgeSegments
         } catch {
           // GraphHopper failure — the MOTIS leg stands
         }

@@ -9,9 +9,11 @@
  *   are preserved). Mid-trip, earlier legs already ran on their schedule —
  *   the extra wait is spent at the platform, absorbed by the transfer walk.
  * - Legs AFTER it: walks restart where the previous leg ends (moving time
- *   constant, wait recomputed); transit keeps its planned run when the
- *   connection still holds, otherwise rolls to the next departure of the
- *   same line (via the provided lookup).
+ *   constant, wait recomputed); each transit leg re-selects the EARLIEST
+ *   feasible run of its line (via the provided lookup) — rolling forward
+ *   when a connection breaks, and rolling back when slack opens up (e.g.
+ *   the rider switches back to the original departure). Without lookup
+ *   data the planned run is kept when still catchable.
  */
 
 export interface RebookableStop {
@@ -105,10 +107,13 @@ export async function applyDepartureChange(
     } else {
       const plannedDep = asMs(s.startTime)
       const rideMs = asMs(s.endTime) - plannedDep
-      let dep = plannedDep
-      if (cursorMs > plannedDep) {
-        dep = (await nextDeparture(i, cursorMs)) ?? cursorMs
-      }
+      // Re-select the earliest run reachable from the cascade cursor —
+      // later when the connection broke, earlier when slack opened up.
+      // Null lookup (no schedule data): hold the planned run if still
+      // catchable, else slide to the arrival time.
+      const earliest = await nextDeparture(i, cursorMs)
+      const dep =
+        earliest ?? (cursorMs > plannedDep ? cursorMs : plannedDep)
       // The preceding walk stretches to the departure; slack is wait.
       const prev = segments[i - 1]
       if (prev && prev.mode !== 'transit' && dep > asMs(prev.endTime)) {

@@ -543,12 +543,15 @@ function handleAnimationEnd(open: boolean) {
         }"
         :data-vaul-no-drag="!isAtTop ? '' : undefined"
       >
-        <!-- Header: absolutely positioned so it never displaces content.
-             Individual views add their own top padding/title to clear it. -->
+        <!-- In-flow opaque chrome bar. It takes layout space (content sits
+             below it) and is opaque, so a view's content — including any
+             sticky header it pins to the scroll surface — slides cleanly
+             underneath the drag handle / action buttons instead of peeking
+             out behind them. -->
         <div
           v-if="props.showDragHandle || $slots.actions"
           ref="headerRef"
-          class="absolute top-0 left-0 right-0 z-10 grid grid-cols-[1fr_auto_1fr] items-start pointer-events-none"
+          class="relative z-10 grid grid-cols-[1fr_auto_1fr] items-start pointer-events-none bg-background shrink-0 min-h-[2.75rem]"
         >
           <!-- Col 1: left spacer -->
           <div />

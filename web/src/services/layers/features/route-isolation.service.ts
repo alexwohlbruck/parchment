@@ -12,6 +12,7 @@
 
 import { watch, type WatchStopHandle } from 'vue'
 import { useRouteDetailStore, type RouteDetailStop } from '@/stores/route-detail.store'
+import { densifyLine } from '@/lib/geo-densify'
 
 const ROUTE_SOURCE_ID = 'route-detail-shape'
 const ROUTE_LAYER_ID = 'route-detail-line'
@@ -193,14 +194,21 @@ export function useRouteIsolationService() {
 
     const lineColor = color ? `#${color}` : '#007cbf'
 
+    // GTFS subway shapes are sparse (points can be 0.5–1.5 km apart), which
+    // makes the geojson→tile step drop long segments crossing a vertex-less
+    // tile at city zoom — the line breaks into visible gaps. Two defences:
+    // densify so every tile has vertices, and tolerance:0 to disable the
+    // simplification that drops them.
     mapInstance.addSource(ROUTE_SOURCE_ID, {
       type: 'geojson',
+      tolerance: 0,
+      buffer: 128,
       data: {
         type: 'Feature',
         properties: {},
         geometry: {
           type: 'LineString',
-          coordinates,
+          coordinates: densifyLine(coordinates),
         },
       },
     })

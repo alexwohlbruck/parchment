@@ -209,12 +209,18 @@ function navigateToTripDetail(trip: TripOption) {
 </script>
 
 <template>
-  <div ref="containerRef" class="w-full min-w-0">
+  <!-- overflow-x-clip contains an over-long outlier bar without becoming a
+       scroll container (which would capture the sticky axis and fight the
+       sheet's single scroll surface). overflow-y stays visible so rows scroll
+       in the host scroller. -->
+  <div ref="containerRef" class="min-w-0 overflow-x-clip">
     <div :style="{ minWidth: `${timelineWidth + sidebarWidth}px` }">
       <!-- Time axis — opaque so suggestions are fully hidden as they scroll
            under it, docked just below the pinned controls. -->
+      <!-- z above the trip caps (z-20) so rows are fully hidden under it, but
+           below the pinned controls (z-30). -->
       <div
-        class="sticky z-20 pt-2 pb-1 border-b border-border/40 bg-background grid"
+        class="sticky z-[25] pt-2 pb-1 border-b border-border/40 bg-background grid"
         :style="{ gridTemplateColumns: 'auto 1fr', top: `${stickyTop}px` }"
       >
         <span :style="{ width: `${sidebarWidth}px` }" />

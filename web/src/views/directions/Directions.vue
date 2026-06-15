@@ -56,7 +56,12 @@ const showPreferences = ref(false)
 // them. Measure their height so the timeline's time-axis header can dock
 // directly below the pinned controls instead of overlapping them.
 const controlsRef = ref<HTMLElement | null>(null)
-const { height: controlsHeight } = useElementSize(controlsRef)
+// Measure the border-box (includes padding) so the time axis docks flush
+// below the controls — content-box would leave the axis tucked ~24px behind
+// them, hiding the time labels.
+const { height: controlsHeight } = useElementSize(controlsRef, undefined, {
+  box: 'border-box',
+})
 
 // ── Sort preference ──────────────────────────────────────────────
 const sortOptions: Array<{ value: SortPreference | 'recommended'; label: string }> = [
@@ -187,148 +192,154 @@ useMapListener(
 
 <template>
   <PanelLayout>
-    <!-- One scroll container for the whole panel body: the title and mode
-         tabs scroll away, while the waypoint/options/sort controls and the
-         timeline's time axis stay pinned at the top. -->
-    <div class="flex-1 min-h-0 -mx-3 flex flex-col overflow-auto overscroll-contain">
-      <!-- Collapsible header — scrolls out of view -->
-      <div class="px-3 space-y-3">
-        <h1 class="text-2xl font-semibold">Directions</h1>
-        <Tabs v-model="selectedMode">
-          <TabsList class="w-full flex">
-            <TabsTrigger
-              v-for="(mode, i) in modes"
-              :key="i"
-              :value="mode.type"
-              class="grow"
-              :title="mode.label"
-            >
-              <component :is="mode.icon" class="size-5" />
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
+    <!-- The host sheet owns the one scroll surface (LeftSheet Card on
+         desktop, BottomSheet's data-sheet-scroll on mobile); this view just
+         flows content into it. A nested overflow container is what broke
+         scrolling inside the mobile sheet. Title + mode tabs scroll away;
+         the controls and the timeline axis pin with `position: sticky`,
+         docking below the sheet's own chrome via `--sheet-sticky-top`. -->
 
-      <!-- Pinned controls — stay docked while suggestions scroll under -->
-      <div
-        ref="controlsRef"
-        class="sticky top-0 left-0 z-30 bg-background px-3 pt-3 pb-3 space-y-3"
-      >
-        <WaypointInput
-          :model-value="waypoints"
-          @update:modelValue="directionsService.setWaypoints"
-        />
-
-        <!-- Departure time + preferences + sort -->
-        <div class="flex items-center gap-1.5">
-          <Button
-            variant="outline"
-            size="sm"
-            class="h-7 text-xs gap-1.5 font-normal"
-            :class="departureTime ? 'pr-1' : ''"
-            @click="showTimePicker = !showTimePicker"
+    <!-- Collapsing header — title + tabs scroll up and out of view. -->
+    <div class="space-y-3">
+      <h1 class="text-2xl font-semibold">Directions</h1>
+      <Tabs v-model="selectedMode">
+        <TabsList class="w-full flex">
+          <TabsTrigger
+            v-for="(mode, i) in modes"
+            :key="i"
+            :value="mode.type"
+            class="grow"
+            :title="mode.label"
           >
-            <ClockIcon class="size-3.5" />
-            {{ departureTimeLabel }}
-            <span
-              v-if="departureTime"
-              class="ml-0.5 p-0.5 rounded hover:bg-muted"
-              @click.stop="clearDepartureTime"
-            >
-              <XIcon class="size-3" />
-            </span>
-          </Button>
+            <component :is="mode.icon" class="size-5" />
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+    </div>
 
-          <div class="flex-1" />
-
-          <Select v-model="selectedSort">
-            <SelectTrigger class="h-7 w-[150px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem
-                v-for="opt in sortOptions"
-                :key="opt.value"
-                :value="opt.value"
-                class="text-xs"
-              >
-                {{ opt.label }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-
-          <ResponsivePopover
-            v-model:open="showPreferences"
-            side="bottom"
-            :side-offset="6"
-            align="end"
-            desktop-content-class="w-[24.5rem] p-0"
-            mobile-content-class="px-2"
-          >
-            <template #trigger>
-              <Button
-                variant="outline"
-                size="sm"
-                class="h-7 w-7 p-0 shrink-0"
-                :class="showPreferences && 'bg-accent'"
-                title="Route preferences"
-              >
-                <SlidersHorizontalIcon class="size-3.5" />
-              </Button>
-            </template>
-
-            <template #content="{ close }">
-              <RoutingPreferences
-                :selected-mode="selectedMode"
-                @close="close"
-              />
-            </template>
-          </ResponsivePopover>
-        </div>
-
-        <div v-if="showTimePicker" class="flex items-center gap-2">
-          <input
-            type="datetime-local"
-            class="flex-1 h-8 px-2 text-xs rounded-md border border-input bg-background ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            :value="departureTimeLocal"
-            @input="(e: any) => departureTimeLocal = e.target.value"
-          />
-        </div>
-      </div>
-
-      <!-- Timezone warning -->
-      <div
-        v-if="timezoneWarning"
-        class="mx-3 mb-1 flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/30 rounded-md text-sm"
-      >
-        <ClockIcon class="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
-        <span class="text-amber-800 dark:text-amber-200">
-          Your destination is in a different time zone ({{ timezoneWarning.offsetDifferenceText }})
-        </span>
-      </div>
-
-      <!-- Loading state -->
-      <div
-        v-if="isLoading"
-        class="flex-1 min-h-0 flex items-center justify-center px-3 py-10"
-      >
-        <DirectionsLoading />
-      </div>
-
-      <!-- Trips results -->
-      <TripsList
-        v-else-if="trips"
-        :trips="trips"
-        :sticky-top="controlsHeight"
+    <!-- Pinned controls — pin to the top of the host scroll surface (which on
+         mobile sits just below the sheet's opaque chrome bar). pt-3 keeps the
+         inputs off the chrome; the full-bleed background covers suggestions
+         scrolling underneath. -->
+    <div
+      ref="controlsRef"
+      class="sticky top-0 z-30 -mx-3 px-3 pt-3 pb-3 space-y-3 bg-background"
+    >
+      <WaypointInput
+        :model-value="waypoints"
+        @update:modelValue="directionsService.setWaypoints"
       />
 
-      <!-- No results -->
-      <div
-        v-else-if="waypoints.some(wp => wp.lngLat)"
-        class="flex-1 min-h-0 flex items-center justify-center px-3 py-10 text-center text-muted-foreground"
-      >
-        <p class="text-sm">No routes found</p>
+      <!-- Departure time + sort + preferences -->
+      <div class="flex items-center gap-1.5">
+        <Button
+          variant="outline"
+          size="sm"
+          class="h-7 text-xs gap-1.5 font-normal"
+          :class="departureTime ? 'pr-1' : ''"
+          @click="showTimePicker = !showTimePicker"
+        >
+          <ClockIcon class="size-3.5" />
+          {{ departureTimeLabel }}
+          <span
+            v-if="departureTime"
+            class="ml-0.5 p-0.5 rounded hover:bg-muted"
+            @click.stop="clearDepartureTime"
+          >
+            <XIcon class="size-3" />
+          </span>
+        </Button>
+
+        <div class="flex-1" />
+
+        <Select v-model="selectedSort">
+          <SelectTrigger class="h-7 w-[150px] text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem
+              v-for="opt in sortOptions"
+              :key="opt.value"
+              :value="opt.value"
+              class="text-xs"
+            >
+              {{ opt.label }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+
+        <ResponsivePopover
+          v-model:open="showPreferences"
+          side="bottom"
+          :side-offset="6"
+          align="end"
+          desktop-content-class="w-[24.5rem] p-0"
+          mobile-content-class="px-2"
+        >
+          <template #trigger>
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-7 w-7 p-0 shrink-0"
+              :class="showPreferences && 'bg-accent'"
+              title="Route preferences"
+            >
+              <SlidersHorizontalIcon class="size-3.5" />
+            </Button>
+          </template>
+
+          <template #content="{ close }">
+            <RoutingPreferences
+              :selected-mode="selectedMode"
+              @close="close"
+            />
+          </template>
+        </ResponsivePopover>
       </div>
+
+      <div v-if="showTimePicker" class="flex items-center gap-2">
+        <input
+          type="datetime-local"
+          class="flex-1 h-8 px-2 text-xs rounded-md border border-input bg-background ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          :value="departureTimeLocal"
+          @input="(e: any) => departureTimeLocal = e.target.value"
+        />
+      </div>
+    </div>
+
+    <!-- Timezone warning -->
+    <div
+      v-if="timezoneWarning"
+      class="mb-2 flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/30 rounded-md text-sm"
+    >
+      <ClockIcon class="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+      <span class="text-amber-800 dark:text-amber-200">
+        Your destination is in a different time zone ({{ timezoneWarning.offsetDifferenceText }})
+      </span>
+    </div>
+
+    <!-- Loading — centered in the open space below the inputs -->
+    <div
+      v-if="isLoading"
+      class="flex items-center justify-center min-h-[55dvh]"
+    >
+      <DirectionsLoading />
+    </div>
+
+    <!-- Trips results (full-bleed timeline) -->
+    <TripsList
+      v-else-if="trips"
+      :trips="trips"
+      :sticky-top="controlsHeight"
+      class="-mx-3"
+    />
+
+    <!-- No results -->
+    <div
+      v-else-if="waypoints.some(wp => wp.lngLat)"
+      class="flex items-center justify-center min-h-[40dvh] text-center text-muted-foreground"
+    >
+      <p class="text-sm">No routes found</p>
     </div>
   </PanelLayout>
 </template>

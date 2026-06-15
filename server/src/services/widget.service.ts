@@ -1,4 +1,4 @@
-import type { Place, TransitDeparture, TransitStopInfo, WidgetDescriptor, WidgetResponse, SourceReference, RelatedPlacesData, RelatedPlacesStrategy, RelatedParent, DisplayChip } from '../types/place.types'
+import type { Place, TransitDeparture, TransitStopInfo, WidgetDescriptor, WidgetResponse, SourceReference, RelatedPlacesData, RelatedPlacesStrategy, RelatedParent, DisplayChip, BikeshareStatus } from '../types/place.types'
 import { WidgetType, WidgetDataType } from '../types/place.types'
 
 import { SOURCE } from '../lib/constants'
@@ -74,6 +74,8 @@ const EXCLUDE_OSM_TAG_KEYS = new Set([
   'opening_hours', 'service_times',
   // External references
   'wikidata', 'wikipedia', 'wikimedia_commons', 'is_in', 'geonames', 'image', 'mapillary',
+  // GBFS station link — consumed by the bikeshare widget, not human-readable
+  'ref:gbfs',
   // Primary type classification keys — these ARE the place type shown as the subtitle
   // e.g. amenity=bicycle_parking is already "Bicycle Parking", shop=bakery is already "Bakery"
   'amenity', 'shop', 'tourism', 'leisure', 'office', 'craft', 'healthcare',
@@ -135,6 +137,49 @@ export function resolveWidgetDescriptors(place: Place): WidgetDescriptor[] {
           ...(transitInfo?.stopId ? { stopId: transitInfo.stopId } : {}),
           // Keep onestopIds for backwards compatibility with cached data
           ...(transitInfo?.onestopId ? { onestopIds: (transitInfo.onestopIds || [transitInfo.onestopId]).join(',') } : {}),
+        },
+      })
+    }
+  }
+
+  // ── 1.5 Bikeshare / shared-mobility dock (ASYNC) ─────────────────────────────
+  // Resolve live GBFS availability for rental docks. The exact station is found
+  // from the OSM `ref:gbfs` tag (`systemId:stationId`); a proximity match on the
+  // dock's coordinates covers docks that lack the tag.
+  {
+    const tags = place.tags || {}
+    const refGbfs = tags['ref:gbfs']
+    let systemId: string | undefined
+    let stationId: string | undefined
+    if (refGbfs) {
+      const sep = refGbfs.indexOf(':')
+      if (sep > 0) {
+        systemId = refGbfs.slice(0, sep).trim()
+        stationId = refGbfs.slice(sep + 1).trim()
+      }
+    }
+
+    const amenity = tags.amenity
+    const isRentalDock =
+      amenity === 'bicycle_rental' ||
+      amenity === 'scooter_rental' ||
+      amenity === 'kick_scooter_rental'
+    // Dockless/free-floating rental areas have no capacity to report.
+    const isDockingStation = tags.bicycle_rental !== 'dockless'
+
+    const center = place.geometry?.value?.center
+    const hasExactRef = Boolean(systemId && stationId)
+
+    if (hasExactRef || (isRentalDock && isDockingStation && center)) {
+      descriptors.push({
+        type: WidgetType.BIKESHARE,
+        dataType: WidgetDataType.ASYNC,
+        title: 'Availability',
+        estimatedHeight: 104,
+        params: {
+          ...(systemId ? { systemId } : {}),
+          ...(stationId ? { stationId } : {}),
+          ...(center ? { lat: String(center.lat), lng: String(center.lng) } : {}),
         },
       })
     }
@@ -451,6 +496,84 @@ async function fetchTransitDepartures(
 }
 
 /**
+ * Fetch live shared-mobility availability from Barrelman's GBFS service.
+ *
+ * Looks the station up by exact (systemId, stationId) when known — derived
+ * from the OSM `ref:gbfs` tag — otherwise by proximity to the dock's
+ * coordinates. Returns null when no matching GBFS station is found.
+ */
+async function fetchBikeshareStatus(
+  params: { systemId?: string; stationId?: string; lat?: number; lng?: number },
+): Promise<{ status: BikeshareStatus | null; sources: SourceReference[] }> {
+  const barrelmanRecord = integrationManager
+    .getConfiguredIntegrations()
+    .find((i) => i.integrationId === IntegrationId.BARRELMAN)
+
+  const config = barrelmanRecord?.config as { host?: string; apiKey?: string } | undefined
+  if (!config?.host) {
+    console.debug('🚫 [Widget/Bikeshare] Barrelman not configured')
+    return { status: null, sources: [] }
+  }
+
+  try {
+    const queryParams = new URLSearchParams()
+    if (params.systemId) queryParams.set('systemId', params.systemId)
+    if (params.stationId) queryParams.set('stationId', params.stationId)
+    if (params.lat != null) queryParams.set('lat', String(params.lat))
+    if (params.lng != null) queryParams.set('lng', String(params.lng))
+
+    const headers: Record<string, string> = {}
+    if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
+
+    console.debug(`🌐 [Widget/Bikeshare] Fetching station ${params.systemId ?? ''}:${params.stationId ?? ''} from Barrelman`)
+    const response = await fetch(`${config.host}/gbfs/station?${queryParams}`, { headers })
+
+    if (!response.ok) {
+      // 404 just means this dock isn't in any known GBFS feed — not an error.
+      if (response.status !== 404) {
+        console.error(`❌ [Widget/Bikeshare] Barrelman returned ${response.status}`)
+      }
+      return { status: null, sources: [] }
+    }
+
+    const s = await response.json() as {
+      systemId: string; stationId: string; name: string
+      systemName?: string | null; operator?: string | null
+      capacity: number | null
+      numBikesAvailable: number; numEbikesAvailable: number
+      numScootersAvailable: number; numDocksAvailable: number
+      isRenting: boolean; isReturning: boolean; lastReported: string | null
+    }
+
+    const status: BikeshareStatus = {
+      systemId: s.systemId,
+      stationId: s.stationId,
+      name: s.name,
+      systemName: s.systemName ?? null,
+      operator: s.operator ?? null,
+      capacity: s.capacity,
+      bikesAvailable: Math.max(0, s.numBikesAvailable ?? 0),
+      ebikesAvailable: Math.max(0, s.numEbikesAvailable ?? 0),
+      scootersAvailable: Math.max(0, s.numScootersAvailable ?? 0),
+      docksAvailable: Math.max(0, s.numDocksAvailable ?? 0),
+      isRenting: s.isRenting ?? true,
+      isReturning: s.isReturning ?? true,
+      lastReported: s.lastReported ?? null,
+    }
+
+    console.debug(`✅ [Widget/Bikeshare] ${status.name}: ${status.bikesAvailable + status.ebikesAvailable} bikes, ${status.docksAvailable} docks`)
+
+    return {
+      status,
+      sources: [{ id: 'gbfs', name: status.systemName || status.operator || 'GBFS' }],
+    }
+  } catch (error) {
+    console.error('❌ [Widget/Bikeshare] Barrelman station fetch failed:', error)
+    return { status: null, sources: [] }
+  }
+}
+
+/**
  * Fetch widget data by type. Dispatches to the appropriate handler.
  */
 export async function fetchWidgetData(
@@ -499,6 +622,25 @@ export async function fetchWidgetData(
         data: {
           value: transitInfo,
           sourceId: 'barrelman',
+          timestamp: new Date().toISOString(),
+        },
+        sources,
+      }
+    }
+
+    case WidgetType.BIKESHARE: {
+      const { status, sources } = await fetchBikeshareStatus({
+        systemId: params.systemId || undefined,
+        stationId: params.stationId || undefined,
+        lat: params.lat ? parseFloat(params.lat) : undefined,
+        lng: params.lng ? parseFloat(params.lng) : undefined,
+      })
+
+      return {
+        type: WidgetType.BIKESHARE,
+        data: {
+          value: status,
+          sourceId: 'gbfs',
           timestamp: new Date().toISOString(),
         },
         sources,

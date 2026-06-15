@@ -1,4 +1,5 @@
 import { watch, ref } from 'vue'
+import axios from 'axios'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/lib/api'
@@ -26,6 +27,8 @@ function directionsService() {
 
   const lastRequestKey = ref('')
   const isRequesting = ref(false)
+  // Tracks the in-flight directions request so a newer one can abort it.
+  const abortController = ref<AbortController | null>(null)
 
   const {
     coords,
@@ -45,25 +48,42 @@ function directionsService() {
   }
 
   /**
-   * Fetch directions from API
+   * Fetch directions from API.
+   *
+   * Any in-flight request is aborted before a new one starts. When the user
+   * tweaks waypoints/mode/sort while trips are still loading, the stale
+   * request must not win the race — otherwise its late response overwrites
+   * (or, worse, the early-return guard suppressed) the results for the
+   * inputs the user actually wants.
    */
   async function getDirections() {
     const validWaypoints = waypoints.value.filter(wp => wp.lngLat)
+
+    // Need at least 2 waypoints — drop any in-flight request and clear.
+    if (validWaypoints.length < MIN_WAYPOINTS) {
+      abortController.value?.abort()
+      abortController.value = null
+      store.unsetTrips()
+      lastRequestKey.value = ''
+      isRequesting.value = false
+      store.setLoading(false)
+      return
+    }
+
     const requestKey = getRequestKey(
       validWaypoints,
       selectedMode.value,
       routingPreferences.value,
     )
 
-    // Skip duplicate or concurrent requests
-    if (requestKey === lastRequestKey.value || isRequesting.value) return
+    // Identical to the request already in flight (or the last one resolved) —
+    // nothing to do.
+    if (requestKey === lastRequestKey.value) return
 
-    // Need at least 2 waypoints
-    if (validWaypoints.length < MIN_WAYPOINTS) {
-      store.unsetTrips()
-      lastRequestKey.value = ''
-      return
-    }
+    // Supersede any in-flight request: its inputs are now stale.
+    abortController.value?.abort()
+    const controller = new AbortController()
+    abortController.value = controller
 
     lastRequestKey.value = requestKey
     isRequesting.value = true
@@ -123,7 +143,9 @@ function directionsService() {
         return
       }
 
-      const { data } = await api.post('/directions/', request)
+      const { data } = await api.post('/directions/', request, {
+        signal: controller.signal,
+      })
 
       // Transform response to UI format
       const serverWaypoints: Array<{ label?: string }> = data.request?.waypoints ?? []
@@ -178,12 +200,20 @@ function directionsService() {
       store.setTrips(response)
       writePlanCache(planKey, response)
     } catch (error) {
+      // Aborted by a newer request — leave all state to that request.
+      if (axios.isCancel(error)) return
       console.error('Failed to fetch directions:', error)
       store.unsetTrips()
       lastRequestKey.value = '' // Allow retry
     } finally {
-      isRequesting.value = false
-      store.setLoading(false)
+      // Only the request that is still current may clear the shared loading
+      // flag — an aborted predecessor must not switch off the spinner for
+      // the request that replaced it.
+      if (abortController.value === controller) {
+        isRequesting.value = false
+        store.setLoading(false)
+        abortController.value = null
+      }
     }
   }
 

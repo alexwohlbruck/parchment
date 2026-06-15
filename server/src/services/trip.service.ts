@@ -2445,6 +2445,12 @@ export class TripService {
    */
   private static readonly ENTRANCE_SNAP_RADIUS_M = 150
 
+  /** A transit→walk→transit gap at or below this straight-line distance is
+   *  treated as an in-station transfer (keep MOTIS's level-aware geometry).
+   *  Beyond it, the "transfer" is really a street walk between separate
+   *  stations and gets snapped + GraphHopper-routed for an honest path. */
+  private static readonly IN_STATION_TRANSFER_MAX_M = 250
+
   /** Time to queue and tap through fare control at a subway entrance. */
   private static readonly FARE_GATE_DELAY_SEC = 10
 
@@ -2528,13 +2534,23 @@ export class TripService {
         const nextIsTransit = i < last && this.isStationTransit(segments[i + 1])
         const prevIsTransit = i > 0 && this.isStationTransit(segments[i - 1])
 
-        // Station-to-station transfer (e.g. R → 1 inside Times Sq): the
-        // rider never reaches the street, so snapping endpoints to street
-        // entrances and re-routing along sidewalks would be flatly wrong.
-        // MOTIS's walk is level-aware and follows the in-station pathways
-        // (real or synthesized connectors) — keep its geometry and timing,
+        // In-station transfer (e.g. R → 1 inside Times Sq): the rider never
+        // reaches the street, so snapping to street entrances and re-routing
+        // along sidewalks would be flatly wrong. MOTIS's walk is level-aware
+        // and follows the in-station pathways — keep its geometry and timing,
         // stretching to the next departure so slack shows as platform wait.
-        if (prevIsTransit && nextIsTransit) {
+        //
+        // Only when the endpoints are genuinely close, though. MOTIS also
+        // emits zero-geometry footpaths between *different* stations a few
+        // hundred metres apart (e.g. Franklin Av shuttle → Nostrand Av to
+        // catch the express A that skips Franklin). Those are real street
+        // walks — fall through so they get snapped + GraphHopper-routed and
+        // show an honest distance, not "0 ft".
+        const transferGap = TripService.haversineDistance(
+          seg.start.location,
+          seg.end.location,
+        )
+        if (prevIsTransit && nextIsTransit && transferGap <= TripService.IN_STATION_TRANSFER_MAX_M) {
           const movingSec = seg.duration
           const departureMs = new Date(segments[i + 1].startTime).getTime()
           const startMs = new Date(seg.startTime).getTime()

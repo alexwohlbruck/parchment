@@ -2260,6 +2260,101 @@ describe('TripService — in-station transfers', () => {
       }) as any)
     }
   })
+
+  test('far transit→walk→transit gap is street-routed, not kept as a 0m footpath', async () => {
+    // MOTIS emits a zero-geometry footpath between two *different* stations
+    // ~500m apart (e.g. shuttle Franklin Av → express stop Nostrand Av).
+    // That is a real street walk and must be snapped + GraphHopper-routed.
+    mockGetNearestEntrance.mockClear()
+    mockGetNearestEntrance.mockImplementation(async () => ({
+      osmId: 'n1', name: 'Entrance', description: null, wheelchair: null,
+      level: '0', accessType: 'subway_entrance',
+      lat: 35.225, lon: -80.845, distanceM: 20,
+    }) as any)
+    // GraphHopper returns a 500m routed walk (default shape).
+    mockGetRoute.mockImplementation(async () => ({
+      routes: [{
+        distance: 500, duration: 360,
+        legs: [{
+          distance: 500, duration: 360,
+          geometry: { type: 'LineString', coordinates: [[-80.845, 35.225], [-80.8395, 35.225]] },
+          instructions: [], totalElevationGain: 0, totalElevationLoss: 0,
+          maxElevation: 0, minElevation: 0, edgeSegments: [],
+        }],
+      }],
+    }) as any)
+    mockGetIntermodalRoute.mockImplementation(async () => ({
+      itineraries: [makeTransitItinerary({
+        legs: [
+          {
+            mode: 'WALK', transitLeg: false,
+            from: { name: 'Origin', lat: 35.2094, lng: -80.8605 },
+            to: { name: 'Park Pl', lat: 35.21, lng: -80.85, stopId: 'S03' },
+            startTime: '2026-01-15T08:00:00Z', endTime: '2026-01-15T08:05:00Z',
+            duration: 300, distance: 250,
+          },
+          {
+            mode: 'SUBWAY', transitLeg: true,
+            from: { name: 'Park Pl', lat: 35.21, lng: -80.85, stopId: 'S03' },
+            to: { name: 'Franklin Av', lat: 35.225, lng: -80.845, stopId: 'S01' },
+            startTime: '2026-01-15T08:05:00Z', endTime: '2026-01-15T08:10:00Z',
+            duration: 300, distance: 1000, routeShortName: 'S', headsign: 'Franklin Av',
+            geometry: { type: 'LineString', coordinates: [[-80.85, 35.21], [-80.845, 35.225]] },
+          },
+          {
+            // 0m footpath between two stations ~500m apart (Δlng 0.0055 at lat 35)
+            mode: 'WALK', transitLeg: false,
+            from: { name: 'Franklin Av', lat: 35.225, lng: -80.845, stopId: 'S01' },
+            to: { name: 'Nostrand Av', lat: 35.225, lng: -80.8395, stopId: 'A46' },
+            startTime: '2026-01-15T08:10:00Z', endTime: '2026-01-15T08:15:00Z',
+            duration: 300, distance: 0,
+          },
+          {
+            mode: 'SUBWAY', transitLeg: true,
+            from: { name: 'Nostrand Av', lat: 35.225, lng: -80.8395, stopId: 'A46' },
+            to: { name: 'Broadway Jct', lat: 35.24, lng: -80.83, stopId: 'A51' },
+            startTime: '2026-01-15T08:18:00Z', endTime: '2026-01-15T08:24:00Z',
+            duration: 360, distance: 3000, routeShortName: 'A', headsign: 'Far Rockaway',
+            geometry: { type: 'LineString', coordinates: [[-80.8395, 35.225], [-80.83, 35.24]] },
+          },
+          {
+            mode: 'WALK', transitLeg: false,
+            from: { name: 'Broadway Jct', lat: 35.24, lng: -80.83, stopId: 'A51' },
+            to: { name: 'Destination', lat: 35.2404, lng: -80.8283 },
+            startTime: '2026-01-15T08:24:00Z', endTime: '2026-01-15T08:29:00Z',
+            duration: 300, distance: 250,
+          },
+        ],
+      })],
+      metadata: { searchWindow: 7200 },
+    }) as any)
+
+    try {
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'transit',
+        preferredDepartureTime: '2026-01-15T07:50:00Z',
+      })
+      const segs = response.trips[0].trip.segments
+      const transfer = segs.find(
+        (s: any, i: number) =>
+          s.mode === 'walking' &&
+          i > 0 && i < segs.length - 1 &&
+          segs[i - 1].mode === 'transit' && segs[i + 1].mode === 'transit',
+      ) as any
+
+      // Street-routed via GraphHopper (mock returns distance 500), not the
+      // 0m MOTIS footpath — the rider sees an honest walk with geometry.
+      expect(transfer.distance).toBe(500)
+      expect(transfer.geometry).toBeTruthy()
+    } finally {
+      mockGetNearestEntrance.mockImplementation(async () => null)
+      mockGetIntermodalRoute.mockImplementation(async () => ({
+        itineraries: [],
+        metadata: { searchWindow: 0 },
+      }) as any)
+    }
+  })
 })
 
 describe('TripService — applyDurationDominance', () => {

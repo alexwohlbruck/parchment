@@ -2,16 +2,14 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { TransitDeparture, TransitStopInfo } from '@/types/place.types'
-import { Badge } from '@/components/ui/badge'
 import { ClockIcon, ExternalLinkIcon } from 'lucide-vue-next'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
+import RouteBullet from '@/components/transit/RouteBullet.vue'
 import { useExternalLink } from '@/composables/useExternalLink'
 import { useTransitClock } from '@/composables/useTransitClock'
 import {
   formatDepartureTime,
   getMinutesUntil,
-  getRouteColor,
-  getTextColor,
 } from '@/lib/transit'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import SheetPageHeader from '@/components/place/SheetPageHeader.vue'
@@ -122,15 +120,12 @@ function openTransitlandLink() {
           class="flex items-center gap-2 mb-3 group cursor-pointer"
           @click="openRouteDetail(group.representative)"
         >
-          <Badge
-            :style="{
-              backgroundColor: getRouteColor(group.route),
-              color: getTextColor(group.route),
-            }"
-            class="text-xs font-semibold shrink-0 group-hover:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"
-          >
-            {{ group.routeKey }}
-          </Badge>
+          <RouteBullet
+            :label="group.routeKey"
+            :color="group.route.color"
+            :text-color="group.route.textColor"
+            class="group-hover:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"
+          />
           <span class="text-sm text-muted-foreground truncate group-hover:text-foreground transition-colors">
             {{ group.route.longName || group.route.shortName }}
           </span>

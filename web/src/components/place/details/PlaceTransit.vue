@@ -12,16 +12,12 @@ import { setPlaceTransitLines } from '@/composables/usePlaceTransitLines'
 import { useI18n } from 'vue-i18n'
 import type { Place, TransitDeparture, TransitStopInfo } from '@/types/place.types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { ChevronRightIcon } from 'lucide-vue-next'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
+import RouteBullet from '@/components/transit/RouteBullet.vue'
 import { useSheetPage } from '@/composables/useSheetPage'
 import { useTransitClock } from '@/composables/useTransitClock'
-import {
-  getMinutesUntil,
-  getRouteColor,
-  getTextColor,
-} from '@/lib/transit'
+import { getMinutesUntil } from '@/lib/transit'
 import PlaceTransitPage from '@/components/place/pages/PlaceTransitPage.vue'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
@@ -200,15 +196,12 @@ function openRouteDetail(group: RouteGroup) {
             class="flex items-center gap-2 mb-2 group/route cursor-pointer"
             @click="openRouteDetail(group)"
           >
-            <Badge
-              :style="{
-                backgroundColor: getRouteColor(group.route),
-                color: getTextColor(group.route),
-              }"
-              class="text-xs font-semibold shrink-0 group-hover/route:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"
-            >
-              {{ group.routeKey }}
-            </Badge>
+            <RouteBullet
+              :label="group.routeKey"
+              :color="group.route.color"
+              :text-color="group.route.textColor"
+              class="group-hover/route:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"
+            />
             <span class="text-sm text-muted-foreground truncate group-hover/route:text-foreground transition-colors">
               {{ group.route.longName || group.route.shortName }}
             </span>

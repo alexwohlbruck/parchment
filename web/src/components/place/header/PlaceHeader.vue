@@ -22,7 +22,7 @@ import { getLocalDayAndTime } from '@/lib/place-open.utils'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useUnits } from '@/composables/useUnits'
 import { usePlaceTransitLines } from '@/composables/usePlaceTransitLines'
-import { getRouteColor, getTextColor } from '@/lib/transit'
+import RouteBullet from '@/components/transit/RouteBullet.vue'
 
 const props = defineProps<{
   place: Partial<Place>
@@ -295,18 +295,14 @@ watch(
       v-if="stationLines.length"
       class="flex flex-wrap items-center gap-1"
     >
-      <span
+      <RouteBullet
         v-for="line in stationLines"
         :key="line.id"
-        class="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full text-xs font-semibold leading-none"
-        :style="{
-          background: getRouteColor({ color: line.color } as never),
-          color: getTextColor({ color: line.color, textColor: line.textColor } as never),
-        }"
+        :label="line.shortName || line.id"
+        :color="line.color"
+        :text-color="line.textColor"
         :title="line.longName || line.shortName"
-      >
-        {{ line.shortName || line.id }}
-      </span>
+      />
     </div>
 
     <!-- Open status -->

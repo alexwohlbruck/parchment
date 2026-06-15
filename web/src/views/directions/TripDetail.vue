@@ -53,6 +53,7 @@ import { useThemeStore } from '@/stores/theme.store'
 import { ItemIcon } from '@/components/ui/item-icon'
 import ElevationChart from '@/components/directions/ElevationChart.vue'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
+import RouteBullet from '@/components/transit/RouteBullet.vue'
 import { useUnits } from '@/composables/useUnits'
 
 const route = useRoute()
@@ -1026,16 +1027,12 @@ function hasSegmentRouteInfo(segment: any): boolean {
                     :class="!entry.segment.lineColor && 'bg-muted/40'"
                     :style="entry.segment.lineColor ? { background: `#${entry.segment.lineColor}1f` } : {}"
                   >
-                    <span
-                      class="inline-flex items-center justify-center min-w-[28px] h-[26px] px-2 rounded-lg text-sm font-bold shrink-0"
-                      :class="!entry.segment.lineColor && 'bg-parchment-500 text-white'"
-                      :style="entry.segment.lineColor ? {
-                        background: `#${entry.segment.lineColor}`,
-                        color: entry.segment.lineTextColor ? `#${entry.segment.lineTextColor}` : '#fff',
-                      } : {}"
-                    >
-                      {{ entry.segment.lineName }}
-                    </span>
+                    <RouteBullet
+                      size="md"
+                      :label="entry.segment.lineName"
+                      :color="entry.segment.lineColor"
+                      :text-color="entry.segment.lineTextColor"
+                    />
                     <ArrowRight class="size-3.5 text-muted-foreground shrink-0" />
                     <span class="text-sm font-semibold text-foreground truncate">
                       {{ entry.segment.headsign || entry.segment.lineLongName }}

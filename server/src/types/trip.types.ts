@@ -204,6 +204,19 @@ export interface TripSegment {
   minElevation?: number // meters
   // Per-edge surface/road/safety data
   edgeSegments?: RouteEdgeSegment[]
+  /** Station entrance this walk uses (snapped during enrichment). `role`
+   *  is 'enter' for an access walk into a station, 'exit' for an egress
+   *  walk out of one. */
+  stationEntrance?: StationEntranceRef
+}
+
+export interface StationEntranceRef {
+  role: 'enter' | 'exit'
+  name?: string
+  description?: string
+  /** OSM access-point type: subway_entrance, train_station_entrance,
+   *  elevator, etc. */
+  accessType?: string
 }
 
 export interface TripStats {

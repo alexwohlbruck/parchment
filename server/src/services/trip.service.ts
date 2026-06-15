@@ -2561,12 +2561,28 @@ export class TripService {
             type: 'via',
             label: boardEntrance.name || boardEntrance.description || seg.end.label,
           }
+          if (boardEntrance.name || boardEntrance.description) {
+            seg.stationEntrance = {
+              role: 'enter',
+              name: boardEntrance.name || undefined,
+              description: boardEntrance.description || undefined,
+              accessType: boardEntrance.accessType,
+            }
+          }
         }
         if (alightEntrance) {
           seg.start = {
             location: { lat: alightEntrance.lat, lng: alightEntrance.lon },
             type: 'via',
             label: alightEntrance.name || alightEntrance.description || seg.start.label,
+          }
+          if (alightEntrance.name || alightEntrance.description) {
+            seg.stationEntrance = {
+              role: 'exit',
+              name: alightEntrance.name || undefined,
+              description: alightEntrance.description || undefined,
+              accessType: alightEntrance.accessType,
+            }
           }
         }
 

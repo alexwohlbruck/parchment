@@ -28,6 +28,8 @@ import {
   ExternalLinkIcon,
   FlagIcon,
   FootprintsIcon,
+  AccessibilityIcon,
+  LogInIcon,
   RssIcon,
   ShareIcon,
   Undo2Icon,
@@ -287,6 +289,23 @@ function movingDuration(segment: any): number {
 function waitMinutes(segment: any): number {
   const w = segment.waitSeconds ?? 0
   return w >= 60 ? Math.round(w / 60) : 0
+}
+
+/** Full entrance phrase for the timeline. A real entrance name reads "Enter
+ *  at <name>"; a train-direction description (e.g. "1 trains Downtown")
+ *  reads "Enter · 1 trains Downtown" since it isn't a place. Empty when the
+ *  entrance carries neither — never fabricated. */
+function entrancePhrase(
+  entrance:
+    | { role?: string; name?: string | null; description?: string | null }
+    | null
+    | undefined,
+): string {
+  if (!entrance) return ''
+  const verb = entrance.role === 'exit' ? 'Exit' : 'Enter'
+  if (entrance.name) return `${verb} at ${entrance.name}`
+  if (entrance.description) return `${verb} · ${entrance.description}`
+  return ''
 }
 
 const hoveredInstructionKey = ref<string | null>(null)
@@ -1198,6 +1217,17 @@ function hasSegmentRouteInfo(segment: any): boolean {
                   <span class="text-sm text-muted-foreground">
                     {{ formatDuration(movingDuration(entry.segment)) }} · {{ formatDistanceDisplay(entry.segment.distance) }}
                   </span>
+                </div>
+                <!-- Station entrance/exit this walk uses -->
+                <div
+                  v-if="entrancePhrase(entry.segment.stationEntrance)"
+                  class="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground"
+                >
+                  <component
+                    :is="entry.segment.stationEntrance.accessType === 'elevator' ? AccessibilityIcon : LogInIcon"
+                    class="size-3 shrink-0"
+                  />
+                  <span>{{ entrancePhrase(entry.segment.stationEntrance) }}</span>
                 </div>
                 <!-- Walk times are implied by the surrounding stops; show the
                      clock only for vehicle modes -->

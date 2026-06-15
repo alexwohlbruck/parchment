@@ -294,6 +294,7 @@ function directionsService() {
       carryingVehicle: seg.carryingVehicle ?? false,
       rideshareDetails: seg.details?.rideshareDetails ?? null,
       sharedMobilityDetails: seg.details?.sharedMobilityDetails ?? null,
+      stationEntrance: seg.stationEntrance ?? null,
       ...extractTransitFields(seg),
     }
   }

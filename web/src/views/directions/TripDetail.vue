@@ -30,6 +30,7 @@ import {
   FootprintsIcon,
   AccessibilityIcon,
   LogInIcon,
+  LogOutIcon,
   RssIcon,
   ShareIcon,
   Undo2Icon,
@@ -292,9 +293,11 @@ function waitMinutes(segment: any): number {
 }
 
 /** Full entrance phrase for the timeline. A real entrance name reads "Enter
- *  at <name>"; a train-direction description (e.g. "1 trains Downtown")
- *  reads "Enter · 1 trains Downtown" since it isn't a place. Empty when the
- *  entrance carries neither — never fabricated. */
+ *  at <name>". A train-direction description (e.g. "1 trains Downtown") is
+ *  about which platform a stair serves — useful when entering ("Enter · 1
+ *  trains Downtown"), but noise when exiting (you're heading to the street,
+ *  not a platform), so it's shown only on enter. Empty when the entrance
+ *  carries nothing usable — never fabricated. */
 function entrancePhrase(
   entrance:
     | { role?: string; name?: string | null; description?: string | null }
@@ -304,8 +307,27 @@ function entrancePhrase(
   if (!entrance) return ''
   const verb = entrance.role === 'exit' ? 'Exit' : 'Enter'
   if (entrance.name) return `${verb} at ${entrance.name}`
-  if (entrance.description) return `${verb} · ${entrance.description}`
+  if (entrance.role !== 'exit' && entrance.description) {
+    return `${verb} · ${entrance.description}`
+  }
   return ''
+}
+
+/** Generic, non-POI place types — a plain address or shared pin just repeats
+ *  the waypoint title, so it gets no tap-to-open place card. */
+const GENERIC_PLACE_TYPES = new Set([
+  'area',
+  'address',
+  'coordinates',
+  'shared_location',
+  'current_location',
+])
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isPoiCard(place: any): boolean {
+  if (!place?.id) return false
+  const type = place.placeType?.value?.toLowerCase?.().trim()
+  return !type || !GENERIC_PLACE_TYPES.has(type)
 }
 
 const hoveredInstructionKey = ref<string | null>(null)
@@ -811,15 +833,20 @@ function hasSegmentRouteInfo(segment: any): boolean {
                 class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[10px] bottom-[-2px]"
                 :class="getRailColor(i, 'above')"
               />
-              <!-- Dot — top-aligned with text via pt-0.5 -->
+              <!-- Dot — top-aligned with text via pt-0.5. Origin: open ring.
+                   Destination: filled with a flag. Intermediate vias: number. -->
               <div
                 class="relative z-10 mt-0.5 size-4 rounded-full flex items-center justify-center shrink-0"
                 :class="entry.waypointIndex === 0
                   ? 'bg-background border-[1.5px] border-foreground/60'
                   : 'bg-primary'"
               >
+                <FlagIcon
+                  v-if="entry.wp.role === 'destination'"
+                  class="size-2.5 text-primary-foreground"
+                />
                 <span
-                  v-if="entry.waypointIndex > 0"
+                  v-else-if="entry.waypointIndex > 0"
                   class="text-[9px] font-bold text-primary-foreground"
                 >
                   {{ entry.waypointIndex }}
@@ -920,10 +947,11 @@ function hasSegmentRouteInfo(segment: any): boolean {
                   {{ entry.wp.displayName }}
                 </span>
               </div>
-              <!-- Place info card for origin/destination/via with a real POI -->
+              <!-- Place info card — only for a real POI worth opening, not a
+                   plain address / shared location (those just repeat the title) -->
               <router-link
-                v-if="entry.wp.place?.id"
-                :to="getPlaceRoute(entry.wp.place.id)"
+                v-if="isPoiCard(entry.wp.place)"
+                :to="getPlaceRoute(entry.wp.place!.id!)"
                 class="mt-1.5 flex items-center gap-2 px-2 py-1.5 rounded-lg bg-muted/40 hover:bg-muted/70 transition-colors"
               >
                 <ItemIcon
@@ -937,10 +965,10 @@ function hasSegmentRouteInfo(segment: any): boolean {
                 />
                 <div class="flex-1 min-w-0 flex flex-col">
                   <span
-                    v-if="entry.wp.place.placeType?.value"
+                    v-if="entry.wp.place!.placeType?.value"
                     class="text-xs text-muted-foreground leading-snug"
                   >
-                    {{ entry.wp.place.placeType.value }}
+                    {{ entry.wp.place!.placeType!.value }}
                   </span>
                   <span
                     v-if="(entry.wp.place as any).summary"
@@ -1224,7 +1252,11 @@ function hasSegmentRouteInfo(segment: any): boolean {
                   class="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground"
                 >
                   <component
-                    :is="entry.segment.stationEntrance.accessType === 'elevator' ? AccessibilityIcon : LogInIcon"
+                    :is="entry.segment.stationEntrance.accessType === 'elevator'
+                      ? AccessibilityIcon
+                      : entry.segment.stationEntrance.role === 'exit'
+                        ? LogOutIcon
+                        : LogInIcon"
                     class="size-3 shrink-0"
                   />
                   <span>{{ entrancePhrase(entry.segment.stationEntrance) }}</span>

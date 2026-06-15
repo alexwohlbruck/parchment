@@ -475,8 +475,11 @@ function handleTouchMove(e: TouchEvent) {
   const deltaY = currentTouchY - lastTouchY
   isScrollingUp = deltaY > 0 // Positive deltaY means scrolling up (finger moving down)
 
-  // Prevent upward scroll when at the top of the container
-  if (isAtTop.value && isScrollingUp) {
+  // Prevent upward scroll when at the top of the container. Guard on
+  // `cancelable`: once native scroll momentum is in flight the touchmove is
+  // non-cancelable, and calling preventDefault then just spams the console
+  // with an "Ignored attempt to cancel a touchmove" intervention warning.
+  if (isAtTop.value && isScrollingUp && e.cancelable) {
     e.preventDefault()
     return false
   }

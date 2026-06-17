@@ -2355,6 +2355,72 @@ describe('TripService — in-station transfers', () => {
       }) as any)
     }
   })
+
+  test('a transit option collapsed to a walk leaves at the requested departure, not the deferred bus time', async () => {
+    // A short bus that walking beats gets collapsed to a single walk. The
+    // itinerary is deferred (bus departs 08:30, 30 min after the requested
+    // 08:00) — the resulting walk must start at 08:00, not inherit 08:30.
+    mockGetRoute.mockImplementation(async () => ({
+      routes: [{
+        distance: 300, duration: 280,
+        legs: [{
+          distance: 300, duration: 280,
+          geometry: { type: 'LineString', coordinates: [[-80.85, 35.21], [-80.848, 35.212]] },
+          instructions: [], totalElevationGain: 0, totalElevationLoss: 0,
+          maxElevation: 0, minElevation: 0, edgeSegments: [],
+        }],
+      }],
+    }) as any)
+    mockGetIntermodalRoute.mockImplementation(async () => ({
+      itineraries: [makeTransitItinerary({
+        legs: [
+          {
+            mode: 'WALK', transitLeg: false,
+            from: { name: 'Origin', lat: 35.2094, lng: -80.8605 },
+            to: { name: 'Stop A', lat: 35.21, lng: -80.85, stopId: 'a' },
+            startTime: '2026-01-15T08:30:00Z', endTime: '2026-01-15T08:31:00Z',
+            duration: 60, distance: 80,
+          },
+          {
+            // 2-min bus over ~300m — walking beats it → collapsed away.
+            mode: 'BUS', transitLeg: true,
+            from: { name: 'Stop A', lat: 35.21, lng: -80.85, stopId: 'a' },
+            to: { name: 'Stop B', lat: 35.212, lng: -80.848, stopId: 'b' },
+            startTime: '2026-01-15T08:33:00Z', endTime: '2026-01-15T08:35:00Z',
+            duration: 120, distance: 300, routeShortName: '9', headsign: 'X',
+            geometry: { type: 'LineString', coordinates: [[-80.85, 35.21], [-80.848, 35.212]] },
+          },
+          {
+            mode: 'WALK', transitLeg: false,
+            from: { name: 'Stop B', lat: 35.212, lng: -80.848, stopId: 'b' },
+            to: { name: 'Destination', lat: 35.2127, lng: -80.8475 },
+            startTime: '2026-01-15T08:35:00Z', endTime: '2026-01-15T08:36:00Z',
+            duration: 60, distance: 70,
+          },
+        ],
+      })],
+      metadata: { searchWindow: 7200 },
+    }) as any)
+
+    try {
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'transit',
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+      const walkTrip = response.trips.find(
+        (t) => t.trip.segments.every((s: any) => s.mode === 'walking'),
+      )
+      expect(walkTrip).toBeDefined()
+      // Leaves at the requested 08:00, not the collapsed bus's 08:30.
+      expect(walkTrip!.trip.segments[0].startTime).toBe('2026-01-15T08:00:00.000Z')
+    } finally {
+      mockGetIntermodalRoute.mockImplementation(async () => ({
+        itineraries: [],
+        metadata: { searchWindow: 0 },
+      }) as any)
+    }
+  })
 })
 
 describe('TripService — applyDurationDominance', () => {

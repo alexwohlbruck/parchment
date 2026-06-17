@@ -2512,6 +2512,11 @@ export class TripService {
   ): Promise<void> {
     const tripStartMs = new Date(startTime).getTime()
     const last = segments.length - 1
+    // A street-only trip (no transit to wait for) — e.g. a transit option
+    // that collapseWalkableTransitLegs reduced to a plain walk. Such a walk
+    // otherwise inherits the collapsed bus's deferred departure; there's no
+    // schedule to hold for, so it should just leave at the requested time.
+    const isPureWalk = segments.every((s) => s.mode === 'walking')
 
     await Promise.all(
       segments.map(async (seg, i) => {
@@ -2655,9 +2660,15 @@ export class TripService {
             seg.duration = (departureMs - newStart) / 1000
             seg.waitSeconds = Math.max(0, seg.duration - movingSec)
           } else if (i === 0) {
-            // First leg isn't a walk-to-transit (e.g. a fully collapsed trip);
-            // just place the routed walk from its start.
-            const startMs = new Date(seg.startTime).getTime()
+            // First leg isn't a walk-to-transit (e.g. a fully collapsed trip).
+            // For a street-only trip, leave at the requested departure — a
+            // collapsed walk otherwise keeps the bus's deferred start. With a
+            // vehicle leg ahead (walk → rental), keep MOTIS timing so the
+            // chain stays in sync.
+            const startMs = isPureWalk
+              ? tripStartMs
+              : new Date(seg.startTime).getTime()
+            seg.startTime = new Date(startMs).toISOString()
             seg.endTime = new Date(startMs + ghDurMs).toISOString()
             seg.duration = movingSec
           } else if (i === last) {

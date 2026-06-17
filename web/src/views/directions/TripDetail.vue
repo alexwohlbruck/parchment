@@ -54,6 +54,7 @@ import { ItemIcon } from '@/components/ui/item-icon'
 import ElevationChart from '@/components/directions/ElevationChart.vue'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
+import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import { useUnits } from '@/composables/useUnits'
 
 const route = useRoute()
@@ -726,12 +727,10 @@ function hasSegmentRouteInfo(segment: any): boolean {
 </script>
 
 <template>
-  <!-- No nested overflow: flow into the host sheet's single scroll surface
-       (BottomSheet's data-sheet-scroll on mobile, LeftSheet's Card on desktop),
-       like every other sheet page. A nested overflow-y-auto here captured the
-       scroll and broke drag-to-scroll handoff in the mobile sheet. min-h-full
-       fills the sheet when content is short and grows when it's tall. -->
-  <div class="min-h-full w-full">
+  <!-- PanelLayout: the standard sheet content wrapper — flows into the host
+       sheet's single scroll surface with the standard insets, like every other
+       sheet page (no nested overflow, which broke drag-to-scroll on mobile). -->
+  <PanelLayout>
     <!-- Loading (own state, the snapshot fetch, or the shared planner
          re-creating the trip from a refreshed/shared URL) -->
     <div v-if="isLoading || (!trip && (recovering || directionsStore.isLoading))" class="flex items-center justify-center py-8">
@@ -739,14 +738,14 @@ function hasSegmentRouteInfo(segment: any): boolean {
     </div>
 
     <!-- Error -->
-    <div v-else-if="error" class="p-4">
+    <div v-else-if="error" class="py-4">
       <Caption class="text-destructive">{{ error }}</Caption>
     </div>
 
     <!-- Trip content -->
-    <div v-else-if="trip" class="pb-6">
+    <div v-else-if="trip">
       <!-- Hero -->
-      <div class="px-4 pt-3 flex items-start justify-between gap-4">
+      <div class="flex items-start justify-between gap-4">
         <div>
           <div class="flex items-baseline gap-2">
             <span class="font-display text-[36px] leading-none tracking-tight">
@@ -796,7 +795,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
       <!-- Timezone warning -->
       <div
         v-if="directionsStore.timezoneWarning"
-        class="mx-4 mt-3 flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/30 rounded-lg text-sm"
+        class="mt-3 flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/30 rounded-lg text-sm"
       >
         <ClockIcon class="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
         <span class="text-amber-800 dark:text-amber-200">
@@ -816,7 +815,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
           The 5px mt centers the icon against the full header (~38px: title + subtitle).
         Line overlap: 2px past entry edges to guarantee seamless joins.
       -->
-      <div class="mt-4 pl-4">
+      <div class="mt-4">
         <div
           v-for="(entry, i) in timelineEntries"
           :key="entry.kind === 'waypoint' ? entry.wp.id : entry.kind === 'place-stop' ? `place-${entry.place.id}` : `seg-${entry.segmentIndex}`"
@@ -922,7 +921,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
 
           <!-- Content column -->
           <div
-            class="flex-1 min-w-0 pr-4"
+            class="flex-1 min-w-0"
             :class="entry.kind === 'place-stop' ? 'pl-3 pb-4' : entry.kind === 'waypoint' ? 'pl-3 pb-4' : 'pl-2.5 pb-5'"
           >
             <!-- ═══ Waypoint content ═══ -->
@@ -1441,14 +1440,14 @@ function hasSegmentRouteInfo(segment: any): boolean {
     <!-- No trip found — and no way to recreate it (the URL carries no
          planning inputs). Recoverable URLs never land here: the shared
          service re-plans from the query and the signature re-finds the trip. -->
-    <div v-else class="p-6 flex flex-col items-start gap-3">
+    <div v-else class="py-6 flex flex-col items-start gap-3">
       <Caption>This trip is no longer available.</Caption>
       <Button variant="outline" size="sm" @click="router.push({ name: AppRoute.DIRECTIONS, query: route.query })">
         <ArrowLeft class="size-4 mr-1" />
         Back to the planner
       </Button>
     </div>
-  </div>
+  </PanelLayout>
 </template>
 
 <style scoped>

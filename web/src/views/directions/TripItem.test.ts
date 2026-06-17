@@ -108,15 +108,35 @@ describe('TripItem timeline rendering', () => {
     expect(wait!.width).toBeGreaterThan(0)
   })
 
-  it('does not add a wait span to a pure walk with no absorbed wait', () => {
+  it('does not add a wait span to an access walk with no absorbed wait', () => {
+    // A walk inside a multimodal trip still uses the dotted track.
     const wrapper = mountTrip([
       seg({ mode: 'walking', duration: 600, distance: 800 }),
+      seg({ mode: 'transit', lineName: 'Q', routeType: 'subway', duration: 600 }),
     ])
     const spans = (wrapper.vm as unknown as {
       trackSpans: { type: string }[]
     }).trackSpans
     expect(spans.some((s) => s.type === 'wait')).toBe(false)
     expect(spans.some((s) => s.type === 'walk')).toBe(true)
+  })
+
+  it('renders a walking-only trip as a single pill, not the dotted track', () => {
+    const wrapper = mountTrip([
+      seg({ mode: 'walking', duration: 600, distance: 800 }),
+    ])
+    const vm = wrapper.vm as unknown as {
+      trackSpans: unknown[]
+      isWalkingOnly: boolean
+    }
+    // No dotted ticks — the walk is a solid pill instead.
+    expect(vm.isWalkingOnly).toBe(true)
+    expect(vm.trackSpans.length).toBe(0)
+    const pills = wrapper.findAll('[title]').filter((n) => n.attributes('title')?.length)
+    expect(pills.length).toBe(1)
+    // Walking-mode pill (mocked getTravelModeCssClass → "mode-walking";
+    // real class is bg-cobalt-400 — the blue pill)
+    expect(pills[0].classes()).toContain('mode-walking')
   })
 
   it('labels trips by combination type, not longest mode', () => {

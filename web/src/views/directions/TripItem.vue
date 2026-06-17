@@ -122,7 +122,17 @@ const MIN_WAIT_SEC = 30
  * into a walk segment after its moving portion. No wait field → the whole
  * segment is walking (e.g. pure walking trips).
  */
+// A walking-only trip (no transit/vehicle leg) renders as a single solid
+// blue pill, like driving/cycling. The dotted walk-tick track is reserved
+// for walking *segments* inside a multimodal trip, where it distinguishes
+// access/transfer walks from the vehicle pills.
+const isWalkingOnly = computed(() =>
+  props.trip.segments.length > 0 &&
+  props.trip.segments.every((s) => s.mode === 'walking'),
+)
+
 const trackSpans = computed(() => {
+  if (isWalkingOnly.value) return []
   const pxPerSec = props.pxPerMinute / 60
   const spans: { left: number; width: number; type: 'walk' | 'wait' }[] = []
   for (const seg of props.trip.segments) {
@@ -241,8 +251,10 @@ function segLegIndex(segment: typeof props.trip.segments[0]): number {
 
 // Walking segments don't render as pills — the dotted track shows through,
 // Transit-app style. Pills join only to an adjacent visible (non-walk) pill.
+// Exception: a walking-only trip renders its single walk as a solid pill
+// (matching driving/cycling), so it isn't a lone dotted track.
 function isPill(segment: typeof props.trip.segments[0]): boolean {
-  return segment.mode !== 'walking'
+  return segment.mode !== 'walking' || isWalkingOnly.value
 }
 
 function joinsNext(index: number): boolean {

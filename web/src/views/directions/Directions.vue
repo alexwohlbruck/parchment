@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import dayjs from 'dayjs'
 import duration from 'dayjs/plugin/duration'
-import { computed, onUnmounted } from 'vue'
+import { computed, onUnmounted, onMounted, inject, type Ref } from 'vue'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapListener } from '@/composables/useMapListener'
@@ -61,6 +61,17 @@ const controlsRef = ref<HTMLElement | null>(null)
 // them, hiding the time labels.
 const { height: controlsHeight } = useElementSize(controlsRef, undefined, {
   box: 'border-box',
+})
+
+// On mobile, opt the host sheet into its opaque chrome bar — the pinned
+// inputs need to clear the drag handle / close button, and the suggestions
+// must scroll cleanly beneath them. No-op on desktop (no sheet provider).
+const sheetChromeBar = inject<Ref<boolean> | null>('sheetChromeBar', null)
+onMounted(() => {
+  if (sheetChromeBar) sheetChromeBar.value = true
+})
+onUnmounted(() => {
+  if (sheetChromeBar) sheetChromeBar.value = false
 })
 
 // ── Sort preference ──────────────────────────────────────────────

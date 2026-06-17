@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from 'vue'
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, provide } from 'vue'
 import { cn } from '@/lib/utils'
 import { useWindowSize, useScroll, useScreenSafeArea } from '@vueuse/core'
 import { useObstructingComponent } from '@/composables/useObstructingComponent'
@@ -69,6 +69,13 @@ const sheet = ref<HTMLElement | null>(null)
 const drawerContentRef = ref<InstanceType<typeof DrawerContent> | null>(null)
 const scrollContainer = ref<HTMLElement | null>(null)
 const headerRef = ref<HTMLElement | null>(null)
+
+// A hosted view opts into the opaque in-flow chrome bar when it pins its own
+// header to the scroll surface (e.g. Directions) — content then scrolls
+// cleanly beneath it. Plain scrolling views (Place, etc.) leave it off and
+// keep the original transparent chrome with content near the top.
+const chromeBarEnabled = ref(false)
+provide('sheetChromeBar', chromeBarEnabled)
 const activeSnapPoint = ref<number | string | null>(
   props.activeSnapPoint ?? null,
 )
@@ -546,15 +553,19 @@ function handleAnimationEnd(open: boolean) {
         }"
         :data-vaul-no-drag="!isAtTop ? '' : undefined"
       >
-        <!-- In-flow opaque chrome bar. It takes layout space (content sits
-             below it) and is opaque, so a view's content — including any
-             sticky header it pins to the scroll surface — slides cleanly
-             underneath the drag handle / action buttons instead of peeking
-             out behind them. -->
+        <!-- Chrome: drag handle + action buttons. When a view opts into the
+             chrome bar it's an opaque in-flow strip that takes layout space so
+             pinned headers / content scroll cleanly beneath it; otherwise it's
+             the original transparent overlay that never displaces content. -->
         <div
           v-if="props.showDragHandle || $slots.actions"
           ref="headerRef"
-          class="relative z-10 grid grid-cols-[1fr_auto_1fr] items-start pointer-events-none bg-background shrink-0 min-h-[2.75rem]"
+          class="grid grid-cols-[1fr_auto_1fr] items-start pointer-events-none"
+          :class="
+            chromeBarEnabled
+              ? 'relative z-10 bg-background shrink-0 min-h-[2.75rem]'
+              : 'absolute top-0 left-0 right-0 z-10'
+          "
         >
           <!-- Col 1: left spacer -->
           <div />

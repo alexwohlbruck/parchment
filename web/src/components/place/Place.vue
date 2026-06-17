@@ -20,11 +20,16 @@ import NearbyCategories from './NearbyCategories.vue'
 import PlaceDisplayChips from './PlaceDisplayChips.vue'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import SheetPageHost from './SheetPageHost.vue'
+import { useSheetPeek } from '@/composables/useSheetPeek'
 
 const props = defineProps<{
   place: Partial<Place> | null
   loading: boolean
 }>()
+
+// The collapsed (peek) detent fits the header + actions + chips — everything
+// below is revealed on expand. No-op on desktop / non-dynamic sheets.
+const { peekRef } = useSheetPeek()
 
 const router = useRouter()
 const { toast } = useAppService()
@@ -128,21 +133,25 @@ function handleBrandLogoError() {
     <PanelLayout>
       <template v-if="place">
         <div class="flex flex-col space-y-3">
-          <PlaceHeader
-            :place="place"
-            @close="router.push({ name: AppRoute.MAP })"
-            @logoLoaded="handleBrandLogoLoad"
-            @logoError="handleBrandLogoError"
-          />
+          <!-- Peek region: the sheet's collapsed detent fits down to the
+               bottom of this wrapper (header + actions + chips). -->
+          <div ref="peekRef" class="space-y-3">
+            <PlaceHeader
+              :place="place"
+              @close="router.push({ name: AppRoute.MAP })"
+              @logoLoaded="handleBrandLogoLoad"
+              @logoError="handleBrandLogoError"
+            />
 
-          <PlaceActions
-            :place="place"
-            @directions="handleDirectionsClick"
-            @directionsFrom="handleDirectionsFromClick"
-            @share="sharePlace"
-          />
+            <PlaceActions
+              :place="place"
+              @directions="handleDirectionsClick"
+              @directionsFrom="handleDirectionsFromClick"
+              @share="sharePlace"
+            />
 
-          <PlaceDisplayChips :place="place" />
+            <PlaceDisplayChips :place="place" />
+          </div>
 
           <!-- Skeleton loaders while full data loads -->
           <template v-if="loading">

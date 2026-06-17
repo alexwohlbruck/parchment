@@ -287,6 +287,7 @@ defineExpose({
         @update:active-snap-point-index="onBottomSheetSnapIndexChange"
         dismissable
         show-drag-handle
+        dynamic-peek
         adjust-map-padding
         obstructing-key="map-content-sheet"
       >

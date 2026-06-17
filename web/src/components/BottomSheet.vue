@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from 'vue'
-import { ref, computed, watch, onMounted, onUnmounted, provide } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, provide, nextTick } from 'vue'
 import { cn } from '@/lib/utils'
-import { useWindowSize, useScroll, useScreenSafeArea } from '@vueuse/core'
+import {
+  useWindowSize,
+  useScroll,
+  useScreenSafeArea,
+  useElementSize,
+} from '@vueuse/core'
 import { useObstructingComponent } from '@/composables/useObstructingComponent'
 import { type ManualBounds } from '@/stores/app.store'
 import { useHotkeys } from '@/composables/useHotkeys'
@@ -45,6 +50,16 @@ const props = withDefaults(
     zIndexOffset?: number
     respectSafeArea?: boolean
     fitContent?: boolean
+    /**
+     * When true, the peek (first) snap point is sized to fit a registered
+     * peek element instead of the static `peekHeight`. A hosted view marks
+     * the bottom of its peek region with `useSheetPeek()`; we measure from
+     * the drawer top to that element's bottom and drive the first snap point
+     * from it. Async content that resizes the region re-snaps with the
+     * normal Vaul transition, so the sheet glides between heights. Opt-in:
+     * views without a registered element fall back to `peekHeight`.
+     */
+    dynamicPeek?: boolean
   }>(),
   {
     open: true,
@@ -291,13 +306,89 @@ watch(
   { immediate: true },
 )
 
+// ==================== DYNAMIC PEEK ====================
+//
+// A hosted view marks the bottom of its peek region via `useSheetPeek()`,
+// which calls this registration with the element ref. We measure from the
+// drawer's top edge down to that element's bottom — a transform-invariant
+// distance (both rects ride the same Vaul transform, so their delta is
+// stable even mid-animation) — and use it as the peek snap height. A small
+// buffer leaves breathing room above the home indicator (the bottom safe
+// area is added separately by `adjustForSafeArea`).
+
+const DYNAMIC_PEEK_BUFFER = 12
+
+const peekEl = ref<HTMLElement | null>(null)
+provide('sheetPeekRegister', (el: HTMLElement | null) => {
+  peekEl.value = el
+})
+
+// useElementSize gives us a reactive trigger whenever the peek content's box
+// changes (async load, expand/collapse) — including shrink to 0 on unmount.
+const { height: peekContentHeight } = useElementSize(peekEl, undefined, {
+  box: 'border-box',
+})
+
+const dynamicPeekPx = ref<number | null>(null)
+
+function measureDynamicPeek() {
+  if (!props.dynamicPeek || !peekEl.value) {
+    // No registered peek (or feature off) → fall back to the static peek.
+    dynamicPeekPx.value = null
+    return
+  }
+  const contentEl = drawerContentRef.value?.$el as HTMLElement | undefined
+  if (!contentEl || typeof contentEl.getBoundingClientRect !== 'function') return
+  const top = contentEl.getBoundingClientRect().top
+  const bottom = peekEl.value.getBoundingClientRect().bottom
+  let h = bottom - top + DYNAMIC_PEEK_BUFFER
+  if (h <= 0) return
+
+  // Keep the peek strictly below the next detent so snap points stay
+  // monotonic (Vaul's drag math assumes ascending heights). On a short
+  // screen a tall header would otherwise overshoot the 0.5 detent.
+  const nextPoint = props.customSnapPoints?.[1] ?? 0.5
+  const maxPeek = snapPointToPixels(nextPoint) - 24
+  if (maxPeek > 0) h = Math.min(h, maxPeek)
+
+  dynamicPeekPx.value = Math.round(h)
+}
+
+// Re-measure whenever the peek content resizes, the registered element
+// swaps, the window changes, the chrome bar toggles (it sits above the peek
+// content and shifts its position), or the safe area settles. Post-flush +
+// nextTick so the DOM reflects the new layout before we read rects.
+watch(
+  [
+    peekContentHeight,
+    peekEl,
+    windowHeight,
+    () => chromeBarEnabled.value,
+    () => safeAreaInsetBottom.value,
+    () => props.dynamicPeek,
+  ],
+  () => nextTick(measureDynamicPeek),
+  { flush: 'post', immediate: true },
+)
+
 // ==================== SNAP POINTS ====================
 // Flow: userSnapPoints → snapPoints (with safe area adjustments) → vaul
 
-// User-provided snap points (or sensible defaults)
-const userSnapPoints = computed<SnapPoint[]>(
+// The values the parent reasons about (static). The dynamic peek substitutes
+// only the first entry; everything else (0.5, 1, custom) passes through.
+const baseSnapPoints = computed<SnapPoint[]>(
   () => props.customSnapPoints ?? [props.peekHeight, 0.5, 1],
 )
+
+// User-provided snap points, with the measured peek height swapped into the
+// first slot when dynamic peek is active and we have a measurement.
+const userSnapPoints = computed<SnapPoint[]>(() => {
+  const base = baseSnapPoints.value
+  if (props.dynamicPeek && dynamicPeekPx.value != null && base.length > 0) {
+    return [`${dynamicPeekPx.value}px`, ...base.slice(1)]
+  }
+  return base
+})
 
 // Apply safe area adjustments to a snap point
 function adjustForSafeArea(point: SnapPoint, index: number): SnapPoint {
@@ -418,8 +509,11 @@ watch(
   () => props.activeSnapPoint,
   newPoint => {
     if (!newPoint) return
-    // Map from user snap point to adjusted snap point
-    const idx = userSnapPoints.value.indexOf(newPoint)
+    // Map from user snap point to adjusted snap point. Fall back to the base
+    // points so a parent that drives by a static value (e.g. '125px') still
+    // resolves to the right index after the dynamic peek has replaced it.
+    let idx = userSnapPoints.value.indexOf(newPoint)
+    if (idx < 0) idx = baseSnapPoints.value.indexOf(newPoint)
     if (idx >= 0) {
       const adjusted = snapPoints.value[idx]
       if (adjusted && adjusted !== activeSnapPoint.value) {
@@ -429,9 +523,13 @@ watch(
   },
 )
 
-// Close when snap point becomes invalid (dragged below minimum)
+// Close when the active snap point is genuinely cleared (dragged below the
+// minimum → Vaul nulls it). We additionally require activeSnapPoint to be
+// null so a transient index of -1 — which happens for a tick while the
+// snap-point array is swapped (e.g. the dynamic peek remeasures while resting
+// at the peek detent) — never closes the sheet.
 watch(activeSnapPointIndex, idx => {
-  if (idx === -1) emit('update:open', false)
+  if (idx === -1 && activeSnapPoint.value === null) emit('update:open', false)
 })
 
 // Fix: Capture the current transform position before the drawer closes

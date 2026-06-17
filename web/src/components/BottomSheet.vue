@@ -348,6 +348,12 @@ function measureDynamicPeek() {
     dynamicPeekPx.value = null
     return
   }
+  // Only measure while unscrolled. At scrollTop 0 the peek element sits at its
+  // natural position (a sticky anchor isn't pinned and nothing rides the
+  // scroll), so the rects are accurate; mid-scroll they aren't. Re-measures
+  // while scrolled are skipped — keeping the last value — and refreshed when
+  // the sheet returns to the top (see the watch's isAtTop dependency).
+  if (!isAtTop.value) return
   const contentEl = drawerContentRef.value?.$el as HTMLElement | undefined
   if (!contentEl || typeof contentEl.getBoundingClientRect !== 'function') return
   const top = contentEl.getBoundingClientRect().top
@@ -377,6 +383,9 @@ watch(
     () => chromeBarEnabled.value,
     () => safeAreaInsetBottom.value,
     () => props.dynamicPeek,
+    // Re-measure when the sheet returns to the top, picking up any content
+    // resize that was skipped while scrolled.
+    () => isAtTop.value,
   ],
   () => nextTick(measureDynamicPeek),
   { flush: 'post', immediate: true },

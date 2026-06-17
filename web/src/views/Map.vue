@@ -129,16 +129,18 @@ watch(
 )
 
 // Directions: rest at the peek detent (just the inputs, via the dynamic peek)
-// until trip suggestions load, then expand to full to show them. Collapses
-// back to peek when the results are cleared (e.g. a waypoint is removed).
+// until a search starts, then expand to full — as soon as loading begins, so
+// the expansion tracks the search, not the results landing. Stays full while
+// results are present; collapses back to peek when they're cleared (e.g. a
+// waypoint is removed).
 watch(
   () =>
     [route.name, directionsStore.trips, directionsStore.isLoading] as const,
   ([name, trips, loading]) => {
     if (name !== AppRoute.DIRECTIONS || !isMobileScreen.value) return
-    if (trips?.trips?.length) {
+    if (loading || trips?.trips?.length) {
       bottomSheetSnapIndex.value = MOBILE_SNAP_POINTS.value.length - 1 // full
-    } else if (!loading) {
+    } else {
       bottomSheetSnapIndex.value = 0 // peek — just the inputs
     }
   },

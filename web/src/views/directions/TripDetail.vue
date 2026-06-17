@@ -744,8 +744,10 @@ function hasSegmentRouteInfo(segment: any): boolean {
 
     <!-- Trip content -->
     <div v-else-if="trip">
-      <!-- Hero -->
-      <div class="flex items-start justify-between gap-4">
+      <!-- Hero. Actions sit at the BOTTOM of the block (items-end) so they
+           clear the sheet's back/close nav, which occupies the top-right
+           chrome zone; the stats stay at the top. -->
+      <div class="flex items-end justify-between gap-4">
         <div>
           <div class="flex items-baseline gap-2">
             <span class="font-display text-[36px] leading-none tracking-tight">
@@ -782,7 +784,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
         </div>
 
         <!-- Share + Save -->
-        <div class="flex gap-0.5 shrink-0 -mr-2 -mt-1">
+        <div class="flex gap-0.5 shrink-0 -mr-2 -mb-1">
           <Button variant="ghost" size="icon-sm">
             <ShareIcon class="size-4" />
           </Button>

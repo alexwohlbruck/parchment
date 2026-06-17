@@ -26,6 +26,7 @@ import TripsList from './TripsList.vue'
 import RoutingPreferences from './RoutingPreferences.vue'
 import DirectionsLoading from './DirectionsLoading.vue'
 import { useElementSize } from '@vueuse/core'
+import { useSheetPeek } from '@/composables/useSheetPeek'
 import { Waypoint } from '@/types/map.types'
 import { SelectedMode, SortPreference } from '@/types/multimodal.types'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
@@ -53,13 +54,16 @@ const { waypoints, trips, selectedMode, departureTime, sortPreference, isLoading
 const showPreferences = ref(false)
 
 // The waypoint/options/sort controls stay pinned while results scroll under
-// them. Measure their height so the timeline's time-axis header can dock
-// directly below the pinned controls instead of overlapping them.
-const controlsRef = ref<HTMLElement | null>(null)
+// them. This element is also the dynamic-peek anchor: on mobile the sheet
+// sizes its peek detent to fit down to its bottom, so peek shows just the
+// inputs (no trip results). The sheet only measures it while unscrolled, so
+// the sticky pinning never skews the measurement. useSheetPeek no-ops on
+// desktop (no sheet provider).
+const { peekRef } = useSheetPeek()
 // Measure the border-box (includes padding) so the time axis docks flush
 // below the controls — content-box would leave the axis tucked ~24px behind
 // them, hiding the time labels.
-const { height: controlsHeight } = useElementSize(controlsRef, undefined, {
+const { height: controlsHeight } = useElementSize(peekRef, undefined, {
   box: 'border-box',
 })
 
@@ -233,7 +237,7 @@ useMapListener(
          inputs off the chrome; the full-bleed background covers suggestions
          scrolling underneath. -->
     <div
-      ref="controlsRef"
+      ref="peekRef"
       class="sticky z-30 -mx-3 px-3 pt-3 pb-3 space-y-3 bg-background"
       :style="{ top: 'var(--sheet-sticky-top, 0px)' }"
     >

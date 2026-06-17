@@ -221,7 +221,10 @@ function navigateToTripDetail(trip: TripOption) {
            below the pinned controls (z-30). -->
       <div
         class="sticky z-[25] pt-2 pb-1 border-b border-border/40 bg-background grid"
-        :style="{ gridTemplateColumns: 'auto 1fr', top: `${stickyTop}px` }"
+        :style="{
+          gridTemplateColumns: 'auto 1fr',
+          top: `calc(var(--sheet-sticky-top, 0px) + ${stickyTop}px)`,
+        }"
       >
         <span :style="{ width: `${sidebarWidth}px` }" />
         <div class="relative h-7">

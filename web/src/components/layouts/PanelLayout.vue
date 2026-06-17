@@ -1,20 +1,20 @@
 <script setup lang="ts">
 /**
  * Basic panel layout with default padding.
- * Use this for standard content in LeftSheet/BottomSheet.
+ * Use this for standard content in LeftSheet/BottomSheet. The host sheet's
+ * drag handle / action buttons float as an overlay (they take no layout
+ * space), so the same top inset works whether or not the sheet shows its
+ * chrome bar — content sits just below the handle, and a pinned-header view
+ * docks its sticky header under the chrome via `--sheet-sticky-top`.
  */
-import { inject, computed, type Ref } from 'vue'
-
-// When the host sheet shows its opaque chrome bar (a pinned-header view like
-// Directions), the bar already clears the drag handle / close button, so the
-// top inset is just breathing room. Otherwise the content scrolls under the
-// transparent chrome and needs a larger inset to sit below the drag handle.
-const chromeBar = inject<Ref<boolean> | null>('sheetChromeBar', null)
-const topPadding = computed(() => (chromeBar?.value ? 'pt-2' : 'pt-6 md:pt-4'))
 </script>
 
 <template>
-  <div class="h-full flex flex-col pb-4 px-3" :class="topPadding">
+  <!-- min-h-full (not h-full): fills the sheet when content is short, but
+       GROWS with tall content so it stays the containing block for sticky
+       children. With h-full the box capped at one viewport and sticky headers
+       unstuck once content scrolled past it. -->
+  <div class="min-h-full flex flex-col pt-6 md:pt-4 pb-4 px-3">
     <slot />
   </div>
 </template>

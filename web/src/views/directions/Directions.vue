@@ -234,7 +234,8 @@ useMapListener(
          scrolling underneath. -->
     <div
       ref="controlsRef"
-      class="sticky top-0 z-30 -mx-3 px-3 pt-3 pb-3 space-y-3 bg-background"
+      class="sticky z-30 -mx-3 px-3 pt-3 pb-3 space-y-3 bg-background"
+      :style="{ top: 'var(--sheet-sticky-top, 0px)' }"
     >
       <WaypointInput
         :model-value="waypoints"

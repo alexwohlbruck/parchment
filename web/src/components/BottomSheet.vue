@@ -285,6 +285,17 @@ onUnmounted(() => {
 const { y: scrollY } = useScroll(scrollContainer)
 const isAtTop = computed(() => scrollY.value === 0)
 
+// Height (px) of the overlay chrome bar (drag handle + action buttons). The
+// bar floats over the content and never reserves layout space, so at rest the
+// view's content sits high, right beside the handle. A chrome view's pinned
+// header offsets its sticky top by this much (via `--sheet-sticky-top`), and
+// the bar's opaque backing fades in over the first CHROME_HEIGHT px of scroll
+// so content slides cleanly under the handle instead of being shoved below it.
+const CHROME_HEIGHT = 44
+const chromeFade = computed(() =>
+  Math.min(Math.max(scrollY.value, 0) / CHROME_HEIGHT, 1),
+)
+
 // ==================== SAFE AREA HANDLING ====================
 // Use refs that only increase to prevent brief resets during init (common in mobile WebViews)
 const { top: safeAreaTop, bottom: safeAreaBottom } = useScreenSafeArea()
@@ -651,25 +662,34 @@ function handleAnimationEnd(open: boolean) {
         }"
         :data-vaul-no-drag="!isAtTop ? '' : undefined"
       >
-        <!-- Chrome: drag handle + action buttons. When a view opts into the
-             chrome bar it's an opaque in-flow strip that takes layout space so
-             pinned headers / content scroll cleanly beneath it; otherwise it's
-             the original transparent overlay that never displaces content. -->
+        <!-- Chrome: drag handle + action buttons. Always an overlay that takes
+             no layout space, so content sits high near the handle at rest. A
+             view that pins its own header opts into the chrome bar (sets
+             `chromeBarEnabled`): its opaque backing then fades in as you scroll
+             so content reads cleanly under the handle / buttons, and the pinned
+             header docks below the bar via `--sheet-sticky-top`. -->
+        <!-- z above the trip-row content (dots/caps at z-20) so it hides
+             everything scrolling under it, but below the pinned header
+             (controls z-30, axis z-25) so it never clips them. -->
         <div
           v-if="props.showDragHandle || $slots.actions"
           ref="headerRef"
-          class="grid grid-cols-[1fr_auto_1fr] items-start pointer-events-none"
-          :class="
-            chromeBarEnabled
-              ? 'relative z-10 bg-background shrink-0 min-h-[2.75rem]'
-              : 'absolute top-0 left-0 right-0 z-10'
-          "
+          class="absolute top-0 left-0 right-0 z-[22] grid grid-cols-[1fr_auto_1fr] items-start pointer-events-none"
+          :class="chromeBarEnabled ? 'min-h-[2.75rem]' : ''"
         >
+          <!-- Opaque backing (chrome views only) — fades in with scroll so the
+               pinned header / content reads cleanly under the handle. -->
+          <div
+            v-if="chromeBarEnabled"
+            class="absolute inset-0 bg-background"
+            :style="{ opacity: chromeFade }"
+          />
+
           <!-- Col 1: left spacer -->
           <div />
 
           <!-- Col 2: drag handle (centered) -->
-          <div class="flex justify-center pb-1.5 pt-2">
+          <div class="relative flex justify-center pb-1.5 pt-2">
             <DrawerHandle
               v-if="props.showDragHandle"
               class="h-1 w-16 rounded-full bg-muted-foreground"
@@ -678,7 +698,7 @@ function handleAnimationEnd(open: boolean) {
 
           <!-- Col 3: actions slot (right-aligned) -->
           <div
-            class="flex items-center justify-end pt-3 pr-2 pointer-events-auto"
+            class="relative flex items-center justify-end pt-3 pr-2 pointer-events-auto"
           >
             <slot name="actions" />
           </div>
@@ -708,6 +728,8 @@ function handleAnimationEnd(open: boolean) {
           :style="{
             touchAction: isFullyExpanded ? 'pan-y' : 'none',
             overscrollBehavior: 'none',
+            // Sticky headers in chrome views dock just below the overlay bar.
+            '--sheet-sticky-top': chromeBarEnabled ? '2.75rem' : '0px',
           }"
           @touchstart="handleTouchStart"
           @touchmove="handleTouchMove"

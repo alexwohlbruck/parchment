@@ -726,7 +726,12 @@ function hasSegmentRouteInfo(segment: any): boolean {
 </script>
 
 <template>
-  <div class="h-full w-full overflow-y-auto">
+  <!-- No nested overflow: flow into the host sheet's single scroll surface
+       (BottomSheet's data-sheet-scroll on mobile, LeftSheet's Card on desktop),
+       like every other sheet page. A nested overflow-y-auto here captured the
+       scroll and broke drag-to-scroll handoff in the mobile sheet. min-h-full
+       fills the sheet when content is short and grows when it's tall. -->
+  <div class="min-h-full w-full">
     <!-- Loading (own state, the snapshot fetch, or the shared planner
          re-creating the trip from a refreshed/shared URL) -->
     <div v-if="isLoading || (!trip && (recovering || directionsStore.isLoading))" class="flex items-center justify-center py-8">

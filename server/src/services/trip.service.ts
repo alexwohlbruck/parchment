@@ -1758,6 +1758,18 @@ export class TripService {
 
     const queries: Promise<TripResponse[]>[] = [walkQuery, fewTransfersQuery, rentalQuery]
 
+    // Walkable trips always offer a plain walk, the way Apple/Google do —
+    // for a short OD a direct walk is often as fast as transit (no waiting),
+    // and it shouldn't depend on MOTIS happening to return a collapsible
+    // short-ride itinerary. Beyond ~35 min on foot, transit-only.
+    if (dist <= TripService.WALK_OFFER_MAX_M) {
+      queries.push(
+        this.planModeTrip(request, 'walking', dataSources)
+          .then((trip) => (trip ? [trip] : []))
+          .catch(() => []),
+      )
+    }
+
     const availableVehicles = request.availableVehicles || []
     const useKnownLocations = preferences.useKnownVehicleLocations !== false
 
@@ -2453,6 +2465,11 @@ export class TripService {
 
   /** Time to queue and tap through fare control at a subway entrance. */
   private static readonly FARE_GATE_DELAY_SEC = 10
+
+  /** Straight-line distance at/under which a transit search also offers a
+   *  plain walk (~35 min on foot). Short trips often walk faster than they
+   *  ride once waiting is counted; beyond this, transit-only. */
+  private static readonly WALK_OFFER_MAX_M = 2500
 
   /** True when the segment is a transit leg boarding inside a station. */
   private isStationTransit(seg: TripSegment): boolean {

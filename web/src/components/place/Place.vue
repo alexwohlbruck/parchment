@@ -134,7 +134,7 @@ function handleBrandLogoError() {
       <template v-if="place">
         <div class="flex flex-col space-y-3">
           <!-- Peek region: the sheet's collapsed detent fits down to the
-               bottom of this wrapper (header + actions + chips). -->
+               bottom of this wrapper (header + actions). -->
           <div ref="peekRef" class="space-y-3">
             <PlaceHeader
               :place="place"
@@ -149,9 +149,9 @@ function handleBrandLogoError() {
               @directionsFrom="handleDirectionsFromClick"
               @share="sharePlace"
             />
-
-            <PlaceDisplayChips :place="place" />
           </div>
+
+          <PlaceDisplayChips :place="place" />
 
           <!-- Skeleton loaders while full data loads -->
           <template v-if="loading">

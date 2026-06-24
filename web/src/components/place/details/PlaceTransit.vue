@@ -1,23 +1,26 @@
 <script setup lang="ts">
-import { computed, markRaw } from 'vue'
+/**
+ * Transit departures widget — Apple Maps style.
+ *
+ * Compact, scannable layout:
+ *   Route badge + name
+ *     Headsign     Now, 7 min  📶
+ *     Headsign     12, 25 min  📶
+ */
+import { computed, markRaw, watch } from 'vue'
+import { setPlaceTransitLines } from '@/composables/usePlaceTransitLines'
 import { useI18n } from 'vue-i18n'
 import type { Place, TransitDeparture, TransitStopInfo } from '@/types/place.types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { ClockIcon, NavigationIcon, ChevronRightIcon } from 'lucide-vue-next'
+import { ChevronRightIcon } from 'lucide-vue-next'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
+import RouteBullet from '@/components/transit/RouteBullet.vue'
 import { useSheetPage } from '@/composables/useSheetPage'
 import { useTransitClock } from '@/composables/useTransitClock'
-import {
-  formatDepartureTime,
-  formatCountdown,
-  getMinutesUntil,
-  getRouteColor,
-  getTextColor,
-  getRouteTypeIcon,
-  getDepartureTimeStyle,
-} from '@/lib/transit'
+import { getMinutesUntil } from '@/lib/transit'
 import PlaceTransitPage from '@/components/place/pages/PlaceTransitPage.vue'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
 
 const props = defineProps<{
   place?: Partial<Place>
@@ -26,6 +29,7 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const { pushPage } = useSheetPage()
+const router = useRouter()
 const currentTime = useTransitClock()
 
 const transitInfo = computed((): TransitStopInfo | null => {
@@ -40,30 +44,63 @@ const departures = computed((): TransitDeparture[] => {
   return transitInfo.value?.departures || []
 })
 
-const groupedDepartures = computed(() => {
-  if (!departures.value.length) return {}
+/** Every line serving this station, across its whole transfer complex.
+ *  Rendered by the place header next to the title (Apple-Maps style) —
+ *  published there as soon as the widget data arrives. */
+const stationLines = computed(() => transitInfo.value?.routes || [])
+watch(
+  stationLines,
+  (lines) => setPlaceTransitLines(props.place?.id, lines),
+  { immediate: true },
+)
 
-  const groups: Record<string, Record<string, TransitDeparture[]>> = {}
+// ── Group departures: route → direction → sorted upcoming list ──
 
-  // Inline widget shows only upcoming — past departures are surfaced via the
-  // full sub-page's "Show previous" toggle, not the compact card.
-  for (const departure of departures.value) {
-    const minutes = getMinutesUntil(departure, currentTime.value)
-    if (minutes !== null && minutes < 0) continue
+interface DirectionGroup {
+  headsign: string
+  departures: TransitDeparture[]
+  hasRealtime: boolean
+}
 
-    const routeKey = `${departure.route.shortName || departure.route.longName || departure.route.id}`
-    const direction = departure.direction || departure.headsign || t('place.transit.unknownDirection')
+interface RouteGroup {
+  routeKey: string
+  route: TransitDeparture['route']
+  directions: DirectionGroup[]
+  /** A representative departure for opening route detail. */
+  representative: TransitDeparture
+}
 
-    if (!groups[routeKey]) groups[routeKey] = {}
-    if (!groups[routeKey][direction]) groups[routeKey][direction] = []
-    groups[routeKey][direction].push(departure)
+const routeGroups = computed((): RouteGroup[] => {
+  if (!departures.value.length) return []
+
+  const routeMap = new Map<string, {
+    route: TransitDeparture['route']
+    dirMap: Map<string, TransitDeparture[]>
+    rep: TransitDeparture
+  }>()
+
+  for (const dep of departures.value) {
+    const mins = getMinutesUntil(dep, currentTime.value)
+    if (mins !== null && mins < -1) continue
+
+    const routeKey = dep.route.shortName || dep.route.longName || dep.route.id
+    const headsign = dep.headsign || dep.direction || t('place.transit.unknownDirection')
+
+    if (!routeMap.has(routeKey)) {
+      routeMap.set(routeKey, { route: dep.route, dirMap: new Map(), rep: dep })
+    }
+    const entry = routeMap.get(routeKey)!
+    if (!entry.dirMap.has(headsign)) {
+      entry.dirMap.set(headsign, [])
+    }
+    entry.dirMap.get(headsign)!.push(dep)
   }
 
-  // Sort by minutes-until-now (handles tomorrow's morning runs correctly,
-  // unlike sorting by raw HH:mm:ss strings).
-  Object.keys(groups).forEach(routeKey => {
-    Object.keys(groups[routeKey]).forEach(direction => {
-      groups[routeKey][direction].sort((a, b) => {
+  const groups: RouteGroup[] = []
+  for (const [routeKey, entry] of routeMap) {
+    const directions: DirectionGroup[] = []
+    for (const [headsign, deps] of entry.dirMap) {
+      const sorted = [...deps].sort((a, b) => {
         const ma = getMinutesUntil(a, currentTime.value)
         const mb = getMinutesUntil(b, currentTime.value)
         if (ma === null && mb === null) return 0
@@ -71,15 +108,44 @@ const groupedDepartures = computed(() => {
         if (mb === null) return -1
         return ma - mb
       })
+      directions.push({
+        headsign,
+        departures: sorted.slice(0, 3),
+        hasRealtime: sorted.some(d => d.realTime),
+      })
+    }
+    groups.push({
+      routeKey,
+      route: entry.route,
+      directions,
+      representative: entry.rep,
     })
-  })
+  }
 
   return groups
 })
 
-function minutesUntil(dep: TransitDeparture): number | null {
-  return getMinutesUntil(dep, currentTime.value)
+function formatCountdownShort(dep: TransitDeparture): string {
+  const mins = getMinutesUntil(dep, currentTime.value)
+  if (mins === null) return ''
+  if (mins <= 0) return 'Now'
+  if (mins < 60) return `${mins} min`
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return m > 0 ? `${h}h ${m}m` : `${h}h`
 }
+
+function directionCountdowns(dir: DirectionGroup): string {
+  return dir.departures
+    .map(d => formatCountdownShort(d))
+    .filter(Boolean)
+    .join(', ')
+}
+
+const agencyName = computed(() => {
+  const first = departures.value[0]
+  return first?.agency?.name || null
+})
 
 function openFullTransit() {
   if (!transitInfo.value) return
@@ -88,6 +154,17 @@ function openFullTransit() {
     component: markRaw(PlaceTransitPage),
     props: { transitInfo: transitInfo.value },
     title: transitInfo.value.name || t('place.transit.transitStop'),
+  })
+}
+
+function openRouteDetail(group: RouteGroup) {
+  const feedId = transitInfo.value?.feedId
+  const routeId = group.route.id
+  if (!feedId || !routeId) return
+
+  router.push({
+    name: AppRoute.TRANSIT_ROUTE,
+    params: { feedId, routeId },
   })
 }
 </script>
@@ -100,106 +177,71 @@ function openFullTransit() {
         class="flex items-center justify-between gap-2 w-full text-left group"
         @click="openFullTransit"
       >
-        <CardTitle class="flex items-center gap-2 text-lg min-w-0">
-          <component
-            :is="getRouteTypeIcon(departures[0]?.route.type)"
-            class="h-5 w-5 shrink-0"
-            :style="departures.length > 0 ? { color: getRouteColor(departures[0].route) } : {}"
-          />
-          <span class="truncate">{{ transitInfo?.name || t('place.transit.transitStop') }}</span>
+        <CardTitle class="text-base">
+          {{ t('place.transit.departures') }}
         </CardTitle>
         <ChevronRightIcon class="w-4 h-4 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
       </button>
-      <div v-if="transitInfo?.code" class="text-sm text-muted-foreground">
-        Stop ID: {{ transitInfo.code }}
-      </div>
+
     </CardHeader>
 
-    <CardContent class="p-3 space-y-4">
-      <!-- Departures Section -->
-      <div v-if="Object.keys(groupedDepartures).length > 0">
-        <h4 class="text-sm font-semibold mb-3 flex items-center gap-2">
-          <ClockIcon class="h-4 w-4" />
-          {{ t('place.transit.upcomingDepartures') }}
-        </h4>
-
-        <div class="space-y-4">
-          <div
-            v-for="(directions, routeKey) in groupedDepartures"
-            :key="routeKey"
-            class="space-y-2"
+    <CardContent class="p-3 pt-2">
+      <div v-if="routeGroups.length > 0" class="space-y-4">
+        <div
+          v-for="group in routeGroups"
+          :key="group.routeKey"
+        >
+          <!-- Route header (clickable → route detail) -->
+          <button
+            class="flex items-center gap-2 mb-2 group/route cursor-pointer"
+            @click="openRouteDetail(group)"
           >
-            <!-- Route Header -->
-            <div class="flex items-center gap-2">
-              <Badge
-                :style="{
-                  backgroundColor: getRouteColor(Object.values(directions)[0][0].route),
-                  color: getTextColor(Object.values(directions)[0][0].route),
-                }"
-                class="text-xs font-semibold"
-              >
-                {{ routeKey }}
-              </Badge>
-              <span class="text-sm text-muted-foreground">
-                {{ Object.values(directions)[0][0].route.longName }}
-              </span>
-            </div>
+            <RouteBullet
+              :label="group.routeKey"
+              :color="group.route.color"
+              :text-color="group.route.textColor"
+              class="group-hover/route:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"
+            />
+            <span class="text-sm text-muted-foreground truncate group-hover/route:text-foreground transition-colors">
+              {{ group.route.longName || group.route.shortName }}
+            </span>
+          </button>
 
-            <!-- Directions -->
+          <!-- Direction rows -->
+          <div class="space-y-1.5 ml-1">
             <div
-              class="space-y-2 ml-2 pl-3 border-l-2"
-              :style="{ borderLeftColor: getRouteColor(Object.values(directions)[0][0].route) }"
+              v-for="dir in group.directions"
+              :key="dir.headsign"
+              class="flex items-center justify-between gap-3"
             >
-              <div
-                v-for="(departureList, direction) in directions"
-                :key="`${routeKey}-${direction}`"
-                class="space-y-1"
-              >
-                <div class="flex items-center gap-2 text-sm">
-                  <NavigationIcon
-                    class="h-3 w-3"
-                    :style="{ color: getRouteColor(departureList[0].route) }"
+              <span class="text-sm truncate min-w-0">
+                {{ dir.headsign }}
+              </span>
+              <div class="flex items-center gap-0.5 shrink-0">
+                <template v-for="(dep, i) in dir.departures" :key="i">
+                  <span v-if="i > 0" class="text-muted-foreground text-xs">,</span>
+                  <span class="text-sm tabular-nums">{{ formatCountdownShort(dep) }}</span>
+                  <RealtimeIndicator
+                    v-if="dep.realTime"
+                    :real-time="true"
+                    :delay="dep.delay"
+                    class="shrink-0"
                   />
-                  <span class="font-medium">{{ direction }}</span>
-                </div>
-
-                <div class="flex flex-wrap gap-2 ml-5">
-                  <div
-                    v-for="(departure, index) in departureList.slice(0, 4)"
-                    :key="`${routeKey}-${direction}-${index}`"
-                    class="flex items-center gap-1 text-xs"
-                  >
-                    <Badge
-                      variant="outline"
-                      class="font-mono border-1"
-                      :style="getDepartureTimeStyle(minutesUntil(departure))"
-                    >
-                      {{ formatDepartureTime(departure) }}
-                    </Badge>
-                    <span
-                      v-if="minutesUntil(departure) !== null"
-                      class="text-muted-foreground text-xs"
-                    >
-                      {{ formatCountdown(minutesUntil(departure), t) }}
-                    </span>
-                    <RealtimeIndicator
-                      :real-time="!!departure.realTime"
-                      :delay="departure.delay"
-                      :color="getRouteColor(departure.route)"
-                    />
-                  </div>
-                </div>
+                </template>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- No Departures -->
-      <div v-else class="text-center py-6 text-muted-foreground">
-        <ClockIcon class="h-8 w-8 mx-auto mb-2 opacity-50" />
-        <p class="text-sm">{{ t('place.transit.noUpcomingDepartures') }}</p>
-        <p class="text-xs mt-1">{{ t('place.transit.checkBackLater') }}</p>
+      <!-- No departures -->
+      <div v-else class="py-4 text-center text-sm text-muted-foreground">
+        {{ t('place.transit.noUpcomingDepartures') }}
+      </div>
+
+      <!-- Agency attribution -->
+      <div v-if="agencyName" class="mt-3 pt-2 border-t text-xs text-muted-foreground">
+        Transit information provided by {{ agencyName }}
       </div>
     </CardContent>
   </Card>

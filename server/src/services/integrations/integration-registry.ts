@@ -19,6 +19,8 @@ import { BarrelmanIntegration } from './barrelman-integration'
 import { OpenStreetMapIntegration } from './openstreetmap-integration'
 import { OpenStreetMapSystemIntegration } from './openstreetmap-system-integration'
 import { DawarichIntegration } from './dawarich-integration'
+import { UberIntegration } from './uber-integration'
+import { LyftIntegration } from './lyft-integration'
 
 /**
  * Registry for all integrations
@@ -53,6 +55,8 @@ export class IntegrationRegistry {
     this.registerIntegration(new OpenStreetMapSystemIntegration())
     this.registerIntegration(new OpenStreetMapIntegration())
     this.registerIntegration(new DawarichIntegration())
+    this.registerIntegration(new UberIntegration())
+    this.registerIntegration(new LyftIntegration())
   }
 
   /**

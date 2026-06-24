@@ -373,6 +373,7 @@ export class MapboxStrategy extends MapStrategy {
           'line-color': palette.forest[600],
           'line-width': 8,
           'line-emissive-strength': 1,
+          'line-occlusion-opacity': 0.5,
         },
         slot: 'middle',
       })
@@ -389,6 +390,7 @@ export class MapboxStrategy extends MapStrategy {
           'line-color': palette.forest[400],
           'line-width': 5,
           'line-emissive-strength': 1,
+          'line-occlusion-opacity': 0.5,
         },
         slot: 'middle',
       })

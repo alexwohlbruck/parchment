@@ -11,4 +11,7 @@ export const widgetComponents: Record<string, ReturnType<typeof defineAsyncCompo
   [WidgetType.OSM_TAGS]: defineAsyncComponent(
     () => import('./OsmTagsWidget.vue'),
   ),
+  [WidgetType.BIKESHARE]: defineAsyncComponent(
+    () => import('./BikeshareWidget.vue'),
+  ),
 }

@@ -1,6 +1,7 @@
 import {
   ActivityIcon,
   BlocksIcon,
+  CarFrontIcon,
   CodeIcon,
   CogIcon,
   Contact2Icon,
@@ -226,6 +227,19 @@ export const settingsIndex: SettingsPageDef[] = [
         id: 'layers',
         titleKey: 'settings.mapSettings.layers.title',
         descriptionKey: 'settings.mapSettings.layers.description',
+      },
+    ],
+  },
+  {
+    pageId: 'vehicles',
+    to: '/settings/vehicles',
+    icon: CarFrontIcon,
+    iconColor: 'teal',
+    sections: [
+      {
+        id: 'vehicles',
+        titleKey: 'My Vehicles',
+        keywords: ['car', 'bike', 'scooter', 'vehicle', 'parking', 'location'],
       },
     ],
   },

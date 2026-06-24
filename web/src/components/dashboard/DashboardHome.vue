@@ -211,10 +211,10 @@ function formatTimeAgo(dateStr: string) {
 
           <Card
             class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
-            @click="navigateTo('/friends')"
+            @click="navigateTo('/lookout')"
           >
-            <ItemIcon icon="UsersRound" color="violet" size="sm" variant="ghost" />
-            <span class="font-medium text-sm">{{ t('friends.title') }}</span>
+            <ItemIcon icon="Telescope" color="violet" size="sm" variant="ghost" />
+            <span class="font-medium text-sm">Lookout</span>
           </Card>
 
           <Card

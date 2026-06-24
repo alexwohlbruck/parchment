@@ -331,14 +331,17 @@ export function buildGraphHopperCustomModel(
 
     // Scale average cycling speed to the user's slider value.
     // GraphHopper's bike profile assigns per-edge speeds based on road
-    // type (typically 12-20 kph, averaging ~18 kph). `limit_to` can only
-    // cap speed downward, so higher slider values had no effect.
-    // `multiply_by` scales all edge speeds proportionally: 10 kph slider
-    // → ×0.56 (slower), 25 kph → ×1.39 (faster).
+    // type (typically 12-20 kph, averaging ~18 kph). `multiply_by` scales
+    // all edge speeds proportionally: 10 kph slider → ×0.56 (slower).
+    // GraphHopper restricts speed multiply_by to ≤1 (can only slow down),
+    // so values above the default are clamped — the profile's built-in
+    // speeds are already the max.
     if (prefs.cyclingSpeed) {
       const defaultBikeSpeed = 18 // kph — GraphHopper bike profile average
-      const factor = +Math.max(0.2, prefs.cyclingSpeed / defaultBikeSpeed).toFixed(2)
-      speed.push({ if: 'true', multiply_by: factor })
+      const factor = +Math.min(1, Math.max(0.2, prefs.cyclingSpeed / defaultBikeSpeed)).toFixed(2)
+      if (factor < 1) {
+        speed.push({ if: 'true', multiply_by: factor })
+      }
     }
   }
 
@@ -358,11 +361,13 @@ export function buildGraphHopperCustomModel(
       })
     }
     // Scale walking speed (same approach as cycling — multiply_by ratio).
-    // Default foot profile ~5 kph.
+    // Default foot profile ~5 kph. Clamped to ≤1 (GraphHopper constraint).
     if (prefs.walkingSpeed) {
       const defaultWalkSpeed = 5 // kph — GraphHopper foot profile average
-      const factor = +Math.max(0.2, prefs.walkingSpeed / defaultWalkSpeed).toFixed(2)
-      speed.push({ if: 'true', multiply_by: factor })
+      const factor = +Math.min(1, Math.max(0.2, prefs.walkingSpeed / defaultWalkSpeed)).toFixed(2)
+      if (factor < 1) {
+        speed.push({ if: 'true', multiply_by: factor })
+      }
     }
   }
 

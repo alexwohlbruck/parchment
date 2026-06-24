@@ -1,5 +1,9 @@
 import { Elysia, t } from 'elysia'
+import { randomBytes } from 'node:crypto'
+import { eq } from 'drizzle-orm'
 import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
+import { db } from '../db'
+import { plannedTrips } from '../schema/planned-trips.schema'
 import { multimodalTripService } from '../services/trip.service'
 import {
   TripRequest,
@@ -89,6 +93,7 @@ const RoutingPreferencesSchema = t.Object({
   // UI state
   useKnownVehicleLocations: t.Optional(t.Boolean()),
   useKnownParkingLocations: t.Optional(t.Boolean()),
+  includePrivateParking: t.Optional(t.Boolean()),
   routingEngine: t.Optional(t.String()),
 
   // Advanced: raw custom_model JSON override
@@ -112,6 +117,7 @@ const SelectedModeSchema = t.Union([
   t.Literal('biking'),
   t.Literal('transit'),
   t.Literal('wheelchair'),
+  t.Literal('rideshare'),
 ] as const)
 
 const SortPreferenceSchema = t.Union([
@@ -459,6 +465,87 @@ app.get(
       summary: 'Get service status and capabilities',
       description:
         'Get the current status and capabilities of the trip planning service',
+      tags: ['Trip Planning'],
+    },
+  },
+)
+
+// ── Persisted trip snapshots ─────────────────────────────────────────
+// A planned trip the user opened is saved as a snapshot addressed by a
+// random capability token (the `pt` query param in trip URLs). Schedules
+// and vehicle availability drift, so re-planning can't faithfully recreate
+// a past trip — the snapshot makes refresh and cross-device shares
+// deterministic. Unauthenticated by design: the unguessable token is the
+// access control, like an unlisted link. Rows expire after 30 days.
+
+const PLANNED_TRIP_TTL_MS = 30 * 24 * 3600 * 1000
+const PLANNED_TRIP_MAX_BYTES = 1_500_000
+
+app.post(
+  '/trips',
+  async ({ body, set }) => {
+    if (JSON.stringify(body).length > PLANNED_TRIP_MAX_BYTES) {
+      set.status = 413
+      return { error: 'Trip snapshot too large' }
+    }
+    const id = randomBytes(8).toString('hex')
+    const expiresAt = new Date(Date.now() + PLANNED_TRIP_TTL_MS)
+    await db.insert(plannedTrips).values({
+      id,
+      request: body.request,
+      trip: body.trip,
+      expiresAt,
+    })
+    return { id, expiresAt: expiresAt.toISOString() }
+  },
+  {
+    body: t.Object({
+      request: t.Any(),
+      trip: t.Any(),
+    }),
+    detail: {
+      summary: 'Persist a planned trip snapshot',
+      description:
+        'Saves the chosen trip and its planning inputs under a random ' +
+        'capability token so trip URLs survive refresh and can be shared ' +
+        'across devices. Snapshots expire after 30 days.',
+      tags: ['Trip Planning'],
+    },
+  },
+)
+
+app.get(
+  '/trips/:id',
+  async ({ params, set }) => {
+    const rows = await db
+      .select()
+      .from(plannedTrips)
+      .where(eq(plannedTrips.id, params.id))
+      .limit(1)
+    const row = rows[0]
+    if (!row) {
+      set.status = 404
+      return { error: 'Trip snapshot not found' }
+    }
+    if (row.expiresAt.getTime() < Date.now()) {
+      await db.delete(plannedTrips).where(eq(plannedTrips.id, params.id))
+      set.status = 404
+      return { error: 'Trip snapshot expired' }
+    }
+    return {
+      id: row.id,
+      request: row.request,
+      trip: row.trip,
+      createdAt: row.createdAt.toISOString(),
+      expiresAt: row.expiresAt.toISOString(),
+    }
+  },
+  {
+    detail: {
+      summary: 'Fetch a persisted trip snapshot',
+      description:
+        'Returns the trip and planning inputs saved under this token, or ' +
+        '404 when unknown or expired.',
       tags: ['Trip Planning'],
     },
   },

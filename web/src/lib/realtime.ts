@@ -169,6 +169,21 @@ export function disconnect(): void {
 }
 
 /**
+ * Send a JSON message to the server via the open WebSocket.
+ * No-op if the socket isn't open — callers should check
+ * `connectionState` or simply fire-and-forget.
+ */
+export function send(message: Record<string, unknown>): void {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return
+  try {
+    socket.send(JSON.stringify(message))
+  } catch {
+    // Socket died between readyState check and send — close handler
+    // will fire and trigger reconnect.
+  }
+}
+
+/**
  * Reactive connection state for UI. Read-only — callers shouldn't write
  * to it directly; drive transitions through connect/disconnect.
  */

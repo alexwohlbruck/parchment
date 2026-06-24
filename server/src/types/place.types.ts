@@ -159,6 +159,34 @@ export interface TransitStopInfo {
   }>
 }
 
+/**
+ * Live availability for a shared-mobility dock (bikeshare / scootershare),
+ * sourced from a GBFS `station_status` feed via Barrelman. Powers the
+ * bikeshare widget on a rental-dock place detail.
+ */
+export interface BikeshareStatus {
+  systemId: string
+  stationId: string
+  name: string
+  /** Network/operator label for attribution, e.g. "Citi Bike". */
+  systemName?: string | null
+  operator?: string | null
+  /** Total docks at the station (bikes + free docks), when known. */
+  capacity: number | null
+  /** Classic (human-powered) bikes ready to rent. */
+  bikesAvailable: number
+  /** Electric bikes ready to rent. */
+  ebikesAvailable: number
+  /** Scooters ready to rent (for scooter docks). */
+  scootersAvailable: number
+  /** Empty docks available to return a vehicle. */
+  docksAvailable: number
+  isRenting: boolean
+  isReturning: boolean
+  /** ISO timestamp the operator last reported this station. */
+  lastReported: string | null
+}
+
 export interface PlaceRelation {
   id: string // OSM ID (e.g., "relation/123456")
   type: 'relation' | 'way' | 'node'
@@ -173,6 +201,7 @@ export enum WidgetType {
   TRANSIT = 'transit',
   RELATED_PLACES = 'related_places',
   OSM_TAGS = 'osm_tags',
+  BIKESHARE = 'bikeshare',
 }
 
 /**

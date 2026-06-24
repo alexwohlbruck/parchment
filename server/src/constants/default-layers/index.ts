@@ -1,6 +1,7 @@
 import { DefaultLayerTemplate, DefaultLayerGroupTemplate } from '../../types/layers.types'
 import { DEFAULT_LAYER_GROUPS } from './groups'
 import { FRIENDS_LAYER_TEMPLATES } from './friends'
+import { TRACKERS_LAYER_TEMPLATES } from './trackers'
 import { CYCLING_LAYER_TEMPLATES } from './cycling'
 import { MAPILLARY_LAYER_TEMPLATES } from './mapillary'
 import { TRANSIT_LAYER_TEMPLATES } from './transit'
@@ -12,6 +13,7 @@ export const DEFAULT_GROUP_TEMPLATES: DefaultLayerGroupTemplate[] = DEFAULT_LAYE
 
 export const DEFAULT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   ...FRIENDS_LAYER_TEMPLATES,
+  ...TRACKERS_LAYER_TEMPLATES,
   ...CYCLING_LAYER_TEMPLATES,
   ...MAPILLARY_LAYER_TEMPLATES,
   ...TRANSIT_LAYER_TEMPLATES,

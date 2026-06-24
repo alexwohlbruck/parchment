@@ -312,6 +312,7 @@ export class MaplibreStrategy extends MapStrategy {
         id: `route-case-${index}`,
         type: 'line',
         source: `route-${index}`,
+        slot: 'middle',
         layout: {
           'line-join': 'round',
           'line-cap': 'round',
@@ -319,13 +320,16 @@ export class MaplibreStrategy extends MapStrategy {
         paint: {
           'line-color': palette.forest[600],
           'line-width': 8,
+          'line-emissive-strength': 1,
+          'line-occlusion-opacity': 0.5,
         },
-      })
+      } as any)
 
       this.mapInstance.addLayer({
         id: `route-${index}`,
         type: 'line',
         source: `route-${index}`,
+        slot: 'middle',
         layout: {
           'line-join': 'round',
           'line-cap': 'round',
@@ -333,8 +337,10 @@ export class MaplibreStrategy extends MapStrategy {
         paint: {
           'line-color': palette.forest[400],
           'line-width': 5,
+          'line-emissive-strength': 1,
+          'line-occlusion-opacity': 0.5,
         },
-      })
+      } as any)
     })
 
     // Add Vue component markers for each stop instead of circle layers

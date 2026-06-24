@@ -14,6 +14,8 @@ import { useResponsive } from '@/lib/utils'
 import { isTauri } from '@/lib/api'
 import { useExternalLink } from '@/composables/useExternalLink'
 import { useFriendLocationsLayer } from '@/composables/useFriendLocationsLayer'
+import { useTrackerLocationsLayer } from '@/composables/useTrackerLocationsLayer'
+import { useVehiclesStore } from '@/stores/vehicles.store'
 import { PermissionId } from '@/types/auth.types'
 import {
   connect as realtimeConnect,
@@ -45,6 +47,8 @@ const categoryPaletteStore = useCategoryPaletteStore()
 const layersStore = useLayersStore()
 const appStore = useAppStore()
 const friendLocationsLayer = useFriendLocationsLayer()
+const trackerLocationsLayer = useTrackerLocationsLayer()
+const vehiclesStore = useVehiclesStore()
 const { isMobileScreen } = useResponsive()
 const isDev = import.meta.env.DEV
 const { openExternalLink } = useExternalLink()
@@ -120,6 +124,8 @@ onMounted(async () => {
     await integrationService.fetchAvailableIntegrations()
     // Load user-owned layers + default templates + user state sidecar
     await layersStore.loadLayers()
+    // Fetch user vehicles for trip planning
+    vehiclesStore.fetchVehicles()
     // Initialize categories and palette (returns from cache instantly if available)
     categoryStore.init()
     categoryPaletteStore.loadPalette()
@@ -128,6 +134,8 @@ onMounted(async () => {
     if (authService.hasPermission(PermissionId.SOCIAL_READ)) {
       friendLocationsLayer.initialize()
     }
+    // Initialize tracker locations layer (handles marker click → detail navigation)
+    trackerLocationsLayer.initialize()
     // Open the realtime WebSocket now that the user is known. Disconnects
     // and reconnects across signin/signout are handled by the watcher
     // below.
@@ -141,8 +149,9 @@ onMounted(async () => {
 onUnmounted(() => {
   // Remove global click handler
   document.removeEventListener('click', handleExternalLinkClick, true)
-  // Cleanup friend locations layer
+  // Cleanup location layers
   friendLocationsLayer.cleanup()
+  trackerLocationsLayer.cleanup()
   // Close the realtime socket. Any open socket for a stale session is
   // worse than no socket.
   realtimeDisconnect()

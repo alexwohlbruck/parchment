@@ -245,7 +245,7 @@ async function handleRemoveFriend() {
 
   if (confirmed) {
     await friendsStore.remove(friend.value)
-    router.push({ name: AppRoute.FRIENDS })
+    router.push({ name: AppRoute.LOOKOUT })
   }
 }
 
@@ -263,7 +263,7 @@ onMounted(async () => {
 // Redirect if friend not found after loading
 watch([isLoading, friend], ([loading, f]) => {
   if (!loading && !f) {
-    router.push({ name: AppRoute.FRIENDS })
+    router.push({ name: AppRoute.LOOKOUT })
   }
 })
 </script>

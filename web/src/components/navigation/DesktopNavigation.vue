@@ -28,7 +28,6 @@ import ParchmentLogo from '@/assets/parchment.svg?component'
 import AccountDropdown from '@/components/navigation/AccountDropdown.vue'
 import {
   CornerUpRightIcon,
-  UsersRoundIcon,
   SettingsIcon,
   PanelLeftIcon,
   LibraryIcon,
@@ -37,6 +36,7 @@ import {
   MegaphoneIcon,
   HistoryIcon,
   LayoutDashboardIcon,
+  TelescopeIcon,
 } from 'lucide-vue-next'
 import UpdateBanner from '@/components/navigation/UpdateBanner.vue'
 import { useHotkeys } from '@/composables/useHotkeys'
@@ -254,10 +254,9 @@ const items = computed<MenuItemDefinition[]>(() => [
         to: '/library',
       },
       {
-        label: t('friends.title'),
-        // hotkey: ['f'],
-        icon: UsersRoundIcon,
-        to: '/friends',
+        label: 'Lookout',
+        icon: TelescopeIcon,
+        to: '/lookout',
       },
       {
         label: t('timeline.title'),

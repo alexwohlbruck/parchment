@@ -37,6 +37,7 @@ import {
   data as dataController,
   subscription as subscriptionController,
   avatar as avatarController,
+  vehicles as vehiclesController,
 } from './controllers'
 import { initializeIntegrations } from './services/integration.service'
 import { clearProductCache } from './services/subscription.service'
@@ -112,6 +113,7 @@ async function main() {
   app.use(dataController)
   app.use(subscriptionController)
   app.use(avatarController)
+  app.use(vehiclesController)
 
   // Wire realtime subscribers (local WS fanout, and — in Phase 4 —
   // federation forwarding). Must run before the first write path emits.

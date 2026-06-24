@@ -72,6 +72,20 @@ export function socketsForUser(userId: string): Connection[] {
   return bucket ? Array.from(bucket.values()) : []
 }
 
+/**
+ * Return ALL live connections across all users. Used for global broadcasts
+ * like transit vehicle updates. Returns a fresh array for safe iteration.
+ */
+export function allConnections(): Connection[] {
+  const result: Connection[] = []
+  for (const bucket of userToConnections.values()) {
+    for (const conn of bucket.values()) {
+      result.push(conn)
+    }
+  }
+  return result
+}
+
 /** Diagnostic counter. */
 export function connectedUserCount(): number {
   return userToConnections.size

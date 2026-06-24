@@ -100,10 +100,19 @@ export type MapBounds = {
   west: number
 }
 
-// TODO: Use optional fields
+export type WaypointTimeMode = 'departAfter' | 'arriveBy'
+
+export type WaypointTimeConstraint = {
+  mode: WaypointTimeMode
+  time: string // ISO 8601
+  dwellTime?: number // minutes to spend at this stop
+}
+
 export type Waypoint = {
   lngLat: LngLat | null
   place?: Partial<Place> | null
+  /** Per-waypoint time constraint (depart after / arrive by + optional dwell). */
+  timeConstraint?: WaypointTimeConstraint | null
 }
 
 export type MapillaryImage = Image // TODO: Use custom type
@@ -135,6 +144,9 @@ export type MapEvents = {
   // TODO: Fold this into 'click' event
   'click:friend-marker': {
     friendHandle: string
+  }
+  'click:tracker-marker': {
+    trackerId: string
   }
 }
 
@@ -206,6 +218,7 @@ export enum LayerType {
   STREET_VIEW = 'street-view',
   TRANSIT = 'transit',
   FRIENDS = 'friends',
+  TRACKERS = 'trackers',
 }
 
 /**

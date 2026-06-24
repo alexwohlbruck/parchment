@@ -279,10 +279,14 @@ export class FriendLocationsLayer extends BaseMarkerLayer {
    * Bound as an arrow property so the scheduler can call it without a
    * `this` reference.
    */
-  private tick: Tick = (now) => {
+  private tick: Tick = (_rafTime) => {
     if (!this.mapAPI) return 'idle'
     if (this.enabled && !this.enabled.value) return 'idle'
     if (this.tracks.size === 0) return 'idle'
+
+    // Track timestamps use Date.now() (epoch ms) but the scheduler
+    // passes performance.now() (ms since page load). Use Date.now().
+    const now = Date.now()
 
     let anyMoved = false
     for (const [handle, track] of this.tracks) {

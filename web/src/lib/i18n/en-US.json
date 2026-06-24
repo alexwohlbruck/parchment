@@ -340,6 +340,23 @@
     }
   },
   "directions": {
+    "tripTypes": {
+      "bikeshare": "Bike Share",
+      "scootershare": "Scooter Share",
+      "walking": "Walking",
+      "cycling": "Cycling",
+      "driving": "Driving",
+      "wheelchair": "Wheelchair",
+      "rideshare": "Rideshare",
+      "transit": "Transit",
+      "transitWalking": "Transit & Walking",
+      "transitBike": "Transit & Bike",
+      "transitBikeShare": "Transit & Bike Share",
+      "transitScooter": "Transit & Scooter",
+      "transitRideshare": "Transit & Rideshare",
+      "parkAndRide": "Park & Ride"
+    },
+    "toward": "toward {headsign}",
     "title": "Directions",
     "planRouteFromHere": "Plan route from here",
     "directionsHere": "Directions here",
@@ -353,7 +370,8 @@
       "cycling": "Cycling",
       "transit": "Transit",
       "driving": "Driving",
-      "wheelchair": "Wheelchair"
+      "wheelchair": "Wheelchair",
+      "rideshare": "Rideshare"
     },
     "preferences": {
       "general": "General Options",
@@ -760,6 +778,7 @@
     "transit": {
       "viewOnTransitland": "View on Transitland",
       "transitStop": "Transit Stop",
+      "departures": "Departures",
       "upcomingDepartures": "Upcoming Departures",
       "unknownDirection": "Unknown Direction",
       "now": "Now",
@@ -767,7 +786,19 @@
       "live": "LIVE",
       "realTimeData": "Real-time data",
       "noUpcomingDepartures": "No upcoming departures available",
-      "checkBackLater": "Check back later or visit the transit provider's website"
+      "checkBackLater": "Check back later or visit the transit provider's website",
+      "vehicleType": {
+        "tram": "tram | trams",
+        "subway": "train | trains",
+        "rail": "train | trains",
+        "bus": "bus | buses",
+        "ferry": "ferry | ferries",
+        "vehicle": "vehicle | vehicles"
+      },
+      "activeVehicles": "{count} {type} active",
+      "selectVehicle": "Select a {type}",
+      "everyNMin": "Every {n} min",
+      "stops": "Stops"
     },
     "header": {
       "showMore": "Show more",

@@ -9,6 +9,8 @@
 import { register } from './event-bus.service'
 import { localSocketSubscriber } from './local-socket.subscriber'
 import { federationSubscriber } from './federation.subscriber'
+import { setIntegrationManager } from '../transit/transit-poller.service'
+import { integrationManager } from '../integrations'
 
 let bootstrapped = false
 
@@ -17,5 +19,8 @@ export function bootstrapRealtime(): void {
   bootstrapped = true
   register(localSocketSubscriber)
   register(federationSubscriber)
-  // Future: register(webhookSubscriber) when external integrations ship.
+
+  // Provide the integration manager to the transit poller so it can
+  // look up the Barrelman host at poll time.
+  setIntegrationManager(integrationManager)
 }

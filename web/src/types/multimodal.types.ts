@@ -31,6 +31,7 @@ export type SelectedMode =
   | 'biking'
   | 'transit'
   | 'wheelchair'
+  | 'rideshare'
 
 export type SortPreference =
   | 'shortest'
@@ -229,6 +230,27 @@ export interface SegmentDetails {
   transitDetails?: TransitDetails
   rideshareDetails?: RideshareDetails
   vehicleDetails?: VehicleDetails
+  sharedMobilityDetails?: SharedMobilityDetails
+}
+
+export interface SharedMobilityDetails {
+  provider: string
+  stationName?: string
+  toStationName?: string
+  vehicleType: 'bike' | 'ebike' | 'scooter' | 'car' | 'moped' | 'other'
+  propulsionType?: 'human' | 'electric_assist' | 'electric'
+  stationId?: string
+  availableVehicles?: number
+  availableDocks?: number
+  unlockUri?: string
+  /** Fare from the operator's GBFS pricing feed (estimate). */
+  pricing?: {
+    currency: string
+    unlockPrice: number
+    perMinuteRate: number
+    estimatedCost: number
+    planName?: string
+  }
 }
 
 export interface TransitDetails {
@@ -306,6 +328,29 @@ export type TransitRouteType =
   | 'trolleybus'
   | 'monorail'
 
+/** A live GTFS-RT vehicle position enriched by Barrelman. */
+export interface TransitVehiclePosition {
+  vehicleId: string
+  tripId?: string
+  routeId?: string
+  feedId: string
+  position: { lat: number; lng: number }
+  bearing?: number
+  speed?: number
+  timestamp: string
+  routeColor?: string
+  routeTextColor?: string
+  routeShortName?: string
+  routeType?: TransitRouteType
+  nextStopId?: string
+  nextStopArrival?: string
+  /** Position from the previous GTFS-RT snapshot.
+   *  Allows starting interpolation on first fetch without waiting for a second poll. */
+  previousPosition?: { lat: number; lng: number }
+  /** Timestamp of the previous position snapshot. */
+  previousTimestamp?: string
+}
+
 export type TransitAlertEffect =
   | 'no_service'
   | 'reduced_service'
@@ -335,10 +380,17 @@ export type TransitAlertSeverity = 'info' | 'warning' | 'severe'
 
 export interface RideshareDetails {
   provider: string
+  productId?: string
+  productName?: string
   vehicleType: VehicleType
   estimatedPickupTime?: string
+  pickupEta?: number
   estimatedPrice?: CurrencyAmount
+  priceRange?: { low: CurrencyAmount; high: CurrencyAmount }
+  surgeMultiplier?: number
   bookingUrl?: string
+  expiresAt?: string
+  capacity?: number
 }
 
 export interface VehicleDetails {
@@ -419,6 +471,27 @@ export interface TripPlanningError {
   segment?: number
   mode?: Mode
   details?: any
+}
+
+// =============================================================================
+// User Vehicle Management
+// =============================================================================
+
+export type LocationSource = 'manual' | 'inferred' | 'tracker'
+
+export type LocationStaleness = 'fresh' | 'aging' | 'stale' | 'very-stale' | 'unknown'
+
+export interface UserVehicle {
+  id: string
+  type: VehicleType
+  energyType?: EnergyType | null
+  name?: string | null
+  isActive: boolean
+  lastKnownLocation: Coordinate | null
+  locationSource: LocationSource
+  locationUpdatedAt: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 // Utility types for UI

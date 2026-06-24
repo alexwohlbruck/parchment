@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from 'vue'
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, provide, nextTick } from 'vue'
 import { cn } from '@/lib/utils'
-import { useWindowSize, useScroll, useScreenSafeArea } from '@vueuse/core'
+import {
+  useWindowSize,
+  useScroll,
+  useScreenSafeArea,
+  useElementSize,
+} from '@vueuse/core'
 import { useObstructingComponent } from '@/composables/useObstructingComponent'
 import { type ManualBounds } from '@/stores/app.store'
 import { useHotkeys } from '@/composables/useHotkeys'
@@ -45,6 +50,16 @@ const props = withDefaults(
     zIndexOffset?: number
     respectSafeArea?: boolean
     fitContent?: boolean
+    /**
+     * When true, the peek (first) snap point is sized to fit a registered
+     * peek element instead of the static `peekHeight`. A hosted view marks
+     * the bottom of its peek region with `useSheetPeek()`; we measure from
+     * the drawer top to that element's bottom and drive the first snap point
+     * from it. Async content that resizes the region re-snaps with the
+     * normal Vaul transition, so the sheet glides between heights. Opt-in:
+     * views without a registered element fall back to `peekHeight`.
+     */
+    dynamicPeek?: boolean
   }>(),
   {
     open: true,
@@ -69,6 +84,13 @@ const sheet = ref<HTMLElement | null>(null)
 const drawerContentRef = ref<InstanceType<typeof DrawerContent> | null>(null)
 const scrollContainer = ref<HTMLElement | null>(null)
 const headerRef = ref<HTMLElement | null>(null)
+
+// A hosted view opts into the opaque in-flow chrome bar when it pins its own
+// header to the scroll surface (e.g. Directions) — content then scrolls
+// cleanly beneath it. Plain scrolling views (Place, etc.) leave it off and
+// keep the original transparent chrome with content near the top.
+const chromeBarEnabled = ref(false)
+provide('sheetChromeBar', chromeBarEnabled)
 const activeSnapPoint = ref<number | string | null>(
   props.activeSnapPoint ?? null,
 )
@@ -263,6 +285,17 @@ onUnmounted(() => {
 const { y: scrollY } = useScroll(scrollContainer)
 const isAtTop = computed(() => scrollY.value === 0)
 
+// Height (px) of the overlay chrome bar (drag handle + action buttons). The
+// bar floats over the content and never reserves layout space, so at rest the
+// view's content sits high, right beside the handle. A chrome view's pinned
+// header offsets its sticky top by this much (via `--sheet-sticky-top`), and
+// the bar's opaque backing fades in over the first CHROME_HEIGHT px of scroll
+// so content slides cleanly under the handle instead of being shoved below it.
+const CHROME_HEIGHT = 44
+const chromeFade = computed(() =>
+  Math.min(Math.max(scrollY.value, 0) / CHROME_HEIGHT, 1),
+)
+
 // ==================== SAFE AREA HANDLING ====================
 // Use refs that only increase to prevent brief resets during init (common in mobile WebViews)
 const { top: safeAreaTop, bottom: safeAreaBottom } = useScreenSafeArea()
@@ -284,13 +317,98 @@ watch(
   { immediate: true },
 )
 
+// ==================== DYNAMIC PEEK ====================
+//
+// A hosted view marks the bottom of its peek region via `useSheetPeek()`,
+// which calls this registration with the element ref. We measure from the
+// drawer's top edge down to that element's bottom — a transform-invariant
+// distance (both rects ride the same Vaul transform, so their delta is
+// stable even mid-animation) — and use it as the peek snap height. A small
+// buffer leaves breathing room above the home indicator (the bottom safe
+// area is added separately by `adjustForSafeArea`).
+
+const DYNAMIC_PEEK_BUFFER = 12
+
+const peekEl = ref<HTMLElement | null>(null)
+provide('sheetPeekRegister', (el: HTMLElement | null) => {
+  peekEl.value = el
+})
+
+// useElementSize gives us a reactive trigger whenever the peek content's box
+// changes (async load, expand/collapse) — including shrink to 0 on unmount.
+const { height: peekContentHeight } = useElementSize(peekEl, undefined, {
+  box: 'border-box',
+})
+
+const dynamicPeekPx = ref<number | null>(null)
+
+function measureDynamicPeek() {
+  if (!props.dynamicPeek || !peekEl.value) {
+    // No registered peek (or feature off) → fall back to the static peek.
+    dynamicPeekPx.value = null
+    return
+  }
+  // Only measure while unscrolled. At scrollTop 0 the peek element sits at its
+  // natural position (a sticky anchor isn't pinned and nothing rides the
+  // scroll), so the rects are accurate; mid-scroll they aren't. Re-measures
+  // while scrolled are skipped — keeping the last value — and refreshed when
+  // the sheet returns to the top (see the watch's isAtTop dependency).
+  if (!isAtTop.value) return
+  const contentEl = drawerContentRef.value?.$el as HTMLElement | undefined
+  if (!contentEl || typeof contentEl.getBoundingClientRect !== 'function') return
+  const top = contentEl.getBoundingClientRect().top
+  const bottom = peekEl.value.getBoundingClientRect().bottom
+  let h = bottom - top + DYNAMIC_PEEK_BUFFER
+  if (h <= 0) return
+
+  // Keep the peek strictly below the next detent so snap points stay
+  // monotonic (Vaul's drag math assumes ascending heights). On a short
+  // screen a tall header would otherwise overshoot the 0.5 detent.
+  const nextPoint = props.customSnapPoints?.[1] ?? 0.5
+  const maxPeek = snapPointToPixels(nextPoint) - 24
+  if (maxPeek > 0) h = Math.min(h, maxPeek)
+
+  dynamicPeekPx.value = Math.round(h)
+}
+
+// Re-measure whenever the peek content resizes, the registered element
+// swaps, the window changes, the chrome bar toggles (it sits above the peek
+// content and shifts its position), or the safe area settles. Post-flush +
+// nextTick so the DOM reflects the new layout before we read rects.
+watch(
+  [
+    peekContentHeight,
+    peekEl,
+    windowHeight,
+    () => chromeBarEnabled.value,
+    () => safeAreaInsetBottom.value,
+    () => props.dynamicPeek,
+    // Re-measure when the sheet returns to the top, picking up any content
+    // resize that was skipped while scrolled.
+    () => isAtTop.value,
+  ],
+  () => nextTick(measureDynamicPeek),
+  { flush: 'post', immediate: true },
+)
+
 // ==================== SNAP POINTS ====================
 // Flow: userSnapPoints → snapPoints (with safe area adjustments) → vaul
 
-// User-provided snap points (or sensible defaults)
-const userSnapPoints = computed<SnapPoint[]>(
+// The values the parent reasons about (static). The dynamic peek substitutes
+// only the first entry; everything else (0.5, 1, custom) passes through.
+const baseSnapPoints = computed<SnapPoint[]>(
   () => props.customSnapPoints ?? [props.peekHeight, 0.5, 1],
 )
+
+// User-provided snap points, with the measured peek height swapped into the
+// first slot when dynamic peek is active and we have a measurement.
+const userSnapPoints = computed<SnapPoint[]>(() => {
+  const base = baseSnapPoints.value
+  if (props.dynamicPeek && dynamicPeekPx.value != null && base.length > 0) {
+    return [`${dynamicPeekPx.value}px`, ...base.slice(1)]
+  }
+  return base
+})
 
 // Apply safe area adjustments to a snap point
 function adjustForSafeArea(point: SnapPoint, index: number): SnapPoint {
@@ -411,8 +529,11 @@ watch(
   () => props.activeSnapPoint,
   newPoint => {
     if (!newPoint) return
-    // Map from user snap point to adjusted snap point
-    const idx = userSnapPoints.value.indexOf(newPoint)
+    // Map from user snap point to adjusted snap point. Fall back to the base
+    // points so a parent that drives by a static value (e.g. '125px') still
+    // resolves to the right index after the dynamic peek has replaced it.
+    let idx = userSnapPoints.value.indexOf(newPoint)
+    if (idx < 0) idx = baseSnapPoints.value.indexOf(newPoint)
     if (idx >= 0) {
       const adjusted = snapPoints.value[idx]
       if (adjusted && adjusted !== activeSnapPoint.value) {
@@ -422,9 +543,13 @@ watch(
   },
 )
 
-// Close when snap point becomes invalid (dragged below minimum)
+// Close when the active snap point is genuinely cleared (dragged below the
+// minimum → Vaul nulls it). We additionally require activeSnapPoint to be
+// null so a transient index of -1 — which happens for a tick while the
+// snap-point array is swapped (e.g. the dynamic peek remeasures while resting
+// at the peek detent) — never closes the sheet.
 watch(activeSnapPointIndex, idx => {
-  if (idx === -1) emit('update:open', false)
+  if (idx === -1 && activeSnapPoint.value === null) emit('update:open', false)
 })
 
 // Fix: Capture the current transform position before the drawer closes
@@ -475,8 +600,11 @@ function handleTouchMove(e: TouchEvent) {
   const deltaY = currentTouchY - lastTouchY
   isScrollingUp = deltaY > 0 // Positive deltaY means scrolling up (finger moving down)
 
-  // Prevent upward scroll when at the top of the container
-  if (isAtTop.value && isScrollingUp) {
+  // Prevent upward scroll when at the top of the container. Guard on
+  // `cancelable`: once native scroll momentum is in flight the touchmove is
+  // non-cancelable, and calling preventDefault then just spams the console
+  // with an "Ignored attempt to cancel a touchmove" intervention warning.
+  if (isAtTop.value && isScrollingUp && e.cancelable) {
     e.preventDefault()
     return false
   }
@@ -543,18 +671,34 @@ function handleAnimationEnd(open: boolean) {
         }"
         :data-vaul-no-drag="!isAtTop ? '' : undefined"
       >
-        <!-- Header: absolutely positioned so it never displaces content.
-             Individual views add their own top padding/title to clear it. -->
+        <!-- Chrome: drag handle + action buttons. Always an overlay that takes
+             no layout space, so content sits high near the handle at rest. A
+             view that pins its own header opts into the chrome bar (sets
+             `chromeBarEnabled`): its opaque backing then fades in as you scroll
+             so content reads cleanly under the handle / buttons, and the pinned
+             header docks below the bar via `--sheet-sticky-top`. -->
+        <!-- z above the trip-row content (dots/caps at z-20) so it hides
+             everything scrolling under it, but below the pinned header
+             (controls z-30, axis z-25) so it never clips them. -->
         <div
           v-if="props.showDragHandle || $slots.actions"
           ref="headerRef"
-          class="absolute top-0 left-0 right-0 z-10 grid grid-cols-[1fr_auto_1fr] items-start pointer-events-none"
+          class="absolute top-0 left-0 right-0 z-[22] grid grid-cols-[1fr_auto_1fr] items-start pointer-events-none"
+          :class="chromeBarEnabled ? 'min-h-[2.75rem]' : ''"
         >
+          <!-- Opaque backing (chrome views only) — fades in with scroll so the
+               pinned header / content reads cleanly under the handle. -->
+          <div
+            v-if="chromeBarEnabled"
+            class="absolute inset-0 bg-background"
+            :style="{ opacity: chromeFade }"
+          />
+
           <!-- Col 1: left spacer -->
           <div />
 
           <!-- Col 2: drag handle (centered) -->
-          <div class="flex justify-center pb-1.5 pt-2">
+          <div class="relative flex justify-center pb-1.5 pt-2">
             <DrawerHandle
               v-if="props.showDragHandle"
               class="h-1 w-16 rounded-full bg-muted-foreground"
@@ -563,7 +707,7 @@ function handleAnimationEnd(open: boolean) {
 
           <!-- Col 3: actions slot (right-aligned) -->
           <div
-            class="flex items-center justify-end pt-3 pr-2 pointer-events-auto"
+            class="relative flex items-center justify-end pt-3 pr-2 pointer-events-auto"
           >
             <slot name="actions" />
           </div>
@@ -593,6 +737,8 @@ function handleAnimationEnd(open: boolean) {
           :style="{
             touchAction: isFullyExpanded ? 'pan-y' : 'none',
             overscrollBehavior: 'none',
+            // Sticky headers in chrome views dock just below the overlay bar.
+            '--sheet-sticky-top': chromeBarEnabled ? '2.75rem' : '0px',
           }"
           @touchstart="handleTouchStart"
           @touchmove="handleTouchMove"

@@ -5,6 +5,7 @@ import { useAppService } from '@/services/app.service'
 import { useIntegrationService } from '@/services/integration.service'
 import { clearAllUserCaches } from '@/services/cache.service'
 import { syncPreferencesFromBackend } from '@/services/preferences.service'
+import { useVehiclesStore } from '@/stores/vehicles.store'
 import { createSharedComposable } from '@vueuse/core'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 import {
@@ -111,11 +112,13 @@ function authService() {
     // Set auth header first so integration fetches are authenticated
     setAuthHeader(sessionId)
 
-    // Fetch integrations and preferences before navigating to the map
+    // Fetch integrations, preferences, and vehicles before navigating to the map
+    const vehiclesStore = useVehiclesStore()
     await Promise.all([
       integrationService.fetchAvailableIntegrations(),
       integrationService.fetchConfiguredIntegrations(),
       syncPreferencesFromBackend(),
+      vehiclesStore.fetchVehicles(),
     ])
 
     // Now navigate to the map (authStore.setAuthenticatedUser triggers navigation)

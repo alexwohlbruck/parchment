@@ -221,10 +221,25 @@ export interface TransitDataCapability {
  * routing uses a fundamentally different engine and data model (GTFS +
  * RAPTOR algorithm vs OSM graph + contraction hierarchies).
  */
+export interface StationEntrance {
+  osmId: string
+  name: string | null
+  description: string | null
+  wheelchair: string | null
+  level: string | null
+  /** Access point type: subway_entrance, train_station_entrance, railway_crossing, highway_crossing */
+  accessType: string
+  lat: number
+  lon: number
+  distanceM: number
+}
+
 export interface TransitRoutingCapability {
   getTransitRoute(request: TransitRouteRequest): Promise<TransitRouteResponse>
+  getIntermodalRoute?(request: IntermodalRouteRequest): Promise<TransitRouteResponse>
   getNearbyStops(request: NearbyStopsRequest): Promise<NearbyStopResult[]>
   getRoutesForStop(feedId: string, stopId: string): Promise<StopRouteResult[]>
+  getNearestEntrance?(lat: number, lon: number, maxDistanceM?: number, wheelchair?: boolean): Promise<StationEntrance | null>
 }
 
 export interface TransitRouteRequest {
@@ -240,6 +255,27 @@ export interface TransitRouteRequest {
   maxWalkDistance?: number
   maxTransfers?: number
   wheelchair?: boolean
+}
+
+export interface IntermodalRouteRequest extends TransitRouteRequest {
+  /** Modes for first mile (coordinate → first transit stop). Default: ['WALK'] */
+  preTransitModes?: string[]
+  /** Modes for last mile (last transit stop → coordinate). Default: ['WALK'] */
+  postTransitModes?: string[]
+  /** Direct (non-transit) modes to also compute. Default: ['WALK'] */
+  directModes?: string[]
+  /** Max duration (s) for direct (non-transit) connections. Barrelman
+   *  defaults to 3600 when directModes is set (MOTIS's 1800 is too tight). */
+  maxDirectTime?: number
+  /** Max first-mile time in seconds (default 900) */
+  maxPreTransitTime?: number
+  /** Max last-mile time in seconds (default 900) */
+  maxPostTransitTime?: number
+  /** Filter rental vehicles to specific form factors (BICYCLE, SCOOTER_STANDING, etc.) */
+  preTransitRentalFormFactors?: string[]
+  postTransitRentalFormFactors?: string[]
+  /** Minutes reserved per interchange (transfer penalty). Barrelman defaults to 3. */
+  additionalTransferTime?: number
 }
 
 export interface TransitRouteResponse {
@@ -288,6 +324,23 @@ export interface TransitLeg {
   headsign?: string
   routeId?: string
   intermediateStops?: TransitLegPlace[]
+  realTime?: boolean
+  departureDelay?: number
+  arrivalDelay?: number
+  rentalProvider?: string
+  rentalStationName?: string
+  rentalFormFactor?: string
+  rentalStationId?: string
+  rentalSystemId?: string
+  /** Estimated fare from the operator's GBFS pricing feed, when published. */
+  rentalPricing?: {
+    currency: string
+    unlockPrice: number
+    perMinuteRate: number
+    perKmRate: number
+    planName?: string
+    estimatedCost: number
+  }
 }
 
 export interface TransitLegPlace {
@@ -453,6 +506,53 @@ export interface LocationHistoryCapability {
 }
 
 // Integration capabilities container
+// ── Rideshare estimation ─────────────────────────────────────────────
+
+export interface RideshareEstimateRequest {
+  origin: { lat: number; lng: number }
+  destination: { lat: number; lng: number }
+  /** ISO 8601 departure time. Null = now. */
+  departureTime?: string
+}
+
+export interface RideshareProduct {
+  /** Provider-specific product ID (e.g. "uberX", "lyft_standard") */
+  productId: string
+  /** Human-readable name (e.g. "UberX", "Lyft XL") */
+  displayName: string
+  /** Estimated price range */
+  estimatedPrice: {
+    low: { value: number; currency: string }
+    high: { value: number; currency: string }
+    surgeMultiplier?: number
+  }
+  /** ETA for nearest driver in seconds */
+  estimatedPickupTime: number
+  /** Estimated trip duration in seconds */
+  estimatedDuration: number
+  /** Estimated trip distance in meters */
+  estimatedDistance: number
+  /** Deep link to open the provider's app with this trip pre-filled */
+  bookingUrl: string
+  /** Maximum passenger capacity */
+  capacity?: number
+}
+
+export interface RideshareEstimateResponse {
+  provider: string
+  products: RideshareProduct[]
+  /** When this estimate expires (ISO 8601). */
+  expiresAt: string
+}
+
+export interface RideshareEstimateCapability {
+  getRideshareEstimates(
+    request: RideshareEstimateRequest,
+  ): Promise<RideshareEstimateResponse>
+}
+
+// ── Capability container ─────────────────────────────────────────────
+
 export interface IntegrationCapabilities {
   search?: SearchCapability
   searchCategory?: SearchCategoryCapability
@@ -471,6 +571,7 @@ export interface IntegrationCapabilities {
   osmMapEdit?: OsmMapEditCapability
   locationHistory?: LocationHistoryCapability
   transitRouting?: TransitRoutingCapability
+  rideshareEstimate?: RideshareEstimateCapability
 }
 
 /**

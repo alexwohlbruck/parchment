@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
+import { api } from '@/lib/api'
+import { applyDepartureChange } from '@/lib/trip-rebooking'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapService } from '@/services/map.service'
@@ -12,7 +14,10 @@ import {
 } from '@/components/ui/collapsible'
 import { Caption } from '@/components/ui/typography'
 import {
+  AlertTriangleIcon,
   ArrowLeft,
+  BikeIcon,
+  CarTaxiFrontIcon,
   ArrowRight,
   ArrowUp,
   ArrowUpLeft,
@@ -20,16 +25,36 @@ import {
   BookmarkIcon,
   ChevronDownIcon,
   ClockIcon,
+  ExternalLinkIcon,
   FlagIcon,
   FootprintsIcon,
+  AccessibilityIcon,
+  LogInIcon,
+  LogOutIcon,
+  RssIcon,
   ShareIcon,
   Undo2Icon,
 } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
+import { tripSignature } from '@/lib/trip-signature'
 import type { RouteInstruction } from '@/types/directions.types'
+import type { Place } from '@/types/place.types'
 import type { RouteProfileType } from '@/lib/route-profile-colors'
+import type { SharedMobilityDetails } from '@/types/multimodal.types'
 import { getSegmentIcon } from '@/lib/travel-mode-icons'
+import { getPlaceRoute } from '@/lib/place.utils'
+import {
+  getSearchResultIconName,
+  getSearchResultIconPack,
+  getSearchResultCategory,
+} from '@/lib/search.utils'
+import { getCategoryColor } from '@/lib/place-colors'
+import { useThemeStore } from '@/stores/theme.store'
+import { ItemIcon } from '@/components/ui/item-icon'
 import ElevationChart from '@/components/directions/ElevationChart.vue'
+import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
+import RouteBullet from '@/components/transit/RouteBullet.vue'
+import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import { useUnits } from '@/composables/useUnits'
 
 const route = useRoute()
@@ -37,7 +62,275 @@ const router = useRouter()
 const directionsStore = useDirectionsStore()
 const directionsService = useDirectionsService()
 const mapService = useMapService()
+const themeStore = useThemeStore()
 const { formatDistance, formatElevation } = useUnits()
+
+// ── Upcoming departures per transit segment ─────────────────────────
+// Shows the rider their options beyond the planned departure ("also at
+// 2:21, 2:51"), Transit-app style. Fetched per boarding stop, filtered to
+// the same line and direction. Clicking a later one re-plans the trip
+// anchored to that departure.
+interface DepartureOption {
+  ms: number
+  label: string
+  /** True when the time comes from a GTFS-RT prediction, not the schedule. */
+  realTime: boolean
+}
+const segmentDepartures = ref<Record<number, DepartureOption[]>>({})
+// Full fetched schedule per segment (superset of the chips) — rebooking
+// resolves runs from this synchronously, so switching departures is instant.
+const segmentSchedule = ref<Record<number, DepartureOption[]>>({})
+
+// Clock driving missed/hurry chip states; departures re-fetch keeps the
+// realtime predictions fresh as vehicles move.
+const nowMs = ref(Date.now())
+const tickTimer = setInterval(() => { nowMs.value = Date.now() }, 10_000)
+const refreshTimer = setInterval(() => { void loadDepartures() }, 30_000)
+onUnmounted(() => {
+  clearInterval(tickTimer)
+  clearInterval(refreshTimer)
+})
+
+async function loadDepartures() {
+  const t = trip.value
+  if (!t) return
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
+  const nextChips: Record<number, DepartureOption[]> = {}
+  const nextSched: Record<number, DepartureOption[]> = {}
+  await Promise.all(
+    segs.map(async (seg, idx) => {
+      if (seg.mode !== 'transit' || !seg.departureStop?.location) return
+      try {
+        const startMs = new Date(seg.startTime).getTime()
+
+        // Earliest run the rider could physically board: mid-trip you can
+        // only board out of the existing platform wait (arrival on foot);
+        // for the first boarding, leaving home earlier is bounded by the
+        // requested departure time (or now).
+        const hasEarlierTransit = segs
+          .slice(0, idx)
+          .some((s) => s.mode === 'transit')
+        let floorMs: number
+        if (hasEarlierTransit) {
+          const prev = segs[idx - 1]
+          floorMs = prev?.mode === 'walking'
+            ? new Date(prev.endTime).getTime() - (prev.waitSeconds ?? 0) * 1000
+            : startMs
+        } else {
+          const requestedMs = directionsStore.departureTime
+            ? new Date(directionsStore.departureTime).getTime()
+            : Date.now()
+          floorMs = requestedMs + (startMs - new Date(t.startTime).getTime())
+        }
+
+        const { data } = await api.get('/proxy/transit/departures', {
+          params: {
+            lat: seg.departureStop.location.lat,
+            lng: seg.departureStop.location.lng,
+            radius: 50,
+            n: 60,
+            time: new Date(Math.min(floorMs, startMs) - 60_000).toISOString(),
+          },
+        })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const all: any[] = (Array.isArray(data) ? data : []).flatMap(
+          (s: { departures?: unknown[] }) => s.departures ?? [],
+        )
+        const sameLine = all.filter(
+          (d) => d.route?.shortName === seg.lineName && !d.cancelled,
+        )
+        // Prefer same-direction departures when the headsign matches
+        const sameDirection = sameLine.filter(
+          (d) => d.headsign?.toLowerCase() === seg.headsign?.toLowerCase(),
+        )
+        const pool = sameDirection.length >= 2 ? sameDirection : sameLine
+        // Dedup by minute; a run is "live" when any source row carries a
+        // GTFS-RT prediction for it.
+        const byMs = new Map<number, boolean>()
+        for (const d of pool) {
+          const depMs = new Date(d.departureTime).getTime()
+          if (depMs < floorMs - 30_000) continue
+          byMs.set(depMs, (byMs.get(depMs) ?? false) || d.realTime === true)
+        }
+        const runs: DepartureOption[] = [...byMs.entries()]
+          .sort((a, b) => a[0] - b[0])
+          .map(([ms, realTime]) => ({ ms, realTime, label: formatTime(new Date(ms)) }))
+        nextSched[idx] = runs
+        const earlier = runs.filter((d) => d.ms < startMs - 30_000).slice(-2)
+        const current = runs.filter((d) => d.ms >= startMs - 30_000).slice(0, 4)
+        nextChips[idx] = [...earlier, ...current]
+      } catch {
+        // Departures are an enhancement — skip on failure
+      }
+    }),
+  )
+  // Atomic swap — no flicker on the periodic refresh
+  segmentDepartures.value = nextChips
+  segmentSchedule.value = nextSched
+}
+
+/** Is this run the one the trip currently boards? */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isCurrentDeparture(segment: any, ms: number): boolean {
+  return Math.abs(ms - asMs(segment.startTime)) < 30_000
+}
+
+function departuresFor(segmentIndex: number): DepartureOption[] {
+  return segmentDepartures.value[segmentIndex] ?? []
+}
+
+// ── Departure rebooking ──────────────────────────────────────────────
+// Choosing a later run is pure schedule math on the existing plan — no
+// re-planning. The chosen leg moves to the chosen run; legs before it
+// either shift later (first boarding: leave home later) or keep their
+// schedule with the extra wait absorbed at the platform; legs after keep
+// their planned runs when the connection still holds, otherwise roll to
+// the next departure of the same line.
+const rebooking = ref(false)
+
+function asMs(v: string | Date): number {
+  return new Date(v).getTime()
+}
+
+/** Next run of this segment's line departing at/after minMs. Resolves from
+ *  the prefetched schedule (instant); only goes to the API when the needed
+ *  run falls outside the cached window. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function nextDepartureAfter(seg: any, segmentIndex: number, minMs: number): Promise<number | null> {
+  const cached = (segmentSchedule.value[segmentIndex] ?? []).find((d) => d.ms >= minMs)
+  if (cached) return cached.ms
+  try {
+    const { data } = await api.get('/proxy/transit/departures', {
+      params: {
+        lat: seg.departureStop.location.lat,
+        lng: seg.departureStop.location.lng,
+        radius: 50,
+        n: 20,
+        time: new Date(minMs).toISOString(),
+      },
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const all: any[] = (Array.isArray(data) ? data : []).flatMap(
+      (s: { departures?: unknown[] }) => s.departures ?? [],
+    )
+    return (
+      all
+        .filter((d) => d.route?.shortName === seg.lineName && !d.cancelled)
+        .map((d) => new Date(d.departureTime).getTime())
+        .filter((m) => m >= minMs)
+        .sort((a, b) => a - b)[0] ?? null
+    )
+  } catch {
+    return null
+  }
+}
+
+async function chooseDeparture(segmentIndex: number, departureMs: number) {
+  const t = trip.value
+  if (!t || rebooking.value) return
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
+
+  rebooking.value = true
+  try {
+    const changed = await applyDepartureChange(
+      segs,
+      segmentIndex,
+      departureMs,
+      (i, minMs) => nextDepartureAfter(segs[i], i, minMs),
+    )
+    if (!changed) return
+
+    // Trip-level rollup
+    t.startTime = new Date(asMs(segs[0].startTime))
+    t.endTime = new Date(asMs(segs[segs.length - 1].endTime))
+    t.summary.totalDuration = (asMs(t.endTime) - asMs(t.startTime)) / 1000
+
+    // Refresh chips in the background — the rebooking math is already
+    // applied from the cached schedule, so the UI updates instantly.
+    void loadDepartures()
+  } finally {
+    rebooking.value = false
+  }
+}
+
+// ── Departure chip states (Transit-app style) ────────────────────────
+// missed: the vehicle is gone (or, for the first boarding, you can no
+// longer walk there in time). hurry: catchable, but only just — the walk
+// leaves under 3 minutes of slack. live: time comes from GTFS-RT.
+
+/** Walking seconds from the rider's position to this boarding, when this
+ *  is the trip's first transit leg (0 otherwise — mid-trip positions
+ *  depend on earlier legs, so only "departed" can be judged there). */
+function accessWalkSec(segmentIndex: number): number {
+  const t = trip.value
+  if (!t) return 0
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
+  const isFirst = !segs.slice(0, segmentIndex).some((s) => s.mode === 'transit')
+  if (!isFirst) return 0
+  const prev = segs[segmentIndex - 1]
+  return prev?.mode === 'walking' ? movingDuration(prev) : 0
+}
+
+function depState(segmentIndex: number, dep: DepartureOption): 'missed' | 'hurry' | 'ok' {
+  const leadMs = dep.ms - nowMs.value
+  const walkMs = accessWalkSec(segmentIndex) * 1000
+  if (leadMs < walkMs) return 'missed'
+  if (walkMs > 0 && leadMs < walkMs + 180_000) return 'hurry'
+  return 'ok'
+}
+
+/** Time actually in motion — a walk's duration minus the wait at the stop. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function movingDuration(segment: any): number {
+  return Math.max(0, (segment.duration || 0) - (segment.waitSeconds ?? 0))
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function waitMinutes(segment: any): number {
+  const w = segment.waitSeconds ?? 0
+  return w >= 60 ? Math.round(w / 60) : 0
+}
+
+/** Full entrance phrase for the timeline. A real entrance name reads "Enter
+ *  at <name>". A train-direction description (e.g. "1 trains Downtown") is
+ *  about which platform a stair serves — useful when entering ("Enter · 1
+ *  trains Downtown"), but noise when exiting (you're heading to the street,
+ *  not a platform), so it's shown only on enter. Empty when the entrance
+ *  carries nothing usable — never fabricated. */
+function entrancePhrase(
+  entrance:
+    | { role?: string; name?: string | null; description?: string | null }
+    | null
+    | undefined,
+): string {
+  if (!entrance) return ''
+  const verb = entrance.role === 'exit' ? 'Exit' : 'Enter'
+  if (entrance.name) return `${verb} at ${entrance.name}`
+  if (entrance.role !== 'exit' && entrance.description) {
+    return `${verb} · ${entrance.description}`
+  }
+  return ''
+}
+
+/** Generic, non-POI place types — a plain address or shared pin just repeats
+ *  the waypoint title, so it gets no tap-to-open place card. */
+const GENERIC_PLACE_TYPES = new Set([
+  'area',
+  'address',
+  'coordinates',
+  'shared_location',
+  'current_location',
+])
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isPoiCard(place: any): boolean {
+  if (!place?.id) return false
+  const type = place.placeType?.value?.toLowerCase?.().trim()
+  return !type || !GENERIC_PLACE_TYPES.has(type)
+}
 
 const hoveredInstructionKey = ref<string | null>(null)
 
@@ -45,16 +338,69 @@ const tripId = computed(() => route.params.id as string)
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 
+// Server-persisted snapshot (the `pt` capability token in the URL): the
+// exact trip as originally planned, immune to schedule drift. Fetched when
+// the in-memory plan can't supply the trip — refresh, another device.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const persistedTrip = ref<any | null>(null)
+const recovering = ref(false)
+
+async function recoverPersistedTrip() {
+  const pt = route.query.pt as string | undefined
+  if (!pt || persistedTrip.value || recovering.value) return
+  recovering.value = true
+  try {
+    const { data } = await api.get(`/directions/trips/${pt}`)
+    persistedTrip.value = data.trip
+  } catch {
+    // Unknown/expired snapshot — the sig/re-plan path may still recover it
+  } finally {
+    recovering.value = false
+  }
+}
+
+// Trip lookup, most faithful source first:
+// 1. exact id in the in-memory plan (same session, or session-cache restore)
+// 2. the persisted snapshot (refresh / shared link — exact times)
+// 3. signature match against a fresh re-plan (best effort, ids re-minted)
 const trip = computed(() => {
-  if (!directionsStore.trips?.trips) return null
-  return directionsStore.trips.trips.find(t => t.id === tripId.value) || null
+  const list = directionsStore.trips?.trips
+  const byId = list?.find(t => t.id === tripId.value)
+  if (byId) return byId
+  if (persistedTrip.value) return persistedTrip.value
+  const sig = route.query.sig as string | undefined
+  if (!sig || !list) return null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return list.find(t => tripSignature((t as any).segments) === sig) || null
 })
 
 watch(
-  trip,
-  newTrip => {
-    if (newTrip === null && !isLoading.value && directionsStore.trips) {
-      router.push({ name: AppRoute.DIRECTIONS })
+  () => [tripId.value, route.query.pt],
+  () => {
+    const list = directionsStore.trips?.trips
+    if (!list?.some(t => t.id === tripId.value)) void recoverPersistedTrip()
+  },
+  { immediate: true },
+)
+
+watch(trip, loadDepartures, { immediate: true })
+
+// Keep the URL's id canonical after a signature match, so departure
+// rebooking and further shares reference the live trip object.
+watch(trip, (t) => {
+  if (t && t.id !== tripId.value) {
+    router.replace({ params: { id: t.id }, query: route.query }).catch(() => {})
+  }
+})
+
+// Only bail back to the planner when results have settled and the trip is
+// genuinely absent — never mid-recovery while the snapshot fetch or the
+// re-plan is in flight.
+watch(
+  [trip, () => directionsStore.isLoading, recovering],
+  ([newTrip, loading, busy]) => {
+    if (newTrip === null && !loading && !busy && directionsStore.trips) {
+      router.push({ name: AppRoute.DIRECTIONS, query: route.query })
     }
   },
   { immediate: true },
@@ -180,12 +526,27 @@ const formatCurrency = (cost: { currency: string; amount: number }): string => {
   }).format(cost.amount)
 }
 
+type RentalPricing = NonNullable<SharedMobilityDetails['pricing']>
+
+/** "≈ $12.12" — estimated single-ride fare. */
+const formatRentalFare = (p: RentalPricing): string =>
+  `≈ ${formatCurrency({ currency: p.currency, amount: p.estimatedCost })}`
+
+/** "$4.99 unlock + $0.41/min" — the rate card behind the estimate. */
+const formatFareBreakdown = (p: RentalPricing): string => {
+  const unlock = `${formatCurrency({ currency: p.currency, amount: p.unlockPrice })} unlock`
+  if (p.perMinuteRate > 0) {
+    const rate = formatCurrency({ currency: p.currency, amount: p.perMinuteRate })
+    return `${unlock} + ${rate}/min`
+  }
+  return unlock
+}
+
 function formatCo2(kg: number): string {
   if (kg >= 1) return `${kg.toFixed(1)} kg`
   return `${Math.round(kg * 1000)} g`
 }
 
-const PREVIEW_COUNT = 3
 
 // ── Route waypoints ────────────────────────────────────────────────
 
@@ -194,6 +555,7 @@ interface RouteWaypointDisplay {
   role: 'origin' | 'via' | 'destination'
   displayName: string
   time: Date | null
+  place?: Partial<Place> | null
 }
 
 const routeWaypoints = computed<RouteWaypointDisplay[]>(() => {
@@ -220,6 +582,7 @@ const routeWaypoints = computed<RouteWaypointDisplay[]>(() => {
       role,
       displayName: wp.name?.trim() || fallbackName,
       time: isOrigin ? t.startTime : isDestination ? t.endTime : null,
+      place: (wp as any).place ?? null,
     }
   })
 })
@@ -239,14 +602,22 @@ interface TimelineSegmentEntry {
   segmentIndex: number
 }
 
-type TimelineEntry = TimelineWaypointEntry | TimelineSegmentEntry
+interface TimelinePlaceStopEntry {
+  kind: 'place-stop'
+  place: Place
+  label: string
+  time: Date | null
+}
+
+type TimelineEntry = TimelineWaypointEntry | TimelineSegmentEntry | TimelinePlaceStopEntry
 
 const timelineEntries = computed<TimelineEntry[]>(() => {
   const t = trip.value
   if (!t) return []
   const entries: TimelineEntry[] = []
   const wps = routeWaypoints.value
-  const segs = t.segments
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
 
   const origin = wps.find(w => w.role === 'origin')
   entries.push({
@@ -262,6 +633,20 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
 
   for (let i = 0; i < segs.length; i++) {
     entries.push({ kind: 'segment', segment: segs[i], segmentIndex: i })
+
+    // Check for a place-bearing intermediate waypoint (e.g. parking) between
+    // consecutive segments. The backend attaches a full Place object to the
+    // segment end waypoint when it represents an OSM POI like a bike rack.
+    const seg = segs[i]
+    const nextSeg = segs[i + 1]
+    if (nextSeg && seg.end?.place) {
+      entries.push({
+        kind: 'place-stop',
+        place: seg.end.place as Place,
+        label: seg.end.label || seg.end.place.name?.value || 'Stop',
+        time: seg.endTime ?? null,
+      })
+    }
 
     const viaIndex = i + 1
     if (viaIndex < wps.length - 1) {
@@ -342,21 +727,27 @@ function hasSegmentRouteInfo(segment: any): boolean {
 </script>
 
 <template>
-  <div class="h-full w-full overflow-y-auto">
-    <!-- Loading -->
-    <div v-if="isLoading" class="flex items-center justify-center py-8">
+  <!-- PanelLayout: the standard sheet content wrapper — flows into the host
+       sheet's single scroll surface with the standard insets, like every other
+       sheet page (no nested overflow, which broke drag-to-scroll on mobile). -->
+  <PanelLayout>
+    <!-- Loading (own state, the snapshot fetch, or the shared planner
+         re-creating the trip from a refreshed/shared URL) -->
+    <div v-if="isLoading || (!trip && (recovering || directionsStore.isLoading))" class="flex items-center justify-center py-8">
       <Caption>Loading trip details...</Caption>
     </div>
 
     <!-- Error -->
-    <div v-else-if="error" class="p-4">
+    <div v-else-if="error" class="py-4">
       <Caption class="text-destructive">{{ error }}</Caption>
     </div>
 
     <!-- Trip content -->
-    <div v-else-if="trip" class="pb-6">
-      <!-- Hero -->
-      <div class="px-4 pt-3 flex items-start justify-between gap-4">
+    <div v-else-if="trip">
+      <!-- Hero. Actions sit at the BOTTOM of the block (items-end) so they
+           clear the sheet's back/close nav, which occupies the top-right
+           chrome zone; the stats stay at the top. -->
+      <div class="flex items-end justify-between gap-4">
         <div>
           <div class="flex items-baseline gap-2">
             <span class="font-display text-[36px] leading-none tracking-tight">
@@ -371,6 +762,11 @@ function hasSegmentRouteInfo(segment: any): boolean {
             <span class="text-sm text-muted-foreground">
               {{ formatDistanceDisplay(trip.summary.totalDistance) }}
             </span>
+          </div>
+
+          <!-- Leave – arrive -->
+          <div class="mt-1 text-sm text-muted-foreground tabular-nums">
+            {{ formatTime(trip.startTime) }} – {{ formatTime(trip.endTime) }}
           </div>
 
           <!-- Cost / CO2 -->
@@ -388,7 +784,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
         </div>
 
         <!-- Share + Save -->
-        <div class="flex gap-0.5 shrink-0 -mr-2 -mt-1">
+        <div class="flex gap-0.5 shrink-0 -mr-2 -mb-1">
           <Button variant="ghost" size="icon-sm">
             <ShareIcon class="size-4" />
           </Button>
@@ -401,7 +797,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
       <!-- Timezone warning -->
       <div
         v-if="directionsStore.timezoneWarning"
-        class="mx-4 mt-3 flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/30 rounded-lg text-sm"
+        class="mt-3 flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/30 rounded-lg text-sm"
       >
         <ClockIcon class="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
         <span class="text-amber-800 dark:text-amber-200">
@@ -421,10 +817,10 @@ function hasSegmentRouteInfo(segment: any): boolean {
           The 5px mt centers the icon against the full header (~38px: title + subtitle).
         Line overlap: 2px past entry edges to guarantee seamless joins.
       -->
-      <div class="mt-4 pl-4">
+      <div class="mt-4">
         <div
           v-for="(entry, i) in timelineEntries"
-          :key="entry.kind === 'waypoint' ? entry.wp.id : `seg-${entry.segmentIndex}`"
+          :key="entry.kind === 'waypoint' ? entry.wp.id : entry.kind === 'place-stop' ? `place-${entry.place.id}` : `seg-${entry.segmentIndex}`"
           class="flex"
         >
           <!-- Rail column — fixed width, relative for absolute lines -->
@@ -444,15 +840,20 @@ function hasSegmentRouteInfo(segment: any): boolean {
                 class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[10px] bottom-[-2px]"
                 :class="getRailColor(i, 'above')"
               />
-              <!-- Dot — top-aligned with text via pt-0.5 -->
+              <!-- Dot — top-aligned with text via pt-0.5. Origin: open ring.
+                   Destination: filled with a flag. Intermediate vias: number. -->
               <div
                 class="relative z-10 mt-0.5 size-4 rounded-full flex items-center justify-center shrink-0"
                 :class="entry.waypointIndex === 0
                   ? 'bg-background border-[1.5px] border-foreground/60'
                   : 'bg-primary'"
               >
+                <FlagIcon
+                  v-if="entry.wp.role === 'destination'"
+                  class="size-2.5 text-primary-foreground"
+                />
                 <span
-                  v-if="entry.waypointIndex > 0"
+                  v-else-if="entry.waypointIndex > 0"
                   class="text-[9px] font-bold text-primary-foreground"
                 >
                   {{ entry.waypointIndex }}
@@ -460,8 +861,36 @@ function hasSegmentRouteInfo(segment: any): boolean {
               </div>
             </template>
 
+            <!-- ── Place stop rail (parking, etc.) ── -->
+            <template v-else-if="entry.kind === 'place-stop'">
+              <!-- Line above icon: from top (overlap) to icon center (mt-0.5=2px + 10px half of 20px = 12px) -->
+              <div
+                v-if="i > 0"
+                class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[14px]"
+                :class="getRailColor(i, 'above')"
+                :style="getRailStyle(i, 'above')"
+              />
+              <!-- Line below icon -->
+              <div
+                v-if="i < timelineEntries.length - 1"
+                class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[12px] bottom-[-2px]"
+                :class="getRailColor(i, 'below')"
+                :style="getRailStyle(i, 'below')"
+              />
+              <!-- POI icon -->
+              <ItemIcon
+                :icon="getSearchResultIconName(entry.place)"
+                :icon-pack="getSearchResultIconPack(entry.place)"
+                :custom-color="getCategoryColor(getSearchResultCategory(entry.place), themeStore.isDark)"
+                size="xs"
+                variant="solid"
+                shape="circle"
+                class="relative z-10 mt-0.5 !size-5 shrink-0"
+              />
+            </template>
+
             <!-- ── Segment rail ── -->
-            <template v-else>
+            <template v-else-if="entry.kind === 'segment'">
               <!-- Line above icon: previous segment's color, from top (with overlap) to icon center -->
               <div
                 class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[21px]"
@@ -494,8 +923,8 @@ function hasSegmentRouteInfo(segment: any): boolean {
 
           <!-- Content column -->
           <div
-            class="flex-1 min-w-0 pr-4"
-            :class="entry.kind === 'waypoint' ? 'pl-3 pb-4' : 'pl-2.5 pb-5'"
+            class="flex-1 min-w-0"
+            :class="entry.kind === 'place-stop' ? 'pl-3 pb-4' : entry.kind === 'waypoint' ? 'pl-3 pb-4' : 'pl-2.5 pb-5'"
           >
             <!-- ═══ Waypoint content ═══ -->
             <template v-if="entry.kind === 'waypoint'">
@@ -525,184 +954,449 @@ function hasSegmentRouteInfo(segment: any): boolean {
                   {{ entry.wp.displayName }}
                 </span>
               </div>
+              <!-- Place info card — only for a real POI worth opening, not a
+                   plain address / shared location (those just repeat the title) -->
+              <router-link
+                v-if="isPoiCard(entry.wp.place)"
+                :to="getPlaceRoute(entry.wp.place!.id!)"
+                class="mt-1.5 flex items-center gap-2 px-2 py-1.5 rounded-lg bg-muted/40 hover:bg-muted/70 transition-colors"
+              >
+                <ItemIcon
+                  :icon="getSearchResultIconName(entry.wp.place as Place)"
+                  :icon-pack="getSearchResultIconPack(entry.wp.place as Place)"
+                  :custom-color="getCategoryColor(getSearchResultCategory(entry.wp.place as Place), themeStore.isDark)"
+                  size="xs"
+                  variant="ghost"
+                  shape="circle"
+                  class="shrink-0"
+                />
+                <div class="flex-1 min-w-0 flex flex-col">
+                  <span
+                    v-if="entry.wp.place!.placeType?.value"
+                    class="text-xs text-muted-foreground leading-snug"
+                  >
+                    {{ entry.wp.place!.placeType!.value }}
+                  </span>
+                  <span
+                    v-if="(entry.wp.place as any).summary"
+                    class="text-xs text-muted-foreground leading-snug"
+                  >
+                    {{ (entry.wp.place as any).summary }}
+                  </span>
+                </div>
+              </router-link>
+            </template>
+
+            <!-- ═══ Place stop content (parking, etc.) ═══ -->
+            <template v-else-if="entry.kind === 'place-stop'">
+              <div class="flex items-baseline gap-2 min-h-5 mt-px">
+                <span
+                  v-if="entry.time"
+                  class="text-sm font-medium tabular-nums shrink-0"
+                >
+                  {{ formatTime(entry.time) }}
+                </span>
+                <router-link
+                  :to="getPlaceRoute(entry.place.id)"
+                  class="text-sm text-primary hover:underline truncate"
+                >
+                  {{ entry.label }}
+                </router-link>
+              </div>
+              <div
+                v-if="(entry.place as any).summary || entry.place.placeType?.value"
+                class="mt-0.5 flex flex-col gap-0.5"
+              >
+                <span
+                  v-if="entry.place.placeType?.value && entry.place.placeType.value !== entry.label"
+                  class="text-xs text-muted-foreground"
+                >
+                  {{ entry.place.placeType.value }}
+                </span>
+                <span
+                  v-if="(entry.place as any).summary"
+                  class="text-xs text-muted-foreground"
+                >
+                  {{ (entry.place as any).summary }}
+                </span>
+              </div>
             </template>
 
             <!-- ═══ Segment content ═══ -->
-            <template v-else>
-              <!-- ── Transit segment header ── -->
+            <template v-else-if="entry.kind === 'segment'">
+              <!-- ── Transit segment card ── -->
               <div v-if="entry.segment.mode === 'transit' && entry.segment.lineName">
-                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                  <span
-                    class="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-md text-[11px] font-bold"
-                    :style="{
-                      background: entry.segment.lineColor ? `#${entry.segment.lineColor}` : undefined,
-                      color: entry.segment.lineTextColor ? `#${entry.segment.lineTextColor}` : '#fff',
-                    }"
-                    :class="!entry.segment.lineColor && 'bg-parchment-500'"
+                <div class="rounded-xl border bg-card overflow-hidden">
+                  <!-- Line header — tinted with the line colour -->
+                  <div
+                    class="px-3 py-2 flex items-center gap-2"
+                    :class="!entry.segment.lineColor && 'bg-muted/40'"
+                    :style="entry.segment.lineColor ? { background: `#${entry.segment.lineColor}1f` } : {}"
                   >
-                    {{ entry.segment.lineName }}
-                  </span>
-                  <span v-if="entry.segment.headsign" class="text-sm font-semibold text-foreground">
-                    {{ entry.segment.headsign }}
-                  </span>
-                  <span v-else-if="entry.segment.lineLongName" class="text-sm font-semibold text-foreground">
-                    {{ entry.segment.lineLongName }}
-                  </span>
-                </div>
-                <div class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground tabular-nums">
-                  <span class="inline-flex items-center gap-1">
-                    <ClockIcon class="size-3" />
-                    {{ formatTime(entry.segment.startTime) }} – {{ formatTime(entry.segment.endTime) }}
-                  </span>
-                  <span>{{ formatDuration(entry.segment.duration) }} · {{ formatDistanceDisplay(entry.segment.distance) }}</span>
-                </div>
-                <div v-if="entry.segment.agencyName" class="mt-0.5 text-xs text-muted-foreground">
-                  {{ entry.segment.agencyName }}
-                </div>
-
-                <!-- Board/Alight stops -->
-                <div class="mt-2 space-y-1 text-sm">
-                  <div v-if="entry.segment.departureStop" class="flex items-center gap-2">
-                    <span class="text-[10px] font-semibold text-muted-foreground">Board</span>
-                    <span class="text-foreground">{{ entry.segment.departureStop.name }}</span>
-                    <span v-if="entry.segment.departureStop.platformCode" class="text-xs text-muted-foreground">
-                      Platform {{ entry.segment.departureStop.platformCode }}
+                    <RouteBullet
+                      size="md"
+                      :label="entry.segment.lineName"
+                      :color="entry.segment.lineColor"
+                      :text-color="entry.segment.lineTextColor"
+                    />
+                    <ArrowRight class="size-3.5 text-muted-foreground shrink-0" />
+                    <span class="text-sm font-semibold text-foreground truncate">
+                      {{ entry.segment.headsign || entry.segment.lineLongName }}
                     </span>
+                    <RealtimeIndicator
+                      v-if="entry.segment.realTimeData"
+                      :real-time="true"
+                      :delay="entry.segment.delay"
+                      :color="entry.segment.lineColor ? `#${entry.segment.lineColor}` : undefined"
+                      class="ml-auto shrink-0"
+                    />
                   </div>
 
-                  <!-- Intermediate stops (collapsible) -->
-                  <Collapsible
-                    v-if="entry.segment.intermediateStops?.length"
-                    v-slot="{ open }"
-                    class="mt-1"
-                  >
-                    <CollapsibleTrigger class="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
-                      <ChevronDownIcon class="size-3 transition-transform" :class="open && 'rotate-180'" />
-                      <span>{{ entry.segment.intermediateStops.length }} stops</span>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <div class="ml-4 mt-1 space-y-0.5">
-                        <div
-                          v-for="stop in entry.segment.intermediateStops"
-                          :key="stop.id || stop.name"
-                          class="flex items-center gap-2 text-xs text-muted-foreground py-0.5"
-                        >
-                          <span class="size-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
-                          <span>{{ stop.name }}</span>
+                  <div class="px-3 py-2.5 space-y-2">
+                    <!-- Board -->
+                    <div v-if="entry.segment.departureStop" class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="text-sm font-medium text-foreground leading-snug">
+                          {{ entry.segment.departureStop.name }}
+                        </div>
+                        <div class="text-[11px] text-muted-foreground mt-px">
+                          Board<span v-if="entry.segment.departureStop.platformCode"> · Platform {{ entry.segment.departureStop.platformCode }}</span>
                         </div>
                       </div>
-                    </CollapsibleContent>
-                  </Collapsible>
+                      <span class="text-sm font-semibold tabular-nums shrink-0">
+                        {{ formatTime(entry.segment.startTime) }}
+                      </span>
+                    </div>
 
-                  <div v-if="entry.segment.arrivalStop" class="flex items-center gap-2">
-                    <span class="text-[10px] font-semibold text-muted-foreground">Alight</span>
-                    <span class="text-foreground">{{ entry.segment.arrivalStop.name }}</span>
-                    <span v-if="entry.segment.arrivalStop.platformCode" class="text-xs text-muted-foreground">
-                      Platform {{ entry.segment.arrivalStop.platformCode }}
-                    </span>
+                    <!-- Departure picker — tap a later run to re-plan around it -->
+                    <div
+                      v-if="departuresFor(entry.segmentIndex).length > 1"
+                      class="flex flex-wrap items-center gap-1.5"
+                    >
+                      <button
+                        v-for="dep in departuresFor(entry.segmentIndex)"
+                        :key="dep.ms"
+                        type="button"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium tabular-nums transition-all"
+                        :class="[
+                          isCurrentDeparture(entry.segment, dep.ms)
+                            ? (!entry.segment.lineColor && 'bg-parchment-500 text-white')
+                            : depState(entry.segmentIndex, dep) === 'missed'
+                              ? 'bg-muted/60 text-muted-foreground/50 line-through cursor-default'
+                              : depState(entry.segmentIndex, dep) === 'hurry'
+                                ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 hover:ring-1 hover:ring-amber-400 cursor-pointer'
+                                : 'bg-muted text-muted-foreground hover:text-foreground hover:ring-1 hover:ring-border cursor-pointer',
+                          rebooking && 'opacity-50 pointer-events-none',
+                        ]"
+                        :style="isCurrentDeparture(entry.segment, dep.ms) && entry.segment.lineColor ? {
+                          background: `#${entry.segment.lineColor}`,
+                          color: entry.segment.lineTextColor ? `#${entry.segment.lineTextColor}` : '#fff',
+                        } : {}"
+                        :title="isCurrentDeparture(entry.segment, dep.ms)
+                          ? 'Planned departure'
+                          : depState(entry.segmentIndex, dep) === 'missed'
+                            ? 'Departed'
+                            : depState(entry.segmentIndex, dep) === 'hurry'
+                              ? 'Catchable if you hurry'
+                              : 'Take this departure instead'"
+                        :disabled="depState(entry.segmentIndex, dep) === 'missed' && !isCurrentDeparture(entry.segment, dep.ms)"
+                        @click="!isCurrentDeparture(entry.segment, dep.ms)
+                          && depState(entry.segmentIndex, dep) !== 'missed'
+                          && chooseDeparture(entry.segmentIndex, dep.ms)"
+                      >
+                        <!-- Live (GTFS-RT) vs scheduled indicator -->
+                        <RssIcon
+                          v-if="dep.realTime"
+                          class="size-2.5 opacity-70"
+                          :class="depState(entry.segmentIndex, dep) !== 'missed' && 'animate-pulse'"
+                        />
+                        {{ dep.label }}
+                      </button>
+                    </div>
+
+                    <!-- Intermediate stops -->
+                    <Collapsible
+                      v-if="entry.segment.intermediateStops?.length"
+                      v-slot="{ open }"
+                    >
+                      <CollapsibleTrigger class="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                        <ChevronDownIcon class="size-3 transition-transform" :class="open && 'rotate-180'" />
+                        <span>{{ entry.segment.intermediateStops.length }} stops · {{ formatDuration(entry.segment.duration) }}</span>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div
+                          class="ml-1.5 mt-1.5 pl-3 space-y-1 border-l-2"
+                          :style="entry.segment.lineColor ? { borderColor: `#${entry.segment.lineColor}66` } : {}"
+                        >
+                          <div
+                            v-for="stop in entry.segment.intermediateStops"
+                            :key="stop.id || stop.name"
+                            class="flex items-center gap-2 text-xs text-muted-foreground"
+                          >
+                            <span class="flex-1 truncate">{{ stop.name }}</span>
+                            <span v-if="stop.arrivalTime" class="text-[10px] tabular-nums shrink-0">
+                              {{ formatTime(new Date(stop.arrivalTime)) }}
+                            </span>
+                          </div>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    <!-- Alight -->
+                    <div v-if="entry.segment.arrivalStop" class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="text-sm font-medium text-foreground leading-snug">
+                          {{ entry.segment.arrivalStop.name }}
+                        </div>
+                        <div class="text-[11px] text-muted-foreground mt-px">
+                          Alight<span v-if="entry.segment.arrivalStop.platformCode"> · Platform {{ entry.segment.arrivalStop.platformCode }}</span>
+                        </div>
+                      </div>
+                      <span class="text-sm font-semibold tabular-nums shrink-0">
+                        {{ formatTime(entry.segment.endTime) }}
+                      </span>
+                    </div>
+
+                    <!-- Transit alerts -->
+                    <div
+                      v-for="(alert, ai) in entry.segment.transitDetails?.alerts ?? []"
+                      :key="ai"
+                      class="flex gap-2 p-2 rounded-md text-xs"
+                      :class="alert.severity === 'severe'
+                        ? 'bg-destructive/10 text-destructive'
+                        : alert.severity === 'warning'
+                          ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400'
+                          : 'bg-muted text-muted-foreground'"
+                    >
+                      <AlertTriangleIcon class="size-3.5 shrink-0 mt-0.5" />
+                      <div>
+                        <div v-if="alert.headerText" class="font-medium">{{ alert.headerText }}</div>
+                        <div v-if="alert.descriptionText" class="mt-0.5 line-clamp-3">{{ alert.descriptionText }}</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
+
+                <!-- Meta under the card -->
+                <div class="mt-1.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
+                  <span class="tabular-nums">{{ formatDuration(entry.segment.duration) }} · {{ formatDistanceDisplay(entry.segment.distance) }}</span>
+                  <span v-if="entry.segment.agencyName">· {{ entry.segment.agencyName }}</span>
+                  <span
+                    v-if="entry.segment.carryingVehicle"
+                    class="inline-flex items-center gap-1 text-forest-600 dark:text-forest-400"
+                  >
+                    <BikeIcon class="size-3" /> Bring bike on board
+                  </span>
+                </div>
+              </div>
+
+              <!-- ── Rideshare segment header ── -->
+              <div v-else-if="entry.segment.mode === 'rideshare' && entry.segment.rideshareDetails">
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span class="inline-flex items-center gap-1.5 text-sm font-semibold">
+                    <CarTaxiFrontIcon class="size-4" />
+                    {{ entry.segment.rideshareDetails.provider }}
+                    <span v-if="entry.segment.rideshareDetails.productName" class="font-normal text-muted-foreground">
+                      {{ entry.segment.rideshareDetails.productName }}
+                    </span>
+                  </span>
+                </div>
+                <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                  <span v-if="entry.segment.rideshareDetails.priceRange" class="font-semibold text-foreground">
+                    ${{ entry.segment.rideshareDetails.priceRange.low.value.toFixed(0) }}–${{ entry.segment.rideshareDetails.priceRange.high.value.toFixed(0) }}
+                  </span>
+                  <span v-if="entry.segment.rideshareDetails.surgeMultiplier && entry.segment.rideshareDetails.surgeMultiplier > 1"
+                    class="text-amber-500 font-medium"
+                  >
+                    {{ entry.segment.rideshareDetails.surgeMultiplier.toFixed(1) }}× surge
+                  </span>
+                  <span v-if="entry.segment.rideshareDetails.pickupEta" class="inline-flex items-center gap-1">
+                    <ClockIcon class="size-3" />
+                    {{ Math.ceil(entry.segment.rideshareDetails.pickupEta / 60) }} min pickup
+                  </span>
+                  <span>{{ formatDuration(entry.segment.duration) }}</span>
+                </div>
+                <a
+                  v-if="entry.segment.rideshareDetails.bookingUrl"
+                  :href="entry.segment.rideshareDetails.bookingUrl"
+                  target="_blank"
+                  class="mt-1.5 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  Book in {{ entry.segment.rideshareDetails.provider }} →
+                </a>
               </div>
 
               <!-- ── Non-transit segment header ── -->
               <div v-else>
-                <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                   <span
                     :class="[
                       'text-sm font-semibold capitalize',
                       modeTextColors[entry.segment.mode] || 'text-foreground',
                     ]"
                   >
-                    {{ entry.segment.mode }}
+                    {{ entry.segment.ownership === 'shared'
+                      ? (entry.segment.sharedMobilityDetails?.vehicleType === 'scooter' ? 'Scootershare' : 'Bikeshare')
+                      : entry.segment.mode }}
+                  </span>
+                  <span
+                    v-if="entry.segment.ownership === 'shared'"
+                    class="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300"
+                  >
+                    Shared
                   </span>
                   <span class="text-sm text-muted-foreground">
-                    {{ formatDuration(entry.segment.duration) }} · {{ formatDistanceDisplay(entry.segment.distance) }}
+                    {{ formatDuration(movingDuration(entry.segment)) }} · {{ formatDistanceDisplay(entry.segment.distance) }}
                   </span>
                 </div>
+                <!-- Station entrance/exit this walk uses -->
                 <div
-                  v-if="entry.segment.startTime && entry.segment.endTime"
+                  v-if="entrancePhrase(entry.segment.stationEntrance)"
+                  class="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground"
+                >
+                  <component
+                    :is="entry.segment.stationEntrance.accessType === 'elevator'
+                      ? AccessibilityIcon
+                      : entry.segment.stationEntrance.role === 'exit'
+                        ? LogOutIcon
+                        : LogInIcon"
+                    class="size-3 shrink-0"
+                  />
+                  <span>{{ entrancePhrase(entry.segment.stationEntrance) }}</span>
+                </div>
+                <!-- Walk times are implied by the surrounding stops; show the
+                     clock only for vehicle modes -->
+                <div
+                  v-if="entry.segment.mode !== 'walking' && entry.segment.startTime && entry.segment.endTime"
                   class="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground tabular-nums"
                 >
                   <ClockIcon class="size-3" />
                   {{ formatTime(entry.segment.startTime) }} – {{ formatTime(entry.segment.endTime) }}
                 </div>
-              </div>
-
-              <!-- Route info card -->
-              <div
-                v-if="hasSegmentRouteInfo(entry.segment)"
-                class="mt-3 rounded-lg border bg-card p-3.5 space-y-3"
-              >
-                <!-- Stats grid -->
                 <div
-                  v-if="entry.segment.totalElevationGain || entry.segment.totalElevationLoss"
-                  class="grid grid-cols-3 gap-2 pb-3 border-b"
+                  v-if="waitMinutes(entry.segment)"
+                  class="mt-0.5 text-xs text-muted-foreground"
                 >
-                  <div>
-                    <div class="text-[11px] text-muted-foreground font-medium">Distance</div>
-                    <div class="text-base font-medium tabular-nums mt-0.5 tracking-tight">
-                      {{ formatDistanceDisplay(entry.segment.distance) }}
-                    </div>
-                  </div>
-                  <div v-if="entry.segment.totalElevationGain">
-                    <div class="text-[11px] text-muted-foreground font-medium">Ascent</div>
-                    <div class="text-base font-medium tabular-nums mt-0.5 tracking-tight">
-                      {{ formatElevation(entry.segment.totalElevationGain) }}
-                    </div>
-                  </div>
-                  <div v-if="entry.segment.totalElevationLoss">
-                    <div class="text-[11px] text-muted-foreground font-medium">Descent</div>
-                    <div class="text-base font-medium tabular-nums mt-0.5 tracking-tight">
-                      {{ formatElevation(entry.segment.totalElevationLoss) }}
-                    </div>
-                  </div>
+                  then wait {{ waitMinutes(entry.segment) }} min
                 </div>
-
-                <!-- Elevation chart + profile -->
-                <ElevationChart
-                  v-if="showSegmentChart(entry.segment)"
-                  :segment-index="entry.segmentIndex"
-                  :geometry="entry.segment.geometry!"
-                  :max-elevation="entry.segment.maxElevation"
-                  :min-elevation="entry.segment.minElevation"
-                  :edge-segments="entry.segment.edgeSegments"
-                  :mode="entry.segment.mode"
-                  :total-elevation-gain="entry.segment.totalElevationGain"
-                  :total-elevation-loss="entry.segment.totalElevationLoss"
-                  @update:route-profile="onRouteProfileChange"
-                />
               </div>
 
-              <!-- Turn-by-turn -->
-              <Collapsible
-                v-if="entry.segment.instructions?.length"
-                v-slot="{ open }"
-                class="mt-3"
+              <!-- Shared mobility station info -->
+              <div
+                v-if="entry.segment.sharedMobilityDetails"
+                class="mt-2 rounded-lg border bg-teal-50 dark:bg-teal-900/20 p-3 space-y-2"
               >
-                <!-- Section header -->
-                <div class="flex items-center justify-between mb-1">
-                  <span class="text-xs font-medium text-muted-foreground">
-                    Turn-by-turn
-                  </span>
-                  <CollapsibleTrigger
-                    v-if="entry.segment.instructions.length > PREVIEW_COUNT"
-                    as-child
-                  >
-                    <Button variant="ghost" size="sm" class="h-7 text-xs text-muted-foreground -mr-2">
-                      {{ open ? 'Show less' : `Show all ${entry.segment.instructions.length}` }}
-                      <ChevronDownIcon
-                        class="size-3 ml-0.5 transition-transform"
-                        :class="{ 'rotate-180': open }"
-                      />
-                    </Button>
-                  </CollapsibleTrigger>
-                </div>
-
-                <!-- Preview steps -->
-                <div class="relative">
+                <div class="flex items-center justify-between">
                   <div>
+                    <div v-if="entry.segment.sharedMobilityDetails.stationName" class="text-sm font-medium">
+                      {{ entry.segment.sharedMobilityDetails.stationName }}
+                      <template v-if="entry.segment.sharedMobilityDetails.toStationName">
+                        <ArrowRight class="inline size-3 mx-0.5 text-muted-foreground" />
+                        {{ entry.segment.sharedMobilityDetails.toStationName }}
+                      </template>
+                    </div>
+                    <div class="text-xs text-muted-foreground">
+                      {{ entry.segment.sharedMobilityDetails.provider }}
+                      <span v-if="entry.segment.sharedMobilityDetails.propulsionType === 'electric_assist'"> · e-bike</span>
+                    </div>
+                  </div>
+                  <div
+                    v-if="entry.segment.sharedMobilityDetails.availableVehicles != null"
+                    class="text-xs text-teal-700 dark:text-teal-300 font-medium"
+                  >
+                    {{ entry.segment.sharedMobilityDetails.availableVehicles }} available
+                  </div>
+                </div>
+                <!-- GBFS fare estimate -->
+                <div
+                  v-if="entry.segment.sharedMobilityDetails.pricing"
+                  class="flex items-baseline justify-between gap-2 border-t border-teal-200/60 dark:border-teal-800/40 pt-2"
+                >
+                  <span class="text-sm font-semibold text-teal-800 dark:text-teal-200">
+                    {{ formatRentalFare(entry.segment.sharedMobilityDetails.pricing) }}
+                  </span>
+                  <span class="text-xs text-muted-foreground text-right">
+                    {{ formatFareBreakdown(entry.segment.sharedMobilityDetails.pricing) }}
+                  </span>
+                </div>
+                <a
+                  v-if="entry.segment.sharedMobilityDetails.unlockUri"
+                  :href="entry.segment.sharedMobilityDetails.unlockUri"
+                  target="_blank"
+                  rel="noopener"
+                  class="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-md bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium transition-colors"
+                >
+                  Unlock in {{ entry.segment.sharedMobilityDetails.provider }}
+                  <ExternalLinkIcon class="size-3.5" />
+                </a>
+              </div>
+
+              <!-- Details: stats, elevation, turn-by-turn — folded by default
+                   so the whole trip fits on one screen -->
+              <Collapsible
+                v-if="hasSegmentRouteInfo(entry.segment) || entry.segment.instructions?.length"
+                v-slot="{ open }"
+                class="mt-2"
+              >
+                <CollapsibleTrigger
+                  class="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  <ChevronDownIcon class="size-3 transition-transform" :class="open && 'rotate-180'" />
+                  <span>{{ open ? 'Hide details' : 'Details' }}</span>
+                  <span
+                    v-if="!open && entry.segment.instructions?.length"
+                    class="font-normal text-muted-foreground/70"
+                  >· {{ entry.segment.instructions.length }} steps</span>
+                </CollapsibleTrigger>
+
+                <CollapsibleContent>
+                  <!-- Stats + elevation -->
+                  <div
+                    v-if="hasSegmentRouteInfo(entry.segment)"
+                    class="mt-2 rounded-lg border bg-card p-3.5 space-y-3"
+                  >
                     <div
-                      v-for="(instruction, instrIndex) in entry.segment.instructions.slice(0, PREVIEW_COUNT)"
+                      v-if="entry.segment.totalElevationGain || entry.segment.totalElevationLoss"
+                      class="grid grid-cols-3 gap-2 pb-3 border-b"
+                    >
+                      <div>
+                        <div class="text-[11px] text-muted-foreground font-medium">Distance</div>
+                        <div class="text-base font-medium tabular-nums mt-0.5 tracking-tight">
+                          {{ formatDistanceDisplay(entry.segment.distance) }}
+                        </div>
+                      </div>
+                      <div v-if="entry.segment.totalElevationGain">
+                        <div class="text-[11px] text-muted-foreground font-medium">Ascent</div>
+                        <div class="text-base font-medium tabular-nums mt-0.5 tracking-tight">
+                          {{ formatElevation(entry.segment.totalElevationGain) }}
+                        </div>
+                      </div>
+                      <div v-if="entry.segment.totalElevationLoss">
+                        <div class="text-[11px] text-muted-foreground font-medium">Descent</div>
+                        <div class="text-base font-medium tabular-nums mt-0.5 tracking-tight">
+                          {{ formatElevation(entry.segment.totalElevationLoss) }}
+                        </div>
+                      </div>
+                    </div>
+
+                    <ElevationChart
+                      v-if="showSegmentChart(entry.segment)"
+                      :segment-index="entry.segmentIndex"
+                      :geometry="entry.segment.geometry!"
+                      :max-elevation="entry.segment.maxElevation"
+                      :min-elevation="entry.segment.minElevation"
+                      :edge-segments="entry.segment.edgeSegments"
+                      :mode="entry.segment.mode"
+                      :total-elevation-gain="entry.segment.totalElevationGain"
+                      :total-elevation-loss="entry.segment.totalElevationLoss"
+                      @update:route-profile="onRouteProfileChange"
+                    />
+                  </div>
+
+                  <!-- Turn-by-turn -->
+                  <div v-if="entry.segment.instructions?.length" class="mt-2">
+                    <div
+                      v-for="(instruction, instrIndex) in entry.segment.instructions"
                       :key="instrIndex"
                       class="step-row"
                       :class="{
@@ -737,71 +1431,25 @@ function hasSegmentRouteInfo(segment: any): boolean {
                       </span>
                     </div>
                   </div>
-                  <div
-                    v-if="!open && entry.segment.instructions.length > PREVIEW_COUNT"
-                    class="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-background to-transparent"
-                  />
-                </div>
-
-                <!-- Remaining steps -->
-                <CollapsibleContent v-if="entry.segment.instructions.length > PREVIEW_COUNT">
-                  <div>
-                    <div
-                      v-for="(instruction, j) in entry.segment.instructions.slice(PREVIEW_COUNT)"
-                      :key="Number(j) + PREVIEW_COUNT"
-                      class="step-row"
-                      :class="{
-                        'step-row-active': hoveredInstructionKey === getInstructionKey(entry.segmentIndex, Number(j) + PREVIEW_COUNT),
-                      }"
-                      @mouseenter="onInstructionHover(entry.segmentIndex, Number(j) + PREVIEW_COUNT, instruction)"
-                      @mouseleave="onInstructionLeave"
-                    >
-                      <span class="step-num">{{ Number(j) + PREVIEW_COUNT + 1 }}</span>
-                      <span class="step-icon">
-                        <component :is="getInstructionIcon(instruction)" class="size-3.5" />
-                      </span>
-                      <div class="flex-1 min-w-0">
-                        <div class="text-sm font-medium text-foreground leading-snug">
-                          {{ typeof instruction === 'string' ? instruction : instruction.text }}
-                        </div>
-                        <div
-                          v-if="typeof instruction === 'object' && instruction.streetName"
-                          class="text-[11px] text-muted-foreground mt-0.5"
-                        >
-                          {{ instruction.streetName }}
-                        </div>
-                      </div>
-                      <span
-                        v-if="typeof instruction === 'object'"
-                        class="step-dist"
-                      >
-                        {{ formatDistanceDisplay(instruction.distance) }}
-                        <template v-if="instruction.duration">
-                          · {{ formatDuration(instruction.duration) }}
-                        </template>
-                      </span>
-                    </div>
-                  </div>
                 </CollapsibleContent>
               </Collapsible>
-
-              <div
-                v-else-if="!entry.segment.instructions?.length"
-                class="mt-3 text-sm text-muted-foreground italic"
-              >
-                No detailed instructions available for this segment.
-              </div>
             </template>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- No trip found -->
-    <div v-else class="p-4">
-      <Caption>Trip not found</Caption>
+    <!-- No trip found — and no way to recreate it (the URL carries no
+         planning inputs). Recoverable URLs never land here: the shared
+         service re-plans from the query and the signature re-finds the trip. -->
+    <div v-else class="py-6 flex flex-col items-start gap-3">
+      <Caption>This trip is no longer available.</Caption>
+      <Button variant="outline" size="sm" @click="router.push({ name: AppRoute.DIRECTIONS, query: route.query })">
+        <ArrowLeft class="size-4 mr-1" />
+        Back to the planner
+      </Button>
     </div>
-  </div>
+  </PanelLayout>
 </template>
 
 <style scoped>

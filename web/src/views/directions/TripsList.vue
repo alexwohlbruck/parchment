@@ -4,13 +4,22 @@ import dayjs from 'dayjs'
 import { useRouter } from 'vue-router'
 import type { TripsResponse, TripOption } from '@/types/directions.types'
 import TripItem from './TripItem.vue'
+import { useDirectionsStore } from '@/stores/directions.store'
+import { serializeDirectionsQuery } from '@/lib/directions-url'
+import { tripSignature } from '@/lib/trip-signature'
+import { api } from '@/lib/api'
 
 interface Props {
   trips: TripsResponse
+  /** Height (px) of the pinned controls above; the time axis docks below it. */
+  stickyTop?: number
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  stickyTop: 0,
+})
 const router = useRouter()
+const directionsStore = useDirectionsStore()
 
 const MIN_PX_PER_MIN = 1.5
 const MAX_PX_PER_MIN = 50
@@ -161,78 +170,133 @@ const timeTicks = computed(() => {
 })
 
 function navigateToTripDetail(trip: TripOption) {
-  const waypointsParam = props.trips.request.waypoints
-    .map(wp => `${wp.coordinate.lat.toFixed(6)},${wp.coordinate.lng.toFixed(6)}`)
-    .join(';')
+  // The trip URL carries the full planning inputs (same wp/mode/sort/depart
+  // format as the directions URL) plus the trip's stable signature, so a
+  // refresh or a shared link can re-plan and find this same trip again.
+  const query = {
+    ...serializeDirectionsQuery({
+      waypoints: props.trips.request.waypoints.map((wp) => ({
+        lat: wp.coordinate.lat,
+        lng: wp.coordinate.lng,
+        label: wp.name || undefined,
+      })),
+      mode: directionsStore.selectedMode,
+      sort: directionsStore.sortPreference || undefined,
+      depart: directionsStore.departureTime || undefined,
+    }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sig: tripSignature((trip as any).segments),
+  }
+  router.push({ name: 'trip', params: { id: trip.id }, query })
 
-  router.push({
-    name: 'trip',
-    params: { id: trip.id },
-    query: {
-      mode: trip.mode,
-      vehicle: trip.vehicleType,
-      waypoints: waypointsParam,
-      ...(props.trips.request.departureTime && {
-        departure: props.trips.request.departureTime.toISOString(),
-      }),
-      ...(props.trips.request.preferences?.avoidTolls && { avoid_tolls: 'true' }),
-      ...(props.trips.request.preferences?.avoidHighways && { avoid_highways: 'true' }),
-      ...(props.trips.request.preferences?.avoidFerries && { avoid_ferries: 'true' }),
-    },
-  })
+  // Persist a server-side snapshot in the background and slip its token
+  // into the URL — the snapshot makes refresh and cross-device shares
+  // exact, independent of schedule drift. Best-effort: the sig/re-plan
+  // path still recovers the trip if this fails.
+  api
+    .post('/directions/trips', { request: query, trip })
+    .then(({ data }) => {
+      router
+        .replace({
+          name: 'trip',
+          params: { id: trip.id },
+          query: { ...query, pt: data.id },
+        })
+        .catch(() => {})
+    })
+    .catch(() => {})
 }
 </script>
 
 <template>
-  <div class="flex flex-col h-full -mx-3" ref="containerRef">
-    <div class="flex-1 overflow-auto">
-      <div :style="{ minWidth: `${timelineWidth + sidebarWidth}px` }">
-        <!-- Time axis -->
-        <div
-          class="sticky top-0 z-10 pt-2 pb-1 border-b border-border/40 bg-gradient-to-b from-transparent to-background grid"
-          style="grid-template-columns: auto 1fr"
-        >
-          <span :style="{ width: `${sidebarWidth}px` }" />
-          <div class="relative h-7">
-            <template v-for="tick in timeTicks" :key="tick.time">
-              <div
-                class="absolute bottom-0"
-                :class="tick.isLabel ? 'h-2 border-l' : 'h-1.5 border-l border-border/60'"
-                :style="{ left: `${tick.position}px` }"
-              />
-              <span
-                v-if="tick.isLabel"
-                class="absolute top-0 -translate-x-1/2 text-[10px] font-medium text-muted-foreground tabular-nums font-mono whitespace-nowrap -tracking-[0.02em]"
-                :style="{ left: `${tick.position}px` }"
-              >
-                {{ tick.time }}
-              </span>
-            </template>
-          </div>
-        </div>
-
-        <!-- Trip rows -->
-        <div class="flex flex-col">
-          <template v-for="(trip, tripIndex) in sortedTrips" :key="trip.id || tripIndex">
-            <TripItem
-              :trip="trip"
-              :trip-request="trips.request"
-              :timeline-start="timelineStart.toDate()"
-              :px-per-minute="pxPerMinute"
-              :sidebar-width="sidebarWidth"
-              @click="navigateToTripDetail"
+  <!-- overflow-x-clip contains an over-long outlier bar without becoming a
+       scroll container (which would capture the sticky axis and fight the
+       sheet's single scroll surface). overflow-y stays visible so rows scroll
+       in the host scroller. -->
+  <div ref="containerRef" class="min-w-0 overflow-x-clip">
+    <div :style="{ minWidth: `${timelineWidth + sidebarWidth}px` }">
+      <!-- Time axis — opaque so suggestions are fully hidden as they scroll
+           under it, docked just below the pinned controls. -->
+      <!-- z above the trip caps (z-20) so rows are fully hidden under it, but
+           below the pinned controls (z-30). -->
+      <div
+        class="sticky z-[25] pt-2 pb-1 border-b border-border/40 bg-background grid"
+        :style="{
+          gridTemplateColumns: 'auto 1fr',
+          top: `calc(var(--sheet-sticky-top, 0px) + ${stickyTop}px)`,
+        }"
+      >
+        <span :style="{ width: `${sidebarWidth}px` }" />
+        <div class="relative h-7">
+          <template v-for="tick in timeTicks" :key="tick.time">
+            <div
+              class="absolute bottom-0"
+              :class="tick.isLabel ? 'h-2 border-l' : 'h-1.5 border-l border-border/60'"
+              :style="{ left: `${tick.position}px` }"
             />
-            <div v-if="tripIndex < sortedTrips.length - 1" class="border-b border-border/50 mx-4" />
+            <span
+              v-if="tick.isLabel"
+              class="absolute top-0 -translate-x-1/2 text-[10px] font-medium text-muted-foreground tabular-nums font-mono whitespace-nowrap -tracking-[0.02em]"
+              :style="{ left: `${tick.position}px` }"
+            >
+              {{ tick.time }}
+            </span>
           </template>
-
-          <div
-            v-if="sortedTrips.length === 0"
-            class="text-center py-8 text-muted-foreground"
-          >
-            <p class="text-sm">No trips available</p>
-          </div>
         </div>
+      </div>
+
+      <!-- Trip rows — staggered entrance as a fresh set of suggestions loads -->
+      <TransitionGroup name="trip" tag="div" class="flex flex-col" appear>
+        <div
+          v-for="(trip, tripIndex) in sortedTrips"
+          :key="trip.id || tripIndex"
+          :style="{ '--trip-delay': `${Math.min(tripIndex, 8) * 45}ms` }"
+        >
+          <TripItem
+            :trip="trip"
+            :trip-request="trips.request"
+            :timeline-start="timelineStart.toDate()"
+            :px-per-minute="pxPerMinute"
+            :sidebar-width="sidebarWidth"
+            @click="navigateToTripDetail"
+          />
+          <div v-if="tripIndex < sortedTrips.length - 1" class="border-b border-border/50 mx-4" />
+        </div>
+      </TransitionGroup>
+
+      <div
+        v-if="sortedTrips.length === 0"
+        class="text-center py-8 text-muted-foreground"
+      >
+        <p class="text-sm">No trips available</p>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Staggered entrance: each row fades and lifts in, offset by its index via
+   the inline --trip-delay. `appear` replays it whenever a new result set
+   mounts (new trip ids). */
+.trip-enter-active {
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--trip-delay, 0ms);
+}
+
+.trip-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trip-enter-active {
+    transition: opacity 0.2s ease;
+    transition-delay: 0ms;
+  }
+  .trip-enter-from {
+    transform: none;
+  }
+}
+</style>

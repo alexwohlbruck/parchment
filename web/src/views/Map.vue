@@ -32,6 +32,8 @@ import RadiusTool from '@/components/map/measure/RadiusTool.vue'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { useMapStore } from '@/stores/map.store'
 import { useSearchStore } from '@/stores/search.store'
+import { useVehiclesStore } from '@/stores/vehicles.store'
+import { useDirectionsStore } from '@/stores/directions.store'
 import { ControlVisibility } from '@/types/map.types'
 import { SearchIcon } from 'lucide-vue-next'
 
@@ -46,6 +48,8 @@ const streetViewLayersService = useStreetViewLayersService()
 const mapToolsStore = useMapToolsStore()
 const mapStore = useMapStore()
 const searchStore = useSearchStore()
+const vehiclesStore = useVehiclesStore()
+const directionsStore = useDirectionsStore()
 const { controlSettings } = storeToRefs(mapStore)
 const showToolbox = computed(
   () =>
@@ -86,23 +90,61 @@ function handleHome() {
 // the handle (no dedicated toggle button on mobile), but we still track the
 // index so we can reset to the default snap point whenever a new drawer
 // view opens.
-const MOBILE_SNAP_POINTS: (number | string)[] = ['125px', 0.5, 1]
+// Directions uses peek (inputs) ↔ full only — the half detent isn't useful
+// there. Other views keep peek / half / full.
+const MOBILE_SNAP_POINTS = computed<(number | string)[]>(() =>
+  route.name === AppRoute.DIRECTIONS ? ['125px', 1] : ['125px', 0.5, 1],
+)
 const MOBILE_DEFAULT_SNAP_INDEX = 1
 const bottomSheetSnapIndex = ref(MOBILE_DEFAULT_SNAP_INDEX)
 
 const bottomSheetActiveSnapPoint = computed<number | string | null>(
-  () => MOBILE_SNAP_POINTS[bottomSheetSnapIndex.value] ?? null,
+  () => MOBILE_SNAP_POINTS.value[bottomSheetSnapIndex.value] ?? null,
 )
 
 function onBottomSheetSnapIndexChange(idx: number) {
   if (idx >= 0) bottomSheetSnapIndex.value = idx
 }
 
+// Snap mobile bottom sheet to minimum when the vehicle location picker is
+// active so the map is fully visible for placing the marker.
+watch(
+  () => vehiclesStore.pickingLocationForVehicleId,
+  (picking) => {
+    if (!isMobileScreen.value) return
+    bottomSheetSnapIndex.value = picking
+      ? 0 // snap to minimum (peek height)
+      : MOBILE_DEFAULT_SNAP_INDEX
+  },
+)
+
 watch(
   () => route.name,
-  () => {
-    bottomSheetSnapIndex.value = MOBILE_DEFAULT_SNAP_INDEX
+  (name) => {
+    // Directions opens at peek (just the inputs) and expands to full once
+    // suggestions load — see the watcher below. Other views open at half.
+    bottomSheetSnapIndex.value =
+      name === AppRoute.DIRECTIONS ? 0 : MOBILE_DEFAULT_SNAP_INDEX
   },
+)
+
+// Directions: rest at the peek detent (just the inputs, via the dynamic peek)
+// until a search starts, then expand to full — as soon as loading begins, so
+// the expansion tracks the search, not the results landing. Stays full while
+// results are present; collapses back to peek when they're cleared (e.g. a
+// waypoint is removed).
+watch(
+  () =>
+    [route.name, directionsStore.trips, directionsStore.isLoading] as const,
+  ([name, trips, loading]) => {
+    if (name !== AppRoute.DIRECTIONS || !isMobileScreen.value) return
+    if (loading || trips?.trips?.length) {
+      bottomSheetSnapIndex.value = MOBILE_SNAP_POINTS.value.length - 1 // full
+    } else {
+      bottomSheetSnapIndex.value = 0 // peek — just the inputs
+    }
+  },
+  { immediate: true },
 )
 
 const pipSwapped = ref(false)
@@ -273,6 +315,7 @@ defineExpose({
         @update:active-snap-point-index="onBottomSheetSnapIndexChange"
         dismissable
         show-drag-handle
+        dynamic-peek
         adjust-map-padding
         obstructing-key="map-content-sheet"
       >

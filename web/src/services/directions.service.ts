@@ -1,5 +1,7 @@
 import { watch, ref } from 'vue'
+import axios from 'axios'
 import { storeToRefs } from 'pinia'
+import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { createSharedComposable } from '@vueuse/core'
 import { useGeolocationService } from '@/services/geolocation.service'
@@ -10,14 +12,14 @@ import { LngLat } from 'mapbox-gl'
 import type { Place } from '@/types/place.types'
 import { useGeocodingService } from './geocoding.service'
 import { getSearchResultName } from '@/lib/search.utils'
+import { useVehiclesStore } from '@/stores/vehicles.store'
+import {
+  serializeDirectionsQuery,
+  parseDirectionsQuery,
+  directionsQueryEquals,
+} from '@/lib/directions-url'
 
 const MIN_WAYPOINTS = 2
-
-// TODO: Move to database per user
-const HARDCODED_VEHICLE_LOCATIONS = {
-  car: { lat: 35.21712207929376, lng: -80.81946433041882 },
-  bike: { lat: 35.21700938703438, lng: -80.81994398107717 },
-}
 
 function directionsService() {
   const store = useDirectionsStore()
@@ -25,6 +27,8 @@ function directionsService() {
 
   const lastRequestKey = ref('')
   const isRequesting = ref(false)
+  // Tracks the in-flight directions request so a newer one can abort it.
+  const abortController = ref<AbortController | null>(null)
 
   const {
     coords,
@@ -44,43 +48,63 @@ function directionsService() {
   }
 
   /**
-   * Fetch directions from API
+   * Fetch directions from API.
+   *
+   * Any in-flight request is aborted before a new one starts. When the user
+   * tweaks waypoints/mode/sort while trips are still loading, the stale
+   * request must not win the race — otherwise its late response overwrites
+   * (or, worse, the early-return guard suppressed) the results for the
+   * inputs the user actually wants.
    */
   async function getDirections() {
     const validWaypoints = waypoints.value.filter(wp => wp.lngLat)
+
+    // Need at least 2 waypoints — drop any in-flight request and clear.
+    if (validWaypoints.length < MIN_WAYPOINTS) {
+      abortController.value?.abort()
+      abortController.value = null
+      store.unsetTrips()
+      lastRequestKey.value = ''
+      isRequesting.value = false
+      store.setLoading(false)
+      return
+    }
+
     const requestKey = getRequestKey(
       validWaypoints,
       selectedMode.value,
       routingPreferences.value,
     )
 
-    // Skip duplicate or concurrent requests
-    if (requestKey === lastRequestKey.value || isRequesting.value) return
+    // Identical to the request already in flight (or the last one resolved) —
+    // nothing to do.
+    if (requestKey === lastRequestKey.value) return
 
-    // Need at least 2 waypoints
-    if (validWaypoints.length < MIN_WAYPOINTS) {
-      store.unsetTrips()
-      lastRequestKey.value = ''
-      return
-    }
+    // Supersede any in-flight request: its inputs are now stale.
+    abortController.value?.abort()
+    const controller = new AbortController()
+    abortController.value = controller
 
     lastRequestKey.value = requestKey
     isRequesting.value = true
     store.setLoading(true)
 
     try {
-      // Send all known vehicles - backend will determine which are relevant for the selected mode
+      // Send active vehicles with known locations from the user's vehicle store
       const useVehicleLocations =
         routingPreferences.value.useKnownVehicleLocations !== false
 
+      const vehiclesStore = useVehiclesStore()
       const availableVehicles = useVehicleLocations
-        ? Object.entries(HARDCODED_VEHICLE_LOCATIONS).map(
-            ([type, location]) => ({
-              id: `${type}-${Date.now()}`,
-              type,
-              location,
-            }),
-          )
+        ? vehiclesStore.activeVehicles
+            .filter((v) => v.lastKnownLocation)
+            .map((v) => ({
+              id: v.id,
+              type: v.type,
+              energyType: v.energyType ?? undefined,
+              name: v.name ?? undefined,
+              location: v.lastKnownLocation!,
+            }))
         : []
 
       // Build API request. Use getSearchResultName so reverse-geocoded
@@ -96,6 +120,10 @@ function directionsService() {
                 ? 'destination'
                 : 'via',
           label: wp.place ? getSearchResultName(wp.place as Place) : '',
+          // Per-waypoint time constraints
+          ...(wp.timeConstraint?.mode === 'departAfter' && { departAfter: wp.timeConstraint.time }),
+          ...(wp.timeConstraint?.mode === 'arriveBy' && { arriveBy: wp.timeConstraint.time }),
+          ...(wp.timeConstraint?.dwellTime && { dwellTime: wp.timeConstraint.dwellTime }),
         })),
         selectedMode: selectedMode.value,
         ...(sortPreference.value && { sortPreference: sortPreference.value }),
@@ -105,7 +133,19 @@ function directionsService() {
         requestId: `frontend-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       }
 
-      const { data } = await api.post('/directions/', request)
+      // Same inputs planned recently in this tab? Restore the exact
+      // response (same trip ids and times) instead of re-planning — a page
+      // refresh on a trip detail lands back on the identical trip.
+      const planKey = planCacheKey(request)
+      const cached = readPlanCache(planKey)
+      if (cached) {
+        store.setTrips(cached)
+        return
+      }
+
+      const { data } = await api.post('/directions/', request, {
+        signal: controller.signal,
+      })
 
       // Transform response to UI format
       const serverWaypoints: Array<{ label?: string }> = data.request?.waypoints ?? []
@@ -119,6 +159,8 @@ function directionsService() {
                 ? WaypointType.STOP
                 : WaypointType.VIA,
             name: (wp.place ? getSearchResultName(wp.place as Place) : '') || serverWaypoints[i]?.label || '',
+            // Pass through the full Place for POI rendering in the trip timeline
+            ...(wp.place ? { place: wp.place } : {}),
           })),
           availableVehicles: availableVehicles.map(v => v.type),
           maxOptions: 5,
@@ -156,13 +198,60 @@ function directionsService() {
       }
 
       store.setTrips(response)
+      writePlanCache(planKey, response)
     } catch (error) {
+      // Aborted by a newer request — leave all state to that request.
+      if (axios.isCancel(error)) return
       console.error('Failed to fetch directions:', error)
       store.unsetTrips()
       lastRequestKey.value = '' // Allow retry
     } finally {
-      isRequesting.value = false
-      store.setLoading(false)
+      // Only the request that is still current may clear the shared loading
+      // flag — an aborted predecessor must not switch off the spinner for
+      // the request that replaced it.
+      if (abortController.value === controller) {
+        isRequesting.value = false
+        store.setLoading(false)
+        abortController.value = null
+      }
+    }
+  }
+
+  // ── Plan cache (sessionStorage) ─────────────────────────────────────
+  // One entry: the latest plan, keyed by its full request (minus volatile
+  // fields). Survives refresh within the tab; cross-device sharing goes
+  // through the URL → re-plan → trip-signature match path instead.
+  const PLAN_CACHE_KEY = 'parchment:last-plan'
+  const PLAN_CACHE_TTL_MS = 30 * 60_000
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function planCacheKey(request: any): string {
+    const { requestId: _id, availableVehicles: _v, ...stable } = request
+    return JSON.stringify(stable)
+  }
+
+  function readPlanCache(key: string): TripsResponse | null {
+    try {
+      const raw = sessionStorage.getItem(PLAN_CACHE_KEY)
+      if (!raw) return null
+      const entry = JSON.parse(raw)
+      if (entry.key !== key) return null
+      if (Date.now() - entry.savedAt > PLAN_CACHE_TTL_MS) return null
+      return entry.response as TripsResponse
+    } catch {
+      return null
+    }
+  }
+
+  function writePlanCache(key: string, response: TripsResponse) {
+    try {
+      sessionStorage.setItem(
+        PLAN_CACHE_KEY,
+        JSON.stringify({ key, savedAt: Date.now(), response }),
+      )
+    } catch {
+      // Quota exceeded or storage unavailable — the URL re-plan path
+      // still recovers the trip, just without identical ids.
     }
   }
 
@@ -221,6 +310,7 @@ function directionsService() {
       endTime: new Date(seg.endTime),
       duration: seg.duration,
       distance: seg.distance,
+      waitSeconds: seg.waitSeconds,
       geometry: seg.geometry,
       instructions: seg.instructions,
       totalElevationGain: seg.totalElevationGain,
@@ -228,6 +318,13 @@ function directionsService() {
       maxElevation: seg.maxElevation,
       minElevation: seg.minElevation,
       edgeSegments: seg.edgeSegments,
+      start: seg.start,
+      end: seg.end,
+      ownership: seg.ownership ?? 'personal',
+      carryingVehicle: seg.carryingVehicle ?? false,
+      rideshareDetails: seg.details?.rideshareDetails ?? null,
+      sharedMobilityDetails: seg.details?.sharedMobilityDetails ?? null,
+      stationEntrance: seg.stationEntrance ?? null,
       ...extractTransitFields(seg),
     }
   }
@@ -423,11 +520,76 @@ function directionsService() {
     await setWaypointWithGeocoding(1, waypoint)
   }
 
-  // Auto-fetch when waypoints, mode, preferences, sort, or departure time change
+  // ── Shareable URL state ─────────────────────────────────────────────
+  // Directions inputs live in the query string (?wp=lat,lng,label&mode=…)
+  // so links can be bookmarked, shared, and reproduced exactly.
+  const route = useRoute()
+  const router = useRouter()
+
+  /** Hydrate the store from a shared/bookmarked directions URL. */
+  function applyUrlState(): boolean {
+    const state = parseDirectionsQuery(route.query)
+    if (!state) return false
+
+    const wps = state.waypoints.map((w, i) => ({
+      lngLat: new LngLat(w.lng, w.lat),
+      place: w.label
+        ? ({
+            id: `shared-wp-${i}`,
+            name: { value: w.label },
+            geometry: {
+              value: { type: 'point', center: { lat: w.lat, lng: w.lng } },
+            },
+            externalIds: {},
+            address: null,
+            placeType: { value: 'shared_location' },
+          } as unknown as Place)
+        : null,
+    })) as Waypoint[]
+    while (wps.length < MIN_WAYPOINTS) wps.push({ lngLat: null } as Waypoint)
+
+    if (state.mode) store.selectedMode = state.mode as typeof selectedMode.value
+    if (state.sort) store.sortPreference = state.sort as typeof sortPreference.value
+    if (state.depart) store.departureTime = state.depart
+    store.setWaypoints(wps)
+    return true
+  }
+
+  /** Reflect the current inputs into the URL (replace — no history spam). */
+  function syncUrl() {
+    if (!route.path.startsWith('/directions')) return
+    const q = serializeDirectionsQuery({
+      waypoints: waypoints.value
+        .filter((w) => w.lngLat)
+        .map((w) => ({
+          lat: w.lngLat!.lat,
+          lng: w.lngLat!.lng,
+          label: (w.place ? getSearchResultName(w.place as Place) : '') || undefined,
+        })),
+      mode: selectedMode.value,
+      sort: sortPreference.value || undefined,
+      depart: departureTime.value || undefined,
+    })
+    if (directionsQueryEquals(q, route.query)) return
+    const { wp: _wp, mode: _mode, sort: _sort, depart: _depart, ...rest } = route.query
+    router.replace({ query: { ...rest, ...q } }).catch(() => {})
+  }
+
+  applyUrlState()
+  watch([waypoints, selectedMode, sortPreference, departureTime], syncUrl, {
+    deep: true,
+  })
+
+  // Auto-fetch when waypoints, mode, preferences, sort, or departure time
+  // change. `immediate` matters: applyUrlState() above hydrates the store
+  // BEFORE this watcher registers, so a page refresh with URL params would
+  // otherwise restore the inputs without ever planning — watchers don't
+  // see mutations that precede them. The immediate run plans from the
+  // hydrated state (and no-ops harmlessly when fewer than 2 waypoints).
   watch(
     [waypoints, selectedMode, sortPreference, departureTime, routingPreferences],
     getDirections,
-    { deep: true },
+    { deep: true, immediate: true },
   )
 
   // Request geolocation permissions early so current location is available

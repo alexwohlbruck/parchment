@@ -408,6 +408,7 @@ export class TripGroup extends MapLayerGroup {
           'line-width': 8,
           'line-opacity': 1.0,
           'line-emissive-strength': 1,
+          'line-occlusion-opacity': 0.5,
         },
       } as any,
     })
@@ -433,6 +434,7 @@ export class TripGroup extends MapLayerGroup {
           'line-width': 6,
           'line-opacity': 1.0,
           'line-emissive-strength': 1,
+          'line-occlusion-opacity': 0.5,
         },
       } as any,
     })
@@ -511,6 +513,7 @@ export class TripGroup extends MapLayerGroup {
           'line-width': 8,
           'line-opacity': 1.0,
           'line-emissive-strength': 1,
+          'line-occlusion-opacity': 0.5,
         },
       } as any,
     })
@@ -536,6 +539,7 @@ export class TripGroup extends MapLayerGroup {
           'line-width': 6,
           'line-opacity': 1.0,
           'line-emissive-strength': 1,
+          'line-occlusion-opacity': 0.5,
         },
       } as any,
     })
@@ -723,6 +727,7 @@ export class TripGroup extends MapLayerGroup {
         id: caseLayerId,
         type: 'line',
         source: sourceId,
+        slot: 'middle',
         layout: {
           'line-join': 'round',
           'line-cap': 'round',
@@ -733,6 +738,7 @@ export class TripGroup extends MapLayerGroup {
           'line-dasharray': [1, 2],
           'line-opacity': 1.0,
           'line-emissive-strength': 1,
+          'line-occlusion-opacity': 0.5,
         },
       } as any,
     })
@@ -751,6 +757,7 @@ export class TripGroup extends MapLayerGroup {
         id: layerId,
         type: 'line',
         source: sourceId,
+        slot: 'middle',
         layout: {
           'line-join': 'round',
           'line-cap': 'round',
@@ -761,6 +768,7 @@ export class TripGroup extends MapLayerGroup {
           'line-dasharray': [1, 2],
           'line-opacity': 1.0,
           'line-emissive-strength': 1,
+          'line-occlusion-opacity': 0.5,
         },
       } as any,
     })
@@ -800,7 +808,8 @@ export class TripGroup extends MapLayerGroup {
   private _getSegmentColor(segment: TripSegment): string {
     const { mode, lineColor } = segment
     if (lineColor) {
-      return lineColor
+      // GTFS route colors often lack the '#' prefix — Mapbox silently ignores invalid colors
+      return lineColor.startsWith('#') ? lineColor : `#${lineColor}`
     }
 
     // Use the travel mode color constants to match the trip list UI
@@ -810,7 +819,7 @@ export class TripGroup extends MapLayerGroup {
   private _getSegmentCaseColor(segment: TripSegment): string {
     const { mode, lineColor } = segment
     if (lineColor) {
-      return lineColor
+      return lineColor.startsWith('#') ? lineColor : `#${lineColor}`
     }
 
     // Use the travel mode case color constants to match the trip list UI

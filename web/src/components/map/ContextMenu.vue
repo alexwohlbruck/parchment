@@ -12,6 +12,9 @@ import { LngLat } from '@/types/map.types'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useMapStore } from '@/stores/map.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
+import { useVehiclesStore } from '@/stores/vehicles.store'
+import { VEHICLE_TYPE_LABELS } from '@/lib/vehicle-mode-mapping'
+import type { VehicleType } from '@/types/multimodal.types'
 import { encode } from 'pluscodes'
 import type { MenuItemDefinition } from '@/components/responsive/ResponsiveDropdown.vue'
 import BrandIcon from '@/components/ui/brand-icon/BrandIcon.vue'
@@ -30,6 +33,7 @@ import {
   RulerIcon,
   CircleDotIcon,
   CrosshairIcon,
+  CarFrontIcon,
 } from 'lucide-vue-next'
 import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -50,6 +54,7 @@ const directionsService = useDirectionsService()
 const directionsStore = useDirectionsStore()
 const mapStore = useMapStore()
 const mapToolsStore = useMapToolsStore()
+const vehiclesStore = useVehiclesStore()
 const { t } = useI18n()
 const { openExternalLink } = useExternalLink()
 
@@ -414,6 +419,41 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
       })
     },
   })
+
+  // Set vehicle location — only show when user has vehicles
+  if (clickedLngLat.value && vehiclesStore.vehicles.length > 0) {
+    const coords = clickedLngLat.value
+    if (vehiclesStore.vehicles.length === 1) {
+      // Single vehicle — direct action
+      const v = vehiclesStore.vehicles[0]
+      const label = v.name || VEHICLE_TYPE_LABELS[v.type as VehicleType] || v.type
+      items.push({
+        type: 'item',
+        id: 'set-vehicle-location',
+        label: `Set ${label} location here`,
+        icon: CarFrontIcon,
+        onSelect: () => {
+          vehiclesStore.updateVehicleLocation(v.id, { lat: coords.lat, lng: coords.lng }, 'manual')
+        },
+      })
+    } else {
+      // Multiple vehicles — submenu
+      items.push({
+        type: 'submenu',
+        id: 'set-vehicle-location',
+        label: 'Set vehicle location here',
+        icon: CarFrontIcon,
+        items: vehiclesStore.vehicles.map((v) => ({
+          type: 'item' as const,
+          id: `set-vehicle-${v.id}`,
+          label: v.name || VEHICLE_TYPE_LABELS[v.type as VehicleType] || v.type,
+          onSelect: () => {
+            vehiclesStore.updateVehicleLocation(v.id, { lat: coords.lat, lng: coords.lng }, 'manual')
+          },
+        })),
+      })
+    }
+  }
 
   const measureDistanceOnSelect = () => {
     const lngLat = clickedLngLat.value

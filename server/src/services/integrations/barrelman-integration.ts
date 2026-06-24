@@ -14,6 +14,7 @@ import type {
   RoutingCapability,
   TransitRoutingCapability,
   TransitRouteRequest,
+  IntermodalRouteRequest,
   TransitRouteResponse,
   NearbyStopsRequest,
   NearbyStopResult,
@@ -45,6 +46,72 @@ import { matchTags, type GeometryType } from '../../lib/osm-presets'
 import { buildPlaceIcon } from '../../lib/place-categories'
 import { getPlaceType } from '../../lib/place.utils'
 import { parseOsmHours } from '../../lib/hours.utils'
+
+/**
+ * All Barrelman HTTP traffic flows through one bounded connection pool.
+ *
+ * A single intermodal trip plan fans out hard: ~5 MOTIS queries, each up to
+ * 8 itineraries, each itinerary re-routing 2-3 walk legs through GraphHopper
+ * — 100+ concurrent requests for one user action, none of it capped. Under
+ * that load Barrelman's event loop saturates, MOTIS queries cross their 30s
+ * timeout, and GraphHopper keep-alive sockets get reset ("socket connection
+ * closed unexpectedly"). Every later request blocks behind it and the app
+ * stops responding until the process is restarted.
+ *
+ * The semaphore caps in-flight requests so the fan-out queues instead of
+ * stampeding. Slots are held only for the HTTP round-trip — acquired in the
+ * request interceptor, released in the response interceptor on both success
+ * and failure — never across orchestration, so there is no nesting/deadlock.
+ * Tune the cap to Barrelman's headroom: high enough that one trip plan isn't
+ * serialized, low enough that concurrent plans can't stampede the process.
+ */
+const BARRELMAN_MAX_CONCURRENCY = 16
+
+class Semaphore {
+  private active = 0
+  private readonly waiters: Array<() => void> = []
+
+  constructor(private readonly max: number) {}
+
+  async acquire(): Promise<void> {
+    if (this.active < this.max) {
+      this.active++
+      return
+    }
+    await new Promise<void>((resolve) => this.waiters.push(resolve))
+  }
+
+  release(): void {
+    const next = this.waiters.shift()
+    if (next) {
+      next() // hand the slot straight to the next waiter; active is unchanged
+    } else {
+      this.active--
+    }
+  }
+}
+
+const barrelmanLimiter = new Semaphore(BARRELMAN_MAX_CONCURRENCY)
+
+/**
+ * Shared axios instance for every Barrelman call. Use this — never the bare
+ * `axios` import — for Barrelman requests, or the concurrency cap is bypassed.
+ */
+const barrelmanHttp = axios.create()
+barrelmanHttp.interceptors.request.use(async (config) => {
+  await barrelmanLimiter.acquire()
+  return config
+})
+barrelmanHttp.interceptors.response.use(
+  (response) => {
+    barrelmanLimiter.release()
+    return response
+  },
+  (error) => {
+    barrelmanLimiter.release()
+    return Promise.reject(error)
+  },
+)
 
 export interface BarrelmanConfig extends IntegrationConfig {
   host: string
@@ -185,8 +252,10 @@ export class BarrelmanIntegration
     } as RoutingCapability,
     transitRouting: {
       getTransitRoute: this.getTransitRoute.bind(this),
+      getIntermodalRoute: this.getIntermodalRoute.bind(this),
       getNearbyStops: this.getNearbyStops.bind(this),
       getRoutesForStop: this.getRoutesForStop.bind(this),
+      getNearestEntrance: this.getNearestEntrance.bind(this),
     } as TransitRoutingCapability,
   }
 
@@ -203,7 +272,7 @@ export class BarrelmanIntegration
     const headers: Record<string, string> = {}
     if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
     try {
-      const response = await axios.get(`${config.host}/health/auth`, {
+      const response = await barrelmanHttp.get(`${config.host}/health/auth`, {
         headers,
         timeout: 5000,
       })
@@ -542,7 +611,7 @@ export class BarrelmanIntegration
     lng?: number,
     options?: { radius?: number; limit?: number; sort?: string; filter?: Record<string, any> },
   ): Promise<Place[]> {
-    const response = await axios.post(
+    const response = await barrelmanHttp.post(
       `${this.config.host}/search`,
       {
         query,
@@ -568,7 +637,7 @@ export class BarrelmanIntegration
     // autocomplete: true disables the Ollama semantic layer entirely (it's too slow
     // for typing latency). Relies on parallel FTS + GIN-indexed trigram instead.
     // Barrelman searches globally and uses proximity re-rank for location bias.
-    const response = await axios.post(
+    const response = await barrelmanHttp.post(
       `${this.config.host}/search`,
       {
         query,
@@ -595,7 +664,7 @@ export class BarrelmanIntegration
     const lngDiff = Math.abs(bounds.east - bounds.west)
     const radius = (Math.max(latDiff, lngDiff) * 111320) / 2
 
-    const response = await axios.post(
+    const response = await barrelmanHttp.post(
       `${this.config.host}/search`,
       {
         lat,
@@ -615,7 +684,7 @@ export class BarrelmanIntegration
   async getPlaceInfo(id: string): Promise<Place | null> {
     try {
       // ID format: "node/5718230659" — maps to /place/node/5718230659
-      const response = await axios.get(
+      const response = await barrelmanHttp.get(
         `${this.config.host}/place/${id}`,
         { headers: this.headers, timeout: 10000 },
       )
@@ -638,7 +707,7 @@ export class BarrelmanIntegration
       autocomplete?: boolean
     },
   ): Promise<Place[]> {
-    const response = await axios.post(
+    const response = await barrelmanHttp.post(
       `${this.config.host}/search`,
       {
         ...(options?.query ? { query: options.query } : {}),
@@ -656,7 +725,7 @@ export class BarrelmanIntegration
   }
 
   async getContainingAreas(lat: number, lng: number, exclude?: string): Promise<Place[]> {
-    const response = await axios.get(`${this.config.host}/contains`, {
+    const response = await barrelmanHttp.get(`${this.config.host}/contains`, {
       params: { lat, lng, ...(exclude ? { exclude } : {}) },
       headers: this.headers,
       timeout: 10000,
@@ -672,7 +741,7 @@ export class BarrelmanIntegration
     lat?: number,
     lng?: number,
   ): Promise<Place[]> {
-    const response = await axios.get(`${this.config.host}/children`, {
+    const response = await barrelmanHttp.get(`${this.config.host}/children`, {
       params: {
         id: areaId,
         categories: categories?.join(','),
@@ -740,7 +809,7 @@ export class BarrelmanIntegration
     }
 
     try {
-      const response = await axios.post(url, requestBody, {
+      const response = await barrelmanHttp.post(url, requestBody, {
         headers: this.headers,
         timeout: 30_000,
       })
@@ -796,7 +865,7 @@ export class BarrelmanIntegration
     if (!apiKey) throw new Error('Barrelman API key not configured')
 
     try {
-      const response = await axios.post(
+      const response = await barrelmanHttp.post(
         `${host}/transit/route`,
         request,
         {
@@ -817,6 +886,32 @@ export class BarrelmanIntegration
     }
   }
 
+  private async getIntermodalRoute(request: IntermodalRouteRequest): Promise<TransitRouteResponse> {
+    const { host, apiKey } = this.config
+    if (!apiKey) throw new Error('Barrelman API key not configured')
+
+    try {
+      const response = await barrelmanHttp.post(
+        `${host}/transit/intermodal-route`,
+        request,
+        {
+          headers: this.headers,
+          timeout: 30_000,
+        },
+      )
+      return response.data
+    } catch (error: any) {
+      if (error.response) {
+        const status = error.response.status
+        const detail = error.response.data?.error ?? error.response.statusText
+        throw new Error(`Intermodal routing error (${status}): ${detail}`)
+      }
+      throw new Error(
+        `Intermodal routing error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      )
+    }
+  }
+
   private async getNearbyStops(request: NearbyStopsRequest): Promise<NearbyStopResult[]> {
     const { host, apiKey } = this.config
     if (!apiKey) throw new Error('Barrelman API key not configured')
@@ -829,7 +924,7 @@ export class BarrelmanIntegration
     if (request.limit != null) params.set('limit', String(request.limit))
 
     try {
-      const response = await axios.get(
+      const response = await barrelmanHttp.get(
         `${host}/transit/stops?${params}`,
         {
           headers: this.headers,
@@ -850,7 +945,7 @@ export class BarrelmanIntegration
     if (!apiKey) throw new Error('Barrelman API key not configured')
 
     try {
-      const response = await axios.get(
+      const response = await barrelmanHttp.get(
         `${host}/transit/routes?feedId=${encodeURIComponent(feedId)}&stopId=${encodeURIComponent(stopId)}`,
         {
           headers: this.headers,
@@ -863,6 +958,34 @@ export class BarrelmanIntegration
         throw new Error(`Stop routes error (${error.response.status}): ${error.response.data?.error}`)
       }
       throw new Error(`Stop routes error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  private async getNearestEntrance(
+    lat: number,
+    lon: number,
+    maxDistanceM: number = 500,
+    wheelchair: boolean = false,
+  ) {
+    const { host } = this.config
+
+    try {
+      const params = new URLSearchParams({
+        lat: String(lat),
+        lon: String(lon),
+        maxDistance: String(maxDistanceM),
+        ...(wheelchair && { wheelchair: 'true' }),
+      })
+      const response = await barrelmanHttp.get(
+        `${host}/transit/nearest-entrance?${params}`,
+        {
+          headers: this.headers,
+          timeout: 5_000,
+        },
+      )
+      return response.data
+    } catch {
+      return null // Silently fail — fall back to station centroid
     }
   }
 }

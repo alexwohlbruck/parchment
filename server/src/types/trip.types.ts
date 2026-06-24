@@ -3,6 +3,7 @@
 
 import { Coordinate, RouteInstruction, RouteEdgeSegment } from './unified-routing.types'
 import type { Language } from '../lib/i18n/i18n.types'
+import type { Place } from './place.types'
 
 // =============================================================================
 // CORE TYPES
@@ -36,6 +37,7 @@ export type SelectedMode =
   | 'biking'
   | 'transit'
   | 'wheelchair'
+  | 'rideshare'
 
 export type WaypointType = 'origin' | 'destination' | 'via'
 
@@ -75,6 +77,9 @@ export interface Waypoint {
   address?: string
   label?: string
   type: WaypointType
+
+  /** Full Place object when this waypoint is a real OSM POI (e.g. parking). */
+  place?: Place
 
   // ── Per-waypoint time constraints ──────────────────────────────────
   /** Earliest departure from this waypoint (ISO 8601). */
@@ -128,6 +133,8 @@ export interface RoutingPreferences {
   // UI state
   useKnownVehicleLocations?: boolean
   useKnownParkingLocations?: boolean
+  /** Include private/inaccessible parking lots in park-and-ride search. */
+  includePrivateParking?: boolean
   routingEngine?: string
 
   // Legacy boolean fields (backward compat)
@@ -179,6 +186,12 @@ export interface TripSegment {
   endTime: string
   duration: number // seconds
   distance: number // meters
+  /**
+   * Seconds of waiting folded into this segment, after the moving portion
+   * (e.g. standing at the stop between finishing the walk and the vehicle
+   * departing). duration - waitSeconds = time actually in motion.
+   */
+  waitSeconds?: number
   geometry: any // GeoJSON or encoded polyline
   instructions: RouteInstruction[]
   cost?: CurrencyAmount
@@ -191,6 +204,19 @@ export interface TripSegment {
   minElevation?: number // meters
   // Per-edge surface/road/safety data
   edgeSegments?: RouteEdgeSegment[]
+  /** Station entrance this walk uses (snapped during enrichment). `role`
+   *  is 'enter' for an access walk into a station, 'exit' for an egress
+   *  walk out of one. */
+  stationEntrance?: StationEntranceRef
+}
+
+export interface StationEntranceRef {
+  role: 'enter' | 'exit'
+  name?: string
+  description?: string
+  /** OSM access-point type: subway_entrance, train_station_entrance,
+   *  elevator, etc. */
+  accessType?: string
 }
 
 export interface TripStats {
@@ -208,17 +234,34 @@ export interface CurrencyAmount {
 }
 
 export interface SegmentDetails {
-  // Transit-specific details
   transitDetails?: TransitDetails
-
-  // Rideshare-specific details
   rideshareDetails?: RideshareDetails
-
-  // Vehicle-specific details
   vehicleDetails?: VehicleDetails
-
-  // Multimodal-specific details (for walking → vehicle trips)
+  sharedMobilityDetails?: SharedMobilityDetails
   multimodalSegments?: TripSegment[]
+}
+
+export interface SharedMobilityDetails {
+  provider: string
+  stationName?: string
+  toStationName?: string
+  vehicleType: 'bike' | 'ebike' | 'scooter' | 'car' | 'moped' | 'other'
+  propulsionType?: 'human' | 'electric_assist' | 'electric'
+  stationId?: string
+  availableVehicles?: number
+  availableDocks?: number
+  unlockUri?: string
+  /** Fare from the operator's GBFS pricing feed (estimate). */
+  pricing?: {
+    currency: string
+    /** Base/unlock fee. */
+    unlockPrice: number
+    /** Per-minute rate, for display ("$0.41/min"). */
+    perMinuteRate: number
+    /** Estimated total for this ride. */
+    estimatedCost: number
+    planName?: string
+  }
 }
 
 export interface TransitDetails {
@@ -325,10 +368,19 @@ export type TransitAlertSeverity = 'info' | 'warning' | 'severe'
 
 export interface RideshareDetails {
   provider: string
+  productId?: string
+  productName?: string
   vehicleType: VehicleType
   estimatedPickupTime?: string
+  /** Seconds until pickup */
+  pickupEta?: number
   estimatedPrice?: CurrencyAmount
+  priceRange?: { low: CurrencyAmount; high: CurrencyAmount }
+  surgeMultiplier?: number
   bookingUrl?: string
+  /** When this estimate becomes stale (ISO 8601). */
+  expiresAt?: string
+  capacity?: number
 }
 
 export interface VehicleDetails {

@@ -21,10 +21,16 @@ import { AppRoute } from '@/router'
 import { getLocalDayAndTime } from '@/lib/place-open.utils'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useUnits } from '@/composables/useUnits'
+import { usePlaceTransitLines } from '@/composables/usePlaceTransitLines'
+import RouteBullet from '@/components/transit/RouteBullet.vue'
 
 const props = defineProps<{
   place: Partial<Place>
 }>()
+
+/** Line bullets for transit stations (N Q R W S 1 2 3 7…), published by
+ *  the transit departures widget once its data arrives. */
+const stationLines = usePlaceTransitLines(computed(() => props.place?.id))
 
 const { t } = useI18n()
 const themeStore = useThemeStore()
@@ -281,6 +287,22 @@ watch(
           {{ displayName }}
         </h1>
       </div>
+    </div>
+
+    <!-- Transit line bullets — every line serving this station across its
+         transfer complex, right under the title like Apple Maps -->
+    <div
+      v-if="stationLines.length"
+      class="flex flex-wrap items-center gap-1"
+    >
+      <RouteBullet
+        v-for="line in stationLines"
+        :key="line.id"
+        :label="line.shortName || line.id"
+        :color="line.color"
+        :text-color="line.textColor"
+        :title="line.longName || line.shortName"
+      />
     </div>
 
     <!-- Open status -->

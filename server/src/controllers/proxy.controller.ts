@@ -1,4 +1,5 @@
 import { Elysia } from 'elysia'
+import { requireAuth } from '../middleware/auth.middleware'
 import { integrationManager } from '../services/integrations'
 import {
   IntegrationCapabilityId,
@@ -6,6 +7,61 @@ import {
 } from '../types/integration.types'
 
 const app = new Elysia({ prefix: '/proxy' })
+
+/**
+ * Proxy a request to Barrelman's transit API. Handles integration
+ * config lookup, auth header, error response wrapping, and timeout.
+ */
+async function proxyBarrelman(
+  path: string,
+  query: Record<string, any>,
+  cacheControl: string = 'no-cache',
+): Promise<Response> {
+  const systemIntegration = integrationManager
+    .getConfiguredIntegrations()
+    .find((i) => i.integrationId === IntegrationId.BARRELMAN)
+
+  const config = systemIntegration?.config as
+    | { host?: string; apiKey?: string }
+    | undefined
+  if (!config?.host) {
+    return new Response(JSON.stringify({ error: 'Barrelman not configured' }), {
+      status: 501,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  const params = new URLSearchParams()
+  for (const [k, v] of Object.entries(query)) {
+    if (v != null && v !== '') params.set(k, String(v))
+  }
+
+  const headers: Record<string, string> = {}
+  if (config.apiKey) {
+    headers['Authorization'] = `Bearer ${config.apiKey}`
+  }
+
+  const response = await fetch(
+    `${config.host}${path}?${params}`,
+    { headers, signal: AbortSignal.timeout(10_000) },
+  )
+
+  if (!response.ok) {
+    // Return a clean JSON error instead of forwarding upstream HTML
+    return new Response(
+      JSON.stringify({ error: `Upstream error: ${response.status}` }),
+      { status: response.status, headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+
+  return new Response(await response.arrayBuffer(), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': cacheControl,
+    },
+  })
+}
 
 // Helper function to proxy tile requests with integration API key
 async function proxyTileRequest(
@@ -208,5 +264,78 @@ app.get(
     },
   },
 )
+
+// ── Transit proxy endpoints (authenticated) ─────────────────────
+// All transit endpoints require auth to prevent anonymous enumeration
+// of live vehicle positions and route topology.
+const transitProxy = new Elysia({ prefix: '/transit' }).use(requireAuth)
+
+transitProxy.get('/vehicles', ({ query }) =>
+  proxyBarrelman('/transit/vehicles', query, 'no-cache'),
+  { detail: { tags: ['Proxy'], summary: 'Proxy GTFS-RT vehicle positions' } },
+)
+
+transitProxy.get('/shapes', ({ query }) =>
+  proxyBarrelman('/transit/shapes', query, 'public, max-age=86400'),
+  { detail: { tags: ['Proxy'], summary: 'Proxy route shape geometry' } },
+)
+
+transitProxy.get('/route-vehicles', ({ query }) =>
+  proxyBarrelman('/transit/route-vehicles', query, 'no-cache'),
+  { detail: { tags: ['Proxy'], summary: 'Proxy route-specific vehicle positions' } },
+)
+
+transitProxy.get('/trip-stops', ({ query }) =>
+  proxyBarrelman('/transit/trip-stops', query, 'no-cache'),
+  { detail: { tags: ['Proxy'], summary: 'Proxy trip stop times' } },
+)
+
+transitProxy.get('/route-detail', ({ query }) =>
+  proxyBarrelman('/transit/route-detail', query, 'public, max-age=3600'),
+  { detail: { tags: ['Proxy'], summary: 'Proxy route detail with stops and shape' } },
+)
+
+transitProxy.get('/departures', ({ query }) =>
+  proxyBarrelman('/transit/departures', query, 'public, max-age=30'),
+  { detail: { tags: ['Proxy'], summary: 'Proxy upcoming departures at a stop' } },
+)
+
+transitProxy.get('/bikes-allowed', ({ query }) =>
+  proxyBarrelman('/transit/bikes-allowed', query, 'public, max-age=3600'),
+  { detail: { tags: ['Proxy'], summary: 'Batch check bikes_allowed for routes' } },
+)
+
+transitProxy.get('/station/:feedId/:stopId', ({ params }) =>
+  proxyBarrelman(
+    `/transit/station/${encodeURIComponent(params.feedId)}/${encodeURIComponent(params.stopId)}`,
+    {},
+    'public, max-age=3600',
+  ),
+  { detail: { tags: ['Proxy'], summary: 'Proxy station detail with entrances and buildings' } },
+)
+
+transitProxy.get('/nearest-entrance', ({ query }) =>
+  proxyBarrelman('/transit/nearest-entrance', query, 'public, max-age=3600'),
+  { detail: { tags: ['Proxy'], summary: 'Proxy nearest station entrance lookup' } },
+)
+
+app.use(transitProxy)
+
+// ── GBFS shared mobility proxy ──────────────────────────────────────
+
+const gbfsProxy = new Elysia({ prefix: '/proxy/gbfs' }).use(requireAuth)
+
+gbfsProxy.get('/nearby-stations', ({ query }) =>
+  proxyBarrelman('/gbfs/nearby-stations', query, 'no-cache'),
+  { detail: { tags: ['Proxy'], summary: 'Proxy GBFS nearby stations with availability' } },
+)
+
+gbfsProxy.get('/systems', ({ query }) =>
+  proxyBarrelman('/gbfs/systems', query, 'public, max-age=3600'),
+  { detail: { tags: ['Proxy'], summary: 'Proxy GBFS system catalog' } },
+)
+
+app.use(gbfsProxy)
+
 
 export default app

@@ -11,6 +11,12 @@ import {
   mintTicket,
   redeemTicket,
 } from '../services/realtime/ticket.service'
+import {
+  subscribe as transitSubscribe,
+  unsubscribe as transitUnsubscribe,
+  updateBounds as transitUpdateBounds,
+  onConnectionClosed as transitOnClose,
+} from '../services/transit/transit-poller.service'
 import { logger } from '../lib/logger'
 
 /**
@@ -131,10 +137,59 @@ wsApi.ws('/', {
     })
     logger.debug({ userId, connectionId }, 'Realtime WS opened')
   },
+  message(ws, message) {
+    const carrier = ws.data.query as unknown as WsQueryCarrier | undefined
+    const connectionId = carrier?._connectionId
+    if (!connectionId) return
+
+    let parsed: { type?: string; bounds?: { north: number; south: number; east: number; west: number } }
+    try {
+      parsed = typeof message === 'string' ? JSON.parse(message) : message
+    } catch {
+      return
+    }
+
+    const conn = {
+      id: connectionId,
+      send: (data: string) => ws.send(data),
+      close: (code?: number, reason?: string) => ws.close(code, reason),
+    }
+
+    // Validate bounds: must be finite numbers in valid ranges
+    const b = parsed.bounds
+    const validBounds = b &&
+      Number.isFinite(b.north) && Number.isFinite(b.south) &&
+      Number.isFinite(b.east) && Number.isFinite(b.west) &&
+      b.north >= b.south &&
+      b.north >= -90 && b.north <= 90 &&
+      b.south >= -90 && b.south <= 90 &&
+      b.east >= -180 && b.east <= 180 &&
+      b.west >= -180 && b.west <= 180
+      ? b : null
+
+    switch (parsed.type) {
+      case 'transit:subscribe':
+        if (validBounds) {
+          transitSubscribe(connectionId, conn, validBounds)
+        }
+        break
+      case 'transit:unsubscribe':
+        transitUnsubscribe(connectionId)
+        break
+      case 'transit:viewport':
+        if (validBounds) {
+          transitUpdateBounds(connectionId, validBounds)
+        }
+        break
+    }
+  },
   close(ws, code, reason) {
     const carrier = ws.data.query as unknown as WsQueryCarrier | undefined
     const connectionId = carrier?._connectionId
-    if (connectionId) deregisterSocket(connectionId)
+    if (connectionId) {
+      try { transitOnClose(connectionId) } catch { /* don't block deregister */ }
+      deregisterSocket(connectionId)
+    }
     logger.debug({ code, reason, connectionId }, 'Realtime WS closed')
   },
   error({ error }) {

@@ -321,6 +321,23 @@
     }
   },
   "directions": {
+    "tripTypes": {
+      "bikeshare": "Bici compartida",
+      "scootershare": "Patinete compartido",
+      "walking": "A pie",
+      "cycling": "Bicicleta",
+      "driving": "Coche",
+      "wheelchair": "Silla de ruedas",
+      "rideshare": "VTC",
+      "transit": "Transporte público",
+      "transitWalking": "Transporte y a pie",
+      "transitBike": "Transporte y bici",
+      "transitBikeShare": "Transporte y bici compartida",
+      "transitScooter": "Transporte y patinete",
+      "transitRideshare": "Transporte y VTC",
+      "parkAndRide": "Park & Ride"
+    },
+    "toward": "hacia {headsign}",
     "title": "Direcciones",
     "planRouteFromHere": "Planificar ruta desde aquí",
     "directionsHere": "Direcciones a aquí",

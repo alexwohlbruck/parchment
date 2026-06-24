@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import dayjs from 'dayjs'
 import duration from 'dayjs/plugin/duration'
-import { computed, onUnmounted } from 'vue'
+import { computed, onUnmounted, onMounted, inject, type Ref } from 'vue'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapListener } from '@/composables/useMapListener'
@@ -10,6 +10,7 @@ import {
   BikeIcon,
   BusFrontIcon,
   CarFrontIcon,
+  CarTaxiFrontIcon,
   ClockIcon,
   FootprintsIcon,
   ShuffleIcon,
@@ -23,7 +24,9 @@ import { storeToRefs } from 'pinia'
 import WaypointInput from './WaypointInput.vue'
 import TripsList from './TripsList.vue'
 import RoutingPreferences from './RoutingPreferences.vue'
-import { Spinner } from '@/components/ui/spinner'
+import DirectionsLoading from './DirectionsLoading.vue'
+import { useElementSize } from '@vueuse/core'
+import { useSheetPeek } from '@/composables/useSheetPeek'
 import { Waypoint } from '@/types/map.types'
 import { SelectedMode, SortPreference } from '@/types/multimodal.types'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
@@ -49,6 +52,31 @@ const { waypoints, trips, selectedMode, departureTime, sortPreference, isLoading
   storeToRefs(directionsStore)
 
 const showPreferences = ref(false)
+
+// The waypoint/options/sort controls stay pinned while results scroll under
+// them. This element is also the dynamic-peek anchor: on mobile the sheet
+// sizes its peek detent to fit down to its bottom, so peek shows just the
+// inputs (no trip results). The sheet only measures it while unscrolled, so
+// the sticky pinning never skews the measurement. useSheetPeek no-ops on
+// desktop (no sheet provider).
+const { peekRef } = useSheetPeek()
+// Measure the border-box (includes padding) so the time axis docks flush
+// below the controls — content-box would leave the axis tucked ~24px behind
+// them, hiding the time labels.
+const { height: controlsHeight } = useElementSize(peekRef, undefined, {
+  box: 'border-box',
+})
+
+// On mobile, opt the host sheet into its opaque chrome bar — the pinned
+// inputs need to clear the drag handle / close button, and the suggestions
+// must scroll cleanly beneath them. No-op on desktop (no sheet provider).
+const sheetChromeBar = inject<Ref<boolean> | null>('sheetChromeBar', null)
+onMounted(() => {
+  if (sheetChromeBar) sheetChromeBar.value = true
+})
+onUnmounted(() => {
+  if (sheetChromeBar) sheetChromeBar.value = false
+})
 
 // ── Sort preference ──────────────────────────────────────────────
 const sortOptions: Array<{ value: SortPreference | 'recommended'; label: string }> = [
@@ -133,6 +161,11 @@ const modes: Array<{ type: SelectedMode; icon: any; label: string }> = [
     label: 'Driving',
   },
   {
+    type: 'rideshare',
+    icon: CarTaxiFrontIcon,
+    label: 'Rideshare',
+  },
+  {
     type: 'wheelchair',
     icon: AccessibilityIcon,
     label: 'Wheelchair',
@@ -174,38 +207,16 @@ useMapListener(
 
 <template>
   <PanelLayout>
-    <div class="space-y-3 flex flex-col">
-      <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-semibold">Directions</h1>
-        <ResponsivePopover
-          v-model:open="showPreferences"
-          side="top"
-          :side-offset="-48"
-          align="end"
-          :align-offset="8"
-          desktop-content-class="w-[24.5rem] p-0"
-          mobile-content-class="px-2"
-        >
-          <template #trigger>
-            <Button
-              variant="ghost"
-              size="icon"
-              class="shrink-0"
-              :class="showPreferences && 'bg-accent'"
-              title="Route preferences"
-            >
-              <SlidersHorizontalIcon class="size-4" />
-            </Button>
-          </template>
+    <!-- The host sheet owns the one scroll surface (LeftSheet Card on
+         desktop, BottomSheet's data-sheet-scroll on mobile); this view just
+         flows content into it. A nested overflow container is what broke
+         scrolling inside the mobile sheet. Title + mode tabs scroll away;
+         the controls and the timeline axis pin with `position: sticky`,
+         docking below the sheet's own chrome via `--sheet-sticky-top`. -->
 
-          <template #content="{ close }">
-            <RoutingPreferences
-              :selected-mode="selectedMode"
-              @close="close"
-            />
-          </template>
-        </ResponsivePopover>
-      </div>
+    <!-- Collapsing header — title + tabs scroll up and out of view. -->
+    <div class="space-y-3">
+      <h1 class="text-2xl font-semibold">Directions</h1>
       <Tabs v-model="selectedMode">
         <TabsList class="w-full flex">
           <TabsTrigger
@@ -219,13 +230,23 @@ useMapListener(
           </TabsTrigger>
         </TabsList>
       </Tabs>
+    </div>
 
+    <!-- Pinned controls — pin to the top of the host scroll surface (which on
+         mobile sits just below the sheet's opaque chrome bar). pt-3 keeps the
+         inputs off the chrome; the full-bleed background covers suggestions
+         scrolling underneath. -->
+    <div
+      ref="peekRef"
+      class="sticky z-30 -mx-3 px-3 pt-3 pb-3 space-y-3 bg-background"
+      :style="{ top: 'var(--sheet-sticky-top, 0px)' }"
+    >
       <WaypointInput
         :model-value="waypoints"
         @update:modelValue="directionsService.setWaypoints"
       />
 
-      <!-- Departure time + sort preference -->
+      <!-- Departure time + sort + preferences -->
       <div class="flex items-center gap-1.5">
         <Button
           variant="outline"
@@ -262,6 +283,34 @@ useMapListener(
             </SelectItem>
           </SelectContent>
         </Select>
+
+        <ResponsivePopover
+          v-model:open="showPreferences"
+          side="bottom"
+          :side-offset="6"
+          align="end"
+          desktop-content-class="w-[24.5rem] p-0"
+          mobile-content-class="px-2"
+        >
+          <template #trigger>
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-7 w-7 p-0 shrink-0"
+              :class="showPreferences && 'bg-accent'"
+              title="Route preferences"
+            >
+              <SlidersHorizontalIcon class="size-3.5" />
+            </Button>
+          </template>
+
+          <template #content="{ close }">
+            <RoutingPreferences
+              :selected-mode="selectedMode"
+              @close="close"
+            />
+          </template>
+        </ResponsivePopover>
       </div>
 
       <div v-if="showTimePicker" class="flex items-center gap-2">
@@ -277,7 +326,7 @@ useMapListener(
     <!-- Timezone warning -->
     <div
       v-if="timezoneWarning"
-      class="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/30 rounded-md text-sm"
+      class="mb-2 flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/30 rounded-md text-sm"
     >
       <ClockIcon class="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
       <span class="text-amber-800 dark:text-amber-200">
@@ -285,19 +334,26 @@ useMapListener(
       </span>
     </div>
 
-    <!-- Loading state -->
-    <div v-if="isLoading" class="flex items-center justify-center py-8">
-      <Spinner />
-      <span class="ml-2 text-sm text-muted-foreground"> Finding trips... </span>
+    <!-- Loading — centered in the open space below the inputs -->
+    <div
+      v-if="isLoading"
+      class="flex items-center justify-center min-h-[55dvh]"
+    >
+      <DirectionsLoading />
     </div>
 
-    <!-- Trips results -->
-    <TripsList v-else-if="trips" :trips="trips" class="flex-1" />
+    <!-- Trips results (full-bleed timeline) -->
+    <TripsList
+      v-else-if="trips"
+      :trips="trips"
+      :sticky-top="controlsHeight"
+      class="-mx-3"
+    />
 
     <!-- No results -->
     <div
-      v-else-if="!isLoading && waypoints.some(wp => wp.lngLat)"
-      class="text-center py-8 text-muted-foreground"
+      v-else-if="waypoints.some(wp => wp.lngLat)"
+      class="flex items-center justify-center min-h-[40dvh] text-center text-muted-foreground"
     >
       <p class="text-sm">No routes found</p>
     </div>

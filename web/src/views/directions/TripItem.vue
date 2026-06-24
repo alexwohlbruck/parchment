@@ -4,7 +4,7 @@ import dayjs from 'dayjs'
 import { useI18n } from 'vue-i18n'
 import { useMapService } from '@/services/map.service'
 import { useUnits } from '@/composables/useUnits'
-import { getTravelModeCssClass, getTravelModeColor, getTravelModeCaseColor } from '@/lib/travel-mode-colors'
+import { getTravelModeCssClass, getTravelModeColor } from '@/lib/travel-mode-colors'
 import { getSegmentIcon, getModeIcon } from '@/lib/travel-mode-icons'
 import type {
   TripOption,
@@ -38,25 +38,58 @@ function formatCo2(kg: number): string {
   return `${Math.round(kg * 1000)} g`
 }
 
-const dominantMode = computed(() => {
-  const durations: Record<string, number> = {}
-  for (const seg of props.trip.segments) {
-    durations[seg.mode] = (durations[seg.mode] || 0) + seg.duration
+/**
+ * Trip type — the combination pattern, not the longest mode. A subway trip
+ * with two long walks is still a transit trip ("Transit & Walking"), a
+ * drive to the station is "Park & Ride". Mirrors the trip-combination
+ * taxonomy the planner generates from.
+ */
+const tripType = computed<{ key: string; iconMode: string }>(() => {
+  const segs = props.trip.segments as any[]
+  const has = (m: string) => segs.some(s => s.mode === m)
+
+  if (!has('transit')) {
+    const shared = segs.find(s => s.sharedMobilityDetails)
+    if (shared) {
+      const kind = shared.sharedMobilityDetails?.vehicleType === 'scooter'
+        ? 'scootershare' : 'bikeshare'
+      return { key: kind, iconMode: 'cycling' }
+    }
+    if (has('rideshare')) return { key: 'rideshare', iconMode: 'rideshare' }
+    if (has('driving')) return { key: 'driving', iconMode: 'driving' }
+    if (has('cycling')) return { key: 'cycling', iconMode: 'cycling' }
+    if (has('wheelchair')) return { key: 'wheelchair', iconMode: 'wheelchair' }
+    return { key: 'walking', iconMode: 'walking' }
   }
-  let best: TravelMode = props.trip.mode
-  let max = 0
-  for (const [mode, dur] of Object.entries(durations)) {
-    if (dur > max) { max = dur; best = mode as TravelMode }
+
+  if (has('driving')) return { key: 'parkAndRide', iconMode: 'transit' }
+  if (has('rideshare')) return { key: 'transitRideshare', iconMode: 'transit' }
+  const shared = segs.find(s => s.sharedMobilityDetails)
+  if (shared) {
+    const kind = shared.sharedMobilityDetails?.vehicleType === 'scooter'
+      ? 'transitScooter' : 'transitBikeShare'
+    return { key: kind, iconMode: 'transit' }
   }
-  return best
+  if (has('cycling')) return { key: 'transitBike', iconMode: 'transit' }
+
+  // "Transit & Walking" only when walking is a significant journey of its
+  // own (15+ min in motion) — ordinary access and transfer walks are just
+  // part of riding transit.
+  const walkSec = segs.reduce(
+    (sum, s) => sum + (s.mode === 'walking' ? (s.duration || 0) - (s.waitSeconds ?? 0) : 0),
+    0,
+  )
+  if (walkSec >= 900) {
+    return { key: 'transitWalking', iconMode: 'transit' }
+  }
+  return { key: 'transit', iconMode: 'transit' }
 })
 
-/** Icon for the dominant mode — resolves transit route type from the longest transit segment */
-const dominantTransitIcon = computed(() => {
-  if (dominantMode.value !== 'transit') {
-    return getModeIcon(dominantMode.value)
+/** Icon for the trip type — transit types use the longest transit segment's route type */
+const tripIcon = computed(() => {
+  if (tripType.value.iconMode !== 'transit') {
+    return getModeIcon(tripType.value.iconMode)
   }
-  // Find the longest transit segment to determine the route type icon
   let longestSeg: any = null
   let longestDur = 0
   for (const seg of props.trip.segments) {
@@ -79,6 +112,64 @@ function segEnd(segment: { endTime?: Date; startTime: Date; duration: number }) 
 
 function segW(segment: { duration: number }) {
   return Math.max((segment.duration / 60) * props.pxPerMinute, 4)
+}
+
+/** Waits shorter than this aren't worth a visual break in the ticks. */
+const MIN_WAIT_SEC = 30
+
+/**
+ * Typed sub-spans of the track: 'walk' (tall ticks) then 'wait' (dots).
+ * The split comes from the server's `waitSeconds` — the stop wait folded
+ * into a walk segment after its moving portion. No wait field → the whole
+ * segment is walking (e.g. pure walking trips).
+ */
+// A walking-only trip (no transit/vehicle leg) renders as a single solid
+// blue pill, like driving/cycling. The dotted walk-tick track is reserved
+// for walking *segments* inside a multimodal trip, where it distinguishes
+// access/transfer walks from the vehicle pills.
+const isWalkingOnly = computed(() =>
+  props.trip.segments.length > 0 &&
+  props.trip.segments.every((s) => s.mode === 'walking'),
+)
+
+const trackSpans = computed(() => {
+  if (isWalkingOnly.value) return []
+  const pxPerSec = props.pxPerMinute / 60
+  const spans: { left: number; width: number; type: 'walk' | 'wait' }[] = []
+  for (const seg of props.trip.segments) {
+    if (seg.mode !== 'walking') continue
+    const dur = seg.duration || 0
+    if (dur <= 0) continue
+    const left = segLeft(seg)
+    const waitSec = (seg as { waitSeconds?: number }).waitSeconds ?? 0
+    const walkSec = waitSec >= MIN_WAIT_SEC ? dur - waitSec : dur
+    const walkW = walkSec * pxPerSec
+    if (walkW > 0.5) spans.push({ left, width: walkW, type: 'walk' })
+    if (walkSec < dur) {
+      spans.push({ left: left + walkW, width: (dur - walkSec) * pxPerSec, type: 'wait' })
+    }
+  }
+  return spans
+})
+
+// Walk and wait share colour, opacity, and spacing — the shape is the
+// signal: walking is a tall pill tick, waiting a small dot. Crisp pill
+// shapes come from an SVG mask (gradients anti-alias into blurry ovals);
+// the colour is a plain background that shows through the mask.
+//
+// Each tick represents one minute: a span gets round(minutes) shapes, and
+// the tile is fitted so that whole number fills it exactly — countable
+// minutes, no clipped pills at span boundaries.
+const TICK_COLOR = 'hsl(var(--muted-foreground) / 0.6)'
+const TICK_W = 2.5
+
+function tickStyle(span: { width: number; type: 'walk' | 'wait' }) {
+  const h = span.type === 'walk' ? 9 : TICK_W
+  const count = Math.max(1, Math.round(span.width / props.pxPerMinute))
+  const tile = span.width / count
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${tile}" height="${h}"><rect x="${(tile - TICK_W) / 2}" width="${TICK_W}" height="${h}" rx="${TICK_W / 2}"/></svg>`
+  const mask = `url('data:image/svg+xml;utf8,${encodeURIComponent(svg)}') 0 center / ${tile}px ${h}px repeat-x`
+  return { backgroundColor: TICK_COLOR, mask, WebkitMask: mask }
 }
 
 function getTripModeLabel(mode: string): string {
@@ -113,6 +204,13 @@ function getSegmentTooltip(segment: any): string {
   const mode = getTripModeLabel(segment.mode)
   return `${mode}: ${duration}${distance ? ', ' + distance : ''}`
 }
+
+/** "Q · toward Coney Island" — single quiet context line under the bar. */
+const firstTransitHeadsign = computed(() => {
+  const seg = props.trip.segments.find(s => s.mode === 'transit' && (s as any).headsign)
+  if (!seg) return null
+  return `${(seg as any).lineName ? (seg as any).lineName + ' · ' : ''}${t('directions.toward', { headsign: (seg as any).headsign })}`
+})
 
 const legs = computed(() => {
   const groups: { legIndex: number; segments: typeof props.trip.segments }[] = []
@@ -152,11 +250,28 @@ function segLegIndex(segment: typeof props.trip.segments[0]): number {
   return (segment as any).legIndex ?? 0
 }
 
-function hasNextInSameLeg(index: number): boolean {
+// Walking segments don't render as pills — the dotted track shows through,
+// Transit-app style. Pills join only to an adjacent visible (non-walk) pill.
+// Exception: a walking-only trip renders its single walk as a solid pill
+// (matching driving/cycling), so it isn't a lone dotted track.
+function isPill(segment: typeof props.trip.segments[0]): boolean {
+  return segment.mode !== 'walking' || isWalkingOnly.value
+}
+
+function joinsNext(index: number): boolean {
   if (index >= props.trip.segments.length - 1) return false
   const current = props.trip.segments[index]
   const next = props.trip.segments[index + 1]
-  return segLegIndex(current) === segLegIndex(next) && isMultimodal(current)
+  return (
+    isPill(current) &&
+    isPill(next) &&
+    segLegIndex(current) === segLegIndex(next) &&
+    isMultimodal(current)
+  )
+}
+
+function joinsPrev(index: number): boolean {
+  return index > 0 && joinsNext(index - 1)
 }
 
 function handleClick() {
@@ -197,10 +312,16 @@ function handleMouseEnter() {
     <div>
       <!-- Trip bar -->
       <div class="relative h-7 flex items-center">
-        <!-- Dotted track -->
+        <!-- Faint baseline for the empty axis (before departure / after arrival) -->
+        <div class="absolute inset-x-0 h-px top-1/2 -translate-y-1/2 bg-border/30" />
+
+        <!-- Track spans: walking as tall pill ticks, waiting as dots -->
         <div
-          class="absolute inset-x-0 h-1.5 top-1/2 -translate-y-1/2 rounded-full"
-          style="background: repeating-linear-gradient(to right, hsl(var(--border)) 0 1.5px, transparent 1.5px 6px)"
+          v-for="(span, i) in trackSpans"
+          :key="`track-${i}`"
+          class="absolute top-1/2 -translate-y-1/2"
+          :class="span.type === 'walk' ? 'h-2.5' : 'h-1.5'"
+          :style="{ left: `${span.left}px`, width: `${span.width}px`, ...tickStyle(span) }"
         />
 
         <!-- Start cap -->
@@ -209,44 +330,52 @@ function handleMouseEnter() {
           :style="{ left: `${segLeft(trip.segments[0])}px` }"
         />
 
-        <!-- Segments -->
-        <div
-          v-for="(segment, i) in trip.segments"
-          :key="segment.id"
-          class="absolute h-full flex items-center text-white top-1/2 -translate-y-1/2 overflow-hidden shadow-xs border border-black/10 dark:border-black/20"
-          :class="[
-            hasNextInSameLeg(i)
-              ? (segW(segment) < 20 ? 'rounded-l-full rounded-r-none' : 'rounded-l-lg rounded-r-none')
-              : (segW(segment) < 20 ? 'rounded-full' : 'rounded-lg'),
-            !segment.lineColor && getTravelModeCssClass(segment.mode),
-            segW(segment) > 24 ? 'px-2 gap-1.5' : 'justify-center px-0.5',
-          ]"
-          :style="{
-            left: `${segLeft(segment) - (isMultimodal(segment) && i > 0 && segLegIndex(trip.segments[i - 1]) === segLegIndex(segment) ? 6 : 0)}px`,
-            width: `${segW(segment) + (isMultimodal(segment) && i > 0 && segLegIndex(trip.segments[i - 1]) === segLegIndex(segment) ? 6 : 0)}px`,
-            zIndex: i + 1,
-            ...(segment.lineColor ? { background: `#${segment.lineColor}`, color: segment.lineTextColor ? `#${segment.lineTextColor}` : '#fff' } : {}),
-          }"
-          :title="getSegmentTooltip(segment)"
-        >
-          <component
-            v-if="segW(segment) > 20"
-            :is="getSegmentIcon(segment.mode, segment.routeType)"
-            class="size-3 shrink-0"
-          />
-          <span
-            v-if="segW(segment) > 70"
-            class="text-[11px] font-semibold truncate"
+        <!-- Vehicle pills — walking stays as the dotted track underneath -->
+        <template v-for="(segment, i) in trip.segments" :key="segment.id">
+          <div
+            v-if="isPill(segment)"
+            class="absolute h-full flex items-center justify-center text-white top-1/2 -translate-y-1/2 overflow-hidden shadow-xs"
+            :class="[
+              joinsNext(i) && !joinsPrev(i) ? 'rounded-l-[10px] rounded-r-none'
+                : joinsPrev(i) && !joinsNext(i) ? 'rounded-r-[10px] rounded-l-none'
+                : joinsPrev(i) && joinsNext(i) ? 'rounded-none'
+                : 'rounded-[10px]',
+              !segment.lineColor && getTravelModeCssClass(segment.mode),
+              segW(segment) > 28 ? 'px-2 gap-1.5' : 'px-0.5',
+            ]"
+            :style="{
+              left: `${segLeft(segment) - (joinsPrev(i) ? 6 : 0)}px`,
+              width: `${segW(segment) + (joinsPrev(i) ? 6 : 0)}px`,
+              zIndex: i + 1,
+              ...(segment.lineColor ? { background: `#${segment.lineColor}`, color: segment.lineTextColor ? `#${segment.lineTextColor}` : '#fff' } : {}),
+            }"
+            :title="getSegmentTooltip(segment)"
           >
-            {{ segment.lineName || getTripModeLabel(segment.mode) }}
-          </span>
-        </div>
+            <span
+              v-if="segment.lineName && segW(segment) > 28"
+              class="text-[12px] font-bold truncate"
+            >
+              {{ segment.lineName }}
+            </span>
+            <component
+              v-else-if="segW(segment) > 20"
+              :is="getSegmentIcon(segment.mode, segment.routeType)"
+              class="size-3.5 shrink-0"
+            />
+          </div>
+        </template>
 
-        <!-- Waypoint caps (only at leg boundaries) -->
+        <!-- End cap -->
         <div
-          v-for="(pos, i) in waypointCapPositions.slice(1)"
-          :key="`cap-${i}`"
+          v-if="waypointCapPositions.length"
           class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-2.5 rounded-full bg-primary border-[1.5px] border-white z-[20] shadow-xs"
+          :style="{ left: `${waypointCapPositions[waypointCapPositions.length - 1]}px` }"
+        />
+        <!-- Intermediate waypoint caps (multi-stop trips only) -->
+        <div
+          v-for="(pos, i) in waypointCapPositions.slice(1, -1)"
+          :key="`cap-${i}`"
+          class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-2 rounded-full bg-background border-[1.5px] border-primary z-[20]"
           :style="{ left: `${pos}px` }"
         />
       </div>
@@ -255,11 +384,11 @@ function handleMouseEnter() {
       <div class="flex items-center gap-1.5 flex-wrap mt-1.5 pr-4 text-[11px] text-muted-foreground">
         <span class="inline-flex items-center gap-1">
           <component
-            :is="dominantTransitIcon"
+            :is="tripIcon"
             class="size-3"
-            :style="{ color: getTravelModeColor(dominantMode) }"
+            :style="{ color: getTravelModeColor(tripType.iconMode) }"
           />
-          <span class="font-semibold text-foreground/80">{{ getTripModeLabel(dominantMode) }}</span>
+          <span class="font-semibold text-foreground/80">{{ t(`directions.tripTypes.${tripType.key}`) }}</span>
         </span>
 
         <template v-if="trip.cost?.total">
@@ -273,30 +402,12 @@ function handleMouseEnter() {
         </template>
       </div>
 
-      <!-- Transit departure cards -->
+      <!-- First transit leg headsign — one quiet line instead of a card row -->
       <div
-        v-if="trip.segments.some(s => s.lineName)"
-        class="flex gap-1.5 pt-2 overflow-x-auto scrollbar-hidden"
+        v-if="firstTransitHeadsign"
+        class="mt-1 text-[11px] text-muted-foreground truncate pr-4"
       >
-        <div
-          v-for="segment in trip.segments.filter(s => s.lineName)"
-          :key="segment.id"
-          class="flex items-center gap-2 px-2.5 py-1.5 bg-background border rounded-lg text-[11px] text-foreground/80 font-medium shrink-0"
-        >
-          <span
-            class="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-[5px] text-[10px] font-bold"
-            :style="{
-              background: `#${segment.lineColor}` || getTravelModeColor(segment.mode),
-              color: segment.lineTextColor ? `#${segment.lineTextColor}` : '#fff',
-            }"
-          >
-            {{ segment.vehicleNumber || segment.lineName }}
-          </span>
-          <span v-if="segment.headsign" class="text-muted-foreground truncate max-w-[120px]">
-            {{ segment.headsign }}
-          </span>
-          <span class="tabular-nums">{{ formatDurationString(segment.duration) }}</span>
-        </div>
+        {{ firstTransitHeadsign }}
       </div>
     </div>
   </div>

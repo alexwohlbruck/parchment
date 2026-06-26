@@ -145,6 +145,7 @@ function directionsService() {
 
       const { data } = await api.post('/directions/', request, {
         signal: controller.signal,
+        timeout: 30_000,
       })
 
       // Transform response to UI format

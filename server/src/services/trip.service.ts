@@ -72,9 +72,6 @@ export class TripService {
         }
       })
 
-    // Shared bike/scooter rides run whenever cycling is in scope — a docked
-    // rental is a cycling strategy, and unlike a personal bike it needs no
-    // parking, so this is independent of the parking-aware swap above.
     if (modes.includes('biking')) {
       modePromises.push(
         this.planSharedVehicleTrips(request, dataSources).catch((error) => {
@@ -84,34 +81,32 @@ export class TripService {
       )
     }
 
+    if (useParking) {
+      if (modes.includes('driving')) {
+        modePromises.push(
+          this.planDrivingWithParkingTrip(request, dataSources)
+            .then((trip) => trip ? [trip] : [])
+            .catch((error) => {
+              console.error('Parking-aware driving failed:', error)
+              return []
+            }),
+        )
+      }
+      if (modes.includes('biking')) {
+        modePromises.push(
+          this.planBikingWithParkingTrip(request, dataSources)
+            .then((trip) => trip ? [trip] : [])
+            .catch((error) => {
+              console.error('Parking-aware biking failed:', error)
+              return []
+            }),
+        )
+      }
+    }
+
     const modeResults = await Promise.all(modePromises)
     for (const trips of modeResults) {
       candidates.push(...trips)
-    }
-
-    // ── Parking-aware candidates ───────────────────────────────────────
-    // When useKnownParkingLocations is enabled, search for real parking
-    // near the destination and generate park-then-walk candidates.
-    if (useParking) {
-      const parkingPromises: Promise<void>[] = []
-
-      if (modes.includes('driving')) {
-        parkingPromises.push(
-          this.planDrivingWithParkingTrip(request, dataSources)
-            .then((trip) => { if (trip) candidates.push(trip) })
-            .catch((error) => console.error('Parking-aware driving failed:', error)),
-        )
-      }
-
-      if (modes.includes('biking')) {
-        parkingPromises.push(
-          this.planBikingWithParkingTrip(request, dataSources)
-            .then((trip) => { if (trip) candidates.push(trip) })
-            .catch((error) => console.error('Parking-aware biking failed:', error)),
-        )
-      }
-
-      await Promise.all(parkingPromises)
     }
 
     // Score and rank trips.
@@ -1689,146 +1684,165 @@ export class TripService {
     // Arrive-by: anchor the MOTIS search on the arrival target so
     // itineraries land before it, instead of departing as soon as possible.
     const arrivalTarget = this.getArrivalTarget(request)
+    const isMulti = request.selectedMode === 'multi'
 
     const baseRequest = {
       from: from.location,
       to: to.location,
       time: arrivalTarget ?? startTime,
       arriveBy: arrivalTarget != null,
-      // Ask MOTIS for a spread of options — a dense network has several
-      // distinct routings; filterQualityTrips dedupes them by line signature
-      // and keeps the best handful.
-      numItineraries: 8,
-      searchWindow: dist < 5000 ? 1800 : 3600,
+      numItineraries: isMulti ? 3 : 5,
+      searchWindow: isMulti ? 1200 : 1800,
       transitModes: preferences?.transitModes,
       maxTransfers: preferences?.maxTransfers,
       wheelchair: preferences?.wheelchairAccessible,
     }
 
-    // Query 1 (always): WALK access/egress. Kept separate from RENTAL —
-    // walk-only queries get Barrelman's wide stop-matching radius (off-street
-    // platforms stay boardable) and run in ~100ms, while mixing RENTAL in
-    // would force the narrow radius onto the primary transit results.
-    // Skip directModes — GraphHopper already computes walk/bike/drive in parallel
-    const walkQuery = this.executeIntermodalQuery(
-      {
-        ...baseRequest,
-        preTransitModes: ['WALK'],
-        postTransitModes: ['WALK'],
-        maxPreTransitTime: maxWalkSec,
-        maxPostTransitTime: maxWalkSec,
-      },
-      from, to, startTime, dataSources, preferences,
-    )
+    const fetchMotis = (
+      label: string,
+      req: import('../types/integration.types').IntermodalRouteRequest,
+    ) => {
+      return transitRoutingService.getIntermodalRoute(req)
+        .then(r => r.itineraries ?? [])
+        .catch(e => {
+          console.error(`Intermodal query (${label}) failed:`, e)
+          return [] as import('../types/integration.types').TransitItinerary[]
+        })
+    }
 
-    // Query 1a (always): least-transfer sweep. Time-optimal RAPTOR never
-    // returns a one-seat ride that arrives a few minutes after a transfer
-    // combo — it's Pareto-dominated at generation time, before our scoring
-    // ever sees it ("why transfer to a bus when the streetcar goes there?").
-    // A heavy per-interchange pad makes RAPTOR surface the simplest
-    // itineraries; signature dedup merges them with the time-optimal set
-    // and ranking decides.
-    const fewTransfersQuery = this.executeIntermodalQuery(
-      {
-        ...baseRequest,
-        numItineraries: 2,
-        preTransitModes: ['WALK'],
-        postTransitModes: ['WALK'],
-        maxPreTransitTime: maxWalkSec,
-        maxPostTransitTime: maxWalkSec,
-        additionalTransferTime: 15,
-      },
-      from, to, startTime, dataSources, preferences,
-    )
+    const walkFetch = fetchMotis('walk', {
+      ...baseRequest,
+      preTransitModes: ['WALK'],
+      postTransitModes: ['WALK'],
+      maxPreTransitTime: maxWalkSec,
+      maxPostTransitTime: maxWalkSec,
+    })
 
-    // Query 1b (always): RENTAL egress — bikeshare/scooter as the transit
-    // last mile (train → shared bike → destination). Direct shared rides
-    // (no transit) are generated by the cycling profile in
-    // planSharedVehicleTrips, so we don't request directModes here.
-    const rentalQuery = this.executeIntermodalQuery(
-      {
-        ...baseRequest,
-        preTransitModes: ['WALK'],
-        postTransitModes: ['RENTAL'],
-        maxPreTransitTime: maxWalkSec,
-        maxPostTransitTime: maxWalkSec,
-      },
-      from, to, startTime, dataSources, preferences,
-    )
+    // Few-transfers sweep: time-optimal RAPTOR never returns a one-seat ride
+    // that arrives after a transfer combo — a heavy per-interchange pad makes
+    // it surface simpler itineraries. Skipped in multi mode (3 itineraries is
+    // already enough for a mode overview).
+    const fewTransfersFetch = isMulti
+      ? Promise.resolve([] as import('../types/integration.types').TransitItinerary[])
+      : fetchMotis('fewTransfers', {
+          ...baseRequest,
+          numItineraries: 2,
+          preTransitModes: ['WALK'],
+          postTransitModes: ['WALK'],
+          maxPreTransitTime: maxWalkSec,
+          maxPostTransitTime: maxWalkSec,
+          additionalTransferTime: 15,
+        })
 
-    const queries: Promise<TripResponse[]>[] = [walkQuery, fewTransfersQuery, rentalQuery]
+    // Rental query (transit+rental combos) — skip in multi mode where
+    // planSharedVehicleTrips covers shared-mobility separately.
+    const rentalFetch = isMulti
+      ? Promise.resolve([] as import('../types/integration.types').TransitItinerary[])
+      : fetchMotis('rental', {
+          ...baseRequest,
+          numItineraries: 4,
+          preTransitModes: ['WALK'],
+          postTransitModes: ['RENTAL'],
+          maxPreTransitTime: maxWalkSec,
+          maxPostTransitTime: maxWalkSec,
+        })
 
-    // Walkable trips always offer a plain walk, the way Apple/Google do —
-    // for a short OD a direct walk is often as fast as transit (no waiting),
-    // and it shouldn't depend on MOTIS happening to return a collapsible
-    // short-ride itinerary. Beyond ~35 min on foot, transit-only.
+    const extraQueries: Promise<TripResponse[]>[] = []
+
     if (dist <= TripService.WALK_OFFER_MAX_M) {
-      queries.push(
+      extraQueries.push(
         this.planModeTrip(request, 'walking', dataSources)
           .then((trip) => (trip ? [trip] : []))
           .catch(() => []),
       )
     }
 
-    const availableVehicles = request.availableVehicles || []
-    const useKnownLocations = preferences.useKnownVehicleLocations !== false
+    // Vehicle-access transit queries (drive-to-station, bike-to-station) are
+    // only included in dedicated transit mode — in multi mode, the top-level
+    // parking-driving and parking-biking modes already cover the vehicle+walk
+    // use case without the extra MOTIS round-trips.
+    if (!isMulti) {
+      const availableVehicles = request.availableVehicles || []
+      const useKnownLocations = preferences.useKnownVehicleLocations !== false
 
-    // Query 2 (if car available): CAR_PARKING access (park-and-ride)
-    const car = availableVehicles.find(v => v.type === 'car')
-    if (car) {
-      queries.push(
-        this.planVehicleAccessTransitQuery(
-          {
-            ...baseRequest,
-            preTransitModes: ['CAR_PARKING'],
-            postTransitModes: ['WALK'],
-            maxPostTransitTime: maxWalkSec,
-          },
-          car, from, to, startTime, dataSources, preferences, useKnownLocations,
-        ),
+      const car = availableVehicles.find(v => v.type === 'car')
+      if (car) {
+        extraQueries.push(
+          this.planVehicleAccessTransitQuery(
+            {
+              ...baseRequest,
+              preTransitModes: ['CAR_PARKING'],
+              postTransitModes: ['WALK'],
+              maxPostTransitTime: maxWalkSec,
+            },
+            car, from, to, startTime, dataSources, preferences, useKnownLocations,
+          ),
+        )
+      }
+
+      const bike = availableVehicles.find(v =>
+        ['bike', 'e-bike', 'scooter', 'e-scooter'].includes(v.type),
       )
+      if (bike) {
+        extraQueries.push(
+          this.planVehicleAccessTransitQuery(
+            {
+              ...baseRequest,
+              preTransitModes: ['BIKE'],
+              postTransitModes: ['WALK'],
+              maxPreTransitTime: 1800,
+              maxPostTransitTime: maxWalkSec,
+            },
+            bike, from, to, startTime, dataSources, preferences, useKnownLocations,
+          ),
+        )
+      }
     }
 
-    // Query 3 (if bike available): BIKE access
-    const bike = availableVehicles.find(v =>
-      ['bike', 'e-bike', 'scooter', 'e-scooter'].includes(v.type),
-    )
-    if (bike) {
-      queries.push(
-        this.planVehicleAccessTransitQuery(
-          {
-            ...baseRequest,
-            preTransitModes: ['BIKE'],
-            postTransitModes: ['WALK'],
-            maxPreTransitTime: 1800,
-            maxPostTransitTime: maxWalkSec,
-          },
-          bike, from, to, startTime, dataSources, preferences, useKnownLocations,
-        ),
-      )
+    const extraPromise = Promise.all(extraQueries)
+    const [walkItins, fewTransfersItins, rentalItins] = await Promise.all([
+      walkFetch, fewTransfersFetch, rentalFetch,
+    ])
+
+    const seen = new Set<string>()
+    const uniqueItineraries: import('../types/integration.types').TransitItinerary[] = []
+    for (const itin of [...walkItins, ...fewTransfersItins, ...rentalItins]) {
+      const sig = itin.legs
+        .filter(l => l.mode !== 'WALK')
+        .map(l => `${l.routeId ?? l.mode}:${l.from?.stopId ?? ''}→${l.to?.stopId ?? ''}`)
+        .join('|')
+      if (!seen.has(sig)) {
+        seen.add(sig)
+        uniqueItineraries.push(itin)
+      }
     }
 
-    // Rideshare + transit: MOTIS can't route rideshare, so derive these by
-    // swapping a boundary walk of a walk-access transit trip for a rideshare
-    // leg (no extra MOTIS query). Chained onto Query 1 so the rideshare API
-    // round-trip overlaps the car/bike MOTIS queries.
-    const rideshareQuery: Promise<TripResponse[]> =
-      rideshareService.isRideshareAvailable()
-        ? walkQuery
-            .then(trips =>
-              this.deriveRideshareTransitVariants(
-                trips, from, to, startTime, preferences,
-              ),
-            )
-            .catch(error => {
-              // Rideshare failures are non-fatal, but log so they don't go unnoticed
-              console.error('Rideshare+transit composition failed:', error)
-              return []
-            })
-        : Promise.resolve([])
+    const [adapted, extraResults] = await Promise.all([
+      Promise.all(
+        uniqueItineraries.map(itin =>
+          this.adaptIntermodalItinerary(itin, from, to, startTime, dataSources, preferences),
+        ),
+      ),
+      extraPromise,
+    ])
 
-    const results = await Promise.all([...queries, rideshareQuery])
-    return results.flat()
+    const transitTrips = adapted.filter((t): t is TripResponse => t !== null)
+
+    let rideshareTrips: TripResponse[] = []
+    if (rideshareService.isRideshareAvailable()) {
+      try {
+        const walkTrips = transitTrips.filter(t =>
+          t.segments.every(s => s.mode === 'walking' || !['biking', 'driving'].includes(s.mode)),
+        )
+        rideshareTrips = await this.deriveRideshareTransitVariants(
+          walkTrips, from, to, startTime, preferences,
+        )
+      } catch (error) {
+        console.error('Rideshare+transit composition failed:', error)
+      }
+    }
+
+    return [...transitTrips, ...rideshareTrips, ...extraResults.flat()]
   }
 
   /**

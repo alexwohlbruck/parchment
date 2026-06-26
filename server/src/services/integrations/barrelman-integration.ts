@@ -65,7 +65,7 @@ import { parseOsmHours } from '../../lib/hours.utils'
  * Tune the cap to Barrelman's headroom: high enough that one trip plan isn't
  * serialized, low enough that concurrent plans can't stampede the process.
  */
-const BARRELMAN_MAX_CONCURRENCY = 16
+const BARRELMAN_MAX_CONCURRENCY = 48
 
 class Semaphore {
   private active = 0
@@ -870,7 +870,7 @@ export class BarrelmanIntegration
         request,
         {
           headers: this.headers,
-          timeout: 30_000,
+          timeout: 25_000,
         },
       )
       return response.data
@@ -896,7 +896,7 @@ export class BarrelmanIntegration
         request,
         {
           headers: this.headers,
-          timeout: 30_000,
+          timeout: 25_000,
         },
       )
       return response.data

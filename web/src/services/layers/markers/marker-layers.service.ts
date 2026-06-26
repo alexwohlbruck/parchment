@@ -14,6 +14,11 @@ import { TripInstructionsLayer } from '@/components/map/layers/trip-instructions
 import { UserLocationLayer } from '@/components/map/layers/user-location-layer'
 import { TrackerLocationsLayer } from '@/components/map/layers/tracker-locations-layer'
 import { TransitVehiclesLayer } from '@/components/map/layers/transit-vehicles-layer'
+import {
+  RouteBuilderLayer,
+  RouteBuilderLineLayer,
+  RouteBuilderTurnaroundLayer,
+} from '@/components/map/layers/route-builder-layer'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useTransitVehiclesStore } from '@/stores/transit-vehicles.store'
 import { useRouteIsolationService } from '@/services/layers/features/route-isolation.service'
@@ -29,6 +34,9 @@ export function useMarkerLayersService() {
   let userLocationLayer: UserLocationLayer | null = null
   let trackerLocationsLayer: TrackerLocationsLayer | null = null
   let transitVehiclesLayer: TransitVehiclesLayer | null = null
+  let routeBuilderLayer: RouteBuilderLayer | null = null
+  let routeBuilderLineLayer: RouteBuilderLineLayer | null = null
+  let routeBuilderTurnaroundLayer: RouteBuilderTurnaroundLayer | null = null
   let watchStops: WatchStopHandle[] = []
   let moveEndCleanup: (() => void) | null = null
   let routeIsolation: ReturnType<typeof useRouteIsolationService> | null = null
@@ -54,6 +62,9 @@ export function useMarkerLayersService() {
     userLocationLayer = new UserLocationLayer()
     trackerLocationsLayer = new TrackerLocationsLayer()
     transitVehiclesLayer = new TransitVehiclesLayer()
+    routeBuilderLayer = new RouteBuilderLayer()
+    routeBuilderLineLayer = new RouteBuilderLineLayer(mapStrategy)
+    routeBuilderTurnaroundLayer = new RouteBuilderTurnaroundLayer()
 
     // Initialize with map API
     const markerAPI = {
@@ -86,6 +97,9 @@ export function useMarkerLayersService() {
     trackerLocationsLayer.initialize(markerAPI)
     transitVehiclesLayer.initialize(markerAPI)
     transitVehiclesLayer.setGetBounds(() => mapStrategy.getBounds())
+    routeBuilderLayer.initialize(markerAPI)
+    routeBuilderLineLayer.initialize()
+    routeBuilderTurnaroundLayer.initialize(markerAPI)
 
     const transitVehiclesStore = useTransitVehiclesStore()
     let moveEndTimer: ReturnType<typeof setTimeout> | null = null
@@ -168,6 +182,9 @@ export function useMarkerLayersService() {
     userLocationLayer?.destroy()
     trackerLocationsLayer?.destroy()
     transitVehiclesLayer?.destroy()
+    routeBuilderLayer?.destroy()
+    routeBuilderLineLayer?.destroy()
+    routeBuilderTurnaroundLayer?.destroy()
 
     waypointsLayer = null
     friendLocationsLayer = null
@@ -175,6 +192,9 @@ export function useMarkerLayersService() {
     userLocationLayer = null
     trackerLocationsLayer = null
     transitVehiclesLayer = null
+    routeBuilderLayer = null
+    routeBuilderLineLayer = null
+    routeBuilderTurnaroundLayer = null
   }
 
   // ============================================================================

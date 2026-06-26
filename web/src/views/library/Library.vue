@@ -10,14 +10,17 @@ import { PermissionId } from '@/types/auth.types'
 import UpgradeBanner from '@/components/subscription/UpgradeBanner.vue'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useLayersStore } from '@/stores/layers.store'
+import { useRoutesStore } from '@/stores/library/routes.store'
 
 const authService = useAuthService()
 const canAccessLibrary = computed(() => authService.hasPermission(PermissionId.LIBRARY_READ))
 
 const collectionsStore = useCollectionsStore()
 const layersStore = useLayersStore()
+const routesStore = useRoutesStore()
 const { collections } = storeToRefs(collectionsStore)
 const { userLayers } = storeToRefs(layersStore)
+const { routes } = storeToRefs(routesStore)
 
 const tabs = [
   { id: 'collections', label: 'Collections', route: AppRoute.LIBRARY_COLLECTIONS },
@@ -29,7 +32,7 @@ const tabs = [
 const tabCounts = computed<Record<string, number | null>>(() => ({
   collections: collections.value.length || null,
   layers: userLayers.value.length || null,
-  routes: null,
+  routes: routes.value.length || null,
   maps: null,
 }))
 

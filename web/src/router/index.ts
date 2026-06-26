@@ -44,6 +44,9 @@ export enum AppRoute {
   LIBRARY_LAYERS = 'library-layers',
   LIBRARY_MAPS = 'library-maps',
   COLLECTION = 'collection',
+  ROUTE_BUILDER = 'route-builder',
+  ROUTE_BUILDER_EDIT = 'route-builder-edit',
+  ROUTE_DETAIL = 'route-detail',
   SETTINGS = 'settings',
   ACCOUNT = 'account',
   BEHAVIOR = 'behavior',
@@ -183,7 +186,7 @@ const router = createRouter({
             {
               path: 'routes',
               name: AppRoute.LIBRARY_ROUTES,
-              component: () => import('@/views/library/EmptyTab.vue'),
+              component: () => import('@/views/library/routes/Routes.vue'),
             },
             {
               path: 'layers',
@@ -201,6 +204,23 @@ const router = createRouter({
           path: '/library/collections/:id',
           name: AppRoute.COLLECTION,
           component: Collection,
+          props: true,
+        },
+        {
+          path: '/routes/new',
+          name: AppRoute.ROUTE_BUILDER,
+          component: () => import('@/views/routes/RouteBuilder.vue'),
+        },
+        {
+          path: '/routes/:id/edit',
+          name: AppRoute.ROUTE_BUILDER_EDIT,
+          component: () => import('@/views/routes/RouteBuilder.vue'),
+          props: true,
+        },
+        {
+          path: '/routes/:id',
+          name: AppRoute.ROUTE_DETAIL,
+          component: () => import('@/views/routes/RouteDetail.vue'),
           props: true,
         },
         {

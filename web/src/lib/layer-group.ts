@@ -19,6 +19,7 @@ import {
   getEdgeCaseColor,
 } from './route-profile-colors'
 import type { RouteEdgeSegment } from '@/types/directions.types'
+import { adjustLightness } from '@/lib/utils'
 
 /**
  * Base class for managing a collection of map layers as a group
@@ -819,7 +820,11 @@ export class TripGroup extends MapLayerGroup {
   private _getSegmentCaseColor(segment: TripSegment): string {
     const { mode, lineColor } = segment
     if (lineColor) {
-      return lineColor.startsWith('#') ? lineColor : `#${lineColor}`
+      // Transit segments carry a GTFS route color. Derive a darker shade so the
+      // casing reads as an outline rather than blending into the main line,
+      // matching the main/case contrast used for other travel modes.
+      const hex = lineColor.startsWith('#') ? lineColor : `#${lineColor}`
+      return adjustLightness(hex, -12)
     }
 
     // Use the travel mode case color constants to match the trip list UI

@@ -12,6 +12,7 @@
 
 import { Elysia, t } from 'elysia'
 import * as collectionsService from '../services/library/collections.service'
+import * as routesService from '../services/library/routes.service'
 import { makeIpRateLimit } from '../middleware/rate-limit.middleware'
 
 const publicController = new Elysia({ prefix: '/public' })
@@ -61,6 +62,50 @@ const publicController = new Elysia({ prefix: '/public' })
       detail: {
         tags: ['Public'],
         summary: 'Resolve a public-link token to a collection',
+      },
+    },
+  )
+  /**
+   * GET /public/routes/:token
+   *
+   * Resolve a public-link token to a custom route. Server-key only — the
+   * cleartext `body` (waypoints + geometry + stats) is what the shared view
+   * renders. `metadataEncrypted` is passed through like collections; the
+   * shared view falls back to a generic title when it can't be decrypted.
+   * 404 when the token doesn't match.
+   */
+  .get(
+    '/routes/:token',
+    async ({ params: { token }, set }) => {
+      const route = await routesService.getPublicRouteByToken(token)
+      if (!route) {
+        set.status = 404
+        return { error: 'Not found' }
+      }
+      return {
+        route: {
+          id: route.id,
+          userId: route.userId,
+          mode: route.mode,
+          scheme: route.scheme,
+          metadataEncrypted: route.metadataEncrypted,
+          metadataKeyVersion: route.metadataKeyVersion,
+          body: route.body,
+          distance: route.distance,
+          duration: route.duration,
+          elevationGain: route.elevationGain,
+          elevationLoss: route.elevationLoss,
+          publicRole: route.publicRole,
+          createdAt: route.createdAt,
+          updatedAt: route.updatedAt,
+        },
+      }
+    },
+    {
+      params: t.Object({ token: t.String() }),
+      detail: {
+        tags: ['Public'],
+        summary: 'Resolve a public-link token to a custom route',
       },
     },
   )

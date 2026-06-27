@@ -17,7 +17,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
 
   .get(
     '/',
-    async ({ query, user, i18n, status }) => {
+    async ({ query, user, i18n, status, request }) => {
       const language = i18n?.language ?? DEFAULT_LANGUAGE
       const {
         q: searchQuery = '',
@@ -39,6 +39,9 @@ const searchRouter = new Elysia({ prefix: '/search' })
           autocomplete: autocomplete === 'true' || autocomplete === true,
         },
         language,
+        // Propagate client disconnect (user kept typing) so the upstream
+        // Barrelman request is aborted instead of running to completion.
+        request.signal,
       )
 
       return searchResults

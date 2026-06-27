@@ -14,6 +14,13 @@ import { WikimediaIntegration } from './integrations/wikimedia-integration'
 import { dedupeWikiPhotos } from './integrations/wiki-utils'
 import { isTransitStop, extractAllOnestopIdsFromWikidata } from '../lib/transit-utils'
 
+/** True for an aborted/cancelled request (axios CanceledError or DOM AbortError). */
+function isAbortError(error: unknown): boolean {
+  const code = (error as { code?: string })?.code
+  const name = (error as { name?: string })?.name
+  return code === 'ERR_CANCELED' || name === 'CanceledError' || name === 'AbortError'
+}
+
 /**
  * Extract OSM tags from place amenities
  */
@@ -300,6 +307,8 @@ export async function lookupPlacesByNameAndLocation(
     sourceBlacklist?: Source[]
     userId?: User['id']
     language?: Language
+    /** Aborts the upstream provider request when the client disconnects. */
+    signal?: AbortSignal
   },
 ): Promise<Place[]> {
   try {
@@ -308,6 +317,7 @@ export async function lookupPlacesByNameAndLocation(
       sourceBlacklist = [],
       autocomplete = false,
       language,
+      signal,
     } = options || {}
 
     const allIntegrationRecords = integrationManager
@@ -349,14 +359,14 @@ export async function lookupPlacesByNameAndLocation(
           name,
           coordinates.lat,
           coordinates.lng,
-          { radius },
+          { radius, signal },
         )
       } else {
         return integration.capabilities.search?.searchPlaces(
           name,
           coordinates.lat,
           coordinates.lng,
-          { radius, language },
+          { radius, language, signal },
         )
       }
     })
@@ -373,6 +383,10 @@ export async function lookupPlacesByNameAndLocation(
     // "Carowinds" theme park at 16 km despite being a worse text match).
     return mergePlacesCollection(results)
   } catch (error) {
+    // A client disconnect (user kept typing → request aborted) surfaces as a
+    // CanceledError. That's expected control flow, not a failure — return
+    // quietly without logging noise.
+    if (isAbortError(error)) return []
     console.error('Error looking up places by name and coordinates:', error)
     return []
   }

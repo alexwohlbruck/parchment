@@ -255,6 +255,7 @@ export async function search(
   userId: string,
   options: SearchOptions,
   language: Language = 'en-US',
+  signal?: AbortSignal,
 ): Promise<SearchResponse | AutocompleteResponse> {
   const {
     query,
@@ -355,6 +356,7 @@ export async function search(
         autocomplete,
         userId,
         language,
+        signal,
       },
     )
 

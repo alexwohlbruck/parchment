@@ -68,6 +68,8 @@ export interface SearchCapability {
       language?: import('../lib/i18n').Language
       sort?: 'relevance' | 'distance' | 'name'
       filter?: SearchFilter
+      /** Aborts the request when the client disconnects (e.g. user kept typing). */
+      signal?: AbortSignal
     },
   ): Promise<Place[]>
 }
@@ -80,6 +82,8 @@ export interface AutocompleteCapability {
     options?: {
       radius?: number
       limit?: number
+      /** Aborts the request when the client disconnects (e.g. user kept typing). */
+      signal?: AbortSignal
     },
   ): Promise<Place[]>
 }

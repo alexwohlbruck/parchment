@@ -91,26 +91,63 @@ class Semaphore {
   }
 }
 
-const barrelmanLimiter = new Semaphore(BARRELMAN_MAX_CONCURRENCY)
+/**
+ * Interactive reads (search, autocomplete, place detail) run on their OWN pool,
+ * separate from the routing/transit fan-out above. These are latency-critical —
+ * fired while the user types — and individually cheap (~20ms). They must never
+ * queue behind a trip plan's 100+ slow MOTIS/walk-leg requests: sharing one
+ * limiter meant a single directions lookup saturated all slots for up to 25s,
+ * so concurrent autocomplete requests blew past their 5s timeout and silently
+ * returned no results. A dedicated pool keeps search responsive under that load
+ * while still capping interactive concurrency so it can't stampede Barrelman.
+ */
+const BARRELMAN_INTERACTIVE_CONCURRENCY = 24
 
 /**
- * Shared axios instance for every Barrelman call. Use this — never the bare
- * `axios` import — for Barrelman requests, or the concurrency cap is bypassed.
+ * Backstop timeout for interactive search/autocomplete requests. This is NOT a
+ * latency budget — cancellation of superseded requests is driven by the client's
+ * abort signal. It only exists to reclaim a pool slot if Barrelman genuinely
+ * hangs (no response at all), so it is set well above any legitimate query time
+ * so that merely-slow requests still return results instead of erroring empty.
  */
-const barrelmanHttp = axios.create()
-barrelmanHttp.interceptors.request.use(async (config) => {
-  await barrelmanLimiter.acquire()
-  return config
-})
-barrelmanHttp.interceptors.response.use(
-  (response) => {
-    barrelmanLimiter.release()
-    return response
-  },
-  (error) => {
-    barrelmanLimiter.release()
-    return Promise.reject(error)
-  },
+const SEARCH_BACKSTOP_TIMEOUT = 30_000
+
+/**
+ * Build an axios instance whose in-flight requests are bounded by `limiter`.
+ * Slots are held only for the HTTP round-trip — acquired in the request
+ * interceptor, released in the response interceptor on both success and failure.
+ */
+function createLimitedHttp(limiter: Semaphore) {
+  const http = axios.create()
+  http.interceptors.request.use(async (config) => {
+    await limiter.acquire()
+    return config
+  })
+  http.interceptors.response.use(
+    (response) => {
+      limiter.release()
+      return response
+    },
+    (error) => {
+      limiter.release()
+      return Promise.reject(error)
+    },
+  )
+  return http
+}
+
+/**
+ * Shared axios instance for routing/transit Barrelman calls. Use this — never
+ * the bare `axios` import — for those requests, or the concurrency cap is bypassed.
+ */
+const barrelmanHttp = createLimitedHttp(new Semaphore(BARRELMAN_MAX_CONCURRENCY))
+
+/**
+ * Dedicated axios instance for interactive search/autocomplete/place reads so
+ * they can't be starved by the routing fan-out on `barrelmanHttp`.
+ */
+const barrelmanSearchHttp = createLimitedHttp(
+  new Semaphore(BARRELMAN_INTERACTIVE_CONCURRENCY),
 )
 
 export interface BarrelmanConfig extends IntegrationConfig {
@@ -609,9 +646,9 @@ export class BarrelmanIntegration
     query: string,
     lat?: number,
     lng?: number,
-    options?: { radius?: number; limit?: number; sort?: string; filter?: Record<string, any> },
+    options?: { radius?: number; limit?: number; sort?: string; filter?: Record<string, any>; signal?: AbortSignal },
   ): Promise<Place[]> {
-    const response = await barrelmanHttp.post(
+    const response = await barrelmanSearchHttp.post(
       `${this.config.host}/search`,
       {
         query,
@@ -623,7 +660,7 @@ export class BarrelmanIntegration
         ...(options?.sort ? { sort: options.sort } : {}),
         ...(options?.filter ? { filter: options.filter } : {}),
       },
-      { headers: this.headers, timeout: 10000 },
+      { headers: this.headers, timeout: SEARCH_BACKSTOP_TIMEOUT, signal: options?.signal },
     )
     return (response.data || []).map((r: any) => this.adaptPlace(r))
   }
@@ -632,12 +669,18 @@ export class BarrelmanIntegration
     query: string,
     lat?: number,
     lng?: number,
-    options?: { radius?: number; limit?: number },
+    options?: { radius?: number; limit?: number; signal?: AbortSignal },
   ): Promise<Place[]> {
     // autocomplete: true disables the Ollama semantic layer entirely (it's too slow
     // for typing latency). Relies on parallel FTS + GIN-indexed trigram instead.
     // Barrelman searches globally and uses proximity re-rank for location bias.
-    const response = await barrelmanHttp.post(
+    //
+    // Cancellation is driven by the client's abort signal, not a short timeout:
+    // a stale request is dropped the instant the user types another character,
+    // while a slow-but-live request is allowed to finish rather than being killed
+    // mid-flight and surfacing as an empty result. The timeout is only a backstop
+    // for a genuinely hung Barrelman.
+    const response = await barrelmanSearchHttp.post(
       `${this.config.host}/search`,
       {
         query,
@@ -648,7 +691,7 @@ export class BarrelmanIntegration
         semantic: false,
         autocomplete: true,
       },
-      { headers: this.headers, timeout: 5000 },
+      { headers: this.headers, timeout: SEARCH_BACKSTOP_TIMEOUT, signal: options?.signal },
     )
     return (response.data || []).map((r: any) => this.adaptPlace(r))
   }
@@ -664,7 +707,7 @@ export class BarrelmanIntegration
     const lngDiff = Math.abs(bounds.east - bounds.west)
     const radius = (Math.max(latDiff, lngDiff) * 111320) / 2
 
-    const response = await barrelmanHttp.post(
+    const response = await barrelmanSearchHttp.post(
       `${this.config.host}/search`,
       {
         lat,
@@ -684,7 +727,7 @@ export class BarrelmanIntegration
   async getPlaceInfo(id: string): Promise<Place | null> {
     try {
       // ID format: "node/5718230659" — maps to /place/node/5718230659
-      const response = await barrelmanHttp.get(
+      const response = await barrelmanSearchHttp.get(
         `${this.config.host}/place/${id}`,
         { headers: this.headers, timeout: 10000 },
       )
@@ -707,7 +750,7 @@ export class BarrelmanIntegration
       autocomplete?: boolean
     },
   ): Promise<Place[]> {
-    const response = await barrelmanHttp.post(
+    const response = await barrelmanSearchHttp.post(
       `${this.config.host}/search`,
       {
         ...(options?.query ? { query: options.query } : {}),
@@ -725,7 +768,7 @@ export class BarrelmanIntegration
   }
 
   async getContainingAreas(lat: number, lng: number, exclude?: string): Promise<Place[]> {
-    const response = await barrelmanHttp.get(`${this.config.host}/contains`, {
+    const response = await barrelmanSearchHttp.get(`${this.config.host}/contains`, {
       params: { lat, lng, ...(exclude ? { exclude } : {}) },
       headers: this.headers,
       timeout: 10000,
@@ -741,7 +784,7 @@ export class BarrelmanIntegration
     lat?: number,
     lng?: number,
   ): Promise<Place[]> {
-    const response = await barrelmanHttp.get(`${this.config.host}/children`, {
+    const response = await barrelmanSearchHttp.get(`${this.config.host}/children`, {
       params: {
         id: areaId,
         categories: categories?.join(','),

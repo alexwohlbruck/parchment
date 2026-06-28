@@ -385,6 +385,65 @@ describe('TripService — buildTransitSegment', () => {
     expect(segment.details.transitDetails.delay).toBeUndefined()
   })
 
+  test('exposes barrelman interchangeable routes as routeOptions', () => {
+    const leg = {
+      mode: 'SUBWAY',
+      transitLeg: true,
+      from: { name: '14 St-Union Sq', lat: 40.73, lng: -73.99, stopId: '5_R20' },
+      to: { name: '96 St', lat: 40.79, lng: -73.97, stopId: '5_R30' },
+      startTime: '2026-01-15T08:05:00Z',
+      endTime: '2026-01-15T08:25:00Z',
+      duration: 1200,
+      distance: 5000,
+      routeShortName: 'Q',
+      routeId: 'Q',
+      routeColor: 'FCCC0A',
+      headsign: '96 St',
+      // Barrelman attached every line that runs this segment directly, even
+      // though MOTIS's time-optimal search only returned the Q.
+      interchangeableRoutes: [
+        { routeId: 'Q', shortName: 'Q', color: 'FCCC0A' },
+        { routeId: 'N', shortName: 'N', color: 'FCCC0A' },
+      ],
+    }
+
+    const segment = (tripService as any).buildTransitSegment(
+      leg,
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      '2026-01-15T08:05:00Z',
+    )
+
+    const opts = segment.details.transitDetails.routeOptions
+    expect(opts).toBeDefined()
+    expect(opts.map((o: { shortName?: string }) => o.shortName)).toEqual(['N', 'Q'])
+  })
+
+  test('omits routeOptions when the only direct line is the leg itself', () => {
+    const leg = {
+      mode: 'BUS',
+      transitLeg: true,
+      from: { name: 'Stop A', lat: 35.21, lng: -80.85, stopId: 'sa' },
+      to: { name: 'Stop B', lat: 35.22, lng: -80.84, stopId: 'sb' },
+      startTime: '2026-01-15T08:05:00Z',
+      endTime: '2026-01-15T08:25:00Z',
+      duration: 1200,
+      distance: 5000,
+      routeShortName: '9X',
+      routeId: 'r9x',
+      interchangeableRoutes: [{ routeId: 'r9x', shortName: '9X' }],
+    }
+
+    const segment = (tripService as any).buildTransitSegment(
+      leg,
+      CHARLOTTE_ORIGIN,
+      CHARLOTTE_DEST,
+      '2026-01-15T08:05:00Z',
+    )
+
+    expect(segment.details.transitDetails.routeOptions).toBeUndefined()
+  })
+
   test('realtime without delay only sets realTimeData flag', () => {
     const leg = {
       mode: 'BUS',

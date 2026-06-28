@@ -272,6 +272,11 @@ export class TripService {
     survivor.segments = survivor.segments.map((seg, idx) => {
       if (seg.mode !== 'transit' || !seg.details?.transitDetails) return seg
       const byKey = new Map<string, TransitRoute>()
+      // Seed with the GTFS-derived interchangeable set barrelman attached, so a
+      // line MOTIS never returned is still offered as a fallback.
+      for (const r of seg.details.transitDetails.routeOptions ?? []) {
+        byKey.set(r.id || r.shortName || '', r)
+      }
       for (const trip of group) {
         const route = trip.segments[idx]?.details?.transitDetails?.route
         if (route) byKey.set(route.id || route.shortName || '', route)
@@ -3379,6 +3384,31 @@ export class TripService {
       color: leg.routeColor,
       textColor: leg.routeTextColor,
       directionId: leg.directionId,
+    }
+
+    // Every line that runs this segment directly (interchangeable routes like
+    // the 4/5 or N/Q), from barrelman's GTFS trip patterns — complete even when
+    // MOTIS's time-optimal search only surfaced one of them. Applied to every
+    // transit leg so an un-merged single trip still advertises its alternates.
+    const interchange: any[] = Array.isArray(leg.interchangeableRoutes)
+      ? leg.interchangeableRoutes
+      : []
+    if (interchange.length > 1) {
+      transitDetails.routeOptions = interchange
+        .map((r) => ({
+          id: r.routeId || '',
+          shortName: r.shortName,
+          longName: r.longName,
+          type: routeType,
+          color: r.color,
+          textColor: r.textColor,
+          agency: { id: leg.agencyId || '', name: leg.agencyName || '' },
+        }))
+        .sort((a, b) =>
+          (a.shortName ?? '').localeCompare(b.shortName ?? '', undefined, {
+            numeric: true,
+          }),
+        )
     }
 
     // Surface realtime metadata from MOTIS legs. Barrelman passes through

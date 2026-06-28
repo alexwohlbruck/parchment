@@ -75,6 +75,9 @@ interface DepartureOption {
   label: string
   /** True when the time comes from a GTFS-RT prediction, not the schedule. */
   realTime: boolean
+  /** Which route this departure is — shown on merged "4 or 5" boards so the
+   *  rider knows whether each run is the 4 or the 5. */
+  route?: { shortName?: string; color?: string; textColor?: string }
 }
 const segmentDepartures = ref<Record<number, DepartureOption[]>>({})
 // Full fetched schedule per segment (superset of the chips) — rebooking
@@ -159,16 +162,30 @@ async function loadDepartures() {
           pool = sameDir.length >= 2 ? sameDir : sameLine
         }
         // Dedup by minute; a run is "live" when any source row carries a
-        // GTFS-RT prediction for it.
-        const byMs = new Map<number, boolean>()
+        // GTFS-RT prediction for it. Keep the route so a merged board can show
+        // which train each run is.
+        const byMs = new Map<number, { realTime: boolean; route?: DepartureOption['route'] }>()
         for (const d of pool) {
           const depMs = new Date(d.departureTime).getTime()
           if (depMs < floorMs - 30_000) continue
-          byMs.set(depMs, (byMs.get(depMs) ?? false) || d.realTime === true)
+          const prev = byMs.get(depMs)
+          byMs.set(depMs, {
+            realTime: (prev?.realTime ?? false) || d.realTime === true,
+            route:
+              prev?.route ??
+              (d.route
+                ? { shortName: d.route.shortName, color: d.route.color, textColor: d.route.textColor }
+                : undefined),
+          })
         }
         const runs: DepartureOption[] = [...byMs.entries()]
           .sort((a, b) => a[0] - b[0])
-          .map(([ms, realTime]) => ({ ms, realTime, label: formatTime(new Date(ms)) }))
+          .map(([ms, info]) => ({
+            ms,
+            realTime: info.realTime,
+            route: info.route,
+            label: formatTime(new Date(ms)),
+          }))
         nextSched[idx] = runs
         const earlier = runs.filter((d) => d.ms < startMs - 30_000).slice(-2)
         const current = runs.filter((d) => d.ms >= startMs - 30_000).slice(0, 4)
@@ -191,6 +208,16 @@ function isCurrentDeparture(segment: any, ms: number): boolean {
 
 function departuresFor(segmentIndex: number): DepartureOption[] {
   return segmentDepartures.value[segmentIndex] ?? []
+}
+
+/** "in 12 min" / "now" until a departure — the glanceable countdown a rider
+ *  acts on, shown alongside the absolute clock time. Empty past an hour, where
+ *  the clock time speaks for itself. Recomputes off the nowMs tick. */
+function relativeDeparture(ms: number): string {
+  const min = Math.round((ms - nowMs.value) / 60_000)
+  if (min <= 0) return 'now'
+  if (min < 60) return `in ${min} min`
+  return ''
 }
 
 // ── Departure rebooking ──────────────────────────────────────────────
@@ -1102,9 +1129,17 @@ function hasSegmentRouteInfo(segment: any): boolean {
                           Board<span v-if="entry.segment.departureStop.platformCode"> · Platform {{ entry.segment.departureStop.platformCode }}</span>
                         </div>
                       </div>
-                      <span class="text-sm font-semibold tabular-nums shrink-0">
-                        {{ formatTime(entry.segment.startTime) }}
-                      </span>
+                      <div class="text-right shrink-0">
+                        <div class="text-sm font-semibold tabular-nums">
+                          {{ formatTime(entry.segment.startTime) }}
+                        </div>
+                        <div
+                          v-if="relativeDeparture(asMs(entry.segment.startTime))"
+                          class="text-[11px] font-semibold leading-none text-parchment-600 dark:text-parchment-400"
+                        >
+                          {{ relativeDeparture(asMs(entry.segment.startTime)) }}
+                        </div>
+                      </div>
                     </div>
 
                     <!-- Departure picker — tap a later run to re-plan around it -->
@@ -1143,6 +1178,14 @@ function hasSegmentRouteInfo(segment: any): boolean {
                           && depState(entry.segmentIndex, dep) !== 'missed'
                           && chooseDeparture(entry.segmentIndex, dep.ms)"
                       >
+                        <!-- On a merged "4 or 5" board, label which train each run is -->
+                        <RouteBullet
+                          v-if="(entry.segment.routeOptions?.length ?? 0) > 1 && dep.route?.shortName"
+                          :label="dep.route.shortName"
+                          :color="dep.route.color"
+                          :text-color="dep.route.textColor"
+                          class="!min-w-[15px] !h-[15px] !px-1 !text-[9px]"
+                        />
                         <!-- Live (GTFS-RT) vs scheduled indicator -->
                         <RssIcon
                           v-if="dep.realTime"

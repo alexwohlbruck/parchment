@@ -202,6 +202,22 @@ export enum WidgetType {
   RELATED_PLACES = 'related_places',
   OSM_TAGS = 'osm_tags',
   BIKESHARE = 'bikeshare',
+  STREET_IMAGERY = 'street_imagery',
+}
+
+/**
+ * Nearest street-level image to a place, resolved from Mapillary's image
+ * radius search. Powers the street imagery preview on the place detail panel.
+ */
+export interface StreetImageryPreview {
+  imageId: string
+  thumbUrl: string // ~1024px preview suitable for a card thumbnail
+  isPano: boolean
+  capturedAt?: number // epoch ms the image was captured
+  compassAngle?: number // camera heading in degrees
+  lat: number
+  lng: number
+  distanceMeters?: number // distance from the place center
 }
 
 /**

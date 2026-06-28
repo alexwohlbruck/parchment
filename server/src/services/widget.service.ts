@@ -1,4 +1,4 @@
-import type { Place, TransitDeparture, TransitStopInfo, WidgetDescriptor, WidgetResponse, SourceReference, RelatedPlacesData, RelatedPlacesStrategy, RelatedParent, DisplayChip, BikeshareStatus } from '../types/place.types'
+import type { Place, TransitDeparture, TransitStopInfo, WidgetDescriptor, WidgetResponse, SourceReference, RelatedPlacesData, RelatedPlacesStrategy, RelatedParent, DisplayChip, BikeshareStatus, StreetImageryPreview } from '../types/place.types'
 import { WidgetType, WidgetDataType } from '../types/place.types'
 
 import { SOURCE } from '../lib/constants'
@@ -7,6 +7,7 @@ import { integrationManager } from './integrations'
 import { IntegrationCapabilityId } from '../types/integration.types'
 import { OverpassIntegration } from './integrations/overpass-integration'
 import { BarrelmanIntegration } from './integrations/barrelman-integration'
+import { MapillaryIntegration } from './integrations/mapillary-integration'
 import { isTransitStop } from '../lib/transit-utils'
 import { matchTags } from '../lib/osm-presets'
 import { buildPlaceIcon } from '../lib/place-categories'
@@ -57,6 +58,15 @@ function getOverpassInstance(): OverpassIntegration | null {
     .find((r) => r.integrationId === 'overpass')
   return record
     ? (integrationManager.getCachedIntegrationInstance(record) as OverpassIntegration | null)
+    : null
+}
+
+function getMapillaryInstance(): MapillaryIntegration | null {
+  const record = integrationManager
+    .getConfiguredIntegrations()
+    .find((r) => r.integrationId === IntegrationId.MAPILLARY)
+  return record
+    ? (integrationManager.getCachedIntegrationInstance(record) as MapillaryIntegration | null)
     : null
 }
 
@@ -180,6 +190,26 @@ export function resolveWidgetDescriptors(place: Place): WidgetDescriptor[] {
           ...(systemId ? { systemId } : {}),
           ...(stationId ? { stationId } : {}),
           ...(center ? { lat: String(center.lat), lng: String(center.lng) } : {}),
+        },
+      })
+    }
+  }
+
+  // ── 1.6 Street imagery (ASYNC) ───────────────────────────────────────────────
+  // Nearest Mapillary street-level image to the place. Only offered when a
+  // Mapillary integration is configured, so we don't render a skeleton that
+  // can never resolve.
+  {
+    const center = place.geometry?.value?.center
+    if (center && getMapillaryInstance()) {
+      descriptors.push({
+        type: WidgetType.STREET_IMAGERY,
+        dataType: WidgetDataType.ASYNC,
+        title: 'Street imagery',
+        estimatedHeight: 180,
+        params: {
+          lat: String(center.lat),
+          lng: String(center.lng),
         },
       })
     }
@@ -644,6 +674,37 @@ export async function fetchWidgetData(
           timestamp: new Date().toISOString(),
         },
         sources,
+      }
+    }
+
+    case WidgetType.STREET_IMAGERY: {
+      const lat = params.lat ? parseFloat(params.lat) : NaN
+      const lng = params.lng ? parseFloat(params.lng) : NaN
+
+      if (isNaN(lat) || isNaN(lng)) {
+        throw new Error('Missing lat/lng parameters for street imagery widget')
+      }
+
+      const mapillary = getMapillaryInstance()
+      let preview: StreetImageryPreview | null = null
+      if (mapillary) {
+        try {
+          preview = await mapillary.findNearestImage(lat, lng)
+        } catch (error) {
+          console.error('❌ [Widget/StreetImagery] Mapillary lookup failed:', error)
+        }
+      }
+
+      return {
+        type: WidgetType.STREET_IMAGERY,
+        data: {
+          value: preview,
+          sourceId: IntegrationId.MAPILLARY,
+          timestamp: new Date().toISOString(),
+        },
+        sources: preview
+          ? [{ id: IntegrationId.MAPILLARY, name: 'Mapillary', url: 'https://www.mapillary.com' }]
+          : [],
       }
     }
 

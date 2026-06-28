@@ -169,9 +169,10 @@ watch(isBottomSheetView, async isOpen => {
   } else {
     bottomSheetOpen.value = isOpen
     // Don't redirect to MAP when leaving the bottom sheet by navigating to a
-    // dialog route (e.g. /settings/integrations). The user wants to stay at
-    // the dialog; pushing to MAP here would close it immediately.
-    if (!route.meta.dialog) {
+    // dialog route (e.g. /settings/integrations) or a full-screen takeover
+    // (e.g. /street/:id street view). The user wants to stay there; pushing to
+    // MAP here would bounce them back immediately.
+    if (!route.meta.dialog && !route.meta.hideUI) {
       router.push({ name: AppRoute.MAP })
     }
   }

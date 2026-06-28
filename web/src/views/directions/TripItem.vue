@@ -205,11 +205,16 @@ function getSegmentTooltip(segment: any): string {
   return `${mode}: ${duration}${distance ? ', ' + distance : ''}`
 }
 
-/** "Q · toward Coney Island" — single quiet context line under the bar. */
+/** "Q · toward Coney Island" — single quiet context line under the bar.
+ *  Merged interchangeable legs read "4 or 5 · toward …". */
 const firstTransitHeadsign = computed(() => {
-  const seg = props.trip.segments.find(s => s.mode === 'transit' && (s as any).headsign)
+  const seg = props.trip.segments.find(s => s.mode === 'transit' && (s as any).headsign) as any
   if (!seg) return null
-  return `${(seg as any).lineName ? (seg as any).lineName + ' · ' : ''}${t('directions.toward', { headsign: (seg as any).headsign })}`
+  const opts: { shortName?: string }[] = seg.routeOptions ?? []
+  const line = opts.length > 1
+    ? opts.map(o => o.shortName).filter(Boolean).join(` ${t('directions.or')} `)
+    : seg.lineName
+  return `${line ? line + ' · ' : ''}${t('directions.toward', { headsign: seg.headsign })}`
 })
 
 const legs = computed(() => {

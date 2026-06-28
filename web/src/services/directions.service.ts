@@ -283,6 +283,14 @@ function directionsService() {
       lineTextColor: td.textColor || td.route?.textColor,
       lineLongName: td.route?.longName,
       headsign: td.headsign || td.trip?.headsign,
+      // Interchangeable routes on shared track (e.g. the 4 and the 5). Present
+      // (length > 1) on merged legs — render "4 or 5" and union the board.
+      routeOptions: (td.routeOptions ?? []).map((r: any) => ({
+        shortName: r.shortName,
+        color: r.color,
+        textColor: r.textColor,
+      })),
+      directionId: td.directionId,
       vehicleNumber: td.shortName || td.route?.shortName,
       agencyName: td.route?.agency?.name,
       agencyId: td.route?.agency?.id,

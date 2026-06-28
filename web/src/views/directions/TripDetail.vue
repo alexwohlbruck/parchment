@@ -137,14 +137,27 @@ async function loadDepartures() {
         const all: any[] = (Array.isArray(data) ? data : []).flatMap(
           (s: { departures?: unknown[] }) => s.departures ?? [],
         )
+        // Merged "4 or 5" legs match any of their interchangeable routes.
+        const routeNames: (string | undefined)[] = seg.routeOptions?.length
+          ? seg.routeOptions.map((o: { shortName?: string }) => o.shortName)
+          : [seg.lineName]
         const sameLine = all.filter(
-          (d) => d.route?.shortName === seg.lineName && !d.cancelled,
+          (d) => routeNames.includes(d.route?.shortName) && !d.cancelled,
         )
-        // Prefer same-direction departures when the headsign matches
-        const sameDirection = sameLine.filter(
-          (d) => d.headsign?.toLowerCase() === seg.headsign?.toLowerCase(),
-        )
-        const pool = sameDirection.length >= 2 ? sameDirection : sameLine
+        // Same direction: by GTFS direction_id when present (reliable across
+        // the 4 and 5, which carry different headsigns), else by headsign.
+        let pool: typeof sameLine
+        if (seg.directionId != null) {
+          const sameDir = sameLine.filter(
+            (d) => String(d.directionId) === String(seg.directionId),
+          )
+          pool = sameDir.length ? sameDir : sameLine
+        } else {
+          const sameDir = sameLine.filter(
+            (d) => d.headsign?.toLowerCase() === seg.headsign?.toLowerCase(),
+          )
+          pool = sameDir.length >= 2 ? sameDir : sameLine
+        }
         // Dedup by minute; a run is "live" when any source row carries a
         // GTFS-RT prediction for it.
         const byMs = new Map<number, boolean>()
@@ -216,7 +229,17 @@ async function nextDepartureAfter(seg: any, segmentIndex: number, minMs: number)
     )
     return (
       all
-        .filter((d) => d.route?.shortName === seg.lineName && !d.cancelled)
+        .filter(
+          (d) =>
+            (seg.routeOptions?.length
+              ? seg.routeOptions.some(
+                  (o: { shortName?: string }) => o.shortName === d.route?.shortName,
+                )
+              : d.route?.shortName === seg.lineName) &&
+            (seg.directionId == null ||
+              String(d.directionId) === String(seg.directionId)) &&
+            !d.cancelled,
+        )
         .map((d) => new Date(d.departureTime).getTime())
         .filter((m) => m >= minMs)
         .sort((a, b) => a - b)[0] ?? null
@@ -1033,7 +1056,23 @@ function hasSegmentRouteInfo(segment: any): boolean {
                     :class="!entry.segment.lineColor && 'bg-muted/40'"
                     :style="entry.segment.lineColor ? { background: `#${entry.segment.lineColor}1f` } : {}"
                   >
+                    <!-- Interchangeable routes (4 or 5) render as several bullets -->
+                    <template v-if="(entry.segment.routeOptions?.length ?? 0) > 1">
+                      <template
+                        v-for="(opt, oi) in (entry.segment.routeOptions as { shortName?: string; color?: string; textColor?: string }[])"
+                        :key="opt.shortName"
+                      >
+                        <span v-if="oi > 0" class="text-xs text-muted-foreground">or</span>
+                        <RouteBullet
+                          size="md"
+                          :label="opt.shortName"
+                          :color="opt.color"
+                          :text-color="opt.textColor"
+                        />
+                      </template>
+                    </template>
                     <RouteBullet
+                      v-else
                       size="md"
                       :label="entry.segment.lineName"
                       :color="entry.segment.lineColor"

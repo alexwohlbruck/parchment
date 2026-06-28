@@ -338,6 +338,7 @@
       "parkAndRide": "Park & Ride"
     },
     "toward": "hacia {headsign}",
+    "or": "o",
     "title": "Direcciones",
     "planRouteFromHere": "Planificar ruta desde aquí",
     "directionsHere": "Direcciones a aquí",

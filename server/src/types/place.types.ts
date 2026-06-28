@@ -202,7 +202,6 @@ export enum WidgetType {
   RELATED_PLACES = 'related_places',
   OSM_TAGS = 'osm_tags',
   BIKESHARE = 'bikeshare',
-  STREET_IMAGERY = 'street_imagery',
 }
 
 /**

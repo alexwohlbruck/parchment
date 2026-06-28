@@ -14,6 +14,7 @@ import {
   SegmentState,
   TransitDetails,
   TransitStop,
+  TransitRoute,
   TransitRouteType,
   SharedMobilityDetails,
   TripWarning,
@@ -109,13 +110,18 @@ export class TripService {
       candidates.push(...trips)
     }
 
+    // Collapse trips that differ only by an interchangeable route (the 4 vs the
+    // 5 on shared express tracks) into a single "4 or 5" trip, so the rider
+    // sees one option boarding whichever train comes first.
+    const mergedCandidates = this.mergeInterchangeableTrips(candidates)
+
     // Score and rank trips.
     // referenceTime = when the user wants to depart. Used so a transit trip
     // that doesn't leave for 6 hours scores worse than an immediate drive.
     const referenceTime =
       request.preferredDepartureTime || new Date().toISOString()
 
-    const scored = candidates.map((trip) => {
+    const scored = mergedCandidates.map((trip) => {
       const score = this.scoreTrip(trip, referenceTime)
       return {
         trip,
@@ -192,6 +198,99 @@ export class TripService {
       default:
         return ['walking', 'driving', 'biking']
     }
+  }
+
+  /**
+   * Collapse trips that are identical except for an interchangeable transit
+   * route — same board→…→alight stop sequence and direction, different route
+   * id (the 4 and the 5 sharing express tracks). The survivor keeps the
+   * soonest-departing trip's timing and gains `routeOptions` on each merged
+   * transit leg; the trip-detail board later unions their schedules.
+   *
+   * Trips merge only when EVERY corresponding segment matches: non-transit
+   * legs by mode + endpoints + distance (so genuinely different drives/walks
+   * never collapse), transit legs by exact stop sequence (so an express never
+   * merges with a local, and routes sharing track merge only on the segment
+   * before they branch — past the divergence the sequences differ). The
+   * express→local-transfer case falls out for free: each leg is keyed
+   * independently, so the express legs merge and the local leg stays put.
+   */
+  private mergeInterchangeableTrips(trips: TripResponse[]): TripResponse[] {
+    const groups = new Map<string, TripResponse[]>()
+    for (const trip of trips) {
+      const sig = TripService.tripMergeSignature(trip)
+      const existing = groups.get(sig)
+      if (existing) existing.push(trip)
+      else groups.set(sig, [trip])
+    }
+    const out: TripResponse[] = []
+    for (const group of groups.values()) {
+      out.push(group.length === 1 ? group[0] : this.mergeTripGroup(group))
+    }
+    return out
+  }
+
+  /**
+   * Route-agnostic trip signature: two trips share it iff they are the same
+   * journey up to interchangeable transit routes. Transit legs contribute
+   * their full stop-id sequence (+ direction) but NOT the route; non-transit
+   * legs contribute mode + rounded endpoints + distance so different paths stay
+   * distinct while the identical access/egress walks of two interchangeable
+   * transit trips collapse together.
+   */
+  private static tripMergeSignature(trip: TripResponse): string {
+    return trip.segments
+      .map((seg) => {
+        if (seg.mode === 'transit') {
+          const td = seg.details?.transitDetails
+          const stops = td?.stops?.length
+            ? td.stops.map((s) => s.id).join('>')
+            : `${td?.departureStop?.id ?? ''}>${td?.arrivalStop?.id ?? ''}`
+          return `T:${stops}|d${td?.trip?.direction ?? ''}`
+        }
+        const a = seg.start?.location
+        const b = seg.end?.location
+        const r = (n?: number) => (n == null ? '' : n.toFixed(4))
+        return `${seg.mode}:${r(a?.lat)},${r(a?.lng)}>${r(b?.lat)},${r(b?.lng)}:${Math.round(seg.distance ?? 0)}`
+      })
+      .join('|')
+  }
+
+  /**
+   * Merge a group of interchangeable trips into the soonest-departing one,
+   * annotating each transit leg with the full set of routes that serve it.
+   * Also de-duplicates repeated departures of the same route (keeping the
+   * soonest) since those share the signature too.
+   */
+  private mergeTripGroup(group: TripResponse[]): TripResponse {
+    const survivor = group.reduce((a, b) =>
+      new Date(b.earliestStartTime).getTime() <
+      new Date(a.earliestStartTime).getTime()
+        ? b
+        : a,
+    )
+    survivor.segments = survivor.segments.map((seg, idx) => {
+      if (seg.mode !== 'transit' || !seg.details?.transitDetails) return seg
+      const byKey = new Map<string, TransitRoute>()
+      for (const trip of group) {
+        const route = trip.segments[idx]?.details?.transitDetails?.route
+        if (route) byKey.set(route.id || route.shortName || '', route)
+      }
+      if (byKey.size <= 1) return seg
+      const routeOptions = [...byKey.values()].sort((x, y) =>
+        (x.shortName ?? '').localeCompare(y.shortName ?? '', undefined, {
+          numeric: true,
+        }),
+      )
+      return {
+        ...seg,
+        details: {
+          ...seg.details,
+          transitDetails: { ...seg.details.transitDetails, routeOptions },
+        },
+      }
+    })
+    return survivor
   }
 
   /**
@@ -3279,6 +3378,7 @@ export class TripService {
       shortName: leg.routeShortName,
       color: leg.routeColor,
       textColor: leg.routeTextColor,
+      directionId: leg.directionId,
     }
 
     // Surface realtime metadata from MOTIS legs. Barrelman passes through

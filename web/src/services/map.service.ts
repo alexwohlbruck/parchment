@@ -309,12 +309,19 @@ function mapService() {
         mapStrategy.flyTo({
           center: lngLat,
         })
-        router.push({
+        const location = {
           name: AppRoute.STREET,
-          params: {
-            id: image.id,
-          },
-        })
+          params: { id: image.id },
+        }
+        // Moving between panos while already in street view replaces the URL,
+        // so hopping along the map dots doesn't pile up browser-history
+        // entries — otherwise Close would step back through every pano visited
+        // instead of exiting street view.
+        if (router.currentRoute.value.name === AppRoute.STREET) {
+          router.replace(location)
+        } else {
+          router.push(location)
+        }
       }
     })
 

@@ -11,6 +11,7 @@ import { PermissionId } from '../types/auth.types'
 import { SOURCE } from '../lib/constants.js'
 import { WidgetType } from '../types/place.types'
 import { fetchWidgetData } from '../services/widget.service'
+import { fetchNearestStreetImage } from '../services/street-imagery.service'
 
 const app = new Elysia({ prefix: '/places' })
   .use(getSession)
@@ -203,6 +204,41 @@ app.get(
       summary: 'Get widget data for a place',
       description:
         'Fetch additional widget data (transit departures, etc.) separately from the base place lookup. Query parameters vary by widget type.',
+    },
+  },
+)
+
+// Nearest street-level imagery to a coordinate (Mapillary). Powers the
+// floating street view preview on the place detail.
+app.get(
+  '/street-imagery',
+  async (ctx) => {
+    const { query, status } = ctx as typeof ctx & { status?: any }
+    const lat = parseFloat(query.lat as string)
+    const lng = parseFloat(query.lng as string)
+
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      return status(400, { message: 'lat and lng are required' })
+    }
+
+    try {
+      const preview = await fetchNearestStreetImage(lat, lng)
+      return { preview }
+    } catch (err) {
+      console.error('Error fetching street imagery:', err)
+      return status(500, {
+        message: err instanceof Error ? err.message : 'Error fetching street imagery',
+      })
+    }
+  },
+  {
+    query: t.Object({
+      lat: t.String(),
+      lng: t.String(),
+    }),
+    detail: {
+      tags: ['Places'],
+      summary: 'Get nearest street-level image to a coordinate',
     },
   },
 )

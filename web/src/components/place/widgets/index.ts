@@ -14,7 +14,4 @@ export const widgetComponents: Record<string, ReturnType<typeof defineAsyncCompo
   [WidgetType.BIKESHARE]: defineAsyncComponent(
     () => import('./BikeshareWidget.vue'),
   ),
-  [WidgetType.STREET_IMAGERY]: defineAsyncComponent(
-    () => import('./StreetImageryWidget.vue'),
-  ),
 }

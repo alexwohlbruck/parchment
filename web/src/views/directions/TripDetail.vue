@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { api } from '@/lib/api'
 import { applyDepartureChange } from '@/lib/trip-rebooking'
@@ -92,6 +92,7 @@ const refreshTimer = setInterval(() => { void loadDepartures() }, 30_000)
 onUnmounted(() => {
   clearInterval(tickTimer)
   clearInterval(refreshTimer)
+  window.removeEventListener('resize', remeasureDepEdges)
 })
 
 async function loadDepartures() {
@@ -188,7 +189,9 @@ async function loadDepartures() {
           }))
         nextSched[idx] = runs
         const earlier = runs.filter((d) => d.ms < startMs - 30_000).slice(-2)
-        const current = runs.filter((d) => d.ms >= startMs - 30_000).slice(0, 4)
+        // Enough upcoming runs to fill the horizontally-scrollable board with
+        // roughly the next hour of service.
+        const current = runs.filter((d) => d.ms >= startMs - 30_000).slice(0, 10)
         nextChips[idx] = [...earlier, ...current]
       } catch {
         // Departures are an enhancement — skip on failure
@@ -219,6 +222,54 @@ function relativeDeparture(ms: number): string {
   if (min < 60) return `in ${min} min`
   return ''
 }
+
+/** Board-card countdown: a glanceable lead ("now" / "5 min") plus the absolute
+ *  clock time as a sub-line. Past an hour the clock carries the card alone — no
+ *  countdown. Recomputes off the nowMs tick. */
+function depCountdown(ms: number): { lead: string; sub: string } {
+  const min = Math.round((ms - nowMs.value) / 60_000)
+  const clock = formatTime(new Date(ms))
+  if (min <= 0) return { lead: 'now', sub: clock }
+  if (min < 60) return { lead: `${min} min`, sub: clock }
+  return { lead: clock, sub: '' }
+}
+
+// ── Departure board scroll affordance ────────────────────────────────
+// Fade the board's edges to hint there's more to scroll. Each leg's strip
+// reports whether it's scrolled away from the start/end so the fades only
+// show when they mean something (and not at all when it doesn't overflow).
+const depEdges = ref<Record<number, { start: boolean; end: boolean }>>({})
+const depScrollEls = new Map<number, HTMLElement>()
+
+function updateDepEdges(segmentIndex: number, el: HTMLElement) {
+  const start = el.scrollLeft > 4
+  const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 4
+  const cur = depEdges.value[segmentIndex]
+  if (!cur || cur.start !== start || cur.end !== end) {
+    depEdges.value = { ...depEdges.value, [segmentIndex]: { start, end } }
+  }
+}
+
+function onDepScroll(segmentIndex: number, e: Event) {
+  if (e.target instanceof HTMLElement) updateDepEdges(segmentIndex, e.target)
+}
+
+/** Function ref that tracks each board strip and measures it once laid out. */
+function depScrollRef(segmentIndex: number) {
+  return (el: unknown) => {
+    if (el instanceof HTMLElement) {
+      depScrollEls.set(segmentIndex, el)
+      requestAnimationFrame(() => updateDepEdges(segmentIndex, el))
+    } else {
+      depScrollEls.delete(segmentIndex)
+    }
+  }
+}
+
+function remeasureDepEdges() {
+  for (const [idx, el] of depScrollEls) updateDepEdges(idx, el)
+}
+onMounted(() => window.addEventListener('resize', remeasureDepEdges))
 
 // ── Departure rebooking ──────────────────────────────────────────────
 // Choosing a later run is pure schedule math on the existing plan — no
@@ -1142,29 +1193,37 @@ function hasSegmentRouteInfo(segment: any): boolean {
                       </div>
                     </div>
 
-                    <!-- Departure picker — tap a later run to re-plan around it -->
+                    <!-- Departure board — glanceable countdown cards a rider
+                         acts on; tap a later run to re-plan around it. Scrolls
+                         horizontally through the next ~hour of service. -->
                     <div
                       v-if="departuresFor(entry.segmentIndex).length > 1"
-                      class="flex flex-wrap items-center gap-1.5"
+                      class="relative -mx-3"
                     >
+                      <div
+                        :ref="depScrollRef(entry.segmentIndex)"
+                        class="dep-scroll px-3 flex items-stretch gap-1.5 overflow-x-auto"
+                        @scroll="onDepScroll(entry.segmentIndex, $event)"
+                      >
                       <button
                         v-for="dep in departuresFor(entry.segmentIndex)"
                         :key="dep.ms"
                         type="button"
-                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium tabular-nums transition-all"
+                        class="shrink-0 min-w-[58px] flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 rounded-lg border text-center tabular-nums transition-all"
                         :class="[
                           isCurrentDeparture(entry.segment, dep.ms)
-                            ? (!entry.segment.lineColor && 'bg-parchment-500 text-white')
+                            ? (!entry.segment.lineColor && 'bg-parchment-500 text-white border-transparent')
                             : depState(entry.segmentIndex, dep) === 'missed'
-                              ? 'bg-muted/60 text-muted-foreground/50 line-through cursor-default'
+                              ? 'bg-muted/40 text-muted-foreground/50 border-transparent cursor-default'
                               : depState(entry.segmentIndex, dep) === 'hurry'
-                                ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 hover:ring-1 hover:ring-amber-400 cursor-pointer'
-                                : 'bg-muted text-muted-foreground hover:text-foreground hover:ring-1 hover:ring-border cursor-pointer',
+                                ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 hover:ring-1 hover:ring-amber-400 cursor-pointer'
+                                : 'bg-muted/30 border-border text-foreground hover:bg-muted/60 hover:border-foreground/20 cursor-pointer',
                           rebooking && 'opacity-50 pointer-events-none',
                         ]"
                         :style="isCurrentDeparture(entry.segment, dep.ms) && entry.segment.lineColor ? {
                           background: `#${entry.segment.lineColor}`,
                           color: entry.segment.lineTextColor ? `#${entry.segment.lineTextColor}` : '#fff',
+                          borderColor: 'transparent',
                         } : {}"
                         :title="isCurrentDeparture(entry.segment, dep.ms)
                           ? 'Planned departure'
@@ -1172,28 +1231,49 @@ function hasSegmentRouteInfo(segment: any): boolean {
                             ? 'Departed'
                             : depState(entry.segmentIndex, dep) === 'hurry'
                               ? 'Catchable if you hurry'
-                              : 'Take this departure instead'"
+                              : `Leave on the ${dep.route?.shortName ?? entry.segment.lineName} at ${dep.label} instead`"
                         :disabled="depState(entry.segmentIndex, dep) === 'missed' && !isCurrentDeparture(entry.segment, dep.ms)"
                         @click="!isCurrentDeparture(entry.segment, dep.ms)
                           && depState(entry.segmentIndex, dep) !== 'missed'
                           && chooseDeparture(entry.segmentIndex, dep.ms)"
                       >
-                        <!-- On a merged "4 or 5" board, label which train each run is -->
-                        <RouteBullet
-                          v-if="(entry.segment.routeOptions?.length ?? 0) > 1 && dep.route?.shortName"
-                          :label="dep.route.shortName"
-                          :color="dep.route.color"
-                          :text-color="dep.route.textColor"
-                          class="!min-w-[15px] !h-[15px] !px-1 !text-[9px]"
-                        />
-                        <!-- Live (GTFS-RT) vs scheduled indicator -->
-                        <RssIcon
-                          v-if="dep.realTime"
-                          class="size-2.5 opacity-70"
-                          :class="depState(entry.segmentIndex, dep) !== 'missed' && 'animate-pulse'"
-                        />
-                        {{ dep.label }}
+                        <!-- Which train (on merged 4-or-5 boards) + whether this
+                             time is a live GTFS-RT prediction. -->
+                        <div class="flex items-center justify-center gap-1 h-3.5 leading-none">
+                          <span
+                            v-if="(entry.segment.routeOptions?.length ?? 0) > 1 && dep.route?.shortName"
+                            class="text-[11px] font-bold"
+                            :style="!isCurrentDeparture(entry.segment, dep.ms) && dep.route.color ? { color: `#${dep.route.color}` } : {}"
+                          >{{ dep.route.shortName }}</span>
+                          <RssIcon
+                            v-if="dep.realTime"
+                            class="size-2.5 opacity-80"
+                            :class="depState(entry.segmentIndex, dep) !== 'missed' && 'animate-pulse'"
+                          />
+                        </div>
+                        <!-- Glanceable countdown -->
+                        <div
+                          class="text-[13px] font-semibold leading-tight"
+                          :class="depState(entry.segmentIndex, dep) === 'missed' && 'line-through'"
+                        >{{ depCountdown(dep.ms).lead }}</div>
+                        <!-- Absolute clock time -->
+                        <div
+                          v-if="depCountdown(dep.ms).sub"
+                          class="text-[10px] leading-none opacity-70"
+                        >{{ depCountdown(dep.ms).sub }}</div>
                       </button>
+                      </div>
+                      <!-- Edge fades hint there are more departures off-screen -->
+                      <div
+                        v-show="depEdges[entry.segmentIndex]?.start"
+                        class="pointer-events-none absolute inset-y-0 left-0 w-6"
+                        style="background: linear-gradient(to right, hsl(var(--card)), hsl(var(--card) / 0))"
+                      />
+                      <div
+                        v-show="depEdges[entry.segmentIndex]?.end"
+                        class="pointer-events-none absolute inset-y-0 right-0 w-6"
+                        style="background: linear-gradient(to left, hsl(var(--card)), hsl(var(--card) / 0))"
+                      />
                     </div>
 
                     <!-- Intermediate stops -->
@@ -1535,6 +1615,14 @@ function hasSegmentRouteInfo(segment: any): boolean {
 </template>
 
 <style scoped>
+/* Departure board — clean horizontal scroll, no visible scrollbar */
+.dep-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.dep-scroll::-webkit-scrollbar {
+  display: none;
+}
 .step-row {
   display: flex;
   gap: 10px;

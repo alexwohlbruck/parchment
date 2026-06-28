@@ -81,7 +81,30 @@ export function getSnapPreventions(mode: TravelMode): string[] | undefined {
  * @param mode   The travel mode (DRIVING, CYCLING, WALKING, WHEELCHAIR, etc.)
  * @param prefs  The routing preferences from the user
  */
+// A custom model is a pure function of (mode, prefs), and every consumer only
+// assigns the result onto a request body — never mutates it — so memoize it. A
+// single trip plan builds ~20–30 routes that mostly share the same preferences;
+// without this each one rebuilds the rule list from scratch.
+const customModelCache = new Map<string, CustomModel | undefined>()
+const CUSTOM_MODEL_CACHE_MAX = 256
+
 export function buildGraphHopperCustomModel(
+  mode: TravelMode,
+  prefs: RoutingPreferences | undefined,
+): CustomModel | undefined {
+  const key = `${mode}|${prefs ? JSON.stringify(prefs) : ''}`
+  if (customModelCache.has(key)) return customModelCache.get(key)
+  const result = computeGraphHopperCustomModel(mode, prefs)
+  // FIFO trim — the key space is bounded by distinct preference sets in practice.
+  if (customModelCache.size >= CUSTOM_MODEL_CACHE_MAX) {
+    const oldest = customModelCache.keys().next().value
+    if (oldest !== undefined) customModelCache.delete(oldest)
+  }
+  customModelCache.set(key, result)
+  return result
+}
+
+function computeGraphHopperCustomModel(
   mode: TravelMode,
   prefs: RoutingPreferences | undefined,
 ): CustomModel | undefined {

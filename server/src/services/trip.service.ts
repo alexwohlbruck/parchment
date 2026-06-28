@@ -815,13 +815,15 @@ export class TripService {
         ? car.location
         : null
 
-    // Try each parking spot — pick the one with the best total time
-    let bestTrip: TripResponse | null = null
-    let bestTotalDuration = Infinity
-
-    for (const { place, coord: parkingCoord, distToDest } of sortedParking) {
+    // Evaluate each candidate parking spot concurrently and pick the best
+    // total time. Previously a serial loop: the drive+walk route calls within
+    // a candidate, and the candidates themselves, ran one after another and
+    // their latencies summed. Now they overlap.
+    const evaluateCandidate = async (
+      { place, coord: parkingCoord, distToDest }: (typeof sortedParking)[number],
+    ): Promise<{ trip: TripResponse; totalDuration: number } | null> => {
       // Skip parking too far to walk from
-      if (distToDest > maxWalkDistance) continue
+      if (distToDest > maxWalkDistance) return null
 
       try {
         const segments: TripSegment[] = []
@@ -850,7 +852,7 @@ export class TripService {
               preferences,
             )
 
-            if (!walkRoute.routes.length) continue
+            if (!walkRoute.routes.length) return null
             const walkLeg = walkRoute.routes[0].legs[0]
 
             segments.push({
@@ -896,7 +898,7 @@ export class TripService {
           preferences,
         )
 
-        if (!driveRoute.routes.length) continue
+        if (!driveRoute.routes.length) return null
         const driveLeg = driveRoute.routes[0].legs[0]
 
         // Extract parking cost from OSM fee tag if available
@@ -946,14 +948,14 @@ export class TripService {
           preferences,
         )
 
-        if (!walkRoute.routes.length) continue
+        if (!walkRoute.routes.length) return null
         const walkLeg = walkRoute.routes[0].legs[0]
 
         // Reject lots that don't actually connect to the destination on foot.
         // If the drive's end and the walk's start are far apart, they snapped
         // to opposite sides of a barrier (e.g. rail tracks) and the trip would
         // teleport across — not a real route.
-        if (!this.segmentsConnect(driveLeg.geometry, walkLeg.geometry)) continue
+        if (!this.segmentsConnect(driveLeg.geometry, walkLeg.geometry)) return null
 
         segments.push({
           segmentIndex: segments.length,
@@ -979,7 +981,6 @@ export class TripService {
         currentTime += walkLeg.duration * 1000
 
         const totalDuration = (currentTime - new Date(startTime).getTime()) / 1000
-        if (totalDuration >= bestTotalDuration) continue
 
         const tripStats = this.calculateStats(segments)
 
@@ -992,8 +993,7 @@ export class TripService {
           }
         }
 
-        bestTotalDuration = totalDuration
-        bestTrip = {
+        const trip: TripResponse = {
           segments,
           tripStats,
           earliestStartTime: segments[0].startTime,
@@ -1010,9 +1010,22 @@ export class TripService {
               }]
             : undefined,
         }
+        return { trip, totalDuration }
       } catch (error) {
-        // Individual parking spot failed — try next
-        continue
+        // Individual parking spot failed — skip it
+        return null
+      }
+    }
+
+    // Fastest connecting candidate wins (ties resolve to the earlier candidate,
+    // i.e. the closer lot, matching the previous strict `<` behaviour).
+    const evaluated = await Promise.all(sortedParking.map(evaluateCandidate))
+    let bestTrip: TripResponse | null = null
+    let bestTotalDuration = Infinity
+    for (const result of evaluated) {
+      if (result && result.totalDuration < bestTotalDuration) {
+        bestTotalDuration = result.totalDuration
+        bestTrip = result.trip
       }
     }
 
@@ -1083,13 +1096,14 @@ export class TripService {
         ? bike.location
         : null
 
-    // Try each parking spot — pick the one with the best total time
-    let bestTrip: TripResponse | null = null
-    let bestTotalDuration = Infinity
-
-    for (const { place, coord: parkingCoord, distToDest } of sortedParking) {
+    // Evaluate each candidate parking spot concurrently and pick the best
+    // total time. Previously a serial loop where per-candidate route calls
+    // and the candidates themselves summed; now they overlap.
+    const evaluateCandidate = async (
+      { place, coord: parkingCoord, distToDest }: (typeof sortedParking)[number],
+    ): Promise<{ trip: TripResponse; totalDuration: number } | null> => {
       // Skip parking too far to walk from
-      if (distToDest > maxWalkDistance) continue
+      if (distToDest > maxWalkDistance) return null
 
       try {
         const segments: TripSegment[] = []
@@ -1119,7 +1133,7 @@ export class TripService {
               preferences,
             )
 
-            if (!walkRoute.routes.length) continue
+            if (!walkRoute.routes.length) return null
             const walkLeg = walkRoute.routes[0].legs[0]
 
             segments.push({
@@ -1162,7 +1176,7 @@ export class TripService {
           preferences,
         )
 
-        if (!bikeRoute.routes.length) continue
+        if (!bikeRoute.routes.length) return null
         const bikeLeg = bikeRoute.routes[0].legs[0]
 
         const bikeSegment: TripSegment = {
@@ -1202,12 +1216,12 @@ export class TripService {
           preferences,
         )
 
-        if (!walkRoute.routes.length) continue
+        if (!walkRoute.routes.length) return null
         const walkLeg = walkRoute.routes[0].legs[0]
 
         // Reject parking that doesn't connect to the destination on foot
         // (snapped across a barrier — would teleport).
-        if (!this.segmentsConnect(bikeLeg.geometry, walkLeg.geometry)) continue
+        if (!this.segmentsConnect(bikeLeg.geometry, walkLeg.geometry)) return null
 
         segments.push({
           segmentIndex: segments.length,
@@ -1233,12 +1247,10 @@ export class TripService {
         currentTime += walkLeg.duration * 1000
 
         const totalDuration = (currentTime - new Date(startTime).getTime()) / 1000
-        if (totalDuration >= bestTotalDuration) continue
 
         const tripStats = this.calculateStats(segments)
 
-        bestTotalDuration = totalDuration
-        bestTrip = {
+        const trip: TripResponse = {
           segments,
           tripStats,
           earliestStartTime: segments[0].startTime,
@@ -1254,9 +1266,22 @@ export class TripService {
               }]
             : undefined,
         }
+        return { trip, totalDuration }
       } catch (error) {
-        // Individual parking spot failed — try next
-        continue
+        // Individual parking spot failed — skip it
+        return null
+      }
+    }
+
+    // Fastest connecting candidate wins (ties resolve to the earlier/closer
+    // candidate, matching the previous strict `<` behaviour).
+    const evaluated = await Promise.all(sortedParking.map(evaluateCandidate))
+    let bestTrip: TripResponse | null = null
+    let bestTotalDuration = Infinity
+    for (const result of evaluated) {
+      if (result && result.totalDuration < bestTotalDuration) {
+        bestTotalDuration = result.totalDuration
+        bestTrip = result.trip
       }
     }
 
@@ -1679,6 +1704,7 @@ export class TripService {
     const maxWalkSec = TripService.walkSecondsBudget(
       preferences?.maxWalkingDistance,
       dist < 5000 ? 600 : 900,
+      TripService.TRANSIT_ACCESS_WALK_FLOOR_SEC,
     )
 
     // Arrive-by: anchor the MOTIS search on the arrival target so
@@ -1900,9 +1926,27 @@ export class TripService {
         maxPostTransitTime: maxWalkSec,
       },
       from, to, startTime, dataSources, preferences,
+      // MOTIS returns up to 8 RENTAL itineraries; selectSharedRides keeps only
+      // 1–2. Defer the per-itinerary GraphHopper shared-leg enrichment until
+      // after selection so we pay it for the survivors, not the discards.
+      { deferSharedRideEnrichment: true },
     )
 
-    return this.selectSharedRides(trips)
+    const selected = this.selectSharedRides(trips)
+
+    // Enrich the kept rides now (the work skipped above), then refresh their
+    // stats so the returned distance/elevation reflect the routed geometry —
+    // identical to the previous enrich-then-select order, which selection
+    // never actually depended on. Survivors are pure shared rides (no transit
+    // leg), so there is no GTFS fare to re-fold into calculateStats.
+    await Promise.all(
+      selected.map(async (trip) => {
+        await this.enrichSharedRideSegments(trip.segments, preferences)
+        trip.tripStats = this.calculateStats(trip.segments)
+      }),
+    )
+
+    return selected
   }
 
   /** A farther dock must save at least this much total time to displace
@@ -2010,6 +2054,7 @@ export class TripService {
       const maxWalkSec = TripService.walkSecondsBudget(
         preferences?.maxWalkingDistance,
         legDist < 5000 ? 600 : 900,
+        TripService.TRANSIT_ACCESS_WALK_FLOOR_SEC,
       )
 
       const trips = await this.executeIntermodalQuery(
@@ -2280,6 +2325,7 @@ export class TripService {
     startTime: string,
     dataSources: DataSource[],
     preferences?: any,
+    opts?: { deferSharedRideEnrichment?: boolean },
   ): Promise<TripResponse[]> {
     try {
       const response = await transitRoutingService.getIntermodalRoute(request)
@@ -2287,7 +2333,7 @@ export class TripService {
 
       const adapted = await Promise.all(
         response.itineraries.map(itinerary =>
-          this.adaptIntermodalItinerary(itinerary, from, to, startTime, dataSources, preferences),
+          this.adaptIntermodalItinerary(itinerary, from, to, startTime, dataSources, preferences, opts),
         ),
       )
       return adapted.filter((t): t is TripResponse => t !== null)
@@ -2313,6 +2359,7 @@ export class TripService {
     startTime: string,
     dataSources: DataSource[],
     preferences?: any,
+    opts?: { deferSharedRideEnrichment?: boolean },
   ): Promise<TripResponse | null> {
     let segments: TripSegment[] = []
 
@@ -2327,10 +2374,20 @@ export class TripService {
     // merged) walks. Order matters: collapsing first lets enrich re-time
     // the merged boundary/transfer walks correctly.
     segments = this.collapseWalkableTransitLegs(segments)
-    await Promise.all([
+    const enrichments: Promise<void>[] = [
       this.enrichIntermodalWalks(segments, from, to, startTime, preferences),
-      this.enrichSharedRideSegments(segments, preferences),
-    ])
+    ]
+    // Shared-ride (RENTAL) enrichment is a GraphHopper bicycle re-route that
+    // only adds geometry/instructions/elevation/edge data — none of which
+    // selectSharedRides reads (it ranks on walk + total duration, both fixed
+    // by MOTIS/walk enrichment). The shared-vehicle planner defers it to the
+    // 1–2 selected survivors instead of paying it for all 8 MOTIS itineraries
+    // it then discards. calculateStats is re-run on survivors after deferral
+    // so the returned distance/elevation still reflect the routed geometry.
+    if (!opts?.deferSharedRideEnrichment) {
+      enrichments.push(this.enrichSharedRideSegments(segments, preferences))
+    }
+    await Promise.all(enrichments)
 
     segments.forEach((seg, idx) => {
       seg.segmentIndex = idx
@@ -2445,12 +2502,36 @@ export class TripService {
    * itineraries. 20% detour headroom plus a minute of slack keeps the cap
    * meaning "about this far", erring on inclusion (scoring handles the rest).
    */
+  /**
+   * Floor (seconds) for the MOTIS transit access/egress walk budget. Decouples
+   * transit *discovery* from the user's walking preference: a tight
+   * maxWalkingDistance (e.g. 1000 m → ~917 s) must not make transit vanish
+   * entirely when the only usable station is a longer walk away — an origin set
+   * back from the street (a museum inside a park, a destination at a peninsula
+   * tip) can sit farther from a boardable stop than the preference allows, and
+   * returning *no transit at all* is worse than offering it with a longer walk.
+   * MOTIS still prefers the closest station, so normal trips are unaffected in
+   * result; this only lets farther stations surface as a fallback. ~25 min is
+   * about the longest walk-to-transit that's still useful vs. just cycling.
+   */
+  private static readonly TRANSIT_ACCESS_WALK_FLOOR_SEC = 1500
+
+  /**
+   * Walk-time budget (seconds) for a MOTIS access/egress leg, derived from the
+   * user's maxWalkingDistance (or `defaultSec` when unset), but never below
+   * `minSec`. See TRANSIT_ACCESS_WALK_FLOOR_SEC for why transit callers pass a
+   * floor; non-transit callers (shared-vehicle dock walks) pass none, since
+   * walking 25 min to a rental dock is never sensible.
+   */
   private static walkSecondsBudget(
     maxWalkingDistanceM: number | undefined,
     defaultSec: number,
+    minSec = 0,
   ): number {
-    if (!maxWalkingDistanceM) return defaultSec
-    return Math.round((maxWalkingDistanceM / 1.4) * 1.2) + 60
+    const raw = maxWalkingDistanceM
+      ? Math.round((maxWalkingDistanceM / 1.4) * 1.2) + 60
+      : defaultSec
+    return Math.max(raw, minSec)
   }
 
   /**

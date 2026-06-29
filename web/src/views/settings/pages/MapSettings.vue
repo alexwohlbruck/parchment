@@ -13,6 +13,7 @@ import {
   MapProjection,
   ControlVisibility,
   UnitSystem,
+  GridSnapMode,
 } from '@/types/map.types'
 import { CommandName } from '@/stores/command.store'
 
@@ -38,6 +39,7 @@ import {
   MapPinIcon,
   ZoomInIcon,
   CompassIcon,
+  Grid2x2,
   RulerIcon,
   PencilRulerIcon,
   PersonStandingIcon,
@@ -215,6 +217,49 @@ const isMaplibre = computed(() => settings.value.engine === MapEngine.MAPLIBRE)
           :model-value="settings.placeLabels"
           @update:model-value="mapService.togglePlaceLabels()"
         />
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.configuration.northUpSnap')"
+        :description="
+          $t('settings.mapSettings.configuration.northUpSnapDescription')
+        "
+        :icon="CompassIcon"
+      >
+        <Switch
+          :model-value="settings.northUpSnap !== false"
+          @update:model-value="mapService.toggleNorthUpSnap()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.configuration.gridSnap')"
+        :description="
+          $t('settings.mapSettings.configuration.gridSnapDescription')
+        "
+        :icon="Grid2x2"
+      >
+        <Select
+          :model-value="settings.gridSnapMode ?? GridSnapMode.NORTH_UP"
+          @update:model-value="settings.gridSnapMode = $event as GridSnapMode"
+        >
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem :value="GridSnapMode.OFF">
+                {{ $t('settings.mapSettings.configuration.gridSnapModeOff') }}
+              </SelectItem>
+              <SelectItem :value="GridSnapMode.NORTH_UP">
+                {{ $t('settings.mapSettings.configuration.gridSnapModeNorthUp') }}
+              </SelectItem>
+              <SelectItem :value="GridSnapMode.ALL">
+                {{ $t('settings.mapSettings.configuration.gridSnapModeAll') }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
       </SettingsItem>
     </SettingsSection>
 

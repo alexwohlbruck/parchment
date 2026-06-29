@@ -49,6 +49,15 @@ export enum StartupLocation {
   URL_PARAMS = 'urlParams',
 }
 
+export enum GridSnapMode {
+  // Don't snap to city grids at all.
+  OFF = 'off',
+  // Snap only to the grid's upright (nearest-to-north) orientation.
+  NORTH_UP = 'north-up',
+  // Snap to any of the grid's four 90°-rotated orientations.
+  ALL = 'all',
+}
+
 export enum FloorNumbering {
   ZERO_BASED = 'zero-based',
   ONE_BASED = 'one-based',
@@ -68,6 +77,17 @@ export interface MapSettings {
   transitLabels: boolean
   placeLabels: boolean
   hdRoads: boolean
+  /**
+   * When true, snaps the map upright when a rotation ends close to north. This
+   * is our own reimplementation — the engine's native `bearingSnap` is disabled
+   * so the behavior can be toggled live (see map.service `snapRotation`).
+   */
+  northUpSnap: boolean
+  /**
+   * Snap map rotation to a known city street grid when near one: off, the
+   * grid's upright orientation only, or any of its four 90° rotations.
+   */
+  gridSnapMode: GridSnapMode
   locateFlySpeed: LocateFlySpeed
   startupLocation: StartupLocation
 }
@@ -136,6 +156,9 @@ export type MapEvents = {
   load: MapInstance
   moveend: MapCamera
   move: MapCamera
+  // Fired only when the user finishes a manual rotation gesture (not for
+  // programmatic camera moves). Drives the north-up and city-grid snap.
+  rotateend: MapCamera
   'style.load': MapInstance
   contextmenu: {
     lngLat: LngLat
